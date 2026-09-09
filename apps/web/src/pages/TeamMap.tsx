@@ -11,12 +11,13 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
  * Карта команды на весь экран. Гексы и стороны — в масштабируемом слое,
  * значки (старт, город, метки дел, подписи) — в экранном слое постоянного размера.
  */
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void }) {
+export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [map.hexes, size]);
   const start = useMemo(() => (map.team.startNodeKey ? nodePos(map.team.startNodeKey, size) : null), [map.team.startNodeKey, size]);
   const vp = useViewport(bounds, start ? { x: start.x, y: start.y, k: 2.4 } : null);
   const revealed = useMemo(() => new Set(map.revealed.map((n) => n.key)), [map.revealed]);
+  const cityByKey = useMemo(() => new Map((map.cities ?? []).map((c) => [c.nodeKey, c])), [map.cities]);
   const taskByEdge = useMemo(() => {
     const m = new Map<string, (typeof map.tasks)[number]>();
     for (const t of map.tasks) m.set([t.fromKey, t.toKey].sort().join("|"), t);
@@ -33,6 +34,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect }: { map: MyM
   const { k, tx, ty } = vp.view;
   const S = (p: { x: number; y: number }) => ({ x: tx + p.x * k, y: ty + p.y * k });
   const click = (taskId: string) => { if (!vp.wasDrag()) onSelect(selectedTaskId === taskId ? null : taskId); };
+  const clickCity = (key: string) => { if (!vp.wasDrag()) onSelectCity(key); };
   const statusColor = (s: string) => s === "SUBMITTED" ? "#C7742A" : s === "TAKEN" ? "#3E7A4E" : s === "REJECTED" ? "#B3402F" : "#FFFFFF";
   const R = k >= 1.6 ? 12 : 9;
   // Уровни детализации: при отдалении метки дел и подписи прячутся, чтобы не заслонять карту.
@@ -61,7 +63,15 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect }: { map: MyM
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;
             if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
-            if (n.kind === "CITY") return <image key={"c" + n.key} href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />;
+            if (n.kind === "CITY") {
+              const c = cityByKey.get(n.key);
+              return (
+                <g key={"c" + n.key} onClick={() => clickCity(n.key)} style={{ cursor: "pointer" }}>
+                  {c?.owner && <circle cx={p.x} cy={p.y - CITY * 0.1} r={CITY * 0.62} fill={c.owner.color} fillOpacity={0.35} stroke={c.owner.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />}
+                  <image href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />
+                </g>
+              );
+            }
             return null;
           })}
         </g>
@@ -70,12 +80,17 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect }: { map: MyM
             const p = S(positions.get(n.key)!);
             const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
             if (n.kind === "START") return <circle key={n.key} cx={p.x} cy={p.y} r={6} fill={map.team.color} stroke="#fff" strokeWidth={2} />;
-            if (n.kind === "CITY") return showLabels ? (
-              <g key={n.key} transform={`translate(${p.x},${p.y + CITY * k * 0.48})`}>
-                <rect x={-48} y={-10} width={96} height={20} rx={4} fill="#F3EAD3" stroke="#1F1B16" strokeWidth={1} />
-                <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill="#1F1B16">{book?.nameRu}</text>
-              </g>
-            ) : <circle key={n.key} cx={p.x} cy={p.y} r={4} fill="#fff" stroke="#1F1B16" strokeWidth={1} />;
+            if (n.kind === "CITY") {
+              const c = cityByKey.get(n.key);
+              const fill = c?.owner ? c.owner.color : "#F3EAD3", ink = c?.owner ? "#fff" : "#1F1B16";
+              const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;
+              return showLabels ? (
+                <g key={n.key} transform={`translate(${p.x},${p.y + CITY * k * 0.48})`} onClick={() => clickCity(n.key)} style={{ cursor: "pointer" }}>
+                  <rect x={-52} y={-10} width={104} height={20} rx={4} fill={fill} stroke="#1F1B16" strokeWidth={1} />
+                  <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={ink}>{book?.nameRu}{c?.isCapital ? " ★" : ""}{progress ? ` · ${progress}` : ""}</text>
+                </g>
+              ) : <circle key={n.key} cx={p.x} cy={p.y} r={4} fill={c?.owner ? c.owner.color : "#fff"} stroke="#1F1B16" strokeWidth={1} onClick={() => clickCity(n.key)} style={{ cursor: "pointer" }} />;
+            }
             if (!showForks) return null;
             return <circle key={n.key} cx={p.x} cy={p.y} r={5} fill="#fff" stroke="#1F1B16" strokeWidth={1.2} />;
           })}

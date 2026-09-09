@@ -1,5 +1,6 @@
 import { prisma } from "../db.js";
 import { hexCorners, vertexKey } from "@lotw/domain";
+import { loadCityContent } from "./cities.js";
 
 /**
  * Карта глазами команды.
@@ -64,6 +65,28 @@ export async function getTeamMap(gameId: string, teamId: string) {
     prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
   ]);
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
+  // Города, до которых команда дошла: чей город, и мой прогресс в нём.
+  const cityNodes = nodes.filter((n) => n.kind === "CITY" && revealed.has(n.key));
+  const [cityStates, owners] = await Promise.all([
+    prisma.teamCityState.findMany({ where: { teamId, nodeKey: { in: cityNodes.map((n) => n.key) } } }),
+    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, team: { select: { index: true, name: true, color: true } } } }),
+  ]);
+  const stateByKey = new Map(cityStates.map((s) => [s.nodeKey, s]));
+  const ownerByKey = new Map(owners.map((o) => [o.nodeKey, o.team]));
+  const cities = await Promise.all(cityNodes.map(async (n) => {
+    const content = await loadCityContent(n.bookCode ?? "");
+    const s = stateByKey.get(n.key);
+    return {
+      nodeKey: n.key,
+      hasContent: content !== null,
+      total: content?.tasks.length ?? 0,
+      owner: ownerByKey.get(n.key) ?? null,
+      orderSolved: s?.orderSolved ?? false,
+      done: s?.doneTasks.length ?? 0,
+      captured: s?.capturedAt != null,
+      isCapital: s?.isCapital ?? false,
+    };
+  }));
   // Гекс освещён, если хотя бы один его угол открыт командой. Остальные видны только силуэтом в тумане.
   const lit = (h: { q: number; r: number }) => hexCorners(h).some((c) => revealed.has(vertexKey(c)));
   return {
@@ -72,5 +95,6 @@ export async function getTeamMap(gameId: string, teamId: string) {
     // Рёбра, касающиеся открытых узлов: пройденные и фронтир (в туман).
     edges: edges.filter((e) => revealed.has(e.aKey) || revealed.has(e.bKey)),
     tasks: tasks.filter((t) => t.status === "APPROVED" || !revealed.has(t.toKey)),
+    cities,
   };
 }

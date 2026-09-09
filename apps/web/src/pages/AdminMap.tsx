@@ -3,13 +3,15 @@ import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, TERRAIN_COLOR, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { HexTiles, IMG } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
-import type { MapEdgeDto, MapHexDto, MapNodeDto } from "../lib/api";
+import { api, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
+import { useEffect } from "react";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
+export interface CityProgress { teamId: string; nodeKey: string; orderSolved: boolean; done: number; capturedAt: string | null; isCapital: boolean }
 export interface TeamProgress { id: string; name: string; color: string; startNodeKey: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
 
 /** Карта админа: вся карта без тумана, города на перекрёстках, пройденные стороны цветами команд (половинками, если прошли двое). */
-export function AdminMap({ hexes, nodes, edges, progress }: { hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null }) {
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, version }: { gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; version: number }) {
   const size = HEX_SIZE;
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexes, size]);
   const vp = useViewport(bounds);
@@ -20,6 +22,12 @@ export function AdminMap({ hexes, nodes, edges, progress }: { hexes: MapHexDto[]
     for (const t of progress ?? []) for (const e of t.traversed) { const k = [e.fromKey, e.toKey].sort().join("|"); m.set(k, [...(m.get(k) ?? []), t]); }
     return m;
   }, [progress]);
+  const teamById = useMemo(() => new Map((progress ?? []).map((t) => [t.id, t])), [progress]);
+  const ownerOf = useMemo(() => {
+    const m = new Map<string, TeamProgress>();
+    for (const c of cities ?? []) if (c.capturedAt) { const t = teamById.get(c.teamId); if (t) m.set(c.nodeKey, t); }
+    return m;
+  }, [cities, teamById]);
   const revealedBy = useMemo(() => {
     const m = new Map<string, TeamProgress[]>();
     for (const t of progress ?? []) for (const k of t.revealed) m.set(k, [...(m.get(k) ?? []), t]);
@@ -38,7 +46,15 @@ export function AdminMap({ hexes, nodes, edges, progress }: { hexes: MapHexDto[]
                 const p = positions.get(n.key)!;
                 const CITY = size * 1.15, START = size * 1.35;
                 if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
-                if (n.kind === "CITY") return <image key={"c" + n.key} href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />;
+                if (n.kind === "CITY") {
+                  const owner = ownerOf.get(n.key);
+                  return (
+                    <g key={"c" + n.key}>
+                      {owner && <circle cx={p.x} cy={p.y - CITY * 0.1} r={CITY * 0.62} fill={owner.color} fillOpacity={0.35} stroke={owner.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />}
+                      <image href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />
+                    </g>
+                  );
+                }
                 return null;
               })}
               {edges.map((e) => {
@@ -88,12 +104,71 @@ export function AdminMap({ hexes, nodes, edges, progress }: { hexes: MapHexDto[]
         <span style={{ ["--c" as string]: "#fff" }}>город на перекрёстке (номер книги)</span>
         {progress?.map((t) => <span key={t.id} style={{ ["--c" as string]: t.color }}>{t.name}</span>)}
       </div>
-      {selected && (
+      {selected?.kind === "CITY" && <AdminCityPanel gameId={gameId} node={selected} version={version} onClose={() => setSelected(null)} />}
+      {selected && selected.kind !== "CITY" && (
         <p className="note ok" style={{ marginTop: ".6rem" }}>
-          {selected.kind === "CITY" ? `Город ${BOOK_BY_CODE.get(selected.bookCode ?? "")?.nameRu ?? "?"} (${selected.cityType})` : selected.kind === "START" ? `Старт команды ${(selected.teamIndex ?? 0) + 1}` : "Развилка"} · перекрёсток {selected.key}
+          {selected.kind === "START" ? `Старт команды ${(selected.teamIndex ?? 0) + 1}` : "Развилка"} · перекрёсток {selected.key}
           {(revealedBy.get(selected.key) ?? []).length > 0 && ` · открыт: ${(revealedBy.get(selected.key) ?? []).map((t) => t.name).join(", ")}`}
         </p>
       )}
     </>
+  );
+}
+
+/** Панель города для админа: ключ конверта, прогресс команд, районы и задания с ответами. */
+function AdminCityPanel({ gameId, node, version, onClose }: { gameId: string; node: MapNodeDto; version: number; onClose: () => void }) {
+  const [city, setCity] = useState<AdminCityDto | null>(null);
+  const [showAnswers, setShowAnswers] = useState(false);
+  useEffect(() => { let alive = true; api<AdminCityDto>(`/api/games/${gameId}/cities/${encodeURIComponent(node.key)}`).then((c) => { if (alive) setCity(c); }).catch(() => { if (alive) setCity(null); }); return () => { alive = false; }; }, [gameId, node.key, version]);
+  const book = BOOK_BY_CODE.get(node.bookCode ?? "");
+  const total = city?.content?.tasks.length ?? 0;
+  return (
+    <div className="admin-city">
+      <div className="row between">
+        <div><strong>Город {book?.nameRu}</strong> <span className="muted">· перекрёсток {node.key} · {node.cityType}</span></div>
+        <button className="ghost sm" onClick={onClose} aria-label="Закрыть">✕</button>
+      </div>
+      {!city && <p className="muted">Загрузка…</p>}
+      {city && (
+        <>
+          <p style={{ margin: ".3rem 0" }}>Ключ конверта: {city.node.cityKey ? <code className="key">{city.node.cityKey}</code> : <span className="muted">появится после старта игры</span>}
+            {city.content && <> · шифр для семьи: <strong>{city.content.codePhrase}</strong></>}</p>
+          {!city.content && <p className="note warn">Задания для этой книги ещё готовятся: команды пока не могут взять этот город.</p>}
+          <ul className="list">
+            {city.teams.map((t) => (
+              <li key={t.id}>
+                <div className="main"><span className="avatar" style={{ background: t.color, color: "#fff" }}>{t.name.slice(0, 1)}</span> <strong>{t.name}</strong></div>
+                <span className="muted">
+                  {t.capturedAt ? <span className="badge accent">город взят{t.isCapital ? " · столица" : ""}</span>
+                    : t.orderSolved ? `районы открыты · заданий ${t.doneTasks.length}/${total}`
+                    : t.orderAttempts > 0 ? `собирает порядок · попыток ${t.orderAttempts}` : "не начинала"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {city.content && (
+            <>
+              <button className="secondary sm" onClick={() => setShowAnswers((v) => !v)}>{showAnswers ? "Скрыть районы и ответы" : `Районы и задания с ответами (${total})`}</button>
+              {showAnswers && (
+                <ol className="admin-districts">
+                  {city.content.districts.map((d, i) => {
+                    const t = city.content!.tasks[i]!;
+                    const answer = t.type === "number" ? String(t.answer) : t.type === "text" ? (t.answers ?? []).join(" / ") : t.type === "choice" ? t.options?.[t.correct ?? 0] : (t.items ?? []).join(" → ");
+                    return (
+                      <li key={i}>
+                        <div><strong>{d.title}</strong> <span className="muted">{d.verses}</span></div>
+                        <div className="muted" style={{ fontSize: ".85rem" }}>{d.summary}</div>
+                        <div style={{ marginTop: ".25rem" }}>{t.prompt}</div>
+                        <div className="note ok" style={{ margin: ".25rem 0 0" }}>Ответ: {answer} · буква {t.fragment}</div>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+            </>
+          )}
+        </>
+      )}
+    </div>
   );
 }

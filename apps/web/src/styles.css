@@ -132,3 +132,44 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 /* Ползунок времени под картой админа */
 .timeline { margin-top: .8rem; display: flex; flex-direction: column; gap: .4rem; }
 .timeline input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+/* Попап города: районы, задания, шифр */
+.city-backdrop { position: absolute; inset: 0; z-index: 40; background: rgba(31,27,22,.5); display: flex; align-items: flex-end; justify-content: center; animation: fade .12s ease-out; }
+.city-popup { background: var(--bg); width: 100%; max-height: 92%; overflow: auto; border-radius: 18px 18px 0 0; padding: .8rem 1rem calc(1rem + env(safe-area-inset-bottom)); animation: sheet .18s ease-out; }
+@media (min-width: 720px) { .city-backdrop { align-items: center; padding: 1rem; } .city-popup { max-width: 640px; border-radius: 16px; max-height: 90%; } }
+.city-head { display: flex; align-items: center; gap: .7rem; margin-bottom: .6rem; }
+.city-head img { width: 56px; height: 56px; object-fit: contain; }
+.city-head .title { flex: 1; min-width: 0; }
+.city-head .title strong { font-size: 1.1rem; }
+.sortable, .districts { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+.sortable li, .district { display: flex; align-items: center; gap: .5rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .5rem .6rem; }
+.sortable li { background: var(--surface-2); color: var(--muted); }
+.sortable li .body, .district .body { flex: 1; min-width: 0; }
+.sortable li.dragging { box-shadow: var(--shadow); border-color: var(--accent); background: var(--surface); color: var(--text); }
+.sortable .grip { cursor: grab; touch-action: none; user-select: none; font-size: 1.1rem; padding: .3rem .2rem; color: var(--muted); letter-spacing: -2px; }
+.sortable .arrows { display: flex; flex-direction: column; }
+.sortable .arrows button { min-height: 22px; padding: 0 .3rem; font-size: .7rem; line-height: 1; }
+.d-title { font-weight: 600; }
+.d-sum { font-size: .82rem; line-height: 1.35; }
+.district.open { border-color: var(--accent); background: var(--surface); cursor: pointer; }
+.district.done { border-color: var(--success); }
+.district .num { width: 26px; height: 26px; border-radius: 999px; background: var(--accent); color: #fff; font-weight: 700; font-size: .8rem; display: flex; align-items: center; justify-content: center; flex: none; }
+.district.done .num { background: var(--success); }
+.district .check { width: 28px; height: 28px; border-radius: 999px; display: flex; align-items: center; justify-content: center; color: var(--muted); font-weight: 700; flex: none; }
+.district .check.on { background: var(--success); color: #fff; }
+.cipher { margin-top: .8rem; padding: .6rem .8rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.cipher .letters { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .3rem; }
+.cipher .letters span { width: 26px; height: 30px; border-radius: 6px; background: var(--surface-2); display: flex; align-items: center; justify-content: center; font-weight: 700; color: var(--muted); }
+.cipher .letters span.on { background: var(--accent); color: #fff; }
+.capture { margin-top: .8rem; }
+.capture .row { display: flex; gap: .5rem; }
+.capture input { flex: 1; text-transform: uppercase; letter-spacing: .1em; }
+.task-view .prompt { font-size: 1.02rem; line-height: 1.5; margin: .3rem 0 .8rem; }
+.choices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .4rem; }
+.choices li { display: flex; align-items: center; gap: .6rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .55rem .7rem; cursor: pointer; }
+.choices li.on { border-color: var(--accent); background: var(--accent-soft, var(--surface-2)); }
+.choices .radio { width: 16px; height: 16px; border-radius: 999px; border: 2px solid var(--border-strong); flex: none; }
+.choices li.on .radio { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 3px var(--surface); }
+.admin-city { margin-top: .8rem; padding: .8rem 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.admin-city .key { font-size: 1.1rem; font-weight: 700; letter-spacing: .12em; background: var(--surface); padding: .1rem .5rem; border-radius: 6px; border: 1px solid var(--border-strong); }
+.admin-districts { margin: .6rem 0 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: .6rem; }

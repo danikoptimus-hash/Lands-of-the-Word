@@ -4,6 +4,7 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { getTeamMap, revealNode } from "../services/teamMap.js";
+import { loadCityContent } from "../services/cities.js";
 
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
@@ -11,12 +12,12 @@ const submitBody = z.object({
 });
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
 
-async function requireMember(request: FastifyRequest, reply: FastifyReply, gameId: string) {
+export async function requireMember(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const m = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId } }, include: { team: true } });
   if (!m) { await reply.code(403).send({ error: "forbidden", message: "Вы не состоите в команде этой игры" }); return null; }
   return m;
 }
-async function requireAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
+export async function requireAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: { select: { userId: true } } } });
   if (!game) { await reply.code(404).send({ error: "not_found", message: "Игра не найдена" }); return null; }
   if (!game.admins.some((a) => a.userId === request.user!.id)) { await reply.code(403).send({ error: "forbidden", message: "Вы не администратор этой игры" }); return null; }
@@ -37,7 +38,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true } });
-    if (game.status === "DRAFT") return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [] };
+    if (game.status === "DRAFT") return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [] };
     const map = await getTeamMap(id, m.team.id);
     return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map };
   });
@@ -131,9 +132,11 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       prisma.game.findUnique({ where: { id }, select: { startedAt: true } }),
     ]);
     // Даты нужны для ползунка времени на карте админа: состояние на любой день игры.
+    const cityStates = await prisma.teamCityState.findMany({ where: { gameId: id }, select: { teamId: true, nodeKey: true, orderSolved: true, doneTasks: true, capturedAt: true, isCapital: true } });
     return {
       pending,
       startedAt: game?.startedAt ?? null,
+      cities: cityStates.map((s) => ({ teamId: s.teamId, nodeKey: s.nodeKey, orderSolved: s.orderSolved, done: s.doneTasks.length, capturedAt: s.capturedAt?.toISOString() ?? null, isCapital: s.isCapital })),
       teams: teams.map((t) => ({
         id: t.id, name: t.name, color: t.color, startNodeKey: t.startNodeKey,
         revealed: t.nodeStates.map((n) => n.nodeKey),

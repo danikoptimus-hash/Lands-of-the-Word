@@ -5,6 +5,7 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { recommendedDeedCount } from "./deeds.js";
+import { makeCityKey } from "../services/cities.js";
 import { ensureFrontier } from "../services/teamMap.js";
 
 const createBody = z.object({
@@ -173,8 +174,11 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.mapNode.findMany({ where: { gameId: id, kind: "START" }, orderBy: { teamIndex: "asc" } }),
       prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" } }),
     ]);
+    // Ключи конвертов городов: генерируются при старте, видны только админу (для подготовки конвертов).
+    const cityNodes = await prisma.mapNode.findMany({ where: { gameId: id, kind: "CITY" }, select: { id: true } });
     await prisma.$transaction([
       ...teams.map((t, i) => prisma.team.update({ where: { id: t.id }, data: { startNodeKey: starts[i]?.key ?? null } })),
+      ...cityNodes.map((n) => prisma.mapNode.update({ where: { id: n.id }, data: { cityKey: makeCityKey() } })),
       prisma.game.update({ where: { id }, data: { status: "ACTIVE", startedAt: new Date() } }),
     ]);
     for (const t of teams) await ensureFrontier(id, t.id);

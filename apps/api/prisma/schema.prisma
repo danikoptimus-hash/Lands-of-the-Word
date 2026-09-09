@@ -113,6 +113,8 @@ model MapNode {
   bookCode  String?
   cityType  String?
   teamIndex Int?
+  /** Ключ конверта города (генерируется при старте игры, виден только админу). */
+  cityKey   String?
 
   @@unique([gameId, key])
 }
@@ -154,6 +156,7 @@ model Team {
   invites      Invite[]
   nodeStates   TeamNodeState[]
   edgeTasks    TeamEdgeTask[]
+  cityStates   TeamCityState[]
 
   @@unique([gameId, index])
   @@unique([gameId, name])
@@ -249,4 +252,28 @@ model TeamEdgeTask {
 
   @@unique([teamId, fromKey, toKey])
   @@index([gameId, status])
+}
+
+/**
+ * Прогресс команды в городе: собрана ли структура книги (районы), какие задания районов решены,
+ * взят ли город. Задания и ответы — неизменяемый контент платформы (content/cities/*.json).
+ */
+model TeamCityState {
+  id             String    @id @default(cuid())
+  gameId         String
+  teamId         String
+  team           Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  nodeKey        String
+  orderSolved    Boolean   @default(false)
+  orderAttempts  Int       @default(0)
+  doneTasks      Int[]     @default([])
+  answerAttempts Int       @default(0)
+  lastWrongAt    DateTime?
+  capturedAt     DateTime?
+  isCapital      Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([teamId, nodeKey])
+  @@index([gameId, nodeKey])
 }

@@ -6,6 +6,7 @@ import { useAuth } from "../lib/auth";
 import { useRef } from "react";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamMap } from "./TeamMap";
+import { CityPopup } from "./CityPopup";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -19,6 +20,8 @@ export function TeamPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
+  const [cityKey, setCityKey] = useState<string | null>(null);
+  const [cityVersion, setCityVersion] = useState(0);
   const swipe = useRef<{ x: number; y: number; edge: boolean } | null>(null);
   // Свайп от края браузер трактует как «назад»; гасим его сами (нужен non-passive слушатель).
   const screenRef = useRef<HTMLDivElement>(null);
@@ -42,7 +45,7 @@ export function TeamPage() {
   const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setIsAdmin(r.isAdmin); setTeam(r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")), [id]);
   const loadMap = useCallback(() => api<MyMapDto & { gameName?: string }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); if (m.gameName) setGameName(m.gameName); }).catch(() => setMap(null)), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
-  useGameEvents(id, (e) => { if (e.type === "teams" || e.type === "game") void loadTeam(); if (e.type !== "deeds") void loadMap(); });
+  useGameEvents(id, (e) => { if (e.type === "teams" || e.type === "game") void loadTeam(); if (e.type !== "deeds") void loadMap(); if (e.type === "cities" || e.type === "game") setCityVersion((v) => v + 1); });
   useEffect(() => {
     const t = setInterval(() => void loadMap(), 60000);
     const onFocus = () => void loadMap();
@@ -116,7 +119,8 @@ export function TeamPage() {
 
   return (
     <div className="map-screen" ref={screenRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={(tid) => { setSelectedId(tid); if (tid) setMenu(false); }} />
+      <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={(tid) => { setSelectedId(tid); if (tid) setMenu(false); }} onSelectCity={(key) => { setCityKey(key); setSelectedId(null); setMenu(false); }} />
+      {cityKey && <CityPopup gameId={id} nodeKey={cityKey} version={cityVersion} onClose={() => setCityKey(null)} onChanged={() => void loadMap()} />}
 
       <div className="map-hud">
         <span className="avatar" style={{ background: team.color, color: "#fff" }}>{team.name.slice(0, 1)}</span>
