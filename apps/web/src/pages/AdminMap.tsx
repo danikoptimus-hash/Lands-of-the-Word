@@ -137,6 +137,7 @@ function AdminCityPanel({ gameId, node, version, revealedTeams, onClose }: { gam
             {city.content && <> · шифр для семьи: <strong>{city.content.codePhrase}</strong></>}</p>
           {!city.content && <p className="note warn">Задания для этой книги ещё готовятся: команды пока не могут взять этот город.</p>}
           <RevealButtons gameId={gameId} nodeKey={node.key} teams={city.teams} revealedBy={revealedTeams} />
+          <AssignButtons gameId={gameId} nodeKey={node.key} teams={city.teams} />
           <ul className="list">
             {city.teams.map((t) => (
               <li key={t.id}>
@@ -190,6 +191,23 @@ function RevealButtons({ gameId, nodeKey, teams, revealedBy }: { gameId: string;
   return (
     <div className="row" style={{ marginTop: ".4rem", gap: ".4rem", flexWrap: "wrap" }}>
       {rest.map((t) => <button key={t.id} className="secondary sm" style={{ borderColor: t.color }} onClick={() => void reveal(t)}>Открыть для «{t.name}»</button>)}
+    </div>
+  );
+}
+
+/** Тестовая кнопка админа: присвоить город команде (все районы решены, город занят ею). */
+function AssignButtons({ gameId, nodeKey, teams }: { gameId: string; nodeKey: string; teams: Array<{ id: string; name: string; color: string; capturedAt: string | null }> }) {
+  const { confirm, notify } = useUi();
+  const rest = teams.filter((t) => !t.capturedAt);
+  if (rest.length === 0) return null;
+  async function assign(t: { id: string; name: string }) {
+    if (!(await confirm(`Присвоить город команде «${t.name}»? Тестовое действие: все районы будут считаться решёнными, город занят этой командой, прежний владелец его теряет.`, { okLabel: "Присвоить" }))) return;
+    try { const r = await api<{ isCapital: boolean }>(`/api/games/${gameId}/cities/${encodeURIComponent(nodeKey)}/assign`, { method: "POST", body: JSON.stringify({ teamId: t.id }) }); notify(`Город присвоен команде «${t.name}»${r.isCapital ? " — это её столица" : ""}`); }
+    catch (e) { notify(e instanceof Error ? e.message : "Ошибка", "bad"); }
+  }
+  return (
+    <div className="row" style={{ marginTop: ".4rem", gap: ".4rem", flexWrap: "wrap" }}>
+      {rest.map((t) => <button key={t.id} className="secondary sm" style={{ borderColor: t.color }} onClick={() => void assign(t)}>Присвоить «{t.name}»</button>)}
     </div>
   );
 }

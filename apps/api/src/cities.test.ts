@@ -55,7 +55,8 @@ describe("город на перекрёстке", () => {
     const adm = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: adminCookie } });
     expect(adm.statusCode).toBe(200);
     expect(adm.json().node.cityKey).toMatch(/^[A-Z2-9]{6}$/);
-    expect(adm.json().content.tasks[0].answer).toBe(10);
+    expect(adm.json().content.tasks[0].correct).toBe(0);
+    expect(adm.json().content.tasks[11].answer).toBe(6);
     const forbidden = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: p1Cookie } });
     expect(forbidden.statusCode).toBe(403);
   });
@@ -142,6 +143,19 @@ describe("город на перекрёстке", () => {
     expect(again.statusCode).toBe(409);
     const notAdmin = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team2}/reveal`, headers: { cookie: p2Cookie }, payload: { nodeKey: frontier.toKey } });
     expect(notAdmin.statusCode).toBe(403);
+  });
+
+  it("админ присваивает город команде для теста: районы решены, город её, прежний владелец теряет", async () => {
+    const res = await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${rutKey}/assign`, headers: { cookie: adminCookie }, payload: { teamId: team2 } });
+    expect(res.statusCode).toBe(200);
+    const city = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p2Cookie } });
+    expect(city.json().owner.name).toBe("Орлы");
+    expect(city.json().state.doneTasks).toHaveLength(16);
+    const lost = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
+    expect(lost.json().state.capturedAt).toBeNull();
+    // вернём как было для следующего теста
+    await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${rutKey}/assign`, headers: { cookie: adminCookie }, payload: { teamId: team1 } });
+    await prisma.teamCityState.updateMany({ where: { teamId: team2, nodeKey: rutKey }, data: { doneTasks: content.tasks.map((_, i) => i) } });
   });
 
   it("вторая команда не может взять уже занятый город", async () => {

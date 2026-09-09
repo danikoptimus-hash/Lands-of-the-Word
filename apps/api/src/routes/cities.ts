@@ -5,6 +5,7 @@ import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { requireAdmin, requireMember } from "./teamMap.js";
 import { checkAnswer, checkOrder, loadCityContent, makeCityKey, publicDistricts, publicTask } from "../services/cities.js";
+import { ensureFrontier } from "../services/teamMap.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
 const answerBody = z.object({ answer: z.union([z.string().max(500), z.number(), z.array(z.string().min(1).max(32)).max(64)]) });
@@ -150,6 +151,33 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "cities", teamId: c.m.team.id });
     publish(id, { type: "map", teamId: c.m.team.id });
     return { ok: true, isCapital: updated.isCapital };
+  });
+
+  /** Админ (для тестов): присвоить город команде — все районы решены, город занят ею; прежний владелец теряет город. */
+  app.post("/api/games/:id/cities/:nodeKey/assign", async (request, reply) => {
+    const { id, nodeKey } = request.params as { id: string; nodeKey: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const body = z.object({ teamId: z.string().min(1) }).parse(request.body);
+    const [node, team] = await Promise.all([loadCityNode(id, nodeKey), prisma.team.findFirst({ where: { id: body.teamId, gameId: id } })]);
+    if (!node || !team) return reply.code(404).send({ error: "not_found", message: "Город или команда не найдены" });
+    const content = await loadCityContent(node.bookCode!);
+    const all = content ? content.tasks.map((_, i) => i) : [];
+    const hasCapital = (await prisma.teamCityState.count({ where: { teamId: team.id, isCapital: true } })) > 0;
+    await prisma.$transaction([
+      prisma.teamNodeState.upsert({ where: { teamId_nodeKey: { teamId: team.id, nodeKey } }, create: { teamId: team.id, nodeKey }, update: {} }),
+      prisma.teamCityState.updateMany({ where: { gameId: id, nodeKey, NOT: { teamId: team.id } }, data: { capturedAt: null, isCapital: false, secondCapital: false } }),
+      prisma.teamCityState.upsert({
+        where: { teamId_nodeKey: { teamId: team.id, nodeKey } },
+        create: { gameId: id, teamId: team.id, nodeKey, orderSolved: true, doneTasks: all, capturedAt: new Date(), isCapital: !hasCapital },
+        update: { orderSolved: true, doneTasks: all, capturedAt: new Date(), isCapital: !hasCapital },
+      }),
+      prisma.battle.updateMany({ where: { gameId: id, nodeKey, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, data: { status: "CANCELLED", resolvedAt: new Date() } }),
+    ]);
+    await ensureFrontier(id, team.id);
+    publish(id, { type: "cities" });
+    publish(id, { type: "map" });
+    publish(id, { type: "battles" });
+    return { ok: true, isCapital: !hasCapital };
   });
 
   /** Админ: город целиком — районы, задания с ответами, ключ конверта, прогресс всех команд. */
