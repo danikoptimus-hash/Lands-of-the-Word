@@ -16,7 +16,7 @@ if [[ "$(id -u)" -ne 0 ]]; then echo "Запускать от root"; exit 1; fi
 echo "==> 1/8 Пакеты"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
-apt-get install -y -q git curl fail2ban unattended-upgrades dnsutils
+apt-get install -y -q git curl cron fail2ban unattended-upgrades dnsutils
 if ! command -v docker >/dev/null; then apt-get install -y -q docker.io docker-compose-v2; fi
 systemctl enable --now docker
 

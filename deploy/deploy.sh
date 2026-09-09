@@ -34,7 +34,12 @@ fi
 
 echo "==> Ежедневный бэкап базы (cron 03:30)"
 mkdir -p /opt/lotw-backups
-( crontab -l 2>/dev/null | grep -v lotw/deploy/backup.sh; echo "30 3 * * * /opt/lotw/deploy/backup.sh >> /opt/lotw-backups/backup.log 2>&1" ) | crontab -
+if command -v crontab >/dev/null; then
+  { crontab -l 2>/dev/null | grep -v lotw/deploy/backup.sh || true; echo "30 3 * * * /opt/lotw/deploy/backup.sh >> /opt/lotw-backups/backup.log 2>&1"; } | crontab - \
+    || echo "не удалось записать crontab (проверь: apt install cron; usermod -aG crontab deploy)"
+else
+  echo "crontab не установлен: бэкап по расписанию не настроен (apt install cron)"
+fi
 
 docker image prune -f >/dev/null
 echo "==> Готово: $(git rev-parse --short HEAD)"
