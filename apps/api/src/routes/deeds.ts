@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 
 export const DIRECTIONS = [
@@ -50,6 +51,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireGameAdmin(request, reply, id))) return;
     const body = deedBody.parse(request.body);
     const deed = await prisma.deed.create({ data: { ...body, gameId: id } });
+    publish(id, { type: "deeds" });
     return reply.code(201).send({ deed });
   });
 
@@ -60,6 +62,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const exists = await prisma.deed.findFirst({ where: { id: deedId, gameId: id } });
     if (!exists) return reply.code(404).send({ error: "not_found", message: "Дело не найдено" });
     const deed = await prisma.deed.update({ where: { id: deedId }, data: body });
+    publish(id, { type: "deeds" });
     return { deed };
   });
 
@@ -67,6 +70,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const { id, deedId } = request.params as { id: string; deedId: string };
     if (!(await requireGameAdmin(request, reply, id))) return;
     await prisma.deed.deleteMany({ where: { id: deedId, gameId: id } });
+    publish(id, { type: "deeds" });
     return { ok: true };
   });
 
@@ -79,6 +83,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const existing = new Set((await prisma.deed.findMany({ where: { gameId: id }, select: { title: true } })).map((d) => d.title.toLowerCase()));
     const fresh = items.filter((d) => !existing.has(d.title.toLowerCase()));
     await prisma.deed.createMany({ data: fresh.map((d) => ({ ...d, gameId: id })) });
+    publish(id, { type: "deeds" });
     return { added: fresh.length };
   });
 }

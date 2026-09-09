@@ -4,7 +4,7 @@ import { api, ApiError, PROOF_LABEL, type EdgeTaskDto } from "../lib/api";
 type Row = EdgeTaskDto & { team: { id: string; name: string; color: string }; takenBy: { nickname: string; displayName: string | null } | null };
 
 /** Очередь сдач для админа. Обновляется сама раз в 15 секунд. */
-export function SubmissionsBlock({ gameId, onDecided }: { gameId: string; onDecided: () => void }) {
+export function SubmissionsBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
   const [rows, setRows] = useState<Row[]>([]);
   const [comment, setComment] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +15,7 @@ export function SubmissionsBlock({ gameId, onDecided }: { gameId: string; onDeci
     const onFocus = () => void load();
     window.addEventListener("focus", onFocus);
     return () => { clearInterval(t); window.removeEventListener("focus", onFocus); };
-  }, [gameId]);
+  }, [gameId, version]);
 
   async function decide(id: string, approve: boolean) {
     setError(null);

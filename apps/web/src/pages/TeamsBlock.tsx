@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type TeamDto } from "../lib/api";
 
 /** Блок «Команды» на странице игры для админа. */
-export function TeamsBlock({ gameId, teamCount, status, onChange }: { gameId: string; teamCount: number; status: string; onChange?: () => void }) {
+export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }: { gameId: string; teamCount: number; status: string; version?: number; onChange?: () => void }) {
   const [teams, setTeams] = useState<TeamDto[]>([]);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -12,7 +12,7 @@ export function TeamsBlock({ gameId, teamCount, status, onChange }: { gameId: st
 
   const load = () => api<{ teams: TeamDto[] }>(`/api/games/${gameId}/teams`).then((r) => setTeams(r.teams)).catch(() => setTeams([]));
   const reload = async () => { await load(); onChange?.(); };
-  useEffect(() => { void load(); }, [gameId, teamCount]);
+  useEffect(() => { void load(); }, [gameId, teamCount, version]);
 
   async function create(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(null);

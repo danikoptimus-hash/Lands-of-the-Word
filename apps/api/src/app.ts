@@ -11,6 +11,7 @@ import { gameRoutes } from "./routes/games.js";
 import { teamRoutes } from "./routes/teams.js";
 import { deedRoutes } from "./routes/deeds.js";
 import { teamMapRoutes } from "./routes/teamMap.js";
+import { eventRoutes } from "./routes/events.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -46,6 +47,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(teamRoutes);
   await app.register(deedRoutes);
   await app.register(teamMapRoutes);
+  await app.register(eventRoutes);
 
   // Раздача собранного веб-клиента (в продакшене); все не-API пути отдают index.html (SPA).
   if (config.WEB_DIST) {

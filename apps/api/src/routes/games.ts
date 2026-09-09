@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { generateMap, MapGenError } from "@lotw/domain";
 import { prisma } from "../db.js";
+import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { recommendedDeedCount } from "./deeds.js";
 import { ensureFrontier } from "../services/teamMap.js";
@@ -81,6 +82,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     }
     const settings = { ...((game.settings ?? {}) as Record<string, unknown>), ...(body.settings ?? {}) };
     const updated = await prisma.game.update({ where: { id }, data: { name: body.name, teamCount: body.teamCount, settings } });
+    publish(id, { type: "game" });
     return { game: updated };
   });
 
@@ -127,6 +129,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.mapEdge.createMany({ data: map.edges.map((e) => ({ gameId: id, aKey: e.a, bKey: e.b })) }),
       prisma.game.update({ where: { id }, data: { mapSeed: seed } }),
     ]);
+    publish(id, { type: "map" });
     return { seed, stats: map.stats };
   });
 
@@ -172,6 +175,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.game.update({ where: { id }, data: { status: "ACTIVE", startedAt: new Date() } }),
     ]);
     for (const t of teams) await ensureFrontier(id, t.id);
+    publish(id, { type: "game" });
     return { ok: true, startedAt: new Date() };
   });
 }

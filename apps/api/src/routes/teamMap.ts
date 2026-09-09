@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { getTeamMap, revealNode } from "../services/teamMap.js";
 
@@ -49,6 +50,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (!task) return reply.code(404).send({ error: "not_found", message: "Дело не найдено" });
     if (task.status !== "OPEN" && task.status !== "REJECTED") return reply.code(409).send({ error: "conflict", message: "Дело уже взято или сдано" });
     const updated = await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id }, include: taskInclude });
+    publish(id, { type: "tasks", teamId: m.team.id });
     return { task: updated };
   });
 
@@ -60,6 +62,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (!task || task.status !== "TAKEN") return reply.code(409).send({ error: "conflict", message: "Дело не взято" });
     if (task.takenById !== request.user!.id && m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: "Отпустить дело может тот, кто взял, или капитан" });
     const updated = await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "OPEN", takenById: null }, include: taskInclude });
+    publish(id, { type: "tasks", teamId: m.team.id });
     return { task: updated };
   });
 
@@ -80,6 +83,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       data: { status: "SUBMITTED", takenById: task.takenById ?? request.user!.id, links: body.links, note: body.note, submittedAt: new Date(), adminComment: "" },
       include: taskInclude,
     });
+    publish(id, { type: "submissions", teamId: m.team.id });
     return { task: updated };
   });
 
@@ -108,6 +112,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       include: taskInclude,
     });
     if (body.approve) await revealNode(id, task.teamId, task.toKey);
+    publish(id, { type: "submissions", teamId: task.teamId });
+    publish(id, { type: "tasks", teamId: task.teamId });
     return { task: updated };
   });
 

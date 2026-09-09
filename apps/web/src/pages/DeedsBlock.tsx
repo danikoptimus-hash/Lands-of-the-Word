@@ -7,7 +7,7 @@ interface DeedDto { id: string; title: string; description: string; direction: s
 const PROOF_LABEL: Record<ProofType, string> = { REPORT: "отчёт текстом", PHOTO_LINK: "ссылка на фото", VIDEO_LINK: "ссылка на видео", CONFIRMATION: "подтверждение человека" };
 
 /** Блок «Дела» для админа игры: список дел этой игры, добавление, стандартный набор. */
-export function DeedsBlock({ gameId, onChange }: { gameId: string; onChange?: () => void }) {
+export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; version?: number; onChange?: () => void }) {
   const [deeds, setDeeds] = useState<DeedDto[]>([]);
   const [directions, setDirections] = useState<string[]>([]);
   const [recommended, setRecommended] = useState(0);
@@ -19,7 +19,7 @@ export function DeedsBlock({ gameId, onChange }: { gameId: string; onChange?: ()
     .then((r) => { setDeeds(r.deeds); setDirections(r.directions); setRecommended(r.recommendedMin); if (!form.direction) setForm((f) => ({ ...f, direction: r.directions[0] ?? "" })); })
     .catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети"));
   const reload = async () => { await load(); onChange?.(); };
-  useEffect(() => { void load(); }, [gameId]);
+  useEffect(() => { void load(); }, [gameId, version]);
 
   async function add(e: FormEvent) {
     e.preventDefault(); setError(null);

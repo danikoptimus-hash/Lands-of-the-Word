@@ -6,7 +6,9 @@
 		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
 	}
-	reverse_proxy app:3000
+	reverse_proxy app:3000 {
+		flush_interval -1
+	}
 }
 
 www.{$DOMAIN} {

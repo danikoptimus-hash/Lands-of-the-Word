@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 
 export const TEAM_COLORS = ["#A9553A", "#4F7C99", "#7D8B4E", "#8E5A9E", "#C48A3F", "#3B6E6E", "#B5473F", "#5C6E91", "#8A7A2E", "#6E4B8E", "#2F7F6F", "#9C5A2E"];
@@ -53,6 +54,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
       data: { gameId: id, index: count, name: body.name, color: body.color ?? TEAM_COLORS[count % TEAM_COLORS.length]! },
       include: { members: { select: memberSelect } },
     });
+    publish(id, { type: "teams" });
     return reply.code(201).send({ team });
   });
 
@@ -67,6 +69,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     // Переиндексация, чтобы индексы команд снова шли подряд (индекс = стартовая точка на карте).
     const rest = await prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" } });
     await prisma.$transaction(rest.map((t, i) => prisma.team.update({ where: { id: t.id }, data: { index: i } })));
+    publish(id, { type: "teams" });
     return { ok: true };
   });
 
@@ -105,6 +108,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
       await prisma.membership.updateMany({ where: { teamId, gameRole: body.gameRole }, data: { gameRole: "NONE" } });
     }
     const updated = await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: body, select: memberSelect });
+    publish(id, { type: "teams", teamId });
     return { member: updated };
   });
 
@@ -113,6 +117,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return;
     await prisma.membership.deleteMany({ where: { teamId, userId, team: { gameId: id } } });
+    publish(id, { type: "teams", teamId });
     return { ok: true };
   });
 
@@ -136,6 +141,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
       prisma.membership.create({ data: { teamId: invite.teamId, userId: request.user!.id, role: invite.role }, include: { team: { select: { id: true, name: true, color: true, gameId: true } } } }),
       prisma.invite.update({ where: { id: token }, data: { usesLeft: { decrement: 1 } } }),
     ]);
+    publish(invite.gameId, { type: "teams", teamId: invite.teamId });
     return reply.code(201).send({ team: membership.team, role: membership.role });
   });
 

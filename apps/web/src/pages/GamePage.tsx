@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS, hexToPixel } from "@lotw/domain";
 import { api, ApiError, type MapEdgeDto, type MapNodeDto } from "../lib/api";
+import { useGameEvents } from "../lib/useGameEvents";
 import { TeamsBlock } from "./TeamsBlock";
 import { DeedsBlock } from "./DeedsBlock";
 import { StartBlock } from "./StartBlock";
@@ -30,6 +31,7 @@ export function GamePage() {
   const [progress, setProgress] = useState<{ teams: Array<{ id: string; name: string; color: string; revealed: string[]; traversed: Array<{ fromKey: string; toKey: string }> }> } | null>(null);
   const loadProgress = useCallback(() => api<{ teams: Array<{ id: string; name: string; color: string; revealed: string[]; traversed: Array<{ fromKey: string; toKey: string }> }> }>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
   const bump = () => setVersion((v) => v + 1);
+  useGameEvents(id, (e) => { if (e.type === "game" || e.type === "map") void load(); if (e.type !== "deeds") void loadProgress(); bump(); });
 
   const load = useCallback(async () => {
     const r = await api<{ game: GameDto; nodes: MapNodeDto[]; edges: MapEdgeDto[] }>(`/api/games/${id}`);
@@ -88,10 +90,10 @@ export function GamePage() {
       </div>
 
       <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
-      {game.status === "ACTIVE" && <SubmissionsBlock gameId={game.id} onDecided={() => void loadProgress()} />}
+      {game.status === "ACTIVE" && <SubmissionsBlock gameId={game.id} version={version} onDecided={() => void loadProgress()} />}
       <StartBlock gameId={game.id} status={game.status} version={version} onStarted={() => { void load(); void loadProgress(); }} />
-      <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} onChange={bump} />
-      <DeedsBlock gameId={game.id} onChange={bump} />
+      <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} />
+      <DeedsBlock gameId={game.id} version={version} onChange={bump} />
 
       {layout && (
         <div className="card">

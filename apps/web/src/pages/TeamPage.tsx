@@ -1,8 +1,12 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { BOOKS } from "@lotw/domain";
 import { api, ApiError, GAME_ROLE_LABEL, PROOF_LABEL, TASK_STATUS_LABEL, TEAM_ROLE_LABEL, type EdgeTaskDto, type GameRole, type MyMapDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { TeamMap } from "./TeamMap";
+import { useGameEvents } from "../lib/useGameEvents";
+import { TeamMap, directionLabel } from "./TeamMap";
+
+const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
 /** Страница команды: карта с туманом, дела на рёбрах, состав. */
 export function TeamPage() {
@@ -12,7 +16,7 @@ export function TeamPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [map, setMap] = useState<MyMapDto | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [links, setLinks] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -20,6 +24,7 @@ export function TeamPage() {
   const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setIsAdmin(r.isAdmin); setTeam(r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")), [id]);
   const loadMap = useCallback(() => api<MyMapDto>(`/api/games/${id}/my-map`).then(setMap).catch(() => setMap(null)), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
+  useGameEvents(id, (e) => { if (e.type === "teams" || e.type === "game") void loadTeam(); if (e.type !== "deeds") void loadMap(); });
   useEffect(() => {
     const t = setInterval(() => void loadMap(), 20000);
     const onFocus = () => void loadMap();
@@ -29,7 +34,21 @@ export function TeamPage() {
 
   const me = team?.members.find((m) => m.user.id === user?.id);
   const isCaptain = me?.role === "CAPTAIN";
-  const task = map?.tasks.find((t) => t.id === selected) ?? null;
+  const nodeByKey = useMemo(() => new Map([...(map?.revealed ?? []), ...(map?.fog ?? [])].map((n) => [n.key, n])), [map]);
+  const selectedTasks = useMemo(() => (map?.tasks ?? []).filter((t) => t.status !== "APPROVED" && t.toKey === selectedKey), [map, selectedKey]);
+
+  function describeFrom(key: string): string {
+    const n = map?.revealed.find((r) => r.key === key);
+    if (!n) return "открытой клетки";
+    if (n.kind === "START") return "стартовой точки";
+    if (n.kind === "CITY") return `города ${BOOK_BY_CODE.get(n.bookCode ?? "")?.nameRu ?? ""}`;
+    return "открытой клетки";
+  }
+  function where(t: EdgeTaskDto): string {
+    const a = nodeByKey.get(t.fromKey), b = nodeByKey.get(t.toKey);
+    const dir = a && b ? directionLabel(a, b) : "";
+    return `из ${describeFrom(t.fromKey)}${dir ? ` на ${dir}` : ""}`;
+  }
 
   async function act(path: string, body?: unknown) {
     setBusy(true); setError(null);
@@ -67,44 +86,62 @@ export function TeamPage() {
             <span className="avatar" style={{ background: team.color, color: "#fff", width: 44, height: 44, fontSize: "1.1rem" }}>{team.name.slice(0, 1)}</span>
             <div><h1 style={{ margin: 0 }}>{team.name}</h1><div className="muted">Вы — {me ? TEAM_ROLE_LABEL[me.role] : "?"}{me && me.role === "MEMBER" && me.gameRole !== "NONE" ? `, ${GAME_ROLE_LABEL[me.gameRole].toLowerCase()}` : ""}</div></div>
           </div>
-          {map && map.status === "ACTIVE" && <span className="muted">открыто узлов: {map.revealed.length} · пройдено рёбер: {done}</span>}
+          {map && map.status === "ACTIVE" && <span className="muted">открыто узлов: {map.revealed.length} · пройдено путей: {done}</span>}
         </div>
       </div>
 
       {map && map.status === "ACTIVE" ? (
         <>
           <div className="card">
-            <div className="card-head"><h2>Карта</h2><span className="muted">? — туман; пунктир — путь с делом; цвет команды — пройдено</span></div>
-            <TeamMap map={map} selectedTask={selected} onSelectTask={setSelected} />
+            <div className="card-head"><h2>Карта</h2><span className="muted">Нажми на клетку с «?» — увидишь дело. Тяни, чтобы двигать; колесо или щипок — масштаб.</span></div>
+            <TeamMap map={map} selectedKey={selectedKey} onSelect={setSelectedKey} />
+            {error && <p className="error" style={{ marginTop: ".6rem" }}>{error}</p>}
+            {selectedKey && (
+              <div className="note ok" style={{ marginTop: ".75rem" }}>
+                {selectedTasks.length === 0 && <div className="muted">Сюда пока нет пути.</div>}
+                {selectedTasks.map((task) => (
+                  <div key={task.id} style={{ marginBottom: selectedTasks.length > 1 ? ".8rem" : 0 }}>
+                    <div className="row between">
+                      <div><strong>{task.deed.title}</strong> <span className="badge">{task.deed.direction}</span></div>
+                      <span className={"badge" + (task.status === "SUBMITTED" ? " accent" : "")}>{TASK_STATUS_LABEL[task.status]}</span>
+                    </div>
+                    <div className="muted" style={{ margin: ".3rem 0" }}>Путь {where(task)}. {task.deed.description || ""} Сдать: {PROOF_LABEL[task.deed.proofType]}, тяжесть {task.deed.difficulty}.</div>
+                    {task.status === "REJECTED" && task.adminComment && <div className="note bad">Вернули: {task.adminComment}</div>}
+                    {task.status === "SUBMITTED" && <div className="muted">Сдано, ждём проверки администратора.</div>}
+                    {(task.status === "OPEN" || task.status === "REJECTED") && (
+                      <div className="actions" style={{ marginTop: ".5rem" }}>
+                        <button className="sm" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}>Беру это дело</button>
+                        <button className="ghost sm" onClick={() => setSelectedKey(null)}>Не сейчас</button>
+                      </div>
+                    )}
+                    {task.status === "TAKEN" && (
+                      <div style={{ marginTop: ".5rem" }}>
+                        <label htmlFor={"links-" + task.id}>Ссылки на фото или видео <span className="muted">по одной на строку</span></label>
+                        <textarea id={"links-" + task.id} rows={3} value={links} onChange={(e) => setLinks(e.target.value)} placeholder="https://…" />
+                        <label htmlFor={"note-" + task.id}>Что сделали</label>
+                        <textarea id={"note-" + task.id} rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+                        <div className="actions">
+                          <button className="sm" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/submit`, { links: links.split(/\s+/).filter(Boolean), note }).then(() => { setLinks(""); setNote(""); })}>Сдать на проверку</button>
+                          <button className="ghost sm" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/release`)}>Отпустить дело</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="card">
             <div className="card-head"><h2>Дела рядом <span className="muted">{openTasks.length}</span></h2></div>
-            {error && <p className="error">{error}</p>}
             {openTasks.length === 0 && <p className="muted">Открытых путей нет.</p>}
             <ul className="list">
-              {openTasks.map((t) => <TaskRow key={t.id} t={t} selected={t.id === selected} onSelect={() => setSelected(t.id === selected ? null : t.id)} />)}
+              {openTasks.map((t) => (
+                <li key={t.id} onClick={() => setSelectedKey(t.toKey === selectedKey ? null : t.toKey)} style={{ cursor: "pointer", background: t.toKey === selectedKey ? "var(--surface-2)" : undefined, borderRadius: 8, padding: ".6rem .4rem" }}>
+                  <div className="main"><strong>{t.deed.title}</strong> <span className="badge">{t.deed.direction}</span><div className="muted">{where(t)} · {PROOF_LABEL[t.deed.proofType]} · тяжесть {t.deed.difficulty}</div></div>
+                  <span className={"badge" + (t.status === "SUBMITTED" ? " accent" : "")}>{TASK_STATUS_LABEL[t.status]}</span>
+                </li>
+              ))}
             </ul>
-            {task && (
-              <div className="note ok" style={{ marginTop: ".75rem" }}>
-                <strong>{task.deed.title}</strong> <span className="badge">{task.deed.direction}</span>
-                <div className="muted" style={{ margin: ".3rem 0" }}>{task.deed.description || "Без описания."} · Сдать: {PROOF_LABEL[task.deed.proofType]}.</div>
-                {task.status === "REJECTED" && task.adminComment && <div className="note bad">Вернули: {task.adminComment}</div>}
-                {task.status === "SUBMITTED" && <div className="muted">Сдано, ждём проверки администратора.</div>}
-                {(task.status === "OPEN" || task.status === "REJECTED") && <div className="actions"><button className="sm" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}>Беру это дело</button></div>}
-                {(task.status === "TAKEN" || task.status === "REJECTED") && (
-                  <div style={{ marginTop: ".5rem" }}>
-                    <label htmlFor="links">Ссылки на фото или видео <span className="muted">по одной на строку</span></label>
-                    <textarea id="links" rows={3} value={links} onChange={(e) => setLinks(e.target.value)} placeholder="https://…" />
-                    <label htmlFor="note">Что сделали</label>
-                    <textarea id="note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-                    <div className="actions">
-                      <button className="sm" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/submit`, { links: links.split(/\s+/).filter(Boolean), note }).then(() => { setLinks(""); setNote(""); })}>Сдать на проверку</button>
-                      {task.status === "TAKEN" && <button className="ghost sm" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/release`)}>Отпустить</button>}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </>
       ) : (
@@ -130,15 +167,5 @@ export function TeamPage() {
         </ul>
       </div>
     </>
-  );
-}
-
-function TaskRow({ t, selected, onSelect }: { t: EdgeTaskDto; selected: boolean; onSelect: () => void }) {
-  const tone = t.status === "SUBMITTED" ? " accent" : "";
-  return (
-    <li onClick={onSelect} style={{ cursor: "pointer", background: selected ? "var(--surface-2)" : undefined, borderRadius: 8, padding: ".6rem .4rem" }}>
-      <div className="main"><strong>{t.deed.title}</strong> <span className="badge">{t.deed.direction}</span><div className="muted">{PROOF_LABEL[t.deed.proofType]} · тяжесть {t.deed.difficulty}</div></div>
-      <span className={"badge" + tone}>{TASK_STATUS_LABEL[t.status]}</span>
-    </li>
   );
 }
