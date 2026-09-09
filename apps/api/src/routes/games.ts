@@ -17,6 +17,7 @@ const createBody = z.object({
       nodeCount: z.number().int().min(200).max(600).default(250),
       equidistantStarts: z.boolean().default(false),
       maxStartDistanceDiff: z.number().int().min(0).max(6).default(3),
+      includeGenealogies: z.boolean().default(false),
     })
     .default({}),
 });
@@ -31,6 +32,7 @@ const patchBody = z.object({
       nodeCount: z.number().int().min(200).max(600).optional(),
       equidistantStarts: z.boolean().optional(),
       maxStartDistanceDiff: z.number().int().min(0).max(6).optional(),
+      includeGenealogies: z.boolean().optional(),
     })
     .optional(),
 });

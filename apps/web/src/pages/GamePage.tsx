@@ -9,8 +9,9 @@ import { DeedsBlock } from "./DeedsBlock";
 import { StartBlock } from "./StartBlock";
 import { SettingsBlock } from "./SettingsBlock";
 import { SubmissionsBlock } from "./SubmissionsBlock";
+import { BattlesBlock } from "./BattlesBlock";
 
-interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number } }
+interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean } }
 interface Stats { nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number }
 
 
@@ -75,6 +76,7 @@ export function GamePage() {
 
       <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
       {game.status === "ACTIVE" && <SubmissionsBlock gameId={game.id} version={version} onDecided={() => void loadProgress()} />}
+      {game.status === "ACTIVE" && <BattlesBlock gameId={game.id} version={version} onDecided={() => void loadProgress()} />}
       <StartBlock gameId={game.id} status={game.status} version={version} onStarted={() => { void load(); void loadProgress(); }} />
       <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} />
       <DeedsBlock gameId={game.id} version={version} onChange={bump} />

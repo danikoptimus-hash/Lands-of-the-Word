@@ -148,5 +148,14 @@
     "canRepeat": true,
     "bookCode": "rut",
     "difficulty": 2
+  },
+  {
+    "title": "Проповедь пророка команды на текст из книги Руфь",
+    "description": "Пророк команды говорит проповедь в собрании на текст из книги Руфь. Договориться со служителем заранее.",
+    "direction": "Благовестие",
+    "proofType": "VIDEO_LINK",
+    "canRepeat": false,
+    "bookCode": "rut",
+    "difficulty": 3
   }
 ]

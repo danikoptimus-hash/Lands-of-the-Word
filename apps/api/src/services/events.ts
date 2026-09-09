@@ -4,7 +4,7 @@ import type { FastifyReply } from "fastify";
  * Живые события по игре (Server-Sent Events). Один процесс — подписчики в памяти.
  * Любая мутация в игре вызывает publish(gameId, { type }), клиенты перезагружают нужные данные.
  */
-export type GameEventType = "game" | "map" | "teams" | "deeds" | "tasks" | "submissions" | "cities";
+export type GameEventType = "game" | "map" | "teams" | "deeds" | "tasks" | "submissions" | "cities" | "battles";
 export interface GameEvent { type: GameEventType; teamId?: string; at: number }
 
 const subscribers = new Map<string, Set<FastifyReply>>();

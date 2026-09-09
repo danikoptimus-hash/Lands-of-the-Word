@@ -173,3 +173,21 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .admin-city { margin-top: .8rem; padding: .8rem 1rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); }
 .admin-city .key { font-size: 1.1rem; font-weight: 700; letter-spacing: .12em; background: var(--surface); padding: .1rem .5rem; border-radius: 6px; border: 1px solid var(--border-strong); }
 .admin-districts { margin: .6rem 0 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: .6rem; }
+
+/* Битвы */
+.war { margin-top: .8rem; padding: .7rem .8rem; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.war .declare .row { display: flex; gap: .5rem; align-items: center; }
+.battle { margin-top: .6rem; padding: .6rem .8rem; border: 1px solid var(--border); border-left: 4px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); }
+.battle.attack { border-left-color: var(--danger); }
+.battle.defense { border-left-color: var(--warn); }
+.battle.won { border-left-color: var(--danger); }
+.battle.repelled { border-left-color: var(--success); }
+.battle .passage { margin: .4rem 0; }
+.battle .passage .text { max-height: 220px; overflow: auto; background: var(--surface-2); padding: .5rem .7rem; border-radius: var(--radius-sm); font-size: .92rem; }
+.battle .passage .text p { margin: 0 0 .3rem; }
+.battle .progress { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: .4rem; }
+.battle .progress span { display: block; height: 100%; background: var(--accent); }
+.battle .entry-form { margin-top: .5rem; display: flex; flex-direction: column; gap: .4rem; }
+.battle .entry-form .row { display: flex; gap: .5rem; }
+.badge.ok { background: var(--success-soft); color: var(--success); border-color: transparent; }
+.badge.bad { background: var(--danger-soft); color: var(--danger); border-color: transparent; }

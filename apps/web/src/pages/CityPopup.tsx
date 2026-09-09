@@ -4,6 +4,7 @@ import { api, ApiError, type CityTaskDto, type MyCityDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
 import { SortableList } from "./SortableList";
+import { WarSection } from "./BattlePanel";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -12,7 +13,7 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
  * после верного порядка они окрашиваются и застывают. Шаг 2: в каждом районе одно задание,
  * решённое помечается зелёной галочкой справа и даёт букву шифра. Шаг 3: ключ из конверта — город взят.
  */
-export function CityPopup({ gameId, nodeKey, version, onClose, onChanged }: { gameId: string; nodeKey: string; version: number; onClose: () => void; onChanged: () => void }) {
+export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; version: number; onClose: () => void; onChanged: () => void }) {
   const { notify } = useUi();
   const [city, setCity] = useState<MyCityDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -129,6 +130,7 @@ export function CityPopup({ gameId, nodeKey, version, onClose, onChanged }: { ga
               </div>
             )}
             {city.state.capturedAt && <div className="note ok">Город ваш{city.state.isCapital ? " — это ваша столица" : ""}.</div>}
+            {(city.owner || city.state.capturedAt) && <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} version={version} onChanged={onChanged} />}
           </>
         )}
 

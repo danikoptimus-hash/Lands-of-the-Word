@@ -56,3 +56,17 @@ export interface AdminCityDto {
 }
 export const PROOF_LABEL: Record<DeedLite["proofType"], string> = { REPORT: "отчёт текстом", PHOTO_LINK: "ссылка на фото", VIDEO_LINK: "ссылка на видео", CONFIRMATION: "подтверждение человека" };
 export const TASK_STATUS_LABEL: Record<EdgeTaskStatus, string> = { OPEN: "свободно", TAKEN: "в работе", SUBMITTED: "на проверке", APPROVED: "одобрено", REJECTED: "вернули" };
+
+/** Битва за город. Записи чужой стороны команде не видны. */
+export type BattleStatus = "QUEUED" | "ATTACK" | "DEFENSE" | "WON" | "REPELLED" | "EXPIRED" | "CANCELLED";
+export interface BattleEntryDto { id: string; side: "ATTACK" | "DEFENSE"; userId: string; nickname: string; ref: string; verses: number; links: string[]; note: string; status: "SUBMITTED" | "APPROVED" | "REJECTED"; adminComment: string; createdAt: string }
+export interface BattleDto {
+  id: string; nodeKey: string; bookCode: string; status: BattleStatus; sumMode: boolean; bid: number; defenseBid: number | null;
+  attacker: { id: string; index: number; name: string; color: string }; defender: { id: string; index: number; name: string; color: string };
+  passage: { ref: string; start: number; end: number; text: string[] | null } | null;
+  declaredAt: string; startedAt: string | null; attackDeadline: string | null; attackDoneAt: string | null; attackApprovedAt: string | null;
+  defenseDeadline: string | null; defenseDoneAt: string | null; resolvedAt: string | null;
+  attackCovered: number; attackApproved: number; defenseCovered: number; defenseApproved: number; entries: BattleEntryDto[]; bookTotal: number | null;
+}
+export interface WarDto { defenseLevel: number; sumMode: boolean; locked: boolean; bookVerses: number | null; penalty: number; minBid: number; canDeclare: boolean; reason: string | null; owner: { id: string; name: string; color: string } | null; queue: number; battles: BattleDto[] }
+export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { QUEUED: "в очереди", ATTACK: "атака", DEFENSE: "оборона", WON: "город взят", REPELLED: "атака отражена", EXPIRED: "атака сгорела", CANCELLED: "отменена" };

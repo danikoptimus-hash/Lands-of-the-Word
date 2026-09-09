@@ -115,6 +115,12 @@ model MapNode {
   teamIndex Int?
   /** Ключ конверта города (генерируется при старте игры, виден только админу). */
   cityKey   String?
+  /** Уровень защиты города: сколько стихов надо, чтобы его взять (следующая атака ≥ level + 1). */
+  defenseLevel  Int     @default(0)
+  /** Книга исчерпана: ставки считаются суммой стихов по участникам. */
+  sumMode       Boolean @default(false)
+  /** Отражена атака в суммарном режиме: город закреплён навсегда. */
+  lockedForever Boolean @default(false)
 
   @@unique([gameId, key])
 }
@@ -157,6 +163,8 @@ model Team {
   nodeStates   TeamNodeState[]
   edgeTasks    TeamEdgeTask[]
   cityStates   TeamCityState[]
+  attacks      Battle[]  @relation("attacker")
+  defenses     Battle[]  @relation("defender")
 
   @@unique([gameId, index])
   @@unique([gameId, name])
@@ -271,9 +279,86 @@ model TeamCityState {
   lastWrongAt    DateTime?
   capturedAt     DateTime?
   isCapital      Boolean   @default(false)
+  /** Захваченная чужая столица: вторая столица, переносить нельзя. */
+  secondCapital  Boolean   @default(false)
+  /** Штраф к минимальной ставке за сгоревшие атаки этой команды на этот город (+5 за каждую). */
+  attackPenalty  Int       @default(0)
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   @@unique([teamId, nodeKey])
   @@index([gameId, nodeKey])
+}
+
+enum BattleStatus {
+  QUEUED
+  ATTACK
+  DEFENSE
+  WON
+  REPELLED
+  EXPIRED
+  CANCELLED
+}
+
+enum BattleSide {
+  ATTACK
+  DEFENSE
+}
+
+enum EntryStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+/**
+ * Битва за город (2.8). Атакующие получают случайный отрывок из N стихов и прикрепляют ссылки на видео;
+ * T = от начала атаки до последней ссылки; после одобрения админом у защитников ровно T на ответ M ≥ N.
+ */
+model Battle {
+  id                String       @id @default(cuid())
+  gameId            String
+  nodeKey           String
+  bookCode          String
+  attackerId        String
+  attacker          Team         @relation("attacker", fields: [attackerId], references: [id], onDelete: Cascade)
+  defenderId        String
+  defender          Team         @relation("defender", fields: [defenderId], references: [id], onDelete: Cascade)
+  status            BattleStatus @default(QUEUED)
+  sumMode           Boolean      @default(false)
+  bid               Int
+  defenseBid        Int?
+  passageStart      Int?
+  passageEnd        Int?
+  declaredAt        DateTime     @default(now())
+  startedAt         DateTime?
+  attackDeadline    DateTime?
+  attackDoneAt      DateTime?
+  attackApprovedAt  DateTime?
+  defenseDeadline   DateTime?
+  defenseDoneAt     DateTime?
+  resolvedAt        DateTime?
+  entries           BattleEntry[]
+
+  @@index([gameId, nodeKey, status])
+  @@index([gameId, status])
+}
+
+model BattleEntry {
+  id           String      @id @default(cuid())
+  battleId     String
+  battle       Battle      @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  side         BattleSide
+  teamId       String
+  userId       String
+  startIdx     Int
+  endIdx       Int
+  links        String[]    @default([])
+  note         String      @default("")
+  status       EntryStatus @default(SUBMITTED)
+  adminComment String      @default("")
+  createdAt    DateTime    @default(now())
+  decidedAt    DateTime?
+
+  @@index([battleId, side])
 }

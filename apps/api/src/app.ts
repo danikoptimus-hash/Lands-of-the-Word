@@ -12,6 +12,8 @@ import { teamRoutes } from "./routes/teams.js";
 import { deedRoutes } from "./routes/deeds.js";
 import { teamMapRoutes } from "./routes/teamMap.js";
 import { cityRoutes } from "./routes/cities.js";
+import { battleRoutes } from "./routes/battles.js";
+import { sweep } from "./services/battles.js";
 import { eventRoutes } from "./routes/events.js";
 
 declare module "fastify" {
@@ -49,6 +51,12 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(deedRoutes);
   await app.register(teamMapRoutes);
   await app.register(cityRoutes);
+  await app.register(battleRoutes);
+  // Таймеры битв: сгоревшие атаки и просроченные обороны проверяются раз в минуту.
+  if (config.NODE_ENV !== "test") {
+    const timer = setInterval(() => { sweep().catch((e) => app.log.error(e, "battle sweep failed")); }, 60_000);
+    app.addHook("onClose", async () => clearInterval(timer));
+  }
   await app.register(eventRoutes);
 
   // Раздача собранного веб-клиента (в продакшене); все не-API пути отдают index.html (SPA).

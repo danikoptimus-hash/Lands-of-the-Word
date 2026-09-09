@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS, directionBetween, parseVertexKey } from "@lotw/domain";
-import { api, ApiError, GAME_ROLE_LABEL, PROOF_LABEL, TASK_STATUS_LABEL, TEAM_ROLE_LABEL, type EdgeTaskDto, type GameRole, type MyMapDto, type TeamDto } from "../lib/api";
+import { api, ApiError, BATTLE_STATUS_LABEL, GAME_ROLE_LABEL, PROOF_LABEL, TASK_STATUS_LABEL, TEAM_ROLE_LABEL, type BattleDto, type EdgeTaskDto, type GameRole, type MyMapDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useRef } from "react";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamMap } from "./TeamMap";
 import { CityPopup } from "./CityPopup";
+import { BattleCard } from "./BattlePanel";
+import { useUi } from "../lib/ui";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -22,6 +24,25 @@ export function TeamPage() {
   const [menu, setMenu] = useState(false);
   const [cityKey, setCityKey] = useState<string | null>(null);
   const [cityVersion, setCityVersion] = useState(0);
+  const [battles, setBattles] = useState<BattleDto[]>([]);
+  const [now, setNow] = useState(Date.now());
+  const { notify } = useUi();
+  const seenBattles = useRef<Map<string, string> | null>(null);
+  const loadBattles = useCallback(() => api<{ battles: BattleDto[] }>(`/api/games/${id}/my-battles`).then((r) => {
+    // Живые оповещения: новая атака на наш город, старт обороны, итог битвы.
+    const prev = seenBattles.current;
+    if (prev) for (const b of r.battles) {
+      const was = prev.get(b.id);
+      if (was === b.status) continue;
+      const mine = team && b.defender.id === team.id;
+      if (!was && mine && b.status === "ATTACK") notify(`На ваш город ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? ""} объявлена атака: ${b.bid} стихов!`, "bad");
+      else if (was && mine && b.status === "DEFENSE") notify(`Атака на ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? "город"} одобрена: пошло время обороны!`, "bad");
+      else if (was && (b.status === "WON" || b.status === "REPELLED" || b.status === "EXPIRED")) notify(`Битва за ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? "город"}: ${BATTLE_STATUS_LABEL[b.status]}`, b.status === "WON" ? (mine ? "bad" : "ok") : mine ? "ok" : "bad");
+    }
+    seenBattles.current = new Map(r.battles.map((b) => [b.id, b.status]));
+    setBattles(r.battles);
+  }).catch(() => {}), [id, team, notify]);
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   const swipe = useRef<{ x: number; y: number; edge: boolean } | null>(null);
   // Свайп от края браузер трактует как «назад»; гасим его сами (нужен non-passive слушатель).
   const screenRef = useRef<HTMLDivElement>(null);
@@ -45,7 +66,8 @@ export function TeamPage() {
   const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setIsAdmin(r.isAdmin); setTeam(r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")), [id]);
   const loadMap = useCallback(() => api<MyMapDto & { gameName?: string }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); if (m.gameName) setGameName(m.gameName); }).catch(() => setMap(null)), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
-  useGameEvents(id, (e) => { if (e.type === "teams" || e.type === "game") void loadTeam(); if (e.type !== "deeds") void loadMap(); if (e.type === "cities" || e.type === "game") setCityVersion((v) => v + 1); });
+  useEffect(() => { if (team) void loadBattles(); }, [team, loadBattles]);
+  useGameEvents(id, (e) => { if (e.type === "teams" || e.type === "game") void loadTeam(); if (e.type !== "deeds") void loadMap(); if (e.type === "cities" || e.type === "game" || e.type === "battles") setCityVersion((v) => v + 1); if (e.type === "battles" || e.type === "game" || e.type === "submissions") void loadBattles(); });
   useEffect(() => {
     const t = setInterval(() => void loadMap(), 60000);
     const onFocus = () => void loadMap();
@@ -100,6 +122,7 @@ export function TeamPage() {
     );
   }
 
+  const activeBattles = battles.filter((b) => b.status === "QUEUED" || b.status === "ATTACK" || b.status === "DEFENSE");
   const takenTasks = map.tasks.filter((t) => t.status === "TAKEN" || t.status === "SUBMITTED" || t.status === "REJECTED");
   const done = map.tasks.filter((t) => t.status === "APPROVED").length;
 
@@ -120,7 +143,7 @@ export function TeamPage() {
   return (
     <div className="map-screen" ref={screenRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={(tid) => { setSelectedId(tid); if (tid) setMenu(false); }} onSelectCity={(key) => { setCityKey(key); setSelectedId(null); setMenu(false); }} />
-      {cityKey && <CityPopup gameId={id} nodeKey={cityKey} version={cityVersion} onClose={() => setCityKey(null)} onChanged={() => void loadMap()} />}
+      {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} isCaptain={isCaptain} version={cityVersion} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); }} />}
 
       <div className="map-hud">
         <span className="avatar" style={{ background: team.color, color: "#fff" }}>{team.name.slice(0, 1)}</span>
@@ -128,7 +151,7 @@ export function TeamPage() {
         <span className="muted">· узлов {map.revealed.length} · путей {done}</span>
       </div>
       {/* Кнопка остаётся в DOM (hidden), иначе свайп, начатый на ней, ломается: Chrome теряет цель касания */}
-      <div className="edge-handle" role="button" tabIndex={0} hidden={menu} onClick={() => { setMenu(true); setSelectedId(null); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setMenu(true); }} aria-label="Открыть меню">›{takenTasks.length > 0 && <span className="count">{takenTasks.length}</span>}</div>
+      <div className="edge-handle" role="button" tabIndex={0} hidden={menu} onClick={() => { setMenu(true); setSelectedId(null); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setMenu(true); }} aria-label="Открыть меню">›{takenTasks.length + activeBattles.length > 0 && <span className="count">{takenTasks.length + activeBattles.length}</span>}</div>
 
       {task && (
         <div className="sheet">
@@ -184,6 +207,16 @@ export function TeamPage() {
                 ))}
               </ul>
             </div>
+            {activeBattles.length > 0 && (
+              <div className="section">
+                <h2>Битвы <span className="muted">{activeBattles.length}</span></h2>
+                {activeBattles.map((b) => (
+                  <div key={b.id} onClick={() => { setCityKey(b.nodeKey); setMenu(false); }} style={{ cursor: "pointer" }}>
+                    <BattleCard gameId={id} b={b} teamId={team.id} isCaptain={isCaptain} now={now} onChanged={() => void loadBattles()} compact />
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} flat /></div>
             <div className="section">
               <Link className="menu-link" to="/">🗺 Мои игры</Link>
