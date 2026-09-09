@@ -43,14 +43,14 @@ export function DeedsBlock({ gameId }: { gameId: string }) {
   const unique = deeds.filter((d) => !d.canRepeat).length;
   return (
     <div className="card">
-      <div className="row" style={{ justifyContent: "space-between" }}>
-        <h2 style={{ margin: 0 }}>Дела <span className="muted">({deeds.length}, из них уникальных {unique})</span></h2>
-        <span className="row">
-          <button className="secondary" onClick={() => void importDefault()}>Добавить стандартный набор</button>
-          <button className="secondary" onClick={() => setOpen((o) => !o)}>{open ? "Скрыть форму" : "Новое дело"}</button>
-        </span>
+      <div className="card-head">
+        <h2>Дела <span className="muted">{deeds.length} · уникальных {unique}</span></h2>
+        <div className="row">
+          <button className="secondary sm" onClick={() => void importDefault()}>Стандартный набор</button>
+          <button className="sm" onClick={() => setOpen((o) => !o)}>{open ? "Скрыть форму" : "+ Новое дело"}</button>
+        </div>
       </div>
-      {deeds.length < recommended && <p className="muted">Рекомендуется не меньше {recommended} дел на эту карту, иначе дела будут повторяться. Дела с пометкой «можно дублировать» выдаются повторно.</p>}
+      {deeds.length < recommended && <p className="note warn">Рекомендуется не меньше {recommended} дел на эту карту, иначе дела будут повторяться. Дела с пометкой «можно дублировать» выдаются повторно.</p>}
       {error && <p className="error">{error}</p>}
       {open && (
         <form onSubmit={add} style={{ marginBottom: "1rem" }}>
@@ -58,37 +58,37 @@ export function DeedsBlock({ gameId }: { gameId: string }) {
           <input id="d-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required minLength={2} maxLength={120} />
           <label htmlFor="d-desc">Описание (что именно сделать)</label>
           <input id="d-desc" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} maxLength={2000} />
-          <div className="row">
-            <div style={{ flex: 1 }}>
+          <div className="grid cols-2">
+            <div>
               <label>Направление</label>
               <select value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })}>{directions.map((d) => <option key={d}>{d}</option>)}</select>
             </div>
-            <div style={{ flex: 1 }}>
+            <div>
               <label>Что сдать</label>
               <select value={form.proofType} onChange={(e) => setForm({ ...form, proofType: e.target.value as ProofType })}>{(Object.keys(PROOF_LABEL) as ProofType[]).map((p) => <option key={p} value={p}>{PROOF_LABEL[p]}</option>)}</select>
             </div>
-            <div style={{ flex: 1 }}>
+            <div>
               <label>Тематическая книга (необязательно)</label>
               <select value={form.bookCode} onChange={(e) => setForm({ ...form, bookCode: e.target.value })}><option value="">—</option>{BOOKS.map((b) => <option key={b.code} value={b.code}>{b.nameRu}</option>)}</select>
             </div>
-            <div style={{ width: 120 }}>
+            <div>
               <label>Тяжесть 1–3</label>
               <input type="number" min={1} max={3} value={form.difficulty} onChange={(e) => setForm({ ...form, difficulty: Number(e.target.value) })} />
             </div>
           </div>
-          <label><input type="checkbox" checked={form.canRepeat} onChange={(e) => setForm({ ...form, canRepeat: e.target.checked })} style={{ width: "auto", marginRight: 8 }} />Можно дублировать</label>
-          <button type="submit" style={{ marginTop: ".75rem" }}>Добавить дело</button>
+          <label className="check"><input type="checkbox" checked={form.canRepeat} onChange={(e) => setForm({ ...form, canRepeat: e.target.checked })} />Можно дублировать</label>
+          <div className="actions"><button type="submit">Добавить дело</button></div>
         </form>
       )}
       {deeds.length === 0 ? <p className="muted">Список пуст. Добавь стандартный набор как заготовку или создай свои дела.</p> : (
         <ul className="list">
           {deeds.map((d) => (
             <li key={d.id}>
-              <span><strong>{d.title}</strong> <span className="muted">· {d.direction} · {PROOF_LABEL[d.proofType]} · тяжесть {d.difficulty}{d.bookCode ? ` · ${BOOKS.find((b) => b.code === d.bookCode)?.nameRu}` : ""}</span>{d.description && <><br /><span className="muted">{d.description}</span></>}</span>
-              <span className="row" style={{ flexShrink: 0 }}>
-                <button className="secondary" onClick={() => void toggleRepeat(d)}>{d.canRepeat ? "дублируется" : "уникальное"}</button>
-                <button className="secondary" onClick={() => void remove(d)}>✕</button>
-              </span>
+              <div className="main"><strong>{d.title}</strong> <span className="badge">{d.direction}</span><div className="muted">{PROOF_LABEL[d.proofType]} · тяжесть {d.difficulty}{d.bookCode ? ` · ${BOOKS.find((b) => b.code === d.bookCode)?.nameRu}` : ""}{d.description ? ` · ${d.description}` : ""}</div></div>
+              <div className="side">
+                <button className="secondary sm" onClick={() => void toggleRepeat(d)}>{d.canRepeat ? "дублируется" : "уникальное"}</button>
+                <button className="ghost sm" onClick={() => void remove(d)}>Удалить</button>
+              </div>
             </li>
           ))}
         </ul>

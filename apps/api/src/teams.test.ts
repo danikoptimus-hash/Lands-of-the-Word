@@ -77,13 +77,20 @@ describe("команды и приглашения", () => {
     await app.inject({ method: "POST", url: `/api/invites/${token}/accept`, headers: { cookie: otherCookie } });
     const other = await prisma.user.findUniqueOrThrow({ where: { nickname: otherNick } });
     const player = await prisma.user.findUniqueOrThrow({ where: { nickname: playerNick } });
+    // other вступил по капитанской ссылке — админ делает его рядовым участником.
+    const demote = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: adminCookie }, payload: { role: "MEMBER" } });
+    expect(demote.statusCode).toBe(200);
+    // Капитан (player) сам роль не получает: капитан — уже роль.
     const r1 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${player.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "SCOUT" } });
-    expect(r1.statusCode).toBe(200);
+    expect(r1.statusCode).toBe(409);
     const r2 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "SCOUT" } });
     expect(r2.statusCode).toBe(200);
+    const r3 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "PROPHET" } });
+    expect(r3.statusCode).toBe(200);
     const teams = await app.inject({ method: "GET", url: `/api/games/${gameId}/teams`, headers: { cookie: adminCookie } });
     const members = teams.json().teams[0].members as Array<{ user: { nickname: string }; gameRole: string }>;
-    expect(members.filter((m) => m.gameRole === "SCOUT")).toHaveLength(1);
+    expect(members.filter((m) => m.gameRole === "SCOUT")).toHaveLength(0);
+    expect(members.filter((m) => m.gameRole === "PROPHET")).toHaveLength(1);
     // Рядовой участник не может назначать капитана.
     const forb = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: otherCookie }, payload: { role: "CAPTAIN" } });
     expect(forb.statusCode).toBe(403);
@@ -144,5 +151,29 @@ describe("дела и старт игры", () => {
     const gen = await app.inject({ method: "POST", url: `/api/games/${gameId}/generate`, headers: { cookie: adminCookie }, payload: {} });
     expect(gen.statusCode).toBe(409);
     await prisma.user.deleteMany({ where: { nickname: "th_" + stamp } });
+  });
+});
+
+describe("настройки игры", () => {
+  it("число команд меняется до старта, после — нет; капитану роль не даётся", async () => {
+    const g = await app.inject({ method: "POST", url: "/api/games", headers: { cookie: adminCookie }, payload: { name: "Настройки", teamCount: 3 } });
+    const gid = g.json().game.id as string;
+    const ok = await app.inject({ method: "PATCH", url: `/api/games/${gid}`, headers: { cookie: adminCookie }, payload: { teamCount: 2, settings: { equidistantStarts: true } } });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().game.teamCount).toBe(2);
+    expect(ok.json().game.settings.equidistantStarts).toBe(true);
+    // Стартов на карте 3 (сгенерировано до смены) → готовность требует перегенерации.
+    await app.inject({ method: "POST", url: `/api/games/${gid}/generate`, headers: { cookie: adminCookie }, payload: { seed: 9 } });
+    await app.inject({ method: "PATCH", url: `/api/games/${gid}`, headers: { cookie: adminCookie }, payload: { teamCount: 3 } });
+    const r = await app.inject({ method: "GET", url: `/api/games/${gid}/readiness`, headers: { cookie: adminCookie } });
+    expect(r.json().problems.join(" ")).toContain("перегенерируйте");
+    // Начатая игра (gameId из предыдущих тестов) настройки не меняет.
+    const locked = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { teamCount: 4 } });
+    expect(locked.statusCode).toBe(409);
+    // Капитану игровую роль не назначить.
+    const player = await prisma.user.findUniqueOrThrow({ where: { nickname: playerNick } });
+    const cap = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${player.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "PROPHET" } });
+    expect(cap.statusCode).toBe(409);
+    await prisma.game.deleteMany({ where: { id: gid } });
   });
 });

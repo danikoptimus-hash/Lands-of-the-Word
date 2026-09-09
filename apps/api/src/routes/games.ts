@@ -20,6 +20,18 @@ const createBody = z.object({
 
 const generateBody = z.object({ seed: z.number().int().min(0).max(2 ** 31 - 1).optional() });
 
+const patchBody = z.object({
+  name: z.string().trim().min(2).max(80).optional(),
+  teamCount: z.number().int().min(2).max(12).optional(),
+  settings: z
+    .object({
+      nodeCount: z.number().int().min(150).max(600).optional(),
+      equidistantStarts: z.boolean().optional(),
+      maxStartDistanceDiff: z.number().int().min(0).max(6).optional(),
+    })
+    .optional(),
+});
+
 async function loadGameForAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: true } });
   if (!game) { await reply.code(404).send({ error: "not_found", message: "Игра не найдена" }); return null; }
@@ -53,6 +65,22 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       },
     });
     return reply.code(201).send({ game });
+  });
+
+  /** Настройки игры можно менять только до старта. Если меняется число команд — карту надо перегенерировать. */
+  app.patch("/api/games/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = await loadGameForAdmin(request, reply, id);
+    if (!game) return;
+    if (game.status !== "DRAFT") return reply.code(409).send({ error: "conflict", message: "Игра уже начата, настройки зафиксированы" });
+    const body = patchBody.parse(request.body);
+    if (body.teamCount !== undefined) {
+      const teams = await prisma.team.count({ where: { gameId: id } });
+      if (teams > body.teamCount) return reply.code(409).send({ error: "conflict", message: `Уже создано команд: ${teams}. Сначала удалите лишние` });
+    }
+    const settings = { ...((game.settings ?? {}) as Record<string, unknown>), ...(body.settings ?? {}) };
+    const updated = await prisma.game.update({ where: { id }, data: { name: body.name, teamCount: body.teamCount, settings } });
+    return { game: updated };
   });
 
   app.get("/api/games/:id", async (request, reply) => {
@@ -115,7 +143,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const recommended = recommendedDeedCount(settings.nodeCount ?? 250);
     const problems: string[] = [];
     if (starts === 0) problems.push("Карта не сгенерирована");
-    if (teams.length < game.teamCount) problems.push(`Создано команд: ${teams.length} из ${game.teamCount}`);
+    else if (starts !== game.teamCount) problems.push(`На карте ${starts} стартовых точек, а команд по настройкам ${game.teamCount}: перегенерируйте карту`);
+    if (teams.length < game.teamCount) problems.push(`Создано команд: ${teams.length} из ${game.teamCount}. Добавьте команду или уменьшите число команд в настройках`);
     const empty = teams.filter((t) => t._count.members === 0).map((t) => t.name);
     if (empty.length) problems.push(`Команды без участников: ${empty.join(", ")}`);
     const warnings: string[] = [];

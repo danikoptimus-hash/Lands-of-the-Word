@@ -30,25 +30,26 @@ export function LoginPage() {
   }
 
   return (
-    <div className="card" style={{ maxWidth: 420, margin: "2rem auto" }}>
-      <h1>{mode === "login" ? "Вход" : "Регистрация"}</h1>
+    <div className="card auth">
+      <div className="tabs">
+        <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>Вход</button>
+        <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>Регистрация</button>
+      </div>
       <form onSubmit={submit}>
         <label htmlFor="nickname">Никнейм</label>
-        <input id="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} autoComplete="username" required minLength={3} maxLength={24} />
+        <input id="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} autoComplete="username" required minLength={3} maxLength={24} autoFocus />
         <label htmlFor="password">Пароль</label>
         <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} required minLength={8} />
         {mode === "register" && (
           <>
-            <label htmlFor="email">Email (необязательно, для уведомлений и восстановления пароля)</label>
+            <label htmlFor="email">Email <span className="muted">необязательно</span></label>
             <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+            <p className="hint">Нужен только для уведомлений и восстановления пароля. Имя и фамилия не требуются.</p>
           </>
         )}
         {error && <p className="error">{error}</p>}
-        <div className="row" style={{ marginTop: "1rem" }}>
-          <button type="submit" disabled={busy}>{mode === "login" ? "Войти" : "Создать учётку"}</button>
-          <button type="button" className="secondary" onClick={() => setMode(mode === "login" ? "register" : "login")}>
-            {mode === "login" ? "Нет учётки? Зарегистрироваться" : "Уже есть учётка? Войти"}
-          </button>
+        <div className="actions">
+          <button type="submit" disabled={busy} style={{ width: "100%" }}>{mode === "login" ? "Войти" : "Создать учётку"}</button>
         </div>
       </form>
     </div>

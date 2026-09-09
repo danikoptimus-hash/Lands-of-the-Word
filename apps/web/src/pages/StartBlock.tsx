@@ -24,10 +24,10 @@ export function StartBlock({ gameId, status, onStarted }: { gameId: string; stat
       <h2>Старт игры</h2>
       {r ? (
         <>
-          {r.problems.map((p) => <p key={p} className="error">✕ {p}</p>)}
-          {r.warnings.map((w) => <p key={w} className="muted">⚠ {w}</p>)}
-          {r.canStart && <p className="muted">Всё готово: карта, команды, дела.</p>}
-          <div className="row"><button onClick={() => void start()} disabled={!r.canStart || busy}>Начать игру</button><button className="secondary" onClick={() => void load()}>Обновить проверку</button></div>
+          {r.problems.map((p) => <p key={p} className="note bad">{p}</p>)}
+          {r.warnings.map((w) => <p key={w} className="note warn">{w}</p>)}
+          {r.canStart && <p className="note ok">Всё готово: карта, команды, дела.</p>}
+          <div className="actions"><button onClick={() => void start()} disabled={!r.canStart || busy}>Начать игру</button><button className="secondary" onClick={() => void load()}>Обновить проверку</button></div>
         </>
       ) : <p className="muted">Проверка…</p>}
       {error && <p className="error">{error}</p>}

@@ -31,7 +31,7 @@ export function JoinPage() {
   }
 
   return (
-    <div className="card" style={{ maxWidth: 520, margin: "2rem auto" }}>
+    <div className="card auth">
       <h1>Приглашение</h1>
       {error && <p className="error">{error}</p>}
       {info && (
@@ -41,7 +41,7 @@ export function JoinPage() {
           {info.alreadyIn ? (
             <p className="muted">Вы уже в команде «{info.alreadyIn.name}» этой игры. <Link to={`/games/${info.invite.game.id}/team`}>Открыть</Link></p>
           ) : (
-            <button onClick={() => void accept()} disabled={busy}>Вступить в команду</button>
+            <div className="actions"><button onClick={() => void accept()} disabled={busy} style={{ width: "100%" }}>Вступить в команду</button></div>
           )}
         </>
       )}

@@ -96,6 +96,10 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     // Капитана назначает админ; игровые роли раздаёт капитан или админ.
     if (body.role !== undefined && !isAdmin) return reply.code(403).send({ error: "forbidden", message: "Капитана назначает администратор игры" });
     if (body.gameRole !== undefined && !isAdmin && !isCaptain) return reply.code(403).send({ error: "forbidden", message: "Роли раздаёт капитан" });
+    if (body.gameRole && body.gameRole !== "NONE" && membership.role === "CAPTAIN" && body.role !== "MEMBER") {
+      return reply.code(409).send({ error: "conflict", message: "Капитан — это уже роль; игровые роли только у участников" });
+    }
+    if (body.role === "CAPTAIN") body.gameRole = "NONE";
     if (body.gameRole && body.gameRole !== "NONE") {
       // Одна игровая роль — один участник.
       await prisma.membership.updateMany({ where: { teamId, gameRole: body.gameRole }, data: { gameRole: "NONE" } });

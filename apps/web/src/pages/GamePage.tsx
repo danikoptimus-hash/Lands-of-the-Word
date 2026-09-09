@@ -5,8 +5,9 @@ import { api, ApiError, type MapEdgeDto, type MapNodeDto } from "../lib/api";
 import { TeamsBlock } from "./TeamsBlock";
 import { DeedsBlock } from "./DeedsBlock";
 import { StartBlock } from "./StartBlock";
+import { SettingsBlock } from "./SettingsBlock";
 
-interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: Record<string, unknown> }
+interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number } }
 interface Stats { nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number }
 
 const TERRAIN_COLOR: Record<string, string> = {
@@ -69,15 +70,18 @@ export function GamePage() {
     <>
       <p><Link to="/">← Мои игры</Link></p>
       <div className="card">
-        <h1>{game.name}</h1>
-        <p className="muted">Команд: {game.teamCount} · статус: {game.status === "DRAFT" ? "черновик" : game.status === "ACTIVE" ? "идёт" : "завершена"}{game.mapSeed != null ? ` · seed карты: ${game.mapSeed}` : ""}</p>
+        <div className="card-head">
+          <div><h1>{game.name}</h1><div className="muted">Команд: {game.teamCount}{game.mapSeed != null ? ` · seed карты ${game.mapSeed}` : ""}</div></div>
+          <span className={"badge" + (game.status === "ACTIVE" ? " accent" : "")}>{game.status === "DRAFT" ? "черновик" : game.status === "ACTIVE" ? "идёт" : "завершена"}</span>
+        </div>
         <div className="row">
           <button onClick={() => void generate()} disabled={busy || game.status !== "DRAFT"}>{nodes.length ? "Сгенерировать ещё раз" : "Сгенерировать карту"}</button>
-          {stats && <span className="muted">узлов {stats.nodeCount} · городов {stats.cityCount} · до первого города: {stats.startDistances.join(" / ")} · мин. промежуток между городами {stats.minCityGap}</span>}
+          {stats && <span className="muted">узлов {stats.nodeCount} · городов {stats.cityCount} · до первого города {stats.startDistances.join(" / ")}</span>}
         </div>
         {error && <p className="error">{error}</p>}
       </div>
 
+      <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => void load()} />
       <StartBlock gameId={game.id} status={game.status} onStarted={() => void load()} />
       <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} />
       <DeedsBlock gameId={game.id} />
@@ -117,11 +121,11 @@ export function GamePage() {
             <span style={{ ["--c" as string]: TEAM_COLORS[0] }}>★ старт команды</span>
           </div>
           {selected && (
-            <p className="muted" style={{ marginTop: ".75rem" }}>
+            <p className="note ok" style={{ marginTop: ".75rem" }}>
               Узел {selected.key}: {selected.kind === "CITY" ? `город — ${BOOK_BY_CODE.get(selected.bookCode ?? "")?.nameRu ?? "?"} (${selected.cityType})` : selected.kind === "START" ? `старт команды ${(selected.teamIndex ?? 0) + 1}` : "пустая развилка"}, местность: {selected.terrain}
             </p>
           )}
-          <p className="muted">Это служебное превью для генерации. Игровая карта с иллюстрациями, туманом и масштабированием будет на PixiJS.</p>
+          <p className="hint">Служебное превью для генерации. Игровая карта с иллюстрациями, туманом и масштабированием будет отдельно.</p>
         </div>
       )}
       {!layout && <div className="card"><p className="muted">Карта ещё не сгенерирована. Нажми «Сгенерировать карту».</p></div>}
