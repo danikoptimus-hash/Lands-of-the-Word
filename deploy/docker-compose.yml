@@ -1,0 +1,22 @@
+# Продакшен-стек Lands of the Word. Пока только Caddy с заглушкой;
+# сервисы app и db добавятся вместе с кодом.
+services:
+  caddy:
+    image: caddy:2
+    container_name: lotw-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - DOMAIN=${DOMAIN}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./site:/srv/site:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
