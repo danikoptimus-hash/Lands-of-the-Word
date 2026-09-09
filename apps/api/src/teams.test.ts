@@ -95,3 +95,54 @@ describe("команды и приглашения", () => {
     expect(res.json().teams[0].role).toBe("CAPTAIN");
   });
 });
+
+describe("дела и старт игры", () => {
+  it("готовность показывает проблемы, старт с ними запрещён", async () => {
+    const r = await app.inject({ method: "GET", url: `/api/games/${gameId}/readiness`, headers: { cookie: adminCookie } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().canStart).toBe(false);
+    expect(r.json().problems.join(" ")).toContain("Карта");
+    const s = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });
+    expect(s.statusCode).toBe(409);
+  });
+
+  it("стандартный набор дел добавляется один раз; дела редактируются", async () => {
+    const imp = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/import-default`, headers: { cookie: adminCookie } });
+    expect(imp.statusCode).toBe(200);
+    expect(imp.json().added).toBeGreaterThan(5);
+    const again = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/import-default`, headers: { cookie: adminCookie } });
+    expect(again.json().added).toBe(0);
+    const created = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie }, payload: { title: "Своё дело", direction: "Посещение", canRepeat: true } });
+    expect(created.statusCode).toBe(201);
+    const deedId = created.json().deed.id;
+    const upd = await app.inject({ method: "PUT", url: `/api/games/${gameId}/deeds/${deedId}`, headers: { cookie: adminCookie }, payload: { difficulty: 3 } });
+    expect(upd.json().deed.difficulty).toBe(3);
+    const list = await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } });
+    expect(list.json().deeds.length).toBeGreaterThan(6);
+    expect(list.json().recommendedMin).toBeGreaterThan(0);
+    const forb = await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: playerCookie } });
+    expect(forb.statusCode).toBe(403);
+  });
+
+  it("старт: карта, команды с людьми, дела → ACTIVE и стартовые точки", async () => {
+    await app.inject({ method: "POST", url: `/api/games/${gameId}/generate`, headers: { cookie: adminCookie }, payload: { seed: 5 } });
+    // Вторая команда без участников — старт запрещён.
+    const notReady = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });
+    expect(notReady.statusCode).toBe(409);
+    const teams = await prisma.team.findMany({ where: { gameId }, orderBy: { index: "asc" } });
+    const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teams[1]!.id}/invites`, headers: { cookie: adminCookie }, payload: {} });
+    const third = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: "th_" + stamp, password: "secret123" } });
+    await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: third.headers["set-cookie"] as string } });
+    const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });
+    expect(ok.statusCode).toBe(200);
+    const after = await prisma.team.findMany({ where: { gameId }, orderBy: { index: "asc" } });
+    expect(after.every((t) => t.startNodeKey)).toBe(true);
+    expect(new Set(after.map((t) => t.startNodeKey)).size).toBe(2);
+    const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+    expect(game.status).toBe("ACTIVE");
+    // После старта карту не перегенерировать.
+    const gen = await app.inject({ method: "POST", url: `/api/games/${gameId}/generate`, headers: { cookie: adminCookie }, payload: {} });
+    expect(gen.statusCode).toBe(409);
+    await prisma.user.deleteMany({ where: { nickname: "th_" + stamp } });
+  });
+});

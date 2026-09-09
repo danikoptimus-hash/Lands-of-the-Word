@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { BOOKS, hexToPixel } from "@lotw/domain";
 import { api, ApiError, type MapEdgeDto, type MapNodeDto } from "../lib/api";
 import { TeamsBlock } from "./TeamsBlock";
+import { DeedsBlock } from "./DeedsBlock";
+import { StartBlock } from "./StartBlock";
 
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: Record<string, unknown> }
 interface Stats { nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number }
@@ -68,7 +70,7 @@ export function GamePage() {
       <p><Link to="/">← Мои игры</Link></p>
       <div className="card">
         <h1>{game.name}</h1>
-        <p className="muted">Команд: {game.teamCount} · статус: {game.status === "DRAFT" ? "черновик" : game.status}{game.mapSeed != null ? ` · seed карты: ${game.mapSeed}` : ""}</p>
+        <p className="muted">Команд: {game.teamCount} · статус: {game.status === "DRAFT" ? "черновик" : game.status === "ACTIVE" ? "идёт" : "завершена"}{game.mapSeed != null ? ` · seed карты: ${game.mapSeed}` : ""}</p>
         <div className="row">
           <button onClick={() => void generate()} disabled={busy || game.status !== "DRAFT"}>{nodes.length ? "Сгенерировать ещё раз" : "Сгенерировать карту"}</button>
           {stats && <span className="muted">узлов {stats.nodeCount} · городов {stats.cityCount} · до первого города: {stats.startDistances.join(" / ")} · мин. промежуток между городами {stats.minCityGap}</span>}
@@ -76,7 +78,9 @@ export function GamePage() {
         {error && <p className="error">{error}</p>}
       </div>
 
+      <StartBlock gameId={game.id} status={game.status} onStarted={() => void load()} />
       <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} />
+      <DeedsBlock gameId={game.id} />
 
       {layout && (
         <div className="card">

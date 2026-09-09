@@ -3,6 +3,7 @@ import { z } from "zod";
 import { generateMap, MapGenError } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
+import { recommendedDeedCount } from "./deeds.js";
 
 const createBody = z.object({
   name: z.string().trim().min(2).max(80),
@@ -98,5 +99,48 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.game.update({ where: { id }, data: { mapSeed: seed } }),
     ]);
     return { seed, stats: map.stats };
+  });
+
+  /** Готовность к старту: что ещё не сделано. */
+  app.get("/api/games/:id/readiness", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = await loadGameForAdmin(request, reply, id);
+    if (!game) return;
+    const [starts, teams, deeds] = await Promise.all([
+      prisma.mapNode.count({ where: { gameId: id, kind: "START" } }),
+      prisma.team.findMany({ where: { gameId: id }, include: { _count: { select: { members: true } } } }),
+      prisma.deed.count({ where: { gameId: id } }),
+    ]);
+    const settings = (game.settings ?? {}) as { nodeCount?: number };
+    const recommended = recommendedDeedCount(settings.nodeCount ?? 250);
+    const problems: string[] = [];
+    if (starts === 0) problems.push("Карта не сгенерирована");
+    if (teams.length < game.teamCount) problems.push(`Создано команд: ${teams.length} из ${game.teamCount}`);
+    const empty = teams.filter((t) => t._count.members === 0).map((t) => t.name);
+    if (empty.length) problems.push(`Команды без участников: ${empty.join(", ")}`);
+    const warnings: string[] = [];
+    if (deeds < recommended) warnings.push(`Дел в списке ${deeds}, рекомендуется не меньше ${recommended}: дела начнут повторяться`);
+    if (deeds === 0) problems.push("Список дел пуст");
+    return { canStart: problems.length === 0, problems, warnings };
+  });
+
+  /** Старт игры: карта фиксируется, командам назначаются стартовые точки, статус ACTIVE. */
+  app.post("/api/games/:id/start", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = await loadGameForAdmin(request, reply, id);
+    if (!game) return;
+    if (game.status !== "DRAFT") return reply.code(409).send({ error: "conflict", message: "Игра уже начата" });
+    const readiness = await app.inject({ method: "GET", url: `/api/games/${id}/readiness`, headers: { cookie: request.headers.cookie ?? "" } });
+    const r = readiness.json() as { canStart: boolean; problems: string[] };
+    if (!r.canStart) return reply.code(409).send({ error: "not_ready", message: r.problems.join("; ") });
+    const [starts, teams] = await Promise.all([
+      prisma.mapNode.findMany({ where: { gameId: id, kind: "START" }, orderBy: { teamIndex: "asc" } }),
+      prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" } }),
+    ]);
+    await prisma.$transaction([
+      ...teams.map((t, i) => prisma.team.update({ where: { id: t.id }, data: { startNodeKey: starts[i]?.key ?? null } })),
+      prisma.game.update({ where: { id }, data: { status: "ACTIVE", startedAt: new Date() } }),
+    ]);
+    return { ok: true, startedAt: new Date() };
   });
 }

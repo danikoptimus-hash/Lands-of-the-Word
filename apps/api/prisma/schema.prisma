@@ -73,6 +73,8 @@ model Game {
   edges       MapEdge[]
   teams       Team[]
   invites     Invite[]
+  deeds       Deed[]
+  startedAt   DateTime?
 }
 
 model GameAdmin {
@@ -164,4 +166,27 @@ model Invite {
   usesLeft  Int      @default(20)
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+enum ProofType {
+  REPORT
+  PHOTO_LINK
+  VIDEO_LINK
+  CONFIRMATION
+}
+
+model Deed {
+  id          String    @id @default(cuid())
+  gameId      String
+  game        Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  title       String
+  description String    @default("")
+  direction   String
+  proofType   ProofType @default(PHOTO_LINK)
+  canRepeat   Boolean   @default(false)
+  bookCode    String?
+  difficulty  Int       @default(1)
+  createdAt   DateTime  @default(now())
+
+  @@index([gameId])
 }

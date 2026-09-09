@@ -29,6 +29,7 @@ COPY --from=build /app/packages/domain/dist packages/domain/dist
 COPY --from=build /app/apps/api/dist apps/api/dist
 COPY --from=build /app/apps/api/prisma apps/api/prisma
 COPY --from=build /app/apps/web/dist apps/web/dist
+COPY content ./content
 COPY --from=build /app/node_modules/.prisma node_modules/.prisma
 ARG APP_VERSION=dev
 ENV APP_VERSION=$APP_VERSION
