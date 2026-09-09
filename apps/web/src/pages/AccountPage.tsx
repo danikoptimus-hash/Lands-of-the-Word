@@ -58,6 +58,32 @@ export function AccountPage() {
           <div className="actions"><button type="submit" className="secondary" disabled={busy}>Изменить пароль</button></div>
         </form>
       </div>
+      {user.platformRole === "SUPERADMIN" && <MailTest />}
     </>
+  );
+}
+
+/** Суперадмин: проверка почты (SMTP) с тестовым письмом себе. */
+function MailTest() {
+  const [result, setResult] = useState<{ ok: boolean; sent: boolean; error?: string; host?: string; port?: number; to?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    setBusy(true); setResult(null);
+    try { setResult(await api("/api/auth/mail-test", { method: "POST" })); }
+    catch (e) { setResult({ ok: false, sent: false, error: e instanceof ApiError ? e.message : "Ошибка сети" }); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="card auth" style={{ margin: "1rem auto 0" }}>
+      <h2>Почта сервера</h2>
+      <p className="muted">Проверяет подключение к SMTP из deploy/.env и шлёт тестовое письмо на вашу почту.</p>
+      <div className="actions"><button className="secondary" disabled={busy} onClick={() => void run()}>{busy ? "Проверяем…" : "Проверить почту"}</button></div>
+      {result && (
+        <p className={"note " + (result.sent ? "ok" : "bad")} style={{ marginTop: ".6rem" }}>
+          {result.host ? `${result.host}:${result.port} · ` : ""}
+          {result.sent ? `письмо отправлено на ${result.to}` : result.error}
+        </p>
+      )}
+    </div>
   );
 }

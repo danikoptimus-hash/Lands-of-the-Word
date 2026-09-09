@@ -14,8 +14,29 @@ let env: Env | null = null;
 export function initMail(config: Env): void {
   env = config;
   transporter = config.SMTP_HOST
-    ? nodemailer.createTransport({ host: config.SMTP_HOST, port: config.SMTP_PORT, secure: config.SMTP_PORT === 465, auth: config.SMTP_USER ? { user: config.SMTP_USER, pass: config.SMTP_PASS ?? "" } : undefined })
+    ? nodemailer.createTransport({
+        host: config.SMTP_HOST, port: config.SMTP_PORT, secure: config.SMTP_PORT === 465,
+        auth: config.SMTP_USER ? { user: config.SMTP_USER, pass: config.SMTP_PASS ?? "" } : undefined,
+        // Не ждать минутами, если порт закрыт: быстрая понятная ошибка.
+        connectionTimeout: 10_000, greetingTimeout: 10_000, socketTimeout: 20_000,
+      })
     : null;
+}
+
+/** Проверка соединения с SMTP (для кнопки суперадмина). */
+export async function verifyMail(): Promise<{ ok: boolean; error?: string; host?: string; port?: number }> {
+  if (!transporter || !env) return { ok: false, error: "SMTP не настроен: нет SMTP_HOST в deploy/.env" };
+  try { await transporter.verify(); return { ok: true, host: env.SMTP_HOST, port: env.SMTP_PORT }; }
+  catch (e) { return { ok: false, error: describeMailError(e), host: env.SMTP_HOST, port: env.SMTP_PORT }; }
+}
+
+/** Человеческое описание ошибки SMTP. */
+export function describeMailError(e: unknown): string {
+  const err = e as { code?: string; responseCode?: number; message?: string; command?: string };
+  if (err.code === "ETIMEDOUT" || err.code === "ESOCKET" || err.code === "ECONNECTION") return `Сервер не смог подключиться к SMTP (${err.code}). Похоже, исходящий порт закрыт хостингом: у Hetzner для новых аккаунтов закрыты порты 25 и 465 — попробуйте SMTP_PORT=587.`;
+  if (err.code === "EAUTH" || err.responseCode === 535) return "SMTP отверг логин или пароль (EAUTH). Для Gmail нужен пароль приложения, а не пароль от ящика.";
+  if (err.code === "EDNS" || err.code === "ENOTFOUND") return `Не найден адрес SMTP-сервера (${err.code}): проверьте SMTP_HOST.`;
+  return err.message ?? String(e);
 }
 
 export function mailEnabled(): boolean {

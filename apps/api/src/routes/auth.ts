@@ -4,7 +4,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { createSession, destroySession, publicUser, requireUser } from "../auth.js";
 import { createHash, randomBytes } from "node:crypto";
-import { mailEnabled, sendMail } from "../services/mail.js";
+import { describeMailError, mailEnabled, sendMail, verifyMail } from "../services/mail.js";
 
 const nickname = z.string().trim().min(3).max(24).regex(/^[\p{L}\p{N}_-]+$/u, "Только буквы, цифры, _ и -");
 const password = z.string().min(8).max(128);
@@ -99,17 +99,22 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
    * Забыли пароль: по никнейму или почте. Ответ одинаковый независимо от того, есть ли такой аккаунт,
    * чтобы по ответу нельзя было перебирать никнеймы. Ссылка живёт 1 час.
    */
-  app.post("/api/auth/forgot", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request) => {
+  app.post("/api/auth/forgot", { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request, reply) => {
     const body = forgotBody.parse(request.body);
     if (!mailEnabled()) return { ok: true, mailEnabled: false };
     const user = await prisma.user.findFirst({ where: { OR: [{ nickname: { equals: body.login, mode: "insensitive" } }, { email: { equals: body.login, mode: "insensitive" } }] } });
     if (user?.email) {
       const { url } = await issueResetLink(user.id, "EMAIL", 3_600_000, app.config.PUBLIC_URL);
-      await sendMail({
-        to: user.email,
-        subject: "Земли Слова: восстановление пароля",
-        text: `Здравствуйте!\n\nКто-то (надеемся, вы) запросил восстановление пароля для учётки «${user.nickname}» на сайте Земли Слова.\n\nЧтобы задать новый пароль, откройте ссылку (действует 1 час):\n${url}\n\nЕсли это были не вы, просто не открывайте ссылку: пароль не изменится.`,
-      });
+      try {
+        await sendMail({
+          to: user.email,
+          subject: "Земли Слова: восстановление пароля",
+          text: `Здравствуйте!\n\nКто-то (надеемся, вы) запросил восстановление пароля для учётки «${user.nickname}» на сайте Земли Слова.\n\nЧтобы задать новый пароль, откройте ссылку (действует 1 час):\n${url}\n\nЕсли это были не вы, просто не открывайте ссылку: пароль не изменится.`,
+        });
+      } catch (e) {
+        request.log.error(e, "password reset mail failed");
+        return reply.code(502).send({ error: "mail_failed", message: "Письмо не отправилось: почтовый сервер не отвечает. Сообщите владельцу платформы." });
+      }
     }
     return { ok: true, mailEnabled: true };
   });
@@ -135,6 +140,18 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: r.userId } });
     await createSession(reply, user.id, secure);
     return { user: publicUser(user) };
+  });
+
+  /** Суперадмин: проверить SMTP и отправить тестовое письмо себе. */
+  app.post("/api/auth/mail-test", { preHandler: requireUser, config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
+    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: "Только для суперадмина" });
+    const check = await verifyMail();
+    if (!check.ok) return { ...check, sent: false };
+    if (!request.user!.email) return { ...check, sent: false, error: "У вашей учётки нет почты: укажите её в настройках, чтобы отправить тестовое письмо" };
+    try {
+      await sendMail({ to: request.user!.email, subject: "Земли Слова: проверка почты", text: "Почта настроена: письма с сайта доходят." });
+      return { ...check, sent: true, to: request.user!.email };
+    } catch (e) { return { ...check, ok: false, sent: false, error: describeMailError(e) }; }
   });
 
   /** Суперадмин: ссылка сброса для любого пользователя (по никнейму), 24 часа. */
