@@ -187,8 +187,11 @@ describe("карта команды и дела", () => {
     expect(m.status).toBe("ACTIVE");
     expect(m.revealed).toHaveLength(1);
     expect(m.revealed[0].kind).toBe("START");
-    expect(m.fog.length).toBeGreaterThanOrEqual(2);
-    expect(m.tasks.length).toBe(m.fog.length);
+    // Старт — перекрёсток трёх гексов: три стороны с делами; вся карта видна силуэтом, освещены три гекса.
+    expect(m.tasks.length).toBe(3);
+    expect(m.hexes.filter((h: { lit: boolean }) => h.lit)).toHaveLength(3);
+    expect(m.hexes.length).toBeGreaterThan(50);
+    expect(m.hexes.find((h: { lit: boolean; terrain?: string }) => !h.lit)?.terrain).toBeUndefined();
     expect(m.tasks.every((t: { status: string }) => t.status === "OPEN")).toBe(true);
     // Дела на рёбрах не повторяются, пока хватает уникальных.
     expect(new Set(m.tasks.map((t: { deedId: string }) => t.deedId)).size).toBe(m.tasks.length);
@@ -225,7 +228,9 @@ describe("карта команды и дела", () => {
     const m = map.json();
     expect(m.revealed).toHaveLength(2);
     expect(m.tasks.filter((t: { status: string }) => t.status === "APPROVED")).toHaveLength(1);
-    expect(m.tasks.filter((t: { status: string }) => t.status === "OPEN").length).toBeGreaterThan(m.fog.length - 1);
+    // Открылась развилка: к трём делам добавились два новых (степень 3, одно ребро уже пройдено).
+    expect(m.tasks.filter((t: { status: string }) => t.status === "OPEN").length).toBe(4);
+    expect(m.hexes.filter((h: { lit: boolean }) => h.lit).length).toBeGreaterThanOrEqual(4);
     const progress = await app.inject({ method: "GET", url: `/api/games/${gameId}/progress`, headers: { cookie: adminCookie } });
     expect(progress.json().teams[0].revealed).toHaveLength(2);
     expect(progress.json().teams[0].traversed).toHaveLength(1);

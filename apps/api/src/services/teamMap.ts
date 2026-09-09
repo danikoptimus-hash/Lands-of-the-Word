@@ -1,4 +1,5 @@
 import { prisma } from "../db.js";
+import { hexCorners, vertexKey } from "@lotw/domain";
 
 /**
  * Карта глазами команды.
@@ -51,28 +52,25 @@ export async function revealNode(gameId: string, teamId: string, nodeKey: string
 
 export async function getTeamMap(gameId: string, teamId: string) {
   await ensureFrontier(gameId, teamId);
-  const [revealedRows, tasks, nodes, edges] = await Promise.all([
+  const [revealedRows, tasks, hexes, nodes, edges] = await Promise.all([
     prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true, revealedAt: true } }),
     prisma.teamEdgeTask.findMany({
       where: { teamId },
       include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, difficulty: true } } },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, q: true, r: true, kind: true, terrain: true, rotation: true, bookCode: true, cityType: true, teamIndex: true } }),
+    prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true } }),
+    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true } }),
     prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
   ]);
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
-  const byKey = new Map(nodes.map((n) => [n.key, n]));
-  const frontierKeys = new Set<string>();
-  for (const e of edges) {
-    if (revealed.has(e.aKey) && !revealed.has(e.bKey)) frontierKeys.add(e.bKey);
-    if (revealed.has(e.bKey) && !revealed.has(e.aKey)) frontierKeys.add(e.aKey);
-  }
+  // Гекс освещён, если хотя бы один его угол открыт командой. Остальные видны только силуэтом в тумане.
+  const lit = (h: { q: number; r: number }) => hexCorners(h).some((c) => revealed.has(vertexKey(c)));
   return {
+    hexes: hexes.map((h) => (lit(h) ? { ...h, lit: true } : { q: h.q, r: h.r, lit: false })),
     revealed: nodes.filter((n) => revealed.has(n.key)),
-    // Узлы в тумане: только координаты, без содержимого.
-    fog: [...frontierKeys].map((k) => byKey.get(k)!).map((n) => ({ key: n.key, q: n.q, r: n.r })),
-    edges: edges.filter((e) => revealed.has(e.aKey) || revealed.has(e.bKey)).filter((e) => (revealed.has(e.aKey) && (revealed.has(e.bKey) || frontierKeys.has(e.bKey))) || (revealed.has(e.bKey) && frontierKeys.has(e.aKey))),
+    // Рёбра, касающиеся открытых узлов: пройденные и фронтир (в туман).
+    edges: edges.filter((e) => revealed.has(e.aKey) || revealed.has(e.bKey)),
     tasks: tasks.filter((t) => t.status === "APPROVED" || !revealed.has(t.toKey)),
   };
 }

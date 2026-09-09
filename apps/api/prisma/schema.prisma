@@ -69,6 +69,7 @@ model Game {
   createdBy   User         @relation("GameCreator", fields: [createdById], references: [id])
   createdAt   DateTime     @default(now())
   admins      GameAdmin[]
+  hexes       MapHex[]
   nodes       MapNode[]
   edges       MapEdge[]
   teams       Team[]
@@ -86,16 +87,29 @@ model GameAdmin {
   @@id([gameId, userId])
 }
 
+/** Гекс — местность (декорация и туман). */
+model MapHex {
+  id       String @id @default(cuid())
+  gameId   String
+  game     Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  q        Int
+  r        Int
+  terrain  String
+  rotation Int    @default(0)
+
+  @@unique([gameId, q, r])
+}
+
+/** Узел — перекрёсток (вершина гекса): развилка, город или старт. */
 model MapNode {
   id        String   @id @default(cuid())
   gameId    String
   game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
   key       String
+  corner    String   @default("N")
   q         Int
   r         Int
   kind      NodeKind
-  terrain   String
-  rotation  Int      @default(0)
   bookCode  String?
   cityType  String?
   teamIndex Int?

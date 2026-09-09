@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { BOOKS } from "@lotw/domain";
+import { BOOKS, directionBetween, parseVertexKey } from "@lotw/domain";
 import { api, ApiError, GAME_ROLE_LABEL, PROOF_LABEL, TASK_STATUS_LABEL, TEAM_ROLE_LABEL, type EdgeTaskDto, type GameRole, type MyMapDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useGameEvents } from "../lib/useGameEvents";
-import { TeamMap, directionLabel } from "./TeamMap";
+import { TeamMap } from "./TeamMap";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -16,7 +16,7 @@ export function TeamPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [map, setMap] = useState<MyMapDto | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [links, setLinks] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -34,8 +34,7 @@ export function TeamPage() {
 
   const me = team?.members.find((m) => m.user.id === user?.id);
   const isCaptain = me?.role === "CAPTAIN";
-  const nodeByKey = useMemo(() => new Map([...(map?.revealed ?? []), ...(map?.fog ?? [])].map((n) => [n.key, n])), [map]);
-  const selectedTasks = useMemo(() => (map?.tasks ?? []).filter((t) => t.status !== "APPROVED" && t.toKey === selectedKey), [map, selectedKey]);
+  const selectedTasks = useMemo(() => (map?.tasks ?? []).filter((t) => t.id === selectedId), [map, selectedId]);
 
   function describeFrom(key: string): string {
     const n = map?.revealed.find((r) => r.key === key);
@@ -45,9 +44,8 @@ export function TeamPage() {
     return "открытой клетки";
   }
   function where(t: EdgeTaskDto): string {
-    const a = nodeByKey.get(t.fromKey), b = nodeByKey.get(t.toKey);
-    const dir = a && b ? directionLabel(a, b) : "";
-    return `из ${describeFrom(t.fromKey)}${dir ? ` на ${dir}` : ""}`;
+    const dir = directionBetween(parseVertexKey(t.fromKey), parseVertexKey(t.toKey));
+    return `из ${describeFrom(t.fromKey)} на ${dir}`;
   }
 
   async function act(path: string, body?: unknown) {
@@ -74,7 +72,7 @@ export function TeamPage() {
     );
   }
 
-  const openTasks = map?.tasks.filter((t) => t.status !== "APPROVED") ?? [];
+  const takenTasks = map?.tasks.filter((t) => t.status === "TAKEN" || t.status === "SUBMITTED" || t.status === "REJECTED") ?? [];
   const done = map?.tasks.filter((t) => t.status === "APPROVED").length ?? 0;
 
   return (
@@ -93,12 +91,11 @@ export function TeamPage() {
       {map && map.status === "ACTIVE" ? (
         <>
           <div className="card">
-            <div className="card-head"><h2>Карта</h2><span className="muted">Нажми на клетку с «?» — увидишь дело. Тяни, чтобы двигать; колесо или щипок — масштаб.</span></div>
-            <TeamMap map={map} selectedKey={selectedKey} onSelect={setSelectedKey} />
+            <div className="card-head"><h2>Карта</h2><span className="muted">Ходим по сторонам гексов. Нажми на пунктирную сторону с меткой — увидишь дело. Тяни, чтобы двигать; колесо или щипок — масштаб.</span></div>
+            <TeamMap map={map} selectedTaskId={selectedId} onSelect={setSelectedId} />
             {error && <p className="error" style={{ marginTop: ".6rem" }}>{error}</p>}
-            {selectedKey && (
+            {selectedId && (
               <div className="note ok" style={{ marginTop: ".75rem" }}>
-                {selectedTasks.length === 0 && <div className="muted">Сюда пока нет пути.</div>}
                 {selectedTasks.map((task) => (
                   <div key={task.id} style={{ marginBottom: selectedTasks.length > 1 ? ".8rem" : 0 }}>
                     <div className="row between">
@@ -111,7 +108,7 @@ export function TeamPage() {
                     {(task.status === "OPEN" || task.status === "REJECTED") && (
                       <div className="actions" style={{ marginTop: ".5rem" }}>
                         <button className="sm" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}>Беру это дело</button>
-                        <button className="ghost sm" onClick={() => setSelectedKey(null)}>Не сейчас</button>
+                        <button className="ghost sm" onClick={() => setSelectedId(null)}>Не сейчас</button>
                       </div>
                     )}
                     {task.status === "TAKEN" && (
@@ -132,12 +129,12 @@ export function TeamPage() {
             )}
           </div>
           <div className="card">
-            <div className="card-head"><h2>Дела рядом <span className="muted">{openTasks.length}</span></h2></div>
-            {openTasks.length === 0 && <p className="muted">Открытых путей нет.</p>}
+            <div className="card-head"><h2>Взятые дела <span className="muted">{takenTasks.length}</span></h2></div>
+            {takenTasks.length === 0 && <p className="muted">Пока ничего не взято. Выбери сторону с делом на карте.</p>}
             <ul className="list">
-              {openTasks.map((t) => (
-                <li key={t.id} onClick={() => setSelectedKey(t.toKey === selectedKey ? null : t.toKey)} style={{ cursor: "pointer", background: t.toKey === selectedKey ? "var(--surface-2)" : undefined, borderRadius: 8, padding: ".6rem .4rem" }}>
-                  <div className="main"><strong>{t.deed.title}</strong> <span className="badge">{t.deed.direction}</span><div className="muted">{where(t)} · {PROOF_LABEL[t.deed.proofType]} · тяжесть {t.deed.difficulty}</div></div>
+              {takenTasks.map((t) => (
+                <li key={t.id} onClick={() => setSelectedId(t.id === selectedId ? null : t.id)} style={{ cursor: "pointer", background: t.id === selectedId ? "var(--surface-2)" : undefined, borderRadius: 8, padding: ".6rem .4rem" }}>
+                  <div className="main"><strong>{t.deed.title}</strong> <span className="badge">{t.deed.direction}</span><div className="muted">{where(t)} · {PROOF_LABEL[t.deed.proofType]}{t.status === "REJECTED" && t.adminComment ? ` · вернули: ${t.adminComment}` : ""}</div></div>
                   <span className={"badge" + (t.status === "SUBMITTED" ? " accent" : "")}>{TASK_STATUS_LABEL[t.status]}</span>
                 </li>
               ))}

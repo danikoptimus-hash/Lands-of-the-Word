@@ -90,12 +90,13 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
-    const [nodes, edges] = await Promise.all([
-      prisma.mapNode.findMany({ where: { gameId: id }, select: { key: true, q: true, r: true, kind: true, terrain: true, rotation: true, bookCode: true, cityType: true, teamIndex: true } }),
+    const [hexes, nodes, edges] = await Promise.all([
+      prisma.mapHex.findMany({ where: { gameId: id }, select: { q: true, r: true, terrain: true, rotation: true } }),
+      prisma.mapNode.findMany({ where: { gameId: id }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true } }),
       prisma.mapEdge.findMany({ where: { gameId: id }, select: { aKey: true, bKey: true } }),
     ]);
     const { admins: _admins, ...rest } = game;
-    return { game: rest, nodes, edges };
+    return { game: rest, hexes, nodes, edges };
   });
 
   /** Генерация (или перегенерация) карты. Пока игра в статусе DRAFT — можно сколько угодно раз. */
@@ -119,11 +120,13 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     await prisma.$transaction([
       prisma.mapEdge.deleteMany({ where: { gameId: id } }),
       prisma.mapNode.deleteMany({ where: { gameId: id } }),
+      prisma.mapHex.deleteMany({ where: { gameId: id } }),
+      prisma.mapHex.createMany({ data: map.hexes.map((h) => ({ gameId: id, q: h.q, r: h.r, terrain: h.terrain, rotation: h.rotation })) }),
       prisma.mapNode.createMany({
         data: map.nodes.map((n) => ({
-          gameId: id, key: n.id, q: n.q, r: n.r,
+          gameId: id, key: n.id, corner: n.corner, q: n.q, r: n.r,
           kind: n.kind === "city" ? "CITY" : n.kind === "start" ? "START" : "EMPTY",
-          terrain: n.terrain, rotation: n.rotation, bookCode: n.bookCode ?? null, cityType: n.cityType ?? null, teamIndex: n.teamIndex ?? null,
+          bookCode: n.bookCode ?? null, cityType: n.cityType ?? null, teamIndex: n.teamIndex ?? null,
         })),
       }),
       prisma.mapEdge.createMany({ data: map.edges.map((e) => ({ gameId: id, aKey: e.a, bKey: e.b })) }),

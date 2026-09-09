@@ -6,7 +6,7 @@ export interface View { k: number; tx: number; ty: number }
  * Перетаскивание, колесо, щипок двумя пальцами и кнопки масштаба для SVG-карты.
  * Возвращает view (scale + сдвиг) и обработчики для контейнера.
  */
-export function useViewport(bounds: { minX: number; minY: number; width: number; height: number } | null) {
+export function useViewport(bounds: { minX: number; minY: number; width: number; height: number } | null, focus?: { x: number; y: number; k?: number } | null) {
   const ref = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>({ k: 1, tx: 0, ty: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number }>());
@@ -23,7 +23,15 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
     setView({ k, tx, ty });
   }, [bounds]);
 
-  useEffect(() => { fit(); }, [fit]);
+  /** Центрировать точку карты (в координатах сцены) с масштабом k. */
+  const focusOn = useCallback((x: number, y: number, k = 2.2) => {
+    const el = ref.current;
+    if (!el) return;
+    setView({ k, tx: el.clientWidth / 2 - x * k, ty: el.clientHeight / 2 - y * k });
+  }, []);
+
+  const focusKey = focus ? `${focus.x},${focus.y},${focus.k ?? ""}` : "";
+  useEffect(() => { if (focus) focusOn(focus.x, focus.y, focus.k); else fit(); }, [fit, focusOn, focusKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const zoomAt = useCallback((factor: number, cx?: number, cy?: number) => {
     setView((v) => {
@@ -88,5 +96,5 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
 
   const onPointerLeave = (e: React.PointerEvent) => { if (pointers.current.has(e.pointerId)) onPointerUp(e); };
 
-  return { ref, view, fit, zoomAt, wasDrag, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp, onPointerLeave } };
+  return { ref, view, fit, focusOn, zoomAt, wasDrag, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp, onPointerLeave } };
 }

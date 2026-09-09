@@ -1,92 +1,76 @@
 import { BOOKS, BOOK_COUNT } from "./books.js";
 import { hexDistance, hexKey, hexNeighbors, hexesInRadius, type Hex } from "./hex.js";
+import { buildHexGraph, graphDistances, vertexToPixel, type HexGraph } from "./hexgraph.js";
 import { createRng, pick, randomInt, shuffle, type Rng } from "./random.js";
 
 export type NodeKind = "empty" | "city" | "start";
 export type Terrain = "desert" | "hills" | "meadow" | "mountains" | "water" | "oasis";
 
+/** Гекс — только местность (декорация и туман). */
+export interface MapHexTile { q: number; r: number; terrain: Terrain; rotation: number }
+
+/** Узел — перекрёсток (вершина гекса): пустая развилка, город или старт. */
 export interface MapNode {
-  id: string;          // "q,r"
+  id: string;          // "N:q,r" | "S:q,r"
+  corner: "N" | "S";
   q: number;
   r: number;
   kind: NodeKind;
-  terrain: Terrain;
-  rotation: number;    // 0..5, поворот текстуры гекса
-  bookCode?: string;   // для городов
-  cityType?: string;   // тип иллюстрации города
-  teamIndex?: number;  // для стартов
+  bookCode?: string;
+  cityType?: string;
+  teamIndex?: number;
 }
 
+/** Ребро — сторона гекса между двумя перекрёстками; по ним ходят команды. */
 export interface MapEdge { a: string; b: string }
 
 export interface GeneratedMap {
   seed: number;
+  hexes: MapHexTile[];
   nodes: MapNode[];
   edges: MapEdge[];
-  stats: {
-    nodeCount: number;
-    cityCount: number;
-    startDistances: number[]; // расстояние от старта каждой команды до ближайшего города
-    minCityGap: number;       // минимальное расстояние между двумя городами
-  };
+  stats: { hexCount: number; nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number };
 }
 
 export interface MapGenOptions {
   seed: number;
   teamCount: number;
-  nodeCount?: number;            // ~250 по умолчанию
+  nodeCount?: number;            // сколько перекрёстков хотим (~250)
   cityCount?: number;            // 66
-  equidistantStarts?: boolean;   // переключатель «равноудалённые старты»
+  equidistantStarts?: boolean;
   maxStartDistanceDiff?: number; // разница расстояний до первого города между командами, 2–3
-  minCityGap?: number;           // минимум пустых развилок между городами + 1 (2 = хотя бы один пустой узел)
+  minCityGap?: number;           // минимум рёбер между городами (2 = хотя бы одна развилка между ними)
 }
 
 const CITY_TYPES = ["village", "walled_city", "fortress", "temple_city", "port", "tent_camp", "hill_city", "ruins"];
 const TERRAINS: Terrain[] = ["desert", "hills", "meadow", "mountains", "oasis"];
 
-/** Радиус шестиугольной области, дающий не меньше nodeCount гексов. */
-function radiusFor(nodeCount: number): number {
+function radiusFor(hexCount: number): number {
   let r = 1;
-  while (3 * r * r + 3 * r + 1 < nodeCount) r++;
+  while (3 * r * r + 3 * r + 1 < hexCount) r++;
   return r;
 }
 
-/** Примерно круглое поле: берём шестиугольник и случайно «обкусываем» край до нужного числа узлов. */
-function buildField(rng: Rng, nodeCount: number): Hex[] {
-  const radius = radiusFor(nodeCount);
-  let hexes = hexesInRadius(radius);
-  const center: Hex = { q: 0, r: 0 };
-  // Сначала убираем самые дальние по евклидову радиусу, с шумом, чтобы край был неровный.
-  const scored = hexes.map((h) => {
-    const x = Math.sqrt(3) * h.q + (Math.sqrt(3) / 2) * h.r;
-    const y = 1.5 * h.r;
+/** Примерно круглое связное поле гексов. */
+function buildField(rng: Rng, hexCount: number): Hex[] {
+  const radius = radiusFor(hexCount);
+  const scored = hexesInRadius(radius).map((h) => {
+    const x = Math.sqrt(3) * h.q + (Math.sqrt(3) / 2) * h.r, y = 1.5 * h.r;
     return { h, d: Math.hypot(x, y) + rng() * 1.2 };
   });
   scored.sort((a, b) => a.d - b.d);
-  hexes = scored.slice(0, nodeCount).map((s) => s.h);
-  // Гарантируем связность: оставляем только компонент, содержащий центр.
+  const hexes = scored.slice(0, hexCount).map((s) => s.h);
   const set = new Set(hexes.map(hexKey));
-  const seen = new Set<string>();
-  const queue: Hex[] = [center];
-  seen.add(hexKey(center));
+  const seen = new Set<string>(["0,0"]);
+  const queue: Hex[] = [{ q: 0, r: 0 }];
   while (queue.length) {
     const cur = queue.pop()!;
-    for (const n of hexNeighbors(cur)) {
-      const k = hexKey(n);
-      if (set.has(k) && !seen.has(k)) { seen.add(k); queue.push(n); }
-    }
+    for (const n of hexNeighbors(cur)) { const k = hexKey(n); if (set.has(k) && !seen.has(k)) { seen.add(k); queue.push(n); } }
   }
   return hexes.filter((h) => seen.has(hexKey(h)));
 }
 
-function nearestCityDistance(h: Hex, cities: Hex[]): number {
-  let best = Infinity;
-  for (const c of cities) best = Math.min(best, hexDistance(h, c));
-  return best;
-}
-
 function terrainFor(rng: Rng, h: Hex, radius: number): Terrain {
-  // Лёгкая зональность: центр зеленее, край суше; вода редкими пятнами.
   const d = hexDistance(h, { q: 0, r: 0 }) / radius;
   const roll = rng();
   if (roll < 0.05) return "water";
@@ -97,14 +81,19 @@ function terrainFor(rng: Rng, h: Hex, radius: number): Terrain {
 
 export class MapGenError extends Error {}
 
+function nearest(graph: HexGraph, from: string, targets: Set<string>): number {
+  const d = graphDistances(graph, from);
+  let best = Infinity;
+  for (const t of targets) best = Math.min(best, d.get(t) ?? Infinity);
+  return best;
+}
+
 /**
- * Генерация карты по правилам игры:
- * - ~nodeCount узлов, примерно круглое связное поле;
- * - ровно cityCount городов, между любыми двумя — хотя бы minCityGap-1 пустых узлов;
- * - teamCount стартов, не города и не рядом с городом; разница расстояний до ближайшего города ≤ maxStartDistanceDiff;
- * - книги по городам случайно; все соседние узлы соединены рёбрами.
- * Детерминирована по seed. Бросает MapGenError, если ограничения не удалось выполнить за разумное число попыток
- * (тогда админ жмёт «сгенерировать ещё раз» — будет другой seed).
+ * Генерация карты «по сторонам гексов»:
+ * - поле гексов (местность) такого размера, чтобы перекрёстков было ~nodeCount;
+ * - ровно cityCount городов на перекрёстках, между любыми двумя ≥ minCityGap рёбер;
+ * - старты на перекрёстках: не города, ближайший город на расстоянии ≥ 2 рёбер, разница между командами ≤ maxDiff;
+ * - книги случайно; рёбра — все стороны гексов.
  */
 export function generateMap(opts: MapGenOptions): GeneratedMap {
   const nodeCount = opts.nodeCount ?? 250;
@@ -116,105 +105,96 @@ export function generateMap(opts: MapGenOptions): GeneratedMap {
   if (cityCount > BOOK_COUNT) throw new MapGenError(`Городов не больше ${BOOK_COUNT}`);
 
   const rng = createRng(opts.seed);
-  const field = buildField(rng, nodeCount);
-  if (field.length < cityCount * 3) throw new MapGenError("Поле слишком маленькое для такого числа городов");
-  const radius = radiusFor(nodeCount);
+  // Перекрёстков примерно 2 на гекс (плюс край) — подбираем число гексов.
+  const hexCount = Math.max(19, Math.round(nodeCount / 2.15));
+  const field = buildField(rng, hexCount);
+  const radius = radiusFor(hexCount);
+  const graph = buildHexGraph(field);
+  const keys = [...graph.vertices.keys()];
+  if (keys.length < cityCount * 3) throw new MapGenError("Поле слишком маленькое для такого числа городов");
 
-  // 1) Старты — первыми, чтобы вокруг них гарантированно осталось место без городов.
-  //    Буфер: в радиусе startBuffer-1 от старта городов нет, значит ближайший город на расстоянии ≥ startBuffer.
   const startBuffer = 2;
-  const center: Hex = { q: 0, r: 0 };
-  const pickStarts = (): Hex[] => {
-    const starts: Hex[] = [];
-    const candidates = field.filter((h) => hexDistance(h, center) <= radius - 1);
+  const center = { x: 0, y: 0 };
+  const pos = new Map(keys.map((k) => [k, vertexToPixel(graph.vertices.get(k)!, 1)]));
+  const maxR = Math.max(...keys.map((k) => Math.hypot(pos.get(k)!.x, pos.get(k)!.y)));
+
+  const pickStarts = (): string[] => {
+    const starts: string[] = [];
+    const candidates = keys.filter((k) => Math.hypot(pos.get(k)!.x - center.x, pos.get(k)!.y - center.y) <= maxR * 0.85 && (graph.adjacency.get(k)?.size ?? 0) === 3);
     if (opts.equidistantStarts) {
-      const ring = radius * 0.6;
-      const phase = rng() * Math.PI * 2;
+      const ring = maxR * 0.6, phase = rng() * Math.PI * 2;
       for (let i = 0; i < teamCount; i++) {
         const ang = phase + (i * Math.PI * 2) / teamCount;
-        const tx = Math.cos(ang) * ring * Math.sqrt(3);
-        const ty = Math.sin(ang) * ring * 1.5;
-        let best: Hex | null = null;
-        let bestD = Infinity;
-        for (const h of candidates) {
-          if (starts.some((s) => hexDistance(s, h) < 4)) continue;
-          const x = Math.sqrt(3) * h.q + (Math.sqrt(3) / 2) * h.r;
-          const y = 1.5 * h.r;
-          const d = Math.hypot(x - tx, y - ty) + rng() * 0.5;
-          if (d < bestD) { bestD = d; best = h; }
+        const tx = Math.cos(ang) * ring, ty = Math.sin(ang) * ring;
+        let best: string | null = null, bestD = Infinity;
+        for (const k of candidates) {
+          if (starts.some((s) => (graphDistances(graph, s, 6).get(k) ?? 99) < 6)) continue;
+          const d = Math.hypot(pos.get(k)!.x - tx, pos.get(k)!.y - ty) + rng() * 0.5;
+          if (d < bestD) { bestD = d; best = k; }
         }
         if (best) starts.push(best);
       }
     } else {
-      const minApart = Math.max(4, Math.floor(radius * 0.7));
-      for (const h of shuffle(rng, candidates)) {
+      const minApart = 8;
+      for (const k of shuffle(rng, candidates)) {
         if (starts.length >= teamCount) break;
-        if (starts.every((s) => hexDistance(s, h) >= minApart)) starts.push(h);
+        if (starts.every((s) => (graphDistances(graph, s, minApart).get(k) ?? 99) >= minApart)) starts.push(k);
       }
     }
     return starts;
   };
 
-  // 2) Города: случайный жадный отбор с ограничением на расстояние, несколько попыток, берём лучшую.
-  const placeCities = (starts: Hex[]): Hex[] => {
-    const allowed = field.filter((h) => starts.every((s) => hexDistance(s, h) >= startBuffer));
-    let best: Hex[] = [];
+  const placeCities = (starts: string[]): string[] => {
+    const blocked = new Set<string>();
+    for (const s of starts) for (const [k, d] of graphDistances(graph, s, startBuffer - 1)) if (d <= startBuffer - 1) blocked.add(k);
+    const allowed = keys.filter((k) => !blocked.has(k));
+    let best: string[] = [];
     for (let attempt = 0; attempt < 30 && best.length < cityCount; attempt++) {
-      const cities: Hex[] = [];
-      for (const h of shuffle(rng, allowed)) {
+      const cities: string[] = [];
+      const taken = new Set<string>(); // вершины ближе minCityGap к уже поставленным городам
+      for (const k of shuffle(rng, allowed)) {
         if (cities.length >= cityCount) break;
-        if (nearestCityDistance(h, cities) >= minCityGap) cities.push(h);
+        if (taken.has(k)) continue;
+        cities.push(k);
+        for (const [n, d] of graphDistances(graph, k, minCityGap - 1)) if (d <= minCityGap - 1) taken.add(n);
       }
       if (cities.length > best.length) best = cities;
     }
     return best;
   };
 
-  let starts: Hex[] = [];
-  let cities: Hex[] = [];
-  let startDistances: number[] = [];
+  let starts: string[] = [], cities: string[] = [], startDistances: number[] = [];
   for (let attempt = 0; attempt < 60; attempt++) {
     starts = pickStarts();
     if (starts.length < teamCount) continue;
     cities = placeCities(starts);
     if (cities.length < cityCount) continue;
-    startDistances = starts.map((s) => nearestCityDistance(s, cities));
+    const citySet = new Set(cities);
+    startDistances = starts.map((s) => nearest(graph, s, citySet));
     if (Math.max(...startDistances) - Math.min(...startDistances) <= maxDiff) break;
     starts = []; cities = [];
   }
   if (starts.length < teamCount) throw new MapGenError("Не удалось расставить старты");
   if (cities.length < cityCount) throw new MapGenError("Не удалось разместить все города с нужными промежутками");
-  const cityKeys = new Set(cities.map(hexKey));
-  const startKeys = new Map(starts.map((s, i) => [hexKey(s), i] as const));
 
-  // Книги и типы городов.
+  const cityIndex = new Map(cities.map((k, i) => [k, i]));
+  const startIndex = new Map(starts.map((k, i) => [k, i]));
   const books = shuffle(rng, BOOKS.map((b) => b.code)).slice(0, cityCount);
 
-  const nodes: MapNode[] = field.map((h) => {
-    const key = hexKey(h);
-    const base = { id: key, q: h.q, r: h.r, terrain: terrainFor(rng, h, radius), rotation: randomInt(rng, 0, 5) };
-    if (cityKeys.has(key)) {
-      const idx = cities.findIndex((c) => hexKey(c) === key);
-      return { ...base, kind: "city" as const, bookCode: books[idx]!, cityType: pick(rng, CITY_TYPES), terrain: base.terrain === "water" ? "meadow" : base.terrain };
-    }
-    if (startKeys.has(key)) return { ...base, kind: "start" as const, teamIndex: startKeys.get(key)!, terrain: "desert" as const };
+  const hexes: MapHexTile[] = field.map((h) => ({ q: h.q, r: h.r, terrain: terrainFor(rng, h, radius), rotation: randomInt(rng, 0, 5) }));
+  const nodes: MapNode[] = keys.map((k) => {
+    const v = graph.vertices.get(k)!;
+    const base = { id: k, corner: v.corner, q: v.q, r: v.r };
+    if (cityIndex.has(k)) return { ...base, kind: "city" as const, bookCode: books[cityIndex.get(k)!]!, cityType: pick(rng, CITY_TYPES) };
+    if (startIndex.has(k)) return { ...base, kind: "start" as const, teamIndex: startIndex.get(k)! };
     return { ...base, kind: "empty" as const };
   });
 
-  // Рёбра между всеми соседними узлами (карта «зацикленная» в смысле связности).
-  const nodeSet = new Set(nodes.map((n) => n.id));
-  const edges: MapEdge[] = [];
-  for (const n of nodes) {
-    for (const nb of hexNeighbors({ q: n.q, r: n.r })) {
-      const k = hexKey(nb);
-      if (nodeSet.has(k) && n.id < k) edges.push({ a: n.id, b: k });
-    }
-  }
-
   let minGap = Infinity;
-  for (let i = 0; i < cities.length; i++) for (let j = i + 1; j < cities.length; j++) minGap = Math.min(minGap, hexDistance(cities[i]!, cities[j]!));
+  const citySet = new Set(cities);
+  for (const c of cities) { const d = graphDistances(graph, c, 6); for (const [k, dd] of d) if (k !== c && citySet.has(k)) minGap = Math.min(minGap, dd); }
 
-  return { seed: opts.seed, nodes, edges, stats: { nodeCount: nodes.length, cityCount, startDistances, minCityGap: minGap } };
+  return { seed: opts.seed, hexes, nodes, edges: graph.edges, stats: { hexCount: hexes.length, nodeCount: nodes.length, cityCount, startDistances, minCityGap: minGap } };
 }
 
 export { TERRAINS, CITY_TYPES };
