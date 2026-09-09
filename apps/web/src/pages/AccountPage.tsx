@@ -41,7 +41,7 @@ export function AccountPage() {
           <input id="a-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={60} placeholder="Как вас показывать команде" />
           <label htmlFor="a-email">Email <span className="muted">необязательно: для уведомлений и восстановления пароля</span></label>
           <input id="a-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          {!user.email && <p className="hint">Без почты забытый пароль сможет сбросить только администратор игры.</p>}
+          {!user.email && <p className="hint">Без почты забытый пароль восстановить будет нельзя. Укажите её.</p>}
           <label htmlFor="a-locale">Язык</label>
           <select id="a-locale" value={locale} onChange={(e) => setLocale(e.target.value)}><option value="ru">Русский</option><option value="en">English</option></select>
           {error && <p className="error">{error}</p>}

@@ -53,22 +53,28 @@ cat /root/deploykey
 
 ## Почта (восстановление пароля, уведомления)
 
-Письма уходят через SMTP. Пока в `deploy/.env` нет `SMTP_HOST`, письма не отправляются: страница «Забыли пароль» предлагает обратиться к администратору игры, который выдаёт ссылку сброса в списке участников команды.
+Письма уходят через SMTP. Пока в `deploy/.env` нет `SMTP_HOST`, письма не отправляются, и восстановить пароль нельзя.
 
-Чтобы включить почту (рекомендуется Brevo, бесплатный тариф до 300 писем в день):
+### Вариант без оплаты и без настройки DNS: почтовый ящик Gmail
 
-1. Завести аккаунт Brevo, в разделе **Senders & Domains** добавить домен `landsoftheword.com` и внести в DNS (Porkbun) записи, которые покажет Brevo (SPF, DKIM, DMARC).
-2. В разделе **SMTP & API → SMTP** взять логин и SMTP-ключ.
+1. Завести отдельный ящик Gmail для сайта (например, `landsoftheword@gmail.com`), включить в нём двухэтапную проверку.
+2. В настройках Google-аккаунта → «Безопасность» → «Пароли приложений» создать пароль приложения (16 символов).
 3. На сервере дописать в `deploy/.env`:
 
 ```
-SMTP_HOST=smtp-relay.brevo.com
-SMTP_PORT=587
-SMTP_USER=логин из Brevo
-SMTP_PASS=SMTP-ключ из Brevo
-MAIL_FROM=Земли Слова <noreply@landsoftheword.com>
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_USER=landsoftheword@gmail.com
+SMTP_PASS=пароль приложения
+MAIL_FROM=Земли Слова <landsoftheword@gmail.com>
 ```
 
 4. Перезапустить: `cd /opt/lotw/deploy && docker compose up -d app`.
+
+Лимит Gmail — около 500 писем в сутки, для восстановления паролей и уведомлений хватает. Так же работают Яндекс (`smtp.yandex.ru`, 465) и Mail.ru (`smtp.mail.ru`, 465) с паролем приложения.
+
+### Вариант «как положено»: сервис рассылок со своим доменом
+
+Resend (бесплатно до 3 000 писем в месяц) или Mailgun: добавить домен `landsoftheword.com`, внести в DNS Porkbun записи SPF/DKIM, которые покажет сервис, взять SMTP-логин и ключ и вписать их в `deploy/.env` так же, как выше (`SMTP_HOST=smtp.resend.com`, `SMTP_PORT=465`, `SMTP_USER=resend`, `SMTP_PASS=API-ключ`, `MAIL_FROM=Земли Слова <noreply@landsoftheword.com>`).
 
 Ключи и пароли только в `deploy/.env` на сервере, в репозиторий их не класть.

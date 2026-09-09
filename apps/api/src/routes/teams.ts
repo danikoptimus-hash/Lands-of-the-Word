@@ -4,7 +4,6 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
-import { issueResetLink } from "./auth.js";
 
 export const TEAM_COLORS = ["#A9553A", "#4F7C99", "#7D8B4E", "#8E5A9E", "#C48A3F", "#3B6E6E", "#B5473F", "#5C6E91", "#8A7A2E", "#6E4B8E", "#2F7F6F", "#9C5A2E"];
 
@@ -132,15 +131,6 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Принять приглашение: вступить в команду. Одна игра — одна команда на человека. */
-  /** Админ игры: ссылка сброса пароля участнику своей игры (24 часа) — для тех, у кого нет почты. */
-  app.post("/api/games/:id/teams/:teamId/members/:userId/reset-link", async (request, reply) => {
-    const { id, teamId, userId } = request.params as { id: string; teamId: string; userId: string };
-    if (!(await requireGameAdmin(request, reply, id))) return;
-    const m = await prisma.membership.findFirst({ where: { teamId, userId, team: { gameId: id } } });
-    if (!m) return reply.code(404).send({ error: "not_found", message: "Участник не найден в этой команде" });
-    return issueResetLink(userId, "ADMIN", 86_400_000, app.config.PUBLIC_URL, request.user!.id);
-  });
-
   app.post("/api/invites/:token/accept", async (request, reply) => {
     const { token } = request.params as { token: string };
     const invite = await prisma.invite.findUnique({ where: { id: token } });

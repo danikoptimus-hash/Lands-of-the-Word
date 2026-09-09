@@ -44,7 +44,7 @@ export function LoginPage() {
           <>
             <label htmlFor="email">Email <span className="muted">необязательно</span></label>
             <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-            <p className="hint">Нужен только для уведомлений и восстановления пароля. Имя и фамилия не требуются.</p>
+            <p className="hint">Нужен для восстановления пароля и уведомлений: без почты забытый пароль восстановить нельзя. Имя и фамилия не требуются.</p>
           </>
         )}
         {error && <p className="error">{error}</p>}

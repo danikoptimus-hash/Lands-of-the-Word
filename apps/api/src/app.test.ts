@@ -121,31 +121,4 @@ describe("восстановление пароля", () => {
     expect(again.statusCode).toBe(400);
     await prisma.user.deleteMany({ where: { nickname: nick } });
   });
-
-  it("админ игры выдаёт ссылку сброса участнику своей игры; чужому — нет", async () => {
-    const adm = `fa_${Date.now()}`, pl = `fb_${Date.now()}`, other = `fc_${Date.now()}`;
-    const admCookie = (await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: adm, password: "secret123" } })).headers["set-cookie"] as string;
-    const plCookie = (await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: pl, password: "secret123" } })).headers["set-cookie"] as string;
-    const otherCookie = (await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: other, password: "secret123" } })).headers["set-cookie"] as string;
-    const g = await app.inject({ method: "POST", url: "/api/games", headers: { cookie: admCookie }, payload: { name: "Сброс", teamCount: 2 } });
-    const gameId = g.json().game.id as string;
-    const t = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams`, headers: { cookie: admCookie }, payload: { name: "Львы" } });
-    const teamId = t.json().team.id as string;
-    const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/invites`, headers: { cookie: admCookie }, payload: { role: "MEMBER" } });
-    await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: plCookie } });
-    const plUser = await prisma.user.findFirstOrThrow({ where: { nickname: pl } });
-    const otherUser = await prisma.user.findFirstOrThrow({ where: { nickname: other } });
-    const link = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/members/${plUser.id}/reset-link`, headers: { cookie: admCookie } });
-    expect(link.statusCode).toBe(200);
-    expect(link.json().url).toContain("/reset/");
-    const foreign = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/members/${otherUser.id}/reset-link`, headers: { cookie: admCookie } });
-    expect(foreign.statusCode).toBe(404);
-    const notAdmin = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/members/${plUser.id}/reset-link`, headers: { cookie: otherCookie } });
-    expect(notAdmin.statusCode).toBe(403);
-    const token = link.json().url.split("/reset/")[1] as string;
-    const reset = await app.inject({ method: "POST", url: "/api/auth/reset", payload: { token, password: "fresh12345" } });
-    expect(reset.statusCode).toBe(200);
-    await prisma.game.deleteMany({ where: { id: gameId } });
-    await prisma.user.deleteMany({ where: { nickname: { in: [adm, pl, other] } } });
-  });
 });
