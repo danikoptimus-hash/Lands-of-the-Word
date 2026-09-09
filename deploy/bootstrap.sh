@@ -65,8 +65,16 @@ if [[ -n "$SERVER_IP" && "$DNS_IP" != "$SERVER_IP" ]]; then
   echo "ВНИМАНИЕ: $DOMAIN указывает на '$DNS_IP', а сервер — '$SERVER_IP'. Сертификат не выдастся, пока DNS не обновится. Запусти скрипт ещё раз позже."
 fi
 docker rm -f test >/dev/null 2>&1 || true
-echo "DOMAIN=$DOMAIN" > "$APP_DIR/deploy/.env"
-cd "$APP_DIR/deploy" && docker compose up -d
+ENV_FILE="$APP_DIR/deploy/.env"
+touch "$ENV_FILE"
+grep -q '^DOMAIN=' "$ENV_FILE" || echo "DOMAIN=$DOMAIN" >> "$ENV_FILE"
+grep -q '^POSTGRES_PASSWORD=' "$ENV_FILE" || echo "POSTGRES_PASSWORD=$(openssl rand -hex 24)" >> "$ENV_FILE"
+grep -q '^SESSION_SECRET=' "$ENV_FILE" || echo "SESSION_SECRET=$(openssl rand -hex 32)" >> "$ENV_FILE"
+chmod 600 "$ENV_FILE"
+mkdir -p /opt/lotw-backups
+chown -R deploy:deploy "$APP_DIR" /opt/lotw-backups
+# База и Caddy поднимаются сразу; приложение приедет первым автодеплоем из GitHub Actions.
+(cd "$APP_DIR/deploy" && docker compose up -d db caddy)
 echo
-echo "Готово. Через 1–2 минуты открой https://$DOMAIN"
+echo "Готово. Сертификат выпустится в течение 1–2 минут; приложение появится после первого автодеплоя (см. deploy/README.md)."
 echo "Логи Caddy: docker logs -f lotw-caddy"

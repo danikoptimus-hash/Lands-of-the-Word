@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PlatformRole {
+  USER
+  SUPERADMIN
+}
+
+enum GameStatus {
+  DRAFT
+  ACTIVE
+  FINISHED
+}
+
+enum NodeKind {
+  EMPTY
+  CITY
+  START
+}
+
+model User {
+  id           String       @id @default(cuid())
+  nickname     String       @unique
+  passwordHash String
+  email        String?      @unique
+  displayName  String?
+  locale       String       @default("ru")
+  platformRole PlatformRole @default(USER)
+  createdAt    DateTime     @default(now())
+  sessions     Session[]
+  gameAdmins   GameAdmin[]
+  createdGames Game[]       @relation("GameCreator")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  games     Game[]
+}
+
+model Game {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id])
+  name        String
+  status      GameStatus   @default(DRAFT)
+  teamCount   Int
+  settings    Json         @default("{}")
+  mapSeed     Int?
+  createdById String
+  createdBy   User         @relation("GameCreator", fields: [createdById], references: [id])
+  createdAt   DateTime     @default(now())
+  admins      GameAdmin[]
+  nodes       MapNode[]
+  edges       MapEdge[]
+}
+
+model GameAdmin {
+  gameId String
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([gameId, userId])
+}
+
+model MapNode {
+  id        String   @id @default(cuid())
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  key       String
+  q         Int
+  r         Int
+  kind      NodeKind
+  terrain   String
+  rotation  Int      @default(0)
+  bookCode  String?
+  cityType  String?
+  teamIndex Int?
+
+  @@unique([gameId, key])
+}
+
+model MapEdge {
+  id     String @id @default(cuid())
+  gameId String
+  game   Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  aKey   String
+  bKey   String
+
+  @@unique([gameId, aKey, bKey])
+}

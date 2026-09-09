@@ -1,10 +1,43 @@
-# Продакшен-стек Lands of the Word. Пока только Caddy с заглушкой;
-# сервисы app и db добавятся вместе с кодом.
+# Продакшен-стек Lands of the Word: Postgres, приложение (API + веб), Caddy (HTTPS).
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: lotw-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lotw
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: lotw
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lotw -d lotw"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    image: ghcr.io/danikoptimus-hash/lotw-app:${APP_TAG:-latest}
+    container_name: lotw-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://lotw:${POSTGRES_PASSWORD}@db:5432/lotw?schema=public
+      SESSION_SECRET: ${SESSION_SECRET}
+      PORT: "3000"
+      WEB_DIST: /app/apps/web/dist
+    expose:
+      - "3000"
+
   caddy:
     image: caddy:2
     container_name: lotw-caddy
     restart: unless-stopped
+    depends_on:
+      - app
     ports:
       - "80:80"
       - "443:443"
@@ -13,10 +46,10 @@ services:
       - DOMAIN=${DOMAIN}
     volumes:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - ./site:/srv/site:ro
       - caddy_data:/data
       - caddy_config:/config
 
 volumes:
+  db_data:
   caddy_data:
   caddy_config:

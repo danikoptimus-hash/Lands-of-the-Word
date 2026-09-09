@@ -1,0 +1,25 @@
+:root {
+  --parchment: #E8D9B5; --sand: #D9B97A; --ochre: #C48A3F; --olive: #7D8B4E;
+  --terracotta: #A9553A; --river: #4F7C99; --ink: #3B2F2F; --ink-soft: #6b5a4a; --card: #f3ead3;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--parchment); color: var(--ink); font-family: Georgia, "Times New Roman", serif; }
+a { color: var(--river); }
+.container { max-width: 960px; margin: 0 auto; padding: 1.5rem 1rem; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .75rem 1rem; border-bottom: 1px solid rgba(59,47,47,.15); }
+.topbar .brand { font-weight: bold; letter-spacing: .04em; text-decoration: none; color: var(--ink); }
+.card { background: var(--card); border: 1px solid rgba(59,47,47,.15); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem; }
+h1, h2 { margin: 0 0 .75rem; }
+label { display: block; margin: .6rem 0 .25rem; color: var(--ink-soft); font-size: .95rem; }
+input, select { width: 100%; padding: .65rem .75rem; border: 1px solid rgba(59,47,47,.25); border-radius: 8px; background: #fff9ea; font: inherit; font-size: 1rem; }
+button { font: inherit; font-size: 1rem; padding: .65rem 1.1rem; border-radius: 8px; border: 0; background: var(--ochre); color: #fff; cursor: pointer; }
+button.secondary { background: transparent; color: var(--ink); border: 1px solid rgba(59,47,47,.3); }
+button:disabled { opacity: .6; cursor: default; }
+.row { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; }
+.error { color: var(--terracotta); margin: .5rem 0; }
+.muted { color: var(--ink-soft); font-size: .9rem; }
+.list { list-style: none; padding: 0; margin: 0; }
+.list li { padding: .6rem 0; border-bottom: 1px solid rgba(59,47,47,.1); display: flex; justify-content: space-between; gap: 1rem; }
+.mapwrap { width: 100%; overflow: auto; background: #d9c99e; border-radius: 12px; border: 1px solid rgba(59,47,47,.2); touch-action: pan-x pan-y; }
+.legend { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .9rem; margin-top: .5rem; }
+.legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; background: var(--c); }

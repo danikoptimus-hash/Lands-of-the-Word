@@ -1,0 +1,15 @@
+{
+  "name": "lands-of-the-word",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["packages/*", "apps/*"],
+  "scripts": {
+    "build": "npm run build -w packages/domain && npm run build -w apps/web && npm run build -w apps/api",
+    "test": "npm run test -w packages/domain && npm run test -w apps/api",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "dev:api": "npm run dev -w apps/api",
+    "dev:web": "npm run dev -w apps/web",
+    "db:migrate": "npm run db:migrate -w apps/api"
+  },
+  "engines": { "node": ">=22" }
+}

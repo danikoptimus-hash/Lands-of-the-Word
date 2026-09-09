@@ -19,7 +19,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: lotw
+          POSTGRES_PASSWORD: lotw
+          POSTGRES_DB: lotw
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U lotw -d lotw"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://lotw:lotw@localhost:5432/lotw?schema=public
+      SESSION_SECRET: ci-secret-please
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/domain
+      - run: npx prisma generate --schema apps/api/prisma/schema.prisma
+      - run: npx prisma migrate deploy --schema apps/api/prisma/schema.prisma
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build -w apps/web
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     outputs:
       has_app: ${{ steps.check.outputs.has_app }}
@@ -50,6 +83,8 @@ jobs:
           tags: |
             ghcr.io/danikoptimus-hash/lotw-app:latest
             ghcr.io/danikoptimus-hash/lotw-app:${{ github.sha }}
+          build-args: |
+            APP_VERSION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
