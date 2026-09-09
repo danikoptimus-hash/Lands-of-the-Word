@@ -56,6 +56,11 @@ Copy this block into the generator as the first message:
 - ✅ Текстуры местности: `terrain_hills`, `terrain_meadow`, `terrain_mountains`, `terrain_oasis`, `terrain_water` — в `assets/raw/terrain/`. Швы при укладке 2×2 малозаметны; горы и оазис слегка «повторяются» — в игре гексы будут случайно повёрнуты (6 ориентаций), это скрывает повтор.
 - ✅ Города: `village`, `fortress`, `temple_city`, `port`, `tent_camp`, `hill_city`, `ruins`, `capital` — в `assets/raw/city/`. Все с прозрачностью, единый ракурс и стиль. Итого с эталоном — 9 типов городов.
 
+- ✅ Стартовые локации: `start_egypt`, `start_wilderness`, `start_assyria`, `start_zin`, `start_shipwreck` — в `assets/raw/start/`. С эталоном — 6 локаций.
+- ✅ Декор: `well`, `palm`, `olive`, `rocks`, `tent`, `campfire` — в `assets/raw/props/`.
+
+**Полный набор v1 собран.** Дальше — обработка скриптом (приглушение, нарезка гексов, атласы).
+
 ## 4. Пробная партия: 3 картинки на утверждение стиля (выполнено)
 
 Не три города. Три **разных типа** ассетов, чтобы проверить, что стиль совместим между объектами и текстурами:
