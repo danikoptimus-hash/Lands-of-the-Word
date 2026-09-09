@@ -1,14 +1,152 @@
 [
-  { "title": "Продукты одинокой вдове", "description": "Купить и привезти масло, макароны, муку; побыть, поговорить, помолиться.", "direction": "Посещение", "proofType": "PHOTO_LINK", "canRepeat": true, "difficulty": 2 },
-  { "title": "Посидеть с ребёнком в большой семье", "description": "Договориться с родителями и дать им свободный вечер.", "direction": "Помощь миссионерам и большим семьям", "proofType": "CONFIRMATION", "canRepeat": true, "difficulty": 2 },
-  { "title": "Помочь на стройке дома", "description": "Полдня работы на стройке у семьи из церкви.", "direction": "Помощь миссионерам и большим семьям", "proofType": "PHOTO_LINK", "canRepeat": true, "difficulty": 3 },
-  { "title": "Привести друга на молодёжное общение", "description": "Пригласить и привести человека, который ещё не был на общении.", "direction": "Благовестие", "proofType": "CONFIRMATION", "canRepeat": true, "difficulty": 3 },
-  { "title": "Час молитвы за нужды братства", "description": "Собраться вдвоём-втроём и час молиться по списку нужд.", "direction": "Молитва", "proofType": "REPORT", "canRepeat": true, "difficulty": 1 },
-  { "title": "Спеть песню в парке вчетвером", "description": "Выйти в людное место и спеть христианскую песню.", "direction": "Благовестие", "proofType": "VIDEO_LINK", "canRepeat": false, "difficulty": 3 },
-  { "title": "Помочь с подготовкой проповеди", "description": "Помочь брату собрать материал и структуру проповеди.", "direction": "Педагогическое служение", "proofType": "CONFIRMATION", "canRepeat": true, "difficulty": 2 },
-  { "title": "Урок вокала", "description": "Позаниматься вокалом с кем-то из церкви.", "direction": "Педагогическое служение", "proofType": "CONFIRMATION", "canRepeat": true, "difficulty": 1 },
-  { "title": "Посетить больного", "description": "Навестить болеющего члена церкви, принести что нужно.", "direction": "Посещение", "proofType": "REPORT", "canRepeat": true, "difficulty": 1 },
-  { "title": "День труда в доме молитвы", "description": "Субботник или ремонт при доме молитвы, целый день.", "direction": "Труд в лагерях и домах молитвы", "proofType": "PHOTO_LINK", "canRepeat": true, "difficulty": 2 },
-  { "title": "Преподать на курсах", "description": "Провести занятие на церковных курсах.", "direction": "Педагогическое служение", "proofType": "CONFIRMATION", "canRepeat": false, "difficulty": 3 },
-  { "title": "Пожертвование в кассу", "description": "Пожертвовать сумму не меньше минимальной из настроек игры; приложить ссылку на чек.", "direction": "Финансовое участие", "proofType": "PHOTO_LINK", "canRepeat": true, "difficulty": 1 }
+  {
+    "title": "Продукты одинокой вдове",
+    "description": "Купить и привезти масло, макароны, муку; побыть, поговорить, помолиться.",
+    "direction": "Посещение",
+    "proofType": "PHOTO_LINK",
+    "canRepeat": true,
+    "difficulty": 2
+  },
+  {
+    "title": "Посидеть с ребёнком в большой семье",
+    "description": "Договориться с родителями и дать им свободный вечер.",
+    "direction": "Помощь миссионерам и большим семьям",
+    "proofType": "CONFIRMATION",
+    "canRepeat": true,
+    "difficulty": 2
+  },
+  {
+    "title": "Помочь на стройке дома",
+    "description": "Полдня работы на стройке у семьи из церкви.",
+    "direction": "Помощь миссионерам и большим семьям",
+    "proofType": "PHOTO_LINK",
+    "canRepeat": true,
+    "difficulty": 3
+  },
+  {
+    "title": "Привести друга на молодёжное общение",
+    "description": "Пригласить и привести человека, который ещё не был на общении.",
+    "direction": "Благовестие",
+    "proofType": "CONFIRMATION",
+    "canRepeat": true,
+    "difficulty": 3
+  },
+  {
+    "title": "Час молитвы за нужды братства",
+    "description": "Собраться вдвоём-втроём и час молиться по списку нужд.",
+    "direction": "Молитва",
+    "proofType": "REPORT",
+    "canRepeat": true,
+    "difficulty": 1
+  },
+  {
+    "title": "Спеть песню в парке вчетвером",
+    "description": "Выйти в людное место и спеть христианскую песню.",
+    "direction": "Благовестие",
+    "proofType": "VIDEO_LINK",
+    "canRepeat": false,
+    "difficulty": 3
+  },
+  {
+    "title": "Помочь с подготовкой проповеди",
+    "description": "Помочь брату собрать материал и структуру проповеди.",
+    "direction": "Педагогическое служение",
+    "proofType": "CONFIRMATION",
+    "canRepeat": true,
+    "difficulty": 2
+  },
+  {
+    "title": "Урок вокала",
+    "description": "Позаниматься вокалом с кем-то из церкви.",
+    "direction": "Педагогическое служение",
+    "proofType": "CONFIRMATION",
+    "canRepeat": true,
+    "difficulty": 1
+  },
+  {
+    "title": "Посетить больного",
+    "description": "Навестить болеющего члена церкви, принести что нужно.",
+    "direction": "Посещение",
+    "proofType": "REPORT",
+    "canRepeat": true,
+    "difficulty": 1
+  },
+  {
+    "title": "День труда в доме молитвы",
+    "description": "Субботник или ремонт при доме молитвы, целый день.",
+    "direction": "Труд в лагерях и домах молитвы",
+    "proofType": "PHOTO_LINK",
+    "canRepeat": true,
+    "difficulty": 2
+  },
+  {
+    "title": "Преподать на курсах",
+    "description": "Провести занятие на церковных курсах.",
+    "direction": "Педагогическое служение",
+    "proofType": "CONFIRMATION",
+    "canRepeat": false,
+    "difficulty": 3
+  },
+  {
+    "title": "Пожертвование в кассу",
+    "description": "Пожертвовать сумму не меньше минимальной из настроек игры; приложить ссылку на чек.",
+    "direction": "Финансовое участие",
+    "proofType": "PHOTO_LINK",
+    "canRepeat": true,
+    "difficulty": 1
+  },
+  {
+    "title": "Продукты одинокой вдове (по книге Руфь)",
+    "description": "Ячмень Руфи сегодня — мука, крупа, масло. Купить и принести одинокой вдове, побыть с ней.",
+    "direction": "Посещение",
+    "proofType": "PHOTO_LINK",
+    "canRepeat": true,
+    "bookCode": "rut",
+    "difficulty": 2
+  },
+  {
+    "title": "Помочь в поле или на огороде пожилому человеку",
+    "description": "Полдня работы на земле у пожилого человека из церкви или соседей: вскопать, собрать урожай, убрать.",
+    "direction": "Посещение",
+    "proofType": "PHOTO_LINK",
+    "canRepeat": true,
+    "bookCode": "rut",
+    "difficulty": 2
+  },
+  {
+    "title": "Пригласить одинокого человека на обед",
+    "description": "Как Вооз позвал Руфь к обеду: пригласить одинокого человека на обед дома или в церкви.",
+    "direction": "Посещение",
+    "proofType": "CONFIRMATION",
+    "canRepeat": true,
+    "bookCode": "rut",
+    "difficulty": 1
+  },
+  {
+    "title": "Навестить пожилого человека из церкви с подарком",
+    "description": "Прийти с небольшим подарком, поговорить, помолиться вместе.",
+    "direction": "Посещение",
+    "proofType": "PHOTO_LINK",
+    "canRepeat": true,
+    "bookCode": "rut",
+    "difficulty": 1
+  },
+  {
+    "title": "Работа «на гумне»: субботник при доме молитвы",
+    "description": "Уборка территории или помещения дома молитвы всей командой.",
+    "direction": "Труд в лагерях и домах молитвы",
+    "proofType": "PHOTO_LINK",
+    "canRepeat": true,
+    "bookCode": "rut",
+    "difficulty": 2
+  },
+  {
+    "title": "Оставить «колосья»: собрать вещи или продукты нуждающейся семье",
+    "description": "Собрать и передать вещи или продукты семье, которой трудно; договориться заранее через служителя.",
+    "direction": "Помощь миссионерам и большим семьям",
+    "proofType": "PHOTO_LINK",
+    "canRepeat": true,
+    "bookCode": "rut",
+    "difficulty": 2
+  }
 ]

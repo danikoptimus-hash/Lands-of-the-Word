@@ -4,7 +4,7 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { requireAdmin, requireMember } from "./teamMap.js";
-import { checkAnswer, checkOrder, loadCityContent, publicDistricts, publicTask } from "../services/cities.js";
+import { checkAnswer, checkOrder, loadCityContent, makeCityKey, publicDistricts, publicTask } from "../services/cities.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
 const answerBody = z.object({ answer: z.union([z.string().max(500), z.number(), z.array(z.string().min(1).max(32)).max(64)]) });
@@ -25,6 +25,11 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
   async function loadCityNode(gameId: string, nodeKey: string) {
     const node = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId, key: nodeKey } } });
     if (!node || node.kind !== "CITY" || !node.bookCode) return null;
+    if (!node.cityKey) {
+      // Игры, начатые до появления городов: ключ конверта выдаётся при первом обращении.
+      const game = await prisma.game.findUnique({ where: { id: gameId }, select: { status: true } });
+      if (game?.status === "ACTIVE") return prisma.mapNode.update({ where: { id: node.id }, data: { cityKey: makeCityKey() } });
+    }
     return node;
   }
 

@@ -5,6 +5,7 @@ import { HexTiles, IMG } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { api, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { useEffect } from "react";
+import { useUi } from "../lib/ui";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 export interface CityProgress { teamId: string; nodeKey: string; orderSolved: boolean; done: number; capturedAt: string | null; isCapital: boolean }
@@ -104,19 +105,20 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, versio
         <span style={{ ["--c" as string]: "#fff" }}>город на перекрёстке (номер книги)</span>
         {progress?.map((t) => <span key={t.id} style={{ ["--c" as string]: t.color }}>{t.name}</span>)}
       </div>
-      {selected?.kind === "CITY" && <AdminCityPanel gameId={gameId} node={selected} version={version} onClose={() => setSelected(null)} />}
+      {selected?.kind === "CITY" && <AdminCityPanel gameId={gameId} node={selected} version={version} revealedTeams={revealedBy.get(selected.key) ?? []} onClose={() => setSelected(null)} />}
       {selected && selected.kind !== "CITY" && (
-        <p className="note ok" style={{ marginTop: ".6rem" }}>
+        <div className="note ok" style={{ marginTop: ".6rem" }}>
           {selected.kind === "START" ? `Старт команды ${(selected.teamIndex ?? 0) + 1}` : "Развилка"} · перекрёсток {selected.key}
           {(revealedBy.get(selected.key) ?? []).length > 0 && ` · открыт: ${(revealedBy.get(selected.key) ?? []).map((t) => t.name).join(", ")}`}
-        </p>
+          <RevealButtons gameId={gameId} nodeKey={selected.key} teams={progress ?? []} revealedBy={revealedBy.get(selected.key) ?? []} />
+        </div>
       )}
     </>
   );
 }
 
 /** Панель города для админа: ключ конверта, прогресс команд, районы и задания с ответами. */
-function AdminCityPanel({ gameId, node, version, onClose }: { gameId: string; node: MapNodeDto; version: number; onClose: () => void }) {
+function AdminCityPanel({ gameId, node, version, revealedTeams, onClose }: { gameId: string; node: MapNodeDto; version: number; revealedTeams: Array<{ id: string }>; onClose: () => void }) {
   const [city, setCity] = useState<AdminCityDto | null>(null);
   const [showAnswers, setShowAnswers] = useState(false);
   useEffect(() => { let alive = true; api<AdminCityDto>(`/api/games/${gameId}/cities/${encodeURIComponent(node.key)}`).then((c) => { if (alive) setCity(c); }).catch(() => { if (alive) setCity(null); }); return () => { alive = false; }; }, [gameId, node.key, version]);
@@ -134,6 +136,7 @@ function AdminCityPanel({ gameId, node, version, onClose }: { gameId: string; no
           <p style={{ margin: ".3rem 0" }}>Ключ конверта: {city.node.cityKey ? <code className="key">{city.node.cityKey}</code> : <span className="muted">появится после старта игры</span>}
             {city.content && <> · шифр для семьи: <strong>{city.content.codePhrase}</strong></>}</p>
           {!city.content && <p className="note warn">Задания для этой книги ещё готовятся: команды пока не могут взять этот город.</p>}
+          <RevealButtons gameId={gameId} nodeKey={node.key} teams={city.teams} revealedBy={revealedTeams} />
           <ul className="list">
             {city.teams.map((t) => (
               <li key={t.id}>
@@ -169,6 +172,24 @@ function AdminCityPanel({ gameId, node, version, onClose }: { gameId: string; no
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/** Тестовая кнопка админа: открыть узел команде (сторона к нему считается пройденной). */
+function RevealButtons({ gameId, nodeKey, teams, revealedBy }: { gameId: string; nodeKey: string; teams: Array<{ id: string; name: string; color: string }>; revealedBy: Array<{ id: string }> }) {
+  const { confirm, notify } = useUi();
+  const seen = new Set(revealedBy.map((t) => t.id));
+  const rest = teams.filter((t) => !seen.has(t.id));
+  if (rest.length === 0) return null;
+  async function reveal(t: { id: string; name: string }) {
+    if (!(await confirm(`Открыть этот узел команде «${t.name}»? Это тестовое действие: сторона к узлу будет считаться пройденной.`, { okLabel: "Открыть" }))) return;
+    try { await api(`/api/games/${gameId}/teams/${t.id}/reveal`, { method: "POST", body: JSON.stringify({ nodeKey }) }); notify(`Узел открыт команде «${t.name}»`); }
+    catch (e) { notify(e instanceof Error ? e.message : "Ошибка", "bad"); }
+  }
+  return (
+    <div className="row" style={{ marginTop: ".4rem", gap: ".4rem", flexWrap: "wrap" }}>
+      {rest.map((t) => <button key={t.id} className="secondary sm" style={{ borderColor: t.color }} onClick={() => void reveal(t)}>Открыть для «{t.name}»</button>)}
     </div>
   );
 }

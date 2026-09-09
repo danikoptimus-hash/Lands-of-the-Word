@@ -119,6 +119,28 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Прогресс всех команд для карты админа: открытые узлы и пройденные рёбра по командам. */
+  /** Админ (для тестов и разбора ситуаций): открыть команде узел; ведущая к нему сторона считается пройденной. */
+  app.post("/api/games/:id/teams/:teamId/reveal", async (request, reply) => {
+    const { id, teamId } = request.params as { id: string; teamId: string };
+    const game = await requireAdmin(request, reply, id);
+    if (!game) return;
+    if (game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: "Игра не идёт" });
+    const body = z.object({ nodeKey: z.string().min(3).max(40) }).parse(request.body);
+    const [team, node] = await Promise.all([
+      prisma.team.findFirst({ where: { id: teamId, gameId: id } }),
+      prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: body.nodeKey } } }),
+    ]);
+    if (!team || !node) return reply.code(404).send({ error: "not_found", message: "Команда или узел не найдены" });
+    const already = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId, nodeKey: body.nodeKey } } });
+    if (already) return reply.code(409).send({ error: "conflict", message: "Узел уже открыт этой команде" });
+    const task = await prisma.teamEdgeTask.findFirst({ where: { teamId, toKey: body.nodeKey, status: { not: "APPROVED" } }, orderBy: { createdAt: "asc" } });
+    if (task) await prisma.teamEdgeTask.update({ where: { id: task.id }, data: { status: "APPROVED", decidedAt: new Date(), decidedById: request.user!.id, adminComment: "Открыто администратором" } });
+    await revealNode(id, teamId, body.nodeKey);
+    publish(id, { type: "map", teamId });
+    publish(id, { type: "tasks", teamId });
+    return { ok: true, viaTask: Boolean(task) };
+  });
+
   app.get("/api/games/:id/progress", async (request, reply) => {
     const { id } = request.params as { id: string };
     if (!(await requireAdmin(request, reply, id))) return;

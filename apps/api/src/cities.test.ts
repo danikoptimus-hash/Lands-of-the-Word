@@ -130,6 +130,20 @@ describe("город на перекрёстке", () => {
     expect(progress.json().cities.some((x: { teamId: string; isCapital: boolean }) => x.teamId === team1 && x.isCapital)).toBe(true);
   });
 
+  it("админ открывает узел команде для теста: сторона к нему одобрена, узел открыт", async () => {
+    const map = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
+    const frontier = (map.json().tasks as Array<{ toKey: string; status: string }>).find((t) => t.status === "OPEN")!;
+    const res = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team2}/reveal`, headers: { cookie: adminCookie }, payload: { nodeKey: frontier.toKey } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().viaTask).toBe(true);
+    const after = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
+    expect((after.json().revealed as Array<{ key: string }>).some((n) => n.key === frontier.toKey)).toBe(true);
+    const again = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team2}/reveal`, headers: { cookie: adminCookie }, payload: { nodeKey: frontier.toKey } });
+    expect(again.statusCode).toBe(409);
+    const notAdmin = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team2}/reveal`, headers: { cookie: p2Cookie }, payload: { nodeKey: frontier.toKey } });
+    expect(notAdmin.statusCode).toBe(403);
+  });
+
   it("вторая команда не может взять уже занятый город", async () => {
     const city = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p2Cookie } });
     expect(city.json().owner.name).toBe("Львы");
