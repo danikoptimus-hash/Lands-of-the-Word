@@ -124,9 +124,22 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const teams = await prisma.team.findMany({
       where: { gameId: id },
       orderBy: { index: "asc" },
-      select: { id: true, name: true, color: true, startNodeKey: true, nodeStates: { select: { nodeKey: true } }, edgeTasks: { where: { status: "APPROVED" }, select: { fromKey: true, toKey: true } } },
+      select: { id: true, name: true, color: true, startNodeKey: true, nodeStates: { select: { nodeKey: true, revealedAt: true } }, edgeTasks: { where: { status: "APPROVED" }, select: { fromKey: true, toKey: true, decidedAt: true, createdAt: true } } },
     });
-    const pending = await prisma.teamEdgeTask.count({ where: { gameId: id, status: "SUBMITTED" } });
-    return { pending, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, startNodeKey: t.startNodeKey, revealed: t.nodeStates.map((n) => n.nodeKey), traversed: t.edgeTasks })) };
+    const [pending, game] = await Promise.all([
+      prisma.teamEdgeTask.count({ where: { gameId: id, status: "SUBMITTED" } }),
+      prisma.game.findUnique({ where: { id }, select: { startedAt: true } }),
+    ]);
+    // Даты нужны для ползунка времени на карте админа: состояние на любой день игры.
+    return {
+      pending,
+      startedAt: game?.startedAt ?? null,
+      teams: teams.map((t) => ({
+        id: t.id, name: t.name, color: t.color, startNodeKey: t.startNodeKey,
+        revealed: t.nodeStates.map((n) => n.nodeKey),
+        revealedAt: t.nodeStates.map((n) => n.revealedAt.toISOString()),
+        traversed: t.edgeTasks.map((e) => ({ fromKey: e.fromKey, toKey: e.toKey, at: (e.decidedAt ?? e.createdAt).toISOString() })),
+      })),
+    };
   });
 }

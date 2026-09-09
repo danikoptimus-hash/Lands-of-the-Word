@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { AdminMap, type TeamProgress } from "./AdminMap";
+import { Timeline, progressAt } from "./Timeline";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamsBlock } from "./TeamsBlock";
 import { DeedsBlock } from "./DeedsBlock";
@@ -23,8 +24,11 @@ export function GamePage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
-  const [progress, setProgress] = useState<{ teams: TeamProgress[] } | null>(null);
-  const loadProgress = useCallback(() => api<{ teams: TeamProgress[] }>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
+  const [progress, setProgress] = useState<{ teams: TeamProgress[]; startedAt: string | null } | null>(null);
+  const loadProgress = useCallback(() => api<{ teams: TeamProgress[]; startedAt: string | null }>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
+  /** Ползунок времени: null — «сейчас» (живое состояние), иначе момент, на который показываем карту. */
+  const [at, setAt] = useState<Date | null>(null);
+  const shown = useMemo(() => (progress && at ? progressAt(progress.teams, at) : progress?.teams ?? null), [progress, at]);
   const bump = () => setVersion((v) => v + 1);
   useGameEvents(id, (e) => { if (e.type === "game" || e.type === "map") void load(); if (e.type !== "deeds") void loadProgress(); bump(); });
 
@@ -76,7 +80,8 @@ export function GamePage() {
       {hexes.length > 0 ? (
         <div className="card">
           <div className="card-head"><h2>Карта (вид админа)</h2><span className="muted">Города и развилки — на перекрёстках, ходят по сторонам гексов. Тяни, колесо или щипок — масштаб.</span></div>
-          <AdminMap hexes={hexes} nodes={nodes} edges={edges} progress={progress?.teams ?? null} />
+          <AdminMap hexes={hexes} nodes={nodes} edges={edges} progress={shown} />
+          {progress?.startedAt && <Timeline startedAt={progress.startedAt} at={at} onChange={setAt} />}
           <p className="hint">Служебный вид. Игровое оформление с иллюстрациями будет отдельно.</p>
         </div>
       ) : <div className="card"><p className="muted">Карта ещё не сгенерирована. Нажми «Сгенерировать карту».</p></div>}

@@ -234,5 +234,8 @@ describe("карта команды и дела", () => {
     const progress = await app.inject({ method: "GET", url: `/api/games/${gameId}/progress`, headers: { cookie: adminCookie } });
     expect(progress.json().teams[0].revealed).toHaveLength(2);
     expect(progress.json().teams[0].traversed).toHaveLength(1);
+    expect(progress.json().teams[0].revealedAt).toHaveLength(2);
+    expect(progress.json().teams[0].traversed[0].at).toBeTruthy();
+    expect(progress.json().startedAt).toBeTruthy();
   });
 });

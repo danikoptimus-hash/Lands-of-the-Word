@@ -6,7 +6,7 @@ import { useViewport } from "../lib/useViewport";
 import type { MapEdgeDto, MapHexDto, MapNodeDto } from "../lib/api";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
-export interface TeamProgress { id: string; name: string; color: string; startNodeKey: string | null; revealed: string[]; traversed: Array<{ fromKey: string; toKey: string }> }
+export interface TeamProgress { id: string; name: string; color: string; startNodeKey: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
 
 /** Карта админа: вся карта без тумана, города на перекрёстках, пройденные стороны цветами команд (половинками, если прошли двое). */
 export function AdminMap({ hexes, nodes, edges, progress }: { hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null }) {
