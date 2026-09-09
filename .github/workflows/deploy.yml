@@ -99,7 +99,12 @@ jobs:
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           envs: GHCR_USER,GHCR_TOKEN,HAS_APP
-          script: bash /opt/lotw/deploy/deploy.sh
+          script: |
+            set -e
+            cd /opt/lotw
+            git fetch --quiet origin claude/lands-word-city-conquest-6xtei9
+            git reset --hard --quiet origin/claude/lands-word-city-conquest-6xtei9
+            bash deploy/deploy.sh
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
