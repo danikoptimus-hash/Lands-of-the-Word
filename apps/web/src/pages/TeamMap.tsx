@@ -34,8 +34,11 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect }: { map: MyM
   const S = (p: { x: number; y: number }) => ({ x: tx + p.x * k, y: ty + p.y * k });
   const click = (taskId: string) => { if (!vp.wasDrag()) onSelect(selectedTaskId === taskId ? null : taskId); };
   const statusColor = (s: string) => s === "SUBMITTED" ? "#C7742A" : s === "TAKEN" ? "#3E7A4E" : s === "REJECTED" ? "#B3402F" : "#FFFFFF";
-  const R = 12;
-  const CITY = 60, START = 72;
+  const R = k >= 1.6 ? 12 : 9;
+  // Уровни детализации: при отдалении метки дел и подписи прячутся, чтобы не заслонять карту.
+  const showMarkers = k >= 0.9, showLabels = k >= 1.6, showForks = k >= 0.7;
+  // Город масштабируется с картой: сидит на перекрёстке и занимает место до середины трёх сторон.
+  const CITY = size * 1.15, START = size * 1.35;
 
   return (
     <div ref={vp.ref} {...vp.handlers} style={{ position: "absolute", inset: 0, touchAction: "none", cursor: "grab", userSelect: "none", overflow: "hidden", background: "#2B2724" }}>
@@ -55,24 +58,28 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect }: { map: MyM
               </g>
             );
           })}
+          {map.revealed.map((n) => {
+            const p = positions.get(n.key)!;
+            if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+            if (n.kind === "CITY") return <image key={"c" + n.key} href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />;
+            return null;
+          })}
         </g>
         <g>
           {map.revealed.map((n) => {
             const p = S(positions.get(n.key)!);
             const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
-            if (n.kind === "START") return <g key={n.key} transform={`translate(${p.x},${p.y})`}><image href={IMG.start(teamIndex)} x={-START / 2} y={-START * 0.6} width={START} height={START} /><circle r={7} fill={map.team.color} stroke="#fff" strokeWidth={2} /></g>;
-            if (n.kind === "CITY") return (
-              <g key={n.key} transform={`translate(${p.x},${p.y})`}>
-                <image href={IMG.city(n.cityType)} x={-CITY / 2} y={-CITY * 0.62} width={CITY} height={CITY} />
-                <g transform={`translate(0,${CITY * 0.42})`}>
-                  <rect x={-46} y={-10} width={92} height={20} rx={4} fill="#F3EAD3" stroke="#1F1B16" strokeWidth={1} />
-                  <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill="#1F1B16">{book?.nameRu}</text>
-                </g>
+            if (n.kind === "START") return <circle key={n.key} cx={p.x} cy={p.y} r={6} fill={map.team.color} stroke="#fff" strokeWidth={2} />;
+            if (n.kind === "CITY") return showLabels ? (
+              <g key={n.key} transform={`translate(${p.x},${p.y + CITY * k * 0.48})`}>
+                <rect x={-48} y={-10} width={96} height={20} rx={4} fill="#F3EAD3" stroke="#1F1B16" strokeWidth={1} />
+                <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill="#1F1B16">{book?.nameRu}</text>
               </g>
-            );
+            ) : <circle key={n.key} cx={p.x} cy={p.y} r={4} fill="#fff" stroke="#1F1B16" strokeWidth={1} />;
+            if (!showForks) return null;
             return <circle key={n.key} cx={p.x} cy={p.y} r={5} fill="#fff" stroke="#1F1B16" strokeWidth={1.2} />;
           })}
-          {map.edges.map((e) => {
+          {showMarkers && map.edges.map((e) => {
             const t = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
             if (!t || t.status === "APPROVED") return null;
             const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -83,7 +90,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect }: { map: MyM
               <g key={"m" + e.aKey + e.bKey} onClick={() => click(t.id)} style={{ cursor: "pointer" }}>
                 <circle cx={far.x} cy={far.y} r={5} fill="#B9B1A5" />
                 <circle cx={m.x} cy={m.y} r={sel ? R + 2 : R} fill={statusColor(t.status)} stroke="#1F1B16" strokeWidth={sel ? 2.5 : 1.3} />
-                <text x={m.x} y={m.y} textAnchor="middle" dy="0.35em" fontSize={12} fontWeight={700} fill="#1F1B16" style={{ pointerEvents: "none" }}>✓</text>
+                <text x={m.x} y={m.y} textAnchor="middle" dy="0.35em" fontSize={R} fontWeight={700} fill="#1F1B16" style={{ pointerEvents: "none" }}>✓</text>
               </g>
             );
           })}
