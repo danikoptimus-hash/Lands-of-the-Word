@@ -97,8 +97,6 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect }: { map: MyM
         </g>
       </svg>
       <div className="map-controls">
-        <button className="secondary sm" onClick={() => vp.zoomAt(1.3)} aria-label="Приблизить">+</button>
-        <button className="secondary sm" onClick={() => vp.zoomAt(1 / 1.3)} aria-label="Отдалить">−</button>
         <button className="secondary sm" onClick={vp.fit} aria-label="Вся карта">⤢</button>
         {start && <button className="secondary sm" onClick={() => vp.focusOn(start.x, start.y, 2.4)} aria-label="К старту">★</button>}
       </div>

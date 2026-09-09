@@ -76,3 +76,20 @@ describe("auth + games", () => {
     await prisma.user.deleteMany({ where: { nickname: "o_" + nick } });
   });
 });
+
+describe("аккаунт", () => {
+  it("меняет имя и email, меняет пароль только по текущему", async () => {
+    const reg = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: "acc_" + nick, password: "secret123" } });
+    const c = reg.headers["set-cookie"] as string;
+    const upd = await app.inject({ method: "PATCH", url: "/api/auth/me", headers: { cookie: c }, payload: { displayName: "Стражник", email: `acc_${nick}@example.com` } });
+    expect(upd.statusCode).toBe(200);
+    expect(upd.json().user.displayName).toBe("Стражник");
+    const bad = await app.inject({ method: "POST", url: "/api/auth/password", headers: { cookie: c }, payload: { current: "wrong-one", next: "newsecret123" } });
+    expect(bad.statusCode).toBe(401);
+    const ok = await app.inject({ method: "POST", url: "/api/auth/password", headers: { cookie: c }, payload: { current: "secret123", next: "newsecret123" } });
+    expect(ok.statusCode).toBe(200);
+    const login = await app.inject({ method: "POST", url: "/api/auth/login", payload: { nickname: "acc_" + nick, password: "newsecret123" } });
+    expect(login.statusCode).toBe(200);
+    await prisma.user.deleteMany({ where: { nickname: "acc_" + nick } });
+  });
+});

@@ -37,9 +37,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true } });
-    if (game.status === "DRAFT") return { status: game.status, team: { id: m.team.id, name: m.team.name, color: m.team.color }, revealed: [], fog: [], edges: [], tasks: [] };
+    if (game.status === "DRAFT") return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [] };
     const map = await getTeamMap(id, m.team.id);
-    return { status: game.status, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map };
+    return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map };
   });
 
   app.post("/api/games/:id/edge-tasks/:taskId/take", async (request, reply) => {

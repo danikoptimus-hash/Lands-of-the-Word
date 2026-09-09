@@ -36,7 +36,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
           <input id="s-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={80} />
           <div className="grid cols-3">
             <div><label htmlFor="s-teams">Команд</label><input id="s-teams" type="number" min={2} max={12} value={teamCount} onChange={(e) => setTeamCount(Number(e.target.value))} /></div>
-            <div><label htmlFor="s-nodes">Узлов на карте</label><input id="s-nodes" type="number" min={150} max={600} step={10} value={nodeCount} onChange={(e) => setNodeCount(Number(e.target.value))} /></div>
+            <div><label htmlFor="s-nodes">Узлов на карте</label><input id="s-nodes" type="number" min={200} max={600} step={10} value={nodeCount} onChange={(e) => setNodeCount(Number(e.target.value))} /></div>
             <div><label htmlFor="s-diff">Разница до первого города</label><input id="s-diff" type="number" min={0} max={6} value={maxDiff} onChange={(e) => setMaxDiff(Number(e.target.value))} /></div>
           </div>
           <label className="check"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />Равноудалённые старты</label>

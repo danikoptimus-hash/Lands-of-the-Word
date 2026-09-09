@@ -7,6 +7,7 @@ interface AuthState {
   login: (nickname: string, password: string) => Promise<void>;
   register: (nickname: string, password: string, email?: string) => Promise<void>;
   logout: () => Promise<void>;
+  refresh: () => Promise<void>;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -27,12 +28,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const r = await api<{ user: User }>("/api/auth/register", { method: "POST", body: JSON.stringify({ nickname, password, email }) });
     setUser(r.user);
   }, []);
+  const refresh = useCallback(async () => {
+    try { const r = await api<{ user: User }>("/api/auth/me"); setUser(r.user); } catch { setUser(null); }
+  }, []);
   const logout = useCallback(async () => {
     await api("/api/auth/logout", { method: "POST" });
     setUser(null);
   }, []);
 
-  return <Ctx.Provider value={{ user, loading, login, register, logout }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, loading, login, register, logout, refresh }}>{children}</Ctx.Provider>;
 }
 
 export function useAuth(): AuthState {

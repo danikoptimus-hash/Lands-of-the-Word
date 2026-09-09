@@ -15,6 +15,12 @@ const registerBody = z.object({
 });
 
 const loginBody = z.object({ nickname: z.string().trim(), password: z.string() });
+const profileBody = z.object({
+  displayName: z.string().trim().max(60).nullable().optional(),
+  email: z.string().trim().email().nullable().optional().or(z.literal("").transform(() => null)),
+  locale: z.enum(["ru", "en"]).optional(),
+});
+const passwordBody = z.object({ current: z.string(), next: password });
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   const secure = app.config.NODE_ENV === "production";
@@ -55,4 +61,23 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   });
 
   app.get("/api/auth/me", { preHandler: requireUser }, async (request) => ({ user: publicUser(request.user!) }));
+
+  /** Настройки аккаунта: отображаемое имя, email, язык. Никнейм не меняется. */
+  app.patch("/api/auth/me", { preHandler: requireUser }, async (request, reply) => {
+    const body = profileBody.parse(request.body);
+    if (body.email) {
+      const taken = await prisma.user.findFirst({ where: { email: body.email, NOT: { id: request.user!.id } } });
+      if (taken) return reply.code(409).send({ error: "conflict", message: "Этот email уже занят" });
+    }
+    const user = await prisma.user.update({ where: { id: request.user!.id }, data: { displayName: body.displayName === undefined ? undefined : body.displayName || null, email: body.email === undefined ? undefined : body.email, locale: body.locale } });
+    return { user: publicUser(user) };
+  });
+
+  app.post("/api/auth/password", { preHandler: requireUser, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const body = passwordBody.parse(request.body);
+    const ok = await bcrypt.compare(body.current, request.user!.passwordHash);
+    if (!ok) return reply.code(401).send({ error: "unauthorized", message: "Текущий пароль неверный" });
+    await prisma.user.update({ where: { id: request.user!.id }, data: { passwordHash: await bcrypt.hash(body.next, 10) } });
+    return { ok: true };
+  });
 }

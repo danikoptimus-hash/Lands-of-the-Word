@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { BOOKS, directionBetween, parseVertexKey } from "@lotw/domain";
 import { api, ApiError, GAME_ROLE_LABEL, PROOF_LABEL, TASK_STATUS_LABEL, TEAM_ROLE_LABEL, type EdgeTaskDto, type GameRole, type MyMapDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useRef } from "react";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamMap } from "./TeamMap";
 
@@ -11,19 +12,35 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 /** Страница команды: карта во весь экран, всплывающая карточка дела, выдвижная панель с делами и составом. */
 export function TeamPage() {
   const { id = "" } = useParams();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [team, setTeam] = useState<TeamDto | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [map, setMap] = useState<MyMapDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [drawer, setDrawer] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const swipe = useRef<{ x: number; y: number; edge: boolean } | null>(null);
+  // Свайп от края браузер трактует как «назад»; гасим его сами (нужен non-passive слушатель).
+  const screenRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = screenRef.current;
+    if (!el) return;
+    const onMove = (e: TouchEvent) => {
+      const st = swipe.current;
+      if (!st) return;
+      const t = e.touches[0]!;
+      if (st.edge && Math.abs(t.clientX - st.x) > Math.abs(t.clientY - st.y) && e.cancelable) e.preventDefault();
+    };
+    el.addEventListener("touchmove", onMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onMove);
+  }, [team?.id]);
+  const [gameName, setGameName] = useState("");
   const [links, setLinks] = useState("");
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
   const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setIsAdmin(r.isAdmin); setTeam(r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")), [id]);
-  const loadMap = useCallback(() => api<MyMapDto>(`/api/games/${id}/my-map`).then(setMap).catch(() => setMap(null)), [id]);
+  const loadMap = useCallback(() => api<MyMapDto & { gameName?: string }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); if (m.gameName) setGameName(m.gameName); }).catch(() => setMap(null)), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   useGameEvents(id, (e) => { if (e.type === "teams" || e.type === "game") void loadTeam(); if (e.type !== "deeds") void loadMap(); });
   useEffect(() => {
@@ -83,16 +100,31 @@ export function TeamPage() {
   const takenTasks = map.tasks.filter((t) => t.status === "TAKEN" || t.status === "SUBMITTED" || t.status === "REJECTED");
   const done = map.tasks.filter((t) => t.status === "APPROVED").length;
 
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]!;
+    swipe.current = { x: t.clientX, y: t.clientY, edge: t.clientX < 40 || menu };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const st = swipe.current; swipe.current = null;
+    if (!st) return;
+    const t = e.changedTouches[0]!;
+    const dx = t.clientX - st.x, dy = t.clientY - st.y;
+    if (Math.abs(dy) > Math.abs(dx)) return;
+    if (!menu && st.edge && dx > 40) setMenu(true);
+    if (menu && dx < -60) setMenu(false);
+  };
+
   return (
-    <div className="map-screen">
-      <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={(tid) => { setSelectedId(tid); if (tid) setDrawer(false); }} />
+    <div className="map-screen" ref={screenRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+      <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={(tid) => { setSelectedId(tid); if (tid) setMenu(false); }} />
 
       <div className="map-hud">
         <span className="avatar" style={{ background: team.color, color: "#fff" }}>{team.name.slice(0, 1)}</span>
         <span className="name">{team.name}</span>
         <span className="muted">· узлов {map.revealed.length} · путей {done}</span>
       </div>
-      <button className="map-fab" onClick={() => { setDrawer(true); setSelectedId(null); }}>Команда{takenTasks.length ? ` · дел ${takenTasks.length}` : ""}</button>
+      {/* Кнопка остаётся в DOM (hidden), иначе свайп, начатый на ней, ломается: Chrome теряет цель касания */}
+      <div className="edge-handle" role="button" tabIndex={0} hidden={menu} onClick={() => { setMenu(true); setSelectedId(null); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setMenu(true); }} aria-label="Открыть меню">›{takenTasks.length > 0 && <span className="count">{takenTasks.length}</span>}</div>
 
       {task && (
         <div className="sheet">
@@ -125,26 +157,37 @@ export function TeamPage() {
         </div>
       )}
 
-      {drawer && (
-        <div className="drawer">
-          <button className="ghost sm close" onClick={() => setDrawer(false)} aria-label="Закрыть">✕</button>
-          <div className="person" style={{ gap: ".7rem", marginBottom: ".8rem" }}>
-            <span className="avatar" style={{ background: team.color, color: "#fff", width: 40, height: 40 }}>{team.name.slice(0, 1)}</span>
-            <div><strong style={{ fontSize: "1.1rem" }}>{team.name}</strong><div className="muted">Вы — {me ? TEAM_ROLE_LABEL[me.role] : "?"}</div></div>
+      {menu && (
+        <>
+          <div className="side-backdrop" onClick={() => setMenu(false)} />
+          <div className="side-menu">
+            <div className="row between">
+              <div className="person" style={{ gap: ".7rem" }}>
+                <span className="avatar" style={{ background: team.color, color: "#fff", width: 40, height: 40 }}>{team.name.slice(0, 1)}</span>
+                <div><strong style={{ fontSize: "1.05rem" }}>{team.name}</strong><div className="muted">{gameName || "Игра"} · вы — {me ? TEAM_ROLE_LABEL[me.role] : "?"}</div></div>
+              </div>
+              <button className="ghost sm" onClick={() => setMenu(false)} aria-label="Закрыть">✕</button>
+            </div>
+            <div className="section">
+              <h2>Взятые дела <span className="muted">{takenTasks.length}</span></h2>
+              {takenTasks.length === 0 && <p className="muted">Пока ничего не взято. Нажми на сторону с меткой на карте.</p>}
+              <ul className="list">
+                {takenTasks.map((t) => (
+                  <li key={t.id} onClick={() => { setSelectedId(t.id); setMenu(false); }} style={{ cursor: "pointer" }}>
+                    <div className="main"><strong>{t.deed.title}</strong><div className="muted">{where(t)}{t.status === "REJECTED" && t.adminComment ? ` · вернули: ${t.adminComment}` : ""}</div></div>
+                    <span className={"badge" + (t.status === "SUBMITTED" ? " accent" : "")}>{TASK_STATUS_LABEL[t.status]}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} flat /></div>
+            <div className="section">
+              <Link className="menu-link" to="/">🗺 Мои игры</Link>
+              <Link className="menu-link" to="/account">⚙ Настройки аккаунта</Link>
+              <a className="menu-link" href="#" onClick={(e) => { e.preventDefault(); void logout(); }}>⏻ Выйти</a>
+            </div>
           </div>
-          <h2>Взятые дела <span className="muted">{takenTasks.length}</span></h2>
-          {takenTasks.length === 0 && <p className="muted">Пока ничего не взято. Нажми на сторону с меткой на карте.</p>}
-          <ul className="list">
-            {takenTasks.map((t) => (
-              <li key={t.id} onClick={() => { setSelectedId(t.id); setDrawer(false); }} style={{ cursor: "pointer" }}>
-                <div className="main"><strong>{t.deed.title}</strong><div className="muted">{where(t)}{t.status === "REJECTED" && t.adminComment ? ` · вернули: ${t.adminComment}` : ""}</div></div>
-                <span className={"badge" + (t.status === "SUBMITTED" ? " accent" : "")}>{TASK_STATUS_LABEL[t.status]}</span>
-              </li>
-            ))}
-          </ul>
-          <div style={{ marginTop: "1rem" }}><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} flat /></div>
-          <p style={{ marginTop: "1rem" }}><Link to="/">← Мои игры</Link></p>
-        </div>
+        </>
       )}
     </div>
   );

@@ -80,8 +80,6 @@ export function AdminMap({ hexes, nodes, edges, progress }: { hexes: MapHexDto[]
           </svg>
         </div>
         <div style={{ position: "absolute", right: 10, top: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-          <button className="secondary sm" style={{ width: 40, padding: 0 }} onClick={() => vp.zoomAt(1.3)} aria-label="Приблизить">+</button>
-          <button className="secondary sm" style={{ width: 40, padding: 0 }} onClick={() => vp.zoomAt(1 / 1.3)} aria-label="Отдалить">−</button>
           <button className="secondary sm" style={{ width: 40, padding: 0 }} onClick={vp.fit} aria-label="Вся карта">⤢</button>
         </div>
       </div>

@@ -13,7 +13,7 @@ const createBody = z.object({
   teamCount: z.number().int().min(2).max(12),
   settings: z
     .object({
-      nodeCount: z.number().int().min(150).max(600).default(250),
+      nodeCount: z.number().int().min(200).max(600).default(250),
       equidistantStarts: z.boolean().default(false),
       maxStartDistanceDiff: z.number().int().min(0).max(6).default(3),
     })
@@ -27,7 +27,7 @@ const patchBody = z.object({
   teamCount: z.number().int().min(2).max(12).optional(),
   settings: z
     .object({
-      nodeCount: z.number().int().min(150).max(600).optional(),
+      nodeCount: z.number().int().min(200).max(600).optional(),
       equidistantStarts: z.boolean().optional(),
       maxStartDistanceDiff: z.number().int().min(0).max(6).optional(),
     })
