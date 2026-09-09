@@ -27,3 +27,10 @@ export interface MyTeamDto { role: TeamRole; gameRole: GameRole; team: { id: str
 
 export const GAME_ROLE_LABEL: Record<GameRole, string> = { NONE: "—", SCOUT: "Разведчик", PROPHET: "Пророк", AMBASSADOR: "Посол", CHRONICLER: "Летописец" };
 export const TEAM_ROLE_LABEL: Record<TeamRole, string> = { CAPTAIN: "капитан", MEMBER: "участник" };
+
+export type EdgeTaskStatus = "OPEN" | "TAKEN" | "SUBMITTED" | "APPROVED" | "REJECTED";
+export interface DeedLite { id: string; title: string; description: string; direction: string; proofType: "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "CONFIRMATION"; difficulty: number }
+export interface EdgeTaskDto { id: string; fromKey: string; toKey: string; deedId: string; status: EdgeTaskStatus; takenById: string | null; links: string[]; note: string; adminComment: string; submittedAt: string | null; deed: DeedLite }
+export interface MyMapDto { status: string; team: { id: string; name: string; color: string; startNodeKey?: string | null }; revealed: MapNodeDto[]; fog: Array<{ key: string; q: number; r: number }>; edges: MapEdgeDto[]; tasks: EdgeTaskDto[] }
+export const PROOF_LABEL: Record<DeedLite["proofType"], string> = { REPORT: "отчёт текстом", PHOTO_LINK: "ссылка на фото", VIDEO_LINK: "ссылка на видео", CONFIRMATION: "подтверждение человека" };
+export const TASK_STATUS_LABEL: Record<EdgeTaskStatus, string> = { OPEN: "свободно", TAKEN: "в работе", SUBMITTED: "на проверке", APPROVED: "одобрено", REJECTED: "вернули" };

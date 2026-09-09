@@ -177,3 +177,57 @@ describe("настройки игры", () => {
     await prisma.game.deleteMany({ where: { id: gid } });
   });
 });
+
+describe("карта команды и дела", () => {
+  let taskId = "";
+  it("после старта команда видит стартовый узел, туман и дела на рёбрах", async () => {
+    const res = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: playerCookie } });
+    expect(res.statusCode).toBe(200);
+    const m = res.json();
+    expect(m.status).toBe("ACTIVE");
+    expect(m.revealed).toHaveLength(1);
+    expect(m.revealed[0].kind).toBe("START");
+    expect(m.fog.length).toBeGreaterThanOrEqual(2);
+    expect(m.tasks.length).toBe(m.fog.length);
+    expect(m.tasks.every((t: { status: string }) => t.status === "OPEN")).toBe(true);
+    // Дела на рёбрах не повторяются, пока хватает уникальных.
+    expect(new Set(m.tasks.map((t: { deedId: string }) => t.deedId)).size).toBe(m.tasks.length);
+    taskId = m.tasks[0].id;
+    // Чужой не видит.
+    const other = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: adminCookie } });
+    expect(other.statusCode).toBe(403);
+  });
+
+  it("взять, сдать ссылкой, отклонить, пересдать, одобрить → узел открылся", async () => {
+    const take = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taskId}/take`, headers: { cookie: playerCookie } });
+    expect(take.statusCode).toBe(200);
+    expect(take.json().task.status).toBe("TAKEN");
+    const bad = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taskId}/submit`, headers: { cookie: playerCookie }, payload: { links: ["not a url"] } });
+    expect(bad.statusCode).toBe(400);
+    const sub = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taskId}/submit`, headers: { cookie: playerCookie }, payload: { links: ["https://example.com/photo1"], note: "Сделали" } });
+    expect([200, 400]).toContain(sub.statusCode);
+    if (sub.statusCode === 400) {
+      // дело требует ссылку — уже дали; значит проверка на текст; добавим текст
+      const sub2 = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taskId}/submit`, headers: { cookie: playerCookie }, payload: { links: ["https://example.com/photo1"], note: "Сделали как надо" } });
+      expect(sub2.statusCode).toBe(200);
+    }
+    const queue = await app.inject({ method: "GET", url: `/api/games/${gameId}/submissions`, headers: { cookie: adminCookie } });
+    expect(queue.json().tasks.map((t: { id: string }) => t.id)).toContain(taskId);
+    const rej = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taskId}/decide`, headers: { cookie: adminCookie }, payload: { approve: false, comment: "Фото нечёткое" } });
+    expect(rej.json().task.status).toBe("REJECTED");
+    const again = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taskId}/submit`, headers: { cookie: playerCookie }, payload: { links: ["https://example.com/photo2"], note: "Переснял" } });
+    expect(again.statusCode).toBe(200);
+    const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taskId}/decide`, headers: { cookie: adminCookie }, payload: { approve: true } });
+    expect(ok.json().task.status).toBe("APPROVED");
+    const twice = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taskId}/decide`, headers: { cookie: adminCookie }, payload: { approve: true } });
+    expect(twice.statusCode).toBe(409);
+    const map = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: playerCookie } });
+    const m = map.json();
+    expect(m.revealed).toHaveLength(2);
+    expect(m.tasks.filter((t: { status: string }) => t.status === "APPROVED")).toHaveLength(1);
+    expect(m.tasks.filter((t: { status: string }) => t.status === "OPEN").length).toBeGreaterThan(m.fog.length - 1);
+    const progress = await app.inject({ method: "GET", url: `/api/games/${gameId}/progress`, headers: { cookie: adminCookie } });
+    expect(progress.json().teams[0].revealed).toHaveLength(2);
+    expect(progress.json().teams[0].traversed).toHaveLength(1);
+  });
+});

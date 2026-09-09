@@ -6,6 +6,7 @@ import { TeamsBlock } from "./TeamsBlock";
 import { DeedsBlock } from "./DeedsBlock";
 import { StartBlock } from "./StartBlock";
 import { SettingsBlock } from "./SettingsBlock";
+import { SubmissionsBlock } from "./SubmissionsBlock";
 
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number } }
 interface Stats { nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number }
@@ -26,6 +27,8 @@ export function GamePage() {
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
   const [version, setVersion] = useState(0);
+  const [progress, setProgress] = useState<{ teams: Array<{ id: string; name: string; color: string; revealed: string[]; traversed: Array<{ fromKey: string; toKey: string }> }> } | null>(null);
+  const loadProgress = useCallback(() => api<{ teams: Array<{ id: string; name: string; color: string; revealed: string[]; traversed: Array<{ fromKey: string; toKey: string }> }> }>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
   const bump = () => setVersion((v) => v + 1);
 
   const load = useCallback(async () => {
@@ -33,7 +36,7 @@ export function GamePage() {
     setGame(r.game); setNodes(r.nodes); setEdges(r.edges);
   }, [id]);
 
-  useEffect(() => { load().catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")); }, [load]);
+  useEffect(() => { load().catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")); void loadProgress(); }, [load, loadProgress]);
 
   async function generate() {
     setBusy(true); setError(null); setSelected(null);
@@ -85,7 +88,8 @@ export function GamePage() {
       </div>
 
       <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
-      <StartBlock gameId={game.id} status={game.status} version={version} onStarted={() => void load()} />
+      {game.status === "ACTIVE" && <SubmissionsBlock gameId={game.id} onDecided={() => void loadProgress()} />}
+      <StartBlock gameId={game.id} status={game.status} version={version} onStarted={() => { void load(); void loadProgress(); }} />
       <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} onChange={bump} />
       <DeedsBlock gameId={game.id} onChange={bump} />
 
@@ -99,6 +103,14 @@ export function GamePage() {
                 if (!a || !b) return null;
                 return <line key={e.aKey + e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(59,47,47,.12)" strokeWidth={1} />;
               })}
+              {progress?.teams.flatMap((t) => t.traversed.map((e) => {
+                const a = layout.byKey.get(e.fromKey), b = layout.byKey.get(e.toKey);
+                if (!a || !b) return null;
+                const others = progress.teams.filter((o) => o.id !== t.id && o.traversed.some((x) => (x.fromKey === e.fromKey && x.toKey === e.toKey) || (x.fromKey === e.toKey && x.toKey === e.fromKey)));
+                // Ребро, пройденное двумя командами, красится половинками.
+                const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+                return others.length ? <line key={t.id + e.fromKey + e.toKey} x1={a.x} y1={a.y} x2={mx} y2={my} stroke={t.color} strokeWidth={5} strokeLinecap="round" /> : <line key={t.id + e.fromKey + e.toKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={t.color} strokeWidth={5} strokeLinecap="round" />;
+              }))}
               {layout.pts.map(({ n, x, y }) => {
                 const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
                 const fill = n.kind === "START" ? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length] : TERRAIN_COLOR[n.terrain] ?? "#ccc";
@@ -108,6 +120,7 @@ export function GamePage() {
                     {n.kind === "CITY" && <circle r={size * 0.42} fill="#f3ead3" stroke="#3B2F2F" strokeWidth={1.2} />}
                     {n.kind === "CITY" && <text textAnchor="middle" dy="0.35em" fontSize={size * 0.5} fill="#3B2F2F">{book?.order ?? "?"}</text>}
                     {n.kind === "START" && <text textAnchor="middle" dy="0.35em" fontSize={size * 0.6} fill="#fff">★</text>}
+                    {progress?.teams.filter((t) => t.revealed.includes(n.key)).map((t, i) => <circle key={t.id} cx={-size * 0.55 + i * size * 0.4} cy={-size * 0.55} r={size * 0.16} fill={t.color} stroke="#fff" strokeWidth={1} />)}
                   </g>
                 );
               })}

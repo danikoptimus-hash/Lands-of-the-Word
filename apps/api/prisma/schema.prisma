@@ -138,6 +138,8 @@ model Team {
   createdAt    DateTime     @default(now())
   members      Membership[]
   invites      Invite[]
+  nodeStates   TeamNodeState[]
+  edgeTasks    TeamEdgeTask[]
 
   @@unique([gameId, index])
   @@unique([gameId, name])
@@ -187,6 +189,50 @@ model Deed {
   bookCode    String?
   difficulty  Int       @default(1)
   createdAt   DateTime  @default(now())
+  edgeTasks   TeamEdgeTask[]
 
   @@index([gameId])
+}
+
+enum EdgeTaskStatus {
+  OPEN
+  TAKEN
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+/** Узел глазами команды: открыт (виден тип, название города). */
+model TeamNodeState {
+  id         String   @id @default(cuid())
+  teamId     String
+  team       Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  nodeKey    String
+  revealedAt DateTime @default(now())
+
+  @@unique([teamId, nodeKey])
+}
+
+/** Ребро глазами команды: назначенное дело и ход его выполнения. */
+model TeamEdgeTask {
+  id            String         @id @default(cuid())
+  teamId        String
+  team          Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  gameId        String
+  fromKey       String
+  toKey         String
+  deedId        String
+  deed          Deed           @relation(fields: [deedId], references: [id])
+  status        EdgeTaskStatus @default(OPEN)
+  takenById     String?
+  links         String[]       @default([])
+  note          String         @default("")
+  submittedAt   DateTime?
+  decidedAt     DateTime?
+  decidedById   String?
+  adminComment  String         @default("")
+  createdAt     DateTime       @default(now())
+
+  @@unique([teamId, fromKey, toKey])
+  @@index([gameId, status])
 }

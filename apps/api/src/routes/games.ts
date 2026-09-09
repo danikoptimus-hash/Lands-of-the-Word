@@ -4,6 +4,7 @@ import { generateMap, MapGenError } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
 import { recommendedDeedCount } from "./deeds.js";
+import { ensureFrontier } from "../services/teamMap.js";
 
 const createBody = z.object({
   name: z.string().trim().min(2).max(80),
@@ -170,6 +171,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       ...teams.map((t, i) => prisma.team.update({ where: { id: t.id }, data: { startNodeKey: starts[i]?.key ?? null } })),
       prisma.game.update({ where: { id }, data: { status: "ACTIVE", startedAt: new Date() } }),
     ]);
+    for (const t of teams) await ensureFrontier(id, t.id);
     return { ok: true, startedAt: new Date() };
   });
 }
