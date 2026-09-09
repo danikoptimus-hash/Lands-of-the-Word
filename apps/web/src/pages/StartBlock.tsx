@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../lib/api";
+import { useUi } from "../lib/ui";
 
 interface Readiness { canStart: boolean; problems: string[]; warnings: string[] }
 
@@ -8,6 +9,7 @@ export function StartBlock({ gameId, status, version, onStarted }: { gameId: str
   const [r, setR] = useState<Readiness | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const ui = useUi();
   const load = () => api<Readiness>(`/api/games/${gameId}/readiness`).then(setR).catch(() => setR(null));
   useEffect(() => {
     if (status !== "DRAFT") return;
@@ -21,9 +23,9 @@ export function StartBlock({ gameId, status, version, onStarted }: { gameId: str
   if (status !== "DRAFT") return null;
 
   async function start() {
-    if (!confirm("Начать игру? Карту после этого изменить нельзя.")) return;
+    if (!(await ui.confirm("Карту после старта изменить нельзя. Команды получат свои стартовые точки, а дела появятся на сторонах.", { title: "Начать игру?", okLabel: "Начать" }))) return;
     setBusy(true); setError(null);
-    try { await api(`/api/games/${gameId}/start`, { method: "POST" }); onStarted(); }
+    try { await api(`/api/games/${gameId}/start`, { method: "POST" }); ui.notify("Игра началась"); onStarted(); }
     catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
     finally { setBusy(false); }
   }

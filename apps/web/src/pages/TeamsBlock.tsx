@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type TeamDto } from "../lib/api";
+import { useUi } from "../lib/ui";
 
 /** Блок «Команды» на странице игры для админа. */
 export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }: { gameId: string; teamCount: number; status: string; version?: number; onChange?: () => void }) {
@@ -9,6 +10,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
   const [inviteUrl, setInviteUrl] = useState<{ teamId: string; url: string; role: string } | null>(null);
   const [copied, setCopied] = useState(false);
   const [busy, setBusy] = useState(false);
+  const ui = useUi();
 
   const load = () => api<{ teams: TeamDto[] }>(`/api/games/${gameId}/teams`).then((r) => setTeams(r.teams)).catch(() => setTeams([]));
   const reload = async () => { await load(); onChange?.(); };
@@ -28,10 +30,10 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
     } catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
   }
   async function copy(url: string) {
-    try { await navigator.clipboard.writeText(url); setCopied(true); } catch { /* браузер не дал доступ к буферу */ }
+    try { await navigator.clipboard.writeText(url); setCopied(true); ui.notify("Ссылка скопирована"); } catch { ui.notify("Скопируй ссылку вручную из поля", "bad"); }
   }
   async function remove(teamId: string) {
-    if (!confirm("Удалить команду вместе с участниками?")) return;
+    if (!(await ui.confirm("Команда будет удалена вместе с участниками.", { title: "Удалить команду?", okLabel: "Удалить", danger: true }))) return;
     try { await api(`/api/games/${gameId}/teams/${teamId}`, { method: "DELETE" }); await reload(); }
     catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
   }
@@ -41,7 +43,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
     catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
   }
   async function kick(teamId: string, userId: string, nick: string) {
-    if (!confirm(`Убрать ${nick} из команды?`)) return;
+    if (!(await ui.confirm(`${nick} будет убран из команды.`, { title: "Убрать участника?", okLabel: "Убрать", danger: true }))) return;
     try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}`, { method: "DELETE" }); await reload(); }
     catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
   }

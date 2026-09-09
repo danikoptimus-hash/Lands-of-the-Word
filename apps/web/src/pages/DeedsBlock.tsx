@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError } from "../lib/api";
+import { useUi } from "../lib/ui";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "CONFIRMATION";
 interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCode: string | null; difficulty: number }
@@ -13,6 +14,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   const [recommended, setRecommended] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  const ui = useUi();
   const [form, setForm] = useState({ title: "", description: "", direction: "", proofType: "PHOTO_LINK" as ProofType, canRepeat: true, bookCode: "", difficulty: 1 });
 
   const load = () => api<{ deeds: DeedDto[]; directions: string[]; recommendedMin: number }>(`/api/games/${gameId}/deeds`)
@@ -30,14 +32,14 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
     } catch (err) { setError(err instanceof ApiError ? (err.issues?.map((i) => i.message).join("; ") || err.message) : "Ошибка сети"); }
   }
   async function importDefault() {
-    try { const r = await api<{ added: number }>(`/api/games/${gameId}/deeds/import-default`, { method: "POST" }); await reload(); alert(`Добавлено дел: ${r.added}`); }
+    try { const r = await api<{ added: number }>(`/api/games/${gameId}/deeds/import-default`, { method: "POST" }); await reload(); ui.notify(r.added ? `Добавлено дел: ${r.added}` : "Стандартный набор уже добавлен"); }
     catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
   }
   async function toggleRepeat(d: DeedDto) {
     await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "PUT", body: JSON.stringify({ canRepeat: !d.canRepeat }) }); await reload();
   }
   async function remove(d: DeedDto) {
-    if (!confirm(`Удалить дело «${d.title}»?`)) return;
+    if (!(await ui.confirm(`Дело «${d.title}» будет удалено из списка.`, { title: "Удалить дело?", okLabel: "Удалить", danger: true }))) return;
     await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "DELETE" }); await reload();
   }
 

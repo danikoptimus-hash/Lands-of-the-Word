@@ -2,6 +2,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
+import { UiProvider } from "./lib/ui";
 import { Layout } from "./pages/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { GamesPage } from "./pages/GamesPage";
@@ -20,6 +21,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
+        <UiProvider>
         <Routes>
           <Route element={<Layout />}>
             <Route path="/login" element={<LoginPage />} />
@@ -30,6 +32,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        </UiProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>,

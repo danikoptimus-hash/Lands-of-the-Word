@@ -90,3 +90,14 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .tabs { display: flex; gap: .25rem; background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .25rem; margin-bottom: 1rem; }
 .tabs button { flex: 1; background: transparent; color: var(--muted); min-height: 36px; border: 0; }
 .tabs button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+
+/* Модальные окна и уведомления */
+.modal-backdrop { position: fixed; inset: 0; background: rgba(31,27,22,.45); display: flex; align-items: center; justify-content: center; padding: 1rem; z-index: 100; animation: fade .12s ease-out; }
+.modal { background: var(--surface); border-radius: var(--radius); padding: 1.25rem; max-width: 440px; width: 100%; box-shadow: 0 12px 40px rgba(31,27,22,.25); animation: pop .14s ease-out; }
+.modal h2 { margin-bottom: .5rem; }
+.modal p { margin: 0 0 .5rem; }
+.toasts { position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); display: flex; flex-direction: column; gap: .5rem; z-index: 110; pointer-events: none; }
+.toast { background: var(--text); color: #fff; padding: .6rem 1rem; border-radius: 999px; font-size: .9rem; box-shadow: var(--shadow); animation: pop .14s ease-out; white-space: nowrap; }
+.toast.bad { background: var(--danger); }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
