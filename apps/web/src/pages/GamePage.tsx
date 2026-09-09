@@ -25,6 +25,8 @@ export function GamePage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
+  const [version, setVersion] = useState(0);
+  const bump = () => setVersion((v) => v + 1);
 
   const load = useCallback(async () => {
     const r = await api<{ game: GameDto; nodes: MapNodeDto[]; edges: MapEdgeDto[] }>(`/api/games/${id}`);
@@ -39,6 +41,7 @@ export function GamePage() {
       const r = await api<{ seed: number; stats: Stats }>(`/api/games/${id}/generate`, { method: "POST", body: JSON.stringify({}) });
       setStats(r.stats);
       await load();
+      bump();
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Ошибка сети");
     } finally { setBusy(false); }
@@ -81,10 +84,10 @@ export function GamePage() {
         {error && <p className="error">{error}</p>}
       </div>
 
-      <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => void load()} />
-      <StartBlock gameId={game.id} status={game.status} onStarted={() => void load()} />
-      <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} />
-      <DeedsBlock gameId={game.id} />
+      <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
+      <StartBlock gameId={game.id} status={game.status} version={version} onStarted={() => void load()} />
+      <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} onChange={bump} />
+      <DeedsBlock gameId={game.id} onChange={bump} />
 
       {layout && (
         <div className="card">

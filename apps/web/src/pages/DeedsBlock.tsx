@@ -7,7 +7,7 @@ interface DeedDto { id: string; title: string; description: string; direction: s
 const PROOF_LABEL: Record<ProofType, string> = { REPORT: "отчёт текстом", PHOTO_LINK: "ссылка на фото", VIDEO_LINK: "ссылка на видео", CONFIRMATION: "подтверждение человека" };
 
 /** Блок «Дела» для админа игры: список дел этой игры, добавление, стандартный набор. */
-export function DeedsBlock({ gameId }: { gameId: string }) {
+export function DeedsBlock({ gameId, onChange }: { gameId: string; onChange?: () => void }) {
   const [deeds, setDeeds] = useState<DeedDto[]>([]);
   const [directions, setDirections] = useState<string[]>([]);
   const [recommended, setRecommended] = useState(0);
@@ -18,6 +18,7 @@ export function DeedsBlock({ gameId }: { gameId: string }) {
   const load = () => api<{ deeds: DeedDto[]; directions: string[]; recommendedMin: number }>(`/api/games/${gameId}/deeds`)
     .then((r) => { setDeeds(r.deeds); setDirections(r.directions); setRecommended(r.recommendedMin); if (!form.direction) setForm((f) => ({ ...f, direction: r.directions[0] ?? "" })); })
     .catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети"));
+  const reload = async () => { await load(); onChange?.(); };
   useEffect(() => { void load(); }, [gameId]);
 
   async function add(e: FormEvent) {
@@ -25,19 +26,19 @@ export function DeedsBlock({ gameId }: { gameId: string }) {
     try {
       await api(`/api/games/${gameId}/deeds`, { method: "POST", body: JSON.stringify({ ...form, bookCode: form.bookCode || null }) });
       setForm((f) => ({ ...f, title: "", description: "" }));
-      await load();
+      await reload();
     } catch (err) { setError(err instanceof ApiError ? (err.issues?.map((i) => i.message).join("; ") || err.message) : "Ошибка сети"); }
   }
   async function importDefault() {
-    try { const r = await api<{ added: number }>(`/api/games/${gameId}/deeds/import-default`, { method: "POST" }); await load(); alert(`Добавлено дел: ${r.added}`); }
+    try { const r = await api<{ added: number }>(`/api/games/${gameId}/deeds/import-default`, { method: "POST" }); await reload(); alert(`Добавлено дел: ${r.added}`); }
     catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
   }
   async function toggleRepeat(d: DeedDto) {
-    await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "PUT", body: JSON.stringify({ canRepeat: !d.canRepeat }) }); await load();
+    await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "PUT", body: JSON.stringify({ canRepeat: !d.canRepeat }) }); await reload();
   }
   async function remove(d: DeedDto) {
     if (!confirm(`Удалить дело «${d.title}»?`)) return;
-    await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "DELETE" }); await load();
+    await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "DELETE" }); await reload();
   }
 
   const unique = deeds.filter((d) => !d.canRepeat).length;

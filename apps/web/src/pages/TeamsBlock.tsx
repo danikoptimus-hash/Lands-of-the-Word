@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type TeamDto } from "../lib/api";
 
 /** Блок «Команды» на странице игры для админа. */
-export function TeamsBlock({ gameId, teamCount, status }: { gameId: string; teamCount: number; status: string }) {
+export function TeamsBlock({ gameId, teamCount, status, onChange }: { gameId: string; teamCount: number; status: string; onChange?: () => void }) {
   const [teams, setTeams] = useState<TeamDto[]>([]);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -11,11 +11,12 @@ export function TeamsBlock({ gameId, teamCount, status }: { gameId: string; team
   const [busy, setBusy] = useState(false);
 
   const load = () => api<{ teams: TeamDto[] }>(`/api/games/${gameId}/teams`).then((r) => setTeams(r.teams)).catch(() => setTeams([]));
+  const reload = async () => { await load(); onChange?.(); };
   useEffect(() => { void load(); }, [gameId, teamCount]);
 
   async function create(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(null);
-    try { await api(`/api/games/${gameId}/teams`, { method: "POST", body: JSON.stringify({ name }) }); setName(""); await load(); }
+    try { await api(`/api/games/${gameId}/teams`, { method: "POST", body: JSON.stringify({ name }) }); setName(""); await reload(); }
     catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
     finally { setBusy(false); }
   }
@@ -31,17 +32,17 @@ export function TeamsBlock({ gameId, teamCount, status }: { gameId: string; team
   }
   async function remove(teamId: string) {
     if (!confirm("Удалить команду вместе с участниками?")) return;
-    try { await api(`/api/games/${gameId}/teams/${teamId}`, { method: "DELETE" }); await load(); }
+    try { await api(`/api/games/${gameId}/teams/${teamId}`, { method: "DELETE" }); await reload(); }
     catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
   }
   async function patch(teamId: string, userId: string, body: { role?: "CAPTAIN" | "MEMBER"; gameRole?: GameRole }) {
     setError(null);
-    try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}`, { method: "PATCH", body: JSON.stringify(body) }); await load(); }
+    try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}`, { method: "PATCH", body: JSON.stringify(body) }); await reload(); }
     catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
   }
   async function kick(teamId: string, userId: string, nick: string) {
     if (!confirm(`Убрать ${nick} из команды?`)) return;
-    try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}`, { method: "DELETE" }); await load(); }
+    try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}`, { method: "DELETE" }); await reload(); }
     catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
   }
 
