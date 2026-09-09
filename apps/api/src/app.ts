@@ -14,6 +14,7 @@ import { teamMapRoutes } from "./routes/teamMap.js";
 import { cityRoutes } from "./routes/cities.js";
 import { battleRoutes } from "./routes/battles.js";
 import { sweep } from "./services/battles.js";
+import { initMail } from "./services/mail.js";
 import { eventRoutes } from "./routes/events.js";
 
 declare module "fastify" {
@@ -29,6 +30,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
     trustProxy: true,
   });
   app.decorate("config", config);
+  initMail(config);
 
   await app.register(cookie, { secret: config.SESSION_SECRET });
   await app.register(rateLimit, { global: false });

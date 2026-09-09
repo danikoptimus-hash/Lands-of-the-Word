@@ -42,6 +42,12 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
     try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}`, { method: "PATCH", body: JSON.stringify(body) }); await reload(); }
     catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
   }
+  const [resetUrl, setResetUrl] = useState<{ userId: string; url: string } | null>(null);
+  async function resetLink(teamId: string, userId: string) {
+    setError(null);
+    try { const r = await api<{ url: string }>(`/api/games/${gameId}/teams/${teamId}/members/${userId}/reset-link`, { method: "POST" }); setResetUrl({ userId, url: r.url }); }
+    catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+  }
   async function kick(teamId: string, userId: string, nick: string) {
     if (!(await ui.confirm(`${nick} будет убран из команды.`, { title: "Убрать участника?", okLabel: "Убрать", danger: true }))) return;
     try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}`, { method: "DELETE" }); await reload(); }
@@ -77,6 +83,15 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
               </div>
             </div>
           )}
+          {resetUrl && t.members.some((m) => m.user.id === resetUrl.userId) && (
+            <div className="note warn" style={{ marginTop: ".5rem" }}>
+              <div>Ссылка для нового пароля · 24 часа · передайте её участнику лично</div>
+              <div className="row" style={{ marginTop: ".4rem" }}>
+                <input readOnly value={resetUrl.url} onFocus={(e) => e.currentTarget.select()} style={{ flex: "1 1 240px", minHeight: 38 }} />
+                <button className="sm" onClick={() => void copy(resetUrl.url)}>{copied ? "Скопировано" : "Скопировать"}</button>
+              </div>
+            </div>
+          )}
           {t.members.length === 0 ? <p className="muted">Пока никого. Отправь ссылку-приглашение.</p> : (
             <ul className="list">
               {t.members.map((m) => (
@@ -94,6 +109,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
                     <button className="secondary sm" onClick={() => void patch(t.id, m.user.id, { role: m.role === "CAPTAIN" ? "MEMBER" : "CAPTAIN" })}>
                       {m.role === "CAPTAIN" ? "Снять капитана" : "Сделать капитаном"}
                     </button>
+                    <button className="ghost sm" onClick={() => void resetLink(t.id, m.user.id)}>Сброс пароля</button>
                     <button className="ghost sm" onClick={() => void kick(t.id, m.user.id, m.user.nickname)}>Убрать</button>
                   </div>
                 </li>

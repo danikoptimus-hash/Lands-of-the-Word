@@ -10,6 +10,8 @@ import { GamePage } from "./pages/GamePage";
 import { TeamPage } from "./pages/TeamPage";
 import { JoinPage } from "./pages/JoinPage";
 import { AccountPage } from "./pages/AccountPage";
+import { ForgotPage } from "./pages/ForgotPage";
+import { ResetPage } from "./pages/ResetPage";
 import "./styles.css";
 
 function Private({ children }: { children: React.ReactElement }) {
@@ -26,6 +28,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         <Routes>
           <Route element={<Layout />}>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot" element={<ForgotPage />} />
+            <Route path="/reset/:token" element={<ResetPage />} />
             <Route path="/" element={<Private><GamesPage /></Private>} />
             <Route path="/games/:id" element={<Private><GamePage /></Private>} />
             <Route path="/games/:id/team" element={<Private><TeamPage /></Private>} />

@@ -37,6 +37,26 @@ model User {
   gameAdmins   GameAdmin[]
   createdGames Game[]       @relation("GameCreator")
   memberships  Membership[]
+  resets       PasswordReset[]
+}
+
+enum ResetKind {
+  EMAIL
+  ADMIN
+}
+
+/** Одноразовая ссылка сброса пароля. id — SHA-256 от токена из ссылки; сам токен нигде не хранится. */
+model PasswordReset {
+  id        String    @id
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind      ResetKind @default(EMAIL)
+  issuedBy  String?
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model Session {

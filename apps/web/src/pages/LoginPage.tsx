@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/api";
 
@@ -51,6 +51,7 @@ export function LoginPage() {
         <div className="actions">
           <button type="submit" disabled={busy} style={{ width: "100%" }}>{mode === "login" ? "Войти" : "Создать учётку"}</button>
         </div>
+        {mode === "login" && <p style={{ marginTop: ".8rem", textAlign: "center" }}><Link to="/forgot" className="muted">Забыли пароль?</Link></p>}
       </form>
     </div>
   );

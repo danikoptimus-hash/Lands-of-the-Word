@@ -29,6 +29,12 @@ services:
       SESSION_SECRET: ${SESSION_SECRET}
       PORT: "3000"
       WEB_DIST: /app/apps/web/dist
+      PUBLIC_URL: https://${DOMAIN}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Земли Слова <noreply@landsoftheword.com>}
     expose:
       - "3000"
 

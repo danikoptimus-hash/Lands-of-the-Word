@@ -50,3 +50,25 @@ cat /root/deploykey
 Вывод последней команды (от `-----BEGIN OPENSSH PRIVATE KEY-----` до `-----END OPENSSH PRIVATE KEY-----` включительно) вставить в секрет `DEPLOY_SSH_KEY`, после чего удалить файлы: `rm /root/deploykey /root/deploykey.pub`.
 
 Запуск вручную: вкладка Actions → deploy → Run workflow.
+
+## Почта (восстановление пароля, уведомления)
+
+Письма уходят через SMTP. Пока в `deploy/.env` нет `SMTP_HOST`, письма не отправляются: страница «Забыли пароль» предлагает обратиться к администратору игры, который выдаёт ссылку сброса в списке участников команды.
+
+Чтобы включить почту (рекомендуется Brevo, бесплатный тариф до 300 писем в день):
+
+1. Завести аккаунт Brevo, в разделе **Senders & Domains** добавить домен `landsoftheword.com` и внести в DNS (Porkbun) записи, которые покажет Brevo (SPF, DKIM, DMARC).
+2. В разделе **SMTP & API → SMTP** взять логин и SMTP-ключ.
+3. На сервере дописать в `deploy/.env`:
+
+```
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=логин из Brevo
+SMTP_PASS=SMTP-ключ из Brevo
+MAIL_FROM=Земли Слова <noreply@landsoftheword.com>
+```
+
+4. Перезапустить: `cd /opt/lotw/deploy && docker compose up -d app`.
+
+Ключи и пароли только в `deploy/.env` на сервере, в репозиторий их не класть.
