@@ -1,6 +1,6 @@
 import { BOOKS, BOOK_COUNT } from "./books.js";
 import { hexDistance, hexKey, hexNeighbors, hexesInRadius, type Hex } from "./hex.js";
-import { buildHexGraph, graphDistances, vertexToPixel, type HexGraph } from "./hexgraph.js";
+import { buildHexGraph, graphDistances, vertexHexes, vertexToPixel, type HexGraph } from "./hexgraph.js";
 import { createRng, pick, randomInt, shuffle, type Rng } from "./random.js";
 
 export type NodeKind = "empty" | "city" | "start";
@@ -118,9 +118,12 @@ export function generateMap(opts: MapGenOptions): GeneratedMap {
   const pos = new Map(keys.map((k) => [k, vertexToPixel(graph.vertices.get(k)!, 1)]));
   const maxR = Math.max(...keys.map((k) => Math.hypot(pos.get(k)!.x, pos.get(k)!.y)));
 
+  const fieldSet = new Set(field.map(hexKey));
+  // Старт — внутренний перекрёсток: все три гекса вокруг него есть на поле.
+  const interior = (k: string) => vertexHexes(graph.vertices.get(k)!).every((h) => fieldSet.has(hexKey(h)));
   const pickStarts = (): string[] => {
     const starts: string[] = [];
-    const candidates = keys.filter((k) => Math.hypot(pos.get(k)!.x - center.x, pos.get(k)!.y - center.y) <= maxR * 0.85 && (graph.adjacency.get(k)?.size ?? 0) === 3);
+    const candidates = keys.filter((k) => Math.hypot(pos.get(k)!.x - center.x, pos.get(k)!.y - center.y) <= maxR * 0.85 && interior(k));
     if (opts.equidistantStarts) {
       const ring = maxR * 0.6, phase = rng() * Math.PI * 2;
       for (let i = 0; i < teamCount; i++) {

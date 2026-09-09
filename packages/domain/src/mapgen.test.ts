@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { generateMap, MapGenError } from "./mapgen.js";
-import { buildHexGraph, graphDistances, hexCorners, vertexKey } from "./hexgraph.js";
+import { buildHexGraph, graphDistances, hexCorners, vertexHexes, vertexKey } from "./hexgraph.js";
+import { hexKey } from "./hex.js";
 import { hexesInRadius } from "./hex.js";
 import { BOOK_COUNT } from "./books.js";
 
@@ -44,6 +45,8 @@ describe("generateMap", () => {
       expect(new Set(codes).size).toBe(BOOK_COUNT);
       const d = map.stats.startDistances;
       expect(Math.min(...d)).toBeGreaterThanOrEqual(2);
+      const fieldSet = new Set(map.hexes.map((h) => hexKey(h)));
+      for (const st of map.nodes.filter((n) => n.kind === "start")) expect(vertexHexes(st).every((h) => fieldSet.has(hexKey(h)))).toBe(true);
       expect(Math.max(...d) - Math.min(...d)).toBeLessThanOrEqual(3);
     }
   });

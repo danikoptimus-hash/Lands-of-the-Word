@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
-import { HEX_SIZE, TERRAIN_COLOR, fieldBounds, hexCenter, hexPoints, nodePos, TEAM_COLORS } from "../lib/hexmap";
+import { HEX_SIZE, TERRAIN_COLOR, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
+import { HexTiles, IMG } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import type { MapEdgeDto, MapHexDto, MapNodeDto } from "../lib/api";
 
@@ -12,7 +13,6 @@ export function AdminMap({ hexes, nodes, edges, progress }: { hexes: MapHexDto[]
   const size = HEX_SIZE;
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexes, size]);
   const vp = useViewport(bounds);
-  const poly = useMemo(() => hexPoints(size, 0.985), [size]);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
   const positions = useMemo(() => new Map(nodes.map((n) => [n.key, nodePos(n.key, size)])), [nodes, size]);
   const traversedBy = useMemo(() => {
@@ -33,30 +33,34 @@ export function AdminMap({ hexes, nodes, edges, progress }: { hexes: MapHexDto[]
         <div ref={vp.ref} {...vp.handlers} className="mapwrap" style={{ height: "min(70vh, 640px)", minHeight: 360, touchAction: "none", cursor: "grab", userSelect: "none", overflow: "hidden" }}>
           <svg width="100%" height="100%" style={{ display: "block" }}>
             <g transform={`translate(${vp.view.tx},${vp.view.ty}) scale(${vp.view.k})`}>
-              {hexes.map((h) => { const c = hexCenter(h, size); return <polygon key={`${h.q},${h.r}`} points={poly} transform={`translate(${c.x},${c.y})`} fill={TERRAIN_COLOR[h.terrain ?? ""] ?? "#ccc"} stroke="rgba(31,27,22,.25)" strokeWidth={1} />; })}
+              <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
               {edges.map((e) => {
                 const a = positions.get(e.aKey), b = positions.get(e.bKey);
                 if (!a || !b) return null;
                 const teams = traversedBy.get([e.aKey, e.bKey].sort().join("|")) ?? [];
-                if (teams.length === 0) return <line key={e.aKey + e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(31,27,22,.18)" strokeWidth={1.5} />;
-                if (teams.length === 1) return <line key={e.aKey + e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={teams[0]!.color} strokeWidth={5} strokeLinecap="round" />;
+                if (teams.length === 0) return <line key={e.aKey + e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(31,27,22,.25)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />;
+                if (teams.length === 1) return <line key={e.aKey + e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={teams[0]!.color} strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" />;
                 const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-                return <g key={e.aKey + e.bKey}><line x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} strokeWidth={5} strokeLinecap="round" /><line x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} strokeWidth={5} strokeLinecap="round" /></g>;
+                return <g key={e.aKey + e.bKey}><line x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" /><line x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" /></g>;
               })}
+            </g>
+            <g>
               {nodes.map((n) => {
-                const p = positions.get(n.key)!;
+                const raw = positions.get(n.key)!;
+                const p = { x: vp.view.tx + raw.x * vp.view.k, y: vp.view.ty + raw.y * vp.view.k };
                 const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
                 const seen = revealedBy.get(n.key) ?? [];
                 const sel = selected?.key === n.key;
-                if (n.kind === "START") { const t = progress?.find((x) => x.startNodeKey === n.key); const color = t?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} transform={`translate(${p.x},${p.y})`} onClick={() => setSelected(n)} style={{ cursor: "pointer" }}><circle r={size * 0.42} fill={color} stroke="#fff" strokeWidth={2} /><text textAnchor="middle" dy="0.35em" fontSize={size * 0.5} fill="#fff">★</text></g>; }
+                if (n.kind === "START") { const t = progress?.find((x) => x.startNodeKey === n.key); const color = t?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} transform={`translate(${p.x},${p.y})`} onClick={() => setSelected(n)} style={{ cursor: "pointer" }}><image href={IMG.start(n.teamIndex ?? 0)} x={-28} y={-34} width={56} height={56} /><circle r={6} fill={color} stroke="#fff" strokeWidth={2} /></g>; }
                 if (n.kind === "CITY") return (
                   <g key={n.key} transform={`translate(${p.x},${p.y})`} onClick={() => setSelected(sel ? null : n)} style={{ cursor: "pointer" }}>
-                    <circle r={size * 0.44} fill="#fff" stroke={sel ? "#C7742A" : "#1F1B16"} strokeWidth={sel ? 3 : 1.4} />
-                    <text textAnchor="middle" dy="0.35em" fontSize={size * 0.4} fontWeight={700} fill="#1F1B16">{book?.order ?? "?"}</text>
-                    {seen.map((t, i) => <circle key={t.id} cx={size * 0.45 - i * size * 0.3} cy={-size * 0.5} r={size * 0.14} fill={t.color} stroke="#fff" strokeWidth={1} />)}
+                    <image href={IMG.city(n.cityType)} x={-22} y={-27} width={44} height={44} opacity={sel ? 1 : 0.95} />
+                    <circle cy={16} r={9} fill="#fff" stroke={sel ? "#C7742A" : "#1F1B16"} strokeWidth={sel ? 2.5 : 1.2} />
+                    <text y={16} textAnchor="middle" dy="0.35em" fontSize={10} fontWeight={700} fill="#1F1B16">{book?.order ?? "?"}</text>
+                    {seen.map((t, i) => <circle key={t.id} cx={18 - i * 9} cy={-22} r={4.5} fill={t.color} stroke="#fff" strokeWidth={1} />)}
                   </g>
                 );
-                return <g key={n.key} transform={`translate(${p.x},${p.y})`}><circle r={size * 0.12} fill="rgba(31,27,22,.35)" />{seen.map((t, i) => <circle key={t.id} cx={size * 0.3 - i * size * 0.25} cy={-size * 0.3} r={size * 0.11} fill={t.color} stroke="#fff" strokeWidth={0.8} />)}</g>;
+                return <g key={n.key} transform={`translate(${p.x},${p.y})`}><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((t, i) => <circle key={t.id} cx={8 - i * 7} cy={-8} r={3.5} fill={t.color} stroke="#fff" strokeWidth={0.8} />)}</g>;
               })}
             </g>
           </svg>

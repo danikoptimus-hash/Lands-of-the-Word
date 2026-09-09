@@ -17,8 +17,9 @@ p { margin: .4rem 0; }
 @media (min-width: 720px) { .container { padding: 1.5rem; } }
 
 /* Шапка */
-.topbar { position: sticky; top: 0; z-index: 10; background: rgba(255,255,255,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
-.topbar-inner { max-width: 1040px; margin: 0 auto; padding: .6rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
+:root { --topbar-h: 57px; }
+.topbar { position: sticky; top: 0; z-index: 10; height: var(--topbar-h); background: rgba(255,255,255,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+.topbar-inner { max-width: 1040px; margin: 0 auto; height: 100%; padding: 0 1rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .brand { display: flex; align-items: center; gap: .6rem; color: var(--text); font-weight: 700; white-space: nowrap; }
 .brand:hover { text-decoration: none; }
 .brand .mark { width: 28px; height: 32px; background: var(--accent); clip-path: polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%); flex-shrink: 0; }
@@ -101,3 +102,18 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .toast.bad { background: var(--danger); }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* Полноэкранная карта команды */
+.map-screen { position: fixed; top: var(--topbar-h, 57px); left: 0; right: 0; bottom: 0; }
+.map-controls { position: absolute; right: 10px; top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.map-controls button { width: 42px; padding: 0; }
+.map-hud { position: absolute; left: 10px; top: 10px; display: flex; gap: .5rem; align-items: center; background: rgba(255,255,255,.92); backdrop-filter: blur(6px); border: 1px solid var(--border); border-radius: 999px; padding: .35rem .7rem .35rem .4rem; box-shadow: var(--shadow); max-width: calc(100% - 80px); }
+.map-hud .name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.map-fab { position: absolute; left: 10px; bottom: 14px; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; background: var(--surface); border-radius: 16px 16px 0 0; box-shadow: 0 -8px 30px rgba(31,27,22,.25); padding: .9rem 1rem calc(1rem + env(safe-area-inset-bottom)); max-height: 60%; overflow: auto; animation: sheet .18s ease-out; }
+@media (min-width: 720px) { .sheet { left: auto; right: 12px; bottom: 12px; width: 420px; border-radius: 14px; max-height: 70%; } }
+.sheet .close { position: absolute; right: .5rem; top: .5rem; }
+.drawer { position: absolute; top: 0; bottom: 0; left: 0; width: min(420px, 100%); background: var(--surface); box-shadow: 8px 0 30px rgba(31,27,22,.25); padding: 1rem; overflow: auto; animation: drawer .18s ease-out; }
+.drawer .close { position: absolute; right: .5rem; top: .5rem; }
+@keyframes sheet { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes drawer { from { transform: translateX(-20px); opacity: 0; } to { transform: none; opacity: 1; } }
