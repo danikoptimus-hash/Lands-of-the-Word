@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
 import { ApiError } from "../lib/api";
 
 export function LoginPage() {
   const { user, login, register } = useAuth();
   const navigate = useNavigate();
+  const [params] = useSearchParams();
+  const next = params.get("next") ?? "/";
   const [mode, setMode] = useState<"login" | "register">("login");
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
@@ -13,7 +15,7 @@ export function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (user) return <Navigate to="/" replace />;
+  if (user) return <Navigate to={next} replace />;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -21,7 +23,7 @@ export function LoginPage() {
     try {
       if (mode === "login") await login(nickname, password);
       else await register(nickname, password, email || undefined);
-      navigate("/");
+      navigate(next);
     } catch (err) {
       setError(err instanceof ApiError ? (err.issues?.map((i) => i.message).join("; ") || err.message) : "Ошибка сети");
     } finally { setBusy(false); }

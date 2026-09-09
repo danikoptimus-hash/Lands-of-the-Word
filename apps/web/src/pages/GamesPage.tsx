@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, ApiError, type GameSummary } from "../lib/api";
+import { api, ApiError, type GameSummary, type MyTeamDto, TEAM_ROLE_LABEL } from "../lib/api";
 
 export function GamesPage() {
   const navigate = useNavigate();
   const [games, setGames] = useState<GameSummary[] | null>(null);
+  const [myTeams, setMyTeams] = useState<MyTeamDto[]>([]);
   const [name, setName] = useState("");
   const [orgName, setOrgName] = useState("");
   const [teamCount, setTeamCount] = useState(3);
@@ -13,7 +14,10 @@ export function GamesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => { api<{ games: GameSummary[] }>("/api/games").then((r) => setGames(r.games)).catch(() => setGames([])); }, []);
+  useEffect(() => {
+    api<{ games: GameSummary[] }>("/api/games").then((r) => setGames(r.games)).catch(() => setGames([]));
+    api<{ teams: MyTeamDto[] }>("/api/me/teams").then((r) => setMyTeams(r.teams)).catch(() => setMyTeams([]));
+  }, []);
 
   async function create(e: FormEvent) {
     e.preventDefault();
@@ -31,6 +35,19 @@ export function GamesPage() {
 
   return (
     <>
+      {myTeams.length > 0 && (
+        <div className="card">
+          <h2>Мои команды</h2>
+          <ul className="list">
+            {myTeams.map((t) => (
+              <li key={t.team.id}>
+                <span><Link to={`/games/${t.game.id}/team`} style={{ color: t.team.color }}>{t.team.name}</Link> <span className="muted">· {t.game.name} · {t.game.org.name}</span></span>
+                <span className="muted">{TEAM_ROLE_LABEL[t.role]}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="card">
         <h2>Новая игра</h2>
         <form onSubmit={create}>

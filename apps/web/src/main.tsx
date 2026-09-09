@@ -6,6 +6,8 @@ import { Layout } from "./pages/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { GamesPage } from "./pages/GamesPage";
 import { GamePage } from "./pages/GamePage";
+import { TeamPage } from "./pages/TeamPage";
+import { JoinPage } from "./pages/JoinPage";
 import "./styles.css";
 
 function Private({ children }: { children: React.ReactElement }) {
@@ -23,6 +25,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/login" element={<LoginPage />} />
             <Route path="/" element={<Private><GamesPage /></Private>} />
             <Route path="/games/:id" element={<Private><GamePage /></Private>} />
+            <Route path="/games/:id/team" element={<Private><TeamPage /></Private>} />
+            <Route path="/join/:token" element={<JoinPage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

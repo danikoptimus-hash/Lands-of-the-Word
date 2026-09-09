@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS, hexToPixel } from "@lotw/domain";
 import { api, ApiError, type MapEdgeDto, type MapNodeDto } from "../lib/api";
+import { TeamsBlock } from "./TeamsBlock";
 
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: Record<string, unknown> }
 interface Stats { nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number }
@@ -74,6 +75,8 @@ export function GamePage() {
         </div>
         {error && <p className="error">{error}</p>}
       </div>
+
+      <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} />
 
       {layout && (
         <div className="card">

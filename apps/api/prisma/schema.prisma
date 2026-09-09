@@ -36,6 +36,7 @@ model User {
   sessions     Session[]
   gameAdmins   GameAdmin[]
   createdGames Game[]       @relation("GameCreator")
+  memberships  Membership[]
 }
 
 model Session {
@@ -70,6 +71,8 @@ model Game {
   admins      GameAdmin[]
   nodes       MapNode[]
   edges       MapEdge[]
+  teams       Team[]
+  invites     Invite[]
 }
 
 model GameAdmin {
@@ -106,4 +109,59 @@ model MapEdge {
   bKey   String
 
   @@unique([gameId, aKey, bKey])
+}
+
+enum TeamRole {
+  CAPTAIN
+  MEMBER
+}
+
+enum GameRole {
+  NONE
+  SCOUT
+  PROPHET
+  AMBASSADOR
+  CHRONICLER
+}
+
+model Team {
+  id           String       @id @default(cuid())
+  gameId       String
+  game         Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  index        Int
+  name         String
+  color        String
+  startNodeKey String?
+  status       String       @default("active")
+  createdAt    DateTime     @default(now())
+  members      Membership[]
+  invites      Invite[]
+
+  @@unique([gameId, index])
+  @@unique([gameId, name])
+}
+
+model Membership {
+  teamId   String
+  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role     TeamRole @default(MEMBER)
+  gameRole GameRole @default(NONE)
+  joinedAt DateTime @default(now())
+
+  @@id([teamId, userId])
+  @@index([userId])
+}
+
+model Invite {
+  id        String   @id
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  role      TeamRole @default(MEMBER)
+  usesLeft  Int      @default(20)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }

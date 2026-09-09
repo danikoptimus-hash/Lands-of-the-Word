@@ -8,6 +8,7 @@ import { loadEnv, type Env } from "./env.js";
 import { attachUser } from "./auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { gameRoutes } from "./routes/games.js";
+import { teamRoutes } from "./routes/teams.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -40,6 +41,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   app.get("/api/health", async () => ({ ok: true, version: process.env.APP_VERSION ?? "dev" }));
   await app.register(authRoutes);
   await app.register(gameRoutes);
+  await app.register(teamRoutes);
 
   // Раздача собранного веб-клиента (в продакшене); все не-API пути отдают index.html (SPA).
   if (config.WEB_DIST) {
