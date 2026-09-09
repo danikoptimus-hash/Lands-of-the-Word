@@ -58,7 +58,7 @@ export function AccountPage() {
           <div className="actions"><button type="submit" className="secondary" disabled={busy}>Изменить пароль</button></div>
         </form>
       </div>
-      {user.platformRole === "SUPERADMIN" && <MailTest />}
+      {user.platformRole === "SUPERADMIN" && <><MailTest /><ResetLinkTool /></>}
     </>
   );
 }
@@ -83,6 +83,40 @@ function MailTest() {
           {result.host ? `${result.host}:${result.port} · ` : ""}
           {result.sent ? `письмо отправлено на ${result.to}` : result.error}
         </p>
+      )}
+    </div>
+  );
+}
+
+/** Суперадмин: одноразовая ссылка сброса пароля для пользователя по никнейму (24 часа). */
+function ResetLinkTool() {
+  const [nickname, setNickname] = useState("");
+  const [url, setUrl] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  async function run(e: FormEvent) {
+    e.preventDefault(); setError(null); setUrl(null);
+    try { setUrl((await api<{ url: string }>("/api/auth/reset-link", { method: "POST", body: JSON.stringify({ nickname }) })).url); }
+    catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
+  }
+  async function copy() { try { await navigator.clipboard.writeText(url!); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* буфер недоступен */ } }
+  return (
+    <div className="card auth" style={{ margin: "1rem auto 0" }}>
+      <h2>Сброс пароля пользователю</h2>
+      <p className="muted">Для случаев, когда почта недоступна. Ссылка одноразовая, действует 24 часа; передайте её человеку лично.</p>
+      <form onSubmit={run}>
+        <label htmlFor="rl-nick">Никнейм</label>
+        <input id="rl-nick" value={nickname} onChange={(e) => setNickname(e.target.value)} required minLength={3} />
+        {error && <p className="error">{error}</p>}
+        <div className="actions"><button type="submit" className="secondary">Выдать ссылку</button></div>
+      </form>
+      {url && (
+        <div className="note warn" style={{ marginTop: ".6rem" }}>
+          <div className="row">
+            <input readOnly value={url} onFocus={(e) => e.currentTarget.select()} style={{ flex: "1 1 240px", minHeight: 38 }} />
+            <button className="sm" onClick={() => void copy()}>{copied ? "Скопировано" : "Скопировать"}</button>
+          </div>
+        </div>
       )}
     </div>
   );
