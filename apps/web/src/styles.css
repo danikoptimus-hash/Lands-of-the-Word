@@ -221,3 +221,11 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .tile .hint { color: var(--muted); font-size: .75rem; margin-top: .1rem; }
 .ghost-link { color: var(--muted); text-decoration: none; margin-left: .8rem; font-size: .9rem; }
 .ghost-link:hover { color: var(--accent); }
+.tile .delta { font-size: .8rem; margin-top: .25rem; font-weight: 600; }
+.tile .delta.up { color: var(--success); }
+.tile .delta.down { color: var(--danger); }
+.tile .delta.flat { color: var(--muted); }
+.tile .delta .muted { font-weight: 400; }
+.spark { margin-top: .4rem; }
+.spark svg { display: block; width: 100%; height: 36px; }
+.spark-label { font-size: .75rem; color: var(--muted); margin-top: .15rem; font-variant-numeric: tabular-nums; }

@@ -52,8 +52,36 @@ export async function platformMetrics(days = 30) {
   const battlesPeriod = battles.filter((b) => b.declaredAt >= since);
   const attackTimes = battles.filter((b) => b.startedAt && b.attackDoneAt).map((b) => b.attackDoneAt!.getTime() - b.startedAt!.getTime());
 
+  // Динамика по дням за период и итоги предыдущего периода той же длины (для дельт в плитках).
+  const dayKey = (d: Date) => d.toISOString().slice(0, 10);
+  const dates = Array.from({ length: days }, (_, i) => dayKey(new Date(now - (days - 1 - i) * DAY)));
+  const bucket = (stamps: Date[]) => { const m = new Map(dates.map((d) => [d, 0])); for (const t of stamps) { const k = dayKey(t); if (m.has(k)) m.set(k, m.get(k)! + 1); } return dates.map((d) => m.get(d)!); };
+  const prevSince = new Date(now - 2 * days * DAY);
+  const [newUsersS, submissionsS, approvalsS, battlesS, citiesS, gamesS, nodesS, prevUsers, prevSubs, prevBattles, prevCities, prevGames, prevNodes, usersBefore] = await Promise.all([
+    prisma.user.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }).then((r) => bucket(r.map((x) => x.createdAt))),
+    prisma.teamEdgeTask.findMany({ where: { submittedAt: { gte: since } }, select: { submittedAt: true } }).then((r) => bucket(r.map((x) => x.submittedAt!))),
+    prisma.teamEdgeTask.findMany({ where: { status: "APPROVED", decidedAt: { gte: since } }, select: { decidedAt: true } }).then((r) => bucket(r.map((x) => x.decidedAt!))),
+    prisma.battle.findMany({ where: { declaredAt: { gte: since } }, select: { declaredAt: true } }).then((r) => bucket(r.map((x) => x.declaredAt))),
+    prisma.teamCityState.findMany({ where: { firstCapturedAt: { gte: since } }, select: { firstCapturedAt: true } }).then((r) => bucket(r.map((x) => x.firstCapturedAt!))),
+    prisma.game.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }).then((r) => bucket(r.map((x) => x.createdAt))),
+    prisma.teamNodeState.findMany({ where: { revealedAt: { gte: since } }, select: { revealedAt: true } }).then((r) => bucket(r.map((x) => x.revealedAt))),
+    prisma.user.count({ where: { createdAt: { gte: prevSince, lt: since } } }),
+    prisma.teamEdgeTask.count({ where: { submittedAt: { gte: prevSince, lt: since } } }),
+    prisma.battle.count({ where: { declaredAt: { gte: prevSince, lt: since } } }),
+    prisma.teamCityState.count({ where: { firstCapturedAt: { gte: prevSince, lt: since } } }),
+    prisma.game.count({ where: { createdAt: { gte: prevSince, lt: since } } }),
+    prisma.teamNodeState.count({ where: { revealedAt: { gte: prevSince, lt: since } } }),
+    prisma.user.count({ where: { createdAt: { lt: since } } }),
+  ]);
+  let running = usersBefore;
+  const usersTotalS = newUsersS.map((n) => (running += n));
+  const nodesInPeriod = nodesS.reduce((a, b) => a + b, 0);
+
   return {
-    period: { days, since: since.toISOString() },
+    period: { days, since: since.toISOString(), dates },
+    series: { newUsers: newUsersS, usersTotal: usersTotalS, submissions: submissionsS, approvals: approvalsS, battles: battlesS, cities: citiesS, games: gamesS, nodes: nodesS },
+    previous: { newUsers: prevUsers, submissions: prevSubs, battles: prevBattles, cities: prevCities, games: prevGames, nodes: prevNodes },
+    nodesInPeriod,
     users: { total: usersTotal, newInPeriod: usersNew, dau, wau, mau, retention7: share(ret7, cohort7), retention30: share(ret30, cohort30) },
     games: {
       total: games.length, draft: games.filter((g) => g.status === "DRAFT").length, active: games.filter((g) => g.status === "ACTIVE").length, finished: games.filter((g) => g.status === "FINISHED").length,
