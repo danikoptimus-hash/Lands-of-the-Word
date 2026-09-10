@@ -10,6 +10,9 @@ import { notifyAdmins, notifyUser } from "../services/notify.js";
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
   note: z.string().trim().max(2000).default(""),
+  /** Дело заменено пожертвованием: сумма не меньше минимума из настроек, чек — ссылкой. */
+  donation: z.boolean().default(false),
+  donationAmount: z.number().int().min(1).optional(),
 });
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
 
@@ -38,10 +41,12 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true } });
-    if (game.status === "DRAFT") return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [] };
+    const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true, settings: true } });
+    const st = game.settings as { donationMin?: number | null; donationCurrency?: string };
+    const donation = st.donationMin ? { min: st.donationMin, currency: st.donationCurrency ?? "" } : null;
+    if (game.status === "DRAFT") return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
     const map = await getTeamMap(id, m.team.id);
-    return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map };
+    return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map };
   });
 
   app.post("/api/games/:id/edge-tasks/:taskId/take", async (request, reply) => {
@@ -62,7 +67,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task || task.status !== "TAKEN") return reply.code(409).send({ error: "conflict", message: "Дело не взято" });
-    if (task.takenById !== request.user!.id && m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: "Отпустить дело может тот, кто взял, или капитан" });
+    if (task.takenById !== request.user!.id && m.role !== "CAPTAIN" && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: "Отпустить дело может тот, кто взял, капитан или летописец" });
     const updated = await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "OPEN", takenById: null }, include: taskInclude });
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: updated };
@@ -77,16 +82,26 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id }, include: { deed: true } });
     if (!task) return reply.code(404).send({ error: "not_found", message: "Дело не найдено" });
     if (task.status === "SUBMITTED" || task.status === "APPROVED") return reply.code(409).send({ error: "conflict", message: "Дело уже сдано" });
-    const needsLink = task.deed.proofType === "PHOTO_LINK" || task.deed.proofType === "VIDEO_LINK";
-    if (needsLink && body.links.length === 0) return reply.code(400).send({ error: "validation", message: "Для этого дела нужна хотя бы одна ссылка на фото или видео" });
-    if (!needsLink && body.links.length === 0 && body.note.length < 5) return reply.code(400).send({ error: "validation", message: "Опишите, что сделано" });
+    // Сдаёт тот, кто взял дело, капитан или летописец (2.15).
+    if (task.takenById && task.takenById !== request.user!.id && m.role !== "CAPTAIN" && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: "Сдать чужое дело может капитан или летописец" });
+    if (body.donation) {
+      const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } });
+      const st = game.settings as { donationMin?: number; donationCurrency?: string };
+      if (!st.donationMin) return reply.code(409).send({ error: "conflict", message: "В этой игре пожертвование вместо дела не предусмотрено" });
+      if (!body.donationAmount || body.donationAmount < st.donationMin) return reply.code(400).send({ error: "validation", message: `Минимальное пожертвование — ${st.donationMin} ${st.donationCurrency ?? ""}`.trim() });
+      if (body.links.length === 0) return reply.code(400).send({ error: "validation", message: "Приложите ссылку на чек или подтверждение перевода" });
+    } else {
+      const needsLink = task.deed.proofType === "PHOTO_LINK" || task.deed.proofType === "VIDEO_LINK";
+      if (needsLink && body.links.length === 0) return reply.code(400).send({ error: "validation", message: "Для этого дела нужна хотя бы одна ссылка на фото или видео" });
+      if (!needsLink && body.links.length === 0 && body.note.length < 5) return reply.code(400).send({ error: "validation", message: "Опишите, что сделано" });
+    }
     const updated = await prisma.teamEdgeTask.update({
       where: { id: taskId },
-      data: { status: "SUBMITTED", takenById: task.takenById ?? request.user!.id, links: body.links, note: body.note, submittedAt: new Date(), adminComment: "" },
+      data: { status: "SUBMITTED", takenById: task.takenById ?? request.user!.id, links: body.links, note: body.note, submittedAt: new Date(), adminComment: "", donation: body.donation, donationAmount: body.donation ? body.donationAmount ?? null : null },
       include: taskInclude,
     });
     publish(id, { type: "submissions", teamId: m.team.id });
-    notifyAdmins(id, "новая сдача дела", `Команда «${m.team.name}» сдала дело «${task.deed.title}». Нужно проверить и одобрить или вернуть.`);
+    notifyAdmins(id, "новая сдача дела", `Команда «${m.team.name}» сдала дело «${task.deed.title}»${body.donation ? ` (пожертвование ${body.donationAmount})` : ""}. Нужно проверить и одобрить или вернуть.`);
     return { task: updated };
   });
 

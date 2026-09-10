@@ -8,6 +8,7 @@ import { useGameEvents } from "../lib/useGameEvents";
 import { TeamMap } from "./TeamMap";
 import { CityPopup } from "./CityPopup";
 import { BattleCard } from "./BattlePanel";
+import { DiplomacyMenu } from "./Diplomacy";
 import { useUi } from "../lib/ui";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -63,10 +64,13 @@ export function TeamPage() {
   const [gameName, setGameName] = useState("");
   const [links, setLinks] = useState("");
   const [note, setNote] = useState("");
+  const [donation, setDonation] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [donationCfg, setDonationCfg] = useState<{ min: number; currency: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
   const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setIsAdmin(r.isAdmin); setTeam(r.teams.find((t) => t.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")), [id, user?.id]);
-  const loadMap = useCallback(() => api<MyMapDto & { gameName?: string }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); if (m.gameName) setGameName(m.gameName); }).catch(() => setMap(null)), [id]);
+  const loadMap = useCallback(() => api<MyMapDto & { gameName?: string; donation?: { min: number; currency: string } | null }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); if (m.gameName) setGameName(m.gameName); setDonationCfg(m.donation ?? null); }).catch(() => setMap(null)), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   useEffect(() => { if (team) { void loadBattles(); void loadStandings(); } }, [team, loadBattles, loadStandings]);
   useGameEvents(id, (e) => { if (e.type === "teams" || e.type === "game") void loadTeam(); if (e.type !== "deeds") void loadMap(); if (e.type === "cities" || e.type === "game" || e.type === "battles") setCityVersion((v) => v + 1); if (e.type === "battles" || e.type === "game" || e.type === "submissions") void loadBattles(); if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") void loadStandings(); });
@@ -94,6 +98,13 @@ export function TeamPage() {
     setBusy(true); setError(null);
     try { await api(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }); await loadMap(); }
     catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : "Ошибка сети"); }
+    finally { setBusy(false); }
+  }
+  const peekedKind = (key: string) => map?.peeked?.find((p) => p.key === key)?.kind ?? null;
+  async function peek(nodeKey: string) {
+    setBusy(true); setError(null);
+    try { const r = await api<{ kind: string }>(`/api/games/${id}/my-map/peek`, { method: "POST", body: JSON.stringify({ nodeKey }) }); notify(r.kind === "CITY" ? "Разведка: там город!" : "Разведка: там развилка"); await loadMap(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
     finally { setBusy(false); }
   }
   async function setGameRole(userId: string, gameRole: GameRole) {
@@ -174,16 +185,27 @@ export function TeamPage() {
             <div className="actions">
               <button disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}>Беру это дело</button>
               <button className="secondary" onClick={() => setSelectedId(null)}>Не сейчас</button>
+              {me?.gameRole === "SCOUT" && !peekedKind(task.toKey) && <button className="ghost" disabled={busy} onClick={() => void peek(task.toKey)}>🔭 Разведать, что за стороной</button>}
             </div>
           )}
+          {peekedKind(task.toKey) && <p className="note ok">Разведка: за этой стороной {peekedKind(task.toKey) === "CITY" ? "город" : "развилка"}.</p>}
           {task.status === "TAKEN" && (
             <>
-              <label htmlFor="links">Ссылки на фото или видео <span className="muted">по одной на строку</span></label>
+              {donationCfg && (
+                <label className="check"><input type="checkbox" checked={donation} onChange={(e) => setDonation(e.target.checked)} />Заменить дело пожертвованием (от {donationCfg.min} {donationCfg.currency})</label>
+              )}
+              {donation && donationCfg && (
+                <>
+                  <label htmlFor="amount">Сумма, {donationCfg.currency}</label>
+                  <input id="amount" type="number" inputMode="numeric" min={donationCfg.min} value={amount} onChange={(e) => setAmount(e.target.value)} />
+                </>
+              )}
+              <label htmlFor="links">{donation ? "Ссылка на чек или подтверждение перевода" : "Ссылки на фото или видео"} <span className="muted">по одной на строку</span></label>
               <textarea id="links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder="https://…" />
-              <label htmlFor="note">Что сделали</label>
+              <label htmlFor="note">{donation ? "Комментарий" : "Что сделали"}</label>
               <textarea id="note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
               <div className="actions">
-                <button disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/submit`, { links: links.split(/\s+/).filter(Boolean), note }).then(() => { setLinks(""); setNote(""); })}>Сдать на проверку</button>
+                <button disabled={busy || (donation && !amount)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/submit`, { links: links.split(/\s+/).filter(Boolean), note, donation, donationAmount: donation ? Number(amount) : undefined }).then(() => { setLinks(""); setNote(""); setDonation(false); setAmount(""); })}>{donation ? "Сдать пожертвование" : "Сдать на проверку"}</button>
                 <button className="ghost" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/release`)}>Отпустить</button>
               </div>
             </>
@@ -239,6 +261,7 @@ export function TeamPage() {
                 ))}
               </div>
             )}
+            <DiplomacyMenu gameId={id} version={cityVersion} />
             <div className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} flat /></div>
             <div className="section">
               <Link className="menu-link" to="/">🗺 Мои игры</Link>

@@ -14,6 +14,8 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   const [recommended, setRecommended] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
+  // Список дел большой: по умолчанию свёрнут.
+  const [expanded, setExpanded] = useState(false);
   const ui = useUi();
   const [form, setForm] = useState({ title: "", description: "", direction: "", proofType: "PHOTO_LINK" as ProofType, canRepeat: true, bookCode: "", difficulty: 1 });
 
@@ -50,7 +52,8 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
         <h2>Дела <span className="muted">{deeds.length} · уникальных {unique}</span></h2>
         <div className="row">
           <button className="secondary sm" onClick={() => void importDefault()}>Стандартный набор</button>
-          <button className="sm" onClick={() => setOpen((o) => !o)}>{open ? "Скрыть форму" : "+ Новое дело"}</button>
+          <button className="sm" onClick={() => { setOpen((o) => !o); setExpanded(true); }}>{open ? "Скрыть форму" : "+ Новое дело"}</button>
+          <button className="ghost sm" onClick={() => setExpanded((v) => !v)} aria-label={expanded ? "Свернуть список" : "Развернуть список"}>{expanded ? "▴ Свернуть" : "▾ Список"}</button>
         </div>
       </div>
       {deeds.length < recommended && <p className="note warn">Рекомендуется не меньше {recommended} дел на эту карту, иначе дела будут повторяться. Дела с пометкой «можно дублировать» выдаются повторно.</p>}
@@ -83,14 +86,14 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
           <div className="actions"><button type="submit">Добавить дело</button></div>
         </form>
       )}
-      {deeds.length === 0 ? <p className="muted">Список пуст. Добавь стандартный набор как заготовку или создай свои дела.</p> : (
+      {deeds.length === 0 ? <p className="muted">Список пуст. Добавь стандартный набор как заготовку или создай свои дела.</p> : !expanded ? null : (
         <ul className="list">
           {deeds.map((d) => (
             <li key={d.id}>
               <div className="main"><strong>{d.title}</strong> <span className="badge">{d.direction}</span><div className="muted">{PROOF_LABEL[d.proofType]} · тяжесть {d.difficulty}{d.bookCode ? ` · ${BOOKS.find((b) => b.code === d.bookCode)?.nameRu}` : ""}{d.description ? ` · ${d.description}` : ""}</div></div>
               <div className="side">
                 <button className="secondary sm" onClick={() => void toggleRepeat(d)}>{d.canRepeat ? "дублируется" : "уникальное"}</button>
-                <button className="ghost sm" onClick={() => void remove(d)}>Удалить</button>
+                <button className="ghost sm icon" onClick={() => void remove(d)} aria-label="Удалить дело" title="Удалить">🗑</button>
               </div>
             </li>
           ))}

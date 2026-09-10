@@ -4,6 +4,8 @@ import { loadBook, randomPassage } from "./bible.js";
 import { loadCityContent } from "./cities.js";
 import { notifyTeam } from "./notify.js";
 import { checkLastTeam, checkTimeLimits } from "./game.js";
+import { expirePassages } from "../routes/diplomacy.js";
+import { onCityOwned } from "./teamMap.js";
 import { BOOKS } from "@lotw/domain";
 
 const bookName = (code: string) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
@@ -100,7 +102,12 @@ export async function startNextFromQueue(gameId: string, nodeKey: string): Promi
     if (!owner || owner.teamId === q.attackerId) { await prisma.battle.update({ where: { id: q.id }, data: { status: "CANCELLED", resolvedAt: new Date() } }); continue; }
     const st = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: q.attackerId, nodeKey } } });
     const min = minBidFor(node.defenseLevel, st?.attackPenalty ?? 0);
-    if (q.bid < min) continue; // ждёт, пока команда поднимет ставку
+    if (q.bid < min) {
+      // Уровень защиты вырос выше ставки в очереди: атака отменяется (решение владельца).
+      await prisma.battle.update({ where: { id: q.id }, data: { status: "CANCELLED", resolvedAt: new Date() } });
+      notifyTeam(gameId, q.attackerId, `атака на ${bookName(q.bookCode)} отменена`, `Пока вы стояли в очереди, уровень защиты города вырос до ${node.defenseLevel}, а ваша ставка ${q.bid} стала ниже минимальной (${min}). Атака отменена; можно объявить войну заново с большей ставкой.`);
+      continue;
+    }
     await prisma.battle.update({ where: { id: q.id }, data: { defenderId: owner.teamId } });
     await startAttack(q.id);
     publish(gameId, { type: "battles", teamId: q.attackerId });
@@ -208,10 +215,14 @@ export async function resolveWon(b: Battle): Promise<void> {
   ];
   if (wasCapital) {
     ops.push(prisma.team.update({ where: { id: b.defenderId }, data: { status: "defeated" } }));
+    // Остальные города выбывшей команды — руины: их берут выполнением заданий, без ключа и без битвы.
+    const others = await prisma.teamCityState.findMany({ where: { teamId: b.defenderId, capturedAt: { not: null }, NOT: { nodeKey: b.nodeKey } }, select: { nodeKey: true } });
+    if (others.length) ops.push(prisma.mapNode.updateMany({ where: { gameId: b.gameId, key: { in: others.map((o) => o.nodeKey) } }, data: { ruined: true, defenseLevel: 0 } }));
     ops.push(prisma.teamCityState.updateMany({ where: { teamId: b.defenderId, capturedAt: { not: null } }, data: { capturedAt: null, isCapital: false, secondCapital: false } }));
     ops.push(prisma.battle.updateMany({ where: { gameId: b.gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: b.defenderId }, { defenderId: b.defenderId }], NOT: { id: b.id } }, data: { status: "CANCELLED", resolvedAt: now } }));
   }
   await prisma.$transaction(ops);
+  await onCityOwned(b.gameId, b.nodeKey, b.attackerId);
   publish(b.gameId, { type: "battles" });
   publish(b.gameId, { type: "map" });
   publish(b.gameId, { type: "cities" });
@@ -226,6 +237,7 @@ export async function resolveWon(b: Battle): Promise<void> {
 export async function sweep(gameId?: string): Promise<void> {
   const now = new Date();
   await checkTimeLimits(gameId);
+  await expirePassages(gameId);
   const burnt = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ATTACK", attackDeadline: { lt: now }, attackDoneAt: null } });
   for (const b of burnt) {
     await prisma.$transaction([
@@ -260,7 +272,8 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   const minBid = minBidFor(node.defenseLevel, penalty);
   const studied = Boolean(content && state?.orderSolved && content.tasks.every((_, i) => state!.doneTasks.includes(i)));
   let reason: string | null = null;
-  if (!owner) reason = "Город свободен: его берут ключом из конверта, а не войной";
+  if (node.ruined) reason = "Руины: город берут выполнением заданий, без ключа и без войны";
+  else if (!owner) reason = "Город свободен: его берут ключом из конверта, а не войной";
   else if (owner.teamId === teamId) reason = "Это ваш город";
   else if (team.status === "defeated") reason = "Команда выбыла из игры";
   else if (node.lockedForever) reason = "Город закреплён навсегда: атака в суммарном режиме отражена";

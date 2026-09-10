@@ -31,7 +31,7 @@ export function AdminsBlock({ gameId, version = 0 }: { gameId: string; version?:
         {rows.map((a) => (
           <li key={a.id}>
             <div className="main person"><span className="avatar">{(a.displayName ?? a.nickname).slice(0, 1).toUpperCase()}</span><div>{a.displayName ?? a.nickname} <span className="muted">{a.nickname}{a.email ? ` · ${a.email}` : " · без почты"}</span> {a.creator && <span className="badge accent">создатель</span>}</div></div>
-            {!a.creator && a.id !== user?.id && <button className="ghost sm" onClick={() => void remove(a)}>Убрать</button>}
+            {!a.creator && a.id !== user?.id && <button className="ghost sm icon" onClick={() => void remove(a)} aria-label="Убрать администратора" title="Убрать">🗑</button>}
           </li>
         ))}
       </ul>

@@ -49,6 +49,7 @@ export async function platformMetrics(days = 30) {
   const decidedPeriod = tasksPeriod.filter((t) => t.status === "APPROVED" || t.status === "REJECTED").length;
 
   const battles = await prisma.battle.findMany({ select: { status: true, bid: true, sumMode: true, declaredAt: true, startedAt: true, attackDoneAt: true } });
+  const passages = await prisma.passageRequest.findMany({ select: { status: true, createdAt: true } });
   const battlesPeriod = battles.filter((b) => b.declaredAt >= since);
   const attackTimes = battles.filter((b) => b.startedAt && b.attackDoneAt).map((b) => b.attackDoneAt!.getTime() - b.startedAt!.getTime());
 
@@ -99,7 +100,7 @@ export async function platformMetrics(days = 30) {
       active: battles.filter((b) => b.status === "ATTACK" || b.status === "DEFENSE" || b.status === "QUEUED").length,
       avgBid: avg(battles.map((b) => b.bid)), avgAttackHours: hours(avg(attackTimes)), sumMode: battles.filter((b) => b.sumMode).length,
     },
-    diplomacy: { implemented: false, passRequests: 0, passApprovedShare: null, embassies: 0 },
+    diplomacy: { implemented: true, passRequests: passages.length, passApprovedShare: share(passages.filter((p) => p.status === "APPROVED").length, passages.filter((p) => p.status !== "PENDING").length), passRequestsInPeriod: passages.filter((p) => p.createdAt >= since).length, embassies: 0 },
     tech: { uptimeHours: hours(now - mailStats.startedAt), mailEnabled: mailEnabled(), mailSent: mailStats.sent, mailFailed: mailStats.failed, node: process.version, memoryMb: Math.round(process.memoryUsage().rss / 1048576) },
   };
 }

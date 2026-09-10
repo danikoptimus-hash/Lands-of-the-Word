@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
 
-interface GameDto { id: string; name: string; status: string; teamCount: number; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean } }
+interface GameDto { id: string; name: string; status: string; teamCount: number; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
 
 export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () => void }) {
   const [open, setOpen] = useState(false);
@@ -11,6 +11,8 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   const [equidistant, setEquidistant] = useState(game.settings.equidistantStarts ?? false);
   const [maxDiff, setMaxDiff] = useState(game.settings.maxStartDistanceDiff ?? 3);
   const [genealogies, setGenealogies] = useState(game.settings.includeGenealogies ?? false);
+  const [donationMin, setDonationMin] = useState(game.settings.donationMin ?? "");
+  const [currency, setCurrency] = useState(game.settings.donationCurrency ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   if (game.status !== "DRAFT") return null;
@@ -18,7 +20,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   async function save(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(null);
     try {
-      await api(`/api/games/${game.id}`, { method: "PATCH", body: JSON.stringify({ name, teamCount, settings: { nodeCount, equidistantStarts: equidistant, maxStartDistanceDiff: maxDiff, includeGenealogies: genealogies } }) });
+      await api(`/api/games/${game.id}`, { method: "PATCH", body: JSON.stringify({ name, teamCount, settings: game.status === "DRAFT" ? { nodeCount, equidistantStarts: equidistant, maxStartDistanceDiff: maxDiff, includeGenealogies: genealogies, donationMin: donationMin === "" ? null : Number(donationMin), donationCurrency: currency } : { donationMin: donationMin === "" ? null : Number(donationMin), donationCurrency: currency } }) });
       setOpen(false); onSaved();
     } catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
     finally { setBusy(false); }
@@ -30,7 +32,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
         <h2>Настройки</h2>
         <button className="secondary sm" onClick={() => setOpen((v) => !v)}>{open ? "Скрыть" : "Изменить"}</button>
       </div>
-      {!open && <p className="muted">Команд: {game.teamCount} · узлов: {game.settings.nodeCount ?? 250} · старты: {game.settings.equidistantStarts ? "равноудалённые" : "случайные"} · разница до первого города ≤ {game.settings.maxStartDistanceDiff ?? 3} · родословия в битвах: {game.settings.includeGenealogies ? "да" : "нет"}</p>}
+      {!open && <p className="muted">Команд: {game.teamCount} · узлов: {game.settings.nodeCount ?? 250} · старты: {game.settings.equidistantStarts ? "равноудалённые" : "случайные"} · разница до первого города ≤ {game.settings.maxStartDistanceDiff ?? 3} · родословия в битвах: {game.settings.includeGenealogies ? "да" : "нет"} · пожертвование вместо дела: {game.settings.donationMin ? `от ${game.settings.donationMin} ${game.settings.donationCurrency ?? ""}` : "выключено"}</p>}
       {open && (
         <form onSubmit={save}>
           <label htmlFor="s-name">Название</label>
@@ -42,6 +44,10 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
           </div>
           <label className="check"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />Равноудалённые старты</label>
           <label className="check"><input type="checkbox" checked={genealogies} onChange={(e) => setGenealogies(e.target.checked)} />Включать родословия и списки в случайный отрывок для битвы</label>
+          <div className="grid cols-3">
+            <div><label htmlFor="s-don">Пожертвование вместо дела, минимум</label><input id="s-don" type="number" min={0} value={donationMin} onChange={(e) => setDonationMin(e.target.value === "" ? "" : Number(e.target.value))} placeholder="пусто — выключено" /></div>
+            <div><label htmlFor="s-cur">Валюта</label><input id="s-cur" value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={10} placeholder="сум, ₽, $" /></div>
+          </div>
           <p className="hint">После изменения числа команд или узлов карту нужно сгенерировать заново.</p>
           {error && <p className="error">{error}</p>}
           <div className="actions"><button type="submit" disabled={busy}>Сохранить</button><button type="button" className="secondary" onClick={() => setOpen(false)}>Отмена</button></div>

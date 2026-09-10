@@ -31,9 +31,9 @@ export const TEAM_ROLE_LABEL: Record<TeamRole, string> = { CAPTAIN: "капит�
 
 export type EdgeTaskStatus = "OPEN" | "TAKEN" | "SUBMITTED" | "APPROVED" | "REJECTED";
 export interface DeedLite { id: string; title: string; description: string; direction: string; proofType: "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "CONFIRMATION"; difficulty: number }
-export interface EdgeTaskDto { id: string; fromKey: string; toKey: string; deedId: string; status: EdgeTaskStatus; takenById: string | null; links: string[]; note: string; adminComment: string; submittedAt: string | null; deed: DeedLite }
-export interface MapCityDto { nodeKey: string; hasContent: boolean; total: number; owner: { index: number; name: string; color: string } | null; orderSolved: boolean; done: number; captured: boolean; isCapital: boolean; battle: "ATTACK" | "DEFENSE" | null }
-export interface MyMapDto { status: string; team: { id: string; name: string; color: string; startNodeKey?: string | null }; hexes: MapHexDto[]; revealed: MapNodeDto[]; edges: MapEdgeDto[]; tasks: EdgeTaskDto[]; cities: MapCityDto[] }
+export interface EdgeTaskDto { id: string; fromKey: string; toKey: string; deedId: string; status: EdgeTaskStatus; takenById: string | null; links: string[]; note: string; adminComment: string; submittedAt: string | null; deed: DeedLite; donation?: boolean; donationAmount?: number | null }
+export interface MapCityDto { nodeKey: string; hasContent: boolean; total: number; owner: { index: number; name: string; color: string } | null; orderSolved: boolean; done: number; captured: boolean; isCapital: boolean; battle: "ATTACK" | "DEFENSE" | null; ruined: boolean; blocked: boolean; passage: string | null }
+export interface MyMapDto { status: string; team: { id: string; name: string; color: string; startNodeKey?: string | null }; hexes: MapHexDto[]; revealed: MapNodeDto[]; edges: MapEdgeDto[]; tasks: EdgeTaskDto[]; cities: MapCityDto[]; peeked: Array<{ key: string; kind: string }> }
 
 /** Город глазами команды: районы (сцены книги), задания без ответов, буквы шифра, состояние. */
 export interface CityDistrictDto { id: string; verses: string; title: string; summary: string; index: number | null }
@@ -42,10 +42,11 @@ export type CityTaskDto =
   | { index: number; scope: string; groupDistricts: number[] | null; type: "choice"; prompt: string; options: string[] }
   | { index: number; scope: string; groupDistricts: number[] | null; type: "order"; prompt: string; items: Array<{ id: string; text: string }> };
 export interface MyCityDto {
-  node: { key: string; bookCode: string; cityType: string | null };
+  node: { key: string; bookCode: string; cityType: string | null; ruined: boolean };
   owner: { id: string; index: number; name: string; color: string } | null;
+  team: { capitalMovedAt: string | null; gameRole: GameRole; role: TeamRole };
   content: { title: string; translation: string; codeRule: string; districts: CityDistrictDto[]; tasks: CityTaskDto[]; fragments: Array<string | null> } | null;
-  state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; cooldownUntil: number | null };
+  state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; cooldownUntil: number | null };
 }
 /** Город глазами админа: контент с ответами, ключ конверта, прогресс команд. */
 export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[] }
@@ -77,3 +78,8 @@ export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { QUEUED: "в �
 export interface CityOnPath { nodeKey: string; bookCode: string; name: string; current: boolean; isCapital: boolean; at: string }
 export interface StandingRow { teamId: string; name: string; color: string; index: number; status: string; cities: number; capitals: number; citiesOnPath: CityOnPath[]; deedsApproved: number; nodesRevealed: number; battlesWon: number; battlesLost: number; battlesRepelled: number }
 export interface StandingsDto { status: string; finishedAt: string | null; winnerTeamId: string | null; finishReason: string | null; endsAt: string | null; standings: StandingRow[]; leaderTeamId: string | null }
+
+/** Дипломатия: запрос прохода через чужой город. */
+export type PassageStatus = "PENDING" | "APPROVED" | "DECLINED" | "EXPIRED" | "REVOKED";
+export interface PassageDto { id: string; nodeKey: string; bookName: string; message: string; answer: string; status: PassageStatus; createdAt: string; expiresAt: string; decidedAt: string | null; requester: { id: string; name: string; color: string }; owner: { id: string; name: string; color: string } }
+export const PASSAGE_LABEL: Record<PassageStatus, string> = { PENDING: "ждём ответа", APPROVED: "разрешён", DECLINED: "отказ", EXPIRED: "нет ответа — отказ", REVOKED: "закрыт" };

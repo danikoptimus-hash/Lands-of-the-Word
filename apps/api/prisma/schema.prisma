@@ -149,6 +149,8 @@ model MapNode {
   sumMode       Boolean @default(false)
   /** Отражена атака в суммарном режиме: город закреплён навсегда. */
   lockedForever Boolean @default(false)
+  /** Руины: город выбывшей команды. Берётся выполнением заданий, без ключа и без битвы. */
+  ruined        Boolean @default(false)
 
   @@unique([gameId, key])
 }
@@ -185,6 +187,15 @@ model Team {
   color        String
   startNodeKey String?
   status       String       @default("active")
+  /** Единственный перенос столицы за игру (2.9). */
+  capitalMovedAt DateTime?
+  /** Разведчик: последний «взгляд» за ребро (раз в неделю). */
+  lastPeekAt     DateTime?
+  /** Пророк: последняя подсказка к заданию города (раз в неделю). */
+  lastHintAt     DateTime?
+  peeks          TeamPeek[]
+  passageOut     PassageRequest[] @relation("requester")
+  passageIn      PassageRequest[] @relation("owner")
   createdAt    DateTime     @default(now())
   members      Membership[]
   invites      Invite[]
@@ -282,6 +293,9 @@ model TeamEdgeTask {
   note          String         @default("")
   submittedAt   DateTime?
   decidedAt     DateTime?
+  /** Дело заменено пожертвованием (сумма в валюте игры, чек — ссылкой). */
+  donation       Boolean   @default(false)
+  donationAmount Int?
   decidedById   String?
   adminComment  String         @default("")
   createdAt     DateTime       @default(now())
@@ -313,6 +327,8 @@ model TeamCityState {
   secondCapital  Boolean   @default(false)
   /** Штраф к минимальной ставке за сгоревшие атаки этой команды на этот город (+5 за каждую). */
   attackPenalty  Int       @default(0)
+  /** Задания, к которым пророк открыл подсказку (текст стихов района). */
+  hintTasks      Int[]     @default([])
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -394,4 +410,44 @@ model BattleEntry {
   decidedAt    DateTime?
 
   @@index([battleId, side])
+}
+
+enum PassageStatus {
+  PENDING
+  APPROVED
+  DECLINED
+  EXPIRED
+  REVOKED
+}
+
+/** Запрос прохода через чужой город (2.14 А): 3 дня на ответ, молчание = отказ; разрешение постоянное, но отзываемое. */
+model PassageRequest {
+  id          String        @id @default(cuid())
+  gameId      String
+  nodeKey     String
+  requesterId String
+  requester   Team          @relation("requester", fields: [requesterId], references: [id], onDelete: Cascade)
+  ownerId     String
+  owner       Team          @relation("owner", fields: [ownerId], references: [id], onDelete: Cascade)
+  message     String        @default("")
+  answer      String        @default("")
+  status      PassageStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  expiresAt   DateTime
+  decidedAt   DateTime?
+
+  @@index([gameId, nodeKey])
+  @@index([requesterId])
+  @@index([ownerId])
+}
+
+/** Разведчик заглянул за ребро: известно, город там или пустая развилка (без названия). */
+model TeamPeek {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  nodeKey   String
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, nodeKey])
 }

@@ -171,3 +171,94 @@ describe("город на перекрёстке", () => {
     expect(res.statusCode).toBe(409);
   });
 });
+
+describe("дипломатия, роли, столица, руины, пожертвование", () => {
+  it("проход через чужой город закрыт без разрешения; запрос → ответ владельца → проход открыт; отзыв убирает свободные дела", async () => {
+    // Город Руфь принадлежит Львам (взят выше), Орлы дошли до него: дальше идти нельзя.
+    await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${rutKey}/assign`, headers: { cookie: adminCookie }, payload: { teamId: team1 } });
+    const map0 = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
+    const city0 = (map0.json().cities as Array<{ nodeKey: string; blocked: boolean; passage: string | null }>).find((c) => c.nodeKey === rutKey)!;
+    expect(city0.blocked).toBe(true);
+    const out0 = (map0.json().tasks as Array<{ fromKey: string }>).filter((t) => t.fromKey === rutKey);
+    expect(out0).toHaveLength(0);
+    const req = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/passage`, headers: { cookie: p2Cookie }, payload: { message: "Пропустите, пожалуйста" } });
+    expect(req.statusCode).toBe(201);
+    const dup = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/passage`, headers: { cookie: p2Cookie }, payload: {} });
+    expect(dup.statusCode).toBe(409);
+    const inbox = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-passages`, headers: { cookie: p1Cookie } });
+    expect(inbox.json().incoming).toHaveLength(1);
+    const reqId = inbox.json().incoming[0].id as string;
+    const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/passages/${reqId}/decide`, headers: { cookie: p1Cookie }, payload: { approve: true, answer: "Проходите" } });
+    expect(ok.statusCode).toBe(200);
+    const map1 = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
+    const city1 = (map1.json().cities as Array<{ nodeKey: string; blocked: boolean; passage: string | null }>).find((c) => c.nodeKey === rutKey)!;
+    expect(city1).toMatchObject({ blocked: false, passage: "APPROVED" });
+    const out1 = (map1.json().tasks as Array<{ fromKey: string; status: string }>).filter((t) => t.fromKey === rutKey);
+    expect(out1.length).toBeGreaterThan(0);
+    const revoke = await app.inject({ method: "POST", url: `/api/games/${gameId}/passages/${reqId}/revoke`, headers: { cookie: p1Cookie } });
+    expect(revoke.statusCode).toBe(200);
+    const map2 = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
+    expect((map2.json().tasks as Array<{ fromKey: string }>).filter((t) => t.fromKey === rutKey)).toHaveLength(0);
+  });
+
+  it("роли: разведчик заглядывает за ребро раз в неделю; не-разведчику нельзя", async () => {
+    const map = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
+    const far = (map.json().tasks as Array<{ toKey: string; status: string }>).find((t) => t.status !== "APPROVED")!;
+    const denied = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: p2Cookie }, payload: { nodeKey: far.toKey } });
+    expect(denied.statusCode).toBe(403);
+    // Капитан не может иметь игровую роль: добавим участника-разведчика
+    const scoutNick = `scout_${stamp}`;
+    const scoutCookie = await register(scoutNick);
+    const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team2}/invites`, headers: { cookie: adminCookie }, payload: { role: "MEMBER" } });
+    await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: scoutCookie } });
+    const scout = await prisma.user.findFirstOrThrow({ where: { nickname: scoutNick } });
+    await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${scout.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "SCOUT" } });
+    const peek = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: scoutCookie }, payload: { nodeKey: far.toKey } });
+    expect(peek.statusCode).toBe(200);
+    expect(["CITY", "EMPTY", "START"]).toContain(peek.json().kind);
+    const again = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: scoutCookie }, payload: { nodeKey: far.toKey } });
+    expect(again.statusCode).toBe(429);
+    const after = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
+    expect((after.json().peeked as Array<{ key: string }>).some((p) => p.key === far.toKey)).toBe(true);
+    await prisma.user.deleteMany({ where: { nickname: scoutNick } });
+  });
+
+  it("пожертвование вместо дела: только при настроенном минимуме и не меньше него", async () => {
+    const map = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
+    const t = (map.json().tasks as Array<{ id: string; status: string }>).find((x) => x.status === "OPEN")!;
+    await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/take`, headers: { cookie: p2Cookie } });
+    const off = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: { donation: true, donationAmount: 500, links: ["https://example.com/receipt"] } });
+    expect(off.statusCode).toBe(409);
+    const set = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { donationMin: 1000, donationCurrency: "сум" } } });
+    expect(set.statusCode).toBe(200);
+    const low = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: { donation: true, donationAmount: 500, links: ["https://example.com/receipt"] } });
+    expect(low.statusCode).toBe(400);
+    const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: { donation: true, donationAmount: 1500, links: ["https://example.com/receipt"] } });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().task).toMatchObject({ status: "SUBMITTED", donation: true, donationAmount: 1500 });
+  });
+
+  it("перенос столицы: один раз за игру, только на свой город", async () => {
+    const other = await prisma.mapNode.findFirstOrThrow({ where: { gameId, kind: "CITY", NOT: { key: rutKey } } });
+    const notMine = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${other.key}/make-capital`, headers: { cookie: p1Cookie } });
+    expect(notMine.statusCode).toBe(409);
+    await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${other.key}/assign`, headers: { cookie: adminCookie }, payload: { teamId: team1 } });
+    const moved = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${other.key}/make-capital`, headers: { cookie: p1Cookie } });
+    expect(moved.statusCode, moved.body).toBe(200);
+    const states = await prisma.teamCityState.findMany({ where: { teamId: team1, isCapital: true } });
+    expect(states.map((s) => s.nodeKey)).toEqual([other.key]);
+    const twice = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/make-capital`, headers: { cookie: p1Cookie } });
+    expect(twice.statusCode).toBe(409);
+  });
+
+  it("руины берутся без ключа после решённых заданий", async () => {
+    await prisma.mapNode.update({ where: { gameId_key: { gameId, key: rutKey } }, data: { ruined: true } });
+    await prisma.teamCityState.updateMany({ where: { nodeKey: rutKey, gameId }, data: { capturedAt: null, isCapital: false } });
+    const info = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p2Cookie } });
+    expect(info.json().node.ruined).toBe(true);
+    const take = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/capture`, headers: { cookie: p2Cookie }, payload: {} });
+    expect(take.statusCode).toBe(200);
+    const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
+    expect(node.ruined).toBe(false);
+  });
+});

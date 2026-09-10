@@ -32,7 +32,7 @@ export function SubmissionsBlock({ gameId, version = 0, onDecided }: { gameId: s
           {rows.map((r) => (
             <li key={r.id} style={{ alignItems: "flex-start" }}>
               <div className="main">
-                <div><span className="badge" style={{ background: r.team.color, color: "#fff", borderColor: "transparent" }}>{r.team.name}</span> <strong>{r.deed.title}</strong> <span className="muted">· {PROOF_LABEL[r.deed.proofType]}</span></div>
+                <div><span className="badge" style={{ background: r.team.color, color: "#fff", borderColor: "transparent" }}>{r.team.name}</span> <strong>{r.deed.title}</strong> <span className="muted">· {PROOF_LABEL[r.deed.proofType]}</span>{r.donation && <span className="badge accent" style={{ marginLeft: ".4rem" }}>пожертвование {r.donationAmount}</span>}</div>
                 <div className="muted">{r.takenBy ? (r.takenBy.displayName ?? r.takenBy.nickname) : "—"}{r.submittedAt ? ` · ${new Date(r.submittedAt).toLocaleString("ru")}` : ""}</div>
                 {r.note && <div style={{ margin: ".3rem 0" }}>{r.note}</div>}
                 {r.links.map((l) => <div key={l}><a href={l} target="_blank" rel="noopener noreferrer">{l}</a></div>)}

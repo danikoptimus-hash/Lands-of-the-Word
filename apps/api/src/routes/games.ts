@@ -20,6 +20,8 @@ const createBody = z.object({
       maxStartDistanceDiff: z.number().int().min(0).max(6).default(3),
       includeGenealogies: z.boolean().default(false),
       endsAt: z.string().datetime().nullable().default(null),
+      donationMin: z.number().int().min(0).nullable().default(null),
+      donationCurrency: z.string().trim().max(10).default(""),
     })
     .default({}),
 });
@@ -36,6 +38,8 @@ const patchBody = z.object({
       maxStartDistanceDiff: z.number().int().min(0).max(6).optional(),
       includeGenealogies: z.boolean().optional(),
       endsAt: z.string().datetime().nullable().optional(),
+      donationMin: z.number().int().min(0).nullable().optional(),
+      donationCurrency: z.string().trim().max(10).optional(),
     })
     .optional(),
 });
@@ -83,8 +87,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const body = patchBody.parse(request.body);
     if (game.status !== "DRAFT") {
       // После старта меняется только срок окончания игры.
-      const other = body.name !== undefined || body.teamCount !== undefined || Object.keys(body.settings ?? {}).some((k) => k !== "endsAt");
-      if (other || game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: "Игра уже начата: после старта можно менять только срок окончания" });
+      const other = body.name !== undefined || body.teamCount !== undefined || Object.keys(body.settings ?? {}).some((k) => !["endsAt", "donationMin", "donationCurrency"].includes(k));
+      if (other || game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: "Игра уже начата: после старта можно менять только срок окончания и пожертвование" });
     }
     if (body.teamCount !== undefined) {
       const teams = await prisma.team.count({ where: { gameId: id } });

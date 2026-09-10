@@ -65,7 +65,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
             <div className="row">
               <button className="secondary sm" onClick={() => void invite(t.id, "CAPTAIN")}>Пригласить капитана</button>
               <button className="secondary sm" onClick={() => void invite(t.id, "MEMBER")}>Пригласить участников</button>
-              {status === "DRAFT" && <button className="ghost sm" onClick={() => void remove(t.id)}>Удалить</button>}
+              {status === "DRAFT" && <button className="ghost sm icon" onClick={() => void remove(t.id)} aria-label="Удалить команду" title="Удалить">🗑</button>}
             </div>
           </div>
           {inviteUrl?.teamId === t.id && (
@@ -94,7 +94,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
                     <button className="secondary sm" onClick={() => void patch(t.id, m.user.id, { role: m.role === "CAPTAIN" ? "MEMBER" : "CAPTAIN" })}>
                       {m.role === "CAPTAIN" ? "Снять капитана" : "Сделать капитаном"}
                     </button>
-                    <button className="ghost sm" onClick={() => void kick(t.id, m.user.id, m.user.nickname)}>Убрать</button>
+                    <button className="ghost sm icon" onClick={() => void kick(t.id, m.user.id, m.user.nickname)} aria-label="Убрать из команды" title="Убрать">🗑</button>
                   </div>
                 </li>
               ))}

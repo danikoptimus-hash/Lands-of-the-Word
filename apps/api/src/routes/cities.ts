@@ -5,7 +5,7 @@ import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { requireAdmin, requireMember } from "./teamMap.js";
 import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask } from "../services/cities.js";
-import { ensureFrontier } from "../services/teamMap.js";
+import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
 const answerBody = z.object({ answer: z.union([z.string().max(500), z.number(), z.array(z.string().min(1).max(32)).max(64)]) });
@@ -56,8 +56,9 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const done = state?.doneTasks ?? [];
     const cooldownUntil = state?.lastWrongAt ? state.lastWrongAt.getTime() + WRONG_COOLDOWN_MS : 0;
     return {
-      node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType },
+      node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, ruined: node.ruined },
       owner: ownerState?.team ?? null,
+      team: { capitalMovedAt: m.team.capitalMovedAt, gameRole: m.gameRole, role: m.role },
       content: content
         ? {
             title: content.title,
@@ -74,6 +75,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         doneTasks: done,
         capturedAt: state?.capturedAt ?? null,
         isCapital: state?.isCapital ?? false,
+        secondCapital: state?.secondCapital ?? false,
+        hintTasks: state?.hintTasks ?? [],
         cooldownUntil: cooldownUntil > Date.now() ? cooldownUntil : null,
       },
     };
@@ -142,8 +145,9 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (c.state.capturedAt) return reply.code(409).send({ error: "conflict", message: "Город уже ваш" });
     const allDone = c.content.tasks.every((_, i) => c.state.doneTasks.includes(i));
     if (!allDone) return reply.code(409).send({ error: "conflict", message: "Сначала решите задания всех районов" });
-    const body = captureBody.parse(request.body);
-    if (!c.node.cityKey || body.key.toUpperCase().replace(/[\s-]/g, "") !== c.node.cityKey) {
+    const body = c.node.ruined ? { key: c.node.cityKey ?? "" } : captureBody.parse(request.body);
+    // Руины берутся без ключа: достаточно решённых заданий.
+    if (!c.node.ruined && (!c.node.cityKey || body.key.toUpperCase().replace(/[\s-]/g, "") !== c.node.cityKey)) {
       await prisma.teamCityState.update({ where: { id: c.state.id }, data: { answerAttempts: { increment: 1 }, lastWrongAt: new Date() } });
       return reply.code(400).send({ error: "wrong_key", message: "Ключ не подходит. Проверьте буквы в конверте" });
     }
@@ -151,6 +155,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (owner) return reply.code(409).send({ error: "conflict", message: `Город уже принадлежит команде «${owner.team.name}»` });
     const hasCapital = await prisma.teamCityState.count({ where: { teamId: c.m.team.id, isCapital: true } });
     const updated = await prisma.teamCityState.update({ where: { id: c.state.id }, data: { capturedAt: new Date(), firstCapturedAt: c.state.firstCapturedAt ?? new Date(), isCapital: hasCapital === 0 } });
+    if (c.node.ruined) await prisma.mapNode.update({ where: { id: c.node.id }, data: { ruined: false } });
+    await onCityOwned(id, nodeKey, c.m.team.id);
     publish(id, { type: "cities", teamId: c.m.team.id });
     publish(id, { type: "map", teamId: c.m.team.id });
     return { ok: true, isCapital: updated.isCapital };
@@ -165,22 +171,25 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!node || !team) return reply.code(404).send({ error: "not_found", message: "Город или команда не найдены" });
     const content = await loadCityContent(node.bookCode!);
     const all = content ? content.tasks.map((_, i) => i) : [];
-    const hasCapital = (await prisma.teamCityState.count({ where: { teamId: team.id, isCapital: true } })) > 0;
     const existing = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: team.id, nodeKey } } });
+    // Столица остаётся столицей, если присваиваем тот же город повторно.
+    const hasCapital = (await prisma.teamCityState.count({ where: { teamId: team.id, isCapital: true, NOT: { nodeKey } } })) > 0 && !existing?.isCapital;
     await prisma.$transaction([
       prisma.teamNodeState.upsert({ where: { teamId_nodeKey: { teamId: team.id, nodeKey } }, create: { teamId: team.id, nodeKey }, update: {} }),
       prisma.teamCityState.updateMany({ where: { gameId: id, nodeKey, NOT: { teamId: team.id } }, data: { capturedAt: null, isCapital: false, secondCapital: false } }),
       prisma.teamCityState.upsert({
         where: { teamId_nodeKey: { teamId: team.id, nodeKey } },
         create: { gameId: id, teamId: team.id, nodeKey, orderSolved: true, doneTasks: all, capturedAt: new Date(), firstCapturedAt: new Date(), isCapital: !hasCapital },
-        update: { orderSolved: true, doneTasks: all, capturedAt: new Date(), firstCapturedAt: existing?.firstCapturedAt ?? new Date(), isCapital: !hasCapital },
+        update: { orderSolved: true, doneTasks: all, capturedAt: new Date(), firstCapturedAt: existing?.firstCapturedAt ?? new Date(), isCapital: existing?.isCapital || !hasCapital },
       }),
       prisma.battle.updateMany({ where: { gameId: id, nodeKey, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, data: { status: "CANCELLED", resolvedAt: new Date() } }),
     ]);
+    await onCityOwned(id, nodeKey, team.id);
     await ensureFrontier(id, team.id);
     publish(id, { type: "cities" });
     publish(id, { type: "map" });
     publish(id, { type: "battles" });
+    publish(id, { type: "tasks" });
     return { ok: true, isCapital: !hasCapital };
   });
 

@@ -5,6 +5,7 @@ import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
 import { SortableList } from "./SortableList";
 import { WarSection } from "./BattlePanel";
+import { PassageSection } from "./Diplomacy";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -14,7 +15,8 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
  * решённое помечается зелёной галочкой справа и даёт букву шифра. Шаг 3: ключ из конверта — город взят.
  */
 export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; version: number; onClose: () => void; onChanged: () => void }) {
-  const { notify } = useUi();
+  const { notify, confirm } = useUi();
+  const confirmMove = () => confirm("Перенести столицу в этот город? Это единственный перенос за игру.", { okLabel: "Перенести" });
   const [city, setCity] = useState<MyCityDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<string[] | null>(null);
@@ -59,6 +61,19 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
     } catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); return false; }
     finally { setBusy(false); }
   }
+  async function makeCapital() {
+    if (!(await confirmMove())) return;
+    setBusy(true); setError(null);
+    try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/make-capital`, { method: "POST" }); notify("Столица перенесена"); await load(); onChanged(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+    finally { setBusy(false); }
+  }
+  async function hint(index: number) {
+    setBusy(true); setError(null);
+    try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/hint`, { method: "POST", body: JSON.stringify({ index }) }); notify("Подсказка открыта: текст района ниже"); await load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+    finally { setBusy(false); }
+  }
   async function capture() {
     setBusy(true); setError(null);
     try {
@@ -80,7 +95,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
           <div className="title">
             <strong>{book ? `Город ${book.nameRu}` : "Город"}</strong>
             <div className="muted">
-              {city?.owner ? <span className="badge" style={{ borderColor: city.owner.color, color: city.owner.color }}>{city.owner.name}</span> : <span className="badge">свободный</span>}
+              {city?.owner ? <span className="badge" style={{ borderColor: city.owner.color, color: city.owner.color }}>{city.owner.name}</span> : city?.node.ruined ? <span className="badge bad">руины</span> : <span className="badge">свободный</span>}
               {city?.state.isCapital && <span className="badge accent"> столица</span>}
               {total > 0 && <span> · районов {done.length}/{total}</span>}
             </div>
@@ -120,7 +135,13 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
               <div className="letters">{city.content.fragments.map((f, i) => <span key={i} className={f ? "on" : ""}>{f ?? "·"}</span>)}</div>
               {allDone && <p className="muted" style={{ margin: ".3rem 0 0" }}>{city.content.codeRule}</p>}
             </div>
-            {allDone && !city.state.capturedAt && (
+            {allDone && !city.state.capturedAt && city.node.ruined && !city.owner && (
+              <div className="capture">
+                <p className="note warn">Руины: команда, владевшая городом, выбыла. Задания решены — город можно занять без ключа и без битвы.</p>
+                <div className="actions"><button disabled={busy} onClick={() => void capture()}>Занять руины</button></div>
+              </div>
+            )}
+            {allDone && !city.state.capturedAt && !city.node.ruined && (
               <div className="capture">
                 <p>Назовите шифр семье, к которой вас направили, и получите конверт. Введите ключ из конверта:</p>
                 <div className="row">
@@ -129,20 +150,31 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
                 </div>
               </div>
             )}
-            {city.state.capturedAt && <div className="note ok">Город ваш{city.state.isCapital ? " — это ваша столица" : ""}.</div>}
-            {(city.owner || city.state.capturedAt) && <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} version={version} onChanged={onChanged} />}
+            {city.state.capturedAt && <div className="note ok">Город ваш{city.state.isCapital ? (city.state.secondCapital ? " — это ваша вторая столица" : " — это ваша столица") : ""}.</div>}
+            {city.state.capturedAt && !city.state.isCapital && isCaptain && (
+              <div className="row" style={{ marginTop: ".4rem", alignItems: "center", gap: ".6rem" }}>
+                <button className="secondary sm" disabled={busy || Boolean(city.team.capitalMovedAt)} onClick={() => void makeCapital()}>Перенести столицу сюда</button>
+                <span className="muted" style={{ fontSize: ".85rem" }}>{city.team.capitalMovedAt ? "перенос уже использован" : "один раз за игру, можно и во время войны"}</span>
+              </div>
+            )}
           </>
         )}
 
+        {/* Проход и война показываются всегда, даже пока районы не собраны: запросить проход можно сразу. */}
+        {city?.content && !task && city.owner && !city.state.capturedAt && <PassageSection gameId={gameId} nodeKey={nodeKey} version={version} onChanged={onChanged} />}
+        {city?.content && !task && (city.owner || city.state.capturedAt) && <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} version={version} onChanged={onChanged} />}
         {city?.content && task && (
-          <TaskView task={task} district={districts.find((d) => d.index === task.index)} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)} />
+          <TaskView task={task} district={districts.find((d) => d.index === task.index)} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
+            hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} />
         )}
       </div>
     </div>
   );
 }
 
-function TaskView({ task, district, done, fragment, busy, cooldown, onBack, onAnswer }: { task: CityTaskDto; district?: { title: string; verses: string }; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean> }) {
+function TaskView({ task, district, done, fragment, busy, cooldown, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey }: { task: CityTaskDto; district?: { title: string; verses: string }; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string }) {
+  const [hintText, setHintText] = useState<string[] | null>(null);
+  useEffect(() => { if (hintOpen) api<{ text: string[] }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/hint/${task.index}`).then((r) => setHintText(r.text)).catch(() => setHintText(null)); else setHintText(null); }, [hintOpen, gameId, nodeKey, task.index]);
   const [text, setText] = useState("");
   const [choice, setChoice] = useState<number | null>(null);
   const [order, setOrder] = useState<string[]>(task.type === "order" ? task.items.map((i) => i.id) : []);
@@ -155,6 +187,8 @@ function TaskView({ task, district, done, fragment, busy, cooldown, onBack, onAn
       <button className="ghost sm" onClick={onBack}>‹ К районам</button>
       <div className="muted" style={{ margin: ".4rem 0 .2rem" }}>Район {task.index + 1}: {district?.title} <span>{district?.verses}</span> · задание {scope}</div>
       <p className="prompt">{task.prompt}</p>
+      {hintOpen && hintText && <div className="hint-box"><div className="muted">Подсказка пророка · текст района {district?.verses}</div>{hintText.map((t, i) => <p key={i}>{t}</p>)}</div>}
+      {!hintOpen && !done && canHint && <p><button type="button" className="ghost sm" disabled={busy} onClick={onHint}>🔮 Открыть подсказку пророка (раз в неделю)</button></p>}
       {done ? (
         <div className="note ok">Выполнено. Знак шифра: <strong>{fragment}</strong></div>
       ) : (

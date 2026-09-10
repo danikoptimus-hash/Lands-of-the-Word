@@ -84,17 +84,24 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const c = cityByKey.get(n.key);
               const fill = c?.owner ? c.owner.color : "#F3EAD3", ink = c?.owner ? "#fff" : "#1F1B16";
               const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;
+              const suffix = c?.ruined ? " · руины" : c?.blocked ? (c.passage === "PENDING" ? " · ждём прохода" : " · проход закрыт") : "";
               const swords = c?.battle ? <text x={CITY * k * 0.45} y={-CITY * k * 0.55} fontSize={Math.max(14, 22 * Math.min(1.4, k))} textAnchor="middle" fill={c.battle === "ATTACK" ? "#2F6FB3" : "#B3402F"} stroke="#fff" strokeWidth={3} paintOrder="stroke" style={{ pointerEvents: "none" }}>⚔</text> : null;
               return showLabels ? (
                 <g key={n.key} transform={`translate(${p.x},${p.y + CITY * k * 0.48})`} onClick={() => clickCity(n.key)} style={{ cursor: "pointer" }}>
                   {swords && <g transform={`translate(0,${-CITY * k * 0.48})`}>{swords}</g>}
-                  <rect x={-52} y={-10} width={104} height={20} rx={4} fill={fill} stroke="#1F1B16" strokeWidth={1} />
-                  <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={ink}>{book?.nameRu}{c?.isCapital ? " ★" : ""}{progress ? ` · ${progress}` : ""}</text>
+                  <rect x={suffix ? -70 : -52} y={-10} width={suffix ? 140 : 104} height={20} rx={4} fill={c?.ruined ? "#6B645A" : fill} stroke="#1F1B16" strokeWidth={1} />
+                  <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={ink}>{book?.nameRu}{c?.isCapital ? " ★" : ""}{progress ? ` · ${progress}` : ""}{suffix}</text>
                 </g>
               ) : <g key={n.key} transform={`translate(${p.x},${p.y})`} onClick={() => clickCity(n.key)} style={{ cursor: "pointer" }}><circle r={4} fill={c?.owner ? c.owner.color : "#fff"} stroke="#1F1B16" strokeWidth={1} />{swords}</g>;
             }
             if (!showForks) return null;
             return <circle key={n.key} cx={p.x} cy={p.y} r={5} fill="#fff" stroke="#1F1B16" strokeWidth={1.2} />;
+          })}
+          {showMarkers && (map.peeked ?? []).map((p) => {
+            const pos = positions.get(p.key);
+            if (!pos) return null;
+            const q = S(pos);
+            return <text key={"pk" + p.key} x={q.x} y={q.y - 12} textAnchor="middle" fontSize={14} stroke="#fff" strokeWidth={3} paintOrder="stroke" style={{ pointerEvents: "none" }}>{p.kind === "CITY" ? "🏰" : "🔭"}</text>;
           })}
           {showMarkers && map.edges.map((e) => {
             const t = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));

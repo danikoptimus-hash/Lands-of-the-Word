@@ -12,8 +12,9 @@ import { SubmissionsBlock } from "./SubmissionsBlock";
 import { BattlesBlock } from "./BattlesBlock";
 import { AdminsBlock } from "./AdminsBlock";
 import { FinishBlock } from "./FinishBlock";
+import { PassagesBlock } from "./Diplomacy";
 
-interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean } }
+interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
 interface Stats { nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number }
 
 
@@ -66,13 +67,15 @@ export function GamePage() {
       <p><Link to="/">← Мои игры</Link></p>
       <div className="card">
         <div className="card-head">
-          <div><h1>{game.name}</h1><div className="muted">Команд: {game.teamCount}{game.mapSeed != null ? ` · seed карты ${game.mapSeed}` : ""}</div></div>
+          <div><h1>{game.name}</h1><div className="muted">Команд: {game.teamCount}</div></div>
           <span className={"badge" + (game.status === "ACTIVE" ? " accent" : "")}>{game.status === "DRAFT" ? "черновик" : game.status === "ACTIVE" ? "идёт" : "завершена"}</span>
         </div>
-        <div className="row">
-          <button onClick={() => void generate()} disabled={busy || game.status !== "DRAFT"}>{nodes.length ? "Сгенерировать ещё раз" : "Сгенерировать карту"}</button>
-          {stats && <span className="muted">узлов {stats.nodeCount} · городов {stats.cityCount} · до первого города {stats.startDistances.join(" / ")}</span>}
-        </div>
+        {game.status === "DRAFT" && (
+          <div className="row">
+            <button onClick={() => void generate()} disabled={busy}>{nodes.length ? "Сгенерировать ещё раз" : "Сгенерировать карту"}</button>
+            {stats && <span className="muted">узлов {stats.nodeCount} · городов {stats.cityCount} · до первого города {stats.startDistances.join(" / ")}</span>}
+          </div>
+        )}
         {error && <p className="error">{error}</p>}
       </div>
 
@@ -81,6 +84,7 @@ export function GamePage() {
       <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={() => { void load(); void loadProgress(); }} />
       {game.status === "ACTIVE" && <SubmissionsBlock gameId={game.id} version={version} onDecided={() => void loadProgress()} />}
       {game.status === "ACTIVE" && <BattlesBlock gameId={game.id} version={version} onDecided={() => void loadProgress()} />}
+      {game.status === "ACTIVE" && <PassagesBlock gameId={game.id} version={version} />}
       <StartBlock gameId={game.id} status={game.status} version={version} onStarted={() => { void load(); void loadProgress(); }} />
       <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} />
       <DeedsBlock gameId={game.id} version={version} onChange={bump} />
