@@ -5,6 +5,7 @@ import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { requireAdmin, requireMember } from "./teamMap.js";
 import { formatRange, loadBook, parseRef, refToIndex, verseText, type BibleBook } from "../services/bible.js";
+import { notifyAdmins, notifyTeam } from "../services/notify.js";
 import { coverage, maybeRepel, maybeStartDefense, minBidFor, overlaps, recomputeAttackDone, recomputeDefenseDone, resolveWon, startAttack, sweep, warOptions, type BattleWithEntries } from "../services/battles.js";
 
 const declareBody = z.object({ bid: z.number().int().min(1).max(100000) });
@@ -111,6 +112,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (active === 0) await startAttack(created.id);
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "battles", teamId: o.owner.id });
+    if (active === 0) notifyTeam(id, o.owner.id, "на ваш город объявлена атака", `Команда «${m.team.name}» объявила войну вашему городу (ставка ${body.bid} стихов). Когда администратор одобрит их записи, у вас будет ровно столько же времени, сколько ушло у них.`);
     return reply.code(201).send({ id: created.id, status: active === 0 ? "ATTACK" : "QUEUED", sumMode });
   });
 
@@ -157,6 +159,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     full = side === "ATTACK" ? await recomputeAttackDone(full) : await recomputeDefenseDone(full);
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "submissions" });
+    notifyAdmins(id, "новая запись в битве", `Команда «${m.team.name}» прикрепила запись (${side === "ATTACK" ? "атака" : "оборона"}, ${formatRange(book, r.start, r.end)}). Нужно проверить.`);
     return reply.code(201).send({ ok: true, covered: coverage(full.entries.filter((e) => e.side === side), full.sumMode, false), bid: full.bid });
   });
 

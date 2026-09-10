@@ -205,9 +205,15 @@ function AssignButtons({ gameId, nodeKey, teams }: { gameId: string; nodeKey: st
     try { const r = await api<{ isCapital: boolean }>(`/api/games/${gameId}/cities/${encodeURIComponent(nodeKey)}/assign`, { method: "POST", body: JSON.stringify({ teamId: t.id }) }); notify(`Город присвоен команде «${t.name}»${r.isCapital ? " — это её столица" : ""}`); }
     catch (e) { notify(e instanceof Error ? e.message : "Ошибка", "bad"); }
   }
+  async function study(t: { id: string; name: string }) {
+    if (!(await confirm(`Зачесть команде «${t.name}» все задания этого города? Тестовое действие: районы собраны, задания решены, город не взят — можно сразу вводить ключ или объявлять войну.`, { okLabel: "Зачесть" }))) return;
+    try { await api(`/api/games/${gameId}/cities/${encodeURIComponent(nodeKey)}/study`, { method: "POST", body: JSON.stringify({ teamId: t.id }) }); notify(`Задания зачтены команде «${t.name}»`); }
+    catch (e) { notify(e instanceof Error ? e.message : "Ошибка", "bad"); }
+  }
   return (
     <div className="row" style={{ marginTop: ".4rem", gap: ".4rem", flexWrap: "wrap" }}>
       {rest.map((t) => <button key={t.id} className="secondary sm" style={{ borderColor: t.color }} onClick={() => void assign(t)}>Присвоить «{t.name}»</button>)}
+      {rest.map((t) => <button key={"s" + t.id} className="ghost sm" onClick={() => void study(t)}>Зачесть задания «{t.name}»</button>)}
     </div>
   );
 }

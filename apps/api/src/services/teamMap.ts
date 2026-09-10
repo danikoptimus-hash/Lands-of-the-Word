@@ -9,16 +9,23 @@ import { loadCityContent } from "./cities.js";
  * Одобрение дела открывает узел за ребром.
  */
 
+/** На скольких ближайших векторах хода команды дела не должны повторяться. */
+const NO_REPEAT_WINDOW = 30;
+
 async function pickDeed(gameId: string, teamId: string): Promise<string | null> {
   const [deeds, used] = await Promise.all([
     prisma.deed.findMany({ where: { gameId }, select: { id: true, canRepeat: true } }),
-    prisma.teamEdgeTask.findMany({ where: { teamId }, select: { deedId: true } }),
+    prisma.teamEdgeTask.findMany({ where: { teamId }, select: { deedId: true }, orderBy: { createdAt: "desc" } }),
   ]);
   if (deeds.length === 0) return null;
   const usedIds = new Set(used.map((u) => u.deedId));
-  // 1) ещё не встречавшиеся команде; 2) допускающие повтор; 3) любое (крайний случай).
+  const recentIds = new Set(used.slice(0, NO_REPEAT_WINDOW).map((u) => u.deedId));
+  // 1) ещё не встречавшиеся команде; 2) допускающие повтор и не встречавшиеся на 30 последних векторах;
+  // 3) любое допускающее повтор; 4) любое (крайний случай, список дел слишком мал).
   const fresh = deeds.filter((d) => !usedIds.has(d.id));
-  const pool = fresh.length ? fresh : deeds.filter((d) => d.canRepeat).length ? deeds.filter((d) => d.canRepeat) : deeds;
+  const repeatable = deeds.filter((d) => d.canRepeat);
+  const notRecent = repeatable.filter((d) => !recentIds.has(d.id));
+  const pool = fresh.length ? fresh : notRecent.length ? notRecent : repeatable.length ? repeatable : deeds;
   return pool[Math.floor(Math.random() * pool.length)]!.id;
 }
 

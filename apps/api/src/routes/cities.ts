@@ -180,6 +180,30 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, isCapital: !hasCapital };
   });
 
+  /** Админ (для тестов): зачесть команде задания города — районы собраны, все задания решены, город не взят. */
+  app.post("/api/games/:id/cities/:nodeKey/study", async (request, reply) => {
+    const { id, nodeKey } = request.params as { id: string; nodeKey: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const body = z.object({ teamId: z.string().min(1) }).parse(request.body);
+    const [node, team] = await Promise.all([loadCityNode(id, nodeKey), prisma.team.findFirst({ where: { id: body.teamId, gameId: id } })]);
+    if (!node || !team) return reply.code(404).send({ error: "not_found", message: "Город или команда не найдены" });
+    const content = await loadCityContent(node.bookCode!);
+    if (!content) return reply.code(409).send({ error: "no_content", message: "Задания для этой книги ещё готовятся" });
+    const all = content.tasks.map((_, i) => i);
+    await prisma.$transaction([
+      prisma.teamNodeState.upsert({ where: { teamId_nodeKey: { teamId: team.id, nodeKey } }, create: { teamId: team.id, nodeKey }, update: {} }),
+      prisma.teamCityState.upsert({
+        where: { teamId_nodeKey: { teamId: team.id, nodeKey } },
+        create: { gameId: id, teamId: team.id, nodeKey, orderSolved: true, doneTasks: all },
+        update: { orderSolved: true, doneTasks: all },
+      }),
+    ]);
+    await ensureFrontier(id, team.id);
+    publish(id, { type: "cities" });
+    publish(id, { type: "map" });
+    return { ok: true };
+  });
+
   /** Админ: город целиком — районы, задания с ответами, ключ конверта, прогресс всех команд. */
   app.get("/api/games/:id/cities/:nodeKey", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };

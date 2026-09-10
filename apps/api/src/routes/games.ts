@@ -140,6 +140,39 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Готовность к старту: что ещё не сделано. */
+  /** Администраторы игры: список, добавить по никнейму или почте, убрать (создателя убрать нельзя). */
+  app.get("/api/games/:id/admins", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = await loadGameForAdmin(request, reply, id);
+    if (!game) return;
+    const admins = await prisma.gameAdmin.findMany({ where: { gameId: id }, select: { user: { select: { id: true, nickname: true, displayName: true, email: true } } } });
+    return { admins: admins.map((a) => ({ ...a.user, email: a.user.email ? a.user.email.replace(/^(.).*(@.*)$/, "$1…$2") : null, creator: a.user.id === game.createdById })) };
+  });
+
+  app.post("/api/games/:id/admins", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = await loadGameForAdmin(request, reply, id);
+    if (!game) return;
+    const body = z.object({ login: z.string().trim().min(3).max(120) }).parse(request.body);
+    const user = await prisma.user.findFirst({ where: { OR: [{ nickname: { equals: body.login, mode: "insensitive" } }, { email: { equals: body.login, mode: "insensitive" } }] } });
+    if (!user) return reply.code(404).send({ error: "not_found", message: "Пользователь с таким никнеймом или почтой не найден: он должен сначала зарегистрироваться" });
+    const already = await prisma.gameAdmin.findUnique({ where: { gameId_userId: { gameId: id, userId: user.id } } });
+    if (already) return reply.code(409).send({ error: "conflict", message: "Уже администратор этой игры" });
+    await prisma.gameAdmin.create({ data: { gameId: id, userId: user.id } });
+    publish(id, { type: "game" });
+    return reply.code(201).send({ ok: true, nickname: user.nickname });
+  });
+
+  app.delete("/api/games/:id/admins/:userId", async (request, reply) => {
+    const { id, userId } = request.params as { id: string; userId: string };
+    const game = await loadGameForAdmin(request, reply, id);
+    if (!game) return;
+    if (userId === game.createdById) return reply.code(409).send({ error: "conflict", message: "Создателя игры убрать нельзя" });
+    await prisma.gameAdmin.deleteMany({ where: { gameId: id, userId } });
+    publish(id, { type: "game" });
+    return { ok: true };
+  });
+
   app.get("/api/games/:id/readiness", async (request, reply) => {
     const { id } = request.params as { id: string };
     const game = await loadGameForAdmin(request, reply, id);

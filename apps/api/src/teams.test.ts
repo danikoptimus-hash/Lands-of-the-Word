@@ -239,3 +239,35 @@ describe("карта команды и дела", () => {
     expect(progress.json().startedAt).toBeTruthy();
   });
 });
+
+describe("администраторы игры", () => {
+  it("добавить по никнейму или почте, второй админ видит команды, создателя убрать нельзя", async () => {
+    const list0 = await app.inject({ method: "GET", url: `/api/games/${gameId}/admins`, headers: { cookie: adminCookie } });
+    expect(list0.json().admins).toHaveLength(1);
+    expect(list0.json().admins[0].creator).toBe(true);
+    const add = await app.inject({ method: "POST", url: `/api/games/${gameId}/admins`, headers: { cookie: adminCookie }, payload: { login: otherNick.toUpperCase() } });
+    expect(add.statusCode).toBe(201);
+    const dup = await app.inject({ method: "POST", url: `/api/games/${gameId}/admins`, headers: { cookie: adminCookie }, payload: { login: otherNick } });
+    expect(dup.statusCode).toBe(409);
+    const asOther = await app.inject({ method: "GET", url: `/api/games/${gameId}/teams`, headers: { cookie: otherCookie } });
+    expect(asOther.json().isAdmin).toBe(true);
+    const me = await app.inject({ method: "GET", url: "/api/auth/me", headers: { cookie: adminCookie } });
+    const creatorId = me.json().user.id as string;
+    const rmCreator = await app.inject({ method: "DELETE", url: `/api/games/${gameId}/admins/${creatorId}`, headers: { cookie: otherCookie } });
+    expect(rmCreator.statusCode).toBe(409);
+    const other = await app.inject({ method: "GET", url: "/api/auth/me", headers: { cookie: otherCookie } });
+    const rm = await app.inject({ method: "DELETE", url: `/api/games/${gameId}/admins/${other.json().user.id}`, headers: { cookie: adminCookie } });
+    expect(rm.statusCode).toBe(200);
+    const asOtherAfter = await app.inject({ method: "GET", url: `/api/games/${gameId}/admins`, headers: { cookie: otherCookie } });
+    expect(asOtherAfter.statusCode).toBe(403);
+  });
+
+  it("вход по почте", async () => {
+    const nick = `em_${Date.now()}`;
+    await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: nick, password: "secret123", email: `${nick}@example.com` } });
+    const res = await app.inject({ method: "POST", url: "/api/auth/login", payload: { nickname: `${nick}@EXAMPLE.com`, password: "secret123" } });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().user.nickname).toBe(nick);
+    await prisma.user.deleteMany({ where: { nickname: nick } });
+  });
+});

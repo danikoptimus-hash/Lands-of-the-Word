@@ -1,5 +1,6 @@
 import { prisma } from "../db.js";
 import { publish } from "./events.js";
+import { notifyTeam } from "./notify.js";
 import { loadBook, randomPassage } from "./bible.js";
 import { loadCityContent } from "./cities.js";
 import type { Battle, BattleEntry, Prisma } from "@prisma/client";
@@ -135,6 +136,8 @@ export async function maybeStartDefense(b: BattleWithEntries): Promise<BattleWit
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackApprovedAt: now, defenseDeadline: new Date(now.getTime() + T) }, include: { entries: true } });
   publish(b.gameId, { type: "battles", teamId: b.defenderId });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
+  const hours = Math.round(T / 360_000) / 10;
+  notifyTeam(b.gameId, b.defenderId, "началось время обороны", `Атака на ваш город одобрена. У вас ${hours} ч (до ${upd.defenseDeadline!.toLocaleString("ru-RU")}), чтобы записать ${b.bid} стихов или больше и прикрепить ссылки.`);
   return upd;
 }
 
@@ -150,6 +153,8 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
   ]);
   publish(b.gameId, { type: "battles" });
   publish(b.gameId, { type: "map" });
+  notifyTeam(b.gameId, b.defenderId, "атака отражена", `Ваша оборона одобрена: город остаётся за вами, уровень защиты ${M}.`);
+  notifyTeam(b.gameId, b.attackerId, "атака отражена", `Защитники ответили ${M} стихами: город остаётся у них. Следующая атака потребует не меньше ${M + 1}.`);
   await startNextFromQueue(b.gameId, b.nodeKey);
   return upd;
 }
@@ -181,6 +186,8 @@ export async function resolveWon(b: Battle): Promise<void> {
   publish(b.gameId, { type: "map" });
   publish(b.gameId, { type: "cities" });
   publish(b.gameId, { type: "teams" });
+  notifyTeam(b.gameId, b.attackerId, "город взят", `Оборона не состоялась в срок: город ваш${wasCapital ? ", это была столица противника" : ""}.`);
+  notifyTeam(b.gameId, b.defenderId, wasCapital ? "столица потеряна" : "город потерян", wasCapital ? "Оборона столицы не состоялась в срок: команда выбывает из игры." : "Оборона не состоялась в срок: город перешёл атакующим.");
   await startNextFromQueue(b.gameId, b.nodeKey);
 }
 
@@ -199,6 +206,7 @@ export async function sweep(gameId?: string): Promise<void> {
     ]);
     publish(b.gameId, { type: "battles", teamId: b.attackerId });
     publish(b.gameId, { type: "battles", teamId: b.defenderId });
+    notifyTeam(b.gameId, b.attackerId, "атака сгорела", `За 14 дней записи не были прикреплены: атака сгорела, минимальная ставка на этот город для вашей команды выросла на ${BURN_PENALTY}.`);
     await startNextFromQueue(b.gameId, b.nodeKey);
   }
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });

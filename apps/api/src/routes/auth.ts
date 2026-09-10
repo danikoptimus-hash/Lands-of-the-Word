@@ -62,9 +62,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/api/auth/login", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
     const body = loginBody.parse(request.body);
-    const user = await prisma.user.findFirst({ where: { nickname: { equals: body.nickname, mode: "insensitive" } } });
+    // Вход по никнейму или по почте из учётки.
+    const user = await prisma.user.findFirst({ where: { OR: [{ nickname: { equals: body.nickname, mode: "insensitive" } }, { email: { equals: body.nickname, mode: "insensitive" } }] } });
     const ok = user ? await bcrypt.compare(body.password, user.passwordHash) : false;
-    if (!user || !ok) return reply.code(401).send({ error: "unauthorized", message: "Неверный никнейм или пароль" });
+    if (!user || !ok) return reply.code(401).send({ error: "unauthorized", message: "Неверный никнейм, почта или пароль" });
     await createSession(reply, user.id, secure);
     return { user: publicUser(user) };
   });

@@ -30,8 +30,12 @@ async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, ga
 }
 
 /** Рекомендуемый минимум уникальных дел ≈ длина пути одной команды за игру (2.4 документа). */
+/**
+ * Рекомендуемый минимум дел: дела не должны повторяться на 30 ближайших векторах хода команды,
+ * поэтому не меньше 30, а на больших картах больше (примерно один вектор из восьми по карте).
+ */
 export function recommendedDeedCount(nodeCount: number): number {
-  return Math.max(40, Math.round(nodeCount * 0.35));
+  return Math.max(30, Math.round(nodeCount / 8));
 }
 
 export async function deedRoutes(app: FastifyInstance): Promise<void> {

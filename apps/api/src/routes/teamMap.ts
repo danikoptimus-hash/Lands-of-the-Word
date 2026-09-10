@@ -5,6 +5,7 @@ import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { getTeamMap, revealNode } from "../services/teamMap.js";
 import { loadCityContent } from "../services/cities.js";
+import { notifyAdmins, notifyUser } from "../services/notify.js";
 
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
@@ -85,6 +86,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       include: taskInclude,
     });
     publish(id, { type: "submissions", teamId: m.team.id });
+    notifyAdmins(id, "новая сдача дела", `Команда «${m.team.name}» сдала дело «${task.deed.title}». Нужно проверить и одобрить или вернуть.`);
     return { task: updated };
   });
 
@@ -113,6 +115,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       include: taskInclude,
     });
     if (body.approve) await revealNode(id, task.teamId, task.toKey);
+    else if (task.takenById) notifyUser(id, task.takenById, "дело вернули на доработку", `Администратор вернул дело «${updated.deed.title}».${body.comment ? ` Комментарий: ${body.comment}` : ""}`);
     publish(id, { type: "submissions", teamId: task.teamId });
     publish(id, { type: "tasks", teamId: task.teamId });
     return { task: updated };

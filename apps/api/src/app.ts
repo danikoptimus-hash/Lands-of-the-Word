@@ -15,6 +15,7 @@ import { cityRoutes } from "./routes/cities.js";
 import { battleRoutes } from "./routes/battles.js";
 import { sweep } from "./services/battles.js";
 import { initMail } from "./services/mail.js";
+import { initNotify } from "./services/notify.js";
 import { eventRoutes } from "./routes/events.js";
 
 declare module "fastify" {
@@ -31,6 +32,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   });
   app.decorate("config", config);
   initMail(config);
+  initNotify(config.PUBLIC_URL, (e, msg) => app.log.error(e, msg));
 
   await app.register(cookie, { secret: config.SESSION_SECRET });
   await app.register(rateLimit, { global: false });
