@@ -72,3 +72,7 @@ export interface BattleDto {
 export interface BookTextDto { code: string; name: string; verseCounts: number[]; chapters: string[][] | null; total: number }
 export interface WarDto { defenseLevel: number; sumMode: boolean; locked: boolean; bookVerses: number | null; penalty: number; minBid: number; canDeclare: boolean; reason: string | null; owner: { id: string; name: string; color: string } | null; queue: number; battles: BattleDto[] }
 export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { QUEUED: "в очереди", ATTACK: "атака", DEFENSE: "оборона", WON: "город взят", REPELLED: "атака отражена", EXPIRED: "атака сгорела", CANCELLED: "отменена" };
+
+/** Итоги игры: положение команд и победитель. */
+export interface StandingRow { teamId: string; name: string; color: string; index: number; status: string; cities: number; capitals: number }
+export interface StandingsDto { status: string; finishedAt: string | null; winnerTeamId: string | null; finishReason: string | null; endsAt: string | null; standings: StandingRow[]; leaderTeamId: string | null }

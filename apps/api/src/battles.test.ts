@@ -197,5 +197,16 @@ describe("битва за город", () => {
     expect(defeated.status).toBe("defeated");
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     expect(node.defenseLevel).toBe(15);
+    // Из двух команд в строю осталась одна — игра завершена, победитель определён.
+    const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+    expect(game.status).toBe("FINISHED");
+    expect(game.winnerTeamId).toBe(team2);
+    expect(game.finishReason).toBe("last_team");
+    const st = await get(`/api/games/${gameId}/standings`, p2Cookie);
+    expect(st.json().winnerTeamId).toBe(team2);
+    expect(st.json().standings[0]).toMatchObject({ teamId: team2, cities: 1, capitals: 1 });
+    expect(st.json().standings[1].status).toBe("defeated");
+    const again = await post(`/api/games/${gameId}/finish`, adminCookie, {});
+    expect(again.statusCode).toBe(409);
   });
 });

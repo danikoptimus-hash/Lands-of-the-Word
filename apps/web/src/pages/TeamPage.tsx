@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS, directionBetween, parseVertexKey } from "@lotw/domain";
-import { api, ApiError, BATTLE_STATUS_LABEL, GAME_ROLE_LABEL, PROOF_LABEL, TASK_STATUS_LABEL, TEAM_ROLE_LABEL, type BattleDto, type EdgeTaskDto, type GameRole, type MyMapDto, type TeamDto } from "../lib/api";
+import { api, ApiError, BATTLE_STATUS_LABEL, GAME_ROLE_LABEL, PROOF_LABEL, TASK_STATUS_LABEL, TEAM_ROLE_LABEL, type BattleDto, type EdgeTaskDto, type GameRole, type MyMapDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useRef } from "react";
 import { useGameEvents } from "../lib/useGameEvents";
@@ -25,6 +25,8 @@ export function TeamPage() {
   const [cityKey, setCityKey] = useState<string | null>(null);
   const [cityVersion, setCityVersion] = useState(0);
   const [battles, setBattles] = useState<BattleDto[]>([]);
+  const [standings, setStandings] = useState<StandingsDto | null>(null);
+  const loadStandings = useCallback(() => api<StandingsDto>(`/api/games/${id}/standings`).then(setStandings).catch(() => {}), [id]);
   const [now, setNow] = useState(Date.now());
   const { notify } = useUi();
   const seenBattles = useRef<Map<string, string> | null>(null);
@@ -66,8 +68,8 @@ export function TeamPage() {
   const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setIsAdmin(r.isAdmin); setTeam(r.teams.find((t) => t.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")), [id, user?.id]);
   const loadMap = useCallback(() => api<MyMapDto & { gameName?: string }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); if (m.gameName) setGameName(m.gameName); }).catch(() => setMap(null)), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
-  useEffect(() => { if (team) void loadBattles(); }, [team, loadBattles]);
-  useGameEvents(id, (e) => { if (e.type === "teams" || e.type === "game") void loadTeam(); if (e.type !== "deeds") void loadMap(); if (e.type === "cities" || e.type === "game" || e.type === "battles") setCityVersion((v) => v + 1); if (e.type === "battles" || e.type === "game" || e.type === "submissions") void loadBattles(); });
+  useEffect(() => { if (team) { void loadBattles(); void loadStandings(); } }, [team, loadBattles, loadStandings]);
+  useGameEvents(id, (e) => { if (e.type === "teams" || e.type === "game") void loadTeam(); if (e.type !== "deeds") void loadMap(); if (e.type === "cities" || e.type === "game" || e.type === "battles") setCityVersion((v) => v + 1); if (e.type === "battles" || e.type === "game" || e.type === "submissions") void loadBattles(); if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") void loadStandings(); });
   useEffect(() => {
     const t = setInterval(() => void loadMap(), 60000);
     const onFocus = () => void loadMap();
@@ -145,6 +147,11 @@ export function TeamPage() {
       <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={(tid) => { setSelectedId(tid); if (tid) setMenu(false); }} onSelectCity={(key) => { setCityKey(key); setSelectedId(null); setMenu(false); }} />
       {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} isCaptain={isCaptain} version={cityVersion} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); }} />}
 
+      {standings?.status === "FINISHED" && (
+        <div className="finish-banner">
+          🏆 Игра завершена{standings.winnerTeamId ? <>: победила <strong>«{standings.standings.find((t) => t.teamId === standings.winnerTeamId)?.name}»</strong></> : ""}
+        </div>
+      )}
       <div className="map-hud">
         <span className="avatar" style={{ background: team.color, color: "#fff" }}>{team.name.slice(0, 1)}</span>
         <span className="name">{team.name}</span>
@@ -207,6 +214,14 @@ export function TeamPage() {
                 ))}
               </ul>
             </div>
+            {standings && standings.standings.length > 0 && (
+              <div className="section">
+                <h2>Положение команд</h2>
+                <ul className="list">
+                  {standings.standings.map((t) => <li key={t.teamId}><span><span className="avatar" style={{ background: t.color, color: "#fff" }}>{t.name.slice(0, 1)}</span> {t.name}</span><span className="muted">{t.status === "defeated" ? "выбыла" : t.teamId === standings.winnerTeamId ? "🏆 победитель" : `городов ${t.cities}`}</span></li>)}
+                </ul>
+              </div>
+            )}
             {activeBattles.length > 0 && (
               <div className="section">
                 <h2>Битвы <span className="muted">{activeBattles.length}</span></h2>

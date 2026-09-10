@@ -6,6 +6,7 @@ import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { recommendedDeedCount } from "./deeds.js";
 import { makeCityKey } from "../services/cities.js";
+import { finishGame, leader, standings } from "../services/game.js";
 import { ensureFrontier } from "../services/teamMap.js";
 
 const createBody = z.object({
@@ -18,6 +19,7 @@ const createBody = z.object({
       equidistantStarts: z.boolean().default(false),
       maxStartDistanceDiff: z.number().int().min(0).max(6).default(3),
       includeGenealogies: z.boolean().default(false),
+      endsAt: z.string().datetime().nullable().default(null),
     })
     .default({}),
 });
@@ -33,6 +35,7 @@ const patchBody = z.object({
       equidistantStarts: z.boolean().optional(),
       maxStartDistanceDiff: z.number().int().min(0).max(6).optional(),
       includeGenealogies: z.boolean().optional(),
+      endsAt: z.string().datetime().nullable().optional(),
     })
     .optional(),
 });
@@ -77,8 +80,12 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
-    if (game.status !== "DRAFT") return reply.code(409).send({ error: "conflict", message: "Игра уже начата, настройки зафиксированы" });
     const body = patchBody.parse(request.body);
+    if (game.status !== "DRAFT") {
+      // После старта меняется только срок окончания игры.
+      const other = body.name !== undefined || body.teamCount !== undefined || Object.keys(body.settings ?? {}).some((k) => k !== "endsAt");
+      if (other || game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: "Игра уже начата: после старта можно менять только срок окончания" });
+    }
     if (body.teamCount !== undefined) {
       const teams = await prisma.team.count({ where: { gameId: id } });
       if (teams > body.teamCount) return reply.code(409).send({ error: "conflict", message: `Уже создано команд: ${teams}. Сначала удалите лишние` });
@@ -140,6 +147,30 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Готовность к старту: что ещё не сделано. */
+  /** Итоги: положение команд (города, столицы), победитель. Видят админы и участники. */
+  app.get("/api/games/:id/standings", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = await prisma.game.findUnique({ where: { id }, select: { status: true, finishedAt: true, winnerTeamId: true, finishReason: true, settings: true, admins: { select: { userId: true } }, teams: { select: { members: { select: { userId: true } } } } } });
+    if (!game) return reply.code(404).send({ error: "not_found", message: "Игра не найдена" });
+    const uid = request.user!.id;
+    const allowed = game.admins.some((a) => a.userId === uid) || game.teams.some((t) => t.members.some((m) => m.userId === uid));
+    if (!allowed) return reply.code(403).send({ error: "forbidden", message: "Нет доступа" });
+    const rows = await standings(id);
+    return { status: game.status, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, finishReason: game.finishReason, endsAt: (game.settings as { endsAt?: string | null }).endsAt ?? null, standings: rows, leaderTeamId: game.status === "ACTIVE" ? (await leader(id))?.teamId ?? null : null };
+  });
+
+  /** Админ завершает игру вручную: победитель — команда с наибольшим числом городов, если не указан явно. */
+  app.post("/api/games/:id/finish", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = await loadGameForAdmin(request, reply, id);
+    if (!game) return;
+    if (game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: "Игра не идёт" });
+    const body = z.object({ winnerTeamId: z.string().nullable().optional() }).parse(request.body ?? {});
+    const winner = body.winnerTeamId === undefined ? (await leader(id))?.teamId ?? null : body.winnerTeamId;
+    await finishGame(id, "manual", winner);
+    return { ok: true, winnerTeamId: winner };
+  });
+
   /** Администраторы игры: список, добавить по никнейму или почте, убрать (создателя убрать нельзя). */
   app.get("/api/games/:id/admins", async (request, reply) => {
     const { id } = request.params as { id: string };

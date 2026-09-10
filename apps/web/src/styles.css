@@ -203,3 +203,9 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .verses li.done { background: var(--success-soft); cursor: default; }
 .verses li.done .box { background: var(--success); border-color: var(--success); color: #fff; }
 .picker .actions { align-items: center; justify-content: space-between; }
+.standings { width: 100%; border-collapse: collapse; margin-top: .4rem; }
+.standings th, .standings td { text-align: left; padding: .45rem .5rem; border-top: 1px solid var(--border); }
+.standings th { color: var(--muted); font-weight: 500; font-size: .85rem; border-top: 0; }
+.standings tr.winner td { background: var(--success-soft); font-weight: 600; }
+.standings tr.out td { color: var(--muted); }
+.finish-banner { position: absolute; left: 50%; top: 70px; transform: translateX(-50%); z-index: 6; background: var(--surface); border: 1px solid var(--success); color: var(--success); border-radius: 999px; padding: .5rem 1rem; box-shadow: var(--shadow); white-space: nowrap; max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis; }

@@ -96,6 +96,10 @@ model Game {
   invites     Invite[]
   deeds       Deed[]
   startedAt   DateTime?
+  finishedAt   DateTime?
+  winnerTeamId String?
+  /** Почему завершена: last_team (осталась одна команда), time_limit (срок), manual (админ). */
+  finishReason String?
 }
 
 model GameAdmin {

@@ -3,6 +3,7 @@ import { publish } from "./events.js";
 import { loadBook, randomPassage } from "./bible.js";
 import { loadCityContent } from "./cities.js";
 import { notifyTeam } from "./notify.js";
+import { checkLastTeam, checkTimeLimits } from "./game.js";
 import { BOOKS } from "@lotw/domain";
 
 const bookName = (code: string) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
@@ -217,11 +218,13 @@ export async function resolveWon(b: Battle): Promise<void> {
   notifyTeam(b.gameId, b.attackerId, `город ${bookName(b.bookCode)} взят`, wasCapital ? "Это была столица противника: команда противника выбыла, город стал вашей второй столицей." : "Город теперь ваш.");
   notifyTeam(b.gameId, b.defenderId, `город ${bookName(b.bookCode)} потерян`, wasCapital ? "Потеряна столица: команда выбывает из игры." : "Оборона не сдана в срок или сдана. Город перешёл атакующим; его можно отбить по тем же правилам.");
   await startNextFromQueue(b.gameId, b.nodeKey);
+  if (wasCapital) await checkLastTeam(b.gameId);
 }
 
 /** Сгоревшие атаки (14 дней без отправки) и просроченные обороны. Вызывается по таймеру и перед чтением. */
 export async function sweep(gameId?: string): Promise<void> {
   const now = new Date();
+  await checkTimeLimits(gameId);
   const burnt = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ATTACK", attackDeadline: { lt: now }, attackDoneAt: null } });
   for (const b of burnt) {
     await prisma.$transaction([

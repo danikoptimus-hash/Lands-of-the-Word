@@ -262,6 +262,39 @@ describe("администраторы игры", () => {
     expect(asOtherAfter.statusCode).toBe(403);
   });
 
+  it("срок игры и ручное завершение: победитель — команда с наибольшим числом городов", async () => {
+    const stampF = Date.now();
+    const a = await register(`fadm_${stampF}`), c1 = await register(`fc1_${stampF}`), c2 = await register(`fc2_${stampF}`);
+    const g = await app.inject({ method: "POST", url: "/api/games", headers: { cookie: a }, payload: { name: "Финал", teamCount: 2 } });
+    const gid = g.json().game.id as string;
+    await app.inject({ method: "POST", url: `/api/games/${gid}/generate`, headers: { cookie: a } });
+    const tids: string[] = [];
+    for (const [i, name] of ["А", "Б"].entries()) {
+      const t = await app.inject({ method: "POST", url: `/api/games/${gid}/teams`, headers: { cookie: a }, payload: { name: name + "-команда" } });
+      const inv = await app.inject({ method: "POST", url: `/api/games/${gid}/teams/${t.json().team.id}/invites`, headers: { cookie: a }, payload: { role: "CAPTAIN" } });
+      await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: i === 0 ? c1 : c2 } });
+      tids.push(t.json().team.id);
+    }
+    await app.inject({ method: "POST", url: `/api/games/${gid}/deeds/import-default`, headers: { cookie: a } });
+    await app.inject({ method: "POST", url: `/api/games/${gid}/start`, headers: { cookie: a } });
+    const nameChange = await app.inject({ method: "PATCH", url: `/api/games/${gid}`, headers: { cookie: a }, payload: { name: "Другое" } });
+    expect(nameChange.statusCode).toBe(409);
+    const deadline = await app.inject({ method: "PATCH", url: `/api/games/${gid}`, headers: { cookie: a }, payload: { settings: { endsAt: new Date(Date.now() + 86_400_000).toISOString() } } });
+    expect(deadline.statusCode).toBe(200);
+    // Команда Б получает два города, А — один
+    const cities = await prisma.mapNode.findMany({ where: { gameId: gid, kind: "CITY" }, take: 3 });
+    await app.inject({ method: "POST", url: `/api/games/${gid}/cities/${cities[0]!.key}/assign`, headers: { cookie: a }, payload: { teamId: tids[0] } });
+    for (const c of cities.slice(1)) await app.inject({ method: "POST", url: `/api/games/${gid}/cities/${c.key}/assign`, headers: { cookie: a }, payload: { teamId: tids[1] } });
+    const st = await app.inject({ method: "GET", url: `/api/games/${gid}/standings`, headers: { cookie: c1 } });
+    expect(st.json().leaderTeamId).toBe(tids[1]);
+    const fin = await app.inject({ method: "POST", url: `/api/games/${gid}/finish`, headers: { cookie: a }, payload: {} });
+    expect(fin.json().winnerTeamId).toBe(tids[1]);
+    const after = await app.inject({ method: "GET", url: `/api/games/${gid}/standings`, headers: { cookie: c2 } });
+    expect(after.json()).toMatchObject({ status: "FINISHED", finishReason: "manual", winnerTeamId: tids[1] });
+    await prisma.game.deleteMany({ where: { id: gid } });
+    await prisma.user.deleteMany({ where: { nickname: { in: [`fadm_${stampF}`, `fc1_${stampF}`, `fc2_${stampF}`] } } });
+  });
+
   it("вход по почте", async () => {
     const nick = `em_${Date.now()}`;
     await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: nick, password: "secret123", email: `${nick}@example.com` } });
