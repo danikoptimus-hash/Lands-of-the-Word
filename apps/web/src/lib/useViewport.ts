@@ -30,8 +30,17 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
     setView({ k, tx: el.clientWidth / 2 - x * k, ty: el.clientHeight / 2 - y * k });
   }, []);
 
+  // Начальное положение ставится один раз (и только если поле карты или точка фокуса реально изменились),
+  // иначе каждое обновление данных возвращало бы карту на место.
   const focusKey = focus ? `${focus.x},${focus.y},${focus.k ?? ""}` : "";
-  useEffect(() => { if (focus) focusOn(focus.x, focus.y, focus.k); else fit(); }, [fit, focusOn, focusKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const boundsKey = bounds ? `${bounds.minX},${bounds.minY},${bounds.width},${bounds.height}` : "";
+  const applied = useRef("");
+  useEffect(() => {
+    const key = `${boundsKey}|${focusKey}`;
+    if (!boundsKey || applied.current === key) return;
+    applied.current = key;
+    if (focus) focusOn(focus.x, focus.y, focus.k); else fit();
+  }, [fit, focusOn, boundsKey, focusKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const zoomAt = useCallback((factor: number, cx?: number, cy?: number) => {
     setView((v) => {
