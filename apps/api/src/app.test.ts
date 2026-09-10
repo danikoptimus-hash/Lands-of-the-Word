@@ -122,3 +122,21 @@ describe("восстановление пароля", () => {
     await prisma.user.deleteMany({ where: { nickname: nick } });
   });
 });
+
+describe("аналитика суперадмина", () => {
+  it("метрики отдаются только суперадмину и содержат группы из документации", async () => {
+    const first = await prisma.user.findFirst({ where: { platformRole: "SUPERADMIN" }, select: { nickname: true } });
+    const nick = `mt_${Date.now()}`;
+    const cookie = (await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: nick, password: "secret123" } })).headers["set-cookie"] as string;
+    const denied = await app.inject({ method: "GET", url: "/api/admin/metrics", headers: { cookie } });
+    expect(denied.statusCode).toBe(403);
+    await prisma.user.update({ where: { nickname: nick }, data: { platformRole: "SUPERADMIN" } });
+    const res = await app.inject({ method: "GET", url: "/api/admin/metrics?days=7", headers: { cookie } });
+    expect(res.statusCode).toBe(200);
+    expect(Object.keys(res.json())).toEqual(expect.arrayContaining(["users", "games", "activity", "battles", "diplomacy", "tech"]));
+    expect(res.json().users.total).toBeGreaterThan(0);
+    expect(res.json().period.days).toBe(7);
+    await prisma.user.deleteMany({ where: { nickname: nick } });
+    expect(first === null || first.nickname !== nick).toBe(true);
+  });
+});

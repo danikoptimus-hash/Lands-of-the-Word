@@ -4,7 +4,7 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { requireAdmin, requireMember } from "./teamMap.js";
-import { checkAnswer, checkOrder, loadCityContent, makeCityKey, publicDistricts, publicTask } from "../services/cities.js";
+import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask } from "../services/cities.js";
 import { ensureFrontier } from "../services/teamMap.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
@@ -26,10 +26,13 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
   async function loadCityNode(gameId: string, nodeKey: string) {
     const node = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId, key: nodeKey } } });
     if (!node || node.kind !== "CITY" || !node.bookCode) return null;
-    if (!node.cityKey) {
-      // Игры, начатые до появления городов: ключ конверта выдаётся при первом обращении.
+    if (!node.cityKey || !node.cityCode) {
+      // Игры, начатые раньше: ключ конверта и шифр выдаются при первом обращении.
       const game = await prisma.game.findUnique({ where: { id: gameId }, select: { status: true } });
-      if (game?.status === "ACTIVE") return prisma.mapNode.update({ where: { id: node.id }, data: { cityKey: makeCityKey() } });
+      if (game?.status === "ACTIVE") {
+        const content = await loadCityContent(node.bookCode);
+        return prisma.mapNode.update({ where: { id: node.id }, data: { cityKey: node.cityKey ?? makeCityKey(), cityCode: node.cityCode ?? makeCityCode(content?.districts.length ?? 12) } });
+      }
     }
     return node;
   }
@@ -62,7 +65,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
             codeRule: content.codeRule,
             districts: publicDistricts(content, secret, scopeKey, solved),
             tasks: solved ? content.tasks.map((t, i) => publicTask(t, i, secret, scopeKey)) : [],
-            fragments: content.tasks.map((t, i) => (done.includes(i) ? t.fragment : null)),
+            fragments: content.tasks.map((_, i) => (done.includes(i) ? node.cityCode?.[i] ?? null : null)),
           }
         : null,
       state: {
@@ -128,7 +131,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       data: correct ? { doneTasks: { push: index } } : { answerAttempts: { increment: 1 }, lastWrongAt: new Date() },
     });
     publish(id, { type: "cities", teamId: c.m.team.id });
-    return correct ? { correct: true, fragment: task.fragment } : { correct: false, retryAt: Date.now() + WRONG_COOLDOWN_MS };
+    return correct ? { correct: true, fragment: c.node.cityCode?.[index] ?? null } : { correct: false, retryAt: Date.now() + WRONG_COOLDOWN_MS };
   });
 
   /** Ввести ключ из конверта: город взят. Первый взятый город команды — её столица. */
@@ -147,7 +150,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const owner = await prisma.teamCityState.findFirst({ where: { gameId: id, nodeKey, capturedAt: { not: null } }, select: ownerSelect });
     if (owner) return reply.code(409).send({ error: "conflict", message: `Город уже принадлежит команде «${owner.team.name}»` });
     const hasCapital = await prisma.teamCityState.count({ where: { teamId: c.m.team.id, isCapital: true } });
-    const updated = await prisma.teamCityState.update({ where: { id: c.state.id }, data: { capturedAt: new Date(), isCapital: hasCapital === 0 } });
+    const updated = await prisma.teamCityState.update({ where: { id: c.state.id }, data: { capturedAt: new Date(), firstCapturedAt: c.state.firstCapturedAt ?? new Date(), isCapital: hasCapital === 0 } });
     publish(id, { type: "cities", teamId: c.m.team.id });
     publish(id, { type: "map", teamId: c.m.team.id });
     return { ok: true, isCapital: updated.isCapital };
@@ -163,13 +166,14 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const content = await loadCityContent(node.bookCode!);
     const all = content ? content.tasks.map((_, i) => i) : [];
     const hasCapital = (await prisma.teamCityState.count({ where: { teamId: team.id, isCapital: true } })) > 0;
+    const existing = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: team.id, nodeKey } } });
     await prisma.$transaction([
       prisma.teamNodeState.upsert({ where: { teamId_nodeKey: { teamId: team.id, nodeKey } }, create: { teamId: team.id, nodeKey }, update: {} }),
       prisma.teamCityState.updateMany({ where: { gameId: id, nodeKey, NOT: { teamId: team.id } }, data: { capturedAt: null, isCapital: false, secondCapital: false } }),
       prisma.teamCityState.upsert({
         where: { teamId_nodeKey: { teamId: team.id, nodeKey } },
-        create: { gameId: id, teamId: team.id, nodeKey, orderSolved: true, doneTasks: all, capturedAt: new Date(), isCapital: !hasCapital },
-        update: { orderSolved: true, doneTasks: all, capturedAt: new Date(), isCapital: !hasCapital },
+        create: { gameId: id, teamId: team.id, nodeKey, orderSolved: true, doneTasks: all, capturedAt: new Date(), firstCapturedAt: new Date(), isCapital: !hasCapital },
+        update: { orderSolved: true, doneTasks: all, capturedAt: new Date(), firstCapturedAt: existing?.firstCapturedAt ?? new Date(), isCapital: !hasCapital },
       }),
       prisma.battle.updateMany({ where: { gameId: id, nodeKey, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, data: { status: "CANCELLED", resolvedAt: new Date() } }),
     ]);
@@ -217,7 +221,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     ]);
     const byTeam = new Map(states.map((s) => [s.teamId, s]));
     return {
-      node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, cityKey: node.cityKey },
+      node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, cityKey: node.cityKey, cityCode: node.cityCode },
       content,
       teams: teams.map((t) => {
         const s = byTeam.get(t.id);

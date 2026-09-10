@@ -5,7 +5,7 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { recommendedDeedCount } from "./deeds.js";
-import { makeCityKey } from "../services/cities.js";
+import { loadCityContent, makeCityCode, makeCityKey } from "../services/cities.js";
 import { finishGame, leader, standings } from "../services/game.js";
 import { ensureFrontier } from "../services/teamMap.js";
 
@@ -241,10 +241,11 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" } }),
     ]);
     // Ключи конвертов городов: генерируются при старте, видны только админу (для подготовки конвертов).
-    const cityNodes = await prisma.mapNode.findMany({ where: { gameId: id, kind: "CITY" }, select: { id: true } });
+    const cityNodes = await prisma.mapNode.findMany({ where: { gameId: id, kind: "CITY" }, select: { id: true, bookCode: true } });
+    const codeLengths = await Promise.all(cityNodes.map(async (n) => (await loadCityContent(n.bookCode ?? ""))?.districts.length ?? 12));
     await prisma.$transaction([
       ...teams.map((t, i) => prisma.team.update({ where: { id: t.id }, data: { startNodeKey: starts[i]?.key ?? null } })),
-      ...cityNodes.map((n) => prisma.mapNode.update({ where: { id: n.id }, data: { cityKey: makeCityKey() } })),
+      ...cityNodes.map((n, i) => prisma.mapNode.update({ where: { id: n.id }, data: { cityKey: makeCityKey(), cityCode: makeCityCode(codeLengths[i]!) } })),
       prisma.game.update({ where: { id }, data: { status: "ACTIVE", startedAt: new Date() } }),
     ]);
     for (const t of teams) await ensureFrontier(id, t.id);

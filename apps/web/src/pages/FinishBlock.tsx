@@ -37,18 +37,32 @@ export function FinishBlock({ gameId, status, version, onChanged }: { gameId: st
           {" · "}{data.finishReason === "last_team" ? "в строю осталась одна команда" : data.finishReason === "time_limit" ? "вышел срок игры" : "завершена администратором"}
         </p>
       )}
-      <table className="standings">
-        <thead><tr><th>Команда</th><th>Городов</th><th>Столиц</th><th>Статус</th></tr></thead>
-        <tbody>
-          {data.standings.map((t, i) => (
-            <tr key={t.teamId} className={t.teamId === data.winnerTeamId ? "winner" : t.status === "defeated" ? "out" : ""}>
-              <td><span className="avatar" style={{ background: t.color, color: "#fff" }}>{t.name.slice(0, 1)}</span> {t.name}{status === "ACTIVE" && i === 0 && t.status !== "defeated" ? <span className="badge accent" style={{ marginLeft: ".4rem" }}>лидер</span> : null}</td>
-              <td>{t.cities}</td><td>{t.capitals}</td>
-              <td>{t.status === "defeated" ? "выбыла" : t.teamId === data.winnerTeamId ? "победитель" : "в игре"}</td>
-            </tr>
+      <div style={{ overflowX: "auto" }}>
+        <table className="standings">
+          <thead><tr><th>Команда</th><th>Городов</th><th>Столиц</th><th>Дел</th><th>Узлов</th><th>Битвы</th><th>Статус</th></tr></thead>
+          <tbody>
+            {data.standings.map((t, i) => (
+              <tr key={t.teamId} className={t.teamId === data.winnerTeamId ? "winner" : t.status === "defeated" ? "out" : ""}>
+                <td><span className="avatar" style={{ background: t.color, color: "#fff" }}>{t.name.slice(0, 1)}</span> {t.name}{status === "ACTIVE" && i === 0 && t.status !== "defeated" ? <span className="badge accent" style={{ marginLeft: ".4rem" }}>лидер</span> : null}</td>
+                <td>{t.cities}</td><td>{t.capitals}</td><td>{t.deedsApproved}</td><td>{t.nodesRevealed}</td>
+                <td title="взято / отражено / потеряно">{t.battlesWon} / {t.battlesRepelled} / {t.battlesLost}</td>
+                <td>{t.status === "defeated" ? "выбыла" : t.teamId === data.winnerTeamId ? "победитель" : "в игре"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="hint">Битвы: взято / отражено / потеряно. Дела — одобренные сдачи, узлы — открытые перекрёстки.</p>
+      {data.standings.some((t) => t.citiesOnPath.length > 0) && (
+        <div className="path-list">
+          {data.standings.map((t) => t.citiesOnPath.length > 0 && (
+            <div key={t.teamId} className="team-stripe" style={{ borderLeftColor: t.color }}>
+              <strong>{t.name}</strong> <span className="muted">· города на пути:</span>{" "}
+              {t.citiesOnPath.map((c) => <span key={c.nodeKey} className={"badge" + (c.current ? (c.isCapital ? " accent" : " ok") : " bad")} style={{ marginRight: ".3rem" }} title={new Date(c.at).toLocaleString("ru")}>{c.name}{c.isCapital ? " ★" : ""}{c.current ? "" : " (потерян)"}</span>)}
+            </div>
           ))}
-        </tbody>
-      </table>
+        </div>
+      )}
       {status === "ACTIVE" && (
         <>
           <div className="row" style={{ marginTop: ".8rem", gap: ".5rem", alignItems: "flex-end", flexWrap: "wrap" }}>

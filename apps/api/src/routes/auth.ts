@@ -5,6 +5,7 @@ import { prisma } from "../db.js";
 import { createSession, destroySession, publicUser, requireUser } from "../auth.js";
 import { createHash, randomBytes } from "node:crypto";
 import { describeMailError, mailEnabled, sendMail, verifyMail } from "../services/mail.js";
+import { platformMetrics } from "../services/metrics.js";
 
 const nickname = z.string().trim().min(3).max(24).regex(/^[\p{L}\p{N}_-]+$/u, "Только буквы, цифры, _ и -");
 const password = z.string().min(8).max(128);
@@ -141,6 +142,13 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: r.userId } });
     await createSession(reply, user.id, secure);
     return { user: publicUser(user) };
+  });
+
+  /** Суперадмин: аналитика платформы — только обобщённые метрики (4.1), без содержимого игр и людей. */
+  app.get("/api/admin/metrics", { preHandler: requireUser }, async (request, reply) => {
+    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: "Только для суперадмина" });
+    const q = z.object({ days: z.coerce.number().int().min(1).max(365).default(30) }).parse(request.query ?? {});
+    return platformMetrics(q.days);
   });
 
   /** Суперадмин: проверить SMTP и отправить тестовое письмо себе. */

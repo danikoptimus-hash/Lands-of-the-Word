@@ -33,6 +33,8 @@ model User {
   locale       String       @default("ru")
   platformRole PlatformRole @default(USER)
   createdAt    DateTime     @default(now())
+  /** Последняя активность (обновляется не чаще раза в 10 минут) — для DAU/WAU/MAU и удержания. */
+  lastSeenAt   DateTime?
   sessions     Session[]
   gameAdmins   GameAdmin[]
   createdGames Game[]       @relation("GameCreator")
@@ -139,6 +141,8 @@ model MapNode {
   teamIndex Int?
   /** Ключ конверта города (генерируется при старте игры, виден только админу). */
   cityKey   String?
+  /** Шифр города: случайные буквы и цифры, по знаку на район; команда собирает его заданиями. Свой в каждой игре. */
+  cityCode  String?
   /** Уровень защиты города: сколько стихов надо, чтобы его взять (следующая атака ≥ level + 1). */
   defenseLevel  Int     @default(0)
   /** Книга исчерпана: ставки считаются суммой стихов по участникам. */
@@ -302,6 +306,8 @@ model TeamCityState {
   answerAttempts Int       @default(0)
   lastWrongAt    DateTime?
   capturedAt     DateTime?
+  /** Когда команда впервые взяла этот город (не сбрасывается при потере — для итоговой статистики). */
+  firstCapturedAt DateTime?
   isCapital      Boolean   @default(false)
   /** Захваченная чужая столица: вторая столица, переносить нельзя. */
   secondCapital  Boolean   @default(false)

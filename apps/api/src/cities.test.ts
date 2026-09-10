@@ -20,8 +20,7 @@ async function joinTeam(name: string, cookie: string) {
 }
 const content = JSON.parse(await readFile(new URL("../../../content/cities/rut.json", import.meta.url), "utf8")) as {
   districts: Array<{ title: string }>;
-  tasks: Array<{ type: string; answer?: number; answers?: string[]; correct?: number; items?: string[]; fragment: string }>;
-  codePhrase: string;
+  tasks: Array<{ type: string; answer?: number; answers?: string[]; correct?: number; items?: string[] }>;
 };
 
 beforeAll(async () => {
@@ -55,6 +54,7 @@ describe("город на перекрёстке", () => {
     const adm = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: adminCookie } });
     expect(adm.statusCode).toBe(200);
     expect(adm.json().node.cityKey).toMatch(/^[A-Z2-9]{6}$/);
+    expect(adm.json().node.cityCode).toMatch(/^[А-Я2-9]{16}$/);
     expect(adm.json().content.tasks[0].correct).toBe(0);
     expect(adm.json().content.tasks[11].answer).toBe(6);
     const forbidden = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: p1Cookie } });
@@ -112,10 +112,12 @@ describe("город на перекрёстке", () => {
       else answer = src.items!.map((text) => t.items!.find((i) => i.text === text)!.id);
       const res = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/${t.index}/answer`, headers: { cookie: p1Cookie }, payload: { answer } });
       expect(res.statusCode, `задание ${t.index}`).toBe(200);
-      expect(res.json().fragment).toBe(src.fragment);
+      expect(res.json().fragment).toMatch(/^[А-Я2-9]$/);
     }
     const done = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
-    expect((done.json().content.fragments as string[]).join("")).toBe(content.codePhrase.replace(/\s/g, ""));
+    const node0 = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
+    expect(node0.cityCode).toMatch(/^[А-Я2-9]{16}$/);
+    expect((done.json().content.fragments as string[]).join("")).toBe(node0.cityCode);
 
     const wrongKey = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/capture`, headers: { cookie: p1Cookie }, payload: { key: "NOPE22" } });
     expect(wrongKey.statusCode).toBe(400);

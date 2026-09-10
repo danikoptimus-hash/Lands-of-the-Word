@@ -45,6 +45,9 @@ export async function attachUser(request: FastifyRequest): Promise<void> {
   const session = await prisma.session.findUnique({ where: { id: unsigned.value }, include: { user: true } });
   if (!session || session.expiresAt < new Date()) return;
   request.user = session.user;
+  // Последняя активность для аналитики (DAU/WAU/MAU), не чаще раза в 10 минут и в фоне.
+  const seen = session.user.lastSeenAt?.getTime() ?? 0;
+  if (Date.now() - seen > 600_000) prisma.user.update({ where: { id: session.user.id }, data: { lastSeenAt: new Date() } }).catch(() => {});
 }
 
 export async function requireUser(request: FastifyRequest, reply: FastifyReply): Promise<void> {

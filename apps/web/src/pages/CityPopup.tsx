@@ -52,7 +52,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
     setBusy(true); setError(null);
     try {
       const r = await api<{ correct: boolean; fragment?: string }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
-      if (r.correct) notify(`Верно! Буква шифра: ${r.fragment}`);
+      if (r.correct) notify(`Верно! Знак шифра: ${r.fragment}`);
       else notify("Неверно. Перечитайте это место в книге", "bad");
       await load(); onChanged();
       return r.correct;
@@ -156,7 +156,7 @@ function TaskView({ task, district, done, fragment, busy, cooldown, onBack, onAn
       <div className="muted" style={{ margin: ".4rem 0 .2rem" }}>Район {task.index + 1}: {district?.title} <span>{district?.verses}</span> · задание {scope}</div>
       <p className="prompt">{task.prompt}</p>
       {done ? (
-        <div className="note ok">Выполнено. Буква шифра: <strong>{fragment}</strong></div>
+        <div className="note ok">Выполнено. Знак шифра: <strong>{fragment}</strong></div>
       ) : (
         <>
           {task.type === "number" && <input type="number" inputMode="numeric" value={text} onChange={(e) => setText(e.target.value)} placeholder="Число" />}

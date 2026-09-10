@@ -218,7 +218,14 @@ export function TeamPage() {
               <div className="section">
                 <h2>Положение команд</h2>
                 <ul className="list">
-                  {standings.standings.map((t) => <li key={t.teamId}><span><span className="avatar" style={{ background: t.color, color: "#fff" }}>{t.name.slice(0, 1)}</span> {t.name}</span><span className="muted">{t.status === "defeated" ? "выбыла" : t.teamId === standings.winnerTeamId ? "🏆 победитель" : `городов ${t.cities}`}</span></li>)}
+                  {standings.standings.map((t) => (
+                    <li key={t.teamId}>
+                      <div className="main"><span className="avatar" style={{ background: t.color, color: "#fff" }}>{t.name.slice(0, 1)}</span> {t.name} {t.teamId === standings.winnerTeamId && "🏆"}
+                        <div className="muted" style={{ fontSize: ".82rem" }}>городов {t.cities} · дел {t.deedsApproved} · узлов {t.nodesRevealed} · битвы {t.battlesWon}/{t.battlesRepelled}/{t.battlesLost}{t.citiesOnPath.length ? ` · путь: ${t.citiesOnPath.map((c) => c.name + (c.current ? "" : " (потерян)")).join(", ")}` : ""}</div>
+                      </div>
+                      <span className="badge">{t.status === "defeated" ? "выбыла" : t.teamId === standings.winnerTeamId ? "победитель" : "в игре"}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}

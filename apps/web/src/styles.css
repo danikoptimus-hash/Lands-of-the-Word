@@ -209,3 +209,15 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .standings tr.winner td { background: var(--success-soft); font-weight: 600; }
 .standings tr.out td { color: var(--muted); }
 .finish-banner { position: absolute; left: 50%; top: 70px; transform: translateX(-50%); z-index: 6; background: var(--surface); border: 1px solid var(--success); color: var(--success); border-radius: 999px; padding: .5rem 1rem; box-shadow: var(--shadow); white-space: nowrap; max-width: calc(100% - 20px); overflow: hidden; text-overflow: ellipsis; }
+
+.path-list { display: flex; flex-direction: column; gap: .5rem; margin-top: .6rem; }
+.path-list .team-stripe { padding: .5rem .7rem; }
+
+/* Дашборд суперадмина */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; }
+.tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .7rem .8rem; }
+.tile .value { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+.tile .label { color: var(--muted); font-size: .85rem; margin-top: .2rem; }
+.tile .hint { color: var(--muted); font-size: .75rem; margin-top: .1rem; }
+.ghost-link { color: var(--muted); text-decoration: none; margin-left: .8rem; font-size: .9rem; }
+.ghost-link:hover { color: var(--accent); }

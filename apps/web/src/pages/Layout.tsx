@@ -15,6 +15,7 @@ export function Layout() {
             <div className="userchip">
               <Link to="/account" className="userchip" style={{ textDecoration: "none", color: "inherit" }}><span className="avatar">{name.slice(0, 1).toUpperCase()}</span>
               <span className="name">{name}{user.platformRole === "SUPERADMIN" ? " · суперадмин" : ""}</span></Link>
+              {user.platformRole === "SUPERADMIN" && <Link to="/admin" className="ghost-link">Аналитика</Link>}
               <button className="ghost" onClick={() => void logout()} title="Выйти">Выйти</button>
             </div>
           )}

@@ -193,6 +193,7 @@ export async function resolveWon(b: Battle): Promise<void> {
   const full = await prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } });
   const level = Math.max(b.bid, sumVerses(full.entries, "ATTACK", true));
   const defenderState = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: b.defenderId, nodeKey: b.nodeKey } } });
+  const attackerState = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } } });
   const wasCapital = defenderState?.isCapital ?? false;
   const attackerHasCapital = (await prisma.teamCityState.count({ where: { teamId: b.attackerId, isCapital: true } })) > 0;
   const ops: Prisma.PrismaPromise<unknown>[] = [
@@ -201,8 +202,8 @@ export async function resolveWon(b: Battle): Promise<void> {
     prisma.teamCityState.updateMany({ where: { teamId: b.defenderId, nodeKey: b.nodeKey }, data: { capturedAt: null, isCapital: false, secondCapital: false } }),
     prisma.teamCityState.upsert({
       where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } },
-      create: { gameId: b.gameId, teamId: b.attackerId, nodeKey: b.nodeKey, orderSolved: true, capturedAt: now, isCapital: wasCapital || !attackerHasCapital, secondCapital: wasCapital && attackerHasCapital },
-      update: { capturedAt: now, isCapital: wasCapital || !attackerHasCapital, secondCapital: wasCapital && attackerHasCapital },
+      create: { gameId: b.gameId, teamId: b.attackerId, nodeKey: b.nodeKey, orderSolved: true, capturedAt: now, firstCapturedAt: now, isCapital: wasCapital || !attackerHasCapital, secondCapital: wasCapital && attackerHasCapital },
+      update: { capturedAt: now, firstCapturedAt: attackerState?.firstCapturedAt ?? now, isCapital: wasCapital || !attackerHasCapital, secondCapital: wasCapital && attackerHasCapital },
     }),
   ];
   if (wasCapital) {

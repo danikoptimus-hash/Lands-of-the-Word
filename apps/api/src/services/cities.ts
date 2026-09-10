@@ -11,7 +11,7 @@ import { z } from "zod";
  * Ответы на клиент никогда не уходят: проверка только здесь.
  */
 
-const taskBase = { scope: z.enum(["district", "group", "book"]), groupDistricts: z.array(z.number().int().min(1)).optional(), prompt: z.string().min(1), fragment: z.string().min(1).max(3) };
+const taskBase = { scope: z.enum(["district", "group", "book"]), groupDistricts: z.array(z.number().int().min(1)).optional(), prompt: z.string().min(1) };
 const taskSchema = z.discriminatedUnion("type", [
   z.object({ ...taskBase, type: z.literal("number"), answer: z.number() }),
   z.object({ ...taskBase, type: z.literal("text"), answers: z.array(z.string().min(1)).min(1) }),
@@ -22,8 +22,7 @@ const contentSchema = z.object({
   book: z.string().min(1),
   title: z.string().min(1),
   translation: z.string().default(""),
-  codePhrase: z.string().min(1),
-  codeRule: z.string().default(""),
+  codeRule: z.string().default("Каждый район даёт один знак шифра. Знаки по порядку районов — это шифр города."),
   districts: z.array(z.object({ verses: z.string(), title: z.string().min(1), summary: z.string().min(1) })).min(2),
   tasks: z.array(taskSchema).min(1),
 }).refine((c) => c.tasks.length === c.districts.length, { message: "Число заданий должно совпадать с числом районов" });
@@ -46,6 +45,13 @@ export async function loadCityContent(bookCode: string): Promise<CityContent | n
   }
   cache.set(bookCode, content);
   return content;
+}
+
+/** Шифр города: случайные русские буквы и цифры без похожих знаков, по одному на район. Свой в каждой игре. */
+export function makeCityCode(length: number): string {
+  const alphabet = "АБВГДЕЖИКЛМНПРСТУФХЦЧШЭЮЯ23456789";
+  const bytes = randomBytes(Math.max(1, length));
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]!).join("");
 }
 
 /** Ключ конверта: 6 знаков без похожих символов (0/O, 1/I). */

@@ -138,7 +138,7 @@ function AdminCityPanel({ gameId, node, version, revealedTeams, onClose }: { gam
       {city && (
         <>
           <p style={{ margin: ".3rem 0" }}>Ключ конверта: {city.node.cityKey ? <code className="key">{city.node.cityKey}</code> : <span className="muted">появится после старта игры</span>}
-            {city.content && <> · шифр для семьи: <strong>{city.content.codePhrase}</strong></>}</p>
+            {city.node.cityCode && <> · шифр для семьи: <strong style={{ letterSpacing: ".08em" }}>{city.node.cityCode}</strong></>}</p>
           {!city.content && <p className="note warn">Задания для этой книги ещё готовятся: команды пока не могут взять этот город.</p>}
           <RevealButtons gameId={gameId} nodeKey={node.key} teams={city.teams} revealedBy={revealedTeams} />
           <AssignButtons gameId={gameId} nodeKey={node.key} teams={city.teams} />
@@ -167,7 +167,7 @@ function AdminCityPanel({ gameId, node, version, revealedTeams, onClose }: { gam
                         <div><strong>{d.title}</strong> <span className="muted">{d.verses}</span></div>
                         <div className="muted" style={{ fontSize: ".85rem" }}>{d.summary}</div>
                         <div style={{ marginTop: ".25rem" }}>{t.prompt}</div>
-                        <div className="note ok" style={{ margin: ".25rem 0 0" }}>Ответ: {answer} · буква {t.fragment}</div>
+                        <div className="note ok" style={{ margin: ".25rem 0 0" }}>Ответ: {answer} · знак шифра {city.node.cityCode?.[i] ?? "?"}</div>
                       </li>
                     );
                   })}

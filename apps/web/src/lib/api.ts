@@ -48,10 +48,10 @@ export interface MyCityDto {
   state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; cooldownUntil: number | null };
 }
 /** Город глазами админа: контент с ответами, ключ конверта, прогресс команд. */
-export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order"; prompt: string; fragment: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[] }
+export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[] }
 export interface AdminCityDto {
-  node: { key: string; bookCode: string; cityType: string | null; cityKey: string | null };
-  content: { title: string; translation: string; codePhrase: string; codeRule: string; districts: Array<{ verses: string; title: string; summary: string }>; tasks: AdminCityTask[] } | null;
+  node: { key: string; bookCode: string; cityType: string | null; cityKey: string | null; cityCode: string | null };
+  content: { title: string; translation: string; codeRule: string; districts: Array<{ verses: string; title: string; summary: string }>; tasks: AdminCityTask[] } | null;
   teams: Array<{ id: string; index: number; name: string; color: string; orderSolved: boolean; orderAttempts: number; doneTasks: number[]; answerAttempts: number; capturedAt: string | null; isCapital: boolean }>;
 }
 export const PROOF_LABEL: Record<DeedLite["proofType"], string> = { REPORT: "отчёт текстом", PHOTO_LINK: "ссылка на фото", VIDEO_LINK: "ссылка на видео", CONFIRMATION: "подтверждение человека" };
@@ -74,5 +74,6 @@ export interface WarDto { defenseLevel: number; sumMode: boolean; locked: boolea
 export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { QUEUED: "в очереди", ATTACK: "атака", DEFENSE: "оборона", WON: "город взят", REPELLED: "атака отражена", EXPIRED: "атака сгорела", CANCELLED: "отменена" };
 
 /** Итоги игры: положение команд и победитель. */
-export interface StandingRow { teamId: string; name: string; color: string; index: number; status: string; cities: number; capitals: number }
+export interface CityOnPath { nodeKey: string; bookCode: string; name: string; current: boolean; isCapital: boolean; at: string }
+export interface StandingRow { teamId: string; name: string; color: string; index: number; status: string; cities: number; capitals: number; citiesOnPath: CityOnPath[]; deedsApproved: number; nodesRevealed: number; battlesWon: number; battlesLost: number; battlesRepelled: number }
 export interface StandingsDto { status: string; finishedAt: string | null; winnerTeamId: string | null; finishReason: string | null; endsAt: string | null; standings: StandingRow[]; leaderTeamId: string | null }

@@ -1,18 +1,52 @@
 import { prisma } from "../db.js";
 import { publish } from "./events.js";
 import { notifyAdmins, notifyTeam } from "./notify.js";
+import { BOOKS } from "@lotw/domain";
+
+const bookName = (code: string) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
 
 /**
  * Завершение игры (2.9): игра заканчивается, когда в строю осталась одна команда (остальные потеряли
  * столицы), когда вышел срок игры (побеждает команда с наибольшим числом городов) или по кнопке админа.
  */
 
-export interface Standing { teamId: string; name: string; color: string; index: number; status: string; cities: number; capitals: number }
+export interface CityOnPath { nodeKey: string; bookCode: string; name: string; current: boolean; isCapital: boolean; at: string }
+export interface Standing {
+  teamId: string; name: string; color: string; index: number; status: string;
+  cities: number; capitals: number;
+  /** Статистика пути: города, которые команда брала (в том числе потерянные), дела, узлы, битвы. */
+  citiesOnPath: CityOnPath[]; deedsApproved: number; nodesRevealed: number; battlesWon: number; battlesLost: number; battlesRepelled: number;
+}
 
 export async function standings(gameId: string): Promise<Standing[]> {
-  const teams = await prisma.team.findMany({ where: { gameId }, orderBy: { index: "asc" }, select: { id: true, name: true, color: true, index: true, status: true, cityStates: { where: { capturedAt: { not: null } }, select: { isCapital: true } } } });
+  const [teams, nodes, battles] = await Promise.all([
+    prisma.team.findMany({
+      where: { gameId }, orderBy: { index: "asc" },
+      select: {
+        id: true, name: true, color: true, index: true, status: true,
+        cityStates: { where: { firstCapturedAt: { not: null } }, select: { nodeKey: true, capturedAt: true, firstCapturedAt: true, isCapital: true } },
+        _count: { select: { nodeStates: true, edgeTasks: { where: { status: "APPROVED" } } } },
+      },
+    }),
+    prisma.mapNode.findMany({ where: { gameId, kind: "CITY" }, select: { key: true, bookCode: true } }),
+    prisma.battle.findMany({ where: { gameId, status: { in: ["WON", "REPELLED"] } }, select: { status: true, attackerId: true, defenderId: true } }),
+  ]);
+  const bookOf = new Map(nodes.map((n) => [n.key, n.bookCode ?? ""]));
   return teams
-    .map((t) => ({ teamId: t.id, name: t.name, color: t.color, index: t.index, status: t.status, cities: t.cityStates.length, capitals: t.cityStates.filter((c) => c.isCapital).length }))
+    .map((t) => {
+      const current = t.cityStates.filter((c) => c.capturedAt);
+      return {
+        teamId: t.id, name: t.name, color: t.color, index: t.index, status: t.status,
+        cities: current.length, capitals: current.filter((c) => c.isCapital).length,
+        citiesOnPath: t.cityStates
+          .map((c) => ({ nodeKey: c.nodeKey, bookCode: bookOf.get(c.nodeKey) ?? "", name: bookName(bookOf.get(c.nodeKey) ?? ""), current: c.capturedAt != null, isCapital: c.isCapital, at: (c.firstCapturedAt ?? new Date()).toISOString() }))
+          .sort((a, b) => a.at.localeCompare(b.at)),
+        deedsApproved: t._count.edgeTasks, nodesRevealed: t._count.nodeStates,
+        battlesWon: battles.filter((b) => b.status === "WON" && b.attackerId === t.id).length,
+        battlesLost: battles.filter((b) => b.status === "WON" && b.defenderId === t.id).length,
+        battlesRepelled: battles.filter((b) => b.status === "REPELLED" && b.defenderId === t.id).length,
+      };
+    })
     .sort((a, b) => (a.status === "defeated") !== (b.status === "defeated") ? (a.status === "defeated" ? 1 : -1) : b.cities - a.cities || b.capitals - a.capitals || a.index - b.index);
 }
 

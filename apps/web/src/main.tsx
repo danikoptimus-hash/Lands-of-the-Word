@@ -12,6 +12,7 @@ import { JoinPage } from "./pages/JoinPage";
 import { AccountPage } from "./pages/AccountPage";
 import { ForgotPage } from "./pages/ForgotPage";
 import { ResetPage } from "./pages/ResetPage";
+import { AdminDashboard } from "./pages/AdminDashboard";
 import "./styles.css";
 
 function Private({ children }: { children: React.ReactElement }) {
@@ -35,6 +36,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/games/:id/team" element={<Private><TeamPage /></Private>} />
             <Route path="/join/:token" element={<JoinPage />} />
             <Route path="/account" element={<Private><AccountPage /></Private>} />
+            <Route path="/admin" element={<Private><AdminDashboard /></Private>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
