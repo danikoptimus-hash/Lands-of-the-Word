@@ -63,7 +63,7 @@ export function TeamPage() {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setIsAdmin(r.isAdmin); setTeam(r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")), [id]);
+  const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setIsAdmin(r.isAdmin); setTeam(r.teams.find((t) => t.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")), [id, user?.id]);
   const loadMap = useCallback(() => api<MyMapDto & { gameName?: string }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); if (m.gameName) setGameName(m.gameName); }).catch(() => setMap(null)), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   useEffect(() => { if (team) void loadBattles(); }, [team, loadBattles]);

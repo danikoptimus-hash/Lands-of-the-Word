@@ -74,12 +74,15 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
   // Города, до которых команда дошла: чей город, и мой прогресс в нём.
   const cityNodes = nodes.filter((n) => n.kind === "CITY" && revealed.has(n.key));
-  const [cityStates, owners] = await Promise.all([
+  const [cityStates, owners, battles] = await Promise.all([
     prisma.teamCityState.findMany({ where: { teamId, nodeKey: { in: cityNodes.map((n) => n.key) } } }),
     prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, team: { select: { index: true, name: true, color: true } } } }),
+    prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: teamId }, { defenderId: teamId }] }, select: { nodeKey: true, attackerId: true, status: true } }),
   ]);
   const stateByKey = new Map(cityStates.map((s) => [s.nodeKey, s]));
   const ownerByKey = new Map(owners.map((o) => [o.nodeKey, o.team]));
+  // Роль команды в активной битве за город: атакует (синие мечи) или защищается (красные).
+  const battleByKey = new Map(battles.map((b) => [b.nodeKey, b.attackerId === teamId ? "ATTACK" : "DEFENSE"]));
   const cities = await Promise.all(cityNodes.map(async (n) => {
     const content = await loadCityContent(n.bookCode ?? "");
     const s = stateByKey.get(n.key);
@@ -92,6 +95,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
       done: s?.doneTasks.length ?? 0,
       captured: s?.capturedAt != null,
       isCapital: s?.isCapital ?? false,
+      battle: battleByKey.get(n.key) ?? null,
     };
   }));
   // Гекс освещён, если хотя бы один его угол открыт командой. Остальные видны только силуэтом в тумане.

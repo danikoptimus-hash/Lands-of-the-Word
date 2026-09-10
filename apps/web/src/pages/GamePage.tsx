@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
-import { AdminMap, type CityProgress, type TeamProgress } from "./AdminMap";
+import { AdminMap, type BattleProgress, type CityProgress, type TeamProgress } from "./AdminMap";
 import { Timeline, collectMoves, progressAt } from "./Timeline";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamsBlock } from "./TeamsBlock";
@@ -26,8 +26,8 @@ export function GamePage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
-  const [progress, setProgress] = useState<{ teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[] } | null>(null);
-  const loadProgress = useCallback(() => api<{ teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[] }>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
+  const [progress, setProgress] = useState<{ teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] } | null>(null);
+  const loadProgress = useCallback(() => api<{ teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] }>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
   /** Ползунок времени: null — «сейчас» (живое состояние), иначе момент, на который показываем карту. */
   const [at, setAt] = useState<Date | null>(null);
   const shown = useMemo(() => (progress && at ? progressAt(progress.teams, at) : progress?.teams ?? null), [progress, at]);
@@ -86,7 +86,7 @@ export function GamePage() {
       {hexes.length > 0 ? (
         <div className="card">
           <div className="card-head"><h2>Карта (вид админа)</h2><span className="muted">Города и развилки — на перекрёстках, ходят по сторонам гексов. Тяни, колесо или щипок — масштаб.</span></div>
-          <AdminMap gameId={game.id} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} version={version} />
+          <AdminMap gameId={game.id} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} />
           {progress?.startedAt && <Timeline moves={moves} startedAt={progress.startedAt} at={at} onChange={setAt} />}
           <p className="hint">Служебный вид. Игровое оформление с иллюстрациями будет отдельно.</p>
         </div>

@@ -35,9 +35,10 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
             <span className="badge">{BATTLE_STATUS_LABEL[b.status]}</span>
           </div>
           <div className="muted" style={{ fontSize: ".9rem" }}>
-            ставка {b.bid} ст.{b.sumMode ? " (сумма)" : ""}{b.passage ? ` · отрывок ${b.passage.ref}` : ""} · атака {b.attackCovered}/{b.bid} (одобрено {b.attackApproved})
+            ставка {b.bid} ст.{b.passage ? ` · отрывок атаки ${b.passage.ref}` : ""} · атака: выучено {b.attackSum}, одобрено {b.attackApproved}{b.attackDoneAt ? " · отправлена" : ""}
             {b.attackDeadline && b.status === "ATTACK" ? ` · до ${new Date(b.attackDeadline).toLocaleString("ru")}` : ""}
-            {b.status === "DEFENSE" || b.defenseCovered > 0 ? ` · оборона ${b.defenseCovered}/${b.bid} (одобрено ${b.defenseApproved})` : ""}
+            {b.defensePassage ? ` · отрывок обороны ${b.defensePassage.ref}` : ""}
+            {b.status === "DEFENSE" || b.defenseSum > 0 ? ` · оборона: выучено ${b.defenseSum}, одобрено ${b.defenseApproved} (нужно ${b.attackApproved})${b.defenseDoneAt ? " · отправлена" : ""}` : ""}
             {b.defenseDeadline ? ` · оборона до ${new Date(b.defenseDeadline).toLocaleString("ru")}` : ""}
             {b.defenseBid != null && b.status === "REPELLED" ? ` · отражено ${b.defenseBid} ст.` : ""}
           </div>

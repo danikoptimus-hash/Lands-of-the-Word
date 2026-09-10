@@ -1,15 +1,23 @@
 import { prisma } from "../db.js";
 import { publish } from "./events.js";
-import { notifyTeam } from "./notify.js";
 import { loadBook, randomPassage } from "./bible.js";
 import { loadCityContent } from "./cities.js";
+import { notifyTeam } from "./notify.js";
+import { BOOKS } from "@lotw/domain";
+
+const bookName = (code: string) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
 import type { Battle, BattleEntry, Prisma } from "@prisma/client";
 
 /**
- * Битвы за города (правила 2.8, 2.8.1, 2.9 документации).
- * Атака: случайный отрывок из N стихов; T = от начала атаки до последней ссылки; лимит 14 дней (сгорание: штраф +5).
- * Оборона: после одобрения атаки у защитников ровно T на M ≥ N стихов; ничья — за защитниками.
- * Исчерпание книги (N ≥ стихов в книге): суммарный режим, отражённая атака закрепляет город навсегда.
+ * Битвы за города (правила 2.8, 2.8.1, 2.9 документации; учёт стихов — решение владельца).
+ * Ставка N — сколько стихов команда обещает выучить в сумме по участникам. Атакующим выдаётся
+ * случайный последовательный отрывок из min(N, стихов в книге); каждый участник отмечает выученные
+ * стихи и прикрепляет ссылку на видео; считается СУММА выученных стихов по участникам
+ * (один человек 10 + другой 10 = 20). Капитан отправляет атаку на проверку, когда сумма ≥ N;
+ * T = от старта атаки до отправки. После одобрения админом у защитников ровно T: капитан выбирает
+ * последовательный отрывок из всей книги, участники учат, сумма M ≥ одобренной суммы атаки → отражено
+ * (ничья за защитниками). Сгоревшая атака (14 дней) — штраф +5. Если N ≥ стихов в книге — «книга
+ * исчерпана»: отражённая атака закрепляет город навсегда.
  */
 
 export const MIN_BID = 10;
@@ -23,16 +31,11 @@ export function minBidFor(defenseLevel: number, penalty: number): number {
   return Math.max(MIN_BID + penalty, defenseLevel + 1);
 }
 
-/** Число различных стихов, покрытых записями (в суммарном режиме — сумма по участникам, внутри участника без повторов). */
-export function coverage(entries: BattleEntry[], sumMode: boolean, onlyApproved: boolean): number {
-  const rows = entries.filter((e) => e.status !== "REJECTED" && (!onlyApproved || e.status === "APPROVED"));
-  if (!sumMode) {
-    const set = new Set<number>();
-    for (const e of rows) for (let i = e.startIdx; i <= e.endIdx; i++) set.add(i);
-    return set.size;
-  }
+/** Сумма выученных стихов по участникам стороны (внутри участника стих считается один раз). */
+export function sumVerses(entries: BattleEntry[], side: "ATTACK" | "DEFENSE", onlyApproved: boolean): number {
   const byUser = new Map<string, Set<number>>();
-  for (const e of rows) {
+  for (const e of entries) {
+    if (e.side !== side || e.status === "REJECTED" || (onlyApproved && e.status !== "APPROVED")) continue;
     const set = byUser.get(e.userId) ?? new Set<number>();
     for (let i = e.startIdx; i <= e.endIdx; i++) set.add(i);
     byUser.set(e.userId, set);
@@ -42,16 +45,29 @@ export function coverage(entries: BattleEntry[], sumMode: boolean, onlyApproved:
   return sum;
 }
 
-/** Есть ли пересечение новой записи с существующими (в обычном режиме — по всей стороне, в суммарном — только у того же участника). */
-export function overlaps(entries: BattleEntry[], side: "ATTACK" | "DEFENSE", userId: string, start: number, end: number, sumMode: boolean): boolean {
-  return entries.some((e) => e.side === side && e.status !== "REJECTED" && (!sumMode || e.userId === userId) && e.startIdx <= end && e.endIdx >= start);
+/** Стихи, которые участник уже отметил на этой стороне. */
+export function userVerses(entries: BattleEntry[], side: "ATTACK" | "DEFENSE", userId: string): Set<number> {
+  const set = new Set<number>();
+  for (const e of entries) if (e.side === side && e.userId === userId && e.status !== "REJECTED") for (let i = e.startIdx; i <= e.endIdx; i++) set.add(i);
+  return set;
+}
+
+/** Группирует отсортированные индексы стихов в последовательные диапазоны. */
+export function toRanges(verses: number[]): Array<{ start: number; end: number }> {
+  const sorted = [...new Set(verses)].sort((a, b) => a - b);
+  const out: Array<{ start: number; end: number }> = [];
+  for (const v of sorted) {
+    const last = out[out.length - 1];
+    if (last && last.end === v - 1) last.end = v; else out.push({ start: v, end: v });
+  }
+  return out;
 }
 
 async function nodeOf(gameId: string, nodeKey: string) {
   return prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: nodeKey } } });
 }
 
-/** Запуск атаки из очереди/объявления: случайный отрывок, дедлайн 14 дней. */
+/** Запуск атаки: случайный отрывок из min(N, стихов книги), дедлайн 14 дней. */
 export async function startAttack(battleId: string): Promise<BattleWithEntries> {
   const b = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
   const game = await prisma.game.findUniqueOrThrow({ where: { id: b.gameId }, select: { settings: true } });
@@ -59,14 +75,11 @@ export async function startAttack(battleId: string): Promise<BattleWithEntries> 
   const book = await loadBook(b.bookCode);
   if (!book) throw new Error("Текст книги не загружен");
   const now = new Date();
-  let passage: { start: number; end: number } | null = null;
-  if (!b.sumMode) {
-    passage = randomPassage(book, b.bid, settings.includeGenealogies ?? false);
-    if (!passage) passage = randomPassage(book, b.bid, true);
-  }
+  const len = Math.min(b.bid, book.total);
+  const passage = randomPassage(book, len, settings.includeGenealogies ?? false) ?? randomPassage(book, len, true)!;
   return prisma.battle.update({
     where: { id: b.id },
-    data: { status: "ATTACK", startedAt: now, attackDeadline: new Date(now.getTime() + ATTACK_LIMIT_MS), passageStart: passage?.start ?? null, passageEnd: passage?.end ?? null },
+    data: { status: "ATTACK", startedAt: now, attackDeadline: new Date(now.getTime() + ATTACK_LIMIT_MS), passageStart: passage.start, passageEnd: passage.end },
     include: { entries: true },
   });
 }
@@ -81,13 +94,12 @@ export async function startNextFromQueue(gameId: string, nodeKey: string): Promi
     return;
   }
   const owner = await prisma.teamCityState.findFirst({ where: { gameId, nodeKey, capturedAt: { not: null } } });
-  const queued = await prisma.battle.findMany({ where: { gameId, nodeKey, status: "QUEUED" }, orderBy: [{ bid: "desc" }, { declaredAt: "asc" }], include: { entries: true } });
+  const queued = await prisma.battle.findMany({ where: { gameId, nodeKey, status: "QUEUED" }, orderBy: [{ bid: "desc" }, { declaredAt: "asc" }] });
   for (const q of queued) {
-    // Город сменил владельца: атака на свой город не нужна; защитник — новый владелец.
     if (!owner || owner.teamId === q.attackerId) { await prisma.battle.update({ where: { id: q.id }, data: { status: "CANCELLED", resolvedAt: new Date() } }); continue; }
     const st = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: q.attackerId, nodeKey } } });
     const min = minBidFor(node.defenseLevel, st?.attackPenalty ?? 0);
-    if (q.bid < min) continue; // ждёт, пока команда поднимет ставку (ей придёт уведомление)
+    if (q.bid < min) continue; // ждёт, пока команда поднимет ставку
     await prisma.battle.update({ where: { id: q.id }, data: { defenderId: owner.teamId } });
     await startAttack(q.id);
     publish(gameId, { type: "battles", teamId: q.attackerId });
@@ -97,55 +109,55 @@ export async function startNextFromQueue(gameId: string, nodeKey: string): Promi
   if (queued.length) publish(gameId, { type: "battles" });
 }
 
-/** Пересчёт момента «последняя ссылка прикреплена» по покрытию отрывка. */
-export async function recomputeAttackDone(b: BattleWithEntries): Promise<BattleWithEntries> {
-  const covered = coverage(b.entries.filter((e) => e.side === "ATTACK"), b.sumMode, false);
-  const complete = covered >= b.bid;
-  if (complete && !b.attackDoneAt) {
-    const last = b.entries.filter((e) => e.side === "ATTACK" && e.status !== "REJECTED").reduce((m, e) => Math.max(m, e.createdAt.getTime()), 0);
-    return prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: new Date(last || Date.now()) }, include: { entries: true } });
-  }
-  if (!complete && b.attackDoneAt) return prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: null }, include: { entries: true } });
-  return b;
+/** Капитан атакующих отправляет атаку на проверку: сумма выученных ≥ N. T фиксируется этим моментом. */
+export async function submitAttack(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
+  if (b.status !== "ATTACK") return { ok: false, message: "Атака не идёт" };
+  if (b.attackDoneAt) return { ok: false, message: "Атака уже отправлена на проверку" };
+  const sum = sumVerses(b.entries, "ATTACK", false);
+  if (sum < b.bid) return { ok: false, message: `Выучено ${sum} из ${b.bid} стихов: не хватает ${b.bid - sum}` };
+  const upd = await prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: new Date() }, include: { entries: true } });
+  return { ok: true, battle: await maybeStartDefense(upd) };
 }
 
-export async function recomputeDefenseDone(b: BattleWithEntries): Promise<BattleWithEntries> {
-  const covered = coverage(b.entries.filter((e) => e.side === "DEFENSE"), b.sumMode, false);
-  const complete = covered >= b.bid;
-  if (complete && !b.defenseDoneAt) {
-    const last = b.entries.filter((e) => e.side === "DEFENSE" && e.status !== "REJECTED").reduce((m, e) => Math.max(m, e.createdAt.getTime()), 0);
-    return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: new Date(last || Date.now()), defenseBid: covered }, include: { entries: true } });
-  }
-  if (!complete && b.defenseDoneAt) return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null }, include: { entries: true } });
-  if (complete) return prisma.battle.update({ where: { id: b.id }, data: { defenseBid: covered }, include: { entries: true } });
-  return b;
+/** Капитан защитников отправляет оборону на проверку до дедлайна: сумма ≥ одобренной суммы атаки. */
+export async function submitDefense(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
+  if (b.status !== "DEFENSE") return { ok: false, message: "Оборона не идёт" };
+  if (b.defenseDoneAt) return { ok: false, message: "Оборона уже отправлена на проверку" };
+  if (b.defenseDeadline && b.defenseDeadline.getTime() < Date.now()) return { ok: false, message: "Время обороны вышло" };
+  const need = sumVerses(b.entries, "ATTACK", true);
+  const sum = sumVerses(b.entries, "DEFENSE", false);
+  if (sum < need) return { ok: false, message: `Выучено ${sum} из ${need} стихов: не хватает ${need - sum}` };
+  const upd = await prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: new Date(), defenseBid: sum }, include: { entries: true } });
+  return { ok: true, battle: await maybeRepel(upd) };
 }
 
-/** Все записи стороны одобрены и покрытие достаточно. */
-function sideApproved(b: BattleWithEntries, side: "ATTACK" | "DEFENSE"): boolean {
+/** Все записи стороны одобрены и сумма достаточна. */
+function sideApproved(b: BattleWithEntries, side: "ATTACK" | "DEFENSE", need: number): boolean {
   const rows = b.entries.filter((e) => e.side === side && e.status !== "REJECTED");
   if (rows.length === 0 || rows.some((e) => e.status !== "APPROVED")) return false;
-  return coverage(rows, b.sumMode, true) >= b.bid;
+  return sumVerses(b.entries, side, true) >= need;
 }
 
-/** Одобрена вся атака → таймер обороны: ровно T = attackDoneAt − startedAt. */
+/** Атака отправлена и вся одобрена → таймер обороны ровно T = attackDoneAt − startedAt. */
 export async function maybeStartDefense(b: BattleWithEntries): Promise<BattleWithEntries> {
-  if (b.status !== "ATTACK" || !b.attackDoneAt || !b.startedAt || !sideApproved(b, "ATTACK")) return b;
+  if (b.status !== "ATTACK" || !b.attackDoneAt || !b.startedAt || !sideApproved(b, "ATTACK", b.bid)) return b;
   const now = new Date();
   const T = Math.max(60_000, b.attackDoneAt.getTime() - b.startedAt.getTime());
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackApprovedAt: now, defenseDeadline: new Date(now.getTime() + T) }, include: { entries: true } });
   publish(b.gameId, { type: "battles", teamId: b.defenderId });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
   const hours = Math.round(T / 360_000) / 10;
-  notifyTeam(b.gameId, b.defenderId, "началось время обороны", `Атака на ваш город одобрена. У вас ${hours} ч (до ${upd.defenseDeadline!.toLocaleString("ru-RU")}), чтобы записать ${b.bid} стихов или больше и прикрепить ссылки.`);
+  notifyTeam(b.gameId, b.defenderId, `пошло время обороны города ${bookName(b.bookCode)}`, `Атака одобрена: ${sumVerses(upd.entries, "ATTACK", true)} стихов. У вас ${hours} ч (до ${upd.defenseDeadline!.toLocaleString("ru-RU")}), чтобы выучить не меньше. Капитан выбирает отрывок из книги, участники отмечают выученные стихи и прикрепляют видео.`);
   return upd;
 }
 
-/** Одобрена вся оборона в срок → атака отражена. */
+/** Оборона отправлена в срок и вся одобрена с суммой ≥ суммы атаки → атака отражена. */
 export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntries> {
-  if (b.status !== "DEFENSE" || !b.defenseDoneAt || !b.defenseDeadline || !sideApproved(b, "DEFENSE")) return b;
+  if (b.status !== "DEFENSE" || !b.defenseDoneAt || !b.defenseDeadline) return b;
   if (b.defenseDoneAt.getTime() > b.defenseDeadline.getTime()) return b;
-  const M = coverage(b.entries.filter((e) => e.side === "DEFENSE"), b.sumMode, true);
+  const need = sumVerses(b.entries, "ATTACK", true);
+  if (!sideApproved(b, "DEFENSE", need)) return b;
+  const M = sumVerses(b.entries, "DEFENSE", true);
   const now = new Date();
   const [upd] = await prisma.$transaction([
     prisma.battle.update({ where: { id: b.id }, data: { status: "REPELLED", defenseBid: M, resolvedAt: now }, include: { entries: true } }),
@@ -153,21 +165,38 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
   ]);
   publish(b.gameId, { type: "battles" });
   publish(b.gameId, { type: "map" });
-  notifyTeam(b.gameId, b.defenderId, "атака отражена", `Ваша оборона одобрена: город остаётся за вами, уровень защиты ${M}.`);
-  notifyTeam(b.gameId, b.attackerId, "атака отражена", `Защитники ответили ${M} стихами: город остаётся у них. Следующая атака потребует не меньше ${M + 1}.`);
+  notifyTeam(b.gameId, b.defenderId, `атака на ${bookName(b.bookCode)} отражена`, `Оборона одобрена: ${M} стихов против ${need}. Город остаётся вашим, уровень защиты теперь ${M}.`);
+  notifyTeam(b.gameId, b.attackerId, `атака на ${bookName(b.bookCode)} отражена`, `Защитники ответили ${M} стихами против ваших ${need}. Следующая атака на этот город потребует не меньше ${M + 1}.`);
   await startNextFromQueue(b.gameId, b.nodeKey);
   return upd;
 }
 
-/** Город взят: смена владельца, уровень защиты = N; потеря столицы = поражение защитников. */
+/** После отклонения записи: если суммы уже не хватает, отправка снимается — сторона добирает и отправляет заново. */
+export async function afterReject(b: BattleWithEntries, side: "ATTACK" | "DEFENSE"): Promise<BattleWithEntries> {
+  if (side === "ATTACK" && b.status === "ATTACK" && b.attackDoneAt && sumVerses(b.entries, "ATTACK", false) < b.bid) {
+    return prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: null }, include: { entries: true } });
+  }
+  if (side === "DEFENSE" && b.status === "DEFENSE" && b.defenseDoneAt) {
+    const need = sumVerses(b.entries, "ATTACK", true);
+    if (sumVerses(b.entries, "DEFENSE", false) < need) {
+      if (b.defenseDeadline && b.defenseDeadline.getTime() < Date.now()) { await resolveWon(b); return (await prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } })); }
+      return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null }, include: { entries: true } });
+    }
+  }
+  return b;
+}
+
+/** Город взят: смена владельца, уровень защиты = одобренная сумма атаки; потеря столицы = поражение защитников. */
 export async function resolveWon(b: Battle): Promise<void> {
   const now = new Date();
+  const full = await prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } });
+  const level = Math.max(b.bid, sumVerses(full.entries, "ATTACK", true));
   const defenderState = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: b.defenderId, nodeKey: b.nodeKey } } });
   const wasCapital = defenderState?.isCapital ?? false;
   const attackerHasCapital = (await prisma.teamCityState.count({ where: { teamId: b.attackerId, isCapital: true } })) > 0;
   const ops: Prisma.PrismaPromise<unknown>[] = [
     prisma.battle.update({ where: { id: b.id }, data: { status: "WON", resolvedAt: now } }),
-    prisma.mapNode.update({ where: { gameId_key: { gameId: b.gameId, key: b.nodeKey } }, data: { defenseLevel: b.bid } }),
+    prisma.mapNode.update({ where: { gameId_key: { gameId: b.gameId, key: b.nodeKey } }, data: { defenseLevel: level } }),
     prisma.teamCityState.updateMany({ where: { teamId: b.defenderId, nodeKey: b.nodeKey }, data: { capturedAt: null, isCapital: false, secondCapital: false } }),
     prisma.teamCityState.upsert({
       where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } },
@@ -176,7 +205,6 @@ export async function resolveWon(b: Battle): Promise<void> {
     }),
   ];
   if (wasCapital) {
-    // Поражение: команда выбывает, её остальные города становятся руинами (свободны).
     ops.push(prisma.team.update({ where: { id: b.defenderId }, data: { status: "defeated" } }));
     ops.push(prisma.teamCityState.updateMany({ where: { teamId: b.defenderId, capturedAt: { not: null } }, data: { capturedAt: null, isCapital: false, secondCapital: false } }));
     ops.push(prisma.battle.updateMany({ where: { gameId: b.gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: b.defenderId }, { defenderId: b.defenderId }], NOT: { id: b.id } }, data: { status: "CANCELLED", resolvedAt: now } }));
@@ -186,12 +214,12 @@ export async function resolveWon(b: Battle): Promise<void> {
   publish(b.gameId, { type: "map" });
   publish(b.gameId, { type: "cities" });
   publish(b.gameId, { type: "teams" });
-  notifyTeam(b.gameId, b.attackerId, "город взят", `Оборона не состоялась в срок: город ваш${wasCapital ? ", это была столица противника" : ""}.`);
-  notifyTeam(b.gameId, b.defenderId, wasCapital ? "столица потеряна" : "город потерян", wasCapital ? "Оборона столицы не состоялась в срок: команда выбывает из игры." : "Оборона не состоялась в срок: город перешёл атакующим.");
+  notifyTeam(b.gameId, b.attackerId, `город ${bookName(b.bookCode)} взят`, wasCapital ? "Это была столица противника: команда противника выбыла, город стал вашей второй столицей." : "Город теперь ваш.");
+  notifyTeam(b.gameId, b.defenderId, `город ${bookName(b.bookCode)} потерян`, wasCapital ? "Потеряна столица: команда выбывает из игры." : "Оборона не сдана в срок или сдана. Город перешёл атакующим; его можно отбить по тем же правилам.");
   await startNextFromQueue(b.gameId, b.nodeKey);
 }
 
-/** Сгоревшие атаки (14 дней) и просроченные обороны. Вызывается по таймеру и перед чтением. */
+/** Сгоревшие атаки (14 дней без отправки) и просроченные обороны. Вызывается по таймеру и перед чтением. */
 export async function sweep(gameId?: string): Promise<void> {
   const now = new Date();
   const burnt = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ATTACK", attackDeadline: { lt: now }, attackDoneAt: null } });
@@ -206,7 +234,7 @@ export async function sweep(gameId?: string): Promise<void> {
     ]);
     publish(b.gameId, { type: "battles", teamId: b.attackerId });
     publish(b.gameId, { type: "battles", teamId: b.defenderId });
-    notifyTeam(b.gameId, b.attackerId, "атака сгорела", `За 14 дней записи не были прикреплены: атака сгорела, минимальная ставка на этот город для вашей команды выросла на ${BURN_PENALTY}.`);
+    notifyTeam(b.gameId, b.attackerId, `атака на ${bookName(b.bookCode)} сгорела`, `За 14 дней атака не была отправлена на проверку. Штраф: минимальная ставка на этот город для вашей команды выросла на ${BURN_PENALTY}.`);
     await startNextFromQueue(b.gameId, b.nodeKey);
   }
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });

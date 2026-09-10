@@ -158,9 +158,11 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     ]);
     // Даты нужны для ползунка времени на карте админа: состояние на любой день игры.
     const cityStates = await prisma.teamCityState.findMany({ where: { gameId: id }, select: { teamId: true, nodeKey: true, orderSolved: true, doneTasks: true, capturedAt: true, isCapital: true } });
+    const battles = await prisma.battle.findMany({ where: { gameId: id, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, select: { id: true, nodeKey: true, status: true, attackerId: true, defenderId: true, bid: true } });
     return {
       pending,
       startedAt: game?.startedAt ?? null,
+      battles,
       cities: cityStates.map((s) => ({ teamId: s.teamId, nodeKey: s.nodeKey, orderSolved: s.orderSolved, done: s.doneTasks.length, capturedAt: s.capturedAt?.toISOString() ?? null, isCapital: s.isCapital })),
       teams: teams.map((t) => ({
         id: t.id, name: t.name, color: t.color, startNodeKey: t.startNodeKey,

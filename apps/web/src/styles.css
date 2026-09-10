@@ -191,3 +191,15 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .
 .battle .entry-form .row { display: flex; gap: .5rem; }
 .badge.ok { background: var(--success-soft); color: var(--success); border-color: transparent; }
 .badge.bad { background: var(--danger-soft); color: var(--danger); border-color: transparent; }
+.battle.att { border-left-color: #2F6FB3; }
+.battle.def { border-left-color: var(--danger); }
+.verses { list-style: none; margin: .4rem 0; padding: 0; max-height: 300px; overflow: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); }
+.verses li { display: flex; gap: .5rem; padding: .35rem .6rem; border-top: 1px solid var(--border); cursor: pointer; font-size: .92rem; line-height: 1.4; }
+.verses li:first-child { border-top: 0; }
+.verses li .box { width: 20px; height: 20px; border-radius: 5px; border: 1px solid var(--border-strong); flex: none; display: flex; align-items: center; justify-content: center; font-size: .8rem; background: var(--surface); }
+.verses li .ref { color: var(--muted); flex: none; min-width: 40px; font-weight: 600; }
+.verses li.on { background: var(--accent-soft); }
+.verses li.on .box { border-color: var(--accent); color: var(--accent); }
+.verses li.done { background: var(--success-soft); cursor: default; }
+.verses li.done .box { background: var(--success); border-color: var(--success); color: #fff; }
+.picker .actions { align-items: center; justify-content: space-between; }

@@ -350,6 +350,9 @@ model Battle {
   defenseBid        Int?
   passageStart      Int?
   passageEnd        Int?
+  /** Отрывок обороны, выбранный капитаном защитников (последовательный, из всей книги). */
+  defenseStart      Int?
+  defenseEnd        Int?
   declaredAt        DateTime     @default(now())
   startedAt         DateTime?
   attackDeadline    DateTime?

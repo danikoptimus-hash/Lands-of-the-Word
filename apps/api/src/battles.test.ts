@@ -22,10 +22,6 @@ async function joinTeam(name: string, cookie: string) {
 }
 const get = (url: string, cookie: string) => app.inject({ method: "GET", url, headers: { cookie } });
 const post = (url: string, cookie: string, payload?: unknown) => app.inject({ method: "POST", url, headers: { cookie }, payload });
-/** Ссылка вида «1:5» → сквозной индекс по Руфи (22, 23, 18, 22). */
-const OFF = [0, 22, 45, 63];
-const idx = (ref: string) => { const [c, v] = ref.split(":").map(Number); return OFF[c! - 1]! + v! - 1; };
-const ref = (i: number) => { let c = 0; while (c + 1 < OFF.length && OFF[c + 1]! <= i) c++; return `${c + 1}:${i - OFF[c]! + 1}`; };
 
 beforeAll(async () => {
   await app.ready();
@@ -85,29 +81,39 @@ describe("битва за город", () => {
     expect(d.json().battles[0].id).toBe(battleId);
   });
 
-  it("записи атакующих: только внутри отрывка, без повторов; полное покрытие фиксирует время атаки", async () => {
+  it("участники отмечают выученные стихи отрывка; сумма по участникам; капитан отправляет атаку", async () => {
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie);
-    const { start, end } = w.json().battles[0].passage as { start: number; end: number };
-    const outside = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { from: ref(start === 0 ? end + 1 : start - 1), to: ref(start === 0 ? end + 1 : start - 1), links: ["https://example.com/v1"] });
+    const { start, end, verses } = w.json().battles[0].passage as { start: number; end: number; verses: Array<{ idx: number; text: string }> };
+    expect(verses).toHaveLength(10);
+    expect(verses[0]!.text.length).toBeGreaterThan(5);
+    const outside = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { verses: [start === 0 ? end + 1 : start - 1], links: ["https://example.com/v1"] });
     expect(outside.statusCode).toBe(400);
-    const first = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { from: ref(start), to: ref(start + 5), links: ["https://example.com/v1"] });
+    const first = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { verses: [start, start + 1, start + 2, start + 5], links: ["https://example.com/v1"] });
     expect(first.statusCode).toBe(201);
-    expect(first.json().covered).toBe(6);
-    const dup = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { from: ref(start + 5), to: ref(start + 6), links: ["https://example.com/v2"] });
+    expect(first.json()).toMatchObject({ added: 4, sum: 4 });
+    const dup = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { verses: [start, start + 1], links: ["https://example.com/v2"] });
     expect(dup.statusCode).toBe(409);
-    const defenderTooEarly = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p1Cookie, { from: "1:1", to: "1:10", links: ["https://example.com/d"] });
+    const defenderTooEarly = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p1Cookie, { verses: [0, 1], links: ["https://example.com/d"] });
     expect(defenderTooEarly.statusCode).toBe(409);
-    const rest = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { from: ref(start + 6), to: ref(end), links: ["https://example.com/v3", "https://example.com/v4"] });
-    expect(rest.json().covered).toBe(10);
+    const early = await post(`/api/games/${gameId}/battles/${battleId}/submit`, p2Cookie);
+    expect(early.statusCode).toBe(409);
+    const rest = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { verses: Array.from({ length: 10 }, (_, i) => start + i), links: ["https://example.com/v3"] });
+    expect(rest.json()).toMatchObject({ added: 6, sum: 10 });
+    const mine = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie);
+    expect(mine.json().battles[0].myVerses).toHaveLength(10);
+    const sent = await post(`/api/games/${gameId}/battles/${battleId}/submit`, p2Cookie);
+    expect(sent.statusCode).toBe(200);
     const b = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(b.attackDoneAt).toBeTruthy();
+    const late = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { verses: [start], links: ["https://example.com/v4"] });
+    expect(late.statusCode).toBe(409);
   });
 
   it("одобрение всей атаки админом запускает оборону ровно на T", async () => {
     await prisma.battle.update({ where: { id: battleId }, data: { startedAt: new Date(Date.now() - 3_600_000), attackDoneAt: new Date(Date.now() - 600_000) } });
     const list = await get(`/api/games/${gameId}/battles`, adminCookie);
     const entries = list.json().battles.find((b: { id: string }) => b.id === battleId).entries as Array<{ id: string; side: string }>;
-    expect(entries).toHaveLength(2);
+    expect(entries.length).toBeGreaterThan(1);
     for (const e of entries) {
       const r = await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
       expect(r.statusCode).toBe(200);
@@ -118,19 +124,37 @@ describe("битва за город", () => {
     expect(Math.abs(T - 3_000_000)).toBeLessThan(5_000);
   });
 
-  it("защитники отвечают M ≥ N любым отрывком; одобрение в срок отражает атаку и поднимает уровень защиты", async () => {
-    const short = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p1Cookie, { from: "2:1", to: "2:9", links: ["https://example.com/d1"] });
-    expect(short.json().covered).toBe(9);
-    let b = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
-    expect(b.defenseDoneAt).toBeNull();
-    const more = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p1Cookie, { from: "3:1", to: "3:3", links: ["https://example.com/d2"] });
-    expect(more.json().covered).toBe(12);
-    b = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
-    expect(b.defenseDoneAt).toBeTruthy();
+  it("оборона: капитан выбирает последовательный отрывок из книги, участники учат, сумма ≥ атаки → отражено", async () => {
+    const noPassage = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p1Cookie, { verses: [22, 23], links: ["https://example.com/d0"] });
+    expect(noPassage.statusCode).toBe(409);
+    const book = await get(`/api/games/${gameId}/battles/${battleId}/book`, p1Cookie);
+    expect(book.json().verseCounts).toEqual([22, 23, 18, 22]);
+    expect(book.json().chapters[1]).toHaveLength(23);
+    const bad = await post(`/api/games/${gameId}/battles/${battleId}/defense-passage`, p1Cookie, { from: "2:9", to: "2:1" });
+    expect(bad.statusCode).toBe(400);
+    const chosen = await post(`/api/games/${gameId}/battles/${battleId}/defense-passage`, p1Cookie, { from: "2:1", to: "2:6" });
+    expect(chosen.json()).toMatchObject({ ref: "2:1–6", verses: 6 });
+    // Один участник учит 6 стихов — мало; второй раз те же стихи не считаются, нужен второй участник.
+    const six = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p1Cookie, { verses: [22, 23, 24, 25, 26, 27], links: ["https://example.com/d1"] });
+    expect(six.json().sum).toBe(6);
+    const short = await post(`/api/games/${gameId}/battles/${battleId}/submit`, p1Cookie);
+    expect(short.statusCode).toBe(409);
+    const fixed = await post(`/api/games/${gameId}/battles/${battleId}/defense-passage`, p1Cookie, { from: "2:1", to: "2:12" });
+    expect(fixed.statusCode).toBe(409); // отрывок уже нельзя менять
+    // Второй участник команды-защитника
+    const p3 = await register(`bp3_${stamp}`);
+    const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team1}/invites`, headers: { cookie: adminCookie }, payload: { role: "MEMBER" } });
+    await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: p3 } });
+    const more = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p3, { verses: [22, 23, 24, 25, 26, 27], links: ["https://example.com/d2"] });
+    expect(more.json().sum).toBe(12);
+    const memberSubmit = await post(`/api/games/${gameId}/battles/${battleId}/submit`, p3);
+    expect(memberSubmit.statusCode).toBe(403);
+    const sent = await post(`/api/games/${gameId}/battles/${battleId}/submit`, p1Cookie);
+    expect(sent.statusCode).toBe(200);
     const list = await get(`/api/games/${gameId}/battles`, adminCookie);
     const entries = list.json().battles.find((x: { id: string }) => x.id === battleId).entries as Array<{ id: string; side: string }>;
     for (const e of entries.filter((x) => x.side === "DEFENSE")) await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
-    b = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
+    const b = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(b.status).toBe("REPELLED");
     expect(b.defenseBid).toBe(12);
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
@@ -138,6 +162,7 @@ describe("битва за город", () => {
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie);
     expect(w.json().minBid).toBe(13);
     expect(w.json().canDeclare).toBe(true);
+    await prisma.user.deleteMany({ where: { nickname: `bp3_${stamp}` } });
   });
 
   it("сгоревшая атака (14 дней без ссылок) даёт штраф +5 к минимальной ставке", async () => {
@@ -155,7 +180,8 @@ describe("битва за город", () => {
     const id = res.json().id as string;
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie);
     const { start, end } = w.json().battles[0].passage as { start: number; end: number };
-    await post(`/api/games/${gameId}/battles/${id}/entries`, p2Cookie, { from: ref(start), to: ref(end), links: ["https://example.com/all"] });
+    await post(`/api/games/${gameId}/battles/${id}/entries`, p2Cookie, { verses: Array.from({ length: end - start + 1 }, (_, i) => start + i), links: ["https://example.com/all"] });
+    await post(`/api/games/${gameId}/battles/${id}/submit`, p2Cookie);
     const list = await get(`/api/games/${gameId}/battles`, adminCookie);
     const entry = list.json().battles.find((x: { id: string }) => x.id === id).entries[0] as { id: string };
     await post(`/api/games/${gameId}/battles/${id}/entries/${entry.id}/decide`, adminCookie, { approve: true });
@@ -171,6 +197,5 @@ describe("битва за город", () => {
     expect(defeated.status).toBe("defeated");
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     expect(node.defenseLevel).toBe(15);
-    expect(idx("2:1")).toBe(22);
   });
 });

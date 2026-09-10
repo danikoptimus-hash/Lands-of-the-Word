@@ -9,10 +9,11 @@ import { useUi } from "../lib/ui";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 export interface CityProgress { teamId: string; nodeKey: string; orderSolved: boolean; done: number; capturedAt: string | null; isCapital: boolean }
+export interface BattleProgress { id: string; nodeKey: string; status: string; attackerId: string; defenderId: string; bid: number }
 export interface TeamProgress { id: string; name: string; color: string; startNodeKey: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
 
 /** Карта админа: вся карта без тумана, города на перекрёстках, пройденные стороны цветами команд (половинками, если прошли двое). */
-export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, version }: { gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; version: number }) {
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version }: { gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number }) {
   const size = HEX_SIZE;
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexes, size]);
   const vp = useViewport(bounds);
@@ -29,6 +30,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, versio
     for (const c of cities ?? []) if (c.capturedAt) { const t = teamById.get(c.teamId); if (t) m.set(c.nodeKey, t); }
     return m;
   }, [cities, teamById]);
+  const battleAt = useMemo(() => new Map((battles ?? []).map((b) => [b.nodeKey, b])), [battles]);
   const revealedBy = useMemo(() => {
     const m = new Map<string, TeamProgress[]>();
     for (const t of progress ?? []) for (const k of t.revealed) m.set(k, [...(m.get(k) ?? []), t]);
@@ -81,6 +83,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, versio
                 if (n.kind === "CITY") return (
                   <g key={n.key} transform={`translate(${p.x},${p.y})`} onClick={() => setSelected(sel ? null : n)} style={{ cursor: "pointer" }}>
                     <circle r={size * 0.6 * kk} fill="transparent" />
+                    {battleAt.has(n.key) && <text x={size * 0.6 * kk} y={-size * 0.7 * kk} fontSize={Math.max(14, 22 * Math.min(1.4, kk))} textAnchor="middle" fill="#B3402F" stroke="#fff" strokeWidth={3} paintOrder="stroke" style={{ pointerEvents: "none" }}>⚔</text>}
                     {showLabels ? (
                       <g transform={`translate(0,${size * 1.15 * kk * 0.48})`}>
                         <rect x={-48} y={-10} width={96} height={20} rx={4} fill={sel ? "#C7742A" : "#F3EAD3"} stroke="#1F1B16" strokeWidth={1} />
@@ -105,6 +108,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, versio
         <span style={{ ["--c" as string]: "#fff" }}>город на перекрёстке (номер книги)</span>
         {progress?.map((t) => <span key={t.id} style={{ ["--c" as string]: t.color }}>{t.name}</span>)}
       </div>
+      {selected?.kind === "CITY" && battleAt.get(selected.key) && (() => { const b = battleAt.get(selected.key)!; const at = teamById.get(b.attackerId), df = teamById.get(b.defenderId); return <p className="note bad" style={{ marginTop: ".6rem" }}>⚔ Битва: «{at?.name ?? "?"}» атакует «{df?.name ?? "?"}», ставка {b.bid} ст. · {b.status === "QUEUED" ? "в очереди" : b.status === "ATTACK" ? "идёт атака" : "идёт оборона"}. Записи — в блоке «Битвы» выше.</p>; })()}
       {selected?.kind === "CITY" && <AdminCityPanel gameId={gameId} node={selected} version={version} revealedTeams={revealedBy.get(selected.key) ?? []} onClose={() => setSelected(null)} />}
       {selected && selected.kind !== "CITY" && (
         <div className="note ok" style={{ marginTop: ".6rem" }}>

@@ -32,7 +32,7 @@ export const TEAM_ROLE_LABEL: Record<TeamRole, string> = { CAPTAIN: "капит�
 export type EdgeTaskStatus = "OPEN" | "TAKEN" | "SUBMITTED" | "APPROVED" | "REJECTED";
 export interface DeedLite { id: string; title: string; description: string; direction: string; proofType: "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "CONFIRMATION"; difficulty: number }
 export interface EdgeTaskDto { id: string; fromKey: string; toKey: string; deedId: string; status: EdgeTaskStatus; takenById: string | null; links: string[]; note: string; adminComment: string; submittedAt: string | null; deed: DeedLite }
-export interface MapCityDto { nodeKey: string; hasContent: boolean; total: number; owner: { index: number; name: string; color: string } | null; orderSolved: boolean; done: number; captured: boolean; isCapital: boolean }
+export interface MapCityDto { nodeKey: string; hasContent: boolean; total: number; owner: { index: number; name: string; color: string } | null; orderSolved: boolean; done: number; captured: boolean; isCapital: boolean; battle: "ATTACK" | "DEFENSE" | null }
 export interface MyMapDto { status: string; team: { id: string; name: string; color: string; startNodeKey?: string | null }; hexes: MapHexDto[]; revealed: MapNodeDto[]; edges: MapEdgeDto[]; tasks: EdgeTaskDto[]; cities: MapCityDto[] }
 
 /** Город глазами команды: районы (сцены книги), задания без ответов, буквы шифра, состояние. */
@@ -59,14 +59,16 @@ export const TASK_STATUS_LABEL: Record<EdgeTaskStatus, string> = { OPEN: "сво
 
 /** Битва за город. Записи чужой стороны команде не видны. */
 export type BattleStatus = "QUEUED" | "ATTACK" | "DEFENSE" | "WON" | "REPELLED" | "EXPIRED" | "CANCELLED";
-export interface BattleEntryDto { id: string; side: "ATTACK" | "DEFENSE"; userId: string; nickname: string; ref: string; verses: number; links: string[]; note: string; status: "SUBMITTED" | "APPROVED" | "REJECTED"; adminComment: string; createdAt: string }
+export interface BattleEntryDto { id: string; side: "ATTACK" | "DEFENSE"; userId: string; nickname: string; ref: string; start: number; end: number; verses: number; links: string[]; note: string; status: "SUBMITTED" | "APPROVED" | "REJECTED"; adminComment: string; createdAt: string }
+export interface PassageDto { ref: string; start: number; end: number; verses: Array<{ idx: number; ref: string; text: string | null }> | null }
 export interface BattleDto {
-  id: string; nodeKey: string; bookCode: string; status: BattleStatus; sumMode: boolean; bid: number; defenseBid: number | null;
+  id: string; nodeKey: string; bookCode: string; bookName: string; status: BattleStatus; sumMode: boolean; bid: number; defenseBid: number | null;
   attacker: { id: string; index: number; name: string; color: string }; defender: { id: string; index: number; name: string; color: string };
-  passage: { ref: string; start: number; end: number; text: string[] | null } | null;
+  mySide: "ATTACK" | "DEFENSE" | null; passage: PassageDto | null; defensePassage: PassageDto | null;
   declaredAt: string; startedAt: string | null; attackDeadline: string | null; attackDoneAt: string | null; attackApprovedAt: string | null;
   defenseDeadline: string | null; defenseDoneAt: string | null; resolvedAt: string | null;
-  attackCovered: number; attackApproved: number; defenseCovered: number; defenseApproved: number; entries: BattleEntryDto[]; bookTotal: number | null;
+  attackSum: number; attackApproved: number; defenseSum: number; defenseApproved: number; entries: BattleEntryDto[]; myVerses: number[]; bookTotal: number | null;
 }
+export interface BookTextDto { code: string; name: string; verseCounts: number[]; chapters: string[][] | null; total: number }
 export interface WarDto { defenseLevel: number; sumMode: boolean; locked: boolean; bookVerses: number | null; penalty: number; minBid: number; canDeclare: boolean; reason: string | null; owner: { id: string; name: string; color: string } | null; queue: number; battles: BattleDto[] }
 export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { QUEUED: "в очереди", ATTACK: "атака", DEFENSE: "оборона", WON: "город взят", REPELLED: "атака отражена", EXPIRED: "атака сгорела", CANCELLED: "отменена" };
