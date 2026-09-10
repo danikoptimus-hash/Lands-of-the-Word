@@ -37,7 +37,7 @@ export function LoginPage() {
       </div>
       <form onSubmit={submit}>
         <label htmlFor="nickname">{mode === "login" ? "Никнейм или почта" : "Никнейм"}</label>
-        <input id="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} autoComplete="username" required minLength={3} maxLength={24} autoFocus />
+        <input id="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} autoComplete="username" required minLength={3} maxLength={mode === "login" ? 120 : 24} autoFocus />
         <label htmlFor="password">Пароль</label>
         <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} required minLength={8} />
         {mode === "register" && (
