@@ -41,6 +41,20 @@ export function describeMailError(e: unknown): string {
   return err.message ?? String(e);
 }
 
+const escapeHtml = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c);
+
+/** HTML-версия письма: логотип и название в шапке, текст с сохранением строк, ссылки кликабельны. */
+export function renderHtml(text: string, publicUrl: string): string {
+  const base = publicUrl.replace(/\/$/, "");
+  const body = escapeHtml(text).replace(/https?:\/\/[^\s<]+/g, (u) => `<a href="${u}" style="color:#C7742A">${u}</a>`).replace(/\n/g, "<br>");
+  return `<!doctype html><html><body style="margin:0;background:#F6F4EF;font-family:Inter,Arial,sans-serif;color:#1F1B16">
+<div style="max-width:560px;margin:0 auto;padding:24px 16px">
+<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px"><img src="${base}/img/brand/logo-128.png" width="40" height="40" alt="" style="display:block"><strong style="font-size:18px">Земли Слова</strong> <span style="color:#6B645A">· Lands of the Word</span></div>
+<div style="background:#fff;border:1px solid #E6E1D6;border-radius:12px;padding:20px;font-size:15px;line-height:1.5">${body}</div>
+<p style="color:#6B645A;font-size:12px;margin-top:16px"><a href="${base}" style="color:#6B645A">${base.replace(/^https?:\/\//, "")}</a></p>
+</div></body></html>`;
+}
+
 export function mailEnabled(): boolean {
   return env?.NODE_ENV === "test" || transporter !== null;
 }
@@ -50,7 +64,7 @@ export async function sendMail(mail: Mail): Promise<boolean> {
   if (env?.NODE_ENV === "test") { outbox.push(mail); return true; }
   if (!transporter || !env) return false;
   try {
-    await transporter.sendMail({ from: env.MAIL_FROM, to: mail.to, subject: mail.subject, text: mail.text });
+    await transporter.sendMail({ from: env.MAIL_FROM, to: mail.to, subject: mail.subject, text: mail.text, html: renderHtml(mail.text, env.PUBLIC_URL) });
     mailStats.sent++;
     return true;
   } catch (e) { mailStats.failed++; throw e; }

@@ -36,6 +36,11 @@ export function LoginPage() {
         <span />
         <button type="button" className="ghost sm" onClick={() => setGuestLocale(locale === "en" ? "ru" : "en")} aria-label="Language">{locale === "en" ? "Русский" : "English"}</button>
       </div>
+      <div className="auth-logo">
+        <img src="/img/brand/logo-256.png" alt="" width={96} height={96} />
+        <strong>{t("Земли Слова")}</strong>
+        <span className="muted">{t("Lands of the Word")}</span>
+      </div>
       <div className="tabs">
         <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>{t("Вход")}</button>
         <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>{t("Регистрация")}</button>
