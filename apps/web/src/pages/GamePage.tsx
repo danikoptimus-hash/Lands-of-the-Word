@@ -13,6 +13,7 @@ import { BattlesBlock } from "./BattlesBlock";
 import { AdminsBlock } from "./AdminsBlock";
 import { FinishBlock } from "./FinishBlock";
 import { PassagesBlock } from "./Diplomacy";
+import { t } from "../lib/i18n";
 
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
 interface Stats { nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number }
@@ -43,7 +44,7 @@ export function GamePage() {
     setGame(r.game); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges);
   }, [id]);
 
-  useEffect(() => { load().catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")); void loadProgress(); }, [load, loadProgress]);
+  useEffect(() => { load().catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); void loadProgress(); }, [load, loadProgress]);
 
   async function generate() {
     setBusy(true); setError(null);
@@ -53,27 +54,27 @@ export function GamePage() {
       await load();
       bump();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Ошибка сети");
+      setError(e instanceof ApiError ? e.message : t("Ошибка сети"));
     } finally { setBusy(false); }
   }
 
 
 
   if (error && !game) return <p className="error">{error}</p>;
-  if (!game) return <p className="muted">Загрузка…</p>;
+  if (!game) return <p className="muted">{t("Загрузка…")}</p>;
 
   return (
     <>
-      <p><Link to="/">← Мои игры</Link></p>
+      <p><Link to="/">{t("← Мои игры")}</Link></p>
       <div className="card">
         <div className="card-head">
-          <div><h1>{game.name}</h1><div className="muted">Команд: {game.teamCount}</div></div>
-          <span className={"badge" + (game.status === "ACTIVE" ? " accent" : "")}>{game.status === "DRAFT" ? "черновик" : game.status === "ACTIVE" ? "идёт" : "завершена"}</span>
+          <div><h1>{game.name}</h1><div className="muted">{t("Команд: {n}", { n: game.teamCount })}</div></div>
+          <span className={"badge" + (game.status === "ACTIVE" ? " accent" : "")}>{game.status === "DRAFT" ? t("черновик") : game.status === "ACTIVE" ? t("идёт") : t("завершена")}</span>
         </div>
         {game.status === "DRAFT" && (
           <div className="row">
-            <button onClick={() => void generate()} disabled={busy}>{nodes.length ? "Сгенерировать ещё раз" : "Сгенерировать карту"}</button>
-            {stats && <span className="muted">узлов {stats.nodeCount} · городов {stats.cityCount} · до первого города {stats.startDistances.join(" / ")}</span>}
+            <button onClick={() => void generate()} disabled={busy}>{nodes.length ? t("Сгенерировать ещё раз") : t("Сгенерировать карту")}</button>
+            {stats && <span className="muted">{t("узлов {a} · городов {b} · до первого города {c}", { a: stats.nodeCount, b: stats.cityCount, c: stats.startDistances.join(" / ") })}</span>}
           </div>
         )}
         {error && <p className="error">{error}</p>}
@@ -91,12 +92,12 @@ export function GamePage() {
 
       {hexes.length > 0 ? (
         <div className="card">
-          <div className="card-head"><h2>Карта (вид админа)</h2><span className="muted">Города и развилки — на перекрёстках, ходят по сторонам гексов. Тяни, колесо или щипок — масштаб.</span></div>
+          <div className="card-head"><h2>{t("Карта (вид админа)")}</h2><span className="muted">{t("Города и развилки — на перекрёстках, ходят по сторонам гексов. Тяни, колесо или щипок — масштаб.")}</span></div>
           <AdminMap gameId={game.id} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} />
           {progress?.startedAt && <Timeline moves={moves} startedAt={progress.startedAt} at={at} onChange={setAt} />}
-          <p className="hint">Служебный вид. Игровое оформление с иллюстрациями будет отдельно.</p>
+          <p className="hint">{t("Служебный вид. Игровое оформление с иллюстрациями будет отдельно.")}</p>
         </div>
-      ) : <div className="card"><p className="muted">Карта ещё не сгенерирована. Нажми «Сгенерировать карту».</p></div>}
+      ) : <div className="card"><p className="muted">{t("Карта ещё не сгенерирована. Нажми «Сгенерировать карту».")}</p></div>}
     </>
   );
 }

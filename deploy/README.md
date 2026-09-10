@@ -81,3 +81,19 @@ MAIL_FROM=Земли Слова <landsoftheword@gmail.com>
 Resend (бесплатно до 3 000 писем в месяц) или Mailgun: добавить домен `landsoftheword.com`, внести в DNS Porkbun записи SPF/DKIM, которые покажет сервис, взять SMTP-логин и ключ и вписать их в `deploy/.env` так же, как выше (`SMTP_HOST=smtp.resend.com`, `SMTP_PORT=465`, `SMTP_USER=resend`, `SMTP_PASS=API-ключ`, `MAIL_FROM=Земли Слова <noreply@landsoftheword.com>`).
 
 Ключи и пароли только в `deploy/.env` на сервере, в репозиторий их не класть.
+
+## Бэкапы и восстановление
+
+Дамп базы делается каждый день в 03:30 (`deploy/backup.sh`, cron пользователя deploy) в `/opt/lotw-backups`, хранятся 14 последних. Проверить, что бэкапы идут:
+
+```
+ls -la /opt/lotw-backups
+```
+
+Восстановить из дампа (на сервере от root):
+
+```
+bash /opt/lotw/deploy/restore.sh /opt/lotw-backups/lotw-ГГГГ-ММ-ДД-ЧЧММ.sql.gz
+```
+
+Скрипт останавливает приложение, пересоздаёт базу, заливает дамп и запускает приложение. Рекомендуется раз в месяц проверять восстановление на копии: `docker compose exec -T db pg_restore` не нужен — дампы в формате plain SQL.

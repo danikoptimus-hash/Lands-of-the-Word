@@ -17,6 +17,7 @@ import { diplomacyRoutes } from "./routes/diplomacy.js";
 import { sweep } from "./services/battles.js";
 import { initMail } from "./services/mail.js";
 import { initNotify } from "./services/notify.js";
+import { recordResponse } from "./services/stats.js";
 import { eventRoutes } from "./routes/events.js";
 
 declare module "fastify" {
@@ -38,6 +39,11 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(cookie, { secret: config.SESSION_SECRET });
   await app.register(rateLimit, { global: false });
   app.addHook("preHandler", attachUser);
+  // Время ответа и ошибки для дашборда суперадмина (только /api, без содержимого запросов).
+  app.addHook("onResponse", (request, reply, done) => {
+    if (request.url.startsWith("/api/")) recordResponse(reply.statusCode, reply.elapsedTime, request.routeOptions?.url ?? request.url.split("?")[0] ?? "");
+    done();
+  });
 
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {

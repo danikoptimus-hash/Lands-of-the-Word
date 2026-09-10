@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
+import { t } from "../lib/i18n";
 
 interface GameDto { id: string; name: string; status: string; teamCount: number; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
 
@@ -22,35 +23,35 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     try {
       await api(`/api/games/${game.id}`, { method: "PATCH", body: JSON.stringify({ name, teamCount, settings: game.status === "DRAFT" ? { nodeCount, equidistantStarts: equidistant, maxStartDistanceDiff: maxDiff, includeGenealogies: genealogies, donationMin: donationMin === "" ? null : Number(donationMin), donationCurrency: currency } : { donationMin: donationMin === "" ? null : Number(donationMin), donationCurrency: currency } }) });
       setOpen(false); onSaved();
-    } catch (err) { setError(err instanceof ApiError ? err.message : "Ошибка сети"); }
+    } catch (err) { setError(err instanceof ApiError ? err.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
 
   return (
     <div className="card">
       <div className="card-head">
-        <h2>Настройки</h2>
-        <button className="secondary sm" onClick={() => setOpen((v) => !v)}>{open ? "Скрыть" : "Изменить"}</button>
+        <h2>{t("Настройки")}</h2>
+        <button className="secondary sm" onClick={() => setOpen((v) => !v)}>{open ? t("Скрыть") : t("Изменить")}</button>
       </div>
-      {!open && <p className="muted">Команд: {game.teamCount} · узлов: {game.settings.nodeCount ?? 250} · старты: {game.settings.equidistantStarts ? "равноудалённые" : "случайные"} · разница до первого города ≤ {game.settings.maxStartDistanceDiff ?? 3} · родословия в битвах: {game.settings.includeGenealogies ? "да" : "нет"} · пожертвование вместо дела: {game.settings.donationMin ? `от ${game.settings.donationMin} ${game.settings.donationCurrency ?? ""}` : "выключено"}</p>}
+      {!open && <p className="muted">{t("Команд: {n}", { n: game.teamCount })} · {t("узлов: {n}", { n: game.settings.nodeCount ?? 250 })} · {t("старты: {s}", { s: game.settings.equidistantStarts ? t("равноудалённые") : t("случайные") })} · {t("разница до первого города ≤ {n}", { n: game.settings.maxStartDistanceDiff ?? 3 })} · {t("родословия в битвах: {s}", { s: game.settings.includeGenealogies ? t("да") : t("нет") })} · {t("пожертвование вместо дела: {s}", { s: game.settings.donationMin ? t("от {n} {cur}", { n: game.settings.donationMin, cur: game.settings.donationCurrency ?? "" }) : t("выключено") })}</p>}
       {open && (
         <form onSubmit={save}>
-          <label htmlFor="s-name">Название</label>
+          <label htmlFor="s-name">{t("Название")}</label>
           <input id="s-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={80} />
           <div className="grid cols-3">
-            <div><label htmlFor="s-teams">Команд</label><input id="s-teams" type="number" min={2} max={12} value={teamCount} onChange={(e) => setTeamCount(Number(e.target.value))} /></div>
-            <div><label htmlFor="s-nodes">Узлов на карте</label><input id="s-nodes" type="number" min={200} max={600} step={10} value={nodeCount} onChange={(e) => setNodeCount(Number(e.target.value))} /></div>
-            <div><label htmlFor="s-diff">Разница до первого города</label><input id="s-diff" type="number" min={0} max={6} value={maxDiff} onChange={(e) => setMaxDiff(Number(e.target.value))} /></div>
+            <div><label htmlFor="s-teams">{t("Команд")}</label><input id="s-teams" type="number" min={2} max={12} value={teamCount} onChange={(e) => setTeamCount(Number(e.target.value))} /></div>
+            <div><label htmlFor="s-nodes">{t("Узлов на карте")}</label><input id="s-nodes" type="number" min={200} max={600} step={10} value={nodeCount} onChange={(e) => setNodeCount(Number(e.target.value))} /></div>
+            <div><label htmlFor="s-diff">{t("Разница до первого города")}</label><input id="s-diff" type="number" min={0} max={6} value={maxDiff} onChange={(e) => setMaxDiff(Number(e.target.value))} /></div>
           </div>
-          <label className="check"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />Равноудалённые старты</label>
-          <label className="check"><input type="checkbox" checked={genealogies} onChange={(e) => setGenealogies(e.target.checked)} />Включать родословия и списки в случайный отрывок для битвы</label>
+          <label className="check"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />{t("Равноудалённые старты")}</label>
+          <label className="check"><input type="checkbox" checked={genealogies} onChange={(e) => setGenealogies(e.target.checked)} />{t("Включать родословия и списки в случайный отрывок для битвы")}</label>
           <div className="grid cols-3">
-            <div><label htmlFor="s-don">Пожертвование вместо дела, минимум</label><input id="s-don" type="number" min={0} value={donationMin} onChange={(e) => setDonationMin(e.target.value === "" ? "" : Number(e.target.value))} placeholder="пусто — выключено" /></div>
-            <div><label htmlFor="s-cur">Валюта</label><input id="s-cur" value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={10} placeholder="сум, ₽, $" /></div>
+            <div><label htmlFor="s-don">{t("Пожертвование вместо дела, минимум")}</label><input id="s-don" type="number" min={0} value={donationMin} onChange={(e) => setDonationMin(e.target.value === "" ? "" : Number(e.target.value))} placeholder={t("пусто — выключено")} /></div>
+            <div><label htmlFor="s-cur">{t("Валюта")}</label><input id="s-cur" value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={10} placeholder={t("сум, ₽, $")} /></div>
           </div>
-          <p className="hint">После изменения числа команд или узлов карту нужно сгенерировать заново.</p>
+          <p className="hint">{t("После изменения числа команд или узлов карту нужно сгенерировать заново.")}</p>
           {error && <p className="error">{error}</p>}
-          <div className="actions"><button type="submit" disabled={busy}>Сохранить</button><button type="button" className="secondary" onClick={() => setOpen(false)}>Отмена</button></div>
+          <div className="actions"><button type="submit" disabled={busy}>{t("Сохранить")}</button><button type="button" className="secondary" onClick={() => setOpen(false)}>{t("Отмена")}</button></div>
         </form>
       )}
     </div>

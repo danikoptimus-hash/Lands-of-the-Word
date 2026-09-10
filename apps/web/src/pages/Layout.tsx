@@ -11,7 +11,7 @@ export function Layout() {
     <>
       <header className="topbar">
         <div className="topbar-inner">
-          <Link to="/" className="brand"><span className="mark" />{t("Земли Слова")} <span className="sub">· Lands of the Word</span></Link>
+          <Link to="/" className="brand"><span className="mark" />{t("Земли Слова")} <span className="sub">· {t("Lands of the Word")}</span></Link>
           {user && (
             <div className="userchip">
               <Link to="/account" className="userchip" style={{ textDecoration: "none", color: "inherit" }}><span className="avatar">{name.slice(0, 1).toUpperCase()}</span>

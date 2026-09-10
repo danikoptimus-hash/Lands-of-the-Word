@@ -13,7 +13,7 @@ interface Metrics {
   activity: { submissionsInPeriod: number; submissionsTotal: number; approvedShare: number | null; avgDecisionHours: number | null; edgesTraversed: number; citiesCaptured: number; citiesCapturedInPeriod: number };
   battles: { declared: number; declaredInPeriod: number; expired: number; won: number; repelled: number; active: number; avgBid: number | null; avgAttackHours: number | null; sumMode: number };
   diplomacy: { implemented: boolean; passRequests: number; passApprovedShare: number | null; embassies: number };
-  tech: { uptimeHours: number | null; mailEnabled: boolean; mailSent: number; mailFailed: number; node: string; memoryMb: number };
+  tech: { uptimeHours: number | null; mailEnabled: boolean; mailSent: number; mailFailed: number; node: string; memoryMb: number; requests: number; errors5xx: number; errors4xx: number; lastErrorAt: string | null; lastErrorRoute: string | null; avgMs: number | null; p95Ms: number | null; sample: number };
 }
 const fmt = (v: number | null | undefined, suffix = "") => (v === null || v === undefined ? "—" : `${v}${suffix}`);
 const dateLabel = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
@@ -125,7 +125,11 @@ export function AdminDashboard() {
           <div className="card"><h2>Техника</h2><div className="tiles">
             <Tile label="работает без перезапуска" value={fmt(m.tech.uptimeHours, " ч")} /><Tile label="почта" value={m.tech.mailEnabled ? "настроена" : "выключена"} />
             <Tile label="писем отправлено" value={fmt(m.tech.mailSent)} hint="с момента запуска" /><Tile label="не доставлено" value={fmt(m.tech.mailFailed)} /><Tile label="память" value={fmt(m.tech.memoryMb, " МБ")} hint={m.tech.node} />
-          </div><p className="hint">Ошибки и время ответа сервера — в логах контейнера; отдельного сбора пока нет.</p></div>
+            <Tile label="запросов к API" value={fmt(m.tech.requests)} hint="с момента запуска" />
+            <Tile label="ошибок сервера (5xx)" value={fmt(m.tech.errors5xx)} hint={m.tech.lastErrorAt ? `последняя ${new Date(m.tech.lastErrorAt).toLocaleString("ru")} · ${m.tech.lastErrorRoute ?? ""}` : "ошибок не было"} />
+            <Tile label="отказов клиенту (4xx)" value={fmt(m.tech.errors4xx)} hint="неверные данные, нет прав" />
+            <Tile label="время ответа" value={fmt(m.tech.avgMs, " мс")} hint={`p95 ${fmt(m.tech.p95Ms, " мс")} · по ${m.tech.sample} запросам`} />
+          </div><p className="hint">Подробности ошибок — в логах контейнера (docker logs lotw-app).</p></div>
         </>
       )}
     </>

@@ -33,10 +33,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const r = await api<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify({ nickname, password }) });
     setUser(r.user);
   }, []);
+  // Язык, выбранный гостем на странице входа, становится языком новой учётки.
   const register = useCallback(async (nickname: string, password: string, email?: string) => {
-    const r = await api<{ user: User }>("/api/auth/register", { method: "POST", body: JSON.stringify({ nickname, password, email }) });
+    const r = await api<{ user: User }>("/api/auth/register", { method: "POST", body: JSON.stringify({ nickname, password, email, locale: guestLocale }) });
     setUser(r.user);
-  }, []);
+  }, [guestLocale]);
   const refresh = useCallback(async () => {
     try { const r = await api<{ user: User }>("/api/auth/me"); setUser(r.user); } catch { setUser(null); }
   }, []);

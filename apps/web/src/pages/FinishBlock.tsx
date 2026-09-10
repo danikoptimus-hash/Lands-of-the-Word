@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, type StandingsDto } from "../lib/api";
 import { useUi } from "../lib/ui";
+import { t, getLocale } from "../lib/i18n";
 
 /** Итоги игры у админа: положение команд, срок окончания, кнопка «Завершить игру»; после завершения — победитель. */
 export function FinishBlock({ gameId, status, version, onChanged }: { gameId: string; status: string; version: number; onChanged: () => void }) {
@@ -11,54 +12,54 @@ export function FinishBlock({ gameId, status, version, onChanged }: { gameId: st
   const load = () => api<StandingsDto>(`/api/games/${gameId}/standings`).then((d) => { setData(d); setEndsAt(d.endsAt ? toLocalInput(d.endsAt) : ""); }).catch(() => setData(null));
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, version, status]);
   if (!data || status === "DRAFT") return null;
-  const winner = data.standings.find((t) => t.teamId === data.winnerTeamId);
-  const leaderRow = data.standings.find((t) => t.teamId === data.leaderTeamId);
+  const winner = data.standings.find((tm) => tm.teamId === data.winnerTeamId);
+  const leaderRow = data.standings.find((tm) => tm.teamId === data.leaderTeamId);
 
   async function saveDeadline() {
     setError(null);
-    try { await api(`/api/games/${gameId}`, { method: "PATCH", body: JSON.stringify({ settings: { endsAt: endsAt ? new Date(endsAt).toISOString() : null } }) }); notify(endsAt ? "Срок сохранён" : "Срок снят"); onChanged(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+    try { await api(`/api/games/${gameId}`, { method: "PATCH", body: JSON.stringify({ settings: { endsAt: endsAt ? new Date(endsAt).toISOString() : null } }) }); notify(endsAt ? t("Срок сохранён") : t("Срок снят")); onChanged(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
   async function finish() {
-    const who = leaderRow ? `Победителем станет «${leaderRow.name}» (больше всего городов).` : "Победителя не будет.";
-    if (!(await confirm(`Завершить игру сейчас? ${who} Все битвы будут отменены, действия команд остановятся.`, { okLabel: "Завершить игру", danger: true }))) return;
-    try { await api(`/api/games/${gameId}/finish`, { method: "POST", body: JSON.stringify({}) }); notify("Игра завершена"); onChanged(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+    const who = leaderRow ? t("Победителем станет «{name}» (больше всего городов).", { name: leaderRow.name }) : t("Победителя не будет.");
+    if (!(await confirm(t("Завершить игру сейчас? {who} Все битвы будут отменены, действия команд остановятся.", { who }), { okLabel: t("Завершить игру"), danger: true }))) return;
+    try { await api(`/api/games/${gameId}/finish`, { method: "POST", body: JSON.stringify({}) }); notify(t("Игра завершена")); onChanged(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
   return (
     <div className="card">
       <div className="card-head">
-        <h2>{status === "FINISHED" ? "Игра завершена" : "Итоги и завершение"}</h2>
-        {status === "FINISHED" && data.finishedAt && <span className="muted">{new Date(data.finishedAt).toLocaleString("ru")}</span>}
+        <h2>{status === "FINISHED" ? t("Игра завершена") : t("Итоги и завершение")}</h2>
+        {status === "FINISHED" && data.finishedAt && <span className="muted">{new Date(data.finishedAt).toLocaleString(getLocale())}</span>}
       </div>
       {status === "FINISHED" && (
         <p className="note ok" style={{ fontSize: "1rem" }}>
-          🏆 {winner ? <>Победила команда <strong>«{winner.name}»</strong></> : "Победитель не определён"}
-          {" · "}{data.finishReason === "last_team" ? "в строю осталась одна команда" : data.finishReason === "time_limit" ? "вышел срок игры" : "завершена администратором"}
+          🏆 {winner ? <>{t("Победила команда")} <strong>«{winner.name}»</strong></> : t("Победитель не определён")}
+          {" · "}{data.finishReason === "last_team" ? t("в строю осталась одна команда") : data.finishReason === "time_limit" ? t("вышел срок игры") : t("завершена администратором")}
         </p>
       )}
       <div style={{ overflowX: "auto" }}>
         <table className="standings">
-          <thead><tr><th>Команда</th><th>Городов</th><th>Столиц</th><th>Дел</th><th>Узлов</th><th>Битвы</th><th>Статус</th></tr></thead>
+          <thead><tr><th>{t("Команда")}</th><th>{t("Городов")}</th><th>{t("Столиц")}</th><th>{t("Дел")}</th><th>{t("Узлов")}</th><th>{t("Битвы")}</th><th>{t("Статус")}</th></tr></thead>
           <tbody>
-            {data.standings.map((t, i) => (
-              <tr key={t.teamId} className={t.teamId === data.winnerTeamId ? "winner" : t.status === "defeated" ? "out" : ""}>
-                <td><span className="avatar" style={{ background: t.color, color: "#fff" }}>{t.name.slice(0, 1)}</span> {t.name}{status === "ACTIVE" && i === 0 && t.status !== "defeated" ? <span className="badge accent" style={{ marginLeft: ".4rem" }}>лидер</span> : null}</td>
-                <td>{t.cities}</td><td>{t.capitals}</td><td>{t.deedsApproved}</td><td>{t.nodesRevealed}</td>
-                <td title="взято / отражено / потеряно">{t.battlesWon} / {t.battlesRepelled} / {t.battlesLost}</td>
-                <td>{t.status === "defeated" ? "выбыла" : t.teamId === data.winnerTeamId ? "победитель" : "в игре"}</td>
+            {data.standings.map((tm, i) => (
+              <tr key={tm.teamId} className={tm.teamId === data.winnerTeamId ? "winner" : tm.status === "defeated" ? "out" : ""}>
+                <td><span className="avatar" style={{ background: tm.color, color: "#fff" }}>{tm.name.slice(0, 1)}</span> {tm.name}{status === "ACTIVE" && i === 0 && tm.status !== "defeated" ? <span className="badge accent" style={{ marginLeft: ".4rem" }}>{t("лидер")}</span> : null}</td>
+                <td>{tm.cities}</td><td>{tm.capitals}</td><td>{tm.deedsApproved}</td><td>{tm.nodesRevealed}</td>
+                <td title={t("взято / отражено / потеряно")}>{tm.battlesWon} / {tm.battlesRepelled} / {tm.battlesLost}</td>
+                <td>{tm.status === "defeated" ? t("выбыла") : tm.teamId === data.winnerTeamId ? t("победитель") : t("в игре")}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="hint">Битвы: взято / отражено / потеряно. Дела — одобренные сдачи, узлы — открытые перекрёстки.</p>
-      {data.standings.some((t) => t.citiesOnPath.length > 0) && (
+      <p className="hint">{t("Битвы: взято / отражено / потеряно. Дела — одобренные сдачи, узлы — открытые перекрёстки.")}</p>
+      {data.standings.some((tm) => tm.citiesOnPath.length > 0) && (
         <div className="path-list">
-          {data.standings.map((t) => t.citiesOnPath.length > 0 && (
-            <div key={t.teamId} className="team-stripe" style={{ borderLeftColor: t.color }}>
-              <strong>{t.name}</strong> <span className="muted">· города на пути:</span>{" "}
-              {t.citiesOnPath.map((c) => <span key={c.nodeKey} className={"badge" + (c.current ? (c.isCapital ? " accent" : " ok") : " bad")} style={{ marginRight: ".3rem" }} title={new Date(c.at).toLocaleString("ru")}>{c.name}{c.isCapital ? " ★" : ""}{c.current ? "" : " (потерян)"}</span>)}
+          {data.standings.map((tm) => tm.citiesOnPath.length > 0 && (
+            <div key={tm.teamId} className="team-stripe" style={{ borderLeftColor: tm.color }}>
+              <strong>{tm.name}</strong> <span className="muted">{t("· города на пути:")}</span>{" "}
+              {tm.citiesOnPath.map((c) => <span key={c.nodeKey} className={"badge" + (c.current ? (c.isCapital ? " accent" : " ok") : " bad")} style={{ marginRight: ".3rem" }} title={new Date(c.at).toLocaleString(getLocale())}>{c.name}{c.isCapital ? " ★" : ""}{c.current ? "" : t(" (потерян)")}</span>)}
             </div>
           ))}
         </div>
@@ -66,11 +67,11 @@ export function FinishBlock({ gameId, status, version, onChanged }: { gameId: st
       {status === "ACTIVE" && (
         <>
           <div className="row" style={{ marginTop: ".8rem", gap: ".5rem", alignItems: "flex-end", flexWrap: "wrap" }}>
-            <div><label htmlFor="ends-at">Срок окончания игры</label><input id="ends-at" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></div>
-            <button className="secondary" onClick={() => void saveDeadline()}>Сохранить срок</button>
-            <button className="danger" onClick={() => void finish()}>Завершить игру</button>
+            <div><label htmlFor="ends-at">{t("Срок окончания игры")}</label><input id="ends-at" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} /></div>
+            <button className="secondary" onClick={() => void saveDeadline()}>{t("Сохранить срок")}</button>
+            <button className="danger" onClick={() => void finish()}>{t("Завершить игру")}</button>
           </div>
-          <p className="hint">По сроку игра завершится сама: победит команда с наибольшим числом городов. Если столицы потеряли все команды, кроме одной, игра завершается сразу.</p>
+          <p className="hint">{t("По сроку игра завершится сама: победит команда с наибольшим числом городов. Если столицы потеряли все команды, кроме одной, игра завершается сразу.")}</p>
         </>
       )}
       {error && <p className="error">{error}</p>}

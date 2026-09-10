@@ -1,5 +1,6 @@
 import { prisma } from "../db.js";
 import { mailStats, mailEnabled } from "./mail.js";
+import { responseTimes, stats } from "./stats.js";
 
 /**
  * Аналитика платформы для суперадмина (4.1): только обобщённые числа, без содержимого игр и без людей.
@@ -101,6 +102,9 @@ export async function platformMetrics(days = 30) {
       avgBid: avg(battles.map((b) => b.bid)), avgAttackHours: hours(avg(attackTimes)), sumMode: battles.filter((b) => b.sumMode).length,
     },
     diplomacy: { implemented: true, passRequests: passages.length, passApprovedShare: share(passages.filter((p) => p.status === "APPROVED").length, passages.filter((p) => p.status !== "PENDING").length), passRequestsInPeriod: passages.filter((p) => p.createdAt >= since).length, embassies: 0 },
-    tech: { uptimeHours: hours(now - mailStats.startedAt), mailEnabled: mailEnabled(), mailSent: mailStats.sent, mailFailed: mailStats.failed, node: process.version, memoryMb: Math.round(process.memoryUsage().rss / 1048576) },
+    tech: {
+      uptimeHours: hours(now - mailStats.startedAt), mailEnabled: mailEnabled(), mailSent: mailStats.sent, mailFailed: mailStats.failed, node: process.version, memoryMb: Math.round(process.memoryUsage().rss / 1048576),
+      requests: stats.requests, errors5xx: stats.errors5xx, errors4xx: stats.errors4xx, lastErrorAt: stats.lastErrorAt, lastErrorRoute: stats.lastErrorRoute, ...responseTimes(),
+    },
   };
 }

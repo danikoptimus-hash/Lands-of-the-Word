@@ -15,6 +15,7 @@ const registerBody = z.object({
   password,
   email: z.string().trim().email().optional().or(z.literal("").transform(() => undefined)),
   displayName: z.string().trim().max(60).optional(),
+  locale: z.enum(["ru", "en"]).optional(),
 });
 
 const loginBody = z.object({ nickname: z.string().trim(), password: z.string() });
@@ -53,6 +54,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         passwordHash: await bcrypt.hash(body.password, 10),
         email: body.email ?? null,
         displayName: body.displayName ?? null,
+        locale: body.locale ?? "ru",
         // Первый зарегистрированный пользователь платформы — суперадмин.
         platformRole: userCount === 0 ? "SUPERADMIN" : "USER",
       },

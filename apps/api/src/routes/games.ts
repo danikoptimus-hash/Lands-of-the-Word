@@ -219,16 +219,19 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     ]);
     const settings = (game.settings ?? {}) as { nodeCount?: number };
     const recommended = recommendedDeedCount(settings.nodeCount ?? 250);
-    const problems: string[] = [];
-    if (starts === 0) problems.push("Карта не сгенерирована");
-    else if (starts !== game.teamCount) problems.push(`На карте ${starts} стартовых точек, а команд по настройкам ${game.teamCount}: перегенерируйте карту`);
-    if (teams.length < game.teamCount) problems.push(`Создано команд: ${teams.length} из ${game.teamCount}. Добавьте команду или уменьшите число команд в настройках`);
+    // Тексты — шаблоны с подстановками: клиент переводит их по ключу (см. i18n), `problems`/`warnings` — готовые русские строки.
+    type Item = { key: string; vars?: Record<string, string | number> };
+    const problemItems: Item[] = [];
+    if (starts === 0) problemItems.push({ key: "Карта не сгенерирована" });
+    else if (starts !== game.teamCount) problemItems.push({ key: "На карте {a} стартовых точек, а команд по настройкам {b}: перегенерируйте карту", vars: { a: starts, b: game.teamCount } });
+    if (teams.length < game.teamCount) problemItems.push({ key: "Создано команд: {a} из {b}. Добавьте команду или уменьшите число команд в настройках", vars: { a: teams.length, b: game.teamCount } });
     const empty = teams.filter((t) => t._count.members === 0).map((t) => t.name);
-    if (empty.length) problems.push(`Команды без участников: ${empty.join(", ")}`);
-    const warnings: string[] = [];
-    if (deeds < recommended) warnings.push(`Дел в списке ${deeds}, рекомендуется не меньше ${recommended}: дела начнут повторяться`);
-    if (deeds === 0) problems.push("Список дел пуст");
-    return { canStart: problems.length === 0, problems, warnings };
+    if (empty.length) problemItems.push({ key: "Команды без участников: {names}", vars: { names: empty.join(", ") } });
+    const warningItems: Item[] = [];
+    if (deeds < recommended) warningItems.push({ key: "Дел в списке {a}, рекомендуется не меньше {b}: дела начнут повторяться", vars: { a: deeds, b: recommended } });
+    if (deeds === 0) problemItems.push({ key: "Список дел пуст" });
+    const fill = (i: Item) => i.key.replace(/\{(\w+)\}/g, (m, k: string) => (i.vars && k in i.vars ? String(i.vars[k]) : m));
+    return { canStart: problemItems.length === 0, problems: problemItems.map(fill), warnings: warningItems.map(fill), problemItems, warningItems };
   });
 
   /** Старт игры: карта фиксируется, командам назначаются стартовые точки, статус ACTIVE. */
