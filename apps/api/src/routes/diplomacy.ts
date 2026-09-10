@@ -6,7 +6,7 @@ import { requireUser } from "../auth.js";
 import { requireAdmin, requireMember } from "./teamMap.js";
 import { closePassage, ensureFrontier, revealNode } from "../services/teamMap.js";
 import { notifyTeam } from "../services/notify.js";
-import { loadBook, verseText, formatRange, refToIndex, parseRef } from "../services/bible.js";
+import { loadBook, verseText, formatRange, parseDistrictRange } from "../services/bible.js";
 import { loadCityContent } from "../services/cities.js";
 import { BOOKS } from "@lotw/domain";
 
@@ -207,11 +207,14 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const [content, book] = await Promise.all([loadCityContent(node.bookCode ?? ""), loadBook(node.bookCode ?? "")]);
     const d = content?.districts[i];
     if (!d || !book) return reply.code(404).send({ error: "not_found", message: "Район не найден" });
-    const mm = /^(\d+):(\d+)[–-](?:(\d+):)?(\d+)$/.exec(d.verses.replace(/\s/g, ""));
-    if (!mm) return { verses: d.verses, text: [] };
-    const a = refToIndex(book, parseRef(`${mm[1]}:${mm[2]}`)!), b = refToIndex(book, parseRef(`${mm[3] ?? mm[1]}:${mm[4]}`)!);
-    if (a === null || b === null) return { verses: d.verses, text: [] };
-    return { verses: d.verses, text: Array.from({ length: b - a + 1 }, (_, k) => `${formatRange(book, a + k, a + k)} ${verseText(book, a + k) ?? ""}`) };
+    // Подсказка — текст района. Длинные районы (главы) обрезаются: пророк даёт направление, а не всю книгу.
+    const range = parseDistrictRange(book, d.verses);
+    if (!range) return { verses: d.verses, text: [] };
+    const HINT_MAX = 60;
+    const a = range.start, b = Math.min(range.end, range.start + HINT_MAX - 1);
+    const text = Array.from({ length: b - a + 1 }, (_, k) => `${formatRange(book, a + k, a + k)} ${verseText(book, a + k) ?? ""}`);
+    if (b < range.end) text.push(`… (дальше до ${formatRange(book, range.end, range.end)} — читайте сами)`);
+    return { verses: d.verses, text };
   });
 
   void revealNode;

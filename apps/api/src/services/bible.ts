@@ -56,6 +56,21 @@ export function parseRef(s: string): Ref | null {
   const m = /^\s*(\d+)\s*[:.,]\s*(\d+)\s*$/.exec(s);
   return m ? { chapter: Number(m[1]), verse: Number(m[2]) } : null;
 }
+/** Диапазон района: «1:1–5», «1:16–2:3», «12» (глава), «12–22» (главы) → индексы стихов [start, end]. */
+export function parseDistrictRange(book: BibleBook, verses: string): { start: number; end: number } | null {
+  const s = verses.replace(/\s/g, "").replace(/[—-]/g, "–");
+  let m = /^(\d+):(\d+)(?:–(?:(\d+):)?(\d+))?$/.exec(s);
+  if (m) {
+    const a = refToIndex(book, { chapter: Number(m[1]), verse: Number(m[2]) });
+    const b = m[4] ? refToIndex(book, { chapter: Number(m[3] ?? m[1]), verse: Number(m[4]) }) : a;
+    return a === null || b === null || b < a ? null : { start: a, end: b };
+  }
+  m = /^(\d+)(?:–(\d+))?$/.exec(s);
+  if (!m) return null;
+  const c1 = Number(m[1]), c2 = Number(m[2] ?? m[1]);
+  if (c1 < 1 || c2 > book.verseCounts.length || c2 < c1) return null;
+  return { start: book.offsets[c1 - 1]!, end: book.offsets[c2 - 1]! + book.verseCounts[c2 - 1]! - 1 };
+}
 export function formatRef(book: BibleBook, idx: number): string {
   const r = indexToRef(book, idx);
   return `${r.chapter}:${r.verse}`;
