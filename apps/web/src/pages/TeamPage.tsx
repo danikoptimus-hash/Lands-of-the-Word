@@ -10,6 +10,7 @@ import { CityPopup } from "./CityPopup";
 import { BattleCard } from "./BattlePanel";
 import { DiplomacyMenu } from "./Diplomacy";
 import { useUi } from "../lib/ui";
+import { t } from "../lib/i18n";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -38,9 +39,9 @@ export function TeamPage() {
       const was = prev.get(b.id);
       if (was === b.status) continue;
       const mine = team && b.defender.id === team.id;
-      if (!was && mine && b.status === "ATTACK") notify(`На ваш город ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? ""} объявлена атака: ${b.bid} стихов!`, "bad");
-      else if (was && mine && b.status === "DEFENSE") notify(`Атака на ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? "город"} одобрена: пошло время обороны!`, "bad");
-      else if (was && (b.status === "WON" || b.status === "REPELLED" || b.status === "EXPIRED")) notify(`Битва за ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? "город"}: ${BATTLE_STATUS_LABEL[b.status]}`, b.status === "WON" ? (mine ? "bad" : "ok") : mine ? "ok" : "bad");
+      if (!was && mine && b.status === "ATTACK") notify(t("На ваш город {city} объявлена атака: {n} стихов!", { city: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? "", n: b.bid }), "bad");
+      else if (was && mine && b.status === "DEFENSE") notify(t("Атака на {city} одобрена: пошло время обороны!", { city: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? t("город") }), "bad");
+      else if (was && (b.status === "WON" || b.status === "REPELLED" || b.status === "EXPIRED")) notify(t("Битва за {city}: {status}", { city: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? t("город"), status: BATTLE_STATUS_LABEL[b.status] }), b.status === "WON" ? (mine ? "bad" : "ok") : mine ? "ok" : "bad");
     }
     seenBattles.current = new Map(r.battles.map((b) => [b.id, b.status]));
     setBattles(r.battles);
@@ -69,7 +70,7 @@ export function TeamPage() {
   const [donationCfg, setDonationCfg] = useState<{ min: number; currency: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setIsAdmin(r.isAdmin); setTeam(r.teams.find((t) => t.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")), [id, user?.id]);
+  const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setIsAdmin(r.isAdmin); setTeam(r.teams.find((t) => t.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, user?.id]);
   const loadMap = useCallback(() => api<MyMapDto & { gameName?: string; donation?: { min: number; currency: string } | null }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); if (m.gameName) setGameName(m.gameName); setDonationCfg(m.donation ?? null); }).catch(() => setMap(null)), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   useEffect(() => { if (team) { void loadBattles(); void loadStandings(); } }, [team, loadBattles, loadStandings]);
@@ -87,40 +88,40 @@ export function TeamPage() {
 
   function describeFrom(key: string): string {
     const n = map?.revealed.find((r) => r.key === key);
-    if (!n) return "открытой развилки";
-    if (n.kind === "START") return "стартовой точки";
-    if (n.kind === "CITY") return `города ${BOOK_BY_CODE.get(n.bookCode ?? "")?.nameRu ?? ""}`;
-    return "развилки";
+    if (!n) return t("открытой развилки");
+    if (n.kind === "START") return t("стартовой точки");
+    if (n.kind === "CITY") return t("города {name}", { name: BOOK_BY_CODE.get(n.bookCode ?? "")?.nameRu ?? "" });
+    return t("развилки");
   }
-  const where = (t: EdgeTaskDto) => `из ${describeFrom(t.fromKey)} на ${directionBetween(parseVertexKey(t.fromKey), parseVertexKey(t.toKey))}`;
+  const where = (task: EdgeTaskDto) => t("из {from} на {dir}", { from: describeFrom(task.fromKey), dir: directionBetween(parseVertexKey(task.fromKey), parseVertexKey(task.toKey)) });
 
   async function act(path: string, body?: unknown) {
     setBusy(true); setError(null);
     try { await api(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }); await loadMap(); }
-    catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : "Ошибка сети"); }
+    catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
   const peekedKind = (key: string) => map?.peeked?.find((p) => p.key === key)?.kind ?? null;
   async function peek(nodeKey: string) {
     setBusy(true); setError(null);
-    try { const r = await api<{ kind: string }>(`/api/games/${id}/my-map/peek`, { method: "POST", body: JSON.stringify({ nodeKey }) }); notify(r.kind === "CITY" ? "Разведка: там город!" : "Разведка: там развилка"); await loadMap(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+    try { const r = await api<{ kind: string }>(`/api/games/${id}/my-map/peek`, { method: "POST", body: JSON.stringify({ nodeKey }) }); notify(r.kind === "CITY" ? t("Разведка: там город!") : t("Разведка: там развилка")); await loadMap(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
   async function setGameRole(userId: string, gameRole: GameRole) {
     setError(null);
     try { await api(`/api/games/${id}/teams/${team!.id}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ gameRole }) }); await loadTeam(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
 
   if (error && !team) return <p className="error">{error}</p>;
-  if (!team) return <p className="muted">Загрузка…</p>;
+  if (!team) return <p className="muted">{t("Загрузка…")}</p>;
 
   if (isAdmin && !me) {
     return (
       <>
-        <p><Link to={`/games/${id}`}>← К странице игры</Link></p>
-        <div className="card"><h1>{team.name}</h1><p className="muted">Вы администратор этой игры, а не участник команды. Карты команд с туманом видны только их участникам; вся карта и движение всех команд — на странице игры.</p></div>
+        <p><Link to={`/games/${id}`}>{t("← К странице игры")}</Link></p>
+        <div className="card"><h1>{team.name}</h1><p className="muted">{t("Вы администратор этой игры, а не участник команды. Карты команд с туманом видны только их участникам; вся карта и движение всех команд — на странице игры.")}</p></div>
       </>
     );
   }
@@ -128,8 +129,8 @@ export function TeamPage() {
   if (!map || map.status !== "ACTIVE") {
     return (
       <>
-        <p><Link to="/">← Мои игры</Link></p>
-        <div className="card" style={{ borderTop: `4px solid ${team.color}` }}><h1>{team.name}</h1><p className="muted">Игра ещё не начата. Карта откроется, когда администратор нажмёт «Начать игру».</p></div>
+        <p><Link to="/">{t("← Мои игры")}</Link></p>
+        <div className="card" style={{ borderTop: `4px solid ${team.color}` }}><h1>{team.name}</h1><p className="muted">{t("Игра ещё не начата. Карта откроется, когда администратор нажмёт «Начать игру».")}</p></div>
         <Roster team={team} isCaptain={isCaptain} onRole={setGameRole} />
       </>
     );
@@ -160,53 +161,53 @@ export function TeamPage() {
 
       {standings?.status === "FINISHED" && (
         <div className="finish-banner">
-          🏆 Игра завершена{standings.winnerTeamId ? <>: победила <strong>«{standings.standings.find((t) => t.teamId === standings.winnerTeamId)?.name}»</strong></> : ""}
+          🏆 {t("Игра завершена")}{standings.winnerTeamId ? <>: {t("победила")} <strong>«{standings.standings.find((t) => t.teamId === standings.winnerTeamId)?.name}»</strong></> : ""}
         </div>
       )}
       <div className="map-hud">
         <span className="avatar" style={{ background: team.color, color: "#fff" }}>{team.name.slice(0, 1)}</span>
         <span className="name">{team.name}</span>
-        <span className="muted">· узлов {map.revealed.length} · путей {done}</span>
+        <span className="muted">· {t("узлов")} {map.revealed.length} · {t("путей")} {done}</span>
       </div>
       {/* Кнопка остаётся в DOM (hidden), иначе свайп, начатый на ней, ломается: Chrome теряет цель касания */}
-      <div className="edge-handle" role="button" tabIndex={0} hidden={menu} onClick={() => { setMenu(true); setSelectedId(null); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setMenu(true); }} aria-label="Открыть меню">›{takenTasks.length + activeBattles.length > 0 && <span className="count">{takenTasks.length + activeBattles.length}</span>}</div>
+      <div className="edge-handle" role="button" tabIndex={0} hidden={menu} onClick={() => { setMenu(true); setSelectedId(null); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setMenu(true); }} aria-label={t("Открыть меню")}>›{takenTasks.length + activeBattles.length > 0 && <span className="count">{takenTasks.length + activeBattles.length}</span>}</div>
 
       {task && (
         <div className="sheet">
-          <button className="ghost sm close" onClick={() => setSelectedId(null)} aria-label="Закрыть">✕</button>
+          <button className="ghost sm close" onClick={() => setSelectedId(null)} aria-label={t("Закрыть")}>✕</button>
           <div style={{ paddingRight: "2rem" }}><strong>{task.deed.title}</strong> <span className="badge">{task.deed.direction}</span> <span className={"badge" + (task.status === "SUBMITTED" ? " accent" : "")}>{TASK_STATUS_LABEL[task.status]}</span></div>
-          <p className="muted" style={{ margin: ".4rem 0" }}>Путь {where(task)}.</p>
+          <p className="muted" style={{ margin: ".4rem 0" }}>{t("Путь")} {where(task)}.</p>
           {task.deed.description && <p style={{ margin: ".2rem 0" }}>{task.deed.description}</p>}
-          <p className="muted" style={{ margin: ".2rem 0" }}>Сдать: {PROOF_LABEL[task.deed.proofType]} · тяжесть {task.deed.difficulty}</p>
-          {task.status === "REJECTED" && task.adminComment && <div className="note bad">Вернули: {task.adminComment}</div>}
-          {task.status === "SUBMITTED" && <div className="note ok">Сдано, ждём проверки администратора.</div>}
+          <p className="muted" style={{ margin: ".2rem 0" }}>{t("Сдать:")} {PROOF_LABEL[task.deed.proofType]} · {t("тяжесть")} {task.deed.difficulty}</p>
+          {task.status === "REJECTED" && task.adminComment && <div className="note bad">{t("Вернули:")} {task.adminComment}</div>}
+          {task.status === "SUBMITTED" && <div className="note ok">{t("Сдано, ждём проверки администратора.")}</div>}
           {error && <p className="error">{error}</p>}
           {(task.status === "OPEN" || task.status === "REJECTED") && (
             <div className="actions">
-              <button disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}>Беру это дело</button>
-              <button className="secondary" onClick={() => setSelectedId(null)}>Не сейчас</button>
-              {me?.gameRole === "SCOUT" && !peekedKind(task.toKey) && <button className="ghost" disabled={busy} onClick={() => void peek(task.toKey)}>🔭 Разведать, что за стороной</button>}
+              <button disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}>{t("Беру это дело")}</button>
+              <button className="secondary" onClick={() => setSelectedId(null)}>{t("Не сейчас")}</button>
+              {me?.gameRole === "SCOUT" && !peekedKind(task.toKey) && <button className="ghost" disabled={busy} onClick={() => void peek(task.toKey)}>{t("🔭 Разведать, что за стороной")}</button>}
             </div>
           )}
-          {peekedKind(task.toKey) && <p className="note ok">Разведка: за этой стороной {peekedKind(task.toKey) === "CITY" ? "город" : "развилка"}.</p>}
+          {peekedKind(task.toKey) && <p className="note ok">Разведка: за этой стороной {peekedKind(task.toKey) === "CITY" ? t("город") : t("развилка")}.</p>}
           {task.status === "TAKEN" && (
             <>
               {donationCfg && (
-                <label className="check"><input type="checkbox" checked={donation} onChange={(e) => setDonation(e.target.checked)} />Заменить дело пожертвованием (от {donationCfg.min} {donationCfg.currency})</label>
+                <label className="check"><input type="checkbox" checked={donation} onChange={(e) => setDonation(e.target.checked)} />{t("Заменить дело пожертвованием (от {min} {cur})", { min: donationCfg.min, cur: donationCfg.currency })}</label>
               )}
               {donation && donationCfg && (
                 <>
-                  <label htmlFor="amount">Сумма, {donationCfg.currency}</label>
+                  <label htmlFor="amount">{t("Сумма")}, {donationCfg.currency}</label>
                   <input id="amount" type="number" inputMode="numeric" min={donationCfg.min} value={amount} onChange={(e) => setAmount(e.target.value)} />
                 </>
               )}
-              <label htmlFor="links">{donation ? "Ссылка на чек или подтверждение перевода" : "Ссылки на фото или видео"} <span className="muted">по одной на строку</span></label>
+              <label htmlFor="links">{donation ? t("Ссылка на чек или подтверждение перевода") : t("Ссылки на фото или видео")} <span className="muted">{t("по одной на строку")}</span></label>
               <textarea id="links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder="https://…" />
-              <label htmlFor="note">{donation ? "Комментарий" : "Что сделали"}</label>
+              <label htmlFor="note">{donation ? t("Комментарий") : t("Что сделали")}</label>
               <textarea id="note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
               <div className="actions">
-                <button disabled={busy || (donation && !amount)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/submit`, { links: links.split(/\s+/).filter(Boolean), note, donation, donationAmount: donation ? Number(amount) : undefined }).then(() => { setLinks(""); setNote(""); setDonation(false); setAmount(""); })}>{donation ? "Сдать пожертвование" : "Сдать на проверку"}</button>
-                <button className="ghost" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/release`)}>Отпустить</button>
+                <button disabled={busy || (donation && !amount)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/submit`, { links: links.split(/\s+/).filter(Boolean), note, donation, donationAmount: donation ? Number(amount) : undefined }).then(() => { setLinks(""); setNote(""); setDonation(false); setAmount(""); })}>{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
+                <button className="ghost" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/release`)}>{t("Отпустить")}</button>
               </div>
             </>
           )}
@@ -220,32 +221,32 @@ export function TeamPage() {
             <div className="row between">
               <div className="person" style={{ gap: ".7rem" }}>
                 <span className="avatar" style={{ background: team.color, color: "#fff", width: 40, height: 40 }}>{team.name.slice(0, 1)}</span>
-                <div><strong style={{ fontSize: "1.05rem" }}>{team.name}</strong><div className="muted">{gameName || "Игра"} · вы — {me ? TEAM_ROLE_LABEL[me.role] : "?"}</div></div>
+                <div><strong style={{ fontSize: "1.05rem" }}>{team.name}</strong><div className="muted">{gameName || t("Игра")} · {t("вы —")} {me ? TEAM_ROLE_LABEL[me.role] : "?"}</div></div>
               </div>
-              <button className="ghost sm" onClick={() => setMenu(false)} aria-label="Закрыть">✕</button>
+              <button className="ghost sm" onClick={() => setMenu(false)} aria-label={t("Закрыть")}>✕</button>
             </div>
             <div className="section">
-              <h2>Взятые дела <span className="muted">{takenTasks.length}</span></h2>
-              {takenTasks.length === 0 && <p className="muted">Пока ничего не взято. Нажми на сторону с меткой на карте.</p>}
+              <h2>{t("Взятые дела")} <span className="muted">{takenTasks.length}</span></h2>
+              {takenTasks.length === 0 && <p className="muted">{t("Пока ничего не взято. Нажми на сторону с меткой на карте.")}</p>}
               <ul className="list">
-                {takenTasks.map((t) => (
-                  <li key={t.id} onClick={() => { setSelectedId(t.id); setMenu(false); }} style={{ cursor: "pointer" }}>
-                    <div className="main"><strong>{t.deed.title}</strong><div className="muted">{where(t)}{t.status === "REJECTED" && t.adminComment ? ` · вернули: ${t.adminComment}` : ""}</div></div>
-                    <span className={"badge" + (t.status === "SUBMITTED" ? " accent" : "")}>{TASK_STATUS_LABEL[t.status]}</span>
+                {takenTasks.map((tk) => (
+                  <li key={tk.id} onClick={() => { setSelectedId(tk.id); setMenu(false); }} style={{ cursor: "pointer" }}>
+                    <div className="main"><strong>{tk.deed.title}</strong><div className="muted">{where(tk)}{tk.status === "REJECTED" && tk.adminComment ? ` · ${t("вернули")}: ${tk.adminComment}` : ""}</div></div>
+                    <span className={"badge" + (tk.status === "SUBMITTED" ? " accent" : "")}>{TASK_STATUS_LABEL[tk.status]}</span>
                   </li>
                 ))}
               </ul>
             </div>
             {standings && standings.standings.length > 0 && (
               <div className="section">
-                <h2>Положение команд</h2>
+                <h2>{t("Положение команд")}</h2>
                 <ul className="list">
-                  {standings.standings.map((t) => (
-                    <li key={t.teamId}>
-                      <div className="main"><span className="avatar" style={{ background: t.color, color: "#fff" }}>{t.name.slice(0, 1)}</span> {t.name} {t.teamId === standings.winnerTeamId && "🏆"}
-                        <div className="muted" style={{ fontSize: ".82rem" }}>городов {t.cities} · дел {t.deedsApproved} · узлов {t.nodesRevealed} · битвы {t.battlesWon}/{t.battlesRepelled}/{t.battlesLost}{t.citiesOnPath.length ? ` · путь: ${t.citiesOnPath.map((c) => c.name + (c.current ? "" : " (потерян)")).join(", ")}` : ""}</div>
+                  {standings.standings.map((st) => (
+                    <li key={st.teamId}>
+                      <div className="main"><span className="avatar" style={{ background: st.color, color: "#fff" }}>{st.name.slice(0, 1)}</span> {st.name} {st.teamId === standings.winnerTeamId && "🏆"}
+                        <div className="muted" style={{ fontSize: ".82rem" }}>{t("городов")} {st.cities} · {t("дел")} {st.deedsApproved} · {t("узлов")} {st.nodesRevealed} · {t("битвы")} {st.battlesWon}/{st.battlesRepelled}/{st.battlesLost}{st.citiesOnPath.length ? ` · ${t("путь")}: ${st.citiesOnPath.map((c) => c.name + (c.current ? "" : t(t(" (потерян)")))).join(", ")}` : ""}</div>
                       </div>
-                      <span className="badge">{t.status === "defeated" ? "выбыла" : t.teamId === standings.winnerTeamId ? "победитель" : "в игре"}</span>
+                      <span className="badge">{st.status === "defeated" ? t("выбыла") : st.teamId === standings.winnerTeamId ? t("победитель") : t("в игре")}</span>
                     </li>
                   ))}
                 </ul>
@@ -253,7 +254,7 @@ export function TeamPage() {
             )}
             {activeBattles.length > 0 && (
               <div className="section">
-                <h2>Битвы <span className="muted">{activeBattles.length}</span></h2>
+                <h2>{t("Битвы")} <span className="muted">{activeBattles.length}</span></h2>
                 {activeBattles.map((b) => (
                   <div key={b.id} onClick={() => { setCityKey(b.nodeKey); setMenu(false); }} style={{ cursor: "pointer" }}>
                     <BattleCard gameId={id} b={b} teamId={team.id} isCaptain={isCaptain} now={now} onChanged={() => void loadBattles()} compact />
@@ -264,9 +265,9 @@ export function TeamPage() {
             <DiplomacyMenu gameId={id} version={cityVersion} />
             <div className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} flat /></div>
             <div className="section">
-              <Link className="menu-link" to="/">🗺 Мои игры</Link>
-              <Link className="menu-link" to="/account">⚙ Настройки аккаунта</Link>
-              <a className="menu-link" href="#" onClick={(e) => { e.preventDefault(); void logout(); }}>⏻ Выйти</a>
+              <Link className="menu-link" to="/">{t("🗺 Мои игры")}</Link>
+              <Link className="menu-link" to="/account">{t("⚙ Настройки аккаунта")}</Link>
+              <a className="menu-link" href="#" onClick={(e) => { e.preventDefault(); void logout(); }}>{t("⏻ Выйти")}</a>
             </div>
           </div>
         </>
@@ -278,7 +279,7 @@ export function TeamPage() {
 function Roster({ team, isCaptain, onRole, flat }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; flat?: boolean }) {
   const body = (
     <>
-      <h2>Состав <span className="muted">{team.members.length}</span></h2>
+      <h2>{t("Состав")} <span className="muted">{team.members.length}</span></h2>
       <ul className="list">
         {team.members.map((m) => (
           <li key={m.user.id}>
@@ -288,7 +289,7 @@ function Roster({ team, isCaptain, onRole, flat }: { team: TeamDto; isCaptain: b
             </div>
             {m.role === "MEMBER" && (isCaptain ? (
               <select value={m.gameRole} onChange={(e) => onRole(m.user.id, e.target.value as GameRole)} style={{ width: "auto", minHeight: 34 }}>
-                {(Object.keys(GAME_ROLE_LABEL) as GameRole[]).map((r) => <option key={r} value={r}>{r === "NONE" ? "без роли" : GAME_ROLE_LABEL[r]}</option>)}
+                {(Object.keys(GAME_ROLE_LABEL) as GameRole[]).map((r) => <option key={r} value={r}>{r === "NONE" ? t("без роли") : GAME_ROLE_LABEL[r]}</option>)}
               </select>
             ) : m.gameRole !== "NONE" ? <span className="badge">{GAME_ROLE_LABEL[m.gameRole]}</span> : null)}
           </li>

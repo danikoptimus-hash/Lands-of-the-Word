@@ -1,4 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
+import { t } from "../lib/i18n";
 
 /**
  * Список с перестановкой: тянуть за ручку (палец или мышь) либо кнопки ▲▼.
@@ -38,13 +39,13 @@ export function SortableList({ ids, render, onChange, disabled }: { ids: string[
       {ids.map((id, i) => (
         <li key={id} className={dragId === id ? "dragging" : undefined}>
           {!disabled && (
-            <span className="grip" role="button" aria-label="Перетащить" onPointerDown={(e) => onPointerDown(e, id)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>⋮⋮</span>
+            <span className="grip" role="button" aria-label={t("Перетащить")} onPointerDown={(e) => onPointerDown(e, id)} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}>⋮⋮</span>
           )}
           <div className="body">{render(id, i)}</div>
           {!disabled && (
             <span className="arrows">
-              <button type="button" className="ghost sm" aria-label="Выше" disabled={i === 0} onClick={() => move(i, i - 1)}>▲</button>
-              <button type="button" className="ghost sm" aria-label="Ниже" disabled={i === ids.length - 1} onClick={() => move(i, i + 1)}>▼</button>
+              <button type="button" className="ghost sm" aria-label={t("Выше")} disabled={i === 0} onClick={() => move(i, i - 1)}>▲</button>
+              <button type="button" className="ghost sm" aria-label={t("Ниже")} disabled={i === ids.length - 1} onClick={() => move(i, i + 1)}>▼</button>
             </span>
           )}
         </li>

@@ -6,6 +6,7 @@ import { IMG } from "./MapLayers";
 import { SortableList } from "./SortableList";
 import { WarSection } from "./BattlePanel";
 import { PassageSection } from "./Diplomacy";
+import { t } from "../lib/i18n";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -16,7 +17,7 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
  */
 export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; version: number; onClose: () => void; onChanged: () => void }) {
   const { notify, confirm } = useUi();
-  const confirmMove = () => confirm("Перенести столицу в этот город? Это единственный перенос за игру.", { okLabel: "Перенести" });
+  const confirmMove = () => confirm(t("Перенести столицу в этот город? Это единственный перенос за игру."), { okLabel: t("Перенести") });
   const [city, setCity] = useState<MyCityDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<string[] | null>(null);
@@ -26,7 +27,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
   const [key, setKey] = useState("");
   const [now, setNow] = useState(Date.now());
 
-  const load = useCallback(() => api<MyCityDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`).then((c) => { setCity(c); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : "Ошибка сети")), [gameId, nodeKey]);
+  const load = useCallback(() => api<MyCityDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`).then((c) => { setCity(c); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [gameId, nodeKey]);
   useEffect(() => { void load(); }, [load, version]);
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, []);
   useEffect(() => { if (city?.content && !city.state.orderSolved && !order) setOrder(city.content.districts.map((d) => d.id)); }, [city, order]);
@@ -45,43 +46,43 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
     try {
       const r = await api<{ correct: boolean; wrong: number }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/order`, { method: "POST", body: JSON.stringify({ ids: order }) });
       setOrderResult(r.wrong);
-      if (r.correct) { notify("Порядок верный! Районы открыты"); setOrder(null); }
+      if (r.correct) { notify(t("Порядок верный! Районы открыты")); setOrder(null); }
       await load(); onChanged();
-    } catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+    } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
   async function answer(index: number, value: unknown): Promise<boolean> {
     setBusy(true); setError(null);
     try {
       const r = await api<{ correct: boolean; fragment?: string }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
-      if (r.correct) notify(`Верно! Знак шифра: ${r.fragment}`);
-      else notify("Неверно. Перечитайте это место в книге", "bad");
+      if (r.correct) notify(t("Верно! Знак шифра: {f}", { f: r.fragment ?? "" }));
+      else notify(t("Неверно. Перечитайте это место в книге"), "bad");
       await load(); onChanged();
       return r.correct;
-    } catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); return false; }
+    } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); return false; }
     finally { setBusy(false); }
   }
   async function makeCapital() {
     if (!(await confirmMove())) return;
     setBusy(true); setError(null);
-    try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/make-capital`, { method: "POST" }); notify("Столица перенесена"); await load(); onChanged(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+    try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/make-capital`, { method: "POST" }); notify(t("Столица перенесена")); await load(); onChanged(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
   async function hint(index: number) {
     setBusy(true); setError(null);
-    try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/hint`, { method: "POST", body: JSON.stringify({ index }) }); notify("Подсказка открыта: текст района ниже"); await load(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+    try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/hint`, { method: "POST", body: JSON.stringify({ index }) }); notify(t("Подсказка открыта: текст района ниже")); await load(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
   async function capture() {
     setBusy(true); setError(null);
     try {
       const r = await api<{ ok: boolean; isCapital: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/capture`, { method: "POST", body: JSON.stringify({ key }) });
-      notify(r.isCapital ? "Город ваш! Это ваша столица" : "Город ваш!");
+      notify(r.isCapital ? t("Город ваш! Это ваша столица") : t("Город ваш!"));
       setKey("");
       await load(); onChanged();
-    } catch (e) { setError(e instanceof ApiError ? e.message : "Ошибка сети"); }
+    } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
 
@@ -93,25 +94,25 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
         <div className="city-head">
           <img src={IMG.city(city?.node.cityType)} alt="" />
           <div className="title">
-            <strong>{book ? `Город ${book.nameRu}` : "Город"}</strong>
+            <strong>{book ? t("Город {name}", { name: book.nameRu }) : t("Город")}</strong>
             <div className="muted">
-              {city?.owner ? <span className="badge" style={{ borderColor: city.owner.color, color: city.owner.color }}>{city.owner.name}</span> : city?.node.ruined ? <span className="badge bad">руины</span> : <span className="badge">свободный</span>}
-              {city?.state.isCapital && <span className="badge accent"> столица</span>}
-              {total > 0 && <span> · районов {done.length}/{total}</span>}
+              {city?.owner ? <span className="badge" style={{ borderColor: city.owner.color, color: city.owner.color }}>{city.owner.name}</span> : city?.node.ruined ? <span className="badge bad">{t("руины")}</span> : <span className="badge">{t("свободный")}</span>}
+              {city?.state.isCapital && <span className="badge accent"> {t("столица")}</span>}
+              {total > 0 && <span> · {t("районов")} {done.length}/{total}</span>}
             </div>
           </div>
-          <button className="ghost sm" onClick={onClose} aria-label="Закрыть">✕</button>
+          <button className="ghost sm" onClick={onClose} aria-label={t("Закрыть")}>✕</button>
         </div>
         {error && <p className="error">{error}</p>}
-        {!city && !error && <p className="muted">Загрузка…</p>}
-        {city && !city.content && <p className="note warn">Задания для книги «{book?.nameRu}» ещё готовятся. Город пока нельзя взять.</p>}
+        {!city && !error && <p className="muted">{t("Загрузка…")}</p>}
+        {city && !city.content && <p className="note warn">{t("Задания для книги «{book}» ещё готовятся. Город пока нельзя взять.", { book: book?.nameRu ?? "" })}</p>}
 
         {city?.content && !city.state.orderSolved && order && (
           <>
-            <p className="muted" style={{ margin: "0 0 .6rem" }}>Расставьте районы в порядке, в котором эти сцены идут в книге. Тяните за ⋮⋮ или пользуйтесь стрелками.</p>
-            {orderResult != null && orderResult > 0 && <div className="note bad">Не на своём месте: {orderResult}. Попыток: {city.state.orderAttempts}</div>}
+            <p className="muted" style={{ margin: "0 0 .6rem" }}>{t("Расставьте районы в порядке, в котором эти сцены идут в книге. Тяните за ⋮⋮ или пользуйтесь стрелками.")}</p>
+            {orderResult != null && orderResult > 0 && <div className="note bad">{t("Не на своём месте: {n}. Попыток: {k}", { n: orderResult, k: city.state.orderAttempts })}</div>}
             <SortableList ids={order} onChange={setOrder} render={(id) => { const d = byId.get(id)!; return <><div className="d-title">{d.title}</div><div className="d-sum muted">{d.summary}</div></>; }} />
-            <div className="actions"><button disabled={busy} onClick={() => void checkOrder()}>Проверить порядок</button></div>
+            <div className="actions"><button disabled={busy} onClick={() => void checkOrder()}>{t("Проверить порядок")}</button></div>
           </>
         )}
 
@@ -125,36 +126,36 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
                   <li key={d.id} className={"district open" + (ok ? " done" : "")} onClick={() => setTaskIndex(i)}>
                     <span className="num">{i + 1}</span>
                     <div className="body"><div className="d-title">{d.title} <span className="muted">{d.verses}</span></div><div className="d-sum muted">{d.summary}</div></div>
-                    <span className={"check" + (ok ? " on" : "")} aria-label={ok ? "выполнено" : "не выполнено"}>{ok ? "✓" : "›"}</span>
+                    <span className={"check" + (ok ? " on" : "")} aria-label={ok ? t("выполнено") : t("не выполнено")}>{ok ? "✓" : "›"}</span>
                   </li>
                 );
               })}
             </ul>
             <div className="cipher">
-              <div className="muted">Шифр</div>
+              <div className="muted">{t("Шифр")}</div>
               <div className="letters">{city.content.fragments.map((f, i) => <span key={i} className={f ? "on" : ""}>{f ?? "·"}</span>)}</div>
               {allDone && <p className="muted" style={{ margin: ".3rem 0 0" }}>{city.content.codeRule}</p>}
             </div>
             {allDone && !city.state.capturedAt && city.node.ruined && !city.owner && (
               <div className="capture">
-                <p className="note warn">Руины: команда, владевшая городом, выбыла. Задания решены — город можно занять без ключа и без битвы.</p>
-                <div className="actions"><button disabled={busy} onClick={() => void capture()}>Занять руины</button></div>
+                <p className="note warn">{t("Руины: команда, владевшая городом, выбыла. Задания решены — город можно занять без ключа и без битвы.")}</p>
+                <div className="actions"><button disabled={busy} onClick={() => void capture()}>{t("Занять руины")}</button></div>
               </div>
             )}
             {allDone && !city.state.capturedAt && !city.node.ruined && (
               <div className="capture">
-                <p>Назовите шифр семье, к которой вас направили, и получите конверт. Введите ключ из конверта:</p>
+                <p>{t("Назовите шифр семье, к которой вас направили, и получите конверт. Введите ключ из конверта:")}</p>
                 <div className="row">
-                  <input value={key} onChange={(e) => setKey(e.target.value.toUpperCase())} placeholder="Ключ из конверта" maxLength={12} autoCapitalize="characters" />
-                  <button disabled={busy || key.trim().length < 4 || cooldown > 0} onClick={() => void capture()}>{cooldown > 0 ? `Подождите ${cooldown} с` : "Взять город"}</button>
+                  <input value={key} onChange={(e) => setKey(e.target.value.toUpperCase())} placeholder={t("Ключ из конверта")} maxLength={12} autoCapitalize="characters" />
+                  <button disabled={busy || key.trim().length < 4 || cooldown > 0} onClick={() => void capture()}>{cooldown > 0 ? `Подождите ${cooldown} с` : t("Взять город")}</button>
                 </div>
               </div>
             )}
-            {city.state.capturedAt && <div className="note ok">Город ваш{city.state.isCapital ? (city.state.secondCapital ? " — это ваша вторая столица" : " — это ваша столица") : ""}.</div>}
+            {city.state.capturedAt && <div className="note ok">Город ваш{city.state.isCapital ? (city.state.secondCapital ? t(" — это ваша вторая столица") : t(" — это ваша столица")) : ""}.</div>}
             {city.state.capturedAt && !city.state.isCapital && isCaptain && (
               <div className="row" style={{ marginTop: ".4rem", alignItems: "center", gap: ".6rem" }}>
-                <button className="secondary sm" disabled={busy || Boolean(city.team.capitalMovedAt)} onClick={() => void makeCapital()}>Перенести столицу сюда</button>
-                <span className="muted" style={{ fontSize: ".85rem" }}>{city.team.capitalMovedAt ? "перенос уже использован" : "один раз за игру, можно и во время войны"}</span>
+                <button className="secondary sm" disabled={busy || Boolean(city.team.capitalMovedAt)} onClick={() => void makeCapital()}>{t("Перенести столицу сюда")}</button>
+                <span className="muted" style={{ fontSize: ".85rem" }}>{city.team.capitalMovedAt ? t("перенос уже использован") : t("один раз за игру, можно и во время войны")}</span>
               </div>
             )}
           </>
@@ -181,20 +182,20 @@ function TaskView({ task, district, done, fragment, busy, cooldown, onBack, onAn
   const itemText = useMemo(() => (task.type === "order" ? new Map(task.items.map((i) => [i.id, i.text])) : new Map<string, string>()), [task]);
   const value = task.type === "choice" ? choice : task.type === "order" ? order : text.trim();
   const canSend = !done && !busy && cooldown === 0 && (task.type === "choice" ? choice != null : task.type === "order" ? order.length > 0 : text.trim().length > 0);
-  const scope = task.scope === "book" ? "по всей книге" : task.scope === "group" ? "по нескольким районам" : "по этому району";
+  const scope = task.scope === "book" ? t("по всей книге") : task.scope === "group" ? t("по нескольким районам") : "по этому району";
   return (
     <div className="task-view">
-      <button className="ghost sm" onClick={onBack}>‹ К районам</button>
-      <div className="muted" style={{ margin: ".4rem 0 .2rem" }}>Район {task.index + 1}: {district?.title} <span>{district?.verses}</span> · задание {scope}</div>
+      <button className="ghost sm" onClick={onBack}>{t("‹ К районам")}</button>
+      <div className="muted" style={{ margin: ".4rem 0 .2rem" }}>{t("Район")} {task.index + 1}: {district?.title} <span>{district?.verses}</span> · {t("задание")} {scope}</div>
       <p className="prompt">{task.prompt}</p>
-      {hintOpen && hintText && <div className="hint-box"><div className="muted">Подсказка пророка · текст района {district?.verses}</div>{hintText.map((t, i) => <p key={i}>{t}</p>)}</div>}
-      {!hintOpen && !done && canHint && <p><button type="button" className="ghost sm" disabled={busy} onClick={onHint}>🔮 Открыть подсказку пророка (раз в неделю)</button></p>}
+      {hintOpen && hintText && <div className="hint-box"><div className="muted">{t("Подсказка пророка · текст района")} {district?.verses}</div>{hintText.map((t, i) => <p key={i}>{t}</p>)}</div>}
+      {!hintOpen && !done && canHint && <p><button type="button" className="ghost sm" disabled={busy} onClick={onHint}>{t("🔮 Открыть подсказку пророка (раз в неделю)")}</button></p>}
       {done ? (
-        <div className="note ok">Выполнено. Знак шифра: <strong>{fragment}</strong></div>
+        <div className="note ok">{t("Выполнено. Знак шифра:")} <strong>{fragment}</strong></div>
       ) : (
         <>
-          {task.type === "number" && <input type="number" inputMode="numeric" value={text} onChange={(e) => setText(e.target.value)} placeholder="Число" />}
-          {task.type === "text" && <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Ответ" autoComplete="off" />}
+          {task.type === "number" && <input type="number" inputMode="numeric" value={text} onChange={(e) => setText(e.target.value)} placeholder={t("Число")} />}
+          {task.type === "text" && <input value={text} onChange={(e) => setText(e.target.value)} placeholder={t("Ответ")} autoComplete="off" />}
           {task.type === "choice" && (
             <ul className="choices">
               {task.options.map((o, i) => <li key={i} className={choice === i ? "on" : ""} onClick={() => setChoice(i)}><span className="radio" />{o}</li>)}
@@ -202,7 +203,7 @@ function TaskView({ task, district, done, fragment, busy, cooldown, onBack, onAn
           )}
           {task.type === "order" && <SortableList ids={order} onChange={setOrder} render={(id) => <div className="d-title">{itemText.get(id)}</div>} />}
           <div className="actions">
-            <button disabled={!canSend} onClick={() => void onAnswer(value)}>{cooldown > 0 ? `Подождите ${cooldown} с` : "Ответить"}</button>
+            <button disabled={!canSend} onClick={() => void onAnswer(value)}>{cooldown > 0 ? `Подождите ${cooldown} с` : t("Ответить")}</button>
           </div>
         </>
       )}

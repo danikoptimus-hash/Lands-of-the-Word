@@ -1,3 +1,4 @@
+import { t } from "./i18n";
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 interface ConfirmOptions { title?: string; okLabel?: string; cancelLabel?: string; danger?: boolean }
@@ -41,8 +42,8 @@ export function UiProvider({ children }: { children: ReactNode }) {
             {dialog.options.title && <h2>{dialog.options.title}</h2>}
             <p>{dialog.message}</p>
             <div className="actions" style={{ justifyContent: "flex-end" }}>
-              <button className="secondary" onClick={() => close(false)}>{dialog.options.cancelLabel ?? "Отмена"}</button>
-              <button ref={okRef} className={dialog.options.danger ? "danger" : ""} onClick={() => close(true)}>{dialog.options.okLabel ?? "Да"}</button>
+              <button className="secondary" onClick={() => close(false)}>{dialog.options.cancelLabel ?? t("Отмена")}</button>
+              <button ref={okRef} className={dialog.options.danger ? "danger" : ""} onClick={() => close(true)}>{dialog.options.okLabel ?? t("Да")}</button>
             </div>
           </div>
         </div>

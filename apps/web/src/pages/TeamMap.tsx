@@ -4,6 +4,7 @@ import { HEX_SIZE, fieldBounds, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import type { MyMapDto } from "../lib/api";
 import { HexTiles, IMG } from "./MapLayers";
+import { t } from "../lib/i18n";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -84,7 +85,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const c = cityByKey.get(n.key);
               const fill = c?.owner ? c.owner.color : "#F3EAD3", ink = c?.owner ? "#fff" : "#1F1B16";
               const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;
-              const suffix = c?.ruined ? " · руины" : c?.blocked ? (c.passage === "PENDING" ? " · ждём прохода" : " · проход закрыт") : "";
+              const suffix = c?.ruined ? t(" · руины") : c?.blocked ? (c.passage === "PENDING" ? t(" · ждём прохода") : t(" · проход закрыт")) : "";
               const swords = c?.battle ? <text x={CITY * k * 0.45} y={-CITY * k * 0.55} fontSize={Math.max(14, 22 * Math.min(1.4, k))} textAnchor="middle" fill={c.battle === "ATTACK" ? "#2F6FB3" : "#B3402F"} stroke="#fff" strokeWidth={3} paintOrder="stroke" style={{ pointerEvents: "none" }}>⚔</text> : null;
               return showLabels ? (
                 <g key={n.key} transform={`translate(${p.x},${p.y + CITY * k * 0.48})`} onClick={() => clickCity(n.key)} style={{ cursor: "pointer" }}>
@@ -121,8 +122,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         </g>
       </svg>
       <div className="map-controls">
-        <button className="secondary sm" onClick={vp.fit} aria-label="Вся карта">⤢</button>
-        {start && <button className="secondary sm" onClick={() => vp.focusOn(start.x, start.y, 2.4)} aria-label="К старту">★</button>}
+        <button className="secondary sm" onClick={vp.fit} aria-label={t("Вся карта")}>⤢</button>
+        {start && <button className="secondary sm" onClick={() => vp.focusOn(start.x, start.y, 2.4)} aria-label={t("К старту")}>★</button>}
       </div>
     </div>
   );

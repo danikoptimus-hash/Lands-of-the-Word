@@ -1,5 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { Fragment, createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, type User } from "./api";
+import { readGuestLocale, saveGuestLocale, setLocale, type Locale } from "./i18n";
 
 interface AuthState {
   user: User | null;
@@ -8,6 +9,9 @@ interface AuthState {
   register: (nickname: string, password: string, email?: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  /** Язык интерфейса: из учётки, а для гостя — выбранный на странице входа. */
+  locale: Locale;
+  setGuestLocale: (l: Locale) => void;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -15,6 +19,11 @@ const Ctx = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [guestLocale, setGuest] = useState<Locale>(readGuestLocale());
+  const locale: Locale = user ? (user.locale === "en" ? "en" : "ru") : guestLocale;
+  // Синхронно перед отрисовкой детей: t() читает текущий язык при рендере.
+  setLocale(locale);
+  const setGuestLocale = useCallback((l: Locale) => { saveGuestLocale(l); setGuest(l); }, []);
 
   useEffect(() => {
     api<{ user: User }>("/api/auth/me").then((r) => setUser(r.user)).catch(() => setUser(null)).finally(() => setLoading(false));
@@ -36,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
-  return <Ctx.Provider value={{ user, loading, login, register, logout, refresh }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ user, loading, login, register, logout, refresh , locale, setGuestLocale }}><Fragment key={locale}>{children}</Fragment></Ctx.Provider>;
 }
 
 export function useAuth(): AuthState {
