@@ -84,7 +84,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 if (n.kind === "CITY") return (
                   <g key={n.key} transform={`translate(${p.x},${p.y})`} onClick={() => setSelected(sel ? null : n)} style={{ cursor: "pointer" }}>
                     <circle r={size * 0.6 * kk} fill="transparent" />
-                    {battleAt.has(n.key) && <text x={size * 0.6 * kk} y={-size * 0.7 * kk} fontSize={Math.max(14, 22 * Math.min(1.4, kk))} textAnchor="middle" fill="#B3402F" stroke="#fff" strokeWidth={3} paintOrder="stroke" style={{ pointerEvents: "none" }}>⚔</text>}
+                    {battleAt.has(n.key) && <text x={size * 0.6 * kk} y={-size * 0.7 * kk} fontSize={Math.max(14, 22 * Math.min(1.4, kk))} textAnchor="middle" fill="#B3402F" stroke="#fff" strokeWidth={3} paintOrder="stroke" style={{ pointerEvents: "none" }}>🌊</text>}
                     {showLabels ? (
                       <g transform={`translate(0,${size * 1.15 * kk * 0.48})`}>
                         <rect x={-48} y={-10} width={96} height={20} rx={4} fill={sel ? "#C7742A" : "#F3EAD3"} stroke="#1F1B16" strokeWidth={1} />
@@ -109,7 +109,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         <span style={{ ["--c" as string]: "#fff" }}>{t("город на перекрёстке (номер книги)")}</span>
         {progress?.map((tm) => <span key={tm.id} style={{ ["--c" as string]: tm.color }}>{tm.name}</span>)}
       </div>
-      {selected?.kind === "CITY" && battleAt.get(selected.key) && (() => { const b = battleAt.get(selected.key)!; const at = teamById.get(b.attackerId), df = teamById.get(b.defenderId); return <p className="note bad" style={{ marginTop: ".6rem" }}>⚔ {t("Битва: «{a}» атакует «{d}», ставка {n} ст.", { a: at?.name ?? "?", d: df?.name ?? "?", n: b.bid })} · {b.status === "QUEUED" ? t("в очереди") : b.status === "ATTACK" ? t("идёт атака") : t("идёт оборона")}. {t("Записи — в блоке «Битвы» выше.")}</p>; })()}
+      {selected?.kind === "CITY" && battleAt.get(selected.key) && (() => { const b = battleAt.get(selected.key)!; const at = teamById.get(b.attackerId), df = teamById.get(b.defenderId); return <p className="note bad" style={{ marginTop: ".6rem" }}>🌊 {t("Испытание: «{a}» бросает вызов «{d}», ставка {n} ст.", { a: at?.name ?? "?", d: df?.name ?? "?", n: b.bid })} · {b.status === "QUEUED" ? t("в очереди") : b.status === "ATTACK" ? t("идёт вызов") : t("идёт ответ")}. {t("Записи — в блоке «Испытания» выше.")}</p>; })()}
       {selected?.kind === "CITY" && <AdminCityPanel gameId={gameId} node={selected} version={version} revealedTeams={revealedBy.get(selected.key) ?? []} onClose={() => setSelected(null)} />}
       {selected && selected.kind !== "CITY" && (
         <div className="note ok" style={{ marginTop: ".6rem" }}>
@@ -148,7 +148,7 @@ function AdminCityPanel({ gameId, node, version, revealedTeams, onClose }: { gam
               <li key={tm.id}>
                 <div className="main"><span className="avatar" style={{ background: tm.color, color: "#fff" }}>{tm.name.slice(0, 1)}</span> <strong>{tm.name}</strong></div>
                 <span className="muted">
-                  {tm.capturedAt ? <span className="badge accent">{t("город взят")}{tm.isCapital ? t(" · столица") : ""}</span>
+                  {tm.capturedAt ? <span className="badge accent">{t("город перешёл")}{tm.isCapital ? t(" · столица") : ""}</span>
                     : tm.orderSolved ? t("районы открыты · заданий {a}/{b}", { a: tm.doneTasks.length, b: total })
                     : tm.orderAttempts > 0 ? t("собирает порядок · попыток {n}", { n: tm.orderAttempts }) : t("не начинала")}
                 </span>
@@ -211,7 +211,7 @@ function AssignButtons({ gameId, nodeKey, teams }: { gameId: string; nodeKey: st
     catch (e) { notify(e instanceof Error ? e.message : t("Ошибка"), "bad"); }
   }
   async function study(tm: { id: string; name: string }) {
-    if (!(await confirm(t("Зачесть команде «{name}» все задания этого города? Тестовое действие: районы собраны, задания решены, город не взят — можно сразу вводить ключ или объявлять войну.", { name: tm.name }), { okLabel: t("Зачесть") }))) return;
+    if (!(await confirm(t("Зачесть команде «{name}» все задания этого города? Тестовое действие: районы собраны, задания решены, город не взят — можно сразу вводить ключ или бросать вызов.", { name: tm.name }), { okLabel: t("Зачесть") }))) return;
     try { await api(`/api/games/${gameId}/cities/${encodeURIComponent(nodeKey)}/study`, { method: "POST", body: JSON.stringify({ teamId: tm.id }) }); notify(t("Задания зачтены команде «{name}»", { name: tm.name })); }
     catch (e) { notify(e instanceof Error ? e.message : t("Ошибка"), "bad"); }
   }

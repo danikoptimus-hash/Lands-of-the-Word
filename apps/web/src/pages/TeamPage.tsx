@@ -39,9 +39,9 @@ export function TeamPage() {
       const was = prev.get(b.id);
       if (was === b.status) continue;
       const mine = team && b.defender.id === team.id;
-      if (!was && mine && b.status === "ATTACK") notify(t("На ваш город {city} объявлена атака: {n} стихов!", { city: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? "", n: b.bid }), "bad");
-      else if (was && mine && b.status === "DEFENSE") notify(t("Атака на {city} одобрена: пошло время обороны!", { city: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? t("город") }), "bad");
-      else if (was && (b.status === "WON" || b.status === "REPELLED" || b.status === "EXPIRED")) notify(t("Битва за {city}: {status}", { city: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? t("город"), status: BATTLE_STATUS_LABEL[b.status] }), b.status === "WON" ? (mine ? "bad" : "ok") : mine ? "ok" : "bad");
+      if (!was && mine && b.status === "ATTACK") notify(t("Вашему городу {city} брошен вызов: {n} стихов!", { city: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? "", n: b.bid }), "bad");
+      else if (was && mine && b.status === "DEFENSE") notify(t("Вызов городу {city} одобрен: пошло время ответа!", { city: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? t("город") }), "bad");
+      else if (was && (b.status === "WON" || b.status === "REPELLED" || b.status === "EXPIRED")) notify(t("Испытание города {city}: {status}", { city: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? t("город"), status: BATTLE_STATUS_LABEL[b.status] }), b.status === "WON" ? (mine ? "bad" : "ok") : mine ? "ok" : "bad");
     }
     seenBattles.current = new Map(r.battles.map((b) => [b.id, b.status]));
     setBattles(r.battles);
@@ -244,7 +244,7 @@ export function TeamPage() {
                   {standings.standings.map((st) => (
                     <li key={st.teamId}>
                       <div className="main"><span className="avatar" style={{ background: st.color, color: "#fff" }}>{st.name.slice(0, 1)}</span> {st.name} {st.teamId === standings.winnerTeamId && "🏆"}
-                        <div className="muted" style={{ fontSize: ".82rem" }}>{t("городов")} {st.cities} · {t("дел")} {st.deedsApproved} · {t("узлов")} {st.nodesRevealed} · {t("битвы")} {st.battlesWon}/{st.battlesRepelled}/{st.battlesLost}{st.citiesOnPath.length ? ` · ${t("путь")}: ${st.citiesOnPath.map((c) => c.name + (c.current ? "" : t(t(" (потерян)")))).join(", ")}` : ""}</div>
+                        <div className="muted" style={{ fontSize: ".82rem" }}>{t("городов")} {st.cities} · {t("дел")} {st.deedsApproved} · {t("узлов")} {st.nodesRevealed} · {t("испытания")} {st.battlesWon}/{st.battlesRepelled}/{st.battlesLost}{st.citiesOnPath.length ? ` · ${t("путь")}: ${st.citiesOnPath.map((c) => c.name + (c.current ? "" : t(t(" (потерян)")))).join(", ")}` : ""}</div>
                       </div>
                       <span className="badge">{st.status === "defeated" ? t("выбыла") : st.teamId === standings.winnerTeamId ? t("победитель") : t("в игре")}</span>
                     </li>
@@ -254,7 +254,7 @@ export function TeamPage() {
             )}
             {activeBattles.length > 0 && (
               <div className="section">
-                <h2>{t("Битвы")} <span className="muted">{activeBattles.length}</span></h2>
+                <h2>{t("Испытания")} <span className="muted">{activeBattles.length}</span></h2>
                 {activeBattles.map((b) => (
                   <div key={b.id} onClick={() => { setCityKey(b.nodeKey); setMenu(false); }} style={{ cursor: "pointer" }}>
                     <BattleCard gameId={id} b={b} teamId={team.id} isCaptain={isCaptain} now={now} onChanged={() => void loadBattles()} compact />

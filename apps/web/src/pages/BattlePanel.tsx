@@ -36,12 +36,12 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
 
   async function declare() {
     if (!war || bid === "") return;
-    const ok = await confirm(`Объявить войну со ставкой ${bid} стихов? Команда обязуется выучить столько стихов в сумме по участникам. Игра выдаст случайный отрывок; с этого момента идёт время атаки (лимит 14 дней).`, { okLabel: "Объявить войну", danger: true });
+    const ok = await confirm(`Бросить вызов со ставкой ${bid} стихов? Команда обязуется выучить столько стихов в сумме по участникам. Игра выдаст случайный отрывок; с этого момента идёт время вызова (лимит 14 дней).`, { okLabel: "Бросить вызов", danger: true });
     if (!ok) return;
     setBusy(true); setError(null);
     try {
       const r = await api<{ status: string }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/war`, { method: "POST", body: JSON.stringify({ bid }) });
-      notify(r.status === "QUEUED" ? t("Вы в очереди: битва за город уже идёт") : t("Война объявлена! Отрывок выдан"));
+      notify(r.status === "QUEUED" ? t("Вы в очереди: испытание города уже идёт") : t("Вызов брошен! Отрывок выдан"));
       await load(); onChanged();
     } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
@@ -52,16 +52,16 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
   return (
     <div className="war">
       <div className="row between" style={{ alignItems: "baseline" }}>
-        <strong>{t("Оборона города")}</strong>
+        <strong>{t("Ответ города")}</strong>
         <span className="muted">уровень {war.defenseLevel}{war.locked ? t(" · закреплён навсегда") : ""}{war.bookVerses ? ` · в книге ${war.bookVerses} ст.` : ""}</span>
       </div>
       {error && <p className="error">{error}</p>}
       {war.canDeclare && (
         <div className="declare">
-          <p className="muted" style={{ margin: ".3rem 0" }}>Ставка — сколько стихов команда выучит в сумме по участникам (каждый учит свою часть или весь отрывок). Минимум {war.minBid}{war.penalty ? ` (включая штраф ${war.penalty} за сгоревшие атаки)` : ""}. Отрывок выберет игра.{war.queue > 0 ? ` В очереди уже ${war.queue}.` : ""}</p>
+          <p className="muted" style={{ margin: ".3rem 0" }}>Ставка — сколько стихов команда выучит в сумме по участникам (каждый учит свою часть или весь отрывок). Минимум {war.minBid}{war.penalty ? ` (включая штраф ${war.penalty} за незавершённые вызовы)` : ""}. Отрывок выберет игра.{war.queue > 0 ? ` В очереди уже ${war.queue}.` : ""}</p>
           <div className="row">
             <input type="number" min={war.minBid} value={bid} onChange={(e) => setBid(e.target.value === "" ? "" : Number(e.target.value))} style={{ width: 110 }} />
-            <button className="danger" disabled={busy || bid === "" || bid < war.minBid} onClick={() => void declare()}>{t("Объявить войну")}</button>
+            <button className="danger" disabled={busy || bid === "" || bid < war.minBid} onClick={() => void declare()}>{t("Бросить вызов")}</button>
           </div>
         </div>
       )}
@@ -89,24 +89,24 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, onChanged, compa
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
   async function submit() {
-    if (!(await confirm(attacker ? `Отправить атаку на проверку? Выучено ${sum} из ${need}. После отправки добавлять стихи нельзя; время атаки остановится.` : `Отправить оборону на проверку? Выучено ${sum} из ${need}. После отправки добавлять стихи нельзя.`, { okLabel: t("Отправить") }))) return;
+    if (!(await confirm(attacker ? `Отправить вызов на проверку? Выучено ${sum} из ${need}. После отправки добавлять стихи нельзя; время вызова остановится.` : `Отправить ответ на проверку? Выучено ${sum} из ${need}. После отправки добавлять стихи нельзя.`, { okLabel: t("Отправить") }))) return;
     try { await api(`/api/games/${gameId}/battles/${b.id}/submit`, { method: "POST" }); notify(t("Отправлено на проверку админу")); onChanged(); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
   async function surrender() {
-    if (!(await confirm(t("Сдать город? Он перейдёт атакующим. Если это столица — команда выбывает из игры."), { okLabel: "Сдать город", danger: true }))) return;
+    if (!(await confirm(t("Уступить город? Он перейдёт претендентам. Если это столица — команда выбывает из игры."), { okLabel: "Уступить город", danger: true }))) return;
     try { await api(`/api/games/${gameId}/battles/${b.id}/surrender`, { method: "POST" }); onChanged(); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
 
-  const head = attacker ? t("⚔ Вы атакуете «{team}»", { team: b.defender.name }) : t("⚔ «{team}» атакует ваш город", { team: b.attacker.name });
+  const head = attacker ? t("🌊 Вы бросили вызов «{team}»", { team: b.defender.name }) : t("🌊 «{team}» бросает вызов вашему городу", { team: b.attacker.name });
   return (
     <div className={"battle " + (attacker ? "att " : "def ") + b.status.toLowerCase()}>
       <div className="row between"><strong>{head}</strong><span className={"badge" + (myTurn ? " accent" : "")}>{BATTLE_STATUS_LABEL[b.status]}</span></div>
       <div className="muted" style={{ fontSize: ".9rem" }}>
         {t("Ставка")} {b.bid} {t("ст.")}
-        {b.status === "ATTACK" && <> · атака до {new Date(b.attackDeadline!).toLocaleDateString("ru")} ({left(b.attackDeadline, now)}){b.attackDoneAt ? t(" · отправлена на проверку") : ""}</>}
-        {b.status === "DEFENSE" && <> · атака: {b.attackApproved} ст. за {dur(b.startedAt, b.attackDoneAt)} · на оборону осталось <strong>{left(b.defenseDeadline, now)}</strong>{b.defenseDoneAt ? t(" · отправлена на проверке") : ""}</>}
+        {b.status === "ATTACK" && <> · вызов до {new Date(b.attackDeadline!).toLocaleDateString("ru")} ({left(b.attackDeadline, now)}){b.attackDoneAt ? t(" · отправлена на проверку") : ""}</>}
+        {b.status === "DEFENSE" && <> · вызов: {b.attackApproved} ст. за {dur(b.startedAt, b.attackDoneAt)} · на ответ осталось <strong>{left(b.defenseDeadline, now)}</strong>{b.defenseDoneAt ? t(" · отправлена на проверке") : ""}</>}
       </div>
       {error && <p className="error">{error}</p>}
       {b.status === "QUEUED" && attacker && (
@@ -115,19 +115,19 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, onChanged, compa
           <button className="secondary sm" onClick={() => void raise()}>{t("Изменить ставку")}</button>
         </div>
       )}
-      {!attacker && b.status === "ATTACK" && <p className="muted" style={{ margin: ".3rem 0" }}>{t("Атакующие учат отрывок. Когда админ одобрит их записи, у вас будет ровно столько же времени, сколько ушло у них, чтобы выучить не меньше стихов: капитан выберет отрывок из книги, каждый отметит выученное.")}</p>}
+      {!attacker && b.status === "ATTACK" && <p className="muted" style={{ margin: ".3rem 0" }}>{t("Претенденты учат отрывок. Когда админ одобрит их записи, у вас будет ровно столько же времени, сколько ушло у них, чтобы выучить не меньше стихов: капитан выберет отрывок из книги, каждый отметит выученное.")}</p>}
       {(b.status === "ATTACK" || b.status === "DEFENSE") && (attacker || b.status === "DEFENSE") && (
         <>
           <div className="progress"><span style={{ width: `${Math.min(100, need ? (sum / need) * 100 : 0)}%` }} /></div>
           <div className="muted" style={{ fontSize: ".85rem" }}>{t("Выучено командой:")} <strong>{sum}</strong> из {need} · одобрено {approved}</div>
           {!compact && !attacker && !passage && b.status === "DEFENSE" && !b.defenseDoneAt && (
-            isCaptain ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <p className="note warn">{t("Капитан выбирает отрывок обороны из книги. Как только выберет — здесь появится текст.")}</p>
+            isCaptain ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <p className="note warn">{t("Капитан выбирает отрывок ответа из книги. Как только выберет — здесь появится текст.")}</p>
           )}
           {!compact && passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn} onChanged={onChanged} />}
           {!compact && (
             <div className="actions">
-              {isCaptain && myTurn && <button disabled={sum < need} onClick={() => void submit()}>{attacker ? t("Отправить атаку на проверку") : t("Отправить оборону на проверку")}{sum < need ? ` (не хватает ${need - sum})` : ""}</button>}
-              {!attacker && isCaptain && (b.status === "DEFENSE" || b.status === "ATTACK") && <button className="ghost" onClick={() => void surrender()}>{t("Сдать город")}</button>}
+              {isCaptain && myTurn && <button disabled={sum < need} onClick={() => void submit()}>{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}{sum < need ? ` (не хватает ${need - sum})` : ""}</button>}
+              {!attacker && isCaptain && (b.status === "DEFENSE" || b.status === "ATTACK") && <button className="ghost" onClick={() => void surrender()}>{t("Уступить город")}</button>}
             </div>
           )}
         </>
@@ -212,7 +212,7 @@ function PassagePicker({ gameId, battleId, need, onChosen }: { gameId: string; b
   const count = a && z ? lin(z.c, z.v) - lin(a.c, a.v) + 1 : 0;
   async function confirmPassage() {
     if (!a || !z) return;
-    try { await api(`/api/games/${gameId}/battles/${battleId}/defense-passage`, { method: "POST", body: JSON.stringify({ from: `${a.c + 1}:${a.v + 1}`, to: `${z.c + 1}:${z.v + 1}` }) }); notify(t("Отрывок обороны утверждён")); onChosen(); }
+    try { await api(`/api/games/${gameId}/battles/${battleId}/defense-passage`, { method: "POST", body: JSON.stringify({ from: `${a.c + 1}:${a.v + 1}`, to: `${z.c + 1}:${z.v + 1}` }) }); notify(t("Отрывок ответа утверждён")); onChosen(); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
   return (

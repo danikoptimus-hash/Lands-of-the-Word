@@ -105,7 +105,7 @@ export async function startNextFromQueue(gameId: string, nodeKey: string): Promi
     if (q.bid < min) {
       // Уровень защиты вырос выше ставки в очереди: атака отменяется (решение владельца).
       await prisma.battle.update({ where: { id: q.id }, data: { status: "CANCELLED", resolvedAt: new Date() } });
-      notifyTeam(gameId, q.attackerId, `атака на ${bookName(q.bookCode)} отменена`, `Пока вы стояли в очереди, уровень защиты города вырос до ${node.defenseLevel}, а ваша ставка ${q.bid} стала ниже минимальной (${min}). Атака отменена; можно объявить войну заново с большей ставкой.`);
+      notifyTeam(gameId, q.attackerId, `вызов городу ${bookName(q.bookCode)} отменён`, `Пока вы стояли в очереди, уровень испытания города вырос до ${node.defenseLevel}, а ваша ставка ${q.bid} стала ниже минимальной (${min}). Вызов отменён; можно бросить вызов заново с большей ставкой.`);
       continue;
     }
     await prisma.battle.update({ where: { id: q.id }, data: { defenderId: owner.teamId } });
@@ -119,8 +119,8 @@ export async function startNextFromQueue(gameId: string, nodeKey: string): Promi
 
 /** Капитан атакующих отправляет атаку на проверку: сумма выученных ≥ N. T фиксируется этим моментом. */
 export async function submitAttack(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
-  if (b.status !== "ATTACK") return { ok: false, message: "Атака не идёт" };
-  if (b.attackDoneAt) return { ok: false, message: "Атака уже отправлена на проверку" };
+  if (b.status !== "ATTACK") return { ok: false, message: "Вызов не идёт" };
+  if (b.attackDoneAt) return { ok: false, message: "Вызов уже отправлен на проверку" };
   const sum = sumVerses(b.entries, "ATTACK", false);
   if (sum < b.bid) return { ok: false, message: `Выучено ${sum} из ${b.bid} стихов: не хватает ${b.bid - sum}` };
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: new Date() }, include: { entries: true } });
@@ -129,9 +129,9 @@ export async function submitAttack(b: BattleWithEntries): Promise<{ ok: true; ba
 
 /** Капитан защитников отправляет оборону на проверку до дедлайна: сумма ≥ одобренной суммы атаки. */
 export async function submitDefense(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
-  if (b.status !== "DEFENSE") return { ok: false, message: "Оборона не идёт" };
-  if (b.defenseDoneAt) return { ok: false, message: "Оборона уже отправлена на проверку" };
-  if (b.defenseDeadline && b.defenseDeadline.getTime() < Date.now()) return { ok: false, message: "Время обороны вышло" };
+  if (b.status !== "DEFENSE") return { ok: false, message: "Ответ не идёт" };
+  if (b.defenseDoneAt) return { ok: false, message: "Ответ уже отправлен на проверку" };
+  if (b.defenseDeadline && b.defenseDeadline.getTime() < Date.now()) return { ok: false, message: "Время ответа вышло" };
   const need = sumVerses(b.entries, "ATTACK", true);
   const sum = sumVerses(b.entries, "DEFENSE", false);
   if (sum < need) return { ok: false, message: `Выучено ${sum} из ${need} стихов: не хватает ${need - sum}` };
@@ -155,7 +155,7 @@ export async function maybeStartDefense(b: BattleWithEntries): Promise<BattleWit
   publish(b.gameId, { type: "battles", teamId: b.defenderId });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
   const hours = Math.round(T / 360_000) / 10;
-  notifyTeam(b.gameId, b.defenderId, `пошло время обороны города ${bookName(b.bookCode)}`, `Атака одобрена: ${sumVerses(upd.entries, "ATTACK", true)} стихов. У вас ${hours} ч (до ${upd.defenseDeadline!.toLocaleString("ru-RU")}), чтобы выучить не меньше. Капитан выбирает отрывок из книги, участники отмечают выученные стихи и прикрепляют видео.`);
+  notifyTeam(b.gameId, b.defenderId, `пошло время ответа города ${bookName(b.bookCode)}`, `Вызов одобрен: ${sumVerses(upd.entries, "ATTACK", true)} стихов. У вас ${hours} ч (до ${upd.defenseDeadline!.toLocaleString("ru-RU")}), чтобы выучить не меньше. Капитан выбирает отрывок из книги, участники отмечают выученные стихи и прикрепляют видео.`);
   return upd;
 }
 
@@ -173,8 +173,8 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
   ]);
   publish(b.gameId, { type: "battles" });
   publish(b.gameId, { type: "map" });
-  notifyTeam(b.gameId, b.defenderId, `атака на ${bookName(b.bookCode)} отражена`, `Оборона одобрена: ${M} стихов против ${need}. Город остаётся вашим, уровень защиты теперь ${M}.`);
-  notifyTeam(b.gameId, b.attackerId, `атака на ${bookName(b.bookCode)} отражена`, `Защитники ответили ${M} стихами против ваших ${need}. Следующая атака на этот город потребует не меньше ${M + 1}.`);
+  notifyTeam(b.gameId, b.defenderId, `город ${bookName(b.bookCode)} устоял`, `Ответ одобрен: ${M} стихов против ${need}. Город остаётся вашим, уровень испытания теперь ${M}.`);
+  notifyTeam(b.gameId, b.attackerId, `город ${bookName(b.bookCode)} устоял`, `Хранители ответили ${M} стихами против ваших ${need}. Следующий вызов этому городу потребует не меньше ${M + 1}.`);
   await startNextFromQueue(b.gameId, b.nodeKey);
   return upd;
 }
@@ -215,7 +215,7 @@ export async function resolveWon(b: Battle): Promise<void> {
   ];
   if (wasCapital) {
     ops.push(prisma.team.update({ where: { id: b.defenderId }, data: { status: "defeated" } }));
-    // Остальные города выбывшей команды — руины: их берут выполнением заданий, без ключа и без битвы.
+    // Остальные города выбывшей команды — руины: их берут выполнением заданий, без ключа и без испытания.
     const others = await prisma.teamCityState.findMany({ where: { teamId: b.defenderId, capturedAt: { not: null }, NOT: { nodeKey: b.nodeKey } }, select: { nodeKey: true } });
     if (others.length) ops.push(prisma.mapNode.updateMany({ where: { gameId: b.gameId, key: { in: others.map((o) => o.nodeKey) } }, data: { ruined: true, defenseLevel: 0 } }));
     ops.push(prisma.teamCityState.updateMany({ where: { teamId: b.defenderId, capturedAt: { not: null } }, data: { capturedAt: null, isCapital: false, secondCapital: false } }));
@@ -228,7 +228,7 @@ export async function resolveWon(b: Battle): Promise<void> {
   publish(b.gameId, { type: "cities" });
   publish(b.gameId, { type: "teams" });
   notifyTeam(b.gameId, b.attackerId, `город ${bookName(b.bookCode)} взят`, wasCapital ? "Это была столица противника: команда противника выбыла, город стал вашей второй столицей." : "Город теперь ваш.");
-  notifyTeam(b.gameId, b.defenderId, `город ${bookName(b.bookCode)} потерян`, wasCapital ? "Потеряна столица: команда выбывает из игры." : "Оборона не сдана в срок или сдана. Город перешёл атакующим; его можно отбить по тем же правилам.");
+  notifyTeam(b.gameId, b.defenderId, `город ${bookName(b.bookCode)} потерян`, wasCapital ? "Потеряна столица: команда выбывает из игры." : "Ответ не дан в срок или город уступлен. Город перешёл претендентам; его можно вернуть по тем же правилам.");
   await startNextFromQueue(b.gameId, b.nodeKey);
   if (wasCapital) await checkLastTeam(b.gameId);
 }
@@ -250,7 +250,7 @@ export async function sweep(gameId?: string): Promise<void> {
     ]);
     publish(b.gameId, { type: "battles", teamId: b.attackerId });
     publish(b.gameId, { type: "battles", teamId: b.defenderId });
-    notifyTeam(b.gameId, b.attackerId, `атака на ${bookName(b.bookCode)} сгорела`, `За 14 дней атака не была отправлена на проверку. Штраф: минимальная ставка на этот город для вашей команды выросла на ${BURN_PENALTY}.`);
+    notifyTeam(b.gameId, b.attackerId, `вызов городу ${bookName(b.bookCode)} не завершён`, `За 14 дней вызов не был отправлен на проверку. Штраф: минимальная ставка на этот город для вашей команды выросла на ${BURN_PENALTY}.`);
     await startNextFromQueue(b.gameId, b.nodeKey);
   }
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });
@@ -272,13 +272,13 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   const minBid = minBidFor(node.defenseLevel, penalty);
   const studied = Boolean(content && state?.orderSolved && content.tasks.every((_, i) => state!.doneTasks.includes(i)));
   let reason: string | null = null;
-  if (node.ruined) reason = "Руины: город берут выполнением заданий, без ключа и без войны";
-  else if (!owner) reason = "Город свободен: его берут ключом из конверта, а не войной";
+  if (node.ruined) reason = "Руины: город берут выполнением заданий, без ключа и без испытания";
+  else if (!owner) reason = "Город свободен: его берут ключом из конверта, а не испытанием";
   else if (owner.teamId === teamId) reason = "Это ваш город";
   else if (team.status === "defeated") reason = "Команда выбыла из игры";
-  else if (node.lockedForever) reason = "Город закреплён навсегда: атака в суммарном режиме отражена";
+  else if (node.lockedForever) reason = "Город закреплён навсегда: он устоял в суммарном режиме";
   else if (!studied) reason = "Сначала решите задания всех районов";
-  else if (!book) reason = "Текст этой книги ещё не загружен: войну объявить нельзя";
-  else if (mine) reason = mine.status === "QUEUED" ? "Вы уже в очереди на атаку" : "Битва за этот город уже идёт";
+  else if (!book) reason = "Текст этой книги ещё не загружен: бросить вызов нельзя";
+  else if (mine) reason = mine.status === "QUEUED" ? "Вы уже в очереди на вызов" : "Испытание этого города уже идёт";
   return { defenseLevel: node.defenseLevel, sumMode: node.sumMode, locked: node.lockedForever, bookVerses: book?.total ?? null, penalty, minBid, canDeclare: reason === null, reason, owner: owner?.team ?? null };
 }

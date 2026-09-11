@@ -94,13 +94,13 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }] } });
-    if (!b) return reply.code(404).send({ error: "not_found", message: "Битва не найдена" });
+    if (!b) return reply.code(404).send({ error: "not_found", message: "Испытание не найдено" });
     const book = await loadBook(b.bookCode);
     if (!book) return reply.code(409).send({ error: "conflict", message: "Текст книги не загружен" });
     return { code: book.code, name: BOOK_BY_CODE.get(book.code)?.nameRu ?? book.code, verseCounts: book.verseCounts, chapters: book.chapters ?? null, total: book.total };
   });
 
-  /** Объявить войну: только количество стихов (сумма по участникам). Если битва уже идёт — очередь. */
+  /** Бросить вызов: только количество стихов (сумма по участникам). Если битва уже идёт — очередь. */
   app.post("/api/games/:id/my-city/:nodeKey/war", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const m = await requireMember(request, reply, id);
@@ -111,7 +111,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!reached) return reply.code(403).send({ error: "forbidden", message: "Ваша команда ещё не дошла до этого города" });
     await sweep(id);
     const o = await warOptions(id, m.team.id, nodeKey);
-    if (!o.canDeclare || !o.owner) return reply.code(409).send({ error: "conflict", message: o.reason ?? "Нельзя объявить войну" });
+    if (!o.canDeclare || !o.owner) return reply.code(409).send({ error: "conflict", message: o.reason ?? "Нельзя бросить вызов" });
     const body = declareBody.parse(request.body);
     if (body.bid < o.minBid) return reply.code(400).send({ error: "validation", message: `Минимальная ставка для вашей команды на этот город — ${o.minBid} стихов` });
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId: id, key: nodeKey } } });
@@ -123,7 +123,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "battles", teamId: o.owner.id });
     const bookName = BOOK_BY_CODE.get(node.bookCode ?? "")?.nameRu ?? "";
-    if (active === 0) notifyTeam(id, o.owner.id, `атака на ваш город ${bookName}`, `Команда «${m.team.name}» объявила войну вашему городу ${bookName} (игра «${game.name}»), ставка ${body.bid} стихов. Когда админ одобрит их записи, у вас будет ровно столько же времени, сколько ушло у них.`);
+    if (active === 0) notifyTeam(id, o.owner.id, `вызов вашему городу ${bookName}`, `Команда «${m.team.name}» бросила вызов вашему городу ${bookName} (игра «${game.name}»), ставка ${body.bid} стихов. Когда админ одобрит их записи, у вас будет ровно столько же времени, сколько ушло у них.`);
     return reply.code(201).send({ id: created.id, status: active === 0 ? "ATTACK" : "QUEUED", sumMode });
   });
 
@@ -133,7 +133,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id, attackerId: m.team.id } });
-    if (!b) return reply.code(404).send({ error: "not_found", message: "Битва не найдена" });
+    if (!b) return reply.code(404).send({ error: "not_found", message: "Испытание не найдено" });
     if (b.status !== "QUEUED") return reply.code(409).send({ error: "conflict", message: "Ставку можно менять только в очереди" });
     const body = declareBody.parse(request.body);
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId: id, key: b.nodeKey } } });
@@ -150,10 +150,10 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const { id, battleId } = request.params as { id: string; battleId: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: "Отрывок обороны выбирает капитан" });
+    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: "Отрывок ответа выбирает капитан" });
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id, defenderId: m.team.id }, include: { entries: true } });
-    if (!b) return reply.code(404).send({ error: "not_found", message: "Битва не найдена" });
-    if (b.status !== "DEFENSE") return reply.code(409).send({ error: "conflict", message: "Оборона ещё не началась или уже завершена" });
+    if (!b) return reply.code(404).send({ error: "not_found", message: "Испытание не найдено" });
+    if (b.status !== "DEFENSE") return reply.code(409).send({ error: "conflict", message: "Ответ ещё не начался или уже завершён" });
     if (b.entries.some((e) => e.side === "DEFENSE")) return reply.code(409).send({ error: "conflict", message: "Отрывок нельзя менять: участники уже отметили стихи" });
     const body = passageBody.parse(request.body);
     const book = await loadBook(b.bookCode);
@@ -173,15 +173,15 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     await sweep(id);
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true } });
-    if (!b) return reply.code(404).send({ error: "not_found", message: "Битва не найдена" });
+    if (!b) return reply.code(404).send({ error: "not_found", message: "Испытание не найдено" });
     const side = b.attackerId === m.team.id ? "ATTACK" : b.defenderId === m.team.id ? "DEFENSE" : null;
-    if (!side) return reply.code(403).send({ error: "forbidden", message: "Ваша команда не участвует в этой битве" });
-    if (side === "ATTACK" && b.status !== "ATTACK") return reply.code(409).send({ error: "conflict", message: b.status === "QUEUED" ? "Атака ещё в очереди" : "Атака уже завершена" });
-    if (side === "ATTACK" && b.attackDoneAt) return reply.code(409).send({ error: "conflict", message: "Атака отправлена на проверку: добавлять стихи нельзя" });
-    if (side === "DEFENSE" && b.status !== "DEFENSE") return reply.code(409).send({ error: "conflict", message: b.status === "ATTACK" ? "Оборона начнётся после одобрения атаки" : "Оборона уже завершена" });
-    if (side === "DEFENSE" && b.defenseDoneAt) return reply.code(409).send({ error: "conflict", message: "Оборона отправлена на проверку: добавлять стихи нельзя" });
-    if (side === "DEFENSE" && b.defenseDeadline && b.defenseDeadline.getTime() < Date.now()) return reply.code(409).send({ error: "conflict", message: "Время обороны вышло" });
-    if (side === "DEFENSE" && (b.defenseStart == null || b.defenseEnd == null)) return reply.code(409).send({ error: "conflict", message: "Сначала капитан выбирает отрывок обороны" });
+    if (!side) return reply.code(403).send({ error: "forbidden", message: "Ваша команда не участвует в этом испытании" });
+    if (side === "ATTACK" && b.status !== "ATTACK") return reply.code(409).send({ error: "conflict", message: b.status === "QUEUED" ? "Вызов ещё в очереди" : "Вызов уже завершён" });
+    if (side === "ATTACK" && b.attackDoneAt) return reply.code(409).send({ error: "conflict", message: "Вызов отправлен на проверку: добавлять стихи нельзя" });
+    if (side === "DEFENSE" && b.status !== "DEFENSE") return reply.code(409).send({ error: "conflict", message: b.status === "ATTACK" ? "Ответ начнётся после одобрения вызова" : "Ответ уже завершён" });
+    if (side === "DEFENSE" && b.defenseDoneAt) return reply.code(409).send({ error: "conflict", message: "Ответ отправлен на проверку: добавлять стихи нельзя" });
+    if (side === "DEFENSE" && b.defenseDeadline && b.defenseDeadline.getTime() < Date.now()) return reply.code(409).send({ error: "conflict", message: "Время ответа вышло" });
+    if (side === "DEFENSE" && (b.defenseStart == null || b.defenseEnd == null)) return reply.code(409).send({ error: "conflict", message: "Сначала капитан выбирает отрывок ответа" });
     const body = entryBody.parse(request.body);
     const book = await loadBook(b.bookCode);
     if (!book) return reply.code(409).send({ error: "conflict", message: "Текст книги не загружен" });
@@ -195,7 +195,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const full = (await prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } })) as BattleWithEntries;
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "submissions" });
-    notifyAdmins(id, `новые стихи в битве за ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode}`, `Команда «${m.team.name}» отметила ${fresh.length} ст. (${side === "ATTACK" ? "атака" : "оборона"}) и прикрепила ссылки. Проверьте записи в блоке «Битвы».`);
+    notifyAdmins(id, `новые стихи в испытании города ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode}`, `Команда «${m.team.name}» отметила ${fresh.length} ст. (${side === "ATTACK" ? "вызов" : "ответ"}) и прикрепила ссылки. Проверьте записи в блоке «Испытания».`);
     return reply.code(201).send({ ok: true, added: fresh.length, sum: sumVerses(full.entries, side, false) });
   });
 
@@ -222,14 +222,14 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: "Отправляет на проверку капитан" });
     await sweep(id);
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true } });
-    if (!b) return reply.code(404).send({ error: "not_found", message: "Битва не найдена" });
+    if (!b) return reply.code(404).send({ error: "not_found", message: "Испытание не найдено" });
     const side = b.attackerId === m.team.id ? "ATTACK" : b.defenderId === m.team.id ? "DEFENSE" : null;
-    if (!side) return reply.code(403).send({ error: "forbidden", message: "Ваша команда не участвует в этой битве" });
+    if (!side) return reply.code(403).send({ error: "forbidden", message: "Ваша команда не участвует в этом испытании" });
     const r = side === "ATTACK" ? await submitAttack(b) : await submitDefense(b);
     if (!r.ok) return reply.code(409).send({ error: "conflict", message: r.message });
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "submissions" });
-    notifyAdmins(id, `${side === "ATTACK" ? "атака" : "оборона"} отправлена на проверку`, `Команда «${m.team.name}» отправила ${side === "ATTACK" ? "атаку" : "оборону"} за город ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode} на проверку. Проверьте записи в блоке «Битвы».`);
+    notifyAdmins(id, `${side === "ATTACK" ? "вызов" : "ответ"} отправлен на проверку`, `Команда «${m.team.name}» отправила ${side === "ATTACK" ? "вызов" : "ответ"} за город ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode} на проверку. Проверьте записи в блоке «Испытания».`);
     return { ok: true, status: r.battle.status };
   });
 
@@ -238,9 +238,9 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const { id, battleId } = request.params as { id: string; battleId: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: "Сдать город может только капитан" });
+    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: "Уступить город может только капитан" });
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id, defenderId: m.team.id, status: { in: ["ATTACK", "DEFENSE"] } } });
-    if (!b) return reply.code(404).send({ error: "not_found", message: "Активная битва не найдена" });
+    if (!b) return reply.code(404).send({ error: "not_found", message: "Активное испытание не найдено" });
     await resolveWon(b);
     return { ok: true };
   });
@@ -268,7 +268,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     else full = e.side === "ATTACK" ? await maybeStartDefense(full) : await maybeRepel(full);
     publish(id, { type: "battles", teamId: e.teamId });
     publish(id, { type: "submissions" });
-    if (!body.approve) notifyTeam(id, e.teamId, "запись в битве возвращена", `Админ вернул запись (${e.side === "ATTACK" ? "атака" : "оборона"})${body.comment ? `: ${body.comment}` : "."} Переснимите и прикрепите заново.`);
+    if (!body.approve) notifyTeam(id, e.teamId, "запись в испытании возвращена", `Админ вернул запись (${e.side === "ATTACK" ? "вызов" : "ответ"})${body.comment ? `: ${body.comment}` : "."} Переснимите и прикрепите заново.`);
     return { ok: true, status: full.status };
   });
 }

@@ -89,7 +89,7 @@ export function AdminDashboard() {
       {m && table && (
         <div className="card" style={{ overflowX: "auto" }}>
           <table className="standings">
-            <thead><tr><th>День</th><th>Новых</th><th>Всего</th><th>Сдач</th><th>Одобрено</th><th>Узлов</th><th>Городов</th><th>Битв</th><th>Игр</th></tr></thead>
+            <thead><tr><th>День</th><th>Новых</th><th>Всего</th><th>Сдач</th><th>Одобрено</th><th>Узлов</th><th>Городов</th><th>Испытаний</th><th>Игр</th></tr></thead>
             <tbody>{d.map((day, i) => <tr key={day}><td>{dateLabel(day)}</td><td>{m.series.newUsers[i]}</td><td>{m.series.usersTotal[i]}</td><td>{m.series.submissions[i]}</td><td>{m.series.approvals[i]}</td><td>{m.series.nodes[i]}</td><td>{m.series.cities[i]}</td><td>{m.series.battles[i]}</td><td>{m.series.games[i]}</td></tr>)}</tbody>
           </table>
         </div>
@@ -115,11 +115,11 @@ export function AdminDashboard() {
             <Tile label={`открыто узлов за ${days} дн`} value={fmt(m.nodesInPeriod)} hint={`пройдено сторон всего ${m.activity.edgesTraversed}`} trend={m.series.nodes} dates={d} delta={{ now: m.nodesInPeriod, prev: m.previous.nodes, days }} />
             <Tile label={`взято городов за ${days} дн`} value={fmt(m.activity.citiesCapturedInPeriod)} hint={`всего ${m.activity.citiesCaptured}`} trend={m.series.cities} dates={d} delta={{ now: m.activity.citiesCapturedInPeriod, prev: m.previous.cities, days }} />
           </div></div>
-          <div className="card"><h2>Битвы</h2><div className="tiles">
+          <div className="card"><h2>Испытания городов</h2><div className="tiles">
             <Tile label={`объявлено за ${days} дн`} value={fmt(m.battles.declaredInPeriod)} hint={`всего ${m.battles.declared}`} trend={m.series.battles} dates={d} delta={{ now: m.battles.declaredInPeriod, prev: m.previous.battles, days }} />
-            <Tile label="идут" value={fmt(m.battles.active)} /><Tile label="взято атакой" value={fmt(m.battles.won)} />
-            <Tile label="отбито" value={fmt(m.battles.repelled)} /><Tile label="сгорело" value={fmt(m.battles.expired)} /><Tile label="средняя ставка" value={fmt(m.battles.avgBid, " ст.")} />
-            <Tile label="время атаки" value={fmt(m.battles.avgAttackHours, " ч")} hint="в среднем" /><Tile label="суммарный режим" value={fmt(m.battles.sumMode)} hint="исчерпанные книги" />
+            <Tile label="идут" value={fmt(m.battles.active)} /><Tile label="перешло претендентам" value={fmt(m.battles.won)} />
+            <Tile label="устояли" value={fmt(m.battles.repelled)} /><Tile label="не завершено" value={fmt(m.battles.expired)} /><Tile label="средняя ставка" value={fmt(m.battles.avgBid, " ст.")} />
+            <Tile label="время вызова" value={fmt(m.battles.avgAttackHours, " ч")} hint="в среднем" /><Tile label="суммарный режим" value={fmt(m.battles.sumMode)} hint="исчерпанные книги" />
           </div></div>
           <div className="card"><h2>Дипломатия</h2>{m.diplomacy.implemented ? <div className="tiles"><Tile label="запросов прохода" value={fmt(m.diplomacy.passRequests)} /><Tile label="одобрено" value={fmt(m.diplomacy.passApprovedShare, "%")} /><Tile label="посольств" value={fmt(m.diplomacy.embassies)} /></div> : <p className="muted">Дипломатия ещё не реализована: метрики появятся вместе с ней.</p>}</div>
           <div className="card"><h2>Техника</h2><div className="tiles">

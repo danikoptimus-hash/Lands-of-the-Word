@@ -86,7 +86,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const fill = c?.owner ? c.owner.color : "#F3EAD3", ink = c?.owner ? "#fff" : "#1F1B16";
               const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;
               const suffix = c?.ruined ? t(" · руины") : c?.blocked ? (c.passage === "PENDING" ? t(" · ждём прохода") : t(" · проход закрыт")) : "";
-              const swords = c?.battle ? <text x={CITY * k * 0.45} y={-CITY * k * 0.55} fontSize={Math.max(14, 22 * Math.min(1.4, k))} textAnchor="middle" fill={c.battle === "ATTACK" ? "#2F6FB3" : "#B3402F"} stroke="#fff" strokeWidth={3} paintOrder="stroke" style={{ pointerEvents: "none" }}>⚔</text> : null;
+              const swords = c?.battle ? <text x={CITY * k * 0.45} y={-CITY * k * 0.55} fontSize={Math.max(14, 22 * Math.min(1.4, k))} textAnchor="middle" fill={c.battle === "ATTACK" ? "#2F6FB3" : "#B3402F"} stroke="#fff" strokeWidth={3} paintOrder="stroke" style={{ pointerEvents: "none" }}>🌊</text> : null;
               return showLabels ? (
                 <g key={n.key} transform={`translate(${p.x},${p.y + CITY * k * 0.48})`} onClick={() => clickCity(n.key)} style={{ cursor: "pointer" }}>
                   {swords && <g transform={`translate(0,${-CITY * k * 0.48})`}>{swords}</g>}

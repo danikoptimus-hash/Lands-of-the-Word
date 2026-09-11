@@ -138,7 +138,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
             </div>
             {allDone && !city.state.capturedAt && city.node.ruined && !city.owner && (
               <div className="capture">
-                <p className="note warn">{t("Руины: команда, владевшая городом, выбыла. Задания решены — город можно занять без ключа и без битвы.")}</p>
+                <p className="note warn">{t("Руины: команда, владевшая городом, выбыла. Задания решены — город можно занять без ключа и без испытания.")}</p>
                 <div className="actions"><button disabled={busy} onClick={() => void capture()}>{t("Занять руины")}</button></div>
               </div>
             )}
@@ -155,7 +155,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
             {city.state.capturedAt && !city.state.isCapital && isCaptain && (
               <div className="row" style={{ marginTop: ".4rem", alignItems: "center", gap: ".6rem" }}>
                 <button className="secondary sm" disabled={busy || Boolean(city.team.capitalMovedAt)} onClick={() => void makeCapital()}>{t("Перенести столицу сюда")}</button>
-                <span className="muted" style={{ fontSize: ".85rem" }}>{city.team.capitalMovedAt ? t("перенос уже использован") : t("один раз за игру, можно и во время войны")}</span>
+                <span className="muted" style={{ fontSize: ".85rem" }}>{city.team.capitalMovedAt ? t("перенос уже использован") : t("один раз за игру, можно и во время испытания")}</span>
               </div>
             )}
           </>

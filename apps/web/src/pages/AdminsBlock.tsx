@@ -40,7 +40,7 @@ export function AdminsBlock({ gameId, version = 0 }: { gameId: string; version?:
         <div style={{ flex: "1 1 220px" }}><label htmlFor="adm-login">{t("Добавить администратора")}</label><input id="adm-login" value={login} onChange={(e) => setLogin(e.target.value)} placeholder={t("никнейм или почта")} required minLength={3} /></div>
         <button type="submit" className="secondary">{t("Добавить")}</button>
       </form>
-      <p className="hint">{t("Администраторы видят всю карту, проверяют дела и записи битв и получают письма о новых сдачах (если указана почта). Человек должен быть уже зарегистрирован.")}</p>
+      <p className="hint">{t("Администраторы видят всю карту, проверяют дела и записи испытаний и получают письма о новых сдачах (если указана почта). Человек должен быть уже зарегистрирован.")}</p>
       {error && <p className="error">{error}</p>}
     </div>
   );

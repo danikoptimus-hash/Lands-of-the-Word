@@ -73,7 +73,7 @@ export interface BattleDto {
 }
 export interface BookTextDto { code: string; name: string; verseCounts: number[]; chapters: string[][] | null; total: number }
 export interface WarDto { defenseLevel: number; sumMode: boolean; locked: boolean; bookVerses: number | null; penalty: number; minBid: number; canDeclare: boolean; reason: string | null; owner: { id: string; name: string; color: string } | null; queue: number; battles: BattleDto[] }
-export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { get QUEUED() { return t("в очереди"); }, get ATTACK() { return t("атака"); }, get DEFENSE() { return t("оборона"); }, get WON() { return t("город взят"); }, get REPELLED() { return t("атака отражена"); }, get EXPIRED() { return t("атака сгорела"); }, get CANCELLED() { return t("отменена"); } };
+export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { get QUEUED() { return t("в очереди"); }, get ATTACK() { return t("вызов"); }, get DEFENSE() { return t("ответ"); }, get WON() { return t("город перешёл"); }, get REPELLED() { return t("город устоял"); }, get EXPIRED() { return t("вызов не завершён"); }, get CANCELLED() { return t("отменена"); } };
 
 /** Итоги игры: положение команд и победитель. */
 export interface CityOnPath { nodeKey: string; bookCode: string; name: string; current: boolean; isCapital: boolean; at: string }
