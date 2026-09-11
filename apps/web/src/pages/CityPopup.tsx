@@ -7,6 +7,7 @@ import { SortableList } from "./SortableList";
 import { WarSection } from "./BattlePanel";
 import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
+import { Icon } from "../components/Icon";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -91,7 +92,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
   return (
     <div className="city-backdrop" onClick={onClose}>
       <div className="city-popup" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
-        <div className="city-head">
+        <div className="city-head" style={{ ["--city-img" as string]: `url(${IMG.city(city?.node.cityType)})` }}>
           <img src={IMG.city(city?.node.cityType)} alt="" />
           <div className="title">
             <strong>{book ? t("Город {name}", { name: book.nameRu }) : t("Город")}</strong>
@@ -101,7 +102,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
               {total > 0 && <span> · {t("районов")} {done.length}/{total}</span>}
             </div>
           </div>
-          <button className="ghost sm" onClick={onClose} aria-label={t("Закрыть")}>✕</button>
+          <button className="ghost sm close" onClick={onClose} aria-label={t("Закрыть")}><Icon name="x" /></button>
         </div>
         {error && <p className="error">{error}</p>}
         {!city && !error && <p className="muted">{t("Загрузка…")}</p>}

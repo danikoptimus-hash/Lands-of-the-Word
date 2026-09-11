@@ -3,6 +3,7 @@ import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
+import { Icon } from "../components/Icon";
 
 interface AdminRow { id: string; nickname: string; displayName: string | null; email: string | null; creator: boolean }
 
@@ -26,13 +27,13 @@ export function AdminsBlock({ gameId, version = 0 }: { gameId: string; version?:
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
   }
   return (
-    <div className="card">
-      <div className="card-head"><h2>{t("Администраторы")} <span className="muted">{rows.length}</span></h2></div>
+    <div className="card" data-tone="plum">
+      <div className="card-head"><h2><span className="ico"><Icon name="user" /></span>{t("Администраторы")} <span className="muted">{rows.length}</span></h2></div>
       <ul className="list">
         {rows.map((a) => (
           <li key={a.id}>
             <div className="main person"><span className="avatar">{(a.displayName ?? a.nickname).slice(0, 1).toUpperCase()}</span><div>{a.displayName ?? a.nickname} <span className="muted">{a.nickname}{a.email ? ` · ${a.email}` : t(" · без почты")}</span> {a.creator && <span className="badge accent">{t("создатель")}</span>}</div></div>
-            {!a.creator && a.id !== user?.id && <button className="ghost sm icon" onClick={() => void remove(a)} aria-label={t("Убрать администратора")} title={t("Убрать")}>🗑</button>}
+            {!a.creator && a.id !== user?.id && <button className="ghost sm icon" onClick={() => void remove(a)} aria-label={t("Убрать администратора")} title={t("Убрать")}><Icon name="trash" /></button>}
           </li>
         ))}
       </ul>

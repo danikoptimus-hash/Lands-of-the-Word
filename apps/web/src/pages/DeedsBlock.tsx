@@ -3,6 +3,7 @@ import { BOOKS } from "@lotw/domain";
 import { api, ApiError } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
+import { Icon } from "../components/Icon";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "CONFIRMATION";
 interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCode: string | null; difficulty: number }
@@ -49,12 +50,12 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
 
   const unique = deeds.filter((d) => !d.canRepeat).length;
   return (
-    <div className="card">
+    <div className="card" data-tone="accent">
       <div className="card-head">
-        <h2>{t("Дела")} <span className="muted">{deeds.length} · {t("уникальных {n}", { n: unique })}</span></h2>
+        <h2><span className="ico"><Icon name="scroll" /></span>{t("Дела")} <span className="muted">{deeds.length} · {t("уникальных {n}", { n: unique })}</span></h2>
         <div className="row">
           <button className="secondary sm" onClick={() => void importDefault()}>{t("Стандартный набор")}</button>
-          <button className="sm" onClick={() => { setOpen((o) => !o); setExpanded(true); }}>{open ? t("Скрыть форму") : t("+ Новое дело")}</button>
+          <button className="sm" onClick={() => { setOpen((o) => !o); setExpanded(true); }}><Icon name={open ? "x" : "plus"} />{open ? t("Скрыть форму") : t("Новое дело")}</button>
           <button className="ghost sm" onClick={() => setExpanded((v) => !v)} aria-label={expanded ? t("Свернуть список") : t("Развернуть список")}>{expanded ? t("▴ Свернуть") : t("▾ Список")}</button>
         </div>
       </div>
@@ -95,7 +96,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
               <div className="main"><strong>{d.title}</strong> <span className="badge">{d.direction}</span><div className="muted">{proofLabel(d.proofType)} · {t("тяжесть {n}", { n: d.difficulty })}{d.bookCode ? ` · ${BOOKS.find((b) => b.code === d.bookCode)?.nameRu}` : ""}{d.description ? ` · ${d.description}` : ""}</div></div>
               <div className="side">
                 <button className="secondary sm" onClick={() => void toggleRepeat(d)}>{d.canRepeat ? t("дублируется") : t("уникальное")}</button>
-                <button className="ghost sm icon" onClick={() => void remove(d)} aria-label={t("Удалить дело")} title={t("Удалить")}>🗑</button>
+                <button className="ghost sm icon" onClick={() => void remove(d)} aria-label={t("Удалить дело")} title={t("Удалить")}><Icon name="trash" /></button>
               </div>
             </li>
           ))}

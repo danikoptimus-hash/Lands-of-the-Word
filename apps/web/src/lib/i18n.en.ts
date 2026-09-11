@@ -336,4 +336,9 @@ export const EN: Record<string, string> = {
   "Команды без участников: {names}": "Teams without members: {names}",
   "Дел в списке {a}, рекомендуется не меньше {b}: дела начнут повторяться": "{a} deeds in the list, at least {b} recommended: deeds will start repeating",
   "Список дел пуст": "The deed list is empty",
+  // Вкладки и карточки нового оформления.
+  "Игра завершена: проверять больше нечего.": "The game is over: nothing left to review.",
+  "Капитан": "Captain", "На карту": "Open map", "Новая игра": "New game", "Новое дело": "New deed", "Обзор": "Overview", "Подготовка": "Preparation", "Проверка": "Review",
+  "Сдачи дел и записи испытаний появятся здесь после старта игры.": "Deed submissions and trial recordings will appear here after the game starts.",
+  "Участники": "Members", "городов взято": "cities taken", "испытания: перешло / устояли / потеряно": "trials: passed on / held / lost", "карта не создана": "map not generated", "команд": "teams", "мы": "us",
 };

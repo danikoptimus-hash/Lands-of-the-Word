@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type TeamDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
+import { Icon } from "../components/Icon";
 
 /** Блок «Команды» на странице игры для админа. */
 export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }: { gameId: string; teamCount: number; status: string; version?: number; onChange?: () => void }) {
@@ -50,8 +51,8 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
   }
 
   return (
-    <div className="card">
-      <div className="card-head"><h2>{t("Команды")} <span className="muted">{t("{a} из {b}", { a: teams.length, b: teamCount })}</span></h2></div>
+    <div className="card" data-tone="blue">
+      <div className="card-head"><h2><span className="ico"><Icon name="users" /></span>{t("Команды")} <span className="muted">{t("{a} из {b}", { a: teams.length, b: teamCount })}</span></h2></div>
       {teams.length < teamCount && (
         <form onSubmit={create} className="row" style={{ marginBottom: ".5rem" }}>
           <input style={{ flex: "1 1 200px" }} value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Название команды")} required minLength={2} maxLength={40} />
@@ -64,9 +65,9 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
           <div className="row between">
             <strong>{tm.name}</strong>
             <div className="row">
-              <button className="secondary sm" onClick={() => void invite(tm.id, "CAPTAIN")}>{t("Пригласить капитана")}</button>
-              <button className="secondary sm" onClick={() => void invite(tm.id, "MEMBER")}>{t("Пригласить участников")}</button>
-              {status === "DRAFT" && <button className="ghost sm icon" onClick={() => void remove(tm.id)} aria-label={t("Удалить команду")} title={t("Удалить")}>🗑</button>}
+              <button className="secondary sm" onClick={() => void invite(tm.id, "CAPTAIN")} title={t("Пригласить капитана")}><Icon name="link" />{t("Капитан")}</button>
+              <button className="secondary sm" onClick={() => void invite(tm.id, "MEMBER")} title={t("Пригласить участников")}><Icon name="link" />{t("Участники")}</button>
+              {status === "DRAFT" && <button className="ghost sm icon" onClick={() => void remove(tm.id)} aria-label={t("Удалить команду")} title={t("Удалить")}><Icon name="trash" /></button>}
             </div>
           </div>
           {inviteUrl?.teamId === tm.id && (
@@ -74,7 +75,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
               <div>{t("Ссылка {who} · 14 дней · до 20 вступлений", { who: inviteUrl.role === "CAPTAIN" ? t("для капитана") : t("для участников") })}</div>
               <div className="row" style={{ marginTop: ".4rem" }}>
                 <input readOnly value={inviteUrl.url} onFocus={(e) => e.currentTarget.select()} style={{ flex: "1 1 240px", minHeight: 38 }} />
-                <button className="sm" onClick={() => void copy(inviteUrl.url)}>{copied ? t("Скопировано") : t("Скопировать")}</button>
+                <button className="sm" onClick={() => void copy(inviteUrl.url)}><Icon name={copied ? "check" : "copy"} />{copied ? t("Скопировано") : t("Скопировать")}</button>
               </div>
             </div>
           )}
@@ -95,7 +96,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
                     <button className="secondary sm" onClick={() => void patch(tm.id, m.user.id, { role: m.role === "CAPTAIN" ? "MEMBER" : "CAPTAIN" })}>
                       {m.role === "CAPTAIN" ? t("Снять капитана") : t("Сделать капитаном")}
                     </button>
-                    <button className="ghost sm icon" onClick={() => void kick(tm.id, m.user.id, m.user.nickname)} aria-label={t("Убрать из команды")} title={t("Убрать")}>🗑</button>
+                    <button className="ghost sm icon" onClick={() => void kick(tm.id, m.user.id, m.user.nickname)} aria-label={t("Убрать из команды")} title={t("Убрать")}><Icon name="trash" /></button>
                   </div>
                 </li>
               ))}

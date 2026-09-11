@@ -1,3 +1,4 @@
+import { Icon } from "../components/Icon";
 import { useEffect, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, BATTLE_STATUS_LABEL, type BattleDto } from "../lib/api";
@@ -23,9 +24,9 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
   const pending = rows.reduce((n, b) => n + b.entries.filter((e) => e.status === "SUBMITTED").length, 0);
   const shown = showAll ? rows : active;
   return (
-    <div className="card">
+    <div className="card" data-tone="danger">
       <div className="card-head">
-        <h2>{t("Испытания")} <span className={"badge" + (pending ? " accent" : "")}>{pending ? t("{n} на проверке", { n: pending }) : active.length}</span></h2>
+        <h2><span className="ico"><Icon name="wave" /></span>{t("Испытания")} <span className={"badge" + (pending ? " accent" : "")}>{pending ? t("{n} на проверке", { n: pending }) : active.length}</span></h2>
         {rows.length > active.length && <button className="secondary sm" onClick={() => setShowAll((v) => !v)}>{showAll ? t("Только активные") : t("Все ({n})", { n: rows.length })}</button>}
       </div>
       {error && <p className="error">{error}</p>}

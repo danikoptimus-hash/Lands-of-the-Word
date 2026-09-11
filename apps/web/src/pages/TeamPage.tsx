@@ -11,6 +11,7 @@ import { BattleCard } from "./BattlePanel";
 import { DiplomacyMenu } from "./Diplomacy";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
+import { Icon } from "../components/Icon";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -217,17 +218,15 @@ export function TeamPage() {
       {menu && (
         <>
           <div className="side-backdrop" onClick={() => setMenu(false)} />
-          <div className="side-menu">
-            <div className="row between">
-              <div className="person" style={{ gap: ".7rem" }}>
-                <span className="avatar" style={{ background: team.color, color: "#fff", width: 40, height: 40 }}>{team.name.slice(0, 1)}</span>
-                <div><strong style={{ fontSize: "1.05rem" }}>{team.name}</strong><div className="muted">{gameName || t("Игра")} · {t("вы —")} {me ? TEAM_ROLE_LABEL[me.role] : "?"}</div></div>
-              </div>
-              <button className="ghost sm" onClick={() => setMenu(false)} aria-label={t("Закрыть")}>✕</button>
+          <div className="side-menu" style={{ ["--team" as string]: team.color }}>
+            <div className="side-head">
+              <span className="avatar">{team.name.slice(0, 1)}</span>
+              <div style={{ minWidth: 0 }}><strong style={{ fontSize: "1.1rem" }}>{team.name}</strong><div className="muted">{gameName || t("Игра")} · {t("вы —")} {me ? TEAM_ROLE_LABEL[me.role] : "?"}</div></div>
+              <button className="ghost sm close" onClick={() => setMenu(false)} aria-label={t("Закрыть")}><Icon name="x" /></button>
             </div>
             <div className="section">
-              <h2>{t("Взятые дела")} <span className="muted">{takenTasks.length}</span></h2>
-              {takenTasks.length === 0 && <p className="muted">{t("Пока ничего не взято. Нажми на сторону с меткой на карте.")}</p>}
+              <h2><Icon name="scroll" />{t("Взятые дела")} <span className="muted">{takenTasks.length}</span></h2>
+              {takenTasks.length === 0 && <p className="muted" style={{ margin: 0 }}>{t("Пока ничего не взято. Нажми на сторону с меткой на карте.")}</p>}
               <ul className="list">
                 {takenTasks.map((tk) => (
                   <li key={tk.id} onClick={() => { setSelectedId(tk.id); setMenu(false); }} style={{ cursor: "pointer" }}>
@@ -237,24 +236,9 @@ export function TeamPage() {
                 ))}
               </ul>
             </div>
-            {standings && standings.standings.length > 0 && (
-              <div className="section">
-                <h2>{t("Положение команд")}</h2>
-                <ul className="list">
-                  {standings.standings.map((st) => (
-                    <li key={st.teamId}>
-                      <div className="main"><span className="avatar" style={{ background: st.color, color: "#fff" }}>{st.name.slice(0, 1)}</span> {st.name} {st.teamId === standings.winnerTeamId && "🏆"}
-                        <div className="muted" style={{ fontSize: ".82rem" }}>{t("городов")} {st.cities} · {t("дел")} {st.deedsApproved} · {t("узлов")} {st.nodesRevealed} · {t("испытания")} {st.battlesWon}/{st.battlesRepelled}/{st.battlesLost}{st.citiesOnPath.length ? ` · ${t("путь")}: ${st.citiesOnPath.map((c) => c.name + (c.current ? "" : t(t(" (потерян)")))).join(", ")}` : ""}</div>
-                      </div>
-                      <span className="badge">{st.status === "defeated" ? t("выбыла") : st.teamId === standings.winnerTeamId ? t("победитель") : t("в игре")}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
             {activeBattles.length > 0 && (
               <div className="section">
-                <h2>{t("Испытания")} <span className="muted">{activeBattles.length}</span></h2>
+                <h2><Icon name="wave" />{t("Испытания")} <span className="muted">{activeBattles.length}</span></h2>
                 {activeBattles.map((b) => (
                   <div key={b.id} onClick={() => { setCityKey(b.nodeKey); setMenu(false); }} style={{ cursor: "pointer" }}>
                     <BattleCard gameId={id} b={b} teamId={team.id} isCaptain={isCaptain} now={now} onChanged={() => void loadBattles()} compact />
@@ -262,12 +246,40 @@ export function TeamPage() {
                 ))}
               </div>
             )}
+            {standings && standings.standings.length > 0 && (() => {
+              const max = Math.max(1, ...standings.standings.map((st) => st.cities * 3 + st.deedsApproved + st.nodesRevealed));
+              return (
+                <div className="section">
+                  <h2><Icon name="crown" />{t("Положение команд")}</h2>
+                  {standings.standings.map((st, i) => {
+                    const score = st.cities * 3 + st.deedsApproved + st.nodesRevealed;
+                    return (
+                      <div key={st.teamId} className="standing" style={{ ["--team" as string]: st.color }}>
+                        <span className="rank">{st.teamId === standings.winnerTeamId ? "🏆" : i + 1}</span>
+                        <span className="avatar" style={{ background: st.color, color: "#fff" }}>{st.name.slice(0, 1)}</span>
+                        <div className="body">
+                          <div className="name">{st.name} {st.status === "defeated" ? <span className="badge bad">{t("выбыла")}</span> : st.teamId === standings.winnerTeamId ? <span className="badge ok">{t("победитель")}</span> : st.teamId === team.id ? <span className="badge accent">{t("мы")}</span> : null}</div>
+                          <div className="nums">
+                            <span title={t("городов")}><Icon name="city" />{st.cities}</span>
+                            <span title={t("дел")}><Icon name="scroll" />{st.deedsApproved}</span>
+                            <span title={t("узлов")}><Icon name="map" />{st.nodesRevealed}</span>
+                            <span title={t("испытания: перешло / устояли / потеряно")}><Icon name="wave" />{st.battlesWon}/{st.battlesRepelled}/{st.battlesLost}</span>
+                          </div>
+                          {st.citiesOnPath.length > 0 && <div className="muted" style={{ fontSize: ".78rem" }}>{t("путь")}: {st.citiesOnPath.map((c) => c.name + (c.current ? "" : t(" (потерян)"))).join(", ")}</div>}
+                          <div className="bar"><span style={{ width: `${Math.round((score / max) * 100)}%` }} /></div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
             <DiplomacyMenu gameId={id} version={cityVersion} />
             <div className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} flat /></div>
-            <div className="section">
-              <Link className="menu-link" to="/">{t("🗺 Мои игры")}</Link>
-              <Link className="menu-link" to="/account">{t("⚙ Настройки аккаунта")}</Link>
-              <a className="menu-link" href="#" onClick={(e) => { e.preventDefault(); void logout(); }}>{t("⏻ Выйти")}</a>
+            <div className="menu-links">
+              <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
+              <Link to="/account"><Icon name="user" />{t("Аккаунт")}</Link>
+              <a href="#" onClick={(e) => { e.preventDefault(); void logout(); }}><Icon name="logout" />{t("Выйти")}</a>
             </div>
           </div>
         </>
@@ -279,7 +291,7 @@ export function TeamPage() {
 function Roster({ team, isCaptain, onRole, flat }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; flat?: boolean }) {
   const body = (
     <>
-      <h2>{t("Состав")} <span className="muted">{team.members.length}</span></h2>
+      <h2><Icon name="users" />{t("Состав")} <span className="muted">{team.members.length}</span></h2>
       <ul className="list">
         {team.members.map((m) => (
           <li key={m.user.id}>

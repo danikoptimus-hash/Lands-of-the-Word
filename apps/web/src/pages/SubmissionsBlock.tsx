@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, PROOF_LABEL, type EdgeTaskDto } from "../lib/api";
 import { t } from "../lib/i18n";
+import { Icon } from "../components/Icon";
 
 type Row = EdgeTaskDto & { team: { id: string; name: string; color: string }; takenBy: { nickname: string; displayName: string | null } | null };
 
@@ -25,8 +26,8 @@ export function SubmissionsBlock({ gameId, version = 0, onDecided }: { gameId: s
   }
 
   return (
-    <div className="card">
-      <div className="card-head"><h2>{t("Сдачи на проверку")} <span className={"badge" + (rows.length ? " accent" : "")}>{rows.length}</span></h2></div>
+    <div className="card" data-tone="green">
+      <div className="card-head"><h2><span className="ico"><Icon name="check" /></span>{t("Сдачи на проверку")} <span className={"badge" + (rows.length ? " accent" : "")}>{rows.length}</span></h2></div>
       {error && <p className="error">{error}</p>}
       {rows.length === 0 ? <p className="muted">{t("Пока ничего не сдано.")}</p> : (
         <ul className="list">

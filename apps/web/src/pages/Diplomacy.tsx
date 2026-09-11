@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError, PASSAGE_LABEL, type PassageDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
+import { Icon } from "../components/Icon";
 
 interface PassagesDto { canSpeak: boolean; outgoing: PassageDto[]; incoming: PassageDto[] }
 
@@ -62,7 +63,7 @@ export function DiplomacyMenu({ gameId, version }: { gameId: string; version: nu
   const granted = data.incoming.filter((r) => r.status === "APPROVED");
   return (
     <div className="section">
-      <h2>{t("Дипломатия")} {pending.length > 0 && <span className="badge accent">{pending.length}</span>}</h2>
+      <h2><Icon name="handshake" />{t("Дипломатия")} {pending.length > 0 && <span className="badge accent">{pending.length}</span>}</h2>
       {pending.map((r) => (
         <div key={r.id} className="battle def">
           <div><strong>«{r.requester.name}»</strong> {t("просит проход через")} <strong>{r.bookName}</strong></div>
@@ -83,8 +84,8 @@ export function PassagesBlock({ gameId, version = 0 }: { gameId: string; version
   useEffect(() => { api<{ passages: PassageDto[] }>(`/api/games/${gameId}/passages`).then((r) => setRows(r.passages)).catch(() => setRows([])); }, [gameId, version]);
   if (rows.length === 0) return null;
   return (
-    <div className="card">
-      <div className="card-head"><h2>{t("Дипломатия")} <span className="muted">{rows.length}</span></h2></div>
+    <div className="card" data-tone="blue">
+      <div className="card-head"><h2><span className="ico"><Icon name="handshake" /></span>{t("Дипломатия")} <span className="muted">{rows.length}</span></h2></div>
       <ul className="list">
         {rows.map((r) => (
           <li key={r.id}>

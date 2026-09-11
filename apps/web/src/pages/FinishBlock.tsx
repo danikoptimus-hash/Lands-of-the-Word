@@ -1,3 +1,4 @@
+import { Icon } from "../components/Icon";
 import { useEffect, useState } from "react";
 import { api, ApiError, type StandingsDto } from "../lib/api";
 import { useUi } from "../lib/ui";
@@ -27,9 +28,9 @@ export function FinishBlock({ gameId, status, version, onChanged }: { gameId: st
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
   return (
-    <div className="card">
+    <div className="card" data-tone="warn">
       <div className="card-head">
-        <h2>{status === "FINISHED" ? t("Игра завершена") : t("Итоги и завершение")}</h2>
+        <h2><span className="ico"><Icon name="crown" /></span>{status === "FINISHED" ? t("Игра завершена") : t("Итоги и завершение")}</h2>
         {status === "FINISHED" && data.finishedAt && <span className="muted">{new Date(data.finishedAt).toLocaleString(getLocale())}</span>}
       </div>
       {status === "FINISHED" && (

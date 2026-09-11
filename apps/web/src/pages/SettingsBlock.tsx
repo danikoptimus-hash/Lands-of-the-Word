@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../lib/api";
 import { t } from "../lib/i18n";
+import { Icon } from "../components/Icon";
 
 interface GameDto { id: string; name: string; status: string; teamCount: number; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
 
@@ -28,10 +29,10 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   }
 
   return (
-    <div className="card">
+    <div className="card" data-tone="plum">
       <div className="card-head">
-        <h2>{t("Настройки")}</h2>
-        <button className="secondary sm" onClick={() => setOpen((v) => !v)}>{open ? t("Скрыть") : t("Изменить")}</button>
+        <h2><span className="ico"><Icon name="settings" /></span>{t("Настройки")}</h2>
+        <button className="secondary sm" onClick={() => setOpen((v) => !v)}><Icon name={open ? "x" : "edit"} />{open ? t("Скрыть") : t("Изменить")}</button>
       </div>
       {!open && <p className="muted">{t("Команд: {n}", { n: game.teamCount })} · {t("узлов: {n}", { n: game.settings.nodeCount ?? 250 })} · {t("старты: {s}", { s: game.settings.equidistantStarts ? t("равноудалённые") : t("случайные") })} · {t("разница до первого города ≤ {n}", { n: game.settings.maxStartDistanceDiff ?? 3 })} · {t("родословия в испытаниях: {s}", { s: game.settings.includeGenealogies ? t("да") : t("нет") })} · {t("пожертвование вместо дела: {s}", { s: game.settings.donationMin ? t("от {n} {cur}", { n: game.settings.donationMin, cur: game.settings.donationCurrency ?? "" }) : t("выключено") })}</p>}
       {open && (
