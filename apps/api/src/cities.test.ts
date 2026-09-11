@@ -54,7 +54,7 @@ describe("город на перекрёстке", () => {
     const adm = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: adminCookie } });
     expect(adm.statusCode).toBe(200);
     expect(adm.json().node.cityKey).toMatch(/^[A-Z2-9]{6}$/);
-    expect(adm.json().node.cityCode).toMatch(/^[А-Я2-9]{16}$/);
+    expect(adm.json().node.cityCode).toMatch(new RegExp(`^[А-Я2-9]{${content.tasks.length}}$`));
     expect(adm.json().content.tasks[0].correct).toBe(0);
     expect(adm.json().content.tasks[11].answer).toBe(6);
     const forbidden = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: p1Cookie } });
@@ -71,7 +71,7 @@ describe("город на перекрёстке", () => {
     const city = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
     expect(city.statusCode).toBe(200);
     const districts = city.json().content.districts as Array<{ id: string; title: string; index: number | null }>;
-    expect(districts).toHaveLength(16);
+    expect(districts).toHaveLength(content.districts.length);
     expect(districts.every((d) => d.index === null)).toBe(true);
     expect(city.json().content.tasks).toHaveLength(0);
     expect(districts.map((d) => d.title)).not.toEqual(content.districts.map((d) => d.title));
@@ -90,7 +90,7 @@ describe("город на перекрёстке", () => {
     const solved = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
     expect(solved.json().state.orderSolved).toBe(true);
     expect(solved.json().content.districts.map((d: { title: string }) => d.title)).toEqual(content.districts.map((d) => d.title));
-    expect(solved.json().content.tasks).toHaveLength(16);
+    expect(solved.json().content.tasks).toHaveLength(content.tasks.length);
     expect(JSON.stringify(solved.json().content.tasks)).not.toContain("\"answer\"");
   });
 
@@ -116,7 +116,7 @@ describe("город на перекрёстке", () => {
     }
     const done = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
     const node0 = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
-    expect(node0.cityCode).toMatch(/^[А-Я2-9]{16}$/);
+    expect(node0.cityCode).toMatch(new RegExp(`^[А-Я2-9]{${content.tasks.length}}$`));
     expect((done.json().content.fragments as string[]).join("")).toBe(node0.cityCode);
 
     const wrongKey = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/capture`, headers: { cookie: p1Cookie }, payload: { key: "NOPE22" } });
@@ -152,7 +152,7 @@ describe("город на перекрёстке", () => {
     expect(res.statusCode).toBe(200);
     const city = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p2Cookie } });
     expect(city.json().owner.name).toBe("Орлы");
-    expect(city.json().state.doneTasks).toHaveLength(16);
+    expect(city.json().state.doneTasks).toHaveLength(content.tasks.length);
     const lost = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
     expect(lost.json().state.capturedAt).toBeNull();
     // вернём как было для следующего теста

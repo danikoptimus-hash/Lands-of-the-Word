@@ -42,6 +42,8 @@ export type CityTaskDto =
   | { index: number; scope: string; groupDistricts: number[] | null; type: "number" | "text"; prompt: string }
   | { index: number; scope: string; groupDistricts: number[] | null; type: "choice"; prompt: string; options: string[] }
   | { index: number; scope: string; groupDistricts: number[] | null; type: "order"; prompt: string; items: Array<{ id: string; text: string }> };
+/** Блокировка задания с выбором ответа (две попытки → сутки) и спор с админом. */
+export interface TaskLockDto { index: number; attemptsLeft: number; lockedUntil: number | null; dispute: string | null; disputedAt: number | null; resolvedAt: number | null; resolution: string | null }
 export interface MyCityDto {
   node: { key: string; bookCode: string; cityType: string | null; ruined: boolean };
   /** Адресат конверта: только когда все задания решены. */
@@ -49,7 +51,7 @@ export interface MyCityDto {
   owner: { id: string; index: number; name: string; color: string } | null;
   team: { capitalMovedAt: string | null; gameRole: GameRole; role: TeamRole };
   content: { title: string; translation: string; codeRule: string; districts: CityDistrictDto[]; tasks: CityTaskDto[]; fragments: Array<string | null> } | null;
-  state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; cooldownUntil: number | null };
+  state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; cooldownUntil: number | null; choiceAttempts: number; locks: TaskLockDto[] };
 }
 /** Город глазами админа: контент с ответами, ключ конверта, прогресс команд. */
 export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[] }

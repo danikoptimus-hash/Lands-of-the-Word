@@ -16,6 +16,16 @@ INPUT = {
     "order": "расставить пункты по порядку (перетаскиванием)",
 }
 SCOPE = {"district": "район", "group": "несколько районов", "book": "вся книга"}
+PREV = {}
+prev_file = ROOT / "docs/review/numbering-2026-09-11.json"
+if prev_file.exists():
+    for k, v in json.loads(prev_file.read_text()).items(): PREV[(v["book"], v["index"])] = (int(k), v["prompt"])
+STRIP = re.compile(r"\s*\((?:[^()]*?\d+:\d+[^()]*)\)")
+def changed(code, i, prompt):
+    old = PREV.get((code, i))
+    if not old: return "новое"
+    a = re.sub(r"\s+", " ", STRIP.sub("", old[1])).strip()[:60]
+    return None if re.sub(r"\s+", " ", prompt).strip().startswith(a[:40]) else "изменено"
 out = []
 out.append("""<!doctype html><html lang="ru"><head><meta charset="utf-8"><title>Земли Слова — задания городов</title>
 <style>
@@ -31,10 +41,11 @@ h2:first-of-type { page-break-before: auto; }
 .ans b { color: #2F6B3A; }
 ol.opts { margin: 2px 0 0 0; padding-left: 1.5em; } ol.opts li.ok { font-weight: bold; color: #2F6B3A; }
 .summary { color: #6B645A; font-style: italic; }
+.new { background: #C7742A; color: #fff; border-radius: 4px; padding: 0 5px; font-size: 8pt; margin-right: .4em; } .old { color: #6B645A; font-size: 8pt; margin-right: .4em; }
 .toc { columns: 3; font-size: 9pt; } .toc div { break-inside: avoid; }
 </style></head><body>""")
 out.append("<h1>Земли Слова — все задания городов</h1>")
-out.append("<p>Сквозная нумерация: отвечать можно по номерам («№ 57 — заменить ответ на …»). У каждого задания: книга, район (номер, стихи, название), тип ввода, текст задания и ответ. Ответы выделены зелёным. Перевод — Синодальный, русская нумерация стихов.</p>")
+out.append("<p>Сквозная нумерация: отвечать можно по номерам («№ 57 — заменить ответ на …»). У каждого задания: книга, район (номер, стихи, название), тип ввода, текст задания и ответ. Ответы выделены зелёным. Перевод — Синодальный, русская нумерация стихов. Пометки <span class=\"new\">новое</span> и <span class=\"new\">изменено</span> — задания, которых не было в файле от 11.09 или которые заменены по вашим минусам; «было №» — номер в том файле. Ссылки на стихи в вопросах остались только в Псалтири, Притчах и Екклесиасте.</p>")
 books = []
 n = 0
 body = []
@@ -54,7 +65,11 @@ for code in order:
             where = "Районы " + ", ".join(str(x) for x in t.get("groupDistricts", [])); summ = ""
         else:
             where = "Вся книга"; summ = ""
-        body.append(f'<div class="task"><div class="meta"><span class="num">№ {n}</span>{where} · <b>ввод: {INPUT[t["type"]]}</b></div>{summ}<div class="prompt">{e(t["prompt"])}</div>')
+        mark = changed(code, i, t["prompt"])
+        old = PREV.get((code, i))
+        badge = f' <span class="new">{mark}</span>' if mark else ""
+        oldnum = f' <span class="old">было № {old[0]}</span>' if old and mark != "новое" else ""
+        body.append(f'<div class="task"><div class="meta"><span class="num">№ {n}</span>{badge}{oldnum}{where} · <b>ввод: {INPUT[t["type"]]}</b></div>{summ}<div class="prompt">{e(t["prompt"])}</div>')
         if t["type"] == "number":
             body.append(f'<div class="ans">Ответ: <b>{e(str(t["answer"]))}</b></div>')
         elif t["type"] == "text":

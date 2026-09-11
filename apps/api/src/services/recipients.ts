@@ -10,7 +10,7 @@ import { loadCityContent, makeCityCode, makeCityKey } from "./cities.js";
 export async function ensureCityCodes(gameId: string): Promise<void> {
   const nodes = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", OR: [{ cityKey: null }, { cityCode: null }] }, select: { id: true, bookCode: true, cityKey: true, cityCode: true } });
   for (const n of nodes) {
-    const len = (await loadCityContent(n.bookCode ?? ""))?.districts.length ?? 12;
+    const len = (await loadCityContent(n.bookCode ?? ""))?.tasks.length ?? 12;
     await prisma.mapNode.update({ where: { id: n.id }, data: { cityKey: n.cityKey ?? makeCityKey(), cityCode: n.cityCode ?? makeCityCode(len) } });
   }
 }

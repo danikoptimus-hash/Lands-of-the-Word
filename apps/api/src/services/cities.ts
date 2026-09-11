@@ -22,10 +22,10 @@ const contentSchema = z.object({
   book: z.string().min(1),
   title: z.string().min(1),
   translation: z.string().default(""),
-  codeRule: z.string().default("Каждый район даёт один знак шифра. Знаки по порядку районов — это шифр города."),
+  codeRule: z.string().default("Каждое задание даёт один знак шифра. Знаки по порядку заданий — это шифр города."),
   districts: z.array(z.object({ verses: z.string(), title: z.string().min(1), summary: z.string().min(1) })).min(2),
   tasks: z.array(taskSchema).min(1),
-}).refine((c) => c.tasks.length === c.districts.length, { message: "Число заданий должно совпадать с числом районов" });
+}).refine((c) => c.tasks.length >= c.districts.length && c.tasks.every((t, i) => i < c.districts.length || t.scope !== "district"), { message: "На каждый район — одно задание; дополнительные задания могут быть только по книге или по группе районов" });
 
 export type CityContent = z.infer<typeof contentSchema>;
 export type CityTask = CityContent["tasks"][number];

@@ -249,7 +249,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     ]);
     // Ключи конвертов городов: генерируются при старте, видны только админу (для подготовки конвертов).
     const cityNodes = await prisma.mapNode.findMany({ where: { gameId: id, kind: "CITY" }, select: { id: true, bookCode: true } });
-    const codeLengths = await Promise.all(cityNodes.map(async (n) => (await loadCityContent(n.bookCode ?? ""))?.districts.length ?? 12));
+    const codeLengths = await Promise.all(cityNodes.map(async (n) => (await loadCityContent(n.bookCode ?? ""))?.tasks.length ?? 12));
     await prisma.$transaction([
       ...teams.map((t, i) => prisma.team.update({ where: { id: t.id }, data: { startNodeKey: starts[i]?.key ?? null } })),
       ...cityNodes.map((n, i) => prisma.mapNode.update({ where: { id: n.id }, data: { cityKey: makeCityKey(), cityCode: makeCityCode(codeLengths[i]!) } })),

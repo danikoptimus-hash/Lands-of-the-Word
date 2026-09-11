@@ -6,6 +6,8 @@ import { requireUser } from "../auth.js";
 import { requireAdmin, requireMember } from "./teamMap.js";
 import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask } from "../services/cities.js";
 import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
+import { notifyAdmins, notifyTeam } from "../services/notify.js";
+import { msg } from "../services/i18n.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
 const answerBody = z.object({ answer: z.union([z.string().max(500), z.number(), z.array(z.string().min(1).max(32)).max(64)]) });
@@ -13,6 +15,17 @@ const captureBody = z.object({ key: z.string().trim().min(1).max(32) });
 
 /** Пауза после неверного ответа, чтобы варианты нельзя было перебирать. */
 const WRONG_COOLDOWN_MS = 20_000;
+/** Задание с выбором ответа: столько неверных попыток — и задание закрывается на сутки (решение владельца). */
+const CHOICE_ATTEMPTS = 2;
+const LOCK_MS = 24 * 3600_000;
+const disputeBody = z.object({ message: z.string().trim().min(5).max(500) });
+const resolveBody = z.object({ unlock: z.boolean(), answer: z.string().trim().max(500).optional() });
+
+/** Состояние блокировок заданий города для команды (в ответе my-city). */
+function publicLock(l: { taskIndex: number; wrong: number; lockedUntil: Date | null; dispute: string | null; disputedAt: Date | null; resolvedAt: Date | null; resolution: string | null }, now: number) {
+  const locked = l.lockedUntil && l.lockedUntil.getTime() > now;
+  return { index: l.taskIndex, attemptsLeft: locked ? 0 : Math.max(0, CHOICE_ATTEMPTS - l.wrong), lockedUntil: locked ? l.lockedUntil!.getTime() : null, dispute: l.dispute, disputedAt: l.disputedAt?.getTime() ?? null, resolvedAt: l.resolvedAt?.getTime() ?? null, resolution: l.resolution };
+}
 
 const ownerSelect = { team: { select: { id: true, index: true, name: true, color: true } } } as const;
 
@@ -31,7 +44,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       const game = await prisma.game.findUnique({ where: { id: gameId }, select: { status: true } });
       if (game?.status === "ACTIVE") {
         const content = await loadCityContent(node.bookCode);
-        return prisma.mapNode.update({ where: { id: node.id }, data: { cityKey: node.cityKey ?? makeCityKey(), cityCode: node.cityCode ?? makeCityCode(content?.districts.length ?? 12) } });
+        return prisma.mapNode.update({ where: { id: node.id }, data: { cityKey: node.cityKey ?? makeCityKey(), cityCode: node.cityCode ?? makeCityCode(content?.tasks.length ?? 12) } });
       }
     }
     return node;
@@ -46,10 +59,11 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!node) return reply.code(404).send({ error: "not_found", message: "Город не найден" });
     const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
     if (!reached) return reply.code(403).send({ error: "forbidden", message: "Ваша команда ещё не дошла до этого города" });
-    const [content, state, ownerState] = await Promise.all([
+    const [content, state, ownerState, locks] = await Promise.all([
       loadCityContent(node.bookCode!),
       prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } }),
       prisma.teamCityState.findFirst({ where: { gameId: id, nodeKey, capturedAt: { not: null } }, select: ownerSelect }),
+      prisma.teamTaskLock.findMany({ where: { teamId: m.team.id, nodeKey } }),
     ]);
     const scopeKey = `${m.team.id}|${nodeKey}`;
     const solved = state?.orderSolved ?? false;
@@ -82,6 +96,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         secondCapital: state?.secondCapital ?? false,
         hintTasks: state?.hintTasks ?? [],
         cooldownUntil: cooldownUntil > Date.now() ? cooldownUntil : null,
+        choiceAttempts: CHOICE_ATTEMPTS,
+        locks: locks.map((l) => publicLock(l, Date.now())),
       },
     };
   });
@@ -132,13 +148,84 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const cooldownUntil = c.state.lastWrongAt ? c.state.lastWrongAt.getTime() + WRONG_COOLDOWN_MS : 0;
     if (cooldownUntil > Date.now()) return reply.code(429).send({ error: "cooldown", message: "Подождите немного перед следующей попыткой", retryAt: cooldownUntil });
     const body = answerBody.parse(request.body);
+    const now = Date.now();
+    // Выбор ответа: две попытки, потом задание закрыто на сутки. Спор — отдельным запросом.
+    const lockWhere = { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: index } };
+    const lock = task.type === "choice" ? await prisma.teamTaskLock.findUnique({ where: lockWhere }) : null;
+    if (lock?.lockedUntil && lock.lockedUntil.getTime() > now) {
+      return reply.code(423).send({ error: "locked", message: "Задание закрыто на сутки после двух неверных ответов", lockedUntil: lock.lockedUntil.getTime() });
+    }
     const correct = checkAnswer(task, index, secret, c.scopeKey, body.answer);
+    let lockedUntil: number | null = null;
     await prisma.teamCityState.update({
       where: { id: c.state.id },
       data: correct ? { doneTasks: { push: index } } : { answerAttempts: { increment: 1 }, lastWrongAt: new Date() },
     });
+    if (task.type === "choice") {
+      if (correct) { if (lock) await prisma.teamTaskLock.delete({ where: { id: lock.id } }); }
+      else {
+        const wrong = (lock?.wrong ?? 0) + 1;
+        const locking = wrong >= CHOICE_ATTEMPTS;
+        lockedUntil = locking ? now + LOCK_MS : null;
+        const data = locking
+          ? { wrong: 0, lockedUntil: new Date(lockedUntil!), dispute: null, disputedAt: null, resolvedAt: null, resolution: null, unlocked: false }
+          : { wrong };
+        await prisma.teamTaskLock.upsert({ where: lockWhere, create: { gameId: id, teamId: c.m.team.id, nodeKey, taskIndex: index, ...data }, update: data });
+      }
+    }
     publish(id, { type: "cities", teamId: c.m.team.id });
-    return correct ? { correct: true, fragment: c.node.cityCode?.[index] ?? null } : { correct: false, retryAt: Date.now() + WRONG_COOLDOWN_MS };
+    if (correct) return { correct: true, fragment: c.node.cityCode?.[index] ?? null };
+    return { correct: false, retryAt: now + WRONG_COOLDOWN_MS, lockedUntil, attemptsLeft: task.type === "choice" ? Math.max(0, CHOICE_ATTEMPTS - ((lock?.wrong ?? 0) + 1)) : null };
+  });
+
+  /** Оспорить блокировку задания: сообщение админам игры. Ответ придёт письмом/уведомлением и в попапе города. */
+  app.post("/api/games/:id/my-city/:nodeKey/tasks/:index/dispute", async (request, reply) => {
+    const { id, nodeKey, index: rawIndex } = request.params as { id: string; nodeKey: string; index: string };
+    const c = await memberCity(request, reply, id, nodeKey);
+    if (!c) return;
+    const index = Number(rawIndex);
+    const task = Number.isInteger(index) ? c.content.tasks[index] : undefined;
+    if (!task) return reply.code(404).send({ error: "not_found", message: "Задание не найдено" });
+    const body = disputeBody.parse(request.body);
+    const lock = await prisma.teamTaskLock.findUnique({ where: { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: index } } });
+    if (!lock?.lockedUntil || lock.lockedUntil.getTime() <= Date.now()) return reply.code(409).send({ error: "conflict", message: "Задание не заблокировано: оспаривать нечего" });
+    if (lock.disputedAt && !lock.resolvedAt) return reply.code(409).send({ error: "conflict", message: "Спор уже отправлен, ждите ответа администратора" });
+    await prisma.teamTaskLock.update({ where: { id: lock.id }, data: { dispute: body.message, disputedAt: new Date(), resolvedAt: null, resolution: null } });
+    notifyAdmins(id, "спор по заданию города {book}", "Команда «{team}» оспаривает блокировку задания {n} города {book}: «{message}». Снимите блокировку или ответьте на вкладке «Проверка».", { book: c.node.bookCode ?? "", team: c.m.team.name, n: index + 1, message: body.message });
+    publish(id, { type: "cities", teamId: c.m.team.id });
+    publish(id, { type: "game" });
+    return { ok: true };
+  });
+
+  /** Админ: открытые споры по заданиям (команда, город, задание, сообщение). */
+  app.get("/api/games/:id/disputes", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const rows = await prisma.teamTaskLock.findMany({ where: { gameId: id, disputedAt: { not: null }, resolvedAt: null }, orderBy: { disputedAt: "asc" }, include: { team: { select: { id: true, name: true, color: true } } } });
+    const nodes = await prisma.mapNode.findMany({ where: { gameId: id, key: { in: [...new Set(rows.map((r) => r.nodeKey))] } }, select: { key: true, bookCode: true } });
+    const bookOf = new Map(nodes.map((n) => [n.key, n.bookCode ?? ""]));
+    const disputes = await Promise.all(rows.map(async (r) => {
+      const content = await loadCityContent(bookOf.get(r.nodeKey) ?? "");
+      const task = content?.tasks[r.taskIndex];
+      return { id: r.id, team: r.team, nodeKey: r.nodeKey, bookCode: bookOf.get(r.nodeKey) ?? "", taskIndex: r.taskIndex, prompt: task?.prompt ?? "", correct: task?.type === "choice" ? task.options[task.correct] ?? null : null, message: r.dispute, disputedAt: r.disputedAt, lockedUntil: r.lockedUntil };
+    }));
+    return { disputes };
+  });
+
+  /** Админ: решение по спору — снять блокировку (можно отвечать снова) или оставить, с ответом команде. */
+  app.post("/api/games/:id/disputes/:lockId/resolve", async (request, reply) => {
+    const { id, lockId } = request.params as { id: string; lockId: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const body = resolveBody.parse(request.body);
+    const lock = await prisma.teamTaskLock.findFirst({ where: { id: lockId, gameId: id } });
+    if (!lock) return reply.code(404).send({ error: "not_found", message: "Спор не найден" });
+    if (lock.resolvedAt) return reply.code(409).send({ error: "conflict", message: "Спор уже решён" });
+    await prisma.teamTaskLock.update({ where: { id: lock.id }, data: { resolvedAt: new Date(), resolution: body.answer || null, ...(body.unlock ? { lockedUntil: null, wrong: 0, unlocked: true } : {}) } });
+    const node = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: lock.nodeKey } }, select: { bookCode: true } });
+    notifyTeam(id, lock.teamId, "ответ администратора по заданию города {book}", (locale) => msg(locale, "Задание {n}: {verdict}{answer}", { n: lock.taskIndex + 1, verdict: body.unlock ? "блокировка снята, можно отвечать снова" : "блокировка оставлена до истечения суток", answer: body.answer ? msg(locale, " Ответ администратора: {answer}", { answer: body.answer }) : "" }), { book: node?.bookCode ?? "" });
+    publish(id, { type: "cities", teamId: lock.teamId });
+    publish(id, { type: "game" });
+    return { ok: true };
   });
 
   /** Ввести ключ из конверта: город взят. Первый взятый город команды — её столица. */

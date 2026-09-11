@@ -56,6 +56,14 @@ const EN: Record<string, string> = {
   "дело вернули на доработку": "a deed was returned for rework",
   "Администратор вернул дело «{deed}».{comment}": "An administrator returned the deed “{deed}”.{comment}",
   " Комментарий: {comment}": " Comment: {comment}",
+  // споры по заданиям
+  "спор по заданию города {book}": "a dispute over a task in the city of {book}",
+  "Команда «{team}» оспаривает блокировку задания {n} города {book}: «{message}». Снимите блокировку или ответьте на вкладке «Проверка».": "Team “{team}” disputes the lock on task {n} of the city of {book}: “{message}”. Lift the lock or reply on the Review tab.",
+  "ответ администратора по заданию города {book}": "the admin's answer about a task in the city of {book}",
+  "Задание {n}: {verdict}{answer}": "Task {n}: {verdict}{answer}",
+  "блокировка снята, можно отвечать снова": "the lock is lifted, you can answer again",
+  "блокировка оставлена до истечения суток": "the lock stays until the day is over",
+  " Ответ администратора: {answer}": " Admin's reply: {answer}",
   // проходы
   "проход не разрешён": "passage not granted",
   "Владелец города три дня не отвечал на запрос прохода: по правилам это отказ. Можно запросить снова.": "The city's owner did not answer the passage request for three days: by the rules that is a refusal. You can ask again.",

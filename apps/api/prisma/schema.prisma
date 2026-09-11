@@ -226,6 +226,7 @@ model Team {
   invites      Invite[]
   nodeStates   TeamNodeState[]
   edgeTasks    TeamEdgeTask[]
+  taskLocks    TeamTaskLock[]
   cityStates   TeamCityState[]
   attacks      Battle[]  @relation("attacker")
   defenses     Battle[]  @relation("defender")
@@ -333,6 +334,32 @@ model TeamEdgeTask {
  * Прогресс команды в городе: собрана ли структура книги (районы), какие задания районов решены,
  * взят ли город. Задания и ответы — неизменяемый контент платформы (content/cities/*.json).
  */
+/**
+ * Задание с выбором ответа: две попытки, после второй неверной — блокировка на сутки.
+ * Команда может оспорить блокировку сообщением админу; админ снимает блокировку или оставляет и отвечает.
+ */
+model TeamTaskLock {
+  id          String    @id @default(cuid())
+  gameId      String
+  teamId      String
+  team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  nodeKey     String
+  taskIndex   Int
+  /** Неверных попыток в текущем цикле (сбрасывается при блокировке и при снятии блокировки). */
+  wrong       Int       @default(0)
+  lockedUntil DateTime?
+  dispute     String?
+  disputedAt  DateTime?
+  resolvedAt  DateTime?
+  resolution  String?
+  unlocked    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([teamId, nodeKey, taskIndex])
+  @@index([gameId, disputedAt])
+}
+
 model TeamCityState {
   id             String    @id @default(cuid())
   gameId         String

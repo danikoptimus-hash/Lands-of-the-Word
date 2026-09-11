@@ -35,6 +35,8 @@ def refs_in_prompt(prompt, counts):
         if r: out += r
     return out
 
+REFS_ALLOWED = {"psa", "pro", "ecc"}
+
 def check(path):
     errs, warns = [], []
     d = json.load(open(path, encoding="utf-8"))
@@ -43,7 +45,9 @@ def check(path):
     ds, ts = d.get("districts", []), d.get("tasks", [])
     if len(ds) < 2: errs.append("меньше двух районов")
     if len(ds) > 16: errs.append(f"районов {len(ds)} > 16")
-    if len(ts) != len(ds): errs.append(f"заданий {len(ts)} ≠ районов {len(ds)}")
+    if len(ts) < len(ds): errs.append(f"заданий {len(ts)} меньше районов {len(ds)}")
+    for i, t in enumerate(ts):
+        if i >= len(ds) and t.get("scope") == "district": errs.append(f"задание {i + 1}: сверх районов допустимы только book/group")
     seen = set()
     for i, dist in enumerate(ds, 1):
         for k in ("verses", "title", "summary"):
@@ -61,13 +65,25 @@ def check(path):
         dist = ds[i - 1] if i <= len(ds) else {}
         drefs = parse_ref(dist.get("verses", ""), counts) or []
         prefs = refs_in_prompt(p, counts)
-        if scope == "district" and not prefs: warns.append(f"задание {i}: в вопросе нет ссылки на стихи")
+        # Решение владельца: ссылки на стихи только в книгах без чёткой структуры (Псалтирь, Притчи, Екклесиаст).
+        if code in REFS_ALLOWED:
+            if scope == "district" and not prefs: warns.append(f"задание {i}: в вопросе нет ссылки на стихи")
+        elif (prefs or re.search(r"\d+:\d+", p)) and not (typ == "text" and all(re.fullmatch(r"\d+(:\d+)?", a) for a in t.get("answers") or [])): errs.append(f"задание {i}: в вопросе ссылка на стихи, а в этой книге ссылок быть не должно")
         scope_refs = prefs or (drefs if scope == "district" else None)
         scope_text = norm(text_of(bible, scope_refs)) if scope_refs else whole
         leak = norm(dist.get("title", "") + " " + dist.get("summary", ""))
         if typ == "text":
             answers = t.get("answers") or []
             if not answers: errs.append(f"задание {i}: text без answers"); continue
+            if all(re.fullmatch(r"[\d\s,и]+", a) for a in answers) and not any(":" in a for a in answers):
+                continue  # числовой ответ словами/цифрами (например номера двух псалмов) — в тексте не ищем
+            if all(re.fullmatch(r"\d+(:\d+)?", a) for a in answers):
+                # Поиск стиха по цитате: ответ — ссылка; цитата в «…» должна стоять именно в этом стихе.
+                q = re.search(r"«([^»]+)»", p); ref = next((a for a in answers if ":" in a), "1:" + answers[0])
+                ch, v = map(int, ref.split(":"))
+                verse = norm(bible["chapters"][ch - 1][v - 1]) if 0 < ch <= len(bible["chapters"]) and 0 < v <= len(bible["chapters"][ch - 1]) else ""
+                if not q or norm(q.group(1)) not in verse: errs.append(f"задание {i}: цитата не найдена в стихе {ref}")
+                continue
             if not any(norm(a) and norm(a) in scope_text for a in answers):
                 if not any(norm(a) in whole for a in answers): errs.append(f"задание {i}: ни один ответ {answers} не найден в тексте книги")
                 else: warns.append(f"задание {i}: ответ {answers} есть в книге, но не в указанных стихах")
@@ -91,9 +107,15 @@ def check(path):
             items = t.get("items") or []
             if len(items) < 3: errs.append(f"задание {i}: order меньше 3 пунктов"); continue
             if len(set(items)) != len(items): errs.append(f"задание {i}: повтор пунктов order")
-            pos = [scope_text.find(norm(x)) for x in items]
-            if all(x >= 0 for x in pos) and pos != sorted(pos): errs.append(f"задание {i}: пункты order встречаются в тексте не в этом порядке")
-            elif any(x < 0 for x in pos): warns.append(f"задание {i}: не все пункты order найдены дословно (перефраз?) — порядок не проверен")
+            # Каждый следующий пункт ищем после предыдущего: одно и то же слово может встречаться в районе и раньше.
+            pos = []; cur = 0
+            for x in items:
+                k = scope_text.find(norm(x), cur)
+                pos.append(k)
+                if k >= 0: cur = k + 1
+            if all(x >= 0 for x in pos): pass
+            elif all(scope_text.find(norm(x)) >= 0 for x in items): errs.append(f"задание {i}: пункты order встречаются в тексте не в этом порядке")
+            else: warns.append(f"задание {i}: не все пункты order найдены дословно (перефраз?) — порядок не проверен")
         else: errs.append(f"задание {i}: тип «{typ}»")
     return errs, warns
 

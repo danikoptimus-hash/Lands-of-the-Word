@@ -14,6 +14,7 @@ import { AdminsBlock } from "./AdminsBlock";
 import { FinishBlock } from "./FinishBlock";
 import { PassagesBlock } from "./Diplomacy";
 import { RecipientsBlock } from "./RecipientsBlock";
+import { DisputesBlock } from "./DisputesBlock";
 import { Icon } from "../components/Icon";
 import { PushToggle } from "../components/PushToggle";
 import { t } from "../lib/i18n";
@@ -42,7 +43,7 @@ export function GamePage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
-  const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, battles: 0, passages: 0 });
+  const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, battles: 0, passages: 0, disputes: 0 });
   const [progress, setProgress] = useState<{ teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] } | null>(null);
   const loadProgress = useCallback(() => api<{ teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] }>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
   /** Ползунок времени: null — «сейчас» (живое состояние), иначе момент, на который показываем карту. */
@@ -60,14 +61,15 @@ export function GamePage() {
 
   /** Счётчики для бейджей на вкладках: что ждёт админа. Лёгкие запросы, обновляются с каждым событием игры. */
   const loadCounts = useCallback(async (active: boolean) => {
-    const [teams, deeds, subs, battles, passages] = await Promise.all([
+    const [teams, deeds, subs, battles, passages, disputes] = await Promise.all([
       api<{ teams: unknown[] }>(`/api/games/${id}/teams`).then((r) => r.teams.length).catch(() => 0),
       api<{ deeds: unknown[] }>(`/api/games/${id}/deeds`).then((r) => r.deeds.length).catch(() => 0),
       active ? api<{ tasks: unknown[] }>(`/api/games/${id}/submissions`).then((r) => r.tasks.length).catch(() => 0) : 0,
       active ? api<{ battles: Array<{ entries: Array<{ status: string }> }> }>(`/api/games/${id}/battles`).then((r) => r.battles.reduce((n, b) => n + b.entries.filter((e) => e.status === "SUBMITTED").length, 0)).catch(() => 0) : 0,
       active ? api<{ passages: Array<{ status: string }> }>(`/api/games/${id}/passages`).then((r) => r.passages.filter((p) => p.status === "PENDING").length).catch(() => 0) : 0,
+      active ? api<{ disputes: unknown[] }>(`/api/games/${id}/disputes`).then((r) => r.disputes.length).catch(() => 0) : 0,
     ]);
-    setCounts({ teams, deeds, submissions: subs, battles, passages });
+    setCounts({ teams, deeds, submissions: subs, battles, passages, disputes });
   }, [id]);
 
   useEffect(() => { load().catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); void loadProgress(); }, [load, loadProgress]);
@@ -88,7 +90,7 @@ export function GamePage() {
   if (error && !game) return <p className="error">{error}</p>;
   if (!game) return <p className="muted">{t("Загрузка…")}</p>;
   const active = game.status === "ACTIVE";
-  const review = counts.submissions + counts.battles + counts.passages;
+  const review = counts.submissions + counts.battles + counts.passages + counts.disputes;
   const cities = progress?.cities.filter((c) => c.capturedAt).length ?? 0;
 
   return (
@@ -151,6 +153,7 @@ export function GamePage() {
           <SubmissionsBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
           <BattlesBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
           <PassagesBlock gameId={game.id} version={version} />
+          <DisputesBlock gameId={game.id} version={version} onDecided={bump} />
         </div>
       ) : (
         <div className="card"><div className="tab-empty"><Icon name="check" />{game.status === "DRAFT" ? t("Сдачи дел и записи испытаний появятся здесь после старта игры.") : t("Игра завершена: проверять больше нечего.")}</div></div>

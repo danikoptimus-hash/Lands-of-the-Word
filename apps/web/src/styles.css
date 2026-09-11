@@ -405,3 +405,9 @@ button.icon .i { width: 1.2em; height: 1.2em; }
 /* Push: строка-приглашение в меню и настройках */
 .push-prompt { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; font-size: .9rem; color: var(--muted); padding: .2rem 0; }
 .push-prompt span { flex: 1 1 200px; }
+
+/* Текст задания: без выделения и копирования (снимок экрана браузер запретить не умеет) */
+.no-copy { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.lock-note { display: flex; flex-direction: column; gap: .4rem; }
+.lock-note textarea { width: 100%; font: inherit; padding: .5rem .7rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); resize: vertical; }
+.district.extra .num { background: var(--accent-soft); }

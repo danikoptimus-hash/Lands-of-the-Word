@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type CityTaskDto, type MyCityDto } from "../lib/api";
+import { api, ApiError, type CityTaskDto, type MyCityDto, type TaskLockDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
 import { SortableList } from "./SortableList";
@@ -19,6 +19,7 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
  */
 export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; version: number; onClose: () => void; onChanged: () => void }) {
   const { notify, confirm } = useUi();
+
   const confirmMove = () => confirm(t("Перенести столицу в этот город? Это единственный перенос за игру."), { okLabel: t("Перенести") });
   const [city, setCity] = useState<MyCityDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -56,11 +57,22 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
   async function answer(index: number, value: unknown): Promise<boolean> {
     setBusy(true); setError(null);
     try {
-      const r = await api<{ correct: boolean; fragment?: string }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
+      const r = await api<{ correct: boolean; fragment?: string; lockedUntil?: number | null; attemptsLeft?: number | null }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
       if (r.correct) notify(t("Верно! Знак шифра: {f}", { f: r.fragment ?? "" }));
+      else if (r.lockedUntil) notify(t("Неверно. Две попытки истрачены: задание закрыто на сутки"), "bad");
+      else if (r.attemptsLeft != null) notify(t("Неверно. Осталась попытка: {n}", { n: r.attemptsLeft }), "bad");
       else notify(t("Неверно. Перечитайте это место в книге"), "bad");
       await load(); onChanged();
       return r.correct;
+    } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); if (e instanceof ApiError && e.status === 423) void load(); return false; }
+    finally { setBusy(false); }
+  }
+  async function dispute(index: number, message: string): Promise<boolean> {
+    setBusy(true); setError(null);
+    try {
+      await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/dispute`, { method: "POST", body: JSON.stringify({ message }) });
+      notify(t("Спор отправлен администратору"));
+      await load(); return true;
     } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); return false; }
     finally { setBusy(false); }
   }
@@ -100,7 +112,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
             <div className="muted">
               {city?.owner ? <span className="badge" style={{ borderColor: city.owner.color, color: city.owner.color }}>{city.owner.name}</span> : city?.node.ruined ? <span className="badge bad">{t("руины")}</span> : <span className="badge">{t("свободный")}</span>}
               {city?.state.isCapital && <span className="badge accent"> {t("столица")}</span>}
-              {total > 0 && <span> · {t("районов")} {done.length}/{total}</span>}
+              {total > 0 && <span> · {t("заданий")} {done.length}/{total}</span>}
             </div>
           </div>
           <button className="ghost sm close" onClick={onClose} aria-label={t("Закрыть")}><Icon name="x" /></button>
@@ -124,11 +136,23 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
               {districts.map((d) => {
                 const i = d.index ?? 0;
                 const ok = done.includes(i);
+                const locked = isLocked(city.state.locks, i, now);
                 return (
                   <li key={d.id} className={"district open" + (ok ? " done" : "")} onClick={() => setTaskIndex(i)}>
                     <span className="num">{i + 1}</span>
                     <div className="body"><div className="d-title">{d.title} <span className="muted">{d.verses}</span></div><div className="d-sum muted">{d.summary}</div></div>
-                    <span className={"check" + (ok ? " on" : "")} aria-label={ok ? t("выполнено") : t("не выполнено")}>{ok ? "✓" : "›"}</span>
+                    <span className={"check" + (ok ? " on" : "")} aria-label={ok ? t("выполнено") : t("не выполнено")}>{ok ? "✓" : locked ? "🔒" : "›"}</span>
+                  </li>
+                );
+              })}
+              {city.content.tasks.filter((x) => x.index >= districts.length).map((x) => {
+                const ok = done.includes(x.index);
+                const locked = isLocked(city.state.locks, x.index, now);
+                return (
+                  <li key={"x" + x.index} className={"district open extra" + (ok ? " done" : "")} onClick={() => setTaskIndex(x.index)}>
+                    <span className="num">{x.index + 1}</span>
+                    <div className="body"><div className="d-title">{x.scope === "book" ? t("Задание по всей книге") : t("Задание по нескольким районам")}</div><div className="d-sum muted">{x.prompt.length > 90 ? x.prompt.slice(0, 90) + "…" : x.prompt}</div></div>
+                    <span className={"check" + (ok ? " on" : "")} aria-label={ok ? t("выполнено") : t("не выполнено")}>{ok ? "✓" : locked ? "🔒" : "›"}</span>
                   </li>
                 );
               })}
@@ -171,15 +195,27 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
         {city?.content && !task && city.owner && !city.state.capturedAt && <PassageSection gameId={gameId} nodeKey={nodeKey} version={version} onChanged={onChanged} />}
         {city?.content && !task && (city.owner || city.state.capturedAt) && <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} version={version} onChanged={onChanged} />}
         {city?.content && task && (
-          <TaskView task={task} district={districts.find((d) => d.index === task.index)} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
-            hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} />
+          <TaskView task={task} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
+            hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey}
+            lock={city.state.locks.find((l) => l.index === task.index) ?? null} choiceAttempts={city.state.choiceAttempts} now={now} onDispute={(m) => dispute(task.index, m)} />
         )}
       </div>
     </div>
   );
 }
 
-function TaskView({ task, district, done, fragment, busy, cooldown, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey }: { task: CityTaskDto; district?: { title: string; verses: string }; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string }) {
+const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.some((l) => l.index === index && l.lockedUntil != null && l.lockedUntil > now);
+
+function untilText(ms: number): string {
+  const total = Math.max(1, Math.ceil(ms / 60_000)), h = Math.floor(total / 60), m = total % 60;
+  return h > 0 ? t("{h} ч {m} мин", { h, m }) : t("{m} мин", { m });
+}
+
+function TaskView({ task, district, groupTitles, done, fragment, busy, cooldown, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, choiceAttempts, now, onDispute }: { task: CityTaskDto; district?: { title: string; verses: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; choiceAttempts: number; now: number; onDispute: (message: string) => Promise<boolean> }) {
+  const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
+  const disputeOpen = Boolean(lock?.disputedAt && !lock.resolvedAt);
+  const [disputeText, setDisputeText] = useState("");
+  const [disputeForm, setDisputeForm] = useState(false);
   const [hintText, setHintText] = useState<string[] | null>(null);
   useEffect(() => { if (hintOpen) api<{ text: string[] }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/hint/${task.index}`).then((r) => setHintText(r.text)).catch(() => setHintText(null)); else setHintText(null); }, [hintOpen, gameId, nodeKey, task.index]);
   const [text, setText] = useState("");
@@ -187,13 +223,34 @@ function TaskView({ task, district, done, fragment, busy, cooldown, onBack, onAn
   const [order, setOrder] = useState<string[]>(task.type === "order" ? task.items.map((i) => i.id) : []);
   const itemText = useMemo(() => (task.type === "order" ? new Map(task.items.map((i) => [i.id, i.text])) : new Map<string, string>()), [task]);
   const value = task.type === "choice" ? choice : task.type === "order" ? order : text.trim();
-  const canSend = !done && !busy && cooldown === 0 && (task.type === "choice" ? choice != null : task.type === "order" ? order.length > 0 : text.trim().length > 0);
-  const scope = task.scope === "book" ? t("по всей книге") : task.scope === "group" ? t("по нескольким районам") : "по этому району";
+  const canSend = !done && !busy && cooldown === 0 && !locked && (task.type === "choice" ? choice != null : task.type === "order" ? order.length > 0 : text.trim().length > 0);
+  const scope = task.scope === "book" ? t("по всей книге") : task.scope === "group" ? t("по нескольким районам") : t("по этому району");
+  const where = task.scope === "district" && district ? <>{t("Район")} {task.index + 1}: {district.title} <span>{district.verses}</span></> : task.scope === "group" && groupTitles ? <>{t("Районы")}: {groupTitles.join(", ")}</> : <>{t("Задание")} {task.index + 1}</>;
   return (
-    <div className="task-view">
+    <div className="task-view no-copy" onCopy={(e) => e.preventDefault()} onContextMenu={(e) => e.preventDefault()}>
       <button className="ghost sm" onClick={onBack}>{t("‹ К районам")}</button>
-      <div className="muted" style={{ margin: ".4rem 0 .2rem" }}>{t("Район")} {task.index + 1}: {district?.title} <span>{district?.verses}</span> · {t("задание")} {scope}</div>
+      <div className="muted" style={{ margin: ".4rem 0 .2rem" }}>{where} · {t("задание")} {scope}</div>
       <p className="prompt">{task.prompt}</p>
+      {task.type === "choice" && !done && !locked && lock && lock.attemptsLeft < choiceAttempts && <p className="note warn">{t("Осталась последняя попытка: после неверного ответа задание закроется на сутки.")}</p>}
+      {task.type === "choice" && !done && !locked && (!lock || lock.attemptsLeft >= choiceAttempts) && <p className="muted" style={{ fontSize: ".85rem" }}>{t("Попыток: {n}. После них задание закрывается на сутки.", { n: choiceAttempts })}</p>}
+      {locked && lock && (
+        <div className="note bad lock-note">
+          <div><Icon name="clock" /> {t("Задание закрыто после двух неверных ответов. Откроется через {t}.", { t: untilText(lock.lockedUntil! - now) })}</div>
+          {disputeOpen && <div className="muted">{t("Спор отправлен администратору: «{m}». Ждите ответа.", { m: lock.dispute ?? "" })}</div>}
+          {!disputeOpen && lock.resolvedAt && <div className="muted">{t("Администратор ответил:")} {lock.resolution || t("блокировка оставлена")}</div>}
+          {!disputeOpen && !lock.resolvedAt && !disputeForm && <p><button type="button" className="secondary sm" onClick={() => setDisputeForm(true)}><Icon name="send" />{t("Оспорить: написать админу")}</button></p>}
+          {!disputeOpen && !lock.resolvedAt && disputeForm && (
+            <div className="inline-form">
+              <textarea value={disputeText} onChange={(e) => setDisputeText(e.target.value)} placeholder={t("Почему ответ нужно засчитать или задание открыть")} maxLength={500} rows={3} />
+              <div className="row">
+                <button type="button" className="sm" disabled={busy || disputeText.trim().length < 5} onClick={() => void onDispute(disputeText.trim()).then((ok) => { if (ok) { setDisputeForm(false); setDisputeText(""); } })}><Icon name="send" />{t("Отправить админу")}</button>
+                <button type="button" className="ghost sm" onClick={() => setDisputeForm(false)}>{t("Отмена")}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+      {!locked && lock?.resolvedAt && lock.resolution && !done && <p className="note ok">{t("Администратор ответил:")} {lock.resolution}</p>}
       {hintOpen && hintText && <div className="hint-box"><div className="muted">{t("Подсказка пророка · текст района")} {district?.verses}</div>{hintText.map((t, i) => <p key={i}>{t}</p>)}</div>}
       {!hintOpen && !done && canHint && <p><button type="button" className="ghost sm" disabled={busy} onClick={onHint}>{t("🔮 Открыть подсказку пророка (раз в неделю)")}</button></p>}
       {done ? (
@@ -209,7 +266,7 @@ function TaskView({ task, district, done, fragment, busy, cooldown, onBack, onAn
           )}
           {task.type === "order" && <SortableList ids={order} onChange={setOrder} render={(id) => <div className="d-title">{itemText.get(id)}</div>} />}
           <div className="actions">
-            <button disabled={!canSend} onClick={() => void onAnswer(value)}>{cooldown > 0 ? `Подождите ${cooldown} с` : t("Ответить")}</button>
+            <button disabled={!canSend} onClick={() => void onAnswer(value)}>{locked ? t("Закрыто") : cooldown > 0 ? `Подождите ${cooldown} с` : t("Ответить")}</button>
           </div>
         </>
       )}
