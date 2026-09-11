@@ -1,15 +1,58 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { ApiError } from "../lib/api";
-import { t } from "../lib/i18n";
+import { api, ApiError, type User } from "../lib/api";
+import { t, type Locale } from "../lib/i18n";
+import { Tabs } from "../components/Tabs";
+
+/**
+ * Гостевой лэйаут: панорама на фоне, карточка 420px, в верхней строке «назад» (если есть) и переключатель RU/EN,
+ * под ним логотип и единственный h1 страницы. Один и тот же для входа, восстановления, нового пароля и приглашения.
+ * Для гостя язык запоминается в браузере; для вошедшего (приглашение) — сохраняется в аккаунте.
+ */
+export function GuestShell({ title, back, children }: { title: string; back?: ReactNode; children: ReactNode }) {
+  const { user, locale, setGuestLocale, refresh } = useAuth();
+  async function pick(l: Locale) {
+    if (l === locale) return;
+    setGuestLocale(l);
+    if (user) {
+      try { await api<{ user: User }>("/api/auth/me", { method: "PATCH", body: JSON.stringify({ locale: l }) }); await refresh(); }
+      catch { /* язык поменяется при следующем сохранении аккаунта */ }
+    }
+  }
+  return (
+    <div className="login-page">
+      <div className="card auth">
+        <div className="guest-bar">
+          {back ?? <span />}
+          <div className="lang-switch" role="group" aria-label={t("Язык")}>
+            <button type="button" className={locale === "ru" ? "active" : ""} aria-pressed={locale === "ru"} onClick={() => void pick("ru")}>RU</button>
+            <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => void pick("en")}>EN</button>
+          </div>
+        </div>
+        <div className="auth-logo">
+          <img src="/img/brand/logo-256.png" alt="" width={72} height={72} />
+          <h1>{title}</h1>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Текст ошибки запроса: сообщение сервера или «Ошибка сети». */
+export function errorText(err: unknown): string {
+  return err instanceof ApiError ? err.message : t("Ошибка сети");
+}
+
+type Mode = "login" | "register";
 
 export function LoginPage() {
-  const { user, login, register, locale, setGuestLocale } = useAuth();
+  const { user, login, register } = useAuth();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = params.get("next") ?? "/";
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<Mode>("login");
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
@@ -25,44 +68,31 @@ export function LoginPage() {
       if (mode === "login") await login(nickname, password);
       else await register(nickname, password, email || undefined);
       navigate(next);
-    } catch (err) {
-      setError(err instanceof ApiError ? (err.issues?.map((i) => i.message).join("; ") || err.message) : t("Ошибка сети"));
-    } finally { setBusy(false); }
+    } catch (err) { setError(errorText(err)); }
+    finally { setBusy(false); }
   }
 
   return (
-    <div className="login-page"><div className="card auth">
-      <div className="row between" style={{ marginBottom: ".5rem" }}>
-        <span />
-        <button type="button" className="ghost sm" onClick={() => setGuestLocale(locale === "en" ? "ru" : "en")} aria-label="Language">{locale === "en" ? "Русский" : "English"}</button>
-      </div>
-      <div className="auth-logo">
-        <img src="/img/brand/logo-256.png" alt="" width={96} height={96} />
-        <strong>{t("Земли Слова")}</strong>
-        <span className="muted">{t("Lands of the Word")}</span>
-      </div>
-      <div className="tabs">
-        <button type="button" className={mode === "login" ? "active" : ""} onClick={() => setMode("login")}>{t("Вход")}</button>
-        <button type="button" className={mode === "register" ? "active" : ""} onClick={() => setMode("register")}>{t("Регистрация")}</button>
-      </div>
+    <GuestShell title={t("Земли Слова")}>
+      <Tabs<Mode> ariaLabel={t("Вход или регистрация")} items={[{ key: "login", label: t("Вход") }, { key: "register", label: t("Регистрация") }]} value={mode} onChange={(m) => { setMode(m); setError(null); }} />
       <form onSubmit={submit}>
         <label htmlFor="nickname">{mode === "login" ? t("Никнейм или почта") : t("Никнейм")}</label>
         <input id="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} autoComplete="username" required minLength={3} maxLength={mode === "login" ? 120 : 24} autoFocus />
-        <label htmlFor="password">{t("Пароль")}</label>
+        <label htmlFor="password">{t("Пароль")}{mode === "register" && <span className="opt"> · {t("не короче 8 символов")}</span>}</label>
         <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} required minLength={8} />
         {mode === "register" && (
           <>
-            <label htmlFor="email">Email <span className="muted">{t("необязательно")}</span></label>
+            <label htmlFor="email">{t("Почта")} <span className="opt">· {t("необязательно")}</span></label>
             <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-            <p className="hint">{t("Нужен для восстановления пароля и уведомлений: без почты забытый пароль восстановить нельзя. Имя и фамилия не требуются.")}</p>
+            <p className="hint">{t("Почта нужна, чтобы восстановить пароль и получать уведомления.")}</p>
           </>
         )}
-        {error && <p className="error">{error}</p>}
+        {error && <p className="error" role="alert">{error}</p>}
         <div className="actions">
-          <button type="submit" disabled={busy} style={{ width: "100%" }}>{mode === "login" ? t("Войти") : t("Создать учётку")}</button>
+          <button type="submit" className="block" disabled={busy}>{mode === "login" ? t("Войти") : t("Создать аккаунт")}</button>
+          {mode === "login" && <Link to="/forgot" className="btn ghost block">{t("Забыли пароль?")}</Link>}
         </div>
-        {mode === "login" && <p style={{ marginTop: ".8rem", textAlign: "center" }}><Link to="/forgot" className="muted">{t("Забыли пароль?")}</Link></p>}
       </form>
-    </div></div>
+    </GuestShell>
   );
 }
