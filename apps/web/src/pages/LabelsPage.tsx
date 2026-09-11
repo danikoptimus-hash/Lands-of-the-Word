@@ -9,7 +9,7 @@ interface Row { nodeKey: string; bookCode: string; number: number; name: string;
 
 /**
  * Ярлыки для конвертов: на каждый город — наружный ярлык (кому, город, шифр для семьи) и вкладыш
- * (поздравление и ключ). Печать браузером: «Сохранить как PDF» на компьютере и телефоне.
+ * (поздравление и ключ). Это предпросмотр; для печати сервер отдаёт один PDF со всеми ярлыками.
  */
 export function LabelsPage() {
   const { id = "" } = useParams();
@@ -25,9 +25,9 @@ export function LabelsPage() {
         <Link to={`/games/${id}#deeds`} className="crumb"><Icon name="back" />{t("К игре")}</Link>
         <div className="page-head">
           <h1>{t("Ярлыки для конвертов")} {rows && <span className="muted" style={{ fontSize: "1rem" }}>· {rows.length}</span>}</h1>
-          {rows && <button onClick={() => window.print()}><Icon name="scroll" />{t("Печать / сохранить PDF")}</button>}
+          {rows && <a href={`/api/games/${id}/labels.pdf`} download className="btn" style={{ textDecoration: "none" }}><Icon name="scroll" />{t("Скачать ярлыки (PDF)")}</a>}
         </div>
-        {rows && <p className="muted">{t("Каждая полоса — один конверт: левый ярлык клеится снаружи, правый вкладывается внутрь. Разрежьте по пунктиру. В окне печати выберите «Сохранить как PDF».")}</p>}
+        {rows && <p className="muted">{t("Каждая полоса — один конверт: левый ярлык клеится снаружи, правый вкладывается внутрь. Разрежьте по пунктиру. Скачайте один PDF со всеми ярлыками и распечатайте его.")}</p>}
         {error && <p className="note warn">{error} · <Link to={`/games/${id}#deeds`}>{t("открыть настройки")}</Link></p>}
         {!rows && !error && <p className="muted">{t("Загрузка…")}</p>}
       </div>

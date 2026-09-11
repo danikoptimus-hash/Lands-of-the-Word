@@ -5,6 +5,7 @@ import { prisma } from "../db.js";
 import { createSession, destroySession, publicUser, requireUser } from "../auth.js";
 import { createHash, randomBytes } from "node:crypto";
 import { describeMailError, mailEnabled, sendMail, verifyMail } from "../services/mail.js";
+import { msg, toLocale } from "../services/i18n.js";
 import { platformMetrics } from "../services/metrics.js";
 
 const nickname = z.string().trim().min(3).max(24).regex(/^[\p{L}\p{N}_-]+$/u, "Только буквы, цифры, _ и -");
@@ -110,10 +111,11 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (user?.email) {
       const { url } = await issueResetLink(user.id, "EMAIL", 3_600_000, app.config.PUBLIC_URL);
       try {
+        const locale = toLocale(user.locale);
         await sendMail({
           to: user.email,
-          subject: "Земли Слова: восстановление пароля",
-          text: `Здравствуйте!\n\nКто-то (надеемся, вы) запросил восстановление пароля для учётки «${user.nickname}» на сайте Земли Слова.\n\nЧтобы задать новый пароль, откройте ссылку (действует 1 час):\n${url}\n\nЕсли это были не вы, просто не открывайте ссылку: пароль не изменится.`,
+          subject: `${msg(locale, "Земли Слова")}: ${msg(locale, "восстановление пароля")}`,
+          text: msg(locale, "Здравствуйте!\n\nКто-то (надеемся, вы) запросил восстановление пароля для учётки «{nickname}» на сайте Земли Слова.\n\nЧтобы задать новый пароль, откройте ссылку (действует 1 час):\n{url}\n\nЕсли это были не вы, просто не открывайте ссылку: пароль не изменится.", { nickname: user.nickname, url }),
         });
       } catch (e) {
         request.log.error(e, "password reset mail failed");
@@ -160,7 +162,8 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!check.ok) return { ...check, sent: false };
     if (!request.user!.email) return { ...check, sent: false, error: "У вашей учётки нет почты: укажите её в настройках, чтобы отправить тестовое письмо" };
     try {
-      await sendMail({ to: request.user!.email, subject: "Земли Слова: проверка почты", text: "Почта настроена: письма с сайта доходят." });
+      const locale = toLocale(request.user!.locale);
+      await sendMail({ to: request.user!.email, subject: `${msg(locale, "Земли Слова")}: ${msg(locale, "проверка почты")}`, text: msg(locale, "Почта настроена: письма с сайта доходят.") });
       return { ...check, sent: true, to: request.user!.email };
     } catch (e) { return { ...check, ok: false, sent: false, error: describeMailError(e) }; }
   });

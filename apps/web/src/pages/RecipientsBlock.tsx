@@ -35,7 +35,10 @@ export function RecipientsBlock({ gameId, status, version = 0 }: { gameId: strin
     <div className="card" data-tone="green">
       <div className="card-head">
         <h2><span className="ico"><Icon name="mail" /></span>{t("Адресаты конвертов")} <span className="muted">{rows.length}</span></h2>
-        {rows.length > 0 && cities > 0 && <Link to={`/games/${gameId}/labels`} className="btn secondary sm" style={{ textDecoration: "none" }}><Icon name="scroll" />{t("Ярлыки для конвертов")}</Link>}
+        {rows.length > 0 && cities > 0 && <>
+          <a href={`/api/games/${gameId}/labels.pdf`} download className="btn sm" style={{ textDecoration: "none" }}><Icon name="scroll" />{t("Скачать ярлыки (PDF)")}</a>
+          <Link to={`/games/${gameId}/labels`} className="btn ghost sm" style={{ textDecoration: "none" }}><Icon name="eye" />{t("Предпросмотр")}</Link>
+        </>}
       </div>
       <p className="muted" style={{ marginTop: 0 }}>{t("Команда, решившая все задания города, несёт шифр адресату и получает конверт с ключом. Игра раздаёт адресатов по городам поровну: {cities} городов на {n} адресатов.", { cities, n: rows.length || "…" })}</p>
       {finished ? <p className="note ok">{t("Игра завершена: список адресатов стёрт.")}</p> : (

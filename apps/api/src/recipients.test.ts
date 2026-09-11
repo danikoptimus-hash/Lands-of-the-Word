@@ -66,6 +66,17 @@ describe("адресаты конвертов", () => {
     expect(list.json().recipients.map((x: { envelopes: number }) => x.envelopes)).toEqual([22, 22, 22]);
   });
 
+  it("один PDF со всеми ярлыками: скачивание, кириллический шрифт, только для админа", async () => {
+    const denied = await app.inject({ method: "GET", url: `/api/games/${gameId}/labels.pdf`, headers: { cookie: p1Cookie } });
+    expect(denied.statusCode).toBe(403);
+    const r = await app.inject({ method: "GET", url: `/api/games/${gameId}/labels.pdf`, headers: { cookie: adminCookie } });
+    expect(r.statusCode).toBe(200);
+    expect(r.headers["content-type"]).toBe("application/pdf");
+    expect(r.headers["content-disposition"]).toContain("attachment");
+    expect(r.rawPayload.subarray(0, 5).toString()).toBe("%PDF-");
+    expect(r.rawPayload.length).toBeGreaterThan(20_000);
+  });
+
   it("команда видит адресата только когда все задания города решены; после финиша список стёрт", async () => {
     const start = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });
     expect(start.statusCode).toBe(200);

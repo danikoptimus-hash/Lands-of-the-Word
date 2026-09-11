@@ -5,6 +5,8 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { assignRecipients, ensureCityCodes } from "../services/recipients.js";
+import { renderLabelsPdf } from "../services/labelsPdf.js";
+import { bookName, toLocale } from "../services/i18n.js";
 
 const recipientBody = z.object({ label: z.string().trim().min(2).max(60), kind: z.enum(["FAMILY", "WIDOW", "ELDER", "OTHER"]).default("FAMILY") });
 
@@ -51,20 +53,37 @@ export async function recipientRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  /** Данные для ярлыков: по городу — книга, шифр для семьи, ключ конверта, адресат. Только для админа. */
-  app.get("/api/games/:id/labels", async (request, reply) => {
-    const { id } = request.params as { id: string };
+  /** Строки ярлыков: по городу — книга, шифр для семьи, ключ конверта, адресат. Названия книг на языке админа. */
+  async function labelRows(request: FastifyRequest, reply: FastifyReply, id: string) {
     const game = await requireGameAdmin(request, reply, id);
-    if (!game) return;
+    if (!game) return null;
     const recipients = await prisma.recipient.count({ where: { gameId: id } });
-    if (recipients === 0) return reply.code(409).send({ error: "no_recipients", message: "Сначала добавьте адресатов конвертов на вкладке «Дела»" });
+    if (recipients === 0) { await reply.code(409).send({ error: "no_recipients", message: "Сначала добавьте адресатов конвертов на вкладке «Дела»" }); return null; }
     await ensureCityCodes(id);
     await assignRecipients(id);
+    const locale = toLocale(request.user!.locale);
     const nodes = await prisma.mapNode.findMany({ where: { gameId: id, kind: "CITY" }, include: { recipient: { select: { label: true, kind: true } } } });
     const order = new Map(BOOKS.map((b) => [b.code, b]));
     const rows = nodes
-      .map((n) => ({ nodeKey: n.key, bookCode: n.bookCode ?? "", number: order.get(n.bookCode ?? "")?.order ?? 0, name: order.get(n.bookCode ?? "")?.nameRu ?? n.bookCode ?? "", cityKey: n.cityKey ?? "", cityCode: n.cityCode ?? "", recipient: n.recipient }))
+      .map((n) => ({ nodeKey: n.key, bookCode: n.bookCode ?? "", number: order.get(n.bookCode ?? "")?.order ?? 0, name: bookName(n.bookCode ?? "", locale), cityKey: n.cityKey ?? "", cityCode: n.cityCode ?? "", recipient: n.recipient }))
       .sort((a, b) => a.number - b.number);
-    return { game: { name: game.name }, labels: rows };
+    return { game, rows, locale };
+  }
+
+  app.get("/api/games/:id/labels", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const r = await labelRows(request, reply, id);
+    if (!r) return;
+    return { game: { name: r.game.name }, labels: r.rows };
+  });
+
+  /** Готовый PDF со всеми ярлыками одним файлом (скачивание). */
+  app.get("/api/games/:id/labels.pdf", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const r = await labelRows(request, reply, id);
+    if (!r) return;
+    const pdf = await renderLabelsPdf(r.game.name, r.rows, r.locale);
+    const file = (r.locale === "en" ? "envelope-labels" : "yarlyki-konvertov") + ".pdf";
+    return reply.header("Content-Type", "application/pdf").header("Content-Disposition", `attachment; filename="${file}"`).header("Cache-Control", "no-store").send(pdf);
   });
 }

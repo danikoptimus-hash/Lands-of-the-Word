@@ -6,6 +6,7 @@ import { requireUser } from "../auth.js";
 import { requireAdmin, requireMember } from "./teamMap.js";
 import { closePassage, ensureFrontier, revealNode } from "../services/teamMap.js";
 import { notifyTeam } from "../services/notify.js";
+import { msg } from "../services/i18n.js";
 import { loadBook, verseText, formatRange, parseDistrictRange } from "../services/bible.js";
 import { loadCityContent } from "../services/cities.js";
 import { BOOKS } from "@lotw/domain";
@@ -80,7 +81,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "map", teamId: owner.teamId });
     publish(id, { type: "map", teamId: m.team.id });
     const books = await bookOf(id, [nodeKey]);
-    notifyTeam(id, owner.teamId, `запрос прохода через ${BOOK_BY_CODE.get(books.get(nodeKey) ?? "")?.nameRu ?? "ваш город"}`, `Команда «${m.team.name}» просит разрешить проход через ваш город.${body.message ? ` Сообщение: ${body.message}` : ""} На ответ три дня; молчание — отказ.`);
+    notifyTeam(id, owner.teamId, books.get(nodeKey) ? "запрос прохода через {book}" : "запрос прохода через ваш город", (locale) => msg(locale, "Команда «{team}» просит разрешить проход через ваш город.{message} На ответ три дня; молчание — отказ.", { team: m.team.name, message: body.message ? msg(locale, " Сообщение: {message}", { message: body.message }) : "" }), { book: books.get(nodeKey) ?? "" });
     return reply.code(201).send({ id: r.id, expiresAt: r.expiresAt });
   });
 
@@ -99,7 +100,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     if (body.approve) await ensureFrontier(id, r.requesterId);
     publish(id, { type: "map", teamId: r.requesterId });
     publish(id, { type: "map", teamId: m.team.id });
-    notifyTeam(id, r.requesterId, body.approve ? "проход разрешён" : "в проходе отказано", `Команда «${m.team.name}» ${body.approve ? "разрешила" : "не разрешила"} проход через свой город.${body.answer ? ` Ответ: ${body.answer}` : ""}`);
+    notifyTeam(id, r.requesterId, body.approve ? "проход разрешён" : "в проходе отказано", (locale) => msg(locale, "Команда «{team}» {verb} проход через свой город.{answer}", { team: m.team.name, verb: body.approve ? "разрешила" : "не разрешила", answer: body.answer ? msg(locale, " Ответ: {answer}", { answer: body.answer }) : "" }));
     return { ok: true };
   });
 
@@ -116,7 +117,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     await closePassage(id, r.requesterId, r.nodeKey);
     publish(id, { type: "map", teamId: r.requesterId });
     publish(id, { type: "tasks", teamId: r.requesterId });
-    notifyTeam(id, r.requesterId, "проход закрыт", `Команда «${m.team.name}» закрыла проход через свой город. Уже взятые дела остаются.`);
+    notifyTeam(id, r.requesterId, "проход закрыт", "Команда «{team}» закрыла проход через свой город. Уже взятые дела остаются.", { team: m.team.name });
     return { ok: true };
   });
 

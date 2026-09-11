@@ -122,8 +122,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (active === 0) await startAttack(created.id);
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "battles", teamId: o.owner.id });
-    const bookName = BOOK_BY_CODE.get(node.bookCode ?? "")?.nameRu ?? "";
-    if (active === 0) notifyTeam(id, o.owner.id, `вызов вашему городу ${bookName}`, `Команда «${m.team.name}» бросила вызов вашему городу ${bookName} (игра «${game.name}»), ставка ${body.bid} стихов. Когда админ одобрит их записи, у вас будет ровно столько же времени, сколько ушло у них.`);
+    if (active === 0) notifyTeam(id, o.owner.id, "вызов вашему городу {book}", "Команда «{team}» бросила вызов вашему городу {book} (игра «{game}»), ставка {bid} стихов. Когда админ одобрит их записи, у вас будет ровно столько же времени, сколько ушло у них.", { book: node.bookCode ?? "", team: m.team.name, game: game.name, bid: body.bid });
     return reply.code(201).send({ id: created.id, status: active === 0 ? "ATTACK" : "QUEUED", sumMode });
   });
 
@@ -195,7 +194,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const full = (await prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } })) as BattleWithEntries;
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "submissions" });
-    notifyAdmins(id, `новые стихи в испытании города ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode}`, `Команда «${m.team.name}» отметила ${fresh.length} ст. (${side === "ATTACK" ? "вызов" : "ответ"}) и прикрепила ссылки. Проверьте записи в блоке «Испытания».`);
+    notifyAdmins(id, "новые стихи в испытании города {book}", "Команда «{team}» отметила {n} ст. ({side}) и прикрепила ссылки. Проверьте записи в блоке «Испытания».", { book: b.bookCode, team: m.team.name, n: fresh.length, side: side === "ATTACK" ? "вызов" : "ответ" });
     return reply.code(201).send({ ok: true, added: fresh.length, sum: sumVerses(full.entries, side, false) });
   });
 
@@ -229,7 +228,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!r.ok) return reply.code(409).send({ error: "conflict", message: r.message });
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "submissions" });
-    notifyAdmins(id, `${side === "ATTACK" ? "вызов" : "ответ"} отправлен на проверку`, `Команда «${m.team.name}» отправила ${side === "ATTACK" ? "вызов" : "ответ"} за город ${BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode} на проверку. Проверьте записи в блоке «Испытания».`);
+    notifyAdmins(id, "{side} отправлен на проверку", "Команда «{team}» отправила {side} за город {book} на проверку. Проверьте записи в блоке «Испытания».", { side: side === "ATTACK" ? "вызов" : "ответ", team: m.team.name, book: b.bookCode });
     return { ok: true, status: r.battle.status };
   });
 
@@ -268,7 +267,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     else full = e.side === "ATTACK" ? await maybeStartDefense(full) : await maybeRepel(full);
     publish(id, { type: "battles", teamId: e.teamId });
     publish(id, { type: "submissions" });
-    if (!body.approve) notifyTeam(id, e.teamId, "запись в испытании возвращена", `Админ вернул запись (${e.side === "ATTACK" ? "вызов" : "ответ"})${body.comment ? `: ${body.comment}` : "."} Переснимите и прикрепите заново.`);
+    if (!body.approve) notifyTeam(id, e.teamId, "запись в испытании возвращена", "Админ вернул запись ({side}){comment} Переснимите и прикрепите заново.", { side: e.side === "ATTACK" ? "вызов" : "ответ", comment: body.comment ? `: ${body.comment}` : "." });
     return { ok: true, status: full.status };
   });
 }
