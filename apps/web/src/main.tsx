@@ -18,10 +18,11 @@ import { AdminDashboard } from "./pages/AdminDashboard";
 import { NewGamePage } from "./pages/NewGamePage";
 import { HowToPlayPage } from "./pages/HowToPlayPage";
 import "./styles/index.css";
+import { t } from "./lib/i18n";
 
 function Private({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
-  if (loading) return <p className="container muted">Загрузка…</p>;
+  if (loading) return <p className="container muted">{t("Загрузка…")}</p>;
   return user ? children : <Navigate to="/login" replace />;
 }
 

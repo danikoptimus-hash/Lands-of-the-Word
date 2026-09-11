@@ -2,7 +2,7 @@ import { getLocale, t } from "./i18n";
 
 /** Склонение по числу: plural(3, ["команда", "команды", "команд"]) → «3 команды». Английский — по словарю форм [one, other]. */
 export function plural(n: number, forms: [string, string, string] | [string, string]): string {
-  if (getLocale() === "en" || forms.length === 2) { const [one, many] = forms as [string, string]; return `${n} ${n === 1 ? t(one) : t(many)}`; }
+  if (getLocale() === "en" || forms.length === 2) { const one = forms[0], many = forms[forms.length - 1]!; return `${n} ${n === 1 ? t(one) : t(many)}`; }
   const [one, few, many] = forms;
   const m10 = n % 10, m100 = n % 100;
   const f = m10 === 1 && m100 !== 11 ? one : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? few : many;
