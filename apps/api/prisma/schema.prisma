@@ -40,6 +40,27 @@ model User {
   createdGames Game[]       @relation("GameCreator")
   memberships  Membership[]
   resets       PasswordReset[]
+  pushSubscriptions PushSubscription[]
+}
+
+/** Настройки платформы, которые сервер создаёт сам (например ключи VAPID для push-уведомлений). */
+model AppSetting {
+  key   String @id
+  value String
+}
+
+/** Push-подписка браузера (одно устройство / один браузер). Endpoint и ключи выдаёт браузер; адресов и имён тут нет. */
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 enum ResetKind {

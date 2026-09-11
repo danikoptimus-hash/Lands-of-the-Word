@@ -18,6 +18,8 @@ export default defineConfig({
           { urlPattern: /\/img\/.*\.(webp|png|jpg)$/, handler: "CacheFirst", options: { cacheName: "lotw-img", expiration: { maxEntries: 120, maxAgeSeconds: 30 * 24 * 3600 } } },
           { urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//, handler: "StaleWhileRevalidate", options: { cacheName: "lotw-fonts", expiration: { maxEntries: 20, maxAgeSeconds: 30 * 24 * 3600 } } },
         ],
+        // Обработчики push и клика по уведомлению — в public/push-sw.js.
+        importScripts: ["push-sw.js"],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,

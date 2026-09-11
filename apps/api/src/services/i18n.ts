@@ -76,6 +76,7 @@ const EN: Record<string, string> = {
   "Здравствуйте!\n\nКто-то (надеемся, вы) запросил восстановление пароля для учётки «{nickname}» на сайте Земли Слова.\n\nЧтобы задать новый пароль, откройте ссылку (действует 1 час):\n{url}\n\nЕсли это были не вы, просто не открывайте ссылку: пароль не изменится.": "Hello!\n\nSomeone (we hope it was you) requested a password reset for the account “{nickname}” on Lands of the Word.\n\nTo set a new password, open this link (valid for 1 hour):\n{url}\n\nIf it wasn't you, simply don't open the link: the password will not change.",
   "проверка почты": "email check",
   "Почта настроена: письма с сайта доходят.": "Email is set up: messages from the site are getting through.",
+  "Уведомления включены: сюда придут вести о делах, испытаниях и проходах.": "Notifications are on: news about deeds, trials and passages will arrive here.",
   // ярлыки
   "Ярлыки для конвертов": "Envelope labels",
   "Город {name}": "City of {name}",

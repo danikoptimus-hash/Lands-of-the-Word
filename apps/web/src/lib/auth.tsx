@@ -1,6 +1,7 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, type User } from "./api";
 import { readGuestLocale, saveGuestLocale, setLocale, type Locale } from "./i18n";
+import { syncPush } from "./push";
 
 interface AuthState {
   user: User | null;
@@ -32,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (nickname: string, password: string) => {
     const r = await api<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify({ nickname, password }) });
     setUser(r.user);
+    void syncPush();
   }, []);
   // Язык, выбранный гостем на странице входа, становится языком новой учётки.
   const register = useCallback(async (nickname: string, password: string, email?: string) => {

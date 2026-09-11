@@ -12,6 +12,7 @@ import { DiplomacyMenu } from "./Diplomacy";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
+import { PushToggle } from "../components/PushToggle";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -276,6 +277,7 @@ export function TeamPage() {
             })()}
             <DiplomacyMenu gameId={id} version={cityVersion} />
             <div className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} flat /></div>
+            <PushToggle compact />
             <div className="menu-links">
               <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
               <Link to="/account"><Icon name="user" />{t("Аккаунт")}</Link>

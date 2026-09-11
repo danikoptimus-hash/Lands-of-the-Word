@@ -18,6 +18,8 @@ import { diplomacyRoutes } from "./routes/diplomacy.js";
 import { sweep } from "./services/battles.js";
 import { initMail } from "./services/mail.js";
 import { initNotify } from "./services/notify.js";
+import { initPush } from "./services/push.js";
+import { pushRoutes } from "./routes/push.js";
 import { recordResponse } from "./services/stats.js";
 import { eventRoutes } from "./routes/events.js";
 
@@ -36,6 +38,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   app.decorate("config", config);
   initMail(config);
   initNotify(config.PUBLIC_URL, (e, msg) => app.log.error(e, msg));
+  await initPush(config.PUBLIC_URL, config.NODE_ENV, (e, msg) => app.log.error(e, msg));
 
   await app.register(cookie, { secret: config.SESSION_SECRET });
   await app.register(rateLimit, { global: false });
@@ -58,6 +61,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
 
   app.get("/api/health", async () => ({ ok: true, version: process.env.APP_VERSION ?? "dev" }));
   await app.register(authRoutes);
+  await app.register(pushRoutes);
   await app.register(gameRoutes);
   await app.register(teamRoutes);
   await app.register(deedRoutes);

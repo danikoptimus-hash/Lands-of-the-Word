@@ -5,6 +5,7 @@ import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
+import { PushToggle } from "../components/PushToggle";
 
 /** Настройки аккаунта: имя, email, язык, смена пароля. Никнейм не меняется. */
 export function AccountPage() {
@@ -60,6 +61,7 @@ export function AccountPage() {
           <div className="actions"><button type="submit" className="secondary" disabled={busy}>{t("Изменить пароль")}</button></div>
         </form>
       </div>
+      <PushToggle />
       {user.platformRole === "SUPERADMIN" && <><MailTest /><ResetLinkTool /></>}
     </>
   );

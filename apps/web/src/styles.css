@@ -401,3 +401,7 @@ button.icon .i { width: 1.2em; height: 1.2em; }
   .label-row { grid-template-columns: 1fr 1fr; }
   .label.outer { border-right: 0; border-bottom: 1px dashed #8a8378; }
 }
+
+/* Push: строка-приглашение в меню и настройках */
+.push-prompt { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .8rem; font-size: .9rem; color: var(--muted); padding: .2rem 0; }
+.push-prompt span { flex: 1 1 200px; }

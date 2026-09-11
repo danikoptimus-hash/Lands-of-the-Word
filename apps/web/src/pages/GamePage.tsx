@@ -15,6 +15,7 @@ import { FinishBlock } from "./FinishBlock";
 import { PassagesBlock } from "./Diplomacy";
 import { RecipientsBlock } from "./RecipientsBlock";
 import { Icon } from "../components/Icon";
+import { PushToggle } from "../components/PushToggle";
 import { t } from "../lib/i18n";
 
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
@@ -158,6 +159,7 @@ export function GamePage() {
         <div className="tab-pane" key="settings">
           <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
           <AdminsBlock gameId={game.id} version={version} />
+          <div className="card"><PushToggle compact /></div>
           {game.status !== "DRAFT" && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={() => { void load(); void loadProgress(); }} />}
         </div>
       )}
