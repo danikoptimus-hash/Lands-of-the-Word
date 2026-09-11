@@ -290,7 +290,7 @@ button.icon .i { width: 1.2em; height: 1.2em; }
 .pill.live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
 .tabbar { position: sticky; top: var(--topbar-h); z-index: 9; display: flex; gap: .25rem; overflow-x: auto; scrollbar-width: none; margin: 0 -1rem 1rem; padding: .35rem 1rem; background: rgba(246,244,239,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
 .tabbar::-webkit-scrollbar { display: none; }
-@media (min-width: 720px) { .tabbar { margin: 0 0 1.1rem; padding: .35rem 0; background: transparent; backdrop-filter: none; border-bottom: 1px solid var(--border-strong); } }
+@media (min-width: 720px) { .tabbar { margin: 0 0 1.1rem; padding: .45rem .4rem; border-radius: 0 0 12px 12px; background: rgba(246,244,239,.96); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-strong); box-shadow: 0 6px 14px -8px rgba(31,27,22,.18); } }
 .tabbar button { flex: none; background: transparent; color: var(--muted); border: 0; border-radius: 10px; min-height: 40px; padding: .35rem .8rem; font-weight: 600; display: inline-flex; gap: .45rem; align-items: center; position: relative; }
 .tabbar button:hover { background: rgba(255,255,255,.7); color: var(--text); }
 .tabbar button.active { background: var(--surface); color: var(--accent-hover); box-shadow: var(--shadow); }
