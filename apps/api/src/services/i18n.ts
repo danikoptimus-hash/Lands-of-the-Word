@@ -205,7 +205,7 @@ const EN: Record<string, string> = {
   "Игра завершена: список адресатов очищен": "The game is over: the recipient list has been cleared",
   "Слишком много адресатов": "Too many recipients",
   "Адресат не найден": "Recipient not found",
-  "Сначала добавьте адресатов конвертов на вкладке «Дела»": "Add envelope recipients on the “Deeds” tab first",
+  "Сначала добавьте адресатов конвертов на вкладке «Обзор»": "Add envelope recipients on the “Overview” tab first",
   "Вы не состоите в команде этой игры": "You are not in a team of this game",
   "Дело уже взято или сдано": "The deed is already taken or submitted",
   "Дело не взято: отпускать нечего": "The deed is not taken: there is nothing to release",

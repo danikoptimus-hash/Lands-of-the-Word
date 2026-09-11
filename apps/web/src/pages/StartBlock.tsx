@@ -11,13 +11,8 @@ interface Readiness { canStart: boolean; problems: string[]; warnings: string[];
 export interface MapStats { nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number }
 type Tab = "teams" | "deeds";
 
-/** Куда ведёт каждая проблема готовности (ключ — строка сервера). Карту чинит кнопка в первом шаге, ссылка ей не нужна. */
-const PROBLEM_TAB: Record<string, Tab | undefined> = {
-  "Создано команд: {a} из {b}. Добавьте команду или уменьшите число команд в настройках": "teams",
-  "Команды без участников: {names}": "teams",
-  "Список дел пуст": "deeds",
-  "Дел в списке {a}, рекомендуется не меньше {b}: дела начнут повторяться": "deeds",
-};
+/** Куда ведёт проблема готовности: по ключу сервера — про команды или про дела. Карту чинит кнопка в первом шаге, ссылка ей не нужна. */
+const PROBLEM_TAB: Record<string, Tab | undefined> = new Proxy({}, { get: (_t, key: string) => (/оманд/.test(key) ? "teams" : /\bдел/.test(key) ? "deeds" : undefined) });
 
 /**
  * Чек-лист подготовки в черновике: карта → команды и приглашения → дела → адресаты конвертов → «Начать игру».

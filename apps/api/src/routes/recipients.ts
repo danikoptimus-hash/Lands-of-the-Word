@@ -58,7 +58,7 @@ export async function recipientRoutes(app: FastifyInstance): Promise<void> {
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return null;
     const recipients = await prisma.recipient.count({ where: { gameId: id } });
-    if (recipients === 0) { await reply.code(409).send({ error: "no_recipients", message: err(request, "Сначала добавьте адресатов конвертов на вкладке «Дела»") }); return null; }
+    if (recipients === 0) { await reply.code(409).send({ error: "no_recipients", message: err(request, "Сначала добавьте адресатов конвертов на вкладке «Обзор»") }); return null; }
     await ensureCityCodes(id);
     await assignRecipients(id);
     const locale = toLocale(request.user!.locale);
