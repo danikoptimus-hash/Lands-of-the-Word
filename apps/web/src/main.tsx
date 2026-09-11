@@ -1,4 +1,5 @@
 import React from "react";
+import { registerSW } from "virtual:pwa-register";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
@@ -45,3 +46,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     </BrowserRouter>
   </React.StrictMode>,
 );
+
+// Сервис-воркер PWA: обновляется сам при новом деплое, картинки карты и сборка берутся из кеша устройства.
+registerSW({ immediate: true });

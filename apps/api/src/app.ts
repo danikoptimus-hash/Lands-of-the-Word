@@ -74,9 +74,18 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   // Раздача собранного веб-клиента (в продакшене); все не-API пути отдают index.html (SPA).
   if (config.WEB_DIST) {
     const root = path.resolve(config.WEB_DIST);
-    await app.register(fastifyStatic, { root, prefix: "/" });
+    await app.register(fastifyStatic, {
+      root, prefix: "/",
+      // Ассеты Vite с хешем в имени — кешировать навсегда; картинки — на месяц; оболочка (index.html, sw.js, манифест) — всегда свежая.
+      setHeaders: (res, filePath) => {
+        if (/[\\/]assets[\\/]/.test(filePath)) res.header("Cache-Control", "public, max-age=31536000, immutable");
+        else if (/[\\/]img[\\/]/.test(filePath) || /\.(png|ico|webp|jpg)$/.test(filePath)) res.header("Cache-Control", "public, max-age=2592000, stale-while-revalidate=86400");
+        else res.header("Cache-Control", "no-cache");
+      },
+    });
     app.setNotFoundHandler(async (request, reply) => {
       if (request.url.startsWith("/api/")) return reply.code(404).send({ error: "not_found" });
+      reply.header("Cache-Control", "no-cache");
       return reply.sendFile("index.html");
     });
   }

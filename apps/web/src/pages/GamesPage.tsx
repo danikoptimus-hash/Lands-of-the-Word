@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { api, ApiError, type GameSummary, type MyTeamDto, TEAM_ROLE_LABEL } from "../lib/api";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
+import { warmMapImages } from "./MapLayers";
 
 const STATUS: Record<string, string> = { DRAFT: "черновик", ACTIVE: "идёт", FINISHED: t("завершена") };
 
@@ -19,6 +20,7 @@ export function GamesPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  useEffect(() => { warmMapImages(); }, []);
   useEffect(() => {
     // Форму создания раскрываем только новичку без игр и без команд: игроку она не нужна.
     Promise.all([
