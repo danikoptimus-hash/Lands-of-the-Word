@@ -374,3 +374,30 @@ button.icon .i { width: 1.2em; height: 1.2em; }
 .list li { padding: .55rem 0; }
 .card { transition: box-shadow .2s; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+
+/* Ярлыки для конвертов и печать */
+.btn.secondary { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+.btn.sm { min-height: 34px; padding: .3rem .7rem; font-size: .85rem; }
+.labels { display: flex; flex-direction: column; gap: 6mm; }
+.label-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0; break-inside: avoid; page-break-inside: avoid; }
+.label { border: 1px dashed #8a8378; padding: 5mm 6mm; min-height: 48mm; display: flex; flex-direction: column; gap: 2mm; background: #fff; color: #1F1B16; font-size: 11pt; }
+.label.outer { border-right: 0; }
+.label .lbl-top { display: flex; justify-content: space-between; font-size: 8.5pt; color: #6B645A; }
+.label .lbl-num { font-weight: 700; border: 1px solid #6B645A; border-radius: 999px; padding: 0 6px; }
+.label .lbl-city { font-size: 15pt; font-weight: 700; }
+.label .lbl-to { font-size: 11pt; }
+.label .lbl-code { display: flex; flex-direction: column; margin-top: auto; }
+.label .lbl-code strong { font-size: 20pt; letter-spacing: .14em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.label .lbl-code strong.key { font-size: 24pt; }
+.label .lbl-congrats { font-size: 13pt; font-weight: 600; }
+.label .lbl-hint { font-size: 8.5pt; color: #6B645A; }
+@media (max-width: 640px) { .label-row { grid-template-columns: 1fr; } .label.outer { border-right: 1px dashed #8a8378; border-bottom: 0; } }
+@media print {
+  @page { size: A4; margin: 10mm; }
+  body { background: #fff !important; }
+  body::before, .topbar, .no-print, .toasts { display: none !important; }
+  .container { max-width: none; padding: 0; }
+  .labels { gap: 4mm; }
+  .label-row { grid-template-columns: 1fr 1fr; }
+  .label.outer { border-right: 0; border-bottom: 1px dashed #8a8378; }
+}

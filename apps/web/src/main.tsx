@@ -8,6 +8,7 @@ import { Layout } from "./pages/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { GamesPage } from "./pages/GamesPage";
 import { GamePage } from "./pages/GamePage";
+import { LabelsPage } from "./pages/LabelsPage";
 import { TeamPage } from "./pages/TeamPage";
 import { JoinPage } from "./pages/JoinPage";
 import { AccountPage } from "./pages/AccountPage";
@@ -34,6 +35,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/reset/:token" element={<ResetPage />} />
             <Route path="/" element={<Private><GamesPage /></Private>} />
             <Route path="/games/:id" element={<Private><GamePage /></Private>} />
+            <Route path="/games/:id/labels" element={<Private><LabelsPage /></Private>} />
             <Route path="/games/:id/team" element={<Private><TeamPage /></Private>} />
             <Route path="/join/:token" element={<JoinPage />} />
             <Route path="/account" element={<Private><AccountPage /></Private>} />

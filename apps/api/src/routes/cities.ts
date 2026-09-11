@@ -55,8 +55,12 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const solved = state?.orderSolved ?? false;
     const done = state?.doneTasks ?? [];
     const cooldownUntil = state?.lastWrongAt ? state.lastWrongAt.getTime() + WRONG_COOLDOWN_MS : 0;
+    // Адресат конверта показывается только когда все задания решены: раньше он команде не нужен.
+    const allDone = Boolean(content) && solved && done.length >= (content?.tasks.length ?? 0);
+    const recipient = allDone && node.recipientId ? await prisma.recipient.findUnique({ where: { id: node.recipientId }, select: { label: true, kind: true } }) : null;
     return {
       node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, ruined: node.ruined },
+      recipient,
       owner: ownerState?.team ?? null,
       team: { capitalMovedAt: m.team.capitalMovedAt, gameRole: m.gameRole, role: m.role },
       content: content

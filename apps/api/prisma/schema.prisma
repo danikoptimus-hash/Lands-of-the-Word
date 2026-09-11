@@ -102,6 +102,7 @@ model Game {
   winnerTeamId String?
   /** Почему завершена: last_team (осталась одна команда), time_limit (срок), manual (админ). */
   finishReason String?
+  recipients  Recipient[]
 }
 
 model GameAdmin {
@@ -143,6 +144,9 @@ model MapNode {
   cityKey   String?
   /** Шифр города: случайные буквы и цифры, по знаку на район; команда собирает его заданиями. Свой в каждой игре. */
   cityCode  String?
+  /** Адресат конверта этого города (семья, вдова, старица), назначается по кругу из списка игры. */
+  recipientId String?
+  recipient   Recipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
   /** Уровень защиты города: сколько стихов надо, чтобы его взять (следующая атака ≥ level + 1). */
   defenseLevel  Int     @default(0)
   /** Книга исчерпана: ставки считаются суммой стихов по участникам. */
@@ -450,4 +454,27 @@ model TeamPeek {
   createdAt DateTime @default(now())
 
   @@unique([teamId, nodeKey])
+}
+
+/**
+ * Адресат конверта: кому команда несёт шифр. Только короткая подпись и тип — без адресов и телефонов.
+ * Список живёт в базе игры и стирается при её завершении.
+ */
+model Recipient {
+  id        String        @id @default(cuid())
+  gameId    String
+  game      Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  label     String
+  kind      RecipientKind @default(FAMILY)
+  createdAt DateTime      @default(now())
+  nodes     MapNode[]
+
+  @@index([gameId])
+}
+
+enum RecipientKind {
+  FAMILY
+  WIDOW
+  ELDER
+  OTHER
 }

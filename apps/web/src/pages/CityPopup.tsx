@@ -8,6 +8,7 @@ import { WarSection } from "./BattlePanel";
 import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
+import { kindLabel } from "./RecipientsBlock";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
@@ -145,7 +146,11 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, onClose
             )}
             {allDone && !city.state.capturedAt && !city.node.ruined && (
               <div className="capture">
-                <p>{t("Назовите шифр семье, к которой вас направили, и получите конверт. Введите ключ из конверта:")}</p>
+                {city.recipient ? (
+                  <p className="note ok"><Icon name="mail" /> {t("Отнесите шифр адресату:")} <strong>{city.recipient.label}</strong> <span className="muted">({kindLabel(city.recipient.kind)})</span>. {t("Назовите шифр, получите конверт и введите ключ из него:")}</p>
+                ) : (
+                  <p>{t("Назовите шифр семье, к которой вас направили, и получите конверт. Введите ключ из конверта:")}</p>
+                )}
                 <div className="row">
                   <input value={key} onChange={(e) => setKey(e.target.value.toUpperCase())} placeholder={t("Ключ из конверта")} maxLength={12} autoCapitalize="characters" />
                   <button disabled={busy || key.trim().length < 4 || cooldown > 0} onClick={() => void capture()}>{cooldown > 0 ? `Подождите ${cooldown} с` : t("Взять город")}</button>

@@ -44,6 +44,8 @@ export type CityTaskDto =
   | { index: number; scope: string; groupDistricts: number[] | null; type: "order"; prompt: string; items: Array<{ id: string; text: string }> };
 export interface MyCityDto {
   node: { key: string; bookCode: string; cityType: string | null; ruined: boolean };
+  /** Адресат конверта: только когда все задания решены. */
+  recipient?: { label: string; kind: "FAMILY" | "WIDOW" | "ELDER" | "OTHER" } | null;
   owner: { id: string; index: number; name: string; color: string } | null;
   team: { capitalMovedAt: string | null; gameRole: GameRole; role: TeamRole };
   content: { title: string; translation: string; codeRule: string; districts: CityDistrictDto[]; tasks: CityTaskDto[]; fragments: Array<string | null> } | null;

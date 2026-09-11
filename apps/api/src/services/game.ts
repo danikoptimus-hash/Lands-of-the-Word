@@ -1,4 +1,5 @@
 import { prisma } from "../db.js";
+import { purgeRecipients } from "./recipients.js";
 import { publish } from "./events.js";
 import { notifyAdmins, notifyTeam } from "./notify.js";
 import { BOOKS } from "@lotw/domain";
@@ -64,6 +65,7 @@ export async function finishGame(gameId: string, reason: "last_team" | "time_lim
     prisma.game.update({ where: { id: gameId }, data: { status: "FINISHED", finishedAt: now, winnerTeamId, finishReason: reason } }),
     prisma.battle.updateMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, data: { status: "CANCELLED", resolvedAt: now } }),
   ]);
+  await purgeRecipients(gameId);
   publish(gameId, { type: "game" });
   publish(gameId, { type: "battles" });
   const winner = winnerTeamId ? await prisma.team.findUnique({ where: { id: winnerTeamId }, select: { name: true } }) : null;
