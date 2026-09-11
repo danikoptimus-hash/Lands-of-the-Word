@@ -343,12 +343,12 @@ export const LEGACY: Record<string, string> = {
   "вода": "water",
   // Проверка готовности к старту (шаблоны приходят с сервера) и подпись бренда.
   "Lands of the Word": "Земли Слова",
-  "Карта не сгенерирована": "The map is not generated",
-  "На карте {a} стартовых точек, а команд по настройкам {b}: перегенерируйте карту": "The map has {a} start points but the settings say {b} teams: regenerate the map",
-  "Создано команд: {a} из {b}. Добавьте команду или уменьшите число команд в настройках": "Teams created: {a} of {b}. Add a team or lower the team count in the settings",
-  "Команды без участников: {names}": "Teams without members: {names}",
-  "Дел в списке {a}, рекомендуется не меньше {b}: дела начнут повторяться": "{a} deeds in the list, at least {b} recommended: deeds will start repeating",
-  "Список дел пуст": "The deed list is empty",
+  "Карта не сгенерирована — сгенерируйте карту": "The map is not generated — generate the map",
+  "На карте {a} стартов, а команд по настройкам {b} — перегенерируйте карту": "The map has {a} starts but the settings say {b} teams — regenerate the map",
+  "Команд создано {a} из {b} — добавьте команды или уменьшите их число в настройках": "Teams created: {a} of {b} — add teams or lower the team count in the settings",
+  "Команды без участников: {names} — пригласите игроков или удалите эти команды": "Teams without members: {names} — invite players or delete these teams",
+  "В списке {a} дел, а нужно не меньше {b}, иначе дела будут повторяться — добавьте дела": "{a} deeds in the list but at least {b} are needed, otherwise deeds will repeat — add deeds",
+  "Список дел пуст — добавьте дела": "The deed list is empty — add deeds",
   // Вкладки и карточки нового оформления.
   "Игра завершена: проверять больше нечего.": "The game is over: nothing left to review.",
   "Капитан": "Captain", "На карту": "Open map", "Новая игра": "New game", "Новое дело": "New deed", "Обзор": "Overview", "Подготовка": "Preparation", "Проверка": "Review",

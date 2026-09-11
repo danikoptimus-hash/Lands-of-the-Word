@@ -5,7 +5,7 @@ import { prisma } from "../db.js";
 import { createSession, destroySession, publicUser, requireUser } from "../auth.js";
 import { createHash, randomBytes } from "node:crypto";
 import { describeMailError, mailEnabled, sendMail, verifyMail } from "../services/mail.js";
-import { msg, toLocale } from "../services/i18n.js";
+import { err, msg, toLocale } from "../services/i18n.js";
 import { platformMetrics } from "../services/metrics.js";
 
 const nickname = z.string().trim().min(3).max(24).regex(/^[\p{L}\p{N}_-]+$/u, "Только буквы, цифры, _ и -");
@@ -47,7 +47,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const exists = await prisma.user.findFirst({
       where: { OR: [{ nickname: { equals: body.nickname, mode: "insensitive" } }, ...(body.email ? [{ email: body.email }] : [])] },
     });
-    if (exists) return reply.code(409).send({ error: "conflict", message: "Такой никнейм или email уже занят" });
+    if (exists) return reply.code(409).send({ error: "conflict", message: err(request, "Такой никнейм или почта уже заняты") });
     const userCount = await prisma.user.count();
     const user = await prisma.user.create({
       data: {
@@ -69,7 +69,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     // Вход по никнейму или по почте из учётки.
     const user = await prisma.user.findFirst({ where: { OR: [{ nickname: { equals: body.nickname, mode: "insensitive" } }, { email: { equals: body.nickname, mode: "insensitive" } }] } });
     const ok = user ? await bcrypt.compare(body.password, user.passwordHash) : false;
-    if (!user || !ok) return reply.code(401).send({ error: "unauthorized", message: "Неверный никнейм, почта или пароль" });
+    if (!user || !ok) return reply.code(401).send({ error: "unauthorized", message: err(request, "Неверный никнейм, почта или пароль") });
     await createSession(reply, user.id, secure);
     return { user: publicUser(user) };
   });
@@ -86,7 +86,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const body = profileBody.parse(request.body);
     if (body.email) {
       const taken = await prisma.user.findFirst({ where: { email: body.email, NOT: { id: request.user!.id } } });
-      if (taken) return reply.code(409).send({ error: "conflict", message: "Этот email уже занят" });
+      if (taken) return reply.code(409).send({ error: "conflict", message: err(request, "Эта почта уже занята") });
     }
     const user = await prisma.user.update({ where: { id: request.user!.id }, data: { displayName: body.displayName === undefined ? undefined : body.displayName || null, email: body.email === undefined ? undefined : body.email, locale: body.locale } });
     return { user: publicUser(user) };
@@ -95,7 +95,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/auth/password", { preHandler: requireUser, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const body = passwordBody.parse(request.body);
     const ok = await bcrypt.compare(body.current, request.user!.passwordHash);
-    if (!ok) return reply.code(401).send({ error: "unauthorized", message: "Текущий пароль неверный" });
+    if (!ok) return reply.code(401).send({ error: "unauthorized", message: err(request, "Текущий пароль неверный") });
     await prisma.user.update({ where: { id: request.user!.id }, data: { passwordHash: await bcrypt.hash(body.next, 10) } });
     return { ok: true };
   });
@@ -119,7 +119,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
         });
       } catch (e) {
         request.log.error(e, "password reset mail failed");
-        return reply.code(502).send({ error: "mail_failed", message: "Письмо не отправилось: почтовый сервер не отвечает. Сообщите владельцу платформы." });
+        return reply.code(502).send({ error: "mail_failed", message: err(request, "Письмо не отправилось: почтовый сервер не отвечает. Попробуйте позже или сообщите администратору") });
       }
     }
     return { ok: true, mailEnabled: true };
@@ -137,7 +137,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/auth/reset", { config: { rateLimit: { max: 10, timeWindow: "15 minutes" } } }, async (request, reply) => {
     const body = resetBody.parse(request.body);
     const r = await prisma.passwordReset.findUnique({ where: { id: hashToken(body.token) } });
-    if (!r || r.usedAt || r.expiresAt.getTime() < Date.now()) return reply.code(400).send({ error: "invalid_token", message: "Ссылка недействительна или устарела. Запросите новую" });
+    if (!r || r.usedAt || r.expiresAt.getTime() < Date.now()) return reply.code(400).send({ error: "invalid_token", message: err(request, "Ссылка недействительна или устарела. Запросите новую") });
     await prisma.$transaction([
       prisma.passwordReset.update({ where: { id: r.id }, data: { usedAt: new Date() } }),
       prisma.user.update({ where: { id: r.userId }, data: { passwordHash: await bcrypt.hash(body.password, 10) } }),
@@ -150,14 +150,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   /** Суперадмин: аналитика платформы — только обобщённые метрики (4.1), без содержимого игр и людей. */
   app.get("/api/admin/metrics", { preHandler: requireUser }, async (request, reply) => {
-    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: "Только для суперадмина" });
+    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Только для администратора платформы") });
     const q = z.object({ days: z.coerce.number().int().min(1).max(365).default(30) }).parse(request.query ?? {});
     return platformMetrics(q.days);
   });
 
   /** Суперадмин: проверить SMTP и отправить тестовое письмо себе. */
   app.post("/api/auth/mail-test", { preHandler: requireUser, config: { rateLimit: { max: 5, timeWindow: "1 minute" } } }, async (request, reply) => {
-    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: "Только для суперадмина" });
+    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Только для администратора платформы") });
     const check = await verifyMail();
     if (!check.ok) return { ...check, sent: false };
     if (!request.user!.email) return { ...check, sent: false, error: "У вашей учётки нет почты: укажите её в настройках, чтобы отправить тестовое письмо" };
@@ -170,10 +170,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   /** Суперадмин: ссылка сброса для любого пользователя (по никнейму), 24 часа. */
   app.post("/api/auth/reset-link", { preHandler: requireUser }, async (request, reply) => {
-    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: "Только для суперадмина" });
+    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Только для администратора платформы") });
     const body = z.object({ nickname: z.string().trim().min(3).max(24) }).parse(request.body);
     const user = await prisma.user.findFirst({ where: { nickname: { equals: body.nickname, mode: "insensitive" } } });
-    if (!user) return reply.code(404).send({ error: "not_found", message: "Пользователь не найден" });
+    if (!user) return reply.code(404).send({ error: "not_found", message: err(request, "Пользователь не найден") });
     return issueResetLink(user.id, "ADMIN", 86_400_000, app.config.PUBLIC_URL, request.user!.id);
   });
 }

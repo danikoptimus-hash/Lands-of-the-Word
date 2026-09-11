@@ -4,6 +4,7 @@ import { generateMap, MapGenError } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
+import { err } from "../services/i18n.js";
 import { recommendedDeedCount } from "./deeds.js";
 import { loadCityContent, makeCityCode, makeCityKey } from "../services/cities.js";
 import { finishGame, leader, standings } from "../services/game.js";
@@ -46,9 +47,9 @@ const patchBody = z.object({
 
 async function loadGameForAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: true } });
-  if (!game) { await reply.code(404).send({ error: "not_found", message: "Игра не найдена" }); return null; }
+  if (!game) { await reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") }); return null; }
   const isAdmin = game.admins.some((a) => a.userId === request.user!.id);
-  if (!isAdmin) { await reply.code(403).send({ error: "forbidden", message: "Вы не администратор этой игры" }); return null; }
+  if (!isAdmin) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
   return game;
 }
 
@@ -88,11 +89,11 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (game.status !== "DRAFT") {
       // После старта меняется только срок окончания игры.
       const other = body.name !== undefined || body.teamCount !== undefined || Object.keys(body.settings ?? {}).some((k) => !["endsAt", "donationMin", "donationCurrency"].includes(k));
-      if (other || game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: "Игра уже начата: после старта можно менять только срок окончания и пожертвование" });
+      if (other || game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра уже начата: после старта можно менять только срок окончания и пожертвование") });
     }
     if (body.teamCount !== undefined) {
       const teams = await prisma.team.count({ where: { gameId: id } });
-      if (teams > body.teamCount) return reply.code(409).send({ error: "conflict", message: `Уже создано команд: ${teams}. Сначала удалите лишние` });
+      if (teams > body.teamCount) return reply.code(409).send({ error: "conflict", message: err(request, "Команд уже создано: {n}. Сначала удалите лишние", { n: teams }) });
     }
     const settings = { ...((game.settings ?? {}) as Record<string, unknown>), ...(body.settings ?? {}) };
     const updated = await prisma.game.update({ where: { id }, data: { name: body.name, teamCount: body.teamCount, settings } });
@@ -118,7 +119,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
-    if (game.status !== "DRAFT") return reply.code(409).send({ error: "conflict", message: "Карта зафиксирована: игра уже начата" });
+    if (game.status !== "DRAFT") return reply.code(409).send({ error: "conflict", message: err(request, "Игра уже начата: карту менять нельзя") });
     const body = generateBody.parse(request.body ?? {});
     const settings = (game.settings ?? {}) as { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number };
     const seed = body.seed ?? Math.floor(Math.random() * 2 ** 31);
@@ -155,10 +156,10 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/games/:id/standings", async (request, reply) => {
     const { id } = request.params as { id: string };
     const game = await prisma.game.findUnique({ where: { id }, select: { status: true, finishedAt: true, winnerTeamId: true, finishReason: true, settings: true, admins: { select: { userId: true } }, teams: { select: { members: { select: { userId: true } } } } } });
-    if (!game) return reply.code(404).send({ error: "not_found", message: "Игра не найдена" });
+    if (!game) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
     const uid = request.user!.id;
     const allowed = game.admins.some((a) => a.userId === uid) || game.teams.some((t) => t.members.some((m) => m.userId === uid));
-    if (!allowed) return reply.code(403).send({ error: "forbidden", message: "Нет доступа" });
+    if (!allowed) return reply.code(403).send({ error: "forbidden", message: err(request, "Нет доступа") });
     const rows = await standings(id);
     return { status: game.status, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, finishReason: game.finishReason, endsAt: (game.settings as { endsAt?: string | null }).endsAt ?? null, standings: rows, leaderTeamId: game.status === "ACTIVE" ? (await leader(id))?.teamId ?? null : null };
   });
@@ -168,7 +169,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
-    if (game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: "Игра не идёт" });
+    if (game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра не идёт") });
     const body = z.object({ winnerTeamId: z.string().nullable().optional() }).parse(request.body ?? {});
     const winner = body.winnerTeamId === undefined ? (await leader(id))?.teamId ?? null : body.winnerTeamId;
     await finishGame(id, "manual", winner);
@@ -190,9 +191,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (!game) return;
     const body = z.object({ login: z.string().trim().min(3).max(120) }).parse(request.body);
     const user = await prisma.user.findFirst({ where: { OR: [{ nickname: { equals: body.login, mode: "insensitive" } }, { email: { equals: body.login, mode: "insensitive" } }] } });
-    if (!user) return reply.code(404).send({ error: "not_found", message: "Пользователь с таким никнеймом или почтой не найден: он должен сначала зарегистрироваться" });
+    if (!user) return reply.code(404).send({ error: "not_found", message: err(request, "Пользователь с таким никнеймом или почтой не найден: сначала он должен зарегистрироваться") });
     const already = await prisma.gameAdmin.findUnique({ where: { gameId_userId: { gameId: id, userId: user.id } } });
-    if (already) return reply.code(409).send({ error: "conflict", message: "Уже администратор этой игры" });
+    if (already) return reply.code(409).send({ error: "conflict", message: err(request, "Этот пользователь уже администратор игры") });
     await prisma.gameAdmin.create({ data: { gameId: id, userId: user.id } });
     publish(id, { type: "game" });
     return reply.code(201).send({ ok: true, nickname: user.nickname });
@@ -202,7 +203,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { id, userId } = request.params as { id: string; userId: string };
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
-    if (userId === game.createdById) return reply.code(409).send({ error: "conflict", message: "Создателя игры убрать нельзя" });
+    if (userId === game.createdById) return reply.code(409).send({ error: "conflict", message: err(request, "Создателя игры убрать нельзя") });
     await prisma.gameAdmin.deleteMany({ where: { gameId: id, userId } });
     publish(id, { type: "game" });
     return { ok: true };
@@ -222,14 +223,14 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     // Тексты — шаблоны с подстановками: клиент переводит их по ключу (см. i18n), `problems`/`warnings` — готовые русские строки.
     type Item = { key: string; vars?: Record<string, string | number> };
     const problemItems: Item[] = [];
-    if (starts === 0) problemItems.push({ key: "Карта не сгенерирована" });
-    else if (starts !== game.teamCount) problemItems.push({ key: "На карте {a} стартовых точек, а команд по настройкам {b}: перегенерируйте карту", vars: { a: starts, b: game.teamCount } });
-    if (teams.length < game.teamCount) problemItems.push({ key: "Создано команд: {a} из {b}. Добавьте команду или уменьшите число команд в настройках", vars: { a: teams.length, b: game.teamCount } });
+    if (starts === 0) problemItems.push({ key: "Карта не сгенерирована — сгенерируйте карту" });
+    else if (starts !== game.teamCount) problemItems.push({ key: "На карте {a} стартов, а команд по настройкам {b} — перегенерируйте карту", vars: { a: starts, b: game.teamCount } });
+    if (teams.length < game.teamCount) problemItems.push({ key: "Команд создано {a} из {b} — добавьте команды или уменьшите их число в настройках", vars: { a: teams.length, b: game.teamCount } });
     const empty = teams.filter((t) => t._count.members === 0).map((t) => t.name);
-    if (empty.length) problemItems.push({ key: "Команды без участников: {names}", vars: { names: empty.join(", ") } });
+    if (empty.length) problemItems.push({ key: "Команды без участников: {names} — пригласите игроков или удалите эти команды", vars: { names: empty.join(", ") } });
     const warningItems: Item[] = [];
-    if (deeds < recommended) warningItems.push({ key: "Дел в списке {a}, рекомендуется не меньше {b}: дела начнут повторяться", vars: { a: deeds, b: recommended } });
-    if (deeds === 0) problemItems.push({ key: "Список дел пуст" });
+    if (deeds < recommended) warningItems.push({ key: "В списке {a} дел, а нужно не меньше {b}, иначе дела будут повторяться — добавьте дела", vars: { a: deeds, b: recommended } });
+    if (deeds === 0) problemItems.push({ key: "Список дел пуст — добавьте дела" });
     const fill = (i: Item) => i.key.replace(/\{(\w+)\}/g, (m, k: string) => (i.vars && k in i.vars ? String(i.vars[k]) : m));
     return { canStart: problemItems.length === 0, problems: problemItems.map(fill), warnings: warningItems.map(fill), problemItems, warningItems };
   });
@@ -239,7 +240,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
-    if (game.status !== "DRAFT") return reply.code(409).send({ error: "conflict", message: "Игра уже начата" });
+    if (game.status !== "DRAFT") return reply.code(409).send({ error: "conflict", message: err(request, "Игра уже начата") });
     const readiness = await app.inject({ method: "GET", url: `/api/games/${id}/readiness`, headers: { cookie: request.headers.cookie ?? "" } });
     const r = readiness.json() as { canStart: boolean; problems: string[] };
     if (!r.canStart) return reply.code(409).send({ error: "not_ready", message: r.problems.join("; ") });

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
 import { pushPublicKey, sendPush } from "../services/push.js";
-import { msg, toLocale } from "../services/i18n.js";
+import { err, msg, toLocale } from "../services/i18n.js";
 
 const subscribeBody = z.object({
   endpoint: z.string().url().max(2000),
@@ -15,9 +15,9 @@ const endpointBody = z.object({ endpoint: z.string().url().max(2000) });
 export async function pushRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
 
-  app.get("/api/push/key", async (_request, reply) => {
+  app.get("/api/push/key", async (request, reply) => {
     const key = await pushPublicKey();
-    if (!key) return reply.code(503).send({ error: "unavailable", message: "Уведомления пока недоступны: попробуйте позже" });
+    if (!key) return reply.code(503).send({ error: "unavailable", message: err(request, "Уведомления пока недоступны: попробуйте позже") });
     return { key };
   });
 
@@ -25,7 +25,7 @@ export async function pushRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/push/subscribe", async (request, reply) => {
     const body = subscribeBody.parse(request.body);
     const count = await prisma.pushSubscription.count({ where: { userId: request.user!.id } });
-    if (count >= 20) return reply.code(409).send({ error: "conflict", message: "Слишком много устройств с уведомлениями" });
+    if (count >= 20) return reply.code(409).send({ error: "conflict", message: err(request, "Слишком много устройств с уведомлениями") });
     const ua = (request.headers["user-agent"] ?? "").slice(0, 200) || null;
     await prisma.pushSubscription.upsert({
       where: { endpoint: body.endpoint },

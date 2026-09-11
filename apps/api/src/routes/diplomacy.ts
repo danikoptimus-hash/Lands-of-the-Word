@@ -6,7 +6,7 @@ import { requireUser } from "../auth.js";
 import { requireAdmin, requireMember } from "./teamMap.js";
 import { closePassage, ensureFrontier, revealNode } from "../services/teamMap.js";
 import { notifyTeam } from "../services/notify.js";
-import { msg } from "../services/i18n.js";
+import { err, fmtDay, msg, toLocale } from "../services/i18n.js";
 import { loadBook, verseText, formatRange, parseDistrictRange } from "../services/bible.js";
 import { loadCityContent } from "../services/cities.js";
 import { BOOKS } from "@lotw/domain";
@@ -21,9 +21,9 @@ async function canSpeak(teamId: string, userId: string): Promise<{ ok: boolean; 
   const members = await prisma.membership.findMany({ where: { teamId }, select: { userId: true, role: true, gameRole: true } });
   const ambassador = members.find((m) => m.gameRole === "AMBASSADOR");
   const me = members.find((m) => m.userId === userId);
-  if (!me) return { ok: false, why: "Вы не в команде" };
-  if (ambassador) return ambassador.userId === userId ? { ok: true, why: "" } : { ok: false, why: "С другими командами говорит посол команды" };
-  return me.role === "CAPTAIN" ? { ok: true, why: "" } : { ok: false, why: "Запросы другим командам отправляет капитан (или посол, если назначен)" };
+  if (!me) return { ok: false, why: "Вы не состоите в команде" };
+  if (ambassador) return ambassador.userId === userId ? { ok: true, why: "" } : { ok: false, why: "С другими командами говорит посол вашей команды" };
+  return me.role === "CAPTAIN" ? { ok: true, why: "" } : { ok: false, why: "Запросы другим командам отправляет капитан или посол, если он назначен" };
 }
 
 const view = (r: { id: string; nodeKey: string; message: string; answer: string; status: string; createdAt: Date; expiresAt: Date; decidedAt: Date | null; requester: { id: string; name: string; color: string }; owner: { id: string; name: string; color: string } }, bookOf: Map<string, string>) =>
@@ -69,13 +69,13 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const speak = await canSpeak(m.team.id, request.user!.id);
-    if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: speak.why });
+    if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: err(request, speak.why) });
     const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
-    if (!reached) return reply.code(403).send({ error: "forbidden", message: "Ваша команда ещё не дошла до этого города" });
+    if (!reached) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда ещё не дошла до этого города") });
     const owner = await prisma.teamCityState.findFirst({ where: { gameId: id, nodeKey, capturedAt: { not: null } } });
-    if (!owner || owner.teamId === m.team.id) return reply.code(409).send({ error: "conflict", message: "Город не занят другой командой: проход свободен" });
+    if (!owner || owner.teamId === m.team.id) return reply.code(409).send({ error: "conflict", message: err(request, "Город не принадлежит другой команде: проход свободен") });
     const existing = await prisma.passageRequest.findFirst({ where: { gameId: id, nodeKey, requesterId: m.team.id, status: { in: ["PENDING", "APPROVED"] } } });
-    if (existing) return reply.code(409).send({ error: "conflict", message: existing.status === "APPROVED" ? "Проход уже разрешён" : "Запрос уже отправлен, ждём ответа (3 дня)" });
+    if (existing) return reply.code(409).send({ error: "conflict", message: existing.status === "APPROVED" ? err(request, "Проход уже разрешён") : err(request, "Запрос уже отправлен: ответ ждём до {date}", { date: fmtDay(existing.expiresAt, toLocale(request.user?.locale)) }) });
     const body = z.object({ message: z.string().trim().max(500).default("") }).parse(request.body ?? {});
     const r = await prisma.passageRequest.create({ data: { gameId: id, nodeKey, requesterId: m.team.id, ownerId: owner.teamId, message: body.message, expiresAt: new Date(Date.now() + PASSAGE_TTL_MS) } });
     publish(id, { type: "map", teamId: owner.teamId });
@@ -91,10 +91,10 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const r = await prisma.passageRequest.findFirst({ where: { id: reqId, gameId: id, ownerId: m.team.id } });
-    if (!r) return reply.code(404).send({ error: "not_found", message: "Запрос не найден" });
+    if (!r) return reply.code(404).send({ error: "not_found", message: err(request, "Запрос не найден") });
     const speak = await canSpeak(m.team.id, request.user!.id);
-    if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: speak.why });
-    if (r.status !== "PENDING") return reply.code(409).send({ error: "conflict", message: "Запрос уже рассмотрен" });
+    if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: err(request, speak.why) });
+    if (r.status !== "PENDING") return reply.code(409).send({ error: "conflict", message: err(request, "Запрос уже рассмотрен") });
     const body = z.object({ approve: z.boolean(), answer: z.string().trim().max(500).default("") }).parse(request.body);
     await prisma.passageRequest.update({ where: { id: r.id }, data: { status: body.approve ? "APPROVED" : "DECLINED", answer: body.answer, decidedAt: new Date() } });
     if (body.approve) await ensureFrontier(id, r.requesterId);
@@ -110,9 +110,9 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const r = await prisma.passageRequest.findFirst({ where: { id: reqId, gameId: id, ownerId: m.team.id, status: "APPROVED" } });
-    if (!r) return reply.code(404).send({ error: "not_found", message: "Действующее разрешение не найдено" });
+    if (!r) return reply.code(404).send({ error: "not_found", message: err(request, "Действующее разрешение не найдено") });
     const speak = await canSpeak(m.team.id, request.user!.id);
-    if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: speak.why });
+    if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: err(request, speak.why) });
     await prisma.passageRequest.update({ where: { id: r.id }, data: { status: "REVOKED", decidedAt: new Date() } });
     await closePassage(id, r.requesterId, r.nodeKey);
     publish(id, { type: "map", teamId: r.requesterId });
@@ -135,13 +135,13 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    if (m.gameRole !== "SCOUT") return reply.code(403).send({ error: "forbidden", message: "Заглянуть за ребро может только разведчик команды" });
+    if (m.gameRole !== "SCOUT") return reply.code(403).send({ error: "forbidden", message: err(request, "Разведать перекрёсток может только разведчик команды") });
     const body = z.object({ nodeKey: z.string().min(3).max(40) }).parse(request.body);
     const frontier = await prisma.teamEdgeTask.findFirst({ where: { teamId: m.team.id, toKey: body.nodeKey, status: { not: "APPROVED" } } });
-    if (!frontier) return reply.code(400).send({ error: "validation", message: "Разведать можно только узел за стороной с меткой дела" });
+    if (!frontier) return reply.code(400).send({ error: "validation", message: err(request, "Разведать можно только перекрёсток за стороной с делом") });
     if (m.team.lastPeekAt && Date.now() - m.team.lastPeekAt.getTime() < WEEK_MS) {
       const next = new Date(m.team.lastPeekAt.getTime() + WEEK_MS);
-      return reply.code(429).send({ error: "cooldown", message: `Разведка раз в неделю: следующая ${next.toLocaleDateString("ru-RU")}` });
+      return reply.code(429).send({ error: "cooldown", message: err(request, "Разведка доступна раз в неделю: следующая — {date}", { date: fmtDay(next, toLocale(request.user?.locale)) }) });
     }
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId: id, key: body.nodeKey } } });
     await prisma.$transaction([
@@ -157,14 +157,14 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    if (m.gameRole !== "PROPHET") return reply.code(403).send({ error: "forbidden", message: "Подсказку открывает только пророк команды" });
+    if (m.gameRole !== "PROPHET") return reply.code(403).send({ error: "forbidden", message: err(request, "Подсказку открывает только пророк команды") });
     const body = z.object({ index: z.number().int().min(0) }).parse(request.body);
     const state = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
-    if (!state?.orderSolved) return reply.code(409).send({ error: "conflict", message: "Сначала расставьте районы по порядку" });
-    if (state.hintTasks.includes(body.index)) return reply.code(409).send({ error: "conflict", message: "Подсказка к этому заданию уже открыта" });
+    if (!state?.orderSolved) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала расставьте районы по порядку") });
+    if (state.hintTasks.includes(body.index)) return reply.code(409).send({ error: "conflict", message: err(request, "Подсказка к этому заданию уже открыта") });
     if (m.team.lastHintAt && Date.now() - m.team.lastHintAt.getTime() < WEEK_MS) {
       const next = new Date(m.team.lastHintAt.getTime() + WEEK_MS);
-      return reply.code(429).send({ error: "cooldown", message: `Подсказка раз в неделю: следующая ${next.toLocaleDateString("ru-RU")}` });
+      return reply.code(429).send({ error: "cooldown", message: err(request, "Подсказка доступна раз в неделю: следующая — {date}", { date: fmtDay(next, toLocale(request.user?.locale)) }) });
     }
     await prisma.$transaction([
       prisma.teamCityState.update({ where: { id: state.id }, data: { hintTasks: { push: body.index } } }),
@@ -179,13 +179,13 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: "Столицу переносит капитан" });
-    if (m.team.capitalMovedAt) return reply.code(409).send({ error: "conflict", message: "Перенос столицы уже использован: он один за игру" });
+    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Перенести столицу может только капитан") });
+    if (m.team.capitalMovedAt) return reply.code(409).send({ error: "conflict", message: err(request, "Столицу можно перенести только один раз за игру, и это уже сделано") });
     const target = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
-    if (!target?.capturedAt) return reply.code(409).send({ error: "conflict", message: "Это не ваш город" });
-    if (target.isCapital) return reply.code(409).send({ error: "conflict", message: "Это уже столица" });
+    if (!target?.capturedAt) return reply.code(409).send({ error: "conflict", message: err(request, "Это не ваш город") });
+    if (target.isCapital) return reply.code(409).send({ error: "conflict", message: err(request, "Это уже столица") });
     const capital = await prisma.teamCityState.findFirst({ where: { teamId: m.team.id, isCapital: true, secondCapital: false } });
-    if (!capital) return reply.code(409).send({ error: "conflict", message: "Первой столицы нет: переносить нечего" });
+    if (!capital) return reply.code(409).send({ error: "conflict", message: err(request, "У команды нет столицы: переносить нечего") });
     await prisma.$transaction([
       prisma.teamCityState.update({ where: { id: capital.id }, data: { isCapital: false } }),
       prisma.teamCityState.update({ where: { id: target.id }, data: { isCapital: true } }),
@@ -203,11 +203,11 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     const i = Number(index);
     const state = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
-    if (!state?.hintTasks.includes(i)) return reply.code(403).send({ error: "forbidden", message: "Подсказка не открыта" });
+    if (!state?.hintTasks.includes(i)) return reply.code(403).send({ error: "forbidden", message: err(request, "Подсказка не открыта") });
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId: id, key: nodeKey } } });
     const [content, book] = await Promise.all([loadCityContent(node.bookCode ?? ""), loadBook(node.bookCode ?? "")]);
     const d = content?.districts[i];
-    if (!d || !book) return reply.code(404).send({ error: "not_found", message: "Район не найден" });
+    if (!d || !book) return reply.code(404).send({ error: "not_found", message: err(request, "Район не найден") });
     // Подсказка — текст района. Длинные районы (главы) обрезаются: пророк даёт направление, а не всю книгу.
     const range = parseDistrictRange(book, d.verses);
     if (!range) return { verses: d.verses, text: [] };

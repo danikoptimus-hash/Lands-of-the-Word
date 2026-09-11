@@ -4,6 +4,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
+import { err } from "../services/i18n.js";
 
 export const TEAM_COLORS = ["#A9553A", "#4F7C99", "#7D8B4E", "#8E5A9E", "#C48A3F", "#3B6E6E", "#B5473F", "#5C6E91", "#8A7A2E", "#6E4B8E", "#2F7F6F", "#9C5A2E"];
 
@@ -16,8 +17,8 @@ const memberPatch = z.object({ role: z.enum(["CAPTAIN", "MEMBER"]).optional(), g
 
 async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: { select: { userId: true } } } });
-  if (!game) { await reply.code(404).send({ error: "not_found", message: "Игра не найдена" }); return null; }
-  if (!game.admins.some((a) => a.userId === request.user!.id)) { await reply.code(403).send({ error: "forbidden", message: "Вы не администратор этой игры" }); return null; }
+  if (!game) { await reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") }); return null; }
+  if (!game.admins.some((a) => a.userId === request.user!.id)) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
   return game;
 }
 
@@ -30,14 +31,14 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/games/:id/teams", async (request, reply) => {
     const { id } = request.params as { id: string };
     const game = await prisma.game.findUnique({ where: { id }, include: { admins: { select: { userId: true } } } });
-    if (!game) return reply.code(404).send({ error: "not_found", message: "Игра не найдена" });
+    if (!game) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
     const isAdmin = game.admins.some((a) => a.userId === request.user!.id);
     const teams = await prisma.team.findMany({
       where: isAdmin ? { gameId: id } : { gameId: id, members: { some: { userId: request.user!.id } } },
       orderBy: { index: "asc" },
       include: { members: { select: memberSelect, orderBy: { joinedAt: "asc" } } },
     });
-    if (!isAdmin && teams.length === 0) return reply.code(403).send({ error: "forbidden", message: "Вы не состоите в этой игре" });
+    if (!isAdmin && teams.length === 0) return reply.code(403).send({ error: "forbidden", message: err(request, "Вы не состоите в этой игре") });
     return { isAdmin, teams };
   });
 
@@ -47,9 +48,9 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     if (!game) return;
     const body = createTeamBody.parse(request.body);
     const count = await prisma.team.count({ where: { gameId: id } });
-    if (count >= game.teamCount) return reply.code(409).send({ error: "conflict", message: `В игре запланировано ${game.teamCount} команд(ы), все уже созданы` });
+    if (count >= game.teamCount) return reply.code(409).send({ error: "conflict", message: err(request, "Все команды уже созданы: по настройкам их {n}", { n: game.teamCount }) });
     const dup = await prisma.team.findFirst({ where: { gameId: id, name: { equals: body.name, mode: "insensitive" } } });
-    if (dup) return reply.code(409).send({ error: "conflict", message: "Команда с таким названием уже есть" });
+    if (dup) return reply.code(409).send({ error: "conflict", message: err(request, "Команда с таким названием уже есть") });
     const team = await prisma.team.create({
       data: { gameId: id, index: count, name: body.name, color: body.color ?? TEAM_COLORS[count % TEAM_COLORS.length]! },
       include: { members: { select: memberSelect } },
@@ -62,9 +63,9 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const { id, teamId } = request.params as { id: string; teamId: string };
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return;
-    if (game.status !== "DRAFT") return reply.code(409).send({ error: "conflict", message: "Игра уже начата, команды не удаляются" });
+    if (game.status !== "DRAFT") return reply.code(409).send({ error: "conflict", message: err(request, "Игра уже начата: команды удалять нельзя") });
     const team = await prisma.team.findFirst({ where: { id: teamId, gameId: id } });
-    if (!team) return reply.code(404).send({ error: "not_found", message: "Команда не найдена" });
+    if (!team) return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
     await prisma.team.delete({ where: { id: teamId } });
     // Переиндексация, чтобы индексы команд снова шли подряд (индекс = стартовая точка на карте).
     const rest = await prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" } });
@@ -79,7 +80,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return;
     const team = await prisma.team.findFirst({ where: { id: teamId, gameId: id } });
-    if (!team) return reply.code(404).send({ error: "not_found", message: "Команда не найдена" });
+    if (!team) return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
     const body = inviteBody.parse(request.body ?? {});
     const invite = await prisma.invite.create({
       data: { id: randomBytes(18).toString("base64url"), gameId: id, teamId, role: body.role, usesLeft: body.uses, expiresAt: new Date(Date.now() + body.days * 86400_000) },
@@ -91,16 +92,16 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const { id, teamId, userId } = request.params as { id: string; teamId: string; userId: string };
     const body = memberPatch.parse(request.body);
     const membership = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId } }, include: { team: true } });
-    if (!membership || membership.team.gameId !== id) return reply.code(404).send({ error: "not_found", message: "Участник не найден" });
+    if (!membership || membership.team.gameId !== id) return reply.code(404).send({ error: "not_found", message: err(request, "Участник не найден") });
     const game = await prisma.game.findUnique({ where: { id }, include: { admins: { select: { userId: true } } } });
     const isAdmin = game?.admins.some((a) => a.userId === request.user!.id) ?? false;
     const me = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId: request.user!.id } } });
     const isCaptain = me?.role === "CAPTAIN";
     // Капитана назначает админ; игровые роли раздаёт капитан или админ.
-    if (body.role !== undefined && !isAdmin) return reply.code(403).send({ error: "forbidden", message: "Капитана назначает администратор игры" });
-    if (body.gameRole !== undefined && !isAdmin && !isCaptain) return reply.code(403).send({ error: "forbidden", message: "Роли раздаёт капитан" });
+    if (body.role !== undefined && !isAdmin) return reply.code(403).send({ error: "forbidden", message: err(request, "Капитана назначает администратор игры") });
+    if (body.gameRole !== undefined && !isAdmin && !isCaptain) return reply.code(403).send({ error: "forbidden", message: err(request, "Игровые роли раздаёт капитан") });
     if (body.gameRole && body.gameRole !== "NONE" && membership.role === "CAPTAIN" && body.role !== "MEMBER") {
-      return reply.code(409).send({ error: "conflict", message: "Капитан — это уже роль; игровые роли только у участников" });
+      return reply.code(409).send({ error: "conflict", message: err(request, "У капитана уже есть роль: игровые роли получают только участники") });
     }
     if (body.role === "CAPTAIN") body.gameRole = "NONE";
     if (body.gameRole && body.gameRole !== "NONE") {
@@ -125,7 +126,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/invites/:token", async (request, reply) => {
     const { token } = request.params as { token: string };
     const invite = await prisma.invite.findUnique({ where: { id: token }, include: { team: { select: { id: true, name: true, color: true } }, game: { select: { id: true, name: true, status: true, org: { select: { name: true } } } } } });
-    if (!invite || invite.expiresAt < new Date() || invite.usesLeft <= 0) return reply.code(404).send({ error: "not_found", message: "Приглашение не найдено или истекло" });
+    if (!invite || invite.expiresAt < new Date() || invite.usesLeft <= 0) return reply.code(404).send({ error: "not_found", message: err(request, "Приглашение не найдено или истекло") });
     const already = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: invite.gameId } }, include: { team: { select: { id: true, name: true } } } });
     return { invite: { role: invite.role, team: invite.team, game: invite.game }, alreadyIn: already ? already.team : null };
   });
@@ -134,9 +135,9 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/invites/:token/accept", async (request, reply) => {
     const { token } = request.params as { token: string };
     const invite = await prisma.invite.findUnique({ where: { id: token } });
-    if (!invite || invite.expiresAt < new Date() || invite.usesLeft <= 0) return reply.code(404).send({ error: "not_found", message: "Приглашение не найдено или истекло" });
+    if (!invite || invite.expiresAt < new Date() || invite.usesLeft <= 0) return reply.code(404).send({ error: "not_found", message: err(request, "Приглашение не найдено или истекло") });
     const already = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: invite.gameId } } });
-    if (already) return reply.code(409).send({ error: "conflict", message: "Вы уже состоите в команде этой игры" });
+    if (already) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже состоите в команде этой игры") });
     const [membership] = await prisma.$transaction([
       prisma.membership.create({ data: { teamId: invite.teamId, userId: request.user!.id, role: invite.role }, include: { team: { select: { id: true, name: true, color: true, gameId: true } } } }),
       prisma.invite.update({ where: { id: token }, data: { usesLeft: { decrement: 1 } } }),

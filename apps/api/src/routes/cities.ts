@@ -9,7 +9,7 @@ import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
 import { loadBook, parseDistrictRange } from "../services/bible.js";
 import type { CityContent } from "../services/cities.js";
-import { msg } from "../services/i18n.js";
+import { err, msg } from "../services/i18n.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
 const answerBody = z.object({ answer: z.union([z.string().max(500), z.number(), z.array(z.string().min(1).max(32)).max(64)]) });
@@ -85,9 +85,9 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const node = await loadCityNode(id, nodeKey);
-    if (!node) return reply.code(404).send({ error: "not_found", message: "Город не найден" });
+    if (!node) return reply.code(404).send({ error: "not_found", message: err(request, "Город не найден") });
     const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
-    if (!reached) return reply.code(403).send({ error: "forbidden", message: "Ваша команда ещё не дошла до этого города" });
+    if (!reached) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда ещё не дошла до этого города") });
     const [content, state, ownerState, locks] = await Promise.all([
       loadCityContent(node.bookCode!),
       prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } }),
@@ -136,13 +136,13 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return null;
     const game = await prisma.game.findUnique({ where: { id }, select: { status: true } });
-    if (game?.status !== "ACTIVE") { await reply.code(409).send({ error: "conflict", message: "Игра не идёт" }); return null; }
+    if (game?.status !== "ACTIVE") { await reply.code(409).send({ error: "conflict", message: err(request, "Игра не идёт") }); return null; }
     const node = await loadCityNode(id, nodeKey);
-    if (!node) { await reply.code(404).send({ error: "not_found", message: "Город не найден" }); return null; }
+    if (!node) { await reply.code(404).send({ error: "not_found", message: err(request, "Город не найден") }); return null; }
     const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
-    if (!reached) { await reply.code(403).send({ error: "forbidden", message: "Ваша команда ещё не дошла до этого города" }); return null; }
+    if (!reached) { await reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда ещё не дошла до этого города") }); return null; }
     const content = await loadCityContent(node.bookCode!);
-    if (!content) { await reply.code(409).send({ error: "no_content", message: "Задания для этой книги ещё готовятся" }); return null; }
+    if (!content) { await reply.code(409).send({ error: "no_content", message: err(request, "Задания для этой книги ещё готовятся") }); return null; }
     const state = await prisma.teamCityState.upsert({
       where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } },
       create: { gameId: id, teamId: m.team.id, nodeKey },
@@ -156,10 +156,10 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const c = await memberCity(request, reply, id, nodeKey);
     if (!c) return;
-    if (c.state.orderSolved) return reply.code(409).send({ error: "conflict", message: "Порядок уже собран" });
+    if (c.state.orderSolved) return reply.code(409).send({ error: "conflict", message: err(request, "Порядок районов уже собран") });
     const body = orderBody.parse(request.body);
     const wrong = checkOrder(c.content, secret, c.scopeKey, body.ids);
-    if (wrong === null) return reply.code(400).send({ error: "validation", message: "Нужно расставить все районы по одному разу" });
+    if (wrong === null) return reply.code(400).send({ error: "validation", message: err(request, "Расставьте все районы, каждый по одному разу") });
     await prisma.teamCityState.update({ where: { id: c.state.id }, data: { orderAttempts: { increment: 1 }, orderSolved: wrong === 0 } });
     publish(id, { type: "cities", teamId: c.m.team.id });
     return { correct: wrong === 0, wrong };
@@ -170,13 +170,13 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const { id, nodeKey, index: rawIndex } = request.params as { id: string; nodeKey: string; index: string };
     const c = await memberCity(request, reply, id, nodeKey);
     if (!c) return;
-    if (!c.state.orderSolved) return reply.code(409).send({ error: "conflict", message: "Сначала расставьте районы по порядку" });
+    if (!c.state.orderSolved) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала расставьте районы по порядку") });
     const index = Number(rawIndex);
     const task = Number.isInteger(index) ? c.content.tasks[index] : undefined;
-    if (!task) return reply.code(404).send({ error: "not_found", message: "Задание не найдено" });
-    if (c.state.doneTasks.includes(index)) return reply.code(409).send({ error: "conflict", message: "Задание уже решено" });
+    if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
+    if (c.state.doneTasks.includes(index)) return reply.code(409).send({ error: "conflict", message: err(request, "Задание уже решено") });
     const cooldownUntil = c.state.lastWrongAt ? c.state.lastWrongAt.getTime() + WRONG_COOLDOWN_MS : 0;
-    if (cooldownUntil > Date.now()) return reply.code(429).send({ error: "cooldown", message: "Подождите немного перед следующей попыткой", retryAt: cooldownUntil });
+    if (cooldownUntil > Date.now()) return reply.code(429).send({ error: "cooldown", message: err(request, "Подождите немного перед следующей попыткой"), retryAt: cooldownUntil });
     const body = answerBody.parse(request.body);
     const now = Date.now();
     const lockWhere = { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: index } };
@@ -184,11 +184,11 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     // Сначала чтение: пока норма не набрана, ответ не принимается.
     const required = await readingRequiredMs(c.content, index);
     if ((lock?.readMs ?? 0) < required) {
-      return reply.code(409).send({ error: "reading", message: "Сначала прочитайте текст: время чтения ещё не набрано", remainingMs: required - (lock?.readMs ?? 0) });
+      return reply.code(409).send({ error: "reading", message: err(request, "Сначала прочитайте текст: время чтения ещё не набрано"), remainingMs: required - (lock?.readMs ?? 0) });
     }
     // Выбор ответа: две попытки, потом задание закрыто на сутки. Спор — отдельным запросом.
     if (lock?.lockedUntil && lock.lockedUntil.getTime() > now) {
-      return reply.code(423).send({ error: "locked", message: "Задание закрыто на сутки после двух неверных ответов", lockedUntil: lock.lockedUntil.getTime() });
+      return reply.code(423).send({ error: "locked", message: err(request, "Задание закрыто на сутки после двух неверных ответов"), lockedUntil: lock.lockedUntil.getTime() });
     }
     const correct = checkAnswer(task, index, secret, c.scopeKey, body.answer);
     let lockedUntil: number | null = null;
@@ -218,9 +218,9 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const { id, nodeKey, index: rawIndex } = request.params as { id: string; nodeKey: string; index: string };
     const c = await memberCity(request, reply, id, nodeKey);
     if (!c) return;
-    if (!c.state.orderSolved) return reply.code(409).send({ error: "conflict", message: "Сначала расставьте районы по порядку" });
+    if (!c.state.orderSolved) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала расставьте районы по порядку") });
     const index = Number(rawIndex);
-    if (!Number.isInteger(index) || !c.content.tasks[index]) return reply.code(404).send({ error: "not_found", message: "Задание не найдено" });
+    if (!Number.isInteger(index) || !c.content.tasks[index]) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
     const required = await readingRequiredMs(c.content, index);
     const now = new Date();
     const where = { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: index } };
@@ -239,11 +239,11 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!c) return;
     const index = Number(rawIndex);
     const task = Number.isInteger(index) ? c.content.tasks[index] : undefined;
-    if (!task) return reply.code(404).send({ error: "not_found", message: "Задание не найдено" });
+    if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
     const body = disputeBody.parse(request.body);
     const lock = await prisma.teamTaskLock.findUnique({ where: { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: index } } });
-    if (!lock?.lockedUntil || lock.lockedUntil.getTime() <= Date.now()) return reply.code(409).send({ error: "conflict", message: "Задание не заблокировано: оспаривать нечего" });
-    if (lock.disputedAt && !lock.resolvedAt) return reply.code(409).send({ error: "conflict", message: "Спор уже отправлен, ждите ответа администратора" });
+    if (!lock?.lockedUntil || lock.lockedUntil.getTime() <= Date.now()) return reply.code(409).send({ error: "conflict", message: err(request, "Задание не закрыто: оспаривать нечего") });
+    if (lock.disputedAt && !lock.resolvedAt) return reply.code(409).send({ error: "conflict", message: err(request, "Спор уже отправлен: ждите ответа администратора") });
     await prisma.teamTaskLock.update({ where: { id: lock.id }, data: { dispute: body.message, disputedAt: new Date(), resolvedAt: null, resolution: null } });
     notifyAdmins(id, "спор по заданию города {book}", "Команда «{team}» оспаривает блокировку задания {n} города {book}: «{message}». Снимите блокировку или ответьте на вкладке «Проверка».", { book: c.node.bookCode ?? "", team: c.m.team.name, n: index + 1, message: body.message });
     publish(id, { type: "cities", teamId: c.m.team.id });
@@ -272,8 +272,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     const body = resolveBody.parse(request.body);
     const lock = await prisma.teamTaskLock.findFirst({ where: { id: lockId, gameId: id } });
-    if (!lock) return reply.code(404).send({ error: "not_found", message: "Спор не найден" });
-    if (lock.resolvedAt) return reply.code(409).send({ error: "conflict", message: "Спор уже решён" });
+    if (!lock) return reply.code(404).send({ error: "not_found", message: err(request, "Спор не найден") });
+    if (lock.resolvedAt) return reply.code(409).send({ error: "conflict", message: err(request, "Спор уже решён") });
     await prisma.teamTaskLock.update({ where: { id: lock.id }, data: { resolvedAt: new Date(), resolution: body.answer || null, ...(body.unlock ? { lockedUntil: null, wrong: 0, unlocked: true } : {}) } });
     const node = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: lock.nodeKey } }, select: { bookCode: true } });
     notifyTeam(id, lock.teamId, "ответ администратора по заданию города {book}", (locale) => msg(locale, "Задание {n}: {verdict}{answer}", { n: lock.taskIndex + 1, verdict: body.unlock ? "блокировка снята, можно отвечать снова" : "блокировка оставлена до истечения суток", answer: body.answer ? msg(locale, " Ответ администратора: {answer}", { answer: body.answer }) : "" }), { book: node?.bookCode ?? "" });
@@ -287,17 +287,17 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const c = await memberCity(request, reply, id, nodeKey);
     if (!c) return;
-    if (c.state.capturedAt) return reply.code(409).send({ error: "conflict", message: "Город уже ваш" });
+    if (c.state.capturedAt) return reply.code(409).send({ error: "conflict", message: err(request, "Город уже ваш") });
     const allDone = c.content.tasks.every((_, i) => c.state.doneTasks.includes(i));
-    if (!allDone) return reply.code(409).send({ error: "conflict", message: "Сначала решите задания всех районов" });
+    if (!allDone) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала решите задания всех районов") });
     const body = c.node.ruined ? { key: c.node.cityKey ?? "" } : captureBody.parse(request.body);
     // Руины берутся без ключа: достаточно решённых заданий.
     if (!c.node.ruined && (!c.node.cityKey || body.key.toUpperCase().replace(/[\s-]/g, "") !== c.node.cityKey)) {
       await prisma.teamCityState.update({ where: { id: c.state.id }, data: { answerAttempts: { increment: 1 }, lastWrongAt: new Date() } });
-      return reply.code(400).send({ error: "wrong_key", message: "Ключ не подходит. Проверьте буквы в конверте" });
+      return reply.code(400).send({ error: "wrong_key", message: err(request, "Ключ не подходит. Проверьте буквы в конверте") });
     }
     const owner = await prisma.teamCityState.findFirst({ where: { gameId: id, nodeKey, capturedAt: { not: null } }, select: ownerSelect });
-    if (owner) return reply.code(409).send({ error: "conflict", message: `Город уже принадлежит команде «${owner.team.name}»` });
+    if (owner) return reply.code(409).send({ error: "conflict", message: err(request, "Город уже принадлежит команде «{team}»", { team: owner.team.name }) });
     const hasCapital = await prisma.teamCityState.count({ where: { teamId: c.m.team.id, isCapital: true } });
     const updated = await prisma.teamCityState.update({ where: { id: c.state.id }, data: { capturedAt: new Date(), firstCapturedAt: c.state.firstCapturedAt ?? new Date(), isCapital: hasCapital === 0 } });
     if (c.node.ruined) await prisma.mapNode.update({ where: { id: c.node.id }, data: { ruined: false } });
@@ -313,7 +313,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     const body = z.object({ teamId: z.string().min(1) }).parse(request.body);
     const [node, team] = await Promise.all([loadCityNode(id, nodeKey), prisma.team.findFirst({ where: { id: body.teamId, gameId: id } })]);
-    if (!node || !team) return reply.code(404).send({ error: "not_found", message: "Город или команда не найдены" });
+    if (!node || !team) return reply.code(404).send({ error: "not_found", message: err(request, "Город или команда не найдены") });
     const content = await loadCityContent(node.bookCode!);
     const all = content ? content.tasks.map((_, i) => i) : [];
     const existing = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: team.id, nodeKey } } });
@@ -344,9 +344,9 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     const body = z.object({ teamId: z.string().min(1) }).parse(request.body);
     const [node, team] = await Promise.all([loadCityNode(id, nodeKey), prisma.team.findFirst({ where: { id: body.teamId, gameId: id } })]);
-    if (!node || !team) return reply.code(404).send({ error: "not_found", message: "Город или команда не найдены" });
+    if (!node || !team) return reply.code(404).send({ error: "not_found", message: err(request, "Город или команда не найдены") });
     const content = await loadCityContent(node.bookCode!);
-    if (!content) return reply.code(409).send({ error: "no_content", message: "Задания для этой книги ещё готовятся" });
+    if (!content) return reply.code(409).send({ error: "no_content", message: err(request, "Задания для этой книги ещё готовятся") });
     const all = content.tasks.map((_, i) => i);
     await prisma.$transaction([
       prisma.teamNodeState.upsert({ where: { teamId_nodeKey: { teamId: team.id, nodeKey } }, create: { teamId: team.id, nodeKey }, update: {} }),
@@ -367,7 +367,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     if (!(await requireAdmin(request, reply, id))) return;
     const node = await loadCityNode(id, nodeKey);
-    if (!node) return reply.code(404).send({ error: "not_found", message: "Город не найден" });
+    if (!node) return reply.code(404).send({ error: "not_found", message: err(request, "Город не найден") });
     const [content, teams, states] = await Promise.all([
       loadCityContent(node.bookCode!),
       prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, index: true, name: true, color: true } }),

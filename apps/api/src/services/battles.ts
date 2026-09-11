@@ -119,23 +119,23 @@ export async function startNextFromQueue(gameId: string, nodeKey: string): Promi
 }
 
 /** Капитан атакующих отправляет атаку на проверку: сумма выученных ≥ N. T фиксируется этим моментом. */
-export async function submitAttack(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
-  if (b.status !== "ATTACK") return { ok: false, message: "Вызов не идёт" };
+export async function submitAttack(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string; vars?: Record<string, number> }> {
+  if (b.status !== "ATTACK") return { ok: false, message: "Вызов сейчас не идёт" };
   if (b.attackDoneAt) return { ok: false, message: "Вызов уже отправлен на проверку" };
   const sum = sumVerses(b.entries, "ATTACK", false);
-  if (sum < b.bid) return { ok: false, message: `Выучено ${sum} из ${b.bid} стихов: не хватает ${b.bid - sum}` };
+  if (sum < b.bid) return { ok: false, message: "Выучено {sum} из {need} стихов: не хватает {missing}", vars: { sum, need: b.bid, missing: b.bid - sum } };
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: new Date() }, include: { entries: true } });
   return { ok: true, battle: await maybeStartDefense(upd) };
 }
 
 /** Капитан защитников отправляет оборону на проверку до дедлайна: сумма ≥ одобренной суммы атаки. */
-export async function submitDefense(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
-  if (b.status !== "DEFENSE") return { ok: false, message: "Ответ не идёт" };
+export async function submitDefense(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string; vars?: Record<string, number> }> {
+  if (b.status !== "DEFENSE") return { ok: false, message: "Ответ сейчас не идёт" };
   if (b.defenseDoneAt) return { ok: false, message: "Ответ уже отправлен на проверку" };
   if (b.defenseDeadline && b.defenseDeadline.getTime() < Date.now()) return { ok: false, message: "Время ответа вышло" };
   const need = sumVerses(b.entries, "ATTACK", true);
   const sum = sumVerses(b.entries, "DEFENSE", false);
-  if (sum < need) return { ok: false, message: `Выучено ${sum} из ${need} стихов: не хватает ${need - sum}` };
+  if (sum < need) return { ok: false, message: "Выучено {sum} из {need} стихов: не хватает {missing}", vars: { sum, need, missing: need - sum } };
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: new Date(), defenseBid: sum }, include: { entries: true } });
   return { ok: true, battle: await maybeRepel(upd) };
 }
@@ -273,13 +273,13 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   const minBid = minBidFor(node.defenseLevel, penalty);
   const studied = Boolean(content && state?.orderSolved && content.tasks.every((_, i) => state!.doneTasks.includes(i)));
   let reason: string | null = null;
-  if (node.ruined) reason = "Руины: город берут выполнением заданий, без ключа и без испытания";
+  if (node.ruined) reason = "Это руины: город берут, решив задания, без ключа и без испытания";
   else if (!owner) reason = "Город свободен: его берут ключом из конверта, а не испытанием";
   else if (owner.teamId === teamId) reason = "Это ваш город";
-  else if (team.status === "defeated") reason = "Команда выбыла из игры";
-  else if (node.lockedForever) reason = "Город закреплён навсегда: он устоял в суммарном режиме";
+  else if (team.status === "defeated") reason = "Ваша команда выбыла из игры";
+  else if (node.lockedForever) reason = "Город устоял окончательно: бросить ему вызов больше нельзя";
   else if (!studied) reason = "Сначала решите задания всех районов";
   else if (!book) reason = "Текст этой книги ещё не загружен: бросить вызов нельзя";
-  else if (mine) reason = mine.status === "QUEUED" ? "Вы уже в очереди на вызов" : "Испытание этого города уже идёт";
+  else if (mine) reason = mine.status === "QUEUED" ? "Ваш вызов уже в очереди" : "Ваш вызов этому городу уже идёт";
   return { defenseLevel: node.defenseLevel, sumMode: node.sumMode, locked: node.lockedForever, bookVerses: book?.total ?? null, penalty, minBid, canDeclare: reason === null, reason, owner: owner?.team ?? null };
 }

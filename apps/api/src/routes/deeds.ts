@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
+import { err } from "../services/i18n.js";
 
 export const DIRECTIONS = [
   "Молитва", "Молодёжные нужды братства", "Благовестие", "Посещение",
@@ -24,8 +25,8 @@ const deedBody = z.object({
 
 async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: { select: { userId: true } } } });
-  if (!game) { await reply.code(404).send({ error: "not_found", message: "Игра не найдена" }); return null; }
-  if (!game.admins.some((a) => a.userId === request.user!.id)) { await reply.code(403).send({ error: "forbidden", message: "Вы не администратор этой игры" }); return null; }
+  if (!game) { await reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") }); return null; }
+  if (!game.admins.some((a) => a.userId === request.user!.id)) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
   return game;
 }
 
@@ -64,7 +65,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireGameAdmin(request, reply, id))) return;
     const body = deedBody.partial().parse(request.body);
     const exists = await prisma.deed.findFirst({ where: { id: deedId, gameId: id } });
-    if (!exists) return reply.code(404).send({ error: "not_found", message: "Дело не найдено" });
+    if (!exists) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     const deed = await prisma.deed.update({ where: { id: deedId }, data: body });
     publish(id, { type: "deeds" });
     return { deed };
