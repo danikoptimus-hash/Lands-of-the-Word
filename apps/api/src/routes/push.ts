@@ -15,7 +15,11 @@ const endpointBody = z.object({ endpoint: z.string().url().max(2000) });
 export async function pushRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
 
-  app.get("/api/push/key", async () => ({ key: pushPublicKey() }));
+  app.get("/api/push/key", async (_request, reply) => {
+    const key = await pushPublicKey();
+    if (!key) return reply.code(503).send({ error: "unavailable", message: "Уведомления пока недоступны: попробуйте позже" });
+    return { key };
+  });
 
   /** Сохраняет подписку браузера за текущим пользователем (endpoint уникален: перелогин переписывает владельца). */
   app.post("/api/push/subscribe", async (request, reply) => {

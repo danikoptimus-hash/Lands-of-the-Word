@@ -24,13 +24,15 @@ if [[ "${HAS_APP:-false}" == "true" ]]; then
   (cd deploy && docker compose pull --quiet)
 fi
 
+# Миграции — до запуска нового образа: иначе сервер стартует раньше, чем появятся новые таблицы.
+if [[ "${HAS_APP:-false}" == "true" ]] && grep -q '^  app:' deploy/docker-compose.yml; then
+  echo "==> База и миграции"
+  (cd deploy && docker compose up -d db)
+  (cd deploy && docker compose run --rm --no-deps app npm run db:migrate) || echo "миграции не применились: смотри вывод выше"
+fi
+
 echo "==> Запуск"
 (cd deploy && docker compose up -d --remove-orphans)
-
-if [[ "${HAS_APP:-false}" == "true" ]] && grep -q '^  app:' deploy/docker-compose.yml; then
-  echo "==> Миграции базы"
-  (cd deploy && docker compose exec -T app npm run db:migrate) || echo "миграции пропущены (команда ещё не настроена)"
-fi
 
 echo "==> Ежедневный бэкап базы (cron 03:30)"
 mkdir -p /opt/lotw-backups
