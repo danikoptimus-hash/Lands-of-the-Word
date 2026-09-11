@@ -30,7 +30,7 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
         {rows.length > active.length && <button className="secondary sm" onClick={() => setShowAll((v) => !v)}>{showAll ? t("Только активные") : t("Все ({n})", { n: rows.length })}</button>}
       </div>
       {error && <p className="error">{error}</p>}
-      {shown.length === 0 ? <p className="muted">{t("Испытаний нет.")}</p> : shown.map((b) => (
+      {shown.length === 0 ? <p className="muted">{t("Все города спокойны: испытаний пока никто не начинал.")}</p> : shown.map((b) => (
         <div key={b.id} className={"battle admin " + b.status.toLowerCase()}>
           <div className="row between">
             <div><span className="badge" style={{ background: b.attacker.color, color: "#fff", borderColor: "transparent" }}>{b.attacker.name}</span> → <span className="badge" style={{ background: b.defender.color, color: "#fff", borderColor: "transparent" }}>{b.defender.name}</span> <strong>{t("город {name}", { name: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? "" })}</strong></div>

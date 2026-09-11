@@ -17,8 +17,8 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   const [recommended, setRecommended] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  // Список дел большой: по умолчанию свёрнут.
-  const [expanded, setExpanded] = useState(false);
+  // Дела живут на своей вкладке, поэтому список сразу развёрнут.
+  const [expanded, setExpanded] = useState(true);
   const ui = useUi();
   const [form, setForm] = useState({ title: "", description: "", direction: "", proofType: "PHOTO_LINK" as ProofType, canRepeat: true, bookCode: "", difficulty: 1 });
 
@@ -89,7 +89,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
           <div className="actions"><button type="submit">{t("Добавить дело")}</button></div>
         </form>
       )}
-      {deeds.length === 0 ? <p className="muted">{t("Список пуст. Добавь стандартный набор как заготовку или создай свои дела.")}</p> : !expanded ? null : (
+      {deeds.length === 0 ? <p className="muted">{t("Список пуст. Возьми стандартный набор как заготовку или придумай свои дела.")}</p> : !expanded ? null : (
         <ul className="list">
           {deeds.map((d) => (
             <li key={d.id}>

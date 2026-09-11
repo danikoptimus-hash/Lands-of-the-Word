@@ -1,9 +1,9 @@
-import { useMemo } from "react";
+import { useMemo , useState} from "react";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import type { MyMapDto } from "../lib/api";
-import { HexTiles, IMG } from "./MapLayers";
+import { HexTiles, IMG, Sea } from "./MapLayers";
 import { t } from "../lib/i18n";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -35,7 +35,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const { k, tx, ty } = vp.view;
   const S = (p: { x: number; y: number }) => ({ x: tx + p.x * k, y: ty + p.y * k });
   const click = (taskId: string) => { if (!vp.wasDrag()) onSelect(selectedTaskId === taskId ? null : taskId); };
-  const clickCity = (key: string) => { if (!vp.wasDrag()) onSelectCity(key); };
+  const [ripple, setRipple] = useState<{ x: number; y: number; n: number } | null>(null);
+  const clickCity = (key: string) => {
+    if (vp.wasDrag()) return;
+    const p = positions.get(key); if (p) setRipple((r) => ({ x: p.x, y: p.y, n: (r?.n ?? 0) + 1 }));
+    onSelectCity(key);
+  };
   const statusColor = (s: string) => s === "SUBMITTED" ? "#C7742A" : s === "TAKEN" ? "#3E7A4E" : s === "REJECTED" ? "#B3402F" : "#FFFFFF";
   const R = k >= 1.6 ? 12 : 9;
   // Уровни детализации: при отдалении метки дел и подписи прячутся, чтобы не заслонять карту.
@@ -47,6 +52,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     <div ref={vp.ref} {...vp.handlers} style={{ position: "absolute", inset: 0, touchAction: "none", cursor: "grab", userSelect: "none", overflow: "hidden", background: "#2B2724" }}>
       <svg width="100%" height="100%" style={{ display: "block" }}>
         <g transform={`translate(${tx},${ty}) scale(${k})`}>
+          <Sea size={size} id="sea-team" dim />
           <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" />
           {map.edges.map((e) => {
             const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -69,7 +75,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               return (
                 <g key={"c" + n.key} onClick={() => clickCity(n.key)} style={{ cursor: "pointer" }}>
                   {c?.owner && <circle cx={p.x} cy={p.y - CITY * 0.1} r={CITY * 0.62} fill={c.owner.color} fillOpacity={0.35} stroke={c.owner.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />}
-                  <image href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />
+                  <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />
                 </g>
               );
             }
@@ -119,6 +125,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
+          {ripple && <circle key={ripple.n} className="map-ripple" cx={ripple.x} cy={ripple.y} r={6} />}
         </g>
       </svg>
       <div className="map-controls">

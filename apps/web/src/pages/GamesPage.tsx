@@ -63,7 +63,7 @@ export function GamesPage() {
           <h2><span className="ico"><Icon name="settings" /></span>{t("Мои игры")} <span className="muted">{t("(я администратор)")}</span></h2>
           <button className={showForm ? "secondary sm" : "sm"} onClick={() => setShowForm((v) => !v)}><Icon name={showForm ? "x" : "plus"} />{showForm ? t("Скрыть") : t("Новая игра")}</button>
         </div>
-        {games === null ? <p className="muted">{t("Загрузка…")}</p> : games.length === 0 ? <p className="muted">{t("Пока нет игр. Создай первую.")}</p> : (
+        {games === null ? <p className="muted">{t("Загрузка…")}</p> : games.length === 0 ? <p className="muted">{t("Игр пока нет. Самое время начать первую.")}</p> : (
           <div className="cards">
             {games.map((g) => (
               <Link key={g.id} to={`/games/${g.id}`} className="game-card" style={{ ["--tone" as string]: g.status === "ACTIVE" ? "var(--success)" : g.status === "DRAFT" ? "var(--warn)" : "var(--border-strong)" }}>

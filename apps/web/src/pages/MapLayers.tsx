@@ -7,6 +7,22 @@ export const IMG = {
   start: (i: number) => `/img/start/${["babylon", "egypt", "wilderness", "assyria", "zin", "shipwreck"][i % 6]}.webp`,
 };
 
+/** Море вокруг острова: замощение текстурой воды на весь мир, рисуется под гексами. dim — приглушить (вид команды, туман). */
+export function Sea({ size = HEX_SIZE, id, dim }: { size?: number; id: string; dim?: boolean }) {
+  const tile = size * 2.02, R = 40000;
+  return (
+    <>
+      <defs>
+        <pattern id={id} patternUnits="userSpaceOnUse" width={tile} height={tile}>
+          <image href={IMG.terrain("water")} x={0} y={0} width={tile} height={tile} preserveAspectRatio="xMidYMid slice" />
+        </pattern>
+      </defs>
+      <rect x={-R} y={-R} width={2 * R} height={2 * R} fill={`url(#${id})`} opacity={dim ? 0.28 : 0.85} />
+      {!dim && <rect x={-R} y={-R} width={2 * R} height={2 * R} fill="#6FA0C8" opacity={0.12} />}
+    </>
+  );
+}
+
 /** Слой гексов: текстуры местности под клип-маской гекса, туман — тёмные гексы. */
 export function HexTiles({ hexes, size = HEX_SIZE, clipId }: { hexes: MapHexDto[]; size?: number; clipId: string }) {
   const poly = hexPoints(size, 0.995);

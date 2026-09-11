@@ -37,11 +37,11 @@ export function AdminsBlock({ gameId, version = 0 }: { gameId: string; version?:
           </li>
         ))}
       </ul>
-      <form onSubmit={add} className="row" style={{ marginTop: ".6rem", gap: ".5rem", alignItems: "flex-end" }}>
-        <div style={{ flex: "1 1 220px" }}><label htmlFor="adm-login">{t("Добавить администратора")}</label><input id="adm-login" value={login} onChange={(e) => setLogin(e.target.value)} placeholder={t("никнейм или почта")} required minLength={3} /></div>
-        <button type="submit" className="secondary">{t("Добавить")}</button>
+      <form onSubmit={add} className="inline-form" style={{ marginTop: ".6rem" }}>
+        <input id="adm-login" value={login} onChange={(e) => setLogin(e.target.value)} placeholder={t("Добавить админа: никнейм или почта")} aria-label={t("Добавить администратора")} maxLength={120} />
+        <button type="submit" className="secondary sm" disabled={!login.trim()} title={t("Добавить")}><Icon name="plus" />{t("Добавить")}</button>
       </form>
-      <p className="hint">{t("Администраторы видят всю карту, проверяют дела и записи испытаний и получают письма о новых сдачах (если указана почта). Человек должен быть уже зарегистрирован.")}</p>
+      <p className="hint">{t("Админы видят всю карту, проверяют дела и записи испытаний и получают письма о сдачах. Человек должен быть уже зарегистрирован.")}</p>
       {error && <p className="error">{error}</p>}
     </div>
   );

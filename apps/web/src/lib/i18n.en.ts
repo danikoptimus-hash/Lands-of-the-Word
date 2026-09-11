@@ -341,4 +341,14 @@ export const EN: Record<string, string> = {
   "Капитан": "Captain", "На карту": "Open map", "Новая игра": "New game", "Новое дело": "New deed", "Обзор": "Overview", "Подготовка": "Preparation", "Проверка": "Review",
   "Сдачи дел и записи испытаний появятся здесь после старта игры.": "Deed submissions and trial recordings will appear here after the game starts.",
   "Участники": "Members", "городов взято": "cities taken", "испытания: перешло / устояли / потеряно": "trials: passed on / held / lost", "карта не создана": "map not generated", "команд": "teams", "мы": "us",
+  // Живые тексты пустых состояний.
+  "Пока тихо. Как только команда сдаст дело, оно появится здесь.": "Quiet for now. As soon as a team submits a deed, it shows up here.",
+  "Все города спокойны: испытаний пока никто не начинал.": "All cities are calm: nobody has started a trial yet.",
+  "Команда пока пустая: отправь ссылку капитану.": "The team is empty so far: send the link to the captain.",
+  "Дела ждут на карте: нажми на метку у дороги.": "Deeds are waiting on the map: tap a marker by a road.",
+  "Игр пока нет. Самое время начать первую.": "No games yet. A good time to start the first one.",
+  "Список пуст. Возьми стандартный набор как заготовку или придумай свои дела.": "The list is empty. Take the default set as a draft or invent your own deeds.",
+  "Добавить админа: никнейм или почта": "Add an admin: nickname or email",
+  "Админы видят всю карту, проверяют дела и записи испытаний и получают письма о сдачах. Человек должен быть уже зарегистрирован.": "Admins see the whole map, review deeds and trial recordings and get emails about submissions. The person must already be registered.",
+  "После старта можно менять только пожертвование: карта и команды зафиксированы.": "After the start only the donation can be changed: the map and teams are fixed.",
 };

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Icon } from "../components/Icon";
 import { Link, Navigate } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -74,7 +75,7 @@ export function AdminDashboard() {
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   return (
     <>
-      <p><Link to="/">← Мои игры</Link></p>
+      <Link to="/" className="crumb"><Icon name="back" />Мои игры</Link>
       <div className="card-head">
         <h1>Аналитика платформы</h1>
         <div className="row">

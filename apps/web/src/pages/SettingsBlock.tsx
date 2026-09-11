@@ -17,12 +17,13 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   const [currency, setCurrency] = useState(game.settings.donationCurrency ?? "");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (game.status !== "DRAFT") return null;
+  const draft = game.status === "DRAFT";
+  if (game.status === "FINISHED") return null;
 
   async function save(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(null);
     try {
-      await api(`/api/games/${game.id}`, { method: "PATCH", body: JSON.stringify({ name, teamCount, settings: game.status === "DRAFT" ? { nodeCount, equidistantStarts: equidistant, maxStartDistanceDiff: maxDiff, includeGenealogies: genealogies, donationMin: donationMin === "" ? null : Number(donationMin), donationCurrency: currency } : { donationMin: donationMin === "" ? null : Number(donationMin), donationCurrency: currency } }) });
+      await api(`/api/games/${game.id}`, { method: "PATCH", body: JSON.stringify({ ...(draft ? { name, teamCount } : {}), settings: draft ? { nodeCount, equidistantStarts: equidistant, maxStartDistanceDiff: maxDiff, includeGenealogies: genealogies, donationMin: donationMin === "" ? null : Number(donationMin), donationCurrency: currency } : { donationMin: donationMin === "" ? null : Number(donationMin), donationCurrency: currency } }) });
       setOpen(false); onSaved();
     } catch (err) { setError(err instanceof ApiError ? err.message : t("Ошибка сети")); }
     finally { setBusy(false); }
@@ -37,20 +38,21 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
       {!open && <p className="muted">{t("Команд: {n}", { n: game.teamCount })} · {t("узлов: {n}", { n: game.settings.nodeCount ?? 250 })} · {t("старты: {s}", { s: game.settings.equidistantStarts ? t("равноудалённые") : t("случайные") })} · {t("разница до первого города ≤ {n}", { n: game.settings.maxStartDistanceDiff ?? 3 })} · {t("родословия в испытаниях: {s}", { s: game.settings.includeGenealogies ? t("да") : t("нет") })} · {t("пожертвование вместо дела: {s}", { s: game.settings.donationMin ? t("от {n} {cur}", { n: game.settings.donationMin, cur: game.settings.donationCurrency ?? "" }) : t("выключено") })}</p>}
       {open && (
         <form onSubmit={save}>
-          <label htmlFor="s-name">{t("Название")}</label>
-          <input id="s-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={80} />
+          {draft && <><label htmlFor="s-name">{t("Название")}</label>
+          <input id="s-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={80} /></>}
+          {draft && (
           <div className="grid cols-3">
             <div><label htmlFor="s-teams">{t("Команд")}</label><input id="s-teams" type="number" min={2} max={12} value={teamCount} onChange={(e) => setTeamCount(Number(e.target.value))} /></div>
             <div><label htmlFor="s-nodes">{t("Узлов на карте")}</label><input id="s-nodes" type="number" min={200} max={600} step={10} value={nodeCount} onChange={(e) => setNodeCount(Number(e.target.value))} /></div>
             <div><label htmlFor="s-diff">{t("Разница до первого города")}</label><input id="s-diff" type="number" min={0} max={6} value={maxDiff} onChange={(e) => setMaxDiff(Number(e.target.value))} /></div>
-          </div>
-          <label className="check"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />{t("Равноудалённые старты")}</label>
-          <label className="check"><input type="checkbox" checked={genealogies} onChange={(e) => setGenealogies(e.target.checked)} />{t("Включать родословия и списки в случайный отрывок для испытания")}</label>
+          </div>)}
+          {draft && <label className="check"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />{t("Равноудалённые старты")}</label>}
+          {draft && <label className="check"><input type="checkbox" checked={genealogies} onChange={(e) => setGenealogies(e.target.checked)} />{t("Включать родословия и списки в случайный отрывок для испытания")}</label>}
           <div className="grid cols-3">
             <div><label htmlFor="s-don">{t("Пожертвование вместо дела, минимум")}</label><input id="s-don" type="number" min={0} value={donationMin} onChange={(e) => setDonationMin(e.target.value === "" ? "" : Number(e.target.value))} placeholder={t("пусто — выключено")} /></div>
             <div><label htmlFor="s-cur">{t("Валюта")}</label><input id="s-cur" value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={10} placeholder={t("сум, ₽, $")} /></div>
           </div>
-          <p className="hint">{t("После изменения числа команд или узлов карту нужно сгенерировать заново.")}</p>
+          {draft ? <p className="hint">{t("После изменения числа команд или узлов карту нужно сгенерировать заново.")}</p> : <p className="hint">{t("После старта можно менять только пожертвование: карта и команды зафиксированы.")}</p>}
           {error && <p className="error">{error}</p>}
           <div className="actions"><button type="submit" disabled={busy}>{t("Сохранить")}</button><button type="button" className="secondary" onClick={() => setOpen(false)}>{t("Отмена")}</button></div>
         </form>

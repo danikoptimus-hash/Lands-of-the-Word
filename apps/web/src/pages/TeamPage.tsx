@@ -226,7 +226,7 @@ export function TeamPage() {
             </div>
             <div className="section">
               <h2><Icon name="scroll" />{t("Взятые дела")} <span className="muted">{takenTasks.length}</span></h2>
-              {takenTasks.length === 0 && <p className="muted" style={{ margin: 0 }}>{t("Пока ничего не взято. Нажми на сторону с меткой на карте.")}</p>}
+              {takenTasks.length === 0 && <p className="muted" style={{ margin: 0 }}>{t("Дела ждут на карте: нажми на метку у дороги.")}</p>}
               <ul className="list">
                 {takenTasks.map((tk) => (
                   <li key={tk.id} onClick={() => { setSelectedId(tk.id); setMenu(false); }} style={{ cursor: "pointer" }}>

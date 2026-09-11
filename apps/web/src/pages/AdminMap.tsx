@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, TERRAIN_COLOR, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { HexTiles, IMG } from "./MapLayers";
+import { HexTiles, IMG, Sea } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { api, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { useEffect } from "react";
@@ -45,6 +45,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         <div ref={vp.ref} {...vp.handlers} className="mapwrap" style={{ height: "min(70vh, 640px)", minHeight: 360, touchAction: "none", cursor: "grab", userSelect: "none", overflow: "hidden" }}>
           <svg width="100%" height="100%" style={{ display: "block" }}>
             <g transform={`translate(${vp.view.tx},${vp.view.ty}) scale(${vp.view.k})`}>
+              <Sea size={size} id="sea-admin" />
               <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
               {nodes.map((n) => {
                 const p = positions.get(n.key)!;

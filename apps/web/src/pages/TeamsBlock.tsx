@@ -79,7 +79,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange }:
               </div>
             </div>
           )}
-          {tm.members.length === 0 ? <p className="muted">{t("Пока никого. Отправь ссылку-приглашение.")}</p> : (
+          {tm.members.length === 0 ? <p className="muted">{t("Команда пока пустая: отправь ссылку капитану.")}</p> : (
             <ul className="list">
               {tm.members.map((m) => (
                 <li key={m.user.id}>

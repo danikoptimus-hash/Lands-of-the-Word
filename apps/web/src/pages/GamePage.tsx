@@ -116,7 +116,7 @@ export function GamePage() {
       </div>
 
       {tab === "overview" && (
-        <>
+        <div className="tab-pane" key="overview">
           {game.status === "DRAFT" && (
             <div className="card" data-tone="warn">
               <div className="card-head">
@@ -139,26 +139,26 @@ export function GamePage() {
           ) : (
             <div className="card"><div className="tab-empty"><Icon name="map" />{t("Карта ещё не сгенерирована. Нажми «Сгенерировать карту».")}</div></div>
           )}
-        </>
+        </div>
       )}
 
-      {tab === "teams" && <TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} />}
-      {tab === "deeds" && <DeedsBlock gameId={game.id} version={version} onChange={bump} />}
+      {tab === "teams" && <div className="tab-pane" key="teams"><TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} /></div>}
+      {tab === "deeds" && <div className="tab-pane" key="deeds"><DeedsBlock gameId={game.id} version={version} onChange={bump} /></div>}
       {tab === "review" && (active ? (
-        <>
+        <div className="tab-pane" key="review">
           <SubmissionsBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
           <BattlesBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
           <PassagesBlock gameId={game.id} version={version} />
-        </>
+        </div>
       ) : (
         <div className="card"><div className="tab-empty"><Icon name="check" />{game.status === "DRAFT" ? t("Сдачи дел и записи испытаний появятся здесь после старта игры.") : t("Игра завершена: проверять больше нечего.")}</div></div>
       ))}
       {tab === "settings" && (
-        <>
+        <div className="tab-pane" key="settings">
           <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
           <AdminsBlock gameId={game.id} version={version} />
           {game.status !== "DRAFT" && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={() => { void load(); void loadProgress(); }} />}
-        </>
+        </div>
       )}
     </>
   );

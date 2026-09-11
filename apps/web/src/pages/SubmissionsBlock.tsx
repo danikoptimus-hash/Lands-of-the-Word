@@ -29,7 +29,7 @@ export function SubmissionsBlock({ gameId, version = 0, onDecided }: { gameId: s
     <div className="card" data-tone="green">
       <div className="card-head"><h2><span className="ico"><Icon name="check" /></span>{t("Сдачи на проверку")} <span className={"badge" + (rows.length ? " accent" : "")}>{rows.length}</span></h2></div>
       {error && <p className="error">{error}</p>}
-      {rows.length === 0 ? <p className="muted">{t("Пока ничего не сдано.")}</p> : (
+      {rows.length === 0 ? <p className="muted">{t("Пока тихо. Как только команда сдаст дело, оно появится здесь.")}</p> : (
         <ul className="list">
           {rows.map((r) => (
             <li key={r.id} style={{ alignItems: "flex-start" }}>

@@ -4,6 +4,7 @@ import { api, ApiError, type User } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
+import { Icon } from "../components/Icon";
 
 /** Настройки аккаунта: имя, email, язык, смена пароля. Никнейм не меняется. */
 export function AccountPage() {
@@ -33,9 +34,9 @@ export function AccountPage() {
 
   return (
     <>
-      <p><Link to="/">{t("← Мои игры")}</Link></p>
-      <div className="card auth" style={{ margin: "0 auto" }}>
-        <h1>{t("Аккаунт")}</h1>
+      <Link to="/" className="crumb"><Icon name="back" />{t("Мои игры")}</Link>
+      <div className="card auth" data-tone="accent" style={{ margin: "0 auto" }}>
+        <h1 style={{ fontSize: "1.3rem" }}><span className="ico"><Icon name="user" /></span>{t("Аккаунт")}</h1>
         <p className="muted">{t("Никнейм:")} <strong>{user.nickname}</strong>{user.platformRole === "SUPERADMIN" ? t(" · суперадмин") : ""}</p>
         <form onSubmit={saveProfile}>
           <label htmlFor="a-name">{t("Отображаемое имя")} <span className="muted">{t("необязательно")}</span></label>
@@ -50,7 +51,7 @@ export function AccountPage() {
         </form>
       </div>
       <div className="card auth" style={{ margin: "1rem auto" }}>
-        <h2>{t("Сменить пароль")}</h2>
+        <h2><span className="ico"><Icon name="settings" /></span>{t("Сменить пароль")}</h2>
         <form onSubmit={changePassword}>
           <label htmlFor="a-cur">{t("Текущий пароль")}</label>
           <input id="a-cur" type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" required />
