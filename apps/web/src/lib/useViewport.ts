@@ -9,7 +9,7 @@ export interface View { k: number; tx: number; ty: number }
 export function useViewport(bounds: { minX: number; minY: number; width: number; height: number } | null, focus?: { x: number; y: number; k?: number } | null) {
   const ref = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>({ k: 1, tx: 0, ty: 0 });
-  const pointers = useRef(new Map<number, { x: number; y: number; at: number }>());
+  const pointers = useRef(new Map<number, { x: number; y: number; at: number; type: string }>());
   const gesture = useRef<{ startDist: number; startK: number; moved: number; last: { x: number; y: number } } | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -79,9 +79,10 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
   const onPointerDown = (e: React.PointerEvent) => {
     // Без setPointerCapture: иначе click уходит контейнеру, а не клетке карты.
     const now = Date.now();
-    // Палец, не двигавшийся больше секунды, — «потерянный» (браузер не прислал pointerup): выбрасываем.
-    for (const [id, pt] of pointers.current) if (now - pt.at > 1000) pointers.current.delete(id);
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: now });
+    // Мышь или перо, не двигавшиеся больше секунды, — «потерянные» (браузер не прислал pointerup): выбрасываем.
+    // Пальцы не трогаем: их снимает touchend на window, а палец, спокойно лежащий на карте перед щипком, — норма.
+    for (const [id, pt] of pointers.current) if (pt.type !== "touch" && now - pt.at > 1000) pointers.current.delete(id);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: now, type: e.pointerType });
     const pts = [...pointers.current.values()];
     gesture.current = { startDist: pts.length === 2 ? Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y) : 0, startK: viewRef.current.k, moved: 0, last: { x: e.clientX, y: e.clientY } };
   };
@@ -90,7 +91,7 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
     const prev = pointers.current.get(e.pointerId)!;
     // Мышь без нажатой кнопки — не жест (после отпускания за пределами окна pointerup мог не прийти).
     if (e.pointerType === "mouse" && e.buttons === 0) { pointers.current.delete(e.pointerId); gesture.current = null; return; }
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: Date.now() });
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: Date.now(), type: e.pointerType });
     const pts = [...pointers.current.values()];
     const g = gesture.current;
     if (pts.length === 1) {
