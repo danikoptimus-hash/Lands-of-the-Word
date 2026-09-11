@@ -31,7 +31,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="card auth">
+    <div className="login-page"><div className="card auth">
       <div className="row between" style={{ marginBottom: ".5rem" }}>
         <span />
         <button type="button" className="ghost sm" onClick={() => setGuestLocale(locale === "en" ? "ru" : "en")} aria-label="Language">{locale === "en" ? "Русский" : "English"}</button>
@@ -63,6 +63,6 @@ export function LoginPage() {
         </div>
         {mode === "login" && <p style={{ marginTop: ".8rem", textAlign: "center" }}><Link to="/forgot" className="muted">{t("Забыли пароль?")}</Link></p>}
       </form>
-    </div>
+    </div></div>
   );
 }

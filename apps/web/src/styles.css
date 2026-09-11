@@ -14,10 +14,13 @@ body { margin: 0; overscroll-behavior-x: none; background: var(--bg); color: var
 /* Фактура «пергамента»: мягкое тёплое свечение сверху + мелкое зерно. Карточки остаются белыми и читаемыми. */
 body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
-    radial-gradient(1200px 500px at 50% -120px, rgba(199,116,42,.16), transparent 70%),
-    radial-gradient(800px 400px at 100% 100%, rgba(62,122,78,.07), transparent 70%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .28 0 0 0 0 .2 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    radial-gradient(1200px 500px at 50% -120px, rgba(199,116,42,.14), transparent 70%),
+    url("/img/brand/bg-tile.webp") center top / 720px auto repeat;
 }
+/* Страница входа: панорама на весь экран, карточка полупрозрачная поверх спокойного центра картинки. */
+.login-page::before { content: ""; position: fixed; inset: 0; z-index: -1; background: url("/img/brand/hero.webp") center / cover no-repeat; }
+.login-page::after { content: ""; position: fixed; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(246,244,239,.15), rgba(246,244,239,.55) 70%); }
+.login-page .card { background: rgba(255,255,255,.9); backdrop-filter: blur(6px); border-color: rgba(255,255,255,.7); box-shadow: 0 12px 40px rgba(60,40,10,.18); }
 a { color: var(--accent); text-decoration: none; }
 a:hover { text-decoration: underline; }
 h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -.01em; margin: 0 0 .5rem; }

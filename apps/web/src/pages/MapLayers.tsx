@@ -9,16 +9,15 @@ export const IMG = {
 
 /** Море вокруг острова: замощение текстурой воды на весь мир, рисуется под гексами. dim — приглушить (вид команды, туман). */
 export function Sea({ size = HEX_SIZE, id, dim }: { size?: number; id: string; dim?: boolean }) {
-  const tile = size * 2.02, R = 40000;
+  const tile = size * 6, R = 40000;
   return (
     <>
       <defs>
         <pattern id={id} patternUnits="userSpaceOnUse" width={tile} height={tile}>
-          <image href={IMG.terrain("water")} x={0} y={0} width={tile} height={tile} preserveAspectRatio="xMidYMid slice" />
+          <image href="/img/brand/sea.webp" x={0} y={0} width={tile} height={tile} preserveAspectRatio="xMidYMid slice" />
         </pattern>
       </defs>
-      <rect x={-R} y={-R} width={2 * R} height={2 * R} fill={`url(#${id})`} opacity={dim ? 0.28 : 0.85} />
-      {!dim && <rect x={-R} y={-R} width={2 * R} height={2 * R} fill="#6FA0C8" opacity={0.12} />}
+      <rect x={-R} y={-R} width={2 * R} height={2 * R} fill={`url(#${id})`} opacity={dim ? 0.3 : 1} />
     </>
   );
 }
