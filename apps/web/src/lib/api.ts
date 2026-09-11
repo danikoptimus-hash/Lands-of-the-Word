@@ -27,7 +27,7 @@ export interface MemberDto { role: TeamRole; gameRole: GameRole; joinedAt: strin
 export interface TeamDto { id: string; index: number; name: string; color: string; startNodeKey: string | null; members: MemberDto[] }
 export interface MyTeamDto { role: TeamRole; gameRole: GameRole; team: { id: string; name: string; color: string }; game: { id: string; name: string; status: string; org: { name: string } } }
 
-export const GAME_ROLE_LABEL: Record<GameRole, string> = { get NONE() { return "—"; }, get SCOUT() { return t("Разведчик"); }, get PROPHET() { return t("Пророк"); }, get AMBASSADOR() { return t("Посол"); }, get CHRONICLER() { return t("Летописец"); } };
+export const GAME_ROLE_LABEL: Record<GameRole, string> = { get NONE() { return t("Без роли"); }, get SCOUT() { return t("Разведчик"); }, get PROPHET() { return t("Пророк"); }, get AMBASSADOR() { return t("Посол"); }, get CHRONICLER() { return t("Летописец"); } };
 export const TEAM_ROLE_LABEL: Record<TeamRole, string> = { get CAPTAIN() { return t("капитан"); }, get MEMBER() { return t("участник"); } };
 
 export type EdgeTaskStatus = "OPEN" | "TAKEN" | "SUBMITTED" | "APPROVED" | "REJECTED";
@@ -60,8 +60,8 @@ export interface AdminCityDto {
   content: { title: string; translation: string; codeRule: string; districts: Array<{ verses: string; title: string; summary: string }>; tasks: AdminCityTask[] } | null;
   teams: Array<{ id: string; index: number; name: string; color: string; orderSolved: boolean; orderAttempts: number; doneTasks: number[]; answerAttempts: number; capturedAt: string | null; isCapital: boolean }>;
 }
-export const PROOF_LABEL: Record<DeedLite["proofType"], string> = { get REPORT() { return t("отчёт текстом"); }, get PHOTO_LINK() { return t("ссылка на фото"); }, get VIDEO_LINK() { return t("ссылка на видео"); }, get CONFIRMATION() { return t("подтверждение человека"); } };
-export const TASK_STATUS_LABEL: Record<EdgeTaskStatus, string> = { get OPEN() { return t("свободно"); }, get TAKEN() { return t("в работе"); }, get SUBMITTED() { return t("на проверке"); }, get APPROVED() { return t("одобрено"); }, get REJECTED() { return t("вернули"); } };
+export const PROOF_LABEL: Record<DeedLite["proofType"], string> = { get REPORT() { return t("отчёт"); }, get PHOTO_LINK() { return t("фото"); }, get VIDEO_LINK() { return t("видео"); }, get CONFIRMATION() { return t("подтверждение"); } };
+export const TASK_STATUS_LABEL: Record<EdgeTaskStatus, string> = { get OPEN() { return t("свободно"); }, get TAKEN() { return t("в работе"); }, get SUBMITTED() { return t("на проверке"); }, get APPROVED() { return t("принято"); }, get REJECTED() { return t("возвращено"); } };
 
 /** Битва за город. Записи чужой стороны команде не видны. */
 export type BattleStatus = "QUEUED" | "ATTACK" | "DEFENSE" | "WON" | "REPELLED" | "EXPIRED" | "CANCELLED";
@@ -77,7 +77,7 @@ export interface BattleDto {
 }
 export interface BookTextDto { code: string; name: string; verseCounts: number[]; chapters: string[][] | null; total: number }
 export interface WarDto { defenseLevel: number; sumMode: boolean; locked: boolean; bookVerses: number | null; penalty: number; minBid: number; canDeclare: boolean; reason: string | null; owner: { id: string; name: string; color: string } | null; queue: number; battles: BattleDto[] }
-export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { get QUEUED() { return t("в очереди"); }, get ATTACK() { return t("вызов"); }, get DEFENSE() { return t("ответ"); }, get WON() { return t("город перешёл"); }, get REPELLED() { return t("город устоял"); }, get EXPIRED() { return t("вызов не завершён"); }, get CANCELLED() { return t("отменена"); } };
+export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { get QUEUED() { return t("в очереди"); }, get ATTACK() { return t("вызов"); }, get DEFENSE() { return t("ответ"); }, get WON() { return t("город перешёл"); }, get REPELLED() { return t("город устоял"); }, get EXPIRED() { return t("вызов не завершён"); }, get CANCELLED() { return t("отменено"); } };
 
 /** Итоги игры: положение команд и победитель. */
 export interface CityOnPath { nodeKey: string; bookCode: string; name: string; current: boolean; isCapital: boolean; at: string }
@@ -87,4 +87,4 @@ export interface StandingsDto { status: string; finishedAt: string | null; winne
 /** Дипломатия: запрос прохода через чужой город. */
 export type PassageStatus = "PENDING" | "APPROVED" | "DECLINED" | "EXPIRED" | "REVOKED";
 export interface PassageDto { id: string; nodeKey: string; bookName: string; message: string; answer: string; status: PassageStatus; createdAt: string; expiresAt: string; decidedAt: string | null; requester: { id: string; name: string; color: string }; owner: { id: string; name: string; color: string } }
-export const PASSAGE_LABEL: Record<PassageStatus, string> = { get PENDING() { return t("ждём ответа"); }, get APPROVED() { return t("разрешён"); }, get DECLINED() { return t("отказ"); }, get EXPIRED() { return t("нет ответа — отказ"); }, get REVOKED() { return t("закрыт"); } };
+export const PASSAGE_LABEL: Record<PassageStatus, string> = { get PENDING() { return t("ждём ответа"); }, get APPROVED() { return t("разрешён"); }, get DECLINED() { return t("отказано"); }, get EXPIRED() { return t("без ответа"); }, get REVOKED() { return t("закрыт"); } };
