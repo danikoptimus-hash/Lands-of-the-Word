@@ -351,4 +351,5 @@ export const EN: Record<string, string> = {
   "Добавить админа: никнейм или почта": "Add an admin: nickname or email",
   "Админы видят всю карту, проверяют дела и записи испытаний и получают письма о сдачах. Человек должен быть уже зарегистрирован.": "Admins see the whole map, review deeds and trial recordings and get emails about submissions. The person must already be registered.",
   "После старта можно менять только пожертвование: карта и команды зафиксированы.": "After the start only the donation can be changed: the map and teams are fixed.",
+  "Дело сохранено": "Deed saved", "Изменить дело": "Edit deed", "Редактирование дела. Изменения увидят команды, у которых оно ещё не сдано.": "Editing a deed. Teams that have not submitted it yet will see the changes.",
 };

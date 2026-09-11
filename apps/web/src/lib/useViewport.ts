@@ -9,7 +9,7 @@ export interface View { k: number; tx: number; ty: number }
 export function useViewport(bounds: { minX: number; minY: number; width: number; height: number } | null, focus?: { x: number; y: number; k?: number } | null) {
   const ref = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>({ k: 1, tx: 0, ty: 0 });
-  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pointers = useRef(new Map<number, { x: number; y: number; at: number }>());
   const gesture = useRef<{ startDist: number; startK: number; moved: number; last: { x: number; y: number } } | null>(null);
   const [dragging, setDragging] = useState(false);
 
@@ -30,17 +30,18 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
     setView({ k, tx: el.clientWidth / 2 - x * k, ty: el.clientHeight / 2 - y * k });
   }, []);
 
-  // Начальное положение ставится один раз (и только если поле карты или точка фокуса реально изменились),
-  // иначе каждое обновление данных возвращало бы карту на место.
-  const focusKey = focus ? `${focus.x},${focus.y},${focus.k ?? ""}` : "";
-  const boundsKey = bounds ? `${bounds.minX},${bounds.minY},${bounds.width},${bounds.height}` : "";
-  const applied = useRef("");
+  // Начальное положение ставится ровно один раз, когда поле карты впервые известно. Дальше карта живёт
+  // только по жестам пользователя: границы поля растут с каждым открытым узлом, и раньше это возвращало
+  // и приближало карту «само по себе».
+  const hasBounds = Boolean(bounds);
+  const applied = useRef(false);
+  const viewRef = useRef(view);
+  viewRef.current = view;
   useEffect(() => {
-    const key = `${boundsKey}|${focusKey}`;
-    if (!boundsKey || applied.current === key) return;
-    applied.current = key;
+    if (!hasBounds || applied.current) return;
+    applied.current = true;
     if (focus) focusOn(focus.x, focus.y, focus.k); else fit();
-  }, [fit, focusOn, boundsKey, focusKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fit, focusOn, hasBounds]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const zoomAt = useCallback((factor: number, cx?: number, cy?: number) => {
     setView((v) => {
@@ -50,6 +51,12 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
       const f = k / v.k;
       return { k, tx: px - (px - v.tx) * f, ty: py - (py - v.ty) * f };
     });
+  }, []);
+
+  useEffect(() => {
+    const clear = (e: TouchEvent) => { if (e.touches.length === 0) { pointers.current.clear(); gesture.current = null; setTimeout(() => setDragging(false), 0); } };
+    window.addEventListener("touchend", clear); window.addEventListener("touchcancel", clear);
+    return () => { window.removeEventListener("touchend", clear); window.removeEventListener("touchcancel", clear); };
   }, []);
 
   useEffect(() => {
@@ -66,14 +73,19 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Без setPointerCapture: иначе click уходит контейнеру, а не клетке карты.
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const now = Date.now();
+    // Палец, не двигавшийся больше секунды, — «потерянный» (браузер не прислал pointerup): выбрасываем.
+    for (const [id, pt] of pointers.current) if (now - pt.at > 1000) pointers.current.delete(id);
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: now });
     const pts = [...pointers.current.values()];
-    gesture.current = { startDist: pts.length === 2 ? Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y) : 0, startK: view.k, moved: 0, last: { x: e.clientX, y: e.clientY } };
+    gesture.current = { startDist: pts.length === 2 ? Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y) : 0, startK: viewRef.current.k, moved: 0, last: { x: e.clientX, y: e.clientY } };
   };
   const onPointerMove = (e: React.PointerEvent) => {
     if (!pointers.current.has(e.pointerId) || !gesture.current) return;
     const prev = pointers.current.get(e.pointerId)!;
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    // Мышь без нажатой кнопки — не жест (после отпускания за пределами окна pointerup мог не прийти).
+    if (e.pointerType === "mouse" && e.buttons === 0) { pointers.current.delete(e.pointerId); gesture.current = null; return; }
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: Date.now() });
     const pts = [...pointers.current.values()];
     const g = gesture.current;
     if (pts.length === 1) {
@@ -83,7 +95,7 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
       setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }));
     } else if (pts.length === 2) {
       const dist = Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y);
-      if (!g.startDist) { g.startDist = dist; g.startK = view.k; return; }
+      if (!g.startDist) { g.startDist = dist; g.startK = viewRef.current.k; return; }
       const el = ref.current!.getBoundingClientRect();
       const mx = (pts[0]!.x + pts[1]!.x) / 2 - el.left, my = (pts[0]!.y + pts[1]!.y) / 2 - el.top;
       g.moved += 10;

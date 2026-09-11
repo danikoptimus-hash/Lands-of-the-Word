@@ -21,6 +21,13 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   const [expanded, setExpanded] = useState(true);
   const ui = useUi();
   const [form, setForm] = useState({ title: "", description: "", direction: "", proofType: "PHOTO_LINK" as ProofType, canRepeat: true, bookCode: "", difficulty: 1 });
+  /** id редактируемого дела; null — форма создаёт новое. */
+  const [editing, setEditing] = useState<string | null>(null);
+  function startEdit(d: DeedDto) {
+    setEditing(d.id); setOpen(true); setError(null);
+    setForm({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCode: d.bookCode ?? "", difficulty: d.difficulty });
+  }
+  function cancelEdit() { setEditing(null); setOpen(false); setForm((f) => ({ ...f, title: "", description: "" })); }
 
   const load = () => api<{ deeds: DeedDto[]; directions: string[]; recommendedMin: number }>(`/api/games/${gameId}/deeds`)
     .then((r) => { setDeeds(r.deeds); setDirections(r.directions); setRecommended(r.recommendedMin); if (!form.direction) setForm((f) => ({ ...f, direction: r.directions[0] ?? "" })); })
@@ -31,7 +38,9 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   async function add(e: FormEvent) {
     e.preventDefault(); setError(null);
     try {
-      await api(`/api/games/${gameId}/deeds`, { method: "POST", body: JSON.stringify({ ...form, bookCode: form.bookCode || null }) });
+      const body = JSON.stringify({ ...form, bookCode: form.bookCode || null });
+      if (editing) { await api(`/api/games/${gameId}/deeds/${editing}`, { method: "PUT", body }); ui.notify(t("Дело сохранено")); setEditing(null); setOpen(false); }
+      else await api(`/api/games/${gameId}/deeds`, { method: "POST", body });
       setForm((f) => ({ ...f, title: "", description: "" }));
       await reload();
     } catch (err) { setError(err instanceof ApiError ? (err.issues?.map((i) => i.message).join("; ") || err.message) : t("Ошибка сети")); }
@@ -55,7 +64,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
         <h2><span className="ico"><Icon name="scroll" /></span>{t("Дела")} <span className="muted">{deeds.length} · {t("уникальных {n}", { n: unique })}</span></h2>
         <div className="row">
           <button className="secondary sm" onClick={() => void importDefault()}>{t("Стандартный набор")}</button>
-          <button className="sm" onClick={() => { setOpen((o) => !o); setExpanded(true); }}><Icon name={open ? "x" : "plus"} />{open ? t("Скрыть форму") : t("Новое дело")}</button>
+          <button className="sm" onClick={() => { if (open) cancelEdit(); else { setEditing(null); setForm((f) => ({ ...f, title: "", description: "" })); setOpen(true); } setExpanded(true); }}><Icon name={open ? "x" : "plus"} />{open ? t("Скрыть форму") : t("Новое дело")}</button>
           <button className="ghost sm" onClick={() => setExpanded((v) => !v)} aria-label={expanded ? t("Свернуть список") : t("Развернуть список")}>{expanded ? t("▴ Свернуть") : t("▾ Список")}</button>
         </div>
       </div>
@@ -63,6 +72,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
       {error && <p className="error">{error}</p>}
       {open && (
         <form onSubmit={add} style={{ marginBottom: "1rem" }}>
+          {editing && <p className="note warn" style={{ marginTop: 0 }}><Icon name="edit" /> {t("Редактирование дела. Изменения увидят команды, у которых оно ещё не сдано.")}</p>}
           <label htmlFor="d-title">{t("Название")}</label>
           <input id="d-title" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required minLength={2} maxLength={120} />
           <label htmlFor="d-desc">{t("Описание (что именно сделать)")}</label>
@@ -86,7 +96,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
             </div>
           </div>
           <label className="check"><input type="checkbox" checked={form.canRepeat} onChange={(e) => setForm({ ...form, canRepeat: e.target.checked })} />{t("Можно дублировать")}</label>
-          <div className="actions"><button type="submit">{t("Добавить дело")}</button></div>
+          <div className="actions"><button type="submit"><Icon name={editing ? "check" : "plus"} />{editing ? t("Сохранить") : t("Добавить дело")}</button>{editing && <button type="button" className="secondary" onClick={cancelEdit}>{t("Отмена")}</button>}</div>
         </form>
       )}
       {deeds.length === 0 ? <p className="muted">{t("Список пуст. Возьми стандартный набор как заготовку или придумай свои дела.")}</p> : !expanded ? null : (
@@ -96,6 +106,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
               <div className="main"><strong>{d.title}</strong> <span className="badge">{d.direction}</span><div className="muted">{proofLabel(d.proofType)} · {t("тяжесть {n}", { n: d.difficulty })}{d.bookCode ? ` · ${BOOKS.find((b) => b.code === d.bookCode)?.nameRu}` : ""}{d.description ? ` · ${d.description}` : ""}</div></div>
               <div className="side">
                 <button className="secondary sm" onClick={() => void toggleRepeat(d)}>{d.canRepeat ? t("дублируется") : t("уникальное")}</button>
+                <button className="ghost sm icon" onClick={() => startEdit(d)} aria-label={t("Изменить дело")} title={t("Изменить")}><Icon name="edit" /></button>
                 <button className="ghost sm icon" onClick={() => void remove(d)} aria-label={t("Удалить дело")} title={t("Удалить")}><Icon name="trash" /></button>
               </div>
             </li>
