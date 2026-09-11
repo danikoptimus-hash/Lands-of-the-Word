@@ -46,6 +46,33 @@ afterAll(async () => {
   await app.close(); await prisma.$disconnect();
 });
 
+describe("минимальное время чтения", () => {
+  it("норма считается от объёма района; ответ до неё не принимается; время копится только по сигналам «читаю»", async () => {
+    const c = await city();
+    const t0 = c.content.tasks[0], tBook = c.content.tasks.find((t: { scope: string }) => t.scope === "book");
+    expect(t0.readingMs).toBe(3 * 60_000); // Руфь 1:1–5 — 5 стихов, минимум 3 минуты
+    expect(tBook.readingMs).toBe(5 * 60_000);
+    expect(c.state.heartbeatMs).toBe(10_000);
+    const early = await answer(0, content.tasks[0]!.correct);
+    expect(early.statusCode).toBe(409);
+    expect(early.json().error).toBe("reading");
+    expect(early.json().remainingMs).toBe(3 * 60_000);
+    // Первый сигнал ничего не засчитывает (нет предыдущего), второй — не больше 20 с даже после долгой паузы.
+    const h1 = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/reading`, headers: { cookie: p1Cookie } });
+    expect(h1.json()).toMatchObject({ readMs: 0, requiredMs: 3 * 60_000 });
+    await prisma.teamTaskLock.updateMany({ where: { teamId: team1, nodeKey: rutKey, taskIndex: 0 }, data: { readAt: new Date(Date.now() - 5 * 60_000) } });
+    const h2 = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/reading`, headers: { cookie: p1Cookie } });
+    expect(h2.json().readMs).toBe(20_000);
+    await prisma.teamTaskLock.updateMany({ where: { teamId: team1, nodeKey: rutKey, taskIndex: 0 }, data: { readAt: new Date(Date.now() - 10_000) } });
+    const h3 = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/reading`, headers: { cookie: p1Cookie } });
+    expect(h3.json().readMs).toBeGreaterThanOrEqual(29_000);
+    expect((await city()).state.locks.find((l: { index: number }) => l.index === 0).readMs).toBe(h3.json().readMs);
+    // Дальше тесты попыток: норма набрана.
+    await prisma.teamTaskLock.createMany({ data: content.tasks.map((_, i) => ({ gameId, teamId: team1, nodeKey: rutKey, taskIndex: i, readMs: 60 * 60_000 })), skipDuplicates: true });
+    await prisma.teamTaskLock.updateMany({ where: { teamId: team1, nodeKey: rutKey }, data: { readMs: 60 * 60_000 } });
+  });
+});
+
 describe("две попытки на выбор ответа, блокировка на сутки и спор", () => {
   it("вторая неверная попытка закрывает задание; спор уходит админу; админ снимает блокировку", async () => {
     const task = content.tasks[0]!;
@@ -64,8 +91,9 @@ describe("две попытки на выбор ответа, блокировк
     expect(locked.json().error).toBe("locked");
     const state = (await city()).state;
     expect(state.choiceAttempts).toBe(2);
-    expect(state.locks[0]).toMatchObject({ index: 0, attemptsLeft: 0, dispute: null });
-    expect(state.locks[0].lockedUntil).toBeGreaterThan(Date.now());
+    const lock0 = state.locks.find((l: { index: number }) => l.index === 0);
+    expect(lock0).toMatchObject({ index: 0, attemptsLeft: 0, dispute: null });
+    expect(lock0.lockedUntil).toBeGreaterThan(Date.now());
 
     // Другие типы заданий не блокируются: неверный текст только даёт паузу.
     const textIndex = content.tasks.findIndex((t) => t.type === "text");
@@ -90,13 +118,13 @@ describe("две попытки на выбор ответа, блокировк
     const resolve = await app.inject({ method: "POST", url: `/api/games/${gameId}/disputes/${list.json().disputes[0].id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: true, answer: "Перечитайте первую главу" } });
     expect(resolve.statusCode).toBe(200);
     expect((await app.inject({ method: "GET", url: `/api/games/${gameId}/disputes`, headers: { cookie: adminCookie } })).json().disputes).toHaveLength(0);
-    const after = (await city()).state.locks[0];
+    const after = (await city()).state.locks.find((l: { index: number }) => l.index === 0);
     expect(after).toMatchObject({ lockedUntil: null, attemptsLeft: 2, resolution: "Перечитайте первую главу" });
     expect(after.resolvedAt).toBeGreaterThan(0);
     const ok = await answer(0, task.correct);
     expect(ok.statusCode).toBe(200);
     expect(ok.json().correct).toBe(true);
-    expect((await city()).state.locks).toHaveLength(0);
+    expect((await city()).state.locks.find((l: { index: number }) => l.index === 0).lockedUntil).toBeNull();
   });
 
   it("админ может оставить блокировку: задание закрыто до срока, ответ команде записан", async () => {

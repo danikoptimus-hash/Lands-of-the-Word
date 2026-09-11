@@ -411,3 +411,9 @@ button.icon .i { width: 1.2em; height: 1.2em; }
 .lock-note { display: flex; flex-direction: column; gap: .4rem; }
 .lock-note textarea { width: 100%; font: inherit; padding: .5rem .7rem; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); resize: vertical; }
 .district.extra .num { background: var(--accent-soft); }
+
+/* Время чтения задания */
+.reading { display: flex; align-items: center; gap: .5rem; font-size: .88rem; color: var(--muted); margin: .2rem 0 .6rem; position: relative; padding-bottom: .45rem; }
+.reading i { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
+.reading i::after { content: ""; position: absolute; inset: 0; width: calc(var(--p, 0) * 100%); background: var(--accent); transition: width 1s linear; }
+.reading.ok { color: var(--ok, #2F6B3A); } .reading.ok i::after { background: var(--ok, #2F6B3A); }

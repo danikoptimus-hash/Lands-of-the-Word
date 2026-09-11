@@ -40,7 +40,13 @@ beforeAll(async () => {
   rutKey = rut.key;
   // Обе команды «дошли» до города Руфь.
   await prisma.teamNodeState.createMany({ data: [{ teamId: team1, nodeKey: rutKey }, { teamId: team2, nodeKey: rutKey }] });
+  await seedReading(team1); await seedReading(team2);
 });
+/** Тесты ответов не про чтение: норма времени чтения считается набранной. */
+async function seedReading(teamId: string) {
+  await prisma.teamTaskLock.createMany({ data: content.tasks.map((_, i) => ({ gameId, teamId, nodeKey: rutKey, taskIndex: i, readMs: 60 * 60_000 })), skipDuplicates: true });
+}
+
 
 afterAll(async () => {
   await prisma.game.deleteMany({ where: { id: gameId } });

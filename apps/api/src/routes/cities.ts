@@ -7,6 +7,8 @@ import { requireAdmin, requireMember } from "./teamMap.js";
 import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask } from "../services/cities.js";
 import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
+import { loadBook, parseDistrictRange } from "../services/bible.js";
+import type { CityContent } from "../services/cities.js";
 import { msg } from "../services/i18n.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
@@ -21,10 +23,37 @@ const LOCK_MS = 24 * 3600_000;
 const disputeBody = z.object({ message: z.string().trim().min(5).max(500) });
 const resolveBody = z.object({ unlock: z.boolean(), answer: z.string().trim().max(500).optional() });
 
-/** Состояние блокировок заданий города для команды (в ответе my-city). */
-function publicLock(l: { taskIndex: number; wrong: number; lockedUntil: Date | null; dispute: string | null; disputedAt: Date | null; resolvedAt: Date | null; resolution: string | null }, now: number) {
+/**
+ * Минимальное время чтения (решение владельца): ответить можно только после того, как задание было открыто
+ * на экране у кого-то из команды суммарно не меньше нормы. Норма — от объёма района: READ_MS_PER_VERSE на стих,
+ * но не меньше READ_MIN_MS и не больше READ_MAX_MS; задание по всей книге — READ_BOOK_MS. Время копит сервер
+ * по сигналам «читаю» (раз в HEARTBEAT_MS, пока задание открыто и вкладка видна), поэтому «завести» таймер
+ * и уйти нельзя. Копится на команду, а не на человека.
+ */
+const READ_MS_PER_VERSE = 6_000, READ_MIN_MS = 3 * 60_000, READ_MAX_MS = 12 * 60_000, READ_BOOK_MS = 5 * 60_000;
+const HEARTBEAT_MS = 10_000, HEARTBEAT_MAX_CREDIT_MS = 20_000;
+
+/** Сколько стихов покрывает задание: район, группа районов или (для book) null. */
+async function taskVerses(content: CityContent, index: number): Promise<number | null> {
+  const task = content.tasks[index];
+  if (!task || task.scope === "book") return null;
+  const book = await loadBook(content.book);
+  if (!book) return null;
+  const idxs = task.scope === "group" ? (task.groupDistricts ?? []).map((n) => n - 1) : [index];
+  let n = 0;
+  for (const i of idxs) { const r = content.districts[i] ? parseDistrictRange(book, content.districts[i]!.verses) : null; if (r) n += r.end - r.start + 1; }
+  return n || null;
+}
+export async function readingRequiredMs(content: CityContent, index: number): Promise<number> {
+  const verses = await taskVerses(content, index);
+  if (verses === null) return READ_BOOK_MS;
+  return Math.min(READ_MAX_MS, Math.max(READ_MIN_MS, verses * READ_MS_PER_VERSE));
+}
+
+/** Состояние задания у команды (в ответе my-city): попытки, блокировка, спор, накопленное чтение. */
+function publicLock(l: { taskIndex: number; wrong: number; lockedUntil: Date | null; dispute: string | null; disputedAt: Date | null; resolvedAt: Date | null; resolution: string | null; readMs: number }, now: number) {
   const locked = l.lockedUntil && l.lockedUntil.getTime() > now;
-  return { index: l.taskIndex, attemptsLeft: locked ? 0 : Math.max(0, CHOICE_ATTEMPTS - l.wrong), lockedUntil: locked ? l.lockedUntil!.getTime() : null, dispute: l.dispute, disputedAt: l.disputedAt?.getTime() ?? null, resolvedAt: l.resolvedAt?.getTime() ?? null, resolution: l.resolution };
+  return { index: l.taskIndex, attemptsLeft: locked ? 0 : Math.max(0, CHOICE_ATTEMPTS - l.wrong), lockedUntil: locked ? l.lockedUntil!.getTime() : null, dispute: l.dispute, disputedAt: l.disputedAt?.getTime() ?? null, resolvedAt: l.resolvedAt?.getTime() ?? null, resolution: l.resolution, readMs: l.readMs };
 }
 
 const ownerSelect = { team: { select: { id: true, index: true, name: true, color: true } } } as const;
@@ -83,7 +112,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
             translation: content.translation,
             codeRule: content.codeRule,
             districts: publicDistricts(content, secret, scopeKey, solved),
-            tasks: solved ? content.tasks.map((t, i) => publicTask(t, i, secret, scopeKey)) : [],
+            tasks: solved ? await Promise.all(content.tasks.map(async (t, i) => ({ ...publicTask(t, i, secret, scopeKey), readingMs: await readingRequiredMs(content, i) }))) : [],
             fragments: content.tasks.map((_, i) => (done.includes(i) ? node.cityCode?.[i] ?? null : null)),
           }
         : null,
@@ -97,6 +126,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         hintTasks: state?.hintTasks ?? [],
         cooldownUntil: cooldownUntil > Date.now() ? cooldownUntil : null,
         choiceAttempts: CHOICE_ATTEMPTS,
+        heartbeatMs: HEARTBEAT_MS,
         locks: locks.map((l) => publicLock(l, Date.now())),
       },
     };
@@ -149,9 +179,14 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (cooldownUntil > Date.now()) return reply.code(429).send({ error: "cooldown", message: "Подождите немного перед следующей попыткой", retryAt: cooldownUntil });
     const body = answerBody.parse(request.body);
     const now = Date.now();
-    // Выбор ответа: две попытки, потом задание закрыто на сутки. Спор — отдельным запросом.
     const lockWhere = { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: index } };
-    const lock = task.type === "choice" ? await prisma.teamTaskLock.findUnique({ where: lockWhere }) : null;
+    const lock = await prisma.teamTaskLock.findUnique({ where: lockWhere });
+    // Сначала чтение: пока норма не набрана, ответ не принимается.
+    const required = await readingRequiredMs(c.content, index);
+    if ((lock?.readMs ?? 0) < required) {
+      return reply.code(409).send({ error: "reading", message: "Сначала прочитайте текст: время чтения ещё не набрано", remainingMs: required - (lock?.readMs ?? 0) });
+    }
+    // Выбор ответа: две попытки, потом задание закрыто на сутки. Спор — отдельным запросом.
     if (lock?.lockedUntil && lock.lockedUntil.getTime() > now) {
       return reply.code(423).send({ error: "locked", message: "Задание закрыто на сутки после двух неверных ответов", lockedUntil: lock.lockedUntil.getTime() });
     }
@@ -162,7 +197,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       data: correct ? { doneTasks: { push: index } } : { answerAttempts: { increment: 1 }, lastWrongAt: new Date() },
     });
     if (task.type === "choice") {
-      if (correct) { if (lock) await prisma.teamTaskLock.delete({ where: { id: lock.id } }); }
+      if (correct) { if (lock) await prisma.teamTaskLock.update({ where: { id: lock.id }, data: { wrong: 0, lockedUntil: null } }); }
       else {
         const wrong = (lock?.wrong ?? 0) + 1;
         const locking = wrong >= CHOICE_ATTEMPTS;
@@ -176,6 +211,25 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "cities", teamId: c.m.team.id });
     if (correct) return { correct: true, fragment: c.node.cityCode?.[index] ?? null };
     return { correct: false, retryAt: now + WRONG_COOLDOWN_MS, lockedUntil, attemptsLeft: task.type === "choice" ? Math.max(0, CHOICE_ATTEMPTS - ((lock?.wrong ?? 0) + 1)) : null };
+  });
+
+  /** Сигнал «задание открыто на экране»: копит время чтения команды. Клиент шлёт раз в HEARTBEAT_MS, пока задание видно. */
+  app.post("/api/games/:id/my-city/:nodeKey/tasks/:index/reading", async (request, reply) => {
+    const { id, nodeKey, index: rawIndex } = request.params as { id: string; nodeKey: string; index: string };
+    const c = await memberCity(request, reply, id, nodeKey);
+    if (!c) return;
+    if (!c.state.orderSolved) return reply.code(409).send({ error: "conflict", message: "Сначала расставьте районы по порядку" });
+    const index = Number(rawIndex);
+    if (!Number.isInteger(index) || !c.content.tasks[index]) return reply.code(404).send({ error: "not_found", message: "Задание не найдено" });
+    const required = await readingRequiredMs(c.content, index);
+    const now = new Date();
+    const where = { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: index } };
+    const prev = await prisma.teamTaskLock.findUnique({ where });
+    // Засчитываем время с прошлого сигнала, но не больше двух интервалов: если вкладку закрыли, пауза не копится.
+    const credit = prev?.readAt ? Math.min(HEARTBEAT_MAX_CREDIT_MS, Math.max(0, now.getTime() - prev.readAt.getTime())) : 0;
+    const readMs = Math.min(required + HEARTBEAT_MAX_CREDIT_MS, (prev?.readMs ?? 0) + credit);
+    await prisma.teamTaskLock.upsert({ where, create: { gameId: id, teamId: c.m.team.id, nodeKey, taskIndex: index, readMs, readAt: now }, update: { readMs, readAt: now } });
+    return { readMs, requiredMs: required, heartbeatMs: HEARTBEAT_MS };
   });
 
   /** Оспорить блокировку задания: сообщение админам игры. Ответ придёт письмом/уведомлением и в попапе города. */

@@ -353,6 +353,9 @@ model TeamTaskLock {
   resolvedAt  DateTime?
   resolution  String?
   unlocked    Boolean   @default(false)
+  /** Накопленное время чтения задания командой (мс): растёт только пока задание открыто на экране. */
+  readMs      Int       @default(0)
+  readAt      DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
