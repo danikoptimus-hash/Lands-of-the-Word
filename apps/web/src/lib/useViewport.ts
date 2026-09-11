@@ -13,11 +13,15 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
   const gesture = useRef<{ startDist: number; startK: number; moved: number; last: { x: number; y: number } } | null>(null);
   const [dragging, setDragging] = useState(false);
 
+  /** Масштаб «вся карта в окне»: от него считаются пределы зума, иначе на телефоне минимум 0.25 оказывался крупнее исходного вида. */
+  const fitK = useRef(1);
+  const clampK = (k: number) => Math.min(fitK.current * 8, Math.max(fitK.current * 0.5, k));
   const fit = useCallback(() => {
     const el = ref.current;
     if (!el || !bounds) return;
     const w = el.clientWidth, h = el.clientHeight;
     const k = Math.min(w / bounds.width, h / bounds.height) * 0.92;
+    fitK.current = k;
     const tx = (w - bounds.width * k) / 2 - bounds.minX * k;
     const ty = (h - bounds.height * k) / 2 - bounds.minY * k;
     setView({ k, tx, ty });
@@ -27,8 +31,9 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
   const focusOn = useCallback((x: number, y: number, k = 2.2) => {
     const el = ref.current;
     if (!el) return;
+    if (bounds) fitK.current = Math.min(el.clientWidth / bounds.width, el.clientHeight / bounds.height) * 0.92;
     setView({ k, tx: el.clientWidth / 2 - x * k, ty: el.clientHeight / 2 - y * k });
-  }, []);
+  }, [bounds]);
 
   // Начальное положение ставится ровно один раз, когда поле карты впервые известно. Дальше карта живёт
   // только по жестам пользователя: границы поля растут с каждым открытым узлом, и раньше это возвращало
@@ -47,7 +52,7 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
     setView((v) => {
       const el = ref.current;
       const px = cx ?? (el ? el.clientWidth / 2 : 0), py = cy ?? (el ? el.clientHeight / 2 : 0);
-      const k = Math.min(6, Math.max(0.25, v.k * factor));
+      const k = clampK(v.k * factor);
       const f = k / v.k;
       return { k, tx: px - (px - v.tx) * f, ty: py - (py - v.ty) * f };
     });
@@ -100,7 +105,7 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
       const mx = (pts[0]!.x + pts[1]!.x) / 2 - el.left, my = (pts[0]!.y + pts[1]!.y) / 2 - el.top;
       g.moved += 10;
       setView((v) => {
-        const k = Math.min(6, Math.max(0.25, g.startK * (dist / g.startDist)));
+        const k = clampK(g.startK * (dist / g.startDist));
         const f = k / v.k;
         return { k, tx: mx - (mx - v.tx) * f, ty: my - (my - v.ty) * f };
       });

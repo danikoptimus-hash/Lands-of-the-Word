@@ -22,13 +22,13 @@ export function LabelsPage() {
   return (
     <div className="labels-page">
       <div className="no-print">
-        <Link to={`/games/${id}#settings`} className="crumb"><Icon name="back" />{t("К игре")}</Link>
+        <Link to={`/games/${id}#deeds`} className="crumb"><Icon name="back" />{t("К игре")}</Link>
         <div className="page-head">
           <h1>{t("Ярлыки для конвертов")} {rows && <span className="muted" style={{ fontSize: "1rem" }}>· {rows.length}</span>}</h1>
           {rows && <button onClick={() => window.print()}><Icon name="scroll" />{t("Печать / сохранить PDF")}</button>}
         </div>
         {rows && <p className="muted">{t("Каждая полоса — один конверт: левый ярлык клеится снаружи, правый вкладывается внутрь. Разрежьте по пунктиру. В окне печати выберите «Сохранить как PDF».")}</p>}
-        {error && <p className="note warn">{error} · <Link to={`/games/${id}#settings`}>{t("открыть настройки")}</Link></p>}
+        {error && <p className="note warn">{error} · <Link to={`/games/${id}#deeds`}>{t("открыть настройки")}</Link></p>}
         {!rows && !error && <p className="muted">{t("Загрузка…")}</p>}
       </div>
       {rows && (

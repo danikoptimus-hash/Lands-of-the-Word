@@ -57,7 +57,7 @@ export async function recipientRoutes(app: FastifyInstance): Promise<void> {
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return;
     const recipients = await prisma.recipient.count({ where: { gameId: id } });
-    if (recipients === 0) return reply.code(409).send({ error: "no_recipients", message: "Сначала добавьте адресатов конвертов в настройках игры" });
+    if (recipients === 0) return reply.code(409).send({ error: "no_recipients", message: "Сначала добавьте адресатов конвертов на вкладке «Дела»" });
     await ensureCityCodes(id);
     await assignRecipients(id);
     const nodes = await prisma.mapNode.findMany({ where: { gameId: id, kind: "CITY" }, include: { recipient: { select: { label: true, kind: true } } } });

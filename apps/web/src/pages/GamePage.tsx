@@ -134,10 +134,6 @@ export function GamePage() {
           {game.status === "FINISHED" && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={() => { void load(); void loadProgress(); }} />}
           {hexes.length > 0 ? (
             <div className="card map-card">
-              <div className="row between" style={{ padding: ".1rem .3rem .5rem" }}>
-                <span className="muted">{t("Города и развилки — на перекрёстках, ходят по сторонам гексов.")}</span>
-                <Link to={`/games/${game.id}/labels`} className="btn secondary sm" style={{ textDecoration: "none" }}><Icon name="mail" />{t("Ярлыки для конвертов")}</Link>
-              </div>
               <AdminMap gameId={game.id} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} />
               {progress?.startedAt && <Timeline moves={moves} startedAt={progress.startedAt} at={at} onChange={setAt} />}
             </div>
@@ -148,7 +144,7 @@ export function GamePage() {
       )}
 
       {tab === "teams" && <div className="tab-pane" key="teams"><TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} /></div>}
-      {tab === "deeds" && <div className="tab-pane" key="deeds"><DeedsBlock gameId={game.id} version={version} onChange={bump} /></div>}
+      {tab === "deeds" && <div className="tab-pane" key="deeds"><DeedsBlock gameId={game.id} version={version} onChange={bump} /><RecipientsBlock gameId={game.id} status={game.status} version={version} /></div>}
       {tab === "review" && (active ? (
         <div className="tab-pane" key="review">
           <SubmissionsBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
@@ -161,7 +157,6 @@ export function GamePage() {
       {tab === "settings" && (
         <div className="tab-pane" key="settings">
           <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
-          <RecipientsBlock gameId={game.id} status={game.status} version={version} />
           <AdminsBlock gameId={game.id} version={version} />
           {game.status !== "DRAFT" && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={() => { void load(); void loadProgress(); }} />}
         </div>
