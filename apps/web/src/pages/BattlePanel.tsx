@@ -36,7 +36,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
 
   async function declare() {
     if (!war || bid === "") return;
-    const ok = await confirm(`Бросить вызов со ставкой ${bid} стихов? Команда обязуется выучить столько стихов в сумме по участникам. Игра выдаст случайный отрывок; с этого момента идёт время вызова (лимит 14 дней).`, { okLabel: "Бросить вызов", danger: true });
+    const ok = await confirm(`Испытать город со ставкой ${bid} стихов? Команда обязуется выучить столько стихов в сумме по участникам. Игра выдаст случайный отрывок; с этого момента идёт время вызова (лимит 14 дней).`, { okLabel: t("Испытать город"), danger: true });
     if (!ok) return;
     setBusy(true); setError(null);
     try {
@@ -61,7 +61,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
           <p className="muted" style={{ margin: ".3rem 0" }}>Ставка — сколько стихов команда выучит в сумме по участникам (каждый учит свою часть или весь отрывок). Минимум {war.minBid}{war.penalty ? ` (включая штраф ${war.penalty} за незавершённые вызовы)` : ""}. Отрывок выберет игра.{war.queue > 0 ? ` В очереди уже ${war.queue}.` : ""}</p>
           <div className="row">
             <input type="number" min={war.minBid} value={bid} onChange={(e) => setBid(e.target.value === "" ? "" : Number(e.target.value))} style={{ width: 110 }} />
-            <button className="danger" disabled={busy || bid === "" || bid < war.minBid} onClick={() => void declare()}>{t("Бросить вызов")}</button>
+            <button className="danger" disabled={busy || bid === "" || bid < war.minBid} onClick={() => void declare()}>{t("Испытать город")}</button>
           </div>
         </div>
       )}
