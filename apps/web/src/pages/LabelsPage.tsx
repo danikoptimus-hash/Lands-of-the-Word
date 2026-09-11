@@ -3,13 +3,15 @@ import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
+import { Back } from "../components/Back";
+import { LoadingState } from "../components/State";
 import { kindLabel } from "./RecipientsBlock";
 
 interface Row { nodeKey: string; bookCode: string; number: number; name: string; cityKey: string; cityCode: string; recipient: { label: string; kind: "FAMILY" | "WIDOW" | "ELDER" | "OTHER" } | null }
 
 /**
- * Ярлыки для конвертов: на каждый город — наружный ярлык (кому, город, шифр для семьи) и вкладыш
- * (поздравление и ключ). Это предпросмотр; для печати сервер отдаёт один PDF со всеми ярлыками.
+ * Ярлыки для конвертов: на каждый город — наружный ярлык (кому, город, шифр) и вкладыш (поздравление и ключ).
+ * Это предпросмотр; для печати сервер отдаёт один PDF со всеми ярлыками.
  */
 export function LabelsPage() {
   const { id = "" } = useParams();
@@ -22,14 +24,14 @@ export function LabelsPage() {
   return (
     <div className="labels-page">
       <div className="no-print">
-        <Link to={`/games/${id}#deeds`} className="crumb"><Icon name="back" />{t("К игре")}</Link>
+        <Back to={`/games/${id}`} label={game || t("К игре")} />
         <div className="page-head">
-          <h1>{t("Ярлыки для конвертов")} {rows && <span className="muted" style={{ fontSize: "1rem" }}>· {rows.length}</span>}</h1>
-          {rows && <a href={`/api/games/${id}/labels.pdf`} download className="btn" style={{ textDecoration: "none" }}><Icon name="scroll" />{t("Скачать ярлыки (PDF)")}</a>}
+          <h1><span className="ico"><Icon name="printer" /></span>{t("Ярлыки для конвертов")} {rows && <span className="count-chip">{rows.length}</span>}</h1>
+          {rows && <a href={`/api/games/${id}/labels.pdf`} download className="btn"><Icon name="printer" />{t("Скачать PDF")}</a>}
         </div>
-        {rows && <p className="muted">{t("Каждая полоса — один конверт: левый ярлык клеится снаружи, правый вкладывается внутрь. Разрежьте по пунктиру. Скачайте один PDF со всеми ярлыками и распечатайте его.")}</p>}
-        {error && <p className="note warn">{error} · <Link to={`/games/${id}#deeds`}>{t("открыть настройки")}</Link></p>}
-        {!rows && !error && <p className="muted">{t("Загрузка…")}</p>}
+        {rows && <p className="muted small">{t("Наружный ярлык — на конверт, вкладыш — внутрь; разрежьте по пунктиру.")}</p>}
+        {error && <p className="note warn"><Icon name="alert" /><span>{error} · <Link to={`/games/${id}`}>{t("Добавить адресатов")}</Link></span></p>}
+        {!rows && !error && <LoadingState />}
       </div>
       {rows && (
         <div className="labels">
@@ -39,14 +41,14 @@ export function LabelsPage() {
                 <div className="lbl-top"><span className="lbl-brand">{t("Земли Слова")} · {game}</span><span className="lbl-num">{r.number}</span></div>
                 <div className="lbl-city">{t("Город {name}", { name: r.name })}</div>
                 {r.recipient && <div className="lbl-to">{t("Кому")}: <strong>{r.recipient.label}</strong> <span className="muted">({kindLabel(r.recipient.kind)})</span></div>}
-                <div className="lbl-code"><span className="muted">{t("Шифр для семьи")}</span><strong>{r.cityCode}</strong></div>
+                <div className="lbl-code"><span className="muted">{t("Шифр")}</span><strong>{r.cityCode}</strong></div>
                 <div className="lbl-hint">{t("Отдайте конверт команде, которая назовёт этот шифр.")}</div>
               </div>
               <div className="label inner">
                 <div className="lbl-top"><span className="lbl-brand">{t("Земли Слова")}</span><span className="lbl-num">{r.number}</span></div>
-                <div className="lbl-congrats">{t("Поздравляем с открытием города {name}!", { name: r.name })}</div>
-                <div className="lbl-code"><span className="muted">{t("Ключ города")}</span><strong className="key">{r.cityKey}</strong></div>
-                <div className="lbl-hint">{t("Введите ключ в игре, чтобы занять город. Ключ секретный: не показывайте его другим командам.")}</div>
+                <div className="lbl-congrats">{t("Поздравляем! Город {name} ваш.", { name: r.name })}</div>
+                <div className="lbl-code"><span className="muted">{t("Ключ")}</span><strong className="key">{r.cityKey}</strong></div>
+                <div className="lbl-hint">{t("Введите ключ в игре, чтобы взять город. Ключ секретный: не показывайте его другим командам.")}</div>
               </div>
             </div>
           ))}

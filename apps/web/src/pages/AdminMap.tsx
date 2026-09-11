@@ -1,49 +1,59 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
-import { HEX_SIZE, TERRAIN_COLOR, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
+import { HEX_SIZE, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { HexTiles, IMG, Sea } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
-import { api, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
-import { useEffect } from "react";
+import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
+import { plural } from "../lib/format";
+import { Icon } from "../components/Icon";
+import { Sheet } from "../components/Sheet";
+import { TeamAvatar } from "../components/TeamAvatar";
+import { EmptyState, ErrorState, LoadingState } from "../components/State";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 export interface CityProgress { teamId: string; nodeKey: string; orderSolved: boolean; done: number; capturedAt: string | null; isCapital: boolean }
 export interface BattleProgress { id: string; nodeKey: string; status: string; attackerId: string; defenderId: string; bid: number }
 export interface TeamProgress { id: string; name: string; color: string; startNodeKey: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
+type TeamLite = { id: string; name: string; color: string };
 
-/** Карта админа: вся карта без тумана, города на перекрёстках, пройденные стороны цветами команд (половинками, если прошли двое). */
-export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version }: { gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number }) {
+/**
+ * Карта администратора: вся карта без тумана, города на перекрёстках, пройденные стороны цветами команд (половинками, если прошли двое).
+ * Панель перекрёстка — Sheet поверх карты; тестовые действия свёрнуты внутри неё.
+ */
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview }: { gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexes, size]);
   const vp = useViewport(bounds);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
+  const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
+  const close = useCallback(() => setSelected(null), []);
   const positions = useMemo(() => new Map(nodes.map((n) => [n.key, nodePos(n.key, size)])), [nodes, size]);
   const traversedBy = useMemo(() => {
     const m = new Map<string, TeamProgress[]>();
-    for (const t of progress ?? []) for (const e of t.traversed) { const k = [e.fromKey, e.toKey].sort().join("|"); m.set(k, [...(m.get(k) ?? []), t]); }
+    for (const tm of progress ?? []) for (const e of tm.traversed) { const k = [e.fromKey, e.toKey].sort().join("|"); m.set(k, [...(m.get(k) ?? []), tm]); }
     return m;
   }, [progress]);
   const teamById = useMemo(() => new Map((progress ?? []).map((tm) => [tm.id, tm])), [progress]);
   const ownerOf = useMemo(() => {
     const m = new Map<string, TeamProgress>();
-    for (const c of cities ?? []) if (c.capturedAt) { const t = teamById.get(c.teamId); if (t) m.set(c.nodeKey, t); }
+    for (const c of cities ?? []) if (c.capturedAt) { const tm = teamById.get(c.teamId); if (tm) m.set(c.nodeKey, tm); }
     return m;
   }, [cities, teamById]);
   const battleAt = useMemo(() => new Map((battles ?? []).map((b) => [b.nodeKey, b])), [battles]);
   const revealedBy = useMemo(() => {
     const m = new Map<string, TeamProgress[]>();
-    for (const t of progress ?? []) for (const k of t.revealed) m.set(k, [...(m.get(k) ?? []), t]);
+    for (const tm of progress ?? []) for (const k of tm.revealed) m.set(k, [...(m.get(k) ?? []), tm]);
     return m;
   }, [progress]);
   if (!bounds) return null;
 
   return (
     <>
-      <div style={{ position: "relative" }}>
-        <div ref={vp.ref} {...vp.handlers} className="mapwrap" style={{ height: "min(70vh, 640px)", minHeight: 360, touchAction: "none", cursor: "grab", userSelect: "none", overflow: "hidden" }}>
-          <svg width="100%" height="100%" style={{ display: "block" }}>
+      <div className="admin-map" ref={setWrapEl}>
+        <div ref={vp.ref} {...vp.handlers} className="mapwrap">
+          <svg width="100%" height="100%">
             <g transform={`translate(${vp.view.tx},${vp.view.ty}) scale(${vp.view.k})`}>
               <Sea size={size} id="sea-admin" />
               <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
@@ -81,145 +91,173 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 const seen = revealedBy.get(n.key) ?? [];
                 const sel = selected?.key === n.key;
                 const showLabels = kk >= 1.4, showDots = kk >= 0.8;
-                if (n.kind === "START") { const t = progress?.find((x) => x.startNodeKey === n.key); const color = t?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <circle key={n.key} cx={p.x} cy={p.y} r={6} fill={color} stroke="#fff" strokeWidth={2} onClick={() => setSelected(n)} style={{ cursor: "pointer" }} />; }
+                const pick = () => { if (!vp.wasDrag()) setSelected(n); };
+                if (n.kind === "START") { const tm = progress?.find((x) => x.startNodeKey === n.key); const color = tm?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} className="pick" transform={`translate(${p.x},${p.y})`} onClick={pick}><circle className="hit" r={14} fill="transparent" /><circle r={6} fill={color} stroke="var(--surface)" strokeWidth={2} /></g>; }
                 if (n.kind === "CITY") return (
-                  <g key={n.key} transform={`translate(${p.x},${p.y})`} onClick={() => setSelected(sel ? null : n)} style={{ cursor: "pointer" }}>
-                    <circle r={size * 0.6 * kk} fill="transparent" />
-                    {battleAt.has(n.key) && <text x={size * 0.6 * kk} y={-size * 0.7 * kk} fontSize={Math.max(14, 22 * Math.min(1.4, kk))} textAnchor="middle" fill="#B3402F" stroke="#fff" strokeWidth={3} paintOrder="stroke" style={{ pointerEvents: "none" }}>🌊</text>}
+                  <g key={n.key} className="pick" transform={`translate(${p.x},${p.y})`} onClick={pick}>
+                    <circle className="hit" r={Math.max(14, size * 0.6 * kk)} fill="transparent" />
+                    {battleAt.has(n.key) && <circle className="quiet" r={size * 0.8 * kk} fill="none" stroke="var(--danger)" strokeWidth={3} strokeDasharray="6 4" />}
                     {showLabels ? (
-                      <g transform={`translate(0,${size * 1.15 * kk * 0.48})`}>
-                        <rect x={-48} y={-10} width={96} height={20} rx={4} fill={sel ? "#C7742A" : "#F3EAD3"} stroke="#1F1B16" strokeWidth={1} />
-                        <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "#fff" : "#1F1B16"}>{book?.order}. {book?.nameRu}</text>
+                      <g className="quiet" transform={`translate(0,${size * 1.15 * kk * 0.48})`}>
+                        <rect x={-48} y={-10} width={96} height={20} rx={4} fill={sel ? "var(--accent)" : "var(--map-paper)"} stroke="var(--text)" strokeWidth={1} />
+                        <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}. {book?.nameRu}</text>
                       </g>
-                    ) : <g><circle r={8} fill={sel ? "#C7742A" : "#fff"} stroke="#1F1B16" strokeWidth={1} /><text textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700} fill={sel ? "#fff" : "#1F1B16"}>{book?.order}</text></g>}
-                    {seen.map((tm, i) => <circle key={tm.id} cx={14 - i * 9} cy={-14} r={4.5} fill={tm.color} stroke="#fff" strokeWidth={1} />)}
+                    ) : <g className="quiet"><circle r={8} fill={sel ? "var(--accent)" : "var(--surface)"} stroke="var(--text)" strokeWidth={1} /><text textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}</text></g>}
+                    {seen.map((tm, i) => <circle key={tm.id} className="quiet" cx={14 - i * 9} cy={-14} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
                   </g>
                 );
                 if (!showDots) return null;
-                return <g key={n.key} transform={`translate(${p.x},${p.y})`}><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((tm, i) => <circle key={tm.id} cx={8 - i * 7} cy={-8} r={3.5} fill={tm.color} stroke="#fff" strokeWidth={0.8} />)}</g>;
+                return <g key={n.key} className="pick" transform={`translate(${p.x},${p.y})`} onClick={pick}><circle className="hit" r={12} fill="transparent" /><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((tm, i) => <circle key={tm.id} cx={8 - i * 7} cy={-8} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
             </g>
           </svg>
         </div>
-        <div style={{ position: "absolute", right: 10, top: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-          <button className="secondary sm" style={{ width: 40, padding: 0 }} onClick={vp.fit} aria-label={t("Вся карта")}>⤢</button>
+        <div className="map-controls">
+          <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
+          <button type="button" className="secondary icon" onClick={() => vp.zoomAt(1.3)} aria-label={t("Приблизить")} title={t("Приблизить")}><Icon name="zoom-in" /></button>
+          <button type="button" className="secondary icon" onClick={() => vp.zoomAt(1 / 1.3)} aria-label={t("Отдалить")} title={t("Отдалить")}><Icon name="zoom-out" /></button>
         </div>
+        {selected && wrapEl && (selected.kind === "CITY"
+          ? <CitySheet gameId={gameId} node={selected} version={version} container={wrapEl} revealed={revealedBy.get(selected.key) ?? []} battle={battleAt.get(selected.key) ?? null} teamById={teamById} onClose={close} onReview={onReview} />
+          : <NodeSheet gameId={gameId} node={selected} container={wrapEl} teams={progress ?? []} revealed={revealedBy.get(selected.key) ?? []} onClose={close} />)}
       </div>
-      <div className="legend">
-        {Object.entries(TERRAIN_COLOR).map(([k, c]) => <span key={k} style={{ ["--c" as string]: c }}>{t(({ desert: "пустыня", hills: "холмы", meadow: "луг", mountains: "горы", water: "вода", oasis: "оазис" } as Record<string, string>)[k] ?? k)}</span>)}
-        <span style={{ ["--c" as string]: "#fff" }}>{t("город на перекрёстке (номер книги)")}</span>
-        {progress?.map((tm) => <span key={tm.id} style={{ ["--c" as string]: tm.color }}>{tm.name}</span>)}
-      </div>
-      {selected?.kind === "CITY" && battleAt.get(selected.key) && (() => { const b = battleAt.get(selected.key)!; const at = teamById.get(b.attackerId), df = teamById.get(b.defenderId); return <p className="note bad" style={{ marginTop: ".6rem" }}>🌊 {t("Испытание: «{a}» бросает вызов «{d}», ставка {n} ст.", { a: at?.name ?? "?", d: df?.name ?? "?", n: b.bid })} · {b.status === "QUEUED" ? t("в очереди") : b.status === "ATTACK" ? t("идёт вызов") : t("идёт ответ")}. {t("Записи — в блоке «Испытания» выше.")}</p>; })()}
-      {selected?.kind === "CITY" && <AdminCityPanel gameId={gameId} node={selected} version={version} revealedTeams={revealedBy.get(selected.key) ?? []} onClose={() => setSelected(null)} />}
-      {selected && selected.kind !== "CITY" && (
-        <div className="note ok" style={{ marginTop: ".6rem" }}>
-          {selected.kind === "START" ? t("Старт команды {n}", { n: (selected.teamIndex ?? 0) + 1 }) : t("Развилка")} · {t("перекрёсток {key}", { key: selected.key })}
-          {(revealedBy.get(selected.key) ?? []).length > 0 && ` · ${t("открыт: {names}", { names: (revealedBy.get(selected.key) ?? []).map((tm) => tm.name).join(", ") })}`}
-          <RevealButtons gameId={gameId} nodeKey={selected.key} teams={progress ?? []} revealedBy={revealedBy.get(selected.key) ?? []} />
+      <details className="legend">
+        <summary><Icon name="info" />{t("Обозначения")}<Icon name="chevron-down" /></summary>
+        <div className="items">
+          {progress?.map((tm) => <span key={tm.id}><i className="sw dot" style={{ ["--c" as string]: tm.color }} />{tm.name}</span>)}
+          <span><i className="sw line" />{t("пройденная сторона")}</span>
+          <span><i className="sw spot" />{t("открытый перекрёсток")}</span>
+          <span><i className="sw ring" />{t("город с владельцем")}</span>
+          <span><i className="sw ring bad" />{t("идёт испытание")}</span>
         </div>
-      )}
+      </details>
     </>
   );
 }
 
-/** Панель города для админа: ключ конверта, прогресс команд, районы и задания с ответами. */
-function AdminCityPanel({ gameId, node, version, revealedTeams, onClose }: { gameId: string; node: MapNodeDto; version: number; revealedTeams: Array<{ id: string }>; onClose: () => void }) {
+/** Панель города: ключ и шифр, состояние команд, задания с ответами (аккордеон), тестовые действия (свёрнуты). */
+function CitySheet({ gameId, node, version, container, revealed, battle, teamById, onClose, onReview }: { gameId: string; node: MapNodeDto; version: number; container: HTMLElement; revealed: TeamLite[]; battle: BattleProgress | null; teamById: Map<string, TeamLite>; onClose: () => void; onReview?: () => void }) {
   const [city, setCity] = useState<AdminCityDto | null>(null);
-  const [showAnswers, setShowAnswers] = useState(false);
-  useEffect(() => { let alive = true; api<AdminCityDto>(`/api/games/${gameId}/cities/${encodeURIComponent(node.key)}`).then((c) => { if (alive) setCity(c); }).catch(() => { if (alive) setCity(null); }); return () => { alive = false; }; }, [gameId, node.key, version]);
+  const [loadError, setLoadError] = useState(false);
+  const load = useCallback(() => api<AdminCityDto>(`/api/games/${gameId}/cities/${encodeURIComponent(node.key)}`).then((c) => { setCity(c); setLoadError(false); }).catch(() => setLoadError(true)), [gameId, node.key]);
+  useEffect(() => { void load(); }, [load, version]);
   const book = BOOK_BY_CODE.get(node.bookCode ?? "");
   const total = city?.content?.tasks.length ?? 0;
+  const revealedIds = new Set(revealed.map((tm) => tm.id));
+  const pending = <span className="muted">{t("появится после старта игры")}</span>;
   return (
-    <div className="admin-city">
-      <div className="row between">
-        <div><strong>{t("Город {name}", { name: book?.nameRu ?? "" })}</strong> <span className="muted">· {t("перекрёсток {key}", { key: node.key })} · {node.cityType}</span></div>
-        <button className="ghost sm" onClick={onClose} aria-label={t("Закрыть")}>✕</button>
-      </div>
-      {!city && <p className="muted">{t("Загрузка…")}</p>}
-      {city && (
-        <>
-          <p style={{ margin: ".3rem 0" }}>{t("Ключ конверта:")} {city.node.cityKey ? <code className="key">{city.node.cityKey}</code> : <span className="muted">{t("появится после старта игры")}</span>}
-            {city.node.cityCode && <> · {t("шифр для семьи:")} <strong style={{ letterSpacing: ".08em" }}>{city.node.cityCode}</strong></>}</p>
-          {!city.content && <p className="note warn">{t("Задания для этой книги ещё готовятся: команды пока не могут взять этот город.")}</p>}
-          <RevealButtons gameId={gameId} nodeKey={node.key} teams={city.teams} revealedBy={revealedTeams} />
-          <AssignButtons gameId={gameId} nodeKey={node.key} teams={city.teams} />
-          <ul className="list">
-            {city.teams.map((tm) => (
-              <li key={tm.id}>
-                <div className="main"><span className="avatar" style={{ background: tm.color, color: "#fff" }}>{tm.name.slice(0, 1)}</span> <strong>{tm.name}</strong></div>
-                <span className="muted">
-                  {tm.capturedAt ? <span className="badge accent">{t("город перешёл")}{tm.isCapital ? t(" · столица") : ""}</span>
-                    : tm.orderSolved ? t("районы открыты · заданий {a}/{b}", { a: tm.doneTasks.length, b: total })
-                    : tm.orderAttempts > 0 ? t("собирает порядок · попыток {n}", { n: tm.orderAttempts }) : t("не начинала")}
-                </span>
-              </li>
-            ))}
-          </ul>
-          {city.content && (
-            <>
-              <button className="secondary sm" onClick={() => setShowAnswers((v) => !v)}>{showAnswers ? t("Скрыть районы и ответы") : t("Районы и задания с ответами ({n})", { n: total })}</button>
-              {showAnswers && (
-                <ol className="admin-districts">
-                  {city.content.districts.map((d, i) => {
-                    const task = city.content!.tasks[i]!;
-                    const answer = task.type === "number" ? String(task.answer) : task.type === "text" ? (task.answers ?? []).join(" / ") : task.type === "choice" ? task.options?.[task.correct ?? 0] : (task.items ?? []).join(" → ");
-                    return (
-                      <li key={i}>
-                        <div><strong>{d.title}</strong> <span className="muted">{d.verses}</span></div>
-                        <div className="muted" style={{ fontSize: ".85rem" }}>{d.summary}</div>
-                        <div style={{ marginTop: ".25rem" }}>{task.prompt}</div>
-                        <div className="note ok" style={{ margin: ".25rem 0 0" }}>{t("Ответ: {a} · знак шифра {c}", { a: answer ?? "", c: city.node.cityCode?.[i] ?? "?" })}</div>
-                      </li>
-                    );
-                  })}
-                </ol>
-              )}
-            </>
+    <Sheet container={container} size="md" title={t("Город {name}", { name: book?.nameRu ?? "" })} onClose={onClose}>
+      {loadError ? <ErrorState onRetry={() => void load()} /> : !city ? <LoadingState /> : (
+        <div className="stack">
+          <dl className="keys">
+            <dt>{t("Ключ (в конверте)")}</dt><dd>{city.node.cityKey ? <code className="key">{city.node.cityKey}</code> : pending}</dd>
+            <dt>{t("Шифр")}</dt><dd>{city.node.cityCode ? <code className="key">{city.node.cityCode}</code> : pending}</dd>
+          </dl>
+          {!city.content && <p className="note warn"><Icon name="alert" /><span>{t("Задания для этой книги ещё готовятся: команды пока не могут взять этот город.")}</span></p>}
+          {battle && (
+            <p className="note info">
+              <Icon name="wave" />
+              <span>
+                {t("Испытание: «{a}» бросает вызов «{d}», ставка {n}", { a: teamById.get(battle.attackerId)?.name ?? "?", d: teamById.get(battle.defenderId)?.name ?? "?", n: plural(battle.bid, ["стих", "стиха", "стихов"]) })} · {battle.status === "QUEUED" ? t("в очереди") : battle.status === "ATTACK" ? t("идёт вызов") : t("идёт ответ")}.
+                {" "}{onReview && <a href="#review" onClick={(e) => { e.preventDefault(); onReview(); }}>{t("Открыть в Проверке")}</a>}
+              </span>
+            </p>
           )}
-        </>
+          {city.teams.length === 0 ? <EmptyState inline icon="users" text={t("Команд пока нет.")} /> : (
+            <ul className="list">
+              {city.teams.map((tm) => (
+                <li key={tm.id}>
+                  <div className="main"><TeamAvatar name={tm.name} color={tm.color} size="sm" withName /></div>
+                  <span className="side muted small">
+                    {tm.capturedAt ? (tm.isCapital ? t("столица здесь") : t("взяла город"))
+                      : tm.orderSolved ? t("задания {a} из {b}", { a: tm.doneTasks.length, b: total })
+                      : tm.orderAttempts > 0 ? t("собирает порядок районов · попыток {n}", { n: tm.orderAttempts }) : t("не начинала")}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {city.content && (
+            <details className="fold">
+              <summary><Icon name="book" />{t("Задания и ответы")} <span className="count">· {total}</span><Icon name="chevron-down" className="chev" /></summary>
+              <ol className="admin-districts">
+                {city.content.districts.map((d, i) => {
+                  const task = city.content!.tasks[i];
+                  if (!task) return null;
+                  const answer = task.type === "number" ? String(task.answer) : task.type === "text" ? (task.answers ?? []).join(" / ") : task.type === "choice" ? task.options?.[task.correct ?? 0] : (task.items ?? []).join(", ");
+                  const sign = city.node.cityCode?.[i];
+                  return (
+                    <li key={i}>
+                      <div><strong>{d.title}</strong> <span className="muted small">{d.verses}</span></div>
+                      <div className="muted small">{d.summary}</div>
+                      <div className="mt-1">{task.prompt}</div>
+                      <p className="note ok"><Icon name="check" /><span>{t("Ответ")}: {answer ?? ""}{sign ? ` · ${t("знак шифра")}: ${sign}` : ""}</span></p>
+                    </li>
+                  );
+                })}
+              </ol>
+            </details>
+          )}
+          {city.teams.length > 0 && (
+            <details className="fold test">
+              <summary><Icon name="alert" />{t("Тестовые действия")}<Icon name="chevron-down" className="chev" /></summary>
+              <TestActions gameId={gameId} nodeKey={node.key} teams={city.teams} revealedIds={revealedIds} hasContent={Boolean(city.content)} onDone={() => void load()} />
+            </details>
+          )}
+        </div>
       )}
-    </div>
+    </Sheet>
   );
 }
 
-/** Тестовая кнопка админа: открыть узел команде (сторона к нему считается пройденной). */
-function RevealButtons({ gameId, nodeKey, teams, revealedBy }: { gameId: string; nodeKey: string; teams: Array<{ id: string; name: string; color: string }>; revealedBy: Array<{ id: string }> }) {
-  const { confirm, notify } = useUi();
-  const seen = new Set(revealedBy.map((tm) => tm.id));
-  const rest = teams.filter((tm) => !seen.has(tm.id));
-  if (rest.length === 0) return null;
-  async function reveal(tm: { id: string; name: string }) {
-    if (!(await confirm(t("Открыть этот узел команде «{name}»? Это тестовое действие: сторона к узлу будет считаться пройденной.", { name: tm.name }), { okLabel: t("Открыть") }))) return;
-    try { await api(`/api/games/${gameId}/teams/${tm.id}/reveal`, { method: "POST", body: JSON.stringify({ nodeKey }) }); notify(t("Узел открыт команде «{name}»", { name: tm.name })); }
-    catch (e) { notify(e instanceof Error ? e.message : t("Ошибка"), "bad"); }
-  }
+/** Панель старта или развилки: кто открыл, тестовое открытие. */
+function NodeSheet({ gameId, node, container, teams, revealed, onClose }: { gameId: string; node: MapNodeDto; container: HTMLElement; teams: TeamProgress[]; revealed: TeamLite[]; onClose: () => void }) {
+  const startTeam = node.kind === "START" ? teams.find((tm) => tm.startNodeKey === node.key) : undefined;
+  const title = node.kind === "START" ? t("Старт команды «{name}»", { name: startTeam?.name ?? String((node.teamIndex ?? 0) + 1) }) : t("Развилка");
   return (
-    <div className="row" style={{ marginTop: ".4rem", gap: ".4rem", flexWrap: "wrap" }}>
-      {rest.map((tm) => <button key={tm.id} className="secondary sm" style={{ borderColor: tm.color }} onClick={() => void reveal(tm)}>{t("Открыть для «{name}»", { name: tm.name })}</button>)}
-    </div>
+    <Sheet container={container} size="sm" title={title} onClose={onClose}>
+      <div className="stack">
+        {revealed.length === 0 ? <EmptyState inline icon="map" text={t("Перекрёсток ещё никто не открыл.")} /> : (
+          <div>
+            <p className="muted small">{t("Открыли")}</p>
+            <div className="row mt-1">{revealed.map((tm) => <TeamAvatar key={tm.id} name={tm.name} color={tm.color} size="sm" withName />)}</div>
+          </div>
+        )}
+        {teams.length > 0 && (
+          <details className="fold test">
+            <summary><Icon name="alert" />{t("Тестовые действия")}<Icon name="chevron-down" className="chev" /></summary>
+            <TestActions gameId={gameId} nodeKey={node.key} teams={teams} revealedIds={new Set(revealed.map((tm) => tm.id))} hasContent={false} onDone={onClose} />
+          </details>
+        )}
+      </div>
+    </Sheet>
   );
 }
 
-/** Тестовая кнопка админа: присвоить город команде (все районы решены, город занят ею). */
-function AssignButtons({ gameId, nodeKey, teams }: { gameId: string; nodeKey: string; teams: Array<{ id: string; name: string; color: string; capturedAt: string | null }> }) {
+/** Тестовые действия администратора: один выбор команды и три кнопки. Для развилки — только «Открыть перекрёсток». */
+function TestActions({ gameId, nodeKey, teams, revealedIds, hasContent, onDone }: { gameId: string; nodeKey: string; teams: Array<TeamLite & { capturedAt?: string | null }>; revealedIds: Set<string>; hasContent: boolean; onDone: () => void }) {
   const { confirm, notify } = useUi();
-  const rest = teams.filter((tm) => !tm.capturedAt);
-  if (rest.length === 0) return null;
-  async function assign(tm: { id: string; name: string }) {
-    if (!(await confirm(t("Присвоить город команде «{name}»? Тестовое действие: все районы будут считаться решёнными, город занят этой командой, прежний владелец его теряет.", { name: tm.name }), { okLabel: t("Присвоить") }))) return;
-    try { const r = await api<{ isCapital: boolean }>(`/api/games/${gameId}/cities/${encodeURIComponent(nodeKey)}/assign`, { method: "POST", body: JSON.stringify({ teamId: tm.id }) }); notify(t("Город присвоен команде «{name}»", { name: tm.name }) + (r.isCapital ? t(" — это её столица") : "")); }
-    catch (e) { notify(e instanceof Error ? e.message : t("Ошибка"), "bad"); }
+  const [teamId, setTeamId] = useState(teams[0]?.id ?? "");
+  const [busy, setBusy] = useState(false);
+  const tm = teams.find((x) => x.id === teamId);
+  const isCity = "capturedAt" in (tm ?? {});
+  async function run(question: string, title: string, okLabel: string, call: () => Promise<string>) {
+    if (!tm || !(await confirm(question, { title, okLabel }))) return;
+    setBusy(true);
+    try { notify(await call()); onDone(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
   }
-  async function study(tm: { id: string; name: string }) {
-    if (!(await confirm(t("Зачесть команде «{name}» все задания этого города? Тестовое действие: районы собраны, задания решены, город не взят — можно сразу вводить ключ или бросать вызов.", { name: tm.name }), { okLabel: t("Зачесть") }))) return;
-    try { await api(`/api/games/${gameId}/cities/${encodeURIComponent(nodeKey)}/study`, { method: "POST", body: JSON.stringify({ teamId: tm.id }) }); notify(t("Задания зачтены команде «{name}»", { name: tm.name })); }
-    catch (e) { notify(e instanceof Error ? e.message : t("Ошибка"), "bad"); }
-  }
+  const name = tm?.name ?? "";
   return (
-    <div className="row" style={{ marginTop: ".4rem", gap: ".4rem", flexWrap: "wrap" }}>
-      {rest.map((tm) => <button key={tm.id} className="secondary sm" style={{ borderColor: tm.color }} onClick={() => void assign(tm)}>{t("Присвоить «{name}»", { name: tm.name })}</button>)}
-      {rest.map((tm) => <button key={"s" + tm.id} className="ghost sm" onClick={() => void study(tm)}>{t("Зачесть задания «{name}»", { name: tm.name })}</button>)}
+    <div className="test-actions">
+      <p className="hint">{t("Действия за команду, минуя игру. Для проверки, не для боевой игры.")}</p>
+      <select value={teamId} onChange={(e) => setTeamId(e.target.value)} aria-label={t("Команда")}>{teams.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+      <div className="row">
+        <button type="button" className="secondary sm" disabled={busy || !tm || revealedIds.has(teamId)} onClick={() => void run(t("Сторона к этому перекрёстку будет считаться пройденной командой «{name}».", { name }), t("Открыть перекрёсток?"), t("Открыть"), async () => { await api(`/api/games/${gameId}/teams/${teamId}/reveal`, { method: "POST", body: JSON.stringify({ nodeKey }) }); return t("Перекрёсток открыт команде «{name}»", { name }); })}>{t("Открыть перекрёсток")}</button>
+        {isCity && <button type="button" className="secondary sm" disabled={busy || !tm || !hasContent || Boolean(tm?.capturedAt)} onClick={() => void run(t("Районы собраны, задания решены, город не взят: команда «{name}» сможет сразу ввести ключ или бросить вызов.", { name }), t("Зачесть задания?"), t("Зачесть"), async () => { await api(`/api/games/${gameId}/cities/${encodeURIComponent(nodeKey)}/study`, { method: "POST", body: JSON.stringify({ teamId }) }); return t("Задания зачтены команде «{name}»", { name }); })}>{t("Зачесть задания")}</button>}
+        {isCity && <button type="button" className="secondary sm" disabled={busy || !tm || Boolean(tm?.capturedAt)} onClick={() => void run(t("Все районы будут считаться решёнными, город займёт команда «{name}», прежний владелец его потеряет.", { name }), t("Отдать город?"), t("Отдать"), async () => { const r = await api<{ isCapital: boolean }>(`/api/games/${gameId}/cities/${encodeURIComponent(nodeKey)}/assign`, { method: "POST", body: JSON.stringify({ teamId }) }); return t("Город отдан команде «{name}»", { name }) + (r.isCapital ? t(" — это её столица") : ""); })}>{t("Отдать город")}</button>}
+      </div>
     </div>
   );
 }

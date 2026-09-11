@@ -1,3 +1,95 @@
 /** EN-строки области «admin». Ключ — русская строка как в коде. Добавлять только сюда; legacy.ts не трогать. */
 export const ADMIN: Record<string, string> = {
+  // Страница игры: шапка и вкладки
+  "Разделы игры": "Game sections", "Карта": "Map", "Сейчас": "Now", "ждёт проверки": "awaiting review", "идёт испытаний": "trials in progress",
+  "Карта ещё не создана.": "The map is not created yet.", "Карты нет.": "There is no map.", "Появится после старта игры.": "Appears after the game starts.",
+  "Города и старты будут расставлены заново.": "Cities and starts will be placed anew.", "Сгенерировать карту заново?": "Regenerate the map?", "Сгенерировать": "Generate", "Карта готова": "Map is ready",
+  // Подготовка
+  "После старта карту изменить нельзя. Команды получат стартовые точки и первые дела.": "The map cannot be changed after the start. Teams get their start points and first deeds.",
+  "от старта до ближайшего города: {d} ходов": "from start to the nearest city: {d} moves", "Ещё не создана": "Not created yet", "Заново": "Again",
+  "Команды и приглашения": "Teams and invitations", "Адресаты конвертов и ярлыки": "Envelope recipients and labels", "Желательно до старта, но можно добавить и позже": "Better before the start, but can be added later",
+  "Не удалось проверить готовность": "Could not check readiness", "Открыть «Команды»": "Open “Teams”", "Открыть «Дела»": "Open “Deeds”", "Можно начинать.": "Ready to start.", "готово": "done", "Ниже": "Below",
+  // Настройки
+  "Настройки сохранены": "Settings saved", "Карту нужно сгенерировать заново": "The map needs to be regenerated", "Карта и старты": "Map and starts", "Перекрёстков на карте": "Crossroads on the map",
+  "После изменения числа команд или перекрёстков карту нужно сгенерировать заново.": "After changing the number of teams or crossroads, regenerate the map.",
+  "Выровнять расстояние от стартов до первого города": "Equalize the distance from starts to the first city", "Допустимая разница, ходов": "Allowed difference, moves",
+  "Отрывки могут содержать родословия и списки имён": "Passages may contain genealogies and name lists", "Пожертвование вместо дела": "Donation instead of a deed", "Минимум": "Minimum",
+  "Пусто — пожертвование выключено.": "Empty — donations are off.",
+  // Команды
+  "Команда добавлена": "Team added", "Команда «{name}» будет удалена вместе с участниками.": "Team “{name}” will be deleted with its members.", "Команда удалена": "Team deleted",
+  "{nick} убран из команды": "{nick} removed from the team", "Команд пока нет: добавьте первую.": "No teams yet: add the first one.", "Пригласить": "Invite",
+  "Ссылка для капитана": "Link for the captain", "Ссылка для участников": "Link for members", "Действует 14 дней, до 20 человек.": "Valid for 14 days, up to 20 people.",
+  "Пока никого: отправьте ссылку капитану.": "Nobody yet: send the link to the captain.", "Игровая роль": "Game role", "Роль сохранена": "Role saved",
+  "{nick} больше не капитан": "{nick} is no longer captain", "{nick} теперь капитан": "{nick} is now captain", "Команд по настройкам: {n}.": "Teams by settings: {n}.",
+  "Изменить в настройках": "Change in settings", "Игровые роли — только у участников: капитан ведёт команду.": "Game roles are for members only: the captain leads the team.",
+  // Дела
+  "Дело добавлено": "Deed added", "Дело удалено": "Deed deleted", "Рекомендуется не меньше {n} дел, иначе они начнут повторяться.": "At least {n} deeds are recommended, otherwise they will repeat.",
+  "Дел пока нет. Возьмите стандартный набор как заготовку или добавьте свои.": "No deeds yet. Take the standard set as a draft or add your own.", "повторяемое": "repeatable",
+  "сложность {n}": "difficulty {n}", "Изменения увидят команды, у которых дело ещё не сдано.": "Teams that have not submitted this deed yet will see the changes.",
+  "Описание": "Description", "(что именно сделать)": "(what exactly to do)", "Книга": "Book", "(необязательно)": "(optional)", "Любая": "Any", "Сложность": "Difficulty",
+  "Повторяемое: можно выдавать нескольким командам": "Repeatable: can be given to several teams", "лёгкое": "easy", "среднее": "medium", "трудное": "hard",
+  // Адресаты
+  "Адресат добавлен": "Recipient added", "Его города получат другого адресата при следующей печати ярлыков.": "Their cities will get another recipient at the next label printing.",
+  "Убрать адресата «{label}»?": "Remove recipient “{label}”?", "Адресат убран": "Recipient removed", "Ярлыки": "Labels",
+  "Кому команды понесут шифр за конвертом. Только подпись без имён и адресов — список стирается после игры.": "Who the teams bring the cipher to for the envelope. Only a caption without names or addresses — the list is erased after the game.",
+  "Адресатов пока нет.": "No recipients yet.", "Как назвать адресата, например «семья у рынка»": "How to call the recipient, e.g. “family by the market”", "Кто это": "Who is it",
+  "Спросите согласие человека заранее.": "Ask the person for consent in advance.", "пожилой человек": "elderly person",
+  // Проверка
+  "Фото": "Photo", "Видео": "Video", "Ссылка": "Link", "Сдача принята": "Submission accepted", "Сдача возвращена": "Submission returned", "Сдачи": "Submissions",
+  "Отчёт команды": "Team report", "Принять": "Accept", "Причина возврата: команда её увидит": "Reason for return: the team will see it",
+  "Запись принята": "Recording accepted", "Запись возвращена": "Recording returned", "Какие испытания показывать": "Which trials to show", "Идут": "Ongoing", "Все": "All",
+  "Сейчас испытаний нет.": "No trials right now.", "ставка": "bid", "Вызов": "Challenge", "выучено {a} · принято {b}": "learned {a} · accepted {b}", "сдано на проверку": "sent for review",
+  "выучено {a} · принято {b} · нужно {c}": "learned {a} · accepted {b} · needed {c}", "устояли на {n}": "held with {n}", "идёт вызов": "challenge in progress", "идёт ответ": "response in progress",
+  "город перешёл": "city changed hands", "город устоял": "city held", "вызов не завершён": "challenge not completed", "отменено": "cancelled", "возвращено": "returned",
+  "Задание открыто": "Task opened", "Задание оставлено закрытым": "Task left closed", "Споры": "Disputes", "задание {n}": "task {n}", "Верный вариант": "Correct option",
+  "Ответ команде: почему задание остаётся закрытым": "Reply to the team: why the task stays closed",
+  // Администраторы
+  "{nick} больше не сможет вести эту игру.": "{nick} will no longer be able to run this game.", "Убрать администратора?": "Remove administrator?", "{nick} убран из администраторов": "{nick} removed from administrators",
+  "без почты": "no email", "Администраторы проверяют сдачи и получают письма о них.": "Administrators review submissions and get emails about them.",
+  // Итоги и завершение
+  "Срок убран": "Deadline removed", "Победителем станет «{name}»: больше всего городов.": "“{name}” will win: the most cities.", "Испытания будут отменены, действия команд остановятся.": "Trials will be cancelled and team actions will stop.",
+  "Завершить игру?": "Finish the game?", "Завершить": "Finish", "осталась одна команда": "one team left", "вышел срок": "time is up", "Итоги": "Results", "Взятые города": "Cities taken", "потерян": "lost",
+  "Срок окончания": "End date", "Дата и время": "Date and time", "В этот момент игра завершится сама: победит команда с наибольшим числом городов.": "At that moment the game ends by itself: the team with the most cities wins.",
+  "Убрать срок": "Remove deadline", "Необратимо: испытания отменятся, действия команд остановятся, победитель — по числу городов.": "Irreversible: trials are cancelled, team actions stop, the winner is by the number of cities.",
+  "Испытания: {a} выиграли · {b} устояли · {c} потеряли": "Trials: {a} won · {b} held · {c} lost",
+  // Карта
+  "Приблизить": "Zoom in", "Отдалить": "Zoom out", "Обозначения": "Legend", "пройденная сторона": "passed side", "открытый перекрёсток": "opened crossroad", "город с владельцем": "city with an owner", "идёт испытание": "trial in progress",
+  "Ключ (в конверте)": "Key (in the envelope)", "Испытание: «{a}» бросает вызов «{d}», ставка {n}": "Trial: “{a}” challenges “{d}”, bid {n}", "Открыть в Проверке": "Open in Review", "Команд пока нет.": "No teams yet.",
+  "столица здесь": "capital is here", "взяла город": "took the city", "задания {a} из {b}": "tasks {a} of {b}", "собирает порядок районов · попыток {n}": "arranging the districts · attempts {n}",
+  "Задания и ответы": "Tasks and answers", "знак шифра": "cipher sign", "Тестовые действия": "Test actions", "Старт команды «{name}»": "Start of team “{name}”", "Перекрёсток ещё никто не открыл.": "Nobody has opened this crossroad yet.",
+  "Открыли": "Opened by", "Действия за команду, минуя игру. Для проверки, не для боевой игры.": "Actions on behalf of a team, bypassing the game. For testing, not for a real game.",
+  "Сторона к этому перекрёстку будет считаться пройденной командой «{name}».": "The side to this crossroad will count as passed by team “{name}”.", "Открыть перекрёсток?": "Open the crossroad?",
+  "Перекрёсток открыт команде «{name}»": "Crossroad opened for team “{name}”", "Открыть перекрёсток": "Open crossroad",
+  "Районы собраны, задания решены, город не взят: команда «{name}» сможет сразу ввести ключ или бросить вызов.": "Districts arranged, tasks solved, city not taken: team “{name}” can enter the key or challenge right away.",
+  "Зачесть задания?": "Credit the tasks?", "Зачесть задания": "Credit tasks", "Все районы будут считаться решёнными, город займёт команда «{name}», прежний владелец его потеряет.": "All districts will count as solved, team “{name}” takes the city, the previous owner loses it.",
+  "Отдать город?": "Give the city?", "Отдать": "Give", "Город отдан команде «{name}»": "City given to team “{name}”", "Отдать город": "Give city",
+  // История ходов
+  "История ходов": "Move history", "открыл перекрёсток": "opened a crossroad", "прошёл сторону": "passed a side", "взял город": "took a city", "взял город (столица)": "took a city (capital)",
+  // Ярлыки
+  "Скачать PDF": "Download PDF", "Наружный ярлык — на конверт, вкладыш — внутрь; разрежьте по пунктиру.": "The outer label goes on the envelope, the insert goes inside; cut along the dotted line.",
+  "Добавить адресатов": "Add recipients", "Поздравляем! Город {name} ваш.": "Congratulations! The city of {name} is yours.", "Ключ": "Key",
+  "Введите ключ в игре, чтобы взять город. Ключ секретный: не показывайте его другим командам.": "Enter the key in the game to take the city. The key is secret: do not show it to other teams.",
+  // Аналитика
+  "динамика по дням": "daily trend", "к предыдущим {n} дн": "vs previous {n} d", "{n} дней": "{n} days", "Период": "Period",
+  "Только обобщённые числа: без содержимого игр и без привязки к людям. Наведите на график в плитке, чтобы увидеть день.": "Aggregated numbers only: no game content and no link to people. Hover over a tile chart to see the day.",
+  "Пользователи": "Users", "всего": "total", "новых за {n} дн": "new in {n} d", "активны за день": "active today", "активны за неделю": "active this week", "активны за месяц": "active this month",
+  "удержание 7 дн": "7-day retention", "вернулись через неделю": "came back a week later", "удержание 30 дн": "30-day retention", "вернулись через месяц": "came back a month later",
+  "Игры": "Games", "игр всего": "games total", "черновиков {n}": "drafts {n}", "идут": "ongoing", "завершены": "finished", "создано за {n} дн": "created in {n} d", "длительность": "duration", "дн": "d",
+  "среднее по завершённым": "average of finished", "размер команды": "team size", "в среднем": "on average", "церквей": "churches", "Активность": "Activity", "сдач дел за {n} дн": "deed submissions in {n} d",
+  "всего {n}": "total {n}", "принято за {n} дн": "accepted in {n} d", "доля принятых {p}": "share accepted {p}", "до решения администратора": "until the administrator's decision", "ч": "h",
+  "открыто перекрёстков за {n} дн": "crossroads opened in {n} d", "пройдено сторон всего {n}": "sides passed total {n}", "взято городов за {n} дн": "cities taken in {n} d",
+  "объявлено за {n} дн": "declared in {n} d", "средняя ставка": "average bid", "стихов": "verses", "время вызова": "challenge time", "суммарный режим": "sum mode", "исчерпанные книги": "exhausted books",
+  "Проходы": "Passages", "запросов прохода": "passage requests", "разрешено": "allowed", "посольств": "embassies", "Метрики проходов появятся позже.": "Passage metrics will appear later.",
+  "Сервер": "Server", "работает без перезапуска": "uptime", "почта": "mail", "настроена": "configured", "выключена": "off", "писем отправлено": "emails sent", "с момента запуска": "since start",
+  "не доставлено": "not delivered", "память": "memory", "МБ": "MB", "запросов к API": "API requests", "ошибок сервера (5xx)": "server errors (5xx)", "последняя": "last", "ошибок не было": "no errors",
+  "отказов клиенту (4xx)": "client rejections (4xx)", "неверные данные, нет прав": "bad data, no access", "время ответа": "response time", "мс": "ms", "p95 {p} · по {n} запросам": "p95 {p} · over {n} requests",
+  "Подробности ошибок — в логах сервера.": "Error details are in the server logs.", "По дням": "By day", "Показать таблицу": "Show table", "День": "Day", "Новых": "New", "Всего": "Total", "Сдач": "Submissions",
+  "Принято": "Accepted", "Перекрёстков": "Crossroads", "Испытаний": "Trials", "Игр": "Games",
+  // Уведомления
+  "Уведомления выключены": "Notifications are off", "Уведомления": "Notifications", "Уведомления о делах, испытаниях и проходах — на это устройство.": "Notifications about deeds, trials and passages — to this device.",
+  "Включить": "Turn on", "Включены: уведомления о делах, испытаниях и проходах приходят сюда даже при закрытом сайте.": "On: notifications about deeds, trials and passages arrive here even when the site is closed.",
+  "Уведомления о делах, испытаниях и проходах будут приходить на это устройство даже при закрытом сайте. Письма на почту при этом остаются.": "Notifications about deeds, trials and passages will arrive on this device even when the site is closed. Emails still come too.",
+  // Склонение (plural: первые две формы)
+  "города": "cities", "перекрёсток": "crossroad", "перекрёстка": "crossroads", "дело": "deed", "дела": "deeds", "адресат": "recipient", "адресата": "recipients",
+  "конверт": "envelope", "конверта": "envelopes", "столицы": "capitals", "стих": "verse", "стиха": "verses", "ход": "move", "хода": "moves",
 };
