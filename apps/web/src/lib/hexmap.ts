@@ -5,7 +5,7 @@ export const TERRAIN_COLOR: Record<string, string> = {
   desert: "#D9B97A", hills: "#B99A5B", meadow: "#8FA05A", mountains: "#8E8272", water: "#4F7C99", oasis: "#7D8B4E",
 };
 export const FOG_COLOR = "#3F3A34";
-export const TEAM_COLORS = ["#A9553A", "#4F7C99", "#7D8B4E", "#8E5A9E", "#C48A3F", "#3B6E6E"];
+export const TEAM_COLORS = ["#A9553A", "#4F7C99", "#7D8B4E", "#8E5A9E", "#A9762F", "#3B6E6E"];
 
 /** Контур гекса (pointy-top) как строка points для polygon. */
 export function hexPoints(size = HEX_SIZE, scale = 1): string {

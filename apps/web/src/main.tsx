@@ -15,7 +15,9 @@ import { AccountPage } from "./pages/AccountPage";
 import { ForgotPage } from "./pages/ForgotPage";
 import { ResetPage } from "./pages/ResetPage";
 import { AdminDashboard } from "./pages/AdminDashboard";
-import "./styles.css";
+import { NewGamePage } from "./pages/NewGamePage";
+import { HowToPlayPage } from "./pages/HowToPlayPage";
+import "./styles/index.css";
 
 function Private({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
@@ -34,6 +36,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/forgot" element={<ForgotPage />} />
             <Route path="/reset/:token" element={<ResetPage />} />
             <Route path="/" element={<Private><GamesPage /></Private>} />
+            <Route path="/games/new" element={<Private><NewGamePage /></Private>} />
+            <Route path="/how-to-play" element={<HowToPlayPage />} />
             <Route path="/games/:id" element={<Private><GamePage /></Private>} />
             <Route path="/games/:id/labels" element={<Private><LabelsPage /></Private>} />
             <Route path="/games/:id/team" element={<Private><TeamPage /></Private>} />

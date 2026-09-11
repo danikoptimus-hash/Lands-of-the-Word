@@ -1,0 +1,85 @@
+/* Экраны администратора: страница игры, карта, ярлыки, аналитика. */
+.mapwrap { width: 100%; overflow: hidden; background: var(--surface-2); border-radius: var(--r-md); border: 1px solid var(--border); touch-action: none; }
+.legend { display: flex; gap: var(--sp-2) var(--sp-3); flex-wrap: wrap; font-size: var(--fs-xs); color: var(--muted); margin-top: var(--sp-2); }
+.legend span::before { content: ""; display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; background: var(--c); }
+.admin-city { margin-top: var(--sp-3); padding: var(--sp-4); background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-sm); }
+.admin-city .key { font-family: var(--font-mono); font-size: var(--fs-lg); font-weight: 700; letter-spacing: .12em; background: var(--surface); padding: 0 var(--sp-2); border-radius: var(--r-xs); border: 1px solid var(--border-strong); }
+.admin-districts { margin: var(--sp-3) 0 0; padding-left: 1.4rem; display: flex; flex-direction: column; gap: var(--sp-3); }
+.standings { width: 100%; border-collapse: collapse; margin-top: var(--sp-2); }
+.standings th, .standings td { text-align: left; padding: var(--sp-2); border-top: 1px solid var(--border); }
+.standings th { color: var(--muted); font-weight: 500; font-size: var(--fs-sm); border-top: 0; }
+.standings tr.winner td { background: var(--success-soft); font-weight: 600; }
+.standings tr.out td { color: var(--muted); }
+.path-list { display: flex; flex-direction: column; gap: var(--sp-2); margin-top: var(--sp-3); }
+.team-stripe { border-left: 4px solid var(--team, var(--accent)); padding-left: var(--sp-3); margin: var(--sp-3) 0; }
+.path-list .team-stripe { padding: var(--sp-2) var(--sp-3); }
+.ghost-link { color: var(--muted); }
+/* Ползунок времени под картой админа */
+.timeline { margin-top: .8rem; display: flex; flex-direction: column; gap: .4rem; }
+.timeline input[type=range] { width: 100%; accent-color: var(--accent); cursor: pointer; }
+
+/* Дашборд суперадмина */
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; }
+.tile { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .7rem .8rem; }
+.tile .value { font-size: 1.5rem; font-weight: 700; line-height: 1.1; }
+.tile .label { color: var(--muted); font-size: .85rem; margin-top: .2rem; }
+.tile .hint { color: var(--muted); font-size: .75rem; margin-top: .1rem; }
+.ghost-link { color: var(--muted); text-decoration: none; margin-left: .8rem; font-size: .9rem; }
+.ghost-link:hover { color: var(--accent); }
+.tile .delta { font-size: .8rem; margin-top: .25rem; font-weight: 600; }
+.tile .delta.up { color: var(--success); }
+.tile .delta.down { color: var(--danger); }
+.tile .delta.flat { color: var(--muted); }
+.tile .delta .muted { font-weight: 400; }
+.spark { margin-top: .4rem; }
+.spark svg { display: block; width: 100%; height: 36px; }
+.spark-label { font-size: .75rem; color: var(--muted); margin-top: .15rem; font-variant-numeric: tabular-nums; }
+
+
+
+/* Компактная шапка страницы игры + вкладки */
+.tabbar { position: sticky; top: var(--topbar-h); z-index: 9; display: flex; gap: .25rem; overflow-x: auto; scrollbar-width: none; margin: 0 -1rem 1rem; padding: .35rem 1rem; background: rgba(246,244,239,.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); }
+.tabbar::-webkit-scrollbar { display: none; }
+@media (min-width: 720px) { .tabbar { margin: 0 0 1.1rem; padding: .45rem .4rem; border-radius: 0 0 12px 12px; background: rgba(246,244,239,.96); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border-strong); box-shadow: 0 6px 14px -8px rgba(31,27,22,.18); } }
+.tabbar button { flex: none; background: transparent; color: var(--muted); border: 0; border-radius: 10px; min-height: 40px; padding: .35rem .8rem; font-weight: 600; display: inline-flex; gap: .45rem; align-items: center; position: relative; }
+.tabbar button:hover { background: rgba(255,255,255,.7); color: var(--text); }
+.tabbar button.active { background: var(--surface); color: var(--accent-hover); box-shadow: var(--shadow); }
+.tabbar button .n { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--border); color: var(--muted); font-size: .72rem; display: inline-flex; align-items: center; justify-content: center; }
+.tabbar button .n.hot { background: var(--accent); color: #fff; border-color: transparent; }
+.tab-empty { text-align: center; color: var(--muted); padding: 2rem 1rem; }
+.tab-empty .i { width: 40px; height: 40px; color: var(--border-strong); display: block; margin: 0 auto .5rem; }
+.readiness { display: flex; flex-direction: column; gap: .35rem; }
+.readiness .item { display: flex; align-items: flex-start; gap: .5rem; font-size: .9rem; padding: .45rem .7rem; border-radius: var(--radius-sm); }
+.readiness .item.bad { background: var(--danger-soft); color: var(--danger); } .readiness .item.warn { background: var(--warn-soft); color: var(--warn); } .readiness .item.ok { background: var(--success-soft); color: var(--success); }
+.readiness .item .i { margin-top: .15em; }
+.map-card { padding: .6rem; }
+@media (min-width: 720px) { .map-card { padding: .8rem; } }
+.map-card .mapwrap { border-radius: 10px; }
+.map-card .legend { padding: 0 .3rem; }
+.map-card .timeline { padding: 0 .3rem .2rem; }
+
+/* Ярлыки для конвертов и печать */
+.labels { display: flex; flex-direction: column; gap: 6mm; }
+.label-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0; break-inside: avoid; page-break-inside: avoid; }
+.label { border: 1px dashed #8a8378; padding: 5mm 6mm; min-height: 48mm; display: flex; flex-direction: column; gap: 2mm; background: #fff; color: #1F1B16; font-size: 11pt; }
+.label.outer { border-right: 0; }
+.label .lbl-top { display: flex; justify-content: space-between; font-size: 8.5pt; color: #6B645A; }
+.label .lbl-num { font-weight: 700; border: 1px solid #6B645A; border-radius: 999px; padding: 0 6px; }
+.label .lbl-city { font-size: 15pt; font-weight: 700; }
+.label .lbl-to { font-size: 11pt; }
+.label .lbl-code { display: flex; flex-direction: column; margin-top: auto; }
+.label .lbl-code strong { font-size: 20pt; letter-spacing: .14em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.label .lbl-code strong.key { font-size: 24pt; }
+.label .lbl-congrats { font-size: 13pt; font-weight: 600; }
+.label .lbl-hint { font-size: 8.5pt; color: #6B645A; }
+@media (max-width: 640px) { .label-row { grid-template-columns: 1fr; } .label.outer { border-right: 1px dashed #8a8378; border-bottom: 0; } }
+@media print {
+  @page { size: A4; margin: 10mm; }
+  body { background: #fff !important; }
+  body::before, .topbar, .no-print, .toasts { display: none !important; }
+  .container { max-width: none; padding: 0; }
+  .labels { gap: 4mm; }
+  .label-row { grid-template-columns: 1fr 1fr; }
+  .label.outer { border-right: 0; border-bottom: 1px dashed #8a8378; }
+}
+

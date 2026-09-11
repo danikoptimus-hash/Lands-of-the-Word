@@ -1,0 +1,49 @@
+/* Токены дизайн-системы. Единственное место с литералами цвета/размеров (кроме печати). См. docs/design/DESIGN.md. */
+:root {
+  color-scheme: light;
+  /* Цвет */
+  --bg: #F6F4EF;            /* пергамент страницы */
+  --surface: #FFFFFF;       /* карточки, поля */
+  --surface-2: #FAF8F3;     /* вложенные плитки */
+  --border: #E3DDD0;
+  --border-strong: #B9B0A0; /* рамки контролов (3:1 на белом) */
+  --text: #2A241E;
+  --muted: #6B645A;
+  --accent: #C7742A;        /* бренд: заливки, иконки, индикаторы */
+  --accent-ink: #9B5A21;    /* текст и ссылки акцентом (≥4.5:1), главная кнопка */
+  --accent-strong: #8F541E; /* hover/active главной кнопки */
+  --accent-soft: #FBEEDF;
+  --on-accent: #FFFFFF;
+  --success: #356A44; --success-soft: #E6F2E9;
+  --warn: #8A6A12;    --warn-soft: #FBF3DD;
+  --danger: #B3402F;  --danger-soft: #FBE9E5;
+  --info: #2F6FB3;    --info-soft: #E4EEF9;
+  --link: var(--accent-ink);
+  --overlay: rgba(42,36,30,.45);
+  --map-bg: #2B2724; --map-fog: #3F3A34; --map-paper: #F3EAD3; --map-far: #B9B1A5;
+  /* Шрифт */
+  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --fs-xs: 12px; --fs-sm: 14px; --fs-md: 16px; --fs-lg: 18px; --fs-xl: 22px; --fs-2xl: 28px;
+  --lh-tight: 1.2; --lh-ui: 1.45; --lh-text: 1.55;
+  /* Сетка 4px */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
+  --gutter: clamp(16px, 4vw, 24px);
+  --control-h: 44px; --control-h-sm: 36px; --touch: 44px;
+  /* Радиусы, тени */
+  --r-xs: 4px; --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-full: 999px;
+  --radius: var(--r-md); --radius-sm: var(--r-sm); /* старые имена */
+  --shadow-1: 0 1px 2px rgba(42,36,30,.05), 0 2px 8px rgba(42,36,30,.06);
+  --shadow-2: 0 4px 12px rgba(42,36,30,.10), 0 12px 32px rgba(42,36,30,.10);
+  --shadow-3: 0 12px 40px rgba(42,36,30,.25);
+  --shadow: var(--shadow-1);
+  --ring: 0 0 0 3px var(--accent-soft);
+  /* Движение, слои */
+  --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 320ms;
+  --ease-out: cubic-bezier(.2,.7,.2,1); --ease-in: cubic-bezier(.4,0,1,1); --spring: cubic-bezier(.2,.9,.3,1.15); --ease: var(--ease-out);
+  --z-sticky: 10; --z-overlay: 20; --z-drawer: 30; --z-dialog: 40; --z-toast: 50;
+  --icon-sm: 16px; --icon-md: 20px; --icon-lg: 24px;
+  --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px); --safe-right: env(safe-area-inset-right, 0px);
+  --topbar-h: 56px;
+}

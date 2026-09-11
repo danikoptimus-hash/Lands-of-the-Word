@@ -1,0 +1,16 @@
+/* Каркас: шапка, контейнер, сетки карточек. */
+.topbar { position: sticky; top: 0; z-index: var(--z-sticky); padding-top: var(--safe-top); background: var(--surface); border-bottom: 1px solid var(--border); }
+.topbar-inner { max-width: 1040px; margin: 0 auto; height: var(--topbar-h); padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.brand { display: flex; align-items: center; gap: var(--sp-2); color: var(--text); font-weight: 700; white-space: nowrap; }
+.brand:hover { text-decoration: none; }
+.brand .mark { width: 32px; height: 32px; flex-shrink: 0; display: block; }
+.user-menu { display: flex; align-items: center; gap: var(--sp-2); background: transparent; color: var(--text); border: 0; padding: 0 var(--sp-1) 0 0; min-height: var(--touch); max-width: 220px; }
+.user-menu:hover { background: var(--surface-2); }
+.user-menu .name { font-size: var(--fs-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 479px) { .user-menu .name { display: none; } }
+.container { max-width: 1040px; margin: 0 auto; padding: var(--sp-4) max(var(--gutter), var(--safe-left)) var(--sp-8) max(var(--gutter), var(--safe-right)); }
+.container.narrow { max-width: 520px; }
+.cards { display: grid; grid-template-columns: 1fr; gap: var(--sp-3); }
+@media (min-width: 640px) { .cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); } }
+.empty-page { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--sp-3); padding: var(--sp-10) var(--sp-4); color: var(--muted); }
+.empty-page .i { width: 40px; height: 40px; color: var(--border-strong); }

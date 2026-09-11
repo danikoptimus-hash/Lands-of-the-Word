@@ -1,0 +1,21 @@
+/* Гостевые страницы и главная. */
+.login-page::before { content: ""; position: fixed; inset: 0; z-index: -1; background: url("/img/brand/hero.webp") center / cover no-repeat; }
+.login-page::after { content: ""; position: fixed; inset: 0; z-index: -1; background: linear-gradient(180deg, rgba(246,244,239,.15), rgba(246,244,239,.55) 70%); }
+.login-page .card { background: rgba(255,255,255,.92); box-shadow: var(--shadow-3); }
+.auth { max-width: 420px; margin: var(--sp-6) auto; }
+.auth-logo { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); margin: 0 0 var(--sp-4); }
+.auth-logo img { width: 88px; height: 88px; }
+.auth-logo strong { font-size: var(--fs-xl); }
+/* Список игр и команд на главной */
+.cards { display: grid; grid-template-columns: 1fr; gap: .8rem; }
+@media (min-width: 640px) { .cards { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); } }
+.game-card { display: flex; flex-direction: column; gap: .5rem; padding: 1rem 1.1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); color: var(--text); text-decoration: none; transition: transform .1s, box-shadow .15s, border-color .15s; position: relative; overflow: hidden; }
+.game-card::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--tone, var(--border-strong)); }
+.game-card:hover { text-decoration: none; transform: translateY(-1px); box-shadow: 0 6px 22px rgba(31,27,22,.12); border-color: var(--border-strong); }
+.game-card .name { font-weight: 700; font-size: 1.05rem; display: flex; justify-content: space-between; gap: .5rem; align-items: center; }
+.game-card .meta { display: flex; gap: .4rem; flex-wrap: wrap; }
+.team-card { display: flex; align-items: center; gap: .8rem; padding: .9rem 1rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); color: var(--text); text-decoration: none; }
+.team-card:hover { text-decoration: none; border-color: var(--border-strong); }
+.team-card .avatar { width: 44px; height: 44px; font-size: 1.1rem; }
+.team-card .go { margin-left: auto; color: var(--accent); display: inline-flex; align-items: center; gap: .3rem; font-weight: 600; font-size: .9rem; white-space: nowrap; }
+
