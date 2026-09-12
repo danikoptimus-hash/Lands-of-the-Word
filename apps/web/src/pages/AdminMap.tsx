@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { HexTiles, IMG, Sea } from "./MapLayers";
+import { CoastOver, CoastUnder, EffectsLayer, HexTiles, IMG, SeaLayer, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { useUi } from "../lib/ui";
@@ -47,16 +47,19 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     for (const tm of progress ?? []) for (const k of tm.revealed) m.set(k, [...(m.get(k) ?? []), tm]);
     return m;
   }, [progress]);
+  const coast = useCoast(hexes, size);
   if (!bounds) return null;
 
   return (
     <>
       <div className="admin-map" ref={setWrapEl}>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
-          <svg width="100%" height="100%">
+          <SeaLayer view={vp.view} size={size} />
+          <svg className="map-svg world" width="100%" height="100%">
             <g transform={`translate(${vp.view.tx},${vp.view.ty}) scale(${vp.view.k})`}>
-              <Sea size={size} id="sea-admin" />
+              <CoastUnder d={coast} size={size} />
               <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
+              <CoastOver d={coast} size={size} />
               {nodes.map((n) => {
                 const p = positions.get(n.key)!;
                 const CITY = size * 1.15, START = size * 1.35;
@@ -82,6 +85,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 return <g key={e.aKey + e.bKey}><line x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" /><line x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" /></g>;
               })}
             </g>
+          </svg>
+          <EffectsLayer view={vp.view} size={size} coast={coast} />
+          <svg className="map-svg screen" width="100%" height="100%">
             <g>
               {nodes.map((n) => {
                 const raw = positions.get(n.key)!;

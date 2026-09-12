@@ -3,3 +3,4 @@ export * from "./hexgraph.js";
 export * from "./random.js";
 export * from "./books.js";
 export * from "./mapgen.js";
+export * from "./coast.js";

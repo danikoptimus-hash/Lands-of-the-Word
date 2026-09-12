@@ -43,7 +43,7 @@
 
 /* Карта администратора */
 .admin-map { position: relative; }
-.mapwrap { width: 100%; height: min(70vh, 640px); min-height: 360px; overflow: hidden; background: var(--map-bg); border-radius: var(--r-md); border: 1px solid var(--border); touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.mapwrap { position: relative; width: 100%; height: min(70vh, 640px); min-height: 360px; overflow: hidden; background: var(--map-bg); border-radius: var(--r-md); border: 1px solid var(--border); touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .mapwrap svg { display: block; }
 /* На телефоне карта во всю ширину экрана и почти во всю высоту: пальцам при щипке некуда «выпасть», а страница
    под картой не ловит свои жесты (прокрутку, масштаб страницы). */

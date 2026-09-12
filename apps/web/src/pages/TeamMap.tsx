@@ -3,7 +3,7 @@ import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
-import { HexTiles, IMG, MapSymbols, Sea } from "./MapLayers";
+import { CoastOver, CoastUnder, EffectsLayer, HexTiles, IMG, MapSymbols, SeaLayer, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
 import { t } from "../lib/i18n";
 
@@ -36,6 +36,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     return m;
   }, [map, size]);
   const [ripple, setRipple] = useState<{ x: number; y: number; n: number } | null>(null);
+  const coast = useCoast(map.hexes, size);
+  const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
 
   if (!bounds) return null;
   const { k, tx, ty } = vp.view;
@@ -54,11 +56,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
 
   return (
     <div ref={vp.ref} {...vp.handlers} className="map-canvas">
-      <svg className="map-svg" width="100%" height="100%">
-        <MapSymbols />
+      <SeaLayer view={vp.view} size={size} />
+      <svg className="map-svg world" width="100%" height="100%">
         <g transform={`translate(${tx},${ty}) scale(${k})`}>
-          <Sea size={size} id="sea-team" dim />
+          <CoastUnder d={coast} size={size} />
           <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" />
+          <CoastOver d={coast} size={size} />
           {map.edges.map((e) => {
             const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
             const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
@@ -88,6 +91,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             return null;
           })}
         </g>
+      </svg>
+      <EffectsLayer view={vp.view} size={size} coast={coast} fogHexes={fogHexes} />
+      <svg className="map-svg screen" width="100%" height="100%">
+        <MapSymbols />
         <g>
           {map.revealed.map((n) => {
             const p = S(positions.get(n.key)!);
