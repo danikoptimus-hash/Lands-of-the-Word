@@ -529,3 +529,29 @@ enum RecipientKind {
   ELDER
   OTHER
 }
+
+/**
+ * Замер интерфейса с устройства пользователя: скорость открытия страницы и плавность карты.
+ * Только обобщённые числа и класс устройства — без пользователя, адреса и точной модели.
+ */
+model UiMetric {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  page      String   // map | admin-map | other
+  device    String   // phone | desktop
+  browser   String   // chrome | safari | firefox | other
+  os        String   // android | ios | windows | mac | linux | other
+  dpr       Float
+  viewW     Int
+  viewH     Int
+  ttfb      Int?     // мс до первого байта
+  fcp       Int?     // мс до первой отрисовки
+  lcp       Int?     // мс до самой крупной отрисовки
+  load      Int?     // мс до события load
+  fps       Float?   // средние кадры в секунду за замер на карте
+  jank      Float?   // доля кадров длиннее 50 мс, 0..1
+  longTasks Int?     // длинных задач (>50 мс) за время замера
+  memoryMb  Int?     // память устройства по navigator.deviceMemory, ГБ*1024, если известно
+
+  @@index([createdAt])
+}

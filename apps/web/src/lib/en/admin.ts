@@ -97,4 +97,11 @@ export const ADMIN: Record<string, string> = {
   "Без имён и адресов. Спросите согласие человека заранее.": "No names or addresses. Ask the person for consent beforehand.",
   "Новый администратор": "New admin", "Человек должен быть уже зарегистрирован на сайте.": "The person must already have an account on the site.",
   "Новая команда": "New team", "Цвет назначится сам. Участников пригласите по ссылке после добавления.": "The colour is assigned automatically. Invite members by link after adding.",
+  // Интерфейс (замеры)
+  "Интерфейс": "Interface", "Замеры с устройств игроков за период: скорость открытия страницы и плавность карты за первые 6 секунд. Без привязки к людям.": "Measurements from players' devices for the period: page load speed and map smoothness during the first 6 seconds. Not tied to people.",
+  "Замеров пока нет: они появляются после открытия карты на устройствах.": "No measurements yet: they appear after the map is opened on devices.",
+  "замеров": "samples", "первый байт": "first byte", "первая отрисовка": "first paint", "крупная отрисовка": "largest paint", "страница загружена": "page loaded", "p75 {p}": "p75 {p}",
+  "кадров в секунду": "frames per second", "худшая четверть {p} · замеров {n}": "worst quarter {p} · samples {n}", "долгих кадров": "slow frames", "замеров с рывками {p}": "samples with stutter {p}",
+  "длинных задач": "long tasks", "за замер, дольше 50 мс": "per sample, over 50 ms", "Срез": "Slice", "Замеров": "Samples", "Кадров/с": "FPS", "Долгих кадров": "Slow frames", "Крупная отрисовка": "Largest paint", "Загружена": "Loaded",
+  "телефон": "phone", "компьютер": "desktop", "карта команды": "team map", "карта администратора": "admin map", "другие страницы": "other pages",
 };

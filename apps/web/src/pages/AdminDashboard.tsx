@@ -19,8 +19,11 @@ interface Metrics {
   activity: { submissionsInPeriod: number; submissionsTotal: number; approvedShare: number | null; avgDecisionHours: number | null; edgesTraversed: number; citiesCaptured: number; citiesCapturedInPeriod: number };
   battles: { declared: number; declaredInPeriod: number; expired: number; won: number; repelled: number; active: number; avgBid: number | null; avgAttackHours: number | null; sumMode: number };
   diplomacy: { implemented: boolean; passRequests: number; passApprovedShare: number | null; embassies: number };
+  ui: { samples: number; ttfb: Pct; fcp: Pct; lcp: Pct; load: Pct; fps: { avg: number | null; p25: number | null; samples: number }; jank: { avg: number | null; bad: number | null }; longTasks: { avg: number | null }; byDevice: Groups; byBrowser: Groups; byOs: Groups; byPage: Groups };
   tech: { uptimeHours: number | null; mailEnabled: boolean; mailSent: number; mailFailed: number; node: string; memoryMb: number; requests: number; errors5xx: number; errors4xx: number; lastErrorAt: string | null; lastErrorRoute: string | null; avgMs: number | null; p95Ms: number | null; sample: number };
 }
+interface Pct { p50: number | null; p75: number | null }
+type Groups = Record<string, { n: number; fps: number | null; jank: number | null; lcp: number | null; load: number | null }>;
 const fmt = (v: number | null | undefined, suffix = "") => (v === null || v === undefined ? "—" : `${v}${suffix}`);
 const dateLabel = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString(getLocale() === "en" ? "en-GB" : "ru-RU", { day: "numeric", month: "short" });
 type Period = "7" | "30" | "90";
@@ -121,6 +124,32 @@ export function AdminDashboard() {
             <Tile label={t("время вызова")} value={fmt(m.battles.avgAttackHours, " " + t("ч"))} hint={t("в среднем")} /><Tile label={t("суммарный режим")} value={fmt(m.battles.sumMode)} hint={t("исчерпанные книги")} />
           </div></div>
           <div className="card"><h2>{t("Проходы")}</h2>{m.diplomacy.implemented ? <div className="tiles mt-3"><Tile label={t("запросов прохода")} value={fmt(m.diplomacy.passRequests)} /><Tile label={t("разрешено")} value={fmt(m.diplomacy.passApprovedShare, "%")} /><Tile label={t("посольств")} value={fmt(m.diplomacy.embassies)} /></div> : <p className="muted small mt-2">{t("Метрики проходов появятся позже.")}</p>}</div>
+          <div className="card"><h2>{t("Интерфейс")}</h2>
+            <p className="muted small mt-2">{t("Замеры с устройств игроков за период: скорость открытия страницы и плавность карты за первые 6 секунд. Без привязки к людям.")}</p>
+            {m.ui.samples === 0 ? <p className="muted small mt-2">{t("Замеров пока нет: они появляются после открытия карты на устройствах.")}</p> : (
+              <>
+                <div className="tiles mt-3">
+                  <Tile label={t("замеров")} value={fmt(m.ui.samples)} />
+                  <Tile label={t("первый байт")} value={fmt(m.ui.ttfb.p50, " " + t("мс"))} hint={t("p75 {p}", { p: fmt(m.ui.ttfb.p75, " " + t("мс")) })} />
+                  <Tile label={t("первая отрисовка")} value={fmt(m.ui.fcp.p50, " " + t("мс"))} hint={t("p75 {p}", { p: fmt(m.ui.fcp.p75, " " + t("мс")) })} />
+                  <Tile label={t("крупная отрисовка")} value={fmt(m.ui.lcp.p50, " " + t("мс"))} hint={t("p75 {p}", { p: fmt(m.ui.lcp.p75, " " + t("мс")) })} />
+                  <Tile label={t("страница загружена")} value={fmt(m.ui.load.p50, " " + t("мс"))} hint={t("p75 {p}", { p: fmt(m.ui.load.p75, " " + t("мс")) })} />
+                  <Tile label={t("кадров в секунду")} value={fmt(m.ui.fps.avg)} hint={t("худшая четверть {p} · замеров {n}", { p: fmt(m.ui.fps.p25), n: m.ui.fps.samples })} />
+                  <Tile label={t("долгих кадров")} value={fmt(m.ui.jank.avg, "%")} hint={t("замеров с рывками {p}", { p: fmt(m.ui.jank.bad, "%") })} />
+                  <Tile label={t("длинных задач")} value={fmt(m.ui.longTasks.avg)} hint={t("за замер, дольше 50 мс")} />
+                </div>
+                <div className="table-wrap mt-3">
+                  <table className="data-table">
+                    <thead><tr><th>{t("Срез")}</th><th>{t("Замеров")}</th><th>{t("Кадров/с")}</th><th>{t("Долгих кадров")}</th><th>{t("Крупная отрисовка")}</th><th>{t("Загружена")}</th></tr></thead>
+                    <tbody>
+                      {([["byDevice", { phone: t("телефон"), desktop: t("компьютер") }], ["byPage", { map: t("карта команды"), "admin-map": t("карта администратора"), other: t("другие страницы") }], ["byBrowser", {}], ["byOs", {}]] as const).map(([key, names]) =>
+                        Object.entries(m.ui[key]).map(([k, g]) => <tr key={key + k}><td>{(names as Record<string, string>)[k] ?? k}</td><td>{g.n}</td><td>{fmt(g.fps)}</td><td>{fmt(g.jank, "%")}</td><td>{fmt(g.lcp, " " + t("мс"))}</td><td>{fmt(g.load, " " + t("мс"))}</td></tr>))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </div>
           <div className="card"><h2>{t("Сервер")}</h2><div className="tiles mt-3">
             <Tile label={t("работает без перезапуска")} value={fmt(m.tech.uptimeHours, " " + t("ч"))} /><Tile label={t("почта")} value={m.tech.mailEnabled ? t("настроена") : t("выключена")} />
             <Tile label={t("писем отправлено")} value={fmt(m.tech.mailSent)} hint={t("с момента запуска")} /><Tile label={t("не доставлено")} value={fmt(m.tech.mailFailed)} /><Tile label={t("память")} value={fmt(m.tech.memoryMb, " " + t("МБ"))} hint={m.tech.node} />

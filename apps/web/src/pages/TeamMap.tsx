@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { reportPage } from "../lib/perf";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
@@ -36,6 +37,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     return m;
   }, [map, size]);
   const [ripple, setRipple] = useState<{ x: number; y: number; n: number } | null>(null);
+  useEffect(() => { reportPage("map"); }, []);
   const coast = useCoast(map.hexes, size);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
 
@@ -59,7 +61,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
 
   return (
     <div ref={vp.ref} {...vp.handlers} className="map-canvas">
-      <SeaLayer vp={vp} size={size} />
+      <SeaLayer vp={vp} />
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
         <CoastUnder d={coast} size={size} />

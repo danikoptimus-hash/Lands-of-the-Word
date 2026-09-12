@@ -3,6 +3,7 @@ import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, CoastUnder, HexTiles, IMG, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
+import { reportPage } from "../lib/perf";
 import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
@@ -47,6 +48,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     for (const tm of progress ?? []) for (const k of tm.revealed) m.set(k, [...(m.get(k) ?? []), tm]);
     return m;
   }, [progress]);
+  useEffect(() => { reportPage("admin-map"); }, []);
   const coast = useCoast(hexes, size);
   if (!bounds) return null;
 
@@ -54,7 +56,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     <>
       <div className="admin-map" ref={setWrapEl}>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
-          <SeaLayer vp={vp} size={size} />
+          <SeaLayer vp={vp} />
           <WorldSvg vp={vp} bounds={bounds}>
             <CoastUnder d={coast} size={size} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />

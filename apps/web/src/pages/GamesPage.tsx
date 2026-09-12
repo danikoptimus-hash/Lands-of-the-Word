@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
+import { reportPage } from "../lib/perf";
 import { api, type GameSummary, type MyTeamDto } from "../lib/api";
 import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
@@ -37,6 +38,7 @@ export function GamesPage() {
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [teams, setTeams] = useState<MyTeamDto[] | null>(null);
   const [failed, setFailed] = useState(false);
+  useEffect(() => { reportPage("other"); }, []);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => { warmMapImages(); }, []);

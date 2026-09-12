@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type React from "react";
 import { FOG_COLOR, HEX_SIZE, TERRAIN_COLOR, coastPath, hexCenter, hexPoints } from "../lib/hexmap";
 import { CLOUD_TILE, cloudTile } from "../lib/noise";
@@ -16,18 +16,18 @@ export const IMG = {
  * медленно плывёт CSS-анимацией), позиция следует за картой сдвигом контейнера. Так море анимируется
  * композитором без перерисовки SVG. Размер плитки округляется до целых пикселей, иначе на стыках видны швы.
  */
-export type Viewport = { subscribe: (fn: (v: View) => void) => () => void; viewRef: { current: View } };
-export function SeaLayer({ vp, size = HEX_SIZE }: { vp: Viewport; size?: number }) {
-  const layer = useRef<HTMLDivElement>(null);
+export type Viewport = { view: View; viewRef: { current: View }; subscribe: (fn: (v: View) => void) => () => void };
+
+/** Море: слой DOM под картой, плитка постоянного размера, двигается вместе с картой сдвигом (композитор, без перерисовки). */
+const SEA_TILE = 220;
+export function SeaLayer({ vp }: { vp: Viewport }) {
   const pos = useRef<HTMLDivElement>(null);
   useEffect(() => vp.subscribe((v) => {
-    const T = Math.max(48, Math.round(size * 6 * v.k));
-    const ox = ((v.tx % T) + T) % T, oy = ((v.ty % T) + T) % T;
-    layer.current?.style.setProperty("--tile", `${T}px`);
+    const T = SEA_TILE, ox = ((v.tx % T) + T) % T, oy = ((v.ty % T) + T) % T;
     if (pos.current) pos.current.style.transform = `translate(${(ox - 2 * T).toFixed(2)}px, ${(oy - 2 * T).toFixed(2)}px)`;
-  }), [vp, size]);
+  }), [vp]);
   return (
-    <div ref={layer} className="sea-layer" aria-hidden>
+    <div className="sea-layer" style={{ ["--tile" as string]: `${SEA_TILE}px` }} aria-hidden>
       <div ref={pos} className="sea-pos">
         <div className="sea-base" />
         <div className="sea-waves" />
@@ -37,19 +37,23 @@ export function SeaLayer({ vp, size = HEX_SIZE }: { vp: Viewport; size?: number 
 }
 
 /**
- * Мир карты: SVG в координатах карты, двигается и масштабируется CSS-трансформацией на самом элементе.
- * Композитор двигает готовый растр, поэтому перетаскивание не перерисовывает ничего; при смене масштаба
- * браузер перерастрирует видимые плитки. Переменная --k даёт стилям толщины штрихов в пикселях экрана.
+ * Мир карты: SVG в координатах карты, растрирован под зафиксированный масштаб (vp.view.k); между фиксациями
+ * композитор двигает и масштабирует готовый растр CSS-трансформацией, ничего не перерисовывая.
+ * После жеста масштаб фиксируется, слой растрируется заново один раз — резко. --k даёт стилям толщины в пикселях экрана.
  */
 export function WorldSvg({ vp, bounds, children }: { vp: Viewport; bounds: { minX: number; minY: number; width: number; height: number }; children: React.ReactNode }) {
   const ref = useRef<SVGSVGElement>(null);
-  useEffect(() => vp.subscribe((v) => {
+  const baseK = vp.view.k;
+  const baseRef = useRef(baseK); baseRef.current = baseK;
+  const apply = (v: View) => {
     const el = ref.current; if (!el) return;
-    el.style.transform = `translate(${(v.tx + bounds.minX * v.k).toFixed(2)}px, ${(v.ty + bounds.minY * v.k).toFixed(2)}px) scale(${v.k})`;
-    el.style.setProperty("--k", v.k.toFixed(4));
-  }), [vp, bounds]);
+    el.style.transform = `translate(${(v.tx + bounds.minX * v.k).toFixed(2)}px, ${(v.ty + bounds.minY * v.k).toFixed(2)}px) scale(${(v.k / baseRef.current).toFixed(5)})`;
+  };
+  useEffect(() => vp.subscribe(apply), [vp, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => { apply(vp.viewRef.current); }, [baseK, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
+  const w = bounds.width * baseK, h = bounds.height * baseK;
   return (
-    <svg ref={ref} className="map-svg world" width={bounds.width} height={bounds.height} viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`} style={{ width: bounds.width, height: bounds.height }}>
+    <svg ref={ref} className="map-svg world" width={w} height={h} viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`} style={{ width: w, height: h, ["--k" as string]: baseK.toFixed(4) }}>
       {children}
     </svg>
   );
@@ -99,7 +103,7 @@ const getTiles = () => (tiles ??= { s: cloudTile([176, 166, 150], 0, 0.55, 1.5),
 /** Маска тумана в координатах карты: гексы тумана с расширением и растушёвкой (уменьшение-увеличение вместо blur — работает везде). */
 function buildFogMask(hexes: MapHexDto[], size: number): FogMask | null {
   if (hexes.length === 0) return null;
-  const pad = size * 1.2;
+  const pad = size * 3;
   const cs = hexes.map((h) => hexCenter(h, size));
   const x = Math.min(...cs.map((c) => c.x)) - size - pad, y = Math.min(...cs.map((c) => c.y)) - size - pad;
   const w = Math.max(...cs.map((c) => c.x)) + size + pad - x, h = Math.max(...cs.map((c) => c.y)) + size + pad - y;

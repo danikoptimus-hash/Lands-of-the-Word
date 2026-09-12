@@ -11,10 +11,10 @@
 .map-svg.world .screen-items .m-label, .map-svg.world .screen-items .m-deed, .map-svg.world .screen-items .pick { pointer-events: auto; }
 .fx-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .sea-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #4F8BA6; }
-.sea-pos { position: absolute; left: 0; top: 0; width: calc(100% + 4 * var(--tile, 156px)); height: calc(100% + 4 * var(--tile, 156px)); will-change: transform; }
-.sea-base, .sea-waves { position: absolute; inset: 0; background: url("/img/brand/sea.webp") 0 0 / var(--tile, 156px) var(--tile, 156px) repeat; }
+.sea-pos { position: absolute; left: 0; top: 0; width: calc(100% + 4 * var(--tile, 220px)); height: calc(100% + 4 * var(--tile, 220px)); will-change: transform; }
+.sea-base, .sea-waves { position: absolute; inset: 0; background: url("/img/brand/sea.webp") 0 0 / var(--tile, 220px) var(--tile, 220px) repeat; }
 .sea-waves { opacity: .38; transform: rotate(180deg); animation: sea-drift 70s linear infinite; will-change: transform; }
-@keyframes sea-drift { to { transform: rotate(180deg) translate(var(--tile, 156px), var(--tile, 156px)); } }
+@keyframes sea-drift { to { transform: rotate(180deg) translate(var(--tile, 220px), var(--tile, 220px)); } }
 @media (prefers-reduced-motion: reduce) { .sea-waves { animation: none; } }
 .coast { pointer-events: none; }
 .coast-wet { stroke-width: calc(1.2px / var(--k, 1)); }
