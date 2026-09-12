@@ -8,6 +8,7 @@ import { TeamAvatar } from "../components/TeamAvatar";
 import { CopyField } from "../components/CopyField";
 import { ActionMenu } from "../components/ActionMenu";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
+import { Sheet } from "../components/Sheet";
 
 interface Invite { captain: string; members: string }
 
@@ -19,7 +20,9 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   const [error, setError] = useState<string | null>(null);
   const [invite, setInvite] = useState<{ teamId: string; links: Invite | null } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const { confirm, notify } = useUi();
+  const close = () => { setOpen(false); setError(null); };
   const fail = (err: unknown) => notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad");
 
   const load = useCallback(() => api<{ teams: TeamDto[] }>(`/api/games/${gameId}/teams`).then((r) => { setTeams(r.teams); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
@@ -28,7 +31,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
 
   async function create(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(null);
-    try { await api(`/api/games/${gameId}/teams`, { method: "POST", body: JSON.stringify({ name }) }); setName(""); notify(t("Команда добавлена")); await reload(); }
+    try { await api(`/api/games/${gameId}/teams`, { method: "POST", body: JSON.stringify({ name }) }); setName(""); setOpen(false); notify(t("Команда добавлена")); await reload(); }
     catch (err) { setError(err instanceof ApiError ? err.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
@@ -59,7 +62,11 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   const full = (teams?.length ?? 0) >= teamCount;
   return (
     <div className="card">
-      <div className="card-head"><h2><span className="ico"><Icon name="users" /></span>{t("Команды")} {teams && <span className="count">{t("{a} из {b}", { a: teams.length, b: teamCount })}</span>}</h2></div>
+      <div className="card-head">
+        <h2><span className="ico"><Icon name="users" /></span>{t("Команды")} {teams && <span className="count">{t("{a} из {b}", { a: teams.length, b: teamCount })}</span>}</h2>
+        {!full && <button type="button" className="sm" onClick={() => setOpen(true)} disabled={!teams}><Icon name="plus" />{t("Добавить")}</button>}
+      </div>
+      {teams && full && <p className="hint">{t("Команд по настройкам: {n}.", { n: teamCount })} {goToSettings && <a href="#settings" onClick={(e) => { e.preventDefault(); goToSettings(); }}>{t("Изменить в настройках")}</a>}</p>}
       {loadError ? <ErrorState onRetry={() => void load()} /> : !teams ? <LoadingState /> : teams.length === 0 ? <EmptyState inline icon="users" text={t("Команд пока нет: добавьте первую.")} /> : teams.map((tm) => (
         <div key={tm.id} className="team-block">
           <div className="row between nowrap">
@@ -109,16 +116,17 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
           )}
         </div>
       ))}
-      {teams && (
-        <div className="add-row">
-          <form onSubmit={create} className="inline-form">
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("Название команды")} aria-label={t("Название команды")} required minLength={2} maxLength={40} disabled={full} />
-            <button type="submit" className="sm" disabled={busy || full}><Icon name="plus" />{t("Добавить")}</button>
+      {teams && teams.some((tm) => tm.members.length > 0) && <p className="hint">{t("Игровые роли — только у участников: капитан ведёт команду.")}</p>}
+      {open && (
+        <Sheet title={t("Новая команда")} onClose={close} size="sm"
+          foot={<><button type="button" className="secondary" onClick={close}>{t("Отмена")}</button><button type="submit" form="team-form" disabled={busy || name.trim().length < 2}>{t("Добавить")}</button></>}>
+          <form id="team-form" onSubmit={create}>
+            <label htmlFor="tm-name">{t("Название команды")}</label>
+            <input id="tm-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={40} autoFocus />
+            <p className="hint">{t("Цвет назначится сам. Участников пригласите по ссылке после добавления.")}</p>
+            {error && <p className="error">{error}</p>}
           </form>
-          {error && <p className="error">{error}</p>}
-          {full && <p className="hint">{t("Команд по настройкам: {n}.", { n: teamCount })} {goToSettings && <a href="#settings" onClick={(e) => { e.preventDefault(); goToSettings(); }}>{t("Изменить в настройках")}</a>}</p>}
-          {teams.some((tm) => tm.members.length > 0) && <p className="hint">{t("Игровые роли — только у участников: капитан ведёт команду.")}</p>}
-        </div>
+        </Sheet>
       )}
     </div>
   );

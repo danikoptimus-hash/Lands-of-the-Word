@@ -114,10 +114,6 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .invite-panel { margin-top: var(--sp-3); }
 .invite-panel label { margin-top: var(--sp-3); }
 .invite-panel label:first-child { margin-top: 0; }
-.add-row { margin-top: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
-.add-row .inline-form { flex-wrap: wrap; }
-.add-row .inline-form input { flex: 1 1 200px; }
-.add-row .inline-form select { flex: 1 1 auto; }
 .deed-desc { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
 /* Настройки: группы полей */

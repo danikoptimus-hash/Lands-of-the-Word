@@ -92,4 +92,9 @@ export const ADMIN: Record<string, string> = {
   // Склонение (plural: первые две формы)
   "города": "cities", "перекрёсток": "crossroad", "перекрёстка": "crossroads", "дело": "deed", "дела": "deeds", "адресат": "recipient", "адресата": "recipients",
   "конверт": "envelope", "конверта": "envelopes", "столицы": "capitals", "стих": "verse", "стиха": "verses", "ход": "move", "хода": "moves",
+  // Попапы добавления
+  "Новый адресат": "New recipient", "Подпись": "Label", "Например «семья у рынка»": "E.g. “family by the market”",
+  "Без имён и адресов. Спросите согласие человека заранее.": "No names or addresses. Ask the person for consent beforehand.",
+  "Новый администратор": "New admin", "Человек должен быть уже зарегистрирован на сайте.": "The person must already have an account on the site.",
+  "Новая команда": "New team", "Цвет назначится сам. Участников пригласите по ссылке после добавления.": "The colour is assigned automatically. Invite members by link after adding.",
 };
