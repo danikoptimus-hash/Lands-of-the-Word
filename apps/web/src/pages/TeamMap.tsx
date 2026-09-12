@@ -45,7 +45,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const { k } = vp.view;
   // Элементы постоянного экранного размера (подписи, метки, развилки) стоят в координатах карты со scale(1/k):
   // при перетаскивании их двигает композитор, при смене масштаба React пересчитывает 1/k.
-  const inv = 1 / k;
+  // При отдалении метки, подписи и точки уменьшаются вместе с картой (до половины), чтобы не закрывать гексы.
+  const ui = Math.min(1, Math.max(0.5, k / 1.6));
+  const inv = ui / k;
   const click = (taskId: string) => { if (!vp.wasDrag()) onSelect(selectedTaskId === taskId ? null : taskId); };
   const clickCity = (key: string) => {
     if (vp.wasDrag()) return;
@@ -111,7 +113,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const text = fullLabels ? [book?.nameRu ?? "", progress, status].filter(Boolean).join(" · ") : book?.nameRu ?? "";
               const iconW = c?.isCapital ? fs + 4 : 0;
               const w = textWidth(text, fs) + iconW + 14, h = fs + 9;
-              const y = fullLabels ? CITY * k * 0.48 : Math.max(10, CITY * k * 0.48);
+              const y = (fullLabels ? CITY * k * 0.48 : Math.max(10, CITY * k * 0.48)) / ui;
               return (
                 <g key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={c?.owner ? { ["--team" as string]: c.owner.color } : undefined} transform={`translate(${p.x},${p.y}) scale(${inv}) translate(0,${y})`} onClick={() => clickCity(n.key)}>
                   {c?.battle && (

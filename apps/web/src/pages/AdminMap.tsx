@@ -88,7 +88,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             <g className="screen-items">
               {nodes.map((n) => {
                 const raw = positions.get(n.key)!;
-                const kk = vp.view.k, inv = 1 / kk;
+                const kk = vp.view.k, ui = Math.min(1, Math.max(0.5, kk / 1.6)), inv = ui / kk;
                 const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
                 const seen = revealedBy.get(n.key) ?? [];
                 const sel = selected?.key === n.key;
@@ -101,7 +101,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                     <circle className="hit" r={Math.max(14, size * 0.6 * kk)} fill="transparent" />
                     {battleAt.has(n.key) && <circle className="quiet" r={size * 0.8 * kk} fill="none" stroke="var(--danger)" strokeWidth={3} strokeDasharray="6 4" />}
                     {showLabels ? (
-                      <g className="quiet" transform={`translate(0,${size * 1.15 * kk * 0.48})`}>
+                      <g className="quiet" transform={`translate(0,${size * 1.15 * kk * 0.48 / ui})`}>
                         <rect x={-48} y={-10} width={96} height={20} rx={4} fill={sel ? "var(--accent)" : "var(--map-paper)"} stroke="var(--text)" strokeWidth={1} />
                         <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}. {book?.nameRu}</text>
                       </g>

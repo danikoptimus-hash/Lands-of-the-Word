@@ -18,16 +18,25 @@ export const IMG = {
  */
 export type Viewport = { view: View; viewRef: { current: View }; subscribe: (fn: (v: View) => void) => () => void };
 
-/** Море: слой DOM под картой, плитка постоянного размера, двигается вместе с картой сдвигом (композитор, без перерисовки). */
-const SEA_TILE = 220;
+/**
+ * Море: слой DOM под картой, двигается вместе с картой сдвигом (композитор, без перерисовки).
+ * Плитка бесшовная (зеркальная сборка) и берётся ровно в пикселях устройства: размер плитки = размер картинки / dpr,
+ * сдвиг округлён до пикселя устройства — так плитка не ресемплируется и на стыках нет светлых линий.
+ */
 export function SeaLayer({ vp }: { vp: Viewport }) {
   const pos = useRef<HTMLDivElement>(null);
+  const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+  const img = dpr >= 1.5 ? 1024 : 512;
+  // Целое число CSS-пикселей, ближайшее к точному размеру в пикселях устройства: браузеры округляют размер
+  // фоновой плитки до целых CSS-пикселей, и дробный размер давал зазор на каждом стыке.
+  const T = Math.max(64, Math.round(img / dpr));
   useEffect(() => vp.subscribe((v) => {
-    const T = SEA_TILE, ox = ((v.tx % T) + T) % T, oy = ((v.ty % T) + T) % T;
-    if (pos.current) pos.current.style.transform = `translate(${(ox - 2 * T).toFixed(2)}px, ${(oy - 2 * T).toFixed(2)}px)`;
-  }), [vp]);
+    const snap = (x: number) => Math.round(x * dpr) / dpr;
+    const ox = snap(((v.tx % T) + T) % T), oy = snap(((v.ty % T) + T) % T);
+    if (pos.current) pos.current.style.transform = `translate(${(ox - 2 * T).toFixed(3)}px, ${(oy - 2 * T).toFixed(3)}px)`;
+  }), [vp, T, dpr]);
   return (
-    <div className="sea-layer" style={{ ["--tile" as string]: `${SEA_TILE}px` }} aria-hidden>
+    <div className="sea-layer" style={{ ["--tile" as string]: `${T}px`, ["--sea" as string]: `url("/img/brand/sea-${img}.webp")` }} aria-hidden>
       <div ref={pos} className="sea-pos">
         <div className="sea-base" />
         <div className="sea-waves" />
@@ -172,8 +181,9 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes }: { vp: Viewport; size
       const bx = Math.max(m.x, vx0), by = Math.max(m.y, vy0), bw = Math.min(m.x + m.w, vx1) - bx, bh = Math.min(m.y + m.h, vy1) - by;
       if (bw <= 0 || bh <= 0) return;
       pats ??= (() => { const tl = getTiles(); return { s: ctx.createPattern(tl.s, "repeat")!, a: ctx.createPattern(tl.a, "repeat")!, b: ctx.createPattern(tl.b, "repeat")! }; })();
+      // Без clip(): сглаженный край области отсечения оставлял после destination-in тонкую линию по прямоугольнику маски
+      // (тот самый «квадрат вокруг карты»). Заливки и так ограничены прямоугольником, а маска обнуляет всё вне тумана.
       ctx.save();
-      ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
       ctx.fillStyle = FOG_BASE; ctx.fillRect(bx, by, bw, bh);
       const sec = reduced ? 0 : t / 1000;
       const layer = (pat: CanvasPattern, span: number, vx: number, vy: number, alpha: number) => {
@@ -181,9 +191,10 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes }: { vp: Viewport; size
         ctx.save(); ctx.globalAlpha = alpha; ctx.translate(ox, oy); ctx.scale(sc, sc); ctx.fillStyle = pat;
         ctx.fillRect((bx - ox) / sc, (by - oy) / sc, bw / sc, bh / sc); ctx.restore();
       };
-      layer(pats.s, size * 5, -1.6, 1.2, 1);
-      layer(pats.a, size * 6.5, 2.2, 0.9, 1);
-      layer(pats.b, size * 3, -1.2, 2.8, 0.9);
+      // Периоды плиток разные и большие (11, 14 и 7 гексов), чтобы повтор рисунка не читался.
+      layer(pats.s, size * 11, -1.6, 1.2, 1);
+      layer(pats.a, size * 14, 2.2, 0.9, 1);
+      layer(pats.b, size * 7, -1.2, 2.8, 0.9);
       ctx.globalCompositeOperation = "destination-in";
       ctx.drawImage(m.canvas, m.x, m.y, m.w, m.h);
       ctx.restore();
@@ -262,7 +273,7 @@ export function MapSymbols() {
 /** Прогрев кеша картинок карты: вызывается после входа, чтобы карта открывалась без ожидания. */
 export function warmMapImages(): void {
   if (typeof window === "undefined") return;
-  const urls = [...TERRAINS.map(IMG.terrain), "/img/brand/sea.webp", ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i))];
+  const urls = [...TERRAINS.map(IMG.terrain), "/img/brand/sea-512.webp", "/img/brand/sea-1024.webp", ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i))];
   const go = () => urls.forEach((u) => { const im = new Image(); im.decoding = "async"; im.src = u; });
   if ("requestIdleCallback" in window) (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(go); else setTimeout(go, 300);
 }

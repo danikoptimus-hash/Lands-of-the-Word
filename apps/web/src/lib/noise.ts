@@ -3,7 +3,7 @@
  * без картинок: значение — сумма четырёх октав интерполированного случайного поля с периодом,
  * равным размеру плитки, поэтому плитка стыкуется сама с собой в обе стороны.
  */
-const TILE = 256;
+const TILE = 512;
 
 function lattice(n: number, seed: number): Float32Array {
   const a = new Float32Array(n * n);
@@ -33,7 +33,7 @@ let cached: Float32Array | null = null;
 export function cloudNoise(): Float32Array {
   if (cached) return cached;
   const out = new Float32Array(TILE * TILE);
-  octave(4, 11, out, 0.5); octave(8, 23, out, 0.25); octave(16, 37, out, 0.125); octave(32, 51, out, 0.0625);
+  octave(5, 11, out, 0.5); octave(11, 23, out, 0.25); octave(23, 37, out, 0.125); octave(47, 51, out, 0.0625); octave(97, 73, out, 0.03);
   let min = Infinity, max = -Infinity;
   for (const v of out) { if (v < min) min = v; if (v > max) max = v; }
   for (let i = 0; i < out.length; i++) out[i] = (out[i]! - min) / (max - min);
