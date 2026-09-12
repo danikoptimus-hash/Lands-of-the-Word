@@ -43,7 +43,8 @@
 .hex-fog { stroke: none; }
 .hex-tile { stroke: color-mix(in srgb, var(--text) 28%, transparent); stroke-width: calc(1px / var(--k, 1)); }
 .m-edge line { stroke-width: calc(3px / max(1.6, var(--k, 1))); stroke-linecap: round; }
-.m-edge .hit { stroke: transparent; stroke-width: calc(22px / var(--k, 1)); }
+/* Зона нажатия стороны: широкая и всегда прозрачная (селектор сильнее правил цвета ниже). */
+.m-edge line.hit, .m-edge.active line.hit, .m-edge.sel line.hit { stroke: transparent; stroke-width: calc(22px / var(--k, 1)); stroke-dasharray: none; }
 .m-edge.idle line { stroke: color-mix(in srgb, white 25%, transparent); }
 .m-edge.active line { stroke: var(--map-paper); }
 .m-edge.sel line { stroke: var(--surface); stroke-width: calc(5px / max(1.6, var(--k, 1))); }
