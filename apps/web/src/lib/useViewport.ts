@@ -12,7 +12,11 @@ export interface Bounds { minX: number; minY: number; width: number; height: num
  * Сдвиг ограничен: остров не уходит из окна, минимальный масштаб — «вся карта», максимальный — в 8 раз крупнее.
  */
 export function useViewport(bounds: Bounds | null, focus?: { x: number; y: number; k?: number } | null) {
-  const ref = useRef<HTMLDivElement>(null);
+  // Контейнер может пересоздаваться (например, после режима «глазами команды»): ссылка — колбэк,
+  // а эффекты с колесом и наблюдателем размера привязаны к текущему элементу через состояние.
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [el, setEl] = useState<HTMLDivElement | null>(null);
+  const attach = useCallback((node: HTMLDivElement | null) => { ref.current = node; setEl(node); }, []);
   const [view, setViewState] = useState<View>({ k: 1, tx: 0, ty: 0 });
   const viewRef = useRef(view);
   const listeners = useRef(new Set<(v: View) => void>());
@@ -81,12 +85,11 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     if (focus) focusOn(focus.x, focus.y, focus.k); else fit();
   }, [fit, focusOn, hasBounds]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    const el = ref.current;
     if (!el) return;
     const ro = new ResizeObserver(() => { if (!applied.current) return; measureFit(); setView((v) => v, true); });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [measureFit, setView]);
+  }, [el, measureFit, setView]);
 
   const zoomAt = useCallback((factor: number, cx?: number, cy?: number, commitNow = true) => {
     setView((v) => {
@@ -157,7 +160,6 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   }, [setView, commit]);
 
   useEffect(() => {
-    const el = ref.current;
     if (!el) return;
     let timer = 0;
     const onWheel = (e: WheelEvent) => {
@@ -168,7 +170,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => { el.removeEventListener("wheel", onWheel); window.clearTimeout(timer); };
-  }, [zoomAt, commit]);
+  }, [el, zoomAt, commit]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Без setPointerCapture: иначе click уходит контейнеру, а не клетке карты.
@@ -186,5 +188,5 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   /** true, если последний жест был перетаскиванием или щипком (значит клик по клетке игнорируем). */
   const wasDrag = () => (gesture.current?.moved ?? 0) > 4 || dragging;
 
-  return { ref, view, viewRef, subscribe, fit, focusOn, zoomAt: (f: number) => zoomAt(f), wasDrag, handlers: { onPointerDown } };
+  return { ref: attach, view, viewRef, subscribe, fit, focusOn, zoomAt: (f: number) => zoomAt(f), wasDrag, handlers: { onPointerDown } };
 }
