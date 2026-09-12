@@ -3,7 +3,7 @@ import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
-import { CoastOver, CoastUnder, EffectsLayer, HexTiles, IMG, MapSymbols, SeaLayer, useCoast } from "./MapLayers";
+import { CoastOver, CoastUnder, FogLayer, HexTiles, IMG, MapSymbols, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
 import { t } from "../lib/i18n";
 
@@ -40,8 +40,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
 
   if (!bounds) return null;
-  const { k, tx, ty } = vp.view;
-  const S = (p: { x: number; y: number }) => ({ x: tx + p.x * k, y: ty + p.y * k });
+  const { k } = vp.view;
+  // Элементы постоянного экранного размера (подписи, метки, развилки) стоят в координатах карты со scale(1/k):
+  // при перетаскивании их двигает композитор, при смене масштаба React пересчитывает 1/k.
+  const inv = 1 / k;
   const click = (taskId: string) => { if (!vp.wasDrag()) onSelect(selectedTaskId === taskId ? null : taskId); };
   const clickCity = (key: string) => {
     if (vp.wasDrag()) return;
@@ -53,53 +55,52 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const showMarkers = k >= 0.9, fullLabels = k >= 1.6, showForks = k >= 0.7;
   // Город масштабируется с картой: сидит на перекрёстке и занимает место до середины трёх сторон.
   const CITY = size * 1.15, START = size * 1.35;
+  const dash = `${7 * inv} ${6 * inv}`;
 
   return (
     <div ref={vp.ref} {...vp.handlers} className="map-canvas">
-      <SeaLayer view={vp.view} size={size} />
-      <svg className="map-svg world" width="100%" height="100%">
-        <g transform={`translate(${tx},${ty}) scale(${k})`}>
-          <CoastUnder d={coast} size={size} />
-          <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" />
-          <CoastOver d={coast} size={size} />
-          {map.edges.map((e) => {
-            const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
-            const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
-            const done = tk?.status === "APPROVED";
-            const active = tk && !done;
-            const sel = tk?.id === selectedTaskId;
-            const cls = done ? "done" : sel ? "sel" : active ? "active" : "idle";
+      <SeaLayer vp={vp} size={size} />
+      <WorldSvg vp={vp} bounds={bounds}>
+        <MapSymbols />
+        <CoastUnder d={coast} size={size} />
+        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" />
+        <CoastOver d={coast} size={size} />
+        {map.edges.map((e) => {
+          const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
+          const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
+          const done = tk?.status === "APPROVED";
+          const active = tk && !done;
+          const sel = tk?.id === selectedTaskId;
+          const cls = done ? "done" : sel ? "sel" : active ? "active" : "idle";
+          return (
+            <g key={e.aKey + e.bKey} className={"m-edge " + cls} onClick={() => active && click(tk.id)}>
+              {active && <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
+              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={done ? map.team.color : undefined} style={active && !sel ? { strokeDasharray: dash } : undefined} />
+            </g>
+          );
+        })}
+        {map.revealed.map((n) => {
+          const p = positions.get(n.key)!;
+          if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+          if (n.kind === "CITY") {
+            const c = cityByKey.get(n.key);
             return (
-              <g key={e.aKey + e.bKey} className={"m-edge " + cls} onClick={() => active && click(tk.id)}>
-                {active && <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} vectorEffect="non-scaling-stroke" />}
-                <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={done ? map.team.color : undefined} vectorEffect="non-scaling-stroke" />
+              <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
+                {c?.owner && <circle className="owner-ring" cx={p.x} cy={p.y - CITY * 0.1} r={CITY * 0.62} fill={c.owner.color} fillOpacity={0.35} stroke={c.owner.color} />}
+                <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />
               </g>
             );
-          })}
+          }
+          return null;
+        })}
+      </WorldSvg>
+      {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
+      <WorldSvg vp={vp} bounds={bounds}>
+        <g className="screen-items">
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;
-            if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
-            if (n.kind === "CITY") {
-              const c = cityByKey.get(n.key);
-              return (
-                <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
-                  {c?.owner && <circle cx={p.x} cy={p.y - CITY * 0.1} r={CITY * 0.62} fill={c.owner.color} fillOpacity={0.35} stroke={c.owner.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />}
-                  <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />
-                </g>
-              );
-            }
-            return null;
-          })}
-        </g>
-      </svg>
-      <EffectsLayer view={vp.view} size={size} coast={coast} fogHexes={fogHexes} />
-      <svg className="map-svg screen" width="100%" height="100%">
-        <MapSymbols />
-        <g>
-          {map.revealed.map((n) => {
-            const p = S(positions.get(n.key)!);
             const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
-            if (n.kind === "START") return <circle key={n.key} className="m-start" cx={p.x} cy={p.y} r={6} fill={map.team.color} />;
+            if (n.kind === "START") return <g key={n.key} transform={`translate(${p.x},${p.y}) scale(${inv})`}><circle className="m-start" r={6} fill={map.team.color} /></g>;
             if (n.kind === "CITY") {
               const c = cityByKey.get(n.key);
               const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;
@@ -110,7 +111,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const w = textWidth(text, fs) + iconW + 14, h = fs + 9;
               const y = fullLabels ? CITY * k * 0.48 : Math.max(10, CITY * k * 0.48);
               return (
-                <g key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={c?.owner ? { ["--team" as string]: c.owner.color } : undefined} transform={`translate(${p.x},${p.y + y})`} onClick={() => clickCity(n.key)}>
+                <g key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={c?.owner ? { ["--team" as string]: c.owner.color } : undefined} transform={`translate(${p.x},${p.y}) scale(${inv}) translate(0,${y})`} onClick={() => clickCity(n.key)}>
                   {c?.battle && (
                     <g className={"m-battle " + (c.battle === "ATTACK" ? "att" : "def")} transform={`translate(${Math.max(14, CITY * k * 0.45)},${-y - Math.max(12, CITY * k * 0.5)})`}>
                       <circle r={10} />
@@ -124,14 +125,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               );
             }
             if (!showForks) return null;
-            return <circle key={n.key} className="m-fork" cx={p.x} cy={p.y} r={5} />;
+            return <g key={n.key} transform={`translate(${p.x},${p.y}) scale(${inv})`}><circle className="m-fork" r={5} /></g>;
           })}
           {showMarkers && (map.peeked ?? []).map((pk) => {
             const pos = positions.get(pk.key);
             if (!pos) return null;
-            const q = S(pos);
             return (
-              <g key={"pk" + pk.key} className="m-peek" transform={`translate(${q.x},${q.y - 16})`}>
+              <g key={"pk" + pk.key} className="m-peek" transform={`translate(${pos.x},${pos.y}) scale(${inv}) translate(0,-16)`}>
                 <circle r={10} />
                 <use href={pk.kind === "CITY" ? "#m-city" : "#m-telescope"} x={-7} y={-7} width={14} height={14} />
               </g>
@@ -141,21 +141,23 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
             if (!tk || tk.status === "APPROVED") return null;
             const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
-            const m = S({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
-            const far = revealed.has(e.aKey) ? S(b) : S(a);
+            const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            const far = revealed.has(e.aKey) ? b : a;
             const sel = tk.id === selectedTaskId;
             const r = sel ? R + 2 : R;
             return (
               <g key={"m" + e.aKey + e.bKey} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "")} onClick={() => click(tk.id)}>
-                <circle className="far" cx={far.x} cy={far.y} r={5} />
-                <circle cx={m.x} cy={m.y} r={r} />
-                <use href={`#m-${DEED_SYMBOL[tk.status]}`} x={m.x - r * 0.6} y={m.y - r * 0.6} width={r * 1.2} height={r * 1.2} />
+                <g transform={`translate(${far.x},${far.y}) scale(${inv})`}><circle className="far" r={5} /></g>
+                <g transform={`translate(${m.x},${m.y}) scale(${inv})`}>
+                  <circle r={r} />
+                  <use href={`#m-${DEED_SYMBOL[tk.status]}`} x={-r * 0.6} y={-r * 0.6} width={r * 1.2} height={r * 1.2} />
+                </g>
               </g>
             );
           })}
-          {ripple && <circle key={ripple.n} className="map-ripple" cx={S(ripple).x} cy={S(ripple).y} r={6} />}
+          {ripple && <g transform={`translate(${ripple.x},${ripple.y}) scale(${inv})`}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
         </g>
-      </svg>
+      </WorldSvg>
       <div className="map-controls">
         <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
         {start && <button type="button" className="secondary icon" onClick={() => vp.focusOn(start.x, start.y, 2.4)} aria-label={t("К старту")} title={t("К старту")}><Icon name="flag" /></button>}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import type React from "react";
 import { FOG_COLOR, HEX_SIZE, TERRAIN_COLOR, coastPath, hexCenter, hexPoints } from "../lib/hexmap";
 import { CLOUD_TILE, cloudTile } from "../lib/noise";
 import type { View } from "../lib/useViewport";
@@ -15,16 +16,42 @@ export const IMG = {
  * медленно плывёт CSS-анимацией), позиция следует за картой сдвигом контейнера. Так море анимируется
  * композитором без перерисовки SVG. Размер плитки округляется до целых пикселей, иначе на стыках видны швы.
  */
-export function SeaLayer({ view, size = HEX_SIZE }: { view: View; size?: number }) {
-  const T = Math.max(48, Math.round(size * 6 * view.k));
-  const ox = ((view.tx % T) + T) % T, oy = ((view.ty % T) + T) % T;
+export type Viewport = { subscribe: (fn: (v: View) => void) => () => void; viewRef: { current: View } };
+export function SeaLayer({ vp, size = HEX_SIZE }: { vp: Viewport; size?: number }) {
+  const layer = useRef<HTMLDivElement>(null);
+  const pos = useRef<HTMLDivElement>(null);
+  useEffect(() => vp.subscribe((v) => {
+    const T = Math.max(48, Math.round(size * 6 * v.k));
+    const ox = ((v.tx % T) + T) % T, oy = ((v.ty % T) + T) % T;
+    layer.current?.style.setProperty("--tile", `${T}px`);
+    if (pos.current) pos.current.style.transform = `translate(${(ox - 2 * T).toFixed(2)}px, ${(oy - 2 * T).toFixed(2)}px)`;
+  }), [vp, size]);
   return (
-    <div className="sea-layer" style={{ ["--tile" as string]: `${T}px` }} aria-hidden>
-      <div className="sea-pos" style={{ transform: `translate(${(ox - 2 * T).toFixed(2)}px, ${(oy - 2 * T).toFixed(2)}px)` }}>
+    <div ref={layer} className="sea-layer" aria-hidden>
+      <div ref={pos} className="sea-pos">
         <div className="sea-base" />
         <div className="sea-waves" />
       </div>
     </div>
+  );
+}
+
+/**
+ * Мир карты: SVG в координатах карты, двигается и масштабируется CSS-трансформацией на самом элементе.
+ * Композитор двигает готовый растр, поэтому перетаскивание не перерисовывает ничего; при смене масштаба
+ * браузер перерастрирует видимые плитки. Переменная --k даёт стилям толщины штрихов в пикселях экрана.
+ */
+export function WorldSvg({ vp, bounds, children }: { vp: Viewport; bounds: { minX: number; minY: number; width: number; height: number }; children: React.ReactNode }) {
+  const ref = useRef<SVGSVGElement>(null);
+  useEffect(() => vp.subscribe((v) => {
+    const el = ref.current; if (!el) return;
+    el.style.transform = `translate(${(v.tx + bounds.minX * v.k).toFixed(2)}px, ${(v.ty + bounds.minY * v.k).toFixed(2)}px) scale(${v.k})`;
+    el.style.setProperty("--k", v.k.toFixed(4));
+  }), [vp, bounds]);
+  return (
+    <svg ref={ref} className="map-svg world" width={bounds.width} height={bounds.height} viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`} style={{ width: bounds.width, height: bounds.height }}>
+      {children}
+    </svg>
   );
 }
 
@@ -58,7 +85,7 @@ export function CoastOver({ d, size = HEX_SIZE }: { d: string; size?: number }) 
       <path d={d} stroke="#E6D3A6" strokeWidth={size * 0.5} />
       <g opacity={0.55}><path d={d} stroke="#E6D3A6" strokeWidth={size * 0.8} /></g>
       <g opacity={0.3}><path d={d} stroke="#E6D3A6" strokeWidth={size * 1.1} /></g>
-      <g opacity={0.35}><path d={d} stroke="#B8975E" strokeWidth={1.2} vectorEffect="non-scaling-stroke" /></g>
+      <g opacity={0.35}><path className="coast-wet" d={d} stroke="#B8975E" /></g>
     </g>
   );
 }
@@ -98,23 +125,23 @@ function buildFogMask(hexes: MapHexDto[], size: number): FogMask | null {
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
     ctx.drawImage(tmp, 0, 0, canvas.width, canvas.height);
   }
+  // Кромка маски всегда прозрачна: иначе при растяжении маски по краю проступала бы рамка.
+  ctx.clearRect(0, 0, canvas.width, 2); ctx.clearRect(0, canvas.height - 2, canvas.width, 2);
+  ctx.clearRect(0, 0, 2, canvas.height); ctx.clearRect(canvas.width - 2, 0, 2, canvas.height);
   return { canvas, x, y, w, h };
 }
 
 /**
- * Слой эффектов поверх карты (canvas, без событий): пена у берега и облака тумана. Рисуется ~24 раза в секунду,
- * только пока вкладка видна; при «уменьшить движение» — один кадр без дрейфа. Вид карты читается из ref,
- * чтобы не гонять каждое движение пальца через React.
+ * Облака тумана поверх карты (canvas, без событий). Рисуется в пониженном разрешении (облака и так размыты),
+ * ~24 раза в секунду для дрейфа и сразу при каждом движении карты; только пока вкладка видна;
+ * при «уменьшить движение» — без дрейфа. Вид читается из ref, без React.
  */
-export function EffectsLayer({ view, size = HEX_SIZE, coast, fogHexes }: { view: View; size?: number; coast: string; fogHexes?: MapHexDto[] }) {
+export function FogLayer({ vp, size = HEX_SIZE, fogHexes }: { vp: Viewport; size?: number; fogHexes: MapHexDto[] }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const viewRef = useRef(view); viewRef.current = view;
-  const dirty = useRef(true); dirty.current = true;
-  const fogKey = (fogHexes ?? []).map((h) => `${h.q},${h.r}`).join(";");
-  const mask = useMemo(() => (fogHexes && fogHexes.length ? buildFogMask(fogHexes, size) : null), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
-  const path = useMemo(() => (coast ? new Path2D(coast) : null), [coast]);
+  const fogKey = fogHexes.map((h) => `${h.q},${h.r}`).join(";");
+  const mask = useMemo(() => (fogHexes.length ? buildFogMask(fogHexes, size) : null), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const maskRef = useRef(mask); maskRef.current = mask;
-  const pathRef = useRef(path); pathRef.current = path;
+  const dirty = useRef(true); dirty.current = true;
 
   useEffect(() => {
     const canvas = ref.current;
@@ -122,64 +149,53 @@ export function EffectsLayer({ view, size = HEX_SIZE, coast, fogHexes }: { view:
     if (!canvas || !host) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let W = 0, H = 0;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } dirty.current = true; };
     resize();
     const ro = new ResizeObserver(resize); ro.observe(host);
+    const unsub = vp.subscribe(() => { dirty.current = true; });
     let pats: { s: CanvasPattern; a: CanvasPattern; b: CanvasPattern } | null = null;
     const draw = (t: number) => {
-      const { k, tx, ty } = viewRef.current;
+      const { k, tx, ty } = vp.viewRef.current;
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
-      ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
       const m = maskRef.current;
-      if (m) {
-        // Видимая часть тумана в координатах карты — вне её ничего не рисуем.
-        const vx0 = -tx / k, vy0 = -ty / k, vx1 = (W / dpr - tx) / k, vy1 = (H / dpr - ty) / k;
-        const bx = Math.max(m.x, vx0), by = Math.max(m.y, vy0), bw = Math.min(m.x + m.w, vx1) - bx, bh = Math.min(m.y + m.h, vy1) - by;
-        if (bw > 0 && bh > 0) {
-          pats ??= (() => { const tl = getTiles(); return { s: ctx.createPattern(tl.s, "repeat")!, a: ctx.createPattern(tl.a, "repeat")!, b: ctx.createPattern(tl.b, "repeat")! }; })();
-          ctx.save();
-          ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
-          ctx.fillStyle = FOG_BASE; ctx.fillRect(bx, by, bw, bh);
-          const sec = reduced ? 0 : t / 1000;
-          const layer = (pat: CanvasPattern, span: number, vx: number, vy: number, alpha: number) => {
-            const sc = span / CLOUD_TILE, ox = sec * vx, oy = sec * vy;
-            ctx.save(); ctx.globalAlpha = alpha; ctx.translate(ox, oy); ctx.scale(sc, sc); ctx.fillStyle = pat;
-            ctx.fillRect((bx - ox) / sc, (by - oy) / sc, bw / sc, bh / sc); ctx.restore();
-          };
-          layer(pats.s, size * 5, -1.6, 1.2, 1);
-          layer(pats.a, size * 6.5, 2.2, 0.9, 1);
-          layer(pats.b, size * 3, -1.2, 2.8, 0.9);
-          ctx.globalCompositeOperation = "destination-in";
-          ctx.drawImage(m.canvas, m.x, m.y, m.w, m.h);
-          ctx.restore();
-        }
-      }
-      const p = pathRef.current;
-      if (p) {
-        // Пена: пунктир бежит вдоль берега; рисуется под туманом (destination-over), чтобы не светиться сквозь облака.
-        ctx.save(); ctx.globalCompositeOperation = "destination-over"; ctx.lineCap = "round"; ctx.lineJoin = "round";
-        ctx.strokeStyle = "rgba(255,255,255,.85)"; ctx.lineWidth = 2.2 / k; ctx.setLineDash([7 / k, 9 / k]); ctx.lineDashOffset = reduced ? 0 : -(t / 1000) * 10 / k;
-        ctx.stroke(p);
-        ctx.strokeStyle = "rgba(255,255,255,.25)"; ctx.lineWidth = 7 / k; ctx.setLineDash([]);
-        ctx.stroke(p);
-        ctx.restore();
-      }
+      if (!m) return;
+      ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
+      // Видимая часть тумана в координатах карты — вне её ничего не рисуем.
+      const vx0 = -tx / k, vy0 = -ty / k, vx1 = (W / dpr - tx) / k, vy1 = (H / dpr - ty) / k;
+      const bx = Math.max(m.x, vx0), by = Math.max(m.y, vy0), bw = Math.min(m.x + m.w, vx1) - bx, bh = Math.min(m.y + m.h, vy1) - by;
+      if (bw <= 0 || bh <= 0) return;
+      pats ??= (() => { const tl = getTiles(); return { s: ctx.createPattern(tl.s, "repeat")!, a: ctx.createPattern(tl.a, "repeat")!, b: ctx.createPattern(tl.b, "repeat")! }; })();
+      ctx.save();
+      ctx.beginPath(); ctx.rect(bx, by, bw, bh); ctx.clip();
+      ctx.fillStyle = FOG_BASE; ctx.fillRect(bx, by, bw, bh);
+      const sec = reduced ? 0 : t / 1000;
+      const layer = (pat: CanvasPattern, span: number, vx: number, vy: number, alpha: number) => {
+        const sc = span / CLOUD_TILE, ox = sec * vx, oy = sec * vy;
+        ctx.save(); ctx.globalAlpha = alpha; ctx.translate(ox, oy); ctx.scale(sc, sc); ctx.fillStyle = pat;
+        ctx.fillRect((bx - ox) / sc, (by - oy) / sc, bw / sc, bh / sc); ctx.restore();
+      };
+      layer(pats.s, size * 5, -1.6, 1.2, 1);
+      layer(pats.a, size * 6.5, 2.2, 0.9, 1);
+      layer(pats.b, size * 3, -1.2, 2.8, 0.9);
+      ctx.globalCompositeOperation = "destination-in";
+      ctx.drawImage(m.canvas, m.x, m.y, m.w, m.h);
+      ctx.restore();
     };
     let raf = 0, last = 0;
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
-      const animated = !reduced && (pathRef.current || maskRef.current);
+      const animated = !reduced && maskRef.current;
       if (!dirty.current && (!animated || t - last < 1000 / 24)) return;
       dirty.current = false; last = t;
       draw(t);
     };
     raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
-  }, [size]);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); unsub(); };
+  }, [size, vp]);
 
   return <canvas ref={ref} className="fx-layer" aria-hidden />;
 }

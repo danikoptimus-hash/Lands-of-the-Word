@@ -8,19 +8,33 @@ export interface View { k: number; tx: number; ty: number }
  */
 export function useViewport(bounds: { minX: number; minY: number; width: number; height: number } | null, focus?: { x: number; y: number; k?: number } | null) {
   const ref = useRef<HTMLDivElement>(null);
-  const [view, setView] = useState<View>({ k: 1, tx: 0, ty: 0 });
+  // Вид живёт в ref и рассылается подписчикам сразу (слои двигаются композитором без перерисовки React);
+  // состояние React обновляется не чаще раза в ~60 мс и в конце жеста — для подписей, порогов детализации.
+  const [view, setViewState] = useState<View>({ k: 1, tx: 0, ty: 0 });
+  const viewRef = useRef(view);
+  const listeners = useRef(new Set<(v: View) => void>());
+  const pending = useRef<number | null>(null);
+  const setView = useCallback((next: View | ((v: View) => View)) => {
+    const v = typeof next === "function" ? next(viewRef.current) : next;
+    viewRef.current = v;
+    for (const fn of listeners.current) fn(v);
+    if (pending.current === null) pending.current = window.setTimeout(() => { pending.current = null; setViewState(viewRef.current); }, 60);
+  }, []);
+  /** Подписка на каждое изменение вида (вызывается сразу с текущим видом). Возвращает отписку. */
+  const subscribe = useCallback((fn: (v: View) => void) => { listeners.current.add(fn); fn(viewRef.current); return () => { listeners.current.delete(fn); }; }, []);
+  useEffect(() => () => { if (pending.current !== null) window.clearTimeout(pending.current); }, []);
   const pointers = useRef(new Map<number, { x: number; y: number; at: number; type: string }>());
   const gesture = useRef<{ moved: number; pinch: { dist: number; mid: { x: number; y: number } } | null } | null>(null);
   const [dragging, setDragging] = useState(false);
 
   /** Масштаб «вся карта в окне»: от него считаются пределы зума, иначе на телефоне минимум 0.25 оказывался крупнее исходного вида. */
   const fitK = useRef(1);
-  const clampK = (k: number) => Math.min(fitK.current * 8, Math.max(fitK.current * 0.5, k));
+  const clampK = (k: number) => Math.min(fitK.current * 8, Math.max(fitK.current, k));
   const fit = useCallback(() => {
     const el = ref.current;
     if (!el || !bounds) return;
     const w = el.clientWidth, h = el.clientHeight;
-    const k = Math.min(w / bounds.width, h / bounds.height) * 0.92;
+    const k = Math.min(w / bounds.width, h / bounds.height) * 0.9;
     fitK.current = k;
     const tx = (w - bounds.width * k) / 2 - bounds.minX * k;
     const ty = (h - bounds.height * k) / 2 - bounds.minY * k;
@@ -31,7 +45,7 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
   const focusOn = useCallback((x: number, y: number, k = 2.2) => {
     const el = ref.current;
     if (!el) return;
-    if (bounds) fitK.current = Math.min(el.clientWidth / bounds.width, el.clientHeight / bounds.height) * 0.92;
+    if (bounds) fitK.current = Math.min(el.clientWidth / bounds.width, el.clientHeight / bounds.height) * 0.9;
     setView({ k, tx: el.clientWidth / 2 - x * k, ty: el.clientHeight / 2 - y * k });
   }, [bounds]);
 
@@ -40,8 +54,6 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
   // и приближало карту «само по себе».
   const hasBounds = Boolean(bounds);
   const applied = useRef(false);
-  const viewRef = useRef(view);
-  viewRef.current = view;
   useEffect(() => {
     if (!hasBounds || applied.current) return;
     applied.current = true;
@@ -151,5 +163,5 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
   /** true, если последний жест был перетаскиванием или щипком (значит клик по клетке игнорируем). */
   const wasDrag = () => (gesture.current?.moved ?? 0) > 4 || dragging;
 
-  return { ref, view, fit, focusOn, zoomAt, wasDrag, handlers: { onPointerDown } };
+  return { ref, view, viewRef, subscribe, fit, focusOn, zoomAt, wasDrag, handlers: { onPointerDown } };
 }

@@ -6,17 +6,21 @@
 .map-canvas { position: absolute; inset: 0; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; overflow: hidden; background: var(--map-bg); }
 /* Слои карты снизу вверх: море (DOM, композитор), мир (SVG: берег, гексы, стороны, города), эффекты (canvas: пена, туман),
    экранный слой (SVG: подписи и значки постоянного размера). Клики проходят к миру сквозь верхние слои. */
-.map-svg { display: block; position: absolute; inset: 0; width: 100%; height: 100%; }
-.map-svg.screen { pointer-events: none; }
-.map-svg.screen .m-label, .map-svg.screen .m-deed, .map-svg.screen .pick { pointer-events: auto; }
+.map-svg.world { display: block; position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; overflow: visible; }
+.map-svg.world .screen-items { pointer-events: none; }
+.map-svg.world .screen-items .m-label, .map-svg.world .screen-items .m-deed, .map-svg.world .screen-items .pick { pointer-events: auto; }
 .fx-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .sea-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #4F8BA6; }
-.sea-pos { position: absolute; left: 0; top: 0; width: calc(100% + 4 * var(--tile)); height: calc(100% + 4 * var(--tile)); will-change: transform; }
-.sea-base, .sea-waves { position: absolute; inset: 0; background: url("/img/brand/sea.webp") 0 0 / var(--tile) var(--tile) repeat; }
+.sea-pos { position: absolute; left: 0; top: 0; width: calc(100% + 4 * var(--tile, 156px)); height: calc(100% + 4 * var(--tile, 156px)); will-change: transform; }
+.sea-base, .sea-waves { position: absolute; inset: 0; background: url("/img/brand/sea.webp") 0 0 / var(--tile, 156px) var(--tile, 156px) repeat; }
 .sea-waves { opacity: .38; transform: rotate(180deg); animation: sea-drift 70s linear infinite; will-change: transform; }
-@keyframes sea-drift { to { transform: rotate(180deg) translate(var(--tile), var(--tile)); } }
+@keyframes sea-drift { to { transform: rotate(180deg) translate(var(--tile, 156px), var(--tile, 156px)); } }
 @media (prefers-reduced-motion: reduce) { .sea-waves { animation: none; } }
 .coast { pointer-events: none; }
+.coast-wet { stroke-width: calc(1.2px / var(--k, 1)); }
+/* Толщины в пикселях экрана через --k (CSS-масштаб растит штрихи вместе с картой). При отдалении (k<1)
+   линии сторон уменьшаются вместе с картой, чтобы не толстеть относительно гексов. */
+.owner-ring { stroke-width: calc(2px / var(--k, 1)); }
 .map-loading { position: absolute; inset: 0; margin: auto; width: min(280px, 80%); height: max-content; display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); color: var(--map-paper); font-size: var(--fs-sm); }
 .map-loading .skeleton { opacity: .35; }
 
@@ -35,13 +39,13 @@
 
 /* Слой карты: цвета только из токенов; цвета команд приходят из данных атрибутами. */
 .hex-fog { stroke: none; }
-.hex-tile { stroke: color-mix(in srgb, var(--text) 28%, transparent); stroke-width: 1; }
-.m-edge line { stroke-width: 3; stroke-linecap: round; }
-.m-edge .hit { stroke: transparent; stroke-width: 22; }
+.hex-tile { stroke: color-mix(in srgb, var(--text) 28%, transparent); stroke-width: calc(1px / var(--k, 1)); }
+.m-edge line { stroke-width: calc(3px / max(1, var(--k, 1))); stroke-linecap: round; }
+.m-edge .hit { stroke: transparent; stroke-width: calc(22px / var(--k, 1)); }
 .m-edge.idle line { stroke: color-mix(in srgb, white 25%, transparent); }
-.m-edge.active line { stroke: var(--map-paper); stroke-dasharray: 7 6; }
-.m-edge.sel line { stroke: var(--surface); stroke-width: 5; }
-.m-edge.done line { stroke-width: 6; }
+.m-edge.active line { stroke: var(--map-paper); }
+.m-edge.sel line { stroke: var(--surface); stroke-width: calc(5px / max(1, var(--k, 1))); }
+.m-edge.done line { stroke-width: calc(6px / max(1, var(--k, 1))); }
 .m-edge.active, .m-edge.sel, .m-city, .m-label, .m-deed { cursor: pointer; }
 .m-start { stroke: var(--surface); stroke-width: 2; }
 .m-fork { fill: var(--surface); stroke: var(--text); stroke-width: 1.2; }

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { CoastOver, CoastUnder, EffectsLayer, HexTiles, IMG, SeaLayer, useCoast } from "./MapLayers";
+import { CoastOver, CoastUnder, HexTiles, IMG, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { useUi } from "../lib/ui";
@@ -54,53 +54,48 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     <>
       <div className="admin-map" ref={setWrapEl}>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
-          <SeaLayer view={vp.view} size={size} />
-          <svg className="map-svg world" width="100%" height="100%">
-            <g transform={`translate(${vp.view.tx},${vp.view.ty}) scale(${vp.view.k})`}>
-              <CoastUnder d={coast} size={size} />
-              <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
-              <CoastOver d={coast} size={size} />
-              {nodes.map((n) => {
-                const p = positions.get(n.key)!;
-                const CITY = size * 1.15, START = size * 1.35;
-                if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
-                if (n.kind === "CITY") {
-                  const owner = ownerOf.get(n.key);
-                  return (
-                    <g key={"c" + n.key}>
-                      {owner && <circle cx={p.x} cy={p.y - CITY * 0.1} r={CITY * 0.62} fill={owner.color} fillOpacity={0.35} stroke={owner.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />}
-                      <image href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />
-                    </g>
-                  );
-                }
-                return null;
-              })}
-              {edges.map((e) => {
-                const a = positions.get(e.aKey), b = positions.get(e.bKey);
-                if (!a || !b) return null;
-                const teams = traversedBy.get([e.aKey, e.bKey].sort().join("|")) ?? [];
-                if (teams.length === 0) return <line key={e.aKey + e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="rgba(31,27,22,.25)" strokeWidth={1.5} vectorEffect="non-scaling-stroke" />;
-                if (teams.length === 1) return <line key={e.aKey + e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={teams[0]!.color} strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" />;
-                const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-                return <g key={e.aKey + e.bKey}><line x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" /><line x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" /></g>;
-              })}
-            </g>
-          </svg>
-          <EffectsLayer view={vp.view} size={size} coast={coast} />
-          <svg className="map-svg screen" width="100%" height="100%">
-            <g>
+          <SeaLayer vp={vp} size={size} />
+          <WorldSvg vp={vp} bounds={bounds}>
+            <CoastUnder d={coast} size={size} />
+            <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
+            <CoastOver d={coast} size={size} />
+            {nodes.map((n) => {
+              const p = positions.get(n.key)!;
+              const CITY = size * 1.15, START = size * 1.35;
+              if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+              if (n.kind === "CITY") {
+                const owner = ownerOf.get(n.key);
+                return (
+                  <g key={"c" + n.key}>
+                    {owner && <circle className="owner-ring" cx={p.x} cy={p.y - CITY * 0.1} r={CITY * 0.62} fill={owner.color} fillOpacity={0.35} stroke={owner.color} />}
+                    <image href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />
+                  </g>
+                );
+              }
+              return null;
+            })}
+            {edges.map((e) => {
+              const a = positions.get(e.aKey), b = positions.get(e.bKey);
+              if (!a || !b) return null;
+              const teams = traversedBy.get([e.aKey, e.bKey].sort().join("|")) ?? [];
+              if (teams.length === 0) return <line key={e.aKey + e.bKey} className="adm-edge" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
+              if (teams.length === 1) return <line key={e.aKey + e.bKey} className="adm-path" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={teams[0]!.color} />;
+              const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+              return <g key={e.aKey + e.bKey}><line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} /></g>;
+            })}
+            <g className="screen-items">
               {nodes.map((n) => {
                 const raw = positions.get(n.key)!;
-                const kk = vp.view.k;
-                const p = { x: vp.view.tx + raw.x * kk, y: vp.view.ty + raw.y * kk };
+                const kk = vp.view.k, inv = 1 / kk;
                 const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
                 const seen = revealedBy.get(n.key) ?? [];
                 const sel = selected?.key === n.key;
                 const showLabels = kk >= 1.4, showDots = kk >= 0.8;
                 const pick = () => { if (!vp.wasDrag()) setSelected(n); };
-                if (n.kind === "START") { const tm = progress?.find((x) => x.startNodeKey === n.key); const color = tm?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} className="pick" transform={`translate(${p.x},${p.y})`} onClick={pick}><circle className="hit" r={14} fill="transparent" /><circle r={6} fill={color} stroke="var(--surface)" strokeWidth={2} /></g>; }
+                const at = `translate(${raw.x},${raw.y}) scale(${inv})`;
+                if (n.kind === "START") { const tm = progress?.find((x) => x.startNodeKey === n.key); const color = tm?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} className="pick" transform={at} onClick={pick}><circle className="hit" r={14} fill="transparent" /><circle r={6} fill={color} stroke="var(--surface)" strokeWidth={2} /></g>; }
                 if (n.kind === "CITY") return (
-                  <g key={n.key} className="pick" transform={`translate(${p.x},${p.y})`} onClick={pick}>
+                  <g key={n.key} className="pick" transform={at} onClick={pick}>
                     <circle className="hit" r={Math.max(14, size * 0.6 * kk)} fill="transparent" />
                     {battleAt.has(n.key) && <circle className="quiet" r={size * 0.8 * kk} fill="none" stroke="var(--danger)" strokeWidth={3} strokeDasharray="6 4" />}
                     {showLabels ? (
@@ -113,10 +108,10 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                   </g>
                 );
                 if (!showDots) return null;
-                return <g key={n.key} className="pick" transform={`translate(${p.x},${p.y})`} onClick={pick}><circle className="hit" r={12} fill="transparent" /><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((tm, i) => <circle key={tm.id} cx={8 - i * 7} cy={-8} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
+                return <g key={n.key} className="pick" transform={at} onClick={pick}><circle className="hit" r={12} fill="transparent" /><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((tm, i) => <circle key={tm.id} cx={8 - i * 7} cy={-8} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
             </g>
-          </svg>
+          </WorldSvg>
         </div>
         <div className="map-controls">
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>

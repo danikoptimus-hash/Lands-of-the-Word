@@ -45,6 +45,8 @@
 .admin-map { position: relative; }
 .mapwrap { position: relative; width: 100%; height: min(70vh, 640px); min-height: 360px; overflow: hidden; background: var(--map-bg); border-radius: var(--r-md); border: 1px solid var(--border); touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .mapwrap svg { display: block; }
+.adm-edge { stroke: rgba(31,27,22,.25); stroke-width: calc(1.5px / var(--k, 1)); }
+.adm-path { stroke-width: calc(5px / max(1, var(--k, 1))); stroke-linecap: round; }
 /* На телефоне карта во всю ширину экрана и почти во всю высоту: пальцам при щипке некуда «выпасть», а страница
    под картой не ловит свои жесты (прокрутку, масштаб страницы). */
 @media (max-width: 639px) {
