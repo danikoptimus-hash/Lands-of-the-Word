@@ -10,7 +10,7 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
   const ref = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<View>({ k: 1, tx: 0, ty: 0 });
   const pointers = useRef(new Map<number, { x: number; y: number; at: number; type: string }>());
-  const gesture = useRef<{ startDist: number; startK: number; moved: number; last: { x: number; y: number } } | null>(null);
+  const gesture = useRef<{ moved: number; pinch: { dist: number; mid: { x: number; y: number } } | null } | null>(null);
   const [dragging, setDragging] = useState(false);
 
   /** Масштаб «вся карта в окне»: от него считаются пределы зума, иначе на телефоне минимум 0.25 оказывался крупнее исходного вида. */
@@ -58,11 +58,66 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
     });
   }, []);
 
+  // Пальцы и мышь отслеживаются на window: жест продолжается, даже если палец вышел за край карты
+  // (на телефоне карта администратора невелика, и при щипке это случалось постоянно; жест обрывался и
+  // превращался в перетаскивание одним пальцем). pointerdown ловится на контейнере, остальное — здесь.
   useEffect(() => {
+    const move = (e: PointerEvent) => {
+      const g = gesture.current;
+      const prev = pointers.current.get(e.pointerId);
+      if (!prev || !g) return;
+      // Мышь без нажатой кнопки — не жест (pointerup мог не прийти после отпускания вне окна).
+      if (e.pointerType === "mouse" && e.buttons === 0) { pointers.current.delete(e.pointerId); gesture.current = null; return; }
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: Date.now(), type: e.pointerType });
+      const pts = [...pointers.current.values()];
+      if (pts.length === 1) {
+        const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+        g.moved += Math.abs(dx) + Math.abs(dy);
+        if (g.moved > 4) setDragging(true);
+        setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }));
+        return;
+      }
+      const [a, b] = [pts[0]!, pts[1]!];
+      const dist = Math.hypot(a.x - b.x, a.y - b.y);
+      const el = ref.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const mid = { x: (a.x + b.x) / 2 - r.left, y: (a.y + b.y) / 2 - r.top };
+      if (!g.pinch) { g.pinch = { dist, mid }; return; }
+      // Щипок считается пошагово: масштаб вокруг прежней середины между пальцами плюс её смещение,
+      // так что двумя пальцами можно и приближать, и двигать карту одновременно.
+      const ratio = g.pinch.dist > 0 ? dist / g.pinch.dist : 1;
+      const pm = g.pinch.mid;
+      g.pinch = { dist, mid };
+      g.moved += 10;
+      setDragging(true);
+      setView((v) => {
+        const k = clampK(v.k * ratio);
+        const f = k / v.k;
+        return { k, tx: pm.x - (pm.x - v.tx) * f + (mid.x - pm.x), ty: pm.y - (pm.y - v.ty) * f + (mid.y - pm.y) };
+      });
+    };
+    const up = (e: PointerEvent) => {
+      if (!pointers.current.has(e.pointerId)) return;
+      pointers.current.delete(e.pointerId);
+      if (pointers.current.size === 0) { gesture.current = null; setTimeout(() => setDragging(false), 0); }
+      else if (gesture.current) gesture.current.pinch = null;
+    };
+    // Страховка: когда все пальцы подняты, не должно оставаться «зависших» указателей.
     const clear = (e: TouchEvent) => { if (e.touches.length === 0) { pointers.current.clear(); gesture.current = null; setTimeout(() => setDragging(false), 0); } };
-    window.addEventListener("touchend", clear); window.addEventListener("touchcancel", clear);
-    return () => { window.removeEventListener("touchend", clear); window.removeEventListener("touchcancel", clear); };
-  }, []);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+    window.addEventListener("touchend", clear);
+    window.addEventListener("touchcancel", clear);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+      window.removeEventListener("touchend", clear);
+      window.removeEventListener("touchcancel", clear);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const el = ref.current;
@@ -78,50 +133,23 @@ export function useViewport(bounds: { minX: number; minY: number; width: number;
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Без setPointerCapture: иначе click уходит контейнеру, а не клетке карты.
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     const now = Date.now();
     // Мышь или перо, не двигавшиеся больше секунды, — «потерянные» (браузер не прислал pointerup): выбрасываем.
     // Пальцы не трогаем: их снимает touchend на window, а палец, спокойно лежащий на карте перед щипком, — норма.
     for (const [id, pt] of pointers.current) if (pt.type !== "touch" && now - pt.at > 1000) pointers.current.delete(id);
+    if (pointers.current.size >= 2) return; // третий палец не участвует
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: now, type: e.pointerType });
+    // Второй палец не сбрасывает пройденный путь: тап после щипка не должен считаться кликом по клетке.
+    // Точка отсчёта щипка ставится сразу, чтобы не терять первое движение пальцев.
     const pts = [...pointers.current.values()];
-    gesture.current = { startDist: pts.length === 2 ? Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y) : 0, startK: viewRef.current.k, moved: 0, last: { x: e.clientX, y: e.clientY } };
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    if (!pointers.current.has(e.pointerId) || !gesture.current) return;
-    const prev = pointers.current.get(e.pointerId)!;
-    // Мышь без нажатой кнопки — не жест (после отпускания за пределами окна pointerup мог не прийти).
-    if (e.pointerType === "mouse" && e.buttons === 0) { pointers.current.delete(e.pointerId); gesture.current = null; return; }
-    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: Date.now(), type: e.pointerType });
-    const pts = [...pointers.current.values()];
-    const g = gesture.current;
-    if (pts.length === 1) {
-      const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
-      g.moved += Math.abs(dx) + Math.abs(dy);
-      if (g.moved > 4) setDragging(true);
-      setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }));
-    } else if (pts.length === 2) {
-      const dist = Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y);
-      if (!g.startDist) { g.startDist = dist; g.startK = viewRef.current.k; return; }
-      const el = ref.current!.getBoundingClientRect();
-      const mx = (pts[0]!.x + pts[1]!.x) / 2 - el.left, my = (pts[0]!.y + pts[1]!.y) / 2 - el.top;
-      g.moved += 10;
-      setView((v) => {
-        const k = clampK(g.startK * (dist / g.startDist));
-        const f = k / v.k;
-        return { k, tx: mx - (mx - v.tx) * f, ty: my - (my - v.ty) * f };
-      });
-    }
-  };
-  const onPointerUp = (e: React.PointerEvent) => {
-    pointers.current.delete(e.pointerId);
-    if (pointers.current.size === 0) { setTimeout(() => setDragging(false), 0); gesture.current = null; }
-    else if (gesture.current) gesture.current.startDist = 0;
+    const r = ref.current?.getBoundingClientRect();
+    const pinch = pts.length === 2 && r ? { dist: Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y), mid: { x: (pts[0]!.x + pts[1]!.x) / 2 - r.left, y: (pts[0]!.y + pts[1]!.y) / 2 - r.top } } : null;
+    gesture.current = { moved: gesture.current?.moved ?? 0, pinch };
   };
 
-  /** true, если последний жест был перетаскиванием (значит клик по клетке игнорируем). */
+  /** true, если последний жест был перетаскиванием или щипком (значит клик по клетке игнорируем). */
   const wasDrag = () => (gesture.current?.moved ?? 0) > 4 || dragging;
 
-  const onPointerLeave = (e: React.PointerEvent) => { if (pointers.current.has(e.pointerId)) onPointerUp(e); };
-
-  return { ref, view, fit, focusOn, zoomAt, wasDrag, handlers: { onPointerDown, onPointerMove, onPointerUp, onPointerCancel: onPointerUp, onPointerLeave } };
+  return { ref, view, fit, focusOn, zoomAt, wasDrag, handlers: { onPointerDown } };
 }

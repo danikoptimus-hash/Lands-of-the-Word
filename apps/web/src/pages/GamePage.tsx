@@ -170,7 +170,7 @@ export function GamePage() {
       {tab === "map" && (
         <div key="map">
           {hasMap ? (
-            <div className="card">
+            <div className="card map-card">
               <AdminMap gameId={game.id} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} />
               {progress?.startedAt && <Timeline moves={moves} startedAt={progress.startedAt} at={at} onChange={setAt} />}
             </div>

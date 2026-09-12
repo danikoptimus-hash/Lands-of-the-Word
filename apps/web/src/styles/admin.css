@@ -45,6 +45,15 @@
 .admin-map { position: relative; }
 .mapwrap { width: 100%; height: min(70vh, 640px); min-height: 360px; overflow: hidden; background: var(--map-bg); border-radius: var(--r-md); border: 1px solid var(--border); touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .mapwrap svg { display: block; }
+/* На телефоне карта во всю ширину экрана и почти во всю высоту: пальцам при щипке некуда «выпасть», а страница
+   под картой не ловит свои жесты (прокрутку, масштаб страницы). */
+@media (max-width: 639px) {
+  .admin-map { touch-action: none; }
+  .admin-map .mapwrap { height: calc(100dvh - var(--topbar-h) - 140px); min-height: 420px; border-radius: 0; border-left: 0; border-right: 0; }
+  .map-card { margin-left: calc(-1 * var(--gutter)); margin-right: calc(-1 * var(--gutter)); padding: 0; border-left: 0; border-right: 0; border-radius: 0; }
+  .map-card > :not(.admin-map) { padding: var(--sp-3) var(--gutter); }
+  .map-card .mapwrap { border-top: 0; }
+}
 .mapwrap .pick { cursor: pointer; }
 .mapwrap .pick:hover > .hit { fill: rgba(255,255,255,.18); }
 .mapwrap .quiet { pointer-events: none; }
