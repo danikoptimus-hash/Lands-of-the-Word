@@ -104,4 +104,7 @@ export const ADMIN: Record<string, string> = {
   "кадров в секунду": "frames per second", "худшая четверть {p} · замеров {n}": "worst quarter {p} · samples {n}", "долгих кадров": "slow frames", "замеров с рывками {p}": "samples with stutter {p}",
   "длинных задач": "long tasks", "за замер, дольше 50 мс": "per sample, over 50 ms", "Срез": "Slice", "Замеров": "Samples", "Кадров/с": "FPS", "Долгих кадров": "Slow frames", "Крупная отрисовка": "Largest paint", "Загружена": "Loaded",
   "телефон": "phone", "компьютер": "desktop", "карта команды": "team map", "карта администратора": "admin map", "другие страницы": "other pages",
+  // Карта глазами команды
+  "Чьими глазами": "Whose view", "Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажатия здесь ничего не делают.": "The map as team “{name}” sees it: fog, sides and markers as theirs. Taps do nothing here.",
+  "Администратор": "Admin",
 };

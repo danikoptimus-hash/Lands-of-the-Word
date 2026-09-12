@@ -50,6 +50,19 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map };
   });
 
+  /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
+  app.get("/api/games/:id/teams/:teamId/map", async (request, reply) => {
+    const { id, teamId } = request.params as { id: string; teamId: string };
+    const game = await requireAdmin(request, reply, id);
+    if (!game) return;
+    const team = await prisma.team.findFirst({ where: { id: teamId, gameId: id }, select: { id: true, name: true, color: true, startNodeKey: true, index: true } });
+    if (!team) return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
+    const teamOut = { id: team.id, name: team.name, color: team.color, startNodeKey: team.startNodeKey };
+    if (game.status === "DRAFT") return { status: game.status, teamIndex: team.index, team: teamOut, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
+    const map = await getTeamMap(id, team.id);
+    return { status: game.status, teamIndex: team.index, team: teamOut, ...map };
+  });
+
   app.post("/api/games/:id/edge-tasks/:taskId/take", async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireMember(request, reply, id);

@@ -4,7 +4,8 @@ import { HEX_SIZE, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, CoastUnder, HexTiles, IMG, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { reportPage } from "../lib/perf";
-import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
+import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
+import { TeamMap } from "./TeamMap";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
@@ -50,11 +51,41 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   }, [progress]);
   useEffect(() => { reportPage("admin-map"); }, []);
   const coast = useCoast(hexes, size);
+  // «Глазами команды»: карта, какой её видит выбранная команда; обновляется вместе с остальным по событиям игры.
+  const [viewAs, setViewAs] = useState<string | null>(null);
+  const [teamView, setTeamView] = useState<{ teamId: string; map: (MyMapDto & { teamIndex: number }) | null; error: string | null } | null>(null);
+  useEffect(() => {
+    if (!viewAs) { setTeamView(null); return; }
+    let alive = true;
+    setTeamView((prev) => (prev?.teamId === viewAs ? prev : { teamId: viewAs, map: null, error: null }));
+    api<MyMapDto & { teamIndex: number }>(`/api/games/${gameId}/teams/${viewAs}/map`)
+      .then((m) => { if (alive) setTeamView({ teamId: viewAs, map: m, error: null }); })
+      .catch((e) => { if (alive) setTeamView({ teamId: viewAs, map: null, error: e instanceof ApiError ? e.message : t("Ошибка сети") }); });
+    return () => { alive = false; };
+  }, [viewAs, gameId, version]);
   if (!bounds) return null;
+  const viewedTeam = viewAs ? teamById.get(viewAs) : null;
 
   return (
     <>
       <div className="admin-map" ref={setWrapEl}>
+        {progress && progress.length > 0 && (
+          <div className="view-as" role="tablist" aria-label={t("Чьими глазами")}>
+            <button type="button" role="tab" aria-selected={!viewAs} className={"chip-btn" + (!viewAs ? " on" : "")} onClick={() => setViewAs(null)}><Icon name="crown" />{t("Администратор")}</button>
+            {progress.map((tm) => (
+              <button key={tm.id} type="button" role="tab" aria-selected={viewAs === tm.id} className={"chip-btn" + (viewAs === tm.id ? " on" : "")} onClick={() => setViewAs(tm.id)}>
+                <TeamAvatar name={tm.name} color={tm.color} size="sm" />{tm.name}
+              </button>
+            ))}
+          </div>
+        )}
+        {viewAs ? (
+          <div className="mapwrap team-view" key={viewAs}>
+            {teamView?.error ? <div className="map-state"><ErrorState text={teamView.error} onRetry={() => setViewAs((v) => v)} /></div>
+              : !teamView?.map ? <div className="map-state"><LoadingState /></div>
+              : <TeamMap map={teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={null} onSelect={() => undefined} onSelectCity={() => undefined} />}
+          </div>
+        ) : (<>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
           <SeaLayer vp={vp} />
           <WorldSvg vp={vp} bounds={bounds}>
@@ -120,7 +151,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <button type="button" className="secondary icon" onClick={() => vp.zoomAt(1.3)} aria-label={t("Приблизить")} title={t("Приблизить")}><Icon name="zoom-in" /></button>
           <button type="button" className="secondary icon" onClick={() => vp.zoomAt(1 / 1.3)} aria-label={t("Отдалить")} title={t("Отдалить")}><Icon name="zoom-out" /></button>
         </div>
-        {selected && wrapEl && (selected.kind === "CITY"
+        </>)}
+        {viewedTeam && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажатия здесь ничего не делают.", { name: viewedTeam.name })}</p>}
+        {!viewAs && selected && wrapEl && (selected.kind === "CITY"
           ? <CitySheet gameId={gameId} node={selected} version={version} container={wrapEl} revealed={revealedBy.get(selected.key) ?? []} battle={battleAt.get(selected.key) ?? null} teamById={teamById} onClose={close} onReview={onReview} />
           : <NodeSheet gameId={gameId} node={selected} container={wrapEl} teams={progress ?? []} revealed={revealedBy.get(selected.key) ?? []} onClose={close} />)}
       </div>

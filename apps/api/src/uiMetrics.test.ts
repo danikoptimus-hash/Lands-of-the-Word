@@ -38,3 +38,19 @@ describe("замеры интерфейса", () => {
     expect(m.fps.avg).not.toBeNull();
   });
 });
+
+describe("карта глазами команды", () => {
+  it("доступна администратору игры и закрыта для чужих", async () => {
+    const g = await app.inject({ method: "POST", url: "/api/games", headers: { cookie }, payload: { name: "Взгляд", teamCount: 2 } });
+    const gameId = g.json().game.id;
+    const tm = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams`, headers: { cookie }, payload: { name: "Первая" } });
+    const teamId = tm.json().team.id;
+    const r = await app.inject({ method: "GET", url: `/api/games/${gameId}/teams/${teamId}/map`, headers: { cookie } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().team.name).toBe("Первая");
+    expect(r.json().status).toBe("DRAFT");
+    const other = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: `ui2_${stamp}`, password: "secret123", locale: "ru" } });
+    const denied = await app.inject({ method: "GET", url: `/api/games/${gameId}/teams/${teamId}/map`, headers: { cookie: other.headers["set-cookie"] as string } });
+    expect(denied.statusCode).toBe(403);
+  });
+});

@@ -43,6 +43,16 @@
 
 /* Карта администратора */
 .admin-map { position: relative; }
+/* Переключатель «чьими глазами»: администратор или одна из команд. Прокручивается по горизонтали на телефоне. */
+.view-as { display: flex; gap: var(--sp-2); overflow-x: auto; padding: 0 0 var(--sp-3); scrollbar-width: none; }
+.view-as::-webkit-scrollbar { display: none; }
+.view-as .chip-btn { flex: none; display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 36px; padding: 0 var(--sp-3) 0 var(--sp-2); border-radius: var(--r-full); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: var(--fs-sm); font-weight: 600; }
+.view-as .chip-btn.on { background: var(--accent-soft, var(--surface-2)); border-color: var(--accent); color: var(--accent-ink); }
+.view-as .chip-btn .avatar.team { width: 22px; height: 22px; font-size: 11px; }
+.view-as-hint { margin-top: var(--sp-2); }
+.mapwrap.team-view { cursor: default; }
+.mapwrap .map-state { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--sp-4); }
+@media (max-width: 639px) { .view-as { padding: var(--sp-2) var(--gutter) var(--sp-2); } .view-as-hint { padding: 0 var(--gutter); } }
 .mapwrap { position: relative; width: 100%; height: min(70vh, 640px); min-height: 360px; overflow: hidden; background: var(--map-bg); border-radius: var(--r-md); border: 1px solid var(--border); touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
 .mapwrap svg { display: block; }
 .adm-edge { stroke: rgba(31,27,22,.25); stroke-width: calc(1.5px / var(--k, 1)); }
