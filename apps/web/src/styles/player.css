@@ -7,7 +7,9 @@
 /* Слои карты снизу вверх: море (DOM, композитор), мир (SVG: берег, гексы, стороны, города), эффекты (canvas: пена, туман),
    экранный слой (SVG: подписи и значки постоянного размера). Клики проходят к миру сквозь верхние слои. */
 .map-svg.world { display: block; position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; overflow: visible; }
-.map-svg.world .screen-items { pointer-events: none; }
+/* Верхний SVG подписей перекрывает весь мир: сам он нажатий не ловит (иначе картинки городов и стороны под ним недоступны),
+   ловят только подписи, метки дел и значки. */
+.map-svg.world.overlay, .map-svg.world .screen-items { pointer-events: none; }
 .map-svg.world .screen-items .m-label, .map-svg.world .screen-items .m-deed, .map-svg.world .screen-items .pick { pointer-events: auto; }
 .fx-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .sea-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #4F8BA6; }

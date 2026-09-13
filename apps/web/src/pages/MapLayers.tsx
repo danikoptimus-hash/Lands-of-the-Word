@@ -61,7 +61,7 @@ export function SeaLayer({ vp }: { vp: Viewport }) {
  * композитор двигает и масштабирует готовый растр CSS-трансформацией, ничего не перерисовывая.
  * После жеста масштаб фиксируется, слой растрируется заново один раз — резко. --k даёт стилям толщины в пикселях экрана.
  */
-export function WorldSvg({ vp, bounds, children }: { vp: Viewport; bounds: { minX: number; minY: number; width: number; height: number }; children: React.ReactNode }) {
+export function WorldSvg({ vp, bounds, children, overlay }: { vp: Viewport; bounds: { minX: number; minY: number; width: number; height: number }; children: React.ReactNode; /** Верхний слой подписей: сам SVG не ловит нажатия, только его интерактивные дети. */ overlay?: boolean }) {
   const ref = useRef<SVGSVGElement>(null);
   const baseK = vp.view.k;
   const baseRef = useRef(baseK); baseRef.current = baseK;
@@ -73,7 +73,7 @@ export function WorldSvg({ vp, bounds, children }: { vp: Viewport; bounds: { min
   useLayoutEffect(() => { apply(vp.viewRef.current); }, [baseK, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
   const w = bounds.width * baseK, h = bounds.height * baseK;
   return (
-    <svg ref={ref} className="map-svg world" width={w} height={h} viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`} style={{ width: w, height: h, ["--k" as string]: baseK.toFixed(4) }}>
+    <svg ref={ref} className={"map-svg world" + (overlay ? " overlay" : "")} width={w} height={h} viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`} style={{ width: w, height: h, ["--k" as string]: baseK.toFixed(4) }}>
       {children}
     </svg>
   );

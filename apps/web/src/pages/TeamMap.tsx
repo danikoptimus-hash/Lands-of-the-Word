@@ -102,7 +102,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       </WorldSvg>
       {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
       <FaunaLayer vp={vp} hexes={map.hexes} size={size} />
-      <WorldSvg vp={vp} bounds={bounds}>
+      <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;
