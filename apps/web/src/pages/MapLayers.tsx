@@ -73,7 +73,7 @@ export function WorldSvg({ vp, bounds, children, overlay }: { vp: Viewport; boun
   useLayoutEffect(() => { apply(vp.viewRef.current); }, [baseK, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
   const w = bounds.width * baseK, h = bounds.height * baseK;
   return (
-    <svg ref={ref} className={"map-svg world" + (overlay ? " overlay" : "")} width={w} height={h} viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`} style={{ width: w, height: h, ["--k" as string]: baseK.toFixed(4) }}>
+    <svg ref={ref} className={"map-svg world" + (overlay ? " passthrough" : "")} width={w} height={h} viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`} style={{ width: w, height: h, ["--k" as string]: baseK.toFixed(4) }}>
       {children}
     </svg>
   );
