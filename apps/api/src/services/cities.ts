@@ -81,10 +81,18 @@ export function seededShuffle<T>(seed: string, items: readonly T[]): T[] {
   return out;
 }
 
-/** Задание без ответа — то, что видит команда. Пункты «по порядку» перетасованы и получают непрозрачные id. */
+/**
+ * Порядок вариантов ответа у команды (первый шаг вариативности между играми): показанная позиция i — это
+ * исходный вариант perm[i]. Зависит от секрета игры и команды, поэтому «ответ — третий» из другой игры не помогает.
+ */
+export function choicePermutation(secret: string, scopeKey: string, index: number, n: number): number[] {
+  return seededShuffle(`${secret.slice(0, 12)}|${scopeKey}|choice|${index}`, Array.from({ length: n }, (_, i) => i));
+}
+
+/** Задание без ответа — то, что видит команда. Пункты «по порядку» и варианты выбора перетасованы. */
 export function publicTask(task: CityTask, index: number, secret: string, scopeKey: string) {
   const base = { index, scope: task.scope, groupDistricts: task.groupDistricts ?? null, type: task.type, prompt: task.prompt };
-  if (task.type === "choice") return { ...base, options: task.options };
+  if (task.type === "choice") return { ...base, options: choicePermutation(secret, scopeKey, index, task.options.length).map((i) => task.options[i]!) };
   if (task.type === "order") {
     const items = task.items.map((text, i) => ({ id: opaqueId(secret, scopeKey, "task", index, i), text }));
     return { ...base, items: seededShuffle(`${scopeKey}|task|${index}`, items) };
@@ -106,7 +114,8 @@ export function checkAnswer(task: CityTask, index: number, secret: string, scope
     }
     case "choice": {
       const n = typeof answer === "number" ? answer : Number(answer);
-      return Number.isInteger(n) && n === task.correct;
+      if (!Number.isInteger(n) || n < 0 || n >= task.options.length) return false;
+      return choicePermutation(secret, scopeKey, index, task.options.length)[n] === task.correct;
     }
     case "order": {
       if (!Array.isArray(answer) || answer.length !== task.items.length) return false;
@@ -127,4 +136,15 @@ export function checkOrder(content: CityContent, secret: string, scopeKey: strin
   let wrong = 0;
   content.districts.forEach((_, i) => { if (ids[i] !== opaqueId(secret, scopeKey, "district", i)) wrong++; });
   return wrong;
+}
+
+/** Содержимое города без ответов: для администраторов игры (ответы видит только администратор платформы). */
+export function stripAnswers(content: CityContent) {
+  return {
+    ...content,
+    tasks: content.tasks.map((t) => {
+      const base = { scope: t.scope, groupDistricts: t.groupDistricts ?? null, type: t.type, prompt: t.prompt };
+      return t.type === "choice" ? { ...base, options: t.options } : base;
+    }),
+  };
 }

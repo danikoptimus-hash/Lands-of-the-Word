@@ -29,6 +29,13 @@ export async function requireAdmin(request: FastifyRequest, reply: FastifyReply,
   return game;
 }
 
+/** Тестовые действия и ответы на задания — только администратору платформы (решение владельца). */
+export function requireSuperadmin(request: FastifyRequest, reply: FastifyReply): boolean {
+  if (request.user!.platformRole === "SUPERADMIN") return true;
+  void reply.code(403).send({ error: "forbidden", message: err(request, "Только для администратора платформы") });
+  return false;
+}
+
 const taskInclude = {
   deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, difficulty: true } },
   team: { select: { id: true, name: true, color: true } },
@@ -156,6 +163,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id, teamId } = request.params as { id: string; teamId: string };
     const game = await requireAdmin(request, reply, id);
     if (!game) return;
+    if (!requireSuperadmin(request, reply)) return;
     if (game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра не идёт") });
     const body = z.object({ nodeKey: z.string().min(3).max(40) }).parse(request.body);
     const [team, node] = await Promise.all([

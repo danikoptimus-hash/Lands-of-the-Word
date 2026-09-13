@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type CityTaskDto, type MyCityDto, type TaskLockDto } from "../lib/api";
+import { api, ApiError, type CityTaskDto, type MyCityDto, type SupportItemDto, type TaskLockDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
 import { SortableList } from "./SortableList";
 import { WarSection } from "./BattlePanel";
 import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
-import { fmtLeft } from "../lib/format";
+import { fmtDate, fmtLeft } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
@@ -70,11 +70,12 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
     } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); if (e instanceof ApiError && e.status === 423) void load(); return false; }
     finally { setBusy(false); }
   }
-  async function dispute(index: number, message: string): Promise<boolean> {
+  /** Обращение в поддержку: игрок пишет только текст, город и задание сервер подставляет сам. */
+  async function support(index: number, message: string): Promise<boolean> {
     setBusy(true); setError(null);
     try {
-      await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/dispute`, { method: "POST", body: JSON.stringify({ message }) });
-      notify(t("Сообщение отправлено администратору"));
+      await api(`/api/games/${gameId}/support`, { method: "POST", body: JSON.stringify({ nodeKey, taskIndex: index, message }) });
+      notify(t("Обращение отправлено. Ответ придёт уведомлением и письмом."));
       await load(); return true;
     } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); return false; }
     finally { setBusy(false); }
@@ -238,7 +239,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       {city?.content && task && (
         <TaskView task={task} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
           hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey}
-          lock={city.state.locks.find((l) => l.index === task.index) ?? null} choiceAttempts={city.state.choiceAttempts} now={now} onDispute={(m) => dispute(task.index, m)} heartbeatMs={city.state.heartbeatMs} notify={notify} />
+          lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} choiceAttempts={city.state.choiceAttempts} now={now} onSupport={(m) => support(task.index, m)} heartbeatMs={city.state.heartbeatMs} notify={notify} />
       )}
     </Sheet>
   );
@@ -277,15 +278,16 @@ function useReading(gameId: string, nodeKey: string, index: number, done: boolea
 
 const mmss = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
 
-function TaskView({ task, district, groupTitles, done, fragment, busy, cooldown, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, choiceAttempts, now, onDispute, heartbeatMs, notify }: { task: CityTaskDto; district?: { title: string; verses: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; choiceAttempts: number; now: number; onDispute: (message: string) => Promise<boolean>; heartbeatMs: number; notify: (text: string, tone?: "bad") => void }) {
+function TaskView({ task, district, groupTitles, done, fragment, busy, cooldown, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, choiceAttempts, now, onSupport, heartbeatMs, notify }: { task: CityTaskDto; district?: { title: string; verses: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; choiceAttempts: number; now: number; onSupport: (message: string) => Promise<boolean>; heartbeatMs: number; notify: (text: string, tone?: "bad") => void }) {
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
   const readMs = useReading(gameId, nodeKey, task.index, done, lock?.readMs ?? 0, heartbeatMs || 10_000);
   const reading = !done && readMs < task.readingMs;
   /** Вставка из буфера отключена (решение владельца): ответ набирается вручную. */
   const noPaste = (e: React.ClipboardEvent | React.DragEvent) => { e.preventDefault(); notify(t("Вставка отключена: наберите ответ вручную"), "bad"); };
-  const disputeOpen = Boolean(lock?.disputedAt && !lock.resolvedAt);
-  const [disputeText, setDisputeText] = useState("");
-  const [disputeForm, setDisputeForm] = useState(false);
+  const openRequest = support.find((r) => r.status === "OPEN") ?? null;
+  const lastReply = openRequest ? null : support.find((r) => r.status === "CLOSED") ?? null;
+  const [supportText, setSupportText] = useState("");
+  const [supportForm, setSupportForm] = useState(false);
   const [hintText, setHintText] = useState<string[] | null>(null);
   useEffect(() => { if (hintOpen) api<{ text: string[] }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/hint/${task.index}`).then((r) => setHintText(r.text)).catch(() => setHintText(null)); else setHintText(null); }, [hintOpen, gameId, nodeKey, task.index]);
   const [text, setText] = useState("");
@@ -321,22 +323,22 @@ function TaskView({ task, district, groupTitles, done, fragment, busy, cooldown,
       {locked && lock && (
         <div className="note bad lock-note">
           <div className="row nowrap"><Icon name="clock" /><span>{t("Задание закрыто после двух неверных ответов. Откроется через {t}.", { t: fmtLeft(lock.lockedUntil! - now) })}</span></div>
-          {disputeOpen && <div>{t("Вы написали администратору: «{m}». Ждём ответа.", { m: lock.dispute ?? "" })}</div>}
-          {!disputeOpen && lock.resolvedAt && <div>{t("Администратор ответил: {a}", { a: lock.resolution || t("задание оставлено закрытым") })}</div>}
-          {!disputeOpen && !lock.resolvedAt && !disputeForm && <div><button type="button" className="secondary" onClick={() => setDisputeForm(true)}><Icon name="send" />{t("Написать администратору")}</button></div>}
-          {!disputeOpen && !lock.resolvedAt && disputeForm && (
-            <div className="dispute-form">
-              <label htmlFor="dispute-text">{t("Почему ответ нужно засчитать или задание открыть")}</label>
-              <textarea id="dispute-text" value={disputeText} onChange={(e) => setDisputeText(e.target.value)} maxLength={500} rows={3} />
-              <div className="actions">
-                <button type="button" disabled={busy || disputeText.trim().length < 5} onClick={() => void onDispute(disputeText.trim()).then((ok) => { if (ok) { setDisputeForm(false); setDisputeText(""); } })}><Icon name="send" />{t("Отправить")}</button>
-                <button type="button" className="secondary" onClick={() => setDisputeForm(false)}>{t("Отмена")}</button>
-              </div>
-            </div>
-          )}
         </div>
       )}
-      {!locked && lock?.resolvedAt && lock.resolution && !done && <div className="note ok"><Icon name="info" /><span>{t("Администратор ответил: {a}", { a: lock.resolution })}</span></div>}
+      {openRequest && <div className="note info"><Icon name="send" /><span>{t("Обращение в поддержку отправлено {d}. Ждём ответа.", { d: fmtDate(new Date(openRequest.createdAt).toISOString()) })}</span></div>}
+      {lastReply && !done && <div className={"note " + (lastReply.unlocked ? "ok" : "info")}><Icon name="info" /><span>{t("Ответ поддержки: {a}", { a: lastReply.reply || (lastReply.unlocked ? t("блокировка снята") : t("обращение рассмотрено")) })}</span></div>}
+      {!done && !openRequest && !supportForm && <p className="mt-2 support-link"><button type="button" className="ghost sm" onClick={() => setSupportForm(true)}><Icon name="send" />{t("Написать в поддержку")}</button></p>}
+      {supportForm && (
+        <div className="support-form card flat">
+          <p className="small"><strong>{t("Обращение в поддержку")}</strong><br />{t("Город, задание {n} и состояние попыток подставятся автоматически. Опишите, что не так.", { n: task.index + 1 })}</p>
+          <label htmlFor="support-text">{t("Сообщение")}</label>
+          <textarea id="support-text" value={supportText} onChange={(e) => setSupportText(e.target.value)} maxLength={1000} rows={3} autoFocus />
+          <div className="actions row mt-2">
+            <button type="button" disabled={busy || supportText.trim().length < 5} onClick={() => void onSupport(supportText.trim()).then((ok) => { if (ok) { setSupportForm(false); setSupportText(""); } })}><Icon name="send" />{t("Отправить")}</button>
+            <button type="button" className="secondary" onClick={() => setSupportForm(false)}>{t("Отмена")}</button>
+          </div>
+        </div>
+      )}
       {hintOpen && hintText && <div className="hint-box no-copy"><div className="muted small">{t("Подсказка пророка · текст района {verses}", { verses: district?.verses ?? "" })}</div>{hintText.map((x, i) => <p key={i}>{x}</p>)}</div>}
       {!hintOpen && !done && canHint && <p className="mt-2"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Подсказка пророка · раз в неделю")}</button></p>}
       {done ? (

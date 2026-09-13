@@ -20,7 +20,7 @@ async function joinTeam(name: string, cookie: string) {
 }
 const content = JSON.parse(await readFile(new URL("../../../content/cities/rut.json", import.meta.url), "utf8")) as {
   districts: Array<{ title: string }>;
-  tasks: Array<{ type: string; answer?: number; answers?: string[]; correct?: number; items?: string[] }>;
+  tasks: Array<{ type: string; answer?: number; answers?: string[]; correct?: number; options?: string[]; items?: string[] }>;
 };
 
 beforeAll(async () => {
@@ -28,6 +28,8 @@ beforeAll(async () => {
   adminCookie = await register(adminNick);
   p1Cookie = await register(p1Nick);
   p2Cookie = await register(p2Nick);
+  // Ответы и тестовые действия — только администратору платформы (решение владельца).
+  await prisma.user.update({ where: { nickname: adminNick }, data: { platformRole: "SUPERADMIN" } });
   const g = await app.inject({ method: "POST", url: "/api/games", headers: { cookie: adminCookie }, payload: { name: "Города", teamCount: 2 } });
   gameId = g.json().game.id;
   await app.inject({ method: "POST", url: `/api/games/${gameId}/generate`, headers: { cookie: adminCookie } });
@@ -108,13 +110,14 @@ describe("город на перекрёстке", () => {
     await prisma.teamCityState.updateMany({ where: { teamId: team1, nodeKey: rutKey }, data: { lastWrongAt: null } });
 
     const city = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
-    const tasks = city.json().content.tasks as Array<{ index: number; type: string; items?: Array<{ id: string; text: string }> }>;
+    const tasks = city.json().content.tasks as Array<{ index: number; type: string; items?: Array<{ id: string; text: string }>; options?: string[] }>;
     for (const t of tasks) {
       const src = content.tasks[t.index]!;
       let answer: unknown;
       if (src.type === "number") answer = String(src.answer);
       else if (src.type === "text") answer = src.answers![0]!.toUpperCase() + "!";
-      else if (src.type === "choice") answer = src.correct;
+      // Варианты у команды перетасованы: ищем показанный номер верного по тексту.
+      else if (src.type === "choice") answer = t.options!.indexOf(src.options![src.correct!]!);
       else answer = src.items!.map((text) => t.items!.find((i) => i.text === text)!.id);
       const res = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/${t.index}/answer`, headers: { cookie: p1Cookie }, payload: { answer } });
       expect(res.statusCode, `задание ${t.index}`).toBe(200);

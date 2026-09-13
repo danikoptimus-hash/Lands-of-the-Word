@@ -120,4 +120,8 @@ export const PLAYER: Record<string, string> = {
   "Разрешение действует, пока владелец его не отзовёт. Уже взятые за городом дела остаются у команды.": "The permission lasts until the owner revokes it. Deeds already taken beyond the city stay with the team.",
   "Роли": "Roles",
   "Капитан бросает вызов и отвечает на испытания, уступает город, переносит столицу и назначает роли. Разведчик раз в неделю узнаёт, что за стороной. Пророк раз в неделю открывает подсказку к заданию. Посол ведёт переговоры о проходах. Летописец сдаёт дела за команду.": "The captain issues challenges and answers trials, yields a city, moves the capital and assigns roles. The scout learns once a week what lies beyond a side. The prophet opens a task hint once a week. The ambassador negotiates passages. The chronicler submits deeds for the team.",
+  // Обращение в поддержку из задания
+  "Обращение отправлено. Ответ придёт уведомлением и письмом.": "Request sent. The reply will come as a notification and an email.",
+  "Обращение в поддержку отправлено {d}. Ждём ответа.": "Support request sent on {d}. Waiting for a reply.", "Ответ поддержки: {a}": "Support reply: {a}", "блокировка снята": "the lock is lifted", "обращение рассмотрено": "the request was reviewed",
+  "Написать в поддержку": "Contact support", "Обращение в поддержку": "Support request", "Город, задание {n} и состояние попыток подставятся автоматически. Опишите, что не так.": "The city, task {n} and attempt state are filled in automatically. Describe what is wrong.", "Сообщение": "Message",
 };

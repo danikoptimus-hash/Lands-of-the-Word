@@ -3,8 +3,8 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
-import { requireAdmin, requireMember } from "./teamMap.js";
-import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask } from "../services/cities.js";
+import { requireAdmin, requireMember, requireSuperadmin } from "./teamMap.js";
+import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask, stripAnswers } from "../services/cities.js";
 import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
 import { loadBook, parseDistrictRange } from "../services/bible.js";
@@ -20,8 +20,6 @@ const WRONG_COOLDOWN_MS = 20_000;
 /** Задание с выбором ответа: столько неверных попыток — и задание закрывается на сутки (решение владельца). */
 const CHOICE_ATTEMPTS = 2;
 const LOCK_MS = 24 * 3600_000;
-const disputeBody = z.object({ message: z.string().trim().min(5).max(500) });
-const resolveBody = z.object({ unlock: z.boolean(), answer: z.string().trim().max(500).optional() });
 
 /**
  * Минимальное время чтения (решение владельца): ответить можно только после того, как задание было открыто
@@ -50,10 +48,10 @@ export async function readingRequiredMs(content: CityContent, index: number): Pr
   return Math.min(READ_MAX_MS, Math.max(READ_MIN_MS, verses * READ_MS_PER_VERSE));
 }
 
-/** Состояние задания у команды (в ответе my-city): попытки, блокировка, спор, накопленное чтение. */
-function publicLock(l: { taskIndex: number; wrong: number; lockedUntil: Date | null; dispute: string | null; disputedAt: Date | null; resolvedAt: Date | null; resolution: string | null; readMs: number }, now: number) {
+/** Состояние задания у команды (в ответе my-city): попытки, блокировка, накопленное чтение. */
+function publicLock(l: { taskIndex: number; wrong: number; lockedUntil: Date | null; unlocked: boolean; readMs: number }, now: number) {
   const locked = l.lockedUntil && l.lockedUntil.getTime() > now;
-  return { index: l.taskIndex, attemptsLeft: locked ? 0 : Math.max(0, CHOICE_ATTEMPTS - l.wrong), lockedUntil: locked ? l.lockedUntil!.getTime() : null, dispute: l.dispute, disputedAt: l.disputedAt?.getTime() ?? null, resolvedAt: l.resolvedAt?.getTime() ?? null, resolution: l.resolution, readMs: l.readMs };
+  return { index: l.taskIndex, attemptsLeft: locked ? 0 : Math.max(0, CHOICE_ATTEMPTS - l.wrong), lockedUntil: locked ? l.lockedUntil!.getTime() : null, unlocked: l.unlocked, readMs: l.readMs };
 }
 
 const ownerSelect = { team: { select: { id: true, index: true, name: true, color: true } } } as const;
@@ -88,11 +86,13 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!node) return reply.code(404).send({ error: "not_found", message: err(request, "Город не найден") });
     const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
     if (!reached) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда ещё не дошла до этого города") });
-    const [content, state, ownerState, locks] = await Promise.all([
+    const [content, state, ownerState, locks, support] = await Promise.all([
       loadCityContent(node.bookCode!),
       prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } }),
       prisma.teamCityState.findFirst({ where: { gameId: id, nodeKey, capturedAt: { not: null } }, select: ownerSelect }),
       prisma.teamTaskLock.findMany({ where: { teamId: m.team.id, nodeKey } }),
+      // Обращения команды по этому городу: открытые и закрытые за последние две недели (чтобы показать ответ).
+      prisma.supportRequest.findMany({ where: { teamId: m.team.id, nodeKey, OR: [{ status: "OPEN" }, { resolvedAt: { gte: new Date(Date.now() - 14 * 86_400_000) } }] }, orderBy: { createdAt: "desc" }, take: 20 }),
     ]);
     const scopeKey = `${m.team.id}|${nodeKey}`;
     const solved = state?.orderSolved ?? false;
@@ -128,6 +128,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         choiceAttempts: CHOICE_ATTEMPTS,
         heartbeatMs: HEARTBEAT_MS,
         locks: locks.map((l) => publicLock(l, Date.now())),
+        support: support.map((r) => ({ id: r.id, taskIndex: r.taskIndex, createdAt: r.createdAt.getTime(), status: r.status, reply: r.reply, unlocked: r.unlocked })),
       },
     };
   });
@@ -186,7 +187,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if ((lock?.readMs ?? 0) < required) {
       return reply.code(409).send({ error: "reading", message: err(request, "Сначала прочитайте текст: время чтения ещё не набрано"), remainingMs: required - (lock?.readMs ?? 0) });
     }
-    // Выбор ответа: две попытки, потом задание закрыто на сутки. Спор — отдельным запросом.
+    // Выбор ответа: две попытки, потом задание закрыто на сутки. Вопросы — через обращение в поддержку.
     if (lock?.lockedUntil && lock.lockedUntil.getTime() > now) {
       return reply.code(423).send({ error: "locked", message: err(request, "Задание закрыто на сутки после двух неверных ответов"), lockedUntil: lock.lockedUntil.getTime() });
     }
@@ -203,7 +204,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         const locking = wrong >= CHOICE_ATTEMPTS;
         lockedUntil = locking ? now + LOCK_MS : null;
         const data = locking
-          ? { wrong: 0, lockedUntil: new Date(lockedUntil!), dispute: null, disputedAt: null, resolvedAt: null, resolution: null, unlocked: false }
+          ? { wrong: 0, lockedUntil: new Date(lockedUntil!), unlocked: false }
           : { wrong };
         await prisma.teamTaskLock.upsert({ where: lockWhere, create: { gameId: id, teamId: c.m.team.id, nodeKey, taskIndex: index, ...data }, update: data });
       }
@@ -230,56 +231,6 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const readMs = Math.min(required + HEARTBEAT_MAX_CREDIT_MS, (prev?.readMs ?? 0) + credit);
     await prisma.teamTaskLock.upsert({ where, create: { gameId: id, teamId: c.m.team.id, nodeKey, taskIndex: index, readMs, readAt: now }, update: { readMs, readAt: now } });
     return { readMs, requiredMs: required, heartbeatMs: HEARTBEAT_MS };
-  });
-
-  /** Оспорить блокировку задания: сообщение админам игры. Ответ придёт письмом/уведомлением и в попапе города. */
-  app.post("/api/games/:id/my-city/:nodeKey/tasks/:index/dispute", async (request, reply) => {
-    const { id, nodeKey, index: rawIndex } = request.params as { id: string; nodeKey: string; index: string };
-    const c = await memberCity(request, reply, id, nodeKey);
-    if (!c) return;
-    const index = Number(rawIndex);
-    const task = Number.isInteger(index) ? c.content.tasks[index] : undefined;
-    if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
-    const body = disputeBody.parse(request.body);
-    const lock = await prisma.teamTaskLock.findUnique({ where: { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: index } } });
-    if (!lock?.lockedUntil || lock.lockedUntil.getTime() <= Date.now()) return reply.code(409).send({ error: "conflict", message: err(request, "Задание не закрыто: оспаривать нечего") });
-    if (lock.disputedAt && !lock.resolvedAt) return reply.code(409).send({ error: "conflict", message: err(request, "Спор уже отправлен: ждите ответа администратора") });
-    await prisma.teamTaskLock.update({ where: { id: lock.id }, data: { dispute: body.message, disputedAt: new Date(), resolvedAt: null, resolution: null } });
-    notifyAdmins(id, "спор по заданию города {book}", "Команда «{team}» оспаривает блокировку задания {n} города {book}: «{message}». Снимите блокировку или ответьте на вкладке «Проверка».", { book: c.node.bookCode ?? "", team: c.m.team.name, n: index + 1, message: body.message });
-    publish(id, { type: "cities", teamId: c.m.team.id });
-    publish(id, { type: "game" });
-    return { ok: true };
-  });
-
-  /** Админ: открытые споры по заданиям (команда, город, задание, сообщение). */
-  app.get("/api/games/:id/disputes", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    if (!(await requireAdmin(request, reply, id))) return;
-    const rows = await prisma.teamTaskLock.findMany({ where: { gameId: id, disputedAt: { not: null }, resolvedAt: null }, orderBy: { disputedAt: "asc" }, include: { team: { select: { id: true, name: true, color: true } } } });
-    const nodes = await prisma.mapNode.findMany({ where: { gameId: id, key: { in: [...new Set(rows.map((r) => r.nodeKey))] } }, select: { key: true, bookCode: true } });
-    const bookOf = new Map(nodes.map((n) => [n.key, n.bookCode ?? ""]));
-    const disputes = await Promise.all(rows.map(async (r) => {
-      const content = await loadCityContent(bookOf.get(r.nodeKey) ?? "");
-      const task = content?.tasks[r.taskIndex];
-      return { id: r.id, team: r.team, nodeKey: r.nodeKey, bookCode: bookOf.get(r.nodeKey) ?? "", taskIndex: r.taskIndex, prompt: task?.prompt ?? "", correct: task?.type === "choice" ? task.options[task.correct] ?? null : null, message: r.dispute, disputedAt: r.disputedAt, lockedUntil: r.lockedUntil };
-    }));
-    return { disputes };
-  });
-
-  /** Админ: решение по спору — снять блокировку (можно отвечать снова) или оставить, с ответом команде. */
-  app.post("/api/games/:id/disputes/:lockId/resolve", async (request, reply) => {
-    const { id, lockId } = request.params as { id: string; lockId: string };
-    if (!(await requireAdmin(request, reply, id))) return;
-    const body = resolveBody.parse(request.body);
-    const lock = await prisma.teamTaskLock.findFirst({ where: { id: lockId, gameId: id } });
-    if (!lock) return reply.code(404).send({ error: "not_found", message: err(request, "Спор не найден") });
-    if (lock.resolvedAt) return reply.code(409).send({ error: "conflict", message: err(request, "Спор уже решён") });
-    await prisma.teamTaskLock.update({ where: { id: lock.id }, data: { resolvedAt: new Date(), resolution: body.answer || null, ...(body.unlock ? { lockedUntil: null, wrong: 0, unlocked: true } : {}) } });
-    const node = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: lock.nodeKey } }, select: { bookCode: true } });
-    notifyTeam(id, lock.teamId, "ответ администратора по заданию города {book}", (locale) => msg(locale, "Задание {n}: {verdict}{answer}", { n: lock.taskIndex + 1, verdict: body.unlock ? "блокировка снята, можно отвечать снова" : "блокировка оставлена до истечения суток", answer: body.answer ? msg(locale, " Ответ администратора: {answer}", { answer: body.answer }) : "" }), { book: node?.bookCode ?? "" });
-    publish(id, { type: "cities", teamId: lock.teamId });
-    publish(id, { type: "game" });
-    return { ok: true };
   });
 
   /** Ввести ключ из конверта: город взят. Первый взятый город команды — её столица. */
@@ -311,6 +262,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/games/:id/cities/:nodeKey/assign", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     if (!(await requireAdmin(request, reply, id))) return;
+    if (!requireSuperadmin(request, reply)) return;
     const body = z.object({ teamId: z.string().min(1) }).parse(request.body);
     const [node, team] = await Promise.all([loadCityNode(id, nodeKey), prisma.team.findFirst({ where: { id: body.teamId, gameId: id } })]);
     if (!node || !team) return reply.code(404).send({ error: "not_found", message: err(request, "Город или команда не найдены") });
@@ -342,6 +294,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
   app.post("/api/games/:id/cities/:nodeKey/study", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     if (!(await requireAdmin(request, reply, id))) return;
+    if (!requireSuperadmin(request, reply)) return;
     const body = z.object({ teamId: z.string().min(1) }).parse(request.body);
     const [node, team] = await Promise.all([loadCityNode(id, nodeKey), prisma.team.findFirst({ where: { id: body.teamId, gameId: id } })]);
     if (!node || !team) return reply.code(404).send({ error: "not_found", message: err(request, "Город или команда не найдены") });
@@ -374,9 +327,12 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       prisma.teamCityState.findMany({ where: { gameId: id, nodeKey } }),
     ]);
     const byTeam = new Map(states.map((s) => [s.teamId, s]));
+    // Ответы на задания видит только администратор платформы (решение владельца): администратор игры — задания без ответов.
+    const superadmin = request.user!.platformRole === "SUPERADMIN";
     return {
       node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, cityKey: node.cityKey, cityCode: node.cityCode },
-      content,
+      content: superadmin || !content ? content : stripAnswers(content),
+      answersHidden: !superadmin,
       teams: teams.map((t) => {
         const s = byTeam.get(t.id);
         return { ...t, orderSolved: s?.orderSolved ?? false, orderAttempts: s?.orderAttempts ?? 0, doneTasks: s?.doneTasks ?? [], answerAttempts: s?.answerAttempts ?? 0, capturedAt: s?.capturedAt ?? null, isCapital: s?.isCapital ?? false };

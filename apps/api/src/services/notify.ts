@@ -17,6 +17,7 @@ export type Text = string | ((locale: Locale) => string);
 let publicUrl = "http://localhost:3000";
 let log: (e: unknown, msg: string) => void = () => {};
 export function initNotify(url: string, logger: (e: unknown, msg: string) => void): void { publicUrl = url.replace(/\/$/, ""); log = logger; }
+export function getPublicUrl(): string { return publicUrl; }
 
 interface Recipient { id: string; email: string | null; locale: string }
 

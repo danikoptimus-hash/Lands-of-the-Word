@@ -7,6 +7,7 @@ import { reportPage } from "../lib/perf";
 import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
 import { TeamMap } from "./TeamMap";
 import { useUi } from "../lib/ui";
+import { useAuth } from "../lib/auth";
 import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
@@ -173,6 +174,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
 
 /** Панель города: ключ и шифр, состояние команд, задания с ответами (аккордеон), тестовые действия (свёрнуты). */
 function CitySheet({ gameId, node, version, container, revealed, battle, teamById, onClose, onReview }: { gameId: string; node: MapNodeDto; version: number; container: HTMLElement; revealed: TeamLite[]; battle: BattleProgress | null; teamById: Map<string, TeamLite>; onClose: () => void; onReview?: () => void }) {
+  const superadmin = useAuth().user?.platformRole === "SUPERADMIN";
   const [city, setCity] = useState<AdminCityDto | null>(null);
   const [loadError, setLoadError] = useState(false);
   const load = useCallback(() => api<AdminCityDto>(`/api/games/${gameId}/cities/${encodeURIComponent(node.key)}`).then((c) => { setCity(c); setLoadError(false); }).catch(() => setLoadError(true)), [gameId, node.key]);
@@ -215,7 +217,8 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
           )}
           {city.content && (
             <details className="fold">
-              <summary><Icon name="book" />{t("Задания и ответы")} <span className="count">· {total}</span><Icon name="chevron-down" className="chev" /></summary>
+              <summary><Icon name="book" />{city.answersHidden ? t("Задания") : t("Задания и ответы")} <span className="count">· {total}</span><Icon name="chevron-down" className="chev" /></summary>
+              {city.answersHidden && <p className="hint">{t("Ответы видит только администратор платформы. Вопросы команд по заданиям приходят в поддержку.")}</p>}
               <ol className="admin-districts">
                 {city.content.districts.map((d, i) => {
                   const task = city.content!.tasks[i];
@@ -227,14 +230,16 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
                       <div><strong>{d.title}</strong> <span className="muted small">{d.verses}</span></div>
                       <div className="muted small">{d.summary}</div>
                       <div className="mt-1">{task.prompt}</div>
-                      <p className="note ok"><Icon name="check" /><span>{t("Ответ")}: {answer ?? ""}{sign ? ` · ${t("знак шифра")}: ${sign}` : ""}</span></p>
+                      {city.answersHidden
+                        ? (sign ? <p className="muted small">{t("знак шифра")}: {sign}</p> : null)
+                        : <p className="note ok"><Icon name="check" /><span>{t("Ответ")}: {answer ?? ""}{sign ? ` · ${t("знак шифра")}: ${sign}` : ""}</span></p>}
                     </li>
                   );
                 })}
               </ol>
             </details>
           )}
-          {city.teams.length > 0 && (
+          {city.teams.length > 0 && superadmin && (
             <details className="fold test">
               <summary><Icon name="alert" />{t("Тестовые действия")}<Icon name="chevron-down" className="chev" /></summary>
               <TestActions gameId={gameId} nodeKey={node.key} teams={city.teams} revealedIds={revealedIds} hasContent={Boolean(city.content)} onDone={() => void load()} />
@@ -248,6 +253,7 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
 
 /** Панель старта или развилки: кто открыл, тестовое открытие. */
 function NodeSheet({ gameId, node, container, teams, revealed, onClose }: { gameId: string; node: MapNodeDto; container: HTMLElement; teams: TeamProgress[]; revealed: TeamLite[]; onClose: () => void }) {
+  const superadmin = useAuth().user?.platformRole === "SUPERADMIN";
   const startTeam = node.kind === "START" ? teams.find((tm) => tm.startNodeKey === node.key) : undefined;
   const title = node.kind === "START" ? t("Старт команды «{name}»", { name: startTeam?.name ?? String((node.teamIndex ?? 0) + 1) }) : t("Развилка");
   return (
@@ -259,7 +265,7 @@ function NodeSheet({ gameId, node, container, teams, revealed, onClose }: { game
             <div className="row mt-1">{revealed.map((tm) => <TeamAvatar key={tm.id} name={tm.name} color={tm.color} size="sm" withName />)}</div>
           </div>
         )}
-        {teams.length > 0 && (
+        {teams.length > 0 && superadmin && (
           <details className="fold test">
             <summary><Icon name="alert" />{t("Тестовые действия")}<Icon name="chevron-down" className="chev" /></summary>
             <TestActions gameId={gameId} nodeKey={node.key} teams={teams} revealedIds={new Set(revealed.map((tm) => tm.id))} hasContent={false} onDone={onClose} />

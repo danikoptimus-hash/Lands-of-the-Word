@@ -281,6 +281,8 @@ describe("администраторы игры", () => {
     expect(nameChange.statusCode).toBe(409);
     const deadline = await app.inject({ method: "PATCH", url: `/api/games/${gid}`, headers: { cookie: a }, payload: { settings: { endsAt: new Date(Date.now() + 86_400_000).toISOString() } } });
     expect(deadline.statusCode).toBe(200);
+    // Тестовое присвоение городов — только администратору платформы.
+    await prisma.user.updateMany({ where: { createdGames: { some: { id: gid } } }, data: { platformRole: "SUPERADMIN" } });
     // Команда Б получает два города, А — один
     const cities = await prisma.mapNode.findMany({ where: { gameId: gid, kind: "CITY" }, take: 3 });
     await app.inject({ method: "POST", url: `/api/games/${gid}/cities/${cities[0]!.key}/assign`, headers: { cookie: a }, payload: { teamId: tids[0] } });

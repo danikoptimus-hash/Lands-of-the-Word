@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -7,7 +7,9 @@ import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { Tabs } from "../components/Tabs";
-import { ErrorState, LoadingState } from "../components/State";
+import { EmptyState, ErrorState, LoadingState } from "../components/State";
+import { useUi } from "../lib/ui";
+import { TeamAvatar } from "../components/TeamAvatar";
 
 interface Metrics {
   period: { days: number; since: string; dates: string[] };
@@ -71,6 +73,82 @@ function Tile({ label, value, hint, trend, dates, cumulative, delta }: { label: 
   );
 }
 
+
+interface SupportRow { id: string; createdAt: string; status: "OPEN" | "CLOSED"; game: string; team: { name: string; color: string } | null; user: string; bookCode: string | null; taskIndex: number | null; message: string; context: { city?: string | null; prompt?: string | null; attemptsLeft?: number | null; lockedUntil?: string | null; readMin?: number | null; doneTasks?: number | null; totalTasks?: number | null; org?: string }; reply: string | null; resolvedAt: string | null; unlocked: boolean }
+
+/** Обращения в поддержку: открытые сверху, ответ и снятие блокировки — здесь. Адрес для писем — в настройке ниже. */
+function SupportBlock() {
+  const { notify } = useUi();
+  const [rows, setRows] = useState<SupportRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showClosed, setShowClosed] = useState(false);
+  const [reply, setReply] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [settings, setSettings] = useState<{ supportEmail: string | null; fallback: string | null } | null>(null);
+  const [email, setEmail] = useState("");
+  const load = useCallback(() => {
+    api<{ requests: SupportRow[] }>(`/api/admin/support?status=${showClosed ? "ALL" : "OPEN"}`).then((r) => { setRows(r.requests); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети")));
+  }, [showClosed]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { api<{ supportEmail: string | null; fallback: string | null }>("/api/admin/settings").then((s) => { setSettings(s); setEmail(s.supportEmail ?? ""); }).catch(() => undefined); }, []);
+  async function resolve(r: SupportRow, unlock: boolean) {
+    setBusy(r.id);
+    try {
+      await api(`/api/admin/support/${r.id}/resolve`, { method: "POST", body: JSON.stringify({ unlock, reply: reply[r.id]?.trim() || undefined }) });
+      notify(unlock ? t("Блокировка снята, команде отправлен ответ") : t("Обращение закрыто, команде отправлен ответ"));
+      load();
+    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(null); }
+  }
+  async function saveEmail() {
+    try { const s = await api<{ supportEmail: string | null; fallback: string | null }>("/api/admin/settings", { method: "PATCH", body: JSON.stringify({ supportEmail: email.trim() || null }) }); setSettings(s); notify(t("Адрес сохранён")); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+  }
+  const open = rows?.filter((r) => r.status === "OPEN") ?? [];
+  return (
+    <div className="card" id="support">
+      <div className="card-head">
+        <h2><span className="ico"><Icon name="send" /></span>{t("Обращения в поддержку")} {rows && <span className="count">{open.length}</span>}</h2>
+        <button type="button" className="secondary sm" onClick={() => setShowClosed((v) => !v)}>{showClosed ? t("Только открытые") : t("Показать закрытые")}</button>
+      </div>
+      <p className="muted small">{t("Игроки пишут из задания: город, задание и состояние попыток подставляются сами. Ответ уходит команде уведомлением и письмом.")}</p>
+      {error ? <ErrorState text={error} onRetry={load} /> : !rows ? <LoadingState rows={2} /> : rows.length === 0 ? <EmptyState inline icon="send" text={t("Обращений нет.")} /> : (
+        <ul className="list support-list">
+          {rows.map((r) => (
+            <li key={r.id} className={r.status === "CLOSED" ? "closed" : ""}>
+              <div className="main">
+                <span className="title">{r.game}{r.team && <> · <TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName /></>} <span className="muted small">· {r.user} · {fmtDate(r.createdAt)}</span></span>
+                {r.context.city && <span className="meta">{r.context.city}{r.taskIndex !== null && <> · {t("задание {n}", { n: r.taskIndex + 1 })}{r.context.attemptsLeft !== null && r.context.attemptsLeft !== undefined && <> · {t("попыток осталось {n}", { n: r.context.attemptsLeft })}</>}{r.context.lockedUntil && <> · {t("закрыто до {d}", { d: fmtDate(r.context.lockedUntil) })}</>}{r.context.readMin !== null && r.context.readMin !== undefined && <> · {t("чтение {n} мин", { n: r.context.readMin })}</>}</>}</span>}
+                {r.context.prompt && <span className="muted small">{r.context.prompt}</span>}
+                <p className="msg">{r.message}</p>
+                {r.status === "CLOSED" ? (
+                  <span className="muted small">{r.unlocked ? t("Блокировка снята") : t("Закрыто")}{r.reply ? ` · ${t("ответ команде")}: ${r.reply}` : ""}{r.resolvedAt ? ` · ${fmtDate(r.resolvedAt)}` : ""}</span>
+                ) : (
+                  <div className="support-reply">
+                    <textarea value={reply[r.id] ?? ""} onChange={(e) => setReply((m) => ({ ...m, [r.id]: e.target.value }))} placeholder={t("Ответ команде (необязательно)")} maxLength={1000} rows={2} />
+                    <div className="row mt-2">
+                      {r.taskIndex !== null && <button type="button" className="sm" disabled={busy === r.id} onClick={() => void resolve(r, true)}><Icon name="check" />{t("Снять блокировку и закрыть")}</button>}
+                      <button type="button" className="secondary sm" disabled={busy === r.id} onClick={() => void resolve(r, false)}>{t("Закрыть с ответом")}</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="add-block mt-4">
+        <label htmlFor="support-email">{t("Почта для обращений")}</label>
+        <div className="row nowrap">
+          <input id="support-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={settings?.fallback ?? ""} maxLength={200} />
+          <button type="button" className="secondary sm" onClick={() => void saveEmail()}>{t("Сохранить")}</button>
+        </div>
+        <p className="hint">{settings?.fallback ? t("Пусто — письма идут на почту администратора платформы: {e}.", { e: settings.fallback }) : t("Пусто — письма никуда не уходят: у администратора платформы нет почты.")}</p>
+      </div>
+    </div>
+  );
+}
+
 /** Аналитика суперадмина: обобщённые метрики платформы по группам, с динамикой по дням; таблица по дням — внизу. */
 export function AdminDashboard() {
   const { user } = useAuth();
@@ -94,6 +172,7 @@ export function AdminDashboard() {
       </div>
       <Tabs<Period> value={period} onChange={setPeriod} ariaLabel={t("Период")} items={[{ key: "7", label: forDays(7) }, { key: "30", label: forDays(30) }, { key: "90", label: forDays(90) }]} />
       <p className="muted small mt-3">{t("Только обобщённые числа: без содержимого игр и без привязки к людям. Наведите на график в плитке, чтобы увидеть день.")}</p>
+      <SupportBlock />
       {error && <div className="card"><ErrorState text={error} onRetry={load} /></div>}
       {!m && !error && <div className="card"><LoadingState /></div>}
       {m && (

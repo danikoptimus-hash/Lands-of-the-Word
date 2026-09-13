@@ -41,6 +41,7 @@ model User {
   memberships  Membership[]
   resets       PasswordReset[]
   pushSubscriptions PushSubscription[]
+  supportRequests SupportRequest[]
 }
 
 /** Настройки платформы, которые сервер создаёт сам (например ключи VAPID для push-уведомлений). */
@@ -124,6 +125,7 @@ model Game {
   /** Почему завершена: last_team (осталась одна команда), time_limit (срок), manual (админ). */
   finishReason String?
   recipients  Recipient[]
+  supportRequests SupportRequest[]
 }
 
 model GameAdmin {
@@ -233,6 +235,7 @@ model Team {
 
   @@unique([gameId, index])
   @@unique([gameId, name])
+  supportRequests SupportRequest[]
 }
 
 model Membership {
@@ -348,10 +351,7 @@ model TeamTaskLock {
   /** Неверных попыток в текущем цикле (сбрасывается при блокировке и при снятии блокировки). */
   wrong       Int       @default(0)
   lockedUntil DateTime?
-  dispute     String?
-  disputedAt  DateTime?
-  resolvedAt  DateTime?
-  resolution  String?
+  /** Блокировка снята поддержкой (решение суперадмина по обращению). */
   unlocked    Boolean   @default(false)
   /** Накопленное время чтения задания командой (мс): растёт только пока задание открыто на экране. */
   readMs      Int       @default(0)
@@ -360,7 +360,6 @@ model TeamTaskLock {
   updatedAt   DateTime  @updatedAt
 
   @@unique([teamId, nodeKey, taskIndex])
-  @@index([gameId, disputedAt])
 }
 
 model TeamCityState {
@@ -554,4 +553,37 @@ model UiMetric {
   memoryMb  Int?     // память устройства по navigator.deviceMemory, ГБ*1024, если известно
 
   @@index([createdAt])
+}
+
+/**
+ * Обращение в поддержку: игрок описывает проблему, всё остальное (игра, команда, город, задание, состояние
+ * блокировки) сервер подставляет сам. Уходит письмом на адрес поддержки и лежит в дашборде суперадмина.
+ */
+model SupportRequest {
+  id         String        @id @default(cuid())
+  createdAt  DateTime      @default(now())
+  gameId     String
+  game       Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  teamId     String?
+  team       Team?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nodeKey    String?
+  bookCode   String?
+  taskIndex  Int?
+  message    String
+  /** Снимок состояния на момент обращения: текст задания, попытки, блокировка, чтение. Без ответов. */
+  context    Json
+  status     SupportStatus @default(OPEN)
+  reply      String?
+  resolvedAt DateTime?
+  unlocked   Boolean       @default(false)
+
+  @@index([status, createdAt])
+  @@index([teamId, nodeKey])
+}
+
+enum SupportStatus {
+  OPEN
+  CLOSED
 }

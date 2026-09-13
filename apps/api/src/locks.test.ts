@@ -2,12 +2,13 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { outbox } from "./services/mail.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
 const adminNick = `ladm_${stamp}`, p1Nick = `lp1_${stamp}`, p2Nick = `lp2_${stamp}`;
 let adminCookie = "", p1Cookie = "", p2Cookie = "", gameId = "", team1 = "", rutKey = "";
-const content = JSON.parse(await readFile(new URL("../../../content/cities/rut.json", import.meta.url), "utf8")) as { districts: Array<{ title: string }>; tasks: Array<{ type: string; correct?: number }> };
+const content = JSON.parse(await readFile(new URL("../../../content/cities/rut.json", import.meta.url), "utf8")) as { districts: Array<{ title: string }>; tasks: Array<{ type: string; correct?: number; options?: string[] }> };
 
 async function register(nickname: string) {
   const res = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname, password: "secret123" } });
@@ -22,6 +23,14 @@ async function joinTeam(name: string, cookie: string) {
 const answer = (index: number, value: unknown) => app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/${index}/answer`, headers: { cookie: p1Cookie }, payload: { answer: value } });
 const city = async () => (await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } })).json();
 const noCooldown = () => prisma.teamCityState.updateMany({ where: { teamId: team1, nodeKey: rutKey }, data: { lastWrongAt: null } });
+/** Показанный номер верного варианта: варианты у команды перетасованы, поэтому ищем по тексту. */
+async function shown(index: number): Promise<{ correct: number; wrong: number }> {
+  const task = content.tasks[index]! as { options: string[]; correct: number };
+  const options = (await city()).content.tasks[index].options as string[];
+  const correct = options.indexOf(task.options[task.correct]!);
+  expect(correct).toBeGreaterThanOrEqual(0);
+  return { correct, wrong: (correct + 1) % options.length };
+}
 
 beforeAll(async () => {
   await app.ready();
@@ -53,7 +62,7 @@ describe("минимальное время чтения", () => {
     expect(t0.readingMs).toBe(3 * 60_000); // Руфь 1:1–5 — 5 стихов, минимум 3 минуты
     expect(tBook.readingMs).toBe(5 * 60_000);
     expect(c.state.heartbeatMs).toBe(10_000);
-    const early = await answer(0, content.tasks[0]!.correct);
+    const early = await answer(0, (await shown(0)).correct);
     expect(early.statusCode).toBe(409);
     expect(early.json().error).toBe("reading");
     expect(early.json().remainingMs).toBe(3 * 60_000);
@@ -73,26 +82,26 @@ describe("минимальное время чтения", () => {
   });
 });
 
-describe("две попытки на выбор ответа, блокировка на сутки и спор", () => {
-  it("вторая неверная попытка закрывает задание; спор уходит админу; админ снимает блокировку", async () => {
+describe("две попытки на выбор ответа, блокировка на сутки и обращение в поддержку", () => {
+  it("вторая неверная попытка закрывает задание; обращение в поддержку с автозаполнением; суперадмин снимает блокировку", async () => {
     const task = content.tasks[0]!;
     expect(task.type).toBe("choice");
-    const wrongOption = (task.correct! + 1) % 4;
-    const first = await answer(0, wrongOption);
+    const { correct, wrong } = await shown(0);
+    const first = await answer(0, wrong);
     expect(first.json()).toMatchObject({ correct: false, attemptsLeft: 1, lockedUntil: null });
     await noCooldown();
-    const second = await answer(0, wrongOption);
+    const second = await answer(0, wrong);
     expect(second.json().correct).toBe(false);
     expect(second.json().attemptsLeft).toBe(0);
     expect(second.json().lockedUntil).toBeGreaterThan(Date.now() + 23 * 3600_000);
     await noCooldown();
-    const locked = await answer(0, task.correct);
+    const locked = await answer(0, correct);
     expect(locked.statusCode).toBe(423);
     expect(locked.json().error).toBe("locked");
     const state = (await city()).state;
     expect(state.choiceAttempts).toBe(2);
     const lock0 = state.locks.find((l: { index: number }) => l.index === 0);
-    expect(lock0).toMatchObject({ index: 0, attemptsLeft: 0, dispute: null });
+    expect(lock0).toMatchObject({ index: 0, attemptsLeft: 0, unlocked: false });
     expect(lock0.lockedUntil).toBeGreaterThan(Date.now());
 
     // Другие типы заданий не блокируются: неверный текст только даёт паузу.
@@ -101,44 +110,77 @@ describe("две попытки на выбор ответа, блокировк
     expect(wrongText.json()).toMatchObject({ correct: false, attemptsLeft: null, lockedUntil: null });
     await noCooldown();
 
-    const dispute = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/dispute`, headers: { cookie: p1Cookie }, payload: { message: "Мы уверены, что ответ был верный: проверьте, пожалуйста" } });
-    expect(dispute.statusCode).toBe(200);
-    const again = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/dispute`, headers: { cookie: p1Cookie }, payload: { message: "И ещё раз" } });
-    expect(again.statusCode).toBe(409);
-    const notLocked = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/${textIndex}/dispute`, headers: { cookie: p1Cookie }, payload: { message: "Это задание не закрыто" } });
-    expect(notLocked.statusCode).toBe(409);
+    // Адрес поддержки задаёт суперадмин; обращение уходит письмом с автозаполненным контекстом.
+    await prisma.user.update({ where: { nickname: adminNick }, data: { platformRole: "SUPERADMIN" } });
+    expect((await app.inject({ method: "PATCH", url: "/api/admin/settings", headers: { cookie: p1Cookie }, payload: { supportEmail: "x@example.com" } })).statusCode).toBe(403);
+    const settings = await app.inject({ method: "PATCH", url: "/api/admin/settings", headers: { cookie: adminCookie }, payload: { supportEmail: `support_${stamp}@example.com` } });
+    expect(settings.json().supportEmail).toBe(`support_${stamp}@example.com`);
+    outbox.length = 0;
+    const req = await app.inject({ method: "POST", url: `/api/games/${gameId}/support`, headers: { cookie: p1Cookie }, payload: { nodeKey: rutKey, taskIndex: 0, message: "Мы уверены, что ответ был верный: проверьте, пожалуйста" } });
+    expect(req.statusCode).toBe(201);
+    await new Promise((r) => setTimeout(r, 50));
+    const mail = outbox.find((m) => m.to === `support_${stamp}@example.com`);
+    expect(mail).toBeTruthy();
+    expect(mail!.subject).toContain("Львы");
+    expect(mail!.text).toContain("Задание 1");
+    expect(mail!.text).toContain("Мы уверены");
+    expect(mail!.text).not.toContain(task.options![task.correct!]!);
+    const mine = (await city()).state.support;
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ taskIndex: 0, status: "OPEN", reply: null });
 
-    const forbidden = await app.inject({ method: "GET", url: `/api/games/${gameId}/disputes`, headers: { cookie: p1Cookie } });
-    expect(forbidden.statusCode).toBe(403);
-    const list = await app.inject({ method: "GET", url: `/api/games/${gameId}/disputes`, headers: { cookie: adminCookie } });
-    expect(list.json().disputes).toHaveLength(1);
-    expect(list.json().disputes[0]).toMatchObject({ team: { name: "Львы" }, bookCode: "rut", taskIndex: 0, message: "Мы уверены, что ответ был верный: проверьте, пожалуйста" });
-    expect(list.json().disputes[0].correct).toBeTruthy();
+    expect((await app.inject({ method: "GET", url: "/api/admin/support", headers: { cookie: p1Cookie } })).statusCode).toBe(403);
+    const list = await app.inject({ method: "GET", url: "/api/admin/support", headers: { cookie: adminCookie } });
+    const item = list.json().requests.find((r: { message: string }) => r.message.startsWith("Мы уверены"));
+    expect(item).toMatchObject({ team: { name: "Львы" }, bookCode: "rut", taskIndex: 0, status: "OPEN" });
+    expect(item.context).toMatchObject({ team: "Львы", task: 1, attemptsLeft: 0 });
 
-    const resolve = await app.inject({ method: "POST", url: `/api/games/${gameId}/disputes/${list.json().disputes[0].id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: true, answer: "Перечитайте первую главу" } });
-    expect(resolve.statusCode).toBe(200);
-    expect((await app.inject({ method: "GET", url: `/api/games/${gameId}/disputes`, headers: { cookie: adminCookie } })).json().disputes).toHaveLength(0);
-    const after = (await city()).state.locks.find((l: { index: number }) => l.index === 0);
-    expect(after).toMatchObject({ lockedUntil: null, attemptsLeft: 2, resolution: "Перечитайте первую главу" });
-    expect(after.resolvedAt).toBeGreaterThan(0);
-    const ok = await answer(0, task.correct);
+    const resolve = await app.inject({ method: "POST", url: `/api/admin/support/${item.id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: true, reply: "Перечитайте первую главу" } });
+    expect(resolve.json()).toMatchObject({ ok: true, unlocked: true });
+    expect((await app.inject({ method: "POST", url: `/api/admin/support/${item.id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: true } })).statusCode).toBe(409);
+    const after = (await city());
+    expect(after.state.locks.find((l: { index: number }) => l.index === 0)).toMatchObject({ lockedUntil: null, attemptsLeft: 2, unlocked: true });
+    expect(after.state.support[0]).toMatchObject({ status: "CLOSED", reply: "Перечитайте первую главу", unlocked: true });
+    const ok = await answer(0, correct);
     expect(ok.statusCode).toBe(200);
     expect(ok.json().correct).toBe(true);
-    expect((await city()).state.locks.find((l: { index: number }) => l.index === 0).lockedUntil).toBeNull();
   });
 
-  it("админ может оставить блокировку: задание закрыто до срока, ответ команде записан", async () => {
+  it("суперадмин может оставить блокировку: задание закрыто до срока, ответ команде записан", async () => {
     const idx = content.tasks.findIndex((t, i) => t.type === "choice" && i !== 0);
-    const wrongOption = (content.tasks[idx]!.correct! + 1) % 4;
-    await answer(idx, wrongOption); await noCooldown();
-    await answer(idx, wrongOption); await noCooldown();
-    await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/${idx}/dispute`, headers: { cookie: p1Cookie }, payload: { message: "Не согласны с ответом" } });
-    const list = await app.inject({ method: "GET", url: `/api/games/${gameId}/disputes`, headers: { cookie: adminCookie } });
-    const r = await app.inject({ method: "POST", url: `/api/games/${gameId}/disputes/${list.json().disputes[0].id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: false, answer: "Ответ в тексте есть, ищите внимательнее" } });
-    expect(r.statusCode).toBe(200);
+    const { correct, wrong } = await shown(idx);
+    await answer(idx, wrong); await noCooldown();
+    await answer(idx, wrong); await noCooldown();
+    await app.inject({ method: "POST", url: `/api/games/${gameId}/support`, headers: { cookie: p1Cookie }, payload: { nodeKey: rutKey, taskIndex: idx, message: "Не согласны с ответом" } });
+    const list = await app.inject({ method: "GET", url: "/api/admin/support", headers: { cookie: adminCookie } });
+    const item = list.json().requests.find((r: { message: string }) => r.message === "Не согласны с ответом");
+    const r = await app.inject({ method: "POST", url: `/api/admin/support/${item.id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: false, reply: "Ответ в тексте есть, ищите внимательнее" } });
+    expect(r.json()).toMatchObject({ ok: true, unlocked: false });
     const lock = (await city()).state.locks.find((l: { index: number }) => l.index === idx);
     expect(lock.lockedUntil).toBeGreaterThan(Date.now());
-    expect(lock.resolution).toBe("Ответ в тексте есть, ищите внимательнее");
-    expect((await answer(idx, content.tasks[idx]!.correct)).statusCode).toBe(423);
+    expect((await city()).state.support.find((s: { taskIndex: number }) => s.taskIndex === idx).reply).toBe("Ответ в тексте есть, ищите внимательнее");
+    expect((await answer(idx, correct)).statusCode).toBe(423);
+  });
+
+  it("ответы видит только администратор платформы; тестовые действия закрыты администратору игры", async () => {
+    // Обычный администратор игры — отдельный пользователь, добавленный в игру.
+    const plainNick = `lplain_${stamp}`;
+    const plainCookie = await register(plainNick);
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/admins`, headers: { cookie: adminCookie }, payload: { login: plainNick } })).statusCode).toBe(201);
+    const asPlain = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: plainCookie } });
+    expect(asPlain.statusCode).toBe(200);
+    expect(asPlain.json().answersHidden).toBe(true);
+    for (const t of asPlain.json().content.tasks) { expect(t.answer).toBeUndefined(); expect(t.answers).toBeUndefined(); expect(t.correct).toBeUndefined(); expect(t.items).toBeUndefined(); expect(t.prompt).toBeTruthy(); }
+    const asSuper = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: adminCookie } });
+    expect(asSuper.json().answersHidden).toBe(false);
+    expect(asSuper.json().content.tasks[0].correct).toBe(content.tasks[0]!.correct);
+    const denied = await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${rutKey}/assign`, headers: { cookie: plainCookie }, payload: { teamId: team1 } });
+    expect(denied.statusCode).toBe(403);
+    const deniedStudy = await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${rutKey}/study`, headers: { cookie: plainCookie }, payload: { teamId: team1 } });
+    expect(deniedStudy.statusCode).toBe(403);
+    const deniedReveal = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team1}/reveal`, headers: { cookie: plainCookie }, payload: { nodeKey: rutKey } });
+    expect(deniedReveal.statusCode).toBe(403);
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${rutKey}/study`, headers: { cookie: adminCookie }, payload: { teamId: team1 } })).statusCode).toBe(200);
+    await prisma.user.deleteMany({ where: { nickname: plainNick } });
   });
 });

@@ -62,6 +62,10 @@ const EN: Record<string, string> = {
   "ответ администратора по заданию города {book}": "the admin's answer about a task in the city of {book}",
   "Задание {n}: {verdict}{answer}": "Task {n}: {verdict}{answer}",
   "блокировка снята, можно отвечать снова": "the lock is lifted, you can answer again",
+  "блокировка оставлена": "the lock stays",
+  "ответ поддержки по заданию города {book}": "support reply about a task of the city of {book}",
+  "ответ поддержки": "support reply", " Ответ поддержки: {answer}": " Support reply: {answer}", "Ответ поддержки: {answer}": "Support reply: {answer}",
+  "обращение рассмотрено": "your request has been reviewed", "Обращение не найдено": "Request not found", "Обращение уже закрыто": "The request is already closed",
   "блокировка оставлена до истечения суток": "the lock stays until the day is over",
   " Ответ администратора: {answer}": " Admin's reply: {answer}",
   // проходы

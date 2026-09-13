@@ -21,6 +21,7 @@ import { initNotify } from "./services/notify.js";
 import { initPush } from "./services/push.js";
 import { pushRoutes } from "./routes/push.js";
 import { uiMetricRoutes } from "./routes/uiMetrics.js";
+import { supportRoutes } from "./routes/support.js";
 import { recordResponse } from "./services/stats.js";
 import { eventRoutes } from "./routes/events.js";
 
@@ -64,6 +65,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(authRoutes);
   await app.register(pushRoutes);
   await app.register(uiMetricRoutes);
+  await app.register(supportRoutes);
   await app.register(gameRoutes);
   await app.register(teamRoutes);
   await app.register(deedRoutes);

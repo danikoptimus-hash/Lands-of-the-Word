@@ -21,6 +21,7 @@ async function joinTeam(name: string, cookie: string) {
 beforeAll(async () => {
   await app.ready();
   adminCookie = await register(adminNick); p1Cookie = await register(p1Nick); p2Cookie = await register(p2Nick);
+  await prisma.user.update({ where: { nickname: adminNick }, data: { platformRole: "SUPERADMIN" } });
   const g = await app.inject({ method: "POST", url: "/api/games", headers: { cookie: adminCookie }, payload: { name: "Конверты", teamCount: 2 } });
   gameId = g.json().game.id;
   await app.inject({ method: "POST", url: `/api/games/${gameId}/generate`, headers: { cookie: adminCookie } });

@@ -43,7 +43,9 @@ export type CityTaskDto =
   | { index: number; scope: string; groupDistricts: number[] | null; type: "choice"; prompt: string; options: string[]; readingMs: number }
   | { index: number; scope: string; groupDistricts: number[] | null; type: "order"; prompt: string; items: Array<{ id: string; text: string }>; readingMs: number };
 /** Блокировка задания с выбором ответа (две попытки → сутки) и спор с админом. */
-export interface TaskLockDto { index: number; attemptsLeft: number; lockedUntil: number | null; dispute: string | null; disputedAt: number | null; resolvedAt: number | null; resolution: string | null; readMs: number }
+export interface TaskLockDto { index: number; attemptsLeft: number; lockedUntil: number | null; unlocked: boolean; readMs: number }
+/** Обращение команды в поддержку по городу: открытое или закрытое с ответом (две недели). */
+export interface SupportItemDto { id: string; taskIndex: number | null; createdAt: number; status: "OPEN" | "CLOSED"; reply: string | null; unlocked: boolean }
 export interface MyCityDto {
   node: { key: string; bookCode: string; cityType: string | null; ruined: boolean };
   /** Адресат конверта: только когда все задания решены. */
@@ -51,7 +53,7 @@ export interface MyCityDto {
   owner: { id: string; index: number; name: string; color: string } | null;
   team: { capitalMovedAt: string | null; gameRole: GameRole; role: TeamRole };
   content: { title: string; translation: string; codeRule: string; districts: CityDistrictDto[]; tasks: CityTaskDto[]; fragments: Array<string | null> } | null;
-  state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; cooldownUntil: number | null; choiceAttempts: number; heartbeatMs: number; locks: TaskLockDto[] };
+  state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; cooldownUntil: number | null; choiceAttempts: number; heartbeatMs: number; locks: TaskLockDto[]; support: SupportItemDto[] };
 }
 /** Город глазами админа: контент с ответами, ключ конверта, прогресс команд. */
 export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[] }
@@ -59,6 +61,8 @@ export interface AdminCityDto {
   node: { key: string; bookCode: string; cityType: string | null; cityKey: string | null; cityCode: string | null };
   content: { title: string; translation: string; codeRule: string; districts: Array<{ verses: string; title: string; summary: string }>; tasks: AdminCityTask[] } | null;
   teams: Array<{ id: string; index: number; name: string; color: string; orderSolved: boolean; orderAttempts: number; doneTasks: number[]; answerAttempts: number; capturedAt: string | null; isCapital: boolean }>;
+  /** Ответы видит только администратор платформы; администратору игры приходят задания без ответов. */
+  answersHidden?: boolean;
 }
 export const PROOF_LABEL: Record<DeedLite["proofType"], string> = { get REPORT() { return t("отчёт"); }, get PHOTO_LINK() { return t("фото"); }, get VIDEO_LINK() { return t("видео"); }, get CONFIRMATION() { return t("подтверждение"); } };
 export const TASK_STATUS_LABEL: Record<EdgeTaskStatus, string> = { get OPEN() { return t("свободно"); }, get TAKEN() { return t("в работе"); }, get SUBMITTED() { return t("на проверке"); }, get APPROVED() { return t("принято"); }, get REJECTED() { return t("возвращено"); } };

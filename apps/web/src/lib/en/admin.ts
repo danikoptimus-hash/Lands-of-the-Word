@@ -107,4 +107,14 @@ export const ADMIN: Record<string, string> = {
   // Карта глазами команды
   "Чьими глазами": "Whose view", "Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажатия здесь ничего не делают.": "The map as team “{name}” sees it: fog, sides and markers as theirs. Taps do nothing here.",
   "Администратор": "Admin",
+  // Обращения в поддержку
+  "Обращения в поддержку": "Support requests", "Только открытые": "Open only", "Показать закрытые": "Show closed",
+  "Игроки пишут из задания: город, задание и состояние попыток подставляются сами. Ответ уходит команде уведомлением и письмом.": "Players write from a task: city, task and attempt state are filled in automatically. The reply goes to the team as a notification and an email.",
+  "Обращений нет.": "No requests.", "попыток осталось {n}": "attempts left {n}", "закрыто до {d}": "locked until {d}", "чтение {n} мин": "reading {n} min",
+  "Блокировка снята": "Lock lifted", "ответ команде": "reply to the team", "Ответ команде (необязательно)": "Reply to the team (optional)",
+  "Снять блокировку и закрыть": "Lift the lock and close", "Закрыть с ответом": "Close with a reply",
+  "Блокировка снята, команде отправлен ответ": "Lock lifted, the reply was sent to the team", "Обращение закрыто, команде отправлен ответ": "Request closed, the reply was sent to the team",
+  "Почта для обращений": "Support email", "Адрес сохранён": "Address saved",
+  "Пусто — письма идут на почту администратора платформы: {e}.": "Empty — emails go to the platform administrator: {e}.", "Пусто — письма никуда не уходят: у администратора платформы нет почты.": "Empty — emails go nowhere: the platform administrator has no email.",
+  "Задания": "Tasks", "Ответы видит только администратор платформы. Вопросы команд по заданиям приходят в поддержку.": "Only the platform administrator sees answers. Teams' questions about tasks go to support.",
 };
