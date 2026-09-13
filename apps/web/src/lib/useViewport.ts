@@ -30,12 +30,15 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     const k = Math.min(fitK.current * 8, Math.max(fitK.current, v.k));
     const f = k / v.k;
     let tx = w / 2 - (w / 2 - v.tx) * f, ty = h / 2 - (h / 2 - v.ty) * f;
-    // Поле карты не выходит из окна дальше, чем на небольшой запас моря; если поле уже окна — оно по центру.
-    const m = Math.min(w, h) * 0.12;
+    // Поле карты не выходит из окна дальше, чем на запас моря по краям (решение владельца: листать можно
+    // примерно на треть экрана в каждую сторону); если поле с запасом уже окна — оно по центру.
+    const m = Math.min(w, h) * 0.32;
     const cw = b.width * k, ch = b.height * k;
     const x0 = b.minX * k, y0 = b.minY * k;
-    tx = cw <= w - 2 * m ? (w - cw) / 2 - x0 : Math.min(m - x0, Math.max(w - m - (x0 + cw), tx));
-    ty = ch <= h - 2 * m ? (h - ch) / 2 - y0 : Math.min(m - y0, Math.max(h - m - (y0 + ch), ty));
+    // Поле может гулять внутри рамки с отступом m от краёв окна: и когда оно больше рамки, и когда меньше.
+    const lx = w - m - (x0 + cw), hx = m - x0, ly = h - m - (y0 + ch), hy = m - y0;
+    tx = Math.min(Math.max(tx, Math.min(lx, hx)), Math.max(lx, hx));
+    ty = Math.min(Math.max(ty, Math.min(ly, hy)), Math.max(ly, hy));
     return { k, tx, ty };
   }, []);
 

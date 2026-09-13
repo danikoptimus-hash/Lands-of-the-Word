@@ -567,7 +567,7 @@ interface Gull { x: number; y: number; h: number; v: number; om: number; roll: n
 function makeGull(p: Profile, size: number): Gull {
   const anchorA = rnd(-Math.PI, Math.PI), off = size * rnd(-0.3, 0.9), R = size * rnd(1.2, 2.0);
   const r = radiusAt(p, anchorA) + off;
-  return { x: p.cx + Math.cos(anchorA) * r + R, y: p.cy + Math.sin(anchorA) * r, h: rnd(-Math.PI, Math.PI), v: size * rnd(0.75, 0.95), om: 0, roll: 0, alt: 0.7, anchorA, off, dir: Math.random() < 0.5 ? 1 : -1, R, phase: rnd(0, TAU), amp: 1, modeT: rnd(2, 5), glide: false, seed: rnd(0, 100), S: size * rnd(0.38, 0.46) };
+  return { x: p.cx + Math.cos(anchorA) * r + R, y: p.cy + Math.sin(anchorA) * r, h: rnd(-Math.PI, Math.PI), v: size * rnd(0.75, 0.95), om: 0, roll: 0, alt: 0.7, anchorA, off, dir: Math.random() < 0.5 ? 1 : -1, R, phase: rnd(0, TAU), amp: 1, modeT: rnd(2, 5), glide: false, seed: rnd(0, 100), S: size * rnd(0.19, 0.23) };
 }
 function stepGull(g: Gull, p: Profile, size: number, dt: number, T: number): void {
   g.anchorA += g.dir * 0.03 * dt;
@@ -607,7 +607,7 @@ function newRoute(f: Flock, p: Profile, size: number, T: number, first: boolean)
   }
 }
 function makeFlock(p: Profile, size: number, T: number): Flock {
-  const f: Flock = { x0: 0, y0: 0, cx: 0, cy: 0, x1: 0, y1: 0, t0: 0, dur: 1, n: 0, x: 0, y: 0, h: 0, roll: 0, S: size * 0.3, birds: Array.from({ length: 8 }, () => ({ dx: 0, dy: 0, phase: 0, seed: rnd(0, 100), amp: 1, glide: false, modeT: 5 })) };
+  const f: Flock = { x0: 0, y0: 0, cx: 0, cy: 0, x1: 0, y1: 0, t0: 0, dur: 1, n: 0, x: 0, y: 0, h: 0, roll: 0, S: size * 0.15, birds: Array.from({ length: 8 }, () => ({ dx: 0, dy: 0, phase: 0, seed: rnd(0, 100), amp: 1, glide: false, modeT: 5 })) };
   newRoute(f, p, size, T, true);
   return f;
 }
@@ -716,7 +716,9 @@ export function FaunaLayer({ vp, hexes, size = HEX_SIZE }: { vp: Viewport; hexes
     const ro = new ResizeObserver(resize); ro.observe(host);
     const world = createWorld(profileRef.current, size);
     const vis: Vis = { x0: 0, y0: 0, x1: 0, y1: 0 };
-    let last = performance.now(), lastDraw = 0, raf = 0;
+    let last = performance.now(), lastDraw = 0, raf = 0, dirty = false;
+    // При движении карты перерисовываем сразу (иначе звери «примерзают» к экрану до следующего кадра по таймеру).
+    const unsub = vpRef.current.subscribe(() => { dirty = true; });
 
     const draw = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
@@ -731,11 +733,11 @@ export function FaunaLayer({ vp, hexes, size = HEX_SIZE }: { vp: Viewport; hexes
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) { last = t; return; }
-      if (t - lastDraw < 1000 / 24) return;
-      lastDraw = t; draw(t);
+      if (!dirty && t - lastDraw < 1000 / 24) return;
+      dirty = false; lastDraw = t; draw(t);
     };
     raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); unsub(); };
   }, [size, key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!profile) return null;
