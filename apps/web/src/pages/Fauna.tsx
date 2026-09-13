@@ -273,6 +273,20 @@ function steerCet(c: Cet, tx: number, ty: number, dt: number, T: number, boost: 
 }
 /** Мировые координаты точки на оси тела (u — вдоль тела от центра, голова по +x). */
 const axisX = (c: Cet, u: number) => c.x + Math.cos(c.h) * u, axisY = (c: Cet, u: number) => c.y + Math.sin(c.h) * u;
+/**
+ * Жёсткая граница воды: если зверь оказался ближе к острову, чем профиль берега плюс запас (отмель и песок),
+ * его выталкивает наружу, а курс теряет составляющую «в берег» — так он никогда не срежет угол через сушу,
+ * даже когда поводок резко огибает мыс.
+ */
+function keepInWater(c: Cet, p: Profile, clearance: number): void {
+  const dx = c.x - p.cx, dy = c.y - p.cy, d = Math.hypot(dx, dy);
+  const ang = Math.atan2(dy, dx), minR = radiusAt(p, ang) + clearance;
+  if (d >= minR) return;
+  const nx = Math.cos(ang), ny = Math.sin(ang);
+  c.x = p.cx + nx * minR; c.y = p.cy + ny * minR;
+  const hx = Math.cos(c.h), hy = Math.sin(c.h), dot = hx * nx + hy * ny;
+  if (dot < 0) c.h = Math.atan2(hy - dot * ny, hx - dot * nx);
+}
 
 /** Кит и косатка: поводок вдоль берега; цикл всплытия с фонтаном и кругами на воде. */
 function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: number): void {
@@ -284,6 +298,7 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
   if (wasWaiting && car.wait <= 0) { c.x = car.x; c.y = car.y; c.h = car.h; } // новый маршрут начинается за краем: перенос незаметен
   if (car.wait > 0) { c.x += Math.cos(c.h) * sp.speed * dt; c.y += Math.sin(c.h) * sp.speed * dt; c.phase += dt * sp.swayFreq; } // уплывает дальше за край
   else steerCet(c, car.x, car.y, dt, T, 1);
+  keepInWater(c, p, size * (sp.kind === "whale" ? 2.2 : 1.9));
   const prev = s.t; s.t += dt;
   const tHold = s.deep + s.rise, tEnd = tHold + s.hold + s.dive;
   const blowU = sp.L * (0.5 - sp.blowS);
@@ -311,10 +326,11 @@ function stepPod(ds: Cet[], pod: Carrot, p: Profile, size: number, fx: Fx, dt: n
   if (wasWaiting && pod.wait <= 0) for (const d of ds) { d.x = pod.x + d.fdx; d.y = pod.y + d.fdy; d.h = pod.h; }
   const ch = Math.cos(pod.h), sh = Math.sin(pod.h);
   for (const d of ds) {
-    if (pod.wait > 0) { d.x += Math.cos(d.h) * sp.speed * dt; d.y += Math.sin(d.h) * sp.speed * dt; d.phase += dt * sp.swayFreq; d.ju = 0; d.depth = 0.3; continue; }
+    if (pod.wait > 0) { d.x += Math.cos(d.h) * sp.speed * dt; d.y += Math.sin(d.h) * sp.speed * dt; d.phase += dt * sp.swayFreq; d.ju = 0; d.depth = 0.3; keepInWater(d, p, size * 1.7); continue; }
     const u = (T - d.jumpAt) / 1.35, jumping = u >= 0 && u < 1;
     const fx0 = d.fdx + sp.L * 1.3 + noise1(T * 0.3, d.seed) * sp.L * 0.25, fy0 = d.fdy + noise1(T * 0.25, d.seed + 7) * sp.L * 0.3;
     steerCet(d, pod.x + ch * fx0 - sh * fy0, pod.y + sh * fx0 + ch * fy0, dt, T, jumping ? 1 + 0.5 * Math.sin(Math.PI * u) : 1);
+    keepInWater(d, p, size * 1.7);
     if (jumping) {
       d.depth = 0.28 - 0.95 * Math.sin(Math.PI * u);
       if (d.ju < 0.08 && u >= 0.08) { emitRing(fx, d.x, d.y, T, sp.L * 0.2, sp.L * 0.9, 1.3); emitDrops(fx, axisX(d, sp.L * 0.2), axisY(d, sp.L * 0.2), T, 7, sp.L * 1.6, sp.L * 0.028); }
