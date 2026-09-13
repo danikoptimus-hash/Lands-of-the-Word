@@ -160,19 +160,42 @@ function cetSpec(kind: CetKind, size: number): CetSpec {
 }
 
 /** «Поводок»: точка, бегущая вдоль берега на отступе off с медленным меандром; зверь плывёт за ней. */
-interface Carrot { a: number; dir: 1 | -1; off: number; wob: number; seed: number; x: number; y: number; h: number }
+/**
+ * Поводок: маршрут «из-за края карты — вокруг острова — за противоположный край». Прямая между двумя точками
+ * далеко за островом; там, где прямая зашла бы на сушу, точка выталкивается на профиль берега с отступом off.
+ * Дойдя до конца, поводок ждёт паузу вне экрана и начинает новый маршрут с другой стороны.
+ */
+interface Carrot { off: number; wob: number; seed: number; x: number; y: number; h: number; x0: number; y0: number; x1: number; y1: number; len: number; t: number; wait: number }
+/** Радиус, с которого зверь входит в кадр: заведомо дальше видимого моря при виде «вся карта». */
+const farR = (p: Profile, size: number) => p.maxR * 1.7 + size * 8;
+function carrotRoute(car: Carrot, p: Profile, size: number): void {
+  const a = rnd(-Math.PI, Math.PI), b = a + Math.PI + rnd(-0.9, 0.9), R = farR(p, size);
+  car.x0 = p.cx + Math.cos(a) * R; car.y0 = p.cy + Math.sin(a) * R;
+  car.x1 = p.cx + Math.cos(b) * R; car.y1 = p.cy + Math.sin(b) * R;
+  car.len = Math.hypot(car.x1 - car.x0, car.y1 - car.y0); car.t = 0; car.wait = 0;
+  car.x = car.x0; car.y = car.y0; car.h = Math.atan2(car.y1 - car.y0, car.x1 - car.x0);
+}
+function carrotPoint(car: Carrot, p: Profile, t: number, T: number): [number, number] {
+  let x = car.x0 + (car.x1 - car.x0) * t, y = car.y0 + (car.y1 - car.y0) * t;
+  const ang = Math.atan2(y - p.cy, x - p.cx), d = Math.hypot(x - p.cx, y - p.cy);
+  const minR = radiusAt(p, ang) + car.off + noise1(T * 0.12, car.seed) * car.wob;
+  if (d < minR) { x = p.cx + Math.cos(ang) * minR; y = p.cy + Math.sin(ang) * minR; }
+  return [x, y];
+}
 function carrotStep(car: Carrot, p: Profile, size: number, dist: number, T: number): void {
-  const rNow = radiusAt(p, car.a) + car.off;
-  car.a = wrapAngle(car.a + (car.dir * dist) / Math.max(size, rNow));
-  const r = radiusAt(p, car.a) + car.off + noise1(T * 0.12, car.seed) * car.wob;
-  const x = p.cx + Math.cos(car.a) * r, y = p.cy + Math.sin(car.a) * r;
-  if (dist > 0) car.h = Math.atan2(y - car.y, x - car.x);
+  if (car.wait > 0) { car.wait -= dist / Math.max(1, size); if (car.wait <= 0) carrotRoute(car, p, size); return; }
+  car.t = Math.min(1, car.t + dist / Math.max(1, car.len));
+  const [x, y] = carrotPoint(car, p, car.t, T);
+  if (dist > 0 && (x !== car.x || y !== car.y)) car.h = Math.atan2(y - car.y, x - car.x);
   car.x = x; car.y = y;
+  if (car.t >= 1) car.wait = rnd(6, 24); // пауза «за краем» в единицах пройденного пути (≈ секунды при обычной скорости)
 }
 /** off — отступ от профиля берега, wob — размах меандра (оба в единицах карты). */
 const makeCarrot = (p: Profile, size: number, off: number, wob: number): Carrot => {
-  const car: Carrot = { a: rnd(-Math.PI, Math.PI), dir: Math.random() < 0.5 ? 1 : -1, off, wob, seed: rnd(0, 100), x: 0, y: 0, h: 0 };
-  carrotStep(car, p, size, 0, 0); carrotStep(car, p, size, size * 0.05, 0);
+  const car: Carrot = { off, wob, seed: rnd(0, 100), x: 0, y: 0, h: 0, x0: 0, y0: 0, x1: 0, y1: 0, len: 1, t: 0, wait: 0 };
+  carrotRoute(car, p, size);
+  // Первый зверь пусть уже будет на подходе: стартуем с разной глубины маршрута.
+  car.t = rnd(0, 0.5); const [x, y] = carrotPoint(car, p, car.t, 0); car.x = x; car.y = y;
   return car;
 };
 
@@ -225,8 +248,11 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
   const car = c.car!, s = c.surf!, sp = c.spec;
   // Поводок притормаживает, если зверь отстал (иначе он «срежет» и пойдёт по берегу).
   const behind = Math.hypot(car.x - c.x, car.y - c.y);
+  const wasWaiting = car.wait > 0;
   carrotStep(car, p, size, sp.speed * dt * clamp(1.6 - behind / (sp.L * 2.5), 0.25, 1), T);
-  steerCet(c, car.x, car.y, dt, T, 1);
+  if (wasWaiting && car.wait <= 0) { c.x = car.x; c.y = car.y; c.h = car.h; } // новый маршрут начинается за краем: перенос незаметен
+  if (car.wait > 0) { c.x += Math.cos(c.h) * sp.speed * dt; c.y += Math.sin(c.h) * sp.speed * dt; c.phase += dt * sp.swayFreq; } // уплывает дальше за край
+  else steerCet(c, car.x, car.y, dt, T, 1);
   const prev = s.t; s.t += dt;
   const tHold = s.deep + s.rise, tEnd = tHold + s.hold + s.dive;
   const blowU = sp.L * sp.body * (0.5 - sp.blowS);
@@ -248,9 +274,12 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
 function stepPod(ds: Cet[], pod: Carrot, p: Profile, size: number, fx: Fx, dt: number, T: number): void {
   const lead = ds[0]!, sp = lead.spec;
   const behind = Math.hypot(pod.x - lead.x, pod.y - lead.y);
+  const wasWaiting = pod.wait > 0;
   carrotStep(pod, p, size, sp.speed * dt * clamp(1.6 - behind / (sp.L * 3), 0.25, 1), T);
+  if (wasWaiting && pod.wait <= 0) for (const d of ds) { d.x = pod.x + d.fdx; d.y = pod.y + d.fdy; d.h = pod.h; }
   const ch = Math.cos(pod.h), sh = Math.sin(pod.h);
   for (const d of ds) {
+    if (pod.wait > 0) { d.x += Math.cos(d.h) * sp.speed * dt; d.y += Math.sin(d.h) * sp.speed * dt; d.phase += dt * sp.swayFreq; d.ju = 0; d.depth = 0.3; continue; }
     const u = (T - d.jumpAt) / 1.35, jumping = u >= 0 && u < 1;
     const fx0 = d.fdx + sp.L * 1.3 + noise1(T * 0.3, d.seed) * sp.L * 0.25, fy0 = d.fdy + noise1(T * 0.25, d.seed + 7) * sp.L * 0.3;
     steerCet(d, pod.x + ch * fx0 - sh * fy0, pod.y + sh * fx0 + ch * fy0, dt, T, jumping ? 1 + 0.5 * Math.sin(Math.PI * u) : 1);
@@ -563,7 +592,7 @@ function stepGull(g: Gull, p: Profile, size: number, dt: number, T: number): voi
 interface FlockBird { dx: number; dy: number; phase: number; seed: number; amp: number; glide: boolean; modeT: number }
 interface Flock { x0: number; y0: number; cx: number; cy: number; x1: number; y1: number; t0: number; dur: number; n: number; x: number; y: number; h: number; roll: number; birds: FlockBird[]; S: number }
 function newRoute(f: Flock, p: Profile, size: number, T: number, first: boolean): void {
-  const a = rnd(-Math.PI, Math.PI), R = p.maxR * 1.25, b = a + Math.PI + rnd(-0.6, 0.6);
+  const a = rnd(-Math.PI, Math.PI), R = farR(p, size), b = a + Math.PI + rnd(-0.6, 0.6);
   f.x0 = p.cx + Math.cos(a) * R; f.y0 = p.cy + Math.sin(a) * R; f.x1 = p.cx + Math.cos(b) * R; f.y1 = p.cy + Math.sin(b) * R;
   const mx = (f.x0 + f.x1) / 2, my = (f.y0 + f.y1) / 2, nx = -(f.y1 - f.y0), ny = f.x1 - f.x0, bow = rnd(-0.3, 0.3);
   f.cx = mx + nx * bow; f.cy = my + ny * bow; // изгиб маршрута — плавный поворот в пути
@@ -670,6 +699,9 @@ export function FaunaLayer({ vp, hexes, size = HEX_SIZE }: { vp: Viewport; hexes
   const key = hexes.length ? `${hexes.length}:${hexes[0]!.q},${hexes[0]!.r}` : "";
   const profile = useMemo(() => islandProfile(hexes, size), [key, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const profileRef = useRef(profile); profileRef.current = profile;
+  // vp — новый объект при каждой перерисовке карты; мир живности от него зависеть не должен, иначе звери
+  // пересоздавались бы после каждого жеста и «исчезали».
+  const vpRef = useRef(vp); vpRef.current = vp;
 
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
@@ -688,7 +720,7 @@ export function FaunaLayer({ vp, hexes, size = HEX_SIZE }: { vp: Viewport; hexes
 
     const draw = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000); last = now;
-      const { k, tx, ty } = vp.viewRef.current;
+      const { k, tx, ty } = vpRef.current.viewRef.current;
       stepWorld(world, dt);
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
       ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
@@ -704,7 +736,7 @@ export function FaunaLayer({ vp, hexes, size = HEX_SIZE }: { vp: Viewport; hexes
     };
     raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); };
-  }, [vp, size, key]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [size, key]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!profile) return null;
   return <canvas ref={ref} className="fx-layer fauna" aria-hidden />;

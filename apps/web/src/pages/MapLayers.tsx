@@ -17,6 +17,7 @@ export const IMG = {
  * композитором без перерисовки SVG. Размер плитки округляется до целых пикселей, иначе на стыках видны швы.
  */
 export type Viewport = { view: View; viewRef: { current: View }; subscribe: (fn: (v: View) => void) => () => void };
+// subscribe и viewRef у useViewport стабильны, поэтому эффекты зависят от них, а не от объекта vp (он новый при каждой перерисовке).
 
 /**
  * Море: слой DOM под картой. Плитка бесшовная (зеркальная сборка) и масштабируется вместе с картой: размер
@@ -43,7 +44,7 @@ export function SeaLayer({ vp }: { vp: Viewport }) {
     const s = v.k / baseRef.current;
     if (s < 0.7 || s > 1.4) { setBase(v.k); return; }
     apply(v);
-  }), [vp, T]); // eslint-disable-line react-hooks/exhaustive-deps
+  }), [vp.subscribe, T]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (vp.view.k !== baseRef.current) setBase(vp.view.k); }, [vp.view.k]);
   useLayoutEffect(() => { apply(vp.viewRef.current); }, [base, T]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
@@ -69,7 +70,7 @@ export function WorldSvg({ vp, bounds, children, overlay }: { vp: Viewport; boun
     const el = ref.current; if (!el) return;
     el.style.transform = `translate(${(v.tx + bounds.minX * v.k).toFixed(2)}px, ${(v.ty + bounds.minY * v.k).toFixed(2)}px) scale(${(v.k / baseRef.current).toFixed(5)})`;
   };
-  useEffect(() => vp.subscribe(apply), [vp, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => vp.subscribe(apply), [vp.subscribe, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => { apply(vp.viewRef.current); }, [baseK, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
   const w = bounds.width * baseK, h = bounds.height * baseK;
   return (
@@ -180,9 +181,10 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes }: { vp: Viewport; size
     resize();
     const ro = new ResizeObserver(resize); ro.observe(host);
     const unsub = vp.subscribe(() => { dirty.current = true; });
+    const viewRef = vp.viewRef;
     let pats: { s: CanvasPattern; a: CanvasPattern; b: CanvasPattern } | null = null;
     const draw = (t: number) => {
-      const { k, tx, ty } = vp.viewRef.current;
+      const { k, tx, ty } = viewRef.current;
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
       const m = maskRef.current;
       if (!m) return;
@@ -221,7 +223,7 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes }: { vp: Viewport; size
     };
     raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); ro.disconnect(); unsub(); };
-  }, [size, vp]);
+  }, [size, vp.subscribe, vp.viewRef]);
 
   return <canvas ref={ref} className="fx-layer" aria-hidden />;
 }
