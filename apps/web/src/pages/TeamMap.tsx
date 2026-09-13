@@ -6,6 +6,7 @@ import { useViewport } from "../lib/useViewport";
 import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
 import { CoastOver, CoastUnder, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
+import { FaunaLayer } from "./Fauna";
 import { t } from "../lib/i18n";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -100,6 +101,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         })}
       </WorldSvg>
       {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
+      <FaunaLayer vp={vp} hexes={map.hexes} size={size} />
       <WorldSvg vp={vp} bounds={bounds}>
         <g className="screen-items">
           {map.revealed.map((n) => {

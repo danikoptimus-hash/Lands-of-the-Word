@@ -11,6 +11,7 @@ import { useAuth } from "../lib/auth";
 import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { FaunaLayer } from "./Fauna";
 import { Sheet } from "../components/Sheet";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
@@ -151,6 +152,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               })}
             </g>
           </WorldSvg>
+          <FaunaLayer vp={vp} hexes={hexes} size={size} />
         </div>
         <div className="map-controls">
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
