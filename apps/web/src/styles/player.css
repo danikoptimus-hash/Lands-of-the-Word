@@ -11,7 +11,7 @@
 .map-svg.world .screen-items .m-label, .map-svg.world .screen-items .m-deed, .map-svg.world .screen-items .pick { pointer-events: auto; }
 .fx-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .sea-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #4F8BA6; }
-.sea-pos { position: absolute; left: 0; top: 0; width: calc(100% + 4 * var(--tile, 512px)); height: calc(100% + 4 * var(--tile, 512px)); will-change: transform; }
+.sea-pos { position: absolute; left: 0; top: 0; width: calc(150% + 6 * var(--tile, 512px)); height: calc(150% + 6 * var(--tile, 512px)); transform-origin: 0 0; will-change: transform; }
 .sea-base, .sea-waves { position: absolute; inset: 0; background-image: var(--sea, url("/img/brand/sea-512.webp")); background-position: 0 0; background-size: var(--tile, 512px) var(--tile, 512px); background-repeat: repeat; }
 /* Вторая плитка сдвинута на полплитки (зеркальная плитка, повёрнутая на 180°, — это она же со сдвигом), без поворота:
    поворот элемента давал дробные стыки и швы. Дрейф — трансформация композитора. */

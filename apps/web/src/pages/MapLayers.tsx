@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { FOG_COLOR, HEX_SIZE, TERRAIN_COLOR, coastPath, hexCenter, hexPoints } from "../lib/hexmap";
 import { CLOUD_TILE, cloudTile } from "../lib/noise";
@@ -19,22 +19,33 @@ export const IMG = {
 export type Viewport = { view: View; viewRef: { current: View }; subscribe: (fn: (v: View) => void) => () => void };
 
 /**
- * Море: слой DOM под картой, двигается вместе с картой сдвигом (композитор, без перерисовки).
- * Плитка бесшовная (зеркальная сборка) и берётся ровно в пикселях устройства: размер плитки = размер картинки / dpr,
- * сдвиг округлён до пикселя устройства — так плитка не ресемплируется и на стыках нет светлых линий.
+ * Море: слой DOM под картой. Плитка бесшовная (зеркальная сборка) и масштабируется вместе с картой: размер
+ * плитки считается под опорный масштаб base, между фиксациями композитор масштабирует слой на k/base;
+ * когда отклонение выходит за 0.7…1.4 или жест зафиксирован, плитка перекладывается под новый масштаб.
+ * Сдвиг привязан к координатам карты: точка (0,0) карты всегда на углу плитки.
  */
+const SEA_WORLD_TILE = 156;
 export function SeaLayer({ vp }: { vp: Viewport }) {
   const pos = useRef<HTMLDivElement>(null);
+  const [base, setBase] = useState(vp.view.k);
+  const baseRef = useRef(base); baseRef.current = base;
   const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
-  const img = dpr >= 1.5 ? 1024 : 512;
-  // Целое число CSS-пикселей, ближайшее к точному размеру в пикселях устройства: браузеры округляют размер
-  // фоновой плитки до целых CSS-пикселей, и дробный размер давал зазор на каждом стыке.
-  const T = Math.max(64, Math.round(img / dpr));
+  const T = Math.max(48, Math.round(SEA_WORLD_TILE * base));
+  const img = T * dpr > 640 ? 1024 : 512;
+  const apply = (v: View) => {
+    const el = pos.current; if (!el) return;
+    const s = v.k / baseRef.current;
+    const ts = T * s;
+    const ox = ((v.tx % ts) + ts) % ts, oy = ((v.ty % ts) + ts) % ts;
+    el.style.transform = `translate(${(ox - 2 * ts).toFixed(2)}px, ${(oy - 2 * ts).toFixed(2)}px) scale(${s.toFixed(5)})`;
+  };
   useEffect(() => vp.subscribe((v) => {
-    const snap = (x: number) => Math.round(x * dpr) / dpr;
-    const ox = snap(((v.tx % T) + T) % T), oy = snap(((v.ty % T) + T) % T);
-    if (pos.current) pos.current.style.transform = `translate(${(ox - 2 * T).toFixed(3)}px, ${(oy - 2 * T).toFixed(3)}px)`;
-  }), [vp, T, dpr]);
+    const s = v.k / baseRef.current;
+    if (s < 0.7 || s > 1.4) { setBase(v.k); return; }
+    apply(v);
+  }), [vp, T]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (vp.view.k !== baseRef.current) setBase(vp.view.k); }, [vp.view.k]);
+  useLayoutEffect(() => { apply(vp.viewRef.current); }, [base, T]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="sea-layer" style={{ ["--tile" as string]: `${T}px`, ["--sea" as string]: `url("/img/brand/sea-${img}.webp")` }} aria-hidden>
       <div ref={pos} className="sea-pos">
