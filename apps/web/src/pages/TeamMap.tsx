@@ -4,7 +4,7 @@ import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
-import { CoastOver, CoastUnder, FogLayer, HexTiles, IMG, MapSymbols, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, CoastUnder, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
 import { t } from "../lib/i18n";
 
@@ -39,6 +39,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const [ripple, setRipple] = useState<{ x: number; y: number; n: number } | null>(null);
   useEffect(() => { reportPage("map"); }, []);
   const coast = useCoast(map.hexes, size);
+  const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
 
   if (!bounds) return null;
@@ -66,6 +67,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       <SeaLayer vp={vp} />
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
+        <OutlineDefs colors={owners} />
         <CoastUnder d={coast} size={size} />
         <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" />
         <CoastOver d={coast} size={size} />
@@ -90,8 +92,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const c = cityByKey.get(n.key);
             return (
               <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
-                {c?.owner && <circle className="owner-ring" cx={p.x} cy={p.y - CITY * 0.1} r={CITY * 0.62} fill={c.owner.color} fillOpacity={0.35} stroke={c.owner.color} />}
-                <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />
+                <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : undefined} />
               </g>
             );
           }
@@ -145,8 +146,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
             if (!tk || tk.status === "APPROVED") return null;
             const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
-            const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-            const far = revealed.has(e.aKey) ? b : a;
+            // Метка дела стоит на двух третях стороны от известного перекрёстка, чтобы не наезжать на город.
+            const far = revealed.has(e.aKey) ? b : a, near = far === b ? a : b;
+            const m = { x: near.x + (far.x - near.x) * 0.66, y: near.y + (far.y - near.y) * 0.66 };
             const sel = tk.id === selectedTaskId;
             const r = sel ? R + 2 : R;
             return (

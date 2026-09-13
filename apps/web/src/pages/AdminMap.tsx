@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { CoastOver, CoastUnder, HexTiles, IMG, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, CoastUnder, HexTiles, IMG, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { reportPage } from "../lib/perf";
 import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
@@ -90,6 +90,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
           <SeaLayer vp={vp} />
           <WorldSvg vp={vp} bounds={bounds}>
+            <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
             <CoastUnder d={coast} size={size} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
             <CoastOver d={coast} size={size} />
@@ -99,10 +100,10 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
               if (n.kind === "CITY") {
                 const owner = ownerOf.get(n.key);
+                // Картинка города кликабельна сама (как у команды); владелец — обводка по контуру картинки цветом команды.
                 return (
-                  <g key={"c" + n.key}>
-                    {owner && <circle className="owner-ring" cx={p.x} cy={p.y - CITY * 0.1} r={CITY * 0.62} fill={owner.color} fillOpacity={0.35} stroke={owner.color} />}
-                    <image href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} />
+                  <g key={"c" + n.key} className="pick" onClick={() => { if (!vp.wasDrag()) setSelected(n); }}>
+                    <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : undefined} />
                   </g>
                 );
               }
@@ -128,19 +129,23 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 const pick = () => { if (!vp.wasDrag()) setSelected(n); };
                 const at = `translate(${raw.x},${raw.y}) scale(${inv})`;
                 if (n.kind === "START") { const tm = progress?.find((x) => x.startNodeKey === n.key); const color = tm?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} className="pick" transform={at} onClick={pick}><circle className="hit" r={14} fill="transparent" /><circle r={6} fill={color} stroke="var(--surface)" strokeWidth={2} /></g>; }
-                if (n.kind === "CITY") return (
+                if (n.kind === "CITY") {
+                  const label = `${book?.order}. ${book?.nameRu ?? ""}`;
+                  const lw = Math.ceil(label.length * 11 * 0.62) + 16;
+                  return (
                   <g key={n.key} className="pick" transform={at} onClick={pick}>
-                    <circle className="hit" r={Math.max(14, size * 0.6 * kk)} fill="transparent" />
+                    <circle className="hit" r={Math.max(14, size * 0.65 * kk) / ui} cy={-size * 0.1 * kk / ui} fill="transparent" />
                     {battleAt.has(n.key) && <circle className="quiet" r={size * 0.8 * kk} fill="none" stroke="var(--danger)" strokeWidth={3} strokeDasharray="6 4" />}
                     {showLabels ? (
                       <g className="quiet" transform={`translate(0,${size * 1.15 * kk * 0.48 / ui})`}>
-                        <rect x={-48} y={-10} width={96} height={20} rx={4} fill={sel ? "var(--accent)" : "var(--map-paper)"} stroke="var(--text)" strokeWidth={1} />
-                        <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}. {book?.nameRu}</text>
+                        <rect x={-lw / 2} y={-10} width={lw} height={20} rx={10} fill={sel ? "var(--accent)" : "var(--map-paper)"} stroke="var(--text)" strokeWidth={1} />
+                        <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{label}</text>
                       </g>
                     ) : <g className="quiet"><circle r={8} fill={sel ? "var(--accent)" : "var(--surface)"} stroke="var(--text)" strokeWidth={1} /><text textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}</text></g>}
                     {seen.map((tm, i) => <circle key={tm.id} className="quiet" cx={14 - i * 9} cy={-14} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
                   </g>
-                );
+                  );
+                }
                 if (!showDots) return null;
                 return <g key={n.key} className="pick" transform={at} onClick={pick}><circle className="hit" r={12} fill="transparent" /><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((tm, i) => <circle key={tm.id} cx={8 - i * 7} cy={-8} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}

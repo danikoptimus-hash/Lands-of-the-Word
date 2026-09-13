@@ -13,10 +13,10 @@
 .sea-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #4F8BA6; }
 .sea-pos { position: absolute; left: 0; top: 0; width: calc(150% + 6 * var(--tile, 512px)); height: calc(150% + 6 * var(--tile, 512px)); transform-origin: 0 0; will-change: transform; }
 .sea-base, .sea-waves { position: absolute; inset: 0; background-image: var(--sea, url("/img/brand/sea-512.webp")); background-position: 0 0; background-size: var(--tile, 512px) var(--tile, 512px); background-repeat: repeat; }
-/* Вторая плитка сдвинута на полплитки (зеркальная плитка, повёрнутая на 180°, — это она же со сдвигом), без поворота:
-   поворот элемента давал дробные стыки и швы. Дрейф — трансформация композитора. */
-.sea-waves { opacity: .38; background-position: calc(var(--tile, 512px) / 2) calc(var(--tile, 512px) / 2); animation: sea-drift 70s linear infinite; will-change: transform; }
-@keyframes sea-drift { to { transform: translate(var(--tile, 512px), var(--tile, 512px)); } }
+/* Вторая плитка крупнее в 1.37 раза и плывёт: периоды двух слоёв не кратны, повтор рисунка глазу не виден.
+   Дрейф — трансформация композитора. */
+.sea-waves { opacity: .4; background-size: calc(var(--tile, 512px) * 1.37) calc(var(--tile, 512px) * 1.37); background-position: calc(var(--tile, 512px) / 3) calc(var(--tile, 512px) / 5); animation: sea-drift 90s linear infinite; will-change: transform; }
+@keyframes sea-drift { to { transform: translate(calc(var(--tile, 512px) * 1.37), calc(var(--tile, 512px) * 1.37)); } }
 @media (prefers-reduced-motion: reduce) { .sea-waves { animation: none; } }
 .coast { pointer-events: none; }
 .coast-wet { stroke-width: calc(1.2px / var(--k, 1)); }

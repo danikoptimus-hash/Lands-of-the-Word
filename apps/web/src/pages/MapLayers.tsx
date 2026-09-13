@@ -24,7 +24,7 @@ export type Viewport = { view: View; viewRef: { current: View }; subscribe: (fn:
  * когда отклонение выходит за 0.7…1.4 или жест зафиксирован, плитка перекладывается под новый масштаб.
  * Сдвиг привязан к координатам карты: точка (0,0) карты всегда на углу плитки.
  */
-const SEA_WORLD_TILE = 156;
+const SEA_WORLD_TILE = 220;
 export function SeaLayer({ vp }: { vp: Viewport }) {
   const pos = useRef<HTMLDivElement>(null);
   const [base, setBase] = useState(vp.view.k);
@@ -224,6 +224,25 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes }: { vp: Viewport; size
   }, [size, vp]);
 
   return <canvas ref={ref} className="fx-layer" aria-hidden />;
+}
+
+/**
+ * Обводка картинки города цветом команды: контур по прозрачности картинки (расширение альфа-канала),
+ * а не круг вокруг. Один фильтр на команду; толщина в единицах карты, растёт вместе с картой.
+ */
+export function OutlineDefs({ colors, width = 1.6 }: { colors: string[]; width?: number }) {
+  return (
+    <defs>
+      {colors.map((color) => (
+        <filter key={color} id={`outline-${color.slice(1)}`} x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+          <feMorphology in="SourceAlpha" operator="dilate" radius={width} result="grow" />
+          <feFlood floodColor={color} result="color" />
+          <feComposite in="color" in2="grow" operator="in" result="ring" />
+          <feMerge><feMergeNode in="ring" /><feMergeNode in="SourceGraphic" /></feMerge>
+        </filter>
+      ))}
+    </defs>
+  );
 }
 
 const TERRAINS = ["desert", "hills", "meadow", "mountains", "water", "oasis"];
