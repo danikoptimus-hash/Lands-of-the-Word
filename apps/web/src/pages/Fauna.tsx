@@ -71,7 +71,7 @@ const inView = (v: Vis, x: number, y: number) => x > v.x0 && x < v.x1 && y > v.y
 
 // ───────────────────────────── Эффекты на воде ─────────────────────────────
 /** Кольцевые буферы фиксированного размера: круги [x,y,t0,r0,r1,life], брызги [x,y,vx,vy,t0,r], фонтаны [x,y,t0,size,vx,vy]. */
-const RINGS = 20, DROPS = 60, PUFFS = 6, DROP_LIFE = 0.75, PUFF_LIFE = 3.6;
+const RINGS = 20, DROPS = 60, PUFFS = 6, DROP_LIFE = 0.75, PUFF_LIFE = 3.2;
 interface Fx { ring: Float32Array; ri: number; drop: Float32Array; di: number; puff: Float32Array; pi: number }
 const makeFx = (): Fx => ({ ring: new Float32Array(RINGS * 6), ri: 0, drop: new Float32Array(DROPS * 6), di: 0, puff: new Float32Array(PUFFS * 6), pi: 0 });
 function emitRing(fx: Fx, x: number, y: number, T: number, r0: number, r1: number, life: number): void {
@@ -109,7 +109,7 @@ function drawFx(ctx: CanvasRenderingContext2D, fx: Fx, T: number, px: number, vi
     const i = k * 6, age = T - fx.puff[i + 2]!, u = age / PUFF_LIFE; if (age < 0 || u >= 1 || fx.puff[i + 3]! <= 0) continue;
     const x = fx.puff[i]! + fx.puff[i + 4]! * age, y = fx.puff[i + 1]! + fx.puff[i + 5]! * age; if (!inView(vis, x, y)) continue;
     const s = fx.puff[i + 3]! * (0.22 + 0.95 * Math.sqrt(u));
-    ctx.globalAlpha = 0.75 * Math.pow(1 - u, 1.6);
+    ctx.globalAlpha = 0.6 * Math.pow(1 - u, 1.6);
     ctx.beginPath();
     ctx.moveTo(x + s, y); ctx.arc(x, y, s, 0, TAU);
     ctx.moveTo(x - s * 0.55 + s * 0.65, y + s * 0.25); ctx.arc(x - s * 0.55, y + s * 0.25, s * 0.65, 0, TAU);
@@ -129,34 +129,65 @@ function drawFx(ctx: CanvasRenderingContext2D, fx: Fx, T: number, px: number, vi
 
 // ───────────────────────────── Китообразные ─────────────────────────────
 type CetKind = "whale" | "orca" | "dolphin";
+/** Образцов позвоночника на тело; профиль ширины считается один раз на вид. */
+const N = 26;
 interface CetSpec {
   kind: CetKind; L: number;
-  /** Доля длины на тело (остальное — лопасти), доля тела на округлую голову, вынос носа (клюв), полуширины и степени сужения. */
-  body: number; head: number; beak: number; noseRound: number; wMax: number; wTail: number; taperP: number; taperQ: number;
-  finS: number; finLen: number; finChord: number; finSweep: number; finRound: number;
-  flukeSpan: number; flukeLen: number; dorsalS: number; dorsalLen: number; blowS: number; blowTwin: boolean;
-  swayAmp: number; swayFreq: number; swayK: number; speed: number; maxTurn: number;
-  col: { body: RGB; fin: RGB; hi: RGB; dark: RGB; patch: RGB };
+  /** Доля длины L до основания лопастей; профиль полуширины — пары (s, w) в долях L; округлость носа (0 — остриё). */
+  body: number; prof: readonly number[]; noseRound: number;
+  /** Грудные плавники: место посадки (доля L), длина, хорда, угол назад (рад), округлость задней кромки, бугорки по передней кромке. */
+  finS: number; finLen: number; finChord: number; finSweep: number; finRound: number; finKnobs: boolean;
+  flukeSpan: number; flukeLen: number; flukeSerrated: boolean;
+  dorsalS: number; dorsalLen: number; dorsalW: number; blowS: number; blowTwin: boolean;
+  swayFreq: number; swayK: number; speed: number; maxTurn: number;
+  /** body — спина, dark — тень/кромка, hi — блик спины, fin — плавники, pale — светлая исподняя сторона, patch — узор (пятна, седло, накидка). */
+  col: { body: RGB; dark: RGB; hi: RGB; fin: RGB; pale: RGB; patch: RGB };
+  /** Полуширина в каждом образце позвоночника (единицы карты). */
+  sw: Float32Array;
 }
-function cetSpec(kind: CetKind, size: number): CetSpec {
-  if (kind === "whale") return { // горбач: длинные светлые грудные плавники, широкие лопасти с выемкой
-    kind, L: size * 1.8, body: 0.76, head: 0.3, beak: 0.02, noseRound: 1, wMax: 0.13, wTail: 0.034, taperP: 2.6, taperQ: 1.3,
-    finS: 0.34, finLen: 0.3, finChord: 0.075, finSweep: 0.72, finRound: 0.3, flukeSpan: 0.46, flukeLen: 0.24,
-    dorsalS: 0.66, dorsalLen: 0.08, blowS: 0.16, blowTwin: true, swayAmp: 0.016, swayFreq: 1.5, swayK: 2.2, speed: size * 0.27, maxTurn: 0.35,
-    col: { body: [58, 72, 86], fin: [168, 186, 196], hi: [138, 158, 172], dark: [24, 32, 40], patch: [120, 138, 150] },
-  };
-  if (kind === "orca") return { // косатка: чёрная, белые пятна за глазами, серое седло за спинным плавником, плавники-вёсла
-    kind, L: size * 1.1, body: 0.8, head: 0.28, beak: 0.02, noseRound: 0.85, wMax: 0.145, wTail: 0.036, taperP: 2.3, taperQ: 1.3,
-    finS: 0.34, finLen: 0.21, finChord: 0.11, finSweep: 0.45, finRound: 0.9, flukeSpan: 0.38, flukeLen: 0.2,
-    dorsalS: 0.5, dorsalLen: 0.14, blowS: 0.15, blowTwin: false, swayAmp: 0.024, swayFreq: 2.2, swayK: 2.4, speed: size * 0.5, maxTurn: 0.6,
-    col: { body: [24, 28, 32], fin: [24, 28, 32], hi: [96, 104, 112], dark: [8, 10, 12], patch: [242, 246, 248] },
-  };
-  return { // дельфин: стройный, с клювом, тёмная «накидка» на спине
-    kind, L: size * 0.55, body: 0.8, head: 0.24, beak: 0.08, noseRound: 0.3, wMax: 0.125, wTail: 0.032, taperP: 2.2, taperQ: 1.3,
-    finS: 0.36, finLen: 0.2, finChord: 0.07, finSweep: 0.65, finRound: 0.25, flukeSpan: 0.38, flukeLen: 0.16,
-    dorsalS: 0.55, dorsalLen: 0.12, blowS: 0.2, blowTwin: false, swayAmp: 0.035, swayFreq: 4.2, swayK: 2.6, speed: size * 0.75, maxTurn: 1.3,
-    col: { body: [104, 122, 136], fin: [86, 102, 116], hi: [204, 214, 220], dark: [58, 72, 84], patch: [66, 82, 96] },
-  };
+/** Полуширина по профилю: Catmull-Rom между опорными точками, чтобы силуэт был гладким, но держал заданные пропорции. */
+function profileWidth(prof: readonly number[], s: number): number {
+  const n = prof.length / 2;
+  let k = 0; while (k < n - 2 && prof[(k + 1) * 2]! < s) k++;
+  const s0 = prof[k * 2]!, s1 = prof[(k + 1) * 2]!, t = clamp((s - s0) / (s1 - s0), 0, 1);
+  const p1 = prof[k * 2 + 1]!, p2 = prof[(k + 1) * 2 + 1]!;
+  const p0 = k > 0 ? prof[(k - 1) * 2 + 1]! : p1 - (p2 - p1), p3 = k < n - 2 ? prof[(k + 2) * 2 + 1]! : p2 + (p2 - p1);
+  return Math.max(0, 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t));
+}
+function buildSpec(base: Omit<CetSpec, "sw">): CetSpec {
+  const sw = new Float32Array(N);
+  for (let i = 0; i < N; i++) sw[i] = base.L * profileWidth(base.prof, (base.body * i) / (N - 1));
+  return { ...base, sw };
+}
+/** Пропорции — по анатомии вида сверху (доли полной длины L). */
+function cetSpec(kind: CetKind, L: number, size: number): CetSpec {
+  if (kind === "whale") return buildSpec({ // горбач: широкая плоская голова, ширина 0,22 L на 37 %, длинные бугристые грудные, горб с низким плавником на 65 %, узкий стебель, лопасти 0,34 L
+    kind, L, body: 0.84, noseRound: 0.9,
+    prof: [0, 0, 0.03, 0.05, 0.08, 0.08, 0.15, 0.095, 0.25, 0.105, 0.37, 0.11, 0.5, 0.1, 0.62, 0.082, 0.7, 0.062, 0.78, 0.04, 0.84, 0.024],
+    finS: 0.35, finLen: 0.32, finChord: 0.065, finSweep: 0.7, finRound: 0.25, finKnobs: true,
+    flukeSpan: 0.34, flukeLen: 0.15, flukeSerrated: true,
+    dorsalS: 0.65, dorsalLen: 0.06, dorsalW: 0.014, blowS: 0.28, blowTwin: true,
+    swayFreq: 1.4, swayK: 2.0, speed: size * 0.27, maxTurn: 0.35,
+    col: { body: [40, 42, 46], dark: [14, 15, 18], hi: [108, 112, 118], fin: [52, 56, 62], pale: [206, 210, 212], patch: [134, 138, 142] },
+  });
+  if (kind === "orca") return buildSpec({ // косатка: округлая голова без клюва, ширина 0,2 L на 40 %, плавники-вёсла на 30 %, седло за спинным плавником
+    kind, L, body: 0.86, noseRound: 0.9,
+    prof: [0, 0, 0.025, 0.045, 0.07, 0.075, 0.15, 0.092, 0.28, 0.099, 0.4, 0.1, 0.55, 0.09, 0.68, 0.066, 0.78, 0.04, 0.86, 0.026],
+    finS: 0.3, finLen: 0.19, finChord: 0.11, finSweep: 0.4, finRound: 1, finKnobs: false,
+    flukeSpan: 0.3, flukeLen: 0.13, flukeSerrated: false,
+    dorsalS: 0.48, dorsalLen: 0.12, dorsalW: 0.018, blowS: 0.17, blowTwin: false,
+    swayFreq: 2.0, swayK: 2.2, speed: size * 0.5, maxTurn: 0.6,
+    col: { body: [17, 20, 24], dark: [5, 6, 8], hi: [128, 140, 150], fin: [17, 20, 24], pale: [238, 241, 243], patch: [142, 152, 160] },
+  });
+  return buildSpec({ // афалина: стройная, ширина 0,17 L, короткий клюв со складкой и дыней за ним, серповидный плавник посередине
+    kind, L, body: 0.86, noseRound: 0.2,
+    prof: [0, 0, 0.02, 0.012, 0.06, 0.022, 0.09, 0.03, 0.12, 0.058, 0.2, 0.076, 0.32, 0.085, 0.45, 0.083, 0.58, 0.072, 0.7, 0.05, 0.8, 0.03, 0.86, 0.02],
+    finS: 0.32, finLen: 0.13, finChord: 0.05, finSweep: 0.75, finRound: 0.3, finKnobs: false,
+    flukeSpan: 0.22, flukeLen: 0.1, flukeSerrated: false,
+    dorsalS: 0.5, dorsalLen: 0.08, dorsalW: 0.013, blowS: 0.22, blowTwin: false,
+    swayFreq: 4, swayK: 2.4, speed: size * 0.75, maxTurn: 1.3,
+    col: { body: [126, 136, 146], dark: [54, 60, 68], hi: [180, 188, 196], fin: [92, 102, 112], pale: [198, 204, 210], patch: [68, 76, 86] },
+  });
 }
 
 /** «Поводок»: точка, бегущая вдоль берега на отступе off с медленным меандром; зверь плывёт за ней. */
@@ -255,15 +286,16 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
   else steerCet(c, car.x, car.y, dt, T, 1);
   const prev = s.t; s.t += dt;
   const tHold = s.deep + s.rise, tEnd = tHold + s.hold + s.dive;
-  const blowU = sp.L * sp.body * (0.5 - sp.blowS);
+  const blowU = sp.L * (0.5 - sp.blowS);
   if (prev < tHold && s.t >= tHold) { // вынырнул: выдох и первый круг
-    emitPuff(fx, axisX(c, blowU) + WIND_X * 0.9, axisY(c, blowU) + WIND_Y * 0.9, T, sp.L * (sp.kind === "whale" ? 0.45 : 0.28), Math.cos(c.h) * c.v * 0.25 + WIND_X, Math.sin(c.h) * c.v * 0.25 + WIND_Y);
+    // Облачко выдоха сразу сносится в сторону от дыхала, чтобы не закрывать спину зверя.
+    emitPuff(fx, axisX(c, blowU) + WIND_X * 1.6, axisY(c, blowU) + WIND_Y * 1.6, T, sp.L * (sp.kind === "whale" ? 0.32 : 0.22), Math.cos(c.h) * c.v * 0.25 + WIND_X * 1.3, Math.sin(c.h) * c.v * 0.25 + WIND_Y * 1.3);
     emitRing(fx, c.x, c.y, T, sp.L * 0.35, sp.L * 1.3, 4); s.spouts = 1; s.nextRing = T + 1.5;
   }
   if (s.t >= tHold && s.t < tHold + s.hold) {
     if (T >= s.nextRing) { emitRing(fx, axisX(c, -sp.L * 0.1), axisY(c, -sp.L * 0.1), T, sp.L * 0.3, sp.L * 1.1, 3.5); s.nextRing = T + rnd(1.4, 2.2); }
     if (sp.kind === "whale" && s.spouts === 1 && s.t > tHold + s.hold * 0.55) { // второй выдох посреди стоянки у поверхности
-      emitPuff(fx, axisX(c, blowU) + WIND_X * 0.9, axisY(c, blowU) + WIND_Y * 0.9, T, sp.L * 0.38, Math.cos(c.h) * c.v * 0.25 + WIND_X, Math.sin(c.h) * c.v * 0.25 + WIND_Y); s.spouts = 2;
+      emitPuff(fx, axisX(c, blowU) + WIND_X * 1.6, axisY(c, blowU) + WIND_Y * 1.6, T, sp.L * 0.28, Math.cos(c.h) * c.v * 0.25 + WIND_X * 1.3, Math.sin(c.h) * c.v * 0.25 + WIND_Y * 1.3); s.spouts = 2;
     }
   }
   if (s.t >= tEnd) resetSurf(s, sp.kind);
@@ -293,23 +325,21 @@ function stepPod(ds: Cet[], pod: Carrot, p: Profile, size: number, fx: Fx, dt: n
 }
 
 // ── Отрисовка китообразных: сегментированный позвоночник в общих буферах (без аллокаций в кадре)
-const N = 18;
 const SX = new Float32Array(N), SY = new Float32Array(N), SW = new Float32Array(N), SA = new Float32Array(N), NX = new Float32Array(N), NY = new Float32Array(N);
-/** Полуширина тела в долях L по нормированной длине s: округлая голова (эллипс), затем плавное сужение к стеблю хвоста. */
-function halfWidth(sp: CetSpec, s: number): number {
-  if (s < sp.head) { const u = 1 - s / sp.head; return sp.wMax * Math.sqrt(Math.max(0, 1 - u * u)); }
-  const u = (s - sp.head) / (1 - sp.head);
-  return sp.wTail + (sp.wMax - sp.wTail) * Math.pow(1 - Math.pow(u, sp.taperP), sp.taperQ);
-}
-/** Позвоночник: центр в начале координат, голова по +x. Боковая волна растёт к хвосту и бежит назад; в повороте тело изгибается. */
+/** Индекс образца по доле длины s. */
+const idx = (sp: CetSpec, s: number) => Math.round((s / sp.body) * (N - 1));
+/**
+ * Позвоночник: центр в начале координат, голова по +x, s — доля полной длины. Боковая волна мала (до 0,03 L у стебля,
+ * почти ноль у головы) и бежит назад; в повороте тело слегка изгибается. Ширины — из профиля вида, поэтому пропорции
+ * не плывут при изгибе.
+ */
 function computeSpine(c: Cet): void {
-  const sp = c.spec, L = sp.L, Lb = L * sp.body;
-  const bend = clamp(c.turn, -1.2, 1.2) * L * 0.1;
+  const sp = c.spec, L = sp.L, bend = clamp(c.turn, -1.2, 1.2) * L * 0.06;
   for (let i = 0; i < N; i++) {
-    const s = i / (N - 1);
-    SX[i] = Lb * (0.5 - s);
-    SY[i] = L * sp.swayAmp * (0.15 + 0.85 * s * s) * Math.sin(c.phase - s * sp.swayK) + bend * s * s;
-    SW[i] = L * halfWidth(sp, s);
+    const u = i / (N - 1);
+    SX[i] = L * (0.5 - sp.body * u);
+    SY[i] = L * 0.03 * (0.1 + 0.9 * u * u) * Math.sin(c.phase - u * sp.swayK) + bend * u * u;
+    SW[i] = sp.sw[i]!;
   }
   for (let i = 0; i < N; i++) {
     const j = i < N - 1 ? i + 1 : i, k = i < N - 1 ? i : i - 1;
@@ -317,15 +347,15 @@ function computeSpine(c: Cet): void {
     SA[i] = a; NX[i] = -Math.sin(a); NY[i] = Math.cos(a);
   }
 }
-/** Контур вдоль позвоночника от образца i0 до i1 с множителем ширины wf; nose — вынос носа вперёд. Кривые через середины — гладко. */
-function spinePath(ctx: CanvasRenderingContext2D, i0: number, i1: number, wf: number, nose: number, round: number): void {
+/** Контур вдоль позвоночника от образца i0 до i1 с множителем ширины wf; round — округлость носа. Кривые через середины — гладко. */
+function spinePath(ctx: CanvasRenderingContext2D, i0: number, i1: number, wf: number, round: number): void {
   ctx.beginPath();
-  const nx = SX[i0]! + nose, ny = SY[i0]!;
+  const nx = SX[i0]!, ny = SY[i0]!;
   // Опорная точка носа сдвинута вбок на round: кривая выходит из носа поперёк оси — голова тупая и круглая, а не остриё.
-  const rw = SW[i0 + 1]! * wf * round * 1.1, cx = nx - nose * 0.5 * round;
+  const rw = SW[i0 + 1]! * wf * round * 1.1;
   ctx.moveTo(nx, ny);
   let px = SX[i0]! + NX[i0]! * SW[i0]! * wf, py = SY[i0]! + NY[i0]! * SW[i0]! * wf;
-  if (round > 0) { const mx = (px + SX[i0 + 1]! + NX[i0 + 1]! * SW[i0 + 1]! * wf) / 2, my = (py + SY[i0 + 1]! + NY[i0 + 1]! * SW[i0 + 1]! * wf) / 2; ctx.quadraticCurveTo(cx + NX[i0]! * rw, ny + NY[i0]! * rw, mx, my); px = SX[i0 + 1]! + NX[i0 + 1]! * SW[i0 + 1]! * wf; py = SY[i0 + 1]! + NY[i0 + 1]! * SW[i0 + 1]! * wf; i0++; }
+  if (round > 0) { const mx = (px + SX[i0 + 1]! + NX[i0 + 1]! * SW[i0 + 1]! * wf) / 2, my = (py + SY[i0 + 1]! + NY[i0 + 1]! * SW[i0 + 1]! * wf) / 2; ctx.quadraticCurveTo(nx + NX[i0]! * rw, ny + NY[i0]! * rw, mx, my); px = SX[i0 + 1]! + NX[i0 + 1]! * SW[i0 + 1]! * wf; py = SY[i0 + 1]! + NY[i0 + 1]! * SW[i0 + 1]! * wf; i0++; }
   for (let i = i0 + 1; i <= i1; i++) {
     const x = SX[i]! + NX[i]! * SW[i]! * wf, y = SY[i]! + NY[i]! * SW[i]! * wf;
     ctx.quadraticCurveTo(px, py, (px + x) / 2, (py + y) / 2); px = x; py = y;
@@ -337,41 +367,67 @@ function spinePath(ctx: CanvasRenderingContext2D, i0: number, i1: number, wf: nu
     const x = SX[i]! - NX[i]! * SW[i]! * wf, y = SY[i]! - NY[i]! * SW[i]! * wf;
     ctx.quadraticCurveTo(px, py, (px + x) / 2, (py + y) / 2); px = x; py = y;
   }
-  if (round > 0) ctx.quadraticCurveTo(cx - NX[i0]! * rw, ny - NY[i0]! * rw, nx, ny); else ctx.quadraticCurveTo(px, py, nx, ny);
+  if (round > 0) ctx.quadraticCurveTo(nx - NX[i0]! * rw, ny - NY[i0]! * rw, nx, ny); else ctx.quadraticCurveTo(px, py, nx, ny);
   ctx.closePath();
 }
-/** Грудной плавник у точки (x,y) с курсом a на стороне sgn: лист, скошенный назад; round — округлость задней кромки. */
-function finPath(ctx: CanvasRenderingContext2D, x: number, y: number, a: number, sgn: number, len: number, chord: number, sweep: number, round: number): void {
-  // Оси: f — вперёд по курсу, o — наружу от тела на стороне sgn. Точки задаются как (вдоль, наружу).
-  const fx = Math.cos(a), fy = Math.sin(a), ox = -Math.sin(a) * sgn, oy = Math.cos(a) * sgn;
+/** Локальный базис плавника/лопастей: точки задаются как (вдоль курса, наружу), без аллокаций. */
+let bx = 0, by = 0, bfx = 1, bfy = 0, box = 0, boy = 1;
+function setBasis(x: number, y: number, a: number, fore: number, sgn: number): void {
+  bx = x; by = y; bfx = Math.cos(a) * fore; bfy = Math.sin(a) * fore; box = -Math.sin(a) * sgn; boy = Math.cos(a) * sgn;
+}
+const mx = (u: number, v: number) => bx + bfx * u + box * v, my = (u: number, v: number) => by + bfy * u + boy * v;
+/** Квадратичная кривая (u0,v0)→(u1,v1) с опорной (cu,cv), разбитая на n дужек-бугорков высотой amp наружу (side задаёт сторону). */
+function scallopQuad(ctx: CanvasRenderingContext2D, u0: number, v0: number, cu: number, cv: number, u1: number, v1: number, n: number, amp: number, side: number): void {
+  let pu = u0, pv = v0;
+  for (let k = 1; k <= n; k++) {
+    const t = k / n, w0 = (1 - t) * (1 - t), w1 = 2 * (1 - t) * t, w2 = t * t;
+    const qu = w0 * u0 + w1 * cu + w2 * u1, qv = w0 * v0 + w1 * cv + w2 * v1;
+    const du = qu - pu, dv = qv - pv, len = Math.hypot(du, dv) || 1, nu = (dv / len) * side * amp, nv = (-du / len) * side * amp;
+    ctx.quadraticCurveTo(mx((pu + qu) / 2 + nu, (pv + qv) / 2 + nv), my((pu + qu) / 2 + nu, (pv + qv) / 2 + nv), mx(qu, qv), my(qu, qv));
+    pu = qu; pv = qv;
+  }
+}
+/** Грудной плавник у точки (x,y) с курсом a на стороне sgn: узкое крыло или весло; у горбача передняя кромка в бугорках. */
+function finPath(ctx: CanvasRenderingContext2D, sp: CetSpec, x: number, y: number, a: number, sgn: number, flex: number): void {
+  const L = sp.L, len = L * sp.finLen, chord = L * sp.finChord, sweep = sp.finSweep + flex;
+  setBasis(x, y, a, 1, sgn);
   const tu = -len * Math.sin(sweep), tv = len * Math.cos(sweep);
-  const c1u = chord * 0.45 + tu * 0.3, c1v = tv * 0.55, c2u = tu - chord * 0.7 - len * 0.35 * round, c2v = tv * 0.5;
-  const r0u = chord * 0.5, r1u = -chord * 0.6, rv = -chord * 0.2;
-  ctx.moveTo(x + fx * r0u + ox * rv, y + fy * r0u + oy * rv);
-  ctx.quadraticCurveTo(x + fx * c1u + ox * c1v, y + fy * c1u + oy * c1v, x + fx * tu + ox * tv, y + fy * tu + oy * tv);
-  ctx.quadraticCurveTo(x + fx * c2u + ox * c2v, y + fy * c2u + oy * c2v, x + fx * r1u + ox * rv, y + fy * r1u + oy * rv);
+  const c1u = chord * 0.4 + tu * 0.35, c1v = tv * 0.5, c2u = tu - chord * 0.6 - len * 0.3 * sp.finRound, c2v = tv * 0.5;
+  const r0u = chord * 0.5, r1u = -chord * 0.6, rv = -chord * 0.15;
+  ctx.moveTo(mx(r0u, rv), my(r0u, rv));
+  if (sp.finKnobs) scallopQuad(ctx, r0u, rv, c1u, c1v, tu, tv, 8, L * 0.007, -1);
+  else ctx.quadraticCurveTo(mx(c1u, c1v), my(c1u, c1v), mx(tu, tv), my(tu, tv));
+  ctx.quadraticCurveTo(mx(c2u, c2v), my(c2u, c2v), mx(r1u, rv), my(r1u, rv));
   ctx.closePath();
 }
-/** Хвостовые лопасти у стебля (x,y) с курсом a: две лопасти, выемка посередине, кончики отведены назад; fore — сокращение по оси при ударе. */
-function flukePath(ctx: CanvasRenderingContext2D, x: number, y: number, a: number, span: number, len: number, wTail: number, fore: number): void {
-  const fx = Math.cos(a) * fore, fy = Math.sin(a) * fore, ox = -Math.sin(a), oy = Math.cos(a), hs = span * 0.5;
-  // Опорные точки одной лопасти (вдоль, наружу): стебель, изгиб передней кромки, кончик, выпуклая задняя кромка, выемка.
-  const su = len * 0.15, sv = wTail * 0.9, c1u = -len * 0.1, c1v = hs * 0.62, tu = -len * 0.62, tv = hs, c2u = -len * 1.05, c2v = hs * 0.42, nu = -len * 0.8;
+/** Хвостовые лопасти у стебля (x,y): горизонтальные, с выемкой и острыми отведёнными назад кончиками; fore — проекция при ударе вверх-вниз; shift — сдвиг назад (для светлой исподней кромки). */
+function flukePath(ctx: CanvasRenderingContext2D, sp: CetSpec, x: number, y: number, a: number, wTail: number, fore: number, shift: number): void {
+  const L = sp.L, len = L * sp.flukeLen, hs = L * sp.flukeSpan * 0.5;
+  setBasis(x - Math.cos(a) * shift, y - Math.sin(a) * shift, a, fore, 1);
+  const su = len * 0.12, sv = wTail * 0.95, c1u = -len * 0.12, c1v = hs * 0.6, tu = -len * 0.7, tv = hs, c2u = -len * 1.02, c2v = hs * 0.42, nu = -len * 0.8;
   ctx.beginPath();
-  ctx.moveTo(x + fx * su + ox * sv, y + fy * su + oy * sv);
-  ctx.quadraticCurveTo(x + fx * c1u + ox * c1v, y + fy * c1u + oy * c1v, x + fx * tu + ox * tv, y + fy * tu + oy * tv);
-  ctx.quadraticCurveTo(x + fx * c2u + ox * c2v, y + fy * c2u + oy * c2v, x + fx * nu, y + fy * nu);
-  ctx.quadraticCurveTo(x + fx * c2u - ox * c2v, y + fy * c2u - oy * c2v, x + fx * tu - ox * tv, y + fy * tu - oy * tv);
-  ctx.quadraticCurveTo(x + fx * c1u - ox * c1v, y + fy * c1u - oy * c1v, x + fx * su - ox * sv, y + fy * su - oy * sv);
+  ctx.moveTo(mx(su, sv), my(su, sv));
+  ctx.quadraticCurveTo(mx(c1u, c1v), my(c1u, c1v), mx(tu, tv), my(tu, tv));
+  if (sp.flukeSerrated) { scallopQuad(ctx, tu, tv, c2u, c2v, nu, 0, 6, L * 0.005, -1); scallopQuad(ctx, nu, 0, c2u, -c2v, tu, -tv, 6, L * 0.005, -1); }
+  else { ctx.quadraticCurveTo(mx(c2u, c2v), my(c2u, c2v), mx(nu, 0), my(nu, 0)); ctx.quadraticCurveTo(mx(c2u, -c2v), my(c2u, -c2v), mx(tu, -tv), my(tu, -tv)); }
+  ctx.quadraticCurveTo(mx(c1u, -c1v), my(c1u, -c1v), mx(su, -sv), my(su, -sv));
   ctx.closePath();
 }
-/** Мягкий край: две широкие полупрозрачные обводки текущего контура под заливкой — дешёвая замена blur. */
+/** Мягкий край: широкие полупрозрачные обводки текущего контура под заливкой — дешёвая замена blur (на глубине). */
 function softFill(ctx: CanvasRenderingContext2D, color: string, blur: number, alpha: number): void {
   ctx.fillStyle = color; ctx.strokeStyle = color; ctx.lineJoin = "round";
-  ctx.globalAlpha = alpha * 0.1; ctx.lineWidth = blur * 3.4; ctx.stroke();
-  ctx.globalAlpha = alpha * 0.18; ctx.lineWidth = blur * 2; ctx.stroke();
-  ctx.globalAlpha = alpha * 0.3; ctx.lineWidth = blur * 0.9; ctx.stroke();
+  if (blur > 0) {
+    ctx.globalAlpha = alpha * 0.1; ctx.lineWidth = blur * 3.4; ctx.stroke();
+    ctx.globalAlpha = alpha * 0.18; ctx.lineWidth = blur * 2; ctx.stroke();
+    ctx.globalAlpha = alpha * 0.3; ctx.lineWidth = blur * 0.9; ctx.stroke();
+  }
   ctx.globalAlpha = alpha; ctx.fill();
+}
+/** Эллипс, лежащий вдоль позвоночника у образца i со сдвигом v вбок (доли L для радиусов). */
+function spineEllipse(ctx: CanvasRenderingContext2D, L: number, i: number, v: number, ru: number, rv: number, tilt: number): void {
+  const x = SX[i]! + NX[i]! * v, y = SY[i]! + NY[i]! * v;
+  ctx.moveTo(x + Math.cos(SA[i]! + tilt) * L * ru, y + Math.sin(SA[i]! + tilt) * L * ru);
+  ctx.ellipse(x, y, L * ru, L * rv, SA[i]! + tilt, 0, TAU);
 }
 /** Кильватер у поверхности: светлое пятно потревоженной воды, клин расходящихся полос от носа, пенный след за хвостом. */
 function drawWake(ctx: CanvasRenderingContext2D, L: number, surf: number, px: number): void {
@@ -390,11 +446,12 @@ function drawWake(ctx: CanvasRenderingContext2D, L: number, surf: number, px: nu
   ctx.globalAlpha = surf * 0.1; ctx.lineWidth = L * 0.1;
   ctx.beginPath(); ctx.moveTo(-L * 0.5, 0); ctx.lineTo(-L * 1.3, 0); ctx.stroke();
 }
-/** Блики каустики: тонкие светлые полосы в мировых осях (не крутятся вместе со зверем), медленно ползут по спине. */
+/** Блики каустики: тонкие светлые полосы в мировых осях, ползут по спине; видны только на погружённом теле. */
 function drawCaustics(ctx: CanvasRenderingContext2D, h: number, L: number, m: number, alpha: number, T: number): void {
+  const a = alpha * 0.14 * (1 - m) * clamp(m * 6, 0, 1);
+  if (a < 0.01) return;
   ctx.rotate(-h + 0.7);
-  ctx.strokeStyle = "rgb(228,246,255)"; ctx.lineCap = "round";
-  ctx.globalAlpha = alpha * (0.03 + 0.11 * (1 - m)); ctx.lineWidth = L * 0.022;
+  ctx.strokeStyle = "rgb(228,246,255)"; ctx.lineCap = "round"; ctx.globalAlpha = a; ctx.lineWidth = L * 0.022;
   const gap = L * 0.21, off = (T * L * 0.07) % gap;
   ctx.beginPath();
   for (let i = -4; i <= 4; i++) { // полосы разной кривизны и с разным сдвигом, чтобы не читались как решётка
@@ -403,61 +460,93 @@ function drawCaustics(ctx: CanvasRenderingContext2D, h: number, L: number, m: nu
   }
   ctx.stroke();
 }
-/** Узор внутри тела (вызывается под clip по контуру тела): блик хребта, накидка дельфина, пятна и седло косатки. */
-function drawPattern(ctx: CanvasRenderingContext2D, c: Cet, m: number, alpha: number, lod: boolean, T: number): void {
-  const sp = c.spec, L = sp.L, hi = alpha * (1 - m);
-  // Тёмная кромка изнутри контура: бока уходят вниз, в воду — тело выглядит объёмным, а не плоским.
-  ctx.strokeStyle = rgb(sp.col.dark); ctx.globalAlpha = alpha * 0.28 * (1 - m * 0.6); ctx.lineWidth = L * 0.045; ctx.lineJoin = "round";
-  spinePath(ctx, 0, N - 1, 1, L * sp.beak, sp.noseRound); ctx.stroke();
-  if (sp.kind === "whale") {
-    // Округлость спины: два мягких прохода блика — широкий слабый и узкий поярче.
-    ctx.fillStyle = rgb(sp.col.hi); ctx.globalAlpha = hi * 0.14 + 0.03; spinePath(ctx, 1, N - 2, 0.6, 0, 0.8); ctx.fill();
-    ctx.globalAlpha = hi * 0.16 + 0.03; spinePath(ctx, 2, N - 2, 0.3, 0, 0.8); ctx.fill();
-  } else if (sp.kind === "dolphin") {
-    ctx.fillStyle = underwater(sp.col.patch, m); ctx.globalAlpha = alpha * 0.55; spinePath(ctx, 1, N - 2, 0.62, L * 0.02, 0.6); ctx.fill();
-    ctx.fillStyle = rgb(sp.col.hi); ctx.globalAlpha = hi * 0.35; spinePath(ctx, 2, N - 3, 0.18, 0, 0.8); ctx.fill();
-  } else {
-    const ie = Math.round(0.2 * (N - 1)), is = Math.round(0.6 * (N - 1));
-    ctx.fillStyle = underwater(sp.col.patch, m); ctx.globalAlpha = alpha;
+/** Пятна горбача по бокам: (s, сторона, радиусы в долях L). Постоянны — как индивидуальный рисунок. */
+const MOTTLE: readonly number[] = [0.3, 1, 0.05, 0.02, 0.36, -1, 0.06, 0.024, 0.42, -1, 0.03, 0.014, 0.5, 1, 0.045, 0.018, 0.56, -1, 0.05, 0.02, 0.63, 1, 0.035, 0.015, 0.2, 1, 0.03, 0.012];
+/**
+ * Узор и светотень внутри тела (под clip по контуру): мягкая тёмная кромка к краям (бока уходят в воду), широкий
+ * слабый блик хребта (форма), узкий яркий блик — только у поверхности; затем рисунок вида; каустика — под водой.
+ */
+function drawPattern(ctx: CanvasRenderingContext2D, c: Cet, m: number, alpha: number, surf: number, lod: boolean, T: number): void {
+  const sp = c.spec, L = sp.L, form = alpha * (1 - m * 0.5), last = N - 1;
+  ctx.strokeStyle = rgb(sp.col.dark); ctx.lineJoin = "round";
+  spinePath(ctx, 0, last, 1, sp.noseRound);
+  ctx.globalAlpha = form * 0.12; ctx.lineWidth = L * 0.11; ctx.stroke();
+  ctx.globalAlpha = form * 0.14; ctx.lineWidth = L * 0.06; ctx.stroke();
+  ctx.globalAlpha = form * 0.16; ctx.lineWidth = L * 0.03; ctx.stroke();
+  if (sp.kind === "dolphin") { // накидка на спине темнее боков, брюхо светлое — видно светлыми кромками
+    ctx.fillStyle = underwater(sp.col.patch, m); ctx.globalAlpha = alpha * 0.75; spinePath(ctx, idx(sp, 0.1), idx(sp, 0.82), 0.62, 0.7); ctx.fill();
+    ctx.strokeStyle = underwater(sp.col.pale, m); ctx.globalAlpha = alpha * 0.4; ctx.lineWidth = L * 0.03; spinePath(ctx, idx(sp, 0.12), last, 1, 0); ctx.stroke();
+  }
+  ctx.fillStyle = rgb(sp.col.hi);
+  ctx.globalAlpha = alpha * (1 - m) * 0.16 + 0.02; spinePath(ctx, 1, last - 1, 0.45, 0.8); ctx.fill();
+  if (surf > 0) { ctx.globalAlpha = surf * (sp.kind === "orca" ? 0.42 : 0.3); spinePath(ctx, idx(sp, 0.1), idx(sp, 0.62), 0.14, 0.8); ctx.fill(); }
+  if (sp.kind === "whale") { // мраморные пятна по бокам и у основания грудных плавников
+    ctx.fillStyle = underwater(sp.col.patch, m); ctx.globalAlpha = alpha * 0.35;
     ctx.beginPath();
-    for (let sgn = -1; sgn <= 1; sgn += 2) { // белые пятна за глазами — вытянутые, чуть отвёрнутые наружу
-      const ex = SX[ie]! + sgn * NX[ie]! * SW[ie]! * 0.58, ey = SY[ie]! + sgn * NY[ie]! * SW[ie]! * 0.58;
-      ctx.moveTo(ex + L * 0.075, ey); ctx.ellipse(ex, ey, L * 0.075, L * 0.028, SA[ie]! + sgn * 0.42, 0, TAU);
-    }
+    for (let k = 0; k < MOTTLE.length; k += 4) { const i = idx(sp, MOTTLE[k]!); spineEllipse(ctx, L, i, MOTTLE[k + 1]! * SW[i]! * 0.7, MOTTLE[k + 2]!, MOTTLE[k + 3]!, MOTTLE[k + 1]! * 0.15); }
     ctx.fill();
-    ctx.fillStyle = underwater(sp.col.hi, m); ctx.globalAlpha = alpha * 0.85;
-    ctx.beginPath();
-    for (let sgn = -1; sgn <= 1; sgn += 2) { // серое седло за спинным плавником
-      const ex = SX[is]! + sgn * NX[is]! * SW[is]! * 0.62, ey = SY[is]! + sgn * NY[is]! * SW[is]! * 0.62;
-      ctx.moveTo(ex + L * 0.1, ey); ctx.ellipse(ex, ey, L * 0.1, L * 0.045, SA[is]! + sgn * 0.12, 0, TAU);
-    }
-    ctx.fill();
-    ctx.fillStyle = rgb(sp.col.hi); ctx.globalAlpha = hi * 0.22; spinePath(ctx, 2, N - 2, 0.16, 0, 0.8); ctx.fill();
+  } else if (sp.kind === "orca") {
+    const ie = idx(sp, 0.19), is = idx(sp, 0.56), ic = idx(sp, 0.12);
+    ctx.fillStyle = underwater(sp.col.pale, m); ctx.globalAlpha = alpha * 0.55;
+    ctx.beginPath(); spineEllipse(ctx, L, ic, SW[ic]! * 1.05, 0.13, 0.035, 0); spineEllipse(ctx, L, ic, -SW[ic]! * 1.05, 0.13, 0.035, 0); ctx.fill(); // белое горло — светлые бока у головы
+    ctx.globalAlpha = alpha;
+    ctx.beginPath(); spineEllipse(ctx, L, ie, SW[ie]! * 0.6, 0.07, 0.024, 0.35); spineEllipse(ctx, L, ie, -SW[ie]! * 0.6, 0.07, 0.024, -0.35); ctx.fill(); // пятна за глазами
+    ctx.fillStyle = underwater(sp.col.patch, m); ctx.globalAlpha = alpha * 0.9;
+    ctx.beginPath(); spineEllipse(ctx, L, is, SW[is]! * 0.62, 0.09, 0.04, 0.1); spineEllipse(ctx, L, is, -SW[is]! * 0.62, 0.09, 0.04, -0.1); ctx.fill(); // серое седло
   }
   if (lod) drawCaustics(ctx, c.h, L, m, alpha, T);
 }
-/** Дыхало и намёк на спинной плавник (тёмная линия с блик-кромкой по хребту) — поверх тела. */
-function drawDetails(ctx: CanvasRenderingContext2D, c: Cet, m: number, alpha: number): void {
+/** Детали поверх тела: дыхало (у горбача — с гребнем-«брызговиком» и бугорками на голове), спинной плавник сверху, складка клюва. */
+function drawDetails(ctx: CanvasRenderingContext2D, c: Cet, m: number, alpha: number, fine: boolean): void {
   const sp = c.spec, L = sp.L, a = alpha * (1 - m);
   if (a < 0.03) return;
-  const ib = Math.round(sp.blowS * (N - 1)), r = L * 0.012;
-  ctx.fillStyle = rgb(sp.col.dark); ctx.globalAlpha = a * 0.8;
+  const dark = rgb(sp.col.dark), pale = rgb(sp.col.pale), hi = rgb(sp.col.hi);
+  const ib = idx(sp, sp.blowS), r = L * (sp.blowTwin ? 0.011 : 0.012);
+  ctx.fillStyle = dark; ctx.globalAlpha = a * 0.85;
   ctx.beginPath();
-  if (sp.blowTwin) {
-    for (let sgn = -1; sgn <= 1; sgn += 2) { const x = SX[ib]! + sgn * NX[ib]! * L * 0.017, y = SY[ib]! + sgn * NY[ib]! * L * 0.017; ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, TAU); }
-  } else { ctx.moveTo(SX[ib]! + r, SY[ib]!); ctx.arc(SX[ib]!, SY[ib]!, r, 0, TAU); }
+  if (sp.blowTwin) for (let sgn = -1; sgn <= 1; sgn += 2) { const x = SX[ib]! + sgn * NX[ib]! * L * 0.016, y = SY[ib]! + sgn * NY[ib]! * L * 0.016; ctx.moveTo(x + r, y); ctx.arc(x, y, r, 0, TAU); }
+  else { ctx.moveTo(SX[ib]! + r, SY[ib]!); ctx.arc(SX[ib]!, SY[ib]!, r, 0, TAU); }
   ctx.fill();
-  const i0 = Math.round((sp.dorsalS - sp.dorsalLen / 2) * (N - 1)), i1 = Math.round((sp.dorsalS + sp.dorsalLen / 2) * (N - 1));
   ctx.lineCap = "round";
-  ctx.strokeStyle = rgb(sp.col.dark); ctx.globalAlpha = a * 0.55; ctx.lineWidth = L * 0.014;
-  ctx.beginPath(); ctx.moveTo(SX[i0]!, SY[i0]!); ctx.lineTo(SX[i1]!, SY[i1]!); ctx.stroke();
-  ctx.strokeStyle = rgb(sp.col.hi); ctx.globalAlpha = a * 0.6; ctx.lineWidth = L * (sp.kind === "orca" ? 0.016 : 0.01);
-  ctx.beginPath(); ctx.moveTo(SX[i0]! + NX[i0]! * L * 0.012, SY[i0]! + NY[i0]! * L * 0.012); ctx.lineTo(SX[i1]! + NX[i1]! * L * 0.012, SY[i1]! + NY[i1]! * L * 0.012); ctx.stroke();
+  if (sp.kind === "whale") { // брызговик: дуга-гребень перед дыхалом, светлая с солнечной стороны
+    const ig = idx(sp, sp.blowS - 0.035), w = L * 0.045;
+    ctx.strokeStyle = hi; ctx.globalAlpha = a * 0.5; ctx.lineWidth = L * 0.01;
+    ctx.beginPath(); ctx.moveTo(SX[ig]! + NX[ig]! * w, SY[ig]! + NY[ig]! * w); ctx.quadraticCurveTo(SX[ig]! + L * 0.02, SY[ig]!, SX[ig]! - NX[ig]! * w, SY[ig]! - NY[ig]! * w); ctx.stroke();
+    ctx.strokeStyle = dark; ctx.globalAlpha = a * 0.45;
+    ctx.beginPath(); ctx.moveTo(SX[ig]! + NX[ig]! * w - L * 0.008, SY[ig]! + NY[ig]! * w); ctx.quadraticCurveTo(SX[ig]! + L * 0.012, SY[ig]!, SX[ig]! - NX[ig]! * w - L * 0.008, SY[ig]! - NY[ig]! * w); ctx.stroke();
+    // Гребень на стебле хвоста
+    const i0 = idx(sp, 0.7), i1 = idx(sp, 0.83);
+    ctx.strokeStyle = hi; ctx.globalAlpha = a * 0.3; ctx.lineWidth = L * 0.008;
+    ctx.beginPath(); ctx.moveTo(SX[i0]!, SY[i0]!); ctx.lineTo(SX[i1]!, SY[i1]!); ctx.stroke();
+  }
+  // Спинной плавник сверху: короткая тёмная вытянутая форма по хребту со светлым кончиком.
+  const id = idx(sp, sp.dorsalS);
+  ctx.fillStyle = dark; ctx.globalAlpha = a * 0.7;
+  ctx.beginPath(); spineEllipse(ctx, L, id, 0, sp.dorsalLen * 0.5, sp.dorsalW * 0.5, 0); ctx.fill();
+  ctx.fillStyle = hi; ctx.globalAlpha = a * 0.55;
+  const it = idx(sp, sp.dorsalS + sp.dorsalLen * 0.3);
+  ctx.beginPath(); spineEllipse(ctx, L, it, sp.dorsalW * 0.25 * L, sp.dorsalLen * 0.16, sp.dorsalW * 0.2, 0); ctx.fill();
+  if (!fine) return;
+  if (sp.kind === "whale") { // бугорки по средней линии головы и вдоль челюстей
+    const rk = L * 0.006;
+    ctx.fillStyle = dark; ctx.globalAlpha = a * 0.5;
+    ctx.beginPath();
+    for (let k = 0; k < 6; k++) { const i = idx(sp, 0.03 + k * 0.045); ctx.moveTo(SX[i]! + rk, SY[i]!); ctx.arc(SX[i]! - rk * 0.4, SY[i]!, rk, 0, TAU); for (let sgn = -1; sgn <= 1; sgn += 2) { const v = sgn * SW[i]! * 0.82, x = SX[i]! + NX[i]! * v - rk * 0.4, y = SY[i]! + NY[i]! * v; ctx.moveTo(x + rk, y); ctx.arc(x, y, rk, 0, TAU); } }
+    ctx.fill();
+    ctx.fillStyle = pale; ctx.globalAlpha = a * 0.45;
+    ctx.beginPath();
+    for (let k = 0; k < 6; k++) { const i = idx(sp, 0.03 + k * 0.045); ctx.moveTo(SX[i]! + rk * 0.7, SY[i]!); ctx.arc(SX[i]!, SY[i]!, rk * 0.7, 0, TAU); for (let sgn = -1; sgn <= 1; sgn += 2) { const v = sgn * SW[i]! * 0.82, x = SX[i]! + NX[i]! * v, y = SY[i]! + NY[i]! * v; ctx.moveTo(x + rk * 0.7, y); ctx.arc(x, y, rk * 0.7, 0, TAU); } }
+    ctx.fill();
+  } else if (sp.kind === "dolphin") { // складка у основания клюва
+    const i = idx(sp, 0.1), w = SW[i]! * 0.9;
+    ctx.strokeStyle = dark; ctx.globalAlpha = a * 0.45; ctx.lineWidth = L * 0.008;
+    ctx.beginPath(); ctx.moveTo(SX[i]! + NX[i]! * w, SY[i]! + NY[i]! * w); ctx.quadraticCurveTo(SX[i]! - L * 0.012, SY[i]!, SX[i]! - NX[i]! * w, SY[i]! - NY[i]! * w); ctx.stroke();
+  }
 }
 function drawCet(ctx: CanvasRenderingContext2D, c: Cet, T: number, px: number, lod: boolean): void {
   const sp = c.spec, L = sp.L;
   const m = clamp(c.depth, 0, 1), air = Math.max(0, -c.depth);
-  const alpha = 1 - 0.62 * m, blur = L * (0.012 + 0.07 * m), surf = clamp(1 - m / 0.32, 0, 1);
+  const alpha = 1 - 0.62 * m, blur = L * 0.075 * m, surf = clamp(1 - m / 0.32, 0, 1), fine = lod && L / px >= 60;
   computeSpine(c);
   ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.h);
   if (air > 0) { // тень на воде под выпрыгнувшим дельфином, смещена по солнцу (в мировых осях)
@@ -468,21 +557,24 @@ function drawCet(ctx: CanvasRenderingContext2D, c: Cet, T: number, px: number, l
   }
   const sc = (1 - 0.15 * m) * (1 + 0.2 * air); ctx.scale(sc, sc);
   if (surf > 0 && air === 0) drawWake(ctx, L, surf, px);
-  // Лопасти бьют вверх-вниз: сверху видна укороченная проекция, плюс лёгкое виляние с запаздыванием по фазе.
-  const fore = 0.8 + 0.2 * Math.cos(c.phase - sp.swayK - 0.6), wag = 0.22 * Math.sin(c.phase - sp.swayK - 1.1);
-  // Плавники и лопасти всегда глубже спины (спина у поверхности может выступать из воды, плавники — нет).
-  const it = N - 1, mf = Math.max(m, 0.3), finColor = underwater(sp.col.fin, mf);
-  flukePath(ctx, SX[it]!, SY[it]!, SA[it]! + wag, L * sp.flukeSpan, L * sp.flukeLen, SW[it]!, fore);
-  softFill(ctx, underwater(sp.col.body, mf), blur, alpha * (0.8 + 0.2 * fore));
-  const fi = Math.round(sp.finS * (N - 1)), flutter = 0.07 * Math.sin(c.phase * 0.5 + c.seed);
+  // Плавники и лопасти всегда чуть глубже спины (спина у поверхности выступает из воды, плавники — нет).
+  const mf = Math.max(m, 0.25), it = N - 1, body = underwater(sp.col.body, m), finColor = underwater(sp.col.fin, mf), paleColor = underwater(sp.col.pale, mf);
+  // Лопасти горизонтальны и бьют вверх-вниз: сверху это лишь лёгкое сокращение проекции. Светлая исподняя сторона видна задней кромкой.
+  const fore = 0.84 + 0.16 * Math.cos(c.phase - sp.swayK - 0.6);
+  if (m < 0.5) { flukePath(ctx, sp, SX[it]!, SY[it]!, SA[it]!, SW[it]!, fore * 1.03, L * 0.009); softFill(ctx, paleColor, blur, alpha * 0.7 * (1 - m * 2)); }
+  flukePath(ctx, sp, SX[it]!, SY[it]!, SA[it]!, SW[it]!, fore, 0);
+  softFill(ctx, underwater(sp.col.body, mf), blur, alpha * (0.85 + 0.15 * fore));
+  // Грудные плавники: расставлены, медленно и независимо «дышат»; светлая исподняя сторона — тонкой кромкой.
+  const fi = idx(sp, sp.finS), flexL = 0.08 * noise1(T * 0.45, c.seed), flexR = 0.08 * noise1(T * 0.45, c.seed + 11);
   ctx.beginPath();
-  finPath(ctx, SX[fi]! + NX[fi]! * SW[fi]! * 0.85, SY[fi]! + NY[fi]! * SW[fi]! * 0.85, SA[fi]!, 1, L * sp.finLen, L * sp.finChord, sp.finSweep + flutter, sp.finRound);
-  finPath(ctx, SX[fi]! - NX[fi]! * SW[fi]! * 0.85, SY[fi]! - NY[fi]! * SW[fi]! * 0.85, SA[fi]!, -1, L * sp.finLen, L * sp.finChord, sp.finSweep - flutter, sp.finRound);
+  finPath(ctx, sp, SX[fi]! + NX[fi]! * SW[fi]! * 0.85, SY[fi]! + NY[fi]! * SW[fi]! * 0.85, SA[fi]!, 1, flexR);
+  finPath(ctx, sp, SX[fi]! - NX[fi]! * SW[fi]! * 0.85, SY[fi]! - NY[fi]! * SW[fi]! * 0.85, SA[fi]!, -1, flexL);
   softFill(ctx, finColor, blur, alpha);
-  spinePath(ctx, 0, N - 1, 1, L * sp.beak, sp.noseRound);
-  softFill(ctx, underwater(sp.col.body, m), blur, alpha);
-  if (lod || sp.kind === "orca") { ctx.save(); ctx.clip(); drawPattern(ctx, c, m, alpha, lod, T); ctx.restore(); }
-  if (lod) drawDetails(ctx, c, m, alpha);
+  ctx.strokeStyle = paleColor; ctx.globalAlpha = alpha * 0.55 * (1 - m); ctx.lineWidth = L * 0.009; ctx.lineJoin = "round"; ctx.stroke();
+  spinePath(ctx, 0, it, 1, sp.noseRound);
+  softFill(ctx, body, blur, alpha);
+  if (lod || sp.kind === "orca") { ctx.save(); ctx.clip(); drawPattern(ctx, c, m, alpha, surf, lod, T); ctx.restore(); }
+  if (lod) drawDetails(ctx, c, m, alpha, fine);
   ctx.restore();
 }
 
@@ -634,12 +726,12 @@ interface World { p: Profile; size: number; T: number; whale: Cet; orca: Cet; do
 function createWorld(p: Profile, size: number): World {
   // Отступы от берега: под профилем ещё ~1.6 гекса отмели и песка, дельфинам с их строем нужен запас побольше.
   const whaleCar = makeCarrot(p, size, size * rnd(2.8, 4), size * 0.7), orcaCar = makeCarrot(p, size, size * rnd(2.4, 3.4), size * 0.6), pod = makeCarrot(p, size, size * rnd(2.3, 3), size * 0.35);
-  const whale = makeCet(cetSpec("whale", size), whaleCar, whaleCar.x, whaleCar.y, whaleCar.h);
-  const orca = makeCet(cetSpec("orca", size), orcaCar, orcaCar.x, orcaCar.y, orcaCar.h);
-  const dsp = cetSpec("dolphin", size);
-  const dolphins = [0, 1, 2].map((i) => {
-    const d = makeCet(dsp, null, pod.x - i * dsp.L, pod.y + (i % 2 ? 1 : -1) * i * dsp.L * 0.5, pod.h);
-    d.fdx = -i * dsp.L * 1.15; d.fdy = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * dsp.L * 0.95;
+  const whale = makeCet(cetSpec("whale", size * 1.8, size), whaleCar, whaleCar.x, whaleCar.y, whaleCar.h);
+  const orca = makeCet(cetSpec("orca", size * 1.1, size), orcaCar, orcaCar.x, orcaCar.y, orcaCar.h);
+  const dL = size * 0.55;
+  const dolphins = [1, 0.88, 0.95].map((sc, i) => { // в стае звери чуть разного размера
+    const d = makeCet(cetSpec("dolphin", dL * sc, size), null, pod.x - i * dL, pod.y + (i % 2 ? 1 : -1) * i * dL * 0.5, pod.h);
+    d.fdx = -i * dL * 1.15; d.fdy = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * dL * 0.95;
     return d;
   });
   return { p, size, T: 0, whale, orca, dolphins, cets: [whale, orca, ...dolphins], pod, podNext: rnd(3, 6), gulls: [makeGull(p, size), makeGull(p, size), makeGull(p, size)], flock: makeFlock(p, size, 0), fx: makeFx() };
