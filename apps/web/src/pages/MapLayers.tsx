@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { FOG_COLOR, HEX_SIZE, TERRAIN_COLOR, coastPath, hexCenter, hexPoints } from "../lib/hexmap";
-import { CLOUD_TILE, cloudTile, seaTiles } from "../lib/noise";
+import { CLOUD_TILE, cloudTile, seaTiles, type SeaTiles } from "../lib/noise";
 import type { View } from "../lib/useViewport";
 import type { MapHexDto } from "../lib/api";
 import { ISLET_IMAGES } from "@lotw/domain";
@@ -18,44 +18,61 @@ export type Viewport = { view: View; viewRef: { current: View }; subscribe: (fn:
 // subscribe и viewRef у useViewport стабильны, поэтому эффекты зависят от них, а не от объекта vp (он новый при каждой перерисовке).
 
 /**
- * Море: слой DOM под картой без картинок. Ровный цвет воды и три бесшовные плитки шума (`seaTiles`): две сетки
- * светлых бликов разного масштаба (вторая повёрнута на 90° и плывёт) и крупная зыбь (повёрнута на 180°, плывёт
- * медленнее). У слоёв несоизмеримые периоды и разные направления, поэтому общего повторяющегося рисунка нет.
- * Плитка масштабируется вместе с картой: размер считается под опорный масштаб base, между фиксациями композитор
- * масштабирует слой на k/base; когда отклонение выходит за 0.7…1.4 или жест зафиксирован, плитка перекладывается.
- * Сдвиг привязан к координатам карты: точка (0,0) карты всегда на углу плитки.
+ * Море: canvas в пикселях экрана под картой, без картинок. Ровный цвет воды, две сети бликов-каустики (клеточный
+ * шум, `seaTiles`) разного масштаба и направления, плывущие навстречу и медленно «дышащие» яркостью, и крупная
+ * зыбь. Всё рисуется узорами с точной привязкой к координатам карты на каждом изменении вида, поэтому при
+ * зуме подложка не перекладывается и не прыгает; ~20 кадров в секунду для дрейфа, пауза в скрытой вкладке.
  */
-const SEA_WORLD_TILE = 260;
+const SEA_TILE_WORLD = 340;
+const SEA_LAYERS: ReadonlyArray<{ tile: keyof SeaTiles; scale: number; angle: number; vx: number; vy: number; alpha: number; breathe: number; phase: number }> = [
+  // Масштабы 1 : 1.618 : 2.7 несоизмеримы — периоды слоёв не совпадают, и глаз не находит повтора.
+  { tile: "swell", scale: 2.7, angle: 111, vx: 0.6, vy: -0.4, alpha: 0.85, breathe: 0, phase: 0 },
+  { tile: "causticA", scale: 1, angle: 0, vx: 1.6, vy: 1.1, alpha: 0.24, breathe: 0.3, phase: 0 },
+  { tile: "causticB", scale: 1.618, angle: 37, vx: -1.3, vy: 0.9, alpha: 0.17, breathe: 0.35, phase: 2.1 },
+];
 export function SeaLayer({ vp }: { vp: Viewport }) {
-  const pos = useRef<HTMLDivElement>(null);
-  const [base, setBase] = useState(vp.view.k);
-  const baseRef = useRef(base); baseRef.current = base;
-  const T = Math.max(64, Math.round(SEA_WORLD_TILE * base));
-  const tiles = useMemo(() => (typeof document === "undefined" ? null : seaTiles()), []);
-  const apply = (v: View) => {
-    const el = pos.current; if (!el) return;
-    const s = v.k / baseRef.current;
-    const ts = T * s;
-    const ox = ((v.tx % ts) + ts) % ts, oy = ((v.ty % ts) + ts) % ts;
-    el.style.transform = `translate(${(ox - 2 * ts).toFixed(2)}px, ${(oy - 2 * ts).toFixed(2)}px) scale(${s.toFixed(5)})`;
-  };
-  useEffect(() => vp.subscribe((v) => {
-    const s = v.k / baseRef.current;
-    if (s < 0.7 || s > 1.4) { setBase(v.k); return; }
-    apply(v);
-  }), [vp.subscribe, T]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (vp.view.k !== baseRef.current) setBase(vp.view.k); }, [vp.view.k]);
-  useLayoutEffect(() => { apply(vp.viewRef.current); }, [base, T]); // eslint-disable-line react-hooks/exhaustive-deps
-  const vars = tiles ? { ["--sea-a" as string]: `url("${tiles.veinsA}")`, ["--sea-b" as string]: `url("${tiles.veinsB}")`, ["--sea-c" as string]: `url("${tiles.swell}")` } : {};
-  return (
-    <div className="sea-layer" style={{ ["--tile" as string]: `${T}px`, ...vars }} aria-hidden>
-      <div ref={pos} className="sea-pos">
-        <div className="sea-swell" />
-        <div className="sea-base" />
-        <div className="sea-waves" />
-      </div>
-    </div>
-  );
+  const ref = useRef<HTMLCanvasElement>(null);
+  const vpRef = useRef(vp); vpRef.current = vp;
+  useEffect(() => {
+    const canvas = ref.current, host = canvas?.parentElement;
+    if (!canvas || !host) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const tiles = seaTiles();
+    const patterns = SEA_LAYERS.map((l) => ctx.createPattern(tiles[l.tile], "repeat")!);
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // воде хватает: экономим заливку на телефонах
+    let W = 0, H = 0, dirty = true, raf = 0, lastDraw = 0;
+    const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } dirty = true; };
+    const draw = (now: number) => {
+      const { k, tx, ty } = vpRef.current.viewRef.current;
+      const t = still ? 0 : now / 1000;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.fillStyle = "#3A82A4"; ctx.fillRect(0, 0, W, H);
+      ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
+      const x0 = -tx / k, y0 = -ty / k, w = W / dpr / k, h = H / dpr / k;
+      SEA_LAYERS.forEach((l, i) => {
+        const s = (SEA_TILE_WORLD * l.scale) / CLOUD_TILE;
+        patterns[i]!.setTransform(new DOMMatrix().translate(l.vx * t, l.vy * t).rotate(l.angle).scale(s));
+        ctx.globalAlpha = l.alpha * (1 - l.breathe * 0.5 + l.breathe * 0.5 * Math.sin(t * 0.35 + l.phase));
+        ctx.globalCompositeOperation = l.tile === "swell" ? "source-over" : "lighter"; // блики складываются светом, а не закрашивают
+        ctx.fillStyle = patterns[i]!;
+        ctx.fillRect(x0, y0, w, h);
+      });
+      ctx.globalAlpha = 1; ctx.globalCompositeOperation = "source-over";
+    };
+    const loop = (now: number) => {
+      raf = requestAnimationFrame(loop);
+      if (document.hidden) return;
+      if (!dirty && (still || now - lastDraw < 50)) return;
+      dirty = false; lastDraw = now; draw(now);
+    };
+    const unsub = vpRef.current.subscribe(() => { dirty = true; });
+    const ro = new ResizeObserver(resize); ro.observe(host);
+    resize(); raf = requestAnimationFrame(loop);
+    return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); };
+  }, [vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <canvas ref={ref} className="fx-layer sea" aria-hidden="true" />;
 }
 
 /**

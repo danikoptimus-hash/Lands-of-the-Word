@@ -61,23 +61,62 @@ function tileFrom(field: Float32Array, rgb: [number, number, number], alpha: (v:
   return c;
 }
 
-let sea: { veinsA: string; veinsB: string; swell: string } | null = null;
 /**
- * Море без картинок: три бесшовные плитки шума, каждая со своим seed. «Жилки» — гребни шума (1 − |2n − 1|) в
- * высокой степени: тонкие светлые сетки бликов, как на воде; «зыбь» — крупные тёмные и светлые пятна. Плитки
- * кладутся слоями разного масштаба и направления, поэтому общего периода у рисунка нет.
+ * Клеточный (Worley) шум, периодичный по плитке: cells×cells случайных точек, для каждого пикселя — расстояния до
+ * ближайшей (F1) и второй (F2) с переносом через край. Координаты пикселя перед поиском искажаются плавным шумом
+ * (domain warp), поэтому границы ячеек не прямые, а изогнутые — как настоящие блики на воде.
  */
-export function seaTiles(): { veinsA: string; veinsB: string; swell: string } {
+function worley(seed: number, cells: number, warp: number): { f1: Float32Array; f2: Float32Array } {
+  let st = seed >>> 0;
+  const rnd = () => { st = (st * 1664525 + 1013904223) >>> 0; return st / 4294967296; };
+  const px = new Float32Array(cells * cells), py = new Float32Array(cells * cells);
+  for (let i = 0; i < cells * cells; i++) { px[i] = rnd(); py[i] = rnd(); }
+  const wx = noiseField([[4, seed + 7, 0.6], [9, seed + 13, 0.3], [19, seed + 17, 0.1]]);
+  const wy = noiseField([[4, seed + 23, 0.6], [9, seed + 29, 0.3], [19, seed + 31, 0.1]]);
+  const f1 = new Float32Array(TILE * TILE), f2 = new Float32Array(TILE * TILE);
+  const cs = TILE / cells;
+  for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) {
+    const k = y * TILE + x;
+    // Искажённая точка выборки (по тору), в ячейках.
+    const sx = ((x + (wx[k]! - 0.5) * warp) % TILE + TILE) % TILE / cs, sy = ((y + (wy[k]! - 0.5) * warp) % TILE + TILE) % TILE / cs;
+    const cx = Math.floor(sx), cy = Math.floor(sy);
+    let a = Infinity, b = Infinity;
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+      const gx = (cx + dx + cells) % cells, gy = (cy + dy + cells) % cells;
+      const i = gy * cells + gx;
+      const d = Math.hypot(cx + dx + px[i]! - sx, cy + dy + py[i]! - sy);
+      if (d < a) { b = a; a = d; } else if (d < b) b = d;
+    }
+    f1[k] = a; f2[k] = b;
+  }
+  return { f1, f2 };
+}
+
+export interface SeaTiles { causticA: HTMLCanvasElement; causticB: HTMLCanvasElement; swell: HTMLCanvasElement }
+let sea: SeaTiles | null = null;
+/**
+ * Море без картинок: две плитки каустики (искажённый клеточный шум разной плотности: тонкие изогнутые светлые линии
+ * на границах ячеек, гаснущие пятнами по маске из плавного шума) и плитка зыби (крупный шум, затемнение). Считается один раз.
+ */
+export function seaTiles(): SeaTiles {
   if (sea) return sea;
-  // Жилки тонкие и негромкие: высокая степень сужает гребень, множитель гасит яркость; в воде блики намёком, не сеткой.
-  const veins = (v: number) => { const r = 1 - Math.abs(2 * v - 1); return 255 * Math.pow(r, 12) * 0.62; };
-  const a = noiseField([[9, 101, 0.5], [17, 131, 0.3], [37, 151, 0.15], [71, 181, 0.07]]);
-  const b = noiseField([[8, 211, 0.5], [19, 241, 0.3], [41, 271, 0.15], [83, 307, 0.06]]);
-  const c = noiseField([[3, 401, 0.6], [7, 431, 0.3], [19, 461, 0.1]]);
+  const caustic = (seed: number, cells: number, width: number, warp: number, rgb: [number, number, number]) => {
+    const { f1, f2 } = worley(seed, cells, warp);
+    const mask = noiseField([[3, seed + 41, 0.6], [7, seed + 43, 0.3], [15, seed + 47, 0.1]]);
+    const field = new Float32Array(TILE * TILE);
+    for (let i = 0; i < field.length; i++) {
+      const e = (f2[i]! - f1[i]!) / width;
+      const line = Math.exp(-e * e);                       // мягкая линия по границе ячейки
+      const m = Math.min(1, Math.max(0, (mask[i]! - 0.3) / 0.5)); // блики пятнами: где маска низкая — их нет
+      field[i] = line * (0.35 + 0.65 * m);
+    }
+    return tileFrom(field, rgb, (v) => 255 * v);
+  };
+  const swellField = noiseField([[3, 401, 0.6], [7, 431, 0.3], [19, 461, 0.1]]);
   sea = {
-    veinsA: tileFrom(a, [222, 240, 244], veins).toDataURL("image/png"),
-    veinsB: tileFrom(b, [208, 234, 240], veins).toDataURL("image/png"),
-    swell: tileFrom(c, [22, 66, 92], (v) => 255 * Math.max(0, v - 0.42) * 0.6).toDataURL("image/png"),
+    causticA: caustic(9001, 12, 0.16, 70, [226, 245, 247]),
+    causticB: caustic(9103, 17, 0.14, 90, [216, 240, 244]),
+    swell: tileFrom(swellField, [18, 58, 84], (v) => 255 * Math.max(0, v - 0.4) * 0.7),
   };
   return sea;
 }
