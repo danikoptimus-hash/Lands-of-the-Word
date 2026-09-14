@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { generateIslets, type Bounds, type Islet } from "@lotw/domain";
-import { HEX_SIZE, coastPath, hexCenter, hexPoints } from "../lib/hexmap";
+import { SHAPE_N, generateIslets, type Bounds, type Islet } from "@lotw/domain";
+import { HEX_SIZE, TERRAIN_COLOR, hexCenter, hexPoints } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
 import { CoastOver, CoastUnder } from "./MapLayers";
 
@@ -10,43 +10,56 @@ export function useIslets(hexes: MapHexDto[], size: number, bounds: Bounds | nul
   return useMemo(() => (bounds && hexes.length ? generateIslets(hexes, size, bounds) : []), [key, size, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
+const f1 = (n: number) => n.toFixed(1);
+
+/** Замкнутый гладкий контур островка (Катмулл-Ром → кубические Безье). */
+function isletPath(isl: Islet): string {
+  const pts: Array<[number, number]> = [];
+  for (let i = 0; i < SHAPE_N; i++) {
+    const a = (i / SHAPE_N) * Math.PI * 2, d = isl.r * isl.shape[i]!;
+    pts.push([isl.x + Math.cos(a) * d, isl.y + Math.sin(a) * d]);
+  }
+  const n = pts.length, P = (i: number) => pts[((i % n) + n) % n]!;
+  let d = `M${f1(P(0)[0])},${f1(P(0)[1])}`;
+  for (let i = 0; i < n; i++) {
+    const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
+    d += `C${f1(p1[0] + (p2[0] - p0[0]) / 6)},${f1(p1[1] + (p2[1] - p0[1]) / 6)} ${f1(p2[0] - (p3[0] - p1[0]) / 6)},${f1(p2[1] - (p3[1] - p1[1]) / 6)} ${f1(p2[0])},${f1(p2[1])}`;
+  }
+  return d + "Z";
+}
+
 /**
- * Островки: те же гексы местности, что и на поле (узоры из HexTiles по clipId), без сетки, с тем же берегом —
- * отмель, песок, растворение песка в местность. Слой без событий; лежит под берегом поля в SVG мира.
+ * Островки: плавный контур, внутри — те же картинки местности, что и на поле (узоры HexTiles по clipId),
+ * положенные мягкими пятнами размером с гекс с радиальной маской: стыки растворяются, решётки не видно.
+ * Берег — как у поля (отмель, песок), у маленьких островков уже. Слой без событий, лежит под берегом поля.
  */
 export function IsletsLayer({ islets, clipId, size = HEX_SIZE }: { islets: Islet[]; clipId: string; size?: number }) {
   if (!islets.length) return null;
-  const poly = hexPoints(size, 1.01);
-  // Мягкий слой: тот же гекс, увеличенный в 1.5 раза, с радиальной маской (непрозрачен в центре, тает к краю).
-  // Поверх жёстких гексов он размывает стыки местностей — переходы между текстурами становятся плавными.
-  const soft = hexPoints(size, 1.5);
+  const patch = hexPoints(size, 1.6);
   const maskId = `${clipId}-soft`;
   return (
     <g className="islets coast" pointerEvents="none">
       <defs>
         <radialGradient id={`${maskId}-g`} cx="0.5" cy="0.5" r="0.5">
           <stop offset="0" stopColor="#fff" />
-          <stop offset="0.45" stopColor="#fff" />
+          <stop offset="0.4" stopColor="#fff" />
           <stop offset="1" stopColor="#000" />
         </radialGradient>
         <mask id={maskId} maskContentUnits="objectBoundingBox"><rect width="1" height="1" fill={`url(#${maskId}-g)`} /></mask>
       </defs>
       {islets.map((isl, i) => {
-        const d = coastPath(isl.hexes, size);
-        // Берег у маленьких островков уже, иначе песок съедает всю сушу.
-        const sc = isl.hexes.length <= 2 ? 0.58 : 0.75;
+        const d = isletPath(isl);
+        const sc = Math.min(1, Math.max(0.45, isl.r / (size * 2.4)));
+        const base = isl.cells[0]?.terrain ?? "meadow";
         return (
           <g key={i}>
             <CoastUnder d={d} size={size} scale={sc} />
             <clipPath id={`${clipId}-isl-${i}`}><path d={d} /></clipPath>
-            {isl.hexes.map((h) => {
-              const c = hexCenter(h, size);
-              return <polygon key={`${h.q},${h.r}`} points={poly} transform={`translate(${c.x},${c.y})`} fill={`url(#${clipId}-${h.terrain}-${h.rotation % 6})`} />;
-            })}
             <g clipPath={`url(#${clipId}-isl-${i})`}>
-              {isl.hexes.map((h) => {
-                const c = hexCenter(h, size);
-                return <polygon key={`s${h.q},${h.r}`} points={soft} transform={`translate(${c.x},${c.y})`} fill={`url(#${clipId}-${h.terrain}-${h.rotation % 6})`} mask={`url(#${maskId})`} />;
+              <path d={d} fill={TERRAIN_COLOR[base] ?? TERRAIN_COLOR.meadow} />
+              {isl.cells.map((c) => {
+                const p = hexCenter(c, size);
+                return <polygon key={`${c.q},${c.r}`} points={patch} transform={`translate(${p.x},${p.y})`} fill={`url(#${clipId}-${c.terrain}-${c.rotation % 6})`} mask={`url(#${maskId})`} />;
               })}
             </g>
             <CoastOver d={d} size={size} scale={sc} />

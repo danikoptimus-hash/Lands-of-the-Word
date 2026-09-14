@@ -36,7 +36,7 @@ function islandProfile(hexes: MapHexDto[], size: number, islets: Islet[]): Profi
   }
   const maxR = Math.max(...r);
   for (let i = 0; i < BINS; i++) if (r[i] === 0) r[i] = maxR;
-  const isles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r }));
+  const isles = islets.map((i) => ({ x: i.x, y: i.y, r: i.cover }));
   return { cx, cy, r, maxR, isles };
 }
 /** Радиус профиля под любым углом (угол не обязан быть в −π…π). */
