@@ -29,7 +29,7 @@ describe("islets", () => {
     const a = generateIslets(hexes, SIZE, b), c = generateIslets(hexes, SIZE, b);
     expect(JSON.stringify(a)).toBe(JSON.stringify(c));
     expect(isletSeed(hexes)).toBe(isletSeed([...hexes].reverse()));
-    expect(a.length).toBeGreaterThanOrEqual(5);
+    expect(a.length).toBeGreaterThanOrEqual(6);
     expect(new Set(a.map((i) => i.img)).size).toBeGreaterThanOrEqual(4);
     for (const i of a) { expect(i.img).toBeGreaterThanOrEqual(1); expect(i.img).toBeLessThanOrEqual(6); expect(i.cover).toBeGreaterThan(i.r * 0.5); }
   });
@@ -42,7 +42,7 @@ describe("islets", () => {
       expect(isl.x + isl.cover).toBeLessThanOrEqual(f.minX + f.width);
       expect(isl.y - isl.cover).toBeGreaterThanOrEqual(f.minY);
       expect(isl.y + isl.cover).toBeLessThanOrEqual(f.minY + f.height);
-      for (const c of centers) expect(Math.hypot(c.x - isl.x, c.y - isl.y)).toBeGreaterThan(isl.cover + SIZE * 3);
+      for (const c of centers) expect(Math.hypot(c.x - isl.x, c.y - isl.y)).toBeGreaterThan(isl.cover + SIZE * 2.5);
       for (const o of islets) if (o !== isl) expect(Math.hypot(o.x - isl.x, o.y - isl.y)).toBeGreaterThan(isl.cover + o.cover);
       // Контур целиком внутри круга cover.
       for (let k = 0; k < 24; k++) expect(isletRadiusAt(isl, (k / 24) * Math.PI * 2)).toBeLessThanOrEqual(isl.cover);

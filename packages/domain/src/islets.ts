@@ -20,8 +20,8 @@ export interface Islet {
   cover: number;
 }
 
-/** Запас моря вокруг поля (в долях большей стороны поля): в нём живут островки и до него можно листать карту. */
-export const SEA_MARGIN = 0.6;
+/** Запас моря вокруг поля (в долях большей стороны поля): в нём живут острова и до него можно листать карту. */
+export const SEA_MARGIN = 1.0;
 export function seaField(b: Bounds): Bounds {
   const m = Math.max(b.width, b.height) * SEA_MARGIN;
   return { minX: b.minX - m, minY: b.minY - m, width: b.width + 2 * m, height: b.height + 2 * m };
@@ -47,20 +47,17 @@ export function isletRadiusAt(isl: { r: number; shape: number[] }, angle: number
 }
 
 /**
- * План раскладки: какие картинки и какого размера (половина стороны картинки в радиусах гекса). Масштаб деталей —
- * как у поля (решение владельца): пальма на острове не больше пальмы у города, поэтому остров — примерно
- * полторы картинки города (r ≈ 0.8 гекса), песчаная банка с одной пальмой — совсем маленькая. Чтобы море не
- * пустовало, островков четырнадцать: каждая картинка дважды в разных размерах, банка — трижды.
+ * План раскладки: какие картинки и какого размера (половина стороны картинки в радиусах гекса). Размер островов —
+ * решение владельца: самый большой около четверти площади главного острова (r ≈ 3.6 гекса при поле из ~70 гексов),
+ * остальные меньше; детали на картинках должны быть в масштабе поля.
  */
 const PLAN: ReadonlyArray<{ img: number; lo: number; hi: number }> = [
-  { img: 1, lo: 0.82, hi: 0.92 }, { img: 5, lo: 0.8, hi: 0.9 },   // зелёные круглые
-  { img: 2, lo: 0.74, hi: 0.84 }, { img: 6, lo: 0.74, hi: 0.84 }, // скалистые гряды
-  { img: 4, lo: 0.66, hi: 0.76 },                                 // полумесяц с лагуной
-  { img: 3, lo: 0.26, hi: 0.32 },                                 // песчаная банка с пальмой
-  { img: 1, lo: 0.72, hi: 0.8 }, { img: 5, lo: 0.7, hi: 0.78 },
-  { img: 2, lo: 0.64, hi: 0.72 }, { img: 6, lo: 0.64, hi: 0.72 },
-  { img: 4, lo: 0.58, hi: 0.66 },
-  { img: 3, lo: 0.22, hi: 0.28 }, { img: 3, lo: 0.2, hi: 0.26 },
+  { img: 1, lo: 3.4, hi: 3.8 }, { img: 5, lo: 3.0, hi: 3.4 },   // зелёные круглые
+  { img: 2, lo: 2.6, hi: 3.0 }, { img: 6, lo: 2.6, hi: 3.0 },   // скалистые гряды
+  { img: 4, lo: 2.4, hi: 2.8 },                                 // полумесяц с лагуной
+  { img: 3, lo: 1.3, hi: 1.6 },                                 // песчаная банка с пальмой
+  { img: 5, lo: 2.0, hi: 2.4 }, { img: 1, lo: 1.8, hi: 2.2 },
+  { img: 3, lo: 1.0, hi: 1.3 },
 ];
 
 /** Раскладка в поясе моря вокруг поля: островок не подходит к полю ближе, чем отмель и песок берега, и не пересекается с соседями. */
@@ -73,13 +70,13 @@ export function generateIslets(fieldHexes: ReadonlyArray<Hex>, size: number, bou
   for (const item of PLAN) {
     const spec = ISLET_IMAGES.find((s) => s.img === item.img)!;
     const r = size * between(rng, item.lo, item.hi);
-    const cover = r * spec.maxR + Math.min(size * 1.4, r * 1.2);
-    for (let tries = 0; tries < 80; tries++) {
+    const cover = r * spec.maxR + size * 1.2;
+    for (let tries = 0; tries < 200; tries++) {
       const x = between(rng, field.minX + cover, field.minX + field.width - cover);
       const y = between(rng, field.minY + cover, field.minY + field.height - cover);
-      // Не ближе к любому гексу поля, чем его отмель (size × 3.4 от центра гекса) плюс своя отмель.
-      if (centers.some((c) => Math.hypot(c.x - x, c.y - y) < cover + size * 3.2)) continue;
-      if (out.some((o) => Math.hypot(o.x - x, o.y - y) < cover + o.cover + size * 1.5)) continue;
+      // Не ближе к любому гексу поля, чем его отмель (size × 2.6 от центра гекса) плюс своя отмель.
+      if (centers.some((c) => Math.hypot(c.x - x, c.y - y) < cover + size * 2.6)) continue;
+      if (out.some((o) => Math.hypot(o.x - x, o.y - y) < cover + o.cover + size * 1.2)) continue;
       out.push({ x, y, r, shape: spec.shape, img: item.img, cover });
       break;
     }

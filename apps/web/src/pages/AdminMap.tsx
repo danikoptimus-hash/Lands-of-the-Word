@@ -98,9 +98,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         ) : (<>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
           <SeaLayer vp={vp} />
+          <IsletsLayer vp={vp} islets={islets} size={size} />
           <WorldSvg vp={vp} bounds={bounds}>
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
-            <IsletsLayer islets={islets} size={size} />
             <CoastUnder d={coast} size={size} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
             <CoastOver d={coast} size={size} />

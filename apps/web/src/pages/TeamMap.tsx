@@ -81,10 +81,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   return (
     <div ref={vp.ref} {...vp.handlers} className="map-canvas">
       <SeaLayer vp={vp} />
+      <IsletsLayer vp={vp} islets={islets} size={size} />
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
         <OutlineDefs colors={owners} />
-        <IsletsLayer islets={islets} size={size} />
         <CoastUnder d={coast} size={size} />
         <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" />
         <CoastOver d={coast} size={size} />
