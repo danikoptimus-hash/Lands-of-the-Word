@@ -12,6 +12,7 @@ import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { FaunaLayer } from "./Fauna";
+import { IsletsLayer, useIslets } from "./Islets";
 import { Sheet } from "../components/Sheet";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
@@ -53,6 +54,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   }, [progress]);
   useEffect(() => { reportPage("admin-map"); }, []);
   const coast = useCoast(hexes, size);
+  const islets = useIslets(hexes, size, bounds);
   // «Глазами команды»: карта, какой её видит выбранная команда; обновляется вместе с остальным по событиям игры.
   const [viewAs, setViewAs] = useState<string | null>(null);
   const [teamView, setTeamView] = useState<{ teamId: string; map: (MyMapDto & { teamIndex: number }) | null; error: string | null } | null>(null);
@@ -92,6 +94,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <SeaLayer vp={vp} />
           <WorldSvg vp={vp} bounds={bounds}>
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
+            <IsletsLayer islets={islets} size={size} />
             <CoastUnder d={coast} size={size} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
             <CoastOver d={coast} size={size} />
@@ -152,7 +155,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               })}
             </g>
           </WorldSvg>
-          <FaunaLayer vp={vp} hexes={hexes} size={size} />
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} />
         </div>
         <div className="map-controls">
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>

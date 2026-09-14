@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { seaField } from "@lotw/domain";
 
 export interface View { k: number; tx: number; ty: number }
 export interface Bounds { minX: number; minY: number; width: number; height: number }
@@ -32,15 +33,21 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     const k = clampK(v.k);
     const f = k / v.k;
     let tx = w / 2 - (w / 2 - v.tx) * f, ty = h / 2 - (h / 2 - v.ty) * f;
-    // Поле карты не выходит из окна дальше, чем на запас моря по краям (решение владельца: листать можно
-    // примерно на треть экрана в каждую сторону); если поле с запасом уже окна — оно по центру.
+    // Два правила, действует более щедрое из них (объединение диапазонов):
+    // 1) поле не уходит из окна дальше, чем на треть экрана (решение владельца) — так при отдалении карту
+    //    всё ещё можно чуть сдвинуть; 2) окно не выходит за пояс моря вокруг поля (там островки) — при
+    //    приближении можно листать далеко в море, край пояса растёт вместе с масштабом.
     const m = Math.min(w, h) * 0.32;
     const cw = b.width * k, ch = b.height * k;
     const x0 = b.minX * k, y0 = b.minY * k;
-    // Поле может гулять внутри рамки с отступом m от краёв окна: и когда оно больше рамки, и когда меньше.
     const lx = w - m - (x0 + cw), hx = m - x0, ly = h - m - (y0 + ch), hy = m - y0;
-    tx = Math.min(Math.max(tx, Math.min(lx, hx)), Math.max(lx, hx));
-    ty = Math.min(Math.max(ty, Math.min(ly, hy)), Math.max(ly, hy));
+    const sf = seaField(b);
+    const sx0 = sf.minX * k, sy0 = sf.minY * k, sw = sf.width * k, sh = sf.height * k;
+    // Окно внутри пояса: tx ∈ [w − правый край, −левый край]; если пояс уже окна — по центру.
+    const [slx, shx] = sw >= w ? [w - (sx0 + sw), -sx0] : [(w - sw) / 2 - sx0, (w - sw) / 2 - sx0];
+    const [sly, shy] = sh >= h ? [h - (sy0 + sh), -sy0] : [(h - sh) / 2 - sy0, (h - sh) / 2 - sy0];
+    tx = Math.min(Math.max(tx, Math.min(lx, hx, slx, shx)), Math.max(lx, hx, slx, shx));
+    ty = Math.min(Math.max(ty, Math.min(ly, hy, sly, shy)), Math.max(ly, hy, sly, shy));
     return { k, tx, ty };
   }, []);
 

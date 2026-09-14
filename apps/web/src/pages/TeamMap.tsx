@@ -7,6 +7,7 @@ import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
 import { CoastOver, CoastUnder, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
 import { FaunaLayer } from "./Fauna";
+import { IsletsLayer, useIslets } from "./Islets";
 import { t } from "../lib/i18n";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -40,6 +41,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const [ripple, setRipple] = useState<{ x: number; y: number; n: number } | null>(null);
   useEffect(() => { reportPage("map"); }, []);
   const coast = useCoast(map.hexes, size);
+  const islets = useIslets(map.hexes, size, bounds);
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
 
@@ -69,6 +71,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
         <OutlineDefs colors={owners} />
+        <IsletsLayer islets={islets} size={size} />
         <CoastUnder d={coast} size={size} />
         <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" />
         <CoastOver d={coast} size={size} />
@@ -101,7 +104,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         })}
       </WorldSvg>
       {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
-      <FaunaLayer vp={vp} hexes={map.hexes} size={size} />
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
           {map.revealed.map((n) => {

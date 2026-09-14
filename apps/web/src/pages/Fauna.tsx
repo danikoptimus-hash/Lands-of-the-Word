@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { HEX_SIZE, hexCenter } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
 import type { Viewport } from "./MapLayers";
+import type { Islet } from "@lotw/domain";
 
 /**
  * Живность на карте: горбатый кит, косатка и стайка дельфинов плывут вокруг острова по воде (по профилю берега),
@@ -17,10 +18,12 @@ import type { Viewport } from "./MapLayers";
 
 // ───────────────────────────── Профиль острова ─────────────────────────────
 const BINS = 72;
-interface Profile { cx: number; cy: number; r: number[]; maxR: number }
+/** Островки в море как круги (центр, радиус с запасом): звери их обходят. */
+interface Isle { x: number; y: number; r: number }
+interface Profile { cx: number; cy: number; r: number[]; maxR: number; isles: Isle[] }
 
 /** Профиль острова: для каждого сектора угла — наибольшее расстояние до края гекса от центра острова. */
-function islandProfile(hexes: MapHexDto[], size: number): Profile | null {
+function islandProfile(hexes: MapHexDto[], size: number, islets: Islet[]): Profile | null {
   if (!hexes.length) return null;
   const cs = hexes.map((h) => hexCenter(h, size));
   const cx = cs.reduce((a, c) => a + c.x, 0) / cs.length, cy = cs.reduce((a, c) => a + c.y, 0) / cs.length;
@@ -33,7 +36,8 @@ function islandProfile(hexes: MapHexDto[], size: number): Profile | null {
   }
   const maxR = Math.max(...r);
   for (let i = 0; i < BINS; i++) if (r[i] === 0) r[i] = maxR;
-  return { cx, cy, r, maxR };
+  const isles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r * Math.max(...i.shape) }));
+  return { cx, cy, r, maxR, isles };
 }
 /** Радиус профиля под любым углом (угол не обязан быть в −π…π). */
 function radiusAt(p: Profile, angle: number): number {
@@ -198,9 +202,22 @@ function cetSpec(kind: CetKind, L: number, size: number): CetSpec {
  */
 interface Carrot { off: number; wob: number; seed: number; x: number; y: number; h: number; x0: number; y0: number; x1: number; y1: number; len: number; t: number; wait: number }
 /** Радиус, с которого зверь входит в кадр: заведомо дальше видимого моря при виде «вся карта». */
-const farR = (p: Profile, size: number) => p.maxR * 1.7 + size * 8;
+const farR = (p: Profile, size: number) => p.maxR * 2.5 + size * 8;
+/** Расстояние от точки до отрезка. */
+function segDist(x: number, y: number, x0: number, y0: number, x1: number, y1: number): number {
+  const dx = x1 - x0, dy = y1 - y0, l2 = dx * dx + dy * dy || 1;
+  const t = clamp(((x - x0) * dx + (y - y0) * dy) / l2, 0, 1);
+  return Math.hypot(x - (x0 + dx * t), y - (y0 + dy * t));
+}
+/** Прямая маршрута не должна проходить сквозь островки (с запасом на отмель и меандр): иначе выбираем другую. */
+const crossesIsle = (p: Profile, x0: number, y0: number, x1: number, y1: number, off: number) => p.isles.some((i) => segDist(i.x, i.y, x0, y0, x1, y1) < i.r + off);
 function carrotRoute(car: Carrot, p: Profile, size: number): void {
-  const a = rnd(-Math.PI, Math.PI), b = a + Math.PI + rnd(-0.9, 0.9), R = farR(p, size);
+  const R = farR(p, size);
+  let a = 0, b = 0;
+  for (let tries = 0; tries < 12; tries++) {
+    a = rnd(-Math.PI, Math.PI); b = a + Math.PI + rnd(-0.9, 0.9);
+    if (tries === 11 || !crossesIsle(p, p.cx + Math.cos(a) * R, p.cy + Math.sin(a) * R, p.cx + Math.cos(b) * R, p.cy + Math.sin(b) * R, car.off + car.wob + size)) break;
+  }
   car.x0 = p.cx + Math.cos(a) * R; car.y0 = p.cy + Math.sin(a) * R;
   car.x1 = p.cx + Math.cos(b) * R; car.y1 = p.cy + Math.sin(b) * R;
   car.len = Math.hypot(car.x1 - car.x0, car.y1 - car.y0); car.t = 0; car.wait = 0;
@@ -281,9 +298,16 @@ const axisX = (c: Cet, u: number) => c.x + Math.cos(c.h) * u, axisY = (c: Cet, u
 function keepInWater(c: Cet, p: Profile, clearance: number): void {
   const dx = c.x - p.cx, dy = c.y - p.cy, d = Math.hypot(dx, dy);
   const ang = Math.atan2(dy, dx), minR = radiusAt(p, ang) + clearance;
-  if (d >= minR) return;
+  if (d < minR) pushOut(c, p.cx, p.cy, ang, minR);
+  // Островки — то же правило, круг вместо профиля.
+  for (const i of p.isles) {
+    const ix = c.x - i.x, iy = c.y - i.y, id = Math.hypot(ix, iy), ir = i.r + clearance * 0.8;
+    if (id < ir) pushOut(c, i.x, i.y, Math.atan2(iy, ix), ir);
+  }
+}
+function pushOut(c: Cet, cx: number, cy: number, ang: number, minR: number): void {
   const nx = Math.cos(ang), ny = Math.sin(ang);
-  c.x = p.cx + nx * minR; c.y = p.cy + ny * minR;
+  c.x = cx + nx * minR; c.y = cy + ny * minR;
   const hx = Math.cos(c.h), hy = Math.sin(c.h), dot = hx * nx + hy * ny;
   if (dot < 0) c.h = Math.atan2(hy - dot * ny, hx - dot * nx);
 }
@@ -802,10 +826,11 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis)
 }
 
 // ───────────────────────────── Слой ─────────────────────────────
-export function FaunaLayer({ vp, hexes, size = HEX_SIZE }: { vp: Viewport; hexes: MapHexDto[]; size?: number }) {
+const NO_ISLETS: Islet[] = [];
+export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE }: { vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const key = hexes.length ? `${hexes.length}:${hexes[0]!.q},${hexes[0]!.r}` : "";
-  const profile = useMemo(() => islandProfile(hexes, size), [key, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const profile = useMemo(() => islandProfile(hexes, size, islets), [key, size, islets]); // eslint-disable-line react-hooks/exhaustive-deps
   const profileRef = useRef(profile); profileRef.current = profile;
   // vp — новый объект при каждой перерисовке карты; мир живности от него зависеть не должен, иначе звери
   // пересоздавались бы после каждого жеста и «исчезали».
