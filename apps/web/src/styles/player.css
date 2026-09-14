@@ -70,7 +70,8 @@
 @media (prefers-reduced-motion: reduce) { .m-land .pulse { animation: none; opacity: .6; } }
 /* Подписи островов при отдалении: крупно, полупрозрачно, без событий. */
 .m-island { pointer-events: none; }
-.m-island text { font-family: Georgia, "Times New Roman", serif; font-size: 26px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; fill: rgba(31, 27, 22, .42); stroke: rgba(255, 250, 240, .55); stroke-width: 4px; paint-order: stroke fill; }
+/* Название острова: тёмные буквы с плотной светлой обводкой — читается и на облаках тумана, и на местности, и на воде. */
+.m-island text { font-family: Georgia, "Times New Roman", serif; font-size: 24px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; fill: #2b241d; stroke: rgba(255, 250, 240, .92); stroke-width: 6px; stroke-linejoin: round; paint-order: stroke fill; }
 .landing-banner { border-color: var(--success); color: var(--success); gap: var(--sp-3); width: calc(100% - 2 * var(--sp-4)); max-width: 520px; }
 .landing-banner span { flex: 1 1 auto; min-width: 0; }
 .landing-banner button { flex: none; }

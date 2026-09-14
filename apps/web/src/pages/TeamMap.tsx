@@ -201,9 +201,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
+          {/* Названия островов при отдалении почти не уменьшаются (не меньше 0.8): их должно быть видно с любой высоты. */}
           {!fullLabels && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => (
-            <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${inv})`}>
-              <text textAnchor="middle" dy="0.35em">{isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")}</text>
+            <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${Math.max(ui, 0.8) / k})`}>
+              <text textAnchor="middle">{(isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")).split(" ").map((w, i) => <tspan key={i} x={0} dy={i === 0 ? "-0.25em" : "1.1em"}>{w}</tspan>)}</text>
             </g>
           ))}
           {ripple && <g transform={`translate(${ripple.x},${ripple.y}) scale(${inv})`}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
