@@ -50,8 +50,7 @@ function coverRadius(hexes: Hex[], cx: number, cy: number, size: number): number
 
 /**
  * Раскладка: в поясе моря выбираются свободные клетки решётки (не ближе ISLET_GAP к полю и к другим
- * островкам), из них растут кластеры заданных размеров — один на 4 гекса, один-два на 3, два на 2 и три
- * одиночных. Кластер растёт по соседям, поэтому островки получаются компактными, а берег — волнистым.
+ * островкам), из них растут кластеры заданных размеров (от двух до семи гексов). Кластер растёт по соседям, поэтому островки получаются компактными, а берег — волнистым.
  */
 export function generateIslets(fieldHexes: ReadonlyArray<Hex>, size: number, bounds: Bounds, seed = isletSeed(fieldHexes)): Islet[] {
   if (!fieldHexes.length) return [];
@@ -68,7 +67,8 @@ export function generateIslets(fieldHexes: ReadonlyArray<Hex>, size: number, bou
   const free = new Map<string, Hex>();
   for (let q = q0; q <= q1; q++) for (let r = r0; r <= r1; r++) { const h = { q, r }; if (inside(h) && farFromField(h)) free.set(hexKey(h), h); }
 
-  const plan = [4, 3, ...(rng() < 0.5 ? [3] : []), 2, 2, 1, 1];
+  // Крупнее (решение владельца): один на 6–7, один на 5, один-два на 4, два на 3, два на 2.
+  const plan = [6 + (rng() < 0.5 ? 1 : 0), 5, 4, ...(rng() < 0.5 ? [4] : []), 3, 3, 2, 2];
   const taken: Hex[] = [];
   const out: Islet[] = [];
   const keys = () => [...free.keys()];

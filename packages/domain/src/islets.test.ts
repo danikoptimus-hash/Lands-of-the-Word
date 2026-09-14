@@ -24,7 +24,7 @@ describe("islets", () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(c));
     expect(isletSeed(hexes)).toBe(isletSeed([...hexes].reverse()));
     expect(a.length).toBeGreaterThanOrEqual(6);
-    expect(a.map((i) => i.hexes.length).sort()).toEqual(expect.arrayContaining([1, 2, 3, 4]));
+    expect(Math.max(...a.map((i) => i.hexes.length))).toBeGreaterThanOrEqual(5);
   });
 
   it("лежат в поясе моря, не касаются поля и друг друга, гексы кластера связны", () => {
