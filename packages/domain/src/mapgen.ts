@@ -5,9 +5,11 @@ import { createRng, pick, randomInt, shuffle, type Rng } from "./random.js";
 
 export type NodeKind = "empty" | "city" | "start";
 export type Terrain = "desert" | "hills" | "meadow" | "mountains" | "water" | "oasis";
+/** Остров: Ветхий Завет (старты команд, 39 книг) и Новый Завет (27 книг), между ними пролив. */
+export type Island = "OT" | "NT";
 
 /** Гекс — только местность (декорация и туман). */
-export interface MapHexTile { q: number; r: number; terrain: Terrain; rotation: number }
+export interface MapHexTile { q: number; r: number; terrain: Terrain; rotation: number; island: Island }
 
 /** Узел — перекрёсток (вершина гекса): пустая развилка, город или старт. */
 export interface MapNode {
@@ -19,6 +21,9 @@ export interface MapNode {
   bookCode?: string;
   cityType?: string;
   teamIndex?: number;
+  island: Island;
+  /** Береговой узел: хотя бы один из трёх гексов вокруг — море. Береговой город — порт, из него ходят корабли. */
+  coastal: boolean;
 }
 
 /** Ребро — сторона гекса между двумя перекрёстками; по ним ходят команды. */
@@ -29,7 +34,7 @@ export interface GeneratedMap {
   hexes: MapHexTile[];
   nodes: MapNode[];
   edges: MapEdge[];
-  stats: { hexCount: number; nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number };
+  stats: { hexCount: number; nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number; islands: Record<Island, { hexes: number; cities: number; ports: number }> };
 }
 
 export interface MapGenOptions {
@@ -43,7 +48,17 @@ export interface MapGenOptions {
 }
 
 const CITY_TYPES = ["village", "walled_city", "fortress", "temple_city", "port", "tent_camp", "hill_city", "ruins"];
+/** Внутренние города: любой тип, кроме порта. Порт — только береговые города. */
+const INLAND_CITY_TYPES = CITY_TYPES.filter((t) => t !== "port");
 const TERRAINS: Terrain[] = ["desert", "hills", "meadow", "mountains", "oasis"];
+/**
+ * Книги, в которых есть события на море (решение владельца): такие города ставятся на берег в первую очередь.
+ * Бытие, Исход (Чермное море), 3 Царств и 2 Паралипоменон (корабли), Псалтирь (Пс. 106), Исаия (о Тире), Иезекииль
+ * (плач о Тире), Иона; Евангелия (Галилейское море), Деяния (плавания Павла), 2 Коринфянам (кораблекрушения), Откровение.
+ */
+export const SEA_BOOKS: readonly string[] = ["gen", "exo", "1ki", "2ch", "psa", "isa", "ezk", "jon", "mat", "mrk", "luk", "jhn", "act", "2co", "rev"];
+/** Просвет между островами в гексах (пролив). */
+const STRAIT = 3;
 
 function radiusFor(hexCount: number): number {
   let r = 1;
@@ -51,8 +66,8 @@ function radiusFor(hexCount: number): number {
   return r;
 }
 
-/** Примерно круглое связное поле гексов. */
-function buildField(rng: Rng, hexCount: number): Hex[] {
+/** Примерно круглое связное поле гексов вокруг центра offset. */
+function buildField(rng: Rng, hexCount: number, offset: Hex = { q: 0, r: 0 }): Hex[] {
   const radius = radiusFor(hexCount);
   const scored = hexesInRadius(radius).map((h) => {
     const x = Math.sqrt(3) * h.q + (Math.sqrt(3) / 2) * h.r, y = 1.5 * h.r;
@@ -67,11 +82,11 @@ function buildField(rng: Rng, hexCount: number): Hex[] {
     const cur = queue.pop()!;
     for (const n of hexNeighbors(cur)) { const k = hexKey(n); if (set.has(k) && !seen.has(k)) { seen.add(k); queue.push(n); } }
   }
-  return hexes.filter((h) => seen.has(hexKey(h)));
+  return hexes.filter((h) => seen.has(hexKey(h))).map((h) => ({ q: h.q + offset.q, r: h.r + offset.r }));
 }
 
-function terrainFor(rng: Rng, h: Hex, radius: number): Terrain {
-  const d = hexDistance(h, { q: 0, r: 0 }) / radius;
+function terrainFor(rng: Rng, h: Hex, center: Hex, radius: number): Terrain {
+  const d = hexDistance(h, center) / radius;
   const roll = rng();
   if (roll < 0.05) return "water";
   if (d < 0.35) return roll < 0.6 ? "meadow" : roll < 0.85 ? "hills" : "oasis";
@@ -105,25 +120,35 @@ export function generateMap(opts: MapGenOptions): GeneratedMap {
   if (cityCount > BOOK_COUNT) throw new MapGenError(`Городов не больше ${BOOK_COUNT}`);
 
   const rng = createRng(opts.seed);
-  // Перекрёстков примерно 2 на гекс (плюс край) — подбираем число гексов.
-  const hexCount = Math.max(19, Math.round(nodeCount / 2.15));
-  const field = buildField(rng, hexCount);
-  const radius = radiusFor(hexCount);
+  const otBooks = BOOKS.filter((b) => b.testament === "OT").map((b) => b.code), ntBooks = BOOKS.filter((b) => b.testament === "NT").map((b) => b.code);
+  // Города делятся между островами пропорционально числу книг заветов; так же делятся и гексы.
+  const otCities = Math.min(otBooks.length, Math.round((cityCount * otBooks.length) / BOOK_COUNT)), ntCities = Math.min(ntBooks.length, cityCount - otCities);
+  const hexCount = Math.max(38, Math.round(nodeCount / 2.15));
+  const otHexCount = Math.max(19, Math.round((hexCount * otCities) / Math.max(1, otCities + ntCities))), ntHexCount = Math.max(19, hexCount - otHexCount);
+  const otRadius = radiusFor(otHexCount), ntRadius = radiusFor(ntHexCount);
+  // Новый Завет — справа от Ветхого за проливом, чуть выше или ниже (случайно), чтобы острова не стояли по линейке.
+  const dr = randomInt(rng, -2, 2);
+  const ntCenter: Hex = { q: otRadius + ntRadius + STRAIT + Math.max(0, -dr), r: dr };
+  const otField = buildField(rng, otHexCount), ntField = buildField(rng, ntHexCount, ntCenter);
+  const field = [...otField, ...ntField];
+  const islandByHex = new Map<string, Island>([...otField.map((h) => [hexKey(h), "OT"] as const), ...ntField.map((h) => [hexKey(h), "NT"] as const)]);
   const graph = buildHexGraph(field);
   const keys = [...graph.vertices.keys()];
-  if (keys.length < cityCount * 3) throw new MapGenError("Поле слишком маленькое для такого числа городов");
+  const fieldSet = new Set(field.map(hexKey));
+  const islandOf = (k: string): Island => { for (const h of vertexHexes(graph.vertices.get(k)!)) { const i = islandByHex.get(hexKey(h)); if (i) return i; } return "OT"; };
+  const coastal = (k: string) => vertexHexes(graph.vertices.get(k)!).some((h) => !fieldSet.has(hexKey(h)));
+  const otKeys = keys.filter((k) => islandOf(k) === "OT"), ntKeys = keys.filter((k) => islandOf(k) === "NT");
+  if (otKeys.length < otCities * 3 || ntKeys.length < ntCities * 3) throw new MapGenError("Поле слишком маленькое для такого числа городов");
 
   const startBuffer = 2;
-  const center = { x: 0, y: 0 };
   const pos = new Map(keys.map((k) => [k, vertexToPixel(graph.vertices.get(k)!, 1)]));
-  const maxR = Math.max(...keys.map((k) => Math.hypot(pos.get(k)!.x, pos.get(k)!.y)));
+  const maxR = Math.max(...otKeys.map((k) => Math.hypot(pos.get(k)!.x, pos.get(k)!.y)));
 
-  const fieldSet = new Set(field.map(hexKey));
-  // Старт — внутренний перекрёсток: все три гекса вокруг него есть на поле.
+  // Старт — внутренний перекрёсток Ветхого Завета: все три гекса вокруг него есть на поле.
   const interior = (k: string) => vertexHexes(graph.vertices.get(k)!).every((h) => fieldSet.has(hexKey(h)));
   const pickStarts = (): string[] => {
     const starts: string[] = [];
-    const candidates = keys.filter((k) => Math.hypot(pos.get(k)!.x - center.x, pos.get(k)!.y - center.y) <= maxR * 0.85 && interior(k));
+    const candidates = otKeys.filter((k) => Math.hypot(pos.get(k)!.x, pos.get(k)!.y) <= maxR * 0.85 && interior(k));
     if (opts.equidistantStarts) {
       const ring = maxR * 0.6, phase = rng() * Math.PI * 2;
       for (let i = 0; i < teamCount; i++) {
@@ -147,48 +172,71 @@ export function generateMap(opts: MapGenOptions): GeneratedMap {
     return starts;
   };
 
-  const placeCities = (starts: string[]): string[] => {
+  /**
+   * Города одного острова: сначала coastalFirst городов на береговых узлах (под «морские» книги), потом
+   * остальные где угодно; между любыми двумя ≥ minCityGap рёбер.
+   */
+  const placeCities = (starts: string[], islandKeys: string[], count: number, coastalFirst: number): string[] => {
     const blocked = new Set<string>();
     for (const s of starts) for (const [k, d] of graphDistances(graph, s, startBuffer - 1)) if (d <= startBuffer - 1) blocked.add(k);
-    const allowed = keys.filter((k) => !blocked.has(k));
+    const allowed = islandKeys.filter((k) => !blocked.has(k));
     let best: string[] = [];
-    for (let attempt = 0; attempt < 30 && best.length < cityCount; attempt++) {
+    for (let attempt = 0; attempt < 30 && best.length < count; attempt++) {
       const cities: string[] = [];
       const taken = new Set<string>(); // вершины ближе minCityGap к уже поставленным городам
-      for (const k of shuffle(rng, allowed)) {
-        if (cities.length >= cityCount) break;
-        if (taken.has(k)) continue;
+      const tryPlace = (k: string, limit: number) => {
+        if (cities.length >= limit || taken.has(k)) return;
         cities.push(k);
         for (const [n, d] of graphDistances(graph, k, minCityGap - 1)) if (d <= minCityGap - 1) taken.add(n);
-      }
+      };
+      for (const k of shuffle(rng, allowed.filter(coastal))) tryPlace(k, Math.min(count, coastalFirst));
+      for (const k of shuffle(rng, allowed)) tryPlace(k, count);
       if (cities.length > best.length) best = cities;
     }
     return best;
   };
 
+  const seaOT = otBooks.filter((b) => SEA_BOOKS.includes(b)), seaNT = ntBooks.filter((b) => SEA_BOOKS.includes(b));
   let starts: string[] = [], cities: string[] = [], startDistances: number[] = [];
   for (let attempt = 0; attempt < 60; attempt++) {
     starts = pickStarts();
     if (starts.length < teamCount) continue;
-    cities = placeCities(starts);
-    if (cities.length < cityCount) continue;
-    const citySet = new Set(cities);
-    startDistances = starts.map((s) => nearest(graph, s, citySet));
+    const ot = placeCities(starts, otKeys, otCities, seaOT.length), nt = placeCities(starts, ntKeys, ntCities, seaNT.length);
+    if (ot.length < otCities || nt.length < ntCities) continue;
+    cities = [...ot, ...nt];
+    const otSet = new Set(ot);
+    startDistances = starts.map((s) => nearest(graph, s, otSet));
     if (Math.max(...startDistances) - Math.min(...startDistances) <= maxDiff) break;
     starts = []; cities = [];
   }
   if (starts.length < teamCount) throw new MapGenError("Не удалось расставить старты");
-  if (cities.length < cityCount) throw new MapGenError("Не удалось разместить все города с нужными промежутками");
+  if (cities.length < otCities + ntCities) throw new MapGenError("Не удалось разместить все города с нужными промежутками");
 
-  const cityIndex = new Map(cities.map((k, i) => [k, i]));
+  /** Книги острова: морские — береговым городам (сколько поместится), остальные — случайно. */
+  const assignBooks = (cityKeys: string[], books: string[], sea: string[]): Map<string, string> => {
+    const out = new Map<string, string>();
+    const coast = shuffle(rng, cityKeys.filter(coastal)), inland = shuffle(rng, cityKeys.filter((k) => !coastal(k)));
+    const seaBooks = shuffle(rng, sea), rest = shuffle(rng, books.filter((b) => !sea.includes(b)));
+    const order = [...coast, ...inland];
+    // Сначала морские книги по береговым узлам, затем всё остальное по оставшимся узлам (если городов меньше, чем книг, — часть книг не попадает).
+    let bi = 0;
+    for (const k of coast) if (bi < seaBooks.length) out.set(k, seaBooks[bi++]!);
+    const leftover = [...seaBooks.slice(bi), ...rest];
+    let li = 0;
+    for (const k of order) if (!out.has(k)) out.set(k, leftover[li++]!);
+    return out;
+  };
+  const bookByCity = new Map([...assignBooks(cities.filter((k) => islandOf(k) === "OT"), otBooks, seaOT), ...assignBooks(cities.filter((k) => islandOf(k) === "NT"), ntBooks, seaNT)]);
   const startIndex = new Map(starts.map((k, i) => [k, i]));
-  const books = shuffle(rng, BOOKS.map((b) => b.code)).slice(0, cityCount);
 
-  const hexes: MapHexTile[] = field.map((h) => ({ q: h.q, r: h.r, terrain: terrainFor(rng, h, radius), rotation: randomInt(rng, 0, 5) }));
+  const hexes: MapHexTile[] = field.map((h) => {
+    const island = islandByHex.get(hexKey(h))!;
+    return { q: h.q, r: h.r, terrain: terrainFor(rng, h, island === "OT" ? { q: 0, r: 0 } : ntCenter, island === "OT" ? otRadius : ntRadius), rotation: randomInt(rng, 0, 5), island };
+  });
   const nodes: MapNode[] = keys.map((k) => {
     const v = graph.vertices.get(k)!;
-    const base = { id: k, corner: v.corner, q: v.q, r: v.r };
-    if (cityIndex.has(k)) return { ...base, kind: "city" as const, bookCode: books[cityIndex.get(k)!]!, cityType: pick(rng, CITY_TYPES) };
+    const base = { id: k, corner: v.corner, q: v.q, r: v.r, island: islandOf(k), coastal: coastal(k) };
+    if (bookByCity.has(k)) return { ...base, kind: "city" as const, bookCode: bookByCity.get(k)!, cityType: base.coastal ? "port" : pick(rng, INLAND_CITY_TYPES) };
     if (startIndex.has(k)) return { ...base, kind: "start" as const, teamIndex: startIndex.get(k)! };
     return { ...base, kind: "empty" as const };
   });
@@ -196,8 +244,9 @@ export function generateMap(opts: MapGenOptions): GeneratedMap {
   let minGap = Infinity;
   const citySet = new Set(cities);
   for (const c of cities) { const d = graphDistances(graph, c, 6); for (const [k, dd] of d) if (k !== c && citySet.has(k)) minGap = Math.min(minGap, dd); }
+  const islandStats = (isl: Island) => ({ hexes: hexes.filter((h) => h.island === isl).length, cities: nodes.filter((n) => n.island === isl && n.kind === "city").length, ports: nodes.filter((n) => n.island === isl && n.kind === "city" && n.coastal).length });
 
-  return { seed: opts.seed, hexes, nodes, edges: graph.edges, stats: { hexCount: hexes.length, nodeCount: nodes.length, cityCount, startDistances, minCityGap: minGap } };
+  return { seed: opts.seed, hexes, nodes, edges: graph.edges, stats: { hexCount: hexes.length, nodeCount: nodes.length, cityCount: cities.length, startDistances, minCityGap: minGap, islands: { OT: islandStats("OT"), NT: islandStats("NT") } } };
 }
 
 export { TERRAINS, CITY_TYPES };

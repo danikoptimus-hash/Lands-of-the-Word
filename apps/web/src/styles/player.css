@@ -63,6 +63,23 @@
 .m-label.owned use, .m-label.ruined use { color: var(--on-accent); }
 .m-label.sm rect { opacity: .92; }
 .m-battle circle { fill: var(--surface); stroke-width: 2; }
+/* Корабль у порта: метка морского дела с морской стороны, тонкий «швартов» к порту. */
+.m-deed.sea .mooring { stroke: var(--surface); stroke-width: calc(2px / var(--k, 1)); stroke-dasharray: calc(3px / var(--k, 1)) calc(3px / var(--k, 1)); opacity: .8; pointer-events: none; }
+.m-deed.sea.landing circle { fill: var(--success); stroke: var(--surface); }
+.m-deed.sea.landing use { color: var(--on-accent); }
+/* Место высадки: пульсирующее кольцо и якорь; нажатие — высадка (сервер пускает только капитана). */
+.m-land { cursor: pointer; pointer-events: auto; }
+.m-land .pulse { fill: color-mix(in srgb, var(--success) 25%, transparent); stroke: var(--success); stroke-width: 2; animation: land-pulse 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.m-land .dot { fill: var(--surface); stroke: var(--success); stroke-width: 2; }
+.m-land use { color: var(--success); pointer-events: none; }
+@keyframes land-pulse { 0% { transform: scale(.6); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .m-land .pulse { animation: none; opacity: .6; } }
+/* Подписи островов при отдалении: крупно, полупрозрачно, без событий. */
+.m-island { pointer-events: none; }
+.m-island text { font-family: Georgia, "Times New Roman", serif; font-size: 26px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; fill: rgba(31, 27, 22, .42); stroke: rgba(255, 250, 240, .55); stroke-width: 4px; paint-order: stroke fill; }
+.landing-banner { border-color: var(--success); color: var(--success); gap: var(--sp-3); width: calc(100% - 2 * var(--sp-4)); max-width: 520px; }
+.landing-banner span { flex: 1 1 auto; min-width: 0; }
+.landing-banner button { flex: none; }
 .m-battle.att circle { stroke: var(--info); } .m-battle.att use { color: var(--info); }
 .m-battle.def circle { stroke: var(--danger); } .m-battle.def use { color: var(--danger); }
 .m-peek { pointer-events: none; }

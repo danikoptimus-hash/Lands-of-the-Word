@@ -64,6 +64,8 @@ export function TeamPage() {
   const [error, setError] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** Режим высадки: id одобренного морского дела, для которого капитан выбирает узел на другом острове. */
+  const [landingId, setLandingId] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const [cityKey, setCityKey] = useState<string | null>(null);
   const [cityVersion, setCityVersion] = useState(0);
@@ -151,6 +153,12 @@ export function TeamPage() {
     if (!(await confirm(t("Дело снова станет свободным, набранный текст пропадёт."), { title: t("Отказаться от дела?"), okLabel: t("Отказаться") }))) return;
     if (await act(`/api/games/${id}/edge-tasks/${tk.id}/release`)) notify(t("Дело снова свободно"), "info");
   }
+  async function land(nodeKey: string) {
+    if (!landingId) return;
+    if (!(await confirm(t("Узел откроется, и с него пойдут дела по другому острову. Вернуться назад можно только с портом."), { title: t("Высадиться здесь?"), okLabel: t("Высадиться") }))) return;
+    try { await api(`/api/games/${id}/edge-tasks/${landingId}/land`, { method: "POST", body: JSON.stringify({ nodeKey }) }); setLandingId(null); notify(t("Команда высадилась на другом острове")); await loadMap(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+  }
   async function setGameRole(userId: string, gameRole: GameRole) {
     setError(null);
     try { await api(`/api/games/${id}/teams/${team!.id}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ gameRole }) }); await loadTeam(); }
@@ -219,6 +227,7 @@ export function TeamPage() {
 
   const activeBattles = battles.filter((b) => b.status === "QUEUED" || b.status === "ATTACK" || b.status === "DEFENSE");
   const ourTasks = map.tasks.filter((tk) => tk.status === "TAKEN" || tk.status === "SUBMITTED" || tk.status === "REJECTED");
+  const landingTask = landingId ? map.tasks.find((tk) => tk.id === landingId && tk.landing) ?? null : null;
   const incoming = passages?.incoming.filter((r) => r.status === "PENDING") ?? [];
   // Бейдж на кнопке меню — только то, что требует действия: возвращённое дело, входящий запрос прохода, наш ход в испытании.
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length;
@@ -327,7 +336,14 @@ export function TeamPage() {
       )}
 
       <div className="map-area" ref={setMapEl}>
-        <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} />
+        <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
+          landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)} />
+        {landingTask && (
+          <div className="finish-banner landing-banner" role="status">
+            <Icon name="ship" /><span>{isCaptain ? t("Выберите на другом острове место высадки") : t("Капитан выбирает место высадки")}</span>
+            <button type="button" className="ghost sm" onClick={() => setLandingId(null)}>{t("Позже")}</button>
+          </div>
+        )}
         <div className="hud-left">
           {!wide && (
             <button type="button" className="secondary icon hud-btn" onClick={() => { setMenu(true); setSelectedId(null); }} aria-label={attention > 0 ? t("Меню · требует внимания: {n}", { n: attention }) : t("Меню")} title={t("Меню")}>
@@ -354,6 +370,10 @@ export function TeamPage() {
               <p className="muted small">{task.deed.direction}</p>
               {task.deed.description && <p className="mt-2">{task.deed.description}</p>}
               <p className="meta-line mt-2"><Icon name={proof.icon} />{t("Сдать")}: {proof.label()}{taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}</p>
+              {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта. Когда дело одобрят, капитан выберет на карте, куда высадиться на другом острове.")}</span></div>}
+              {task.landing && (isCaptain
+                ? <div className="actions"><button type="button" onClick={() => { setLandingId(task.id); setSelectedId(null); }}><Icon name="anchor" />{t("Выбрать место высадки")}</button></div>
+                : <div className="note info"><Icon name="anchor" /><span>{t("Дело одобрено: капитан выбирает место высадки.")}</span></div>)}
               {task.status === "REJECTED" && <div className="note bad"><Icon name="alert" /><span>{task.adminComment ? t("Администратор вернул дело: «{comment}». Исправьте и сдайте снова.", { comment: task.adminComment }) : t("Администратор вернул дело. Исправьте и сдайте снова.")}</span></div>}
               {task.status === "SUBMITTED" && <div className="note info"><Icon name="clock" /><span>{t("Сдано, ждём проверки администратора.")}</span></div>}
               {peeked && <div className="note info"><Icon name="telescope" /><span>{peeked === "CITY" ? t("Разведка: за этой стороной город.") : t("Разведка: за этой стороной развилка.")}</span></div>}

@@ -117,8 +117,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
     const [hexes, nodes, edges] = await Promise.all([
-      prisma.mapHex.findMany({ where: { gameId: id }, select: { q: true, r: true, terrain: true, rotation: true } }),
-      prisma.mapNode.findMany({ where: { gameId: id }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true } }),
+      prisma.mapHex.findMany({ where: { gameId: id }, select: { q: true, r: true, terrain: true, rotation: true, island: true } }),
+      prisma.mapNode.findMany({ where: { gameId: id }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, island: true, coastal: true } }),
       prisma.mapEdge.findMany({ where: { gameId: id }, select: { aKey: true, bKey: true } }),
     ]);
     const { admins: _admins, ...rest } = game;
@@ -147,12 +147,13 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.mapEdge.deleteMany({ where: { gameId: id } }),
       prisma.mapNode.deleteMany({ where: { gameId: id } }),
       prisma.mapHex.deleteMany({ where: { gameId: id } }),
-      prisma.mapHex.createMany({ data: map.hexes.map((h) => ({ gameId: id, q: h.q, r: h.r, terrain: h.terrain, rotation: h.rotation })) }),
+      prisma.mapHex.createMany({ data: map.hexes.map((h) => ({ gameId: id, q: h.q, r: h.r, terrain: h.terrain, rotation: h.rotation, island: h.island })) }),
       prisma.mapNode.createMany({
         data: map.nodes.map((n) => ({
           gameId: id, key: n.id, corner: n.corner, q: n.q, r: n.r,
           kind: n.kind === "city" ? "CITY" : n.kind === "start" ? "START" : "EMPTY",
           bookCode: n.bookCode ?? null, cityType: n.cityType ?? null, teamIndex: n.teamIndex ?? null,
+          island: n.island, coastal: n.coastal,
         })),
       }),
       prisma.mapEdge.createMany({ data: map.edges.map((e) => ({ gameId: id, aKey: e.a, bKey: e.b })) }),

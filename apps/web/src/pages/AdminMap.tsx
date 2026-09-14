@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
-import { HEX_SIZE, fieldBounds, nodePos, TEAM_COLORS } from "../lib/hexmap";
+import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, CoastUnder, HexTiles, IMG, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { reportPage } from "../lib/perf";
@@ -55,6 +55,12 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   useEffect(() => { reportPage("admin-map"); }, []);
   const coast = useCoast(hexes, size);
   const islets = useIslets(hexes, size, bounds);
+  const edgeSet = useMemo(() => new Set(edges.map((e) => [e.aKey, e.bKey].sort().join("|"))), [edges]);
+  const islandCenters = useMemo(() => {
+    const acc = new Map<string, { x: number; y: number; n: number }>();
+    for (const h of hexes) { const c = hexCenter(h, size), key = h.island ?? "OT"; const a = acc.get(key) ?? { x: 0, y: 0, n: 0 }; a.x += c.x; a.y += c.y; a.n++; acc.set(key, a); }
+    return new Map([...acc].map(([key, a]) => [key, { x: a.x / a.n, y: a.y / a.n }]));
+  }, [hexes, size]);
   // «Глазами команды»: карта, какой её видит выбранная команда; обновляется вместе с остальным по событиям игры.
   const [viewAs, setViewAs] = useState<string | null>(null);
   const [teamView, setTeamView] = useState<{ teamId: string; map: (MyMapDto & { teamIndex: number }) | null; error: string | null } | null>(null);
@@ -122,7 +128,16 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
               return <g key={e.aKey + e.bKey}><line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} /></g>;
             })}
+            {/* Морские переправы: пройденные «стороны» между островами, которых нет среди рёбер, — пунктир цветом команды. */}
+            {(progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
+              const a = positions.get(e.fromKey)!, b = positions.get(e.toKey)!;
+              return <line key={"sea" + tm.id + e.fromKey + e.toKey} className="adm-sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={tm.color} />;
+            }))}
             <g className="screen-items">
+              {vp.view.k < 1.4 && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
+                const kk = vp.view.k, inv = Math.min(1, Math.max(0.5, kk / 1.6)) / kk;
+                return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${inv})`}><text textAnchor="middle" dy="0.35em">{isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")}</text></g>;
+              })}
               {nodes.map((n) => {
                 const raw = positions.get(n.key)!;
                 const kk = vp.view.k, ui = Math.min(1, Math.max(0.5, kk / 1.6)), inv = ui / kk;

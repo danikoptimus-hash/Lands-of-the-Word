@@ -17,8 +17,8 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
 
 export interface User { id: string; nickname: string; displayName: string | null; email: string | null; locale: string; platformRole: "USER" | "SUPERADMIN" }
 export interface GameSummary { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; createdAt: string; createdById?: string; org: { name: string } }
-export interface MapHexDto { q: number; r: number; terrain?: string; rotation?: number; lit?: boolean }
-export interface MapNodeDto { key: string; corner: "N" | "S"; q: number; r: number; kind: "EMPTY" | "CITY" | "START"; bookCode: string | null; cityType: string | null; teamIndex: number | null }
+export interface MapHexDto { q: number; r: number; terrain?: string; rotation?: number; lit?: boolean; island?: "OT" | "NT" }
+export interface MapNodeDto { key: string; corner: "N" | "S"; q: number; r: number; kind: "EMPTY" | "CITY" | "START"; bookCode: string | null; cityType: string | null; teamIndex: number | null; island?: "OT" | "NT"; coastal?: boolean }
 export interface MapEdgeDto { aKey: string; bKey: string }
 
 export type TeamRole = "CAPTAIN" | "MEMBER";
@@ -32,7 +32,7 @@ export const TEAM_ROLE_LABEL: Record<TeamRole, string> = { get CAPTAIN() { retur
 
 export type EdgeTaskStatus = "OPEN" | "TAKEN" | "SUBMITTED" | "APPROVED" | "REJECTED";
 export interface DeedLite { id: string; title: string; description: string; direction: string; proofType: "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "CONFIRMATION"; difficulty: number }
-export interface EdgeTaskDto { id: string; fromKey: string; toKey: string; deedId: string; status: EdgeTaskStatus; takenById: string | null; links: string[]; note: string; adminComment: string; submittedAt: string | null; deed: DeedLite; donation?: boolean; donationAmount?: number | null }
+export interface EdgeTaskDto { id: string; fromKey: string; toKey: string; deedId: string; status: EdgeTaskStatus; takenById: string | null; links: string[]; note: string; adminComment: string; submittedAt: string | null; deed: DeedLite; donation?: boolean; donationAmount?: number | null; /** Морская сторона из порта; landing — одобрено, капитан выбирает место высадки из candidates. */ sea?: boolean; landing?: boolean; candidates?: string[] }
 export interface MapCityDto { nodeKey: string; hasContent: boolean; total: number; owner: { index: number; name: string; color: string } | null; orderSolved: boolean; done: number; captured: boolean; isCapital: boolean; battle: "ATTACK" | "DEFENSE" | null; ruined: boolean; blocked: boolean; passage: string | null }
 export interface MyMapDto { status: string; team: { id: string; name: string; color: string; startNodeKey?: string | null }; hexes: MapHexDto[]; revealed: MapNodeDto[]; edges: MapEdgeDto[]; tasks: EdgeTaskDto[]; cities: MapCityDto[]; peeked: Array<{ key: string; kind: string }> }
 

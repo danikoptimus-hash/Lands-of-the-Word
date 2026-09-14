@@ -49,7 +49,10 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
 
   const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true } })).map((n) => n.nodeKey));
   const edges = await prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } });
-  const existing = new Set((await prisma.teamEdgeTask.findMany({ where: { teamId }, select: { fromKey: true, toKey: true } })).map((t) => `${t.fromKey}>${t.toKey}`));
+  const existingTasks = await prisma.teamEdgeTask.findMany({ where: { teamId }, select: { fromKey: true, toKey: true, sea: true } });
+  const existing = new Set(existingTasks.map((t) => `${t.fromKey}>${t.toKey}`));
+  // Из одного порта — один рейс за взятие: после высадки toKey становится узлом высадки, но дело остаётся.
+  const sailed = new Set(existingTasks.filter((t) => t.sea).map((t) => t.fromKey));
   const blocked = await blockedCities(gameId, teamId);
   const ownedBooks = await ownedCityBooks(gameId, teamId);
 
@@ -65,6 +68,34 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
     if (!deedId) return;
     await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: w.fromKey, toKey: w.toKey, deedId } });
   }
+  // Морская сторона: из каждого взятого командой порта (береговой город) — одно дело; после его одобрения
+  // капитан выбирает пустой береговой узел другого острова и высаживается там (2.3a).
+  const ports = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", coastal: true, key: { in: [...ownedBooks.keys()] } }, select: { key: true, island: true, bookCode: true } });
+  for (const port of ports) {
+    if (sailed.has(port.key)) continue;
+    // Плыть есть куда, только если на другом острове ещё остались свободные береговые развилки.
+    const free = await prisma.mapNode.count({ where: { gameId, kind: "EMPTY", coastal: true, island: { not: port.island } } });
+    if (free === 0) continue;
+    const deedId = await pickDeed(gameId, teamId, port.bookCode);
+    if (!deedId) return;
+    await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: port.key, toKey: seaKey(port.key), deedId, sea: true } });
+  }
+}
+
+/** Заглушка toKey морского дела до высадки. */
+export const seaKey = (portKey: string) => `sea:${portKey}`;
+export const isSeaKey = (key: string) => key.startsWith("sea:");
+
+/** Куда команда может высадиться с этого порта: пустые береговые узлы другого острова, ещё не открытые ей. */
+export async function landingCandidates(gameId: string, teamId: string, portKey: string): Promise<string[]> {
+  const port = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId, key: portKey } }, select: { island: true } });
+  if (!port) return [];
+  const [nodes, revealed] = await Promise.all([
+    prisma.mapNode.findMany({ where: { gameId, kind: "EMPTY", coastal: true, island: { not: port.island } }, select: { key: true } }),
+    prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true } }),
+  ]);
+  const seen = new Set(revealed.map((r) => r.nodeKey));
+  return nodes.map((n) => n.key).filter((k) => !seen.has(k));
 }
 
 /** Чужие города, через которые команде нельзя идти дальше: заняты другой командой и нет разрешения на проход. */
@@ -110,8 +141,8 @@ export async function getTeamMap(gameId: string, teamId: string) {
       include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, difficulty: true } } },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true } }),
-    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, ruined: true } }),
+    prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true, island: true } }),
+    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, ruined: true, island: true, coastal: true } }),
     prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
   ]);
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
@@ -157,12 +188,20 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const peeked = nodes.filter((n) => peekKeys.has(n.key) && !revealed.has(n.key)).map((n) => ({ key: n.key, kind: n.kind }));
   // Гекс освещён, если хотя бы один его угол открыт командой. Остальные видны только силуэтом в тумане.
   const lit = (h: { q: number; r: number }) => hexCorners(h).some((c) => revealed.has(vertexKey(c)));
+  // Морское дело одобрено, но высадка ещё не выбрана: команде нужны узлы-кандидаты.
+  const visibleTasks = tasks.filter((t) => t.status === "APPROVED" || !revealed.has(t.toKey));
+  const withLanding = await Promise.all(visibleTasks.map(async (t) => {
+    if (!t.sea) return t;
+    const landing = t.status === "APPROVED" && isSeaKey(t.toKey);
+    return { ...t, landing, candidates: landing ? await landingCandidates(gameId, teamId, t.fromKey) : undefined };
+  }));
   return {
-    hexes: hexes.map((h) => (lit(h) ? { ...h, lit: true } : { q: h.q, r: h.r, lit: false })),
+    // Остров известен и у гексов в тумане: по нему подписываются острова.
+    hexes: hexes.map((h) => (lit(h) ? { ...h, lit: true } : { q: h.q, r: h.r, island: h.island, lit: false })),
     revealed: nodes.filter((n) => revealed.has(n.key)).map(({ ruined: _r, ...n }) => n),
     // Рёбра, касающиеся открытых узлов: пройденные и фронтир (в туман).
     edges: edges.filter((e) => revealed.has(e.aKey) || revealed.has(e.bKey)),
-    tasks: tasks.filter((t) => t.status === "APPROVED" || !revealed.has(t.toKey)),
+    tasks: withLanding,
     cities,
     peeked,
   };

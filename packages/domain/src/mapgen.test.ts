@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { generateMap, MapGenError } from "./mapgen.js";
+import { generateMap, MapGenError, SEA_BOOKS } from "./mapgen.js";
+import { BOOKS } from "./books.js";
 import { buildHexGraph, graphDistances, hexCorners, vertexHexes, vertexKey } from "./hexgraph.js";
 import { hexKey } from "./hex.js";
 import { hexesInRadius } from "./hex.js";
@@ -51,13 +52,51 @@ describe("generateMap", () => {
     }
   });
 
-  it("детерминирована по seed; все рёбра соединяют существующие узлы; граф связный", () => {
+  it("детерминирована по seed; все рёбра соединяют существующие узлы; каждый остров связный, между островами рёбер нет", () => {
     const a = generateMap({ seed: 99, teamCount: 3 }), b = generateMap({ seed: 99, teamCount: 3 });
     expect(a).toEqual(b);
     const ids = new Set(a.nodes.map((n) => n.id));
     for (const e of a.edges) { expect(ids.has(e.a)).toBe(true); expect(ids.has(e.b)).toBe(true); }
     const g = buildHexGraph(a.hexes);
-    expect(graphDistances(g, a.nodes[0]!.id).size).toBe(a.nodes.length);
+    const islandOf = new Map(a.nodes.map((n) => [n.id, n.island]));
+    for (const e of a.edges) expect(islandOf.get(e.a)).toBe(islandOf.get(e.b));
+    for (const isl of ["OT", "NT"] as const) {
+      const mine = a.nodes.filter((n) => n.island === isl);
+      expect(graphDistances(g, mine[0]!.id).size).toBe(mine.length);
+    }
+  });
+
+  it("два острова: 39 книг Ветхого Завета на одном, 27 Нового — на другом; старты только на Ветхом", () => {
+    for (const seed of [3, 11, 25]) {
+      const map = generateMap({ seed, teamCount: 3 });
+      const testament = new Map(BOOKS.map((b) => [b.code, b.testament]));
+      const cities = map.nodes.filter((n) => n.kind === "city");
+      expect(cities.filter((n) => n.island === "OT")).toHaveLength(39);
+      expect(cities.filter((n) => n.island === "NT")).toHaveLength(27);
+      for (const c of cities) expect(testament.get(c.bookCode!)).toBe(c.island);
+      for (const st of map.nodes.filter((n) => n.kind === "start")) expect(st.island).toBe("OT");
+      expect(map.hexes.filter((h) => h.island === "OT").length).toBeGreaterThan(map.hexes.filter((h) => h.island === "NT").length);
+      // Между островами пролив: ни один гекс одного острова не соседствует с гексом другого.
+      const ot = map.hexes.filter((h) => h.island === "OT"), nt = map.hexes.filter((h) => h.island === "NT");
+      let minD = Infinity;
+      for (const a of ot) for (const b of nt) minD = Math.min(minD, Math.max(Math.abs(a.q - b.q), Math.abs(a.r - b.r), Math.abs(a.q + a.r - b.q - b.r)));
+      expect(minD).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("береговые города — порты, внутренние — нет; морские книги стоят у берега", () => {
+    for (const seed of [5, 8, 13]) {
+      const map = generateMap({ seed, teamCount: 2 });
+      const fieldSet = new Set(map.hexes.map((h) => hexKey(h)));
+      for (const n of map.nodes) {
+        const coastal = vertexHexes(n).some((h) => !fieldSet.has(hexKey(h)));
+        expect(n.coastal).toBe(coastal);
+        if (n.kind === "city") expect(n.cityType === "port").toBe(coastal);
+      }
+      const seaCities = map.nodes.filter((n) => n.kind === "city" && SEA_BOOKS.includes(n.bookCode!));
+      expect(seaCities).toHaveLength(SEA_BOOKS.length);
+      for (const c of seaCities) expect(c.coastal).toBe(true);
+    }
   });
 
   it("ругается на одну команду", () => {

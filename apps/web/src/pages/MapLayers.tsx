@@ -293,6 +293,8 @@ const SYMBOLS: Record<string, string> = {
   clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm0-14v6l4 2",
   alert: "M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z",
   crown: "m2 8 5 4 5-8 5 8 5-4-2 12H4L2 8Z",
+  ship: "M2 15h20l-3 5H5l-3-5ZM12 15V3m0 1 7 8h-7M12 5 6 12h6",
+  anchor: "M12 22V8m0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5 12H2c0 6 4 10 10 10s10-4 10-10h-3",
 };
 export function MapSymbols() {
   return (

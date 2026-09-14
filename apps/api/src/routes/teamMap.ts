@@ -3,9 +3,9 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
-import { getTeamMap, revealNode } from "../services/teamMap.js";
+import { getTeamMap, isSeaKey, landingCandidates, revealNode } from "../services/teamMap.js";
 import { loadCityContent } from "../services/cities.js";
-import { notifyAdmins, notifyUser } from "../services/notify.js";
+import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { err, msg } from "../services/i18n.js";
 
 const submitBody = z.object({
@@ -150,11 +150,32 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       data: { status: body.approve ? "APPROVED" : "REJECTED", decidedAt: new Date(), decidedById: request.user!.id, adminComment: body.comment },
       include: taskInclude,
     });
-    if (body.approve) await revealNode(id, task.teamId, task.toKey);
+    // Морское дело: узел не открывается — капитан сам выбирает место высадки на другом острове.
+    if (body.approve && task.sea) notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title }));
+    else if (body.approve) await revealNode(id, task.teamId, task.toKey);
     else if (task.takenById) notifyUser(id, task.takenById, "дело вернули на доработку", (locale) => msg(locale, "Администратор вернул дело «{deed}».{comment}", { deed: updated.deed.title, comment: body.comment ? msg(locale, " Комментарий: {comment}", { comment: body.comment }) : "" }));
     publish(id, { type: "submissions", teamId: task.teamId });
     publish(id, { type: "tasks", teamId: task.teamId });
     return { task: updated };
+  });
+
+  /** Высадка: капитан выбирает пустой береговой узел другого острова; узел открывается, как после обычного дела. */
+  app.post("/api/games/:id/edge-tasks/:taskId/land", async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    const m = await requireMember(request, reply, id);
+    if (!m) return;
+    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Место высадки выбирает капитан") });
+    const body = z.object({ nodeKey: z.string().min(3).max(40) }).parse(request.body);
+    const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
+    if (!task || !task.sea) return reply.code(404).send({ error: "not_found", message: err(request, "Морское дело не найдено") });
+    if (task.status !== "APPROVED" || !isSeaKey(task.toKey)) return reply.code(409).send({ error: "conflict", message: err(request, "Корабль ещё не готов или уже высадился") });
+    const candidates = await landingCandidates(id, m.team.id, task.fromKey);
+    if (!candidates.includes(body.nodeKey)) return reply.code(409).send({ error: "conflict", message: err(request, "Высадиться можно только на пустую береговую развилку другого острова") });
+    await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { toKey: body.nodeKey } });
+    await revealNode(id, m.team.id, body.nodeKey);
+    publish(id, { type: "map", teamId: m.team.id });
+    publish(id, { type: "tasks", teamId: m.team.id });
+    return { ok: true };
   });
 
   /** Прогресс всех команд для карты админа: открытые узлы и пройденные рёбра по командам. */
@@ -205,7 +226,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
         id: t.id, name: t.name, color: t.color, startNodeKey: t.startNodeKey,
         revealed: t.nodeStates.map((n) => n.nodeKey),
         revealedAt: t.nodeStates.map((n) => n.revealedAt.toISOString()),
-        traversed: t.edgeTasks.map((e) => ({ fromKey: e.fromKey, toKey: e.toKey, at: (e.decidedAt ?? e.createdAt).toISOString() })),
+        // Морское дело до высадки ведёт «в море» — такой отрезок не рисуем.
+        traversed: t.edgeTasks.filter((e) => !isSeaKey(e.toKey)).map((e) => ({ fromKey: e.fromKey, toKey: e.toKey, at: (e.decidedAt ?? e.createdAt).toISOString() })),
       })),
     };
   });

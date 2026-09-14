@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { reportPage } from "../lib/perf";
 import { BOOKS } from "@lotw/domain";
-import { HEX_SIZE, fieldBounds, nodePos } from "../lib/hexmap";
+import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
 import { CoastOver, CoastUnder, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
@@ -20,7 +20,7 @@ const textWidth = (s: string, fs: number) => Math.ceil(s.length * fs * 0.62);
  * Карта команды на весь экран. Гексы и стороны — в масштабируемом слое,
  * значки (старт, город, метки дел, подписи) — в экранном слое постоянного размера.
  */
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void }) {
+export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [map.hexes, size]);
   const start = useMemo(() => (map.team.startNodeKey ? nodePos(map.team.startNodeKey, size) : null), [map.team.startNodeKey, size]);
@@ -44,6 +44,19 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const islets = useIslets(map.hexes, size, bounds);
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
+  // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
+  const islandCenters = useMemo(() => {
+    const acc = new Map<string, { x: number; y: number; n: number }>();
+    for (const h of map.hexes) { const c = hexCenter(h, size), key = h.island ?? "OT"; const a = acc.get(key) ?? { x: 0, y: 0, n: 0 }; a.x += c.x; a.y += c.y; a.n++; acc.set(key, a); }
+    return new Map([...acc].map(([key, a]) => [key, { x: a.x / a.n, y: a.y / a.n }]));
+  }, [map.hexes, size]);
+  const nodeByKey = useMemo(() => new Map(map.revealed.map((n) => [n.key, n])), [map.revealed]);
+  // Корабли: морские дела, пока команда не высадилась (после высадки дело — обычная пройденная сторона).
+  const ships = useMemo(() => map.tasks.filter((tk) => tk.sea && (tk.status !== "APPROVED" || tk.landing)).map((tk) => {
+    const p = nodePos(tk.fromKey, size), c = islandCenters.get(nodeByKey.get(tk.fromKey)?.island ?? "OT") ?? { x: 0, y: 0 };
+    const dx = p.x - c.x, dy = p.y - c.y, d = Math.hypot(dx, dy) || 1;
+    return { tk, x: p.x + (dx / d) * size * 1.6, y: p.y + (dy / d) * size * 1.6, port: p };
+  }), [map.tasks, islandCenters, nodeByKey, size]);
 
   if (!bounds) return null;
   const { k } = vp.view;
@@ -166,6 +179,33 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
+          {ships.map(({ tk, x, y, port }) => {
+            const sel = tk.id === selectedTaskId, r = (sel ? R + 2 : R) + 2;
+            return (
+              <g key={"ship" + tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
+                <line className="mooring" x1={port.x} y1={port.y} x2={x} y2={y} />
+                <g transform={`translate(${x},${y}) scale(${inv})`}>
+                  <circle r={r} />
+                  <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
+                </g>
+              </g>
+            );
+          })}
+          {landing && landing.candidates.map((key) => {
+            const p = nodePos(key, size);
+            return (
+              <g key={"land" + key} className="m-land" transform={`translate(${p.x},${p.y}) scale(${inv})`} onClick={() => { if (!vp.wasDrag()) onLand?.(key); }}>
+                <circle className="pulse" r={14} />
+                <circle className="dot" r={6} />
+                <use href="#m-anchor" x={-5} y={-5} width={10} height={10} />
+              </g>
+            );
+          })}
+          {!fullLabels && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => (
+            <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${inv})`}>
+              <text textAnchor="middle" dy="0.35em">{isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")}</text>
+            </g>
+          ))}
           {ripple && <g transform={`translate(${ripple.x},${ripple.y}) scale(${inv})`}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
         </g>
       </WorldSvg>

@@ -20,12 +20,12 @@ import type { Islet } from "@lotw/domain";
 const BINS = 72;
 /** Островки в море как круги (центр, радиус с запасом): звери их обходят. */
 interface Isle { x: number; y: number; r: number }
-interface Profile { cx: number; cy: number; r: number[]; maxR: number; isles: Isle[] }
+/** Профиль одного острова: центр и радиус берега по секторам угла. */
+interface Part { cx: number; cy: number; r: number[]; maxR: number }
+/** Мир живности: общий центр и охват (для маршрутов из-за края) плюс профили островов (их несколько: Ветхий и Новый Завет). */
+interface Profile extends Part { parts: Part[]; isles: Isle[] }
 
-/** Профиль острова: для каждого сектора угла — наибольшее расстояние до края гекса от центра острова. */
-function islandProfile(hexes: MapHexDto[], size: number, islets: Islet[]): Profile | null {
-  if (!hexes.length) return null;
-  const cs = hexes.map((h) => hexCenter(h, size));
+function partProfile(cs: Array<{ x: number; y: number }>, size: number): Part {
   const cx = cs.reduce((a, c) => a + c.x, 0) / cs.length, cy = cs.reduce((a, c) => a + c.y, 0) / cs.length;
   const r = new Array<number>(BINS).fill(0);
   for (const c of cs) {
@@ -36,11 +36,20 @@ function islandProfile(hexes: MapHexDto[], size: number, islets: Islet[]): Profi
   }
   const maxR = Math.max(...r);
   for (let i = 0; i < BINS; i++) if (r[i] === 0) r[i] = maxR;
+  return { cx, cy, r, maxR };
+}
+/** Профиль мира: острова по признаку island (старые карты — один остров), общий профиль по всем гексам. */
+function islandProfile(hexes: MapHexDto[], size: number, islets: Islet[]): Profile | null {
+  if (!hexes.length) return null;
+  const groups = new Map<string, Array<{ x: number; y: number }>>();
+  for (const h of hexes) { const key = h.island ?? "OT"; (groups.get(key) ?? groups.set(key, []).get(key)!).push(hexCenter(h, size)); }
+  const parts = [...groups.values()].map((cs) => partProfile(cs, size));
+  const all = partProfile(hexes.map((h) => hexCenter(h, size)), size);
   const isles = islets.map((i) => ({ x: i.x, y: i.y, r: i.cover }));
-  return { cx, cy, r, maxR, isles };
+  return { ...all, parts, isles };
 }
 /** Радиус профиля под любым углом (угол не обязан быть в −π…π). */
-function radiusAt(p: Profile, angle: number): number {
+function radiusAt(p: Part, angle: number): number {
   const f = ((angle + Math.PI) / (2 * Math.PI)) * BINS;
   const i = ((Math.floor(f) % BINS) + BINS) % BINS, j = (i + 1) % BINS, t = f - Math.floor(f);
   return p.r[i]! * (1 - t) + p.r[j]! * t;
@@ -225,9 +234,12 @@ function carrotRoute(car: Carrot, p: Profile, size: number): void {
 }
 function carrotPoint(car: Carrot, p: Profile, t: number, T: number): [number, number] {
   let x = car.x0 + (car.x1 - car.x0) * t, y = car.y0 + (car.y1 - car.y0) * t;
-  const ang = Math.atan2(y - p.cy, x - p.cx), d = Math.hypot(x - p.cx, y - p.cy);
-  const minR = radiusAt(p, ang) + car.off + noise1(T * 0.12, car.seed) * car.wob;
-  if (d < minR) { x = p.cx + Math.cos(ang) * minR; y = p.cy + Math.sin(ang) * minR; }
+  // Выталкиваем из каждого острова по очереди (дважды: после выхода из одного можно оказаться в другом).
+  for (let pass = 0; pass < 2; pass++) for (const part of p.parts) {
+    const ang = Math.atan2(y - part.cy, x - part.cx), d = Math.hypot(x - part.cx, y - part.cy);
+    const minR = radiusAt(part, ang) + car.off + noise1(T * 0.12, car.seed) * car.wob;
+    if (d < minR) { x = part.cx + Math.cos(ang) * minR; y = part.cy + Math.sin(ang) * minR; }
+  }
   return [x, y];
 }
 function carrotStep(car: Carrot, p: Profile, size: number, dist: number, T: number): void {
@@ -296,9 +308,11 @@ const axisX = (c: Cet, u: number) => c.x + Math.cos(c.h) * u, axisY = (c: Cet, u
  * даже когда поводок резко огибает мыс.
  */
 function keepInWater(c: Cet, p: Profile, clearance: number): void {
-  const dx = c.x - p.cx, dy = c.y - p.cy, d = Math.hypot(dx, dy);
-  const ang = Math.atan2(dy, dx), minR = radiusAt(p, ang) + clearance;
-  if (d < minR) pushOut(c, p.cx, p.cy, ang, minR);
+  for (const part of p.parts) {
+    const dx = c.x - part.cx, dy = c.y - part.cy, d = Math.hypot(dx, dy);
+    const ang = Math.atan2(dy, dx), minR = radiusAt(part, ang) + clearance;
+    if (d < minR) pushOut(c, part.cx, part.cy, ang, minR);
+  }
   // Островки — то же правило, круг вместо профиля.
   for (const i of p.isles) {
     const ix = c.x - i.x, iy = c.y - i.y, id = Math.hypot(ix, iy), ir = i.r + clearance * 0.8;
@@ -695,15 +709,16 @@ function drawBirdShadow(ctx: CanvasRenderingContext2D, b: BirdSpec, S: number, p
 }
 
 /** Чайка: кружит у берега вокруг медленно плывущего вдоль побережья «якоря», с кренами, парением и покачиванием по высоте. */
-interface Gull { x: number; y: number; h: number; v: number; om: number; roll: number; alt: number; anchorA: number; off: number; dir: 1 | -1; R: number; phase: number; amp: number; modeT: number; glide: boolean; seed: number; S: number }
+interface Gull { part: Part; x: number; y: number; h: number; v: number; om: number; roll: number; alt: number; anchorA: number; off: number; dir: 1 | -1; R: number; phase: number; amp: number; modeT: number; glide: boolean; seed: number; S: number }
 function makeGull(p: Profile, size: number): Gull {
+  const part = p.parts[Math.floor(Math.random() * p.parts.length)]!;
   const anchorA = rnd(-Math.PI, Math.PI), off = size * rnd(-0.3, 0.9), R = size * rnd(1.2, 2.0);
-  const r = radiusAt(p, anchorA) + off;
-  return { x: p.cx + Math.cos(anchorA) * r + R, y: p.cy + Math.sin(anchorA) * r, h: rnd(-Math.PI, Math.PI), v: size * rnd(0.75, 0.95), om: 0, roll: 0, alt: 0.7, anchorA, off, dir: Math.random() < 0.5 ? 1 : -1, R, phase: rnd(0, TAU), amp: 1, modeT: rnd(2, 5), glide: false, seed: rnd(0, 100), S: size * rnd(0.19, 0.23) };
+  const r = radiusAt(part, anchorA) + off;
+  return { part, x: part.cx + Math.cos(anchorA) * r + R, y: part.cy + Math.sin(anchorA) * r, h: rnd(-Math.PI, Math.PI), v: size * rnd(0.75, 0.95), om: 0, roll: 0, alt: 0.7, anchorA, off, dir: Math.random() < 0.5 ? 1 : -1, R, phase: rnd(0, TAU), amp: 1, modeT: rnd(2, 5), glide: false, seed: rnd(0, 100), S: size * rnd(0.19, 0.23) };
 }
 function stepGull(g: Gull, p: Profile, size: number, dt: number, T: number): void {
   g.anchorA += g.dir * 0.03 * dt;
-  const ar = radiusAt(p, g.anchorA) + g.off, ax = p.cx + Math.cos(g.anchorA) * ar, ay = p.cy + Math.sin(g.anchorA) * ar;
+  const ar = radiusAt(g.part, g.anchorA) + g.off, ax = g.part.cx + Math.cos(g.anchorA) * ar, ay = g.part.cy + Math.sin(g.anchorA) * ar;
   const dx = ax - g.x, dy = ay - g.y, dist = Math.hypot(dx, dy);
   // Кружит с постоянной кривизной; улетев дальше радиуса — плавно заворачивает к якорю.
   let wantOm = (g.dir * g.v) / g.R + 0.25 * noise1(T * 0.6, g.seed);
@@ -823,7 +838,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis)
       if (!inView(vis, x, y)) continue;
       const h = f.h + 0.06 * noise1(T * 0.8, b.seed + 2), roll = f.roll + 0.08 * noise1(T * 0.9, b.seed + 4);
       // Тень только над сушей: по профилю острова с плавной кромкой.
-      const land = smooth((radiusAt(p, Math.atan2(y - p.cy, x - p.cx)) - size * 0.3 - Math.hypot(x - p.cx, y - p.cy)) / (size * 1.5));
+      const land = Math.max(...p.parts.map((part) => smooth((radiusAt(part, Math.atan2(y - part.cy, x - part.cx)) - size * 0.3 - Math.hypot(x - part.cx, y - part.cy)) / (size * 1.5))));
       ctx.save(); ctx.translate(x, y);
       drawBirdShadow(ctx, LANDBIRD, f.S, b.phase, b.amp, roll, h, 0.55, 0.28 * land);
       ctx.rotate(h);

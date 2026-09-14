@@ -57,6 +57,7 @@
 .mapwrap svg { display: block; }
 .adm-edge { stroke: rgba(31,27,22,.25); stroke-width: calc(1.5px / var(--k, 1)); }
 .adm-path { stroke-width: calc(5px / max(1.6, var(--k, 1))); stroke-linecap: round; }
+.adm-sea { fill: none; stroke-width: calc(3px / max(1.6, var(--k, 1))); stroke-dasharray: calc(6px / var(--k, 1)) calc(5px / var(--k, 1)); stroke-linecap: round; opacity: .9; }
 /* На телефоне карта во всю ширину экрана и почти во всю высоту: пальцам при щипке некуда «выпасть», а страница
    под картой не ловит свои жесты (прокрутку, масштаб страницы). */
 @media (max-width: 639px) {

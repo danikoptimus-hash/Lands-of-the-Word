@@ -146,6 +146,8 @@ model MapHex {
   r        Int
   terrain  String
   rotation Int    @default(0)
+  /** Остров: OT — Ветхий Завет, NT — Новый Завет (карты до сентября 2026 — один остров OT). */
+  island   String @default("OT")
 
   @@unique([gameId, q, r])
 }
@@ -163,6 +165,9 @@ model MapNode {
   bookCode  String?
   cityType  String?
   teamIndex Int?
+  island    String   @default("OT")
+  /** Береговой узел: хотя бы один гекс вокруг — море. Береговой город — порт: из него команда может уплыть на другой остров. */
+  coastal   Boolean  @default(false)
   /** Ключ конверта города (генерируется при старте игры, виден только админу). */
   cityKey   String?
   /** Шифр города: случайные буквы и цифры, по знаку на район; команда собирает его заданиями. Свой в каждой игре. */
@@ -325,6 +330,8 @@ model TeamEdgeTask {
   /** Дело заменено пожертвованием (сумма в валюте игры, чек — ссылкой). */
   donation       Boolean   @default(false)
   donationAmount Int?
+  /** Морская сторона: дело из взятого порта; после одобрения капитан выбирает узел высадки на другом острове (toKey до высадки — «sea:<порт>»). */
+  sea           Boolean        @default(false)
   decidedById   String?
   adminComment  String         @default("")
   createdAt     DateTime       @default(now())
