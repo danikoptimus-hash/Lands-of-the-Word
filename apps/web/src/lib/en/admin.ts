@@ -117,4 +117,8 @@ export const ADMIN: Record<string, string> = {
   "Почта для обращений": "Support email", "Адрес сохранён": "Address saved",
   "Пусто — письма идут на почту администратора платформы: {e}.": "Empty — emails go to the platform administrator: {e}.", "Пусто — письма никуда не уходят: у администратора платформы нет почты.": "Empty — emails go nowhere: the platform administrator has no email.",
   "Задания": "Tasks", "Ответы видит только администратор платформы. Вопросы команд по заданиям приходят в поддержку.": "Only the platform administrator sees answers. Teams' questions about tasks go to support.",
+  // Удаление игры
+  "Удалить игру": "Delete the game", "Удалить игру?": "Delete the game?", "Игра удалена": "Game deleted",
+  "Черновик «{name}» будет удалён вместе с командами и картой.": "The draft “{name}” will be deleted together with its teams and map.",
+  "Игра «{name}» будет удалена без возможности восстановления: карта, команды, дела, история ходов.": "The game “{name}” will be deleted permanently: map, teams, deeds, move history.",
 };

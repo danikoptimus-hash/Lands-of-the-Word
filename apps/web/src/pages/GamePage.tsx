@@ -20,10 +20,12 @@ import { Chip } from "../components/Chip";
 import { Tabs } from "../components/Tabs";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { PushToggle } from "../components/PushToggle";
+import { ActionMenu } from "../components/ActionMenu";
+import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 
-interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
+interface GameDto { id: string; name: string; createdById?: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
 type Tab = "overview" | "map" | "teams" | "deeds" | "review" | "settings";
 const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "settings"];
 type Progress = { teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] };
@@ -98,6 +100,16 @@ export function GamePage() {
     } finally { setBusy(false); }
   }
 
+  const { user } = useAuth();
+  const canDelete = Boolean(game) && game!.status !== "ACTIVE" && (game!.createdById === user?.id || user?.platformRole === "SUPERADMIN");
+  async function removeGame() {
+    if (!game) return;
+    const what = game.status === "DRAFT" ? t("Черновик «{name}» будет удалён вместе с командами и картой.", { name: game.name }) : t("Игра «{name}» будет удалена без возможности восстановления: карта, команды, дела, история ходов.", { name: game.name });
+    if (!(await confirm(what, { title: t("Удалить игру?"), okLabel: t("Удалить"), danger: true }))) return;
+    try { await api(`/api/games/${game.id}`, { method: "DELETE" }); notify(t("Игра удалена")); navigate("/", { replace: true }); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+  }
+
   if (error && !game) return <><Back to="/" label={t("Мои игры")} /><div className="card"><ErrorState text={error} onRetry={loadAll} /></div></>;
   if (!game) return <><Back to="/" label={t("Мои игры")} /><div className="card"><LoadingState /></div></>;
   const active = game.status === "ACTIVE";
@@ -115,6 +127,7 @@ export function GamePage() {
           {game.name}
           <Chip tone={draft ? "warn" : active ? "ok" : "neutral"}>{draft ? t("черновик") : active ? t("идёт") : t("завершена")}</Chip>
         </h1>
+        {canDelete && <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить игру"), icon: "trash", danger: true, onSelect: () => void removeGame() }]} />}
       </div>
 
       <Tabs<Tab>

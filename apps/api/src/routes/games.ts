@@ -80,6 +80,17 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(201).send({ game });
   });
 
+  /** Удалить игру: только создатель или администратор платформы, только черновик или завершённую (решение владельца). */
+  app.delete("/api/games/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = await loadGameForAdmin(request, reply, id);
+    if (!game) return;
+    if (game.createdById !== request.user!.id && request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Удалить игру может только её создатель") });
+    if (game.status === "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Идущую игру удалить нельзя: сначала завершите её") });
+    await prisma.game.delete({ where: { id } });
+    return reply.code(204).send();
+  });
+
   /** Настройки игры можно менять только до старта. Если меняется число команд — карту надо перегенерировать. */
   app.patch("/api/games/:id", async (request, reply) => {
     const { id } = request.params as { id: string };

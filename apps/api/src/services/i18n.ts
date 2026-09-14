@@ -63,6 +63,7 @@ const EN: Record<string, string> = {
   "Задание {n}: {verdict}{answer}": "Task {n}: {verdict}{answer}",
   "блокировка снята, можно отвечать снова": "the lock is lifted, you can answer again",
   "блокировка оставлена": "the lock stays",
+  "Удалить игру может только её создатель": "Only the creator can delete the game", "Идущую игру удалить нельзя: сначала завершите её": "A running game cannot be deleted: finish it first",
   "ответ поддержки по заданию города {book}": "support reply about a task of the city of {book}",
   "ответ поддержки": "support reply", " Ответ поддержки: {answer}": " Support reply: {answer}", "Ответ поддержки: {answer}": "Support reply: {answer}",
   "обращение рассмотрено": "your request has been reviewed", "Обращение не найдено": "Request not found", "Обращение уже закрыто": "The request is already closed",

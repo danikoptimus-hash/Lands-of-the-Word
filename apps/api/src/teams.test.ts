@@ -42,6 +42,17 @@ describe("команды и приглашения", () => {
     expect(t3.statusCode).toBe(409);
   });
 
+  it("удалить игру может только создатель, и только не идущую", async () => {
+    const g = await app.inject({ method: "POST", url: "/api/games", headers: { cookie: adminCookie }, payload: { name: "На удаление", teamCount: 2 } });
+    const gid = g.json().game.id;
+    expect((await app.inject({ method: "DELETE", url: `/api/games/${gid}`, headers: { cookie: otherCookie } })).statusCode).toBe(403);
+    // Соадминистратор, но не создатель — тоже нельзя.
+    await app.inject({ method: "POST", url: `/api/games/${gid}/admins`, headers: { cookie: adminCookie }, payload: { login: otherNick } });
+    expect((await app.inject({ method: "DELETE", url: `/api/games/${gid}`, headers: { cookie: otherCookie } })).statusCode).toBe(403);
+    expect((await app.inject({ method: "DELETE", url: `/api/games/${gid}`, headers: { cookie: adminCookie } })).statusCode).toBe(204);
+    expect((await app.inject({ method: "GET", url: `/api/games/${gid}`, headers: { cookie: adminCookie } })).statusCode).toBe(404);
+  });
+
   it("не админ не может создавать команды", async () => {
     const res = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams`, headers: { cookie: playerCookie }, payload: { name: "Чужая" } });
     expect(res.statusCode).toBe(403);
