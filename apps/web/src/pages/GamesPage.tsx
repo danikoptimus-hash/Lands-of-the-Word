@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Link, Navigate, useLocation } from "react-router-dom";
 import { reportPage } from "../lib/perf";
 import { api, ApiError, type GameSummary, type MyTeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -34,7 +34,7 @@ function HomeSkeleton() {
 }
 
 /**
- * Главная. Игрок с одной командой и без своих игр сразу попадает на карту. Иначе — «Мои команды» и,
+ * Главная. Игрок с одной командой и без своих игр при входе сразу попадает на карту. Иначе — «Мои команды» и,
  * только если есть свои игры, «Мои игры»; создание игры — отдельная страница.
  */
 export function GamesPage() {
@@ -43,6 +43,10 @@ export function GamesPage() {
   const [failed, setFailed] = useState(false);
   useEffect(() => { reportPage("other"); }, []);
   const [attempt, setAttempt] = useState(0);
+  // Автопереход на карту — только при входе на сайт (первая запись истории). Если человек сам пришёл
+  // на главную с карты («Мои игры»), показываем её: иначе игрок с одной командой и без своих игр
+  // никогда не добрался бы до «Создать игру».
+  const entry = useLocation().key === "default";
   const { user } = useAuth();
   const { confirm, notify } = useUi();
 
@@ -68,7 +72,7 @@ export function GamesPage() {
 
   if (failed) return <ErrorState onRetry={() => setAttempt((n) => n + 1)} />;
   if (!games || !teams) return <HomeSkeleton />;
-  if (teams.length === 1 && games.length === 0) return <Navigate to={`/games/${teams[0]!.game.id}/team`} replace />;
+  if (entry && teams.length === 1 && games.length === 0) return <Navigate to={`/games/${teams[0]!.game.id}/team`} replace />;
 
   return (
     <>

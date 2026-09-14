@@ -1,5 +1,6 @@
 /* Каркас: шапка, контейнер, сетки карточек. */
-.topbar { position: sticky; top: 0; z-index: var(--z-sticky); padding-top: var(--safe-top); background: var(--surface); border-bottom: 1px solid var(--border); }
+/* Шапка выше остальных «липких» полос (вкладок игры), чтобы меню аккаунта не перекрывалось. */
+.topbar { position: sticky; top: 0; z-index: calc(var(--z-sticky) + 1); padding-top: var(--safe-top); background: var(--surface); border-bottom: 1px solid var(--border); }
 .topbar-inner { max-width: 1040px; margin: 0 auto; height: var(--topbar-h); padding: 0 var(--gutter); display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
 .brand { display: flex; align-items: center; gap: var(--sp-2); color: var(--text); font-weight: 700; white-space: nowrap; }
 .brand:hover { text-decoration: none; }
