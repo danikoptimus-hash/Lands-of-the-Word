@@ -4,9 +4,12 @@ import { FOG_COLOR, HEX_SIZE, TERRAIN_COLOR, coastPath, hexCenter, hexPoints } f
 import { CLOUD_TILE, cloudTile } from "../lib/noise";
 import type { View } from "../lib/useViewport";
 import type { MapHexDto } from "../lib/api";
+import { ISLET_IMAGES } from "@lotw/domain";
 
 export const IMG = {
   terrain: (t: string) => `/img/terrain/${t}.webp`,
+  /** Остров: в адресе хеш содержимого файла, чтобы после замены картинки браузер и PWA не показывали старую копию из кеша. */
+  islet: (n: number) => { const v = ISLET_IMAGES.find((s) => s.img === n)?.ver; return `/img/islet/islet-${n}.webp${v ? `?v=${v}` : ""}`; },
   city: (type: string | null | undefined) => `/img/city/${type && type !== "" ? type : "village"}.webp`,
   start: (i: number) => `/img/start/${["babylon", "egypt", "wilderness", "assyria", "zin", "shipwreck"][i % 6]}.webp`,
 };
@@ -309,7 +312,7 @@ export function MapSymbols() {
 /** Прогрев кеша картинок карты: вызывается после входа, чтобы карта открывалась без ожидания. */
 export function warmMapImages(): void {
   if (typeof window === "undefined") return;
-  const urls = [...TERRAINS.map(IMG.terrain), "/img/brand/sea-512.webp", "/img/brand/sea-1024.webp", ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i)), ...Array.from({ length: 6 }, (_, i) => `/img/islet/islet-${i + 1}.webp`)];
+  const urls = [...TERRAINS.map(IMG.terrain), "/img/brand/sea-512.webp", "/img/brand/sea-1024.webp", ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i)), ...ISLET_IMAGES.map((s) => IMG.islet(s.img))];
   const go = () => urls.forEach((u) => { const im = new Image(); im.decoding = "async"; im.src = u; });
   if ("requestIdleCallback" in window) (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(go); else setTimeout(go, 300);
 }

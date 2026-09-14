@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { generateIslets, type Bounds, type Islet } from "@lotw/domain";
 import { HEX_SIZE } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
-import type { Viewport } from "./MapLayers";
+import { IMG, type Viewport } from "./MapLayers";
 
 /** Раскладка островов по гексам поля (детерминирована, считается один раз на карту). */
 export function useIslets(hexes: MapHexDto[], size: number, bounds: Bounds | null): Islet[] {
@@ -10,7 +10,6 @@ export function useIslets(hexes: MapHexDto[], size: number, bounds: Bounds | nul
   return useMemo(() => (bounds && hexes.length ? generateIslets(hexes, size, bounds) : []), [key, size, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export const ISLET_IMG = (n: number) => `/img/islet/islet-${n}.webp`;
 
 /** Замкнутый гладкий контур острова по снятому профилю (Катмулл-Ром → кубические Безье) в координатах карты. */
 function isletPath(isl: Islet): Path2D {
@@ -52,7 +51,7 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE }: { vp: Viewport; isl
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } dirty = true; };
     const images = new Map<number, HTMLImageElement>();
     for (const n of new Set(islets.map((i) => i.img))) {
-      const im = new Image(); im.decoding = "async"; im.onload = () => { dirty = true; }; im.src = ISLET_IMG(n); images.set(n, im);
+      const im = new Image(); im.decoding = "async"; im.onload = () => { dirty = true; }; im.src = IMG.islet(n); images.set(n, im);
     }
     const paths = islets.map((isl) => ({ isl, path: isletPath(isl), sc: Math.max(0.25, (isl.r / size) * 0.32) }));
     const draw = () => {

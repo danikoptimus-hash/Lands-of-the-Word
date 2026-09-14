@@ -15,7 +15,7 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ["**/*.{js,css,html,ico,webmanifest}", "favicon-32.png", "icon-192.png", "apple-touch-icon.png", "img/brand/logo-64.png", "img/brand/logo-256.png"],
         runtimeCaching: [
-          { urlPattern: /\/img\/.*\.(webp|png|jpg)$/, handler: "CacheFirst", options: { cacheName: "lotw-img", expiration: { maxEntries: 120, maxAgeSeconds: 30 * 24 * 3600 } } },
+          { urlPattern: /\/img\/.*\.(webp|png|jpg)(\?.*)?$/, handler: "CacheFirst", options: { cacheName: "lotw-img", expiration: { maxEntries: 120, maxAgeSeconds: 30 * 24 * 3600 } } },
           { urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//, handler: "StaleWhileRevalidate", options: { cacheName: "lotw-fonts", expiration: { maxEntries: 20, maxAgeSeconds: 30 * 24 * 3600 } } },
         ],
         // Обработчики push и клика по уведомлению — в public/push-sw.js.
