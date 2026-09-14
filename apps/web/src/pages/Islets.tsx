@@ -39,7 +39,8 @@ export function IsletsLayer({ islets, size = HEX_SIZE }: { islets: Islet[]; size
   return (
     <g className="islets coast" pointerEvents="none">
       {islets.map((isl, i) => {
-        const sc = Math.min(1, Math.max(0.4, isl.r / (size * 2.6)));
+        // Ширина отмели — от размера островка: у большого около его радиуса, у банки совсем узкая.
+        const sc = Math.max(0.1, (isl.r / size) * 0.42);
         return (
           <g key={i}>
             <CoastUnder d={isletPath(isl)} size={size} scale={sc} sand={false} />

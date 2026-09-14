@@ -47,13 +47,20 @@ export function isletRadiusAt(isl: { r: number; shape: number[] }, angle: number
 }
 
 /**
- * План раскладки: какие картинки и какого размера (половина стороны в радиусах гекса). Два крупных, три средних,
- * две песчаные банки разного размера — семь островков.
+ * План раскладки: какие картинки и какого размера (половина стороны картинки в радиусах гекса). Масштаб деталей —
+ * как у поля (решение владельца): пальма на острове не больше пальмы у города, поэтому остров — примерно
+ * полторы картинки города (r ≈ 0.8 гекса), песчаная банка с одной пальмой — совсем маленькая. Чтобы море не
+ * пустовало, островков четырнадцать: каждая картинка дважды в разных размерах, банка — трижды.
  */
 const PLAN: ReadonlyArray<{ img: number; lo: number; hi: number }> = [
-  { img: 1, lo: 2.6, hi: 3.0 }, { img: 5, lo: 2.4, hi: 2.9 },            // зелёные круглые
-  { img: 2, lo: 2.0, hi: 2.4 }, { img: 6, lo: 2.0, hi: 2.4 }, { img: 4, lo: 1.9, hi: 2.3 }, // скалистые гряды и полумесяц с лагуной
-  { img: 3, lo: 1.1, hi: 1.3 }, { img: 3, lo: 0.8, hi: 1.0 },            // песчаная банка с пальмой, два размера
+  { img: 1, lo: 0.82, hi: 0.92 }, { img: 5, lo: 0.8, hi: 0.9 },   // зелёные круглые
+  { img: 2, lo: 0.74, hi: 0.84 }, { img: 6, lo: 0.74, hi: 0.84 }, // скалистые гряды
+  { img: 4, lo: 0.66, hi: 0.76 },                                 // полумесяц с лагуной
+  { img: 3, lo: 0.26, hi: 0.32 },                                 // песчаная банка с пальмой
+  { img: 1, lo: 0.72, hi: 0.8 }, { img: 5, lo: 0.7, hi: 0.78 },
+  { img: 2, lo: 0.64, hi: 0.72 }, { img: 6, lo: 0.64, hi: 0.72 },
+  { img: 4, lo: 0.58, hi: 0.66 },
+  { img: 3, lo: 0.22, hi: 0.28 }, { img: 3, lo: 0.2, hi: 0.26 },
 ];
 
 /** Раскладка в поясе моря вокруг поля: островок не подходит к полю ближе, чем отмель и песок берега, и не пересекается с соседями. */
@@ -66,13 +73,13 @@ export function generateIslets(fieldHexes: ReadonlyArray<Hex>, size: number, bou
   for (const item of PLAN) {
     const spec = ISLET_IMAGES.find((s) => s.img === item.img)!;
     const r = size * between(rng, item.lo, item.hi);
-    const cover = r * spec.maxR + size * 1.4;
+    const cover = r * spec.maxR + Math.min(size * 1.4, r * 1.2);
     for (let tries = 0; tries < 80; tries++) {
       const x = between(rng, field.minX + cover, field.minX + field.width - cover);
       const y = between(rng, field.minY + cover, field.minY + field.height - cover);
       // Не ближе к любому гексу поля, чем его отмель (size × 3.4 от центра гекса) плюс своя отмель.
-      if (centers.some((c) => Math.hypot(c.x - x, c.y - y) < cover + size * 3.4)) continue;
-      if (out.some((o) => Math.hypot(o.x - x, o.y - y) < cover + o.cover + size * 1.2)) continue;
+      if (centers.some((c) => Math.hypot(c.x - x, c.y - y) < cover + size * 3.2)) continue;
+      if (out.some((o) => Math.hypot(o.x - x, o.y - y) < cover + o.cover + size * 1.5)) continue;
       out.push({ x, y, r, shape: spec.shape, img: item.img, cover });
       break;
     }

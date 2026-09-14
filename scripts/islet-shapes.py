@@ -20,8 +20,8 @@ for n in range(1, 7):
         prof.append(round(found, 4))
     sm = [round(sorted([prof[(i - 1) % BINS], prof[i], prof[(i + 1) % BINS]])[1], 4) for i in range(BINS)]
     out.append((n, sm))
-    w = im.copy(); w.thumbnail((1024, 1024), Image.LANCZOS)
-    w.save(f"apps/web/public/img/islet/islet-{n}.webp", "WEBP", quality=88, method=6)
+    w = im.copy(); w.thumbnail((2048, 2048), Image.LANCZOS)  # не уменьшаем ниже исходника до 2048: на максимальном зуме нужна резкость
+    w.save(f"apps/web/public/img/islet/islet-{n}.webp", "WEBP", quality=86, method=6)
 ts = "/** Контуры нарисованных островков (`apps/web/public/img/islet/islet-N.webp`): радиус края острова по 72 углам от центра картинки,\n * в долях половины стороны картинки. Снято по прозрачности скриптом `scripts/islet-shapes.py`; при замене картинок пересчитать. */\nexport const ISLET_SHAPE_N = 72;\nexport const ISLET_IMAGES: ReadonlyArray<{ img: number; shape: number[]; maxR: number }> = [\n"
 for n, sm in out:
     ts += "  { img: %d, maxR: %s, shape: [%s] },\n" % (n, max(sm), ", ".join(str(v) for v in sm))
