@@ -2,14 +2,17 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { seaField } from "@lotw/domain";
 
 export interface View { k: number; tx: number; ty: number }
+/** Как часто фиксировать масштаб по ходу щипка или колеса (мс). */
+const LIVE_MS = 90;
 export interface Bounds { minX: number; minY: number; width: number; height: number }
 
 /**
  * Перетаскивание, колесо, щипок двумя пальцами и кнопки масштаба для карты.
  *
  * Вид (масштаб и сдвиг) живёт в ref и рассылается подписчикам сразу при каждом движении: слои двигает
- * композитор без перерисовки. Состояние React (`view`) фиксируется только в конце жеста, после колеса
- * и по кнопкам — это «зафиксированный» масштаб, под который слои растрируются заново один раз.
+ * композитор без перерисовки. Состояние React (`view`) — «зафиксированный» масштаб, под который слои
+ * растрируются заново: фиксируется в конце жеста, по кнопкам, а по ходу щипка и колеса — не чаще LIVE_MS,
+ * чтобы детали (толщины, подписи, метки) масштабировались уже во время жеста.
  * Сдвиг ограничен: остров не уходит из окна, минимальный масштаб — «вся карта», максимальный — в 8 раз крупнее.
  */
 export function useViewport(bounds: Bounds | null, focus?: { x: number; y: number; k?: number } | null) {
@@ -58,7 +61,13 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     for (const fn of listeners.current) fn(v);
     if (commit) setViewState(v);
   }, [clampView]);
-  const commit = useCallback(() => setViewState(viewRef.current), []);
+  const lastCommit = useRef(0);
+  const commit = useCallback(() => { lastCommit.current = performance.now(); setViewState(viewRef.current); }, []);
+  /**
+   * Фиксация по ходу жеста масштаба (щипок, колесо): не чаще LIVE_MS — толщины линий, подписи и метки
+   * пересчитываются под новый масштаб уже пока пальцы на экране, а не только после отпускания (решение владельца).
+   */
+  const commitLive = useCallback(() => { if (performance.now() - lastCommit.current >= LIVE_MS) commit(); }, [commit]);
   /** Подписка на каждое изменение вида (вызывается сразу с текущим видом). Возвращает отписку. */
   const subscribe = useCallback((fn: (v: View) => void) => { listeners.current.add(fn); fn(viewRef.current); return () => { listeners.current.delete(fn); }; }, []);
 
@@ -149,6 +158,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
         const f = k / v.k;
         return { k, tx: pm.x - (pm.x - v.tx) * f + (mid.x - pm.x), ty: pm.y - (pm.y - v.ty) * f + (mid.y - pm.y) };
       });
+      commitLive();
     };
     const up = (e: PointerEvent) => {
       if (!pointers.current.has(e.pointerId)) return;
@@ -169,7 +179,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       window.removeEventListener("touchend", clear);
       window.removeEventListener("touchcancel", clear);
     };
-  }, [setView, commit]);
+  }, [setView, commit, commitLive]);
 
   useEffect(() => {
     if (!el) return;
@@ -178,11 +188,12 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       e.preventDefault();
       const r = el.getBoundingClientRect();
       zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top, false);
+      commitLive();
       window.clearTimeout(timer); timer = window.setTimeout(commit, 120);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => { el.removeEventListener("wheel", onWheel); window.clearTimeout(timer); };
-  }, [el, zoomAt, commit]);
+  }, [el, zoomAt, commit, commitLive]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Без setPointerCapture: иначе click уходит контейнеру, а не клетке карты.
