@@ -22,12 +22,14 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   const listeners = useRef(new Set<(v: View) => void>());
   const boundsRef = useRef(bounds); boundsRef.current = bounds;
   const fitK = useRef(1);
+  /** Пределы масштаба относительно «вся карта»: отдалить можно вдвое (вокруг острова остаётся широкое море), приблизить — в 8 раз. */
+  const clampK = (k: number) => Math.min(fitK.current * 8, Math.max(fitK.current * 0.5, k));
 
   const clampView = useCallback((v: View): View => {
     const el = ref.current, b = boundsRef.current;
     if (!el || !b) return v;
     const w = el.clientWidth, h = el.clientHeight;
-    const k = Math.min(fitK.current * 8, Math.max(fitK.current, v.k));
+    const k = clampK(v.k);
     const f = k / v.k;
     let tx = w / 2 - (w / 2 - v.tx) * f, ty = h / 2 - (h / 2 - v.ty) * f;
     // Поле карты не выходит из окна дальше, чем на запас моря по краям (решение владельца: листать можно
@@ -98,7 +100,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     setView((v) => {
       const el = ref.current;
       const px = cx ?? (el ? el.clientWidth / 2 : 0), py = cy ?? (el ? el.clientHeight / 2 : 0);
-      const k = Math.min(fitK.current * 8, Math.max(fitK.current, v.k * factor));
+      const k = clampK(v.k * factor);
       const f = k / v.k;
       return { k, tx: px - (px - v.tx) * f, ty: py - (py - v.ty) * f };
     }, commitNow);
@@ -136,7 +138,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       g.moved += 10;
       setDragging(true);
       setView((v) => {
-        const k = Math.min(fitK.current * 8, Math.max(fitK.current, v.k * ratio));
+        const k = clampK(v.k * ratio);
         const f = k / v.k;
         return { k, tx: pm.x - (pm.x - v.tx) * f + (mid.x - pm.x), ty: pm.y - (pm.y - v.ty) * f + (mid.y - pm.y) };
       });
