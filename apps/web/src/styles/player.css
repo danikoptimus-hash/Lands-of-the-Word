@@ -200,12 +200,6 @@
 .task-view .back-btn { margin-left: calc(-1 * var(--sp-3)); }
 .task-view .prompt { font-size: var(--fs-lg); line-height: var(--lh-text); margin: var(--sp-3) 0; }
 .no-copy { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-.reading { position: relative; display: flex; align-items: center; gap: var(--sp-2); padding-bottom: var(--sp-3); margin-bottom: var(--sp-2); font-size: var(--fs-sm); line-height: var(--lh-ui); color: var(--muted); }
-.reading .i { flex: none; }
-.reading i { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; border-radius: 2px; background: var(--border); overflow: hidden; }
-.reading i::after { content: ""; position: absolute; inset: 0; width: calc(var(--p, 0) * 100%); background: var(--accent); transition: width 1s linear; }
-.reading.ok { color: var(--success); }
-.reading.ok i::after { background: var(--success); }
 .choices { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
 .choices button { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); background: var(--surface); color: var(--text); border: 1px solid var(--border); font-weight: 400; line-height: var(--lh-ui); }
 .choices button:hover { background: var(--surface-2); }

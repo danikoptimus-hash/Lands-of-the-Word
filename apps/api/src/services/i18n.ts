@@ -161,7 +161,6 @@ const EN: Record<string, string> = {
   "Задание не найдено": "Task not found",
   "Задание уже решено": "The task is already solved",
   "Подождите немного перед следующей попыткой": "Wait a little before the next attempt",
-  "Сначала прочитайте текст: время чтения ещё не набрано": "Read the text first: the reading time is not up yet",
   "Задание закрыто на сутки после двух неверных ответов": "The task is closed for a day after two wrong answers",
   "Задание не закрыто: оспаривать нечего": "The task is not closed: there is nothing to dispute",
   "Спор уже отправлен: ждите ответа администратора": "The dispute has already been sent: wait for the administrator's answer",

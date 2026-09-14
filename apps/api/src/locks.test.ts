@@ -55,33 +55,6 @@ afterAll(async () => {
   await app.close(); await prisma.$disconnect();
 });
 
-describe("минимальное время чтения", () => {
-  it("норма считается от объёма района; ответ до неё не принимается; время копится только по сигналам «читаю»", async () => {
-    const c = await city();
-    const t0 = c.content.tasks[0], tBook = c.content.tasks.find((t: { scope: string }) => t.scope === "book");
-    expect(t0.readingMs).toBe(3 * 60_000); // Руфь 1:1–5 — 5 стихов, минимум 3 минуты
-    expect(tBook.readingMs).toBe(5 * 60_000);
-    expect(c.state.heartbeatMs).toBe(10_000);
-    const early = await answer(0, (await shown(0)).correct);
-    expect(early.statusCode).toBe(409);
-    expect(early.json().error).toBe("reading");
-    expect(early.json().remainingMs).toBe(3 * 60_000);
-    // Первый сигнал ничего не засчитывает (нет предыдущего), второй — не больше 20 с даже после долгой паузы.
-    const h1 = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/reading`, headers: { cookie: p1Cookie } });
-    expect(h1.json()).toMatchObject({ readMs: 0, requiredMs: 3 * 60_000 });
-    await prisma.teamTaskLock.updateMany({ where: { teamId: team1, nodeKey: rutKey, taskIndex: 0 }, data: { readAt: new Date(Date.now() - 5 * 60_000) } });
-    const h2 = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/reading`, headers: { cookie: p1Cookie } });
-    expect(h2.json().readMs).toBe(20_000);
-    await prisma.teamTaskLock.updateMany({ where: { teamId: team1, nodeKey: rutKey, taskIndex: 0 }, data: { readAt: new Date(Date.now() - 10_000) } });
-    const h3 = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/reading`, headers: { cookie: p1Cookie } });
-    expect(h3.json().readMs).toBeGreaterThanOrEqual(29_000);
-    expect((await city()).state.locks.find((l: { index: number }) => l.index === 0).readMs).toBe(h3.json().readMs);
-    // Дальше тесты попыток: норма набрана.
-    await prisma.teamTaskLock.createMany({ data: content.tasks.map((_, i) => ({ gameId, teamId: team1, nodeKey: rutKey, taskIndex: i, readMs: 60 * 60_000 })), skipDuplicates: true });
-    await prisma.teamTaskLock.updateMany({ where: { teamId: team1, nodeKey: rutKey }, data: { readMs: 60 * 60_000 } });
-  });
-});
-
 describe("две попытки на выбор ответа, блокировка на сутки и обращение в поддержку", () => {
   it("вторая неверная попытка закрывает задание; обращение в поддержку с автозаполнением; суперадмин снимает блокировку", async () => {
     const task = content.tasks[0]!;

@@ -51,7 +51,6 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
         const locked = lock?.lockedUntil && lock.lockedUntil.getTime() > Date.now();
         ctx.attemptsLeft = task.type === "choice" ? (locked ? 0 : Math.max(0, 2 - (lock?.wrong ?? 0))) : null;
         ctx.lockedUntil = locked ? lock!.lockedUntil!.toISOString() : null;
-        ctx.readMin = lock ? Math.round(lock.readMs / 6000) / 10 : 0;
       }
     }
     const row = await prisma.supportRequest.create({ data: { gameId: id, teamId: m.team.id, userId: request.user!.id, nodeKey: body.nodeKey ?? null, bookCode, taskIndex: body.taskIndex ?? null, message: body.message, context: ctx as object } });

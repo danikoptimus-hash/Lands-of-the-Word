@@ -239,7 +239,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       {city?.content && task && (
         <TaskView task={task} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
           hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey}
-          lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} choiceAttempts={city.state.choiceAttempts} now={now} onSupport={(m) => support(task.index, m)} heartbeatMs={city.state.heartbeatMs} notify={notify} />
+          lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} choiceAttempts={city.state.choiceAttempts} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />
       )}
     </Sheet>
   );
@@ -247,41 +247,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
 
 const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.some((l) => l.index === index && l.lockedUntil != null && l.lockedUntil > now);
 
-/** Время чтения: пока задание открыто и вкладка видна, раз в heartbeatMs шлём серверу «читаю»; между сигналами счётчик идёт локально. */
-function useReading(gameId: string, nodeKey: string, index: number, done: boolean, initialMs: number, heartbeatMs: number) {
-  const [readMs, setReadMs] = useState(initialMs);
-  const base = useRef({ ms: initialMs, at: Date.now() });
-  useEffect(() => { base.current = { ms: initialMs, at: Date.now() }; setReadMs(initialMs); }, [initialMs, index]);
-  useEffect(() => {
-    if (done) return;
-    let stopped = false;
-    const beat = async () => {
-      if (stopped || document.visibilityState !== "visible") return;
-      try {
-        const r = await api<{ readMs: number }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/reading`, { method: "POST" });
-        base.current = { ms: r.readMs, at: Date.now() }; setReadMs(r.readMs);
-      } catch { /* сеть: счётчик догонит на следующем сигнале */ }
-    };
-    void beat();
-    const hb = setInterval(() => void beat(), heartbeatMs);
-    const tick = setInterval(() => { if (document.visibilityState === "visible") setReadMs(base.current.ms + (Date.now() - base.current.at)); }, 1000);
-    // Скрыли вкладку: фиксируем набранное и останавливаем локальный счёт; вернулись: счёт идёт с этого момента.
-    const onVis = () => {
-      if (document.visibilityState === "visible") { base.current = { ms: base.current.ms, at: Date.now() }; void beat(); }
-      else base.current = { ms: base.current.ms + (Date.now() - base.current.at), at: Date.now() };
-    };
-    document.addEventListener("visibilitychange", onVis);
-    return () => { stopped = true; clearInterval(hb); clearInterval(tick); document.removeEventListener("visibilitychange", onVis); };
-  }, [gameId, nodeKey, index, done, heartbeatMs]); // eslint-disable-line react-hooks/exhaustive-deps
-  return readMs;
-}
-
-const mmss = (ms: number) => { const s = Math.max(0, Math.floor(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
-
-function TaskView({ task, district, groupTitles, done, fragment, busy, cooldown, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, choiceAttempts, now, onSupport, heartbeatMs, notify }: { task: CityTaskDto; district?: { title: string; verses: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; choiceAttempts: number; now: number; onSupport: (message: string) => Promise<boolean>; heartbeatMs: number; notify: (text: string, tone?: "bad") => void }) {
+function TaskView({ task, district, groupTitles, done, fragment, busy, cooldown, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, choiceAttempts, now, onSupport, notify }: { task: CityTaskDto; district?: { title: string; verses: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; choiceAttempts: number; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
-  const readMs = useReading(gameId, nodeKey, task.index, done, lock?.readMs ?? 0, heartbeatMs || 10_000);
-  const reading = !done && readMs < task.readingMs;
   /** Вставка из буфера отключена (решение владельца): ответ набирается вручную. */
   const noPaste = (e: React.ClipboardEvent | React.DragEvent) => { e.preventDefault(); notify(t("Вставка отключена: наберите ответ вручную"), "bad"); };
   const openRequest = support.find((r) => r.status === "OPEN") ?? null;
@@ -296,25 +263,18 @@ function TaskView({ task, district, groupTitles, done, fragment, busy, cooldown,
   const itemText = useMemo(() => (task.type === "order" ? new Map(task.items.map((i) => [i.id, i.text])) : new Map<string, string>()), [task]);
   const value = task.type === "choice" ? choice : task.type === "order" ? order : text.trim();
   const filled = task.type === "choice" ? choice != null : task.type === "order" ? order.length > 0 : text.trim().length > 0;
-  const canSend = !done && !busy && cooldown === 0 && !locked && !reading && filled;
+  const canSend = !done && !busy && cooldown === 0 && !locked && filled;
   const scope = task.scope === "book" ? t("По всей книге") : task.scope === "group" ? t("По районам: {list}", { list: groupTitles?.join(", ") ?? "" }) : t("По этому району");
   const title = task.scope === "district" && district ? [t("Район {n}", { n: task.index + 1 }), district.title, district.verses].filter(Boolean).join(" · ") : t("Задание {n}", { n: task.index + 1 });
   const attemptsTotal = Math.max(1, choiceAttempts), attemptsLeft = lock ? lock.attemptsLeft : attemptsTotal;
   const attemptNo = Math.min(attemptsTotal, attemptsTotal - attemptsLeft + 1);
-  const why = locked ? t("Задание закрыто") : reading ? t("Дочитайте: ещё {a}", { a: mmss(task.readingMs - readMs) }) : cooldown > 0 ? t("Подождите {n} с", { n: cooldown }) : null;
+  const why = locked ? t("Задание закрыто") : cooldown > 0 ? t("Подождите {n} с", { n: cooldown }) : null;
   return (
     <div className="task-view" onContextMenu={(e) => e.preventDefault()}>
       <button type="button" className="ghost back-btn" onClick={onBack}><Icon name="back" />{t("К районам")}</button>
       <h3 className="mt-2">{title}</h3>
       <p className="muted small">{scope}</p>
       <p className="prompt no-copy" onCopy={(e) => e.preventDefault()}>{task.prompt}</p>
-      {!done && (
-        <div className={"reading" + (reading ? "" : " ok")} style={{ ["--p" as string]: Math.min(1, readMs / task.readingMs) }}>
-          <Icon name="book" />
-          <span>{reading ? t("Чтение {a} / {b} · счёт идёт, пока задание открыто", { a: mmss(readMs), b: mmss(task.readingMs) }) : t("Время чтения набрано")}</span>
-          <i />
-        </div>
-      )}
       {task.type === "choice" && !done && !locked && (
         attemptsLeft <= 1
           ? <div className="note warn"><Icon name="alert" /><span>{t("Попытка {a} из {b}: после неверного ответа задание закроется на сутки.", { a: attemptNo, b: attemptsTotal })}</span></div>

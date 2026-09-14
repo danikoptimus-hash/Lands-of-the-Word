@@ -74,7 +74,7 @@ function Tile({ label, value, hint, trend, dates, cumulative, delta }: { label: 
 }
 
 
-interface SupportRow { id: string; createdAt: string; status: "OPEN" | "CLOSED"; game: string; team: { name: string; color: string } | null; user: string; bookCode: string | null; taskIndex: number | null; message: string; context: { city?: string | null; prompt?: string | null; attemptsLeft?: number | null; lockedUntil?: string | null; readMin?: number | null; doneTasks?: number | null; totalTasks?: number | null; org?: string }; reply: string | null; resolvedAt: string | null; unlocked: boolean }
+interface SupportRow { id: string; createdAt: string; status: "OPEN" | "CLOSED"; game: string; team: { name: string; color: string } | null; user: string; bookCode: string | null; taskIndex: number | null; message: string; context: { city?: string | null; prompt?: string | null; attemptsLeft?: number | null; lockedUntil?: string | null;  doneTasks?: number | null; totalTasks?: number | null; org?: string }; reply: string | null; resolvedAt: string | null; unlocked: boolean }
 
 /** Обращения в поддержку: открытые сверху, ответ и снятие блокировки — здесь. Адрес для писем — в настройке ниже. */
 function SupportBlock() {
@@ -118,7 +118,7 @@ function SupportBlock() {
             <li key={r.id} className={r.status === "CLOSED" ? "closed" : ""}>
               <div className="main">
                 <span className="title">{r.game}{r.team && <> · <TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName /></>} <span className="muted small">· {r.user} · {fmtDate(r.createdAt)}</span></span>
-                {r.context.city && <span className="meta">{r.context.city}{r.taskIndex !== null && <> · {t("задание {n}", { n: r.taskIndex + 1 })}{r.context.attemptsLeft !== null && r.context.attemptsLeft !== undefined && <> · {t("попыток осталось {n}", { n: r.context.attemptsLeft })}</>}{r.context.lockedUntil && <> · {t("закрыто до {d}", { d: fmtDate(r.context.lockedUntil) })}</>}{r.context.readMin !== null && r.context.readMin !== undefined && <> · {t("чтение {n} мин", { n: r.context.readMin })}</>}</>}</span>}
+                {r.context.city && <span className="meta">{r.context.city}{r.taskIndex !== null && <> · {t("задание {n}", { n: r.taskIndex + 1 })}{r.context.attemptsLeft !== null && r.context.attemptsLeft !== undefined && <> · {t("попыток осталось {n}", { n: r.context.attemptsLeft })}</>}{r.context.lockedUntil && <> · {t("закрыто до {d}", { d: fmtDate(r.context.lockedUntil) })}</>}</>}</span>}
                 {r.context.prompt && <span className="muted small">{r.context.prompt}</span>}
                 <p className="msg">{r.message}</p>
                 {r.status === "CLOSED" ? (
