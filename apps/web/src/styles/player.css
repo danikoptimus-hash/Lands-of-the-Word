@@ -12,16 +12,18 @@
 .map-svg.world.passthrough, .map-svg.world .screen-items { pointer-events: none; }
 .map-svg.world .screen-items .m-label, .map-svg.world .screen-items .m-deed, .map-svg.world .screen-items .pick { pointer-events: auto; }
 .fx-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
-.sea-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #4F8BA6; }
+.sea-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; background: #4285A3; }
 .sea-pos { position: absolute; left: 0; top: 0; width: calc(150% + 6 * var(--tile, 512px)); height: calc(150% + 6 * var(--tile, 512px)); transform-origin: 0 0; will-change: transform; }
-.sea-base, .sea-waves { position: absolute; inset: 0; background-image: var(--sea, url("/img/brand/sea-512.webp")); background-position: 0 0; background-size: var(--tile, 512px) var(--tile, 512px); background-repeat: repeat; }
-/* Вторая плитка крупнее в 1.37 раза и плывёт: периоды двух слоёв не кратны, повтор рисунка глазу не виден.
-   Дрейф — трансформация композитора. */
-/* Второй слой повёрнут на 90° и растянут за края квадрата .sea-pos: его повтор не совпадает с повтором первого ни по шагу, ни по направлению. */
-.sea-waves { opacity: .4; inset: -25%; background-size: calc(var(--tile, 512px) * 1.37) calc(var(--tile, 512px) * 1.37); background-position: calc(var(--tile, 512px) / 3) calc(var(--tile, 512px) / 5); animation: sea-drift 90s linear infinite; will-change: transform; }
-@keyframes sea-drift { from { transform: rotate(90deg) translate(0, 0); } to { transform: rotate(90deg) translate(calc(var(--tile, 512px) * 1.37), calc(var(--tile, 512px) * 1.37)); } }
-@media (prefers-reduced-motion: reduce) { .sea-waves { transform: rotate(90deg); } }
-@media (prefers-reduced-motion: reduce) { .sea-waves { animation: none; } }
+.sea-base, .sea-waves, .sea-swell { position: absolute; inset: 0; background-position: 0 0; background-repeat: repeat; }
+/* Мелкие блики: плитка шума в масштабе карты. */
+.sea-base { background-image: var(--sea-a); background-size: var(--tile, 512px) var(--tile, 512px); opacity: .5; }
+/* Вторые блики крупнее в 1.61 раза, повёрнуты на 90° и плывут: их период не совпадает с первым ни по шагу, ни по направлению. */
+.sea-waves { inset: -25%; background-image: var(--sea-b); background-size: calc(var(--tile, 512px) * 1.61) calc(var(--tile, 512px) * 1.61); background-position: calc(var(--tile, 512px) / 3) calc(var(--tile, 512px) / 5); opacity: .38; animation: sea-drift 110s linear infinite; will-change: transform; }
+@keyframes sea-drift { from { transform: rotate(90deg) translate(0, 0); } to { transform: rotate(90deg) translate(calc(var(--tile, 512px) * 1.61), calc(var(--tile, 512px) * 1.61)); } }
+/* Зыбь: крупные тёмные пятна в 2.7 раза больше плитки, повёрнуты на 180°, плывут медленно в другую сторону. */
+.sea-swell { inset: -25%; background-image: var(--sea-c); background-size: calc(var(--tile, 512px) * 2.7) calc(var(--tile, 512px) * 2.7); animation: sea-swell 240s linear infinite; will-change: transform; }
+@keyframes sea-swell { from { transform: rotate(180deg) translate(0, 0); } to { transform: rotate(180deg) translate(calc(var(--tile, 512px) * -2.7), calc(var(--tile, 512px) * 2.7)); } }
+@media (prefers-reduced-motion: reduce) { .sea-waves, .sea-swell { animation: none; } .sea-waves { transform: rotate(90deg); } .sea-swell { transform: rotate(180deg); } }
 .coast { pointer-events: none; }
 .coast-wet { stroke-width: calc(1.2px / var(--k, 1)); }
 /* Толщины в пикселях экрана через --k (CSS-масштаб растит штрихи вместе с картой). При отдалении (k<1)

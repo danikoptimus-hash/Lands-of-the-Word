@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { FOG_COLOR, HEX_SIZE, TERRAIN_COLOR, coastPath, hexCenter, hexPoints } from "../lib/hexmap";
-import { CLOUD_TILE, cloudTile } from "../lib/noise";
+import { CLOUD_TILE, cloudTile, seaTiles } from "../lib/noise";
 import type { View } from "../lib/useViewport";
 import type { MapHexDto } from "../lib/api";
 import { ISLET_IMAGES } from "@lotw/domain";
@@ -14,28 +14,24 @@ export const IMG = {
   start: (i: number) => `/img/start/${["babylon", "egypt", "wilderness", "assyria", "zin", "shipwreck"][i % 6]}.webp`,
 };
 
-/**
- * Море: не в SVG, а отдельный слой DOM под картой. Две плитки текстуры (вторая перевёрнута, полупрозрачна и
- * медленно плывёт CSS-анимацией), позиция следует за картой сдвигом контейнера. Так море анимируется
- * композитором без перерисовки SVG. Размер плитки округляется до целых пикселей, иначе на стыках видны швы.
- */
 export type Viewport = { view: View; viewRef: { current: View }; subscribe: (fn: (v: View) => void) => () => void };
 // subscribe и viewRef у useViewport стабильны, поэтому эффекты зависят от них, а не от объекта vp (он новый при каждой перерисовке).
 
 /**
- * Море: слой DOM под картой. Плитка бесшовная (зеркальная сборка) и масштабируется вместе с картой: размер
- * плитки считается под опорный масштаб base, между фиксациями композитор масштабирует слой на k/base;
- * когда отклонение выходит за 0.7…1.4 или жест зафиксирован, плитка перекладывается под новый масштаб.
+ * Море: слой DOM под картой без картинок. Ровный цвет воды и три бесшовные плитки шума (`seaTiles`): две сетки
+ * светлых бликов разного масштаба (вторая повёрнута на 90° и плывёт) и крупная зыбь (повёрнута на 180°, плывёт
+ * медленнее). У слоёв несоизмеримые периоды и разные направления, поэтому общего повторяющегося рисунка нет.
+ * Плитка масштабируется вместе с картой: размер считается под опорный масштаб base, между фиксациями композитор
+ * масштабирует слой на k/base; когда отклонение выходит за 0.7…1.4 или жест зафиксирован, плитка перекладывается.
  * Сдвиг привязан к координатам карты: точка (0,0) карты всегда на углу плитки.
  */
-const SEA_WORLD_TILE = 220;
+const SEA_WORLD_TILE = 260;
 export function SeaLayer({ vp }: { vp: Viewport }) {
   const pos = useRef<HTMLDivElement>(null);
   const [base, setBase] = useState(vp.view.k);
   const baseRef = useRef(base); baseRef.current = base;
-  const dpr = typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
-  const T = Math.max(48, Math.round(SEA_WORLD_TILE * base));
-  const img = T * dpr > 640 ? 1024 : 512;
+  const T = Math.max(64, Math.round(SEA_WORLD_TILE * base));
+  const tiles = useMemo(() => (typeof document === "undefined" ? null : seaTiles()), []);
   const apply = (v: View) => {
     const el = pos.current; if (!el) return;
     const s = v.k / baseRef.current;
@@ -50,9 +46,11 @@ export function SeaLayer({ vp }: { vp: Viewport }) {
   }), [vp.subscribe, T]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (vp.view.k !== baseRef.current) setBase(vp.view.k); }, [vp.view.k]);
   useLayoutEffect(() => { apply(vp.viewRef.current); }, [base, T]); // eslint-disable-line react-hooks/exhaustive-deps
+  const vars = tiles ? { ["--sea-a" as string]: `url("${tiles.veinsA}")`, ["--sea-b" as string]: `url("${tiles.veinsB}")`, ["--sea-c" as string]: `url("${tiles.swell}")` } : {};
   return (
-    <div className="sea-layer" style={{ ["--tile" as string]: `${T}px`, ["--sea" as string]: `url("/img/brand/sea-${img}.webp")` }} aria-hidden>
+    <div className="sea-layer" style={{ ["--tile" as string]: `${T}px`, ...vars }} aria-hidden>
       <div ref={pos} className="sea-pos">
+        <div className="sea-swell" />
         <div className="sea-base" />
         <div className="sea-waves" />
       </div>
@@ -312,7 +310,7 @@ export function MapSymbols() {
 /** Прогрев кеша картинок карты: вызывается после входа, чтобы карта открывалась без ожидания. */
 export function warmMapImages(): void {
   if (typeof window === "undefined") return;
-  const urls = [...TERRAINS.map(IMG.terrain), "/img/brand/sea-512.webp", "/img/brand/sea-1024.webp", ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i)), ...ISLET_IMAGES.map((s) => IMG.islet(s.img))];
+  const urls = [...TERRAINS.map(IMG.terrain), ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i)), ...ISLET_IMAGES.map((s) => IMG.islet(s.img))];
   const go = () => urls.forEach((u) => { const im = new Image(); im.decoding = "async"; im.src = u; });
   if ("requestIdleCallback" in window) (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(go); else setTimeout(go, 300);
 }
