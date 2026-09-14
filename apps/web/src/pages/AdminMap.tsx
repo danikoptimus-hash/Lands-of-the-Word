@@ -100,7 +100,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <SeaLayer vp={vp} />
           <WorldSvg vp={vp} bounds={bounds}>
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
-            <IsletsLayer islets={islets} clipId="hexclip-admin" size={size} />
+            <IsletsLayer islets={islets} size={size} />
             <CoastUnder d={coast} size={size} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
             <CoastOver d={coast} size={size} />

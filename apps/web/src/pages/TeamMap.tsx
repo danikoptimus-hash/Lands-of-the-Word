@@ -84,7 +84,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
         <OutlineDefs colors={owners} />
-        <IsletsLayer islets={islets} clipId="hexclip-team" size={size} />
+        <IsletsLayer islets={islets} size={size} />
         <CoastUnder d={coast} size={size} />
         <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" />
         <CoastOver d={coast} size={size} />

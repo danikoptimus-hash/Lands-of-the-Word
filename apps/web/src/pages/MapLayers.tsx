@@ -89,7 +89,7 @@ export function useCoast(hexes: Array<{ q: number; r: number }>, size = HEX_SIZE
  * Берег под гексами: отмель (светлая вода), широкая полоса песка. Ширины в единицах карты, масштабируются с ней.
  * Прозрачность — на группах, а не на штрихах, чтобы самопересечения широкого штриха в бухтах не темнели.
  */
-export function CoastUnder({ d, size = HEX_SIZE, scale = 1 }: { d: string; size?: number; /** Множитель ширин: у маленьких островков берег уже. */ scale?: number }) {
+export function CoastUnder({ d, size = HEX_SIZE, scale = 1, sand = true }: { d: string; size?: number; /** Множитель ширин: у маленьких островков берег уже. */ scale?: number; /** Без полосы песка: у нарисованных островков пляж уже на картинке. */ sand?: boolean }) {
   if (!d) return null;
   const s = size * scale;
   return (
@@ -98,7 +98,7 @@ export function CoastUnder({ d, size = HEX_SIZE, scale = 1 }: { d: string; size?
       <g opacity={0.2}><path d={d} stroke="#CFEAF0" strokeWidth={s * 2.6} /></g>
       <g opacity={0.26}><path d={d} stroke="#D7EEF2" strokeWidth={s * 2.0} /></g>
       <g opacity={0.36}><path d={d} stroke="#E0F2F5" strokeWidth={s * 1.5} /></g>
-      <path d={d} stroke="#E6D3A6" strokeWidth={s * 0.95} />
+      {sand && <path d={d} stroke="#E6D3A6" strokeWidth={s * 0.95} />}
     </g>
   );
 }
@@ -309,7 +309,7 @@ export function MapSymbols() {
 /** Прогрев кеша картинок карты: вызывается после входа, чтобы карта открывалась без ожидания. */
 export function warmMapImages(): void {
   if (typeof window === "undefined") return;
-  const urls = [...TERRAINS.map(IMG.terrain), "/img/brand/sea-512.webp", "/img/brand/sea-1024.webp", ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i))];
+  const urls = [...TERRAINS.map(IMG.terrain), "/img/brand/sea-512.webp", "/img/brand/sea-1024.webp", ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i)), ...Array.from({ length: 6 }, (_, i) => `/img/islet/islet-${i + 1}.webp`)];
   const go = () => urls.forEach((u) => { const im = new Image(); im.decoding = "async"; im.src = u; });
   if ("requestIdleCallback" in window) (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(go); else setTimeout(go, 300);
 }

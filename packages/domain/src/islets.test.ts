@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { generateIslets, isletRadiusAt, isletSeed, seaField } from "./islets.js";
+import { ISLET_IMAGES, ISLET_SHAPE_N } from "./isletShapes.js";
 import { hexToPixel } from "./hex.js";
 
 const SIZE = 26;
@@ -17,17 +18,23 @@ function bounds(hexes: { q: number; r: number }[]) {
 }
 
 describe("islets", () => {
-  const hexes = field(4), b = bounds(hexes);
+  const hexes = field(5), b = bounds(hexes);
 
-  it("детерминированы: один набор гексов — одна раскладка", () => {
+  it("контуры картинок сняты: шесть картинок по 72 отсчёта, край не дальше половины стороны", () => {
+    expect(ISLET_IMAGES).toHaveLength(6);
+    for (const s of ISLET_IMAGES) { expect(s.shape).toHaveLength(ISLET_SHAPE_N); expect(s.maxR).toBeLessThanOrEqual(1); expect(Math.min(...s.shape)).toBeGreaterThan(0); }
+  });
+
+  it("детерминированы: один набор гексов — одна раскладка; картинки разные", () => {
     const a = generateIslets(hexes, SIZE, b), c = generateIslets(hexes, SIZE, b);
     expect(JSON.stringify(a)).toBe(JSON.stringify(c));
     expect(isletSeed(hexes)).toBe(isletSeed([...hexes].reverse()));
-    expect(a.length).toBeGreaterThanOrEqual(4);
-    expect(Math.max(...a.map((i) => i.r))).toBeGreaterThanOrEqual(SIZE * 1.7);
+    expect(a.length).toBeGreaterThanOrEqual(5);
+    expect(new Set(a.map((i) => i.img)).size).toBeGreaterThanOrEqual(4);
+    for (const i of a) { expect(i.img).toBeGreaterThanOrEqual(1); expect(i.img).toBeLessThanOrEqual(6); expect(i.cover).toBeGreaterThan(i.r * 0.5); }
   });
 
-  it("лежат в поясе моря, не касаются поля и друг друга; суша закрыта пятнами местности", () => {
+  it("лежат в поясе моря, не касаются поля и друг друга", () => {
     const islets = generateIslets(hexes, SIZE, b), f = seaField(b);
     const centers = hexes.map((h) => hexToPixel(h, SIZE));
     for (const isl of islets) {
@@ -37,20 +44,13 @@ describe("islets", () => {
       expect(isl.y + isl.cover).toBeLessThanOrEqual(f.minY + f.height);
       for (const c of centers) expect(Math.hypot(c.x - isl.x, c.y - isl.y)).toBeGreaterThan(isl.cover + SIZE * 3);
       for (const o of islets) if (o !== isl) expect(Math.hypot(o.x - isl.x, o.y - isl.y)).toBeGreaterThan(isl.cover + o.cover);
-      // Контур — плавный: соседние отсчёты отличаются не больше чем на 15%.
-      for (let i = 0; i < isl.shape.length; i++) expect(Math.abs(isl.shape[i]! - isl.shape[(i + 1) % isl.shape.length]!)).toBeLessThan(0.2);
-      // Любая точка суши не дальше 1.2 гекса от центра какого-нибудь пятна (пятна перекрывают сушу).
-      for (let k = 0; k < 24; k++) {
-        const a = (k / 24) * Math.PI * 2, d = isletRadiusAt(isl, a) * 0.9;
-        const px = isl.x + Math.cos(a) * d, py = isl.y + Math.sin(a) * d;
-        const near = Math.min(...isl.cells.map((c) => { const p = hexToPixel(c, SIZE); return Math.hypot(p.x - px, p.y - py); }));
-        expect(near).toBeLessThan(SIZE * 1.2);
-      }
+      // Контур целиком внутри круга cover.
+      for (let k = 0; k < 24; k++) expect(isletRadiusAt(isl, (k / 24) * Math.PI * 2)).toBeLessThanOrEqual(isl.cover);
     }
   });
 
   it("разные карты — разные раскладки", () => {
-    const other = field(5);
+    const other = field(6);
     expect(JSON.stringify(generateIslets(other, SIZE, bounds(other)))).not.toBe(JSON.stringify(generateIslets(hexes, SIZE, b)));
   });
 });

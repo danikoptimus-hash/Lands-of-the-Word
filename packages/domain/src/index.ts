@@ -5,3 +5,4 @@ export * from "./books.js";
 export * from "./mapgen.js";
 export * from "./coast.js";
 export * from "./islets.js";
+export * from "./isletShapes.js";
