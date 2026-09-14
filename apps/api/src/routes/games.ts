@@ -60,7 +60,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const games = await prisma.game.findMany({
       where: { admins: { some: { userId: request.user!.id } } },
       orderBy: { createdAt: "desc" },
-      select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, org: { select: { name: true } } },
+      select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, createdById: true, org: { select: { name: true } } },
     });
     return { games };
   });

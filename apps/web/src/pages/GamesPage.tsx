@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { reportPage } from "../lib/perf";
-import { api, type GameSummary, type MyTeamDto } from "../lib/api";
+import { api, ApiError, type GameSummary, type MyTeamDto } from "../lib/api";
+import { useAuth } from "../lib/auth";
+import { useUi } from "../lib/ui";
+import { ActionMenu } from "../components/ActionMenu";
 import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
@@ -40,6 +43,17 @@ export function GamesPage() {
   const [failed, setFailed] = useState(false);
   useEffect(() => { reportPage("other"); }, []);
   const [attempt, setAttempt] = useState(0);
+  const { user } = useAuth();
+  const { confirm, notify } = useUi();
+
+  /** Удаление из списка: те же права и тексты, что на странице игры; после удаления карточка просто исчезает. */
+  const canDelete = (g: GameSummary) => g.status !== "ACTIVE" && (g.createdById === user?.id || user?.platformRole === "SUPERADMIN");
+  async function removeGame(g: GameSummary) {
+    const what = g.status === "DRAFT" ? t("Черновик «{name}» будет удалён вместе с командами и картой.", { name: g.name }) : t("Игра «{name}» будет удалена без возможности восстановления: карта, команды, дела, история ходов.", { name: g.name });
+    if (!(await confirm(what, { title: t("Удалить игру?"), okLabel: t("Удалить"), danger: true }))) return;
+    try { await api(`/api/games/${g.id}`, { method: "DELETE" }); notify(t("Игра удалена")); setGames((list) => list?.filter((x) => x.id !== g.id) ?? list); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+  }
 
   useEffect(() => { warmMapImages(); }, []);
   useEffect(() => {
@@ -81,14 +95,21 @@ export function GamesPage() {
           <h2><span className="ico"><Icon name="crown" /></span>{t("Мои игры")}</h2>
           <div className="cards">
             {games.map((g) => (
-              <Link key={g.id} to={`/games/${g.id}`} className="home-card game-card">
-                <div className="title"><span className="name">{g.name}</span><StatusChip status={g.status} /></div>
-                <div className="meta">
-                  <span><Icon name="home" />{g.org.name}</span>
-                  <span><Icon name="users" />{plural(g.teamCount, ["команда", "команды", "команд"])}</span>
-                  {g.status === "DRAFT" && g.mapSeed == null && <span><Icon name="map" />{t("карта не создана")}</span>}
-                </div>
-              </Link>
+              <div key={g.id} className={"home-card game-card" + (canDelete(g) ? " has-menu" : "")}>
+                <Link to={`/games/${g.id}`} className="card-link">
+                  <div className="title"><span className="name">{g.name}</span><StatusChip status={g.status} /></div>
+                  <div className="meta">
+                    <span><Icon name="home" />{g.org.name}</span>
+                    <span><Icon name="users" />{plural(g.teamCount, ["команда", "команды", "команд"])}</span>
+                    {g.status === "DRAFT" && g.mapSeed == null && <span><Icon name="map" />{t("карта не создана")}</span>}
+                  </div>
+                </Link>
+                {canDelete(g) && (
+                  <div className="card-menu">
+                    <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить игру"), icon: "trash", danger: true, onSelect: () => void removeGame(g) }]} />
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </section>
