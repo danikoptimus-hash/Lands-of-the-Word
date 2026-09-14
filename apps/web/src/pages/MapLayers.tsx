@@ -5,6 +5,7 @@ import { CLOUD_TILE, cloudTile, seaTiles, type SeaTiles } from "../lib/noise";
 import type { View } from "../lib/useViewport";
 import type { MapHexDto } from "../lib/api";
 import { ISLET_IMAGES } from "@lotw/domain";
+import { SeaGL } from "./SeaGL";
 
 export const IMG = {
   terrain: (t: string) => `/img/terrain/${t}.webp`,
@@ -30,7 +31,12 @@ const SEA_LAYERS: ReadonlyArray<{ tile: keyof SeaTiles; scale: number; angle: nu
   { tile: "causticA", scale: 1, angle: 0, vx: 1.6, vy: 1.1, alpha: 0.24, breathe: 0.3, phase: 0 },
   { tile: "causticB", scale: 1.618, angle: 37, vx: -1.3, vy: 0.9, alpha: 0.17, breathe: 0.35, phase: 2.1 },
 ];
+/** Море: WebGL-шейдер (SeaGL) без плиток; если WebGL недоступен — узоры на canvas 2D (SeaCanvas). */
 export function SeaLayer({ vp }: { vp: Viewport }) {
+  const [gl, setGl] = useState(true);
+  return gl ? <SeaGL vp={vp} onUnsupported={() => setGl(false)} /> : <SeaCanvas vp={vp} />;
+}
+function SeaCanvas({ vp }: { vp: Viewport }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   useEffect(() => {
