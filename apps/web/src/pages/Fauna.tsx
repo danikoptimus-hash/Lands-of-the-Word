@@ -36,7 +36,7 @@ function islandProfile(hexes: MapHexDto[], size: number, islets: Islet[]): Profi
   }
   const maxR = Math.max(...r);
   for (let i = 0; i < BINS; i++) if (r[i] === 0) r[i] = maxR;
-  const isles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r * Math.max(...i.shape) }));
+  const isles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r }));
   return { cx, cy, r, maxR, isles };
 }
 /** Радиус профиля под любым углом (угол не обязан быть в −π…π). */
@@ -762,33 +762,42 @@ function stepFlock(f: Flock, p: Profile, size: number, dt: number, T: number): v
 }
 
 // ───────────────────────────── Мир ─────────────────────────────
-interface World { p: Profile; size: number; T: number; whale: Cet; orca: Cet; dolphins: Cet[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; pod: Carrot; podNext: number; gulls: Gull[]; flock: Flock; fx: Fx }
-function createWorld(p: Profile, size: number): World {
-  // Отступы от берега: под профилем ещё ~1.6 гекса отмели и песка, дельфинам с их строем нужен запас побольше.
-  const whaleCar = makeCarrot(p, size, size * rnd(2.8, 4), size * 0.7), orcaCar = makeCarrot(p, size, size * rnd(2.4, 3.4), size * 0.6), pod = makeCarrot(p, size, size * rnd(2.3, 3), size * 0.35);
-  const whale = makeCet(cetSpec("whale", size * 1.8, size), whaleCar, whaleCar.x, whaleCar.y, whaleCar.h);
-  const orca = makeCet(cetSpec("orca", size * 1.1, size), orcaCar, orcaCar.x, orcaCar.y, orcaCar.h);
+/** Стая дельфинов: звери, поводок и время следующей серии прыжков. */
+interface Pod { dolphins: Cet[]; car: Carrot; next: number }
+interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx }
+function makePod(p: Profile, size: number, n: number): Pod {
+  const car = makeCarrot(p, size, size * rnd(2.3, 3), size * 0.35);
   const dL = size * 0.55;
-  const dolphins = [1, 0.88, 0.95].map((sc, i) => { // в стае звери чуть разного размера
-    const d = makeCet(cetSpec("dolphin", dL * sc, size), null, pod.x - i * dL, pod.y + (i % 2 ? 1 : -1) * i * dL * 0.5, pod.h);
+  const scales = [1, 0.88, 0.95, 0.9, 0.84];
+  const dolphins = scales.slice(0, n).map((sc, i) => { // в стае звери чуть разного размера
+    const d = makeCet(cetSpec("dolphin", dL * sc, size), null, car.x - i * dL, car.y + (i % 2 ? 1 : -1) * i * dL * 0.5, car.h);
     d.fdx = -i * dL * 1.15; d.fdy = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * dL * 0.95;
     return d;
   });
-  return { p, size, T: 0, whale, orca, dolphins, cets: [whale, orca, ...dolphins], pod, podNext: rnd(3, 6), gulls: [makeGull(p, size), makeGull(p, size), makeGull(p, size)], flock: makeFlock(p, size, 0), fx: makeFx() };
+  return { dolphins, car, next: rnd(3, 8) };
+}
+function createWorld(p: Profile, size: number): World {
+  // Отступы от берега: под профилем ещё ~1.6 гекса отмели и песка, дельфинам с их строем нужен запас побольше.
+  // Населённость (решение владельца: живности должно быть заметно): два кита, две косатки, две стаи дельфинов, пять чаек.
+  const solo = (kind: CetKind, L: number, off: [number, number], wob: number) => { const car = makeCarrot(p, size, size * rnd(off[0], off[1]), size * wob); return makeCet(cetSpec(kind, L, size), car, car.x, car.y, car.h); };
+  const solos = [solo("whale", size * 1.8, [2.8, 4], 0.7), solo("whale", size * 1.6, [3, 4.4], 0.7), solo("orca", size * 1.1, [2.4, 3.4], 0.6), solo("orca", size * 1.0, [2.6, 3.6], 0.6)];
+  const pods = [makePod(p, size, 3), makePod(p, size, 4)];
+  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx() };
 }
 function stepWorld(w: World, dt: number): void {
   w.T += dt; const T = w.T;
-  stepSolo(w.whale, w.p, w.size, w.fx, dt, T);
-  stepSolo(w.orca, w.p, w.size, w.fx, dt, T);
-  if (T >= w.podNext) { // серия прыжков: по одному, с запаздыванием
-    const rev = Math.random() < 0.5;
-    w.dolphins.forEach((d, i) => { d.jumpAt = T + (rev ? w.dolphins.length - 1 - i : i) * rnd(0.4, 0.6); });
-    w.podNext = T + rnd(7, 13);
+  for (const c of w.solos) stepSolo(c, w.p, w.size, w.fx, dt, T);
+  for (const pd of w.pods) {
+    if (T >= pd.next) { // серия прыжков: по одному, с запаздыванием
+      const rev = Math.random() < 0.5;
+      pd.dolphins.forEach((d, i) => { d.jumpAt = T + (rev ? pd.dolphins.length - 1 - i : i) * rnd(0.4, 0.6); });
+      pd.next = T + rnd(7, 13);
+    }
+    stepPod(pd.dolphins, pd.car, w.p, w.size, w.fx, dt, T);
   }
-  stepPod(w.dolphins, w.pod, w.p, w.size, w.fx, dt, T);
   for (const g of w.gulls) stepGull(g, w.p, w.size, dt, T);
   stepFlock(w.flock, w.p, w.size, dt, T);
-  // Порядок рисования — от глубоких к мелким (вставками, массив из пяти).
+  // Порядок рисования — от глубоких к мелким (вставками, массив короткий).
   const cs = w.cets;
   for (let i = 1; i < cs.length; i++) { const c = cs[i]!; let j = i - 1; while (j >= 0 && cs[j]!.depth < c.depth) { cs[j + 1] = cs[j]!; j--; } cs[j + 1] = c; }
 }

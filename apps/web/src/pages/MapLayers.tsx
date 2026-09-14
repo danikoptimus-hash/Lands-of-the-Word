@@ -89,27 +89,29 @@ export function useCoast(hexes: Array<{ q: number; r: number }>, size = HEX_SIZE
  * Берег под гексами: отмель (светлая вода), широкая полоса песка. Ширины в единицах карты, масштабируются с ней.
  * Прозрачность — на группах, а не на штрихах, чтобы самопересечения широкого штриха в бухтах не темнели.
  */
-export function CoastUnder({ d, size = HEX_SIZE }: { d: string; size?: number }) {
+export function CoastUnder({ d, size = HEX_SIZE, scale = 1 }: { d: string; size?: number; /** Множитель ширин: у маленьких островков берег уже. */ scale?: number }) {
   if (!d) return null;
+  const s = size * scale;
   return (
     <g className="coast" fill="none" strokeLinejoin="round" strokeLinecap="round">
-      <g opacity={0.16}><path d={d} stroke="#CFEAF0" strokeWidth={size * 3.2} /></g>
-      <g opacity={0.2}><path d={d} stroke="#CFEAF0" strokeWidth={size * 2.6} /></g>
-      <g opacity={0.26}><path d={d} stroke="#D7EEF2" strokeWidth={size * 2.0} /></g>
-      <g opacity={0.36}><path d={d} stroke="#E0F2F5" strokeWidth={size * 1.5} /></g>
-      <path d={d} stroke="#E6D3A6" strokeWidth={size * 0.95} />
+      <g opacity={0.16}><path d={d} stroke="#CFEAF0" strokeWidth={s * 3.2} /></g>
+      <g opacity={0.2}><path d={d} stroke="#CFEAF0" strokeWidth={s * 2.6} /></g>
+      <g opacity={0.26}><path d={d} stroke="#D7EEF2" strokeWidth={s * 2.0} /></g>
+      <g opacity={0.36}><path d={d} stroke="#E0F2F5" strokeWidth={s * 1.5} /></g>
+      <path d={d} stroke="#E6D3A6" strokeWidth={s * 0.95} />
     </g>
   );
 }
 
 /** Берег над гексами: песок, растворяющийся в местность тремя ступенями, и тёмная линия влажного песка у воды. */
-export function CoastOver({ d, size = HEX_SIZE }: { d: string; size?: number }) {
+export function CoastOver({ d, size = HEX_SIZE, scale = 1 }: { d: string; size?: number; scale?: number }) {
   if (!d) return null;
+  const s = size * scale;
   return (
     <g className="coast" fill="none" strokeLinejoin="round" strokeLinecap="round">
-      <path d={d} stroke="#E6D3A6" strokeWidth={size * 0.5} />
-      <g opacity={0.55}><path d={d} stroke="#E6D3A6" strokeWidth={size * 0.8} /></g>
-      <g opacity={0.3}><path d={d} stroke="#E6D3A6" strokeWidth={size * 1.1} /></g>
+      <path d={d} stroke="#E6D3A6" strokeWidth={s * 0.5} />
+      <g opacity={0.55}><path d={d} stroke="#E6D3A6" strokeWidth={s * 0.8} /></g>
+      <g opacity={0.3}><path d={d} stroke="#E6D3A6" strokeWidth={s * 1.1} /></g>
       <g opacity={0.35}><path className="coast-wet" d={d} stroke="#B8975E" /></g>
     </g>
   );

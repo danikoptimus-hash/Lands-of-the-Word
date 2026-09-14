@@ -1,21 +1,19 @@
 import { createRng, type Rng } from "./random.js";
-import { hexToPixel } from "./hex.js";
+import { hexDistance, hexKey, hexNeighbors, hexToPixel, type Hex } from "./hex.js";
+import type { Terrain } from "./mapgen.js";
 
 /**
- * Островки в море вокруг поля: чистое украшение, без гексов и механики. Раскладка детерминирована —
- * один и тот же набор гексов даёт одни и те же островки у всех игроков и в кабинете администратора.
- * Все размеры — в единицах карты (size — радиус гекса), рисование — на стороне клиента.
+ * Островки в море вокруг поля: чистое украшение, без узлов и механики. Это маленькие группы гексов
+ * (1–4) на той же решётке, что и поле, с теми же картинками местности и тем же берегом, поэтому по стилю
+ * они неотличимы от поля. Раскладка детерминирована по набору гексов поля — у всех игроков и в кабинете
+ * администратора островки одни и те же. Размеры — в единицах карты (size — радиус гекса).
  */
 export interface Bounds { minX: number; minY: number; width: number; height: number }
-export type IsletKind = "bank" | "small" | "large";
-export interface Palm { x: number; y: number; h: number; lean: number; seed: number }
-export interface Rock { x: number; y: number; r: number; a: number }
-export interface Bush { x: number; y: number; r: number }
+export interface IsletHex { q: number; r: number; terrain: Terrain; rotation: number }
 export interface Islet {
-  x: number; y: number;
-  /** Базовый радиус; контур — r × shape[i] по углам от 0 до 2π. */
-  r: number; shape: number[]; kind: IsletKind;
-  palms: Palm[]; rocks: Rock[]; bushes: Bush[]; lagoon: { x: number; y: number; r: number } | null;
+  hexes: IsletHex[];
+  /** Центр и радиус круга, накрывающего островок с отмелью (для живности и проверок). */
+  x: number; y: number; r: number;
 }
 
 /** Запас моря вокруг поля (в долях большей стороны поля): в нём живут островки и до него можно листать карту. */
@@ -26,94 +24,74 @@ export function seaField(b: Bounds): Bounds {
 }
 
 /** FNV-1a по ключам гексов: seed раскладки, когда карта уже сгенерирована и seed игры клиенту не нужен. */
-export function isletSeed(hexes: ReadonlyArray<{ q: number; r: number }>): number {
-  const keys = hexes.map((h) => `${h.q},${h.r}`).sort();
+export function isletSeed(hexes: ReadonlyArray<Hex>): number {
+  const keys = hexes.map(hexKey).sort();
   let h = 0x811c9dc5;
   for (const k of keys) for (let i = 0; i < k.length; i++) { h ^= k.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
   return h >>> 0;
 }
 
-export const SHAPE_N = 24;
-const between = (rng: Rng, a: number, b: number) => a + rng() * (b - a);
-
-/** Контур: базовая окружность с тремя гармониками и лёгким шумом; максимум ≈ 1.3, минимум ≈ 0.7. */
-function makeShape(rng: Rng): number[] {
-  const p1 = between(rng, 0, Math.PI * 2), p2 = between(rng, 0, Math.PI * 2), p3 = between(rng, 0, Math.PI * 2);
-  const a2 = between(rng, 0.08, 0.2), a3 = between(rng, 0.05, 0.14), a5 = between(rng, 0.02, 0.07);
-  const out: number[] = [];
-  for (let i = 0; i < SHAPE_N; i++) {
-    const a = (i / SHAPE_N) * Math.PI * 2;
-    out.push(1 + a2 * Math.sin(2 * a + p1) + a3 * Math.sin(3 * a + p2) + a5 * Math.sin(5 * a + p3) + between(rng, -0.03, 0.03));
-  }
-  return out;
+/** Минимальное расстояние в гексах от островка до поля и до других островков: помещаются обе отмели. */
+export const ISLET_GAP = 4;
+/** Местность островков: зелень и оазисы чаще, горы и пустыня реже. */
+const ISLET_TERRAIN: Array<[Terrain, number]> = [["oasis", 0.32], ["meadow", 0.3], ["hills", 0.2], ["mountains", 0.1], ["desert", 0.08]];
+function pickTerrain(rng: Rng): Terrain {
+  let roll = rng();
+  for (const [t, w] of ISLET_TERRAIN) { if (roll < w) return t; roll -= w; }
+  return "meadow";
 }
 
-/** Радиус контура под углом (линейная интерполяция между отсчётами). */
-export function isletRadiusAt(isl: Islet, angle: number): number {
-  const f = ((angle % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2) / (Math.PI * 2) * SHAPE_N;
-  const i = Math.floor(f) % SHAPE_N, j = (i + 1) % SHAPE_N, t = f - Math.floor(f);
-  return isl.r * (isl.shape[i]! * (1 - t) + isl.shape[j]! * t);
-}
-
-/** Точка внутри суши островка: не дальше frac от контура по этому направлению. */
-function inland(rng: Rng, isl: Islet, frac: number): { x: number; y: number } {
-  const a = between(rng, 0, Math.PI * 2), d = Math.sqrt(rng()) * isletRadiusAt(isl, a) * frac;
-  return { x: isl.x + Math.cos(a) * d, y: isl.y + Math.sin(a) * d };
-}
-
-function dressIslet(rng: Rng, isl: Islet, size: number): void {
-  const palms = isl.kind === "large" ? 4 + Math.floor(rng() * 3) : isl.kind === "small" ? 2 + Math.floor(rng() * 2) : rng() < 0.6 ? 1 : 0;
-  const minGap = size * 0.34;
-  for (let n = 0, tries = 0; n < palms && tries < 40; tries++) {
-    const p = inland(rng, isl, isl.kind === "bank" ? 0.35 : 0.58);
-    if (isl.palms.some((q) => Math.hypot(q.x - p.x, q.y - p.y) < minGap)) continue;
-    const h = size * (isl.kind === "large" ? between(rng, 0.7, 1.0) : isl.kind === "small" ? between(rng, 0.6, 0.85) : between(rng, 0.5, 0.7));
-    isl.palms.push({ x: p.x, y: p.y, h, lean: between(rng, -1, 1), seed: rng() }); n++;
-  }
-  isl.palms.sort((a, b) => a.y - b.y);
-  const rocks = isl.kind === "large" ? 1 + Math.floor(rng() * 3) : isl.kind === "small" ? Math.floor(rng() * 2) : 0;
-  for (let i = 0; i < rocks; i++) {
-    const a = between(rng, 0, Math.PI * 2), d = isletRadiusAt(isl, a) * between(rng, 0.62, 0.86);
-    isl.rocks.push({ x: isl.x + Math.cos(a) * d, y: isl.y + Math.sin(a) * d, r: size * between(rng, 0.1, 0.2), a: between(rng, 0, Math.PI) });
-  }
-  const bushes = isl.kind === "large" ? 3 + Math.floor(rng() * 3) : isl.kind === "small" ? 1 + Math.floor(rng() * 2) : 0;
-  for (let i = 0; i < bushes; i++) { const p = inland(rng, isl, 0.62); isl.bushes.push({ x: p.x, y: p.y, r: size * between(rng, 0.1, 0.18) }); }
-  if (isl.kind === "large" && rng() < 0.45) {
-    const p = inland(rng, isl, 0.3);
-    isl.lagoon = { x: p.x, y: p.y, r: isl.r * between(rng, 0.16, 0.24) };
-  }
+/** Радиус круга вокруг гексов островка с запасом на отмель (1.6 размера гекса за краем). */
+function coverRadius(hexes: Hex[], cx: number, cy: number, size: number): number {
+  let r = 0;
+  for (const h of hexes) { const p = hexToPixel(h, size); r = Math.max(r, Math.hypot(p.x - cx, p.y - cy)); }
+  return r + size + size * (hexes.length === 1 ? 0.7 : hexes.length === 2 ? 0.95 : 1.2);
 }
 
 /**
- * Раскладка островков в поясе моря вокруг поля: несколько крупных, средних и совсем мелких песчаных банок.
- * Островок не подходит к полю ближе, чем отмель и песок берега, и не пересекается с соседями.
+ * Раскладка: в поясе моря выбираются свободные клетки решётки (не ближе ISLET_GAP к полю и к другим
+ * островкам), из них растут кластеры заданных размеров — один на 4 гекса, один-два на 3, два на 2 и три
+ * одиночных. Кластер растёт по соседям, поэтому островки получаются компактными, а берег — волнистым.
  */
-export function generateIslets(hexes: ReadonlyArray<{ q: number; r: number }>, size: number, bounds: Bounds, seed = isletSeed(hexes)): Islet[] {
-  if (!hexes.length) return [];
+export function generateIslets(fieldHexes: ReadonlyArray<Hex>, size: number, bounds: Bounds, seed = isletSeed(fieldHexes)): Islet[] {
+  if (!fieldHexes.length) return [];
   const rng = createRng(seed);
   const field = seaField(bounds);
-  const centers = hexes.map((h) => hexToPixel(h, size));
-  const plan: IsletKind[] = [];
-  const nLarge = 1 + (rng() < 0.5 ? 1 : 0), nSmall = 3 + Math.floor(rng() * 2), nBank = 4 + Math.floor(rng() * 3);
-  for (let i = 0; i < nLarge; i++) plan.push("large");
-  for (let i = 0; i < nSmall; i++) plan.push("small");
-  for (let i = 0; i < nBank; i++) plan.push("bank");
+  const qs = fieldHexes.map((h) => h.q), rs = fieldHexes.map((h) => h.r);
+  const span = Math.ceil(Math.max(field.width, field.height) / (size * 1.5)) + 2;
+  const q0 = Math.min(...qs) - span, q1 = Math.max(...qs) + span, r0 = Math.min(...rs) - span, r1 = Math.max(...rs) + span;
+  const farFromField = (h: Hex) => fieldHexes.every((f) => hexDistance(f, h) >= ISLET_GAP);
+  const inside = (h: Hex) => {
+    const p = hexToPixel(h, size), pad = size * 2.6;
+    return p.x > field.minX + pad && p.x < field.minX + field.width - pad && p.y > field.minY + pad && p.y < field.minY + field.height - pad;
+  };
+  const free = new Map<string, Hex>();
+  for (let q = q0; q <= q1; q++) for (let r = r0; r <= r1; r++) { const h = { q, r }; if (inside(h) && farFromField(h)) free.set(hexKey(h), h); }
+
+  const plan = [4, 3, ...(rng() < 0.5 ? [3] : []), 2, 2, 1, 1];
+  const taken: Hex[] = [];
   const out: Islet[] = [];
-  for (const kind of plan) {
-    const r = size * (kind === "large" ? between(rng, 2.1, 2.9) : kind === "small" ? between(rng, 1.2, 1.8) : between(rng, 0.55, 0.95));
-    const shape = makeShape(rng);
-    const rMax = r * Math.max(...shape);
-    for (let tries = 0; tries < 80; tries++) {
-      const x = between(rng, field.minX + rMax * 1.6, field.minX + field.width - rMax * 1.6);
-      const y = between(rng, field.minY + rMax * 1.6, field.minY + field.height - rMax * 1.6);
-      // Не ближе к любому гексу поля, чем его отмель (size × 3.4 от центра гекса) плюс своя отмель.
-      const clear = rMax + size * 3.4 + Math.min(size, r * 0.75) * 1.6;
-      if (centers.some((c) => Math.hypot(c.x - x, c.y - y) < clear)) continue;
-      if (out.some((o) => Math.hypot(o.x - x, o.y - y) < rMax + o.r * 1.3 + size * 2.2)) continue;
-      const isl: Islet = { x, y, r, shape, kind, palms: [], rocks: [], bushes: [], lagoon: null };
-      dressIslet(rng, isl, size);
-      out.push(isl);
-      break;
+  const keys = () => [...free.keys()];
+  for (const n of plan) {
+    let placed = false;
+    for (let tries = 0; tries < 40 && !placed; tries++) {
+      const ks = keys(); if (!ks.length) break;
+      const start = free.get(ks[Math.floor(rng() * ks.length)]!)!;
+      const cluster: Hex[] = [start];
+      // Растим кластер по соседям, которые тоже свободны.
+      while (cluster.length < n) {
+        const cand = cluster.flatMap(hexNeighbors).filter((h) => free.has(hexKey(h)) && !cluster.some((c) => hexKey(c) === hexKey(h)));
+        if (!cand.length) break;
+        cluster.push(cand[Math.floor(rng() * cand.length)]!);
+      }
+      if (cluster.length < n) continue;
+      if (taken.some((t) => cluster.some((c) => hexDistance(t, c) < ISLET_GAP))) continue;
+      const pts = cluster.map((h) => hexToPixel(h, size));
+      const cx = pts.reduce((a, p) => a + p.x, 0) / pts.length, cy = pts.reduce((a, p) => a + p.y, 0) / pts.length;
+      out.push({ hexes: cluster.map((h) => ({ q: h.q, r: h.r, terrain: pickTerrain(rng), rotation: Math.floor(rng() * 6) })), x: cx, y: cy, r: coverRadius(cluster, cx, cy, size) });
+      taken.push(...cluster);
+      for (const c of cluster) for (const k of keys()) if (hexDistance(free.get(k)!, c) < ISLET_GAP) free.delete(k);
+      placed = true;
     }
   }
   return out;
