@@ -12,6 +12,7 @@ import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { FaunaLayer } from "./Fauna";
+import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
 import { Sheet } from "../components/Sheet";
@@ -171,6 +172,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               })}
             </g>
           </WorldSvg>
+          <LakesLayer vp={vp} hexes={hexes} size={size} />
           <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} />
         </div>
         <div className="map-controls">

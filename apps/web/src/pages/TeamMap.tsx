@@ -7,6 +7,7 @@ import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
 import { CoastOver, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
 import { FaunaLayer } from "./Fauna";
+import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
 import { t } from "../lib/i18n";
@@ -117,6 +118,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           return null;
         })}
       </WorldSvg>
+      <LakesLayer vp={vp} hexes={map.hexes} size={size} />
       {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
