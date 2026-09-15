@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { CoastOver, CoastUnder, HexTiles, IMG, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, HexTiles, IMG, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { reportPage } from "../lib/perf";
 import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
@@ -98,10 +98,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         ) : (<>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
           <SeaLayer vp={vp} />
-          <IsletsLayer vp={vp} islets={islets} size={size} />
+          <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
           <WorldSvg vp={vp} bounds={bounds}>
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
-            <CoastUnder d={coast} size={size} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
             <CoastOver d={coast} size={size} />
             {nodes.map((n) => {

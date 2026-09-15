@@ -4,7 +4,7 @@ import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
-import { CoastOver, CoastUnder, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
 import { FaunaLayer } from "./Fauna";
 import { IsletsLayer, useIslets } from "./Islets";
@@ -81,11 +81,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   return (
     <div ref={vp.ref} {...vp.handlers} className="map-canvas">
       <SeaLayer vp={vp} />
-      <IsletsLayer vp={vp} islets={islets} size={size} />
+      <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
         <OutlineDefs colors={owners} />
-        <CoastUnder d={coast} size={size} />
         <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" />
         <CoastOver d={coast} size={size} />
         {map.edges.map((e) => {

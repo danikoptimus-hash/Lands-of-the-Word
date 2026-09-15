@@ -30,21 +30,33 @@ function isletPath(isl: Islet): Path2D {
   return p;
 }
 
-/** Отмель кольцами, как у берега поля: цвет, ширина в долях размера гекса, прозрачность. */
+/** Песок за краем полосы песка растворяется в отмель: кольца от 0.95 до 1.5 радиуса гекса, прозрачность падает. */
+const SAND_FADE: ReadonlyArray<{ width: number; alpha: number }> = Array.from({ length: 10 }, (_, i) => { const t = (i + 1) / 10; return { width: 0.95 + 0.55 * t, alpha: 0.5 * Math.pow(1 - t, 1.6) }; });
+const SAND = "#E6D3A6";
+/** Шаг между кольцами отмели в радиусах гекса — на него и размывается слой, чтобы колец не было видно. */
+const RING_STEP = (SHALLOW_RINGS[0]!.width - SHALLOW_RINGS[SHALLOW_RINGS.length - 1]!.width) / (SHALLOW_RINGS.length - 1);
 
 /**
- * Острова: нарисованные картинки (пляж уже на них) и отмель под каждой по снятому контуру. Рисуются на canvas в
- * пикселях экрана при каждом изменении вида (а не в SVG мира): браузер не растягивает готовый растр при
- * приближении, поэтому резкость ограничена только самой картинкой. Слой без событий, лежит между морем и миром.
+ * Берег и острова на canvas в пикселях экрана при каждом изменении вида. Слой без событий, лежит между морем и миром.
+ * Берег поля (отмель кольцами, песок, песок растворяется в отмель) и отмели островков рисуются во временный canvas и
+ * переносятся на экран с размытием на шаг колец — переход воды в песок сплошной, без ступенек и резкой кромки
+ * (решение владельца 15.09). Поверх — картинки островов без размытия (пляж уже на них). В SVG мира так нельзя:
+ * там браузер растягивал бы готовый растр при приближении, а фильтр размытия на весь остров дорог для телефона;
+ * здесь же canvas всегда размером с экран, и стоимость не зависит от масштаба. Без поддержки фильтров canvas
+ * (старый Safari) — те же кольца без размытия.
  */
-export function IsletsLayer({ vp, islets, size = HEX_SIZE }: { vp: Viewport; islets: Islet[]; size?: number }) {
+export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: Viewport; islets: Islet[]; size?: number; /** Линия берега поля (path SVG в координатах карты). */ coast?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
-    if (!canvas || !host || !islets.length) return;
+    if (!canvas || !host || (!islets.length && !coast)) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const off = document.createElement("canvas");
+    const octx = off.getContext("2d");
+    if (!octx) return;
+    const canBlur = "filter" in ctx;
     const dpr = Math.min(window.devicePixelRatio || 1, 3);
     let W = 0, H = 0, dirty = true, raf = 0;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } dirty = true; };
@@ -52,18 +64,38 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE }: { vp: Viewport; isl
     for (const n of new Set(islets.map((i) => i.img))) {
       const im = new Image(); im.decoding = "async"; im.onload = () => { dirty = true; }; im.src = IMG.islet(n); images.set(n, im);
     }
+    const coastPath = coast ? new Path2D(coast) : null;
     const paths = islets.map((isl) => ({ isl, path: isletPath(isl), sc: Math.max(0.25, (isl.r / size) * 0.32) }));
     const draw = () => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
+      // Размытие на шаг колец (в пикселях экрана); временный canvas с запасом, чтобы у краёв экрана ничего не бледнело.
+      const blur = canBlur ? Math.max(0.6, RING_STEP * size * k * dpr * 0.75) : 0;
+      const M = Math.ceil(blur * 3);
+      const OW = W + 2 * M, OH = H + 2 * M;
+      if (off.width !== OW || off.height !== OH) { off.width = OW; off.height = OH; }
+      octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, OW, OH);
+      octx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr + M, ty * dpr + M);
+      octx.lineJoin = "round"; octx.lineCap = "round";
+      const x0 = -tx / k, y0 = -ty / k, x1 = (W / dpr - tx) / k, y1 = (H / dpr - ty) / k;
+      const rings = (c: CanvasRenderingContext2D, path: Path2D, sc: number) => {
+        for (const r of SHALLOW_RINGS) { c.globalAlpha = r.alpha; c.strokeStyle = r.color; c.lineWidth = r.width * size * sc; c.stroke(path); }
+        c.globalAlpha = 1;
+      };
+      if (coastPath) {
+        rings(octx, coastPath, 1);
+        octx.strokeStyle = SAND;
+        for (const f of SAND_FADE) { octx.globalAlpha = f.alpha; octx.lineWidth = f.width * size; octx.stroke(coastPath); }
+        octx.globalAlpha = 1; octx.lineWidth = 0.95 * size; octx.stroke(coastPath);
+      }
+      const visible = paths.filter(({ isl }) => !(isl.x + isl.cover < x0 || isl.x - isl.cover > x1 || isl.y + isl.cover < y0 || isl.y - isl.cover > y1));
+      for (const { path, sc } of visible) rings(octx, path, sc);
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
+      if (canBlur) ctx.filter = `blur(${blur.toFixed(1)}px)`;
+      ctx.drawImage(off, -M, -M);
+      if (canBlur) ctx.filter = "none";
       ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
       ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
-      ctx.lineJoin = "round"; ctx.lineCap = "round";
-      const x0 = -tx / k, y0 = -ty / k, x1 = (W / dpr - tx) / k, y1 = (H / dpr - ty) / k;
-      for (const { isl, path, sc } of paths) {
-        if (isl.x + isl.cover < x0 || isl.x - isl.cover > x1 || isl.y + isl.cover < y0 || isl.y - isl.cover > y1) continue;
-        for (const r of SHALLOW_RINGS) { ctx.globalAlpha = r.alpha; ctx.strokeStyle = r.color; ctx.lineWidth = r.width * size * sc; ctx.stroke(path); }
-        ctx.globalAlpha = 1;
+      for (const { isl } of visible) {
         const im = images.get(isl.img);
         if (im && im.complete && im.naturalWidth) ctx.drawImage(im, isl.x - isl.r, isl.y - isl.r, isl.r * 2, isl.r * 2);
       }
@@ -73,6 +105,6 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE }: { vp: Viewport; isl
     const ro = new ResizeObserver(resize); ro.observe(host);
     resize(); raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); };
-  }, [islets, size, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [islets, size, coast, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={ref} className="fx-layer islets" aria-hidden="true" />;
 }

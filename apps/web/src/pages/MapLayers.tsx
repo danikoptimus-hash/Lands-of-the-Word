@@ -116,8 +116,8 @@ export function useCoast(hexes: Array<{ q: number; r: number }>, size = HEX_SIZE
 /**
  * Отмель: много тонких колец от дальнего края к берегу; прозрачность каждого подобрана так, чтобы суммарная плотность
  * росла плавно (≈ 0.7·u^1.6, u — доля пути от края отмели к песку). Кольца узкие, ступенек глазом не видно;
- * это те же штрихи, что и раньше, без фильтров — дёшево и на телефоне (решение владельца 15.09: без полос).
- * Ширина — в радиусах гекса (полная ширина штриха, по обе стороны линии берега).
+ * кольца рисует слой берега на canvas (`Islets.tsx`) и размывает на шаг между ними — сплошной градиент (решение
+ * владельца 15.09: без полос). Ширина — в радиусах гекса (полная ширина штриха, по обе стороны линии берега).
  */
 export const SHALLOW_RINGS: ReadonlyArray<{ color: string; width: number; alpha: number }> = (() => {
   const N = 28, outer = 3.4, inner = 1.05;
@@ -132,17 +132,6 @@ export const SHALLOW_RINGS: ReadonlyArray<{ color: string; width: number; alpha:
   }
   return out;
 })();
-
-export function CoastUnder({ d, size = HEX_SIZE, scale = 1, sand = true }: { d: string; size?: number; /** Множитель ширин: у маленьких островков берег уже. */ scale?: number; /** Без полосы песка: у нарисованных островков пляж уже на картинке. */ sand?: boolean }) {
-  if (!d) return null;
-  const s = size * scale;
-  return (
-    <g className="coast" fill="none" strokeLinejoin="round" strokeLinecap="round">
-      {SHALLOW_RINGS.map((r, i) => <path key={i} d={d} stroke={r.color} strokeOpacity={r.alpha} strokeWidth={s * r.width} />)}
-      {sand && <path d={d} stroke="#E6D3A6" strokeWidth={s * 0.95} />}
-    </g>
-  );
-}
 
 /** Берег над гексами: песок, плавно растворяющийся в местность (двенадцать узких колец), и тёмная линия влажного песка у воды. */
 export function CoastOver({ d, size = HEX_SIZE, scale = 1 }: { d: string; size?: number; scale?: number }) {
