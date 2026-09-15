@@ -135,6 +135,18 @@ export const SHALLOW_RINGS: ReadonlyArray<{ color: string; width: number; alpha:
   return out;
 })();
 
+/** Подпись острова: виньетка, слова по строкам, виньетка (стиль в .m-island). */
+export function IslandLabel({ name }: { name: string }) {
+  const words = name.split(" ");
+  return (
+    <text textAnchor="middle">
+      <tspan className="orn" x={0} dy={-(0.55 + 0.6 * words.length) + "em"}>— ✦ —</tspan>
+      {words.map((w, i) => <tspan key={i} x={0} dy={i === 0 ? "1.35em" : "1.15em"}>{w}</tspan>)}
+      <tspan className="orn" x={0} dy="1.35em">— ✦ —</tspan>
+    </text>
+  );
+}
+
 /** Берег над гексами: песок, плавно растворяющийся в местность (двенадцать узких колец), и тёмная линия влажного песка у воды. */
 export function CoastOver({ d, size = HEX_SIZE, scale = 1 }: { d: string; size?: number; scale?: number }) {
   if (!d) return null;

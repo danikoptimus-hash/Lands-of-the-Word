@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { CoastOver, HexTiles, IMG, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, IslandLabel, HexTiles, IMG, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { reportPage } from "../lib/perf";
 import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
@@ -138,7 +138,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             <g className="screen-items">
               {vp.view.k < 1.4 && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
                 const kk = vp.view.k, inv = Math.max(0.8, Math.min(1, kk / 1.6)) / kk;
-                return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${inv})`}><text textAnchor="middle">{(isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")).split(" ").map((w, i) => <tspan key={i} x={0} dy={i === 0 ? "-0.25em" : "1.1em"}>{w}</tspan>)}</text></g>;
+                return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${inv})`}><IslandLabel name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
               })}
               {nodes.map((n) => {
                 const raw = positions.get(n.key)!;
