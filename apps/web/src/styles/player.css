@@ -242,3 +242,5 @@
 .how-to .guide-fig img { display: block; width: 100%; height: auto; border-radius: var(--r-sm); border: 1px solid color-mix(in srgb, var(--text) 14%, transparent); box-shadow: var(--shadow-1); }
 .how-to .guide-fig figcaption { font-size: var(--fs-sm); color: var(--muted); margin-top: var(--sp-1); }
 .how-to section[id] { scroll-margin-top: var(--sp-4); }
+/* Пунктир открытой стороны: шаг в пикселях экрана через --inv (ставится на каждый кадр жеста), не через React. */
+.m-edge line.dashed { stroke-dasharray: calc(7px * var(--inv, 1)) calc(6px * var(--inv, 1)); }

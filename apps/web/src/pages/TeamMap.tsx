@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { reportPage } from "../lib/perf";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
@@ -29,7 +29,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const start = useMemo(() => (map.team.startNodeKey ? nodePos(map.team.startNodeKey, size) : null), [map.team.startNodeKey, size]);
   const renderStart = performance.now();
-  useEffect(() => { perfMark("карта команды рендер", performance.now() - renderStart); });
+  useLayoutEffect(() => { perfMark("карта команды: React+DOM", performance.now() - renderStart); });
+  useEffect(() => { perfMark("карта команды: до кадра", performance.now() - renderStart); });
   const vp = useViewport(bounds, start ? { x: start.x, y: start.y, k: 2.4 } : null);
   const revealed = useMemo(() => new Set(map.revealed.map((n) => n.key)), [map.revealed]);
   const cityByKey = useMemo(() => new Map((map.cities ?? []).map((c) => [c.nodeKey, c])), [map.cities]);
@@ -62,7 +63,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     return { tk, x: p.x + (dx / d) * size * 1.6, y: p.y + (dy / d) * size * 1.6, port: p };
   }), [map.tasks, islandCenters, nodeByKey, size]);
 
-  if (!bounds) return null;
+
   const { k } = vp.view;
   // Элементы постоянного экранного размера (подписи, метки, развилки) стоят в координатах карты со scale(1/k):
   // при перетаскивании их двигает композитор, при смене масштаба React пересчитывает 1/k.
@@ -80,21 +81,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const showMarkers = k >= 0.9, fullLabels = k >= 1.6, showForks = k >= 0.7;
   // Город масштабируется с картой: сидит на перекрёстке и занимает место до середины трёх сторон.
   const CITY = size * 1.15, START = size * 1.35;
-  const dash = `${7 * inv} ${6 * inv}`;
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста), extra — после масштаба. */
-  const sc = (x: number, y: number, extra = "") => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, ${inv}))${extra ? " " + extra : ""}` });
+  const sc = (x: number, y: number, extra = "") => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))${extra ? " " + extra : ""}` });
 
-  return (
-    <div ref={vp.ref} {...vp.handlers} className="map-canvas">
-      <SeaLayer vp={vp} bed={bed} />
-      <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
-      <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} />
-      {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} />}
-      <WorldSvg vp={vp} bounds={bounds}>
-        <MapSymbols />
-        <OutlineDefs colors={owners} />
-        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
-        <CoastOver d={coast} size={size} />
+  // Мир и экранные элементы — мемо по данным: фиксация масштаба (vp.view) не должна заново строить сотни SVG-элементов;
+  // масштаб деталей идёт через CSS-переменные, пороги детализации — через флаги.
+  const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
           const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
@@ -105,7 +97,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           return (
             <g key={e.aKey + e.bKey} className={"m-edge " + cls} onClick={() => active && click(tk.id)}>
               {active && <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
-              <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={done ? map.team.color : undefined} style={active && !sel ? { strokeDasharray: dash } : undefined} />
+              <line className={active && !sel ? "dashed" : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={done ? map.team.color : undefined} />
             </g>
           );
         })}
@@ -122,11 +114,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           }
           return null;
         })}
-      </WorldSvg>
-      {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} />
-      <WorldSvg vp={vp} bounds={bounds} overlay>
-        <g className="screen-items">
+  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color]); // eslint-disable-line react-hooks/exhaustive-deps
+  const screenBody = useMemo(() => (<>
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;
             const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
@@ -139,12 +128,11 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const text = fullLabels ? [book?.nameRu ?? "", progress, status].filter(Boolean).join(" · ") : book?.nameRu ?? "";
               const iconW = c?.isCapital ? fs + 4 : 0;
               const w = textWidth(text, fs) + iconW + 14, h = fs + 9;
-              const y = (fullLabels ? CITY * k * 0.48 : Math.max(10, CITY * k * 0.48)) / ui;
               // Подпись стоит под картинкой города (сдвиг в единицах карты), а масштабируется через --inv на каждый кадр.
               return (
-                <g key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, ${inv}))` }} onClick={() => clickCity(n.key)}>
+                <g key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))` }} onClick={() => clickCity(n.key)}>
                   {c?.battle && (
-                    <g className={"m-battle " + (c.battle === "ATTACK" ? "att" : "def")} transform={`translate(${Math.max(14, CITY * k * 0.45)},${-y - Math.max(12, CITY * k * 0.5)})`}>
+                    <g className={"m-battle " + (c.battle === "ATTACK" ? "att" : "def")} transform="translate(18,-30)">
                       <circle r={10} />
                       <use href="#m-wave" x={-7} y={-7} width={14} height={14} />
                     </g>
@@ -216,6 +204,26 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             </g>
           ))}
           {ripple && <g style={sc(ripple.x, ripple.y)}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
+  </>), [map.revealed, map.edges, map.peeked, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  if (!bounds) return null;
+  return (
+    <div ref={vp.ref} {...vp.handlers} className="map-canvas">
+      <SeaLayer vp={vp} bed={bed} />
+      <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
+      <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} />
+      {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} />}
+      <WorldSvg vp={vp} bounds={bounds}>
+        <MapSymbols />
+        <OutlineDefs colors={owners} />
+        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
+        <CoastOver d={coast} size={size} />
+        {worldBody}
+      </WorldSvg>
+      {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} />
+      <WorldSvg vp={vp} bounds={bounds} overlay>
+        <g className="screen-items">
+          {screenBody}
         </g>
       </WorldSvg>
       <div className="map-controls">

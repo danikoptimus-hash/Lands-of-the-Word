@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
@@ -35,7 +35,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const renderStart = performance.now();
-  useEffect(() => { perfMark("карта админа рендер", performance.now() - renderStart); });
+  useLayoutEffect(() => { perfMark("карта админа: React+DOM", performance.now() - renderStart); });
+  useEffect(() => { perfMark("карта админа: до кадра", performance.now() - renderStart); });
   const vp = useViewport(bounds);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
   const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
@@ -77,6 +78,79 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
       .catch((e) => { if (alive) setTeamView({ teamId: viewAs, map: null, error: e instanceof ApiError ? e.message : t("Ошибка сети") }); });
     return () => { alive = false; };
   }, [viewAs, gameId, version]);
+  const kk = vp.view.k;
+  const showLabels = kk >= 1.4, showDots = kk >= 0.8, showIslands = kk < 1.4;
+  /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста). */
+  const sc = (x: number, y: number) => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))` });
+  // Мир и экранные элементы — мемо по данным: фиксация масштаба не должна заново строить сотни SVG-элементов.
+  const worldBody = useMemo(() => (<>
+            {nodes.map((n) => {
+              const p = positions.get(n.key)!;
+              const CITY = size * 1.15, START = size * 1.35;
+              if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+              if (n.kind === "CITY") {
+                const owner = ownerOf.get(n.key);
+                // Картинка города кликабельна сама (как у команды); владелец — обводка по контуру картинки цветом команды.
+                return (
+                  <g key={"c" + n.key} className="pick" onClick={() => { if (!vp.wasDrag()) setSelected(n); }}>
+                    <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : undefined} />
+                  </g>
+                );
+              }
+              return null;
+            })}
+            {edges.map((e) => {
+              const a = positions.get(e.aKey), b = positions.get(e.bKey);
+              if (!a || !b) return null;
+              const teams = traversedBy.get([e.aKey, e.bKey].sort().join("|")) ?? [];
+              if (teams.length === 0) return <line key={e.aKey + e.bKey} className="adm-edge" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
+              if (teams.length === 1) return <line key={e.aKey + e.bKey} className="adm-path" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={teams[0]!.color} />;
+              const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+              return <g key={e.aKey + e.bKey}><line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} /></g>;
+            })}
+            {/* Морские переправы: пройденные «стороны» между островами, которых нет среди рёбер, — пунктир цветом команды. */}
+            {(progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
+              const a = positions.get(e.fromKey)!, b = positions.get(e.toKey)!;
+              return <line key={"sea" + tm.id + e.fromKey + e.toKey} className="adm-sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={tm.color} />;
+            }))}
+  </>), [nodes, edges, positions, ownerOf, traversedBy, progress, edgeSet, battleAt, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const screenBody = useMemo(() => (<>
+              {showIslands && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
+                return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}><IslandLabel id={"isl-adm-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
+              })}
+              {nodes.map((n) => {
+                const raw = positions.get(n.key)!;
+                const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
+                const seen = revealedBy.get(n.key) ?? [];
+                const sel = selected?.key === n.key;
+                const pick = () => { if (!vp.wasDrag()) setSelected(n); };
+                const at = sc(raw.x, raw.y);
+                if (n.kind === "START") { const tm = progress?.find((x) => x.startNodeKey === n.key); const color = tm?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={14} fill="transparent" /><circle r={6} fill={color} stroke="var(--surface)" strokeWidth={2} /></g>; }
+                if (n.kind === "CITY") {
+                  const label = `${book?.order}. ${book?.nameRu ?? ""}`;
+                  const lw = Math.ceil(label.length * 11 * 0.62) + 16;
+                  return (
+                  <Fragment key={n.key}>
+                    <g className="pick" style={at} onClick={pick}>
+                      <circle className="hit" r={20} cy={-4} fill="transparent" />
+                      {!showLabels && <g className="quiet"><circle r={8} fill={sel ? "var(--accent)" : "var(--surface)"} stroke="var(--text)" strokeWidth={1} /><text textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}</text></g>}
+                      {seen.map((tm, i) => <circle key={tm.id} className="quiet" cx={14 - i * 9} cy={-14} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
+                    </g>
+                    {showLabels && (
+                      <g className="pick" style={sc(raw.x, raw.y + size * 1.15 * 0.48)} onClick={pick}>
+                        <g className="quiet">
+                          <rect x={-lw / 2} y={-10} width={lw} height={20} rx={10} fill={sel ? "var(--accent)" : "var(--map-paper)"} stroke="var(--text)" strokeWidth={1} />
+                          <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{label}</text>
+                        </g>
+                      </g>
+                    )}
+                  </Fragment>
+                  );
+                }
+                if (!showDots) return null;
+                return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" /><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((tm, i) => <circle key={tm.id} cx={8 - i * 7} cy={-8} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
+              })}
+  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   const viewedTeam = viewAs ? teamById.get(viewAs) : null;
   const legend = (
@@ -121,69 +195,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
             <CoastOver d={coast} size={size} />
-            {nodes.map((n) => {
-              const p = positions.get(n.key)!;
-              const CITY = size * 1.15, START = size * 1.35;
-              if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
-              if (n.kind === "CITY") {
-                const owner = ownerOf.get(n.key);
-                // Картинка города кликабельна сама (как у команды); владелец — обводка по контуру картинки цветом команды.
-                return (
-                  <g key={"c" + n.key} className="pick" onClick={() => { if (!vp.wasDrag()) setSelected(n); }}>
-                    <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : undefined} />
-                  </g>
-                );
-              }
-              return null;
-            })}
-            {edges.map((e) => {
-              const a = positions.get(e.aKey), b = positions.get(e.bKey);
-              if (!a || !b) return null;
-              const teams = traversedBy.get([e.aKey, e.bKey].sort().join("|")) ?? [];
-              if (teams.length === 0) return <line key={e.aKey + e.bKey} className="adm-edge" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
-              if (teams.length === 1) return <line key={e.aKey + e.bKey} className="adm-path" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={teams[0]!.color} />;
-              const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-              return <g key={e.aKey + e.bKey}><line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} /></g>;
-            })}
-            {/* Морские переправы: пройденные «стороны» между островами, которых нет среди рёбер, — пунктир цветом команды. */}
-            {(progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
-              const a = positions.get(e.fromKey)!, b = positions.get(e.toKey)!;
-              return <line key={"sea" + tm.id + e.fromKey + e.toKey} className="adm-sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={tm.color} />;
-            }))}
+            {worldBody}
             <g className="screen-items">
-              {vp.view.k < 1.4 && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
-                return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}><IslandLabel id={"isl-adm-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
-              })}
-              {nodes.map((n) => {
-                const raw = positions.get(n.key)!;
-                const kk = vp.view.k, ui = Math.min(1, Math.max(0.5, kk / 1.6)), inv = ui / kk;
-                const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
-                const seen = revealedBy.get(n.key) ?? [];
-                const sel = selected?.key === n.key;
-                const showLabels = kk >= 1.4, showDots = kk >= 0.8;
-                const pick = () => { if (!vp.wasDrag()) setSelected(n); };
-                const at = { transform: `translate(${raw.x}px, ${raw.y}px) scale(var(--inv, ${inv}))` };
-                if (n.kind === "START") { const tm = progress?.find((x) => x.startNodeKey === n.key); const color = tm?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={14} fill="transparent" /><circle r={6} fill={color} stroke="var(--surface)" strokeWidth={2} /></g>; }
-                if (n.kind === "CITY") {
-                  const label = `${book?.order}. ${book?.nameRu ?? ""}`;
-                  const lw = Math.ceil(label.length * 11 * 0.62) + 16;
-                  return (
-                  <g key={n.key} className="pick" style={at} onClick={pick}>
-                    <circle className="hit" r={Math.max(14, size * 0.65 * kk) / ui} cy={-size * 0.1 * kk / ui} fill="transparent" />
-                    {battleAt.has(n.key) && <circle className="quiet" r={size * 0.8 * kk} fill="none" stroke="var(--danger)" strokeWidth={3} strokeDasharray="6 4" />}
-                    {showLabels ? (
-                      <g className="quiet" transform={`translate(0,${size * 1.15 * kk * 0.48 / ui})`}>
-                        <rect x={-lw / 2} y={-10} width={lw} height={20} rx={10} fill={sel ? "var(--accent)" : "var(--map-paper)"} stroke="var(--text)" strokeWidth={1} />
-                        <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{label}</text>
-                      </g>
-                    ) : <g className="quiet"><circle r={8} fill={sel ? "var(--accent)" : "var(--surface)"} stroke="var(--text)" strokeWidth={1} /><text textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}</text></g>}
-                    {seen.map((tm, i) => <circle key={tm.id} className="quiet" cx={14 - i * 9} cy={-14} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
-                  </g>
-                  );
-                }
-                if (!showDots) return null;
-                return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" /><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((tm, i) => <circle key={tm.id} cx={8 - i * 7} cy={-8} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
-              })}
+              {screenBody}
             </g>
           </WorldSvg>
           <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} />
