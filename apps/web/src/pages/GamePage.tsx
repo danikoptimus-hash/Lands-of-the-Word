@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { AdminMap, type BattleProgress, type CityProgress, type TeamProgress } from "./AdminMap";
 import { Timeline, collectMoves, progressAt } from "./Timeline";
@@ -17,7 +17,7 @@ import { RecipientsBlock } from "./RecipientsBlock";
 import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { Chip } from "../components/Chip";
-import { Tabs } from "../components/Tabs";
+import { Sheet } from "../components/Sheet";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { PushToggle } from "../components/PushToggle";
 import { ActionMenu } from "../components/ActionMenu";
@@ -31,16 +31,19 @@ const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "settings"];
 type Progress = { teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] };
 
 /**
- * Страница игры для администратора: шапка (название, статус) и шесть вкладок.
- * Вкладка хранится в hash (#teams), чтобы переживать перезагрузку и ссылки.
+ * Страница игры для администратора: карта во весь экран, разделы (обзор, команды, дела, проверка, настройки) —
+ * кнопки сбоку (на телефоне — снизу), содержимое раздела открывается попапом над картой (решение владельца 15.09).
+ * Раздел хранится в hash (#teams), чтобы переживать перезагрузку и ссылки.
  */
 export function GamePage() {
   const { id = "" } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const { confirm, notify } = useUi();
-  const tab: Tab = (TABS as string[]).includes(location.hash.slice(1)) ? (location.hash.slice(1) as Tab) : "overview";
-  const setTab = (next: Tab) => navigate({ hash: next === "overview" ? "" : next }, { replace: true });
+  // Экран — карта во весь экран (решение владельца 15.09); раздел из hash (#teams) открывается попапом над картой.
+  const tab: Tab = (TABS as string[]).includes(location.hash.slice(1)) ? (location.hash.slice(1) as Tab) : "map";
+  const setTab = (next: Tab) => navigate({ hash: next === "map" ? "" : next }, { replace: true });
+  const [screenEl, setScreenEl] = useState<HTMLDivElement | null>(null);
 
   const [game, setGame] = useState<GameDto | null>(null);
   const [hexes, setHexes] = useState<MapHexDto[]>([]);
@@ -84,6 +87,9 @@ export function GamePage() {
 
   const loadAll = useCallback(() => { load().catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); void loadProgress(); }, [load, loadProgress]);
   useEffect(() => { loadAll(); }, [loadAll]);
+  // Черновик без карты: сразу показать чек-лист подготовки (обзор), карту всё равно ещё смотреть не на что.
+  const autoOpened = useRef(false);
+  useEffect(() => { if (game && game.status === "DRAFT" && hexes.length === 0 && !autoOpened.current && !location.hash) { autoOpened.current = true; setTab("overview"); } }, [game, hexes.length]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (game) void loadCounts(game.status); }, [game?.status, version, loadCounts]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function generate() {
@@ -119,99 +125,109 @@ export function GamePage() {
   const hasMap = hexes.length > 0;
   const refresh = () => { void load(); void loadProgress(); };
 
+  const sections: Array<{ key: Tab; label: string; icon: string; count?: number; hot?: boolean }> = [
+    { key: "overview", label: t("Обзор"), icon: "crown" },
+    { key: "teams", label: t("Команды"), icon: "users", count: counts.teams },
+    { key: "deeds", label: t("Дела"), icon: "scroll", count: counts.deeds },
+    { key: "review", label: t("Проверка"), icon: "check", count: reviewCount, hot: true },
+    { key: "settings", label: t("Настройки"), icon: "settings" },
+  ];
+  const open = tab === "map" ? null : tab;
+  const closePopup = () => setTab("map");
+  const titleOf = sections.find((s) => s.key === open);
+
   return (
-    <>
-      <Back to="/" label={t("Мои игры")} />
-      <div className="page-head">
-        <h1>
-          {game.name}
-          <Chip tone={draft ? "warn" : active ? "ok" : "neutral"}>{draft ? t("черновик") : active ? t("идёт") : t("завершена")}</Chip>
-        </h1>
-        {canDelete && <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить игру"), icon: "trash", danger: true, onSelect: () => void removeGame() }]} />}
-      </div>
-
-      <Tabs<Tab>
-        stacked sticky ariaLabel={t("Разделы игры")} value={tab} onChange={setTab}
-        items={[
-          { key: "overview", label: t("Обзор"), icon: "crown" },
-          { key: "map", label: t("Карта"), icon: "map" },
-          { key: "teams", label: t("Команды"), icon: "users", count: counts.teams },
-          { key: "deeds", label: t("Дела"), icon: "scroll", count: counts.deeds },
-          { key: "review", label: t("Проверка"), icon: "check", count: reviewCount, hot: true },
-          { key: "settings", label: t("Настройки"), icon: "settings" },
-        ]}
-      />
-
-      {tab === "overview" && (
-        <div key="overview">
-          {draft && (
-            <>
-              <StartBlock
-                gameId={game.id} version={version} onStarted={refresh}
-                hasMap={hasMap} nodeCount={nodes.length} cityCount={nodes.filter((n) => n.kind === "CITY").length} stats={stats}
-                onGenerate={() => void generate()} generating={busy} generateError={genError}
-                teams={counts.teams} teamCount={game.teamCount} deeds={counts.deeds} recipients={counts.recipients}
-                goTo={setTab} goToRecipients={() => recipientsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
-              />
-              <div ref={recipientsRef}><RecipientsBlock gameId={game.id} status={game.status} version={version} /></div>
-            </>
-          )}
-          {active && (
-            <>
-              <div className="card">
-                <div className="card-head"><h2><span className="ico"><Icon name="check" /></span>{t("Сейчас")}</h2></div>
-                <div className="summary-tiles">
-                  <a href="#review" onClick={(e) => { e.preventDefault(); setTab("review"); }}>
-                    <span className={"sum-value" + (reviewCount ? " hot" : "")}>{reviewCount}</span>
-                    <span className="sum-label"><Icon name="check" />{t("ждёт проверки")}</span>
-                  </a>
-                  <a href="#review" onClick={(e) => { e.preventDefault(); setTab("review"); }}>
-                    <span className="sum-value">{trials}</span>
-                    <span className="sum-label"><Icon name="wave" />{t("идёт испытаний")}</span>
-                  </a>
-                </div>
-              </div>
-              <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} between={<RecipientsBlock gameId={game.id} status={game.status} version={version} />} />
-            </>
-          )}
-          {game.status === "FINISHED" && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} />}
-        </div>
-      )}
-
-      {tab === "map" && (
-        <div key="map">
-          {hasMap ? (
-            <div className="card map-card">
-              <AdminMap gameId={game.id} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} />
-              {progress?.startedAt && <Timeline moves={moves} startedAt={progress.startedAt} at={at} onChange={setAt} />}
-            </div>
-          ) : (
+    <div className="admin-screen" ref={setScreenEl}>
+      <div className="admin-map-area">
+        {hasMap ? (
+          <AdminMap fullscreen gameId={game.id} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} />
+        ) : (
+          <div className="admin-empty">
             <div className="card">
               <EmptyState icon="map" text={draft ? t("Карта ещё не создана.") : t("Карты нет.")} action={draft ? <button type="button" onClick={() => void generate()} disabled={busy}><Icon name="refresh" />{t("Сгенерировать карту")}</button> : undefined} />
               {genError && <p className="error">{genError}</p>}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+        {hasMap && progress?.startedAt && <div className="admin-timeline"><Timeline moves={moves} startedAt={progress.startedAt} at={at} onChange={setAt} /></div>}
+      </div>
 
-      {tab === "teams" && <div key="teams"><TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} goToSettings={() => setTab("settings")} /></div>}
-      {tab === "deeds" && <div key="deeds"><DeedsBlock gameId={game.id} version={version} onChange={bump} /></div>}
-      {tab === "review" && (active ? (
-        <div key="review">
-          <SubmissionsBlock gameId={game.id} version={version} currency={game.settings.donationCurrency} onDecided={() => { void loadProgress(); bump(); }} />
-          <BattlesBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
-          <PassagesBlock gameId={game.id} version={version} />
+      <div className="admin-top">
+        <Link to="/" className="btn secondary icon hud-btn" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>
+        <div className="admin-title" title={game.name}>
+          <span className="name">{game.name}</span>
+          <Chip tone={draft ? "warn" : active ? "ok" : "neutral"}>{draft ? t("черновик") : active ? t("идёт") : t("завершена")}</Chip>
         </div>
-      ) : (
-        <div className="card"><EmptyState icon="check" text={draft ? t("Появится после старта игры.") : t("Игра завершена: проверять больше нечего.")} /></div>
-      ))}
-      {tab === "settings" && (
-        <div key="settings">
-          <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
-          <AdminsBlock gameId={game.id} version={version} />
-          <PushToggle compact />
-        </div>
+        {canDelete && <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить игру"), icon: "trash", danger: true, onSelect: () => void removeGame() }]} />}
+      </div>
+
+      <nav className="admin-dock" aria-label={t("Разделы игры")}>
+        {sections.map((s) => (
+          <button key={s.key} type="button" className={"dock-btn" + (open === s.key ? " on" : "")} aria-pressed={open === s.key} onClick={() => setTab(open === s.key ? "map" : s.key)}>
+            <Icon name={s.icon} />
+            <span className="lbl">{s.label}</span>
+            {s.count ? <span className={"badge" + (s.hot ? " hot" : "")}>{s.count}</span> : null}
+          </button>
+        ))}
+      </nav>
+
+      {open && screenEl && (
+        <Sheet size="lg" container={screenEl} className="admin-popup" onClose={closePopup} head={<h2 className="row"><span className="ico"><Icon name={titleOf?.icon ?? "map"} /></span>{titleOf?.label}</h2>}>
+          {open === "overview" && (
+            <div key="overview">
+              {draft && (
+                <>
+                  <StartBlock
+                    gameId={game.id} version={version} onStarted={refresh}
+                    hasMap={hasMap} nodeCount={nodes.length} cityCount={nodes.filter((n) => n.kind === "CITY").length} stats={stats}
+                    onGenerate={() => void generate()} generating={busy} generateError={genError}
+                    teams={counts.teams} teamCount={game.teamCount} deeds={counts.deeds} recipients={counts.recipients}
+                    goTo={setTab} goToRecipients={() => recipientsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                  />
+                  <div ref={recipientsRef}><RecipientsBlock gameId={game.id} status={game.status} version={version} /></div>
+                </>
+              )}
+              {active && (
+                <>
+                  <div className="card">
+                    <div className="card-head"><h2><span className="ico"><Icon name="check" /></span>{t("Сейчас")}</h2></div>
+                    <div className="summary-tiles">
+                      <a href="#review" onClick={(e) => { e.preventDefault(); setTab("review"); }}>
+                        <span className={"sum-value" + (reviewCount ? " hot" : "")}>{reviewCount}</span>
+                        <span className="sum-label"><Icon name="check" />{t("ждёт проверки")}</span>
+                      </a>
+                      <a href="#review" onClick={(e) => { e.preventDefault(); setTab("review"); }}>
+                        <span className="sum-value">{trials}</span>
+                        <span className="sum-label"><Icon name="wave" />{t("идёт испытаний")}</span>
+                      </a>
+                    </div>
+                  </div>
+                  <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} between={<RecipientsBlock gameId={game.id} status={game.status} version={version} />} />
+                </>
+              )}
+              {game.status === "FINISHED" && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} />}
+            </div>
+          )}
+          {open === "teams" && <div key="teams"><TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} goToSettings={() => setTab("settings")} /></div>}
+          {open === "deeds" && <div key="deeds"><DeedsBlock gameId={game.id} version={version} onChange={bump} /></div>}
+          {open === "review" && (active ? (
+            <div key="review">
+              <SubmissionsBlock gameId={game.id} version={version} currency={game.settings.donationCurrency} onDecided={() => { void loadProgress(); bump(); }} />
+              <BattlesBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
+              <PassagesBlock gameId={game.id} version={version} />
+            </div>
+          ) : (
+            <div className="card"><EmptyState icon="check" text={draft ? t("Появится после старта игры.") : t("Игра завершена: проверять больше нечего.")} /></div>
+          ))}
+          {open === "settings" && (
+            <div key="settings">
+              <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
+              <AdminsBlock gameId={game.id} version={version} />
+              <PushToggle compact />
+            </div>
+          )}
+        </Sheet>
       )}
-    </>
+    </div>
   );
 }

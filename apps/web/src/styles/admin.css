@@ -202,3 +202,41 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 /* Книги дела: набранные книги — снимаемые фишки. */
 .chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .chips .chip-btn { display: inline-flex; align-items: center; gap: var(--sp-1); min-height: 30px; padding: 0 var(--sp-3); border-radius: var(--r-full); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: var(--fs-sm); font-weight: 500; }
+
+/* Экран игры администратора: карта во весь экран, разделы — кнопки сбоку (на телефоне снизу), содержимое — попап над картой. */
+.admin-screen { position: fixed; inset: 0; background: var(--map-bg); overscroll-behavior: none; touch-action: none; }
+.admin-map-area { position: absolute; inset: 0; }
+.admin-map.full { position: absolute; inset: 0; }
+.admin-map.full .mapwrap { position: absolute; inset: 0; height: auto; min-height: 0; border: 0; border-radius: 0; }
+.admin-map.full .view-as { position: absolute; left: 50%; top: calc(var(--sp-3) + var(--safe-top) + 60px); transform: translateX(-50%); z-index: 5; max-width: min(70vw, 720px); padding: var(--sp-1); background: color-mix(in srgb, var(--surface) 88%, transparent); border-radius: var(--r-full); box-shadow: var(--shadow-1); }
+.admin-map.full .view-as-hint { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--sp-3) + var(--safe-top) + 108px); z-index: 5; margin: 0; padding: var(--sp-1) var(--sp-3); background: color-mix(in srgb, var(--surface) 90%, transparent); border-radius: var(--r-sm); max-width: min(80vw, 560px); }
+.admin-map.full details.legend { position: absolute; left: calc(var(--sp-3) + var(--safe-left) + 76px); bottom: calc(var(--sp-3) + var(--safe-bottom)); z-index: 5; margin: 0; padding: 0 var(--sp-3); background: color-mix(in srgb, var(--surface) 90%, transparent); border-radius: var(--r-sm); box-shadow: var(--shadow-1); max-width: min(60vw, 520px); }
+.admin-map.full details.legend .items { padding-bottom: var(--sp-2); }
+.admin-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--sp-4); }
+.admin-empty .card { max-width: 420px; width: 100%; }
+.admin-timeline { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--sp-3) + var(--safe-bottom)); z-index: 5; width: min(92vw, 440px); padding: var(--sp-2) var(--sp-3); background: color-mix(in srgb, var(--surface) 92%, transparent); border-radius: var(--r-md); box-shadow: var(--shadow-1); }
+.admin-timeline .timeline { margin-top: 0; gap: var(--sp-1); }
+.admin-timeline .timeline h3, .admin-timeline .timeline .row.between { display: none; }
+.admin-timeline .timeline .tl-now { padding: var(--sp-1) var(--sp-2); font-size: var(--fs-sm); }
+.admin-top { position: absolute; left: calc(var(--sp-3) + var(--safe-left)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 6; display: flex; align-items: center; gap: var(--sp-2); max-width: calc(100% - 140px); }
+.admin-title { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--touch); min-width: 0; padding: 0 var(--sp-3); border-radius: var(--r-full); background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--shadow-1); font-weight: 700; }
+.admin-title .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.admin-dock { position: absolute; z-index: 6; display: flex; gap: var(--sp-2); left: calc(var(--sp-3) + var(--safe-left)); top: calc(var(--sp-3) + var(--safe-top) + 60px); flex-direction: column; }
+.dock-btn { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; width: 64px; min-height: 58px; padding: 6px 4px; border-radius: 16px; border: 1px solid transparent; background: color-mix(in srgb, var(--surface) 94%, transparent); color: var(--text); box-shadow: var(--shadow-1); font: 500 11px/1.1 var(--font); }
+.dock-btn .i { width: 22px; height: 22px; color: var(--accent-ink); }
+.dock-btn:hover { background: var(--surface); }
+.dock-btn.on { background: var(--accent-ink); color: var(--on-accent); }
+.dock-btn.on .i { color: var(--on-accent); }
+.dock-btn .badge { position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--surface-2, var(--surface)); border: 1px solid var(--border); color: var(--text); font: 700 11px/18px var(--font); text-align: center; }
+.dock-btn .badge.hot { background: var(--danger, #b3402a); border-color: transparent; color: #fff; }
+.admin-popup.overlay-backdrop { z-index: 8; }
+.admin-popup .overlay-body .card { box-shadow: none; }
+@media (max-width: 767px) {
+  .admin-dock { top: auto; left: 50%; transform: translateX(-50%); bottom: calc(var(--sp-2) + var(--safe-bottom)); flex-direction: row; padding: var(--sp-1); background: color-mix(in srgb, var(--surface) 90%, transparent); border-radius: 22px; box-shadow: var(--shadow-2); }
+  .dock-btn { width: 62px; min-height: 52px; box-shadow: none; background: transparent; }
+  .admin-timeline { bottom: calc(var(--sp-2) + var(--safe-bottom) + 76px); }
+  .admin-map.full details.legend { left: calc(var(--sp-3) + var(--safe-left)); bottom: calc(var(--sp-2) + var(--safe-bottom) + 76px); display: none; }
+  .admin-map.full .view-as { left: calc(var(--sp-3) + var(--safe-left)); transform: none; top: calc(var(--sp-3) + var(--safe-top) + 52px); max-width: calc(100vw - 110px); }
+  .admin-map.full .view-as-hint { left: calc(var(--sp-3) + var(--safe-left)); transform: none; top: calc(var(--sp-3) + var(--safe-top) + 100px); max-width: calc(100vw - 110px); }
+  .admin-top { max-width: calc(100% - 2 * var(--sp-3)); }
+}

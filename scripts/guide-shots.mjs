@@ -58,9 +58,11 @@ await ctx.close();
 
 ctx = await browser.newContext({ baseURL: BASE, viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1.5 }); page = await ctx.newPage();
 await login(ctx, ADMIN);
-await page.goto(`/games/${GAME}`); await page.waitForTimeout(1500); await shot(page, "admin-overview");
-for (const [tab, name] of [["Команды", "admin-teams"], ["Дела", "admin-deeds"], ["Проверка", "admin-review"], ["Карта", "admin-map"]]) {
-  await page.getByRole("tab", { name: tab }).or(page.getByRole("button", { name: tab })).first().click(); await page.waitForTimeout(1500); await shot(page, name);
+// Экран администратора: карта во весь экран, разделы — кнопки дока, содержимое — попап над картой.
+await page.goto(`/games/${GAME}`); await page.waitForSelector(".map-svg"); await page.waitForTimeout(1800); await shot(page, "admin-map");
+for (const [tab, name] of [["Обзор", "admin-overview"], ["Команды", "admin-teams"], ["Дела", "admin-deeds"], ["Проверка", "admin-review"]]) {
+  await page.locator(".admin-dock .dock-btn", { hasText: tab }).click(); await page.waitForTimeout(1500); await shot(page, name);
+  await page.keyboard.press("Escape"); await page.waitForTimeout(400);
 }
 await ctx.close();
 await browser.close();

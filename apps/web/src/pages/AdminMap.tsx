@@ -29,7 +29,7 @@ type TeamLite = { id: string; name: string; color: string };
  * Карта администратора: вся карта без тумана, города на перекрёстках, пройденные стороны цветами команд (половинками, если прошли двое).
  * Панель перекрёстка — Sheet поверх карты; тестовые действия свёрнуты внутри неё.
  */
-export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview }: { gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false }: { /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexes, size]);
   const vp = useViewport(bounds);
@@ -75,10 +75,22 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   }, [viewAs, gameId, version]);
   if (!bounds) return null;
   const viewedTeam = viewAs ? teamById.get(viewAs) : null;
+  const legend = (
+        <details className="legend">
+          <summary><Icon name="info" />{t("Обозначения")}<Icon name="chevron-down" /></summary>
+          <div className="items">
+            {progress?.map((tm) => <span key={tm.id}><i className="sw dot" style={{ ["--c" as string]: tm.color }} />{tm.name}</span>)}
+            <span><i className="sw line" />{t("пройденная сторона")}</span>
+            <span><i className="sw spot" />{t("открытый перекрёсток")}</span>
+            <span><i className="sw ring" />{t("город с владельцем")}</span>
+            <span><i className="sw ring bad" />{t("идёт испытание")}</span>
+          </div>
+        </details>
+  );
 
   return (
     <>
-      <div className="admin-map" ref={setWrapEl}>
+      <div className={"admin-map" + (fullscreen ? " full" : "")} ref={setWrapEl}>
         {progress && progress.length > 0 && (
           <div className="view-as" role="tablist" aria-label={t("Чьими глазами")}>
             <button type="button" role="tab" aria-selected={!viewAs} className={"chip-btn" + (!viewAs ? " on" : "")} onClick={() => setViewAs(null)}><Icon name="crown" />{t("Администратор")}</button>
@@ -182,17 +194,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         {!viewAs && selected && wrapEl && (selected.kind === "CITY"
           ? <CitySheet gameId={gameId} node={selected} version={version} container={wrapEl} revealed={revealedBy.get(selected.key) ?? []} battle={battleAt.get(selected.key) ?? null} teamById={teamById} onClose={close} onReview={onReview} />
           : <NodeSheet gameId={gameId} node={selected} container={wrapEl} teams={progress ?? []} revealed={revealedBy.get(selected.key) ?? []} onClose={close} />)}
+        {fullscreen && legend}
       </div>
-      <details className="legend">
-        <summary><Icon name="info" />{t("Обозначения")}<Icon name="chevron-down" /></summary>
-        <div className="items">
-          {progress?.map((tm) => <span key={tm.id}><i className="sw dot" style={{ ["--c" as string]: tm.color }} />{tm.name}</span>)}
-          <span><i className="sw line" />{t("пройденная сторона")}</span>
-          <span><i className="sw spot" />{t("открытый перекрёсток")}</span>
-          <span><i className="sw ring" />{t("город с владельцем")}</span>
-          <span><i className="sw ring bad" />{t("идёт испытание")}</span>
-        </div>
-      </details>
+      {!fullscreen && legend}
     </>
   );
 }

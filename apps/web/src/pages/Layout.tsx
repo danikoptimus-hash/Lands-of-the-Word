@@ -4,12 +4,13 @@ import { t } from "../lib/i18n";
 import { ActionMenu } from "../components/ActionMenu";
 import { Icon } from "../components/Icon";
 
-/** Шапка: логотип и один элемент пользователя с меню (Аккаунт · Аналитика · Выйти). На экране карты шапки нет. */
+/** Шапка: логотип и один элемент пользователя с меню (Аккаунт · Аналитика · Выйти). На экранах карты (команда, игра администратора) шапки нет. */
 export function Layout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const name = user?.displayName ?? user?.nickname ?? "";
-  const bare = /^\/games\/[^/]+\/team$/.test(useLocation().pathname);
+  const path = useLocation().pathname;
+  const bare = /^\/games\/[^/]+(\/team)?$/.test(path) && path !== "/games/new";
   if (bare) return <Outlet />;
   return (
     <>
