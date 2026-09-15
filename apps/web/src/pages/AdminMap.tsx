@@ -13,6 +13,7 @@ import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { FaunaLayer } from "./Fauna";
 import { IsletsLayer, useIslets } from "./Islets";
+import { useSeabed } from "./Seabed";
 import { Sheet } from "../components/Sheet";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
@@ -55,6 +56,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   useEffect(() => { reportPage("admin-map"); }, []);
   const coast = useCoast(hexes, size);
   const islets = useIslets(hexes, size, bounds);
+  const bed = useSeabed(hexes, islets, size, bounds);
   const edgeSet = useMemo(() => new Set(edges.map((e) => [e.aKey, e.bKey].sort().join("|"))), [edges]);
   const islandCenters = useMemo(() => {
     const acc = new Map<string, { x: number; y: number; n: number }>();
@@ -97,7 +99,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           </div>
         ) : (<>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
-          <SeaLayer vp={vp} />
+          <SeaLayer vp={vp} bed={bed} />
           <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
           <WorldSvg vp={vp} bounds={bounds}>
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />

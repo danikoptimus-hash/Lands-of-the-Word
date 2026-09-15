@@ -8,6 +8,7 @@ import { CoastOver, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, 
 import { Icon } from "../components/Icon";
 import { FaunaLayer } from "./Fauna";
 import { IsletsLayer, useIslets } from "./Islets";
+import { useSeabed } from "./Seabed";
 import { t } from "../lib/i18n";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -42,6 +43,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   useEffect(() => { reportPage("map"); }, []);
   const coast = useCoast(map.hexes, size);
   const islets = useIslets(map.hexes, size, bounds);
+  const bed = useSeabed(map.hexes, islets, size, bounds);
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
   // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
@@ -80,7 +82,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
 
   return (
     <div ref={vp.ref} {...vp.handlers} className="map-canvas">
-      <SeaLayer vp={vp} />
+      <SeaLayer vp={vp} bed={bed} />
       <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />

@@ -6,6 +6,7 @@ import type { View } from "../lib/useViewport";
 import type { MapHexDto } from "../lib/api";
 import { ISLET_IMAGES } from "@lotw/domain";
 import { SeaGL } from "./SeaGL";
+import { seabedColor, type Seabed } from "./Seabed";
 
 export const IMG = {
   terrain: (t: string) => `/img/terrain/${t}.webp`,
@@ -32,11 +33,11 @@ const SEA_LAYERS: ReadonlyArray<{ tile: keyof SeaTiles; scale: number; angle: nu
   { tile: "causticB", scale: 1.618, angle: 37, vx: -1.3, vy: 0.9, alpha: 0.17, breathe: 0.35, phase: 2.1 },
 ];
 /** Море: WebGL-шейдер (SeaGL) без плиток; если WebGL недоступен — узоры на canvas 2D (SeaCanvas). */
-export function SeaLayer({ vp }: { vp: Viewport }) {
+export function SeaLayer({ vp, bed = null }: { vp: Viewport; bed?: Seabed | null }) {
   const [gl, setGl] = useState(true);
-  return gl ? <SeaGL vp={vp} onUnsupported={() => setGl(false)} /> : <SeaCanvas vp={vp} />;
+  return gl ? <SeaGL vp={vp} bed={bed} onUnsupported={() => setGl(false)} /> : <SeaCanvas vp={vp} bed={bed} />;
 }
-function SeaCanvas({ vp }: { vp: Viewport }) {
+function SeaCanvas({ vp, bed }: { vp: Viewport; bed: Seabed | null }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   useEffect(() => {
@@ -57,6 +58,7 @@ function SeaCanvas({ vp }: { vp: Viewport }) {
       ctx.fillStyle = "#3A82A4"; ctx.fillRect(0, 0, W, H);
       ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
       const x0 = -tx / k, y0 = -ty / k, w = W / dpr / k, h = H / dpr / k;
+      if (bed) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.drawImage(seabedColor(bed), bed.x, bed.y, bed.w, bed.h); }
       SEA_LAYERS.forEach((l, i) => {
         const s = (SEA_TILE_WORLD * l.scale) / CLOUD_TILE;
         patterns[i]!.setTransform(new DOMMatrix().translate(l.vx * t, l.vy * t).rotate(l.angle).scale(s));
@@ -77,7 +79,7 @@ function SeaCanvas({ vp }: { vp: Viewport }) {
     const ro = new ResizeObserver(resize); ro.observe(host);
     resize(); raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); };
-  }, [vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [vp.subscribe, vp.viewRef, bed]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={ref} className="fx-layer sea" aria-hidden="true" />;
 }
 
