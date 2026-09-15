@@ -3,7 +3,7 @@ import { seaField } from "@lotw/domain";
 
 export interface View { k: number; tx: number; ty: number }
 /** Как часто фиксировать масштаб по ходу щипка или колеса (мс). */
-const LIVE_MS = 90;
+const LIVE_MS = 160;
 export interface Bounds { minX: number; minY: number; width: number; height: number }
 
 /**
@@ -62,12 +62,18 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     if (commit) setViewState(v);
   }, [clampView]);
   const lastCommit = useRef(0);
-  const commit = useCallback(() => { lastCommit.current = performance.now(); setViewState(viewRef.current); }, []);
+  const lastCommitK = useRef(1);
+  const commit = useCallback(() => { lastCommit.current = performance.now(); lastCommitK.current = viewRef.current.k; setViewState(viewRef.current); }, []);
   /**
    * Фиксация по ходу жеста масштаба (щипок, колесо): не чаще LIVE_MS — толщины линий, подписи и метки
    * пересчитываются под новый масштаб уже пока пальцы на экране, а не только после отпускания (решение владельца).
    */
-  const commitLive = useCallback(() => { if (performance.now() - lastCommit.current >= LIVE_MS) commit(); }, [commit]);
+  const commitLive = useCallback(() => {
+    // Не чаще LIVE_MS и только если масштаб заметно изменился (> 4 %): каждая фиксация — перерастрирование мира.
+    if (performance.now() - lastCommit.current < LIVE_MS) return;
+    if (Math.abs(viewRef.current.k / lastCommitK.current - 1) < 0.04) return;
+    lastCommitK.current = viewRef.current.k; commit();
+  }, [commit]);
   /** Подписка на каждое изменение вида (вызывается сразу с текущим видом). Возвращает отписку. */
   const subscribe = useCallback((fn: (v: View) => void) => { listeners.current.add(fn); fn(viewRef.current); return () => { listeners.current.delete(fn); }; }, []);
 

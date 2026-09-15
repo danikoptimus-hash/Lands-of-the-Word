@@ -19,7 +19,7 @@ vec2 hash2(vec2 p){ p = mod(p, 1024.0); vec3 q = fract(vec3(p.xyx) * vec3(0.1031
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   float a = hash2(i).x, b = hash2(i + vec2(1.0, 0.0)).x, c = hash2(i + vec2(0.0, 1.0)).x, d = hash2(i + vec2(1.0, 1.0)).x;
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
-float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 4; i++) { v += a * vnoise(p); p = p * 2.03 + vec2(17.0, 9.0); a *= 0.5; } return v; }
+float fbm(vec2 p){ float v = 0.0, a = 0.5; for (int i = 0; i < 3; i++) { v += a * vnoise(p); p = p * 2.03 + vec2(17.0, 9.0); a *= 0.5; } return v; }
 // Живая каустика: F2 − F1 клеточного шума, точки ячеек ходят по кругу со временем; мягкая линия по границам.
 float caustic(vec2 p, float t, float w){ vec2 i = floor(p), f = fract(p); float f1 = 8.0, f2 = 8.0;
   for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 g = vec2(float(x), float(y)); vec2 o = hash2(i + g); o = 0.5 + 0.28 * sin(t + 6.2831 * o);
@@ -110,7 +110,9 @@ export function SeaGL({ vp, bed, onUnsupported }: { vp: Viewport; bed: Seabed | 
     gl.uniform3fv(gl.getUniformLocation(prog, "uShallow"), SEA_SHALLOW); gl.uniform3fv(gl.getUniformLocation(prog, "uMid"), SEA_MID); gl.uniform3fv(gl.getUniformLocation(prog, "uDeep"), SEA_DEEP);
     const uRes = gl.getUniformLocation(prog, "uRes"), uT = gl.getUniformLocation(prog, "uT"), uD = gl.getUniformLocation(prog, "uD"), uK = gl.getUniformLocation(prog, "uK"), uTxy = gl.getUniformLocation(prog, "uTxy"), uDpr = gl.getUniformLocation(prog, "uDpr");
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const dpr = Math.min(window.devicePixelRatio || 1, 1);
+    // Разрешение ниже экрана: воде хватает, а шейдер считается на каждый пиксель — на большом экране это главная нагрузка.
+    const area = host.clientWidth * host.clientHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1) * (area > 1_000_000 ? 0.55 : 0.7);
     let W = 0, H = 0, dirty = true, raf = 0, last = 0;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H); } dirty = true; };
     const draw = (now: number) => {

@@ -202,13 +202,13 @@ export function GamePage() {
                       </a>
                     </div>
                   </div>
-                  <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} between={<RecipientsBlock gameId={game.id} status={game.status} version={version} />} />
+                  <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} part="rest" between={<RecipientsBlock gameId={game.id} status={game.status} version={version} />} />
                 </>
               )}
               {game.status === "FINISHED" && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} />}
             </div>
           )}
-          {open === "teams" && <div key="teams"><TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} goToSettings={() => setTab("settings")} /></div>}
+          {open === "teams" && <div key="teams">{active && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} part="standings" />}<TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} goToSettings={() => setTab("settings")} /></div>}
           {open === "deeds" && <div key="deeds"><DeedsBlock gameId={game.id} version={version} onChange={bump} /></div>}
           {open === "review" && (active ? (
             <div key="review">

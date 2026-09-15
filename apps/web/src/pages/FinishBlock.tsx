@@ -12,7 +12,7 @@ import { fmtDate, plural } from "../lib/format";
  * Итоги у администратора. В игре: положение команд → (слот between: конверты) → срок окончания → отдельная карточка «Завершить игру».
  * После завершения: победитель, положение команд, взятые города.
  */
-export function FinishBlock({ gameId, status, version, onChanged, between }: { gameId: string; status: string; version: number; onChanged: () => void; between?: ReactNode }) {
+export function FinishBlock({ gameId, status, version, onChanged, between, part = "all" }: { gameId: string; status: string; version: number; onChanged: () => void; between?: ReactNode; /** Какую часть показать: только положение команд (раздел «Команды», решение владельца 15.09) или всё остальное. */ part?: "all" | "standings" | "rest" }) {
   const { confirm, notify } = useUi();
   const [data, setData] = useState<StandingsDto | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -60,13 +60,13 @@ export function FinishBlock({ gameId, status, version, onChanged, between }: { g
           <Standings rows={data.standings} winnerId={data.winnerTeamId} leaderId={null} />
         </div>
       )}
-      {!finished && (
+      {!finished && part !== "rest" && (
         <div className="card">
           <div className="card-head"><h2><span className="ico"><Icon name="users" /></span>{t("Положение команд")}</h2></div>
           <Standings rows={data.standings} winnerId={null} leaderId={data.leaderTeamId} />
         </div>
       )}
-      {finished && data.standings.some((tm) => tm.citiesOnPath.length > 0) && (
+      {finished && part !== "standings" && data.standings.some((tm) => tm.citiesOnPath.length > 0) && (
         <div className="card">
           <div className="card-head"><h2><span className="ico"><Icon name="city" /></span>{t("Взятые города")}</h2></div>
           <div className="taken-cities">
@@ -79,8 +79,8 @@ export function FinishBlock({ gameId, status, version, onChanged, between }: { g
           </div>
         </div>
       )}
-      {between}
-      {!finished && (
+      {part !== "standings" && between}
+      {!finished && part !== "standings" && (
         <>
           <div className="card">
             <div className="card-head"><h2><span className="ico"><Icon name="clock" /></span>{t("Срок окончания")}</h2></div>

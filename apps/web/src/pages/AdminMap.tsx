@@ -190,11 +190,10 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <button type="button" className="secondary icon" onClick={() => vp.zoomAt(1 / 1.3)} aria-label={t("Отдалить")} title={t("Отдалить")}><Icon name="zoom-out" /></button>
         </div>
         </>)}
-        {viewedTeam && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажатия здесь ничего не делают.", { name: viewedTeam.name })}</p>}
+        {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажатия здесь ничего не делают.", { name: viewedTeam.name })}</p>}
         {!viewAs && selected && wrapEl && (selected.kind === "CITY"
           ? <CitySheet gameId={gameId} node={selected} version={version} container={wrapEl} revealed={revealedBy.get(selected.key) ?? []} battle={battleAt.get(selected.key) ?? null} teamById={teamById} onClose={close} onReview={onReview} />
           : <NodeSheet gameId={gameId} node={selected} container={wrapEl} teams={progress ?? []} revealed={revealedBy.get(selected.key) ?? []} onClose={close} />)}
-        {fullscreen && legend}
       </div>
       {!fullscreen && legend}
     </>
