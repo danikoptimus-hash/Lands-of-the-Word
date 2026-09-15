@@ -94,7 +94,7 @@ export function LakesLayer({ vp, hexes, size = HEX_SIZE, onUnsupported }: { vp: 
     im.src = IMG.terrain("water");
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H); } dirty = true; };
     const draw = (now: number) => {
       const { k, tx, ty } = vpRef.current.viewRef.current;

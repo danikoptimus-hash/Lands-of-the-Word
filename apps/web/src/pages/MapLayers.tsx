@@ -6,6 +6,7 @@ import type { View } from "../lib/useViewport";
 import type { MapHexDto } from "../lib/api";
 import { ISLET_IMAGES } from "@lotw/domain";
 import { SeaGL } from "./SeaGL";
+import { perfMark } from "../lib/perfHud";
 import { seabedColor, type Seabed } from "./Seabed";
 
 export const IMG = {
@@ -91,7 +92,7 @@ function SeaCanvas({ vp, bed }: { vp: Viewport; bed: Seabed | null }) {
  * CSS-переменные --k (толщины линий), --inv и --inv-isl (размер экранных элементов) обновляются по ходу жеста
  * не чаще VAR_MS — каждое обновление перерисовывает слой, и на каждый кадр это дорого.
  */
-const PAD = 0.75, VAR_MS = 120;
+const PAD = 0.4, VAR_MS = 120;
 export function WorldSvg({ vp, children, overlay }: { vp: Viewport; bounds?: { minX: number; minY: number; width: number; height: number }; children: React.ReactNode; /** Верхний слой подписей: сам SVG не ловит нажатия, только его интерактивные дети. */ overlay?: boolean }) {
   const ref = useRef<SVGSVGElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
@@ -121,7 +122,7 @@ export function WorldSvg({ vp, children, overlay }: { vp: Viewport; bounds?: { m
     return () => ro.disconnect();
   }, []);
   useEffect(() => vp.subscribe((v) => apply(v)), [vp.subscribe, pad]); // eslint-disable-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => { apply(vp.viewRef.current, true); }, [base, pad]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => { const t = performance.now(); apply(vp.viewRef.current, true); perfMark(overlay ? "подписи фиксация" : "мир фиксация", performance.now() - t); }, [base, pad]); // eslint-disable-line react-hooks/exhaustive-deps
   const w = box.w + 2 * pad, h = box.h + 2 * pad;
   const vx = (-pad - base.tx) / base.k, vy = (-pad - base.ty) / base.k;
   return (
@@ -386,7 +387,7 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false }: { 
     const ctx = canvas.getContext("2d"); if (!ctx) return;
     const tiles = hexes.filter((h) => h.lit !== false && !(skipWater && h.terrain === "water")).map((h) => ({ c: hexCenter(h, size), t: TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert", rot: ((h.rotation ?? 0) % 6) * Math.PI / 3 }));
     if (!tiles.length) { canvas.width = 1; canvas.height = 1; return; }
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // картинкам местности хватает; 2× на ноутбуке — 30-мегапиксельный растр
     const images = new Map<string, HTMLImageElement>();
     let dirty = true, raf = 0, settle = 0, W = 0, H = 0;
     for (const t of new Set(tiles.map((x) => x.t))) { const im = new Image(); im.decoding = "async"; im.onload = () => { cache.valid = false; dirty = true; }; im.src = IMG.terrain(t); images.set(t, im); }
@@ -394,7 +395,7 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false }: { 
     for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30), x = Math.cos(a) * size * 0.995, y = Math.sin(a) * size * 0.995; if (i === 0) hex.moveTo(x, y); else hex.lineTo(x, y); }
     hex.closePath();
     const bw = size * Math.sqrt(3), bh = size * 2; // рамка гекса; картинка — квадрат 1.4 рамки, повёрнутый, как в SVG-узоре
-    const PAD = 0.5, SETTLE_MS = 140, RERENDER_MS = 100;
+    const PAD = 0.25, SETTLE_MS = 140, RERENDER_MS = 100;
     let lastRender = 0;
     const cache = { canvas: document.createElement("canvas"), k: 0, tx: 0, ty: 0, pad: 0, valid: false };
     const cctx = cache.canvas.getContext("2d"); if (!cctx) return;
@@ -424,7 +425,7 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false }: { 
       // Пока идёт жест, растр всё же обновляется не чаще RERENDER_MS — иначе при щипке картинка размыта до отпускания
       // пальцев (замечание владельца 15.09); окончательный пересчёт — когда вид устоится.
       const now = performance.now();
-      if (!cache.valid || (!fresh && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; }
+      if (!cache.valid || (!fresh && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; perfMark("гексы растр", performance.now() - now); }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
       if (cache.k === k) ctx.drawImage(cache.canvas, (tx - cache.tx) * dpr - cache.pad, (ty - cache.ty) * dpr - cache.pad);
       else { const f = k / cache.k; ctx.setTransform(f, 0, 0, f, tx * dpr - (cache.pad + cache.tx * dpr) * f, ty * dpr - (cache.pad + cache.ty * dpr) * f); ctx.drawImage(cache.canvas, 0, 0); }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Viewport } from "./MapLayers";
 import { SEA_DEEP, SEA_MID, SEA_SHALLOW, type Seabed } from "./Seabed";
+import { perfMark } from "../lib/perfHud";
 
 /**
  * Море на WebGL: цвет каждого пикселя считается шейдером прямо в координатах карты, без плиток и узоров —
@@ -128,7 +129,7 @@ export function SeaGL({ vp, bed, onUnsupported }: { vp: Viewport; bed: Seabed | 
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
       if (!dirty && (still || now - last < 33)) return;
-      dirty = false; last = now; draw(now);
+      dirty = false; last = now; const t0 = performance.now(); draw(now); perfMark("море (cpu)", performance.now() - t0);
     };
     const unsub = vpRef.current.subscribe(() => { dirty = true; });
     const ro = new ResizeObserver(resize); ro.observe(host);

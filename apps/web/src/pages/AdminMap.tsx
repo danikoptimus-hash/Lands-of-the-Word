@@ -3,6 +3,7 @@ import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
+import { perfMark } from "../lib/perfHud";
 import { reportPage } from "../lib/perf";
 import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
 import { TeamMap } from "./TeamMap";
@@ -33,6 +34,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const size = HEX_SIZE;
   const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const renderStart = performance.now();
+  useEffect(() => { perfMark("карта админа рендер", performance.now() - renderStart); });
   const vp = useViewport(bounds);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
   const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);

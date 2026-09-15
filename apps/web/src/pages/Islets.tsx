@@ -3,6 +3,7 @@ import { generateIslets, type Bounds, type Islet } from "@lotw/domain";
 import { HEX_SIZE } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
 import { IMG, SHALLOW_RINGS, type Viewport } from "./MapLayers";
+import { perfMark } from "../lib/perfHud";
 
 /** Раскладка островов по гексам поля (детерминирована, считается один раз на карту). */
 export function useIslets(hexes: MapHexDto[], size: number, bounds: Bounds | null): Islet[] {
@@ -58,7 +59,9 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: V
     const octx = off.getContext("2d");
     if (!octx) return;
     const canBlur = "filter" in ctx;
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Растр берега — в половинном разрешении CSS-пикселя: он и так размыт, а размытие полноэкранного canvas в 2–3× плотности на ноутбуке «фризило» зум.
+    const cs = Math.min(window.devicePixelRatio || 1, 1) * 0.5;
     let W = 0, H = 0, dirty = true, raf = 0;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } dirty = true; };
     const images = new Map<number, HTMLImageElement>();
@@ -70,22 +73,23 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: V
     // Кэш берега: размытый растр считается один раз для вида (масштаб, сдвиг) с запасом PAD вокруг экрана; при
     // перетаскивании он просто сдвигается, при щипке — масштабируется как картинка, а заново рисуется, когда вид
     // устоялся (SETTLE_MS без изменений). Иначе размытие полноэкранного canvas на каждый кадр съедало плавность.
-    const PAD = 0.5, RERENDER_MS = 180;
+    const PAD = 0.25, RERENDER_MS = 180;
     let lastRender = 0;
     const cache = { canvas: document.createElement("canvas"), k: 0, tx: 0, ty: 0, pad: 0, valid: false };
     const cctx = cache.canvas.getContext("2d");
     if (!cctx) return;
     let settle = 0;
     const render = (k: number, tx: number, ty: number) => {
-      const pad = Math.ceil(Math.max(W, H) * PAD);
-      const blur = canBlur ? Math.max(0.6, RING_STEP * size * k * dpr * 0.75) : 0;
+      const CWs = Math.ceil(W * cs / dpr), CHs = Math.ceil(H * cs / dpr); // экран в пикселях растра берега
+      const pad = Math.ceil(Math.max(CWs, CHs) * PAD);
+      const blur = canBlur ? Math.max(0.6, RING_STEP * size * k * cs * 0.75) : 0;
       const M = Math.ceil(blur * 3);
-      const OW = W + 2 * pad + 2 * M, OH = H + 2 * pad + 2 * M;
+      const OW = CWs + 2 * pad + 2 * M, OH = CHs + 2 * pad + 2 * M;
       if (off.width !== OW || off.height !== OH) { off.width = OW; off.height = OH; }
       octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, OW, OH);
-      octx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr + pad + M, ty * dpr + pad + M);
+      octx.setTransform(k * cs, 0, 0, k * cs, tx * cs + pad + M, ty * cs + pad + M);
       octx.lineJoin = "round"; octx.lineCap = "round";
-      const x0 = (-pad / dpr - tx) / k, y0 = (-pad / dpr - ty) / k, x1 = ((W + pad) / dpr - tx) / k, y1 = ((H + pad) / dpr - ty) / k;
+      const x0 = (-pad / cs - tx) / k, y0 = (-pad / cs - ty) / k, x1 = ((CWs + pad) / cs - tx) / k, y1 = ((CHs + pad) / cs - ty) / k;
       const rings = (c: CanvasRenderingContext2D, path: Path2D, sc: number) => {
         for (const r of SHALLOW_RINGS) { c.globalAlpha = r.alpha; c.strokeStyle = r.color; c.lineWidth = r.width * size * sc; c.stroke(path); }
         c.globalAlpha = 1;
@@ -97,7 +101,7 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: V
         octx.globalAlpha = 1; octx.lineWidth = 0.95 * size; octx.stroke(coastPath);
       }
       for (const { isl, path, sc } of paths) if (!(isl.x + isl.cover < x0 || isl.x - isl.cover > x1 || isl.y + isl.cover < y0 || isl.y - isl.cover > y1)) rings(octx, path, sc);
-      const CW = W + 2 * pad, CH = H + 2 * pad;
+      const CW = CWs + 2 * pad, CH = CHs + 2 * pad;
       if (cache.canvas.width !== CW || cache.canvas.height !== CH) { cache.canvas.width = CW; cache.canvas.height = CH; }
       cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, CW, CH);
       if (canBlur) cctx.filter = `blur(${blur.toFixed(1)}px)`;
@@ -107,23 +111,20 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: V
     };
     const draw = () => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
-      const dx = (tx - cache.tx) * dpr, dy = (ty - cache.ty) * dpr;
+      const dx = (tx - cache.tx) * cs, dy = (ty - cache.ty) * cs;
       const fresh = cache.valid && cache.k === k && Math.abs(dx) <= cache.pad && Math.abs(dy) <= cache.pad;
       // Пока идёт жест, растр всё же обновляется не чаще RERENDER_MS — иначе при щипке картинка размыта до отпускания
       // пальцев (замечание владельца 15.09); окончательный пересчёт — когда вид устоится.
       const now = performance.now();
-      if (!cache.valid || (!fresh && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; }
+      if (!cache.valid || (!fresh && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; perfMark("берег растр", performance.now() - now); }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
-      if (cache.k === k) {
-        ctx.drawImage(cache.canvas, (tx - cache.tx) * dpr - cache.pad, (ty - cache.ty) * dpr - cache.pad);
-      } else {
-        // Масштаб меняется (щипок): растягиваем готовый растр, точный пересчёт — когда вид устоится.
-        const f = k / cache.k;
-        ctx.setTransform(f, 0, 0, f, tx * dpr - (cache.pad + cache.tx * dpr) * f, ty * dpr - (cache.pad + cache.ty * dpr) * f);
-        ctx.drawImage(cache.canvas, 0, 0);
-      }
+      // Растр построен под вид cache (масштаб k0, сдвиг t0) в пикселях cs: точка растра p → экран p·(f·dpr/cs) + t·dpr − (pad/cs + t0)·f·dpr.
+      const f = k / cache.k, a = f * dpr / cs;
+      ctx.setTransform(a, 0, 0, a, tx * dpr - (cache.pad / cs + cache.tx) * f * dpr, ty * dpr - (cache.pad / cs + cache.ty) * f * dpr);
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "medium";
+      ctx.drawImage(cache.canvas, 0, 0);
       ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
-      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+      ctx.imageSmoothingQuality = "high";
       const x0 = -tx / k, y0 = -ty / k, x1 = (W / dpr - tx) / k, y1 = (H / dpr - ty) / k;
       for (const { isl } of paths) {
         if (isl.x + isl.cover < x0 || isl.x - isl.cover > x1 || isl.y + isl.cover < y0 || isl.y - isl.cover > y1) continue;

@@ -63,14 +63,14 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   const commit = useCallback(() => { lastCommit.current = performance.now(); lastCommitView.current = viewRef.current; setViewState(viewRef.current); }, []);
   const lastCommitView = useRef<View>({ k: 1, tx: 0, ty: 0 });
   /**
-   * По ходу жеста: растр мира построен с запасом вокруг экрана (WorldSvg: 0.75 экрана); если масштаб ушёл дальше ×1.8
-   * в любую сторону или сдвиг — дальше 0.6 экрана, фиксируем, чтобы края не оголялись до отпускания.
+   * По ходу жеста: растр мира построен с запасом вокруг экрана (WorldSvg: 0.4 экрана); если масштаб ушёл дальше ×1.5
+   * в любую сторону или сдвиг — дальше 0.3 экрана, фиксируем, чтобы края не оголялись до отпускания.
    */
   const commitIfFar = useCallback(() => {
     const v = viewRef.current, b = lastCommitView.current, el = ref.current;
     const r = v.k / b.k;
-    const far = el ? Math.abs(v.tx - b.tx) > el.clientWidth * 0.6 || Math.abs(v.ty - b.ty) > el.clientHeight * 0.6 : false;
-    if (r > 1.8 || r < 1 / 1.8 || far) commit();
+    const far = el ? Math.abs(v.tx - b.tx) > el.clientWidth * 0.3 || Math.abs(v.ty - b.ty) > el.clientHeight * 0.3 : false;
+    if (r > 1.5 || r < 1 / 1.5 || far) commit();
   }, [commit]);
   /** Подписка на каждое изменение вида (вызывается сразу с текущим видом). Возвращает отписку. */
   const subscribe = useCallback((fn: (v: View) => void) => { listeners.current.add(fn); fn(viewRef.current); return () => { listeners.current.delete(fn); }; }, []);
