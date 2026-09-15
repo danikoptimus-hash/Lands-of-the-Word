@@ -4,7 +4,7 @@ import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
-import { CoastOver, IslandLabel, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
 import { FaunaLayer } from "./Fauna";
 import { LakesLayer } from "./Lakes";
@@ -49,11 +49,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
   // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
-  const islandCenters = useMemo(() => {
-    const acc = new Map<string, { x: number; y: number; n: number }>();
-    for (const h of map.hexes) { const c = hexCenter(h, size), key = h.island ?? "OT"; const a = acc.get(key) ?? { x: 0, y: 0, n: 0 }; a.x += c.x; a.y += c.y; a.n++; acc.set(key, a); }
-    return new Map([...acc].map(([key, a]) => [key, { x: a.x / a.n, y: a.y / a.n }]));
-  }, [map.hexes, size]);
+  const islandCenters = useMemo(() => islandGeometry(map.hexes, size), [map.hexes, size]);
   const nodeByKey = useMemo(() => new Map(map.revealed.map((n) => [n.key, n])), [map.revealed]);
   // Корабли: морские дела, пока команда не высадилась (после высадки дело — обычная пройденная сторона).
   const ships = useMemo(() => map.tasks.filter((tk) => tk.sea && (tk.status !== "APPROVED" || tk.landing)).map((tk) => {
@@ -205,12 +201,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
-          {/* Названия островов при отдалении почти не уменьшаются (не меньше 0.8): их должно быть видно с любой высоты. */}
-          {!fullLabels && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => (
-            <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${Math.max(ui, 0.8) / k})`}>
-              <IslandLabel name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} />
+          {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); при отдалении уменьшаются не ниже 0.7. */}
+          {!fullLabels && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => { const s = Math.max(ui, 0.7) / k; return (
+            <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${s})`}>
+              <IslandLabel id={"isl-team-" + isl} r={(c.r + size * 4) / s} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} />
             </g>
-          ))}
+          ); })}
           {ripple && <g transform={`translate(${ripple.x},${ripple.y}) scale(${inv})`}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
         </g>
       </WorldSvg>

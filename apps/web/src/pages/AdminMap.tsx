@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { CoastOver, IslandLabel, HexTiles, IMG, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { reportPage } from "../lib/perf";
 import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
@@ -60,11 +60,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const bed = useSeabed(hexes, islets, size, bounds);
   const [liveWater, setLiveWater] = useState(true);
   const edgeSet = useMemo(() => new Set(edges.map((e) => [e.aKey, e.bKey].sort().join("|"))), [edges]);
-  const islandCenters = useMemo(() => {
-    const acc = new Map<string, { x: number; y: number; n: number }>();
-    for (const h of hexes) { const c = hexCenter(h, size), key = h.island ?? "OT"; const a = acc.get(key) ?? { x: 0, y: 0, n: 0 }; a.x += c.x; a.y += c.y; a.n++; acc.set(key, a); }
-    return new Map([...acc].map(([key, a]) => [key, { x: a.x / a.n, y: a.y / a.n }]));
-  }, [hexes, size]);
+  const islandCenters = useMemo(() => islandGeometry(hexes, size), [hexes, size]);
   // «Глазами команды»: карта, какой её видит выбранная команда; обновляется вместе с остальным по событиям игры.
   const [viewAs, setViewAs] = useState<string | null>(null);
   const [teamView, setTeamView] = useState<{ teamId: string; map: (MyMapDto & { teamIndex: number }) | null; error: string | null } | null>(null);
@@ -139,8 +135,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             }))}
             <g className="screen-items">
               {vp.view.k < 1.4 && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
-                const kk = vp.view.k, inv = Math.max(0.8, Math.min(1, kk / 1.6)) / kk;
-                return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${inv})`}><IslandLabel name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
+                const kk = vp.view.k, inv = Math.max(0.7, Math.min(1, kk / 1.6)) / kk;
+                return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${inv})`}><IslandLabel id={"isl-adm-" + isl} r={(c.r + size * 4) / inv} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
               })}
               {nodes.map((n) => {
                 const raw = positions.get(n.key)!;

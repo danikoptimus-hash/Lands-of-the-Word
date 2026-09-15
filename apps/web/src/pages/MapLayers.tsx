@@ -135,15 +135,34 @@ export const SHALLOW_RINGS: ReadonlyArray<{ color: string; width: number; alpha:
   return out;
 })();
 
-/** Подпись острова: виньетка, слова по строкам, виньетка (стиль в .m-island). */
-export function IslandLabel({ name }: { name: string }) {
-  const words = name.split(" ");
+/** Центр и радиус каждого острова (по центрам его гексов): для подписей и кораблей. */
+export function islandGeometry(hexes: ReadonlyArray<MapHexDto>, size: number): Map<string, { x: number; y: number; r: number }> {
+  const acc = new Map<string, { x: number; y: number; n: number }>();
+  for (const h of hexes) { const c = hexCenter(h, size), key = h.island ?? "OT"; const a = acc.get(key) ?? { x: 0, y: 0, n: 0 }; a.x += c.x; a.y += c.y; a.n++; acc.set(key, a); }
+  const out = new Map<string, { x: number; y: number; r: number }>();
+  for (const [key, a] of acc) {
+    const x = a.x / a.n, y = a.y / a.n;
+    let r = 0;
+    for (const h of hexes) if ((h.island ?? "OT") === key) { const c = hexCenter(h, size); r = Math.max(r, Math.hypot(c.x - x, c.y - y)); }
+    out.set(key, { x, y, r: r + size });
+  }
+  return out;
+}
+
+/**
+ * Подпись острова по дуге вдоль нижнего берега, как на старых картах (выбор владельца 15.09 из шести вариантов):
+ * дуга радиусом r (в координатах группы подписи) с центром в центре острова, текст по середине дуги.
+ * Светлые буквы с мягкой тёмной тенью читаются на воде и не спорят с номерами городов.
+ */
+export function IslandLabel({ name, r, id }: { name: string; r: number; id: string }) {
+  // Дуга 200° по низу (сама не видна): текст стоит по её середине, длинному хватает места, короткий занимает центр.
+  const phi = (100 * Math.PI) / 180;
+  const x = r * Math.sin(phi), y = r * Math.cos(phi);
   return (
-    <text textAnchor="middle">
-      <tspan className="orn" x={0} dy={-(0.55 + 0.6 * words.length) + "em"}>— ✦ —</tspan>
-      {words.map((w, i) => <tspan key={i} x={0} dy={i === 0 ? "1.35em" : "1.15em"}>{w}</tspan>)}
-      <tspan className="orn" x={0} dy="1.35em">— ✦ —</tspan>
-    </text>
+    <>
+      <defs><path id={id} d={`M ${(-x).toFixed(1)} ${y.toFixed(1)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 1 0 ${x.toFixed(1)} ${y.toFixed(1)}`} /></defs>
+      <text><textPath href={`#${id}`} startOffset="50%" textAnchor="middle">{name}</textPath></text>
+    </>
   );
 }
 
