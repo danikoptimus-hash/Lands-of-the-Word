@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { generateIslets, type Bounds, type Islet } from "@lotw/domain";
 import { HEX_SIZE } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
-import { IMG, type Viewport } from "./MapLayers";
+import { IMG, SHALLOW_RINGS, type Viewport } from "./MapLayers";
 
 /** Раскладка островов по гексам поля (детерминирована, считается один раз на карту). */
 export function useIslets(hexes: MapHexDto[], size: number, bounds: Bounds | null): Islet[] {
@@ -31,7 +31,6 @@ function isletPath(isl: Islet): Path2D {
 }
 
 /** Отмель кольцами, как у берега поля: цвет, ширина в долях размера гекса, прозрачность. */
-const RINGS: ReadonlyArray<[string, number, number]> = [["#CFEAF0", 3.2, 0.16], ["#CFEAF0", 2.6, 0.2], ["#D7EEF2", 2.0, 0.26], ["#E0F2F5", 1.5, 0.36]];
 
 /**
  * Острова: нарисованные картинки (пляж уже на них) и отмель под каждой по снятому контуру. Рисуются на canvas в
@@ -63,7 +62,7 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE }: { vp: Viewport; isl
       const x0 = -tx / k, y0 = -ty / k, x1 = (W / dpr - tx) / k, y1 = (H / dpr - ty) / k;
       for (const { isl, path, sc } of paths) {
         if (isl.x + isl.cover < x0 || isl.x - isl.cover > x1 || isl.y + isl.cover < y0 || isl.y - isl.cover > y1) continue;
-        for (const [color, w, a] of RINGS) { ctx.globalAlpha = a; ctx.strokeStyle = color; ctx.lineWidth = w * size * sc; ctx.stroke(path); }
+        for (const r of SHALLOW_RINGS) { ctx.globalAlpha = r.alpha; ctx.strokeStyle = r.color; ctx.lineWidth = r.width * size * sc; ctx.stroke(path); }
         ctx.globalAlpha = 1;
         const im = images.get(isl.img);
         if (im && im.complete && im.naturalWidth) ctx.drawImage(im, isl.x - isl.r, isl.y - isl.r, isl.r * 2, isl.r * 2);
