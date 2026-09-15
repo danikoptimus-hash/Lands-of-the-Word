@@ -123,7 +123,7 @@ export function GamesPage() {
         <EmptyState icon="users" text={t("Вас ещё не пригласили в команду. Попросите у капитана ссылку-приглашение.")} />
       )}
 
-      <div className="home-foot"><Link to="/games/new" className="btn ghost"><Icon name="plus" />{t("Создать игру")}</Link></div>
+      <div className="home-foot"><Link to="/how-to-play" className="btn secondary"><Icon name="help" />{t("Как играть?")}</Link><Link to="/games/new" className="btn ghost"><Icon name="plus" />{t("Создать игру")}</Link></div>
     </>
   );
 }

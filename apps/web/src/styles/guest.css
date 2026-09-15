@@ -61,4 +61,4 @@
 .game-card.has-menu .title { padding-right: calc(var(--control-h-sm) + var(--sp-2)); }
 .game-card .card-menu { position: absolute; top: var(--sp-2); right: var(--sp-2); z-index: 1; }
 .home-card .skeleton-avatar { width: 44px; height: 44px; border-radius: 50%; flex: none; }
-.home-foot { display: flex; justify-content: center; margin-top: var(--sp-4); }
+.home-foot { display: flex; justify-content: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-4); }

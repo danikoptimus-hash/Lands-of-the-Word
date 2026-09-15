@@ -4,6 +4,7 @@ import { useAuth } from "../lib/auth";
 import { api, ApiError, type User } from "../lib/api";
 import { t, type Locale } from "../lib/i18n";
 import { Tabs } from "../components/Tabs";
+import { Icon } from "../components/Icon";
 
 /**
  * Гостевой лэйаут: панорама на фоне, карточка 420px, в верхней строке «назад» (если есть) и переключатель RU/EN,
@@ -24,7 +25,7 @@ export function GuestShell({ title, back, children }: { title: string; back?: Re
     <div className="login-page">
       <div className="card auth">
         <div className="guest-bar">
-          {back ?? <span />}
+          {back ?? <Link to="/how-to-play" className="btn ghost sm"><Icon name="help" />{t("Как играть?")}</Link>}
           <div className="lang-switch" role="group" aria-label={t("Язык")}>
             <button type="button" className={locale === "ru" ? "active" : ""} aria-pressed={locale === "ru"} onClick={() => void pick("ru")}>RU</button>
             <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => void pick("en")}>EN</button>

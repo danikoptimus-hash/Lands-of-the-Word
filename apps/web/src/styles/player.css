@@ -235,3 +235,11 @@
 /* «Как играть» */
 .how-to { max-width: 640px; margin: 0 auto; }
 .how-to .card { margin-bottom: 0; }
+.how-to .guide-toc { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.how-to .guide-toc a { font-size: var(--fs-sm); padding: 4px 10px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--text); text-decoration: none; }
+.how-to .guide-figs { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: flex-start; }
+.how-to .guide-fig { margin: 0; flex: 1 1 200px; max-width: 260px; }
+.how-to .guide-fig.wide { flex-basis: 100%; max-width: 100%; }
+.how-to .guide-fig img { display: block; width: 100%; height: auto; border-radius: var(--r-sm); border: 1px solid color-mix(in srgb, var(--text) 14%, transparent); box-shadow: var(--shadow-1); }
+.how-to .guide-fig figcaption { font-size: var(--fs-sm); color: var(--muted); margin-top: var(--sp-1); }
+.how-to section[id] { scroll-margin-top: var(--sp-4); }
