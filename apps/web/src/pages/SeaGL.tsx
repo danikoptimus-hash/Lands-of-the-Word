@@ -11,8 +11,10 @@ import type { Viewport } from "./MapLayers";
 const VERT = `attribute vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
 const FRAG = `
 precision highp float;
-uniform vec2 uRes; uniform float uT; uniform float uK; uniform vec2 uTxy; uniform float uDpr;
-vec2 hash2(vec2 p){ p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3))); return fract(sin(p) * 43758.5453); }
+uniform vec2 uRes; uniform float uT; uniform float uD; uniform float uK; uniform vec2 uTxy; uniform float uDpr;
+// Хэш без sin: на телефонных GPU sin от больших чисел (далёкие клетки решётки, долгий дрейф) вырождается, и шум
+// шёл ровными прямоугольными пятнами по клеткам решётки. Клетки заворачиваются по 1024 — числа малые, точности хватает.
+vec2 hash2(vec2 p){ p = mod(p, 1024.0); vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); q += dot(q, q.yzx + 33.33); return fract((q.xx + q.yz) * q.zy); }
 float vnoise(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
   float a = hash2(i).x, b = hash2(i + vec2(1.0, 0.0)).x, c = hash2(i + vec2(0.0, 1.0)).x, d = hash2(i + vec2(1.0, 1.0)).x;
   return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
@@ -28,7 +30,7 @@ void main(){
   // Ветер: рябь, блики и зыбь идут в одну сторону (мелкая рябь быстрее, зыбь медленнее — как на настоящей воде),
   // а точки ячеек лишь чуть дрожат на месте. Так движение согласованное, а не хаотичное.
   vec2 wind = vec2(0.86, 0.5);
-  vec2 w1 = wp - wind * uT * 5.0, w2 = wp - wind * uT * 3.0;
+  vec2 w1 = wp - wind * uD * 5.0, w2 = wp - wind * uD * 3.0;
   // Искажение координат двумя шумами: крупный неподвижен (форма сетки), мелкий плывёт по ветру (по воде бегут волны).
   vec2 warp = (vec2(fbm(wp * 0.008 + vec2(3.1, 7.7)), fbm(wp * 0.008 + vec2(9.2, 1.3))) - 0.5) * 2.4
             + (vec2(fbm(w2 * 0.03 + vec2(1.7, 4.4)), fbm(w2 * 0.03 + vec2(6.6, 2.9))) - 0.5) * 1.1;
@@ -39,8 +41,8 @@ void main(){
   float c1 = caustic(p1, uT * 0.35, 0.20), c2 = caustic(p2, uT * 0.25 + 2.0, 0.22);
   // Две сети перемножаются: светятся пересечения и пятна, а не вся паутина (приём «правдоподобной каустики»).
   float cau = c1 * (0.25 + 0.75 * c2) + 0.35 * c2 * c1 * c1;
-  float m1 = smoothstep(0.25, 0.8, fbm((wp - wind * uT * 2.0) * 0.006));
-  float swell = fbm((wp - wind * uT * 1.5) * 0.0035);
+  float m1 = smoothstep(0.25, 0.8, fbm((wp - wind * uD * 2.0) * 0.006));
+  float swell = fbm((wp - wind * uD * 1.5) * 0.0035);
   vec3 deep = vec3(0.15, 0.40, 0.55), mid = vec3(0.25, 0.54, 0.67);
   vec3 col = mix(deep, mid, swell);
   float light = lod * cau * (0.25 + 0.75 * m1) * 0.36;
@@ -48,8 +50,8 @@ void main(){
   // Ветровые волны: пологие гребни бегут по ветру двумя чуть разными фронтами, фаза сломана шумом, а видны
   // они лишь пятнами (маска) — никакой правильной полосатости, только живое дыхание воды. Гаснут при отдалении.
   float ph = fbm(wp * 0.03 + vec2(4.2, 8.8)) * 9.0;
-  float rip = sin(dot(wp, wind) * 0.45 - uT * 2.2 + ph) + 0.7 * sin(dot(wp, vec2(0.62, 0.78)) * 0.31 - uT * 1.6 + ph * 0.6);
-  float patch = smoothstep(0.35, 0.8, fbm(wp * 0.01 + vec2(2.0, 5.0) - wind * uT * 0.02));
+  float rip = sin(mod(dot(wp, wind) * 0.45 - uT * 2.2 + ph, 6.2832)) + 0.7 * sin(mod(dot(wp, vec2(0.62, 0.78)) * 0.31 - uT * 1.6 + ph * 0.6, 6.2832));
+  float patch = smoothstep(0.35, 0.8, fbm(wp * 0.01 + vec2(2.0, 5.0) - wind * uD * 0.02));
   col += vec3(0.045, 0.06, 0.06) * rip * patch * (0.35 + 0.65 * lod) * smoothstep(0.2, 0.9, uK);
   gl_FragColor = vec4(col, 1.0);
 }`;
@@ -81,14 +83,16 @@ export function SeaGL({ vp, onUnsupported }: { vp: Viewport; onUnsupported: () =
     const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     const a = gl.getAttribLocation(prog, "a"); gl.enableVertexAttribArray(a); gl.vertexAttribPointer(a, 2, gl.FLOAT, false, 0, 0);
-    const uRes = gl.getUniformLocation(prog, "uRes"), uT = gl.getUniformLocation(prog, "uT"), uK = gl.getUniformLocation(prog, "uK"), uTxy = gl.getUniformLocation(prog, "uTxy"), uDpr = gl.getUniformLocation(prog, "uDpr");
+    const uRes = gl.getUniformLocation(prog, "uRes"), uT = gl.getUniformLocation(prog, "uT"), uD = gl.getUniformLocation(prog, "uD"), uK = gl.getUniformLocation(prog, "uK"), uTxy = gl.getUniformLocation(prog, "uTxy"), uDpr = gl.getUniformLocation(prog, "uDpr");
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const dpr = Math.min(window.devicePixelRatio || 1, 1);
     let W = 0, H = 0, dirty = true, raf = 0, last = 0;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H); } dirty = true; };
     const draw = (now: number) => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
-      gl.uniform2f(uRes, W, H); gl.uniform1f(uT, still ? 0 : now / 1000); gl.uniform1f(uK, k); gl.uniform2f(uTxy, tx, ty); gl.uniform1f(uDpr, dpr);
+      // uT — фаза дрожания и волн (все частоты кратны 0.05, период 40π с: заворачивается без скачка, sin получает малые
+      // числа); uD — время дрейфа по ветру, не заворачивается (координаты решётки заворачивает сам хэш).
+      gl.uniform2f(uRes, W, H); gl.uniform1f(uT, still ? 0 : (now / 1000) % (40 * Math.PI)); gl.uniform1f(uD, still ? 0 : now / 1000); gl.uniform1f(uK, k); gl.uniform2f(uTxy, tx, ty); gl.uniform1f(uDpr, dpr);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
     const loop = (now: number) => {
