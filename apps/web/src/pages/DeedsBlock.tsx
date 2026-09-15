@@ -10,9 +10,11 @@ import { ActionMenu } from "../components/ActionMenu";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "CONFIRMATION";
-interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCode: string | null; difficulty: number }
-type Form = { title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCode: string; difficulty: number };
-const EMPTY: Form = { title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCode: "", difficulty: 1 };
+interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; difficulty: number; frequency: number; secret: boolean }
+type Form = { title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; difficulty: number; frequency: number; secret: boolean };
+/** Частота появления дела: простой параметр в три ступени (решение владельца 15.09). */
+const FREQUENCY: Record<number, string> = { 1: "редко", 2: "обычно", 3: "часто" };
+const EMPTY: Form = { title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], difficulty: 1, frequency: 2, secret: false };
 const DIFFICULTY: Record<number, string> = { 1: "лёгкое", 2: "среднее", 3: "трудное" };
 
 /** Вкладка «Дела»: список дел игры; добавление и изменение — в одной форме-шторке; стандартный набор — только пока список пуст. */
@@ -36,14 +38,14 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   useEffect(() => { void load(); }, [load, version]);
 
   const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, direction: directions[0] ?? "" } }); };
-  const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: { title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCode: d.bookCode ?? "", difficulty: d.difficulty } }); };
+  const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: { title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], difficulty: d.difficulty, frequency: d.frequency ?? 2, secret: d.secret ?? false } }); };
   const close = () => setSheet(null);
 
   async function save(e: FormEvent) {
     e.preventDefault(); if (!sheet) return;
     setError(null); setBusy(true);
     try {
-      const body = JSON.stringify({ ...sheet.form, bookCode: sheet.form.bookCode || null });
+      const body = JSON.stringify(sheet.form);
       if (sheet.id) { await api(`/api/games/${gameId}/deeds/${sheet.id}`, { method: "PUT", body }); notify(t("Дело сохранено")); }
       else { await api(`/api/games/${gameId}/deeds`, { method: "POST", body }); notify(t("Дело добавлено")); }
       close();
@@ -77,12 +79,13 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
           {deeds.map((d) => (
             <li key={d.id}>
               <div className="main">
-                <span className="title">{d.title} {d.canRepeat && <Chip>{t("повторяемое")}</Chip>}</span>
+                <span className="title">{d.title} {d.canRepeat && <Chip>{t("повторяемое")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>}</span>
                 {d.description && <span className="deed-desc small">{d.description}</span>}
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
                   <span>· {t("сложность {n}", { n: d.difficulty })}</span>
-                  {d.bookCode && <span>· {BOOKS.find((b) => b.code === d.bookCode)?.nameRu}</span>}
+                  {d.frequency !== 2 && <span>· {t(FREQUENCY[d.frequency] ?? "обычно")}</span>}
+                  {d.bookCodes.length > 0 && <span>· {d.bookCodes.slice(0, 4).map((c) => BOOKS.find((b) => b.code === c)?.nameRu ?? c).join(", ")}{d.bookCodes.length > 4 ? t(" и ещё {n}", { n: d.bookCodes.length - 4 }) : ""}</span>}
                   <span>· {d.direction}</span>
                 </span>
               </div>
@@ -113,15 +116,27 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
                 <select id="d-proof" value={form.proofType} onChange={(e) => setForm({ proofType: e.target.value as ProofType })}>{(Object.keys(PROOF_LABEL) as ProofType[]).map((p) => <option key={p} value={p}>{PROOF_LABEL[p]}</option>)}</select>
               </div>
               <div>
-                <label htmlFor="d-book">{t("Книга")} <span className="opt">{t("(необязательно)")}</span></label>
-                <select id="d-book" value={form.bookCode} onChange={(e) => setForm({ bookCode: e.target.value })}><option value="">{t("Любая")}</option>{BOOKS.map((b) => <option key={b.code} value={b.code}>{b.nameRu}</option>)}</select>
-              </div>
-              <div>
                 <label htmlFor="d-diff">{t("Сложность")}</label>
                 <select id="d-diff" value={form.difficulty} onChange={(e) => setForm({ difficulty: Number(e.target.value) })}>{[1, 2, 3].map((n) => <option key={n} value={n}>{n} — {t(DIFFICULTY[n]!)}</option>)}</select>
               </div>
+              <div>
+                <label htmlFor="d-freq">{t("Как часто выпадает")}</label>
+                <select id="d-freq" value={form.frequency} onChange={(e) => setForm({ frequency: Number(e.target.value) })}>{[1, 2, 3].map((n) => <option key={n} value={n}>{t(FREQUENCY[n]!)}</option>)}</select>
+              </div>
             </div>
+            <label htmlFor="d-book">{t("Книги по теме")} <span className="opt">{t("(необязательно)")}</span></label>
+            <select id="d-book" value="" onChange={(e) => { const c = e.target.value; if (c && !form.bookCodes.includes(c)) setForm({ bookCodes: [...form.bookCodes, c] }); }}>
+              <option value="">{form.bookCodes.length ? t("Добавить книгу…") : t("Любая книга")}</option>
+              {BOOKS.filter((b) => !form.bookCodes.includes(b.code)).map((b) => <option key={b.code} value={b.code}>{b.nameRu}</option>)}
+            </select>
+            {form.bookCodes.length > 0 && (
+              <div className="chips mt-2">
+                {form.bookCodes.map((c) => <button key={c} type="button" className="chip-btn" onClick={() => setForm({ bookCodes: form.bookCodes.filter((x) => x !== c) })} aria-label={t("Убрать книгу {name}", { name: BOOKS.find((b) => b.code === c)?.nameRu ?? c })}>{BOOKS.find((b) => b.code === c)?.nameRu ?? c} ×</button>)}
+              </div>
+            )}
+            <p className="hint">{t("На сторонах из взятого города сначала выпадают дела с этой книгой. В названии и описании можно написать [Книга] — подставится книга города.")}</p>
             <label className="check mt-3"><input type="checkbox" checked={form.canRepeat} onChange={(e) => setForm({ canRepeat: e.target.checked })} />{t("Повторяемое: можно выдавать нескольким командам")}</label>
+            <label className="check mt-2"><input type="checkbox" checked={form.secret} onChange={(e) => setForm({ secret: e.target.checked })} />{t("Тайное: ссылку и описание сдачи видит только проверяющий (сюрприз без раскрытия адресата)")}</label>
             {error && <p className="error">{error}</p>}
           </form>
         </Sheet>

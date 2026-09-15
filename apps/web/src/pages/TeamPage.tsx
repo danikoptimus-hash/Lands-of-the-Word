@@ -370,6 +370,7 @@ export function TeamPage() {
               <p className="muted small">{task.deed.direction}</p>
               {task.deed.description && <p className="mt-2">{task.deed.description}</p>}
               <p className="meta-line mt-2"><Icon name={proof.icon} />{t("Сдать")}: {proof.label()}{taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}</p>
+              {task.deed.secret && <div className="note info"><Icon name="lock" /><span>{t("Тайное дело: ссылку и описание сдачи видит только тот, кто его взял, и проверяющий администратор.")}</span></div>}
               {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта. Когда дело одобрят, капитан выберет на карте, куда высадиться на другом острове.")}</span></div>}
               {task.landing && (isCaptain
                 ? <div className="actions"><button type="button" onClick={() => { setLandingId(task.id); setSelectedId(null); }}><Icon name="anchor" />{t("Выбрать место высадки")}</button></div>

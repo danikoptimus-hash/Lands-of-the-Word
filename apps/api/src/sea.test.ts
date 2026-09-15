@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { BOOKS } from "@lotw/domain";
+import { withDeedBook } from "./services/teamMap.js";
 
 /**
  * Два острова и морской переход (2.3a): порт — береговой город; из взятого порта команде даётся морское дело;
@@ -22,7 +24,7 @@ async function joinTeam(name: string, cookie: string, role: "CAPTAIN" | "MEMBER"
   return id;
 }
 const myMap = async (cookie = capCookie) => (await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie } })).json();
-type Task = { id: string; fromKey: string; toKey: string; status: string; sea?: boolean; landing?: boolean; candidates?: string[] };
+type Task = { id: string; deedId: string; fromKey: string; toKey: string; status: string; links: string[]; note: string; sea?: boolean; landing?: boolean; candidates?: string[] };
 
 beforeAll(async () => {
   await app.ready();
@@ -60,6 +62,11 @@ describe("морской переход", () => {
     expect(before.some((t) => t.sea)).toBe(false);
     const port = await prisma.mapNode.findFirstOrThrow({ where: { gameId, kind: "CITY", coastal: true, island: "OT" } });
     portKey = port.key;
+    // Дело по книге порта с [Книга] в тексте: на сторонах из взятого порта выпадает первым, книга подставляется.
+    const themed = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie }, payload: { title: "Проповедь по книге [Книга]", description: "Текст из книги [книга].", direction: "Благовестие", bookCodes: [port.bookCode, "zzz"], frequency: 3, canRepeat: true } });
+    expect(themed.statusCode).toBe(201);
+    expect(themed.json().deed.bookCodes).toEqual([port.bookCode]);
+    expect(themed.json().deed.frequency).toBe(3);
     const assign = await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${portKey}/assign`, headers: { cookie: adminCookie }, payload: { teamId: team1 } });
     expect(assign.statusCode).toBe(200);
     const tasks = (await myMap()).tasks as Task[];
@@ -69,6 +76,16 @@ describe("морской переход", () => {
     expect(sea[0]!.status).toBe("OPEN");
     expect(sea[0]!.landing).toBe(false);
     expect(sea[0]!.candidates).toBeUndefined();
+    // Все стороны из порта — дела по книге порта (тематический пул), [Книга] заменена на название книги.
+    const fromPort = tasks.filter((t) => t.fromKey === portKey) as Array<Task & { deed: { id: string; title: string; description: string } }>;
+    expect(fromPort.length).toBeGreaterThan(0);
+    const name = BOOKS.find((b) => b.code === port.bookCode)!.nameRu;
+    const all = (await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } })).json().deeds as Array<{ id: string; bookCodes: string[] }>;
+    const themedIds = new Set(all.filter((d) => d.bookCodes.includes(port.bookCode!)).map((d) => d.id));
+    for (const t of fromPort) { expect(themedIds.has(t.deed.id)).toBe(true); expect(t.deed.title.includes("[")).toBe(false); }
+    expect(withDeedBook({ title: "По книге [Книга]", description: "[книга]!" }, port.bookCode).title).toBe(`По книге ${name}`);
+    expect(withDeedBook({ title: "По книге [Книга]", description: "[книга]!" }, port.bookCode).description).toBe(`${name}!`);
+    expect(withDeedBook({ title: "По книге [Книга]", description: "" }, null).title).toBe("По книге на выбор");
     // Внутренний город морского дела не даёт.
     const inland = await prisma.mapNode.findFirstOrThrow({ where: { gameId, kind: "CITY", coastal: false, island: "OT" } });
     await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${inland.key}/assign`, headers: { cookie: adminCookie }, payload: { teamId: team1 } });
@@ -80,6 +97,14 @@ describe("морской переход", () => {
     expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${sea.id}/take`, headers: { cookie: memCookie } })).statusCode).toBe(200);
     const sub = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${sea.id}/submit`, headers: { cookie: memCookie }, payload: { links: ["https://example.com/ship"], note: "Собрали команду корабля" } });
     expect(sub.statusCode).toBe(200);
+    // Тайное дело: ссылки и описание сдачи видит только взявший (и администратор), капитану они не показываются.
+    await prisma.deed.update({ where: { id: sea.deedId }, data: { secret: true } });
+    const forCap = ((await myMap(capCookie)).tasks as Task[]).find((t) => t.id === sea.id)!;
+    expect(forCap.links).toEqual([]); expect(forCap.note).toBe("");
+    const forMem = ((await myMap(memCookie)).tasks as Task[]).find((t) => t.id === sea.id)!;
+    expect(forMem.links).toEqual(["https://example.com/ship"]); expect(forMem.note).toBe("Собрали команду корабля");
+    const adminView = (await app.inject({ method: "GET", url: `/api/games/${gameId}/submissions?status=SUBMITTED`, headers: { cookie: adminCookie } })).json().tasks as Task[];
+    expect(adminView.find((t) => t.id === sea.id)!.links).toEqual(["https://example.com/ship"]);
     // Высадка до одобрения невозможна.
     const early = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${sea.id}/land`, headers: { cookie: capCookie }, payload: { nodeKey: portKey } });
     expect(early.statusCode).toBe(409);

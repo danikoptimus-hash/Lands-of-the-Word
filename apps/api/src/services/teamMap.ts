@@ -1,4 +1,5 @@
 import { prisma } from "../db.js";
+import { bookName } from "./i18n.js";
 import { hexCorners, vertexKey } from "@lotw/domain";
 import { loadCityContent } from "./cities.js";
 
@@ -16,9 +17,17 @@ const NO_REPEAT_WINDOW = 30;
  * Дело для стороны, выходящей из узла fromKey. Если это город, взятый командой, — сначала дела по книге
  * этого города (2.7: «выход из города — дела по книге»), затем общий пул.
  */
+/** Веса частоты появления дела: редко : обычно : часто = 1 : 3 : 6 (решение владельца 15.09: простой параметр в три ступени). */
+const FREQUENCY_WEIGHT: Record<number, number> = { 1: 1, 2: 3, 3: 6 };
+function weightedPick<T extends { frequency: number }>(list: T[]): T {
+  const total = list.reduce((a, d) => a + (FREQUENCY_WEIGHT[d.frequency] ?? 3), 0);
+  let r = Math.random() * total;
+  for (const d of list) { r -= FREQUENCY_WEIGHT[d.frequency] ?? 3; if (r < 0) return d; }
+  return list[list.length - 1]!;
+}
 async function pickDeed(gameId: string, teamId: string, bookCode: string | null): Promise<string | null> {
   const [deeds, used] = await Promise.all([
-    prisma.deed.findMany({ where: { gameId }, select: { id: true, canRepeat: true, bookCode: true } }),
+    prisma.deed.findMany({ where: { gameId }, select: { id: true, canRepeat: true, bookCodes: true, frequency: true } }),
     prisma.teamEdgeTask.findMany({ where: { teamId }, select: { deedId: true }, orderBy: { createdAt: "desc" } }),
   ]);
   if (deeds.length === 0) return null;
@@ -31,13 +40,29 @@ async function pickDeed(gameId: string, teamId: string, bookCode: string | null)
     const repeatable = list.filter((d) => d.canRepeat);
     const notRecent = repeatable.filter((d) => !recentIds.has(d.id));
     const pool = fresh.length ? fresh : notRecent.length ? notRecent : repeatable;
-    return pool.length ? pool[Math.floor(Math.random() * pool.length)]!.id : null;
+    return pool.length ? weightedPick(pool).id : null;
   };
   if (bookCode) {
-    const themed = choose(deeds.filter((d) => d.bookCode === bookCode));
+    const themed = choose(deeds.filter((d) => d.bookCodes.includes(bookCode)));
     if (themed) return themed;
   }
-  return choose(deeds) ?? deeds[Math.floor(Math.random() * deeds.length)]!.id;
+  return choose(deeds) ?? weightedPick(deeds).id;
+}
+
+/**
+ * Подстановка книги в текст дела: [Книга] (в любом регистре) → название книги города, из которого выходит сторона;
+ * если стороны из города нет — «на выбор» («проповедь по книге на выбор»).
+ */
+export function withDeedBook<T extends { title: string; description: string }>(deed: T, bookCode: string | null): T {
+  const name = bookCode ? bookName(bookCode, "ru") : "на выбор";
+  const sub = (text: string) => text.replace(/\[книга\]/gi, name);
+  return { ...deed, title: sub(deed.title), description: sub(deed.description) };
+}
+
+/** Книга города по ключу узла (для подстановки [Книга] в текст дела). */
+export async function bookOfNodeKey(gameId: string, key: string): Promise<string | null> {
+  const n = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId, key } }, select: { bookCode: true } });
+  return n?.bookCode ?? null;
 }
 
 /** Создаёт недостающие задачи на рёбрах фронтира. Идемпотентно. */
@@ -134,17 +159,20 @@ export async function revealNode(gameId: string, teamId: string, nodeKey: string
 
 export async function getTeamMap(gameId: string, teamId: string) {
   await ensureFrontier(gameId, teamId);
-  const [revealedRows, tasks, hexes, nodes, edges] = await Promise.all([
+  const [revealedRows, rawTasks, hexes, nodes, edges] = await Promise.all([
     prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true, revealedAt: true } }),
     prisma.teamEdgeTask.findMany({
       where: { teamId },
-      include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, difficulty: true } } },
+      include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, difficulty: true, secret: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true, island: true } }),
     prisma.mapNode.findMany({ where: { gameId }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, ruined: true, island: true, coastal: true } }),
     prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
   ]);
+  // В тексте дела [Книга] — книга города, из которого выходит сторона (или «на выбор», если это не город).
+  const bookOfNode = new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, n.bookCode!]));
+  const tasks = rawTasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, bookOfNode.get(t.fromKey) ?? null) }));
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
   // Города, до которых команда дошла: чей город, и мой прогресс в нём.
   const cityNodes = nodes.filter((n) => n.kind === "CITY" && revealed.has(n.key));

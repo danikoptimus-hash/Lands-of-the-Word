@@ -165,4 +165,5 @@ export const PLAYER: Record<string, string> = {
   "Обращение отправлено. Ответ придёт уведомлением и письмом.": "Request sent. The reply will come as a notification and an email.",
   "Обращение в поддержку отправлено {d}. Ждём ответа.": "Support request sent on {d}. Waiting for a reply.", "Ответ поддержки: {a}": "Support reply: {a}", "блокировка снята": "the lock is lifted", "обращение рассмотрено": "the request was reviewed",
   "Написать в поддержку": "Contact support", "Обращение в поддержку": "Support request", "Город, задание {n} и состояние попыток подставятся автоматически. Опишите, что не так.": "The city, task {n} and attempt state are filled in automatically. Describe what is wrong.", "Сообщение": "Message",
+  "Тайное дело: ссылку и описание сдачи видит только тот, кто его взял, и проверяющий администратор.": "Secret deed: only the person who took it and the reviewing administrator see the submitted link and note.",
 };

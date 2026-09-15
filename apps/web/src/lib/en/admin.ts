@@ -121,4 +121,9 @@ export const ADMIN: Record<string, string> = {
   "Удалить игру": "Delete the game", "Удалить игру?": "Delete the game?", "Игра удалена": "Game deleted",
   "Черновик «{name}» будет удалён вместе с командами и картой.": "The draft “{name}” will be deleted together with its teams and map.",
   "Игра «{name}» будет удалена без возможности восстановления: карта, команды, дела, история ходов.": "The game “{name}” will be deleted permanently: map, teams, deeds, move history.",
+  // Дела: книги по теме и частота
+  "редко": "rarely", "обычно": "normally", "часто": "often", "Как часто выпадает": "How often it comes up",
+  "Книги по теме": "Books by theme", "Добавить книгу…": "Add a book…", "Любая книга": "Any book", "Убрать книгу {name}": "Remove book {name}", " и ещё {n}": " and {n} more",
+  "На сторонах из взятого города сначала выпадают дела с этой книгой. В названии и описании можно написать [Книга] — подставится книга города.": "On sides leading out of a captured city, deeds with this book come up first. You may write [Книга] in the title and description — the city’s book will be substituted.",
+  "тайное": "secret", "Тайное: ссылку и описание сдачи видит только проверяющий (сюрприз без раскрытия адресата)": "Secret: only the reviewer sees the submitted link and note (a surprise without revealing the recipient)",
 };

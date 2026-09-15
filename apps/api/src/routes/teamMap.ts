@@ -3,7 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
-import { getTeamMap, isSeaKey, landingCandidates, revealNode } from "../services/teamMap.js";
+import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey } from "../services/teamMap.js";
 import { loadCityContent } from "../services/cities.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { err, msg } from "../services/i18n.js";
@@ -37,9 +37,24 @@ export function requireSuperadmin(request: FastifyRequest, reply: FastifyReply):
 }
 
 const taskInclude = {
-  deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, difficulty: true } },
+  deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, difficulty: true, secret: true } },
   team: { select: { id: true, name: true, color: true } },
 } as const;
+type TaskWithDeed = { fromKey: string; deed: { title: string; description: string } };
+type SecretTask = { takenById: string | null; links: string[]; note: string; deed: { secret: boolean } };
+/** Тайное дело: ссылки и описание сдачи видит только тот, кто его взял (и администратор в проверке). */
+function hideSecret<T extends SecretTask>(task: T, viewerId: string): T {
+  return task.deed.secret && task.takenById !== viewerId ? { ...task, links: [], note: "" } : task;
+}
+/** В тексте дела [Книга] → книга города, из которого выходит сторона. */
+async function bookIn<T extends TaskWithDeed>(gameId: string, task: T): Promise<T> {
+  return { ...task, deed: withDeedBook(task.deed, await bookOfNodeKey(gameId, task.fromKey)) };
+}
+async function bookInAll<T extends TaskWithDeed>(gameId: string, tasks: T[]): Promise<T[]> {
+  const nodes = await prisma.mapNode.findMany({ where: { gameId, key: { in: [...new Set(tasks.map((t) => t.fromKey))] } }, select: { key: true, bookCode: true } });
+  const book = new Map(nodes.map((n) => [n.key, n.bookCode ?? null]));
+  return tasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, book.get(t.fromKey) ?? null) }));
+}
 
 export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
@@ -54,7 +69,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const donation = st.donationMin ? { min: st.donationMin, currency: st.donationCurrency ?? "" } : null;
     if (game.status === "DRAFT") return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
     const map = await getTeamMap(id, m.team.id);
-    return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map };
+    return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
@@ -67,7 +82,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const teamOut = { id: team.id, name: team.name, color: team.color, startNodeKey: team.startNodeKey };
     if (game.status === "DRAFT") return { status: game.status, teamIndex: team.index, team: teamOut, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
     const map = await getTeamMap(id, team.id);
-    return { status: game.status, teamIndex: team.index, team: teamOut, ...map };
+    // Тайные дела: сдачи скрыты и здесь — администратор смотрит их во вкладке проверки.
+    return { status: game.status, teamIndex: team.index, team: teamOut, ...map, tasks: map.tasks.map((t) => hideSecret(t, "")) };
   });
 
   app.post("/api/games/:id/edge-tasks/:taskId/take", async (request, reply) => {
@@ -77,9 +93,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     if (task.status !== "OPEN" && task.status !== "REJECTED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже взято или сдано") });
-    const updated = await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id }, include: taskInclude });
+    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
-    return { task: updated };
+    return { task: hideSecret(updated, request.user!.id) };
   });
 
   app.post("/api/games/:id/edge-tasks/:taskId/release", async (request, reply) => {
@@ -89,9 +105,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task || task.status !== "TAKEN") return reply.code(409).send({ error: "conflict", message: err(request, "Дело не взято: отпускать нечего") });
     if (task.takenById !== request.user!.id && m.role !== "CAPTAIN" && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: err(request, "Отпустить дело может тот, кто взял, капитан или летописец") });
-    const updated = await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "OPEN", takenById: null }, include: taskInclude });
+    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "OPEN", takenById: null }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
-    return { task: updated };
+    return { task: hideSecret(updated, request.user!.id) };
   });
 
   /** Сдача дела: ссылки на фото/видео и текст. Файлы не принимаем. */
@@ -120,10 +136,10 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       where: { id: taskId },
       data: { status: "SUBMITTED", takenById: task.takenById ?? request.user!.id, links: body.links, note: body.note, submittedAt: new Date(), adminComment: "", donation: body.donation, donationAmount: body.donation ? body.donationAmount ?? null : null },
       include: taskInclude,
-    });
+    }).then((u) => bookIn(id, u));
     publish(id, { type: "submissions", teamId: m.team.id });
     notifyAdmins(id, "новая сдача дела", (locale) => msg(locale, "Команда «{team}» сдала дело «{deed}»{donation}. Нужно проверить и одобрить или вернуть.", { team: m.team.name, deed: task.deed.title, donation: body.donation ? msg(locale, " (пожертвование {amount})", { amount: body.donationAmount ?? "" }) : "" }));
-    return { task: updated };
+    return { task: hideSecret(updated, request.user!.id) };
   });
 
   /** Очередь сдач для админа. */
@@ -131,7 +147,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     if (!(await requireAdmin(request, reply, id))) return;
     const status = ((request.query as { status?: string }).status ?? "SUBMITTED") as "SUBMITTED" | "APPROVED" | "REJECTED";
-    const tasks = await prisma.teamEdgeTask.findMany({ where: { gameId: id, status }, include: taskInclude, orderBy: { submittedAt: "asc" }, take: 200 });
+    const tasks = await bookInAll(id, await prisma.teamEdgeTask.findMany({ where: { gameId: id, status }, include: taskInclude, orderBy: { submittedAt: "asc" }, take: 200 }));
     const users = await prisma.user.findMany({ where: { id: { in: tasks.map((t) => t.takenById).filter((x): x is string => !!x) } }, select: { id: true, nickname: true, displayName: true } });
     const byId = new Map(users.map((u) => [u.id, u]));
     return { tasks: tasks.map((t) => ({ ...t, takenBy: t.takenById ? byId.get(t.takenById) ?? null : null })) };
@@ -149,7 +165,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       where: { id: taskId },
       data: { status: body.approve ? "APPROVED" : "REJECTED", decidedAt: new Date(), decidedById: request.user!.id, adminComment: body.comment },
       include: taskInclude,
-    });
+    }).then((u) => bookIn(id, u));
     // Морское дело: узел не открывается — капитан сам выбирает место высадки на другом острове.
     if (body.approve && task.sea) notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title }));
     else if (body.approve) await revealNode(id, task.teamId, task.toKey);

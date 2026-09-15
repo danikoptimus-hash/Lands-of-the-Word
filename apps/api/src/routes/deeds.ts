@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
+import { BOOKS } from "@lotw/domain";
+const BOOK_CODES = new Set(BOOKS.map((b) => b.code));
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
@@ -19,8 +21,10 @@ const deedBody = z.object({
   direction: z.enum(DIRECTIONS),
   proofType: z.enum(["REPORT", "PHOTO_LINK", "VIDEO_LINK", "CONFIRMATION"]).default("PHOTO_LINK"),
   canRepeat: z.boolean().default(false),
-  bookCode: z.string().trim().min(3).max(3).nullable().optional(),
+  bookCodes: z.array(z.string().trim().min(3).max(3)).max(66).default([]).transform((a) => [...new Set(a)].filter((c) => BOOK_CODES.has(c))),
   difficulty: z.number().int().min(1).max(3).default(1),
+  frequency: z.number().int().min(1).max(3).default(2),
+  secret: z.boolean().default(false),
 });
 
 async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {

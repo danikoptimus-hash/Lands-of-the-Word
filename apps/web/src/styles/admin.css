@@ -199,3 +199,6 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .support-reply textarea { width: 100%; }
 .support-form { margin-top: var(--sp-3); }
 .support-form textarea { width: 100%; }
+/* Книги дела: набранные книги — снимаемые фишки. */
+.chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.chips .chip-btn { display: inline-flex; align-items: center; gap: var(--sp-1); min-height: 30px; padding: 0 var(--sp-3); border-radius: var(--r-full); border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: var(--fs-sm); font-weight: 500; }
