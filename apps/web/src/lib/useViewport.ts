@@ -2,8 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { seaField } from "@lotw/domain";
 
 export interface View { k: number; tx: number; ty: number }
-/** Как часто фиксировать масштаб по ходу щипка или колеса (мс). */
-const LIVE_MS = 160;
 export interface Bounds { minX: number; minY: number; width: number; height: number }
 
 /**
@@ -11,8 +9,8 @@ export interface Bounds { minX: number; minY: number; width: number; height: num
  *
  * Вид (масштаб и сдвиг) живёт в ref и рассылается подписчикам сразу при каждом движении: слои двигает
  * композитор без перерисовки. Состояние React (`view`) — «зафиксированный» масштаб, под который слои
- * растрируются заново: фиксируется в конце жеста, по кнопкам, а по ходу щипка и колеса — не чаще LIVE_MS,
- * чтобы детали (толщины, подписи, метки) масштабировались уже во время жеста.
+ * растрируются заново: фиксируется в конце жеста и по кнопкам. По ходу жеста детали (толщины линий, подписи,
+ * метки) масштабируются CSS-переменными, которые слои ставят на каждый кадр (WorldSvg) — без перерастрирования.
  * Сдвиг ограничен: остров не уходит из окна, минимальный масштаб — «вся карта», максимальный — в 8 раз крупнее.
  */
 export function useViewport(bounds: Bounds | null, focus?: { x: number; y: number; k?: number } | null) {
@@ -62,18 +60,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     if (commit) setViewState(v);
   }, [clampView]);
   const lastCommit = useRef(0);
-  const lastCommitK = useRef(1);
-  const commit = useCallback(() => { lastCommit.current = performance.now(); lastCommitK.current = viewRef.current.k; setViewState(viewRef.current); }, []);
-  /**
-   * Фиксация по ходу жеста масштаба (щипок, колесо): не чаще LIVE_MS — толщины линий, подписи и метки
-   * пересчитываются под новый масштаб уже пока пальцы на экране, а не только после отпускания (решение владельца).
-   */
-  const commitLive = useCallback(() => {
-    // Не чаще LIVE_MS и только если масштаб заметно изменился (> 4 %): каждая фиксация — перерастрирование мира.
-    if (performance.now() - lastCommit.current < LIVE_MS) return;
-    if (Math.abs(viewRef.current.k / lastCommitK.current - 1) < 0.04) return;
-    lastCommitK.current = viewRef.current.k; commit();
-  }, [commit]);
+  const commit = useCallback(() => { lastCommit.current = performance.now(); setViewState(viewRef.current); }, []);
   /** Подписка на каждое изменение вида (вызывается сразу с текущим видом). Возвращает отписку. */
   const subscribe = useCallback((fn: (v: View) => void) => { listeners.current.add(fn); fn(viewRef.current); return () => { listeners.current.delete(fn); }; }, []);
 
@@ -164,7 +151,6 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
         const f = k / v.k;
         return { k, tx: pm.x - (pm.x - v.tx) * f + (mid.x - pm.x), ty: pm.y - (pm.y - v.ty) * f + (mid.y - pm.y) };
       });
-      commitLive();
     };
     const up = (e: PointerEvent) => {
       if (!pointers.current.has(e.pointerId)) return;
@@ -185,7 +171,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       window.removeEventListener("touchend", clear);
       window.removeEventListener("touchcancel", clear);
     };
-  }, [setView, commit, commitLive]);
+  }, [setView, commit]);
 
   useEffect(() => {
     if (!el) return;
@@ -194,12 +180,11 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       e.preventDefault();
       const r = el.getBoundingClientRect();
       zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top, false);
-      commitLive();
       window.clearTimeout(timer); timer = window.setTimeout(commit, 120);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => { el.removeEventListener("wheel", onWheel); window.clearTimeout(timer); };
-  }, [el, zoomAt, commit, commitLive]);
+  }, [el, zoomAt, commit]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Без setPointerCapture: иначе click уходит контейнеру, а не клетке карты.

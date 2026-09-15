@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { reportPage } from "../lib/perf";
 import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
@@ -31,7 +31,8 @@ type TeamLite = { id: string; name: string; color: string };
  */
 export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false }: { /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
-  const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexes, size]);
+  const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
+  const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const vp = useViewport(bounds);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
   const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
@@ -111,10 +112,11 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
           <SeaLayer vp={vp} bed={bed} />
           <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
+          <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} />
           {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} />}
           <WorldSvg vp={vp} bounds={bounds}>
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
-            <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} />
+            <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
             <CoastOver d={coast} size={size} />
             {nodes.map((n) => {
               const p = positions.get(n.key)!;
@@ -147,8 +149,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             }))}
             <g className="screen-items">
               {vp.view.k < 1.4 && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
-                const kk = vp.view.k, inv = Math.max(0.7, Math.min(1, kk / 1.6)) / kk;
-                return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${inv})`}><IslandLabel id={"isl-adm-" + isl} r={(c.r + size * 4) / inv} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
+                return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}><IslandLabel id={"isl-adm-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
               })}
               {nodes.map((n) => {
                 const raw = positions.get(n.key)!;
@@ -158,13 +159,13 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 const sel = selected?.key === n.key;
                 const showLabels = kk >= 1.4, showDots = kk >= 0.8;
                 const pick = () => { if (!vp.wasDrag()) setSelected(n); };
-                const at = `translate(${raw.x},${raw.y}) scale(${inv})`;
-                if (n.kind === "START") { const tm = progress?.find((x) => x.startNodeKey === n.key); const color = tm?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} className="pick" transform={at} onClick={pick}><circle className="hit" r={14} fill="transparent" /><circle r={6} fill={color} stroke="var(--surface)" strokeWidth={2} /></g>; }
+                const at = { transform: `translate(${raw.x}px, ${raw.y}px) scale(var(--inv, ${inv}))` };
+                if (n.kind === "START") { const tm = progress?.find((x) => x.startNodeKey === n.key); const color = tm?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={14} fill="transparent" /><circle r={6} fill={color} stroke="var(--surface)" strokeWidth={2} /></g>; }
                 if (n.kind === "CITY") {
                   const label = `${book?.order}. ${book?.nameRu ?? ""}`;
                   const lw = Math.ceil(label.length * 11 * 0.62) + 16;
                   return (
-                  <g key={n.key} className="pick" transform={at} onClick={pick}>
+                  <g key={n.key} className="pick" style={at} onClick={pick}>
                     <circle className="hit" r={Math.max(14, size * 0.65 * kk) / ui} cy={-size * 0.1 * kk / ui} fill="transparent" />
                     {battleAt.has(n.key) && <circle className="quiet" r={size * 0.8 * kk} fill="none" stroke="var(--danger)" strokeWidth={3} strokeDasharray="6 4" />}
                     {showLabels ? (
@@ -178,7 +179,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                   );
                 }
                 if (!showDots) return null;
-                return <g key={n.key} className="pick" transform={at} onClick={pick}><circle className="hit" r={12} fill="transparent" /><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((tm, i) => <circle key={tm.id} cx={8 - i * 7} cy={-8} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
+                return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" /><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((tm, i) => <circle key={tm.id} cx={8 - i * 7} cy={-8} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
             </g>
           </WorldSvg>

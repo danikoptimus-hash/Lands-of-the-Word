@@ -78,5 +78,5 @@ export function seabedColor(bed: Seabed): HTMLCanvasElement {
 
 export function useSeabed(hexes: MapHexDto[], islets: Islet[], size: number, bounds: Bounds | null): Seabed | null {
   const key = hexes.map((h) => `${h.q},${h.r}`).join(";");
-  return useMemo(() => (bounds && hexes.length ? buildSeabed(hexes, islets, size, bounds) : null), [key, islets, size, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
+  return useMemo(() => (bounds && hexes.length ? buildSeabed(hexes, islets, size, bounds) : null), [key, islets, size, Boolean(bounds)]); // eslint-disable-line react-hooks/exhaustive-deps
 }

@@ -95,12 +95,18 @@ export function WorldSvg({ vp, bounds, children, overlay }: { vp: Viewport; boun
   const apply = (v: View) => {
     const el = ref.current; if (!el) return;
     el.style.transform = `translate(${(v.tx + bounds.minX * v.k).toFixed(2)}px, ${(v.ty + bounds.minY * v.k).toFixed(2)}px) scale(${(v.k / baseRef.current).toFixed(5)})`;
+    // Живые переменные на каждый кадр жеста: толщины линий (--k) и размер экранных элементов (--inv: подписи, метки —
+    // при отдалении до половины; --inv-isl: названия островов — не ниже 0.7). Без перерисовки React и перерастрирования.
+    const ui = Math.min(1, Math.max(0.5, v.k / 1.6));
+    el.style.setProperty("--k", v.k.toFixed(4));
+    el.style.setProperty("--inv", (ui / v.k).toFixed(5));
+    el.style.setProperty("--inv-isl", (Math.max(ui, 0.7) / v.k).toFixed(5));
   };
   useEffect(() => vp.subscribe(apply), [vp.subscribe, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
   useLayoutEffect(() => { apply(vp.viewRef.current); }, [baseK, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
   const w = bounds.width * baseK, h = bounds.height * baseK;
   return (
-    <svg ref={ref} className={"map-svg world" + (overlay ? " passthrough" : "")} width={w} height={h} viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`} style={{ width: w, height: h, ["--k" as string]: baseK.toFixed(4) }}>
+    <svg ref={ref} className={"map-svg world" + (overlay ? " passthrough" : "")} width={w} height={h} viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`} style={{ width: w, height: h }}>
       {children}
     </svg>
   );
@@ -319,12 +325,12 @@ const TERRAINS = ["desert", "hills", "meadow", "mountains", "water", "oasis"];
  * рисовать на телефоне), а задаются паттернами: по одному на местность и поворот (6 × 6). Под паттерном —
  * цвет местности, поэтому карта видна сразу, ещё до загрузки текстур. Туман — тёмные гексы.
  */
-export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false }: { hexes: MapHexDto[]; size?: number; clipId: string; /** Озёра рисует WebGL-слой под миром: у гекса воды нет заливки, только граница. */ liveWater?: boolean }) {
+export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false, fills = true }: { hexes: MapHexDto[]; size?: number; clipId: string; /** Озёра рисует WebGL-слой под миром: у гекса воды нет заливки, только граница. */ liveWater?: boolean; /** Картинки местности рисует TilesLayer (canvas под миром): у гексов только граница. */ fills?: boolean }) {
   const poly = hexPoints(size, 0.995);
   const fogPoly = hexPoints(size, 1.03);
   return (
     <>
-      <defs>
+      {fills && <defs>
         {TERRAINS.map((t) => Array.from({ length: 6 }, (_, r) => (
           <pattern key={`${t}${r}`} id={`${clipId}-${t}-${r}`} patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width={1} height={1}>
             <rect width={1} height={1} fill={TERRAIN_COLOR[t] ?? TERRAIN_COLOR.desert} />
@@ -332,16 +338,85 @@ export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false }: 
             <image href={IMG.terrain(t)} x={-0.2} y={-0.2} width={1.4} height={1.4} preserveAspectRatio="none" transform={`rotate(${r * 60} .5 .5)`} />
           </pattern>
         )))}
-      </defs>
+      </defs>}
       {hexes.map((h) => {
         const c = hexCenter(h, size);
         if (!h.lit && h.lit !== undefined) return <polygon key={`f${h.q},${h.r}`} className="hex-fog" points={fogPoly} transform={`translate(${c.x},${c.y})`} fill={FOG_COLOR} />;
         const t = TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert";
-        const fill = liveWater && t === "water" ? "none" : `url(#${clipId}-${t}-${(h.rotation ?? 0) % 6})`;
+        const fill = (liveWater && t === "water") || !fills ? "none" : `url(#${clipId}-${t}-${(h.rotation ?? 0) % 6})`;
         return <polygon key={`t${h.q},${h.r}`} className="hex-tile" points={poly} transform={`translate(${c.x},${c.y})`} fill={fill} vectorEffect="non-scaling-stroke" />;
       })}
     </>
   );
+}
+
+/**
+ * Гексы местности на canvas под миром (решение владельца 15.09: зум «фризил» — SVG с узорами-картинками у 140 гексов
+ * перерастрировался целиком при каждой фиксации масштаба). Картинки рисуются во временный растр для текущего вида с
+ * запасом вокруг экрана; при перетаскивании он сдвигается, при щипке масштабируется как картинка, а заново
+ * (резко, в разрешении экрана) рисуется через SETTLE_MS после того, как вид устоялся. Только открытые гексы;
+ * озёра — если их не рисует WebGL. В SVG мира у гексов остаются только границы.
+ */
+export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false }: { vp: Viewport; hexes: MapHexDto[]; size?: number; skipWater?: boolean }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const vpRef = useRef(vp); vpRef.current = vp;
+  const key = hexes.map((h) => `${h.q},${h.r}:${h.terrain}:${h.rotation ?? 0}:${h.lit === false ? 0 : 1}`).join(";");
+  useEffect(() => {
+    const canvas = ref.current, host = canvas?.parentElement;
+    if (!canvas || !host) return;
+    const ctx = canvas.getContext("2d"); if (!ctx) return;
+    const tiles = hexes.filter((h) => h.lit !== false && !(skipWater && h.terrain === "water")).map((h) => ({ c: hexCenter(h, size), t: TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert", rot: ((h.rotation ?? 0) % 6) * Math.PI / 3 }));
+    if (!tiles.length) { canvas.width = 1; canvas.height = 1; return; }
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const images = new Map<string, HTMLImageElement>();
+    let dirty = true, raf = 0, settle = 0, W = 0, H = 0;
+    for (const t of new Set(tiles.map((x) => x.t))) { const im = new Image(); im.decoding = "async"; im.onload = () => { cache.valid = false; dirty = true; }; im.src = IMG.terrain(t); images.set(t, im); }
+    const hex = new Path2D();
+    for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30), x = Math.cos(a) * size * 0.995, y = Math.sin(a) * size * 0.995; if (i === 0) hex.moveTo(x, y); else hex.lineTo(x, y); }
+    hex.closePath();
+    const bw = size * Math.sqrt(3), bh = size * 2; // рамка гекса; картинка — квадрат 1.4 рамки, повёрнутый, как в SVG-узоре
+    const PAD = 0.5, SETTLE_MS = 140;
+    const cache = { canvas: document.createElement("canvas"), k: 0, tx: 0, ty: 0, pad: 0, valid: false };
+    const cctx = cache.canvas.getContext("2d"); if (!cctx) return;
+    const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } cache.valid = false; dirty = true; };
+    const render = (k: number, tx: number, ty: number) => {
+      const pad = Math.ceil(Math.max(W, H) * PAD);
+      const CW = W + 2 * pad, CH = H + 2 * pad;
+      if (cache.canvas.width !== CW || cache.canvas.height !== CH) { cache.canvas.width = CW; cache.canvas.height = CH; }
+      cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, CW, CH);
+      cctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr + pad, ty * dpr + pad);
+      cctx.imageSmoothingEnabled = true; cctx.imageSmoothingQuality = "high";
+      const x0 = (-pad / dpr - tx) / k - size, y0 = (-pad / dpr - ty) / k - size, x1 = ((W + pad) / dpr - tx) / k + size, y1 = ((H + pad) / dpr - ty) / k + size;
+      for (const tl of tiles) {
+        if (tl.c.x < x0 || tl.c.x > x1 || tl.c.y < y0 || tl.c.y > y1) continue;
+        cctx.save(); cctx.translate(tl.c.x, tl.c.y); cctx.clip(hex);
+        cctx.fillStyle = TERRAIN_COLOR[tl.t] ?? TERRAIN_COLOR.desert!; cctx.fillRect(-bw, -bh, 2 * bw, 2 * bh);
+        const im = images.get(tl.t);
+        if (im && im.complete && im.naturalWidth) { cctx.rotate(tl.rot); cctx.drawImage(im, -0.7 * bw, -0.7 * bh, 1.4 * bw, 1.4 * bh); }
+        cctx.restore();
+      }
+      Object.assign(cache, { k, tx, ty, pad, valid: true });
+    };
+    const draw = () => {
+      const { k, tx, ty } = vpRef.current.viewRef.current;
+      const dx = (tx - cache.tx) * dpr, dy = (ty - cache.ty) * dpr;
+      const fresh = cache.valid && cache.k === k && Math.abs(dx) <= cache.pad && Math.abs(dy) <= cache.pad;
+      if (!cache.valid || (!fresh && !settle)) render(k, tx, ty);
+      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
+      if (cache.k === k) ctx.drawImage(cache.canvas, (tx - cache.tx) * dpr - cache.pad, (ty - cache.ty) * dpr - cache.pad);
+      else { const f = k / cache.k; ctx.setTransform(f, 0, 0, f, tx * dpr - (cache.pad + cache.tx * dpr) * f, ty * dpr - (cache.pad + cache.ty * dpr) * f); ctx.drawImage(cache.canvas, 0, 0); }
+    };
+    const loop = () => { raf = requestAnimationFrame(loop); if (!dirty) return; dirty = false; draw(); };
+    const unsub = vpRef.current.subscribe(() => {
+      dirty = true;
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => { settle = 0; cache.valid = false; dirty = true; }, SETTLE_MS);
+    });
+    const ro = new ResizeObserver(resize); ro.observe(host);
+    resize(); raf = requestAnimationFrame(loop);
+    return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); window.clearTimeout(settle); };
+  }, [key, size, skipWater, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  return <canvas ref={ref} className="fx-layer tiles" aria-hidden="true" />;
 }
 
 /**

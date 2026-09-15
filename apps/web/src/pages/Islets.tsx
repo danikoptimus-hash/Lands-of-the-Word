@@ -7,7 +7,8 @@ import { IMG, SHALLOW_RINGS, type Viewport } from "./MapLayers";
 /** Раскладка островов по гексам поля (детерминирована, считается один раз на карту). */
 export function useIslets(hexes: MapHexDto[], size: number, bounds: Bounds | null): Islet[] {
   const key = hexes.map((h) => `${h.q},${h.r}`).join(";");
-  return useMemo(() => (bounds && hexes.length ? generateIslets(hexes, size, bounds) : []), [key, size, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Зависимость только от ключа гексов: bounds выводится из них же, а новый объект при перезагрузке карты не должен всё пересчитывать.
+  return useMemo(() => (bounds && hexes.length ? generateIslets(hexes, size, bounds) : []), [key, size, Boolean(bounds)]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 

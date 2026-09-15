@@ -4,7 +4,7 @@ import { BOOKS } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
-import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
 import { FaunaLayer } from "./Fauna";
 import { LakesLayer } from "./Lakes";
@@ -24,7 +24,8 @@ const textWidth = (s: string, fs: number) => Math.ceil(s.length * fs * 0.62);
  */
 export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
-  const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [map.hexes, size]);
+  const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
+  const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const start = useMemo(() => (map.team.startNodeKey ? nodePos(map.team.startNodeKey, size) : null), [map.team.startNodeKey, size]);
   const vp = useViewport(bounds, start ? { x: start.x, y: start.y, k: 2.4 } : null);
   const revealed = useMemo(() => new Set(map.revealed.map((n) => n.key)), [map.revealed]);
@@ -77,16 +78,19 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   // Город масштабируется с картой: сидит на перекрёстке и занимает место до середины трёх сторон.
   const CITY = size * 1.15, START = size * 1.35;
   const dash = `${7 * inv} ${6 * inv}`;
+  /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста), extra — после масштаба. */
+  const sc = (x: number, y: number, extra = "") => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, ${inv}))${extra ? " " + extra : ""}` });
 
   return (
     <div ref={vp.ref} {...vp.handlers} className="map-canvas">
       <SeaLayer vp={vp} bed={bed} />
       <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
+      <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} />
       {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} />}
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
         <OutlineDefs colors={owners} />
-        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} />
+        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
         <CoastOver d={coast} size={size} />
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -123,7 +127,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;
             const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
-            if (n.kind === "START") return <g key={n.key} transform={`translate(${p.x},${p.y}) scale(${inv})`}><circle className="m-start" r={6} fill={map.team.color} /></g>;
+            if (n.kind === "START") return <g key={n.key} style={sc(p.x, p.y)}><circle className="m-start" r={6} fill={map.team.color} /></g>;
             if (n.kind === "CITY") {
               const c = cityByKey.get(n.key);
               const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;
@@ -133,8 +137,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const iconW = c?.isCapital ? fs + 4 : 0;
               const w = textWidth(text, fs) + iconW + 14, h = fs + 9;
               const y = (fullLabels ? CITY * k * 0.48 : Math.max(10, CITY * k * 0.48)) / ui;
+              // Подпись стоит под картинкой города (сдвиг в единицах карты), а масштабируется через --inv на каждый кадр.
               return (
-                <g key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={c?.owner ? { ["--team" as string]: c.owner.color } : undefined} transform={`translate(${p.x},${p.y}) scale(${inv}) translate(0,${y})`} onClick={() => clickCity(n.key)}>
+                <g key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, ${inv}))` }} onClick={() => clickCity(n.key)}>
                   {c?.battle && (
                     <g className={"m-battle " + (c.battle === "ATTACK" ? "att" : "def")} transform={`translate(${Math.max(14, CITY * k * 0.45)},${-y - Math.max(12, CITY * k * 0.5)})`}>
                       <circle r={10} />
@@ -148,13 +153,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               );
             }
             if (!showForks) return null;
-            return <g key={n.key} transform={`translate(${p.x},${p.y}) scale(${inv})`}><circle className="m-fork" r={5} /></g>;
+            return <g key={n.key} style={sc(p.x, p.y)}><circle className="m-fork" r={5} /></g>;
           })}
           {showMarkers && (map.peeked ?? []).map((pk) => {
             const pos = positions.get(pk.key);
             if (!pos) return null;
             return (
-              <g key={"pk" + pk.key} className="m-peek" transform={`translate(${pos.x},${pos.y}) scale(${inv}) translate(0,-16)`}>
+              <g key={"pk" + pk.key} className="m-peek" style={sc(pos.x, pos.y, "translate(0, -16px)")}>
                 <circle r={10} />
                 <use href={pk.kind === "CITY" ? "#m-city" : "#m-telescope"} x={-7} y={-7} width={14} height={14} />
               </g>
@@ -171,8 +176,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const r = sel ? R + 2 : R;
             return (
               <g key={"m" + e.aKey + e.bKey} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "")} onClick={() => click(tk.id)}>
-                <g transform={`translate(${far.x},${far.y}) scale(${inv})`}><circle className="far" r={5} /></g>
-                <g transform={`translate(${m.x},${m.y}) scale(${inv})`}>
+                <g style={sc(far.x, far.y)}><circle className="far" r={5} /></g>
+                <g style={sc(m.x, m.y)}>
                   <circle r={r} />
                   <use href={`#m-${DEED_SYMBOL[tk.status]}`} x={-r * 0.6} y={-r * 0.6} width={r * 1.2} height={r * 1.2} />
                 </g>
@@ -184,7 +189,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             return (
               <g key={"ship" + tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
                 <line className="mooring" x1={port.x} y1={port.y} x2={x} y2={y} />
-                <g transform={`translate(${x},${y}) scale(${inv})`}>
+                <g style={sc(x, y)}>
                   <circle r={r} />
                   <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
                 </g>
@@ -194,7 +199,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           {landing && landing.candidates.map((key) => {
             const p = nodePos(key, size);
             return (
-              <g key={"land" + key} className="m-land" transform={`translate(${p.x},${p.y}) scale(${inv})`} onClick={() => { if (!vp.wasDrag()) onLand?.(key); }}>
+              <g key={"land" + key} className="m-land" style={sc(p.x, p.y)} onClick={() => { if (!vp.wasDrag()) onLand?.(key); }}>
                 <circle className="pulse" r={14} />
                 <circle className="dot" r={6} />
                 <use href="#m-anchor" x={-5} y={-5} width={10} height={10} />
@@ -202,12 +207,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             );
           })}
           {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); при отдалении уменьшаются не ниже 0.7. */}
-          {!fullLabels && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => { const s = Math.max(ui, 0.7) / k; return (
-            <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y}) scale(${s})`}>
-              <IslandLabel id={"isl-team-" + isl} r={(c.r + size * 4) / s} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} />
+          {!fullLabels && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => (
+            <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}>
+              <IslandLabel id={"isl-team-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} />
             </g>
-          ); })}
-          {ripple && <g transform={`translate(${ripple.x},${ripple.y}) scale(${inv})`}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
+          ))}
+          {ripple && <g style={sc(ripple.x, ripple.y)}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
         </g>
       </WorldSvg>
       <div className="map-controls">

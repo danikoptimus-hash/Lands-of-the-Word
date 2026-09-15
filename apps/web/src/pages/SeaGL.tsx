@@ -84,6 +84,8 @@ export function SeaGL({ vp, bed, onUnsupported }: { vp: Viewport; bed: Seabed | 
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   const [failed, setFailed] = useState(false);
+  /** Живой контекст для загрузки поля дна без пересоздания (пересоздание теряло контекст и роняло море на запасной canvas). */
+  const glRef = useRef<{ gl: WebGLRenderingContext; tex: WebGLTexture; uBedRect: WebGLUniformLocation | null; touch: () => void } | null>(null);
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
     if (!canvas || !host) return;
@@ -103,10 +105,10 @@ export function SeaGL({ vp, bed, onUnsupported }: { vp: Viewport; bed: Seabed | 
     const tex = gl.createTexture(); gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    if (bed) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bed.canvas);
-    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 0, 0, 255]));
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 0, 0, 255]));
     gl.uniform1i(gl.getUniformLocation(prog, "uBed"), 0);
-    gl.uniform4f(gl.getUniformLocation(prog, "uBedRect"), bed?.x ?? 0, bed?.y ?? 0, bed?.w ?? 1, bed?.h ?? 1);
+    const uBedRect = gl.getUniformLocation(prog, "uBedRect");
+    gl.uniform4f(uBedRect, 0, 0, 1, 1);
     gl.uniform3fv(gl.getUniformLocation(prog, "uShallow"), SEA_SHALLOW); gl.uniform3fv(gl.getUniformLocation(prog, "uMid"), SEA_MID); gl.uniform3fv(gl.getUniformLocation(prog, "uDeep"), SEA_DEEP);
     const uRes = gl.getUniformLocation(prog, "uRes"), uT = gl.getUniformLocation(prog, "uT"), uD = gl.getUniformLocation(prog, "uD"), uK = gl.getUniformLocation(prog, "uK"), uTxy = gl.getUniformLocation(prog, "uTxy"), uDpr = gl.getUniformLocation(prog, "uDpr");
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -133,8 +135,21 @@ export function SeaGL({ vp, bed, onUnsupported }: { vp: Viewport; bed: Seabed | 
     const onLost = (e: Event) => { e.preventDefault(); fail(); };
     canvas.addEventListener("webglcontextlost", onLost);
     resize(); raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); canvas.removeEventListener("webglcontextlost", onLost); gl.getExtension("WEBGL_lose_context")?.loseContext(); };
-  }, [vp.subscribe, vp.viewRef, bed]); // eslint-disable-line react-hooks/exhaustive-deps
+    glRef.current = { gl, tex: tex!, uBedRect, touch: () => { dirty = true; } };
+    setBedReady((n) => n + 1);
+    return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); canvas.removeEventListener("webglcontextlost", onLost); glRef.current = null; gl.getExtension("WEBGL_lose_context")?.loseContext(); };
+  }, [vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Поле дна загружается в живой контекст при появлении или смене (перезагрузка карты по событиям игры).
+  const [bedReady, setBedReady] = useState(0);
+  useEffect(() => {
+    const g = glRef.current; if (!g) return;
+    const { gl } = g;
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, g.tex);
+    if (bed) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bed.canvas);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([255, 0, 0, 255]));
+    gl.uniform4f(g.uBedRect, bed?.x ?? 0, bed?.y ?? 0, bed?.w ?? 1, bed?.h ?? 1);
+    g.touch();
+  }, [bed, bedReady]);
   if (failed) return null;
   return <canvas ref={ref} className="fx-layer sea" aria-hidden="true" />;
 }
