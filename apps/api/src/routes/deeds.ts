@@ -83,16 +83,30 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  /** Добавить стандартный набор дел как заготовку (из content/deeds-default.json). */
+  /**
+   * Стандартный набор дел (content/deeds-default.json). mode=add (по умолчанию): добавить те, чьих названий ещё нет.
+   * mode=replace: заменить список стандартным — дела, которые ни одна команда ещё не получала, удаляются; дела с делами
+   * команд остаются (по совпадению названия — обновляются текстом и настройками из набора); недостающие добавляются.
+   */
   app.post("/api/games/:id/deeds/import-default", async (request, reply) => {
     const { id } = request.params as { id: string };
     if (!(await requireGameAdmin(request, reply, id))) return;
+    const mode = z.object({ mode: z.enum(["add", "replace"]).default("add") }).parse(request.body ?? {}).mode;
     const file = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../content/deeds-default.json");
     const items = z.array(deedBody).parse(JSON.parse(await readFile(file, "utf8")));
+    let removed = 0, updated = 0;
+    if (mode === "replace") {
+      removed = (await prisma.deed.deleteMany({ where: { gameId: id, edgeTasks: { none: {} } } })).count;
+      const kept = await prisma.deed.findMany({ where: { gameId: id }, select: { id: true, title: true } });
+      for (const k of kept) {
+        const src = items.find((d) => d.title.toLowerCase() === k.title.toLowerCase());
+        if (src) { await prisma.deed.update({ where: { id: k.id }, data: src }); updated++; }
+      }
+    }
     const existing = new Set((await prisma.deed.findMany({ where: { gameId: id }, select: { title: true } })).map((d) => d.title.toLowerCase()));
     const fresh = items.filter((d) => !existing.has(d.title.toLowerCase()));
     await prisma.deed.createMany({ data: fresh.map((d) => ({ ...d, gameId: id })) });
     publish(id, { type: "deeds" });
-    return { added: fresh.length };
+    return { added: fresh.length, removed, updated };
   });
 }

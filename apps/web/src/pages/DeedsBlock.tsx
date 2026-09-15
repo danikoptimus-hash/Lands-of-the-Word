@@ -53,9 +53,14 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
     } catch (err) { setError(err instanceof ApiError ? (err.issues?.map((i) => i.message).join("; ") || err.message) : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
-  async function importDefault() {
+  async function importDefault(mode: "add" | "replace" = "add") {
+    if (mode === "replace" && !(await confirm(t("Дела, которые команды ещё не получали, будут удалены, а список станет стандартным набором. Дела, уже выданные командам, останутся."), { title: t("Заменить стандартным набором?"), okLabel: t("Заменить"), danger: true }))) return;
     setBusy(true);
-    try { const r = await api<{ added: number }>(`/api/games/${gameId}/deeds/import-default`, { method: "POST" }); await reload(); notify(r.added ? t("Добавлено дел: {n}", { n: r.added }) : t("Стандартный набор уже добавлен")); }
+    try {
+      const r = await api<{ added: number; removed: number; updated: number }>(`/api/games/${gameId}/deeds/import-default`, { method: "POST", body: JSON.stringify({ mode }) });
+      await reload();
+      notify(mode === "replace" ? t("Список заменён: добавлено {a}, убрано {r}, обновлено {u}", { a: r.added, r: r.removed, u: r.updated }) : r.added ? t("Добавлено дел: {n}", { n: r.added }) : t("Стандартный набор уже добавлен"));
+    }
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
@@ -69,7 +74,13 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
     <div className="card">
       <div className="card-head">
         <h2><span className="ico"><Icon name="scroll" /></span>{t("Дела")} {deeds && <span className="count">{deeds.length}</span>}</h2>
-        <button type="button" className="sm" onClick={openNew} disabled={!deeds}><Icon name="plus" />{t("Новое дело")}</button>
+        <div className="row">
+          {deeds && deeds.length > 0 && <ActionMenu label={t("Стандартный набор")} items={[
+            { label: t("Добавить недостающие из стандартного набора"), icon: "sparkle", onSelect: () => void importDefault("add") },
+            { label: t("Заменить список стандартным набором"), icon: "refresh", danger: true, onSelect: () => void importDefault("replace") },
+          ]} />}
+          <button type="button" className="sm" onClick={openNew} disabled={!deeds}><Icon name="plus" />{t("Новое дело")}</button>
+        </div>
       </div>
       {deeds && deeds.length > 0 && deeds.length < recommended && <p className="note warn"><Icon name="alert" /><span>{t("Рекомендуется не меньше {n} дел, иначе они начнут повторяться.", { n: recommended })}</span></p>}
       {loadError ? <ErrorState onRetry={() => void load()} /> : !deeds ? <LoadingState /> : deeds.length === 0 ? (

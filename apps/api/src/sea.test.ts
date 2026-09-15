@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { BOOKS } from "@lotw/domain";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { withDeedBook } from "./services/teamMap.js";
 
 /**
@@ -43,6 +45,19 @@ afterAll(async () => {
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, capNick, memNick, p2Nick] } } });
   await app.close(); await prisma.$disconnect();
+});
+
+describe("стандартный набор дел", () => {
+  it("заменить: неиспользованные дела убираются, список равен набору", async () => {
+    await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie }, payload: { title: "Своё дело", direction: "Посещение" } });
+    const r = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/import-default`, headers: { cookie: adminCookie }, payload: { mode: "replace" } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().removed).toBeGreaterThan(0);
+    const set = JSON.parse(await readFile(path.resolve(process.cwd(), "../../content/deeds-default.json"), "utf8")) as unknown[];
+    const deeds = (await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } })).json().deeds as Array<{ title: string }>;
+    expect(deeds).toHaveLength(set.length);
+    expect(deeds.some((d) => d.title === "Своё дело")).toBe(false);
+  });
 });
 
 describe("два острова", () => {

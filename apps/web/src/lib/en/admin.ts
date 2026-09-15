@@ -126,4 +126,7 @@ export const ADMIN: Record<string, string> = {
   "Книги по теме": "Books by theme", "Добавить книгу…": "Add a book…", "Любая книга": "Any book", "Убрать книгу {name}": "Remove book {name}", " и ещё {n}": " and {n} more",
   "На сторонах из взятого города сначала выпадают дела с этой книгой. В названии и описании можно написать [Книга] — подставится книга города.": "On sides leading out of a captured city, deeds with this book come up first. You may write [Книга] in the title and description — the city’s book will be substituted.",
   "тайное": "secret", "Тайное: ссылку и описание сдачи видит только проверяющий (сюрприз без раскрытия адресата)": "Secret: only the reviewer sees the submitted link and note (a surprise without revealing the recipient)",
+  "Стандартный набор": "Default set", "Добавить недостающие из стандартного набора": "Add missing deeds from the default set", "Заменить список стандартным набором": "Replace the list with the default set",
+  "Дела, которые команды ещё не получали, будут удалены, а список станет стандартным набором. Дела, уже выданные командам, останутся.": "Deeds no team has received yet will be deleted and the list will become the default set. Deeds already given to teams will stay.",
+  "Заменить стандартным набором?": "Replace with the default set?", "Заменить": "Replace", "Список заменён: добавлено {a}, убрано {r}, обновлено {u}": "List replaced: {a} added, {r} removed, {u} updated",
 };
