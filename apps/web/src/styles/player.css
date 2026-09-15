@@ -6,7 +6,7 @@
 .map-canvas { position: absolute; inset: 0; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; overflow: hidden; background: var(--map-bg); }
 /* Слои карты снизу вверх: море (DOM, композитор), мир (SVG: берег, гексы, стороны, города), эффекты (canvas: пена, туман),
    экранный слой (SVG: подписи и значки постоянного размера). Клики проходят к миру сквозь верхние слои. */
-.map-svg.world { display: block; position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; overflow: visible; }
+.map-svg.world { display: block; position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; overflow: hidden; }
 /* Верхний SVG подписей перекрывает весь мир: сам он нажатий не ловит (иначе картинки городов и стороны под ним недоступны),
    ловят только подписи, метки дел и значки. */
 .map-svg.world.passthrough, .map-svg.world .screen-items { pointer-events: none; }

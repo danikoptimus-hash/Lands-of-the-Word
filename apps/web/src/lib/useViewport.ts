@@ -60,7 +60,18 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     if (commit) setViewState(v);
   }, [clampView]);
   const lastCommit = useRef(0);
-  const commit = useCallback(() => { lastCommit.current = performance.now(); setViewState(viewRef.current); }, []);
+  const commit = useCallback(() => { lastCommit.current = performance.now(); lastCommitView.current = viewRef.current; setViewState(viewRef.current); }, []);
+  const lastCommitView = useRef<View>({ k: 1, tx: 0, ty: 0 });
+  /**
+   * По ходу жеста: растр мира построен с запасом вокруг экрана (WorldSvg: 0.75 экрана); если масштаб ушёл дальше ×1.8
+   * в любую сторону или сдвиг — дальше 0.6 экрана, фиксируем, чтобы края не оголялись до отпускания.
+   */
+  const commitIfFar = useCallback(() => {
+    const v = viewRef.current, b = lastCommitView.current, el = ref.current;
+    const r = v.k / b.k;
+    const far = el ? Math.abs(v.tx - b.tx) > el.clientWidth * 0.6 || Math.abs(v.ty - b.ty) > el.clientHeight * 0.6 : false;
+    if (r > 1.8 || r < 1 / 1.8 || far) commit();
+  }, [commit]);
   /** Подписка на каждое изменение вида (вызывается сразу с текущим видом). Возвращает отписку. */
   const subscribe = useCallback((fn: (v: View) => void) => { listeners.current.add(fn); fn(viewRef.current); return () => { listeners.current.delete(fn); }; }, []);
 
@@ -130,6 +141,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
         g.moved += Math.abs(dx) + Math.abs(dy);
         if (g.moved > 4) setDragging(true);
         setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }));
+        commitIfFar();
         return;
       }
       const [a, b] = [pts[0]!, pts[1]!];
@@ -151,6 +163,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
         const f = k / v.k;
         return { k, tx: pm.x - (pm.x - v.tx) * f + (mid.x - pm.x), ty: pm.y - (pm.y - v.ty) * f + (mid.y - pm.y) };
       });
+      commitIfFar();
     };
     const up = (e: PointerEvent) => {
       if (!pointers.current.has(e.pointerId)) return;
@@ -171,7 +184,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       window.removeEventListener("touchend", clear);
       window.removeEventListener("touchcancel", clear);
     };
-  }, [setView, commit]);
+  }, [setView, commit, commitIfFar]);
 
   useEffect(() => {
     if (!el) return;
@@ -180,11 +193,12 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       e.preventDefault();
       const r = el.getBoundingClientRect();
       zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top, false);
+      commitIfFar();
       window.clearTimeout(timer); timer = window.setTimeout(commit, 120);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => { el.removeEventListener("wheel", onWheel); window.clearTimeout(timer); };
-  }, [el, zoomAt, commit]);
+  }, [el, zoomAt, commit, commitIfFar]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Без setPointerCapture: иначе click уходит контейнеру, а не клетке карты.

@@ -84,29 +84,48 @@ function SeaCanvas({ vp, bed }: { vp: Viewport; bed: Seabed | null }) {
 }
 
 /**
- * Мир карты: SVG в координатах карты, растрирован под зафиксированный масштаб (vp.view.k); между фиксациями
- * композитор двигает и масштабирует готовый растр CSS-трансформацией, ничего не перерисовывая.
- * После жеста масштаб фиксируется, слой растрируется заново один раз — резко. --k даёт стилям толщины в пикселях экрана.
+ * Мир карты: SVG размером с экран (плюс запас PAD вокруг), viewBox — видимая область карты под зафиксированный
+ * масштаб (vp.view). Между фиксациями композитор двигает и масштабирует готовый растр CSS-трансформацией; после
+ * жеста viewBox пересчитывается и слой растрируется заново один раз — но растр всегда не больше экрана с запасом,
+ * на любом масштабе (решение владельца 15.09: SVG размером со всю карту при приближении «фризил» зум).
+ * CSS-переменные --k (толщины линий), --inv и --inv-isl (размер экранных элементов) обновляются по ходу жеста
+ * не чаще VAR_MS — каждое обновление перерисовывает слой, и на каждый кадр это дорого.
  */
-export function WorldSvg({ vp, bounds, children, overlay }: { vp: Viewport; bounds: { minX: number; minY: number; width: number; height: number }; children: React.ReactNode; /** Верхний слой подписей: сам SVG не ловит нажатия, только его интерактивные дети. */ overlay?: boolean }) {
+const PAD = 0.75, VAR_MS = 120;
+export function WorldSvg({ vp, children, overlay }: { vp: Viewport; bounds?: { minX: number; minY: number; width: number; height: number }; children: React.ReactNode; /** Верхний слой подписей: сам SVG не ловит нажатия, только его интерактивные дети. */ overlay?: boolean }) {
   const ref = useRef<SVGSVGElement>(null);
-  const baseK = vp.view.k;
-  const baseRef = useRef(baseK); baseRef.current = baseK;
-  const apply = (v: View) => {
-    const el = ref.current; if (!el) return;
-    el.style.transform = `translate(${(v.tx + bounds.minX * v.k).toFixed(2)}px, ${(v.ty + bounds.minY * v.k).toFixed(2)}px) scale(${(v.k / baseRef.current).toFixed(5)})`;
-    // Живые переменные на каждый кадр жеста: толщины линий (--k) и размер экранных элементов (--inv: подписи, метки —
-    // при отдалении до половины; --inv-isl: названия островов — не ниже 0.7). Без перерисовки React и перерастрирования.
-    const ui = Math.min(1, Math.max(0.5, v.k / 1.6));
-    el.style.setProperty("--k", v.k.toFixed(4));
-    el.style.setProperty("--inv", (ui / v.k).toFixed(5));
-    el.style.setProperty("--inv-isl", (Math.max(ui, 0.7) / v.k).toFixed(5));
+  const [box, setBox] = useState({ w: 0, h: 0 });
+  const base = vp.view;
+  const baseRef = useRef(base); baseRef.current = base;
+  const pad = Math.ceil(Math.max(box.w, box.h) * PAD);
+  const lastVars = useRef(0);
+  const setVars = (el: SVGSVGElement, k: number) => {
+    const ui = Math.min(1, Math.max(0.5, k / 1.6));
+    el.style.setProperty("--k", k.toFixed(4));
+    el.style.setProperty("--inv", (ui / k).toFixed(5));
+    el.style.setProperty("--inv-isl", (Math.max(ui, 0.7) / k).toFixed(5));
   };
-  useEffect(() => vp.subscribe(apply), [vp.subscribe, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
-  useLayoutEffect(() => { apply(vp.viewRef.current); }, [baseK, bounds]); // eslint-disable-line react-hooks/exhaustive-deps
-  const w = bounds.width * baseK, h = bounds.height * baseK;
+  const apply = (v: View, force = false) => {
+    const el = ref.current; if (!el) return;
+    const b = baseRef.current, f = v.k / b.k;
+    // Растр построен под вид b: точка карты w стоит в нём на w·k0 + t0 (в CSS-пикселях контейнера); нужен вид v: w·k + t.
+    const dx = v.tx - f * b.tx + pad * (1 - f), dy = v.ty - f * b.ty + pad * (1 - f);
+    el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) scale(${f.toFixed(5)})`;
+    const now = performance.now();
+    if (force || now - lastVars.current >= VAR_MS) { lastVars.current = now; setVars(el, v.k); }
+  };
+  useEffect(() => {
+    const el = ref.current, host = el?.parentElement; if (!el || !host) return;
+    const ro = new ResizeObserver(() => setBox({ w: host.clientWidth, h: host.clientHeight }));
+    ro.observe(host); setBox({ w: host.clientWidth, h: host.clientHeight });
+    return () => ro.disconnect();
+  }, []);
+  useEffect(() => vp.subscribe((v) => apply(v)), [vp.subscribe, pad]); // eslint-disable-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => { apply(vp.viewRef.current, true); }, [base, pad]); // eslint-disable-line react-hooks/exhaustive-deps
+  const w = box.w + 2 * pad, h = box.h + 2 * pad;
+  const vx = (-pad - base.tx) / base.k, vy = (-pad - base.ty) / base.k;
   return (
-    <svg ref={ref} className={"map-svg world" + (overlay ? " passthrough" : "")} width={w} height={h} viewBox={`${bounds.minX} ${bounds.minY} ${bounds.width} ${bounds.height}`} style={{ width: w, height: h }}>
+    <svg ref={ref} className={"map-svg world" + (overlay ? " passthrough" : "")} width={w} height={h} viewBox={`${vx} ${vy} ${w / base.k} ${h / base.k}`} style={{ width: w, height: h, left: -pad, top: -pad }}>
       {children}
     </svg>
   );
@@ -375,7 +394,8 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false }: { 
     for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30), x = Math.cos(a) * size * 0.995, y = Math.sin(a) * size * 0.995; if (i === 0) hex.moveTo(x, y); else hex.lineTo(x, y); }
     hex.closePath();
     const bw = size * Math.sqrt(3), bh = size * 2; // рамка гекса; картинка — квадрат 1.4 рамки, повёрнутый, как в SVG-узоре
-    const PAD = 0.5, SETTLE_MS = 140;
+    const PAD = 0.5, SETTLE_MS = 140, RERENDER_MS = 100;
+    let lastRender = 0;
     const cache = { canvas: document.createElement("canvas"), k: 0, tx: 0, ty: 0, pad: 0, valid: false };
     const cctx = cache.canvas.getContext("2d"); if (!cctx) return;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } cache.valid = false; dirty = true; };
@@ -401,7 +421,10 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false }: { 
       const { k, tx, ty } = vpRef.current.viewRef.current;
       const dx = (tx - cache.tx) * dpr, dy = (ty - cache.ty) * dpr;
       const fresh = cache.valid && cache.k === k && Math.abs(dx) <= cache.pad && Math.abs(dy) <= cache.pad;
-      if (!cache.valid || (!fresh && !settle)) render(k, tx, ty);
+      // Пока идёт жест, растр всё же обновляется не чаще RERENDER_MS — иначе при щипке картинка размыта до отпускания
+      // пальцев (замечание владельца 15.09); окончательный пересчёт — когда вид устоится.
+      const now = performance.now();
+      if (!cache.valid || (!fresh && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
       if (cache.k === k) ctx.drawImage(cache.canvas, (tx - cache.tx) * dpr - cache.pad, (ty - cache.ty) * dpr - cache.pad);
       else { const f = k / cache.k; ctx.setTransform(f, 0, 0, f, tx * dpr - (cache.pad + cache.tx * dpr) * f, ty * dpr - (cache.pad + cache.ty * dpr) * f); ctx.drawImage(cache.canvas, 0, 0); }

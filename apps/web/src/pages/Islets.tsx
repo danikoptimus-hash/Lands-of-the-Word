@@ -70,7 +70,8 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: V
     // Кэш берега: размытый растр считается один раз для вида (масштаб, сдвиг) с запасом PAD вокруг экрана; при
     // перетаскивании он просто сдвигается, при щипке — масштабируется как картинка, а заново рисуется, когда вид
     // устоялся (SETTLE_MS без изменений). Иначе размытие полноэкранного canvas на каждый кадр съедало плавность.
-    const PAD = 0.5;
+    const PAD = 0.5, RERENDER_MS = 180;
+    let lastRender = 0;
     const cache = { canvas: document.createElement("canvas"), k: 0, tx: 0, ty: 0, pad: 0, valid: false };
     const cctx = cache.canvas.getContext("2d");
     if (!cctx) return;
@@ -108,7 +109,10 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: V
       const { k, tx, ty } = vpRef.current.viewRef.current;
       const dx = (tx - cache.tx) * dpr, dy = (ty - cache.ty) * dpr;
       const fresh = cache.valid && cache.k === k && Math.abs(dx) <= cache.pad && Math.abs(dy) <= cache.pad;
-      if (!cache.valid || (!fresh && !settle)) render(k, tx, ty);
+      // Пока идёт жест, растр всё же обновляется не чаще RERENDER_MS — иначе при щипке картинка размыта до отпускания
+      // пальцев (замечание владельца 15.09); окончательный пересчёт — когда вид устоится.
+      const now = performance.now();
+      if (!cache.valid || (!fresh && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
       if (cache.k === k) {
         ctx.drawImage(cache.canvas, (tx - cache.tx) * dpr - cache.pad, (ty - cache.ty) * dpr - cache.pad);
