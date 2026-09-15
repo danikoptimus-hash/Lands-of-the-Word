@@ -55,4 +55,17 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 );
 
 // Сервис-воркер PWA: обновляется сам при новом деплое, картинки карты и сборка берутся из кеша устройства.
+// Когда новая версия взяла страницу под управление, открытая вкладка всё ещё выполняет старую сборку (владелец
+// видел «старое море» до перезагрузки) — перезагружаем её сами: сразу, если вкладка видна и ничего не печатают,
+// иначе — как только в неё вернутся.
 registerSW({ immediate: true });
+if ("serviceWorker" in navigator) {
+  let had = Boolean(navigator.serviceWorker.controller), done = false;
+  const typing = () => { const el = document.activeElement; return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement; };
+  const reload = () => { if (done) return; done = true; location.reload(); };
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!had) { had = true; return; } // первая установка: страница уже свежая
+    if (document.visibilityState === "visible" && !typing()) reload();
+    else document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && !typing()) reload(); });
+  });
+}

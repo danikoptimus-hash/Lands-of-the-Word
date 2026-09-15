@@ -208,8 +208,8 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .admin-map-area { position: absolute; inset: 0; }
 .admin-map.full { position: absolute; inset: 0; }
 .admin-map.full .mapwrap { position: absolute; inset: 0; height: auto; min-height: 0; border: 0; border-radius: 0; }
-.admin-map.full .view-as { position: absolute; left: 50%; top: calc(var(--sp-3) + var(--safe-top) + 60px); transform: translateX(-50%); z-index: 5; max-width: min(70vw, 720px); padding: var(--sp-1); background: color-mix(in srgb, var(--surface) 88%, transparent); border-radius: var(--r-full); box-shadow: var(--shadow-1); }
-.admin-map.full .view-as-hint { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--sp-3) + var(--safe-top) + 108px); z-index: 5; margin: 0; padding: var(--sp-1) var(--sp-3); background: color-mix(in srgb, var(--surface) 90%, transparent); border-radius: var(--r-sm); max-width: min(80vw, 560px); }
+.admin-map.full .view-as { position: absolute; right: calc(var(--sp-3) + var(--safe-right) + 56px + var(--sp-2)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; max-width: min(55vw, 720px); padding: var(--sp-1); background: color-mix(in srgb, var(--surface) 88%, transparent); border-radius: var(--r-full); box-shadow: var(--shadow-1); }
+.admin-map.full .view-as-hint { position: absolute; right: calc(var(--sp-3) + var(--safe-right) + 56px + var(--sp-2)); top: calc(var(--sp-3) + var(--safe-top) + 52px); z-index: 5; margin: 0; padding: var(--sp-1) var(--sp-3); background: color-mix(in srgb, var(--surface) 90%, transparent); border-radius: var(--r-sm); max-width: min(80vw, 560px); }
 .admin-map.full details.legend { position: absolute; left: calc(var(--sp-3) + var(--safe-left) + 76px); bottom: calc(var(--sp-3) + var(--safe-bottom)); z-index: 5; margin: 0; padding: 0 var(--sp-3); background: color-mix(in srgb, var(--surface) 90%, transparent); border-radius: var(--r-sm); box-shadow: var(--shadow-1); max-width: min(60vw, 520px); }
 .admin-map.full details.legend .items { padding-bottom: var(--sp-2); }
 .admin-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: var(--sp-4); }
@@ -236,7 +236,7 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
   .dock-btn { width: 62px; min-height: 52px; box-shadow: none; background: transparent; }
   .admin-timeline { bottom: calc(var(--sp-2) + var(--safe-bottom) + 76px); }
   .admin-map.full details.legend { left: calc(var(--sp-3) + var(--safe-left)); bottom: calc(var(--sp-2) + var(--safe-bottom) + 76px); display: none; }
-  .admin-map.full .view-as { left: calc(var(--sp-3) + var(--safe-left)); transform: none; top: calc(var(--sp-3) + var(--safe-top) + 52px); max-width: calc(100vw - 110px); }
-  .admin-map.full .view-as-hint { left: calc(var(--sp-3) + var(--safe-left)); transform: none; top: calc(var(--sp-3) + var(--safe-top) + 100px); max-width: calc(100vw - 110px); }
+  .admin-map.full .view-as { left: calc(var(--sp-3) + var(--safe-left)); right: auto; transform: none; top: calc(var(--sp-3) + var(--safe-top) + 52px); max-width: calc(100vw - 110px); }
+  .admin-map.full .view-as-hint { left: calc(var(--sp-3) + var(--safe-left)); right: auto; transform: none; top: calc(var(--sp-3) + var(--safe-top) + 100px); max-width: calc(100vw - 110px); }
   .admin-top { max-width: calc(100% - 2 * var(--sp-3)); }
 }
