@@ -300,7 +300,7 @@ const TERRAINS = ["desert", "hills", "meadow", "mountains", "water", "oasis"];
  * рисовать на телефоне), а задаются паттернами: по одному на местность и поворот (6 × 6). Под паттерном —
  * цвет местности, поэтому карта видна сразу, ещё до загрузки текстур. Туман — тёмные гексы.
  */
-export function HexTiles({ hexes, size = HEX_SIZE, clipId }: { hexes: MapHexDto[]; size?: number; clipId: string }) {
+export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false }: { hexes: MapHexDto[]; size?: number; clipId: string; /** Озёра рисует WebGL-слой под миром: у гекса воды нет заливки, только граница. */ liveWater?: boolean }) {
   const poly = hexPoints(size, 0.995);
   const fogPoly = hexPoints(size, 1.03);
   return (
@@ -318,7 +318,8 @@ export function HexTiles({ hexes, size = HEX_SIZE, clipId }: { hexes: MapHexDto[
         const c = hexCenter(h, size);
         if (!h.lit && h.lit !== undefined) return <polygon key={`f${h.q},${h.r}`} className="hex-fog" points={fogPoly} transform={`translate(${c.x},${c.y})`} fill={FOG_COLOR} />;
         const t = TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert";
-        return <polygon key={`t${h.q},${h.r}`} className="hex-tile" points={poly} transform={`translate(${c.x},${c.y})`} fill={`url(#${clipId}-${t}-${(h.rotation ?? 0) % 6})`} vectorEffect="non-scaling-stroke" />;
+        const fill = liveWater && t === "water" ? "none" : `url(#${clipId}-${t}-${(h.rotation ?? 0) % 6})`;
+        return <polygon key={`t${h.q},${h.r}`} className="hex-tile" points={poly} transform={`translate(${c.x},${c.y})`} fill={fill} vectorEffect="non-scaling-stroke" />;
       })}
     </>
   );

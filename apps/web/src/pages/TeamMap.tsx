@@ -45,6 +45,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const coast = useCoast(map.hexes, size);
   const islets = useIslets(map.hexes, size, bounds);
   const bed = useSeabed(map.hexes, islets, size, bounds);
+  const [liveWater, setLiveWater] = useState(true);
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
   // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
@@ -85,10 +86,11 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     <div ref={vp.ref} {...vp.handlers} className="map-canvas">
       <SeaLayer vp={vp} bed={bed} />
       <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
+      {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} />}
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
         <OutlineDefs colors={owners} />
-        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" />
+        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} />
         <CoastOver d={coast} size={size} />
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -118,7 +120,6 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           return null;
         })}
       </WorldSvg>
-      <LakesLayer vp={vp} hexes={map.hexes} size={size} />
       {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} />
       <WorldSvg vp={vp} bounds={bounds} overlay>

@@ -11,11 +11,8 @@ import { SEA_DEEP, SEA_MID, SEA_SHALLOW, type Seabed } from "./Seabed";
  * в глубине — гряды и впадины шумом. ~30 кадров в
  * секунду при видимой вкладке, разрешение не выше 1 пикселя на CSS-пиксель — воде хватает, телефону легче.
  */
-const VERT = `attribute vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
-const FRAG = `
-precision highp float;
-uniform vec2 uRes; uniform float uT; uniform float uD; uniform float uK; uniform vec2 uTxy; uniform float uDpr;
-uniform sampler2D uBed; uniform vec4 uBedRect; uniform vec3 uShallow, uMid, uDeep;
+/** Общие функции шума для шейдеров воды (море и озёра). */
+export const NOISE_GLSL = `
 // Хэш без sin: на телефонных GPU sin от больших чисел (далёкие клетки решётки, долгий дрейф) вырождается, и шум
 // шёл ровными прямоугольными пятнами по клеткам решётки. Клетки заворачиваются по 1024 — числа малые, точности хватает.
 vec2 hash2(vec2 p){ p = mod(p, 1024.0); vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); q += dot(q, q.yzx + 33.33); return fract((q.xx + q.yz) * q.zy); }
@@ -28,6 +25,13 @@ float caustic(vec2 p, float t, float w){ vec2 i = floor(p), f = fract(p); float 
   for (int y = -1; y <= 1; y++) for (int x = -1; x <= 1; x++) { vec2 g = vec2(float(x), float(y)); vec2 o = hash2(i + g); o = 0.5 + 0.28 * sin(t + 6.2831 * o);
     float d = length(g + o - f); if (d < f1) { f2 = f1; f1 = d; } else if (d < f2) { f2 = d; } }
   float e = (f2 - f1) / w; return exp(-e * e); }
+`;
+const VERT = `attribute vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
+const FRAG = `
+precision highp float;
+uniform vec2 uRes; uniform float uT; uniform float uD; uniform float uK; uniform vec2 uTxy; uniform float uDpr;
+uniform sampler2D uBed; uniform vec4 uBedRect; uniform vec3 uShallow, uMid, uDeep;
+${NOISE_GLSL}
 void main(){
   vec2 fc = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y) / uDpr;
   vec2 wp = (fc - uTxy) / uK;                       // координаты карты
@@ -68,7 +72,7 @@ void main(){
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLShader | null {
+export function compile(gl: WebGLRenderingContext, type: number, src: string): WebGLShader | null {
   const sh = gl.createShader(type); if (!sh) return null;
   gl.shaderSource(sh, src); gl.compileShader(sh);
   if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) { console.warn("sea shader:", gl.getShaderInfoLog(sh)); return null; }

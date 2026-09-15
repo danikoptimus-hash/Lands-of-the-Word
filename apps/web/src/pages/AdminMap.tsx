@@ -58,6 +58,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const coast = useCoast(hexes, size);
   const islets = useIslets(hexes, size, bounds);
   const bed = useSeabed(hexes, islets, size, bounds);
+  const [liveWater, setLiveWater] = useState(true);
   const edgeSet = useMemo(() => new Set(edges.map((e) => [e.aKey, e.bKey].sort().join("|"))), [edges]);
   const islandCenters = useMemo(() => {
     const acc = new Map<string, { x: number; y: number; n: number }>();
@@ -102,9 +103,10 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
           <SeaLayer vp={vp} bed={bed} />
           <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
+          {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} />}
           <WorldSvg vp={vp} bounds={bounds}>
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
-            <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" />
+            <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} />
             <CoastOver d={coast} size={size} />
             {nodes.map((n) => {
               const p = positions.get(n.key)!;
@@ -172,7 +174,6 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               })}
             </g>
           </WorldSvg>
-          <LakesLayer vp={vp} hexes={hexes} size={size} />
           <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} />
         </div>
         <div className="map-controls">

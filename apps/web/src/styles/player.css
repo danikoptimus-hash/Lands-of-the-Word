@@ -72,8 +72,8 @@
 .m-island { pointer-events: none; }
 /* Название острова (вариант владельца 15.09): лёгкий гротеск Philosopher капителью с широкой разрядкой, виньетки
    «— ✦ —» сверху и снизу, приглушённый коричневый и тонкая светлая обводка, чтобы отделить от фона. */
-.m-island text { font-family: "Philosopher", "Trebuchet MS", sans-serif; font-size: 16px; font-weight: 400; letter-spacing: .28em; text-transform: uppercase; fill: rgba(70, 58, 44, .82); stroke: rgba(255, 250, 240, .85); stroke-width: 2.4px; stroke-linejoin: round; paint-order: stroke fill; }
-.m-island .orn { font-size: 11px; letter-spacing: .1em; fill: rgba(70, 58, 44, .6); text-transform: none; }
+.m-island text { font-family: "Philosopher", "Trebuchet MS", sans-serif; font-size: 22px; font-weight: 400; letter-spacing: .28em; text-transform: uppercase; fill: rgba(70, 58, 44, .82); stroke: rgba(255, 250, 240, .85); stroke-width: 2.4px; stroke-linejoin: round; paint-order: stroke fill; }
+.m-island .orn { font-size: 14px; letter-spacing: .1em; fill: rgba(70, 58, 44, .6); text-transform: none; }
 .landing-banner { border-color: var(--success); color: var(--success); gap: var(--sp-3); width: calc(100% - 2 * var(--sp-4)); max-width: 520px; }
 .landing-banner span { flex: 1 1 auto; min-width: 0; }
 .landing-banner button { flex: none; }
