@@ -289,12 +289,12 @@ function surfDepth(s: Surf): number {
 
 interface Cet {
   spec: CetSpec; x: number; y: number; h: number; v: number; /** Угловая скорость (рад/с): курс меняется только через неё, плавно. */ om: number; turn: number; phase: number; depth: number; seed: number;
-  car: Carrot | null; surf: Surf | null;
+  car: Carrot | null; surf: Surf | null; trail: Trail;
   /** Дельфины: место в стае относительно поводка, начало прыжка и его прошедшая доля. */
   fdx: number; fdy: number; jumpAt: number; ju: number;
 }
 function makeCet(spec: CetSpec, car: Carrot | null, x: number, y: number, h: number): Cet {
-  return { spec, x, y, h, v: spec.speed, om: 0, turn: 0, phase: rnd(0, TAU), depth: 0.3, seed: rnd(0, 100), car, surf: spec.kind === "dolphin" ? null : makeSurf(spec.kind), fdx: 0, fdy: 0, jumpAt: -1e9, ju: 0 };
+  return { spec, x, y, h, v: spec.speed, om: 0, turn: 0, phase: rnd(0, TAU), depth: 0.3, seed: rnd(0, 100), car, surf: spec.kind === "dolphin" ? null : makeSurf(spec.kind), trail: makeTrail(), fdx: 0, fdy: 0, jumpAt: -1e9, ju: 0 };
 }
 /**
  * Плывёт к цели как тело, а не как точка: движется только вдоль своего курса, курс меняется через угловую
@@ -403,6 +403,7 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
   if (s.t >= tEnd) resetSurf(s, sp.kind);
   // У поверхности спина чуть «дышит»: лёгкие колебания глубины.
   c.depth = surfDepth(s) + 0.04 * (1 + Math.sin(T * 0.9 + c.seed));
+  trailPush(c.trail, c.x, c.y, T, clamp(1 - clamp(c.depth, 0, 1) / 0.32, 0, 1), sp.L * 0.12);
 }
 /** Дельфины: держат строй за общим поводком (пружинные смещения), по очереди выпрыгивают. */
 function stepPod(ds: Cet[], pod: Carrot, p: Profile, size: number, fx: Fx, dt: number, T: number): void {
@@ -427,6 +428,7 @@ function stepPod(ds: Cet[], pod: Carrot, p: Profile, size: number, fx: Fx, dt: n
       if (d.ju < 0.9 && u >= 0.9) { emitRing(fx, axisX(d, sp.L * 0.3), axisY(d, sp.L * 0.3), T, sp.L * 0.25, sp.L * 1.1, 1.5); emitDrops(fx, axisX(d, sp.L * 0.4), axisY(d, sp.L * 0.4), T, 9, sp.L * 2, sp.L * 0.03); }
       d.ju = u;
     } else { d.ju = 0; d.depth = 0.26 + 0.07 * Math.sin(T * 1.3 + d.seed); }
+    trailPush(d.trail, d.x, d.y, T, d.depth < 0 ? 0 : clamp(1 - clamp(d.depth, 0, 1) / 0.32, 0, 1), sp.L * 0.15);
   }
 }
 
@@ -536,21 +538,77 @@ function spineEllipse(ctx: CanvasRenderingContext2D, L: number, i: number, v: nu
   ctx.ellipse(x, y, L * ru, L * rv, SA[i]! + tilt, 0, TAU);
 }
 /** Кильватер у поверхности: светлое пятно потревоженной воды, клин расходящихся полос от носа, пенный след за хвостом. */
-function drawWake(ctx: CanvasRenderingContext2D, L: number, surf: number, px: number): void {
-  ctx.fillStyle = "rgb(214,240,246)"; ctx.globalAlpha = surf * 0.13;
-  ctx.beginPath(); ctx.ellipse(-L * 0.05, 0, L * 0.62, L * 0.3, 0, 0, TAU); ctx.fill();
-  ctx.strokeStyle = "rgb(236,249,252)"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(px * 1.2, L * 0.02);
-  const x0 = L * 0.34, seg = L * 0.55, tan = 0.2;
-  for (let k = 0; k < 3; k++) { // три отрезка с убывающей яркостью вместо градиента
-    ctx.globalAlpha = surf * (k === 0 ? 0.36 : k === 1 ? 0.2 : 0.08);
-    const xa = x0 - seg * k, xb = x0 - seg * (k + 1);
+/**
+ * Шлейф по пройденному пути (решение владельца 16.09: прямой след позади тела неестественен). Тело оставляет
+ * точки (положение, время, сила у поверхности), след рисуется по ним: пенная полоса по осевой линии и два
+ * расходящихся крыла (угол Кельвина ≈ 19°), с возрастом бледнеет и расширяется, повторяет все изгибы курса.
+ */
+const TRAIL_N = 64;
+interface Trail { x: Float32Array; y: Float32Array; t: Float32Array; s: Float32Array; n: number; head: number; lastX: number; lastY: number }
+const makeTrail = (): Trail => ({ x: new Float32Array(TRAIL_N), y: new Float32Array(TRAIL_N), t: new Float32Array(TRAIL_N), s: new Float32Array(TRAIL_N), n: 0, head: 0, lastX: NaN, lastY: NaN });
+function trailPush(tr: Trail, x: number, y: number, T: number, strength: number, minStep: number): void {
+  if (Number.isNaN(tr.lastX)) { tr.lastX = x; tr.lastY = y; }
+  const d = Math.hypot(x - tr.lastX, y - tr.lastY);
+  if (d > minStep * 12) { tr.n = 0; tr.head = 0; } // перенос за край: след начинается заново
+  else if (d < minStep) return;
+  tr.x[tr.head] = x; tr.y[tr.head] = y; tr.t[tr.head] = T; tr.s[tr.head] = strength;
+  tr.head = (tr.head + 1) % TRAIL_N; if (tr.n < TRAIL_N) tr.n++;
+  tr.lastX = x; tr.lastY = y;
+}
+function drawTrail(ctx: CanvasRenderingContext2D, tr: Trail, T: number, L: number, life: number, px: number, vis: Vis, wings: boolean): void {
+  if (tr.n < 2) return;
+  // Собираем точки следа от свежих к старым: [x, y, свежесть 0..1, сила].
+  let n = 0;
+  for (let k = 0; k < tr.n && n < TRAIL_N; k++) {
+    const i = (tr.head - 1 - k + TRAIL_N * 2) % TRAIL_N, a = 1 - (T - tr.t[i]!) / life;
+    if (a <= 0) break;
+    TX[n] = tr.x[i]!; TY[n] = tr.y[i]!; TA[n] = a; TS[n] = tr.s[i]!; n++;
+  }
+  if (n < 2 || !(inView(vis, TX[0]!, TY[0]!) || inView(vis, TX[n - 1]!, TY[n - 1]!) || inView(vis, TX[n >> 1]!, TY[n >> 1]!))) return;
+  ctx.strokeStyle = "rgb(236,249,252)"; ctx.lineCap = "butt"; ctx.lineJoin = "round";
+  // Осевая пена: сплошная полоса, четыре возрастные группы — чем старше, тем шире и бледнее (без «бус»).
+  const BANDS = 4;
+  for (let bnd = 0; bnd < BANDS; bnd++) {
+    const lo = bnd / BANDS, hi = (bnd + 1) / BANDS; // доля возраста
+    let drawn = false; let sSum = 0, sN = 0;
     ctx.beginPath();
-    ctx.moveTo(xa, (x0 - xa) * tan); ctx.lineTo(xb, (x0 - xb) * tan);
-    ctx.moveTo(xa, -(x0 - xa) * tan); ctx.lineTo(xb, -(x0 - xb) * tan);
+    for (let k = 0; k < n - 1; k++) {
+      const age = 1 - TA[k]!;
+      if (age < lo || age >= hi) { if (drawn) { drawn = false; } continue; }
+      if (!drawn) { ctx.moveTo(TX[k]!, TY[k]!); drawn = true; }
+      ctx.lineTo(TX[k + 1]!, TY[k + 1]!); sSum += TS[k]!; sN++;
+    }
+    if (!sN) continue;
+    const mid = (lo + hi) / 2, f = 1 - mid;
+    ctx.globalAlpha = 0.26 * f * f * (sSum / sN); ctx.lineWidth = Math.max(px, L * (0.08 + 0.2 * mid));
     ctx.stroke();
   }
-  ctx.globalAlpha = surf * 0.1; ctx.lineWidth = L * 0.1;
-  ctx.beginPath(); ctx.moveTo(-L * 0.5, 0); ctx.lineTo(-L * 1.3, 0); ctx.stroke();
+  if (wings) { // расходящиеся крылья — тоньше и короче пены, гаснут быстрее
+    ctx.lineWidth = Math.max(px, L * 0.014);
+    for (let side = -1; side <= 1; side += 2) {
+      ctx.beginPath(); let started = false;
+      for (let k = 0; k < n; k++) {
+        const j = k < n - 1 ? k + 1 : k - 1, dx = TX[k]! - TX[j]!, dy = TY[k]! - TY[j]!, dl = Math.hypot(dx, dy) || 1;
+        const nx = -dy / dl * side * (k < n - 1 ? 1 : -1), ny = dx / dl * side * (k < n - 1 ? 1 : -1);
+        const age = (1 - TA[k]!) * life, off = L * 0.17 + age * L * 0.085;
+        if (TA[k]! < 0.35) break;
+        const x = TX[k]! + nx * off, y = TY[k]! + ny * off;
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      }
+      ctx.globalAlpha = 0.16; ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+const TX = new Float32Array(TRAIL_N), TY = new Float32Array(TRAIL_N), TA = new Float32Array(TRAIL_N), TS = new Float32Array(TRAIL_N);
+
+/** Пена у самого тела на поверхности (мягкое пятно и носовая волна); дальний след рисует drawTrail по пути. */
+function drawBodyFoam(ctx: CanvasRenderingContext2D, L: number, surf: number, px: number): void {
+  ctx.fillStyle = "rgb(214,240,246)"; ctx.globalAlpha = surf * 0.13;
+  ctx.beginPath(); ctx.ellipse(-L * 0.05, 0, L * 0.62, L * 0.3, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = "rgb(236,249,252)"; ctx.lineCap = "round"; ctx.lineWidth = Math.max(px * 1.2, L * 0.02); ctx.globalAlpha = surf * 0.36;
+  ctx.beginPath(); ctx.moveTo(L * 0.34, L * 0.07); ctx.lineTo(L * 0.05, L * 0.16); ctx.moveTo(L * 0.34, -L * 0.07); ctx.lineTo(L * 0.05, -L * 0.16); ctx.stroke();
+  ctx.globalAlpha = 1;
 }
 /** Блики каустики: тонкие светлые полосы в мировых осях, ползут по спине; видны только на погружённом теле. */
 function drawCaustics(ctx: CanvasRenderingContext2D, h: number, L: number, m: number, alpha: number, T: number): void {
@@ -662,7 +720,7 @@ function drawCet(ctx: CanvasRenderingContext2D, c: Cet, T: number, px: number, l
     ctx.beginPath(); ctx.ellipse(ox, oy, L * 0.42, L * 0.13, 0, 0, TAU); ctx.fill();
   }
   const sc = (1 - 0.15 * m) * (1 + 0.2 * air); ctx.scale(sc, sc);
-  if (surf > 0 && air === 0) drawWake(ctx, L, surf, px);
+  if (surf > 0 && air === 0) drawBodyFoam(ctx, L, surf, px);
   // Плавники и лопасти всегда чуть глубже спины (спина у поверхности выступает из воды, плавники — нет).
   const mf = Math.max(m, 0.25), it = N - 1, body = underwater(sp.col.body, m), finColor = underwater(sp.col.fin, mf), paleColor = underwater(sp.col.pale, mf);
   // Лопасти горизонтальны и бьют вверх-вниз: сверху это лишь лёгкое сокращение проекции. Светлая исподняя сторона видна задней кромкой.
@@ -873,6 +931,9 @@ function stepWorld(w: World, dt: number): void {
 }
 function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis): void {
   const T = w.T, px = 1 / k, lod = k >= 1.1, size = w.size, p = w.p;
+  // Следы по пройденному пути — под телами; у зверей только у поверхности, у кораблей всегда и с крыльями.
+  for (const c of w.cets) drawTrail(ctx, c.trail, T, c.spec.L, c.spec.kind === "dolphin" ? 3 : 6, px, vis, false);
+  for (const sh of w.ships) drawTrail(ctx, sh.trail, T, sh.spec.L, 9, px, vis, true);
   for (const c of w.cets) if (inView(vis, c.x, c.y)) drawCet(ctx, c, T, px, lod);
   drawFx(ctx, w.fx, T, px, vis);
   for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
@@ -914,7 +975,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis)
  */
 type ShipKind = "sloop" | "cog" | "ship";
 interface ShipSpec { kind: ShipKind; L: number; W: number; speed: number; maxTurn: number; /** Минимальный радиус циркуляции в длинах корпуса. */ turnR: number; masts: number[]; square: boolean; hull: string; deck: string; sail: string; sailShade: string }
-interface Ship { spec: ShipSpec; car: Carrot; x: number; y: number; h: number; v: number; om: number; seed: number }
+interface Ship { spec: ShipSpec; car: Carrot; x: number; y: number; h: number; v: number; om: number; seed: number; trail: Trail }
 function shipSpec(kind: ShipKind, size: number): ShipSpec {
   switch (kind) {
     case "sloop": return { kind, L: size * 0.95, W: 0.34, speed: size * 0.24, maxTurn: 0.3, turnR: 1.6, masts: [0.18], square: false, hull: "rgb(78,50,32)", deck: "rgb(176,136,92)", sail: "rgb(243,236,220)", sailShade: "rgb(210,198,174)" };
@@ -924,7 +985,7 @@ function shipSpec(kind: ShipKind, size: number): ShipSpec {
 }
 function makeShip(kind: ShipKind, p: Profile, size: number): Ship {
   const car = makeCarrot(p, size, size * rnd(2.8, 4.2), size * 0.3);
-  const spec = shipSpec(kind, size); return { spec, car, x: car.x, y: car.y, h: car.h, v: spec.speed, om: 0, seed: rnd(0, 100) };
+  const spec = shipSpec(kind, size); return { spec, car, x: car.x, y: car.y, h: car.h, v: spec.speed, om: 0, seed: rnd(0, 100), trail: makeTrail() };
 }
 function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number): void {
   const sp = sh.spec, car = sh.car;
@@ -944,6 +1005,7 @@ function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number): vo
   sh.h = wrapAngle(sh.h + sh.om * dt);
   sh.x += Math.cos(sh.h) * sh.v * dt; sh.y += Math.sin(sh.h) * sh.v * dt;
   keepInWater(sh, p, size * 2.4, dt, sp.maxTurn);
+  trailPush(sh.trail, sh.x, sh.y, T, 1, sp.L * 0.1);
 }
 /**
  * Парусник сверху, как и вся карта (решение владельца 16.09), но проработанный: корпус с округлым бортом
@@ -1081,7 +1143,7 @@ function drawShip(ctx: CanvasRenderingContext2D, sh: Ship, T: number, px: number
   const rock = 0.02 * Math.sin(T * 0.7 + sh.seed);
   ctx.save(); ctx.translate(sh.x, sh.y);
   // кильватер и носовая волна
-  ctx.save(); ctx.rotate(sh.h); drawWake(ctx, L * 0.75, 0.6, px);
+  ctx.save(); ctx.rotate(sh.h);
   ctx.globalAlpha = 0.45; ctx.strokeStyle = "rgb(236,249,252)"; ctx.lineWidth = Math.max(px * 1.2, L * 0.02);
   ctx.beginPath(); ctx.moveTo(L * 0.5, 0); ctx.quadraticCurveTo(L * 0.3, -W * 0.7, -L * 0.1, -W * 0.95); ctx.moveTo(L * 0.5, 0); ctx.quadraticCurveTo(L * 0.3, W * 0.7, -L * 0.1, W * 0.95); ctx.stroke();
   ctx.restore();
@@ -1102,7 +1164,7 @@ export function drawShipsPreview(ctx: CanvasRenderingContext2D, size: number, T:
   kinds.forEach((kind, i) => {
     const spec = shipSpec(kind, size);
     const car: Carrot = { off: 0, wob: 0, seed: 1, x: 0, y: 0, h: heading, x0: 0, y0: 0, x1: 1, y1: 0, len: 1, t: 0, wait: 0 };
-    const sh: Ship = { spec, car, x: size * (2 + i * 3.2), y: size * 2, h: heading, v: spec.speed, om: 0, seed: i * 7 };
+    const sh: Ship = { spec, car, x: size * (2 + i * 3.2), y: size * 2, h: heading, v: spec.speed, om: 0, seed: i * 7, trail: makeTrail() };
     drawShip(ctx, sh, T, 1 / 4, true);
   });
 }
@@ -1114,6 +1176,14 @@ export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, st
   const out = movers.map((mv) => ({ kind: mv.kind, samples: [] as Array<[number, number, number, number]> }));
   for (let t = 0; t < seconds; t += step) { stepWorld(w, step); movers.forEach((mv, i) => out[i]!.samples.push([mv.m.x, mv.m.y, mv.m.h, mv.car ? mv.car.wait : -1])); }
   return out;
+}
+
+/** Стенд (scripts): прогнать мир seconds секунд и нарисовать его целиком на ctx (в единицах карты, масштаб задаёт ctx). */
+export function renderWorldSnapshot(ctx: CanvasRenderingContext2D, hexes: MapHexDto[], size: number, seconds: number, k: number): void {
+  const p = islandProfile(hexes, size, []); if (!p) return;
+  const w = createWorld(p, size);
+  for (let t = 0; t < seconds; t += 1 / 24) stepWorld(w, 1 / 24);
+  drawWorld(ctx, w, k, { x0: -1e9, y0: -1e9, x1: 1e9, y1: 1e9 });
 }
 
 // ───────────────────────────── Слой ─────────────────────────────

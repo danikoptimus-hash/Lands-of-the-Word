@@ -1,6 +1,7 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
   "Что нового": "What's new",
+  "След за парусниками и зверями идёт по пройденному пути и повторяет все повороты, расходясь и растворяясь с расстоянием.": "The wake behind ships and sea creatures follows the path travelled and repeats every turn, spreading and fading with distance.",
   "Киты, косатки, дельфины и парусники поворачивают по дуге, как настоящие тела: без «проворота» на месте, с радиусом разворота и заранее огибая берег.": "Whales, orcas, dolphins and ships now turn along an arc like real bodies: no pivoting on the spot, with a turning radius, steering around the coast ahead of time.",
   "По большому морю неспешно ходят парусники трёх видов: рыбацкий шлюп, когг с прямым парусом и трёхмачтовый корабль — вид сверху, как вся карта, с обшивкой, снастями и надутыми парусами.": "Three kinds of sailing ships slowly cross the open sea: a fishing sloop, a cog with a square sail and a three-masted ship, seen from above like the whole map, with planking, rigging and wind-filled sails.",
   "Кратко об изменениях игры по датам. Подробности:": "A short list of changes to the game by date. Details:",
