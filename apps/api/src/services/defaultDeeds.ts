@@ -6,6 +6,7 @@ import { z } from "zod";
 import { BOOKS } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { publish } from "./events.js";
+import { bookOfNodeKey, pickDeed } from "./teamMap.js";
 
 /**
  * Стандартный набор дел (content/deeds-default.json) и его синхронизация с играми.
@@ -37,6 +38,13 @@ export const deedBody = z.object({
 export type DeedFields = z.infer<typeof deedBody>;
 const setItem = deedBody.extend({ replaces: z.array(z.string().trim().min(2)).default([]) });
 export type DefaultDeed = z.infer<typeof setItem>;
+
+/**
+ * Дела, снятые владельцем с набора: убираются из всех незавершённых игр безусловно (решение владельца 16.09),
+ * даже если в игре у них нет хеша набора. Свободные стороны с таким делом получают другое дело; если дело уже
+ * взято или сдано командой, оно остаётся до конца игры (сдачу ломать нельзя).
+ */
+export const RETIRED_TITLES = ["Помочь с подготовкой проповеди"];
 
 const FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../content/deeds-default.json");
 export async function loadDefaultDeeds(): Promise<DefaultDeed[]> {
@@ -90,8 +98,29 @@ export async function syncGameDeeds(gameId: string, mode: "auto" | "add" | "repl
       await prisma.deed.delete({ where: { id: d.id } }); res.removed++;
     }
   }
+  // Снятые владельцем дела — из любой игры, в любом режиме.
+  for (const d of deeds) if (RETIRED_TITLES.some((t) => lc(t) === lc(d.title)) && (await removeDeed(gameId, d.id))) res.removed++;
   if (res.added || res.updated || res.removed) publish(gameId, { type: "deeds" });
   return res;
+}
+
+/**
+ * Удаляет дело из игры: свободные стороны с ним получают другое дело; если дело взято или сдано —
+ * удалить нельзя, возвращает false.
+ */
+export async function removeDeed(gameId: string, deedId: string): Promise<boolean> {
+  const deed = await prisma.deed.findFirst({ where: { id: deedId, gameId }, include: { edgeTasks: { select: { id: true, teamId: true, fromKey: true, status: true } } } });
+  if (!deed) return false;
+  if (deed.edgeTasks.some((t) => t.status !== "OPEN")) return false;
+  if (deed.edgeTasks.length > 0 && (await prisma.deed.count({ where: { gameId, id: { not: deedId } } })) === 0) return false;
+  for (const t of deed.edgeTasks) {
+    const replacement = await pickDeed(gameId, t.teamId, await bookOfNodeKey(gameId, t.fromKey), deedId);
+    if (!replacement) return false;
+    await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: replacement } });
+  }
+  await prisma.deed.delete({ where: { id: deedId } });
+  if (deed.edgeTasks.length > 0) publish(gameId, { type: "map" });
+  return true;
 }
 
 /** При старте сервера: все незавершённые игры. */

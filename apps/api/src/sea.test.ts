@@ -68,6 +68,11 @@ describe("стандартный набор дел", () => {
     expect(after.find((d) => d.id === a.id)!.description).not.toBe("старый текст набора");
     expect(after.find((d) => d.id === b.id)!.description).toBe("правка администратора");
     expect(after.some((d) => d.id === c.id)).toBe(false);
+    // снятое владельцем дело (без хеша набора, как в старых играх) убирается безусловно
+    const retired = await prisma.deed.create({ data: { gameId, title: "Помочь с подготовкой проповеди", description: "старое", direction: "Педагогическое служение" } });
+    const r2 = await syncGameDeeds(gameId, "auto");
+    expect(r2.removed).toBe(1);
+    expect(await prisma.deed.findUnique({ where: { id: retired.id } })).toBeNull();
     // игра без набора: ничего не добавляется
     const g2 = (await app.inject({ method: "POST", url: "/api/games", headers: { cookie: adminCookie }, payload: { name: "Своя", teamCount: 2 } })).json().game.id as string;
     await app.inject({ method: "POST", url: `/api/games/${g2}/deeds`, headers: { cookie: adminCookie }, payload: { title: "Своё дело", direction: "Посещение" } });
