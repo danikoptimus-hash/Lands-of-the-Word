@@ -953,15 +953,18 @@ function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number): vo
  * пузо парусов — на −y (левый борт); при ветре с другого борта спрайт зеркалится по y.
  * Рисуется один раз в спрайт (SPR px на единицу карты) и дальше копируется с поворотом по курсу.
  */
-const SPR = 3;
-const spriteCache = new Map<ShipKind, { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number }>();
-function shipSprite(sp: ShipSpec): { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number } {
-  const hit = spriteCache.get(sp.kind); if (hit) return hit;
+/** Уровни разрешения спрайта (px на единицу карты): берётся ближайший не ниже текущего масштаба экрана, чтобы при приближении корабль оставался резким. */
+const SPR_LEVELS = [1, 2, 4, 8, 12];
+const spriteCache = new Map<string, { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number }>();
+function shipSprite(sp: ShipSpec, pxPerUnit: number): { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number } {
+  const res = SPR_LEVELS.find((r) => r >= pxPerUnit) ?? SPR_LEVELS[SPR_LEVELS.length - 1]!;
+  const key = `${sp.kind}:${res}`;
+  const hit = spriteCache.get(key); if (hit) return hit;
   const L = sp.L, w = L * 1.5, h = L * 1.0, ox = L * 0.7, oy = L * 0.5;
-  const c = document.createElement("canvas"); c.width = Math.ceil(w * SPR); c.height = Math.ceil(h * SPR);
-  const g = c.getContext("2d")!; g.scale(SPR, SPR); g.translate(ox, oy);
+  const c = document.createElement("canvas"); c.width = Math.ceil(w * res); c.height = Math.ceil(h * res);
+  const g = c.getContext("2d")!; g.scale(res, res); g.translate(ox, oy);
   paintShip(g, sp);
-  const out = { c, w, h, ox, oy }; spriteCache.set(sp.kind, out); return out;
+  const out = { c, w, h, ox, oy }; spriteCache.set(key, out); return out;
 }
 function hullPath(L: number, W: number): Path2D {
   const p = new Path2D();
@@ -1069,7 +1072,8 @@ function paintShip(g: CanvasRenderingContext2D, sp: ShipSpec): void {
   g.fillStyle = "rgb(184,50,40)"; g.beginPath(); g.moveTo(mm, 0); g.lineTo(mm - L * 0.11, -L * 0.05); g.lineTo(mm - L * 0.13, -L * 0.02); g.lineTo(mm - L * 0.03, -L * 0.005); g.closePath(); g.fill();
 }
 function drawShip(ctx: CanvasRenderingContext2D, sh: Ship, T: number, px: number, lod: boolean): void {
-  const sp = sh.spec, L = sp.L, W = L * sp.W, spr = shipSprite(sp);
+  const t = ctx.getTransform(), pxPerUnit = Math.hypot(t.a, t.b); // масштаб экрана с учётом dpr
+  const sp = sh.spec, L = sp.L, W = L * sp.W, spr = shipSprite(sp, pxPerUnit);
   // Ветер в осях корабля: пузо парусов на подветренный борт (зеркало по y, если ветер дует на +y)
   const wl = Math.hypot(WIND_X, WIND_Y) || 1, ch = Math.cos(-sh.h), shh = Math.sin(-sh.h);
   const wy = (WIND_X * shh + WIND_Y * ch) / wl;
