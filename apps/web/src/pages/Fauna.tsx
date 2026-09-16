@@ -555,47 +555,48 @@ function trailPush(tr: Trail, x: number, y: number, T: number, strength: number,
   tr.head = (tr.head + 1) % TRAIL_N; if (tr.n < TRAIL_N) tr.n++;
   tr.lastX = x; tr.lastY = y;
 }
+/** Лента вдоль точек следа: ширина w(k) и смещение off(k) от осевой линии (в единицах карты), замкнутый контур. */
+function ribbon(n: number, w: (k: number) => number, off: (k: number) => number): Path2D {
+  const pth = new Path2D();
+  for (let pass = 0; pass < 2; pass++) {
+    const sgn = pass === 0 ? 1 : -1;
+    for (let q = 0; q < n; q++) {
+      const k = pass === 0 ? q : n - 1 - q;
+      const j = k < n - 1 ? k + 1 : k - 1, dx = (TX[k]! - TX[j]!) * (k < n - 1 ? 1 : -1), dy = (TY[k]! - TY[j]!) * (k < n - 1 ? 1 : -1), dl = Math.hypot(dx, dy) || 1;
+      const nx = -dy / dl, ny = dx / dl, o = off(k) + sgn * w(k) * 0.5;
+      const x = TX[k]! + nx * o, y = TY[k]! + ny * o;
+      if (pass === 0 && q === 0) pth.moveTo(x, y); else pth.lineTo(x, y);
+    }
+  }
+  pth.closePath(); return pth;
+}
 function drawTrail(ctx: CanvasRenderingContext2D, tr: Trail, T: number, L: number, life: number, px: number, vis: Vis, wings: boolean): void {
   if (tr.n < 2) return;
-  // Собираем точки следа от свежих к старым: [x, y, свежесть 0..1, сила].
-  let n = 0;
+  // Точки следа от свежих к старым: [x, y, свежесть 0..1, сила].
+  let n = 0, sSum = 0;
   for (let k = 0; k < tr.n && n < TRAIL_N; k++) {
     const i = (tr.head - 1 - k + TRAIL_N * 2) % TRAIL_N, a = 1 - (T - tr.t[i]!) / life;
     if (a <= 0) break;
-    TX[n] = tr.x[i]!; TY[n] = tr.y[i]!; TA[n] = a; TS[n] = tr.s[i]!; n++;
+    TX[n] = tr.x[i]!; TY[n] = tr.y[i]!; TA[n] = a; TS[n] = tr.s[i]!; sSum += tr.s[i]!; n++;
   }
-  if (n < 2 || !(inView(vis, TX[0]!, TY[0]!) || inView(vis, TX[n - 1]!, TY[n - 1]!) || inView(vis, TX[n >> 1]!, TY[n >> 1]!))) return;
-  ctx.strokeStyle = "rgb(236,249,252)"; ctx.lineCap = "butt"; ctx.lineJoin = "round";
-  // Осевая пена: сплошная полоса, четыре возрастные группы — чем старше, тем шире и бледнее (без «бус»).
-  const BANDS = 4;
-  for (let bnd = 0; bnd < BANDS; bnd++) {
-    const lo = bnd / BANDS, hi = (bnd + 1) / BANDS; // доля возраста
-    let drawn = false; let sSum = 0, sN = 0;
-    ctx.beginPath();
-    for (let k = 0; k < n - 1; k++) {
-      const age = 1 - TA[k]!;
-      if (age < lo || age >= hi) { if (drawn) { drawn = false; } continue; }
-      if (!drawn) { ctx.moveTo(TX[k]!, TY[k]!); drawn = true; }
-      ctx.lineTo(TX[k + 1]!, TY[k + 1]!); sSum += TS[k]!; sN++;
-    }
-    if (!sN) continue;
-    const mid = (lo + hi) / 2, f = 1 - mid;
-    ctx.globalAlpha = 0.26 * f * f * (sSum / sN); ctx.lineWidth = Math.max(px, L * (0.08 + 0.2 * mid));
-    ctx.stroke();
+  if (n < 3 || sSum <= 0) return;
+  if (!(inView(vis, TX[0]!, TY[0]!) || inView(vis, TX[n - 1]!, TY[n - 1]!) || inView(vis, TX[n >> 1]!, TY[n >> 1]!))) return;
+  const strength = sSum / n;
+  // Затухание вдоль следа: градиент от свежего конца к старому (для плавной ленты этого достаточно).
+  const grad = ctx.createLinearGradient(TX[0]!, TY[0]!, TX[n - 1]!, TY[n - 1]!);
+  grad.addColorStop(0, "rgba(236,249,252,1)"); grad.addColorStop(0.55, "rgba(236,249,252,0.45)"); grad.addColorStop(1, "rgba(236,249,252,0)");
+  ctx.fillStyle = grad;
+  // Осевая пена: три вложенные ленты — узкая ярче, широкие бледнее (мягкие края, без ступеней).
+  const minW = Math.max(px * 2, L * 0.04);
+  for (const [mult, alpha] of [[1, 0.22], [1.7, 0.12], [2.6, 0.06]] as const) {
+    ctx.globalAlpha = alpha * strength;
+    ctx.fill(ribbon(n, (k) => Math.max(minW, L * (0.08 + 0.24 * (1 - TA[k]!)) * mult), () => 0));
   }
-  if (wings) { // расходящиеся крылья — тоньше и короче пены, гаснут быстрее
-    ctx.lineWidth = Math.max(px, L * 0.014);
-    for (let side = -1; side <= 1; side += 2) {
-      ctx.beginPath(); let started = false;
-      for (let k = 0; k < n; k++) {
-        const j = k < n - 1 ? k + 1 : k - 1, dx = TX[k]! - TX[j]!, dy = TY[k]! - TY[j]!, dl = Math.hypot(dx, dy) || 1;
-        const nx = -dy / dl * side * (k < n - 1 ? 1 : -1), ny = dx / dl * side * (k < n - 1 ? 1 : -1);
-        const age = (1 - TA[k]!) * life, off = L * 0.17 + age * L * 0.085;
-        if (TA[k]! < 0.35) break;
-        const x = TX[k]! + nx * off, y = TY[k]! + ny * off;
-        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
-      }
-      ctx.globalAlpha = 0.16; ctx.stroke();
+  if (wings) { // расходящиеся крылья: две тонкие ленты, смещение растёт с возрастом, живут 60 % следа
+    let m = 0; while (m < n && TA[m]! > 0.4) m++;
+    if (m >= 3) {
+      ctx.globalAlpha = 0.14;
+      for (const side of [1, -1]) ctx.fill(ribbon(m, (k) => Math.max(px * 1.5, L * 0.03 + L * 0.02 * (1 - TA[k]!)), (k) => side * (L * 0.17 + (1 - TA[k]!) * life * L * 0.085)));
     }
   }
   ctx.globalAlpha = 1;
