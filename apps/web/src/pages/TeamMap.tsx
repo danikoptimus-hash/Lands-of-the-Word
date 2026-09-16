@@ -80,7 +80,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   // Уровни детализации: при отдалении метки дел прячутся, подписи городов становятся короче и мельче.
   const showMarkers = k >= 0.9, fullLabels = k >= 1.6, showForks = k >= 0.7;
   // Город масштабируется с картой: сидит на перекрёстке и занимает место до середины трёх сторон.
-  const CITY = size * 1.15, START = size * 1.35;
+  const CITY = size * 0.77, START = size * 0.9; // решение владельца 16.09: знаки городов и стартов в полтора раза меньше прежних (1,15 и 1,35)
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста), extra — после масштаба. */
   const sc = (x: number, y: number, extra = "") => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))${extra ? " " + extra : ""}` });
 

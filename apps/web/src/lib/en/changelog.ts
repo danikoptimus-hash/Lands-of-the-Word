@@ -1,6 +1,7 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
   "Что нового": "What's new",
+  "Знаки городов и стартовых точек на карте уменьшены в полтора раза.": "City and starting-point markers on the map are one and a half times smaller.",
   "Новые и изменённые дела стандартного набора теперь сами попадают в идущие игры, где набор использован; дела, которые администратор правил, не трогаются.": "New and changed deeds of the default set now reach running games that use the set by themselves; deeds edited by the administrator are left alone.",
   "В стандартном наборе дел появился пост за нужды семьи, молодёжи, церкви или братства; в деле про угощение уточнено: любого человека, кроме ближайших родственников.": "The default deed set gained a fast for the needs of family, youth, church or brotherhood; the meal deed now says: anyone except close relatives.",
   "След за парусниками и зверями идёт по пройденному пути и повторяет все повороты, расходясь и растворяясь с расстоянием.": "The wake behind ships and sea creatures follows the path travelled and repeats every turn, spreading and fading with distance.",

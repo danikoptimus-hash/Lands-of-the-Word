@@ -125,7 +125,8 @@ export async function removeDeed(gameId: string, deedId: string): Promise<boolea
 
 /** При старте сервера: все незавершённые игры. */
 export async function syncAllGames(log: { info: (o: object, msg: string) => void; error: (o: object, msg: string) => void }): Promise<void> {
-  const games = await prisma.game.findMany({ where: { status: { not: "FINISHED" } }, select: { id: true } });
+  // Недоступная база при старте не должна ронять сервер: сервер поднимется, синхронизация пройдёт при следующем запуске.
+  const games = await prisma.game.findMany({ where: { status: { not: "FINISHED" } }, select: { id: true } }).catch((e: unknown) => { log.error({ err: e }, "default deeds sync skipped: database unavailable"); return [] as Array<{ id: string }>; });
   const total: SyncResult = { added: 0, updated: 0, removed: 0 };
   for (const g of games) {
     try { const r = await syncGameDeeds(g.id, "auto"); total.added += r.added; total.updated += r.updated; total.removed += r.removed; }

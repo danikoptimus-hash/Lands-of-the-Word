@@ -92,7 +92,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const worldBody = useMemo(() => (<>
             {nodes.map((n) => {
               const p = positions.get(n.key)!;
-              const CITY = size * 1.15, START = size * 1.35;
+              const CITY = size * 0.77, START = size * 0.9; // решение владельца 16.09: знаки городов и стартов в полтора раза меньше прежних (1,15 и 1,35)
               if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
               if (n.kind === "CITY") {
                 const owner = ownerOf.get(n.key);
@@ -143,7 +143,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                       {seen.map((tm, i) => <circle key={tm.id} className="quiet" cx={14 - i * 9} cy={-14} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
                     </g>
                     {showLabels && (
-                      <g className="pick" style={sc(raw.x, raw.y + size * 1.15 * 0.48)} onClick={pick}>
+                      <g className="pick" style={sc(raw.x, raw.y + size * 0.77 * 0.48)} onClick={pick}>
                         <g className="quiet">
                           <rect x={-lw / 2} y={-10} width={lw} height={20} rx={10} fill={sel ? "var(--accent)" : "var(--map-paper)"} stroke="var(--text)" strokeWidth={1} />
                           <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{label}</text>
