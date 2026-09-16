@@ -117,7 +117,8 @@ export function GamePage() {
   }
 
   if (error && !game) return <><Back to="/" label={t("Мои игры")} /><div className="card"><ErrorState text={error} onRetry={loadAll} /></div></>;
-  if (!game) return <><Back to="/" label={t("Мои игры")} /><div className="card"><LoadingState /></div></>;
+  // Загрузка — на том же фоне, что и экран карты, без карточки: иначе при входе в игру на миг мелькала белая плашка.
+  if (!game) return <div className="admin-screen"><div className="admin-empty"><div className="admin-loading"><LoadingState rows={3} /></div></div></div>;
   const active = game.status === "ACTIVE";
   const draft = game.status === "DRAFT";
   const reviewCount = counts.submissions + counts.battles;

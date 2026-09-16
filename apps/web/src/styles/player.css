@@ -20,7 +20,7 @@
    линии сторон уменьшаются вместе с картой, чтобы не толстеть относительно гексов. */
 .owner-ring { stroke-width: calc(2px / var(--k, 1)); }
 .map-loading { position: absolute; inset: 0; margin: auto; width: min(280px, 80%); height: max-content; display: flex; flex-direction: column; align-items: center; gap: var(--sp-4); color: var(--map-paper); font-size: var(--fs-sm); }
-.map-loading .skeleton { opacity: .35; }
+.map-loading .skeleton { opacity: .35; animation: none; }
 
 /* HUD: слева «Меню» и команда, справа «Вся карта», «К старту», масштаб. Отступы учитывают safe-area. */
 .hud-left { position: absolute; left: calc(var(--sp-3) + var(--safe-left)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; gap: var(--sp-2); align-items: center; max-width: calc(100% - 92px); }

@@ -237,3 +237,4 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
   .admin-map.full .view-as-hint { left: calc(var(--sp-3) + var(--safe-left)); right: auto; transform: none; top: calc(var(--sp-3) + var(--safe-top) + 100px); max-width: calc(100vw - 110px); }
   .admin-top { max-width: calc(100% - 2 * var(--sp-3)); }
 }
+.admin-loading { width: min(360px, 80vw); }
