@@ -226,7 +226,9 @@ function carrotRoute(car: Carrot, p: Profile, size: number): void {
   const R = farR(p, size);
   let a = 0, b = 0;
   for (let tries = 0; tries < 12; tries++) {
-    a = rnd(-Math.PI, Math.PI); b = a + Math.PI + rnd(-1.2, 1.2);
+    // Хорда из-за края в противоположный край: разброс ±0.75 рад держит её не дальше ~1 maxR от центра,
+    // то есть маршрут обязательно проходит через видимое море, а не по дальней окраине.
+    a = rnd(-Math.PI, Math.PI); b = a + Math.PI + rnd(-0.75, 0.75);
     const x0 = p.cx + Math.cos(a) * R, y0 = p.cy + Math.sin(a) * R, x1 = p.cx + Math.cos(b) * R, y1 = p.cy + Math.sin(b) * R;
     // Прямая маршрута не должна резать остров по середине: иначе после проекции на берег поводок почти замирает,
     // и зверь кружит на месте. Допустимы проходы у края острова и через пролив между островами.
@@ -849,7 +851,7 @@ function createWorld(p: Profile, size: number): World {
   const solo = (kind: CetKind, L: number, off: [number, number], wob: number) => { const car = makeCarrot(p, size, size * rnd(off[0], off[1]), size * wob); return makeCet(cetSpec(kind, L, size), car, car.x, car.y, car.h); };
   const solos = [solo("whale", size * 1.8, [2.8, 4], 0.7), solo("whale", size * 1.6, [3, 4.4], 0.7), solo("orca", size * 1.1, [2.4, 3.4], 0.6), solo("orca", size * 1.0, [2.6, 3.6], 0.6)];
   const pods = [makePod(p, size, 3), makePod(p, size, 4)];
-  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size)] };
+  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size), makeShip("cog", p, size)] };
 }
 function stepWorld(w: World, dt: number): void {
   w.T += dt; const T = w.T;
@@ -921,7 +923,7 @@ function shipSpec(kind: ShipKind, size: number): ShipSpec {
   }
 }
 function makeShip(kind: ShipKind, p: Profile, size: number): Ship {
-  const car = makeCarrot(p, size, size * rnd(4.2, 6), size * 0.3);
+  const car = makeCarrot(p, size, size * rnd(2.8, 4.2), size * 0.3);
   const spec = shipSpec(kind, size); return { spec, car, x: car.x, y: car.y, h: car.h, v: spec.speed, om: 0, seed: rnd(0, 100) };
 }
 function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number): void {
@@ -936,59 +938,154 @@ function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number): vo
   const want = sp.speed * clamp(behind / (sp.L * 1.5), 0.6, 1.3) * (1 + 0.08 * noise1(T * 0.2, sh.seed));
   sh.v = ease(sh.v, want, dt, 2.5);
   const omMax = Math.min(sp.maxTurn, Math.max(sh.v, sp.speed * 0.5) / (sp.L * sp.turnR));
-  const aim = avoidHeading(p, sh.x, sh.y, sh.h, car.x, car.y, Math.max(sp.L * 3, sh.v * 6), size * 3);
+  const aim = avoidHeading(p, sh.x, sh.y, sh.h, car.x, car.y, Math.max(sp.L * 3, sh.v * 6), size * 2.4);
   const omWant = clamp(wrapAngle(aim - sh.h) * 0.9, -omMax, omMax);
   sh.om = clamp(ease(sh.om, omWant, dt, 1.2), -omMax, omMax);
   sh.h = wrapAngle(sh.h + sh.om * dt);
   sh.x += Math.cos(sh.h) * sh.v * dt; sh.y += Math.sin(sh.h) * sh.v * dt;
-  keepInWater(sh, p, size * 3, dt, sp.maxTurn);
+  keepInWater(sh, p, size * 2.4, dt, sp.maxTurn);
 }
-/** Парус между концами рея (или мачтой и гиком), надутый в подветренную сторону; bx, by — куда дует ветер в осях корабля. */
-function sailPath(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, bx: number, by: number): void {
-  // Прямая кромка по рею и дуга пузыря: вершина дуги отстоит на (bx, by) (контрольная точка вдвое дальше).
-  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo((x0 + x1) / 2 + bx * 2, (y0 + y1) / 2 + by * 2, x1, y1); ctx.closePath();
+/**
+ * Рисунок парусника — как виньетка на старинной карте: лёгкий ракурс сбоку-сверху, корпус с обшивкой и
+ * вельсом, палуба, мачты с реями и снастями, надутые паруса с тенью и швами, вымпел. Рисуется один раз в
+ * спрайт (в единицах карты, разрешение SPR px на единицу) и дальше только копируется; нос смотрит вправо,
+ * при движении влево спрайт зеркалится. На воде — тень, отражение и кильватер по курсу.
+ */
+const SPR = 3;
+const spriteCache = new Map<ShipKind, { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number }>();
+function shipSprite(sp: ShipSpec): { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number } {
+  const hit = spriteCache.get(sp.kind); if (hit) return hit;
+  const L = sp.L, w = L * 1.45, h = L * 1.05, ox = L * 0.72, oy = L * 0.86; // якорь (0,0) — середина ватерлинии
+  const c = document.createElement("canvas"); c.width = Math.ceil(w * SPR); c.height = Math.ceil(h * SPR);
+  const g = c.getContext("2d")!; g.scale(SPR, SPR); g.translate(ox, oy);
+  paintShip(g, sp);
+  const out = { c, w, h, ox, oy }; spriteCache.set(sp.kind, out); return out;
+}
+/** Кривая с общей толщиной линии в единицах карты. */
+function paintShip(g: CanvasRenderingContext2D, sp: ShipSpec): void {
+  const L = sp.L, big = sp.kind === "ship", cog = sp.kind === "cog";
+  const H = L * (big ? 0.17 : cog ? 0.19 : 0.13); // высота борта над водой
+  const dk = (L * 0.006); // толщина тонких линий
+  g.lineJoin = "round"; g.lineCap = "round";
+  // ── корпус: борт с седловатостью (нос и корма выше), выпуклым носом и транцем ──
+  const hull = new Path2D();
+  hull.moveTo(-L * 0.5, -H * 1.15);                                  // верх кормы
+  hull.quadraticCurveTo(-L * 0.15, -H * 0.72, L * 0.2, -H * 0.8);    // планширь к носу
+  hull.quadraticCurveTo(L * 0.42, -H * 0.86, L * 0.5, -H * 1.2);     // нос вздёрнут
+  hull.quadraticCurveTo(L * 0.47, -H * 0.3, L * 0.4, H * 0.55);      // форштевень к воде
+  hull.quadraticCurveTo(L * 0.1, H * 0.95, -L * 0.25, H * 0.85);     // днище
+  hull.quadraticCurveTo(-L * 0.47, H * 0.7, -L * 0.5, H * 0.2);      // корма к воде
+  hull.closePath();
+  const hg = g.createLinearGradient(0, -H * 1.2, 0, H); hg.addColorStop(0, sp.deck); hg.addColorStop(0.35, sp.hull); hg.addColorStop(1, "rgb(38,24,16)");
+  g.fillStyle = hg; g.fill(hull);
+  // обшивка: доски дугами по седловатости
+  g.save(); g.clip(hull);
+  g.strokeStyle = "rgba(20,12,6,0.28)"; g.lineWidth = dk;
+  for (let i = 1; i <= 5; i++) { const y = -H * 0.8 + i * H * 0.32; g.beginPath(); g.moveTo(-L * 0.52, y - H * 0.25); g.quadraticCurveTo(0, y + H * 0.12, L * 0.52, y - H * 0.3); g.stroke(); }
+  // вельс — тёмная широкая полоса вдоль борта, светлый блик над ней
+  g.strokeStyle = "rgba(24,14,8,0.55)"; g.lineWidth = H * 0.16; g.beginPath(); g.moveTo(-L * 0.52, -H * 0.05); g.quadraticCurveTo(0, H * 0.3, L * 0.52, -H * 0.1); g.stroke();
+  g.strokeStyle = "rgba(255,230,190,0.22)"; g.lineWidth = dk * 1.5; g.beginPath(); g.moveTo(-L * 0.5, -H * 0.9); g.quadraticCurveTo(-L * 0.15, -H * 0.5, L * 0.2, -H * 0.58); g.stroke();
+  // ватерлиния: тёмная полоса у воды
+  g.fillStyle = "rgba(10,8,6,0.35)"; g.fillRect(-L * 0.6, H * 0.45, L * 1.2, H);
+  if (big) { // кормовая надстройка с окнами и пушечные порты
+    g.fillStyle = "rgba(0,0,0,0.18)"; g.fillRect(-L * 0.5, -H * 1.15, L * 0.17, H * 0.5);
+    g.fillStyle = "rgb(228,206,150)"; for (let i = 0; i < 3; i++) g.fillRect(-L * 0.47 + i * L * 0.045, -H * 1.0, L * 0.025, H * 0.2);
+    g.fillStyle = "rgba(0,0,0,0.5)"; for (let i = 0; i < 5; i++) g.fillRect(-L * 0.3 + i * L * 0.13, -H * 0.05, L * 0.04, H * 0.2);
+  }
+  g.restore();
+  g.strokeStyle = "rgba(20,10,4,0.75)"; g.lineWidth = dk * 1.6; g.stroke(hull);
+  // палуба (видна узкой полосой сверху из-за ракурса) и люк
+  g.fillStyle = sp.deck; g.beginPath(); g.moveTo(-L * 0.47, -H * 1.12); g.quadraticCurveTo(-L * 0.1, -H * 0.95, L * 0.44, -H * 1.14); g.quadraticCurveTo(-L * 0.1, -H * 1.3, -L * 0.47, -H * 1.12); g.fill();
+  g.strokeStyle = "rgba(60,36,20,0.5)"; g.lineWidth = dk; g.stroke();
+  // бушприт
+  g.strokeStyle = "rgb(58,38,24)"; g.lineWidth = L * 0.014; g.beginPath(); g.moveTo(L * 0.46, -H * 1.12); g.lineTo(L * 0.7, -H * 2.1); g.stroke();
+  // ── мачты, реи, паруса ──
+  const masts = sp.masts.map((m) => L * m); // положение мачт вдоль корпуса (доли L)
+  const mastH = L * (big ? 0.78 : cog ? 0.62 : 0.66);
+  const sailFill = (x0: number, y0: number, x1: number, y1: number) => { const gr = g.createLinearGradient(x0, y0, x1, y1); gr.addColorStop(0, sp.sailShade); gr.addColorStop(0.45, sp.sail); gr.addColorStop(1, "rgb(255,252,244)"); return gr; };
+  const rope = () => { g.strokeStyle = "rgba(40,28,18,0.7)"; g.lineWidth = dk * 0.9; };
+  if (sp.square) {
+    masts.forEach((mx, i) => {
+      const top = -H * 1.1 - mastH * (i === 1 ? 1 : 0.9);
+      // штаги и ванты
+      rope(); g.beginPath(); g.moveTo(mx, top); g.lineTo(i === 0 && big ? L * 0.7 : L * 0.42, -H * (i === 0 && big ? 2.1 : 1.05));
+      for (let k = 0; k < 3; k++) { g.moveTo(mx, top + mastH * 0.1); g.lineTo(mx - L * (0.06 + k * 0.035), -H * 1.02); } // ванты
+      g.stroke();
+      // мачта
+      g.strokeStyle = "rgb(52,34,22)"; g.lineWidth = L * 0.016; g.beginPath(); g.moveTo(mx + L * 0.01, -H * 1.05); g.lineTo(mx - L * 0.01, top); g.stroke();
+      // ярусы парусов: у корабля два (нижний и марсель), у когга один большой
+      const tiers = big ? [[0.08, 0.5, 0.36], [0.55, 0.85, 0.28]] : [[0.1, 0.9, 0.42]];
+      for (const [t0, t1, half] of tiers) {
+        const y0 = -H * 1.1 - mastH * t1, y1 = -H * 1.1 - mastH * t0, hw = L * half * (i === 1 ? 1.05 : 0.92);
+        // рей
+        g.strokeStyle = "rgb(58,38,24)"; g.lineWidth = L * 0.012; g.beginPath(); g.moveTo(mx - hw - L * 0.02, y0); g.lineTo(mx + hw + L * 0.02, y0); g.stroke();
+        // полотно: верх пришнурован к рею, бока наполнены ветром (выпуклы наружу), низ провисает дугой
+        const bulge = (y1 - y0) * 0.26, side = hw * 0.16;
+        const sail = new Path2D();
+        sail.moveTo(mx - hw, y0); sail.lineTo(mx + hw, y0);
+        sail.quadraticCurveTo(mx + hw + side, (y0 + y1) / 2, mx + hw * 0.9, y1);
+        sail.quadraticCurveTo(mx, y1 + bulge, mx - hw * 0.9, y1);
+        sail.quadraticCurveTo(mx - hw - side, (y0 + y1) / 2, mx - hw, y0);
+        sail.closePath();
+        const sg = g.createLinearGradient(mx - hw, y0, mx + hw * 0.6, y1); sg.addColorStop(0, sp.sailShade); sg.addColorStop(0.5, sp.sail); sg.addColorStop(1, "rgb(255,252,244)");
+        g.fillStyle = sg; g.fill(sail);
+        g.save(); g.clip(sail);
+        g.strokeStyle = "rgba(120,100,70,0.2)"; g.lineWidth = dk; // швы полотнищ — дугами, повторяют пузо
+        for (let k = -3; k <= 3; k++) { const x = mx + k * hw * 0.28; g.beginPath(); g.moveTo(x, y0); g.quadraticCurveTo(x + (k < 0 ? -1 : 1) * side * 0.3, (y0 + y1) / 2, x, y1 + bulge * (1 - Math.abs(k) / 3.6)); g.stroke(); }
+        g.strokeStyle = "rgba(120,100,70,0.3)"; g.lineWidth = dk * 1.4; // риф-банты
+        for (let k = 1; k <= 2; k++) { const y = y0 + (y1 - y0) * k * 0.24; g.beginPath(); g.moveTo(mx - hw, y); g.quadraticCurveTo(mx, y + bulge * 0.25, mx + hw, y); g.stroke(); }
+        const shade = g.createLinearGradient(mx - hw, 0, mx + hw, 0); shade.addColorStop(0, "rgba(60,40,20,0.22)"); shade.addColorStop(0.5, "rgba(60,40,20,0)"); shade.addColorStop(1, "rgba(255,255,255,0.12)");
+        g.fillStyle = shade; g.fillRect(mx - hw - side, y0, hw * 2 + side * 2, y1 - y0 + bulge); // объём: тень слева, свет справа
+        const foot = g.createLinearGradient(0, y1 - (y1 - y0) * 0.25, 0, y1 + bulge); foot.addColorStop(0, "rgba(60,40,20,0)"); foot.addColorStop(1, "rgba(60,40,20,0.16)");
+        g.fillStyle = foot; g.fillRect(mx - hw - side, y1 - (y1 - y0) * 0.25, hw * 2 + side * 2, (y1 - y0) * 0.25 + bulge);
+        g.restore();
+        g.strokeStyle = "rgba(90,70,48,0.65)"; g.lineWidth = dk; g.stroke(sail);
+        // шкоты: от нижних углов к палубе
+        rope(); g.beginPath(); g.moveTo(mx - hw * 0.9, y1); g.lineTo(mx - hw * 0.55, -H * 1.05); g.moveTo(mx + hw * 0.9, y1); g.lineTo(mx + hw * 0.5, -H * 1.05); g.stroke();
+      }
+      // верхушка мачты над парусами (стеньга) и марс у корабля
+      g.strokeStyle = "rgb(52,34,22)"; g.lineWidth = L * 0.012; g.beginPath(); g.moveTo(mx, top + mastH * 0.12); g.lineTo(mx, top - mastH * 0.06); g.stroke();
+      if (big) { g.fillStyle = "rgb(52,34,22)"; g.fillRect(mx - L * 0.03, -H * 1.1 - mastH * 0.53, L * 0.06, L * 0.02); }
+    });
+    if (big) { // кливер на бушприте
+      const jib = new Path2D(); jib.moveTo(masts[0]! - L * 0.01, -H * 1.1 - mastH * 0.86); jib.lineTo(L * 0.68, -H * 2.05); jib.quadraticCurveTo(L * 0.42, -H * 1.9, masts[0]! + L * 0.04, -H * 1.1 - mastH * 0.1); jib.closePath();
+      g.fillStyle = sailFill(L * 0.2, -H * 3, L * 0.7, -H * 2); g.fill(jib); g.strokeStyle = "rgba(90,70,48,0.6)"; g.lineWidth = dk; g.stroke(jib);
+    }
+  } else { // шлюп: мачта с гафельным гротом и стаксель
+    const mx = masts[0]!, top = -H * 1.1 - mastH;
+    rope(); g.beginPath(); g.moveTo(mx, top); g.lineTo(L * 0.55, -H * 1.5); g.moveTo(mx, top); g.lineTo(mx - L * 0.08, -H * 1.05); g.stroke();
+    g.strokeStyle = "rgb(52,34,22)"; g.lineWidth = L * 0.016; g.beginPath(); g.moveTo(mx + L * 0.01, -H * 1.05); g.lineTo(mx - L * 0.01, top); g.stroke();
+    // гик и гафель
+    g.lineWidth = L * 0.012; g.beginPath(); g.moveTo(mx, -H * 1.1 - mastH * 0.12); g.lineTo(mx - L * 0.5, -H * 1.1 - mastH * 0.16); g.moveTo(mx, top + mastH * 0.05); g.lineTo(mx - L * 0.36, top + mastH * 0.22); g.stroke();
+    const main = new Path2D(); main.moveTo(mx, -H * 1.1 - mastH * 0.12); main.lineTo(mx, top + mastH * 0.05); main.lineTo(mx - L * 0.36, top + mastH * 0.22);
+    main.quadraticCurveTo(mx - L * 0.55, -H * 1.1 - mastH * 0.5, mx - L * 0.5, -H * 1.1 - mastH * 0.16); main.quadraticCurveTo(mx - L * 0.2, -H * 1.1 - mastH * 0.05, mx, -H * 1.1 - mastH * 0.12); main.closePath();
+    g.fillStyle = sailFill(mx - L * 0.5, top, mx, -H); g.fill(main); g.strokeStyle = "rgba(90,70,48,0.6)"; g.lineWidth = dk; g.stroke(main);
+    g.save(); g.clip(main); g.strokeStyle = "rgba(120,100,70,0.22)"; for (let k = 1; k <= 4; k++) { const y = top + mastH * 0.2 + k * mastH * 0.16; g.beginPath(); g.moveTo(mx - L * 0.5, y + mastH * 0.05); g.quadraticCurveTo(mx - L * 0.25, y - mastH * 0.03, mx, y); g.stroke(); } g.restore();
+    const jib = new Path2D(); jib.moveTo(mx - L * 0.01, top + mastH * 0.12); jib.lineTo(L * 0.55, -H * 1.5); jib.quadraticCurveTo(L * 0.3, -H * 1.55, mx + L * 0.03, -H * 1.1); jib.closePath();
+    g.fillStyle = sailFill(mx, -H * 2, L * 0.55, -H * 1.5); g.fill(jib); g.stroke(jib);
+  }
+  // вымпел на грот-мачте
+  const mm = masts[big ? 1 : 0]!, mt = -H * 1.1 - mastH * (sp.square ? 1.06 : 1);
+  g.fillStyle = "rgb(178,48,40)"; g.beginPath(); g.moveTo(mm, mt); g.lineTo(mm - L * 0.14, mt + L * 0.01); g.lineTo(mm - L * 0.05, mt + L * 0.035); g.lineTo(mm, mt + L * 0.045); g.closePath(); g.fill();
 }
 function drawShip(ctx: CanvasRenderingContext2D, sh: Ship, T: number, px: number, lod: boolean): void {
-  const sp = sh.spec, L = sp.L, W = L * sp.W;
-  const rock = 0.025 * Math.sin(T * 0.9 + sh.seed);
+  const sp = sh.spec, L = sp.L, spr = shipSprite(sp);
+  const flip = Math.cos(sh.h) < 0 ? -1 : 1;
+  const bob = Math.sin(T * 0.8 + sh.seed) * L * 0.012, rock = 0.02 * Math.sin(T * 0.7 + sh.seed);
   ctx.save(); ctx.translate(sh.x, sh.y);
-  // Тень на воде — от солнца, чуть в сторону.
-  ctx.save(); ctx.rotate(sh.h); ctx.translate(-SUN_X * L * 0.06, SUN_Y * L * 0.06); ctx.globalAlpha = 0.16; ctx.fillStyle = "rgb(20,40,60)";
-  ctx.beginPath(); ctx.ellipse(0, 0, L * 0.5, W * 0.62, 0, 0, TAU); ctx.fill(); ctx.restore();
-  // Кильватер и носовая волна.
-  ctx.save(); ctx.rotate(sh.h); drawWake(ctx, L * 0.9, 0.8, px); ctx.restore();
-  ctx.rotate(sh.h + rock);
-  // Корпус: острый нос, скруглённая корма; планширь светлее.
-  const hull = () => { ctx.beginPath(); ctx.moveTo(L * 0.5, 0); ctx.quadraticCurveTo(L * 0.22, -W * 0.55, -L * 0.3, -W * 0.5); ctx.quadraticCurveTo(-L * 0.52, -W * 0.3, -L * 0.52, 0); ctx.quadraticCurveTo(-L * 0.52, W * 0.3, -L * 0.3, W * 0.5); ctx.quadraticCurveTo(L * 0.22, W * 0.55, L * 0.5, 0); ctx.closePath(); };
-  ctx.globalAlpha = 1; ctx.fillStyle = sp.hull; hull(); ctx.fill();
-  ctx.strokeStyle = "rgba(30,20,12,0.55)"; ctx.lineWidth = Math.max(px, L * 0.01); ctx.stroke();
-  ctx.save(); ctx.scale(0.86, 0.72); ctx.fillStyle = sp.deck; hull(); ctx.fill(); ctx.restore();
-  if (lod) { // доски палубы
-    ctx.strokeStyle = "rgba(90,60,36,0.35)"; ctx.lineWidth = Math.max(px, L * 0.006);
-    ctx.beginPath(); for (let i = -2; i <= 2; i++) { ctx.moveTo(-L * 0.42, i * W * 0.14); ctx.lineTo(L * 0.4 - Math.abs(i) * L * 0.05, i * W * 0.14); } ctx.stroke();
+  // кильватер по курсу и носовая волна — под корпусом
+  ctx.save(); ctx.rotate(sh.h); drawWake(ctx, L * 0.7, 0.45, px); ctx.restore();
+  // тень на воде, отражение корпуса узкой полосой у ватерлинии, пена у борта
+  ctx.globalAlpha = 0.16; ctx.fillStyle = "rgb(14,30,48)"; ctx.beginPath(); ctx.ellipse(L * 0.02, L * 0.06, L * 0.5, L * 0.1, 0, 0, TAU); ctx.fill();
+  ctx.globalAlpha = 1;
+  if (lod) {
+    ctx.save(); ctx.beginPath(); ctx.rect(-L, 0, L * 2, L * 0.16); ctx.clip();
+    ctx.globalAlpha = 0.14; ctx.scale(flip, -0.5); ctx.translate(0, -L * 0.04); ctx.drawImage(spr.c, -spr.ox, -spr.oy, spr.w, spr.h); ctx.restore();
   }
-  // Ветер в осях корабля (куда дует).
-  const wl = Math.hypot(WIND_X, WIND_Y) || 1, ch = Math.cos(-(sh.h + rock)), shh = Math.sin(-(sh.h + rock));
-  const wx = (WIND_X * ch - WIND_Y * shh) / wl, wy = (WIND_X * shh + WIND_Y * ch) / wl;
-  const belly = L * (sp.square ? 0.2 : 0.16) * (0.9 + 0.1 * Math.sin(T * 1.7 + sh.seed));
-  ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(96,74,52,0.7)"; ctx.lineWidth = Math.max(px * 0.8, L * 0.008);
-  for (let i = 0; i < sp.masts.length; i++) {
-    const mxp = L * sp.masts[i]!, yard = W * (sp.square ? 1.35 : 1) * (i === 1 ? 1.1 : 1);
-    if (sp.square) {
-      // Прямой парус: рей поперёк корпуса, полотно надувается по ветру.
-      ctx.fillStyle = sp.sail; sailPath(ctx, mxp, -yard / 2, mxp, yard / 2, wx * belly, wy * belly); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = sp.sailShade; ctx.globalAlpha = 0.5; sailPath(ctx, mxp, -yard / 2, mxp, -yard * 0.1, wx * belly * 0.7, wy * belly * 0.7); ctx.fill(); ctx.globalAlpha = 1;
-      if (sp.kind === "ship" && i === 0) { ctx.fillStyle = sp.sail; sailPath(ctx, L * 0.5, 0, mxp + L * 0.06, -W * 0.5, wx * belly * 0.4, wy * belly * 0.4); ctx.fill(); ctx.stroke(); } // кливер
-      ctx.strokeStyle = "rgb(58,40,26)"; ctx.lineWidth = Math.max(px * 1.2, L * 0.012); ctx.beginPath(); ctx.moveTo(mxp, -yard / 2); ctx.lineTo(mxp, yard / 2); ctx.stroke();
-    } else {
-      // Косой парус: от мачты назад по гику, надувается вбок по ветру; впереди стаксель.
-      const side = wy >= 0 ? 1 : -1;
-      ctx.fillStyle = sp.sail; sailPath(ctx, mxp, 0, -L * 0.42, side * W * 0.1, wx * belly * 0.2, side * belly); ctx.fill(); ctx.stroke(); // грот
-      sailPath(ctx, L * 0.48, 0, mxp, side * W * 0.05, wx * belly * 0.2, side * belly * 0.6); ctx.fill(); ctx.stroke(); // стаксель
-      ctx.fillStyle = sp.sailShade; ctx.globalAlpha = 0.45; sailPath(ctx, mxp, 0, -L * 0.2, side * W * 0.05, wx * belly * 0.1, side * belly * 0.55); ctx.fill(); ctx.globalAlpha = 1;
-    }
-    ctx.fillStyle = "rgb(58,40,26)"; ctx.beginPath(); ctx.arc(mxp, 0, Math.max(px * 1.5, L * 0.02), 0, TAU); ctx.fill(); // топ мачты
-  }
+  ctx.globalAlpha = 0.35; ctx.fillStyle = "rgb(236,249,252)"; ctx.beginPath(); ctx.ellipse(0, L * 0.02, L * 0.48, L * 0.03, 0, 0, TAU); ctx.fill(); ctx.globalAlpha = 1;
+  // сам корабль: нос по курсу (зеркало при ходе влево), лёгкая качка
+  ctx.rotate(rock * flip); ctx.scale(flip, 1); ctx.translate(0, bob);
+  ctx.drawImage(spr.c, -spr.ox, -spr.oy, spr.w, spr.h);
   ctx.restore();
 }
 
@@ -1002,7 +1099,6 @@ export function drawShipsPreview(ctx: CanvasRenderingContext2D, size: number, T:
     drawShip(ctx, sh, T, 1 / 4, true);
   });
 }
-
 /** Стенд (scripts): прогон мира живности без экрана — треки положений и курсов для проверки физики движения. */
 export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, step: number): Array<{ kind: string; samples: Array<[number, number, number, number]> }> {
   const p = islandProfile(hexes, size, []); if (!p) return [];
