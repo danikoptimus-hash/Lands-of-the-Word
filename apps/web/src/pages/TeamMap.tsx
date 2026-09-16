@@ -1,6 +1,6 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { reportPage } from "../lib/perf";
-import { BOOKS } from "@lotw/domain";
+import { BOOKS, startName } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
@@ -11,7 +11,7 @@ import { FaunaLayer } from "./Fauna";
 import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
-import { t } from "../lib/i18n";
+import { t, getLocale } from "../lib/i18n";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 /** Значок метки дела по статусу: свободно — свиток, в работе — человек, на проверке — часы, возвращено — знак внимания. */
@@ -119,7 +119,20 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;
             const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
-            if (n.kind === "START") return <g key={n.key} style={sc(p.x, p.y)}><circle className="m-start" r={6} fill={map.team.color} /></g>;
+            if (n.kind === "START") {
+              // Стартовая точка подписана как «плен», из которого команда выходит (решение владельца 16.09).
+              const name = startName(n.teamIndex ?? teamIndex, getLocale()), fs = fullLabels ? 11 : 9, w = Math.ceil(name.length * fs * 0.62) + 16, h = fs + 9;
+              // Подпись справа от метки: по горизонтали из перекрёстка стороны не выходят (они идут вверх/вниз и наискось), метки дел не мешают.
+              return (
+                <Fragment key={n.key}>
+                  <g style={sc(p.x, p.y)}><circle className="m-start" r={6} fill={map.team.color} /></g>
+                  <g className={"m-label start" + (fullLabels ? "" : " sm")} style={sc(p.x, p.y)}>
+                    <rect x={12} y={-h / 2} width={w} height={h} rx={h / 2} />
+                    <text x={12 + w / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{name}</text>
+                  </g>
+                </Fragment>
+              );
+            }
             if (n.kind === "CITY") {
               const c = cityByKey.get(n.key);
               const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;

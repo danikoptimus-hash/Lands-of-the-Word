@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { BOOKS } from "@lotw/domain";
+import { BOOKS, startName } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
@@ -9,7 +9,7 @@ import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type
 import { TeamMap } from "./TeamMap";
 import { useUi } from "../lib/ui";
 import { useAuth } from "../lib/auth";
-import { t } from "../lib/i18n";
+import { t, getLocale } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { FaunaLayer } from "./Fauna";
@@ -301,7 +301,7 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
 function NodeSheet({ gameId, node, container, teams, revealed, onClose }: { gameId: string; node: MapNodeDto; container: HTMLElement; teams: TeamProgress[]; revealed: TeamLite[]; onClose: () => void }) {
   const superadmin = useAuth().user?.platformRole === "SUPERADMIN";
   const startTeam = node.kind === "START" ? teams.find((tm) => tm.startNodeKey === node.key) : undefined;
-  const title = node.kind === "START" ? t("Старт команды «{name}»", { name: startTeam?.name ?? String((node.teamIndex ?? 0) + 1) }) : t("Развилка");
+  const title = node.kind === "START" ? `${startName(node.teamIndex ?? 0, getLocale())} · ${t("старт команды «{name}»", { name: startTeam?.name ?? String((node.teamIndex ?? 0) + 1) })}` : t("Развилка");
   return (
     <Sheet container={container} size="sm" title={title} onClose={onClose}>
       <div className="stack">
