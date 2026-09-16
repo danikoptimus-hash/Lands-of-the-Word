@@ -6,6 +6,7 @@ import { z } from "zod";
 import { BOOKS } from "@lotw/domain";
 const BOOK_CODES = new Set(BOOKS.map((b) => b.code));
 import { prisma } from "../db.js";
+import { bookOfNodeKey, pickDeed } from "../services/teamMap.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
@@ -75,12 +76,27 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     return { deed };
   });
 
+  /**
+   * Удалить дело. В запущенной игре дело могло уже попасть на стороны: свободные (никем не взятые) стороны
+   * получают другое дело из набора; если дело уже взято или сдано хотя бы одной командой — удалить нельзя (409).
+   */
   app.delete("/api/games/:id/deeds/:deedId", async (request, reply) => {
     const { id, deedId } = request.params as { id: string; deedId: string };
     if (!(await requireGameAdmin(request, reply, id))) return;
-    await prisma.deed.deleteMany({ where: { id: deedId, gameId: id } });
+    const deed = await prisma.deed.findFirst({ where: { id: deedId, gameId: id }, include: { edgeTasks: { select: { id: true, teamId: true, fromKey: true, status: true } } } });
+    if (!deed) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
+    if (deed.edgeTasks.some((t) => t.status !== "OPEN")) return reply.code(409).send({ error: "conflict", message: err(request, "Это дело уже взято или сдано командой: удалить нельзя, но можно отредактировать") });
+    const other = await prisma.deed.count({ where: { gameId: id, id: { not: deedId } } });
+    if (deed.edgeTasks.length > 0 && other === 0) return reply.code(409).send({ error: "conflict", message: err(request, "Это единственное дело в игре: сначала добавьте другие") });
+    for (const t of deed.edgeTasks) {
+      const replacement = await pickDeed(id, t.teamId, await bookOfNodeKey(id, t.fromKey), deedId);
+      if (!replacement) return reply.code(409).send({ error: "conflict", message: err(request, "Не удалось подобрать замену на стороны с этим делом") });
+      await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: replacement } });
+    }
+    await prisma.deed.delete({ where: { id: deedId } });
     publish(id, { type: "deeds" });
-    return { ok: true };
+    if (deed.edgeTasks.length > 0) publish(id, { type: "map" });
+    return { ok: true, replaced: deed.edgeTasks.length };
   });
 
   /**
@@ -93,19 +109,27 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireGameAdmin(request, reply, id))) return;
     const mode = z.object({ mode: z.enum(["add", "replace"]).default("add") }).parse(request.body ?? {}).mode;
     const file = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../content/deeds-default.json");
-    const items = z.array(deedBody).parse(JSON.parse(await readFile(file, "utf8")));
+    const items = z.array(deedBody.extend({ replaces: z.array(z.string().trim().min(2)).default([]) })).parse(JSON.parse(await readFile(file, "utf8")));
     let removed = 0, updated = 0;
+    // Переименованные дела набора («replaces»: прежние названия) обновляются в игре на месте, вместе с делами,
+    // уже выданными командам, — иначе в запущенной игре останется старое название.
+    const current = await prisma.deed.findMany({ where: { gameId: id }, select: { id: true, title: true } });
+    for (const { replaces, ...src } of items) {
+      if (current.some((d) => d.title.toLowerCase() === src.title.toLowerCase())) continue;
+      const old = current.find((d) => replaces.some((r) => r.toLowerCase() === d.title.toLowerCase()));
+      if (old) { await prisma.deed.update({ where: { id: old.id }, data: src }); old.title = src.title; updated++; }
+    }
     if (mode === "replace") {
       removed = (await prisma.deed.deleteMany({ where: { gameId: id, edgeTasks: { none: {} } } })).count;
       const kept = await prisma.deed.findMany({ where: { gameId: id }, select: { id: true, title: true } });
       for (const k of kept) {
         const src = items.find((d) => d.title.toLowerCase() === k.title.toLowerCase());
-        if (src) { await prisma.deed.update({ where: { id: k.id }, data: src }); updated++; }
+        if (src) { const { replaces: _r, ...data } = src; await prisma.deed.update({ where: { id: k.id }, data }); updated++; }
       }
     }
     const existing = new Set((await prisma.deed.findMany({ where: { gameId: id }, select: { title: true } })).map((d) => d.title.toLowerCase()));
     const fresh = items.filter((d) => !existing.has(d.title.toLowerCase()));
-    await prisma.deed.createMany({ data: fresh.map((d) => ({ ...d, gameId: id })) });
+    await prisma.deed.createMany({ data: fresh.map(({ replaces: _r, ...d }) => ({ ...d, gameId: id })) });
     publish(id, { type: "deeds" });
     return { added: fresh.length, removed, updated };
   });

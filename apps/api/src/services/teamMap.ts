@@ -25,9 +25,9 @@ function weightedPick<T extends { frequency: number }>(list: T[]): T {
   for (const d of list) { r -= FREQUENCY_WEIGHT[d.frequency] ?? 3; if (r < 0) return d; }
   return list[list.length - 1]!;
 }
-async function pickDeed(gameId: string, teamId: string, bookCode: string | null): Promise<string | null> {
+export async function pickDeed(gameId: string, teamId: string, bookCode: string | null, excludeId?: string): Promise<string | null> {
   const [deeds, used] = await Promise.all([
-    prisma.deed.findMany({ where: { gameId }, select: { id: true, canRepeat: true, bookCodes: true, frequency: true } }),
+    prisma.deed.findMany({ where: { gameId, ...(excludeId ? { id: { not: excludeId } } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, frequency: true } }),
     prisma.teamEdgeTask.findMany({ where: { teamId }, select: { deedId: true }, orderBy: { createdAt: "desc" } }),
   ]);
   if (deeds.length === 0) return null;

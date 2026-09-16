@@ -43,6 +43,13 @@ export function RecipientsBlock({ gameId, status, version = 0 }: { gameId: strin
   }
   const finished = status === "FINISHED";
   const canPrint = (rows?.length ?? 0) > 0 && cities > 0;
+  // Адресат, добавленный после раздачи, остаётся без конвертов: города уже разошлись по первым.
+  const uneven = (rows?.length ?? 0) > 1 && cities > 0 && Math.max(...(rows ?? []).map((r) => r.envelopes)) - Math.min(...(rows ?? []).map((r) => r.envelopes)) > 1;
+  async function redistribute() {
+    if (!(await confirm(t("Города разойдутся между всеми адресатами заново. Ярлыки, напечатанные раньше, устареют: их нужно будет распечатать снова."), { title: t("Перераспределить конверты поровну?"), okLabel: t("Перераспределить") }))) return;
+    try { await api(`/api/games/${gameId}/recipients/redistribute`, { method: "POST" }); notify(t("Конверты перераспределены")); await load(); }
+    catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
+  }
   return (
     <div className="card" id="recipients">
       <div className="card-head">
@@ -53,6 +60,9 @@ export function RecipientsBlock({ gameId, status, version = 0 }: { gameId: strin
         </div>
       </div>
       <p className="muted small">{t("Кому команды понесут шифр за конвертом. Только подпись без имён и адресов — список стирается после игры.")}</p>
+      {uneven && !finished && (
+        <div className="note warn"><Icon name="alert" /><div className="stack sm"><span>{t("Конверты распределены неравномерно: адресаты, добавленные позже, остались без городов.")}</span><div><button type="button" className="sm secondary" onClick={() => void redistribute()}><Icon name="refresh" />{t("Перераспределить поровну")}</button></div></div></div>
+      )}
       {loadError ? <ErrorState onRetry={() => void load()} /> : !rows ? <LoadingState rows={2} /> : rows.length === 0 ? (
         <EmptyState inline icon="mail" text={finished ? t("Игра завершена: список адресатов стёрт.") : t("Адресатов пока нет.")} />
       ) : (

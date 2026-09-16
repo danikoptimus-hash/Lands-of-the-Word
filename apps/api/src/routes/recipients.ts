@@ -42,6 +42,23 @@ export async function recipientRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(201).send({ recipient: { id: r.id, label: r.label, kind: r.kind, envelopes: 0 } });
   });
 
+  /**
+   * Перераспределить конверты поровну между всеми адресатами. Нужно, когда адресатов добавили после того,
+   * как все города уже разошлись по первым. Напечатанные ранее ярлыки после этого устаревают — интерфейс предупреждает.
+   */
+  app.post("/api/games/:id/recipients/redistribute", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = await requireGameAdmin(request, reply, id);
+    if (!game) return;
+    if (game.status === "FINISHED") return reply.code(409).send({ error: "conflict", message: err(request, "Игра завершена: список адресатов очищен") });
+    const count = await prisma.recipient.count({ where: { gameId: id } });
+    if (count === 0) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала добавьте адресатов") });
+    await prisma.mapNode.updateMany({ where: { gameId: id, kind: "CITY" }, data: { recipientId: null } });
+    const assigned = await assignRecipients(id);
+    publish(id, { type: "game" });
+    return { ok: true, assigned };
+  });
+
   app.delete("/api/games/:id/recipients/:rid", async (request, reply) => {
     const { id, rid } = request.params as { id: string; rid: string };
     if (!(await requireGameAdmin(request, reply, id))) return;

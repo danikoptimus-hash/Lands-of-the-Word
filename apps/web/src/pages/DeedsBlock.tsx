@@ -18,6 +18,16 @@ const EMPTY: Form = { title: "", description: "", direction: "", proofType: "PHO
 const DIFFICULTY: Record<number, string> = { 1: "лёгкое", 2: "среднее", 3: "трудное" };
 
 /** Вкладка «Дела»: список дел игры; добавление и изменение — в одной форме-шторке; стандартный набор — только пока список пуст. */
+/**
+ * В каталоге администратора дело — шаблон: «[Книга]» показываем плашкой. Команде на карте вместо неё
+ * сервер подставляет книгу города, из которого выходит сторона (withDeedBook).
+ */
+function withBook(text: string) {
+  const parts = text.split(/(\[книга\])/i);
+  if (parts.length === 1) return text;
+  return parts.map((p, i) => (/^\[книга\]$/i.test(p) ? <Chip key={i} tone="accent" icon="book" title={t("Подставится книга города, из которого выходит сторона")}>{t("книга города")}</Chip> : p));
+}
+
 export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; version?: number; onChange?: () => void }) {
   const [deeds, setDeeds] = useState<DeedDto[] | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -90,8 +100,8 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
           {deeds.map((d) => (
             <li key={d.id}>
               <div className="main">
-                <span className="title">{d.title} {d.canRepeat && <Chip>{t("повторяемое")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>}</span>
-                {d.description && <span className="deed-desc small">{d.description}</span>}
+                <span className="title">{withBook(d.title)} {d.canRepeat && <Chip>{t("повторяемое")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>}</span>
+                {d.description && <span className="deed-desc small">{withBook(d.description)}</span>}
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
                   <span>· {t("сложность {n}", { n: d.difficulty })}</span>

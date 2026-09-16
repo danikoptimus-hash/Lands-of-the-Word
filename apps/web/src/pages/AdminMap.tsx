@@ -5,7 +5,10 @@ import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, Sea
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import { reportPage } from "../lib/perf";
-import { api, ApiError, type AdminCityDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
+import { api, ApiError, PROOF_LABEL, type AdminCityDto, type EdgeTaskDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
+import { deedStatus } from "./TeamPage";
+import { Chip } from "../components/Chip";
+import { fmtDate } from "../lib/format";
 import { TeamMap } from "./TeamMap";
 import { useUi } from "../lib/ui";
 import { useAuth } from "../lib/auth";
@@ -39,8 +42,11 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   useEffect(() => { perfMark("карта админа: до кадра", performance.now() - renderStart); });
   const vp = useViewport(bounds);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
+  /** «Глазами команды»: выбранное дело (свиток) этой команды. */
+  const [teamTaskId, setTeamTaskId] = useState<string | null>(null);
   const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
   const close = useCallback(() => setSelected(null), []);
+  const nodeByKey = useMemo(() => new Map(nodes.map((n) => [n.key, n])), [nodes]);
   const positions = useMemo(() => new Map(nodes.map((n) => [n.key, nodePos(n.key, size)])), [nodes, size]);
   const traversedBy = useMemo(() => {
     const m = new Map<string, TeamProgress[]>();
@@ -183,7 +189,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <div className="mapwrap team-view" key={viewAs}>
             {teamView?.error ? <div className="map-state"><ErrorState text={teamView.error} onRetry={() => setViewAs((v) => v)} /></div>
               : !teamView?.map ? <div className="map-state"><LoadingState /></div>
-              : <TeamMap map={teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={null} onSelect={() => undefined} onSelectCity={() => undefined} />}
+              : <TeamMap map={teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={teamTaskId} onSelect={(tid) => { setTeamTaskId(tid); if (tid) setSelected(null); }} onSelectCity={(key) => { const n = nodeByKey.get(key); if (n) { setSelected(n); setTeamTaskId(null); } }} />}
+            {teamView?.map && teamTaskId && wrapEl && (() => { const task = teamView.map!.tasks.find((tk) => tk.id === teamTaskId); return task ? <TeamTaskSheet task={task} members={teamView.map!.members ?? []} container={wrapEl} onClose={() => setTeamTaskId(null)} onReview={onReview} /> : null; })()}
           </div>
         ) : (<>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap">
@@ -208,8 +215,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <button type="button" className="secondary icon" onClick={() => vp.zoomAt(1 / 1.3)} aria-label={t("Отдалить")} title={t("Отдалить")}><Icon name="zoom-out" /></button>
         </div>
         </>)}
-        {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажатия здесь ничего не делают.", { name: viewedTeam.name })}</p>}
-        {!viewAs && selected && wrapEl && (selected.kind === "CITY"
+        {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.", { name: viewedTeam.name })}</p>}
+        {selected && wrapEl && (selected.kind === "CITY"
           ? <CitySheet gameId={gameId} node={selected} version={version} container={wrapEl} revealed={revealedBy.get(selected.key) ?? []} battle={battleAt.get(selected.key) ?? null} teamById={teamById} onClose={close} onReview={onReview} />
           : <NodeSheet gameId={gameId} node={selected} container={wrapEl} teams={progress ?? []} revealed={revealedBy.get(selected.key) ?? []} onClose={close} />)}
       </div>
@@ -219,6 +226,27 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
 }
 
 /** Панель города: ключ и шифр, состояние команд, задания с ответами (аккордеон), тестовые действия (свёрнуты). */
+/** Дело на стороне «глазами команды»: что за дело, статус, кто взял, что сдано. Действий нет — проверка во вкладке «Проверка». */
+function TeamTaskSheet({ task, members, container, onClose, onReview }: { task: EdgeTaskDto; members: Array<{ id: string; nickname: string; displayName: string | null }>; container: HTMLElement; onClose: () => void; onReview?: () => void }) {
+  const st = deedStatus(task.status);
+  const taker = task.takenById ? members.find((m) => m.id === task.takenById) : null;
+  const takerName = taker ? taker.displayName ?? taker.nickname : task.takenById ? t("участник") : "";
+  return (
+    <Sheet size="sm" container={container} onClose={onClose} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip></div>}>
+      <p className="muted small">{task.deed.direction}</p>
+      {task.deed.description && <p className="mt-2">{task.deed.description}</p>}
+      <p className="meta-line mt-2"><Icon name="scroll" />{t("Сдать")}: {PROOF_LABEL[task.deed.proofType]}{takerName && <> · <Icon name="user" />{t("Взял: {name}", { name: takerName })}</>}{task.submittedAt && <> · <Icon name="clock" />{fmtDate(task.submittedAt)}</>}</p>
+      {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта. Когда дело одобрят, капитан выберет на карте, куда высадиться на другом острове.")}</span></div>}
+      {task.deed.secret && <div className="note info"><Icon name="lock" /><span>{t("Тайное дело: сдачу смотрите во вкладке «Проверка».")}</span></div>}
+      {task.donation && <div className="note info"><Icon name="star" /><span>{t("Дело заменено пожертвованием{amount}.", { amount: task.donationAmount ? ` · ${task.donationAmount}` : "" })}</span></div>}
+      {task.links.length > 0 && <ul className="links">{task.links.map((l) => <li key={l}><a href={l} target="_blank" rel="noreferrer">{l}</a></li>)}</ul>}
+      {task.note && <p className="mt-2">{task.note}</p>}
+      {task.status === "REJECTED" && task.adminComment && <div className="note bad"><Icon name="alert" /><span>{t("Возвращено с комментарием: «{comment}»", { comment: task.adminComment })}</span></div>}
+      {task.status === "SUBMITTED" && onReview && <div className="actions"><button type="button" className="secondary" onClick={() => { onClose(); onReview(); }}><Icon name="check" />{t("Открыть в Проверке")}</button></div>}
+    </Sheet>
+  );
+}
+
 function CitySheet({ gameId, node, version, container, revealed, battle, teamById, onClose, onReview }: { gameId: string; node: MapNodeDto; version: number; container: HTMLElement; revealed: TeamLite[]; battle: BattleProgress | null; teamById: Map<string, TeamLite>; onClose: () => void; onReview?: () => void }) {
   const superadmin = useAuth().user?.platformRole === "SUPERADMIN";
   const [city, setCity] = useState<AdminCityDto | null>(null);

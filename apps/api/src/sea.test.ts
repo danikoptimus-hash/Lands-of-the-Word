@@ -49,6 +49,40 @@ afterAll(async () => {
 });
 
 describe("стандартный набор дел", () => {
+  it("удаление дела в запущенной игре: свободные стороны получают другое дело, взятое дело удалить нельзя", async () => {
+    const tasks = (await myMap()).tasks as Task[];
+    const open = tasks.filter((t) => t.status === "OPEN" && !t.sea);
+    expect(open.length).toBeGreaterThanOrEqual(2);
+    const victim = open[0]!;
+    const del = await app.inject({ method: "DELETE", url: `/api/games/${gameId}/deeds/${victim.deedId}`, headers: { cookie: adminCookie } });
+    expect(del.statusCode).toBe(200);
+    expect(del.json().replaced).toBeGreaterThanOrEqual(1);
+    const after = ((await myMap()).tasks as Task[]).find((t) => t.id === victim.id)!;
+    expect(after.deedId).not.toBe(victim.deedId);
+    // Взятое дело удалить нельзя.
+    const taken = open[1]!;
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taken.id}/take`, headers: { cookie: capCookie } })).statusCode).toBe(200);
+    const no = await app.inject({ method: "DELETE", url: `/api/games/${gameId}/deeds/${taken.deedId}`, headers: { cookie: adminCookie } });
+    expect(no.statusCode).toBe(409);
+    await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taken.id}/release`, headers: { cookie: capCookie } });
+  });
+
+  it("переименованное дело набора обновляется в игре на месте, а не дублируется", async () => {
+    // Игра, где набор импортировали до переименования: есть только старое название.
+    const had = (await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } })).json().deeds as Array<{ id: string; title: string }>;
+    for (const d of had.filter((x) => /молитвенный час/i.test(x.title))) expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/deeds/${d.id}`, headers: { cookie: adminCookie } })).statusCode).toBe(200);
+    const mk = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie }, payload: { title: "Час молитвы за нужды братства", direction: "Молитва" } });
+    expect(mk.statusCode).toBe(201);
+    const oldId = mk.json().deed.id as string;
+    const r = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/import-default`, headers: { cookie: adminCookie } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().updated).toBeGreaterThanOrEqual(1);
+    const deeds = (await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } })).json().deeds as Array<{ id: string; title: string }>;
+    expect(deeds.find((d) => d.id === oldId)?.title).toBe("Прийти на молитвенный час и поучаствовать молитвой");
+    expect(deeds.filter((d) => /молитвенный час/i.test(d.title))).toHaveLength(1);
+    expect(deeds.some((d) => d.title === "Помочь с подготовкой проповеди")).toBe(false);
+  });
+
   it("заменить: неиспользованные дела убираются, список равен набору", async () => {
     await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie }, payload: { title: "Своё дело", direction: "Посещение" } });
     const r = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/import-default`, headers: { cookie: adminCookie }, payload: { mode: "replace" } });

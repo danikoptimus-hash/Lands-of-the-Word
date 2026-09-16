@@ -66,6 +66,11 @@ export const ADMIN: Record<string, string> = {
   // История ходов
   "История ходов": "Move history", "открыл перекрёсток": "opened a crossroad", "прошёл сторону": "passed a side", "взял город": "took a city", "взял город (столица)": "took a city (capital)",
   // Ярлыки
+  "Города разойдутся между всеми адресатами заново. Ярлыки, напечатанные раньше, устареют: их нужно будет распечатать снова.": "The cities will be shared out among all recipients again. Labels printed earlier become outdated and must be reprinted.",
+  "Перераспределить конверты поровну?": "Share the envelopes out evenly?", "Перераспределить": "Redistribute", "Конверты перераспределены": "Envelopes redistributed",
+  "Конверты распределены неравномерно: адресаты, добавленные позже, остались без городов.": "The envelopes are shared unevenly: recipients added later got no cities.", "Перераспределить поровну": "Share out evenly",
+  "Подставится книга города, из которого выходит сторона": "Replaced with the book of the city the side leads out of", "книга города": "city book",
+  "участник": "member", "Тайное дело: сдачу смотрите во вкладке «Проверка».": "Secret deed: see the submission in the Review tab.", "Дело заменено пожертвованием{amount}.": "The deed was replaced with a donation{amount}.", "Возвращено с комментарием: «{comment}»": "Returned with a comment: “{comment}”",
   "Скачать PDF": "Download PDF", "Наружный ярлык — на конверт, вкладыш — внутрь; разрежьте по пунктиру.": "The outer label goes on the envelope, the insert goes inside; cut along the dotted line.",
   "Добавить адресатов": "Add recipients", "Поздравляем! Город {name} ваш.": "Congratulations! The city of {name} is yours.", "Ключ": "Key",
   "Введите ключ в игре, чтобы взять город. Ключ секретный: не показывайте его другим командам.": "Enter the key in the game to take the city. The key is secret: do not show it to other teams.",
@@ -105,7 +110,7 @@ export const ADMIN: Record<string, string> = {
   "длинных задач": "long tasks", "за замер, дольше 50 мс": "per sample, over 50 ms", "Срез": "Slice", "Замеров": "Samples", "Кадров/с": "FPS", "Долгих кадров": "Slow frames", "Крупная отрисовка": "Largest paint", "Загружена": "Loaded",
   "телефон": "phone", "компьютер": "desktop", "карта команды": "team map", "карта администратора": "admin map", "другие страницы": "other pages",
   // Карта глазами команды
-  "Чьими глазами": "Whose view", "Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажатия здесь ничего не делают.": "The map as team “{name}” sees it: fog, sides and markers as theirs. Taps do nothing here.",
+  "Чьими глазами": "Whose view", "Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.": "The map as team “{name}” sees it: fog, sides and markers as theirs. Taps do nothing here.",
   "Администратор": "Admin",
   // Обращения в поддержку
   "Обращения в поддержку": "Support requests", "Только открытые": "Open only", "Показать закрытые": "Show closed",

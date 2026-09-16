@@ -66,6 +66,16 @@ describe("адресаты конвертов", () => {
     expect(again.json().labels.map((l: { recipient: { label: string } }) => l.recipient.label)).toEqual(labels.map((l) => l.recipient!.label));
     const list = await app.inject({ method: "GET", url: `/api/games/${gameId}/recipients`, headers: { cookie: adminCookie } });
     expect(list.json().recipients.map((x: { envelopes: number }) => x.envelopes)).toEqual([22, 22, 22]);
+    // Новый адресат после раздачи остаётся без конвертов, «перераспределить поровну» делит города заново.
+    await app.inject({ method: "POST", url: `/api/games/${gameId}/recipients`, headers: { cookie: adminCookie }, payload: { label: "семья у вокзала", kind: "FAMILY" } });
+    const before = await app.inject({ method: "GET", url: `/api/games/${gameId}/recipients`, headers: { cookie: adminCookie } });
+    expect(before.json().recipients.map((x: { envelopes: number }) => x.envelopes)).toEqual([22, 22, 22, 0]);
+    const re = await app.inject({ method: "POST", url: `/api/games/${gameId}/recipients/redistribute`, headers: { cookie: adminCookie } });
+    expect(re.statusCode).toBe(200);
+    expect(re.json().assigned).toBe(66);
+    const after = await app.inject({ method: "GET", url: `/api/games/${gameId}/recipients`, headers: { cookie: adminCookie } });
+    expect([...after.json().recipients.map((x: { envelopes: number }) => x.envelopes)].sort()).toEqual([16, 16, 17, 17]);
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/recipients/redistribute`, headers: { cookie: p1Cookie } })).statusCode).toBe(403);
   });
 
   it("один PDF со всеми ярлыками: скачивание, кириллический шрифт, только для админа", async () => {

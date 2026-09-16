@@ -82,8 +82,10 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const teamOut = { id: team.id, name: team.name, color: team.color, startNodeKey: team.startNodeKey };
     if (game.status === "DRAFT") return { status: game.status, teamIndex: team.index, team: teamOut, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
     const map = await getTeamMap(id, team.id);
+    // Участники — чтобы в карточке дела «глазами команды» показать, кто его взял.
+    const members = (await prisma.membership.findMany({ where: { teamId: team.id }, select: { user: { select: { id: true, nickname: true, displayName: true } } } })).map((m) => m.user);
     // Тайные дела: сдачи скрыты и здесь — администратор смотрит их во вкладке проверки.
-    return { status: game.status, teamIndex: team.index, team: teamOut, ...map, tasks: map.tasks.map((t) => hideSecret(t, "")) };
+    return { status: game.status, teamIndex: team.index, team: teamOut, ...map, members, tasks: map.tasks.map((t) => hideSecret(t, "")) };
   });
 
   app.post("/api/games/:id/edge-tasks/:taskId/take", async (request, reply) => {

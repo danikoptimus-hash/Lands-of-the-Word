@@ -87,6 +87,10 @@ const EN: Record<string, string> = {
   // учётка
   "восстановление пароля": "password reset",
   "подтверждение почты": "email confirmation",
+  "Сначала добавьте адресатов": "Add recipients first",
+  "Это дело уже взято или сдано командой: удалить нельзя, но можно отредактировать": "A team has already taken or submitted this deed: it cannot be deleted, but you can edit it",
+  "Это единственное дело в игре: сначала добавьте другие": "This is the only deed in the game: add others first",
+  "Не удалось подобрать замену на стороны с этим делом": "Could not pick a replacement for the sides carrying this deed",
   "Здравствуйте!\n\nЭта почта указана для учётки «{nickname}» на сайте Земли Слова.\n\nЧтобы подтвердить её и начать играть, откройте ссылку (действует сутки):\n{url}\n\nЕсли это были не вы, просто не открывайте ссылку.": "Hello!\n\nThis email was given for the account “{nickname}” on Lands of the Word.\n\nTo confirm it and start playing, open this link (valid for 24 hours):\n{url}\n\nIf it wasn't you, simply don't open the link.",
   "Сначала подтвердите почту: ссылка в письме": "Confirm your email first: the link is in the message",
   "Почта в учётке уже другая. Запросите новое письмо": "The account email has changed since. Request a new message",
