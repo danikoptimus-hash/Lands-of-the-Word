@@ -1,32 +1,13 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { BOOKS } from "@lotw/domain";
-const BOOK_CODES = new Set(BOOKS.map((b) => b.code));
 import { prisma } from "../db.js";
 import { bookOfNodeKey, pickDeed } from "../services/teamMap.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
+import { DIRECTIONS, deedBody, syncGameDeeds } from "../services/defaultDeeds.js";
 
-export const DIRECTIONS = [
-  "Молитва", "Молодёжные нужды братства", "Благовестие", "Посещение",
-  "Помощь миссионерам и большим семьям", "Труд в лагерях и домах молитвы", "Педагогическое служение", "Финансовое участие",
-] as const;
-
-const deedBody = z.object({
-  title: z.string().trim().min(2).max(120),
-  description: z.string().trim().max(2000).default(""),
-  direction: z.enum(DIRECTIONS),
-  proofType: z.enum(["REPORT", "PHOTO_LINK", "VIDEO_LINK", "CONFIRMATION"]).default("PHOTO_LINK"),
-  canRepeat: z.boolean().default(false),
-  bookCodes: z.array(z.string().trim().min(3).max(3)).max(66).default([]).transform((a) => [...new Set(a)].filter((c) => BOOK_CODES.has(c))),
-  difficulty: z.number().int().min(1).max(3).default(1),
-  frequency: z.number().int().min(1).max(3).default(2),
-  secret: z.boolean().default(false),
-});
+export { DIRECTIONS } from "../services/defaultDeeds.js";
 
 async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: { select: { userId: true } } } });
@@ -108,29 +89,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     if (!(await requireGameAdmin(request, reply, id))) return;
     const mode = z.object({ mode: z.enum(["add", "replace"]).default("add") }).parse(request.body ?? {}).mode;
-    const file = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../content/deeds-default.json");
-    const items = z.array(deedBody.extend({ replaces: z.array(z.string().trim().min(2)).default([]) })).parse(JSON.parse(await readFile(file, "utf8")));
-    let removed = 0, updated = 0;
-    // Переименованные дела набора («replaces»: прежние названия) обновляются в игре на месте, вместе с делами,
-    // уже выданными командам, — иначе в запущенной игре останется старое название.
-    const current = await prisma.deed.findMany({ where: { gameId: id }, select: { id: true, title: true } });
-    for (const { replaces, ...src } of items) {
-      if (current.some((d) => d.title.toLowerCase() === src.title.toLowerCase())) continue;
-      const old = current.find((d) => replaces.some((r) => r.toLowerCase() === d.title.toLowerCase()));
-      if (old) { await prisma.deed.update({ where: { id: old.id }, data: src }); old.title = src.title; updated++; }
-    }
-    if (mode === "replace") {
-      removed = (await prisma.deed.deleteMany({ where: { gameId: id, edgeTasks: { none: {} } } })).count;
-      const kept = await prisma.deed.findMany({ where: { gameId: id }, select: { id: true, title: true } });
-      for (const k of kept) {
-        const src = items.find((d) => d.title.toLowerCase() === k.title.toLowerCase());
-        if (src) { const { replaces: _r, ...data } = src; await prisma.deed.update({ where: { id: k.id }, data }); updated++; }
-      }
-    }
-    const existing = new Set((await prisma.deed.findMany({ where: { gameId: id }, select: { title: true } })).map((d) => d.title.toLowerCase()));
-    const fresh = items.filter((d) => !existing.has(d.title.toLowerCase()));
-    await prisma.deed.createMany({ data: fresh.map(({ replaces: _r, ...d }) => ({ ...d, gameId: id })) });
-    publish(id, { type: "deeds" });
-    return { added: fresh.length, removed, updated };
+    return syncGameDeeds(id, mode);
   });
+
 }

@@ -1074,7 +1074,7 @@ function paintShip(g: CanvasRenderingContext2D, sp: ShipSpec): void {
   g.strokeStyle = "rgb(58,38,24)"; g.lineWidth = L * 0.014; g.beginPath(); g.moveTo(L * 0.4, 0); g.lineTo(L * 0.7, 0); g.stroke();
   // ── такелаж и паруса ──
   const masts = sp.masts.map((m) => L * m);
-  const brace = -0.28; // реи обрасоплены: повернуты под ветер (пузо на −y)
+  const brace = 0.35; // реи обрасоплены под ветер с кормы-правого борта: нормаль рея смотрит вперёд и на −y
   const rope = () => { g.strokeStyle = "rgba(30,20,12,0.55)"; g.lineWidth = dk * 0.9; };
   // штаги: от мачт к бушприту и между мачтами
   rope(); g.beginPath();
@@ -1087,7 +1087,7 @@ function paintShip(g: CanvasRenderingContext2D, sp: ShipSpec): void {
     // рей — тёмная линия под углом; полотно — дуга, выгнутая по ветру (к −x·sin, −y): видна как серп
     const yx = Math.sin(brace) * hw, yy = Math.cos(brace) * hw; // полурей
     const x0 = mx - yx, y0 = -yy, x1 = mx + yx, y1 = yy;
-    const nx = -Math.cos(brace) * 0.35 - 0.0, ny = -Math.sin(brace) * 0.35 - 0.94; // куда надувается (примерно на −y, чуть назад)
+    const nx = Math.cos(brace), ny = -Math.sin(brace); // наполнение строго перпендикулярно рею: вперёд и на подветренный борт
     const sail = new Path2D(); sail.moveTo(x0, y0); sail.quadraticCurveTo((x0 + x1) / 2 + nx * belly * 2, (y0 + y1) / 2 + ny * belly * 2, x1, y1); sail.closePath();
     // тень паруса на палубе/воде — смещена по солнцу
     g.save(); g.translate(-SUN_X * L * 0.05, SUN_Y * L * 0.05); g.fillStyle = "rgba(10,20,30,0.22)"; g.fill(sail); g.restore();

@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { withDeedBook } from "./services/teamMap.js";
 import { registerVerified } from "./testAuth.js";
+import { deedHash, syncGameDeeds } from "./services/defaultDeeds.js";
 
 /**
  * Два острова и морской переход (2.3a): порт — береговой город; из взятого порта команде даётся морское дело;
@@ -49,6 +50,31 @@ afterAll(async () => {
 });
 
 describe("стандартный набор дел", () => {
+  it("синхронизация при старте сервера: нередактированные дела обновляются, правленные — нет, исчезнувшие из набора убираются", async () => {
+    const deeds = (await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } })).json().deeds as Array<{ id: string; title: string; description: string }>;
+    const a = deeds.find((d) => d.title === "Посетить больного")!, b = deeds.find((d) => d.title === "Помощь на поле")!;
+    // a: старая версия набора, администратор не трогал (хеш содержимого = sourceHash) → обновится
+    const aOld = await prisma.deed.update({ where: { id: a.id }, data: { description: "старый текст набора" } });
+    await prisma.deed.update({ where: { id: a.id }, data: { sourceHash: deedHash(aOld) } });
+    // b: правлено администратором (sourceHash от версии набора, содержимое другое) → не тронется
+    await prisma.deed.update({ where: { id: b.id }, data: { description: "правка администратора" } });
+    // c: дело из набора, которого в наборе больше нет, не правлено и не выдано → уберётся
+    const c = await prisma.deed.create({ data: { gameId, title: "Старое дело набора", description: "", direction: "Молитва", sourceHash: "x" } });
+    await prisma.deed.update({ where: { id: c.id }, data: { sourceHash: deedHash({ ...c }) } });
+    const r = await syncGameDeeds(gameId, "auto");
+    expect(r.updated).toBeGreaterThanOrEqual(1);
+    expect(r.removed).toBe(1);
+    const after = (await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } })).json().deeds as Array<{ id: string; title: string; description: string }>;
+    expect(after.find((d) => d.id === a.id)!.description).not.toBe("старый текст набора");
+    expect(after.find((d) => d.id === b.id)!.description).toBe("правка администратора");
+    expect(after.some((d) => d.id === c.id)).toBe(false);
+    // игра без набора: ничего не добавляется
+    const g2 = (await app.inject({ method: "POST", url: "/api/games", headers: { cookie: adminCookie }, payload: { name: "Своя", teamCount: 2 } })).json().game.id as string;
+    await app.inject({ method: "POST", url: `/api/games/${g2}/deeds`, headers: { cookie: adminCookie }, payload: { title: "Своё дело", direction: "Посещение" } });
+    expect(await syncGameDeeds(g2, "auto")).toEqual({ added: 0, updated: 0, removed: 0 });
+    await prisma.game.delete({ where: { id: g2 } });
+  });
+
   it("удаление дела в запущенной игре: свободные стороны получают другое дело, взятое дело удалить нельзя", async () => {
     const tasks = (await myMap()).tasks as Task[];
     const open = tasks.filter((t) => t.status === "OPEN" && !t.sea);
