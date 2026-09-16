@@ -226,8 +226,12 @@ function carrotRoute(car: Carrot, p: Profile, size: number): void {
   const R = farR(p, size);
   let a = 0, b = 0;
   for (let tries = 0; tries < 12; tries++) {
-    a = rnd(-Math.PI, Math.PI); b = a + Math.PI + rnd(-0.9, 0.9);
-    if (tries === 11 || !crossesIsle(p, p.cx + Math.cos(a) * R, p.cy + Math.sin(a) * R, p.cx + Math.cos(b) * R, p.cy + Math.sin(b) * R, car.off + car.wob + size)) break;
+    a = rnd(-Math.PI, Math.PI); b = a + Math.PI + rnd(-1.2, 1.2);
+    const x0 = p.cx + Math.cos(a) * R, y0 = p.cy + Math.sin(a) * R, x1 = p.cx + Math.cos(b) * R, y1 = p.cy + Math.sin(b) * R;
+    // Прямая маршрута не должна резать остров по середине: иначе после проекции на берег поводок почти замирает,
+    // и зверь кружит на месте. Допустимы проходы у края острова и через пролив между островами.
+    const cuts = p.parts.some((part) => segDist(part.cx, part.cy, x0, y0, x1, y1) < part.maxR * 0.7 + car.off);
+    if (tries === 11 || (!cuts && !crossesIsle(p, x0, y0, x1, y1, car.off + car.wob + size))) break;
   }
   car.x0 = p.cx + Math.cos(a) * R; car.y0 = p.cy + Math.sin(a) * R;
   car.x1 = p.cx + Math.cos(b) * R; car.y1 = p.cy + Math.sin(b) * R;
@@ -302,7 +306,8 @@ function steerCet(c: Cet, p: Profile, clearance: number, tx: number, ty: number,
   c.v = ease(c.v, want, dt, 1.2);
   const omMax = Math.min(sp.maxTurn, Math.max(c.v, sp.speed * 0.4) / (sp.L * sp.turnR));
   const aim = avoidHeading(p, c.x, c.y, c.h, tx, ty, Math.max(sp.L * 1.5, c.v * 2.5), clearance);
-  const omWant = clamp(wrapAngle(aim - c.h) * 1.6, -omMax, omMax);
+  // Цель вплотную (поводок замешкался) — не кружить вокруг неё: держать курс, поводок уйдёт вперёд сам.
+  const omWant = dist < sp.L * 0.8 ? 0 : clamp(wrapAngle(aim - c.h) * 1.6, -omMax, omMax);
   // После доворота у берега om мог быть выше предела: сглаживаем и снова ограничиваем кривизной.
   c.om = clamp(ease(c.om, omWant, dt, 0.45), -omMax, omMax);
   c.h = wrapAngle(c.h + c.om * dt);
@@ -829,9 +834,11 @@ function makePod(p: Profile, size: number, n: number): Pod {
   const car = makeCarrot(p, size, size * rnd(2.3, 3), size * 0.35);
   const dL = size * 0.55;
   const scales = [1, 0.88, 0.95, 0.9, 0.84];
-  const dolphins = scales.slice(0, n).map((sc, i) => { // в стае звери чуть разного размера
-    const d = makeCet(cetSpec("dolphin", dL * sc, size), null, car.x - i * dL, car.y + (i % 2 ? 1 : -1) * i * dL * 0.5, car.h);
-    d.fdx = -i * dL * 1.15; d.fdy = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * dL * 0.95;
+  const c0 = Math.cos(car.h), s0 = Math.sin(car.h);
+  const dolphins = scales.slice(0, n).map((sc, i) => { // в стае звери чуть разного размера; строй сразу развёрнут по курсу
+    const fdx = -i * dL * 1.15, fdy = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * dL * 0.95;
+    const d = makeCet(cetSpec("dolphin", dL * sc, size), null, car.x + c0 * fdx - s0 * fdy, car.y + s0 * fdx + c0 * fdy, car.h);
+    d.fdx = fdx; d.fdy = fdy;
     return d;
   });
   return { dolphins, car, next: rnd(3, 8) };
