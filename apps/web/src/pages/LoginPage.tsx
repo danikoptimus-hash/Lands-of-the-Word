@@ -67,7 +67,7 @@ export function LoginPage() {
     setBusy(true); setError(null);
     try {
       if (mode === "login") await login(nickname, password);
-      else await register(nickname, password, email || undefined);
+      else await register(nickname, password, email);
       navigate(next);
     } catch (err) { setError(errorText(err)); }
     finally { setBusy(false); }
@@ -83,9 +83,9 @@ export function LoginPage() {
         <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete={mode === "login" ? "current-password" : "new-password"} required minLength={8} />
         {mode === "register" && (
           <>
-            <label htmlFor="email">{t("Почта")} <span className="opt">· {t("необязательно")}</span></label>
-            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-            <p className="hint">{t("Почта нужна, чтобы восстановить пароль и получать уведомления.")}</p>
+            <label htmlFor="email">{t("Почта")}</label>
+            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+            <p className="hint">{t("На почту придёт письмо со ссылкой: без подтверждения играть нельзя. Она же нужна, чтобы восстановить пароль.")}</p>
           </>
         )}
         {error && <p className="error" role="alert">{error}</p>}

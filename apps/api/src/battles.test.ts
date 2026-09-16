@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -11,7 +12,7 @@ const content = JSON.parse(await readFile(new URL("../../../content/cities/rut.j
 const allTasks = content.tasks.map((_, i) => i);
 
 async function register(nickname: string) {
-  const res = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname, password: "secret123" } });
+  const res = await registerVerified(app, { nickname, password: "secret123" });
   return res.headers["set-cookie"] as string;
 }
 async function joinTeam(name: string, cookie: string) {

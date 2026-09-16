@@ -50,12 +50,20 @@ export async function attachUser(request: FastifyRequest): Promise<void> {
   if (Date.now() - seen > 600_000) prisma.user.update({ where: { id: session.user.id }, data: { lastSeenAt: new Date() } }).catch(() => {});
 }
 
+/** Маршруты, доступные с неподтверждённой почтой: аккаунт, выход, смена пароля и само подтверждение. */
+const UNVERIFIED_OK = /^\/api\/auth\/(me|logout|password|verify|resend)(\/|\?|$)/;
+
 export async function requireUser(request: FastifyRequest, reply: FastifyReply): Promise<void> {
   if (!request.user) {
     await reply.code(401).send({ error: "unauthorized", message: "Нужно войти" });
+    return;
+  }
+  // Пока почта не подтверждена, играть нельзя: только подтвердить, сменить почту или выйти.
+  if (!request.user.emailVerified && !UNVERIFIED_OK.test(request.url)) {
+    await reply.code(403).send({ error: "email_unverified", message: "Сначала подтвердите почту: ссылка в письме" });
   }
 }
 
 export function publicUser(u: User) {
-  return { id: u.id, nickname: u.nickname, displayName: u.displayName, email: u.email, locale: u.locale, platformRole: u.platformRole };
+  return { id: u.id, nickname: u.nickname, displayName: u.displayName, email: u.email, emailVerified: u.emailVerified, locale: u.locale, platformRole: u.platformRole };
 }

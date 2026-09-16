@@ -29,6 +29,8 @@ model User {
   nickname     String       @unique
   passwordHash String
   email        String?      @unique
+  /** Почта подтверждена ссылкой из письма. Учётки, созданные до ввода подтверждения, считаются подтверждёнными. */
+  emailVerified Boolean     @default(false)
   displayName  String?
   locale       String       @default("ru")
   platformRole PlatformRole @default(USER)
@@ -40,6 +42,7 @@ model User {
   createdGames Game[]       @relation("GameCreator")
   memberships  Membership[]
   resets       PasswordReset[]
+  verifications EmailVerification[]
   pushSubscriptions PushSubscription[]
   supportRequests SupportRequest[]
 }
@@ -70,6 +73,19 @@ enum ResetKind {
 }
 
 /** Одноразовая ссылка сброса пароля. id — SHA-256 от токена из ссылки; сам токен нигде не хранится. */
+/** Одноразовая ссылка подтверждения почты: id — хеш токена, письмо уходит на email на момент выпуска. */
+model EmailVerification {
+  id        String    @id
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
 model PasswordReset {
   id        String    @id
   userId    String

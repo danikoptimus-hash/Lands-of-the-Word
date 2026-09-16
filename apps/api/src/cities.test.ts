@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -9,7 +10,7 @@ const adminNick = `cadm_${stamp}`, p1Nick = `cp1_${stamp}`, p2Nick = `cp2_${stam
 let adminCookie = "", p1Cookie = "", p2Cookie = "", gameId = "", rutKey = "", team1 = "", team2 = "";
 
 async function register(nickname: string) {
-  const res = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname, password: "secret123" } });
+  const res = await registerVerified(app, { nickname, password: "secret123" });
   return res.headers["set-cookie"] as string;
 }
 async function joinTeam(name: string, cookie: string) {

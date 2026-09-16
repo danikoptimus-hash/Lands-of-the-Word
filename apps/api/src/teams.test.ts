@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -8,7 +9,7 @@ const adminNick = `adm_${stamp}`, playerNick = `pl_${stamp}`, otherNick = `ot_${
 let adminCookie = "", playerCookie = "", otherCookie = "", gameId = "", teamId = "", token = "";
 
 async function register(nickname: string) {
-  const res = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname, password: "secret123" } });
+  const res = await registerVerified(app, { nickname, password: "secret123" });
   return res.headers["set-cookie"] as string;
 }
 
@@ -149,7 +150,7 @@ describe("дела и старт игры", () => {
     expect(notReady.statusCode).toBe(409);
     const teams = await prisma.team.findMany({ where: { gameId }, orderBy: { index: "asc" } });
     const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teams[1]!.id}/invites`, headers: { cookie: adminCookie }, payload: {} });
-    const third = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: "th_" + stamp, password: "secret123" } });
+    const third = await registerVerified(app, { nickname: "th_" + stamp, password: "secret123" });
     await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: third.headers["set-cookie"] as string } });
     const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });
     expect(ok.statusCode).toBe(200);

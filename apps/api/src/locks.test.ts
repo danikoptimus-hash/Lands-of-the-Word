@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { outbox } from "./services/mail.js";
+import { registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -11,7 +12,7 @@ let adminCookie = "", p1Cookie = "", p2Cookie = "", gameId = "", team1 = "", rut
 const content = JSON.parse(await readFile(new URL("../../../content/cities/rut.json", import.meta.url), "utf8")) as { districts: Array<{ title: string }>; tasks: Array<{ type: string; correct?: number; options?: string[] }> };
 
 async function register(nickname: string) {
-  const res = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname, password: "secret123" } });
+  const res = await registerVerified(app, { nickname, password: "secret123" });
   return res.headers["set-cookie"] as string;
 }
 async function joinTeam(name: string, cookie: string) {

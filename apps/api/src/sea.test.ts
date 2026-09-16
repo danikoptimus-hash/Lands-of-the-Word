@@ -5,6 +5,7 @@ import { BOOKS } from "@lotw/domain";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { withDeedBook } from "./services/teamMap.js";
+import { registerVerified } from "./testAuth.js";
 
 /**
  * Два острова и морской переход (2.3a): порт — береговой город; из взятого порта команде даётся морское дело;
@@ -16,7 +17,7 @@ const adminNick = `sadm_${stamp}`, capNick = `scap_${stamp}`, memNick = `smem_${
 let adminCookie = "", capCookie = "", memCookie = "", p2Cookie = "", gameId = "", team1 = "", portKey = "";
 
 async function register(nickname: string) {
-  const res = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname, password: "secret123" } });
+  const res = await registerVerified(app, { nickname, password: "secret123" });
   return res.headers["set-cookie"] as string;
 }
 async function joinTeam(name: string, cookie: string, role: "CAPTAIN" | "MEMBER", teamId?: string) {

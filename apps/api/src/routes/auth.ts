@@ -14,7 +14,7 @@ const password = z.string().min(8).max(128);
 const registerBody = z.object({
   nickname,
   password,
-  email: z.string().trim().email().optional().or(z.literal("").transform(() => undefined)),
+  email: z.string().trim().email(),
   displayName: z.string().trim().max(60).optional(),
   locale: z.enum(["ru", "en"]).optional(),
 });
@@ -28,6 +28,8 @@ const profileBody = z.object({
 const passwordBody = z.object({ current: z.string(), next: password });
 const forgotBody = z.object({ login: z.string().trim().min(3).max(120) });
 const resetBody = z.object({ token: z.string().min(20).max(120), password });
+const verifyBody = z.object({ token: z.string().min(20).max(120) });
+const VERIFY_TTL_MS = 24 * 3_600_000;
 
 export const hashToken = (token: string) => createHash("sha256").update(token).digest("base64url");
 
@@ -39,13 +41,35 @@ export async function issueResetLink(userId: string, kind: "EMAIL" | "ADMIN", tt
   return { url: `${publicUrl.replace(/\/$/, "")}/reset/${token}`, expiresAt };
 }
 
+/**
+ * Письмо с одноразовой ссылкой подтверждения почты (живёт сутки). Токен хранится только в виде хеша.
+ * Если SMTP не настроен (локальная разработка), письмо уйти не может — почта считается подтверждённой сразу.
+ */
+export async function sendVerification(user: { id: string; nickname: string; email: string | null; locale: string }, publicUrl: string): Promise<"sent" | "auto" | "none"> {
+  if (!user.email) return "none";
+  if (!mailEnabled()) {
+    await prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } });
+    return "auto";
+  }
+  const token = randomBytes(32).toString("base64url");
+  await prisma.emailVerification.create({ data: { id: hashToken(token), userId: user.id, email: user.email, expiresAt: new Date(Date.now() + VERIFY_TTL_MS) } });
+  const url = `${publicUrl.replace(/\/$/, "")}/verify/${token}`;
+  const locale = toLocale(user.locale);
+  await sendMail({
+    to: user.email,
+    subject: `${msg(locale, "Земли Слова")}: ${msg(locale, "подтверждение почты")}`,
+    text: msg(locale, "Здравствуйте!\n\nЭта почта указана для учётки «{nickname}» на сайте Земли Слова.\n\nЧтобы подтвердить её и начать играть, откройте ссылку (действует сутки):\n{url}\n\nЕсли это были не вы, просто не открывайте ссылку.", { nickname: user.nickname, url }),
+  });
+  return "sent";
+}
+
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   const secure = app.config.NODE_ENV === "production";
 
   app.post("/api/auth/register", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const body = registerBody.parse(request.body);
     const exists = await prisma.user.findFirst({
-      where: { OR: [{ nickname: { equals: body.nickname, mode: "insensitive" } }, ...(body.email ? [{ email: body.email }] : [])] },
+      where: { OR: [{ nickname: { equals: body.nickname, mode: "insensitive" } }, { email: { equals: body.email, mode: "insensitive" } }] },
     });
     if (exists) return reply.code(409).send({ error: "conflict", message: err(request, "Такой никнейм или почта уже заняты") });
     const userCount = await prisma.user.count();
@@ -53,15 +77,59 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       data: {
         nickname: body.nickname,
         passwordHash: await bcrypt.hash(body.password, 10),
-        email: body.email ?? null,
+        email: body.email,
         displayName: body.displayName ?? null,
         locale: body.locale ?? "ru",
         // Первый зарегистрированный пользователь платформы — суперадмин.
         platformRole: userCount === 0 ? "SUPERADMIN" : "USER",
       },
     });
+    // Почту подтверждают ссылкой из письма; до этого учётка есть, но играть нельзя (requireUser → 403).
+    let mail: "sent" | "auto" | "none" | "failed" = "none";
+    try { mail = await sendVerification(user, app.config.PUBLIC_URL); }
+    catch (e) { request.log.error(e, "verification mail failed"); mail = "failed"; }
+    const fresh = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     await createSession(reply, user.id, secure);
-    return reply.code(201).send({ user: publicUser(user) });
+    return reply.code(201).send({ user: publicUser(fresh), mail });
+  });
+
+  /** Проверка ссылки подтверждения: жива ли, для какой почты. */
+  app.get("/api/auth/verify/:token", async (request) => {
+    const { token } = request.params as { token: string };
+    const v = await prisma.emailVerification.findUnique({ where: { id: hashToken(token) }, include: { user: { select: { nickname: true } } } });
+    const valid = Boolean(v && !v.usedAt && v.expiresAt.getTime() > Date.now());
+    return { valid, nickname: valid ? v!.user.nickname : null, email: valid ? v!.email : null };
+  });
+
+  /**
+   * Подтверждение почты по ссылке. Входить не обязательно: ссылку могут открыть с другого устройства.
+   * Почта подтверждается только если она всё ещё та же, что была при выпуске ссылки.
+   */
+  app.post("/api/auth/verify", { config: { rateLimit: { max: 20, timeWindow: "15 minutes" } } }, async (request, reply) => {
+    const body = verifyBody.parse(request.body);
+    const v = await prisma.emailVerification.findUnique({ where: { id: hashToken(body.token) }, include: { user: true } });
+    if (!v || v.usedAt || v.expiresAt.getTime() < Date.now()) return reply.code(400).send({ error: "invalid_token", message: err(request, "Ссылка недействительна или устарела. Запросите новую") });
+    if (!v.user.email || v.user.email.toLowerCase() !== v.email.toLowerCase()) return reply.code(400).send({ error: "email_changed", message: err(request, "Почта в учётке уже другая. Запросите новое письмо") });
+    await prisma.$transaction([
+      prisma.emailVerification.update({ where: { id: v.id }, data: { usedAt: new Date() } }),
+      prisma.user.update({ where: { id: v.userId }, data: { emailVerified: true } }),
+    ]);
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: v.userId } });
+    // Если ссылку открыли без входа — входим сразу, чтобы не вводить пароль ещё раз.
+    if (!request.user || request.user.id !== user.id) await createSession(reply, user.id, secure);
+    return { user: publicUser(user) };
+  });
+
+  /** Выслать письмо подтверждения ещё раз (или после смены почты). */
+  app.post("/api/auth/resend", { preHandler: requireUser, config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } }, async (request, reply) => {
+    const u = request.user!;
+    if (u.emailVerified) return { ok: true, mail: "none" };
+    if (!u.email) return reply.code(400).send({ error: "no_email", message: err(request, "У учётки нет почты: укажите её") });
+    try { const mail = await sendVerification(u, app.config.PUBLIC_URL); return { ok: true, mail }; }
+    catch (e) {
+      request.log.error(e, "verification mail failed");
+      return reply.code(502).send({ error: "mail_failed", message: err(request, "Письмо не отправилось: почтовый сервер не отвечает. Попробуйте позже или сообщите администратору") });
+    }
   });
 
   app.post("/api/auth/login", { config: { rateLimit: { max: 20, timeWindow: "1 minute" } } }, async (request, reply) => {
@@ -81,15 +149,28 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/api/auth/me", { preHandler: requireUser }, async (request) => ({ user: publicUser(request.user!) }));
 
-  /** Настройки аккаунта: отображаемое имя, email, язык. Никнейм не меняется. */
+  /**
+   * Настройки аккаунта: отображаемое имя, email, язык. Никнейм не меняется.
+   * Новая почта не подтверждена: на неё уходит письмо со ссылкой, до подтверждения играть нельзя.
+   * Убрать почту совсем нельзя (без неё не восстановить пароль и не подтвердить владельца).
+   */
   app.patch("/api/auth/me", { preHandler: requireUser }, async (request, reply) => {
     const body = profileBody.parse(request.body);
-    if (body.email) {
-      const taken = await prisma.user.findFirst({ where: { email: body.email, NOT: { id: request.user!.id } } });
+    const me = request.user!;
+    if (body.email === null && me.email) return reply.code(400).send({ error: "email_required", message: err(request, "Почту нельзя убрать: без неё не восстановить пароль") });
+    const changed = Boolean(body.email && body.email.toLowerCase() !== (me.email ?? "").toLowerCase());
+    if (changed) {
+      const taken = await prisma.user.findFirst({ where: { email: { equals: body.email!, mode: "insensitive" }, NOT: { id: me.id } } });
       if (taken) return reply.code(409).send({ error: "conflict", message: err(request, "Эта почта уже занята") });
     }
-    const user = await prisma.user.update({ where: { id: request.user!.id }, data: { displayName: body.displayName === undefined ? undefined : body.displayName || null, email: body.email === undefined ? undefined : body.email, locale: body.locale } });
-    return { user: publicUser(user) };
+    const user = await prisma.user.update({ where: { id: me.id }, data: { displayName: body.displayName === undefined ? undefined : body.displayName || null, email: changed ? body.email : undefined, emailVerified: changed ? false : undefined, locale: body.locale } });
+    let mail: "sent" | "auto" | "none" | "failed" = "none";
+    if (changed) {
+      try { mail = await sendVerification(user, app.config.PUBLIC_URL); }
+      catch (e) { request.log.error(e, "verification mail failed"); mail = "failed"; }
+    }
+    const fresh = changed ? await prisma.user.findUniqueOrThrow({ where: { id: me.id } }) : user;
+    return { user: publicUser(fresh), mail };
   });
 
   app.post("/api/auth/password", { preHandler: requireUser, config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {

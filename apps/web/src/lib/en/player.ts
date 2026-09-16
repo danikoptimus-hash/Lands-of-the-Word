@@ -109,7 +109,7 @@ export const PLAYER: Record<string, string> = {
   "Как играть?": "How to play?", "Разделы": "Sections",
   "Полная инструкция по игре. Картинки — с настоящих экранов игры и обновляются вместе с ней.": "The complete guide to the game. The pictures are real game screens and are updated together with it.",
   "Вход и приглашение": "Signing in and invitations",
-  "Игра открывается в браузере телефона или компьютера, ничего устанавливать не нужно. Зарегистрируйтесь по никнейму и паролю: почта не обязательна, но с ней можно восстановить пароль.": "The game opens in the browser on a phone or a computer; nothing needs installing. Register with a nickname and a password: an email is optional, but with it you can recover your password.",
+  "Игра открывается в браузере телефона или компьютера, ничего устанавливать не нужно. Зарегистрируйтесь: никнейм, пароль и почта. На почту придёт письмо со ссылкой — пока её не откроете, играть нельзя; по этой же почте восстанавливают пароль.": "The game opens in the browser on a phone or a computer; nothing needs installing. Register with a nickname, a password and an email. A link is sent to that email: you cannot play until you open it, and the same email is used to recover your password.",
   "В команду попадают по ссылке-приглашению от капитана или администратора. Откройте ссылку, войдите — и команда появится на главной.": "You join a team through an invitation link from the captain or the administrator. Open the link, sign in, and the team appears on the home screen.",
   "Вход и регистрация. Справа сверху — переключение языка.": "Sign in and registration. Top right: language switch.",
   "Главная: ваши команды и игры, кнопка «Как играть?».": "Home: your teams and games, the “How to play?” button.",

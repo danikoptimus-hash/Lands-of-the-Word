@@ -14,16 +14,19 @@ import { JoinPage } from "./pages/JoinPage";
 import { AccountPage } from "./pages/AccountPage";
 import { ForgotPage } from "./pages/ForgotPage";
 import { ResetPage } from "./pages/ResetPage";
+import { VerifyPage, VerifyPendingPage } from "./pages/VerifyPage";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import { NewGamePage } from "./pages/NewGamePage";
 import { HowToPlayPage } from "./pages/HowToPlayPage";
 import "./styles/index.css";
 import { t } from "./lib/i18n";
 
+/** Только для вошедших. Пока почта не подтверждена, вместо любой страницы — «Подтвердите почту». */
 function Private({ children }: { children: React.ReactElement }) {
   const { user, loading } = useAuth();
   if (loading) return <p className="container muted">{t("Загрузка…")}</p>;
-  return user ? children : <Navigate to="/login" replace />;
+  if (!user) return <Navigate to="/login" replace />;
+  return user.emailVerified ? children : <VerifyPendingPage />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
@@ -36,6 +39,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot" element={<ForgotPage />} />
             <Route path="/reset/:token" element={<ResetPage />} />
+            <Route path="/verify/:token" element={<VerifyPage />} />
             <Route path="/" element={<Private><GamesPage /></Private>} />
             <Route path="/games/new" element={<Private><NewGamePage /></Private>} />
             <Route path="/how-to-play" element={<HowToPlayPage />} />

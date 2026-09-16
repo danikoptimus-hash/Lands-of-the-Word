@@ -7,6 +7,7 @@ import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { LoadingState } from "../components/State";
 import { GuestShell, errorText } from "./LoginPage";
+import { VerifyPendingPage } from "./VerifyPage";
 
 interface InviteInfo { invite: { role: "CAPTAIN" | "MEMBER"; team: { id: string; name: string; color: string }; game: { id: string; name: string; org: { name: string } } }; alreadyIn: { id: string; name: string } | null }
 
@@ -20,11 +21,13 @@ export function JoinPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user?.emailVerified) return;
     api<InviteInfo>(`/api/invites/${token}`).then(setInfo).catch((e) => setError(errorText(e)));
   }, [token, user]);
 
   if (!loading && !user) return <Navigate to={`/login?next=/join/${token}`} replace />;
+  // Приглашение принимают только с подтверждённой почтой; после подтверждения страница откроется сама.
+  if (user && !user.emailVerified) return <VerifyPendingPage />;
 
   async function accept() {
     setBusy(true); setError(null);

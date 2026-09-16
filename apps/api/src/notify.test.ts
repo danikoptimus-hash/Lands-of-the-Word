@@ -4,13 +4,14 @@ import { prisma } from "./db.js";
 import { outbox } from "./services/mail.js";
 import { notifyTeam } from "./services/notify.js";
 import { msg } from "./services/i18n.js";
+import { registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
 let adminCookie = "", gameId = "", teamId = "";
 
 async function register(nickname: string, locale: "ru" | "en") {
-  const res = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname, password: "secret123", email: `${nickname}@example.com`, locale } });
+  const res = await registerVerified(app, { nickname, password: "secret123", email: `${nickname}@example.com`, locale });
   return res.headers["set-cookie"] as string;
 }
 

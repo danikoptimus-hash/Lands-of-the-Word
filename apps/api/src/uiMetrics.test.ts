@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { uiMetrics } from "./services/metrics.js";
+import { registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -9,7 +10,7 @@ let cookie = "";
 
 beforeAll(async () => {
   await app.ready();
-  const res = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: `ui_${stamp}`, password: "secret123", locale: "ru" } });
+  const res = await registerVerified(app, { nickname: `ui_${stamp}`, password: "secret123", locale: "ru" });
   cookie = res.headers["set-cookie"] as string;
 });
 afterAll(async () => { await app.close(); await prisma.$disconnect(); });
@@ -49,7 +50,7 @@ describe("карта глазами команды", () => {
     expect(r.statusCode).toBe(200);
     expect(r.json().team.name).toBe("Первая");
     expect(r.json().status).toBe("DRAFT");
-    const other = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: `ui2_${stamp}`, password: "secret123", locale: "ru" } });
+    const other = await registerVerified(app, { nickname: `ui2_${stamp}`, password: "secret123", locale: "ru" });
     const denied = await app.inject({ method: "GET", url: `/api/games/${gameId}/teams/${teamId}/map`, headers: { cookie: other.headers["set-cookie"] as string } });
     expect(denied.statusCode).toBe(403);
   });

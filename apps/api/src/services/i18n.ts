@@ -86,6 +86,12 @@ const EN: Record<string, string> = {
   "Команда «{team}» закрыла проход через свой город. Уже взятые дела остаются.": "Team “{team}” closed the passage through their city. Deeds already taken stay with you.",
   // учётка
   "восстановление пароля": "password reset",
+  "подтверждение почты": "email confirmation",
+  "Здравствуйте!\n\nЭта почта указана для учётки «{nickname}» на сайте Земли Слова.\n\nЧтобы подтвердить её и начать играть, откройте ссылку (действует сутки):\n{url}\n\nЕсли это были не вы, просто не открывайте ссылку.": "Hello!\n\nThis email was given for the account “{nickname}” on Lands of the Word.\n\nTo confirm it and start playing, open this link (valid for 24 hours):\n{url}\n\nIf it wasn't you, simply don't open the link.",
+  "Сначала подтвердите почту: ссылка в письме": "Confirm your email first: the link is in the message",
+  "Почта в учётке уже другая. Запросите новое письмо": "The account email has changed since. Request a new message",
+  "У учётки нет почты: укажите её": "The account has no email: add one",
+  "Почту нельзя убрать: без неё не восстановить пароль": "The email cannot be removed: without it the password cannot be recovered",
   "Здравствуйте!\n\nКто-то (надеемся, вы) запросил восстановление пароля для учётки «{nickname}» на сайте Земли Слова.\n\nЧтобы задать новый пароль, откройте ссылку (действует 1 час):\n{url}\n\nЕсли это были не вы, просто не открывайте ссылку: пароль не изменится.": "Hello!\n\nSomeone (we hope it was you) requested a password reset for the account “{nickname}” on Lands of the Word.\n\nTo set a new password, open this link (valid for 1 hour):\n{url}\n\nIf it wasn't you, simply don't open the link: the password will not change.",
   "проверка почты": "email check",
   "Почта настроена: письма с сайта доходят.": "Email is set up: messages from the site are getting through.",

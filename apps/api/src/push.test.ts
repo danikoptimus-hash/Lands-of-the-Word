@@ -3,6 +3,7 @@ import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { pushOutbox } from "./services/push.js";
 import { notifyAdmins } from "./services/notify.js";
+import { registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -11,7 +12,7 @@ const endpoint = `https://push.example.com/send/${stamp}`;
 
 beforeAll(async () => {
   await app.ready();
-  const res = await app.inject({ method: "POST", url: "/api/auth/register", payload: { nickname: `push_${stamp}`, password: "secret123", locale: "en" } });
+  const res = await registerVerified(app, { nickname: `push_${stamp}`, password: "secret123", locale: "en" });
   cookie = res.headers["set-cookie"] as string;
   const g = await app.inject({ method: "POST", url: "/api/games", headers: { cookie }, payload: { name: "Push", teamCount: 2 } });
   gameId = g.json().game.id;

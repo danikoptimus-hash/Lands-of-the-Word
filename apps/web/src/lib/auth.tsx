@@ -7,7 +7,7 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   login: (nickname: string, password: string) => Promise<void>;
-  register: (nickname: string, password: string, email?: string) => Promise<void>;
+  register: (nickname: string, password: string, email: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
   /** Язык интерфейса: из учётки, а для гостя — выбранный на странице входа. */
@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void syncPush();
   }, []);
   // Язык, выбранный гостем на странице входа, становится языком новой учётки.
-  const register = useCallback(async (nickname: string, password: string, email?: string) => {
+  const register = useCallback(async (nickname: string, password: string, email: string) => {
     const r = await api<{ user: User }>("/api/auth/register", { method: "POST", body: JSON.stringify({ nickname, password, email, locale: guestLocale }) });
     setUser(r.user);
   }, [guestLocale]);

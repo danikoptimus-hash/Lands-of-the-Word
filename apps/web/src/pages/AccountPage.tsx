@@ -52,9 +52,9 @@ export function AccountPage() {
           <input id="a-nick" value={user.nickname} readOnly tabIndex={-1} />
           <label htmlFor="a-name">{t("Имя в команде")} <span className="opt">· {t("необязательно")}</span></label>
           <input id="a-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={60} placeholder={t("Как вас показывать команде")} autoComplete="nickname" />
-          <label htmlFor="a-email">{t("Почта")} <span className="opt">· {t("необязательно")}</span></label>
-          <input id="a-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
-          <p className="hint">{t("Нужна для восстановления пароля и уведомлений.")}</p>
+          <label htmlFor="a-email">{t("Почта")}</label>
+          <input id="a-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
+          <p className="hint">{t("Нужна для восстановления пароля и уведомлений. Новую почту нужно будет подтвердить по ссылке из письма.")}</p>
           <label htmlFor="a-locale">{t("Язык")}</label>
           <select id="a-locale" value={locale} onChange={(e) => setLocale(e.target.value)}><option value="ru">Русский</option><option value="en">English</option></select>
           {profileError && <p className="error" role="alert">{profileError}</p>}
