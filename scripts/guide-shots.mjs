@@ -51,7 +51,9 @@ if (await clickIn(page, ".m-deed")) { await page.waitForTimeout(900); await shot
 await page.keyboard.press("Escape"); await page.waitForTimeout(500);
 for (let i = 0; i < 2; i++) { await zoomOut.click(); await page.waitForTimeout(150); }
 await page.waitForTimeout(800);
-if (await clickIn(page, ".m-label")) { await page.waitForTimeout(1500); await shot(page, "city"); }
+// Подпись города может перекрывать значок дела на стороне — кликаем сам элемент подписи, а не точку экрана.
+if (await page.evaluate(() => { const el = document.querySelector(".m-label:not(.start)"); if (!el) return false; el.dispatchEvent(new MouseEvent("click", { bubbles: true })); return true; })) { await page.waitForTimeout(1500); await shot(page, "city"); }
+else console.warn("не найден: .m-label");
 await page.keyboard.press("Escape"); await page.waitForTimeout(500);
 await page.locator(".hud-left button").first().click(); await page.waitForTimeout(700); await shot(page, "menu");
 await ctx.close();
