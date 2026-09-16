@@ -1,0 +1,22 @@
+/** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
+export const CHANGELOG_EN: Record<string, string> = {
+  "Что нового": "What's new",
+  "Кратко об изменениях игры по датам. Подробности:": "A short list of changes to the game by date. Details:",
+  "Регистрация только с почтой: после регистрации приходит письмо со ссылкой, без подтверждения играть нельзя. Старые учётки считаются подтверждёнными.": "Registration requires an email: a link arrives by mail after signing up, and you cannot play until it is confirmed. Existing accounts count as confirmed.",
+  "Районы всех 66 книг названы предметно, как в учебном плане: «Каин и Авель», «Потоп», «Нагорная проповедь» вместо цитат и метафор.": "The districts of all 66 books are named plainly, as in a study plan: “Cain and Abel”, “The Flood”, “The Sermon on the Mount” instead of quotes and metaphors.",
+  "Стартовые точки команд названы пленениями: Египетский, Вавилонский, Ассирийский плен и другие.": "Team starting points are named after captivities: Egyptian, Babylonian, Assyrian and others.",
+  "Администратор: на карте «глазами команды» свитки и города нажимаются — видно дело, его статус и ход занятия города.": "Administrator: on the map “through a team's eyes” scrolls and cities are clickable, showing the deed, its status and progress on taking the city.",
+  "Адресаты конвертов: кнопка «Перераспределить поровну», если адресатов добавили после раздачи городов.": "Envelope recipients: a “Share out evenly” button for recipients added after the cities were handed out.",
+  "Дела: дело можно удалить и в запущенной игре (свободные стороны получат другое), переименования стандартного набора попадают в уже идущие игры, «Помочь с подготовкой проповеди» убрано из набора.": "Deeds: a deed can be deleted in a running game too (free sides get another one), renames in the default set reach games already in progress, “Help prepare a sermon” removed from the set.",
+  "«Как играть?»: абзац администратору про адресаты конвертов и ярлыки; появился раздел «Что нового».": "“How to play?”: a paragraph for administrators on envelope recipients and labels; this “What's new” section appeared.",
+  "Экран администратора: карта во весь экран, разделы — кнопки сбоку, содержимое открывается над картой.": "Administrator screen: full-screen map, sections as side buttons, content opens above the map.",
+  "Страница «Как играть?» со скриншотами настоящих экранов, на русском и английском.": "A “How to play?” page with screenshots of real screens, in Russian and English.",
+  "Дела: несколько книг по теме, частота появления (редко / обычно / часто), тайные дела, подстановка [Книга]; стандартный набор можно добавить или заменить целиком.": "Deeds: several themed books, frequency (rare / normal / frequent), secret deeds, the [Book] placeholder; the default set can be added or replaced entirely.",
+  "Карта: озёра с живой водой, цвет моря по глубине, плавный берег, подписи островов по дуге; масштабирование без подтормаживаний.": "Map: lakes with living water, sea colour by depth, smooth shore, island names along an arc; zooming without stutter.",
+  "Вкладка сама перезагружается, когда вышла новая версия игры.": "The tab reloads by itself when a new version of the game is released.",
+  "Два острова — Ветхий и Новый Завет: порты, корабли и переправа на другой остров.": "Two islands, Old and New Testament: ports, ships and crossing to the other island.",
+  "Островки в море, живое море и живность: киты, дельфины, чайки.": "Islets in the sea, a living sea and wildlife: whales, dolphins, gulls.",
+  "Черновик или завершённую игру можно удалить из списка «Мои игры».": "A draft or finished game can be deleted from “My games”.",
+  "Норма времени на чтение задания убрана.": "The reading-time norm for tasks was removed.",
+  "Вместо споров об ответах — кнопка «Написать в поддержку» в задании города.": "Instead of disputes over answers, a “Contact support” button in the city task.",
+};

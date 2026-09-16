@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { Back } from "../components/Back";
 import { Icon } from "../components/Icon";
 import { t } from "../lib/i18n";
@@ -75,7 +76,7 @@ export function HowToPlayPage() {
     <div className="how-to">
       <Back to="-1" label={t("Назад")} />
       <h1 className="mt-2">{t("Как играть?")}</h1>
-      <p className="muted mt-2">{t("Полная инструкция по игре. Картинки — с настоящих экранов игры и обновляются вместе с ней.")}</p>
+      <p className="muted mt-2">{t("Полная инструкция по игре. Картинки — с настоящих экранов игры и обновляются вместе с ней.")} <Link to="/whats-new">{t("Что нового")}</Link></p>
       <nav className="guide-toc mt-3" aria-label={t("Разделы")}>
         {sections.map((s, i) => <a key={s.title} href={`#g${i + 1}`}>{s.title}</a>)}
       </nav>

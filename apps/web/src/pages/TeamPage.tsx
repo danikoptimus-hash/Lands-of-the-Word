@@ -330,6 +330,7 @@ export function TeamPage() {
             <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
             <Link to="/account"><Icon name="user" />{t("Аккаунт")}</Link>
             <Link to="/how-to-play"><Icon name="help" />{t("Как играть")}</Link>
+            <Link to="/whats-new"><Icon name="sparkle" />{t("Что нового")}</Link>
             <button type="button" onClick={() => void logout()}><Icon name="logout" />{t("Выйти")}</button>
           </nav>
         </aside>

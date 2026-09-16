@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 const root = "apps/web/src";
 const files = [];
-(function walk(d) { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (/\.tsx?$/.test(p) && !/i18n|\/en\//.test(p)) files.push(p); } })(root);
+(function walk(d) { for (const f of readdirSync(d)) { const p = join(d, f); if (statSync(p).isDirectory()) walk(p); else if (/\.tsx?$/.test(p) && !/i18n|\/en\/|\/content\//.test(p)) files.push(p); } })(root);
 let n = 0;
 for (const f of files) {
   const lines = readFileSync(f, "utf8").split("\n");

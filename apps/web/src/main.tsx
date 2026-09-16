@@ -18,6 +18,7 @@ import { VerifyPage, VerifyPendingPage } from "./pages/VerifyPage";
 import { AdminDashboard } from "./pages/AdminDashboard";
 import { NewGamePage } from "./pages/NewGamePage";
 import { HowToPlayPage } from "./pages/HowToPlayPage";
+import { WhatsNewPage } from "./pages/WhatsNewPage";
 import "./styles/index.css";
 import { t } from "./lib/i18n";
 
@@ -43,6 +44,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/" element={<Private><GamesPage /></Private>} />
             <Route path="/games/new" element={<Private><NewGamePage /></Private>} />
             <Route path="/how-to-play" element={<HowToPlayPage />} />
+            <Route path="/whats-new" element={<WhatsNewPage />} />
             <Route path="/games/:id" element={<Private><GamePage /></Private>} />
             <Route path="/games/:id/labels" element={<Private><LabelsPage /></Private>} />
             <Route path="/games/:id/team" element={<Private><TeamPage /></Private>} />
