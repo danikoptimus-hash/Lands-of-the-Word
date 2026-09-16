@@ -1,6 +1,7 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
   "Что нового": "What's new",
+  "По большому морю неспешно ходят парусники трёх видов: рыбацкий шлюп, когг с прямым парусом и трёхмачтовый корабль.": "Three kinds of sailing ships slowly cross the open sea: a fishing sloop, a cog with a square sail and a three-masted ship.",
   "Кратко об изменениях игры по датам. Подробности:": "A short list of changes to the game by date. Details:",
   "Регистрация только с почтой: после регистрации приходит письмо со ссылкой, без подтверждения играть нельзя. Старые учётки считаются подтверждёнными.": "Registration requires an email: a link arrives by mail after signing up, and you cannot play until it is confirmed. Existing accounts count as confirmed.",
   "Районы всех 66 книг названы предметно, как в учебном плане: «Каин и Авель», «Потоп», «Нагорная проповедь» вместо цитат и метафор.": "The districts of all 66 books are named plainly, as in a study plan: “Cain and Abel”, “The Flood”, “The Sermon on the Mount” instead of quotes and metaphors.",

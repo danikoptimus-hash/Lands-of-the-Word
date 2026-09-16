@@ -779,7 +779,7 @@ function stepFlock(f: Flock, p: Profile, size: number, dt: number, T: number): v
 // ───────────────────────────── Мир ─────────────────────────────
 /** Стая дельфинов: звери, поводок и время следующей серии прыжков. */
 interface Pod { dolphins: Cet[]; car: Carrot; next: number }
-interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx }
+interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[] }
 function makePod(p: Profile, size: number, n: number): Pod {
   const car = makeCarrot(p, size, size * rnd(2.3, 3), size * 0.35);
   const dL = size * 0.55;
@@ -797,7 +797,7 @@ function createWorld(p: Profile, size: number): World {
   const solo = (kind: CetKind, L: number, off: [number, number], wob: number) => { const car = makeCarrot(p, size, size * rnd(off[0], off[1]), size * wob); return makeCet(cetSpec(kind, L, size), car, car.x, car.y, car.h); };
   const solos = [solo("whale", size * 1.8, [2.8, 4], 0.7), solo("whale", size * 1.6, [3, 4.4], 0.7), solo("orca", size * 1.1, [2.4, 3.4], 0.6), solo("orca", size * 1.0, [2.6, 3.6], 0.6)];
   const pods = [makePod(p, size, 3), makePod(p, size, 4)];
-  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx() };
+  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size)] };
 }
 function stepWorld(w: World, dt: number): void {
   w.T += dt; const T = w.T;
@@ -811,6 +811,7 @@ function stepWorld(w: World, dt: number): void {
     stepPod(pd.dolphins, pd.car, w.p, w.size, w.fx, dt, T);
   }
   for (const g of w.gulls) stepGull(g, w.p, w.size, dt, T);
+  for (const sh of w.ships) stepShip(sh, w.p, w.size, dt, T);
   stepFlock(w.flock, w.p, w.size, dt, T);
   // Порядок рисования — от глубоких к мелким (вставками, массив короткий).
   const cs = w.cets;
@@ -820,6 +821,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis)
   const T = w.T, px = 1 / k, lod = k >= 1.1, size = w.size, p = w.p;
   for (const c of w.cets) if (inView(vis, c.x, c.y)) drawCet(ctx, c, T, px, lod);
   drawFx(ctx, w.fx, T, px, vis);
+  for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
   for (const g of w.gulls) {
     if (!inView(vis, g.x, g.y)) continue;
     ctx.save(); ctx.translate(g.x, g.y);
@@ -847,6 +849,95 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis)
     }
   }
   ctx.globalAlpha = 1;
+}
+
+// ───────────────────────────── Парусники ─────────────────────────────
+/**
+ * Три вида парусников бороздят большое море (решение владельца 16.09): рыбацкий шлюп с косым парусом, одномачтовый
+ * когг с прямым парусом и трёхмачтовый корабль. Идут медленно (медленнее китов), далеко от берега, из-за края карты
+ * за противоположный край, по тому же «поводку», что и звери, поэтому острова и островки обходят. Вид сверху:
+ * корпус, палуба, мачты и паруса, надутые по ветру (ветер общий с рябью моря), тень от солнца и кильватер.
+ */
+type ShipKind = "sloop" | "cog" | "ship";
+interface ShipSpec { kind: ShipKind; L: number; W: number; speed: number; maxTurn: number; masts: number[]; square: boolean; hull: string; deck: string; sail: string; sailShade: string }
+interface Ship { spec: ShipSpec; car: Carrot; x: number; y: number; h: number; seed: number }
+function shipSpec(kind: ShipKind, size: number): ShipSpec {
+  switch (kind) {
+    case "sloop": return { kind, L: size * 0.95, W: 0.34, speed: size * 0.24, maxTurn: 0.3, masts: [0.18], square: false, hull: "rgb(78,50,32)", deck: "rgb(176,136,92)", sail: "rgb(243,236,220)", sailShade: "rgb(210,198,174)" };
+    case "cog": return { kind, L: size * 1.35, W: 0.36, speed: size * 0.19, maxTurn: 0.22, masts: [0.02], square: true, hull: "rgb(88,54,34)", deck: "rgb(168,126,84)", sail: "rgb(236,226,204)", sailShade: "rgb(196,182,156)" };
+    default: return { kind, L: size * 1.9, W: 0.3, speed: size * 0.16, maxTurn: 0.18, masts: [0.3, 0, -0.28], square: true, hull: "rgb(64,42,28)", deck: "rgb(160,118,78)", sail: "rgb(240,231,212)", sailShade: "rgb(206,192,166)" };
+  }
+}
+function makeShip(kind: ShipKind, p: Profile, size: number): Ship {
+  const car = makeCarrot(p, size, size * rnd(4.2, 6), size * 0.3);
+  return { spec: shipSpec(kind, size), car, x: car.x, y: car.y, h: car.h, seed: rnd(0, 100) };
+}
+function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number): void {
+  const sp = sh.spec, car = sh.car;
+  carrotStep(car, p, size, sp.speed * (1 + 0.08 * noise1(T * 0.2, sh.seed)) * dt, T);
+  // Корпус тяжёлый: за поводком идёт плавно, курс меняется не быстрее maxTurn.
+  const d = clamp(wrapAngle(car.h - sh.h), -sp.maxTurn * dt, sp.maxTurn * dt);
+  sh.h = wrapAngle(sh.h + d);
+  sh.x = ease(sh.x, car.x, dt, 0.8); sh.y = ease(sh.y, car.y, dt, 0.8);
+}
+/** Парус между концами рея (или мачтой и гиком), надутый в подветренную сторону; bx, by — куда дует ветер в осях корабля. */
+function sailPath(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, bx: number, by: number): void {
+  // Прямая кромка по рею и дуга пузыря: вершина дуги отстоит на (bx, by) (контрольная точка вдвое дальше).
+  ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo((x0 + x1) / 2 + bx * 2, (y0 + y1) / 2 + by * 2, x1, y1); ctx.closePath();
+}
+function drawShip(ctx: CanvasRenderingContext2D, sh: Ship, T: number, px: number, lod: boolean): void {
+  const sp = sh.spec, L = sp.L, W = L * sp.W;
+  const rock = 0.025 * Math.sin(T * 0.9 + sh.seed);
+  ctx.save(); ctx.translate(sh.x, sh.y);
+  // Тень на воде — от солнца, чуть в сторону.
+  ctx.save(); ctx.rotate(sh.h); ctx.translate(-SUN_X * L * 0.06, SUN_Y * L * 0.06); ctx.globalAlpha = 0.16; ctx.fillStyle = "rgb(20,40,60)";
+  ctx.beginPath(); ctx.ellipse(0, 0, L * 0.5, W * 0.62, 0, 0, TAU); ctx.fill(); ctx.restore();
+  // Кильватер и носовая волна.
+  ctx.save(); ctx.rotate(sh.h); drawWake(ctx, L * 0.9, 0.8, px); ctx.restore();
+  ctx.rotate(sh.h + rock);
+  // Корпус: острый нос, скруглённая корма; планширь светлее.
+  const hull = () => { ctx.beginPath(); ctx.moveTo(L * 0.5, 0); ctx.quadraticCurveTo(L * 0.22, -W * 0.55, -L * 0.3, -W * 0.5); ctx.quadraticCurveTo(-L * 0.52, -W * 0.3, -L * 0.52, 0); ctx.quadraticCurveTo(-L * 0.52, W * 0.3, -L * 0.3, W * 0.5); ctx.quadraticCurveTo(L * 0.22, W * 0.55, L * 0.5, 0); ctx.closePath(); };
+  ctx.globalAlpha = 1; ctx.fillStyle = sp.hull; hull(); ctx.fill();
+  ctx.strokeStyle = "rgba(30,20,12,0.55)"; ctx.lineWidth = Math.max(px, L * 0.01); ctx.stroke();
+  ctx.save(); ctx.scale(0.86, 0.72); ctx.fillStyle = sp.deck; hull(); ctx.fill(); ctx.restore();
+  if (lod) { // доски палубы
+    ctx.strokeStyle = "rgba(90,60,36,0.35)"; ctx.lineWidth = Math.max(px, L * 0.006);
+    ctx.beginPath(); for (let i = -2; i <= 2; i++) { ctx.moveTo(-L * 0.42, i * W * 0.14); ctx.lineTo(L * 0.4 - Math.abs(i) * L * 0.05, i * W * 0.14); } ctx.stroke();
+  }
+  // Ветер в осях корабля (куда дует).
+  const wl = Math.hypot(WIND_X, WIND_Y) || 1, ch = Math.cos(-(sh.h + rock)), shh = Math.sin(-(sh.h + rock));
+  const wx = (WIND_X * ch - WIND_Y * shh) / wl, wy = (WIND_X * shh + WIND_Y * ch) / wl;
+  const belly = L * (sp.square ? 0.2 : 0.16) * (0.9 + 0.1 * Math.sin(T * 1.7 + sh.seed));
+  ctx.lineJoin = "round"; ctx.strokeStyle = "rgba(96,74,52,0.7)"; ctx.lineWidth = Math.max(px * 0.8, L * 0.008);
+  for (let i = 0; i < sp.masts.length; i++) {
+    const mxp = L * sp.masts[i]!, yard = W * (sp.square ? 1.35 : 1) * (i === 1 ? 1.1 : 1);
+    if (sp.square) {
+      // Прямой парус: рей поперёк корпуса, полотно надувается по ветру.
+      ctx.fillStyle = sp.sail; sailPath(ctx, mxp, -yard / 2, mxp, yard / 2, wx * belly, wy * belly); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = sp.sailShade; ctx.globalAlpha = 0.5; sailPath(ctx, mxp, -yard / 2, mxp, -yard * 0.1, wx * belly * 0.7, wy * belly * 0.7); ctx.fill(); ctx.globalAlpha = 1;
+      if (sp.kind === "ship" && i === 0) { ctx.fillStyle = sp.sail; sailPath(ctx, L * 0.5, 0, mxp + L * 0.06, -W * 0.5, wx * belly * 0.4, wy * belly * 0.4); ctx.fill(); ctx.stroke(); } // кливер
+      ctx.strokeStyle = "rgb(58,40,26)"; ctx.lineWidth = Math.max(px * 1.2, L * 0.012); ctx.beginPath(); ctx.moveTo(mxp, -yard / 2); ctx.lineTo(mxp, yard / 2); ctx.stroke();
+    } else {
+      // Косой парус: от мачты назад по гику, надувается вбок по ветру; впереди стаксель.
+      const side = wy >= 0 ? 1 : -1;
+      ctx.fillStyle = sp.sail; sailPath(ctx, mxp, 0, -L * 0.42, side * W * 0.1, wx * belly * 0.2, side * belly); ctx.fill(); ctx.stroke(); // грот
+      sailPath(ctx, L * 0.48, 0, mxp, side * W * 0.05, wx * belly * 0.2, side * belly * 0.6); ctx.fill(); ctx.stroke(); // стаксель
+      ctx.fillStyle = sp.sailShade; ctx.globalAlpha = 0.45; sailPath(ctx, mxp, 0, -L * 0.2, side * W * 0.05, wx * belly * 0.1, side * belly * 0.55); ctx.fill(); ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = "rgb(58,40,26)"; ctx.beginPath(); ctx.arc(mxp, 0, Math.max(px * 1.5, L * 0.02), 0, TAU); ctx.fill(); // топ мачты
+  }
+  ctx.restore();
+}
+
+/** Стенд для проверки рисунка (scripts, не для интерфейса): три вида парусников крупно, курс и время задаются. */
+export function drawShipsPreview(ctx: CanvasRenderingContext2D, size: number, T: number, heading: number): void {
+  const kinds: ShipKind[] = ["sloop", "cog", "ship"];
+  kinds.forEach((kind, i) => {
+    const spec = shipSpec(kind, size);
+    const car: Carrot = { off: 0, wob: 0, seed: 1, x: 0, y: 0, h: heading, x0: 0, y0: 0, x1: 1, y1: 0, len: 1, t: 0, wait: 0 };
+    const sh: Ship = { spec, car, x: size * (2 + i * 3.2), y: size * 2, h: heading, seed: i * 7 };
+    drawShip(ctx, sh, T, 1 / 4, true);
+  });
 }
 
 // ───────────────────────────── Слой ─────────────────────────────
