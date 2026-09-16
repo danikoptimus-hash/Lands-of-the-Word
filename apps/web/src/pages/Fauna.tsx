@@ -153,6 +153,8 @@ interface CetSpec {
   flukeSpan: number; flukeLen: number; flukeSerrated: boolean;
   dorsalS: number; dorsalLen: number; dorsalW: number; blowS: number; blowTwin: boolean;
   swayFreq: number; swayK: number; speed: number; maxTurn: number;
+  /** Минимальный радиус разворота в длинах тела: курс не может меняться круче, чем v / (L · turnR). */
+  turnR: number;
   /** body — спина, dark — тень/кромка, hi — блик спины, fin — плавники, pale — светлая исподняя сторона, patch — узор (пятна, седло, накидка). */
   col: { body: RGB; dark: RGB; hi: RGB; fin: RGB; pale: RGB; patch: RGB };
   /** Полуширина в каждом образце позвоночника (единицы карты). */
@@ -180,7 +182,7 @@ function cetSpec(kind: CetKind, L: number, size: number): CetSpec {
     finS: 0.35, finLen: 0.32, finChord: 0.065, finSweep: 0.7, finRound: 0.25, finKnobs: true,
     flukeSpan: 0.34, flukeLen: 0.15, flukeSerrated: true,
     dorsalS: 0.65, dorsalLen: 0.06, dorsalW: 0.014, blowS: 0.28, blowTwin: true,
-    swayFreq: 1.4, swayK: 2.0, speed: size * 0.27, maxTurn: 0.35,
+    swayFreq: 1.4, swayK: 2.0, speed: size * 0.27, maxTurn: 0.35, turnR: 1.3,
     col: { body: [40, 42, 46], dark: [14, 15, 18], hi: [108, 112, 118], fin: [52, 56, 62], pale: [206, 210, 212], patch: [134, 138, 142] },
   });
   if (kind === "orca") return buildSpec({ // косатка: округлая голова без клюва, ширина 0,2 L на 40 %, плавники-вёсла на 30 %, седло за спинным плавником
@@ -189,7 +191,7 @@ function cetSpec(kind: CetKind, L: number, size: number): CetSpec {
     finS: 0.3, finLen: 0.19, finChord: 0.11, finSweep: 0.4, finRound: 1, finKnobs: false,
     flukeSpan: 0.3, flukeLen: 0.13, flukeSerrated: false,
     dorsalS: 0.48, dorsalLen: 0.12, dorsalW: 0.018, blowS: 0.17, blowTwin: false,
-    swayFreq: 2.0, swayK: 2.2, speed: size * 0.5, maxTurn: 0.6,
+    swayFreq: 2.0, swayK: 2.2, speed: size * 0.5, maxTurn: 0.6, turnR: 1.0,
     col: { body: [17, 20, 24], dark: [5, 6, 8], hi: [128, 140, 150], fin: [17, 20, 24], pale: [238, 241, 243], patch: [142, 152, 160] },
   });
   return buildSpec({ // афалина: стройная, ширина 0,17 L, короткий клюв со складкой и дыней за ним, серповидный плавник посередине
@@ -198,7 +200,7 @@ function cetSpec(kind: CetKind, L: number, size: number): CetSpec {
     finS: 0.32, finLen: 0.13, finChord: 0.05, finSweep: 0.75, finRound: 0.3, finKnobs: false,
     flukeSpan: 0.22, flukeLen: 0.1, flukeSerrated: false,
     dorsalS: 0.5, dorsalLen: 0.08, dorsalW: 0.013, blowS: 0.22, blowTwin: false,
-    swayFreq: 4, swayK: 2.4, speed: size * 0.75, maxTurn: 1.3,
+    swayFreq: 4, swayK: 2.4, speed: size * 0.75, maxTurn: 1.3, turnR: 0.7,
     col: { body: [126, 136, 146], dark: [54, 60, 68], hi: [180, 188, 196], fin: [92, 102, 112], pale: [198, 204, 210], patch: [68, 76, 86] },
   });
 }
@@ -280,22 +282,31 @@ function surfDepth(s: Surf): number {
 }
 
 interface Cet {
-  spec: CetSpec; x: number; y: number; h: number; v: number; turn: number; phase: number; depth: number; seed: number;
+  spec: CetSpec; x: number; y: number; h: number; v: number; /** Угловая скорость (рад/с): курс меняется только через неё, плавно. */ om: number; turn: number; phase: number; depth: number; seed: number;
   car: Carrot | null; surf: Surf | null;
   /** Дельфины: место в стае относительно поводка, начало прыжка и его прошедшая доля. */
   fdx: number; fdy: number; jumpAt: number; ju: number;
 }
 function makeCet(spec: CetSpec, car: Carrot | null, x: number, y: number, h: number): Cet {
-  return { spec, x, y, h, v: spec.speed, turn: 0, phase: rnd(0, TAU), depth: 0.3, seed: rnd(0, 100), car, surf: spec.kind === "dolphin" ? null : makeSurf(spec.kind), fdx: 0, fdy: 0, jumpAt: -1e9, ju: 0 };
+  return { spec, x, y, h, v: spec.speed, om: 0, turn: 0, phase: rnd(0, TAU), depth: 0.3, seed: rnd(0, 100), car, surf: spec.kind === "dolphin" ? null : makeSurf(spec.kind), fdx: 0, fdy: 0, jumpAt: -1e9, ju: 0 };
 }
-/** Плывёт к цели: курс меняется не быстрее maxTurn, скорость «пружинит» по расстоянию до цели и дышит шумом. */
-function steerCet(c: Cet, tx: number, ty: number, dt: number, T: number, boost: number): number {
+/**
+ * Плывёт к цели как тело, а не как точка: движется только вдоль своего курса, курс меняется через угловую
+ * скорость, которая (а) ограничена кривизной — не круче минимального радиуса разворота turnR·L при текущей
+ * скорости, (б) меняется плавно (запаздывание «руля»). Поэтому тело поворачивается ровно на дугу траектории
+ * и никогда не «проворачивается» вокруг оси. Скорость «пружинит» по расстоянию до цели и дышит шумом.
+ */
+function steerCet(c: Cet, p: Profile, clearance: number, tx: number, ty: number, dt: number, T: number, boost: number): number {
   const sp = c.spec, dx = tx - c.x, dy = ty - c.y, dist = Math.hypot(dx, dy);
-  const d = clamp(wrapAngle(Math.atan2(dy, dx) - c.h), -sp.maxTurn * dt, sp.maxTurn * dt);
-  c.h = wrapAngle(c.h + d);
-  c.turn = ease(c.turn, d / Math.max(dt, 1e-3), dt, 0.5);
   const want = sp.speed * clamp(dist / (sp.L * 1.6), 0.5, 1.8) * (1 + 0.12 * noise1(T * 0.4, c.seed)) * boost;
   c.v = ease(c.v, want, dt, 1.2);
+  const omMax = Math.min(sp.maxTurn, Math.max(c.v, sp.speed * 0.4) / (sp.L * sp.turnR));
+  const aim = avoidHeading(p, c.x, c.y, c.h, tx, ty, Math.max(sp.L * 1.5, c.v * 2.5), clearance);
+  const omWant = clamp(wrapAngle(aim - c.h) * 1.6, -omMax, omMax);
+  // После доворота у берега om мог быть выше предела: сглаживаем и снова ограничиваем кривизной.
+  c.om = clamp(ease(c.om, omWant, dt, 0.45), -omMax, omMax);
+  c.h = wrapAngle(c.h + c.om * dt);
+  c.turn = c.om;
   c.x += Math.cos(c.h) * c.v * dt; c.y += Math.sin(c.h) * c.v * dt;
   c.phase += dt * sp.swayFreq * (0.55 + 0.45 * (c.v / sp.speed));
   return dist;
@@ -307,23 +318,53 @@ const axisX = (c: Cet, u: number) => c.x + Math.cos(c.h) * u, axisY = (c: Cet, u
  * его выталкивает наружу, а курс теряет составляющую «в берег» — так он никогда не срежет угол через сушу,
  * даже когда поводок резко огибает мыс.
  */
-function keepInWater(c: Cet, p: Profile, clearance: number): void {
+/** Насколько точка внутри «запретной зоны» берега (профиль + clearance) и нормаль наружу (в CNX/CNY). 0 — точка в воде. */
+let CNX = 0, CNY = 0;
+function coastPen(p: Profile, x: number, y: number, clearance: number): number {
+  let best = 0;
   for (const part of p.parts) {
-    const dx = c.x - part.cx, dy = c.y - part.cy, d = Math.hypot(dx, dy);
-    const ang = Math.atan2(dy, dx), minR = radiusAt(part, ang) + clearance;
-    if (d < minR) pushOut(c, part.cx, part.cy, ang, minR);
+    const dx = x - part.cx, dy = y - part.cy, d = Math.hypot(dx, dy) || 1e-6;
+    const pen = radiusAt(part, Math.atan2(dy, dx)) + clearance - d;
+    if (pen > best) { best = pen; CNX = dx / d; CNY = dy / d; }
   }
-  // Островки — то же правило, круг вместо профиля.
   for (const i of p.isles) {
-    const ix = c.x - i.x, iy = c.y - i.y, id = Math.hypot(ix, iy), ir = i.r + clearance * 0.8;
-    if (id < ir) pushOut(c, i.x, i.y, Math.atan2(iy, ix), ir);
+    const dx = x - i.x, dy = y - i.y, d = Math.hypot(dx, dy) || 1e-6, pen = i.r + clearance * 0.8 - d;
+    if (pen > best) { best = pen; CNX = dx / d; CNY = dy / d; }
   }
+  return best;
 }
-function pushOut(c: Cet, cx: number, cy: number, ang: number, minR: number): void {
-  const nx = Math.cos(ang), ny = Math.sin(ang);
-  c.x = cx + nx * minR; c.y = cy + ny * minR;
+/**
+ * Курс на цель с учётом берега впереди: если точка в ahead перед носом попадает в запретную зону, желаемое
+ * направление отклоняется наружу (тем сильнее, чем глубже) — тело заранее закладывает дугу вдоль берега,
+ * а не упирается в него.
+ */
+function avoidHeading(p: Profile, x: number, y: number, h: number, tx: number, ty: number, ahead: number, clearance: number): number {
+  const pen = coastPen(p, x + Math.cos(h) * ahead, y + Math.sin(h) * ahead, clearance);
+  const dx = tx - x, dy = ty - y, d = Math.hypot(dx, dy) || 1;
+  if (pen <= 0) return Math.atan2(dy, dx);
+  const k = clamp(pen / clearance, 0, 1.5) * 1.6;
+  return Math.atan2(dy / d + CNY * k, dx / d + CNX * k);
+}
+interface Mover { x: number; y: number; h: number; om: number }
+function keepInWater(c: Mover, p: Profile, clearance: number, dt: number, omMax: number): void {
+  // Положение — на кромку каждой зоны; курс доворачивается один раз за кадр, по самой глубокой из них.
+  let deep = 0, nx = 0, ny = 0;
+  for (const part of p.parts) {
+    const dx = c.x - part.cx, dy = c.y - part.cy, d = Math.hypot(dx, dy) || 1e-6;
+    const ang = Math.atan2(dy, dx), minR = radiusAt(part, ang) + clearance, pen = minR - d;
+    if (pen > 0) { c.x = part.cx + Math.cos(ang) * minR; c.y = part.cy + Math.sin(ang) * minR; if (pen > deep) { deep = pen; nx = Math.cos(ang); ny = Math.sin(ang); } }
+  }
+  for (const i of p.isles) { // островки — то же правило, круг вместо профиля
+    const dx = c.x - i.x, dy = c.y - i.y, d = Math.hypot(dx, dy) || 1e-6, ir = i.r + clearance * 0.8, pen = ir - d;
+    if (pen > 0) { c.x = i.x + dx / d * ir; c.y = i.y + dy / d * ir; if (pen > deep) { deep = pen; nx = dx / d; ny = dy / d; } }
+  }
+  if (deep <= 0) return;
   const hx = Math.cos(c.h), hy = Math.sin(c.h), dot = hx * nx + hy * ny;
-  if (dot < 0) c.h = Math.atan2(hy - dot * ny, hx - dot * nx);
+  if (dot < 0) { // курс смотрит в берег: доворот к касательной, не резче полуторной обычной угловой скорости
+    const tangent = Math.atan2(hy - dot * ny, hx - dot * nx);
+    const step = clamp(wrapAngle(tangent - c.h), -omMax * 1.5 * dt, omMax * 1.5 * dt);
+    c.h = wrapAngle(c.h + step); c.om = step / Math.max(dt, 1e-3);
+  }
 }
 
 /** Кит и косатка: поводок вдоль берега; цикл всплытия с фонтаном и кругами на воде. */
@@ -333,10 +374,11 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
   const behind = Math.hypot(car.x - c.x, car.y - c.y);
   const wasWaiting = car.wait > 0;
   carrotStep(car, p, size, sp.speed * dt * clamp(1.6 - behind / (sp.L * 2.5), 0.25, 1), T);
-  if (wasWaiting && car.wait <= 0) { c.x = car.x; c.y = car.y; c.h = car.h; } // новый маршрут начинается за краем: перенос незаметен
+  if (wasWaiting && car.wait <= 0) { c.x = car.x; c.y = car.y; c.h = car.h; c.om = 0; c.turn = 0; } // новый маршрут начинается за краем: перенос незаметен
   if (car.wait > 0) { c.x += Math.cos(c.h) * sp.speed * dt; c.y += Math.sin(c.h) * sp.speed * dt; c.phase += dt * sp.swayFreq; } // уплывает дальше за край
-  else steerCet(c, car.x, car.y, dt, T, 1);
-  keepInWater(c, p, size * (sp.kind === "whale" ? 2.2 : 1.9));
+  const clear = size * (sp.kind === "whale" ? 2.2 : 1.9);
+  if (car.wait <= 0) steerCet(c, p, clear, car.x, car.y, dt, T, 1);
+  keepInWater(c, p, clear, dt, sp.maxTurn);
   const prev = s.t; s.t += dt;
   const tHold = s.deep + s.rise, tEnd = tHold + s.hold + s.dive;
   const blowU = sp.L * (0.5 - sp.blowS);
@@ -361,14 +403,17 @@ function stepPod(ds: Cet[], pod: Carrot, p: Profile, size: number, fx: Fx, dt: n
   const behind = Math.hypot(pod.x - lead.x, pod.y - lead.y);
   const wasWaiting = pod.wait > 0;
   carrotStep(pod, p, size, sp.speed * dt * clamp(1.6 - behind / (sp.L * 3), 0.25, 1), T);
-  if (wasWaiting && pod.wait <= 0) for (const d of ds) { d.x = pod.x + d.fdx; d.y = pod.y + d.fdy; d.h = pod.h; }
+  if (wasWaiting && pod.wait <= 0) { // новый маршрут: строй ставится уже развёрнутым по курсу, без остаточного поворота
+    const c0 = Math.cos(pod.h), s0 = Math.sin(pod.h);
+    for (const d of ds) { d.x = pod.x + c0 * d.fdx - s0 * d.fdy; d.y = pod.y + s0 * d.fdx + c0 * d.fdy; d.h = pod.h; d.om = 0; d.turn = 0; }
+  }
   const ch = Math.cos(pod.h), sh = Math.sin(pod.h);
   for (const d of ds) {
-    if (pod.wait > 0) { d.x += Math.cos(d.h) * sp.speed * dt; d.y += Math.sin(d.h) * sp.speed * dt; d.phase += dt * sp.swayFreq; d.ju = 0; d.depth = 0.3; keepInWater(d, p, size * 1.7); continue; }
+    if (pod.wait > 0) { d.x += Math.cos(d.h) * sp.speed * dt; d.y += Math.sin(d.h) * sp.speed * dt; d.phase += dt * sp.swayFreq; d.ju = 0; d.depth = 0.3; keepInWater(d, p, size * 1.7, dt, sp.maxTurn); continue; }
     const u = (T - d.jumpAt) / 1.35, jumping = u >= 0 && u < 1;
     const fx0 = d.fdx + sp.L * 1.3 + noise1(T * 0.3, d.seed) * sp.L * 0.25, fy0 = d.fdy + noise1(T * 0.25, d.seed + 7) * sp.L * 0.3;
-    steerCet(d, pod.x + ch * fx0 - sh * fy0, pod.y + sh * fx0 + ch * fy0, dt, T, jumping ? 1 + 0.5 * Math.sin(Math.PI * u) : 1);
-    keepInWater(d, p, size * 1.7);
+    steerCet(d, p, size * 1.7, pod.x + ch * fx0 - sh * fy0, pod.y + sh * fx0 + ch * fy0, dt, T, jumping ? 1 + 0.5 * Math.sin(Math.PI * u) : 1);
+    keepInWater(d, p, size * 1.7, dt, sp.maxTurn);
     if (jumping) {
       d.depth = 0.28 - 0.95 * Math.sin(Math.PI * u);
       if (d.ju < 0.08 && u >= 0.08) { emitRing(fx, d.x, d.y, T, sp.L * 0.2, sp.L * 0.9, 1.3); emitDrops(fx, axisX(d, sp.L * 0.2), axisY(d, sp.L * 0.2), T, 7, sp.L * 1.6, sp.L * 0.028); }
@@ -859,26 +904,37 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis)
  * корпус, палуба, мачты и паруса, надутые по ветру (ветер общий с рябью моря), тень от солнца и кильватер.
  */
 type ShipKind = "sloop" | "cog" | "ship";
-interface ShipSpec { kind: ShipKind; L: number; W: number; speed: number; maxTurn: number; masts: number[]; square: boolean; hull: string; deck: string; sail: string; sailShade: string }
-interface Ship { spec: ShipSpec; car: Carrot; x: number; y: number; h: number; seed: number }
+interface ShipSpec { kind: ShipKind; L: number; W: number; speed: number; maxTurn: number; /** Минимальный радиус циркуляции в длинах корпуса. */ turnR: number; masts: number[]; square: boolean; hull: string; deck: string; sail: string; sailShade: string }
+interface Ship { spec: ShipSpec; car: Carrot; x: number; y: number; h: number; v: number; om: number; seed: number }
 function shipSpec(kind: ShipKind, size: number): ShipSpec {
   switch (kind) {
-    case "sloop": return { kind, L: size * 0.95, W: 0.34, speed: size * 0.24, maxTurn: 0.3, masts: [0.18], square: false, hull: "rgb(78,50,32)", deck: "rgb(176,136,92)", sail: "rgb(243,236,220)", sailShade: "rgb(210,198,174)" };
-    case "cog": return { kind, L: size * 1.35, W: 0.36, speed: size * 0.19, maxTurn: 0.22, masts: [0.02], square: true, hull: "rgb(88,54,34)", deck: "rgb(168,126,84)", sail: "rgb(236,226,204)", sailShade: "rgb(196,182,156)" };
-    default: return { kind, L: size * 1.9, W: 0.3, speed: size * 0.16, maxTurn: 0.18, masts: [0.3, 0, -0.28], square: true, hull: "rgb(64,42,28)", deck: "rgb(160,118,78)", sail: "rgb(240,231,212)", sailShade: "rgb(206,192,166)" };
+    case "sloop": return { kind, L: size * 0.95, W: 0.34, speed: size * 0.24, maxTurn: 0.3, turnR: 1.6, masts: [0.18], square: false, hull: "rgb(78,50,32)", deck: "rgb(176,136,92)", sail: "rgb(243,236,220)", sailShade: "rgb(210,198,174)" };
+    case "cog": return { kind, L: size * 1.35, W: 0.36, speed: size * 0.19, maxTurn: 0.22, turnR: 2.2, masts: [0.02], square: true, hull: "rgb(88,54,34)", deck: "rgb(168,126,84)", sail: "rgb(236,226,204)", sailShade: "rgb(196,182,156)" };
+    default: return { kind, L: size * 1.9, W: 0.3, speed: size * 0.16, maxTurn: 0.18, turnR: 2.6, masts: [0.3, 0, -0.28], square: true, hull: "rgb(64,42,28)", deck: "rgb(160,118,78)", sail: "rgb(240,231,212)", sailShade: "rgb(206,192,166)" };
   }
 }
 function makeShip(kind: ShipKind, p: Profile, size: number): Ship {
   const car = makeCarrot(p, size, size * rnd(4.2, 6), size * 0.3);
-  return { spec: shipSpec(kind, size), car, x: car.x, y: car.y, h: car.h, seed: rnd(0, 100) };
+  const spec = shipSpec(kind, size); return { spec, car, x: car.x, y: car.y, h: car.h, v: spec.speed, om: 0, seed: rnd(0, 100) };
 }
 function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number): void {
   const sp = sh.spec, car = sh.car;
-  carrotStep(car, p, size, sp.speed * (1 + 0.08 * noise1(T * 0.2, sh.seed)) * dt, T);
-  // Корпус тяжёлый: за поводком идёт плавно, курс меняется не быстрее maxTurn.
-  const d = clamp(wrapAngle(car.h - sh.h), -sp.maxTurn * dt, sp.maxTurn * dt);
-  sh.h = wrapAngle(sh.h + d);
-  sh.x = ease(sh.x, car.x, dt, 0.8); sh.y = ease(sh.y, car.y, dt, 0.8);
+  // Поводок идёт впереди на 1–2 корпуса; отстал корабль — поводок ждёт, догнал — уходит вперёд.
+  const behind = Math.hypot(car.x - sh.x, car.y - sh.y);
+  const wasWaiting = car.wait > 0;
+  carrotStep(car, p, size, sp.speed * dt * clamp(2.2 - behind / (sp.L * 1.5), 0.2, 1.2), T);
+  if (wasWaiting && car.wait <= 0) { sh.x = car.x; sh.y = car.y; sh.h = car.h; sh.om = 0; } // новый маршрут начинается за краем
+  if (car.wait > 0) { sh.x += Math.cos(sh.h) * sh.v * dt; sh.y += Math.sin(sh.h) * sh.v * dt; return; }
+  // Кинематика корпуса: ход только по курсу, курс — через угловую скорость, не круче радиуса циркуляции, руль с запаздыванием.
+  const want = sp.speed * clamp(behind / (sp.L * 1.5), 0.6, 1.3) * (1 + 0.08 * noise1(T * 0.2, sh.seed));
+  sh.v = ease(sh.v, want, dt, 2.5);
+  const omMax = Math.min(sp.maxTurn, Math.max(sh.v, sp.speed * 0.5) / (sp.L * sp.turnR));
+  const aim = avoidHeading(p, sh.x, sh.y, sh.h, car.x, car.y, Math.max(sp.L * 3, sh.v * 6), size * 3);
+  const omWant = clamp(wrapAngle(aim - sh.h) * 0.9, -omMax, omMax);
+  sh.om = clamp(ease(sh.om, omWant, dt, 1.2), -omMax, omMax);
+  sh.h = wrapAngle(sh.h + sh.om * dt);
+  sh.x += Math.cos(sh.h) * sh.v * dt; sh.y += Math.sin(sh.h) * sh.v * dt;
+  keepInWater(sh, p, size * 3, dt, sp.maxTurn);
 }
 /** Парус между концами рея (или мачтой и гиком), надутый в подветренную сторону; bx, by — куда дует ветер в осях корабля. */
 function sailPath(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, bx: number, by: number): void {
@@ -935,9 +991,19 @@ export function drawShipsPreview(ctx: CanvasRenderingContext2D, size: number, T:
   kinds.forEach((kind, i) => {
     const spec = shipSpec(kind, size);
     const car: Carrot = { off: 0, wob: 0, seed: 1, x: 0, y: 0, h: heading, x0: 0, y0: 0, x1: 1, y1: 0, len: 1, t: 0, wait: 0 };
-    const sh: Ship = { spec, car, x: size * (2 + i * 3.2), y: size * 2, h: heading, seed: i * 7 };
+    const sh: Ship = { spec, car, x: size * (2 + i * 3.2), y: size * 2, h: heading, v: spec.speed, om: 0, seed: i * 7 };
     drawShip(ctx, sh, T, 1 / 4, true);
   });
+}
+
+/** Стенд (scripts): прогон мира живности без экрана — треки положений и курсов для проверки физики движения. */
+export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, step: number): Array<{ kind: string; samples: Array<[number, number, number, number]> }> {
+  const p = islandProfile(hexes, size, []); if (!p) return [];
+  const w = createWorld(p, size);
+  const movers: Array<{ kind: string; m: { x: number; y: number; h: number }; car: Carrot | null }> = [...w.cets.map((c) => ({ kind: c.spec.kind, m: c, car: c.car })), ...w.ships.map((sh) => ({ kind: sh.spec.kind, m: sh, car: sh.car }))];
+  const out = movers.map((mv) => ({ kind: mv.kind, samples: [] as Array<[number, number, number, number]> }));
+  for (let t = 0; t < seconds; t += step) { stepWorld(w, step); movers.forEach((mv, i) => out[i]!.samples.push([mv.m.x, mv.m.y, mv.m.h, mv.car ? mv.car.wait : -1])); }
+  return out;
 }
 
 // ───────────────────────────── Слой ─────────────────────────────
