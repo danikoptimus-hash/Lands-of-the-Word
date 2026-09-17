@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="380" viewBox="0 0 720 380" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="380" fill="#ffffff"/>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">M-12. Святой город в проливе: общая цель, которую нельзя захватить</text>
+  <!-- Море -->
+  <rect x="40" y="50" width="640" height="220" rx="12" fill="#2e627e" fill-opacity="0.15"/>
+  <!-- Два острова -->
+  <ellipse cx="200" cy="160" rx="130" ry="90" fill="#c7742a" fill-opacity="0.3" stroke="#3b2a1a" stroke-width="1.5"/>
+  <ellipse cx="540" cy="160" rx="100" ry="75" fill="#4c7a3f" fill-opacity="0.3" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="200" y="240" text-anchor="middle" fill="#3b2a1a" font-size="13" font-style="italic">Ветхий Завет</text>
+  <text x="540" y="228" text-anchor="middle" fill="#3b2a1a" font-size="13" font-style="italic">Новый Завет</text>
+  <!-- Порты -->
+  <g fill="#ffffff" stroke="#3b2a1a" stroke-width="2">
+    <circle cx="318" cy="120" r="7"/><circle cx="325" cy="190" r="7"/><circle cx="445" cy="140" r="7"/>
+  </g>
+  <text x="300" y="104" text-anchor="middle" font-size="12" fill="#3b2a1a">порт</text>
+  <text x="310" y="212" text-anchor="middle" font-size="12" fill="#3b2a1a">порт</text>
+  <text x="460" y="124" text-anchor="middle" font-size="12" fill="#3b2a1a">порт</text>
+  <!-- Святой город -->
+  <polygon points="380,130 405,145 405,175 380,190 355,175 355,145" fill="#c7742a" stroke="#3b2a1a" stroke-width="2"/>
+  <text x="380" y="165" text-anchor="middle" font-size="12" font-weight="bold" fill="#ffffff">Сион</text>
+  <!-- Рейсы -->
+  <g stroke="#2e627e" stroke-width="2" stroke-dasharray="4 4" fill="none">
+    <line x1="325" y1="123" x2="356" y2="148"/>
+    <line x1="332" y1="188" x2="356" y2="174"/>
+    <line x1="438" y1="143" x2="405" y2="158"/>
+  </g>
+  <!-- Правила -->
+  <rect x="40" y="285" width="640" height="85" rx="10" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="60" y="308" fill="#3b2a1a" font-size="13">• Островок в проливе, один узел без книги. Вход — рейсом из любого своего порта (второй рейс порта, только сюда).</text>
+  <text x="60" y="330" fill="#3b2a1a" font-size="13">• Нельзя захватить и нельзя пройти сквозь. Стоящая здесь команда получает «мир»: 7 дней на неё нельзя объявить войну.</text>
+  <text x="60" y="352" fill="#3b2a1a" font-size="13">• Стоять можно раз в игру на 7 дней; вход — «дело всей команды» (не меньше 5 участников, одно общее служение).</text>
+</svg>

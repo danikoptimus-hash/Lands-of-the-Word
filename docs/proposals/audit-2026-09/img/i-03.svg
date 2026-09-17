@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="680" viewBox="0 0 720 680" font-family="DejaVu Sans, Arial, sans-serif" font-size="14">
+  <rect width="720" height="680" fill="#ffffff"/>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Информационная модель: кто что видит (по коду API)</text>
+
+  <!-- header -->
+  <rect x="16" y="48" width="200" height="36" fill="#3b2a1a"/>
+  <text x="116" y="71" text-anchor="middle" fill="#ffffff" font-weight="bold">Сведение</text>
+  <rect x="216" y="48" width="200" height="36" fill="#c7742a"/>
+  <text x="316" y="71" text-anchor="middle" fill="#ffffff" font-weight="bold">Команда</text>
+  <rect x="416" y="48" width="150" height="36" fill="#2e627e"/>
+  <text x="491" y="71" text-anchor="middle" fill="#ffffff" font-weight="bold">Админ игры</text>
+  <rect x="566" y="48" width="138" height="36" fill="#4c7a3f"/>
+  <text x="635" y="71" text-anchor="middle" fill="#ffffff" font-weight="bold">Суперадмин</text>
+
+  <g stroke="#6b645a" stroke-width="0.8">
+    <line x1="16" y1="84" x2="704" y2="84"/>
+    <line x1="16" y1="124" x2="704" y2="124"/>
+    <line x1="16" y1="164" x2="704" y2="164"/>
+    <line x1="16" y1="204" x2="704" y2="204"/>
+    <line x1="16" y1="244" x2="704" y2="244"/>
+    <line x1="16" y1="284" x2="704" y2="284"/>
+    <line x1="16" y1="324" x2="704" y2="324"/>
+    <line x1="16" y1="364" x2="704" y2="364"/>
+    <line x1="16" y1="404" x2="704" y2="404"/>
+    <line x1="16" y1="444" x2="704" y2="444"/>
+    <line x1="16" y1="484" x2="704" y2="484"/>
+    <line x1="16" y1="524" x2="704" y2="524"/>
+    <line x1="16" y1="564" x2="704" y2="564"/>
+    <line x1="16" y1="84" x2="16" y2="564"/>
+    <line x1="216" y1="84" x2="216" y2="564"/>
+    <line x1="416" y1="84" x2="416" y2="564"/>
+    <line x1="566" y1="84" x2="566" y2="564"/>
+    <line x1="704" y1="84" x2="704" y2="564"/>
+  </g>
+
+  <g fill="#3b2a1a">
+    <text x="24" y="109">Своя карта, туман</text>
+    <text x="24" y="149">Ходы других команд</text>
+    <text x="24" y="189">Что за стороной</text>
+    <text x="24" y="229">Название города</text>
+    <text x="24" y="269">Владелец города</text>
+    <text x="24" y="309">Уровень испытания</text>
+    <text x="24" y="349">Столица ли чужой город</text>
+    <text x="24" y="389">Шифр и ключ конверта</text>
+    <text x="24" y="429">Ответы на задания</text>
+    <text x="24" y="469">Сдача тайного дела</text>
+    <text x="24" y="509">Записи стихов чужих</text>
+    <text x="24" y="549">Обращения в поддержку</text>
+  </g>
+  <g fill="#6b645a" text-anchor="middle">
+    <text x="316" y="109">да</text>
+    <text x="316" y="149">нет</text>
+    <text x="316" y="189">после дела; разведчик</text>
+    <text x="316" y="229">после открытия узла</text>
+    <text x="316" y="269">сразу по достижении</text>
+    <text x="316" y="309">после всех заданий</text>
+    <text x="316" y="349">после перехода</text>
+    <text x="316" y="389">знаки да, ключ нет</text>
+    <text x="316" y="429">нет</text>
+    <text x="316" y="469">только взявший</text>
+    <text x="316" y="509">нет, только отрывок</text>
+    <text x="316" y="549">свои, с ответом</text>
+
+    <text x="491" y="109">все команды</text>
+    <text x="491" y="149">да, с историей</text>
+    <text x="491" y="189">вся карта</text>
+    <text x="491" y="229">да</text>
+    <text x="491" y="269">да</text>
+    <text x="491" y="309">да</text>
+    <text x="491" y="349">да</text>
+    <text x="491" y="389">да, ярлыки PDF</text>
+    <text x="491" y="429">нет</text>
+    <text x="491" y="469">да, в проверке</text>
+    <text x="491" y="509">обе стороны</text>
+    <text x="491" y="549">нет</text>
+
+    <text x="635" y="109">как админ игры</text>
+    <text x="635" y="149">как админ игры</text>
+    <text x="635" y="189">как админ игры</text>
+    <text x="635" y="229">как админ игры</text>
+    <text x="635" y="269">как админ игры</text>
+    <text x="635" y="309">как админ игры</text>
+    <text x="635" y="349">как админ игры</text>
+    <text x="635" y="389">как админ игры</text>
+    <text x="635" y="429">да + тест-кнопки</text>
+    <text x="635" y="469">как админ игры</text>
+    <text x="635" y="509">как админ игры</text>
+    <text x="635" y="549">все; снимает блок</text>
+  </g>
+
+  <text x="16" y="596" fill="#6b645a">«Как админ игры» — только если суперадмин добавлен администратором</text>
+  <text x="16" y="618" fill="#6b645a">этой игры; иначе он не видит ничего, кроме обращений в поддержку.</text>
+  <text x="16" y="646" fill="#6b645a">Строка «Владелец города» расходится с §2.5 и §2.11: API отдаёт владельца</text>
+  <text x="16" y="668" fill="#6b645a">при открытии перекрёстка, попап пишет «Город команды …», карта красит.</text>
+</svg>

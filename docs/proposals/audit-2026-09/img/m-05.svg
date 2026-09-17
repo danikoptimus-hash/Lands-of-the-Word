@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400" viewBox="0 0 720 400" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="400" fill="#ffffff"/>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">M-11. Паломничество: три праздника — три города — одна награда</text>
+  <!-- Маршрут -->
+  <g stroke="#6b645a" stroke-width="2" stroke-dasharray="5 5" fill="none">
+    <path d="M90,150 C160,90 220,90 290,150"/>
+    <path d="M290,150 C360,210 420,210 490,150"/>
+    <path d="M490,150 C560,90 620,90 640,140"/>
+  </g>
+  <!-- Старт -->
+  <circle cx="90" cy="150" r="8" fill="#3b2a1a"/>
+  <text x="90" y="180" text-anchor="middle" font-size="13" fill="#3b2a1a">свой город</text>
+  <!-- Три города -->
+  <g stroke="#3b2a1a" stroke-width="1.5">
+    <rect x="260" y="120" width="60" height="60" rx="8" fill="#4c7a3f" fill-opacity="0.35"/>
+    <rect x="460" y="120" width="60" height="60" rx="8" fill="#c7742a" fill-opacity="0.35"/>
+    <rect x="610" y="110" width="60" height="60" rx="8" fill="#2e627e" fill-opacity="0.35"/>
+  </g>
+  <g text-anchor="middle" fill="#3b2a1a" font-weight="bold" font-size="13">
+    <text x="290" y="155">Пасха</text>
+    <text x="490" y="155">Пятидесятница</text>
+    <text x="640" y="145">Кущи</text>
+  </g>
+  <g text-anchor="middle" fill="#6b645a" font-size="12">
+    <text x="290" y="200">Исход</text>
+    <text x="290" y="216">(или город с книгой</text>
+    <text x="290" y="232">о Пасхе)</text>
+    <text x="490" y="200">Деяния</text>
+    <text x="490" y="216">(или Левит, Руфь)</text>
+    <text x="640" y="190">Неемия</text>
+    <text x="640" y="206">(или Захария)</text>
+  </g>
+  <!-- Награда -->
+  <rect x="40" y="260" width="640" height="125" rx="10" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="60" y="285" font-weight="bold" fill="#3b2a1a">Правила</text>
+  <text x="60" y="308" fill="#3b2a1a" font-size="13">• Паломничество объявляется на неделях «Праздников» (M-03); города-цели одни для всех команд, выбираются из открытых на карте книг.</text>
+  <text x="60" y="328" fill="#3b2a1a" font-size="13">• Дойти = стоять на узле города (свой, чужой с разрешением, свободный) и сдать «праздничное дело» — по одному на город.</text>
+  <text x="60" y="348" fill="#3b2a1a" font-size="13">• Награда за все три: право взять любой свой город «в закрепление» — уровень защиты +2 (Втор. 16:16). Срок — 6 недель.</text>
+  <text x="60" y="368" fill="#6b645a" font-size="12">Если команда не может дойти (книги на другом острове), сервер подбирает ближайший город той же темы — не дальше 8 сторон.</text>
+</svg>

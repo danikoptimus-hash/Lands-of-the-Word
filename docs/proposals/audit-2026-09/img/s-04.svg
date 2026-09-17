@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440" font-family="Arial, Helvetica, sans-serif" font-size="13">
+  <rect width="720" height="440" fill="#ffffff"/>
+  <text x="360" y="26" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Число команд × режим победы: где правила ломаются</text>
+
+  <!-- заголовки столбцов -->
+  <g fill="#ffffff" font-weight="bold" font-size="14">
+    <rect x="110" y="44" width="150" height="40" fill="#3b2a1a"/>
+    <text x="185" y="69" text-anchor="middle">(а) все столицы</text>
+    <rect x="262" y="44" width="150" height="40" fill="#3b2a1a"/>
+    <text x="337" y="69" text-anchor="middle">(б) города к сроку</text>
+    <rect x="414" y="44" width="150" height="40" fill="#3b2a1a"/>
+    <text x="489" y="69" text-anchor="middle">выбывание и руины</text>
+    <rect x="566" y="44" width="134" height="40" fill="#3b2a1a"/>
+    <text x="633" y="69" text-anchor="middle">очередь, сговор</text>
+  </g>
+
+  <!-- строка: 2 команды -->
+  <rect x="20" y="88" width="88" height="80" fill="#3b2a1a"/>
+  <text x="64" y="133" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">2 команды</text>
+  <rect x="110" y="88" width="150" height="80" fill="#c7742a"/>
+  <text x="185" y="110" text-anchor="middle" fill="#ffffff">одна удачная атака —</text>
+  <text x="185" y="127" text-anchor="middle" fill="#ffffff">игра окончена в месяц 2;</text>
+  <text x="185" y="144" text-anchor="middle" fill="#ffffff">ход столицы = отмена</text>
+  <rect x="262" y="88" width="150" height="80" fill="#c7742a"/>
+  <text x="337" y="110" text-anchor="middle" fill="#ffffff">чистая гонка дел;</text>
+  <text x="337" y="127" text-anchor="middle" fill="#ffffff">ничья 9:9 решается</text>
+  <text x="337" y="144" text-anchor="middle" fill="#ffffff">индексом команды</text>
+  <rect x="414" y="88" width="150" height="80" fill="#6b645a"/>
+  <text x="489" y="110" text-anchor="middle" fill="#ffffff">руин не бывает:</text>
+  <text x="489" y="127" text-anchor="middle" fill="#ffffff">выбыл — игра кончилась</text>
+  <rect x="566" y="88" width="134" height="80" fill="#6b645a"/>
+  <text x="633" y="110" text-anchor="middle" fill="#ffffff">очередь пуста,</text>
+  <text x="633" y="127" text-anchor="middle" fill="#ffffff">дипломатии нет</text>
+
+  <!-- строка: 3 команды -->
+  <rect x="20" y="172" width="88" height="80" fill="#3b2a1a"/>
+  <text x="64" y="217" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">3 команды</text>
+  <rect x="110" y="172" width="150" height="80" fill="#c7742a"/>
+  <text x="185" y="194" text-anchor="middle" fill="#ffffff">почти недостижима:</text>
+  <text x="185" y="211" text-anchor="middle" fill="#ffffff">столица неизвестна,</text>
+  <text x="185" y="228" text-anchor="middle" fill="#ffffff">переезд, закрепление</text>
+  <rect x="262" y="172" width="150" height="80" fill="#4c7a3f"/>
+  <text x="337" y="194" text-anchor="middle" fill="#ffffff">работает, но</text>
+  <text x="337" y="211" text-anchor="middle" fill="#ffffff">«черепаха» доминирует</text>
+  <rect x="414" y="172" width="150" height="80" fill="#c7742a"/>
+  <text x="489" y="194" text-anchor="middle" fill="#ffffff">выбывание слабого =</text>
+  <text x="489" y="211" text-anchor="middle" fill="#ffffff">снежный ком соседу,</text>
+  <text x="489" y="228" text-anchor="middle" fill="#ffffff">затем режим 2 команд</text>
+  <rect x="566" y="172" width="134" height="80" fill="#c7742a"/>
+  <text x="633" y="194" text-anchor="middle" fill="#ffffff">2 против 1:</text>
+  <text x="633" y="211" text-anchor="middle" fill="#ffffff">«дружеская осада»,</text>
+  <text x="633" y="228" text-anchor="middle" fill="#ffffff">закрытие столиц</text>
+
+  <!-- строка: 4 команды -->
+  <rect x="20" y="256" width="88" height="80" fill="#3b2a1a"/>
+  <text x="64" y="301" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">4 команды</text>
+  <rect x="110" y="256" width="150" height="80" fill="#6b645a"/>
+  <text x="185" y="278" text-anchor="middle" fill="#ffffff">редко; нужен</text>
+  <text x="185" y="295" text-anchor="middle" fill="#ffffff">долгий сезон</text>
+  <rect x="262" y="256" width="150" height="80" fill="#4c7a3f"/>
+  <text x="337" y="278" text-anchor="middle" fill="#ffffff">работает; нужны</text>
+  <text x="337" y="295" text-anchor="middle" fill="#ffffff">промежуточные счёты</text>
+  <rect x="414" y="256" width="150" height="80" fill="#4c7a3f"/>
+  <text x="489" y="278" text-anchor="middle" fill="#ffffff">терпимо, если</text>
+  <text x="489" y="295" text-anchor="middle" fill="#ffffff">руины делятся</text>
+  <rect x="566" y="256" width="134" height="80" fill="#4c7a3f"/>
+  <text x="633" y="278" text-anchor="middle" fill="#ffffff">коалиции меняются,</text>
+  <text x="633" y="295" text-anchor="middle" fill="#ffffff">очередь оживает</text>
+
+  <!-- строка: 5 команд -->
+  <rect x="20" y="340" width="88" height="80" fill="#3b2a1a"/>
+  <text x="64" y="385" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">5 команд</text>
+  <rect x="110" y="340" width="150" height="80" fill="#6b645a"/>
+  <text x="185" y="362" text-anchor="middle" fill="#ffffff">практически</text>
+  <text x="185" y="379" text-anchor="middle" fill="#ffffff">только по сроку</text>
+  <rect x="262" y="340" width="150" height="80" fill="#4c7a3f"/>
+  <text x="337" y="362" text-anchor="middle" fill="#ffffff">работает; карта</text>
+  <text x="337" y="379" text-anchor="middle" fill="#ffffff">тесная — битв много</text>
+  <rect x="414" y="340" width="150" height="80" fill="#4c7a3f"/>
+  <text x="489" y="362" text-anchor="middle" fill="#ffffff">выбывание одного</text>
+  <text x="489" y="379" text-anchor="middle" fill="#ffffff">не решает игру</text>
+  <rect x="566" y="340" width="134" height="80" fill="#4c7a3f"/>
+  <text x="633" y="362" text-anchor="middle" fill="#ffffff">здоровая</text>
+  <text x="633" y="379" text-anchor="middle" fill="#ffffff">дипломатия</text>
+
+  <!-- легенда -->
+  <g font-size="12" fill="#3b2a1a">
+    <rect x="200" y="426" width="14" height="10" fill="#4c7a3f"/><text x="220" y="435">режим работает</text>
+    <rect x="340" y="426" width="14" height="10" fill="#c7742a"/><text x="360" y="435">режим ломается / эксплуатируется</text>
+    <rect x="560" y="426" width="14" height="10" fill="#6b645a"/><text x="580" y="435">режим вырожден</text>
+  </g>
+</svg>

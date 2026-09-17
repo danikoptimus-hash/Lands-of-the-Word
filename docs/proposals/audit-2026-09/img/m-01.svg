@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="420" fill="#ffffff"/>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">M-01. Местность стороны = сложность дела</text>
+  <!-- Пять гексов местности -->
+  <g id="hexes" stroke="#3b2a1a" stroke-width="1.5">
+    <polygon points="60,110 100,87 140,110 140,156 100,179 60,156" fill="#4c7a3f" fill-opacity="0.35"/>
+    <polygon points="190,110 230,87 270,110 270,156 230,179 190,156" fill="#c7742a" fill-opacity="0.35"/>
+    <polygon points="320,110 360,87 400,110 400,156 360,179 320,156" fill="#c7742a" fill-opacity="0.15"/>
+    <polygon points="450,110 490,87 530,110 530,156 490,179 450,156" fill="#6b645a" fill-opacity="0.45"/>
+    <polygon points="580,110 620,87 660,110 660,156 620,179 580,156" fill="#2e627e" fill-opacity="0.35"/>
+  </g>
+  <g text-anchor="middle" fill="#3b2a1a" font-weight="bold">
+    <text x="100" y="138">луг</text>
+    <text x="230" y="138">холмы</text>
+    <text x="360" y="138">пустыня</text>
+    <text x="490" y="138">горы</text>
+    <text x="620" y="138">оазис / вода</text>
+  </g>
+  <g text-anchor="middle" fill="#6b645a" font-size="13">
+    <text x="100" y="200">дела сложности 1</text>
+    <text x="100" y="218">«лёгкий шаг»</text>
+    <text x="230" y="200">сложность 1–2</text>
+    <text x="230" y="218">обычный шаг</text>
+    <text x="360" y="200">сложность 2</text>
+    <text x="360" y="218">+ пост/молитва</text>
+    <text x="490" y="200">сложность 3</text>
+    <text x="490" y="218">открывает 2 узла</text>
+    <text x="620" y="200">любая сложность</text>
+    <text x="620" y="218">+ отдых команды</text>
+  </g>
+  <!-- Правило стороны -->
+  <rect x="40" y="250" width="640" height="150" rx="10" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="60" y="276" font-weight="bold" fill="#3b2a1a">Правило стороны</text>
+  <polygon points="90,320 120,303 150,320 150,354 120,371 90,354" fill="#4c7a3f" fill-opacity="0.35" stroke="#3b2a1a"/>
+  <polygon points="150,320 180,303 210,320 210,354 180,371 150,354" fill="#6b645a" fill-opacity="0.45" stroke="#3b2a1a"/>
+  <line x1="150" y1="320" x2="150" y2="354" stroke="#c7742a" stroke-width="4"/>
+  <text x="240" y="318" fill="#3b2a1a">Сторона лежит между лугом (1) и горами (3).</text>
+  <text x="240" y="340" fill="#3b2a1a">Сложность стороны = максимум из двух = 3.</text>
+  <text x="240" y="362" fill="#6b645a" font-size="13">Море за краем острова считается как «луг»; туман не меняет</text>
+  <text x="240" y="380" fill="#6b645a" font-size="13">сложность — команда видит значок местности на метке дела заранее.</text>
+</svg>

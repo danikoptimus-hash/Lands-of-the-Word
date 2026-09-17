@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400" viewBox="0 0 720 400" font-family="sans-serif" font-size="14">
+  <rect width="720" height="400" fill="#ffffff"/>
+  <text x="360" y="26" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Карта эмоций сезона по неделям (оценка для команды из 8 человек)</text>
+
+  <!-- оси -->
+  <line x1="60" y1="300" x2="690" y2="300" stroke="#3b2a1a" stroke-width="1.5"/>
+  <line x1="60" y1="60" x2="60" y2="300" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="20" y="70" fill="#6b645a" font-size="12">интерес</text>
+  <text x="20" y="300" fill="#6b645a" font-size="12">низкий</text>
+  <text x="680" y="320" text-anchor="end" fill="#6b645a" font-size="12">недели сезона</text>
+
+  <!-- деления недель: 26 недель на 620 px, шаг ≈ 23.8 -->
+  <g fill="#6b645a" font-size="12" text-anchor="middle">
+    <text x="84" y="318">1</text>
+    <text x="179" y="318">5</text>
+    <text x="298" y="318">10</text>
+    <text x="417" y="318">15</text>
+    <text x="536" y="318">20</text>
+    <text x="655" y="318">25</text>
+  </g>
+
+  <!-- зоны -->
+  <rect x="60" y="60" width="95" height="240" fill="#4c7a3f" fill-opacity="0.07"/>
+  <text x="107" y="80" text-anchor="middle" fill="#4c7a3f" font-size="12">завязка</text>
+  <rect x="155" y="60" width="238" height="240" fill="#c7742a" fill-opacity="0.07"/>
+  <text x="274" y="80" text-anchor="middle" fill="#c7742a" font-size="12">середина: «долина»</text>
+  <rect x="393" y="60" width="214" height="240" fill="#2e627e" fill-opacity="0.07"/>
+  <text x="500" y="80" text-anchor="middle" fill="#2e627e" font-size="12">испытания и экзамены</text>
+  <rect x="607" y="60" width="83" height="240" fill="#4c7a3f" fill-opacity="0.07"/>
+  <text x="648" y="80" text-anchor="middle" fill="#4c7a3f" font-size="12">финал</text>
+
+  <!-- как есть (серая) -->
+  <polyline fill="none" stroke="#6b645a" stroke-width="2.5" stroke-dasharray="6 4"
+    points="84,110 108,120 131,150 155,175 179,150 203,190 227,215 251,235 274,245 298,250 322,255 346,258 369,255 393,240 417,200 441,230 465,250 488,262 512,265 536,262 560,258 584,250 607,240 631,235 655,225 679,235"/>
+  <!-- с предложениями (охра) -->
+  <polyline fill="none" stroke="#c7742a" stroke-width="3"
+    points="84,95 108,105 131,135 155,150 179,120 203,160 227,140 251,170 274,150 298,175 322,150 346,165 369,140 393,160 417,120 441,150 465,175 488,155 512,175 536,150 560,165 584,140 607,120 631,110 655,90 679,75"/>
+
+  <!-- события -->
+  <g font-size="12" fill="#3b2a1a">
+    <circle cx="84" cy="95" r="4" fill="#4c7a3f"/><text x="90" y="100">общий старт «Исход»</text>
+    <circle cx="179" cy="120" r="4" fill="#4c7a3f"/><text x="185" y="118">первый город, столица</text>
+    <circle cx="274" cy="150" r="4" fill="#c7742a"/><text x="280" y="147">событие карты</text>
+    <circle cx="369" cy="140" r="4" fill="#c7742a"/><text x="375" y="137">Праздник, общее дело</text>
+    <circle cx="417" cy="120" r="4" fill="#2e627e"/><text x="423" y="116">первое испытание</text>
+    <circle cx="536" cy="150" r="4" fill="#c7742a"/><text x="470" y="200" fill="#6b645a">экзамены, лето:</text><text x="470" y="215" fill="#6b645a">«лёгкие недели»</text>
+    <circle cx="679" cy="75" r="4" fill="#4c7a3f"/><text x="600" y="108" fill="#3b2a1a">церемония</text>
+  </g>
+
+  <!-- легенда -->
+  <line x1="80" y1="350" x2="130" y2="350" stroke="#6b645a" stroke-width="2.5" stroke-dasharray="6 4"/>
+  <text x="138" y="355" fill="#3b2a1a">как есть: один пик и долгая долина, финал — письмо</text>
+  <line x1="80" y1="375" x2="130" y2="375" stroke="#c7742a" stroke-width="3"/>
+  <text x="138" y="380" fill="#3b2a1a">с E-01…E-15: пики каждые 3–4 недели, нарастание к финалу</text>
+</svg>

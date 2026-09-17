@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="330" viewBox="0 0 720 330" font-family="Arial, Helvetica, sans-serif">
+<rect width="720" height="330" fill="#ffffff"/>
+<text x="20" y="26" font-size="16" fill="#3b2a1a" text-anchor="start" font-weight="bold">Панель здоровья команд (предложение A-05): кто затих</text>
+<rect x="20" y="38" width="680" height="26" fill="#f3efe8"/>
+<text x="26" y="56" font-size="13" fill="#6b645a" text-anchor="start" font-weight="bold">Команда</text>
+<text x="156" y="56" font-size="13" fill="#6b645a" text-anchor="start" font-weight="bold">Последняя сдача</text>
+<text x="306" y="56" font-size="13" fill="#6b645a" text-anchor="start" font-weight="bold">Активных</text>
+<text x="406" y="56" font-size="13" fill="#6b645a" text-anchor="start" font-weight="bold">На проверке / возвр.</text>
+<text x="566" y="56" font-size="13" fill="#6b645a" text-anchor="start" font-weight="bold">Испытание</text>
+<text x="686" y="56" font-size="13" fill="#6b645a" text-anchor="start" font-weight="bold"></text>
+<line x1="20" y1="104" x2="700" y2="104" stroke="#e5e0d8"/>
+<circle cx="32" cy="87" r="7" fill="#4c7a3f"/>
+<text x="46" y="92" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="bold">Моряки</text>
+<text x="156" y="92" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">1 день назад</text>
+<text x="306" y="92" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">6 из 8</text>
+<text x="406" y="92" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">2 / 0</text>
+<text x="566" y="92" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">ответ до четверга</text>
+<rect x="628" y="78" width="72" height="20" rx="4" fill="#ffffff" stroke="#2e627e"/>
+<text x="664" y="92" font-size="12" fill="#2e627e" text-anchor="middle" font-weight="normal">написать</text>
+<line x1="20" y1="144" x2="700" y2="144" stroke="#e5e0d8"/>
+<circle cx="32" cy="127" r="7" fill="#c7742a"/>
+<text x="46" y="132" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="bold">Берег</text>
+<text x="156" y="132" font-size="14" fill="#c7742a" text-anchor="start" font-weight="normal">9 дней назад</text>
+<text x="306" y="132" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">2 из 8</text>
+<text x="406" y="132" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">0 / 1 без ответа</text>
+<text x="566" y="132" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">нет</text>
+<rect x="628" y="118" width="72" height="20" rx="4" fill="#ffffff" stroke="#2e627e"/>
+<text x="664" y="132" font-size="12" fill="#2e627e" text-anchor="middle" font-weight="normal">написать</text>
+<line x1="20" y1="184" x2="700" y2="184" stroke="#e5e0d8"/>
+<circle cx="32" cy="167" r="7" fill="#4c7a3f"/>
+<text x="46" y="172" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="bold">Скала</text>
+<text x="156" y="172" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">3 дня назад</text>
+<text x="306" y="172" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">5 из 8</text>
+<text x="406" y="172" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">1 / 0</text>
+<text x="566" y="172" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">вызов, 4 дня из 14</text>
+<rect x="628" y="158" width="72" height="20" rx="4" fill="#ffffff" stroke="#2e627e"/>
+<text x="664" y="172" font-size="12" fill="#2e627e" text-anchor="middle" font-weight="normal">написать</text>
+<line x1="20" y1="224" x2="700" y2="224" stroke="#e5e0d8"/>
+<circle cx="32" cy="207" r="7" fill="#3b2a1a"/>
+<text x="46" y="212" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="bold">Пустыня</text>
+<text x="156" y="212" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">16 дней назад</text>
+<text x="306" y="212" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">0 из 8</text>
+<text x="406" y="212" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">0 / 0</text>
+<text x="566" y="212" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">нет</text>
+<rect x="628" y="198" width="72" height="20" rx="4" fill="#ffffff" stroke="#2e627e"/>
+<text x="664" y="212" font-size="12" fill="#2e627e" text-anchor="middle" font-weight="normal">написать</text>
+<line x1="20" y1="264" x2="700" y2="264" stroke="#e5e0d8"/>
+<circle cx="32" cy="247" r="7" fill="#c7742a"/>
+<text x="46" y="252" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="bold">Ковчег</text>
+<text x="156" y="252" font-size="14" fill="#c7742a" text-anchor="start" font-weight="normal">5 дней назад</text>
+<text x="306" y="252" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">3 из 8</text>
+<text x="406" y="252" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">0 / 0</text>
+<text x="566" y="252" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">нет</text>
+<rect x="628" y="238" width="72" height="20" rx="4" fill="#ffffff" stroke="#2e627e"/>
+<text x="664" y="252" font-size="12" fill="#2e627e" text-anchor="middle" font-weight="normal">написать</text>
+<text x="20" y="288" font-size="13" fill="#6b645a" text-anchor="start" font-weight="normal">Правило светофора: 7 дней без сдачи — оранжевый, 14 дней или ни одного активного — тёмный.</text>
+<text x="20" y="308" font-size="13" fill="#6b645a" text-anchor="start" font-weight="normal">«Активных» — участники, заходившие в игру за 7 дней. Кнопка «написать» шлёт капитану шаблон письма.</text>
+</svg>

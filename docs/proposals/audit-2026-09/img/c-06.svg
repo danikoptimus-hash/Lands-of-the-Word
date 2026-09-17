@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720" font-family="sans-serif" font-size="14">
+  <rect width="720" height="720" fill="#ffffff"/>
+  <title>C-06. Конверт с сургучом: шаг «Конверт»</title>
+  <rect x="40" y="30" width="320" height="660" rx="28" fill="#ffffff" stroke="#3b2a1a" stroke-width="3"/>
+  <rect x="52" y="42" width="296" height="636" rx="18" fill="#faf6ef" stroke="#6b645a" stroke-width="1"/>
+  <rect x="160" y="50" width="80" height="6" rx="3" fill="#6b645a"/>
+  <text x="68" y="84" font-size="15" font-weight="bold" fill="#3b2a1a">Руфь · все 17 знаков собраны</text>
+  <text x="68" y="104" font-size="13" fill="#6b645a">1 Порядок ✓ · 2 Районы ✓ · 3 Конверт</text>
+  <!-- конверт -->
+  <rect x="72" y="126" width="256" height="170" rx="8" fill="#efe6d6" stroke="#3b2a1a" stroke-width="2"/>
+  <polygon points="72,126 200,222 328,126" fill="#e6dccb" stroke="#3b2a1a" stroke-width="2"/>
+  <line x1="72" y1="296" x2="176" y2="222" stroke="#3b2a1a" stroke-width="1"/>
+  <line x1="328" y1="296" x2="224" y2="222" stroke="#3b2a1a" stroke-width="1"/>
+  <!-- сургуч -->
+  <circle cx="200" cy="222" r="34" fill="#c7742a" stroke="#3b2a1a" stroke-width="2"/>
+  <circle cx="200" cy="222" r="24" fill="none" stroke="#3b2a1a" stroke-width="1"/>
+  <text x="200" y="227" text-anchor="middle" fill="#ffffff" font-size="14" font-weight="bold">Р7КМ</text>
+  <text x="200" y="316" text-anchor="middle" fill="#3b2a1a" font-size="13">Кому: семья «у моста» · семья</text>
+  <!-- шифр -->
+  <text x="68" y="346" font-size="13" font-weight="bold" fill="#3b2a1a">Шифр для адресата</text>
+  <rect x="72" y="356" width="256" height="34" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  <text x="200" y="379" text-anchor="middle" fill="#3b2a1a" font-size="15" font-weight="bold">Р 7 К М 3 Ш Д Б 5 Н Е 9 У А Ф 2 Ц</text>
+  <text x="68" y="410" font-size="12" fill="#6b645a">Назовите шифр адресату и получите конверт</text>
+  <!-- ключ: 6 ячеек -->
+  <text x="68" y="444" font-size="13" font-weight="bold" fill="#3b2a1a">Ключ из конверта</text>
+  <g font-size="18" text-anchor="middle" font-weight="bold">
+    <rect x="72" y="456" width="36" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a"/><text x="90" y="486" fill="#3b2a1a">K</text>
+    <rect x="116" y="456" width="36" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a"/><text x="134" y="486" fill="#3b2a1a">7</text>
+    <rect x="160" y="456" width="36" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a"/><text x="178" y="486" fill="#3b2a1a">P</text>
+    <rect x="204" y="456" width="36" height="44" rx="6" fill="#ffffff" stroke="#c7742a" stroke-width="3"/>
+    <rect x="248" y="456" width="36" height="44" rx="6" fill="#ffffff" stroke="#6b645a"/>
+    <rect x="292" y="456" width="36" height="44" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  </g>
+  <text x="68" y="522" font-size="12" fill="#6b645a">6 знаков, без 0/O и 1/I · вставка отключена</text>
+  <rect x="72" y="540" width="256" height="44" rx="10" fill="#2e627e"/>
+  <text x="200" y="568" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">Сломать печать</text>
+  <text x="68" y="612" font-size="12" fill="#c7742a">Ключ не подошёл · подождите 20 с</text>
+  <text x="68" y="640" font-size="12" fill="#6b645a">Город в руинах: печать ломается без ключа</text>
+  <!-- пояснения -->
+  <text x="400" y="84" font-size="16" font-weight="bold" fill="#3b2a1a">Сцена шага 3</text>
+  <text x="400" y="112" fill="#3b2a1a">Сургуч оттиснут печатью из C-05:</text>
+  <text x="400" y="132" fill="#3b2a1a">первые знаки шифра видны на оттиске,</text>
+  <text x="400" y="152" fill="#3b2a1a">полный шифр — строкой ниже.</text>
+  <text x="400" y="196" fill="#4c7a3f">Ключ верный: сургуч трескается (звук),</text>
+  <text x="400" y="216" fill="#4c7a3f">клапан откидывается, из конверта</text>
+  <text x="400" y="236" fill="#4c7a3f">выезжает грамота «Город ваш» с флагом</text>
+  <text x="400" y="256" fill="#4c7a3f">команды; для первого города — корона.</text>
+  <text x="400" y="300" fill="#c7742a">Ключ неверный: печать лишь царапается,</text>
+  <text x="400" y="320" fill="#c7742a">пауза 20 с (lastWrongAt как сейчас).</text>
+  <text x="400" y="364" fill="#2e627e">Ячейки — одно поле input под ними;</text>
+  <text x="400" y="384" fill="#2e627e">на сервер уходит строка key, как сейчас.</text>
+  <text x="400" y="404" fill="#2e627e">Ключ хранится только в mapNode.cityKey.</text>
+  <text x="400" y="448" fill="#6b645a">Адресат показывается только когда</text>
+  <text x="400" y="468" fill="#6b645a">allDone (правило 2.7a не меняется).</text>
+  <text x="400" y="512" fill="#6b645a">Грамота сохраняется в свитке (C-04)</text>
+  <text x="400" y="532" fill="#6b645a">как последняя полоска: дата, кто ввёл ключ.</text>
+</svg>

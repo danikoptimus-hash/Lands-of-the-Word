@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="330" viewBox="0 0 720 330" font-family="Arial, Helvetica, sans-serif">
+<rect width="720" height="330" fill="#ffffff"/>
+<defs><marker id="arr" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#6b645a"/></marker></defs>
+<text x="20" y="26" font-size="16" fill="#3b2a1a" text-anchor="start" font-weight="bold">Путь администратора до старта: что проверяет сервер, а что можно забыть</text>
+<rect x="20" y="44" width="120" height="54" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+<text x="80" y="66" font-size="14" fill="#3b2a1a" text-anchor="middle" font-weight="bold">Создать игру</text>
+<text x="80" y="86" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">название, команд 2–12</text>
+<circle cx="132" cy="52" r="9" fill="#4c7a3f"/>
+<text x="132" y="57" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">✓</text>
+<text x="80" y="118" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">церковь — по желанию</text>
+<line x1="142" y1="71" x2="176" y2="71" stroke="#6b645a" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="160" y="44" width="120" height="54" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+<text x="220" y="66" font-size="14" fill="#3b2a1a" text-anchor="middle" font-weight="bold">Настройки</text>
+<text x="220" y="86" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">перекрёстки, старты</text>
+<circle cx="272" cy="52" r="9" fill="#c7742a"/>
+<text x="272" y="57" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">!</text>
+<text x="220" y="118" font-size="12" fill="#c7742a" text-anchor="middle" font-weight="normal">срока игры здесь нет</text>
+<line x1="282" y1="71" x2="316" y2="71" stroke="#6b645a" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="300" y="44" width="120" height="54" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+<text x="360" y="66" font-size="14" fill="#3b2a1a" text-anchor="middle" font-weight="bold">Карта</text>
+<text x="360" y="86" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">«Сгенерировать»</text>
+<circle cx="412" cy="52" r="9" fill="#4c7a3f"/>
+<text x="412" y="57" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">✓</text>
+<text x="360" y="118" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">после смены числа команд — заново</text>
+<line x1="422" y1="71" x2="456" y2="71" stroke="#6b645a" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="440" y="44" width="120" height="54" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+<text x="500" y="66" font-size="14" fill="#3b2a1a" text-anchor="middle" font-weight="bold">Команды</text>
+<text x="500" y="86" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">названия, цвета</text>
+<circle cx="552" cy="52" r="9" fill="#4c7a3f"/>
+<text x="552" y="57" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">✓</text>
+<text x="500" y="118" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">капитан не проверяется</text>
+<line x1="562" y1="71" x2="596" y2="71" stroke="#6b645a" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="580" y="44" width="120" height="54" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+<text x="640" y="66" font-size="14" fill="#3b2a1a" text-anchor="middle" font-weight="bold">Приглашения</text>
+<text x="640" y="86" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">две ссылки на команду</text>
+<circle cx="692" cy="52" r="9" fill="#4c7a3f"/>
+<text x="692" y="57" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">✓</text>
+<text x="640" y="118" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">14 дней, 20 мест</text>
+<rect x="20" y="184" width="120" height="54" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+<text x="80" y="206" font-size="14" fill="#3b2a1a" text-anchor="middle" font-weight="bold">Дела</text>
+<text x="80" y="226" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">стандартный набор 21</text>
+<circle cx="132" cy="192" r="9" fill="#4c7a3f"/>
+<text x="132" y="197" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">✓</text>
+<text x="80" y="258" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">нужно 31: предупреждение</text>
+<line x1="142" y1="211" x2="176" y2="211" stroke="#6b645a" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="160" y="184" width="120" height="54" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+<text x="220" y="206" font-size="14" fill="#3b2a1a" text-anchor="middle" font-weight="bold">Адресаты</text>
+<text x="220" y="226" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">подпись и тип</text>
+<circle cx="272" cy="192" r="9" fill="#c7742a"/>
+<text x="272" y="197" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">!</text>
+<text x="220" y="258" font-size="12" fill="#c7742a" text-anchor="middle" font-weight="normal">согласие людей — вне игры</text>
+<line x1="282" y1="211" x2="316" y2="211" stroke="#6b645a" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="300" y="184" width="120" height="54" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+<text x="360" y="206" font-size="14" fill="#3b2a1a" text-anchor="middle" font-weight="bold">Ярлыки PDF</text>
+<text x="360" y="226" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">66 конвертов</text>
+<circle cx="412" cy="192" r="9" fill="#c7742a"/>
+<text x="412" y="197" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">!</text>
+<text x="360" y="258" font-size="12" fill="#c7742a" text-anchor="middle" font-weight="normal">печать и раскладка вручную</text>
+<line x1="422" y1="211" x2="456" y2="211" stroke="#6b645a" stroke-width="2" marker-end="url(#arr)"/>
+<rect x="440" y="184" width="120" height="54" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+<text x="500" y="206" font-size="14" fill="#3b2a1a" text-anchor="middle" font-weight="bold">Начать игру</text>
+<text x="500" y="226" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">ключи, старты, дела</text>
+<circle cx="552" cy="192" r="9" fill="#4c7a3f"/>
+<text x="552" y="197" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">✓</text>
+<text x="500" y="258" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">письма о старте нет</text>
+<path d="M640,100 L640,150 L20,150 L20,182" fill="none" stroke="#6b645a" stroke-width="2" marker-end="url(#arr)"/>
+<circle cx="30" cy="290" r="9" fill="#4c7a3f"/><text x="30" y="295" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">✓</text>
+<text x="46" y="295" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">сервер проверяет перед стартом (readiness)</text>
+<circle cx="380" cy="290" r="9" fill="#c7742a"/><text x="380" y="295" font-size="13" fill="#ffffff" text-anchor="middle" font-weight="bold">!</text>
+<text x="396" y="295" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">не проверяется: легко забыть</text>
+<text x="20" y="318" font-size="13" fill="#6b645a" text-anchor="start" font-weight="normal">Не проверяются также: срок игры, второй администратор, капитаны, подтверждённая почта у игроков.</text>
+</svg>

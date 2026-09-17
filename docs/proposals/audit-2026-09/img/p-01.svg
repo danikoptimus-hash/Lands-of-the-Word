@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="300" viewBox="0 0 720 300" font-family="Arial, sans-serif" font-size="14">
+  <rect width="720" height="300" fill="#ffffff"/>
+  <defs><marker id="a" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#6b645a"/></marker></defs>
+  <rect x="20" y="40" width="150" height="70" rx="8" fill="#f7e6d6" stroke="#c7742a" stroke-width="2"/>
+  <text x="95" y="68" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Собрание</text>
+  <text x="95" y="90" text-anchor="middle" fill="#6b645a">телефон в руках</text>
+  <rect x="210" y="40" width="150" height="70" rx="8" fill="#fff" stroke="#3b2a1a" stroke-width="2"/>
+  <text x="285" y="68" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Капитан</text>
+  <text x="285" y="90" text-anchor="middle" fill="#6b645a">ставит штраф</text>
+  <rect x="400" y="40" width="150" height="70" rx="8" fill="#dfeaf0" stroke="#2e627e" stroke-width="2"/>
+  <text x="475" y="68" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Команда</text>
+  <text x="475" y="90" text-anchor="middle" fill="#6b645a">несёт последствие</text>
+  <rect x="590" y="40" width="110" height="70" rx="8" fill="#e3ecdd" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="645" y="68" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Искупление</text>
+  <text x="645" y="90" text-anchor="middle" fill="#6b645a">стих, дело</text>
+  <line x1="170" y1="75" x2="208" y2="75" stroke="#6b645a" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="360" y1="75" x2="398" y2="75" stroke="#6b645a" stroke-width="2" marker-end="url(#a)"/>
+  <line x1="550" y1="75" x2="588" y2="75" stroke="#6b645a" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="210" y="170" width="340" height="60" rx="8" fill="#fff" stroke="#6b645a" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="380" y="195" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Администратор</text>
+  <text x="380" y="216" text-anchor="middle" fill="#6b645a">видит все штрафы в «Обзоре», может отменить любой</text>
+  <line x1="285" y1="110" x2="285" y2="168" stroke="#6b645a" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <line x1="475" y1="110" x2="475" y2="168" stroke="#6b645a" stroke-width="1.5" stroke-dasharray="4 3"/>
+  <text x="360" y="270" text-anchor="middle" fill="#6b645a">Правила: не чаще одного штрафа за собрание · не больше трёх активных · штраф не стоит города · без имён в летописи</text>
+</svg>

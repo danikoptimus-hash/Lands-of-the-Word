@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="Arial, sans-serif" font-size="14">
+  <rect width="720" height="420" fill="#ffffff"/>
+  <text x="360" y="26" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Матрица предложений: сложность × влияние</text>
+  <line x1="90" y1="360" x2="690" y2="360" stroke="#3b2a1a" stroke-width="1.5"/>
+  <line x1="90" y1="50" x2="90" y2="360" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="390" y="395" text-anchor="middle" fill="#6b645a">Сложность →</text>
+  <text x="190" y="378" text-anchor="middle" fill="#3b2a1a">малая (61)</text>
+  <text x="390" y="378" text-anchor="middle" fill="#3b2a1a">средняя (73)</text>
+  <text x="590" y="378" text-anchor="middle" fill="#3b2a1a">большая (17)</text>
+  <text x="30" y="205" text-anchor="middle" fill="#6b645a" transform="rotate(-90 30 205)">Влияние →</text>
+  <text x="78" y="120" text-anchor="end" fill="#3b2a1a">4–5</text>
+  <text x="78" y="290" text-anchor="end" fill="#3b2a1a">1–3</text>
+  <rect x="95" y="55" width="190" height="150" rx="8" fill="#e3ecdd" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="190" y="80" text-anchor="middle" font-weight="bold" fill="#4c7a3f">Быстрые победы · 29</text>
+  <text x="190" y="102" text-anchor="middle" fill="#3b2a1a">S-01 S-02 S-03 S-11 B-01</text>
+  <text x="190" y="122" text-anchor="middle" fill="#3b2a1a">B-04 B-11 B-13 D-01 D-02</text>
+  <text x="190" y="142" text-anchor="middle" fill="#3b2a1a">D-05 D-16 E-02 E-05 C-06</text>
+  <text x="190" y="162" text-anchor="middle" fill="#3b2a1a">C-13 A-07 A-11 T-11 P-02…</text>
+  <text x="190" y="188" text-anchor="middle" fill="#6b645a">делать до старта</text>
+  <rect x="295" y="55" width="190" height="150" rx="8" fill="#f7e6d6" stroke="#c7742a" stroke-width="2"/>
+  <text x="390" y="80" text-anchor="middle" font-weight="bold" fill="#c7742a">Средние ставки · 17 с влиянием 5</text>
+  <text x="390" y="102" text-anchor="middle" fill="#3b2a1a">E-01 E-03 E-10 C-01 D-04</text>
+  <text x="390" y="122" text-anchor="middle" fill="#3b2a1a">B-03 B-09 R-01 M-01 A-02</text>
+  <text x="390" y="142" text-anchor="middle" fill="#3b2a1a">A-05 T-01 T-02 P-03</text>
+  <text x="390" y="162" text-anchor="middle" fill="#3b2a1a">S-09 E-07 T-03 (след. сезон)</text>
+  <text x="390" y="188" text-anchor="middle" fill="#6b645a">4–6 до старта, остальное в сезоне</text>
+  <rect x="495" y="55" width="190" height="150" rx="8" fill="#dfeaf0" stroke="#2e627e" stroke-width="2"/>
+  <text x="590" y="80" text-anchor="middle" font-weight="bold" fill="#2e627e">Большие ставки · 15</text>
+  <text x="590" y="102" text-anchor="middle" fill="#3b2a1a">S-10 E-06 E-11 C-03 D-06</text>
+  <text x="590" y="122" text-anchor="middle" fill="#3b2a1a">B-05 R-02 R-03 A-08 A-14</text>
+  <text x="590" y="142" text-anchor="middle" fill="#3b2a1a">E-14 B-14 R-13 M-12 T-06</text>
+  <text x="590" y="188" text-anchor="middle" fill="#6b645a">начало следующего сезона</text>
+  <rect x="95" y="215" width="590" height="135" rx="8" fill="#fff" stroke="#6b645a" stroke-width="1.5" stroke-dasharray="6 4"/>
+  <text x="390" y="240" text-anchor="middle" font-weight="bold" fill="#6b645a">Влияние 1–3 · 57 предложений</text>
+  <text x="390" y="264" text-anchor="middle" fill="#3b2a1a">Уместные, но не решающие: дополнения к главам, детали ролей, атмосфера карты,</text>
+  <text x="390" y="284" text-anchor="middle" fill="#3b2a1a">удобство администратора. Брать по мере сил после первых двух углов.</text>
+  <text x="390" y="312" text-anchor="middle" fill="#6b645a">Влияние 2 (9 предложений) можно не рассматривать в этом сезоне.</text>
+</svg>

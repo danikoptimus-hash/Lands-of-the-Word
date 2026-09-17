@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="300" viewBox="0 0 720 300" font-family="sans-serif" font-size="14">
+  <defs>
+    <marker id="m" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b2a1a"/>
+    </marker>
+  </defs>
+  <rect width="720" height="300" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16" font-weight="bold" fill="#3b2a1a">Карточка благодарности: подтверждение адресата без персональных данных (D-04, D-12)</text>
+  <!-- ряд 1: до дела -->
+  <g fill="#ffffff" stroke="#2e627e" stroke-width="2">
+    <rect x="20" y="56" width="200" height="64" rx="6"/>
+    <rect x="260" y="56" width="200" height="64" rx="6"/>
+    <rect x="500" y="56" width="200" height="64" rx="6"/>
+  </g>
+  <g fill="#3b2a1a" font-size="12">
+    <text x="30" y="76" font-weight="bold">Администратор печатает</text>
+    <text x="30" y="93">карточки с кодами (PDF, как</text>
+    <text x="30" y="108">ярлыки конвертов, 2.7a)</text>
+    <text x="270" y="76" font-weight="bold">Раздаёт адресатам заранее</text>
+    <text x="270" y="93">вдова, старец, большая семья —</text>
+    <text x="270" y="108">по 3–5 карточек в руки</text>
+    <text x="510" y="76" font-weight="bold">В игре — только подпись</text>
+    <text x="510" y="93">адресата и тип; ни фамилий,</text>
+    <text x="510" y="108">ни адресов, ни телефонов</text>
+  </g>
+  <g stroke="#3b2a1a" stroke-width="2" marker-end="url(#m)">
+    <line x1="220" y1="88" x2="258" y2="88"/>
+    <line x1="460" y1="88" x2="498" y2="88"/>
+  </g>
+  <!-- ряд 2: во время и после дела -->
+  <g fill="#ffffff" stroke="#4c7a3f" stroke-width="2">
+    <rect x="20" y="160" width="200" height="64" rx="6"/>
+    <rect x="260" y="160" width="200" height="64" rx="6"/>
+    <rect x="500" y="160" width="200" height="64" rx="6"/>
+  </g>
+  <g fill="#3b2a1a" font-size="12">
+    <text x="30" y="180" font-weight="bold">Участник сделал дело</text>
+    <text x="30" y="197">адресат сам отдаёт ему одну</text>
+    <text x="30" y="212">карточку: «спасибо, был»</text>
+    <text x="270" y="180" font-weight="bold">При сдаче вводит код</text>
+    <text x="270" y="197">сервер сверяет: код выдан</text>
+    <text x="270" y="212">этому адресату и не сожжён</text>
+    <text x="510" y="180" font-weight="bold">Администратор видит</text>
+    <text x="510" y="197">«код верный» — проверка</text>
+    <text x="510" y="212">за 10 секунд, без звонков</text>
+  </g>
+  <g stroke="#3b2a1a" stroke-width="2" marker-end="url(#m)">
+    <line x1="220" y1="192" x2="258" y2="192"/>
+    <line x1="460" y1="192" x2="498" y2="192"/>
+  </g>
+  <line x1="600" y1="120" x2="600" y2="140" stroke="#3b2a1a" stroke-width="2"/>
+  <path d="M600,140 L120,140 L120,158" fill="none" stroke="#3b2a1a" stroke-width="2" marker-end="url(#m)"/>
+  <!-- необязательный хвост -->
+  <rect x="20" y="248" width="680" height="36" rx="6" fill="#ffffff" stroke="#c7742a" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="30" y="271" fill="#c7742a" font-size="12">Необязательно (D-12): на карточке короткая ссылка — адресат или его родные пишут одну фразу благодарности; команда видит её после одобрения.</text>
+</svg>

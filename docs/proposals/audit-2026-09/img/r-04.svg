@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="440" viewBox="0 0 720 440" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="440" fill="#ffffff"/>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Структура команды на 4, 8 и 12 человек (предложения R-07, R-08, R-09)</text>
+
+  <!-- column 1: 4 people -->
+  <rect x="16" y="50" width="216" height="360" rx="8" fill="#ffffff" stroke="#6b645a" stroke-width="1.5"/>
+  <text x="124" y="76" text-anchor="middle" font-weight="bold" fill="#3b2a1a">4 человека: «лодка»</text>
+  <rect x="32" y="92" width="184" height="36" rx="6" fill="#c7742a"/><text x="124" y="115" text-anchor="middle" fill="#ffffff">Капитан + казначей</text>
+  <rect x="32" y="138" width="184" height="36" rx="6" fill="#2e627e"/><text x="124" y="161" text-anchor="middle" fill="#ffffff">Посол + летописец</text>
+  <rect x="32" y="184" width="184" height="36" rx="6" fill="#4c7a3f"/><text x="124" y="207" text-anchor="middle" fill="#ffffff">Разведчик + кормчий</text>
+  <rect x="32" y="230" width="184" height="36" rx="6" fill="#4c7a3f"/><text x="124" y="253" text-anchor="middle" fill="#ffffff">Пророк + хранитель</text>
+  <text x="124" y="292" text-anchor="middle" fill="#3b2a1a" font-size="13">все — дела, 1 дело/чел./нед.</text>
+  <text x="124" y="312" text-anchor="middle" fill="#3b2a1a" font-size="13">роли парные, ротация не нужна</text>
+  <text x="124" y="332" text-anchor="middle" fill="#6b645a" font-size="13">голосование: 3 из 4</text>
+  <text x="124" y="352" text-anchor="middle" fill="#6b645a" font-size="13">наставник извне (R-10)</text>
+  <text x="124" y="386" text-anchor="middle" fill="#6b645a" font-size="12">риск: один выбыл — 25 % команды</text>
+
+  <!-- column 2: 8 people -->
+  <rect x="252" y="50" width="216" height="360" rx="8" fill="#ffffff" stroke="#6b645a" stroke-width="1.5"/>
+  <text x="360" y="76" text-anchor="middle" font-weight="bold" fill="#3b2a1a">8 человек: «корабль» (норма)</text>
+  <rect x="268" y="92" width="184" height="30" rx="6" fill="#c7742a"/><text x="360" y="112" text-anchor="middle" fill="#ffffff">Капитан</text>
+  <rect x="268" y="128" width="88" height="30" rx="6" fill="#2e627e"/><text x="312" y="148" text-anchor="middle" fill="#ffffff" font-size="13">Посол</text>
+  <rect x="364" y="128" width="88" height="30" rx="6" fill="#2e627e"/><text x="408" y="148" text-anchor="middle" fill="#ffffff" font-size="13">Летописец</text>
+  <rect x="268" y="164" width="88" height="30" rx="6" fill="#4c7a3f"/><text x="312" y="184" text-anchor="middle" fill="#ffffff" font-size="13">Разведчик</text>
+  <rect x="364" y="164" width="88" height="30" rx="6" fill="#4c7a3f"/><text x="408" y="184" text-anchor="middle" fill="#ffffff" font-size="13">Пророк</text>
+  <rect x="268" y="200" width="88" height="30" rx="6" fill="#4c7a3f"/><text x="312" y="220" text-anchor="middle" fill="#ffffff" font-size="13">Кормчий</text>
+  <rect x="364" y="200" width="88" height="30" rx="6" fill="#4c7a3f"/><text x="408" y="220" text-anchor="middle" fill="#ffffff" font-size="13">Казначей</text>
+  <rect x="268" y="236" width="184" height="30" rx="6" fill="#ffffff" stroke="#6b645a" stroke-width="1.5"/><text x="360" y="256" text-anchor="middle" fill="#3b2a1a" font-size="13">2 стажёра ролей (R-08)</text>
+  <text x="360" y="292" text-anchor="middle" fill="#3b2a1a" font-size="13">ротация раз в 2 недели</text>
+  <text x="360" y="312" text-anchor="middle" fill="#3b2a1a" font-size="13">дежурный по делам — по кругу</text>
+  <text x="360" y="332" text-anchor="middle" fill="#6b645a" font-size="13">голосование: 5 из 8</text>
+  <text x="360" y="352" text-anchor="middle" fill="#6b645a" font-size="13">3–4 дела параллельно</text>
+  <text x="360" y="386" text-anchor="middle" fill="#6b645a" font-size="12">риск: «молчуны» без обязанностей</text>
+
+  <!-- column 3: 12 people -->
+  <rect x="488" y="50" width="216" height="360" rx="8" fill="#ffffff" stroke="#6b645a" stroke-width="1.5"/>
+  <text x="596" y="76" text-anchor="middle" font-weight="bold" fill="#3b2a1a">12 человек: «флот» (Исх. 18:21)</text>
+  <rect x="504" y="92" width="184" height="30" rx="6" fill="#c7742a"/><text x="596" y="112" text-anchor="middle" fill="#ffffff">Капитан + совет из 3</text>
+  <rect x="504" y="128" width="88" height="60" rx="6" fill="#2e627e"/><text x="548" y="152" text-anchor="middle" fill="#ffffff" font-size="13">Звено «дела»</text><text x="548" y="170" text-anchor="middle" fill="#ffffff" font-size="12">летописец + 3</text>
+  <rect x="600" y="128" width="88" height="60" rx="6" fill="#4c7a3f"/><text x="644" y="152" text-anchor="middle" fill="#ffffff" font-size="13">Звено «книга»</text><text x="644" y="170" text-anchor="middle" fill="#ffffff" font-size="12">пророк + 3</text>
+  <rect x="504" y="194" width="184" height="40" rx="6" fill="#ffffff" stroke="#6b645a" stroke-width="1.5"/><text x="596" y="211" text-anchor="middle" fill="#3b2a1a" font-size="13">Звено «карта»: посол, разведчик,</text><text x="596" y="227" text-anchor="middle" fill="#3b2a1a" font-size="13">кормчий, казначей</text>
+  <text x="596" y="262" text-anchor="middle" fill="#3b2a1a" font-size="13">старший звена сдаёт за звено</text>
+  <text x="596" y="282" text-anchor="middle" fill="#3b2a1a" font-size="13">капитан говорит с 3, а не с 11</text>
+  <text x="596" y="302" text-anchor="middle" fill="#3b2a1a" font-size="13">ротация звеньев раз в месяц</text>
+  <text x="596" y="332" text-anchor="middle" fill="#6b645a" font-size="13">голосование: 7 из 12</text>
+  <text x="596" y="352" text-anchor="middle" fill="#6b645a" font-size="13">5–6 дел параллельно</text>
+  <text x="596" y="386" text-anchor="middle" fill="#6b645a" font-size="12">риск: две подкоманды, распад на «свои»</text>
+
+  <text x="360" y="430" text-anchor="middle" fill="#6b645a" font-size="13">Сейчас в коде: капитан + 4 роли + остальные «без роли», любой размер команды.</text>
+</svg>

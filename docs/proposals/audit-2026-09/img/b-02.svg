@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="420" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16" font-weight="bold" fill="#3b2a1a">Дерево форматов вызова и ответа (B-05, B-06)</text>
+
+  <!-- Корень -->
+  <rect x="260" y="50" width="200" height="44" rx="8" fill="#3b2a1a"/>
+  <text x="360" y="70" text-anchor="middle" fill="#ffffff" font-weight="bold">Отрывок испытания</text>
+  <text x="360" y="87" text-anchor="middle" fill="#ffffff" font-size="13">каждый участник выбирает формат</text>
+
+  <!-- Линии к веткам -->
+  <line x1="360" y1="94" x2="360" y2="120" stroke="#3b2a1a" stroke-width="2"/>
+  <line x1="80" y1="120" x2="640" y2="120" stroke="#3b2a1a" stroke-width="2"/>
+  <line x1="80" y1="120" x2="80" y2="150" stroke="#3b2a1a" stroke-width="2"/>
+  <line x1="220" y1="120" x2="220" y2="150" stroke="#3b2a1a" stroke-width="2"/>
+  <line x1="360" y1="120" x2="360" y2="150" stroke="#3b2a1a" stroke-width="2"/>
+  <line x1="500" y1="120" x2="500" y2="150" stroke="#3b2a1a" stroke-width="2"/>
+  <line x1="640" y1="120" x2="640" y2="150" stroke="#3b2a1a" stroke-width="2"/>
+
+  <!-- Ветка 1 -->
+  <rect x="15" y="150" width="130" height="120" rx="8" fill="#2e627e"/>
+  <text x="80" y="172" text-anchor="middle" fill="#ffffff" font-weight="bold">Наизусть</text>
+  <text x="80" y="189" text-anchor="middle" fill="#ffffff" font-weight="bold">на видео</text>
+  <text x="80" y="212" text-anchor="middle" fill="#ffffff" font-size="13">коэффициент 1,0</text>
+  <text x="80" y="230" text-anchor="middle" fill="#ffffff" font-size="13">ссылка на видео</text>
+  <text x="80" y="248" text-anchor="middle" fill="#ffffff" font-size="13">проверяет админ</text>
+
+  <!-- Ветка 2 -->
+  <rect x="155" y="150" width="130" height="120" rx="8" fill="#4c7a3f"/>
+  <text x="220" y="172" text-anchor="middle" fill="#ffffff" font-weight="bold">Декламация</text>
+  <text x="220" y="189" text-anchor="middle" fill="#ffffff" font-weight="bold">в собрании</text>
+  <text x="220" y="212" text-anchor="middle" fill="#ffffff" font-size="13">коэффициент 1,2</text>
+  <text x="220" y="230" text-anchor="middle" fill="#ffffff" font-size="13">живьём, без видео</text>
+  <text x="220" y="248" text-anchor="middle" fill="#ffffff" font-size="13">свидетель из совета</text>
+
+  <!-- Ветка 3 -->
+  <rect x="295" y="150" width="130" height="120" rx="8" fill="#2e627e"/>
+  <text x="360" y="172" text-anchor="middle" fill="#ffffff" font-weight="bold">Парный стих</text>
+  <text x="360" y="189" text-anchor="middle" fill="#ffffff" font-weight="bold">(двое по очереди)</text>
+  <text x="360" y="212" text-anchor="middle" fill="#ffffff" font-size="13">коэффициент 1,0</text>
+  <text x="360" y="230" text-anchor="middle" fill="#ffffff" font-size="13">+1 стих команде</text>
+  <text x="360" y="248" text-anchor="middle" fill="#ffffff" font-size="13">за пару новичок+опытный</text>
+
+  <!-- Ветка 4 -->
+  <rect x="435" y="150" width="130" height="120" rx="8" fill="#c7742a"/>
+  <text x="500" y="172" text-anchor="middle" fill="#ffffff" font-weight="bold">Пересказ</text>
+  <text x="500" y="189" text-anchor="middle" fill="#ffffff" font-weight="bold">+ ключевой стих</text>
+  <text x="500" y="212" text-anchor="middle" fill="#ffffff" font-size="13">коэффициент 0,6</text>
+  <text x="500" y="230" text-anchor="middle" fill="#ffffff" font-size="13">1 стих наизусть,</text>
+  <text x="500" y="248" text-anchor="middle" fill="#ffffff" font-size="13">остальное — своими словами</text>
+
+  <!-- Ветка 5 -->
+  <rect x="575" y="150" width="130" height="120" rx="8" fill="#6b645a"/>
+  <text x="640" y="172" text-anchor="middle" fill="#ffffff" font-weight="bold">Чтение</text>
+  <text x="640" y="189" text-anchor="middle" fill="#ffffff" font-weight="bold">с пониманием</text>
+  <text x="640" y="212" text-anchor="middle" fill="#ffffff" font-size="13">коэффициент 0,5</text>
+  <text x="640" y="230" text-anchor="middle" fill="#ffffff" font-size="13">5 вопросов по отрывку</text>
+  <text x="640" y="248" text-anchor="middle" fill="#ffffff" font-size="13">письменно, 4 из 5 верно</text>
+
+  <!-- Правило суммы -->
+  <rect x="40" y="295" width="640" height="105" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  <text x="56" y="320" fill="#3b2a1a" font-weight="bold">Зачёт стороны = Σ (стихов участника × коэффициент формата)</text>
+  <text x="56" y="344" fill="#3b2a1a">Пример «Моряки»: 4 × 3 наизусть (12) + 2 × 4 в собрании (9,6) + 2 × 5 пересказом (6) = 27,6 ≥ ставка 25.</text>
+  <text x="56" y="368" fill="#3b2a1a">Ограничение: форматы с коэффициентом ниже 1,0 дают не больше 40 % зачёта стороны.</text>
+  <text x="56" y="390" fill="#6b645a" font-size="13">Хранители выбирают формат ответа сами, но должны набрать не меньше взвешенной суммы вызова.</text>
+</svg>

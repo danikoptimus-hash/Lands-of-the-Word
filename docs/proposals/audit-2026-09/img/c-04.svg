@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720" font-family="sans-serif" font-size="14">
+  <rect width="720" height="720" fill="#ffffff"/>
+  <title>C-04. Свиток прогресса: книга разворачивается по мере решённых районов</title>
+  <rect x="40" y="30" width="320" height="660" rx="28" fill="#ffffff" stroke="#3b2a1a" stroke-width="3"/>
+  <rect x="52" y="42" width="296" height="636" rx="18" fill="#faf6ef" stroke="#6b645a" stroke-width="1"/>
+  <rect x="160" y="50" width="80" height="6" rx="3" fill="#6b645a"/>
+  <text x="68" y="84" font-size="15" font-weight="bold" fill="#3b2a1a">Бытие · свиток города</text>
+  <text x="68" y="104" font-size="13" fill="#6b645a">Развёрнуто 5 из 16 · читаете 1:1–11:9</text>
+  <!-- верхний валик -->
+  <rect x="64" y="120" width="272" height="18" rx="9" fill="#3b2a1a"/>
+  <circle cx="64" cy="129" r="9" fill="#c7742a"/><circle cx="336" cy="129" r="9" fill="#c7742a"/>
+  <!-- развёрнутая часть -->
+  <rect x="76" y="138" width="248" height="300" fill="#f6efe1" stroke="#6b645a"/>
+  <g font-size="13">
+    <rect x="88" y="150" width="224" height="48" rx="6" fill="#ffffff" stroke="#4c7a3f"/>
+    <text x="98" y="169" fill="#3b2a1a" font-weight="bold">1 · Сотворение мира · 1:1–2:3</text>
+    <text x="98" y="188" fill="#4c7a3f">решён · знак «Ж» · участник 2</text>
+    <rect x="88" y="206" width="224" height="48" rx="6" fill="#ffffff" stroke="#4c7a3f"/>
+    <text x="98" y="225" fill="#3b2a1a" font-weight="bold">2 · Грехопадение · 2:4–3:24</text>
+    <text x="98" y="244" fill="#4c7a3f">решён · знак «4»</text>
+    <rect x="88" y="262" width="224" height="48" rx="6" fill="#ffffff" stroke="#4c7a3f"/>
+    <text x="98" y="281" fill="#3b2a1a" font-weight="bold">3 · Каин и Авель · 4:1–26</text>
+    <text x="98" y="300" fill="#4c7a3f">решён · знак «Т»</text>
+    <rect x="88" y="318" width="224" height="48" rx="6" fill="#ffffff" stroke="#4c7a3f"/>
+    <text x="98" y="337" fill="#3b2a1a" font-weight="bold">4 · Потоп · 6:1–9:29</text>
+    <text x="98" y="356" fill="#4c7a3f">решён · знак «М»</text>
+    <rect x="88" y="374" width="224" height="48" rx="6" fill="#ffffff" stroke="#c7742a" stroke-width="2"/>
+    <text x="98" y="393" fill="#3b2a1a" font-weight="bold">5 · Вавилонская башня · 11:1–9</text>
+    <text x="98" y="412" fill="#c7742a">в работе · участник 4</text>
+  </g>
+  <!-- линия отрыва: рваный край -->
+  <path d="M 76 438 l 12 6 l 12 -6 l 12 6 l 12 -6 l 12 6 l 12 -6 l 12 6 l 12 -6 l 12 6 l 12 -6 l 12 6 l 12 -6 l 12 6 l 12 -6 l 12 6 l 12 -6 l 12 6 l 12 -6 l 12 6 l 12 -6 l 8 4" fill="none" stroke="#6b645a"/>
+  <!-- свёрнутая часть -->
+  <rect x="76" y="446" width="248" height="60" fill="#e6dccb" stroke="#6b645a"/>
+  <text x="200" y="470" text-anchor="middle" fill="#6b645a" font-size="13">ещё 11 районов свёрнуто</text>
+  <text x="200" y="490" text-anchor="middle" fill="#6b645a" font-size="12">6 · 7 · 8 · 9 · 10 · 11 · 12 · 13 · 14 · 15 · 16</text>
+  <rect x="64" y="506" width="272" height="18" rx="9" fill="#3b2a1a"/>
+  <circle cx="64" cy="515" r="9" fill="#c7742a"/><circle cx="336" cy="515" r="9" fill="#c7742a"/>
+  <!-- полоса -->
+  <rect x="72" y="544" width="256" height="10" rx="5" fill="#e6dccb"/>
+  <rect x="72" y="544" width="80" height="10" rx="5" fill="#4c7a3f"/>
+  <text x="68" y="576" font-size="12" fill="#6b645a">Знаков печати: 5 из 17</text>
+  <rect x="72" y="596" width="256" height="44" rx="10" fill="#2e627e"/>
+  <text x="200" y="624" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">Продолжить район 5</text>
+  <text x="68" y="664" font-size="12" fill="#6b645a">Карта кварталов · Список</text>
+  <!-- пояснения -->
+  <text x="400" y="84" font-size="16" font-weight="bold" fill="#3b2a1a">Что показывает свиток</text>
+  <text x="400" y="112" fill="#3b2a1a">Развёрнутая часть = решённые районы</text>
+  <text x="400" y="132" fill="#3b2a1a">подряд от начала книги + текущий.</text>
+  <text x="400" y="152" fill="#3b2a1a">Район, решённый «вразнобой», лежит</text>
+  <text x="400" y="172" fill="#3b2a1a">отдельной полоской ниже валика.</text>
+  <text x="400" y="216" fill="#4c7a3f">Полоска района хранит: знак печати,</text>
+  <text x="400" y="236" fill="#4c7a3f">кто из команды решил (C-16),</text>
+  <text x="400" y="256" fill="#4c7a3f">сколько было попыток.</text>
+  <text x="400" y="300" fill="#c7742a">Свиток — второй вид того же шага 2:</text>
+  <text x="400" y="320" fill="#c7742a">переключатель «Карта · Свиток · Список»</text>
+  <text x="400" y="340" fill="#c7742a">запоминается на телефоне.</text>
+  <text x="400" y="384" fill="#2e627e">Данные — те же поля my-city:</text>
+  <text x="400" y="404" fill="#2e627e">districts, doneTasks, fragments.</text>
+  <text x="400" y="424" fill="#2e627e">Ничего нового с сервера не нужно,</text>
+  <text x="400" y="444" fill="#2e627e">кроме «кто решил» (C-16).</text>
+  <text x="400" y="488" fill="#6b645a">После взятия города свиток остаётся</text>
+  <text x="400" y="508" fill="#6b645a">открытым как «летопись»: с него удобно</text>
+  <text x="400" y="528" fill="#6b645a">повторять содержание книги.</text>
+</svg>

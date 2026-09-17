@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="360" viewBox="0 0 720 360" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="360" fill="#ffffff"/>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">M-08. Тропа становится дорогой: следы команд на карте</text>
+  <!-- Три состояния одной стороны -->
+  <g>
+    <circle cx="70" cy="110" r="7" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+    <circle cx="230" cy="110" r="7" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+    <line x1="77" y1="110" x2="223" y2="110" stroke="#c7742a" stroke-width="2" stroke-dasharray="6 6"/>
+    <text x="150" y="90" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Тропа</text>
+    <text x="150" y="140" text-anchor="middle" fill="#6b645a" font-size="13">пройдена 1 командой</text>
+    <text x="150" y="158" text-anchor="middle" fill="#6b645a" font-size="13">ничего не меняется</text>
+  </g>
+  <g>
+    <circle cx="290" cy="110" r="7" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+    <circle cx="450" cy="110" r="7" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+    <line x1="297" y1="110" x2="443" y2="110" stroke="#c7742a" stroke-width="4"/>
+    <text x="370" y="90" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Дорога</text>
+    <text x="370" y="140" text-anchor="middle" fill="#6b645a" font-size="13">пройдена 2 командами</text>
+    <text x="370" y="158" text-anchor="middle" fill="#6b645a" font-size="13">сложность дела −1 (не ниже 1)</text>
+  </g>
+  <g>
+    <circle cx="510" cy="110" r="7" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+    <circle cx="670" cy="110" r="7" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+    <line x1="517" y1="110" x2="663" y2="110" stroke="#3b2a1a" stroke-width="7"/>
+    <line x1="517" y1="110" x2="663" y2="110" stroke="#c7742a" stroke-width="3"/>
+    <text x="590" y="90" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Царская дорога</text>
+    <text x="590" y="140" text-anchor="middle" fill="#6b645a" font-size="13">пройдена 3+ командами</text>
+    <text x="590" y="158" text-anchor="middle" fill="#6b645a" font-size="13">видна всем; проход без дела раз в неделю</text>
+  </g>
+  <!-- Стрелки -->
+  <g stroke="#3b2a1a" stroke-width="2" fill="none">
+    <path d="M240,110 L282,110"/><path d="M276,105 L282,110 L276,115"/>
+    <path d="M460,110 L502,110"/><path d="M496,105 L502,110 L496,115"/>
+  </g>
+  <!-- Что видит команда -->
+  <rect x="40" y="190" width="640" height="150" rx="10" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="60" y="215" font-weight="bold" fill="#3b2a1a">Что видит команда, не раскрывая чужих карт</text>
+  <text x="60" y="240" fill="#3b2a1a" font-size="13">• На своей открытой стороне — её состояние (тропа / дорога / царская дорога), без цветов других команд.</text>
+  <text x="60" y="262" fill="#3b2a1a" font-size="13">• Царская дорога рисуется и в тумане (как силуэт острова): «здесь ходили многие» — ориентир, не маршрут.</text>
+  <text x="60" y="284" fill="#3b2a1a" font-size="13">• Администратор видит, чьи шаги сложили дорогу, и ползунок времени показывает, как она росла.</text>
+  <text x="60" y="306" fill="#3b2a1a" font-size="13">• Правило Притч 4:18: «стезя праведных — как светило лучезарное» — тропа светлеет с каждым прошедшим.</text>
+  <text x="60" y="328" fill="#6b645a" font-size="12">Генератор не меняется: состояние стороны считается сервером по числу разных команд, прошедших её.</text>
+</svg>

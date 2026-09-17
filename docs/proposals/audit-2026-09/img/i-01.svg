@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="740" viewBox="0 0 720 740" font-family="DejaVu Sans, Arial, sans-serif" font-size="14">
+  <rect width="720" height="740" fill="#ffffff"/>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#6b645a"/>
+    </marker>
+  </defs>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Петля хода: дело → перекрёсток → город → шифр → конверт → столица</text>
+
+  <!-- row 1: 1 -> 2 -->
+  <rect x="40" y="52" width="316" height="86" rx="8" fill="#ffffff" stroke="#c7742a" stroke-width="2"/>
+  <text x="198" y="76" text-anchor="middle" fill="#3b2a1a" font-weight="bold">1. Сторона с делом</text>
+  <text x="198" y="100" text-anchor="middle" fill="#6b645a">взять → сделать → сдать ссылку</text>
+  <text x="198" y="122" text-anchor="middle" fill="#6b645a">админ одобряет или возвращает</text>
+  <line x1="356" y1="95" x2="384" y2="95" stroke="#6b645a" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="388" y="52" width="316" height="86" rx="8" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+  <text x="546" y="76" text-anchor="middle" fill="#3b2a1a" font-weight="bold">2. Перекрёсток открыт</text>
+  <text x="546" y="100" text-anchor="middle" fill="#6b645a">развилка или город (книга видна)</text>
+  <text x="546" y="122" text-anchor="middle" fill="#6b645a">из него новые стороны с делами</text>
+
+  <!-- 2 down to 3 -->
+  <line x1="546" y1="138" x2="546" y2="166" stroke="#6b645a" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- row 2: 4 <- 3 -->
+  <rect x="388" y="170" width="316" height="86" rx="8" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+  <text x="546" y="194" text-anchor="middle" fill="#3b2a1a" font-weight="bold">3. Город: порядок районов</text>
+  <text x="546" y="218" text-anchor="middle" fill="#6b645a">расставить сцены по порядку книги</text>
+  <text x="546" y="240" text-anchor="middle" fill="#6b645a">попыток сколько угодно, паузы нет</text>
+  <line x1="388" y1="213" x2="360" y2="213" stroke="#6b645a" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="40" y="170" width="316" height="86" rx="8" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+  <text x="198" y="194" text-anchor="middle" fill="#3b2a1a" font-weight="bold">4. Задания районов</text>
+  <text x="198" y="218" text-anchor="middle" fill="#6b645a">верный ответ = знак шифра</text>
+  <text x="198" y="240" text-anchor="middle" fill="#6b645a">пауза 20 с; выбор: 2 попытки, 24 ч</text>
+
+  <!-- 4 down to 5 -->
+  <line x1="198" y1="256" x2="198" y2="284" stroke="#6b645a" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- row 3: 5 -> 6 -->
+  <rect x="40" y="288" width="316" height="86" rx="8" fill="#ffffff" stroke="#c7742a" stroke-width="2"/>
+  <text x="198" y="312" text-anchor="middle" fill="#3b2a1a" font-weight="bold">5. Шифр → адресат конверта</text>
+  <text x="198" y="336" text-anchor="middle" fill="#6b645a">все задания решены: виден адресат</text>
+  <text x="198" y="358" text-anchor="middle" fill="#6b645a">команда идёт к семье с шифром</text>
+  <line x1="356" y1="331" x2="384" y2="331" stroke="#6b645a" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="388" y="288" width="316" height="86" rx="8" fill="#ffffff" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="546" y="312" text-anchor="middle" fill="#3b2a1a" font-weight="bold">6. Ключ конверта → город взят</text>
+  <text x="546" y="336" text-anchor="middle" fill="#6b645a">6 знаков; город свободен → ваш</text>
+  <text x="546" y="358" text-anchor="middle" fill="#6b645a">занят → вызов; руины → без ключа</text>
+
+  <!-- 6 down to 7 -->
+  <line x1="546" y1="374" x2="546" y2="402" stroke="#6b645a" stroke-width="2" marker-end="url(#a)"/>
+
+  <!-- row 4: 8 <- 7 -->
+  <rect x="388" y="406" width="316" height="86" rx="8" fill="#ffffff" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="546" y="430" text-anchor="middle" fill="#3b2a1a" font-weight="bold">7. Первый город = столица</text>
+  <text x="546" y="454" text-anchor="middle" fill="#6b645a">перенос один раз за игру (капитан)</text>
+  <text x="546" y="476" text-anchor="middle" fill="#6b645a">порт → корабль на другой остров</text>
+  <line x1="388" y1="449" x2="360" y2="449" stroke="#6b645a" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="40" y="406" width="316" height="86" rx="8" fill="#ffffff" stroke="#c7742a" stroke-width="2"/>
+  <text x="198" y="430" text-anchor="middle" fill="#3b2a1a" font-weight="bold">8. Дальше по карте</text>
+  <text x="198" y="454" text-anchor="middle" fill="#6b645a">стороны из города: дела с [Книга]</text>
+  <text x="198" y="476" text-anchor="middle" fill="#6b645a">цикл повторяется до финиша</text>
+
+  <!-- loop 8 -> 1 along left margin -->
+  <path d="M40,449 L22,449 L22,95 L36,95" stroke="#6b645a" stroke-width="2" fill="none" marker-end="url(#a)"/>
+
+  <!-- branch from 6: contest -->
+  <path d="M546,492 L546,520" stroke="#c7742a" stroke-width="2" stroke-dasharray="5,4" fill="none" marker-end="url(#a)"/>
+  <rect x="388" y="524" width="316" height="86" rx="8" fill="#fff7f0" stroke="#c7742a" stroke-width="2"/>
+  <text x="546" y="548" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Город занят → испытание стихами</text>
+  <text x="546" y="572" text-anchor="middle" fill="#6b645a">ставка N ≥ max(10 + штраф, уровень + 1)</text>
+  <text x="546" y="594" text-anchor="middle" fill="#6b645a">победа → город и уровень переходят</text>
+
+  <!-- victory -->
+  <line x1="198" y1="492" x2="198" y2="520" stroke="#4c7a3f" stroke-width="2" marker-end="url(#a)"/>
+  <rect x="40" y="524" width="316" height="86" rx="8" fill="#f3f7f1" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="198" y="548" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Финиш (§2.9)</text>
+  <text x="198" y="572" text-anchor="middle" fill="#6b645a">осталась одна команда в строю</text>
+  <text x="198" y="594" text-anchor="middle" fill="#6b645a">или срок, или решение админа</text>
+
+  <!-- footer notes -->
+  <text x="40" y="646" fill="#6b645a">Проверяет админ: шаг 1 и записи стихов в испытании. Шаги 3, 4 и 6 сервер</text>
+  <text x="40" y="668" fill="#6b645a">проверяет сам: ответы не покидают сервер, ключ сравнивается с ключом города.</text>
+  <text x="40" y="700" fill="#6b645a">По сроку: больше городов → больше столиц → меньший номер команды.</text>
+  <text x="40" y="722" fill="#6b645a">Потеря столицы = выбытие; города выбывшей команды становятся руинами.</text>
+</svg>

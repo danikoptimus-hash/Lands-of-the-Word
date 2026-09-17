@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="380" viewBox="0 0 720 380" font-family="sans-serif" font-size="14">
+  <defs>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b2a1a"/>
+    </marker>
+  </defs>
+  <rect width="720" height="380" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16" font-weight="bold" fill="#3b2a1a">Дело-цепочка «Вдова из Руфи»: три шага на трёх сторонах пути</text>
+  <!-- перекрёстки -->
+  <g fill="#ffffff" stroke="#3b2a1a" stroke-width="2">
+    <circle cx="60" cy="130" r="18"/>
+    <circle cx="260" cy="130" r="18"/>
+    <circle cx="460" cy="130" r="18"/>
+    <circle cx="660" cy="130" r="18"/>
+  </g>
+  <g fill="#3b2a1a" text-anchor="middle" font-size="12">
+    <text x="60" y="164">город Руфь</text>
+    <text x="60" y="178">(взят командой)</text>
+    <text x="260" y="164">развилка</text>
+    <text x="460" y="164">развилка</text>
+    <text x="660" y="164">город или</text>
+    <text x="660" y="178">развилка</text>
+  </g>
+  <!-- стороны цепочки -->
+  <g stroke="#4c7a3f" stroke-width="4" marker-end="url(#a)">
+    <line x1="78" y1="130" x2="240" y2="130"/>
+    <line x1="278" y1="130" x2="440" y2="130"/>
+    <line x1="478" y1="130" x2="640" y2="130"/>
+  </g>
+  <!-- обычные стороны, уходящие в туман -->
+  <g stroke="#6b645a" stroke-width="2" stroke-dasharray="5 4">
+    <line x1="260" y1="112" x2="300" y2="60"/>
+    <line x1="460" y1="112" x2="500" y2="60"/>
+    <line x1="260" y1="148" x2="300" y2="200"/>
+  </g>
+  <g fill="#6b645a" font-size="11">
+    <text x="304" y="56">обычное дело</text>
+    <text x="504" y="56">обычное дело</text>
+    <text x="304" y="212">обычное дело</text>
+  </g>
+  <!-- карточки шагов -->
+  <g fill="#ffffff" stroke="#4c7a3f" stroke-width="1.5">
+    <rect x="96" y="222" width="150" height="70" rx="6"/>
+    <rect x="296" y="222" width="150" height="70" rx="6"/>
+    <rect x="496" y="222" width="150" height="70" rx="6"/>
+  </g>
+  <g fill="#3b2a1a" font-size="12">
+    <text x="104" y="240" font-weight="bold">Шаг 1 · подтверждение</text>
+    <text x="104" y="257">Познакомиться с одинокой</text>
+    <text x="104" y="272">вдовой, узнать нужды,</text>
+    <text x="104" y="287">помолиться вместе.</text>
+    <text x="304" y="240" font-weight="bold">Шаг 2 · фото</text>
+    <text x="304" y="257">Принести продукты</text>
+    <text x="304" y="272">по списку нужд («ячмень»,</text>
+    <text x="304" y="287">Руфь 2:17).</text>
+    <text x="504" y="240" font-weight="bold">Шаг 3 · код карточки</text>
+    <text x="504" y="257">Пригласить и привезти</text>
+    <text x="504" y="272">на праздник или собрание,</text>
+    <text x="504" y="287">отвезти домой.</text>
+  </g>
+  <g stroke="#4c7a3f" stroke-width="1" stroke-dasharray="3 3">
+    <line x1="160" y1="132" x2="160" y2="222"/>
+    <line x1="360" y1="132" x2="360" y2="222"/>
+    <line x1="560" y1="132" x2="560" y2="222"/>
+  </g>
+  <!-- пояснения -->
+  <text x="20" y="322" fill="#2e627e" font-size="13">Следующий шаг цепочки ложится на одну из сторон, выходящих из достигнутого перекрёстка; остальные стороны получают обычные дела.</text>
+  <text x="20" y="342" fill="#2e627e" font-size="13">Команда вправе свернуть — цепочка не сгорает, а ждёт на этой стороне. Три шага подряд = «печать книги»: одна бесплатная разведка.</text>
+  <text x="20" y="366" fill="#c7742a" font-size="13">Один и тот же человек в трёх шагах — так дело становится отношениями, а не разовой доставкой пакета.</text>
+</svg>

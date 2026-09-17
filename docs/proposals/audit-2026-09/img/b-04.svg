@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="470" viewBox="0 0 720 470" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="470" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16" font-weight="bold" fill="#3b2a1a">Экран «Хроника испытания» (B-09): видят все команды</text>
+
+  <!-- Рамка экрана -->
+  <rect x="40" y="44" width="640" height="410" rx="10" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+  <!-- Шапка -->
+  <rect x="40" y="44" width="640" height="46" rx="10" fill="#3b2a1a"/>
+  <text x="60" y="73" fill="#ffffff" font-size="16" font-weight="bold">Испытание города Руфь · № 7 · устоял</text>
+  <text x="660" y="73" text-anchor="end" fill="#ffffff" font-size="13">12–19 октября</text>
+
+  <!-- Две колонки -->
+  <rect x="56" y="104" width="300" height="200" rx="8" fill="#2e627e" opacity="0.10" stroke="#2e627e"/>
+  <text x="70" y="128" fill="#2e627e" font-weight="bold">Претенденты · «Моряки»</text>
+  <text x="70" y="150" fill="#3b2a1a">Ставка: 20 стихов · вызов за 5 д 4 ч</text>
+  <text x="70" y="170" fill="#3b2a1a">Отрывок: Руфь 1:1–20 (случайный)</text>
+  <text x="70" y="194" fill="#6b645a" font-size="13">участник А</text>
+  <rect x="180" y="184" width="120" height="12" fill="#2e627e"/>
+  <text x="308" y="194" fill="#3b2a1a" font-size="13">6</text>
+  <text x="70" y="214" fill="#6b645a" font-size="13">участник Б</text>
+  <rect x="180" y="204" width="100" height="12" fill="#2e627e"/>
+  <text x="288" y="214" fill="#3b2a1a" font-size="13">5</text>
+  <text x="70" y="234" fill="#6b645a" font-size="13">участник В</text>
+  <rect x="180" y="224" width="100" height="12" fill="#2e627e"/>
+  <text x="288" y="234" fill="#3b2a1a" font-size="13">5</text>
+  <text x="70" y="254" fill="#6b645a" font-size="13">участник Г</text>
+  <rect x="180" y="244" width="80" height="12" fill="#2e627e"/>
+  <text x="268" y="254" fill="#3b2a1a" font-size="13">4</text>
+  <text x="70" y="286" fill="#2e627e" font-weight="bold">Итого принято: 20</text>
+
+  <rect x="364" y="104" width="300" height="200" rx="8" fill="#4c7a3f" opacity="0.10" stroke="#4c7a3f"/>
+  <text x="378" y="128" fill="#4c7a3f" font-weight="bold">Хранители · «Берег»</text>
+  <text x="378" y="150" fill="#3b2a1a">Ответ за 4 д 21 ч из 5 д 4 ч</text>
+  <text x="378" y="170" fill="#3b2a1a">Отрывок: Руфь 2:1–22 (свой выбор)</text>
+  <text x="378" y="194" fill="#6b645a" font-size="13">участник Д</text>
+  <rect x="488" y="184" width="140" height="12" fill="#4c7a3f"/>
+  <text x="636" y="194" fill="#3b2a1a" font-size="13">7</text>
+  <text x="378" y="214" fill="#6b645a" font-size="13">участник Е</text>
+  <rect x="488" y="204" width="120" height="12" fill="#4c7a3f"/>
+  <text x="616" y="214" fill="#3b2a1a" font-size="13">6</text>
+  <text x="378" y="234" fill="#6b645a" font-size="13">участник Ж</text>
+  <rect x="488" y="224" width="100" height="12" fill="#4c7a3f"/>
+  <text x="596" y="234" fill="#3b2a1a" font-size="13">5</text>
+  <text x="378" y="254" fill="#6b645a" font-size="13">участник З</text>
+  <rect x="488" y="244" width="80" height="12" fill="#4c7a3f"/>
+  <text x="576" y="254" fill="#3b2a1a" font-size="13">4</text>
+  <text x="378" y="286" fill="#4c7a3f" font-weight="bold">Итого принято: 22 · щит 6</text>
+
+  <!-- Итог -->
+  <rect x="56" y="318" width="608" height="40" rx="6" fill="#c7742a"/>
+  <text x="360" y="343" text-anchor="middle" fill="#ffffff" font-weight="bold" font-size="15">Город устоял · уровень испытания 22 · следующий вызов от 23</text>
+
+  <!-- Слово испытания -->
+  <rect x="56" y="370" width="608" height="70" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  <text x="70" y="392" fill="#6b645a" font-size="13">Слово испытания (выбрали хранители):</text>
+  <text x="70" y="414" fill="#3b2a1a">«…куда ты пойдёшь, туда и я пойду, и где ты жить будешь, там и я буду жить» (Руфь 1:16)</text>
+  <text x="70" y="432" fill="#6b645a" font-size="13">Жесты: «Моряки» поздравили · «Берег» ответил благословением · ворота открыты до 18 ноября</text>
+</svg>

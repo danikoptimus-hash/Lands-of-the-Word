@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720" font-family="sans-serif" font-size="14">
+  <rect width="720" height="720" fill="#ffffff"/>
+  <title>C-01. Замок с кольцами: задание «расставьте по порядку»</title>
+  <!-- телефон -->
+  <rect x="40" y="30" width="320" height="660" rx="28" fill="#ffffff" stroke="#3b2a1a" stroke-width="3"/>
+  <rect x="52" y="42" width="296" height="636" rx="18" fill="#faf6ef" stroke="#6b645a" stroke-width="1"/>
+  <rect x="160" y="50" width="80" height="6" rx="3" fill="#6b645a"/>
+  <!-- шапка -->
+  <text x="68" y="84" font-size="15" font-weight="bold" fill="#3b2a1a">Район 3 · Клятва Руфи · 1:15–18</text>
+  <text x="68" y="104" font-size="13" fill="#6b645a">По этому району · замок на 5 колец</text>
+  <text x="68" y="132" font-size="13" fill="#3b2a1a">Расставьте слова клятвы Руфи в том</text>
+  <text x="68" y="150" font-size="13" fill="#3b2a1a">порядке, в каком они идут в книге.</text>
+  <!-- дужка замка -->
+  <path d="M 150 215 A 50 50 0 0 1 250 215" fill="none" stroke="#3b2a1a" stroke-width="10" stroke-linecap="round"/>
+  <rect x="140" y="212" width="20" height="30" fill="#3b2a1a"/>
+  <rect x="240" y="212" width="20" height="30" fill="#3b2a1a"/>
+  <!-- корпус с кольцами -->
+  <rect x="72" y="238" width="256" height="300" rx="14" fill="#efe6d6" stroke="#3b2a1a" stroke-width="2"/>
+  <!-- кольца -->
+  <g>
+    <rect x="98" y="252" width="204" height="44" rx="8" fill="#4c7a3f" stroke="#3b2a1a"/>
+    <text x="200" y="279" text-anchor="middle" fill="#ffffff" font-size="13">куда ты пойдёшь, туда и я</text>
+    <polygon points="80,274 92,266 92,282" fill="#3b2a1a"/>
+    <polygon points="320,274 308,266 308,282" fill="#3b2a1a"/>
+  </g>
+  <g>
+    <rect x="98" y="308" width="204" height="44" rx="8" fill="#ffffff" stroke="#3b2a1a"/>
+    <text x="200" y="335" text-anchor="middle" fill="#3b2a1a" font-size="13">народ твой будет моим…</text>
+    <polygon points="80,330 92,322 92,338" fill="#3b2a1a"/>
+    <polygon points="320,330 308,322 308,338" fill="#3b2a1a"/>
+  </g>
+  <g>
+    <rect x="98" y="364" width="204" height="44" rx="8" fill="#ffffff" stroke="#c7742a" stroke-width="3"/>
+    <text x="200" y="391" text-anchor="middle" fill="#3b2a1a" font-size="13">и где ты жить будешь…</text>
+    <polygon points="80,386 92,378 92,394" fill="#c7742a"/>
+    <polygon points="320,386 308,378 308,394" fill="#c7742a"/>
+  </g>
+  <g>
+    <rect x="98" y="420" width="204" height="44" rx="8" fill="#ffffff" stroke="#3b2a1a"/>
+    <text x="200" y="447" text-anchor="middle" fill="#3b2a1a" font-size="13">и твой Бог — моим Богом</text>
+    <polygon points="80,442 92,434 92,450" fill="#3b2a1a"/>
+    <polygon points="320,442 308,434 308,450" fill="#3b2a1a"/>
+  </g>
+  <g>
+    <rect x="98" y="476" width="204" height="44" rx="8" fill="#ffffff" stroke="#3b2a1a"/>
+    <text x="200" y="503" text-anchor="middle" fill="#3b2a1a" font-size="13">и где ты умрёшь, там и я…</text>
+    <polygon points="80,498 92,490 92,506" fill="#3b2a1a"/>
+    <polygon points="320,498 308,490 308,506" fill="#3b2a1a"/>
+  </g>
+  <!-- штифты справа от корпуса -->
+  <circle cx="338" cy="274" r="5" fill="#4c7a3f"/>
+  <circle cx="338" cy="330" r="5" fill="#6b645a"/>
+  <circle cx="338" cy="386" r="5" fill="#6b645a"/>
+  <circle cx="338" cy="442" r="5" fill="#6b645a"/>
+  <circle cx="338" cy="498" r="5" fill="#6b645a"/>
+  <!-- статус и кнопка -->
+  <text x="68" y="566" font-size="13" fill="#c7742a">Попытка 2 · не село: 2 штифта</text>
+  <rect x="72" y="584" width="256" height="44" rx="10" fill="#2e627e"/>
+  <text x="200" y="612" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">Провернуть замок</text>
+  <text x="68" y="656" font-size="12" fill="#6b645a">Простой вид (список со стрелками)</text>
+  <!-- пояснения -->
+  <text x="400" y="84" font-size="16" font-weight="bold" fill="#3b2a1a">Как устроено</text>
+  <text x="400" y="112" fill="#3b2a1a">Кольцо = позиция в ответе.</text>
+  <text x="400" y="132" fill="#3b2a1a">Стрелки листают пункты по кругу;</text>
+  <text x="400" y="152" fill="#3b2a1a">занятый пункт на других кольцах тускнеет.</text>
+  <line x1="365" y1="274" x2="398" y2="274" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="404" y="270" fill="#4c7a3f">Севший штифт: позиция верна</text>
+  <text x="404" y="288" fill="#4c7a3f">(только для порядка районов,</text>
+  <text x="404" y="306" fill="#4c7a3f">сервер уже отдаёт число «не на месте»)</text>
+  <line x1="365" y1="386" x2="398" y2="386" stroke="#c7742a" stroke-width="2"/>
+  <text x="404" y="382" fill="#c7742a">Активное кольцо: свайп влево-вправо</text>
+  <text x="404" y="400" fill="#c7742a">или стрелки; тап-цель 44 px</text>
+  <text x="400" y="470" fill="#2e627e">На сервер уходит только массив</text>
+  <text x="400" y="490" fill="#2e627e">непрозрачных id в выбранном порядке —</text>
+  <text x="400" y="510" fill="#2e627e">как и сейчас (POST …/answer).</text>
+  <text x="400" y="560" fill="#6b645a">Для заданий «order» внутри района</text>
+  <text x="400" y="580" fill="#6b645a">сервер отвечает только «да/нет»:</text>
+  <text x="400" y="600" fill="#6b645a">все штифты подскакивают разом,</text>
+  <text x="400" y="620" fill="#6b645a">пауза 20 с — «отмычка остывает».</text>
+</svg>

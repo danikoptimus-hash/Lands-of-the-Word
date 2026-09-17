@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720" font-family="sans-serif" font-size="14">
+  <rect width="720" height="720" fill="#ffffff"/>
+  <title>C-03. Карта города-книги: районы как кварталы</title>
+  <rect x="40" y="30" width="320" height="660" rx="28" fill="#ffffff" stroke="#3b2a1a" stroke-width="3"/>
+  <rect x="52" y="42" width="296" height="636" rx="18" fill="#faf6ef" stroke="#6b645a" stroke-width="1"/>
+  <rect x="160" y="50" width="80" height="6" rx="3" fill="#6b645a"/>
+  <text x="68" y="84" font-size="15" font-weight="bold" fill="#3b2a1a">Руфь · Свободный город</text>
+  <text x="68" y="104" font-size="13" fill="#6b645a">1 Порядок ✓ · 2 Районы · 3 Конверт</text>
+  <text x="68" y="126" font-size="13" fill="#3b2a1a">Открыто кварталов: 7 из 16</text>
+  <!-- улица -->
+  <path d="M 84 168 H 316 V 236 H 84 V 304 H 316 V 372 H 84 V 440 H 316" fill="none" stroke="#e6dccb" stroke-width="22" stroke-linejoin="round"/>
+  <!-- ряд 1: 1-4 (решены) -->
+  <g fill="#4c7a3f" stroke="#3b2a1a">
+    <rect x="72" y="150" width="56" height="40" rx="6"/><rect x="136" y="150" width="56" height="40" rx="6"/>
+    <rect x="200" y="150" width="56" height="40" rx="6"/><rect x="264" y="150" width="56" height="40" rx="6"/>
+  </g>
+  <g fill="#ffffff" font-size="13" text-anchor="middle" font-weight="bold">
+    <text x="100" y="175">1 ✓</text><text x="164" y="175">2 ✓</text><text x="228" y="175">3 ✓</text><text x="292" y="175">4 ✓</text>
+  </g>
+  <!-- ряд 2: 8,7,6,5 (улица идёт справа налево) -->
+  <rect x="264" y="218" width="56" height="40" rx="6" fill="#4c7a3f" stroke="#3b2a1a"/>
+  <text x="292" y="243" fill="#ffffff" font-size="13" text-anchor="middle" font-weight="bold">5 ✓</text>
+  <rect x="200" y="218" width="56" height="40" rx="6" fill="#4c7a3f" stroke="#3b2a1a"/>
+  <text x="228" y="243" fill="#ffffff" font-size="13" text-anchor="middle" font-weight="bold">6 ✓</text>
+  <rect x="136" y="218" width="56" height="40" rx="6" fill="#4c7a3f" stroke="#3b2a1a"/>
+  <text x="164" y="243" fill="#ffffff" font-size="13" text-anchor="middle" font-weight="bold">7 ✓</text>
+  <rect x="72" y="218" width="56" height="40" rx="6" fill="#c7742a" stroke="#3b2a1a" stroke-width="3"/>
+  <text x="100" y="243" fill="#ffffff" font-size="13" text-anchor="middle" font-weight="bold">8</text>
+  <!-- ряд 3: 9-12, 10 закрыт, 11 свет в окне -->
+  <rect x="72" y="286" width="56" height="40" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  <text x="100" y="311" fill="#3b2a1a" font-size="13" text-anchor="middle">9</text>
+  <rect x="136" y="286" width="56" height="40" rx="6" fill="#d9d4cb" stroke="#6b645a"/>
+  <text x="164" y="311" fill="#6b645a" font-size="13" text-anchor="middle">10 · 18 ч</text>
+  <rect x="200" y="286" width="56" height="40" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  <text x="228" y="311" fill="#3b2a1a" font-size="13" text-anchor="middle">11</text>
+  <rect x="240" y="292" width="10" height="10" fill="#c7742a"/>
+  <rect x="264" y="286" width="56" height="40" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  <text x="292" y="311" fill="#3b2a1a" font-size="13" text-anchor="middle">12</text>
+  <!-- ряд 4: 16-13 -->
+  <g fill="#ffffff" stroke="#6b645a">
+    <rect x="264" y="354" width="56" height="40" rx="6"/><rect x="200" y="354" width="56" height="40" rx="6"/>
+    <rect x="136" y="354" width="56" height="40" rx="6"/><rect x="72" y="354" width="56" height="40" rx="6"/>
+  </g>
+  <g fill="#3b2a1a" font-size="13" text-anchor="middle">
+    <text x="292" y="379">13</text><text x="228" y="379">14</text><text x="164" y="379">15</text><text x="100" y="379">16</text>
+  </g>
+  <!-- тайник под городом -->
+  <rect x="72" y="422" width="248" height="40" rx="6" fill="#efe6d6" stroke="#6b645a" stroke-dasharray="5 3"/>
+  <text x="196" y="447" fill="#6b645a" font-size="13" text-anchor="middle">Тайник · откроется после 8 кварталов</text>
+  <!-- печать шифра -->
+  <text x="68" y="494" font-size="13" font-weight="bold" fill="#3b2a1a">Печать города</text>
+  <g font-size="12" text-anchor="middle">
+    <rect x="72" y="504" width="26" height="30" rx="4" fill="#4c7a3f"/><text x="85" y="524" fill="#ffffff">Р</text>
+    <rect x="102" y="504" width="26" height="30" rx="4" fill="#4c7a3f"/><text x="115" y="524" fill="#ffffff">7</text>
+    <rect x="132" y="504" width="26" height="30" rx="4" fill="#4c7a3f"/><text x="145" y="524" fill="#ffffff">К</text>
+    <rect x="162" y="504" width="26" height="30" rx="4" fill="#4c7a3f"/><text x="175" y="524" fill="#ffffff">М</text>
+    <rect x="192" y="504" width="26" height="30" rx="4" fill="#4c7a3f"/><text x="205" y="524" fill="#ffffff">3</text>
+    <rect x="222" y="504" width="26" height="30" rx="4" fill="#4c7a3f"/><text x="235" y="524" fill="#ffffff">Ш</text>
+    <rect x="252" y="504" width="26" height="30" rx="4" fill="#4c7a3f"/><text x="265" y="524" fill="#ffffff">Д</text>
+    <rect x="282" y="504" width="26" height="30" rx="4" fill="#ffffff" stroke="#6b645a"/>
+  </g>
+  <text x="68" y="556" font-size="12" fill="#6b645a">… ещё 10 знаков скрыты</text>
+  <rect x="72" y="580" width="256" height="44" rx="10" fill="#2e627e"/>
+  <text x="200" y="608" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">Войти в квартал 8</text>
+  <text x="68" y="656" font-size="12" fill="#6b645a">Список районов (простой вид)</text>
+  <!-- легенда -->
+  <text x="400" y="84" font-size="16" font-weight="bold" fill="#3b2a1a">Легенда кварталов</text>
+  <rect x="400" y="100" width="22" height="16" rx="3" fill="#4c7a3f"/><text x="430" y="113" fill="#3b2a1a">решён: окна горят, знак на печати</text>
+  <rect x="400" y="128" width="22" height="16" rx="3" fill="#c7742a"/><text x="430" y="141" fill="#3b2a1a">выбран сейчас (кто-то из команды внутри)</text>
+  <rect x="400" y="156" width="22" height="16" rx="3" fill="#ffffff" stroke="#6b645a"/><text x="430" y="169" fill="#3b2a1a">ещё не открыт</text>
+  <rect x="400" y="184" width="22" height="16" rx="3" fill="#d9d4cb" stroke="#6b645a"/><text x="430" y="197" fill="#3b2a1a">закрыт на сутки: таймер на фасаде</text>
+  <rect x="400" y="212" width="10" height="10" fill="#c7742a"/><text x="430" y="223" fill="#3b2a1a">свет в окне: подсказка пророка открыта</text>
+  <text x="400" y="270" fill="#2e627e">Улица идёт змейкой в порядке книги:</text>
+  <text x="400" y="290" fill="#2e627e">карта появляется только после шага</text>
+  <text x="400" y="310" fill="#2e627e">«Порядок», поэтому нумерация ничего</text>
+  <text x="400" y="330" fill="#2e627e">не подсказывает (index уже публичен).</text>
+  <text x="400" y="376" fill="#6b645a">Раскладка считается по числу районов</text>
+  <text x="400" y="396" fill="#6b645a">(5–30): 4 квартала в ряд на телефоне,</text>
+  <text x="400" y="416" fill="#6b645a">6 — на компьютере. Без рисунков</text>
+  <text x="400" y="436" fill="#6b645a">под каждую книгу: одна схема на все 66.</text>
+  <text x="400" y="482" fill="#6b645a">Задания «по всей книге» — тайник под</text>
+  <text x="400" y="502" fill="#6b645a">городом (C-13); задания «по группе»</text>
+  <text x="400" y="522" fill="#6b645a">рисуются мостиком между кварталами.</text>
+</svg>

@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="470" viewBox="0 0 720 470" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="470" fill="#ffffff"/>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Дерево решений команды в любую неделю игры (как есть)</text>
+
+  <!-- корень -->
+  <rect x="235" y="46" width="250" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+  <text x="360" y="64" text-anchor="middle" fill="#3b2a1a">Неделя N: куда вложить 3–4 дела</text>
+  <text x="360" y="82" text-anchor="middle" fill="#3b2a1a">и вечера заучивания?</text>
+
+  <!-- линии от корня -->
+  <line x1="360" y1="90" x2="100" y2="130" stroke="#6b645a" stroke-width="1.5"/>
+  <line x1="360" y1="90" x2="360" y2="130" stroke="#6b645a" stroke-width="1.5"/>
+  <line x1="360" y1="90" x2="620" y2="130" stroke="#6b645a" stroke-width="1.5"/>
+
+  <!-- ветка 1: расширяться -->
+  <rect x="20" y="130" width="180" height="64" rx="6" fill="#4c7a3f" stroke="#3b2a1a" stroke-width="3"/>
+  <text x="110" y="152" text-anchor="middle" fill="#ffffff" font-weight="bold">Расширяться</text>
+  <text x="110" y="170" text-anchor="middle" fill="#ffffff">+1 город / ~2 недели</text>
+  <text x="110" y="186" text-anchor="middle" fill="#ffffff">риск 0, ничего не теряем</text>
+
+  <!-- ветка 2: атаковать -->
+  <rect x="270" y="130" width="180" height="44" rx="6" fill="#ffffff" stroke="#c7742a" stroke-width="2"/>
+  <text x="360" y="148" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Атаковать чужой город</text>
+  <text x="360" y="166" text-anchor="middle" fill="#6b645a">цена: N стихов + до 14 дней</text>
+
+  <line x1="360" y1="174" x2="290" y2="214" stroke="#6b645a" stroke-width="1.5"/>
+  <line x1="360" y1="174" x2="430" y2="214" stroke="#6b645a" stroke-width="1.5"/>
+
+  <rect x="200" y="214" width="170" height="70" rx="6" fill="#6b645a" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="285" y="234" text-anchor="middle" fill="#ffffff" font-weight="bold">…активной команды</text>
+  <text x="285" y="252" text-anchor="middle" fill="#ffffff">свой отрывок у них,</text>
+  <text x="285" y="268" text-anchor="middle" fill="#ffffff">ничья за ними: шанс ≈ 15 %</text>
+
+  <rect x="380" y="214" width="170" height="70" rx="6" fill="#c7742a" stroke="#3b2a1a" stroke-width="3"/>
+  <text x="465" y="234" text-anchor="middle" fill="#ffffff" font-weight="bold">…молчащей команды</text>
+  <text x="465" y="252" text-anchor="middle" fill="#ffffff">ответа не будет:</text>
+  <text x="465" y="268" text-anchor="middle" fill="#ffffff">шанс ≈ 85 %, +1 город</text>
+
+  <!-- ветка 3: защищаться / сидеть -->
+  <rect x="540" y="130" width="160" height="64" rx="6" fill="#2e627e" stroke="#3b2a1a" stroke-width="3"/>
+  <text x="620" y="152" text-anchor="middle" fill="#ffffff" font-weight="bold">Защищаться</text>
+  <text x="620" y="170" text-anchor="middle" fill="#ffffff">отрывок выбираем сами,</text>
+  <text x="620" y="186" text-anchor="middle" fill="#ffffff">ничья наша</text>
+
+  <rect x="540" y="214" width="160" height="70" rx="6" fill="#ffffff" stroke="#6b645a" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="620" y="236" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Ничего не делать</text>
+  <text x="620" y="254" text-anchor="middle" fill="#6b645a">цена 0: города не тают,</text>
+  <text x="620" y="270" text-anchor="middle" fill="#6b645a">счёт к сроку не падает</text>
+
+  <!-- итог -->
+  <rect x="40" y="316" width="640" height="130" rx="8" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+  <text x="360" y="342" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Равновесие, к которому сходятся все три команды</text>
+  <text x="60" y="368" fill="#3b2a1a">1. Бери свободные города, пока они есть (счёт к сроку — по числу городов).</text>
+  <text x="60" y="390" fill="#3b2a1a">2. Не атакуй активных: атака дорога и почти всегда отражается. Атакуй только молчащих.</text>
+  <text x="60" y="412" fill="#3b2a1a">3. Защищайся всегда: это дешевле атаки и ничья твоя.</text>
+  <text x="60" y="434" fill="#3b2a1a">4. За 2 недели до срока — сиди: битвы к финишу отменяются, бездействие бесплатно.</text>
+</svg>

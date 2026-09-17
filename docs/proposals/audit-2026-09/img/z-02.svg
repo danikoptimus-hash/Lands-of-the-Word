@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="330" viewBox="0 0 720 330" font-family="Arial, sans-serif" font-size="14">
+  <rect width="720" height="330" fill="#ffffff"/>
+  <defs><marker id="ar" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#6b645a"/></marker></defs>
+  <text x="360" y="26" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Три волны внедрения</text>
+  <line x1="30" y1="60" x2="700" y2="60" stroke="#6b645a" stroke-width="2" marker-end="url(#ar)"/>
+  <text x="120" y="52" text-anchor="middle" fill="#6b645a">до старта · 3–5 недель</text>
+  <text x="370" y="52" text-anchor="middle" fill="#6b645a">первые 6 недель сезона</text>
+  <text x="600" y="52" text-anchor="middle" fill="#6b645a">следующий сезон</text>
+  <rect x="30" y="75" width="200" height="230" rx="8" fill="#e3ecdd" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="130" y="100" text-anchor="middle" font-weight="bold" fill="#4c7a3f">Волна 1 · закрыть дыры</text>
+  <text x="45" y="126" fill="#3b2a1a">20 расхождений код/правило</text>
+  <text x="45" y="148" fill="#3b2a1a">баланс войны S-01…S-06, B-01</text>
+  <text x="45" y="170" fill="#3b2a1a">конфиг правил T-02</text>
+  <text x="45" y="192" fill="#3b2a1a">20 новых дел D-01, D-02</text>
+  <text x="45" y="214" fill="#3b2a1a">роль «проверяющий» A-02</text>
+  <text x="45" y="236" fill="#3b2a1a">календарь E-02, старт E-05</text>
+  <text x="45" y="258" fill="#3b2a1a">три штрафа из главы 12</text>
+  <text x="45" y="280" fill="#3b2a1a">здоровье команд A-05</text>
+  <rect x="260" y="75" width="220" height="230" rx="8" fill="#f7e6d6" stroke="#c7742a" stroke-width="2"/>
+  <text x="370" y="100" text-anchor="middle" font-weight="bold" fill="#c7742a">Волна 2 · события и публичность</text>
+  <text x="275" y="126" fill="#3b2a1a">журнал T-01 → летопись E-01</text>
+  <text x="275" y="148" fill="#3b2a1a">хроника испытания B-09, B-03</text>
+  <text x="275" y="170" fill="#3b2a1a">путевой лист E-03</text>
+  <text x="275" y="192" fill="#3b2a1a">замок C-01, весы C-02, сургуч C-06</text>
+  <text x="275" y="214" fill="#3b2a1a">пропуска R-01, совет капитанов R-05</text>
+  <text x="275" y="236" fill="#3b2a1a">карточки благодарности D-04</text>
+  <text x="275" y="258" fill="#3b2a1a">местность M-01, места силы M-05</text>
+  <text x="275" y="280" fill="#3b2a1a">финальная церемония E-10</text>
+  <rect x="510" y="75" width="190" height="230" rx="8" fill="#dfeaf0" stroke="#2e627e" stroke-width="2"/>
+  <text x="605" y="100" text-anchor="middle" font-weight="bold" fill="#2e627e">Волна 3 · мир с историей</text>
+  <text x="525" y="126" fill="#3b2a1a">движок эффектов T-03</text>
+  <text x="525" y="148" fill="#3b2a1a">праздники S-09, погода M-03</text>
+  <text x="525" y="170" fill="#3b2a1a">плен S-10, усталость S-07</text>
+  <text x="525" y="192" fill="#3b2a1a">форматы вызова B-05</text>
+  <text x="525" y="214" fill="#3b2a1a">сделки T-07: союз, торг</text>
+  <text x="525" y="236" fill="#3b2a1a">дела-цепочки D-06</text>
+  <text x="525" y="258" fill="#3b2a1a">откат A-08, снапшоты T-10</text>
+  <text x="525" y="280" fill="#3b2a1a">повторный сезон A-14</text>
+  <text x="360" y="322" text-anchor="middle" fill="#6b645a">v2: остаток E-14, свиток участника B-14, руины-крепость R-13, реки M-07, святой город M-12</text>
+</svg>

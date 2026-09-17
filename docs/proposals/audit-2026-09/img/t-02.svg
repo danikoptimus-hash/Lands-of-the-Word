@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="600" viewBox="0 0 720 600" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="600" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16" font-weight="bold" fill="#3b2a1a">Предлагаемая схема: новые заготовки (охра) и какие механики они открывают</text>
+
+  <!-- Центр: Game с правилами -->
+  <rect x="250" y="50" width="220" height="60" rx="6" fill="#fff4e8" stroke="#c7742a" stroke-width="2"/>
+  <text x="360" y="72" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Game</text>
+  <text x="360" y="90" text-anchor="middle" font-size="12" fill="#3b2a1a">rules Json + rulesVersion (T-02)</text>
+  <text x="360" y="104" text-anchor="middle" font-size="11" fill="#6b645a">seasonId (T-12) · шаблон правил</text>
+
+  <!-- Левая колонка: новые таблицы -->
+  <text x="20" y="140" font-size="13" font-weight="bold" fill="#c7742a">Новые таблицы</text>
+
+  <rect x="20" y="150" width="200" height="46" rx="6" fill="#fff4e8" stroke="#c7742a" stroke-width="1.5"/>
+  <text x="120" y="168" text-anchor="middle" font-weight="bold" fill="#3b2a1a">GameEvent (T-01)</text>
+  <text x="120" y="186" text-anchor="middle" font-size="11" fill="#6b645a">type · actor · team · node · payload · visibility</text>
+
+  <rect x="20" y="206" width="200" height="46" rx="6" fill="#fff4e8" stroke="#c7742a" stroke-width="1.5"/>
+  <text x="120" y="224" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Job (T-04)</text>
+  <text x="120" y="242" text-anchor="middle" font-size="11" fill="#6b645a">kind · runAt · payload · attempts · lockedAt</text>
+
+  <rect x="20" y="262" width="200" height="46" rx="6" fill="#fff4e8" stroke="#c7742a" stroke-width="1.5"/>
+  <text x="120" y="280" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Effect (T-03)</text>
+  <text x="120" y="298" text-anchor="middle" font-size="11" fill="#6b645a">scope · target · kind · params · startsAt · endsAt</text>
+
+  <rect x="20" y="318" width="200" height="46" rx="6" fill="#fff4e8" stroke="#c7742a" stroke-width="1.5"/>
+  <text x="120" y="336" text-anchor="middle" font-weight="bold" fill="#3b2a1a">TeamTaskProgress (T-05)</text>
+  <text x="120" y="354" text-anchor="middle" font-size="11" fill="#6b645a">taskId (не индекс) · state Json · done</text>
+
+  <rect x="20" y="374" width="200" height="46" rx="6" fill="#fff4e8" stroke="#c7742a" stroke-width="1.5"/>
+  <text x="120" y="392" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Deal (T-07)</text>
+  <text x="120" y="410" text-anchor="middle" font-size="11" fill="#6b645a">kind · proposer · counterpart · terms · status</text>
+
+  <rect x="20" y="430" width="200" height="46" rx="6" fill="#fff4e8" stroke="#c7742a" stroke-width="1.5"/>
+  <text x="120" y="448" text-anchor="middle" font-weight="bold" fill="#3b2a1a">GameSnapshot (T-10)</text>
+  <text x="120" y="466" text-anchor="middle" font-size="11" fill="#6b645a">label · at · data (сжатый Json)</text>
+
+  <rect x="20" y="486" width="200" height="46" rx="6" fill="#fff4e8" stroke="#c7742a" stroke-width="1.5"/>
+  <text x="120" y="504" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Achievement · Season</text>
+  <text x="120" y="522" text-anchor="middle" font-size="11" fill="#6b645a">T-09 · T-12 · AdminRole (T-11)</text>
+
+  <!-- Средняя колонка: существующие, что меняется -->
+  <text x="250" y="140" font-size="13" font-weight="bold" fill="#2e627e">Существующее: что меняется</text>
+
+  <rect x="250" y="150" width="220" height="40" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="1.5"/>
+  <text x="360" y="166" text-anchor="middle" font-size="12" fill="#3b2a1a">events.ts → читает GameEvent</text>
+  <text x="360" y="182" text-anchor="middle" font-size="11" fill="#6b645a">SSE остаётся, но с id и «догоном»</text>
+
+  <rect x="250" y="200" width="220" height="40" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="1.5"/>
+  <text x="360" y="216" text-anchor="middle" font-size="12" fill="#3b2a1a">sweep() → задачи в Job</text>
+  <text x="360" y="232" text-anchor="middle" font-size="11" fill="#6b645a">дедлайны, уведомления, погода по часам</text>
+
+  <rect x="250" y="250" width="220" height="40" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="1.5"/>
+  <text x="360" y="266" text-anchor="middle" font-size="12" fill="#3b2a1a">minBidFor · pickDeed · ensureFrontier</text>
+  <text x="360" y="282" text-anchor="middle" font-size="11" fill="#6b645a">получают ctx с правилами и эффектами</text>
+
+  <rect x="250" y="300" width="220" height="40" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="1.5"/>
+  <text x="360" y="316" text-anchor="middle" font-size="12" fill="#3b2a1a">cities.ts → реестр типов заданий</text>
+  <text x="360" y="332" text-anchor="middle" font-size="11" fill="#6b645a">schema · publicView · check · step</text>
+
+  <rect x="250" y="350" width="220" height="40" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="1.5"/>
+  <text x="360" y="366" text-anchor="middle" font-size="12" fill="#3b2a1a">Battle.kind → стратегия испытания (T-06)</text>
+  <text x="360" y="382" text-anchor="middle" font-size="11" fill="#6b645a">issue · validate · score · resolve</text>
+
+  <rect x="250" y="400" width="220" height="40" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="1.5"/>
+  <text x="360" y="416" text-anchor="middle" font-size="12" fill="#3b2a1a">PassageRequest → вид Deal</text>
+  <text x="360" y="432" text-anchor="middle" font-size="11" fill="#6b645a">старые строки переносятся миграцией</text>
+
+  <rect x="250" y="450" width="220" height="40" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="1.5"/>
+  <text x="360" y="466" text-anchor="middle" font-size="12" fill="#3b2a1a">Team.lastPeekAt… → TeamCooldown (T-08)</text>
+  <text x="360" y="482" text-anchor="middle" font-size="11" fill="#6b645a">роли — из конфига правил</text>
+
+  <rect x="250" y="500" width="220" height="40" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="1.5"/>
+  <text x="360" y="516" text-anchor="middle" font-size="12" fill="#3b2a1a">GameAdmin.role · scope (T-11)</text>
+  <text x="360" y="532" text-anchor="middle" font-size="11" fill="#6b645a">помощник не видит ключи конвертов</text>
+
+  <!-- Правая колонка: механики -->
+  <text x="500" y="140" font-size="13" font-weight="bold" fill="#4c7a3f">Механики других глав</text>
+  <g font-size="12" fill="#3b2a1a">
+    <rect x="500" y="150" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="167" text-anchor="middle">события карты, погода</text>
+    <rect x="500" y="184" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="201" text-anchor="middle">местность с эффектами</text>
+    <rect x="500" y="218" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="235" text-anchor="middle">интерактивные «замки»</text>
+    <rect x="500" y="252" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="269" text-anchor="middle">новые форматы испытаний</text>
+    <rect x="500" y="286" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="303" text-anchor="middle">торговля и союзы</text>
+    <rect x="500" y="320" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="337" text-anchor="middle">роли и голосования</text>
+    <rect x="500" y="354" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="371" text-anchor="middle">летопись, достижения</text>
+    <rect x="500" y="388" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="405" text-anchor="middle">шаблоны игр, настройки</text>
+    <rect x="500" y="422" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="439" text-anchor="middle">проверяющие-помощники</text>
+    <rect x="500" y="456" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="473" text-anchor="middle">откат действий</text>
+    <rect x="500" y="490" width="200" height="26" rx="5" fill="#f1f6ee" stroke="#4c7a3f" stroke-width="1.2"/>
+    <text x="600" y="507" text-anchor="middle">сезоны и перенос команд</text>
+  </g>
+
+  <!-- Стрелки: таблицы → изменения (несколько ключевых) -->
+  <g stroke="#6b645a" stroke-width="1.2" fill="none" marker-end="url(#b)">
+    <line x1="220" y1="173" x2="250" y2="170"/>
+    <line x1="220" y1="229" x2="250" y2="220"/>
+    <line x1="220" y1="285" x2="250" y2="270"/>
+    <line x1="220" y1="341" x2="250" y2="320"/>
+    <line x1="220" y1="397" x2="250" y2="420"/>
+    <line x1="470" y1="170" x2="500" y2="163"/>
+    <line x1="470" y1="220" x2="500" y2="197"/>
+    <line x1="470" y1="270" x2="500" y2="231"/>
+    <line x1="470" y1="370" x2="500" y2="265"/>
+    <line x1="470" y1="420" x2="500" y2="299"/>
+    <line x1="470" y1="470" x2="500" y2="333"/>
+    <line x1="470" y1="520" x2="500" y2="435"/>
+  </g>
+
+  <text x="20" y="560" font-size="12" fill="#6b645a">Правило чтения: одна заготовка — несколько механик. Журнал (T-01) и правила (T-02) нужны почти всем,</text>
+  <text x="20" y="578" font-size="12" fill="#6b645a">поэтому идут первыми; остальное можно вводить по одному блоку за релиз, не ломая идущие игры.</text>
+
+  <defs>
+    <marker id="b" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#6b645a"/>
+    </marker>
+  </defs>
+</svg>

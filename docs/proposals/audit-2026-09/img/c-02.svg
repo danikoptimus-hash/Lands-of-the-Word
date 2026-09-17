@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="720" viewBox="0 0 720 720" font-family="sans-serif" font-size="14">
+  <rect width="720" height="720" fill="#ffffff"/>
+  <title>C-02. Весы: задание с выбором ответа</title>
+  <rect x="40" y="30" width="320" height="660" rx="28" fill="#ffffff" stroke="#3b2a1a" stroke-width="3"/>
+  <rect x="52" y="42" width="296" height="636" rx="18" fill="#faf6ef" stroke="#6b645a" stroke-width="1"/>
+  <rect x="160" y="50" width="80" height="6" rx="3" fill="#6b645a"/>
+  <text x="68" y="84" font-size="15" font-weight="bold" fill="#3b2a1a">Район 13 · Выкуп у ворот · 4:1–6</text>
+  <text x="68" y="104" font-size="13" fill="#6b645a">По этому району · взвешиваний: 2 из 2</text>
+  <text x="68" y="132" font-size="13" fill="#3b2a1a">Почему ближайший родственник отказался</text>
+  <text x="68" y="150" font-size="13" fill="#3b2a1a">выкупить поле Ноемини вместе с Руфью?</text>
+  <!-- весы -->
+  <polygon points="200,330 186,352 214,352" fill="#3b2a1a"/>
+  <rect x="150" y="352" width="100" height="8" rx="4" fill="#3b2a1a"/>
+  <line x1="100" y1="296" x2="300" y2="286" stroke="#3b2a1a" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="200" cy="291" r="7" fill="#c7742a"/>
+  <!-- левая чаша: вопрос -->
+  <line x1="100" y1="296" x2="100" y2="320" stroke="#6b645a" stroke-width="2"/>
+  <path d="M 66 320 Q 100 350 134 320" fill="#efe6d6" stroke="#3b2a1a" stroke-width="2"/>
+  <rect x="86" y="300" width="28" height="22" rx="4" fill="#3b2a1a"/>
+  <text x="100" y="316" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="bold">?</text>
+  <text x="100" y="368" text-anchor="middle" fill="#6b645a" font-size="12">запечатанная гиря</text>
+  <!-- правая чаша: выбранный камень -->
+  <line x1="300" y1="286" x2="300" y2="310" stroke="#6b645a" stroke-width="2"/>
+  <path d="M 266 310 Q 300 340 334 310" fill="#efe6d6" stroke="#3b2a1a" stroke-width="2"/>
+  <rect x="278" y="288" width="44" height="24" rx="10" fill="#c7742a"/>
+  <text x="300" y="305" text-anchor="middle" fill="#ffffff" font-size="12">камень</text>
+  <text x="300" y="358" text-anchor="middle" fill="#6b645a" font-size="12">ваш ответ</text>
+  <!-- камни-варианты -->
+  <rect x="72" y="392" width="256" height="40" rx="12" fill="#c7742a" stroke="#3b2a1a"/>
+  <text x="200" y="417" text-anchor="middle" fill="#ffffff" font-size="13">Чтобы не расстроить своего удела</text>
+  <rect x="72" y="440" width="256" height="40" rx="12" fill="#ffffff" stroke="#3b2a1a"/>
+  <text x="200" y="465" text-anchor="middle" fill="#3b2a1a" font-size="13">У него не было денег на выкуп</text>
+  <rect x="72" y="488" width="256" height="40" rx="12" fill="#ffffff" stroke="#3b2a1a"/>
+  <text x="200" y="513" text-anchor="middle" fill="#3b2a1a" font-size="13">Закон запрещал брать моавитянку</text>
+  <rect x="72" y="536" width="256" height="40" rx="12" fill="#ffffff" stroke="#3b2a1a"/>
+  <text x="200" y="561" text-anchor="middle" fill="#3b2a1a" font-size="13">Он был слишком стар</text>
+  <rect x="72" y="596" width="256" height="44" rx="10" fill="#2e627e"/>
+  <text x="200" y="624" text-anchor="middle" fill="#ffffff" font-size="15" font-weight="bold">Взвесить</text>
+  <text x="68" y="664" font-size="12" fill="#6b645a">Отмычки: 2 целые · написать в поддержку</text>
+  <!-- пояснения -->
+  <text x="400" y="84" font-size="16" font-weight="bold" fill="#3b2a1a">Правила формы</text>
+  <text x="400" y="112" fill="#3b2a1a">Камень тапом кладётся на правую чашу,</text>
+  <text x="400" y="132" fill="#3b2a1a">«Взвесить» = POST …/answer с индексом</text>
+  <text x="400" y="152" fill="#3b2a1a">показанной позиции (перетасовка сервера).</text>
+  <text x="400" y="196" fill="#4c7a3f">Верно: коромысло выравнивается,</text>
+  <text x="400" y="216" fill="#4c7a3f">гиря раскрывается и показывает знак шифра.</text>
+  <text x="400" y="256" fill="#c7742a">Неверно: чаша проваливается, камень</text>
+  <text x="400" y="276" fill="#c7742a">трескается — «отмычка сломана».</text>
+  <text x="400" y="296" fill="#c7742a">Второй промах: весы накрывают тканью</text>
+  <text x="400" y="316" fill="#c7742a">на сутки (TeamTaskLock как сейчас).</text>
+  <line x1="365" y1="291" x2="392" y2="291" stroke="#6b645a" stroke-width="1" stroke-dasharray="4 3"/>
+  <text x="400" y="368" fill="#2e627e">Наклон коромысла до взвешивания</text>
+  <text x="400" y="388" fill="#2e627e">всегда одинаковый (декор), он не зависит</text>
+  <text x="400" y="408" fill="#2e627e">от выбранного камня — утечки нет.</text>
+  <text x="400" y="452" fill="#6b645a">Тип: choice (236 заданий в 66 книгах).</text>
+  <text x="400" y="472" fill="#6b645a">В v2 та же форма подойдёт для типа</text>
+  <text x="400" y="492" fill="#6b645a">«сопоставить пары» (две чаши на пару).</text>
+  <text x="400" y="536" fill="#6b645a">Простой вид: список-радио, как сейчас.</text>
+</svg>

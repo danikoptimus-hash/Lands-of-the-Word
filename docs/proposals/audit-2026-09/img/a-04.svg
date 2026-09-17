@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="430" viewBox="0 0 720 430" font-family="Arial, Helvetica, sans-serif">
+<rect width="720" height="430" fill="#ffffff"/>
+<text x="20" y="26" font-size="16" fill="#3b2a1a" text-anchor="start" font-weight="bold">Мастер запуска сезона (предложение A-01): расширенный чек-лист</text>
+<rect x="20" y="40" width="680" height="330" rx="8" fill="#ffffff" stroke="#6b645a"/>
+<rect x="36" y="58" width="18" height="18" rx="3" fill="#4c7a3f" stroke="#4c7a3f" stroke-width="2"/>
+<path d="M40,67 L44,71 L51,62" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+<text x="64" y="72" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">Карта сгенерирована: 66 городов, 254 перекрёстка, до первого города 3 / 4 / 3 хода</text>
+<text x="690" y="72" font-size="12" fill="#c7742a" text-anchor="end" font-weight="normal">обязательно</text>
+<rect x="36" y="92" width="18" height="18" rx="3" fill="#4c7a3f" stroke="#4c7a3f" stroke-width="2"/>
+<path d="M40,101 L44,105 L51,96" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+<text x="64" y="106" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">Команды 3 из 3, у каждой назначен капитан</text>
+<text x="690" y="106" font-size="12" fill="#c7742a" text-anchor="end" font-weight="normal">обязательно</text>
+<rect x="36" y="126" width="18" height="18" rx="3" fill="#ffffff" stroke="#c7742a" stroke-width="2"/>
+<text x="64" y="140" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">Участники: 19 из 24 приняли приглашение, у 2 не подтверждена почта</text>
+<text x="690" y="140" font-size="12" fill="#c7742a" text-anchor="end" font-weight="normal">обязательно</text>
+<rect x="36" y="160" width="18" height="18" rx="3" fill="#4c7a3f" stroke="#4c7a3f" stroke-width="2"/>
+<path d="M40,169 L44,173 L51,164" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+<text x="64" y="174" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">Дела: 34 (рекомендуется не меньше 31)</text>
+<text x="690" y="174" font-size="12" fill="#c7742a" text-anchor="end" font-weight="normal">обязательно</text>
+<rect x="36" y="194" width="18" height="18" rx="3" fill="#ffffff" stroke="#c7742a" stroke-width="2"/>
+<text x="64" y="208" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">Срок игры не задан (шаблон «Сезон 12 недель» предлагает 14 декабря)</text>
+<text x="690" y="208" font-size="12" fill="#c7742a" text-anchor="end" font-weight="normal">обязательно</text>
+<rect x="36" y="228" width="18" height="18" rx="3" fill="#ffffff" stroke="#6b645a" stroke-width="2"/>
+<text x="64" y="242" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">Второй администратор или проверяющий не добавлен</text>
+<text x="690" y="242" font-size="12" fill="#6b645a" text-anchor="end" font-weight="normal">желательно</text>
+<rect x="36" y="262" width="18" height="18" rx="3" fill="#ffffff" stroke="#6b645a" stroke-width="2"/>
+<text x="64" y="276" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">Адресаты конвертов: 4, ярлыки напечатаны 0 из 66 (к старту нужны 12 ближайших)</text>
+<text x="690" y="276" font-size="12" fill="#6b645a" text-anchor="end" font-weight="normal">желательно</text>
+<rect x="36" y="296" width="18" height="18" rx="3" fill="#4c7a3f" stroke="#4c7a3f" stroke-width="2"/>
+<path d="M40,305 L44,309 L51,300" fill="none" stroke="#ffffff" stroke-width="2.5"/>
+<text x="64" y="310" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">Правила: ставка 10, вызов 14 дней, ответ на проход 3 дня</text>
+<text x="690" y="310" font-size="12" fill="#6b645a" text-anchor="end" font-weight="normal">желательно</text>
+<rect x="36" y="330" width="18" height="18" rx="3" fill="#ffffff" stroke="#6b645a" stroke-width="2"/>
+<text x="64" y="344" font-size="14" fill="#3b2a1a" text-anchor="start" font-weight="normal">Стартовая встреча: дата не назначена, памятка капитанам не отправлена</text>
+<text x="690" y="344" font-size="12" fill="#6b645a" text-anchor="end" font-weight="normal">желательно</text>
+<rect x="36" y="384" width="150" height="32" rx="6" fill="#d9d3c9"/>
+<text x="111" y="405" font-size="14" fill="#8a8378" text-anchor="middle" font-weight="bold">Начать игру</text>
+<text x="200" y="405" font-size="13" fill="#c7742a" text-anchor="start" font-weight="normal">Не закрыто 2 обязательных пункта и 3 желательных. Старт возможен после обязательных.</text>
+</svg>

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="420" fill="#ffffff"/>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Роли и их права: как есть (код teams.ts, diplomacy.ts, teamMap.ts, battles.ts)</text>
+  <!-- header row -->
+  <g fill="#3b2a1a" font-weight="bold">
+    <text x="16" y="60">Действие</text>
+    <text x="330" y="60" text-anchor="middle">Капитан</text>
+    <text x="400" y="60" text-anchor="middle">Посол</text>
+    <text x="470" y="60" text-anchor="middle">Развед.</text>
+    <text x="540" y="60" text-anchor="middle">Пророк</text>
+    <text x="610" y="60" text-anchor="middle">Летоп.</text>
+    <text x="680" y="60" text-anchor="middle">Рядовой</text>
+  </g>
+  <line x1="16" y1="68" x2="704" y2="68" stroke="#6b645a" stroke-width="1"/>
+  <!-- rows -->
+  <g fill="#3b2a1a">
+    <text x="16" y="96">Взять, сдать, отпустить своё дело</text>
+    <text x="16" y="128">Сдать / отпустить чужое дело</text>
+    <text x="16" y="160">Запросить проход, ответить, отозвать</text>
+    <text x="16" y="192">Разведать за стороной (раз в неделю)</text>
+    <text x="16" y="224">Открыть подсказку района (раз в неделю)</text>
+    <text x="16" y="256">Вызов, ответ, отправка на проверку, уступить</text>
+    <text x="16" y="288">Перенос столицы, место высадки</text>
+    <text x="16" y="320">Назначить игровые роли</text>
+    <text x="16" y="352">Назначить капитана, убрать участника</text>
+  </g>
+  <g stroke="#e0dbd3" stroke-width="1">
+    <line x1="16" y1="104" x2="704" y2="104"/><line x1="16" y1="136" x2="704" y2="136"/><line x1="16" y1="168" x2="704" y2="168"/>
+    <line x1="16" y1="200" x2="704" y2="200"/><line x1="16" y1="232" x2="704" y2="232"/><line x1="16" y1="264" x2="704" y2="264"/>
+    <line x1="16" y1="296" x2="704" y2="296"/><line x1="16" y1="328" x2="704" y2="328"/><line x1="16" y1="360" x2="704" y2="360"/>
+  </g>
+  <!-- dots: row1 all -->
+  <g fill="#4c7a3f">
+    <circle cx="330" cy="91" r="7"/><circle cx="400" cy="91" r="7"/><circle cx="470" cy="91" r="7"/><circle cx="540" cy="91" r="7"/><circle cx="610" cy="91" r="7"/><circle cx="680" cy="91" r="7"/>
+    <circle cx="330" cy="123" r="7"/><circle cx="610" cy="123" r="7"/>
+    <circle cx="400" cy="155" r="7"/>
+    <circle cx="470" cy="187" r="7"/>
+    <circle cx="540" cy="219" r="7"/>
+    <circle cx="330" cy="251" r="7"/>
+    <circle cx="330" cy="283" r="7"/>
+    <circle cx="330" cy="315" r="7"/>
+  </g>
+  <!-- captain only if no ambassador -->
+  <circle cx="330" cy="155" r="7" fill="none" stroke="#c7742a" stroke-width="2"/>
+  <!-- admin-only row -->
+  <text x="505" y="357" text-anchor="middle" fill="#2e627e" font-style="italic">только администратор игры</text>
+  <!-- legend -->
+  <circle cx="24" cy="392" r="7" fill="#4c7a3f"/><text x="38" y="397" fill="#3b2a1a">может</text>
+  <circle cx="110" cy="392" r="7" fill="none" stroke="#c7742a" stroke-width="2"/><text x="124" y="397" fill="#3b2a1a">капитан — только если посол не назначен</text>
+  <text x="704" y="397" text-anchor="end" fill="#6b645a" font-size="13">капитан не может иметь игровую роль; одна роль — один человек</text>
+</svg>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="520" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16" font-weight="bold" fill="#3b2a1a">План поэтапного внедрения (дни — один разработчик, знакомый с кодом)</text>
+
+  <!-- Этап 1 -->
+  <rect x="20" y="50" width="215" height="330" rx="8" fill="#f7f4ee" stroke="#c7742a" stroke-width="2"/>
+  <text x="127" y="74" text-anchor="middle" font-weight="bold" fill="#c7742a">Этап 1 · сейчас</text>
+  <text x="127" y="92" text-anchor="middle" font-size="12" fill="#6b645a">фундамент, ~20 дней</text>
+
+  <rect x="32" y="104" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="127" y="122" text-anchor="middle" font-size="13" fill="#3b2a1a">T-01 Журнал событий</text>
+  <text x="127" y="140" text-anchor="middle" font-size="11" fill="#6b645a">M · 6 дн · SSE поверх журнала</text>
+
+  <rect x="32" y="158" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="127" y="176" text-anchor="middle" font-size="13" fill="#3b2a1a">T-02 Правила с версией</text>
+  <text x="127" y="194" text-anchor="middle" font-size="11" fill="#6b645a">M · 5 дн · константы → Game.rules</text>
+
+  <rect x="32" y="212" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="127" y="230" text-anchor="middle" font-size="13" fill="#3b2a1a">T-04 Планировщик задач</text>
+  <text x="127" y="248" text-anchor="middle" font-size="11" fill="#6b645a">M · 5 дн · sweep и письма → Job</text>
+
+  <rect x="32" y="266" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="127" y="284" text-anchor="middle" font-size="13" fill="#3b2a1a">T-11 Роли администраторов</text>
+  <text x="127" y="302" text-anchor="middle" font-size="11" fill="#6b645a">S · 4 дн · помощник без ключей</text>
+
+  <text x="127" y="336" text-anchor="middle" font-size="12" fill="#4c7a3f">Открывает: летопись (сырую),</text>
+  <text x="127" y="352" text-anchor="middle" font-size="12" fill="#4c7a3f">настройки, напоминания,</text>
+  <text x="127" y="368" text-anchor="middle" font-size="12" fill="#4c7a3f">разгрузку администратора</text>
+
+  <!-- Этап 2 -->
+  <rect x="252" y="50" width="215" height="440" rx="8" fill="#f7f4ee" stroke="#2e627e" stroke-width="2"/>
+  <text x="359" y="74" text-anchor="middle" font-weight="bold" fill="#2e627e">Этап 2 · следующий сезон</text>
+  <text x="359" y="92" text-anchor="middle" font-size="12" fill="#6b645a">движки механик, ~36 дней</text>
+
+  <rect x="264" y="104" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="359" y="122" text-anchor="middle" font-size="13" fill="#3b2a1a">T-03 Движок эффектов</text>
+  <text x="359" y="140" text-anchor="middle" font-size="11" fill="#6b645a">M · 7 дн · погода, местность, бонусы</text>
+
+  <rect x="264" y="158" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="359" y="176" text-anchor="middle" font-size="13" fill="#3b2a1a">T-05 Формат задания по id</text>
+  <text x="359" y="194" text-anchor="middle" font-size="11" fill="#6b645a">M · 6 дн · «замки», шаги, состояние</text>
+
+  <rect x="264" y="212" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="359" y="230" text-anchor="middle" font-size="13" fill="#3b2a1a">T-07 Сделки между командами</text>
+  <text x="359" y="248" text-anchor="middle" font-size="11" fill="#6b645a">M · 7 дн · проход, обмен, союз</text>
+
+  <rect x="264" y="266" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="359" y="284" text-anchor="middle" font-size="13" fill="#3b2a1a">T-08 Реестр ролей, голосования</text>
+  <text x="359" y="302" text-anchor="middle" font-size="11" fill="#6b645a">M · 5 дн · роли из правил</text>
+
+  <rect x="264" y="320" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="359" y="338" text-anchor="middle" font-size="13" fill="#3b2a1a">T-09 Достижения</text>
+  <text x="359" y="356" text-anchor="middle" font-size="11" fill="#6b645a">S · 4 дн · считаются по журналу</text>
+
+  <rect x="264" y="374" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="359" y="392" text-anchor="middle" font-size="13" fill="#3b2a1a">T-10 Снапшоты и откат</text>
+  <text x="359" y="410" text-anchor="middle" font-size="11" fill="#6b645a">M · 7 дн · отмена решения за 10 мин</text>
+
+  <text x="359" y="446" text-anchor="middle" font-size="12" fill="#4c7a3f">Открывает: события карты,</text>
+  <text x="359" y="462" text-anchor="middle" font-size="12" fill="#4c7a3f">торговлю и союзы, голосования,</text>
+  <text x="359" y="478" text-anchor="middle" font-size="12" fill="#4c7a3f">хронику и достижения, откат</text>
+
+  <!-- Этап 3 -->
+  <rect x="484" y="50" width="215" height="270" rx="8" fill="#f7f4ee" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="591" y="74" text-anchor="middle" font-weight="bold" fill="#4c7a3f">Этап 3 · v2</text>
+  <text x="591" y="92" text-anchor="middle" font-size="12" fill="#6b645a">крупные переделки, ~19 дней</text>
+
+  <rect x="496" y="104" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="591" y="122" text-anchor="middle" font-size="13" fill="#3b2a1a">T-06 Стратегии испытаний</text>
+  <text x="591" y="140" text-anchor="middle" font-size="11" fill="#6b645a">L · 13 дн · Battle.kind, новые форматы</text>
+
+  <rect x="496" y="158" width="191" height="44" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="1.5"/>
+  <text x="591" y="176" text-anchor="middle" font-size="13" fill="#3b2a1a">T-12 Сезоны и паспорт</text>
+  <text x="591" y="194" text-anchor="middle" font-size="11" fill="#6b645a">M · 6 дн · перенос команд, история</text>
+
+  <text x="591" y="230" text-anchor="middle" font-size="12" fill="#4c7a3f">Открывает: новые испытания,</text>
+  <text x="591" y="246" text-anchor="middle" font-size="12" fill="#4c7a3f">сезоны, перенос выбывших</text>
+  <text x="591" y="262" text-anchor="middle" font-size="12" fill="#4c7a3f">участников между играми</text>
+
+  <!-- Стрелки зависимостей -->
+  <g stroke="#6b645a" stroke-width="1.4" fill="none" marker-end="url(#c)">
+    <line x1="235" y1="126" x2="252" y2="126"/>
+    <line x1="235" y1="180" x2="252" y2="180"/>
+    <line x1="235" y1="234" x2="252" y2="234"/>
+    <line x1="467" y1="126" x2="484" y2="126"/>
+    <line x1="467" y1="180" x2="484" y2="180"/>
+  </g>
+
+  <text x="20" y="410" font-size="12" fill="#6b645a">Зависимости: T-09 и T-10 читают журнал T-01; T-03 и T-08 читают правила T-02; погода по часам</text>
+  <text x="20" y="428" font-size="12" fill="#6b645a">и напоминания идут через T-04; T-06 опирается на T-02 и T-03; T-12 — на T-01 и T-11.</text>
+  <text x="20" y="456" font-size="12" fill="#6b645a">Каждый блок — отдельный релиз с миграцией «только добавление»: старые игры продолжают идти на</text>
+  <text x="20" y="474" font-size="12" fill="#6b645a">своей версии правил, новые таблицы заполняются с момента выката.</text>
+  <text x="20" y="504" font-size="12" fill="#6b645a">Итого около 75 рабочих дней; этап 1 укладывается в один месяц до старта ближайшей игры.</text>
+
+  <defs>
+    <marker id="c" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 Z" fill="#6b645a"/>
+    </marker>
+  </defs>
+</svg>

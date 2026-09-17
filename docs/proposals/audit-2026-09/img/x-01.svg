@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="360" viewBox="0 0 720 360" font-family="Arial, sans-serif" font-size="14">
+  <rect width="720" height="360" fill="#ffffff"/>
+  <defs><marker id="ar" markerWidth="10" markerHeight="8" refX="9" refY="4" orient="auto"><path d="M0,0 L10,4 L0,8 z" fill="#6b645a"/></marker></defs>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Три системные проблемы и главы, которые их закрывают</text>
+  <rect x="20" y="50" width="210" height="96" rx="8" fill="#f7e6d6" stroke="#c7742a" stroke-width="2"/>
+  <text x="125" y="76" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Стратегическая</text>
+  <text x="125" y="98" text-anchor="middle" fill="#6b645a">война невыгодна,</text>
+  <text x="125" y="116" text-anchor="middle" fill="#6b645a">«черепаха» доминирует,</text>
+  <text x="125" y="134" text-anchor="middle" fill="#6b645a">ставка — только пол</text>
+  <rect x="255" y="50" width="210" height="96" rx="8" fill="#dfeaf0" stroke="#2e627e" stroke-width="2"/>
+  <text x="360" y="76" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Драматургическая</text>
+  <text x="360" y="98" text-anchor="middle" fill="#6b645a">мёртвые периоды,</text>
+  <text x="360" y="116" text-anchor="middle" fill="#6b645a">никто не видит битвы,</text>
+  <text x="360" y="134" text-anchor="middle" fill="#6b645a">плоская середина сезона</text>
+  <rect x="490" y="50" width="210" height="96" rx="8" fill="#e3ecdd" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="595" y="76" text-anchor="middle" font-weight="bold" fill="#3b2a1a">Операционная</text>
+  <text x="595" y="98" text-anchor="middle" fill="#6b645a">один проверяющий,</text>
+  <text x="595" y="116" text-anchor="middle" fill="#6b645a">правила в константах,</text>
+  <text x="595" y="134" text-anchor="middle" fill="#6b645a">ошибки необратимы</text>
+  <line x1="125" y1="146" x2="125" y2="184" stroke="#6b645a" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="360" y1="146" x2="360" y2="184" stroke="#6b645a" stroke-width="2" marker-end="url(#ar)"/>
+  <line x1="595" y1="146" x2="595" y2="184" stroke="#6b645a" stroke-width="2" marker-end="url(#ar)"/>
+  <rect x="20" y="188" width="210" height="120" rx="8" fill="#fff" stroke="#c7742a" stroke-width="1.5"/>
+  <text x="125" y="212" text-anchor="middle" font-weight="bold" fill="#c7742a">Главы 3 · 7 · 8</text>
+  <text x="125" y="236" text-anchor="middle" fill="#3b2a1a">S-01 ставка-потолок</text>
+  <text x="125" y="256" text-anchor="middle" fill="#3b2a1a">S-03 закрепление на срок</text>
+  <text x="125" y="276" text-anchor="middle" fill="#3b2a1a">B-01 коридор ответа</text>
+  <text x="125" y="296" text-anchor="middle" fill="#3b2a1a">R-01 пропуска</text>
+  <rect x="255" y="188" width="210" height="120" rx="8" fill="#fff" stroke="#2e627e" stroke-width="1.5"/>
+  <text x="360" y="212" text-anchor="middle" font-weight="bold" fill="#2e627e">Главы 4 · 5 · 6 · 9</text>
+  <text x="360" y="236" text-anchor="middle" fill="#3b2a1a">E-01 летопись</text>
+  <text x="360" y="256" text-anchor="middle" fill="#3b2a1a">C-01 замок с кольцами</text>
+  <text x="360" y="276" text-anchor="middle" fill="#3b2a1a">B-09 хроника испытания</text>
+  <text x="360" y="296" text-anchor="middle" fill="#3b2a1a">M-05 места силы</text>
+  <rect x="490" y="188" width="210" height="120" rx="8" fill="#fff" stroke="#4c7a3f" stroke-width="1.5"/>
+  <text x="595" y="212" text-anchor="middle" font-weight="bold" fill="#4c7a3f">Главы 10 · 11</text>
+  <text x="595" y="236" text-anchor="middle" fill="#3b2a1a">A-02 роль «проверяющий»</text>
+  <text x="595" y="256" text-anchor="middle" fill="#3b2a1a">A-05 панель здоровья</text>
+  <text x="595" y="276" text-anchor="middle" fill="#3b2a1a">T-02 конфиг правил</text>
+  <text x="595" y="296" text-anchor="middle" fill="#3b2a1a">T-01 журнал событий</text>
+  <text x="360" y="340" text-anchor="middle" fill="#6b645a">Глава 2 — карта механик как есть · глава 12 — штрафы (к согласованию) · глава 13 — дорожная карта</text>
+</svg>

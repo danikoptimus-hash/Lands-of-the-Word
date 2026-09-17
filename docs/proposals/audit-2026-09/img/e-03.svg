@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" font-family="sans-serif" font-size="14">
+  <rect width="720" height="420" fill="#ffffff"/>
+  <text x="360" y="26" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Недельный ритм с событиями (предлагаемый)</text>
+
+  <!-- заголовки дней -->
+  <g font-weight="bold" fill="#3b2a1a" text-anchor="middle">
+    <text x="165" y="60">Пн</text><text x="245" y="60">Вт</text><text x="325" y="60">Ср</text>
+    <text x="405" y="60">Чт</text><text x="485" y="60">Пт</text><text x="565" y="60">Сб</text><text x="645" y="60">Вс</text>
+  </g>
+  <line x1="125" y1="68" x2="685" y2="68" stroke="#6b645a"/>
+
+  <!-- строки -->
+  <g fill="#3b2a1a" font-weight="bold">
+    <text x="20" y="105">Участник</text>
+    <text x="20" y="185">Команда</text>
+    <text x="20" y="265">Ведущий</text>
+    <text x="20" y="345">Игра</text>
+  </g>
+  <line x1="20" y1="140" x2="685" y2="140" stroke="#6b645a" stroke-dasharray="3 3"/>
+  <line x1="20" y1="220" x2="685" y2="220" stroke="#6b645a" stroke-dasharray="3 3"/>
+  <line x1="20" y1="300" x2="685" y2="300" stroke="#6b645a" stroke-dasharray="3 3"/>
+
+  <!-- Участник -->
+  <rect x="130" y="80" width="70" height="50" rx="5" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+  <text x="165" y="100" text-anchor="middle" font-size="12" fill="#3b2a1a">читает</text>
+  <text x="165" y="115" text-anchor="middle" font-size="12" fill="#3b2a1a">Летопись</text>
+  <rect x="290" y="80" width="150" height="50" rx="5" fill="#ffffff" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="365" y="100" text-anchor="middle" font-size="12" fill="#3b2a1a">делает дело в жизни</text>
+  <text x="365" y="115" text-anchor="middle" font-size="12" fill="#3b2a1a">или учит район / стихи</text>
+  <rect x="530" y="80" width="70" height="50" rx="5" fill="#ffffff" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="565" y="100" text-anchor="middle" font-size="12" fill="#3b2a1a">день дел,</text>
+  <text x="565" y="115" text-anchor="middle" font-size="12" fill="#3b2a1a">сдаёт</text>
+  <rect x="610" y="80" width="70" height="50" rx="5" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+  <text x="645" y="100" text-anchor="middle" font-size="12" fill="#3b2a1a">путевой</text>
+  <text x="645" y="115" text-anchor="middle" font-size="12" fill="#3b2a1a">лист +1</text>
+
+  <!-- Команда -->
+  <rect x="130" y="160" width="110" height="50" rx="5" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+  <text x="185" y="180" text-anchor="middle" font-size="12" fill="#3b2a1a">план недели:</text>
+  <text x="185" y="195" text-anchor="middle" font-size="12" fill="#3b2a1a">капитан раздаёт 4 дела</text>
+  <rect x="370" y="160" width="70" height="50" rx="5" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+  <text x="405" y="180" text-anchor="middle" font-size="12" fill="#3b2a1a">разведчик,</text>
+  <text x="405" y="195" text-anchor="middle" font-size="12" fill="#3b2a1a">пророк</text>
+  <rect x="450" y="160" width="70" height="50" rx="5" fill="#fff4e8" stroke="#c7742a" stroke-width="2"/>
+  <text x="485" y="180" text-anchor="middle" font-size="12" fill="#3b2a1a">ночь перед</text>
+  <text x="485" y="195" text-anchor="middle" font-size="12" fill="#3b2a1a">испытанием</text>
+  <rect x="610" y="160" width="70" height="50" rx="5" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+  <text x="645" y="180" text-anchor="middle" font-size="12" fill="#3b2a1a">дневник</text>
+  <text x="645" y="195" text-anchor="middle" font-size="12" fill="#3b2a1a">капитана</text>
+
+  <!-- Ведущий -->
+  <rect x="130" y="240" width="70" height="50" rx="5" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+  <text x="165" y="260" text-anchor="middle" font-size="12" fill="#3b2a1a">слово</text>
+  <text x="165" y="275" text-anchor="middle" font-size="12" fill="#3b2a1a">ведущего</text>
+  <rect x="290" y="240" width="70" height="50" rx="5" fill="#fff4e8" stroke="#c7742a" stroke-width="2"/>
+  <text x="325" y="260" text-anchor="middle" font-size="12" fill="#3b2a1a">окно</text>
+  <text x="325" y="275" text-anchor="middle" font-size="12" fill="#3b2a1a">проверки</text>
+  <rect x="530" y="240" width="70" height="50" rx="5" fill="#fff4e8" stroke="#c7742a" stroke-width="2"/>
+  <text x="565" y="260" text-anchor="middle" font-size="12" fill="#3b2a1a">окно</text>
+  <text x="565" y="275" text-anchor="middle" font-size="12" fill="#3b2a1a">проверки</text>
+  <rect x="610" y="240" width="70" height="50" rx="5" fill="#ffffff" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="645" y="260" text-anchor="middle" font-size="12" fill="#3b2a1a">Летопись</text>
+  <text x="645" y="275" text-anchor="middle" font-size="12" fill="#3b2a1a">20:00</text>
+
+  <!-- Игра -->
+  <rect x="130" y="320" width="150" height="50" rx="5" fill="#ffffff" stroke="#2e627e" stroke-width="2"/>
+  <text x="205" y="340" text-anchor="middle" font-size="12" fill="#3b2a1a">событие недели объявлено</text>
+  <text x="205" y="355" text-anchor="middle" font-size="12" fill="#3b2a1a">(ветер / засуха / праздник)</text>
+  <rect x="450" y="320" width="70" height="50" rx="5" fill="#fff4e8" stroke="#c7742a" stroke-width="2"/>
+  <text x="485" y="340" text-anchor="middle" font-size="12" fill="#3b2a1a">дедлайн</text>
+  <text x="485" y="355" text-anchor="middle" font-size="12" fill="#3b2a1a">оборон 21:00</text>
+  <rect x="610" y="320" width="70" height="50" rx="5" fill="#ffffff" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="645" y="340" text-anchor="middle" font-size="12" fill="#3b2a1a">кулдауны</text>
+  <text x="645" y="355" text-anchor="middle" font-size="12" fill="#3b2a1a">ролей → 0</text>
+
+  <text x="20" y="400" fill="#6b645a" font-size="12">Охра — точки напряжения (ожидание, дедлайн); зелёный — действие в жизни; синий — действие в игре.</text>
+</svg>

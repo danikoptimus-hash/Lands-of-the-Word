@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="430" viewBox="0 0 720 430" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="430" fill="#ffffff"/>
+  <text x="20" y="28" font-size="16" font-weight="bold" fill="#3b2a1a">Уровни сложности отрывков и коэффициенты (B-07)</text>
+
+  <!-- Шкала -->
+  <rect x="40" y="50" width="640" height="26" rx="4" fill="#6b645a" opacity="0.12"/>
+  <text x="50" y="68" fill="#6b645a" font-size="13">легче учить</text>
+  <text x="670" y="68" text-anchor="end" fill="#6b645a" font-size="13">труднее учить</text>
+
+  <!-- Пять ступеней -->
+  <g>
+    <rect x="40" y="90" width="120" height="150" rx="8" fill="#4c7a3f"/>
+    <text x="100" y="114" text-anchor="middle" fill="#ffffff" font-weight="bold">Уровень 1</text>
+    <text x="100" y="134" text-anchor="middle" fill="#ffffff" font-size="20" font-weight="bold">× 1,0</text>
+    <text x="100" y="158" text-anchor="middle" fill="#ffffff" font-size="13">повествование</text>
+    <text x="100" y="176" text-anchor="middle" fill="#ffffff" font-size="13">Руфь, Иона,</text>
+    <text x="100" y="194" text-anchor="middle" fill="#ffffff" font-size="13">Евангелия,</text>
+    <text x="100" y="212" text-anchor="middle" fill="#ffffff" font-size="13">Деяния, Бытие</text>
+  </g>
+  <g>
+    <rect x="170" y="90" width="120" height="150" rx="8" fill="#2e627e"/>
+    <text x="230" y="114" text-anchor="middle" fill="#ffffff" font-weight="bold">Уровень 2</text>
+    <text x="230" y="134" text-anchor="middle" fill="#ffffff" font-size="20" font-weight="bold">× 1,1</text>
+    <text x="230" y="158" text-anchor="middle" fill="#ffffff" font-size="13">поучение</text>
+    <text x="230" y="176" text-anchor="middle" fill="#ffffff" font-size="13">послания,</text>
+    <text x="230" y="194" text-anchor="middle" fill="#ffffff" font-size="13">Притчи,</text>
+    <text x="230" y="212" text-anchor="middle" fill="#ffffff" font-size="13">Второзаконие 5–11</text>
+  </g>
+  <g>
+    <rect x="300" y="90" width="120" height="150" rx="8" fill="#2e627e"/>
+    <text x="360" y="114" text-anchor="middle" fill="#ffffff" font-weight="bold">Уровень 3</text>
+    <text x="360" y="134" text-anchor="middle" fill="#ffffff" font-size="20" font-weight="bold">× 1,2</text>
+    <text x="360" y="158" text-anchor="middle" fill="#ffffff" font-size="13">поэзия и пророки</text>
+    <text x="360" y="176" text-anchor="middle" fill="#ffffff" font-size="13">Псалтирь, Исаия,</text>
+    <text x="360" y="194" text-anchor="middle" fill="#ffffff" font-size="13">Иов, Иезекииль,</text>
+    <text x="360" y="212" text-anchor="middle" fill="#ffffff" font-size="13">Откровение</text>
+  </g>
+  <g>
+    <rect x="430" y="90" width="120" height="150" rx="8" fill="#c7742a"/>
+    <text x="490" y="114" text-anchor="middle" fill="#ffffff" font-weight="bold">Уровень 4</text>
+    <text x="490" y="134" text-anchor="middle" fill="#ffffff" font-size="20" font-weight="bold">× 1,3</text>
+    <text x="490" y="158" text-anchor="middle" fill="#ffffff" font-size="13">закон и уставы</text>
+    <text x="490" y="176" text-anchor="middle" fill="#ffffff" font-size="13">Левит, Числа,</text>
+    <text x="490" y="194" text-anchor="middle" fill="#ffffff" font-size="13">Исход 25–40,</text>
+    <text x="490" y="212" text-anchor="middle" fill="#ffffff" font-size="13">Иезекииль 40–48</text>
+  </g>
+  <g>
+    <rect x="560" y="90" width="120" height="150" rx="8" fill="#3b2a1a"/>
+    <text x="620" y="114" text-anchor="middle" fill="#ffffff" font-weight="bold">Уровень 5</text>
+    <text x="620" y="134" text-anchor="middle" fill="#ffffff" font-size="20" font-weight="bold">× 1,5</text>
+    <text x="620" y="158" text-anchor="middle" fill="#ffffff" font-size="13">списки и родословия</text>
+    <text x="620" y="176" text-anchor="middle" fill="#ffffff" font-size="13">1 Пар 1–9, Чис 7,</text>
+    <text x="620" y="194" text-anchor="middle" fill="#ffffff" font-size="13">Езд 2, Неем 7</text>
+    <text x="620" y="212" text-anchor="middle" fill="#ffffff" font-size="13">(если включены)</text>
+  </g>
+
+  <!-- Пример -->
+  <rect x="40" y="260" width="640" height="150" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  <text x="56" y="285" fill="#3b2a1a" font-weight="bold">Как считается: очки = стихи × коэффициент главы (уровень хранится по главам в content/bible)</text>
+  <text x="56" y="311" fill="#2e627e">Вызов «Моряков»: случайные 10 стихов Левит 13 (уровень 4) = 10 × 1,3 = 13 очков.</text>
+  <text x="56" y="335" fill="#4c7a3f">Ответ «Берега»: капитан выбрал Левит 19:9–18 (уровень 2, 10 стихов) = 11 очков — мало.</text>
+  <text x="56" y="359" fill="#4c7a3f">Нужно ещё 2 очка: Левит 19:9–19 плюс 1 стих = 12 стихов × 1,1 = 13,2 ≥ 13 — город устоял.</text>
+  <text x="56" y="383" fill="#c7742a">Уровень испытания после ответа = 13,2 очка (округляется вверх до 14); следующий вызов ≥ 15 очков.</text>
+  <text x="56" y="403" fill="#6b645a" font-size="13">Свой выбор отрывка остаётся у хранителей, но лёгкий отрывок «стоит» больше стихов.</text>
+</svg>

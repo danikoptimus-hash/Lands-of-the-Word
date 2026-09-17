@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="520" viewBox="0 0 720 520" font-family="sans-serif" font-size="14">
+  <rect width="720" height="520" fill="#ffffff"/>
+  <text x="360" y="26" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Экран «Летопись» (воскресная сводка) — схема</text>
+
+  <!-- телефон -->
+  <rect x="200" y="45" width="320" height="460" rx="18" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+  <rect x="215" y="60" width="290" height="40" rx="6" fill="#3b2a1a"/>
+  <text x="228" y="78" fill="#ffffff" font-weight="bold">Летопись · неделя 7 из 26</text>
+  <text x="228" y="94" fill="#ffffff" font-size="12">Земли Слова · игра «Осень»</text>
+
+  <!-- слово ведущего -->
+  <rect x="215" y="110" width="290" height="58" rx="6" fill="#fff4e8" stroke="#c7742a"/>
+  <text x="225" y="128" fill="#c7742a" font-size="12" font-weight="bold">СЛОВО ВЕДУЩЕГО</text>
+  <text x="225" y="146" fill="#3b2a1a" font-size="12">«На этой неделе — Праздник кущей:</text>
+  <text x="225" y="161" fill="#3b2a1a" font-size="12">все дела Посещения открывают две стороны»</text>
+
+  <!-- что случилось -->
+  <rect x="215" y="178" width="290" height="96" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  <text x="225" y="196" fill="#2e627e" font-size="12" font-weight="bold">ЧТО СЛУЧИЛОСЬ ЗА НЕДЕЛЮ</text>
+  <text x="225" y="214" fill="#3b2a1a" font-size="12">• «Моряки» взяли второй город (Иона)</text>
+  <text x="225" y="230" fill="#3b2a1a" font-size="12">• «Берег» устояли в испытании: 24 против 20</text>
+  <text x="225" y="246" fill="#3b2a1a" font-size="12">• Первая переправа на Новый Завет</text>
+  <text x="225" y="262" fill="#3b2a1a" font-size="12">• Всего одобрено 11 дел, 3 из них — посещения</text>
+
+  <!-- положение -->
+  <rect x="215" y="284" width="290" height="80" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  <text x="225" y="302" fill="#2e627e" font-size="12" font-weight="bold">ПОЛОЖЕНИЕ</text>
+  <rect x="225" y="310" width="120" height="12" fill="#2e627e"/>
+  <text x="350" y="321" fill="#3b2a1a" font-size="12">Моряки · 2 города</text>
+  <rect x="225" y="328" width="60" height="12" fill="#c7742a"/>
+  <text x="350" y="339" fill="#3b2a1a" font-size="12">Берег · 1 город (+1 испытание)</text>
+  <rect x="225" y="346" width="60" height="12" fill="#4c7a3f"/>
+  <text x="350" y="357" fill="#3b2a1a" font-size="12">Третья команда · 1 город</text>
+
+  <!-- общее дело -->
+  <rect x="215" y="374" width="290" height="50" rx="6" fill="#ffffff" stroke="#4c7a3f"/>
+  <text x="225" y="392" fill="#4c7a3f" font-size="12" font-weight="bold">ОБЩЕЕ ДЕЛО: 300 посещений за сезон</text>
+  <rect x="225" y="400" width="270" height="12" fill="#ffffff" stroke="#4c7a3f"/>
+  <rect x="225" y="400" width="133" height="12" fill="#4c7a3f"/>
+  <text x="365" y="418" fill="#3b2a1a" font-size="11" text-anchor="middle">148 из 300 · до Праздника ещё 152</text>
+
+  <!-- путевой лист -->
+  <rect x="215" y="434" width="290" height="60" rx="6" fill="#ffffff" stroke="#6b645a"/>
+  <text x="225" y="452" fill="#2e627e" font-size="12" font-weight="bold">ВАШ ПУТЕВОЙ ЛИСТ</text>
+  <text x="225" y="470" fill="#3b2a1a" font-size="12">Дел: 5 · Районов: 9 · Стихов: 12</text>
+  <text x="225" y="486" fill="#3b2a1a" font-size="12">Новая веха: «Первый конверт»</text>
+
+  <!-- пояснения справа/слева -->
+  <g font-size="12" fill="#6b645a">
+    <text x="20" y="140">1. Текст ведущего —</text>
+    <text x="20" y="155">пишется за 5 минут</text>
+    <text x="20" y="210">2. Факты недели —</text>
+    <text x="20" y="225">автоматически из событий,</text>
+    <text x="20" y="240">без чужих маршрутов</text>
+    <text x="20" y="320">3. Положение —</text>
+    <text x="20" y="335">то же, что и сейчас</text>
+    <text x="540" y="395">4. Все команды</text>
+    <text x="540" y="410">вместе, E-07</text>
+    <text x="540" y="455">5. Личное —</text>
+    <text x="540" y="470">E-03, видит</text>
+    <text x="540" y="485">только участник</text>
+  </g>
+  <line x1="150" y1="140" x2="212" y2="140" stroke="#6b645a" stroke-dasharray="3 3"/>
+  <line x1="150" y1="215" x2="212" y2="215" stroke="#6b645a" stroke-dasharray="3 3"/>
+  <line x1="150" y1="322" x2="212" y2="322" stroke="#6b645a" stroke-dasharray="3 3"/>
+  <line x1="508" y1="398" x2="536" y2="398" stroke="#6b645a" stroke-dasharray="3 3"/>
+  <line x1="508" y1="462" x2="536" y2="462" stroke="#6b645a" stroke-dasharray="3 3"/>
+</svg>

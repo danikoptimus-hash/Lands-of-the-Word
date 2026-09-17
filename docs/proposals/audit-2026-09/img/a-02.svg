@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400" viewBox="0 0 720 400" font-family="Arial, Helvetica, sans-serif">
+<rect width="720" height="400" fill="#ffffff"/>
+<text x="20" y="26" font-size="16" fill="#3b2a1a" text-anchor="start" font-weight="bold">Нагрузка на проверку: 5 команд по 8 человек, минут в неделю (оценка)</text>
+<line x1="60" y1="320" x2="700" y2="320" stroke="#6b645a" stroke-width="1"/>
+<line x1="60" y1="254" x2="700" y2="254" stroke="#e5e0d8" stroke-width="1"/>
+<text x="54" y="259.0" font-size="12" fill="#6b645a" text-anchor="end" font-weight="normal">60</text>
+<line x1="60" y1="188" x2="700" y2="188" stroke="#e5e0d8" stroke-width="1"/>
+<text x="54" y="193.0" font-size="12" fill="#6b645a" text-anchor="end" font-weight="normal">120</text>
+<line x1="60" y1="122" x2="700" y2="122" stroke="#e5e0d8" stroke-width="1"/>
+<text x="54" y="126.99999999999997" font-size="12" fill="#6b645a" text-anchor="end" font-weight="normal">180</text>
+<line x1="60" y1="56" x2="700" y2="56" stroke="#e5e0d8" stroke-width="1"/>
+<text x="54" y="61.0" font-size="12" fill="#6b645a" text-anchor="end" font-weight="normal">240</text>
+<text x="54" y="325" font-size="12" fill="#6b645a" text-anchor="end" font-weight="normal">0</text>
+<text x="12" y="60" font-size="12" fill="#6b645a" text-anchor="start" font-weight="normal">мин</text>
+<rect x="70" y="298.0" width="34" height="22.0" fill="#2e627e"/>
+<text x="87.0" y="293.0" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">20</text>
+<text x="87.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">1</text>
+<rect x="122" y="280.4" width="34" height="39.6" fill="#2e627e"/>
+<text x="139.0" y="275.4" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">36</text>
+<text x="139.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">2</text>
+<rect x="174" y="271.6" width="34" height="48.4" fill="#2e627e"/>
+<text x="191.0" y="266.6" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">44</text>
+<text x="191.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">3</text>
+<rect x="226" y="265.0" width="34" height="55.0" fill="#2e627e"/>
+<rect x="226" y="229.8" width="34" height="35.2" fill="#c7742a"/>
+<text x="243.0" y="224.8" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">82</text>
+<text x="243.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">4</text>
+<rect x="278" y="265.0" width="34" height="55.0" fill="#2e627e"/>
+<rect x="278" y="212.2" width="34" height="52.8" fill="#c7742a"/>
+<text x="295.0" y="207.2" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">98</text>
+<text x="295.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">5</text>
+<rect x="330" y="271.6" width="34" height="48.4" fill="#2e627e"/>
+<rect x="330" y="201.2" width="34" height="70.4" fill="#c7742a"/>
+<text x="347.0" y="196.20000000000002" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">108</text>
+<text x="347.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">6</text>
+<rect x="382" y="267.2" width="34" height="52.8" fill="#2e627e"/>
+<rect x="382" y="161.6" width="34" height="105.6" fill="#c7742a"/>
+<text x="399.0" y="156.59999999999997" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">144</text>
+<text x="399.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">7</text>
+<rect x="434" y="265.0" width="34" height="55.0" fill="#2e627e"/>
+<rect x="434" y="177.0" width="34" height="88.0" fill="#c7742a"/>
+<text x="451.0" y="172.0" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">130</text>
+<text x="451.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">8</text>
+<rect x="486" y="276.0" width="34" height="44.0" fill="#2e627e"/>
+<rect x="486" y="152.8" width="34" height="123.2" fill="#c7742a"/>
+<text x="503.0" y="147.79999999999998" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">152</text>
+<text x="503.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">9</text>
+<rect x="538" y="271.6" width="34" height="48.4" fill="#2e627e"/>
+<rect x="538" y="166.0" width="34" height="105.6" fill="#c7742a"/>
+<text x="555.0" y="161.0" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">140</text>
+<text x="555.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">10</text>
+<rect x="590" y="265.0" width="34" height="55.0" fill="#2e627e"/>
+<rect x="590" y="124.2" width="34" height="140.8" fill="#c7742a"/>
+<text x="607.0" y="119.19999999999999" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">178</text>
+<text x="607.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">11</text>
+<rect x="642" y="258.4" width="34" height="61.6" fill="#2e627e"/>
+<rect x="642" y="100.0" width="34" height="158.4" fill="#c7742a"/>
+<text x="659.0" y="94.99999999999997" font-size="12" fill="#3b2a1a" text-anchor="middle" font-weight="normal">200</text>
+<text x="659.0" y="336" font-size="12" fill="#6b645a" text-anchor="middle" font-weight="normal">12</text>
+<text x="380" y="354" font-size="13" fill="#6b645a" text-anchor="middle" font-weight="normal">неделя сезона</text>
+<rect x="70" y="352" width="14" height="14" fill="#2e627e"/><text x="90" y="364" font-size="13" fill="#3b2a1a" text-anchor="start" font-weight="normal">сдачи дел: ~2 мин на сдачу (фото/отчёт, 20 % возвратов)</text>
+<rect x="70" y="374" width="14" height="14" fill="#c7742a"/><text x="90" y="386" font-size="13" fill="#3b2a1a" text-anchor="start" font-weight="normal">видео испытаний: ~4 мин на запись (1–2 испытания в неделю с 4-й недели)</text>
+<text x="700" y="364" font-size="13" fill="#c7742a" text-anchor="end" font-weight="bold">пик: 3–3,5 ч в неделю</text>
+<text x="700" y="386" font-size="13" fill="#6b645a" text-anchor="end" font-weight="normal">у одного человека, всплеск в пн–вт</text>
+</svg>

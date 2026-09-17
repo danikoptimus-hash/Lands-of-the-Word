@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="400" viewBox="0 0 720 400" font-family="Arial, Helvetica, sans-serif" font-size="14">
+  <rect width="720" height="400" fill="#ffffff"/>
+  <defs>
+    <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3b2a1a"/>
+    </marker>
+    <marker id="arrb" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2e627e"/>
+    </marker>
+  </defs>
+  <text x="360" y="28" text-anchor="middle" font-size="16" font-weight="bold" fill="#3b2a1a">Цикл переговоров о проходе: сейчас (сплошные) и с R-01/R-05 (синие пунктирные)</text>
+  <!-- boxes -->
+  <rect x="20" y="70" width="150" height="60" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+  <text x="95" y="95" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Запрос</text>
+  <text x="95" y="115" text-anchor="middle" fill="#6b645a" font-size="13">посол «Моряков», текст ≤ 500</text>
+
+  <rect x="230" y="70" width="170" height="60" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+  <text x="315" y="95" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Ожидание: 3 дня</text>
+  <text x="315" y="115" text-anchor="middle" fill="#6b645a" font-size="13">посол/капитан «Берега»</text>
+
+  <rect x="460" y="40" width="120" height="44" rx="6" fill="#4c7a3f"/>
+  <text x="520" y="67" text-anchor="middle" fill="#ffffff" font-weight="bold">Разрешено</text>
+  <rect x="460" y="98" width="120" height="44" rx="6" fill="#c7742a"/>
+  <text x="520" y="125" text-anchor="middle" fill="#ffffff" font-weight="bold">Отказ</text>
+  <rect x="460" y="156" width="120" height="44" rx="6" fill="#6b645a"/>
+  <text x="520" y="183" text-anchor="middle" fill="#ffffff" font-weight="bold">Молчание = отказ</text>
+
+  <rect x="600" y="40" width="104" height="44" rx="6" fill="#ffffff" stroke="#4c7a3f" stroke-width="2"/>
+  <text x="652" y="58" text-anchor="middle" fill="#3b2a1a" font-size="13">проход открыт</text>
+  <text x="652" y="76" text-anchor="middle" fill="#6b645a" font-size="12">бессрочно</text>
+
+  <rect x="230" y="230" width="170" height="60" rx="6" fill="#ffffff" stroke="#3b2a1a" stroke-width="2"/>
+  <text x="315" y="255" text-anchor="middle" fill="#3b2a1a" font-weight="bold">Отзыв владельцем</text>
+  <text x="315" y="275" text-anchor="middle" fill="#6b645a" font-size="13">свободные дела убраны</text>
+
+  <!-- existing arrows -->
+  <line x1="170" y1="100" x2="228" y2="100" stroke="#3b2a1a" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="400" y1="90" x2="458" y2="64" stroke="#3b2a1a" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="400" y1="105" x2="458" y2="118" stroke="#3b2a1a" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="400" y1="120" x2="458" y2="175" stroke="#3b2a1a" stroke-width="2" marker-end="url(#arr)"/>
+  <line x1="580" y1="62" x2="598" y2="62" stroke="#3b2a1a" stroke-width="2" marker-end="url(#arr)"/>
+  <path d="M652,84 L652,260 L402,260" fill="none" stroke="#3b2a1a" stroke-width="2" marker-end="url(#arr)"/>
+  <path d="M520,200 L520,330 L95,330 L95,132" fill="none" stroke="#3b2a1a" stroke-width="2" marker-end="url(#arr)"/>
+  <text x="300" y="322" fill="#6b645a" font-size="13">новый запрос (без ограничений по числу)</text>
+
+  <!-- proposed: counter-offer & reminder -->
+  <rect x="20" y="180" width="150" height="60" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="95" y="205" text-anchor="middle" fill="#2e627e" font-weight="bold">Встречное условие</text>
+  <text x="95" y="225" text-anchor="middle" fill="#2e627e" font-size="13">пропуск / срок / дар</text>
+  <path d="M400,125 L380,150 L172,210" fill="none" stroke="#2e627e" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrb)"/>
+  <path d="M95,180 L95,132" fill="none" stroke="#2e627e" stroke-width="2" stroke-dasharray="6,4" marker-end="url(#arrb)"/>
+  <text x="180" y="165" fill="#2e627e" font-size="13">R-01: до 2 раундов торга</text>
+
+  <rect x="230" y="150" width="170" height="40" rx="6" fill="#ffffff" stroke="#2e627e" stroke-width="2" stroke-dasharray="6,4"/>
+  <text x="315" y="167" text-anchor="middle" fill="#2e627e" font-size="13">R-14: напоминание за 24 ч,</text>
+  <text x="315" y="183" text-anchor="middle" fill="#2e627e" font-size="13">R-11: молчание −1 к репутации</text>
+
+  <text x="360" y="380" text-anchor="middle" fill="#6b645a" font-size="13">Разрешение бессрочно, но отзыв мгновенный; повторные запросы бесплатны — стимулов договариваться мало.</text>
+</svg>
