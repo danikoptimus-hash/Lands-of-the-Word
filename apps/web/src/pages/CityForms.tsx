@@ -7,7 +7,7 @@ import type { CrosswordWordDto } from "../lib/api";
 
 /**
  * Формы заданий города (решения владельца 18.09, глава 5 отчёта): замок с кольцами для «по порядку» (C-01),
- * весы для выбора (C-02), печать из знаков шифра (C-05), конверт с сургучом (C-06), обгоревший свиток для
+ * замок с одним кольцом для выбора (вместо весов: решение владельца 18.09), печать из знаков шифра (C-05), конверт с сургучом (C-06), обгоревший свиток для
  * пропуска в цитате (C-08), кроссворд (C-09), остывающая отмычка (C-14) и свеча пророка (C-15).
  * Все формы — только оформление тех же запросов: до ответа сервера ничего не «реагирует» на выбор.
  */
@@ -79,35 +79,38 @@ export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWro
   );
 }
 
-/* ---------- Весы ---------- */
+/* ---------- Замок с одним кольцом: выбор ответа ---------- */
 
 /**
- * Весы для выбора: слева запечатанная гиря «вопрос», справа чаша; варианты — камни. До ответа сервера коромысло
- * наклонено одинаково при любом камне (ничего не подсказывает). Верно — ровно, гиря раскрывается со знаком шифра;
- * неверно — чаша проваливается, камень трескается.
+ * Выбор ответа — тот же замок, но с одним кольцом: на барабане варианты, стрелки листают, «Провернуть замок»
+ * отправляет показанный вариант. До ответа сервера замок ничем не выдаёт правильность; неверно — заклинило.
  */
-export function Scales({ options, choice, onPick, disabled, result, fragment }: { options: string[]; choice: number | null; onPick: (i: number) => void; disabled?: boolean; result: "ok" | "bad" | null; fragment: string | null }) {
-  const picked = choice != null ? options[choice] ?? "" : "";
+export function LockChoice({ options, choice, onPick, disabled, state }: { options: string[]; choice: number | null; onPick: (i: number) => void; disabled?: boolean; state: "idle" | "open" | "jam" }) {
+  const n = options.length;
+  const cur = choice ?? 0;
+  const [spin, setSpin] = useState<1 | -1 | null>(null);
+  useEffect(() => { if (spin === null) return; const tm = setTimeout(() => setSpin(null), 220); return () => clearTimeout(tm); }, [spin]);
+  const step = (dir: 1 | -1) => { if (disabled) return; setSpin(dir); onPick((cur + dir + n) % n); };
   return (
-    <div className={"scales" + (result === "ok" ? " ok" : result === "bad" ? " bad" : "")}>
-      <div className="scales-scene" aria-hidden="true">
-        <div className="post" />
-        <div className="beam">
-          <div className="pan left"><span className="weight">{result === "ok" ? <b className="sign">{fragment ?? "✓"}</b> : <b>?</b>}</span></div>
-          <div className="pan right"><span className={"stone" + (picked ? " on" : "") + (result === "bad" ? " cracked" : "")}>{picked ? (picked.length > 28 ? picked.slice(0, 26) + "…" : picked) : ""}</span></div>
-        </div>
-        <div className="base" />
-      </div>
-      <ul className="stones" role="radiogroup" aria-label={t("Варианты ответа")}>
-        {options.map((o, i) => (
-          <li key={i}>
-            <button type="button" role="radio" aria-checked={choice === i} className={"stone-btn" + (choice === i ? " on" : "")} disabled={disabled} onClick={() => onPick(i)}>
-              <span className="pebble" aria-hidden="true" />
-              <span>{o}</span>
-            </button>
+    <div className={"lock" + (state === "open" ? " open" : state === "jam" ? " jam" : "")}>
+      <div className="shackle" aria-hidden="true"><svg viewBox="0 0 120 70"><path d="M22 70V38a38 38 0 0 1 76 0v32" /></svg></div>
+      <div className="lock-body">
+        <div className="row between lock-top"><span className="strong"><Icon name="lock" />{t("Замок")}</span><span className="small">{t("вариант {a} из {b}", { a: cur + 1, b: n })}</span></div>
+        <p className="hint">{t("Листайте кольцо, пока на нём не окажется верный ответ, и проверните замок.")}</p>
+        <ol className="rings" aria-label={t("Кольцо замка")}>
+          <li className={"ring single" + (spin === 1 ? " spin-down" : spin === -1 ? " spin-up" : "")}>
+            <span className="pos" aria-hidden="true"><Icon name="lock" /></span>
+            <button type="button" className="ghost turn" disabled={disabled} onClick={() => step(-1)} aria-label={t("Предыдущий вариант")}><Icon name="chevron-up" /></button>
+            <div className="drum" role="radiogroup" aria-label={t("Варианты ответа")}>
+              <span className="ghost-item prev" aria-hidden="true">{options[(cur - 1 + n) % n]}</span>
+              <span className="cur" role="radio" aria-checked="true">{options[cur]}</span>
+              <span className="ghost-item next" aria-hidden="true">{options[(cur + 1) % n]}</span>
+            </div>
+            <button type="button" className="ghost turn" disabled={disabled} onClick={() => step(1)} aria-label={t("Следующий вариант")}><Icon name="chevron-down" /></button>
           </li>
-        ))}
-      </ul>
+        </ol>
+        {state === "jam" && <div className="pins" role="status"><span className="pin-row" aria-hidden="true">{Array.from({ length: n }, (_, i) => <i key={i} className="up" />)}</span><span className="small">{t("Замок заклинило: ответ не тот.")}</span></div>}
+      </div>
     </div>
   );
 }

@@ -3,7 +3,7 @@ import { BOOKS } from "@lotw/domain";
 import { api, ApiError, type CityTaskDto, type MyCityDto, type SupportItemDto, type TaskLockDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
-import { BurntScroll, CipherSeal, Crossword, LockRings, PickCooling, ProphetCandle, Scales, WaxEnvelope, findGap } from "./CityForms";
+import { BurntScroll, CipherSeal, Crossword, LockChoice, LockRings, PickCooling, ProphetCandle, WaxEnvelope, findGap } from "./CityForms";
 import { WarSection } from "./BattlePanel";
 import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
@@ -19,7 +19,7 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 /**
  * Попап города у команды: шапка (иллюстрация, книга, статус, «Столица», свеча пророка), индикатор шагов
  * 1 Порядок · 2 Районы · 3 Конверт, тело текущего шага, ниже свёрнутые секции «Проход» и «Испытание».
- * Шаги оформлены как замок с кольцами, районы-кварталы с печатью шифра и конверт с сургучом (решения 18.09).
+ * Шаги оформлены как замок с кольцами (и для порядка, и для выбора ответа), районы с печатью шифра и конверт с сургучом (решения 18.09).
  */
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, container, onClose, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
@@ -279,8 +279,8 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
   const [result, setResult] = useState<"ok" | "bad" | null>(null);
   const itemText = useMemo(() => (task.type === "order" ? new Map(task.items.map((i) => [i.id, i.text])) : new Map<string, string>()), [task]);
   const gap = useMemo(() => (task.type === "text" ? findGap(task.prompt) : null), [task]);
-  const value = task.type === "choice" ? choice : task.type === "order" ? order : task.type === "crossword" ? words : text.trim();
-  const filled = task.type === "choice" ? choice != null : task.type === "order" ? order.length > 0 : task.type === "crossword" ? words != null : text.trim().length > 0;
+  const value = task.type === "choice" ? choice ?? 0 : task.type === "order" ? order : task.type === "crossword" ? words : text.trim();
+  const filled = task.type === "choice" ? true : task.type === "order" ? order.length > 0 : task.type === "crossword" ? words != null : text.trim().length > 0;
   const canSend = !done && !busy && cooldown === 0 && !locked && filled;
   const send = async () => { const ok = await onAnswer(value); setResult(ok ? "ok" : "bad"); if (!ok) setTimeout(() => setResult(null), 900); };
   const scope = task.scope === "book" ? t("По всей книге") : task.scope === "group" ? t("По районам: {list}", { list: groupTitles?.join(", ") ?? "" }) : t("По этому району");
@@ -331,12 +331,12 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
           {task.type === "number" && <div className="field"><label htmlFor="answer-num">{t("Число")}</label><input id="answer-num" type="number" inputMode="numeric" value={text} onChange={(e) => setText(e.target.value)} onPaste={noPaste} onDrop={noPaste} autoComplete="off" /></div>}
           {task.type === "text" && gap && <BurntScroll gap={gap} value={text} onChange={setText} disabled={locked} onPaste={noPaste} />}
           {task.type === "text" && !gap && <div className="field"><label htmlFor="answer-text">{t("Ответ")}</label><input id="answer-text" className="full" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" autoCorrect="off" spellCheck={false} onPaste={noPaste} onDrop={noPaste} /></div>}
-          {task.type === "choice" && <Scales options={task.options} choice={choice} onPick={(i) => { setChoice(i); setResult(null); }} disabled={locked || busy} result={result} fragment={fragment} />}
+          {task.type === "choice" && <LockChoice options={task.options} choice={choice} onPick={(i) => { setChoice(i); setResult(null); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} />}
           {task.type === "order" && <LockRings ids={order} labels={itemText} onChange={(ids) => { setOrder(ids); setResult(null); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} pinsWrong={result === "bad" ? -1 : null} strips />}
           {task.type === "crossword" && <Crossword rows={task.rows} cols={task.cols} words={task.words} onChange={setWords} disabled={locked || busy} onPaste={noPaste} />}
           {why && <p className="hint" aria-live="polite">{why}</p>}
           <div className="actions">
-            <button type="button" disabled={!canSend} onClick={() => void send()}><Icon name={task.type === "choice" ? "check" : task.type === "order" ? "lock" : "send"} />{task.type === "choice" ? t("Взвесить") : task.type === "order" ? t("Провернуть замок") : t("Ответить")}</button>
+            <button type="button" disabled={!canSend} onClick={() => void send()}><Icon name={task.type === "choice" || task.type === "order" ? "lock" : "send"} />{task.type === "choice" || task.type === "order" ? t("Провернуть замок") : t("Ответить")}</button>
           </div>
         </div>
       )}

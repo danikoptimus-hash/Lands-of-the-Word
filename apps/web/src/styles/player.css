@@ -292,34 +292,10 @@
 @keyframes ringSpinDown { from { transform: translateY(-14px); opacity: .3; } to { transform: none; opacity: 1; } }
 @keyframes pinUp { from { height: 12px; } to { height: 18px; } }
 
-/* Весы: коромысло наклонено одинаково до ответа; ровно — верно; чаша проваливается — неверно. Текстура: --scales-tex. */
-.scales { margin-top: var(--sp-2); }
-.scales-scene { position: relative; height: 150px; margin: 0 auto var(--sp-3); max-width: 340px; }
-.scales .post { position: absolute; left: 50%; bottom: 10px; width: 10px; height: 118px; transform: translateX(-50%); background: linear-gradient(90deg, #6E5A3E, #A8895E, #6E5A3E); border-radius: 4px 4px 0 0; }
-.scales .base { position: absolute; left: 50%; bottom: 0; width: 120px; height: 12px; transform: translateX(-50%); background: var(--scales-tex, linear-gradient(180deg, #8A7048, #5C4A30)); border-radius: 6px; }
-.scales .beam { position: absolute; left: 50%; top: 24px; width: 260px; height: 8px; margin-left: -130px; border-radius: 4px; background: linear-gradient(180deg, #C9AE7B, #8A7048); transform-origin: 50% 50%; transform: rotate(-6deg); transition: transform .6s var(--spring); }
-.scales .beam::before { content: ""; position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #E9D6AE, #6E5A3E); }
-.scales .pan { position: absolute; top: 4px; width: 84px; display: flex; flex-direction: column; align-items: center; transition: transform .6s var(--spring); }
-.scales .pan::before { content: ""; width: 2px; height: 46px; background: #6E5A3E; }
-.scales .pan::after { content: ""; width: 84px; height: 12px; border-radius: 0 0 42px 42px; background: linear-gradient(180deg, #C9AE7B, #8A7048); }
-.scales .pan.left { left: 2px; }
-.scales .pan.right { right: 2px; }
-.scales .weight, .scales .stone { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; justify-content: center; }
-.scales .weight { width: 34px; height: 34px; border-radius: 6px 6px 4px 4px; background: linear-gradient(160deg, #7C7368, #3E3730); color: #F4EEE4; font-size: var(--fs-md); box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
-.scales .weight .sign { color: #FFD98A; font-size: var(--fs-lg); animation: flipIn .5s var(--spring); }
-.scales .stone { width: 92px; height: 40px; padding: 2px 8px; border-radius: 46% 50% 44% 52%; font-size: 11px; line-height: 1.1; text-align: center; background: linear-gradient(160deg, #B9B0A0, #6B645A); color: #fff; opacity: 0; transition: opacity .2s; white-space: normal; overflow: hidden; }
-.scales .stone.on { opacity: 1; }
-.scales .stone.cracked { background: linear-gradient(160deg, #8A7E6E 48%, #3E3730 50%, #8A7E6E 52%); animation: crack .5s var(--ease-out); }
-.scales.ok .beam { transform: rotate(0deg); }
-.scales.bad .beam { transform: rotate(12deg); }
-.scales.bad .pan.right { transform: translateY(14px); }
-.stones { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
-.stone-btn { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); background: var(--surface); color: var(--text); border: 1px solid var(--border); font-weight: 400; line-height: var(--lh-ui); }
-.stone-btn:hover { background: var(--surface-2); }
-.stone-btn.on { border-color: var(--accent); background: var(--accent-soft); }
-.stone-btn .pebble { width: 20px; height: 16px; flex: none; border-radius: 45% 50% 40% 55%; background: linear-gradient(160deg, #C9C0B0, #7C7368); box-shadow: inset 0 1px 0 rgba(255,255,255,.4); }
-.stone-btn.on .pebble { background: linear-gradient(160deg, #E0B27A, var(--accent-strong)); }
-@keyframes crack { 0% { transform: translateX(-50%) scale(1); } 40% { transform: translateX(-50%) scale(1.08) rotate(-3deg); } 100% { transform: translateX(-50%) scale(1); } }
+/* Замок с одним кольцом (выбор ответа): вариант на барабане крупнее, кольцо повыше. */
+.ring.single .drum { min-height: 72px; }
+.ring.single .cur { font-size: var(--fs-md); padding: 6px 12px; }
+.ring.single .pos .i { width: 14px; height: 14px; }
 
 /* Печать из знаков шифра. */
 .seal { display: block; flex: none; }
