@@ -4,6 +4,7 @@ import { publish } from "./events.js";
 import { notifyAdmins, notifyTeam } from "./notify.js";
 import { msg, type Locale } from "./i18n.js";
 import { BOOKS } from "@lotw/domain";
+import { journal } from "./journal.js";
 
 const bookName = (code: string) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
 
@@ -77,6 +78,7 @@ export async function finishGame(gameId: string, reason: "last_team" | "time_lim
   const winner = winnerTeamId ? await prisma.team.findUnique({ where: { id: winnerTeamId }, select: { name: true } }) : null;
   const why = reason === "last_team" ? "в строю осталась одна команда" : reason === "time_limit" ? "вышел срок игры" : "администратор завершил игру";
   const text = (locale: Locale) => msg(locale, "Игра «{game}» завершена: {why}.", { game: game.name, why }) + (winner ? msg(locale, " Победила команда «{team}».", { team: winner.name }) : "");
+  journal(gameId, "game_finished", { everyone: true, vars: { winner: winner ? `: победила команда «${winner.name}»` : "" } });
   const teams = await prisma.team.findMany({ where: { gameId }, select: { id: true } });
   for (const t of teams) notifyTeam(gameId, t.id, "игра завершена", text);
   notifyAdmins(gameId, "игра завершена", text);

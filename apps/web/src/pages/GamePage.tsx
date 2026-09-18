@@ -12,6 +12,7 @@ import { SubmissionsBlock } from "./SubmissionsBlock";
 import { BattlesBlock } from "./BattlesBlock";
 import { AdminsBlock } from "./AdminsBlock";
 import { FinishBlock } from "./FinishBlock";
+import { JournalAdmin } from "./Journal";
 import { PassagesBlock } from "./Diplomacy";
 import { RecipientsBlock } from "./RecipientsBlock";
 import { Icon } from "../components/Icon";
@@ -207,6 +208,7 @@ export function GamePage() {
                 </>
               )}
               {game.status === "FINISHED" && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} />}
+              {game.status !== "DRAFT" && <JournalAdmin gameId={game.id} version={version} active={active} />}
             </div>
           )}
           {open === "teams" && <div key="teams">{active && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} part="standings" />}<TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} goToSettings={() => setTab("settings")} /></div>}

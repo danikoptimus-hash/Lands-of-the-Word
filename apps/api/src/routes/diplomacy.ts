@@ -11,6 +11,7 @@ import { err, fmtDay, msg, toLocale } from "../services/i18n.js";
 import { loadBook, verseText, formatRange, parseDistrictRange } from "../services/bible.js";
 import { loadCityContent } from "../services/cities.js";
 import { BOOKS } from "@lotw/domain";
+import { journal } from "../services/journal.js";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const teamSelect = { select: { id: true, name: true, color: true } } as const;
@@ -98,6 +99,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const body = z.object({ approve: z.boolean(), answer: z.string().trim().max(500).default("") }).parse(request.body);
     await prisma.passageRequest.update({ where: { id: r.id }, data: { status: body.approve ? "APPROVED" : "DECLINED", answer: body.answer, decidedAt: new Date() } });
     if (body.approve) await ensureFrontier(id, r.requesterId);
+    journal(id, body.approve ? "passage_granted" : "passage_denied", { teamId: r.requesterId, vars: { other: m.team.name, book: (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: r.nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "" } });
     publish(id, { type: "map", teamId: r.requesterId });
     publish(id, { type: "map", teamId: m.team.id });
     notifyTeam(id, r.requesterId, body.approve ? "проход разрешён" : "в проходе отказано", (locale) => msg(locale, "Команда «{team}» {verb} проход через свой город.{answer}", { team: m.team.name, verb: body.approve ? "разрешила" : "не разрешила", answer: body.answer ? msg(locale, " Ответ: {answer}", { answer: body.answer }) : "" }));
@@ -181,6 +183,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
       prisma.teamCityState.update({ where: { id: target.id }, data: { isCapital: true } }),
       prisma.team.update({ where: { id: m.team.id }, data: { capitalMovedAt: new Date() } }),
     ]);
+    journal(id, "capital_moved", { teamId: m.team.id, userId: request.user!.id });
     publish(id, { type: "cities", teamId: m.team.id });
     publish(id, { type: "map" });
     return { ok: true };

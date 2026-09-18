@@ -85,13 +85,36 @@ function buildField(rng: Rng, hexCount: number, offset: Hex = { q: 0, r: 0 }): H
   return hexes.filter((h) => seen.has(hexKey(h))).map((h) => ({ q: h.q + offset.q, r: h.r + offset.r }));
 }
 
-function terrainFor(rng: Rng, h: Hex, center: Hex, radius: number): Terrain {
+/**
+ * Мирообразующая местность (решение владельца 18.09, гл. 9 п. 2.8): вместо россыпи случайных гексов — области с общей
+ * местностью: горы хребтами (полосы вдоль случайного направления), пустыня полосами, луга и холмы областями.
+ * Механика местности не меняется — только рисунок. Поле считается по гладким волнам от координат гекса, фаза и
+ * направление — из генератора, поэтому карта воспроизводима по seed.
+ */
+interface TerrainField { ridgeA: number; ridgeK: number; ridgeP: number; ridge2K: number; ridge2P: number; sandA: number; sandK: number; sandP: number; blobK: number; blobP: number; blobQ: number }
+function makeTerrainField(rng: Rng): TerrainField {
+  const ridgeA = rng() * Math.PI, sandA = ridgeA + Math.PI / 2 + (rng() - 0.5) * 0.8;
+  return { ridgeA, ridgeK: 0.55 + rng() * 0.25, ridgeP: rng() * Math.PI * 2, ridge2K: 0.9 + rng() * 0.3, ridge2P: rng() * Math.PI * 2, sandA, sandK: 0.35 + rng() * 0.2, sandP: rng() * Math.PI * 2, blobK: 0.45 + rng() * 0.2, blobP: rng() * Math.PI * 2, blobQ: rng() * Math.PI * 2 };
+}
+function terrainFor(rng: Rng, f: TerrainField, h: Hex, center: Hex, radius: number): Terrain {
   const d = hexDistance(h, center) / radius;
   const roll = rng();
-  if (roll < 0.05) return "water";
-  if (d < 0.35) return roll < 0.6 ? "meadow" : roll < 0.85 ? "hills" : "oasis";
-  if (d < 0.7) return roll < 0.35 ? "meadow" : roll < 0.7 ? "hills" : roll < 0.85 ? "desert" : "mountains";
-  return roll < 0.5 ? "desert" : roll < 0.8 ? "hills" : roll < 0.95 ? "mountains" : "oasis";
+  if (roll < 0.04) return "water"; // редкие озёра остаются россыпью: им и положено быть одиночными
+  // Координаты гекса в «плоских» осях (шаг ~1 гекс), от центра острова.
+  const x = (h.q - center.q) + (h.r - center.r) / 2, y = (h.r - center.r) * 0.866;
+  const along = (a: number) => x * Math.cos(a) + y * Math.sin(a);
+  // Хребет: узкая полоса гор с холмами по бокам; второй, более частый хребет добавляет отроги.
+  const ridge = Math.cos(along(f.ridgeA) * f.ridgeK + f.ridgeP) * 0.7 + Math.cos(along(f.ridgeA + 0.9) * f.ridge2K + f.ridge2P) * 0.3;
+  // Пустыня — полосы поперёк хребта, сильнее к окраине острова.
+  const sand = Math.cos(along(f.sandA) * f.sandK + f.sandP) + (d - 0.5) * 0.9;
+  // Луга — пятна ближе к середине.
+  const blob = Math.cos(x * f.blobK + f.blobP) * Math.cos(y * f.blobK + f.blobQ);
+  const jitter = (roll - 0.5) * 0.25; // лёгкая рябь на границах областей, чтобы края не были линейками
+  if (ridge + jitter > 0.72) return "mountains";
+  if (ridge + jitter > 0.42) return "hills";
+  if (sand + jitter > 0.55) return roll > 0.92 ? "oasis" : "desert";
+  if (blob + jitter > 0.25 || d < 0.3) return roll > 0.9 ? "hills" : "meadow";
+  return d > 0.7 ? (roll > 0.5 ? "hills" : "desert") : roll > 0.55 ? "meadow" : "hills";
 }
 
 export class MapGenError extends Error {}
@@ -229,9 +252,10 @@ export function generateMap(opts: MapGenOptions): GeneratedMap {
   const bookByCity = new Map([...assignBooks(cities.filter((k) => islandOf(k) === "OT"), otBooks, seaOT), ...assignBooks(cities.filter((k) => islandOf(k) === "NT"), ntBooks, seaNT)]);
   const startIndex = new Map(starts.map((k, i) => [k, i]));
 
+  const terrainField = makeTerrainField(rng);
   const hexes: MapHexTile[] = field.map((h) => {
     const island = islandByHex.get(hexKey(h))!;
-    return { q: h.q, r: h.r, terrain: terrainFor(rng, h, island === "OT" ? { q: 0, r: 0 } : ntCenter, island === "OT" ? otRadius : ntRadius), rotation: randomInt(rng, 0, 5), island };
+    return { q: h.q, r: h.r, terrain: terrainFor(rng, terrainField, h, island === "OT" ? { q: 0, r: 0 } : ntCenter, island === "OT" ? otRadius : ntRadius), rotation: randomInt(rng, 0, 5), island };
   });
   const nodes: MapNode[] = keys.map((k) => {
     const v = graph.vertices.get(k)!;

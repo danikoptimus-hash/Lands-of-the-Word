@@ -90,8 +90,9 @@ describe("стандартный набор дел", () => {
     expect(del.json().replaced).toBeGreaterThanOrEqual(1);
     const after = ((await myMap()).tasks as Task[]).find((t) => t.id === victim.id)!;
     expect(after.deedId).not.toBe(victim.deedId);
-    // Взятое дело удалить нельзя.
-    const taken = open[1]!;
+    // Взятое дело удалить нельзя (берём сторону с другим делом: одно дело может стоять на двух свободных сторонах).
+    const taken = ((await myMap()).tasks as Task[]).find((t) => t.status === "OPEN" && !t.sea && t.deedId !== victim.deedId)!;
+    expect(taken).toBeTruthy();
     expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${taken.id}/take`, headers: { cookie: capCookie } })).statusCode).toBe(200);
     const no = await app.inject({ method: "DELETE", url: `/api/games/${gameId}/deeds/${taken.deedId}`, headers: { cookie: adminCookie } });
     expect(no.statusCode).toBe(409);

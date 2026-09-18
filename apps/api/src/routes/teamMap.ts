@@ -7,6 +7,8 @@ import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, book
 import { loadCityContent } from "../services/cities.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { err, msg } from "../services/i18n.js";
+import { journal, nick } from "../services/journal.js";
+import { gameRules } from "../services/battles.js";
 
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
@@ -155,7 +157,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       include: taskInclude,
     }).then((u) => bookIn(id, u));
     publish(id, { type: "submissions", teamId: m.team.id });
-    notifyAdmins(id, "новая сдача дела", (locale) => msg(locale, "Команда «{team}» сдала дело «{deed}»{donation}. Нужно проверить и одобрить или вернуть.", { team: m.team.name, deed: task.deed.title, donation: body.donation ? msg(locale, " (пожертвование {amount})", { amount: body.donationAmount ?? "" }) : "" }));
+    journal(id, "deed_submitted", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: task.deed.title } });
+    // Письмо администраторам — сразу или дайджестом по расписанию (решение владельца 18.09, A-13).
+    if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "новая сдача дела", (locale) => msg(locale, "Команда «{team}» сдала дело «{deed}»{donation}. Нужно проверить и одобрить или вернуть.", { team: m.team.name, deed: task.deed.title, donation: body.donation ? msg(locale, " (пожертвование {amount})", { amount: body.donationAmount ?? "" }) : "" }));
     return { task: hideSecret(updated, request.user!.id) };
   });
 
@@ -170,19 +174,19 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     return { tasks: tasks.map((t) => ({ ...t, takenBy: t.takenById ? byId.get(t.takenById) ?? null : null })) };
   });
 
-  /** Решение админа: одобрить (узел за ребром открывается) или вернуть на доработку. */
-  app.post("/api/games/:id/edge-tasks/:taskId/decide", async (request, reply) => {
-    const { id, taskId } = request.params as { id: string; taskId: string };
-    if (!(await requireAdmin(request, reply, id))) return;
-    const body = decideBody.parse(request.body);
+  /** Решение по сдаче: одобрить (узел за ребром открывается) или вернуть на доработку. Общее для одиночного и пакетного решения. */
+  async function decideTask(id: string, taskId: string, body: { approve: boolean; comment: string }, adminId: string): Promise<{ ok: true; task: unknown } | { ok: false; code: 404 | 409; message: string }> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, gameId: id } });
-    if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Сдача не найдена") });
-    if (task.status !== "SUBMITTED") return reply.code(409).send({ error: "conflict", message: err(request, "Эта сдача уже рассмотрена") });
+    if (!task) return { ok: false, code: 404, message: "Сдача не найдена" };
+    if (task.status !== "SUBMITTED") return { ok: false, code: 409, message: "Эта сдача уже рассмотрена" };
+    const request = { user: { id: adminId } };
     const updated = await prisma.teamEdgeTask.update({
       where: { id: taskId },
       data: { status: body.approve ? "APPROVED" : "REJECTED", decidedAt: new Date(), decidedById: request.user!.id, adminComment: body.comment },
       include: taskInclude,
     }).then((u) => bookIn(id, u));
+    if (body.approve) journal(id, "deed_approved", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, who: "" } });
+    else journal(id, "deed_returned", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title } });
     // Морское дело: узел не открывается — капитан (или кормчий) сам выбирает место высадки на другом острове.
     if (body.approve && task.sea) notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан или кормчий может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title }));
     else if (body.approve) {
@@ -193,7 +197,24 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     else if (task.takenById) notifyUser(id, task.takenById, "дело вернули на доработку", (locale) => msg(locale, "Администратор вернул дело «{deed}».{comment}", { deed: updated.deed.title, comment: body.comment ? msg(locale, " Комментарий: {comment}", { comment: body.comment }) : "" }));
     publish(id, { type: "submissions", teamId: task.teamId });
     publish(id, { type: "tasks", teamId: task.teamId });
-    return { task: updated };
+    return { ok: true, task: updated };
+  }
+  app.post("/api/games/:id/edge-tasks/:taskId/decide", async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const body = decideBody.parse(request.body);
+    const r = await decideTask(id, taskId, body, request.user!.id);
+    if (!r.ok) return reply.code(r.code).send({ error: r.code === 404 ? "not_found" : "conflict", message: err(request, r.message) });
+    return { task: r.task };
+  });
+  /** Пакетное решение (решение владельца 18.09, A-03): одно решение для нескольких однотипных сдач. */
+  app.post("/api/games/:id/edge-tasks/decide-batch", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const body = z.object({ ids: z.array(z.string().min(1)).min(1).max(50), approve: z.boolean(), comment: z.string().trim().max(1000).default("") }).parse(request.body);
+    let done = 0, skipped = 0;
+    for (const taskId of body.ids) { const r = await decideTask(id, taskId, body, request.user!.id); if (r.ok) done++; else skipped++; }
+    return { done, skipped };
   });
 
   /** Высадка: капитан или кормчий выбирает пустой береговой узел другого острова; узел открывается, как после обычного дела. */
@@ -210,6 +231,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (!candidates.includes(body.nodeKey)) return reply.code(409).send({ error: "conflict", message: err(request, "Высадиться можно только на пустую береговую развилку другого острова") });
     await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { toKey: body.nodeKey } });
     await revealNode(id, m.team.id, body.nodeKey);
+    journal(id, "sea_landed", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id) } });
     publish(id, { type: "map", teamId: m.team.id });
     publish(id, { type: "tasks", teamId: m.team.id });
     return { ok: true };

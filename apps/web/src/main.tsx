@@ -9,6 +9,7 @@ import { LoginPage } from "./pages/LoginPage";
 import { GamesPage } from "./pages/GamesPage";
 import { GamePage } from "./pages/GamePage";
 import { LabelsPage } from "./pages/LabelsPage";
+import { SeasonBookPage } from "./pages/Journal";
 import { TeamPage } from "./pages/TeamPage";
 import { JoinPage } from "./pages/JoinPage";
 import { AccountPage } from "./pages/AccountPage";
@@ -47,6 +48,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/whats-new" element={<WhatsNewPage />} />
             <Route path="/games/:id" element={<Private><GamePage /></Private>} />
             <Route path="/games/:id/labels" element={<Private><LabelsPage /></Private>} />
+            <Route path="/games/:id/book" element={<Private><SeasonBookPage /></Private>} />
             <Route path="/games/:id/team" element={<Private><TeamPage /></Private>} />
             <Route path="/join/:token" element={<JoinPage />} />
             <Route path="/account" element={<Private><AccountPage /></Private>} />

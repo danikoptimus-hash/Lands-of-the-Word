@@ -236,7 +236,7 @@ export async function revealNode(gameId: string, teamId: string, nodeKey: string
 
 export async function getTeamMap(gameId: string, teamId: string) {
   await ensureFrontier(gameId, teamId);
-  const [revealedRows, rawTasks, hexes, nodes, edges] = await Promise.all([
+  const [revealedRows, rawTasks, hexes, nodes, edges, teamRow] = await Promise.all([
     prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true, revealedAt: true } }),
     prisma.teamEdgeTask.findMany({
       where: { teamId },
@@ -246,6 +246,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
     prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true, island: true } }),
     prisma.mapNode.findMany({ where: { gameId }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, ruined: true, island: true, coastal: true } }),
     prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
+    prisma.team.findUnique({ where: { id: teamId }, select: { startNodeKey: true } }),
   ]);
   // Чужие проходы там, где у команды открыт туман: пройденные другими командами стороны, касающиеся открытых
   // перекрёстков (решение владельца 18.09: команда должна понимать, где противник).
@@ -300,6 +301,25 @@ export async function getTeamMap(gameId: string, teamId: string) {
   // (решение владельца 18.09: дело делают, оно засчитывается); свободное к открытому перекрёстку не показывается.
   const visibleTasks = tasks.filter((t) => t.status !== "OPEN" || !revealed.has(t.toKey));
   const foreign = foreignRows.filter((f) => revealed.has(f.fromKey) || revealed.has(f.toKey)).map((f) => ({ aKey: f.fromKey, bKey: f.toKey, teamIndex: f.team.index, color: f.team.color }));
+  // Живность-подсказка (решение владельца 18.09, M-13): клин птиц раз в день летит от старта к ближайшему
+  // не открытому командой городу; клиенту отдаётся только этот узел.
+  const birdTarget = (() => {
+    const start = teamRow?.startNodeKey;
+    if (!start) return null;
+    const adj = new Map<string, string[]>();
+    for (const e of edges) { adj.set(e.aKey, [...(adj.get(e.aKey) ?? []), e.bKey]); adj.set(e.bKey, [...(adj.get(e.bKey) ?? []), e.aKey]); }
+    const isCity = new Set(nodes.filter((n) => n.kind === "CITY" && !revealed.has(n.key)).map((n) => n.key));
+    const seen = new Set([start]);
+    let frontier = [start];
+    for (let depth = 0; depth < 40 && frontier.length; depth++) {
+      const found = frontier.filter((k) => isCity.has(k)).sort();
+      if (found.length) { const n = nodes.find((x) => x.key === found[0])!; return { key: n.key, corner: n.corner, q: n.q, r: n.r }; }
+      const next: string[] = [];
+      for (const k of frontier) for (const nb of adj.get(k) ?? []) if (!seen.has(nb)) { seen.add(nb); next.push(nb); }
+      frontier = next;
+    }
+    return null;
+  })();
   const withLanding = await Promise.all(visibleTasks.map(async (t) => {
     if (!t.sea) return t;
     const landing = t.status === "APPROVED" && isSeaKey(t.toKey);
@@ -315,5 +335,6 @@ export async function getTeamMap(gameId: string, teamId: string) {
     cities,
     peeked,
     foreign,
+    birdTarget,
   };
 }

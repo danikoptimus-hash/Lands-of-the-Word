@@ -248,3 +248,38 @@ details.settings-group summary h3 { margin: 0; }
 .rule-row label { margin: 0; font-size: 14px; }
 .rule-row input { width: 100%; }
 @media (max-width: 480px) { .rule-row { grid-template-columns: 1fr; } }
+
+/* ===== Этап 4: доска активности, журнал, «Книга сезона» ===== */
+details.fold-card > summary { list-style: none; display: flex; align-items: center; gap: var(--sp-2); min-height: var(--touch); cursor: pointer; font-weight: 600; }
+details.fold-card > summary::-webkit-details-marker { display: none; }
+details.fold-card > summary > .i:first-child { color: var(--accent); }
+details.fold-card > summary .chev { margin-left: auto; color: var(--muted); transition: transform var(--dur-fast); }
+details.fold-card[open] > summary .chev { transform: rotate(180deg); }
+.table.activity td, .table.activity th { white-space: nowrap; }
+.season-book { max-width: 820px; margin: 0 auto; padding: var(--sp-4) var(--sp-4) var(--sp-6); }
+.season-book .book-head { text-align: center; margin: var(--sp-4) 0 var(--sp-5); padding-bottom: var(--sp-4); border-bottom: 2px double var(--accent-strong); }
+.season-book .book-head .org { color: var(--muted); letter-spacing: .08em; text-transform: uppercase; font-size: var(--fs-xs); }
+.season-book .book-head h1 { font-size: 2rem; margin: var(--sp-1) 0; }
+.season-book .book-head .winner { margin-top: var(--sp-2); font-weight: 600; color: var(--accent-ink); }
+.season-book .book-head .winner .i { vertical-align: -.2em; }
+.season-book section { margin-bottom: var(--sp-5); break-inside: avoid; }
+.season-book h2 { font-size: var(--fs-lg); margin-bottom: var(--sp-2); display: flex; align-items: center; gap: var(--sp-2); }
+.season-book h3 { font-size: var(--fs-md); margin: var(--sp-3) 0 var(--sp-1); }
+.season-book .book-standings { list-style: none; margin: 0; padding: 0; }
+.season-book .book-standings li { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 0; border-top: 1px solid var(--border); }
+.season-book .book-standings li:first-child { border-top: 0; }
+.season-book .book-standings .rank { width: 24px; font-weight: 700; color: var(--muted); }
+.season-book .book-standings .meta { margin-left: auto; color: var(--muted); font-size: var(--fs-sm); }
+.season-book .book-cols { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); }
+@media (max-width: 600px) { .season-book .book-cols { grid-template-columns: 1fr; } }
+.season-book ul.plain { margin: 0; padding-left: 1.2em; }
+.season-book ul.plain li { margin-bottom: 4px; line-height: var(--lh-ui); }
+.season-book .book-chronicle { margin-bottom: var(--sp-3); padding: var(--sp-2) var(--sp-3); background: var(--surface-2); border-radius: var(--r-sm); }
+.season-book .book-chronicle p { margin: 4px 0; }
+@media print { .season-book { max-width: none; padding: 0; } .season-book section { page-break-inside: avoid; } }
+/* Пакетная проверка сдач (A-03): фильтры и выбор нескольких. */
+.review-filters { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; margin-bottom: var(--sp-2); }
+.review-filters select { width: auto; min-width: 0; max-width: 220px; height: var(--control-h-sm); }
+.review-item .pick { display: flex; align-items: center; padding: 6px 4px 0 0; }
+.review-item .pick input { width: 20px; height: 20px; margin: 0; }
+.review-item.picked { background: var(--accent-soft); border-radius: var(--r-sm); }

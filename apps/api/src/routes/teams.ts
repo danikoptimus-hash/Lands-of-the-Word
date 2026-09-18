@@ -8,6 +8,7 @@ import { err, msg } from "../services/i18n.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { ensureFrontier, penalizeTeam } from "../services/teamMap.js";
 import { days, rulesOf } from "../services/rules.js";
+import { journal, nick, ROLE_RU } from "../services/journal.js";
 
 export const TEAM_COLORS = ["#A9553A", "#4F7C99", "#7D8B4E", "#8E5A9E", "#C48A3F", "#3B6E6E", "#B5473F", "#5C6E91", "#8A7A2E", "#6E4B8E", "#2F7F6F", "#9C5A2E"];
 
@@ -150,6 +151,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
         prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { gameRole: membership.pendingRole, pendingRole: null } }),
         prisma.team.update({ where: { id: teamId }, data: { lastRoleChangeAt: new Date() } }),
       ]);
+      journal(id, "role_changed", { teamId, userId, vars: { user: await nick(userId), role: ROLE_RU[membership.pendingRole] ?? membership.pendingRole } });
     } else await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { pendingRole: null } });
     publish(id, { type: "teams", teamId });
     notifyTeam(id, teamId, body.approve ? "роль назначена" : "смена роли отклонена", body.approve ? "Администратор одобрил смену роли в команде." : "Администратор не одобрил смену роли в команде.");
@@ -190,6 +192,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const team = await prisma.team.findFirst({ where: { id: teamId, gameId: id } });
     if (!team) return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
     const res = await penalizeTeam(id, teamId, request.user!.id);
+    if (res) journal(id, "penalty", { teamId });
     if (!res) return reply.code(409).send({ error: "conflict", message: err(request, "У команды нет концевых участков пути: штраф наложить не на что") });
     return { ok: true, ...res, message: msg("ru", "Аннулирован участок {from} → {to}", { from: res.fromKey, to: res.toKey }) };
   });

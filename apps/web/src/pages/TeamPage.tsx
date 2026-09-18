@@ -15,6 +15,7 @@ import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
+import { FeedSection, MyServiceSection, PeaceSection } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { PushToggle } from "../components/PushToggle";
@@ -79,6 +80,8 @@ export function TeamPage() {
   const [menu, setMenu] = useState(false);
   const [cityKey, setCityKey] = useState<string | null>(null);
   const [cityVersion, setCityVersion] = useState(0);
+  /** Лента, «Моё служение» и мир перезагружаются по событиям журнала, дел, городов и испытаний. */
+  const [feedVersion, setFeedVersion] = useState(0);
   const [battles, setBattles] = useState<BattleDto[]>([]);
   const [standings, setStandings] = useState<StandingsDto | null>(null);
   const [passages, setPassages] = useState<PassagesDto | null>(null);
@@ -133,6 +136,7 @@ export function TeamPage() {
     if (e.type === "cities" || e.type === "game" || e.type === "battles") { setCityVersion((v) => v + 1); void loadPassages(); }
     if (e.type === "battles" || e.type === "game" || e.type === "submissions") void loadBattles();
     if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") void loadStandings();
+    if (e.type === "journal" || e.type === "peace" || e.type === "submissions" || e.type === "cities" || e.type === "battles" || e.type === "game") setFeedVersion((v) => v + 1);
   });
   useEffect(() => {
     const tm = setInterval(() => void loadMap(), 60000);
@@ -344,7 +348,10 @@ export function TeamPage() {
             {standings?.status === "ACTIVE" && standings.endsAt && <p className="hint">{t("Игра идёт до {d}", { d: fmtDate(standings.endsAt) })}</p>}
           </section>
 
+          <FeedSection gameId={id} version={feedVersion} />
+          <MyServiceSection gameId={id} version={feedVersion} />
           <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />
+          <PeaceSection gameId={id} version={feedVersion} />
           <section className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></section>
           <section className="section"><PushToggle compact /></section>
           <nav className="menu-tiles" aria-label={t("Навигация")}>

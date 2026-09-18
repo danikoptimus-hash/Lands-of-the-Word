@@ -63,6 +63,11 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
   const [loadError, setLoadError] = useState(false);
   const [returning, setReturning] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** Пакетная проверка (решение владельца 18.09, A-03): фильтры по команде, виду сдачи и возрасту; старые сверху; выбор нескольких однотипных. */
+  const [teamFilter, setTeamFilter] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
+  const [oldFirst, setOldFirst] = useState(true);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const load = useCallback(() => api<{ tasks: Row[] }>(`/api/games/${gameId}/submissions`).then((r) => { setRows(r.tasks); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useAutoRefresh(load, version);
 
@@ -73,18 +78,41 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
     finally { setBusy(false); }
   }
   const linkKind = (p: EdgeTaskDto["deed"]["proofType"]) => (p === "PHOTO_LINK" ? "photo" : p === "VIDEO_LINK" ? "video" : "link");
+  async function decideBatch() {
+    if (picked.size === 0) return;
+    setBusy(true);
+    try {
+      const r = await api<{ done: number; skipped: number }>(`/api/games/${gameId}/edge-tasks/decide-batch`, { method: "POST", body: JSON.stringify({ ids: [...picked], approve: true }) });
+      notify(t("Принято сдач: {n}", { n: r.done }) + (r.skipped ? ` · ${t("уже рассмотрено: {n}", { n: r.skipped })}` : ""));
+      setPicked(new Set()); await load(); onDecided();
+    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  }
+  const teams = rows ? [...new Map(rows.map((r) => [r.team.id, r.team])).values()] : [];
+  const shown = (rows ?? []).filter((r) => (!teamFilter || r.team.id === teamFilter) && (!kindFilter || r.deed.proofType === kindFilter)).sort((a, b) => { const d = Date.parse(a.submittedAt ?? "") - Date.parse(b.submittedAt ?? ""); return oldFirst ? d : -d; });
+  const togglePick = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const ageOf = (iso: string | null) => { if (!iso) return ""; const h = Math.floor((Date.now() - Date.parse(iso)) / 3_600_000); return h < 1 ? t("только что") : h < 24 ? t("{n} ч назад", { n: h }) : t("{n} дн назад", { n: Math.floor(h / 24) }); };
 
   return (
     <ReviewCard icon="scroll" title={t("Сдачи")} count={rows?.length ?? 0} loading={!rows} error={loadError} onRetry={() => void load()}>
+      {rows && rows.length > 1 && (
+        <div className="review-filters">
+          <select aria-label={t("Команда")} value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}><option value="">{t("Все команды")}</option>{teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
+          <select aria-label={t("Вид сдачи")} value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}><option value="">{t("Любой вид")}</option>{(Object.keys(PROOF_LABEL) as Array<keyof typeof PROOF_LABEL>).map((k) => <option key={k} value={k}>{PROOF_LABEL[k]}</option>)}</select>
+          <button type="button" className="ghost sm" onClick={() => setOldFirst((v) => !v)} aria-pressed={oldFirst}><Icon name="clock" />{oldFirst ? t("старые сверху") : t("новые сверху")}</button>
+          {picked.size > 0 && <button type="button" className="sm" disabled={busy} onClick={() => void decideBatch()}><Icon name="check" />{t("Принять выбранные ({n})", { n: picked.size })}</button>}
+        </div>
+      )}
       {rows && rows.length > 0 && (
         <ul className="list">
-          {rows.map((r) => (
-            <li key={r.id} className="review-item">
+          {shown.map((r) => (
+            <li key={r.id} className={"review-item" + (picked.has(r.id) ? " picked" : "")}>
+              {rows.length > 1 && <label className="pick"><input type="checkbox" checked={picked.has(r.id)} onChange={() => togglePick(r.id)} aria-label={t("Выбрать для пакетного принятия")} /></label>}
               <div className="main">
                 <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName />{r.donation && <Chip tone="accent">{t("пожертвование {n}", { n: `${r.donationAmount ?? ""} ${currency ?? ""}`.trim() })}</Chip>}</span>
                 <span className="title">{r.deed.title}</span>
                 {r.deed.description && <span className="small muted">{r.deed.description}</span>}
-                <span className="meta"><span>{PROOF_LABEL[r.deed.proofType]}</span>{r.takenBy && <span>· {r.takenBy.displayName ?? r.takenBy.nickname}</span>}{r.submittedAt && <span>· {fmtDate(r.submittedAt)}</span>}</span>
+                <span className="meta"><span>{PROOF_LABEL[r.deed.proofType]}</span>{r.takenBy && <span>· {r.takenBy.displayName ?? r.takenBy.nickname}</span>}{r.submittedAt && <span>· {fmtDate(r.submittedAt)} · {ageOf(r.submittedAt)}</span>}</span>
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
                 <LinkList links={r.links} kind={linkKind(r.deed.proofType)} />
               </div>

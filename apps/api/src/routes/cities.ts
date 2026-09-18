@@ -10,6 +10,8 @@ import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
 import type { CityContent } from "../services/cities.js";
 import { err, msg } from "../services/i18n.js";
+import { journal, nick } from "../services/journal.js";
+import { ruinsTreasure } from "../services/treasure.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
 const answerBody = z.object({ answer: z.union([z.string().max(500), z.number(), z.array(z.string().min(1).max(32)).max(64)]) });
@@ -138,6 +140,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const wrong = checkOrder(c.content, secret, c.scopeKey, body.ids);
     if (wrong === null) return reply.code(400).send({ error: "validation", message: err(request, "Расставьте все районы, каждый по одному разу") });
     await prisma.teamCityState.update({ where: { id: c.state.id }, data: { orderAttempts: { increment: 1 }, orderSolved: wrong === 0 } });
+    if (wrong === 0) journal(id, "order_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), book: c.node.bookCode ?? "" } });
     publish(id, { type: "cities", teamId: c.m.team.id });
     return { correct: wrong === 0, wrong };
   });
@@ -174,7 +177,12 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       await prisma.teamTaskLock.upsert({ where: lockWhere, create: { gameId: id, teamId: c.m.team.id, nodeKey, taskIndex: index, ...data }, update: data });
     }
     publish(id, { type: "cities", teamId: c.m.team.id });
-    if (correct) return { correct: true, fragment: c.node.cityCode?.[index] ?? null };
+    if (correct) {
+      journal(id, "task_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), n: index + 1, book: c.node.bookCode ?? "" } });
+      // Руины с сокровищем (решение владельца 18.09): первая команда, решившая все задания руин, получает знак шифра соседнего города.
+      if (c.node.ruined && !c.node.treasureTeamId && c.content.tasks.every((_, i) => i === index || c.state.doneTasks.includes(i))) await ruinsTreasure(id, c.m.team.id, c.node.key, c.node.bookCode ?? "");
+      return { correct: true, fragment: c.node.cityCode?.[index] ?? null };
+    }
     return { correct: false, retryAt, wrong: (lock?.wrong ?? 0) + 1 };
   });
 
@@ -204,6 +212,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const updated = await prisma.teamCityState.update({ where: { id: c.state.id }, data: { capturedAt: new Date(), firstCapturedAt: c.state.firstCapturedAt ?? new Date(), isCapital: hasCapital === 0, keyWrong: 0, keyLockedUntil: null } });
     if (c.node.ruined) await prisma.mapNode.update({ where: { id: c.node.id }, data: { ruined: false, maxReachedAt: null, lockedUntil: null, sumMode: false } });
     await onCityOwned(id, nodeKey, c.m.team.id);
+    journal(id, c.node.ruined ? "ruins_taken" : "city_captured", { everyone: true, teamId: c.m.team.id, userId: request.user!.id, vars: { team: c.m.team.name, book: c.node.bookCode ?? "", capital: updated.isCapital ? " (столица)" : "" } });
     publish(id, { type: "cities", teamId: c.m.team.id });
     publish(id, { type: "map", teamId: c.m.team.id });
     return { ok: true, isCapital: updated.isCapital };

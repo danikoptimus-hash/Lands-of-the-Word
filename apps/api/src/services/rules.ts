@@ -37,6 +37,11 @@ export const rulesSchema = z.object({
   siegeDeedPoints: z.number().int().min(0).max(100).default(1),
   /** Недельный ход разведчика и пророка: раз в столько дней. */
   roleCooldownDays: z.number().int().min(1).max(60).default(7),
+  /** Воскресная летопись: день недели (0 — воскресенье … 6 — суббота) и час по UTC, после которого она уходит. */
+  chronicleWeekday: z.number().int().min(0).max(6).default(0),
+  chronicleHourUtc: z.number().int().min(0).max(23).default(15),
+  /** Письма администраторам о сдачах: сразу, раз в 3 часа или раз в день одним письмом (решение владельца 18.09, A-13). */
+  adminDigest: z.enum(["instant", "3h", "daily"]).default("instant"),
 });
 export type Rules = z.infer<typeof rulesSchema>;
 export const DEFAULT_RULES: Rules = rulesSchema.parse({});

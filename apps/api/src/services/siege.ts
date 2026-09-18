@@ -6,6 +6,8 @@ import { onCityOwned } from "./teamMap.js";
 import { days, rulesOf, type Rules } from "./rules.js";
 import { isLocked } from "./battles.js";
 import type { Prisma } from "@prisma/client";
+import { journal, teamNames } from "./journal.js";
+import { peaceBetween } from "./peace.js";
 
 /**
  * Осада делами (решение владельца 18.09). Город, где хранители отбились с максимумом (каждый участник выучил
@@ -34,12 +36,15 @@ export async function sweepSieges(gameId?: string, now = new Date()): Promise<vo
     const owner = await prisma.teamCityState.findFirst({ where: { gameId: s.gameId, nodeKey: s.nodeKey, capturedAt: { not: null } } });
     const book = (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: s.gameId, key: s.nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "";
     if (!owner || owner.teamId !== s.defenderId) { await prisma.siege.update({ where: { id: s.id }, data: { status: "CANCELLED", resolvedAt: now } }); continue; }
+    const [an, dn] = await teamNames(s.attackerId, s.defenderId);
     if (a > d) {
+      journal(s.gameId, "siege_won", { everyone: true, teamId: s.attackerId, vars: { team: an, other: dn, book } });
       await prisma.siege.update({ where: { id: s.id }, data: { status: "WON", resolvedAt: now, attackerPoints: a, defenderPoints: d } });
       await transferCity(s.gameId, s.nodeKey, s.defenderId, s.attackerId, 0);
       notifyTeam(s.gameId, s.attackerId, "осада города {book} удалась", "Дел за время осады: у вас {a}, у хранителей {d}. Город теперь ваш.", { book, a, d });
       notifyTeam(s.gameId, s.defenderId, "город {book} взят осадой", "Дел за время осады: у претендентов {a}, у вас {d}. Город перешёл претендентам; его можно вернуть по тем же правилам.", { book, a, d });
     } else {
+      journal(s.gameId, "siege_repelled", { everyone: true, teamId: s.defenderId, vars: { team: an, other: dn, book } });
       await prisma.siege.update({ where: { id: s.id }, data: { status: "REPELLED", resolvedAt: now, attackerPoints: a, defenderPoints: d } });
       notifyTeam(s.gameId, s.defenderId, "осада города {book} отбита", "Дел за время осады: у вас {d}, у претендентов {a}. Город остаётся вашим.", { book, a, d });
       notifyTeam(s.gameId, s.attackerId, "осада города {book} не удалась", "Дел за время осады: у вас {a}, у хранителей {d}. Город остаётся у хранителей.", { book, a, d });
@@ -97,6 +102,7 @@ export async function siegeOptions(gameId: string, teamId: string, nodeKey: stri
   let reason: string | null = null;
   if (!maxed) reason = "Осада делами возможна только для города, где хранители выучили всю книгу";
   else if (!owner || owner.teamId === teamId) reason = "Город не принадлежит другой команде";
+  else if (await peaceBetween(gameId, teamId, owner.teamId)) reason = "Между вашими командами мир: осада невозможна, пока мир не расторгнут";
   else if (isLocked(node)) reason = "Город закреплён: осаду можно объявить после срока закрепления";
   else if (!state?.orderSolved) reason = "Сначала решите задания всех районов";
   else if (active) reason = active.attackerId === teamId ? "Ваша осада уже идёт" : "Город уже осаждает другая команда";
@@ -112,6 +118,7 @@ export async function declareSiege(gameId: string, teamId: string, nodeKey: stri
   const book = (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId, key: nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "";
   const attacker = await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { name: true } });
   publish(gameId, { type: "battles" });
+  journal(gameId, "siege_declared", { everyone: true, teamId, vars: { team: attacker.name, other: (await teamNames(owner.teamId))[0] ?? "", book } });
   notifyTeam(gameId, owner.teamId, "осада вашего города {book}", (locale) => msg(locale, "Команда «{team}» объявила осаду делами: до {date} считаются одобренные дела обеих команд ({points} балл(ов) за дело, если у дела не задана своя цена). Кто сделает больше — тот владеет городом; при равенстве город остаётся вашим.", { team: attacker.name, date: fmtDate(endsAt, locale), points: o.deedPoints }), { book });
   notifyTeam(gameId, teamId, "осада города {book} объявлена", (locale) => msg(locale, "До {date} считаются одобренные дела обеих команд. Делайте дела: у кого больше баллов к сроку, тот владеет городом; при равенстве город остаётся у хранителей.", { date: fmtDate(endsAt, locale) }), { book });
   return { ok: true, id: s.id, endsAt };

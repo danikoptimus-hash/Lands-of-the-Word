@@ -1,4 +1,5 @@
 import { prisma } from "../db.js";
+import { sweepChronicles } from "./journal.js";
 import { publish } from "./events.js";
 import { loadBook, randomPassage } from "./bible.js";
 import { loadCityContent } from "./cities.js";
@@ -13,6 +14,9 @@ import { BOOKS } from "@lotw/domain";
 
 const bookName = (code: string) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
 import type { Battle, BattleEntry, Prisma } from "@prisma/client";
+import { journal, teamNames } from "./journal.js";
+import { peaceBetween } from "./peace.js";
+import { sweepDigests } from "./digest.js";
 
 /**
  * Испытания городов (правила 2.8, 2.8.1, 2.9 документа; решения владельца 18.09 по экспертному заключению).
@@ -143,6 +147,7 @@ export async function startNextFromQueue(gameId: string, nodeKey: string): Promi
     const started = await startAttack(q.id);
     publish(gameId, { type: "battles", teamId: q.attackerId });
     publish(gameId, { type: "battles", teamId: owner.teamId });
+    { const [a, d] = await teamNames(q.attackerId, owner.teamId); journal(gameId, "trial_started", { everyone: true, teamId: q.attackerId, vars: { team: a, other: d, book: node.bookCode ?? "" } }); }
     notifyTeam(gameId, q.attackerId, "ваш вызов городу {book} начался", (locale) => msg(locale, "Очередь дошла до вас: отрывок выдан, срок вызова — до {date}.", { date: fmtDate(started.attackDeadline!, locale) }), { book: q.bookCode });
     notifyTeam(gameId, owner.teamId, "вызов вашему городу {book}", "Команда «{team}» из очереди начала вызов вашему городу, ставка {bid} стихов.", { book: q.bookCode, team: (await prisma.team.findUnique({ where: { id: q.attackerId }, select: { name: true } }))?.name ?? "", bid: q.bid });
     return;
@@ -244,6 +249,7 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
   ]);
   publish(b.gameId, { type: "battles" });
   publish(b.gameId, { type: "map" });
+  { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_repelled", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
   notifyTeam(b.gameId, b.defenderId, "город {book} устоял", (locale) => msg(locale, "Ответ одобрен: {m} стихов против {need}. Город остаётся вашим, уровень испытания теперь {m}.", { m: M, need }) + (lockedUntil ? msg(locale, " Каждый участник выучил всю книгу: город закреплён до {date}.", { date: fmtDay(lockedUntil, locale) }) : ""), { book: b.bookCode });
   notifyTeam(b.gameId, b.attackerId, "город {book} устоял", "Хранители ответили {m} стихами против ваших {need}. Следующий вызов этому городу потребует не меньше {next}.", { book: b.bookCode, m: M, need, next: M + 1 });
   await startNextFromQueue(b.gameId, b.nodeKey);
@@ -303,6 +309,7 @@ export async function resolveWon(b: Battle): Promise<void> {
   publish(b.gameId, { type: "map" });
   publish(b.gameId, { type: "cities" });
   publish(b.gameId, { type: "teams" });
+  { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_won", { everyone: true, teamId: b.attackerId, vars: { team: a, other: d, book: b.bookCode } }); }
   notifyTeam(b.gameId, b.attackerId, "город {book} взят", wasCapital ? "Это была столица противника: команда противника выбыла, город стал вашей второй столицей." : "Город теперь ваш.", { book: b.bookCode });
   notifyTeam(b.gameId, b.defenderId, "город {book} потерян", wasCapital ? "Потеряна столица: команда выбывает из игры. Администратор переведёт участников в другие команды." : "Ответ не дан в срок. Город перешёл претендентам; его можно вернуть по тем же правилам.", { book: b.bookCode });
   await startNextFromQueue(b.gameId, b.nodeKey);
@@ -353,6 +360,7 @@ export async function sweep(gameId?: string): Promise<void> {
     publish(b.gameId, { type: "battles", teamId: b.defenderId });
     publish(b.gameId, { type: "map", teamId: b.attackerId });
     publish(b.gameId, { type: "map", teamId: b.defenderId });
+    { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_burnt", { everyone: true, teamId: b.attackerId, vars: { team: a, other: d, book: b.bookCode } }); }
     notifyTeam(b.gameId, b.attackerId, "вызов городу {book} не завершён", "За {days} дней вызов не был отправлен на проверку. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}.", { book: b.bookCode, days: rules.attackDays, penalty: rules.burnPenalty });
     notifyTeam(b.gameId, b.defenderId, "вызов вашему городу {book} сгорел", "Претенденты не уложились в срок: вызов снят, город остаётся вашим.", { book: b.bookCode });
     await startNextFromQueue(b.gameId, b.nodeKey);
@@ -360,6 +368,7 @@ export async function sweep(gameId?: string): Promise<void> {
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });
   for (const b of lost) await resolveWon(b);
   await sweepSieges(gameId, now);
+  if (!gameId) { await sweepChronicles(now); await sweepDigests(now); }
   // Усталость городов и возврат зависших дел — по идущим играм.
   const games = await prisma.game.findMany({ where: { ...(gameId ? { id: gameId } : {}), status: "ACTIVE" }, select: { id: true, settings: true } });
   for (const g of games) {
@@ -390,6 +399,7 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   else if (!owner) reason = "Город свободен: его берут ключом из конверта, а не испытанием";
   else if (owner.teamId === teamId) reason = "Это ваш город";
   else if (team.status === "defeated") reason = "Ваша команда выбыла из игры";
+  else if (await peaceBetween(gameId, teamId, owner.teamId)) reason = "Между вашими командами мир: вызов невозможен, пока мир не расторгнут";
   else if (locked) reason = "Город закреплён: хранители выучили всю книгу каждым участником. После срока закрепления город берётся осадой делами";
   else if (node.maxReachedAt) reason = "Хранители выучили всю книгу каждым участником: город берётся не стихами, а осадой делами";
   else if (!studied) reason = "Сначала решите задания всех районов";

@@ -9,6 +9,7 @@ import { CopyField } from "../components/CopyField";
 import { ActionMenu } from "../components/ActionMenu";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { Sheet } from "../components/Sheet";
+import { ActivityBoard } from "./Journal";
 
 interface Invite { captain: string; members: string }
 
@@ -160,6 +161,13 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
             {error && <p className="error">{error}</p>}
           </form>
         </Sheet>
+      )}
+      {status !== "DRAFT" && (
+        <details className="card fold-card">
+          <summary><Icon name="star" />{t("Активность участников")}<Icon name="chevron-down" className="chev" /></summary>
+          <p className="hint">{t("Кто сколько сделал: дела (с участниками дел группой), решённые районы, выученные стихи, взятые города. Самые активные сверху.")}</p>
+          <ActivityBoard gameId={gameId} version={version} />
+        </details>
       )}
     </div>
   );

@@ -7,7 +7,7 @@ import { perfMark } from "../lib/perfHud";
 import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
 import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
-import { FaunaLayer } from "./Fauna";
+import { FaunaLayer, type FaunaHints } from "./Fauna";
 import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
@@ -64,6 +64,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   }), [map.tasks, islandCenters, nodeByKey, size]);
 
 
+  // Живность-подсказка (M-13): чайки над взятыми портами, клин к ближайшему неоткрытому городу, дельфины у корабля.
+  const faunaHints = useMemo<FaunaHints>(() => ({
+    ports: map.cities.filter((c) => c.captured && nodeByKey.get(c.nodeKey)?.cityType === "port").map((c) => nodePos(c.nodeKey, size)),
+    bird: map.birdTarget && start ? { from: start, to: nodePos(map.birdTarget.key, size), key: `${map.team.id}.${map.birdTarget.key}` } : null,
+    ship: ships[0] ? { x: ships[0].x, y: ships[0].y } : null,
+  }), [map.cities, map.birdTarget, map.team.id, nodeByKey, start, ships, size]);
   const { k } = vp.view;
   // Элементы постоянного экранного размера (подписи, метки, развилки) стоят в координатах карты со scale(1/k):
   // при перетаскивании их двигает композитор, при смене масштаба React пересчитывает 1/k.
@@ -246,7 +252,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         {worldBody}
       </WorldSvg>
       {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} />
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} hints={faunaHints} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
           {screenBody}

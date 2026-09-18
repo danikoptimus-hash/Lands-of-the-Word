@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { Link } from "react-router-dom";
 import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
@@ -53,6 +54,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
             <h2><span className="ico"><Icon name="trophy" /></span>{t("Итоги")}</h2>
             {data.finishedAt && <span className="muted small">{fmtDate(data.finishedAt)}</span>}
           </div>
+          <p className="mt-1"><Link to={`/games/${gameId}/book`} className="btn secondary sm"><Icon name="book" />{t("Книга сезона")}</Link></p>
           <p className={"note " + (winner ? "ok" : "")}>
             <Icon name="trophy" />
             <span>{winner ? <>{t("Победила команда")} <strong>«{winner.name}»</strong></> : t("Победитель не определён")} · {reason}</span>
@@ -62,7 +64,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
       )}
       {!finished && part !== "rest" && (
         <div className="card">
-          <div className="card-head"><h2><span className="ico"><Icon name="users" /></span>{t("Положение команд")}</h2></div>
+          <div className="card-head"><h2><span className="ico"><Icon name="users" /></span>{t("Положение команд")}</h2><Link to={`/games/${gameId}/book`} className="btn secondary sm"><Icon name="book" />{t("Книга сезона")}</Link></div>
           <Standings rows={data.standings} winnerId={null} leaderId={data.leaderTeamId} />
         </div>
       )}

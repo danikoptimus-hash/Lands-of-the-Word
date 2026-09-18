@@ -142,6 +142,8 @@ model Game {
   finishReason String?
   recipients  Recipient[]
   supportRequests SupportRequest[]
+  journal     Journal[]
+  peaces      Peace[]
 }
 
 model GameAdmin {
@@ -203,6 +205,8 @@ model MapNode {
   fatigueAt     DateTime?
   /** Руины: город выбывшей команды. Берётся выполнением заданий, без ключа и без битвы. */
   ruined        Boolean @default(false)
+  /** Руины с сокровищем (решение владельца 18.09): какая команда первой изучила руины и получила находку — знак шифра соседнего города. */
+  treasureTeamId String?
 
   @@unique([gameId, key])
 }
@@ -268,6 +272,8 @@ model Team {
   @@unique([gameId, index])
   @@unique([gameId, name])
   supportRequests SupportRequest[]
+  peaceOut       Peace[] @relation("peaceFrom")
+  peaceIn        Peace[] @relation("peaceTo")
 }
 
 model Membership {
@@ -684,4 +690,55 @@ model SupportRequest {
 enum SupportStatus {
   OPEN
   CLOSED
+}
+
+/**
+ * Журнал событий игры (решения владельца 18.09, глава 4): основа ленты команды «Что случилось», новостей для всех
+ * команд (испытания без ставок), воскресной летописи, «Моего служения» участника и «Книги сезона».
+ * kind — вид события, vars — подстановки для текста (шаблоны в services/journal.ts), text — готовый текст (летопись).
+ */
+model Journal {
+  id        String   @id @default(cuid())
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  /** Команда, к которой относится запись (лента команды); null — общая запись. */
+  teamId    String?
+  /** Участник, чьё это действие («Моё служение», доска активности). */
+  userId    String?
+  kind      String
+  /** Новость для всех команд. */
+  everyone  Boolean  @default(false)
+  vars      Json     @default("{}")
+  text      String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([gameId, createdAt])
+  @@index([teamId, createdAt])
+  @@index([userId])
+}
+
+enum PeaceStatus {
+  PROPOSED
+  ACTIVE
+  DECLINED
+  ENDED
+}
+
+/** Мир между командами (решение владельца 18.09, B-12): пока действует, команды не бросают вызов городам друг друга; расторгается сразу, с новостью для всех. */
+model Peace {
+  id         String      @id @default(cuid())
+  gameId     String
+  game       Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  fromId     String
+  from       Team        @relation("peaceFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId       String
+  to         Team        @relation("peaceTo", fields: [toId], references: [id], onDelete: Cascade)
+  status     PeaceStatus @default(PROPOSED)
+  createdAt  DateTime    @default(now())
+  decidedAt  DateTime?
+  endedAt    DateTime?
+  /** Кто расторг (команда). */
+  endedById  String?
+
+  @@index([gameId, status])
 }

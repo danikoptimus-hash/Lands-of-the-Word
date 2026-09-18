@@ -10,6 +10,7 @@ import { afterReject, gameRules, maybeRepel, maybeStartDefense, minBidFor, start
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
 import { declareSiege, siegeOptions } from "../services/siege.js";
 import { BOOKS } from "@lotw/domain";
+import { journal } from "../services/journal.js";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const declareBody = z.object({ bid: z.number().int().min(1).max(100000) });
@@ -164,6 +165,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (active === 0) await startAttack(created.id);
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "battles", teamId: o.owner.id });
+    journal(id, active === 0 ? "trial_declared" : "trial_queued", { everyone: true, teamId: m.team.id, vars: { team: m.team.name, other: o.owner.name, book: node.bookCode ?? "" } });
     if (active === 0) notifyTeam(id, o.owner.id, "вызов вашему городу {book}", "Команда «{team}» бросила вызов вашему городу {book} (игра «{game}»), ставка {bid} стихов. Когда админ одобрит их записи, у вас будет ровно столько же времени, сколько ушло у них.", { book: node.bookCode ?? "", team: m.team.name, game: game.name, bid: body.bid });
     else notifyTeam(id, o.owner.id, "очередь на ваш город {book}", "Команда «{team}» встала в очередь на вызов вашему городу {book} (игра «{game}»), ставка {bid} стихов. Вызов начнётся, когда закончится идущее испытание.", { book: node.bookCode ?? "", team: m.team.name, game: game.name, bid: body.bid });
     return reply.code(201).send({ id: created.id, status: active === 0 ? "ATTACK" : "QUEUED", sumMode });
@@ -238,7 +240,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const full = (await prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } })) as BattleWithEntries;
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "submissions" });
-    notifyAdmins(id, "новые стихи в испытании города {book}", "Команда «{team}» отметила {n} ст. ({side}) и прикрепила ссылки. Проверьте записи в блоке «Испытания».", { book: b.bookCode, team: m.team.name, n: fresh.length, side: side === "ATTACK" ? "вызов" : "ответ" });
+    // Письмо администратору на каждую отметку стиха отменено (решение владельца 18.09, A-13): сдача стороны приходит одним письмом.
     return reply.code(201).send({ ok: true, added: fresh.length, sum: sumVerses(full.entries, side, false) });
   });
 
@@ -273,7 +275,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!r.ok) return reply.code(409).send({ error: "conflict", message: err(request, r.message, r.vars) });
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "submissions" });
-    notifyAdmins(id, "{side} отправлен на проверку", "Команда «{team}» отправила {side} за город {book} на проверку. Проверьте записи в блоке «Испытания».", { side: side === "ATTACK" ? "вызов" : "ответ", team: m.team.name, book: b.bookCode });
+    if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "{side} отправлен на проверку", "Команда «{team}» отправила {side} за город {book} на проверку. Проверьте записи в блоке «Испытания».", { side: side === "ATTACK" ? "вызов" : "ответ", team: m.team.name, book: b.bookCode });
     return { ok: true, status: r.battle.status };
   });
 

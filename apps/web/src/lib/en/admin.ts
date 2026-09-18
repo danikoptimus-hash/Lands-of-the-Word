@@ -1,5 +1,9 @@
 /** EN-строки области «admin». Ключ — русская строка как в коде. Добавлять только сюда; legacy.ts не трогать. */
 export const ADMIN: Record<string, string> = {
+  // Пакетная проверка и дайджест (этап 4 решений 18.09)
+  "Принято сдач: {n}": "Submissions approved: {n}", "уже рассмотрено: {n}": "already reviewed: {n}", "только что": "just now", "{n} ч назад": "{n} h ago", "{n} дн назад": "{n} d ago",
+  "Все команды": "All teams", "Вид сдачи": "Kind of proof", "Любой вид": "Any kind", "старые сверху": "oldest first", "новые сверху": "newest first", "Принять выбранные ({n})": "Approve selected ({n})", "Выбрать для пакетного принятия": "Select for batch approval",
+  "Письма администраторам о сдачах": "Mail to administrators about submissions", "сразу о каждой": "at once, for each one", "одним письмом раз в 3 часа": "one mail every 3 hours", "одним письмом раз в день": "one mail a day",
   // Страница игры: шапка и вкладки
   "Разделы игры": "Game sections", "Карта": "Map", "Сейчас": "Now", "ждёт проверки": "awaiting review", "идёт испытаний": "trials in progress",
   "Карта ещё не создана.": "The map is not created yet.", "Карты нет.": "There is no map.", "Появится после старта игры.": "Appears after the game starts.",

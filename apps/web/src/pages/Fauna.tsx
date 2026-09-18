@@ -406,11 +406,13 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
   trailPush(c.trail, c.x, c.y, T, clamp(1 - clamp(c.depth, 0, 1) / 0.32, 0, 1), sp.L * 0.12);
 }
 /** Дельфины: держат строй за общим поводком (пружинные смещения), по очереди выпрыгивают. */
-function stepPod(ds: Cet[], pod: Carrot, p: Profile, size: number, fx: Fx, dt: number, T: number): void {
+function stepPod(ds: Cet[], pod: Carrot, p: Profile, size: number, fx: Fx, dt: number, T: number, pin: { x: number; y: number } | null = null): void {
   const lead = ds[0]!, sp = lead.spec;
   const behind = Math.hypot(pod.x - lead.x, pod.y - lead.y);
   const wasWaiting = pod.wait > 0;
-  carrotStep(pod, p, size, sp.speed * dt * clamp(1.6 - behind / (sp.L * 3), 0.25, 1), T);
+  // Сопровождение корабля: поводок кружит вокруг него, стая идёт за поводком.
+  if (pin) { pod.wait = 0; const a = T * 0.35; pod.x = pin.x + Math.cos(a) * size * 1.6; pod.y = pin.y + Math.sin(a) * size * 1.6; pod.h = a + Math.PI / 2; }
+  else carrotStep(pod, p, size, sp.speed * dt * clamp(1.6 - behind / (sp.L * 3), 0.25, 1), T);
   if (wasWaiting && pod.wait <= 0) { // новый маршрут: строй ставится уже развёрнутым по курсу, без остаточного поворота
     const c0 = Math.cos(pod.h), s0 = Math.sin(pod.h);
     for (const d of ds) { d.x = pod.x + c0 * d.fdx - s0 * d.fdy; d.y = pod.y + s0 * d.fdx + c0 * d.fdy; d.h = pod.h; d.om = 0; d.turn = 0; }
@@ -890,7 +892,30 @@ function stepFlock(f: Flock, p: Profile, size: number, dt: number, T: number): v
 // ───────────────────────────── Мир ─────────────────────────────
 /** Стая дельфинов: звери, поводок и время следующей серии прыжков. */
 interface Pod { dolphins: Cet[]; car: Carrot; next: number }
-interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[] }
+/**
+ * Живность-подсказка (решение владельца 18.09, M-13): чайки над взятыми портами команды, клин птиц раз в день от
+ * старта к ближайшему неоткрытому городу, дельфины сопровождают корабль команды. Координаты — в единицах карты.
+ */
+export interface FaunaHints { ports: Array<{ x: number; y: number }>; bird: { from: { x: number; y: number }; to: { x: number; y: number }; key: string } | null; ship: { x: number; y: number } | null }
+interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[]; hint: () => FaunaHints | null; portGulls: Gull[]; portKey: string; birdShown: boolean }
+/** Чайка над портом: якорь — точка порта, кружит рядом с ним. */
+function makePortGull(p: Profile, x: number, y: number, size: number): Gull {
+  const g = makeGull(p, size);
+  g.part = { cx: x, cy: y, r: new Array(BINS).fill(0), maxR: 0 }; g.anchorA = rnd(-Math.PI, Math.PI); g.off = 0; g.R = size * rnd(0.7, 1.0);
+  g.x = x + Math.cos(g.anchorA) * g.R; g.y = y + Math.sin(g.anchorA) * g.R;
+  return g;
+}
+/** Маршрут клина по подсказке: от старта команды к ближайшему неоткрытому городу, плавной дугой. */
+function hintRoute(f: Flock, size: number, T: number, from: { x: number; y: number }, to: { x: number; y: number }): void {
+  f.x0 = from.x; f.y0 = from.y; f.x1 = to.x; f.y1 = to.y;
+  const mx = (f.x0 + f.x1) / 2, my = (f.y0 + f.y1) / 2, nx = -(f.y1 - f.y0), ny = f.x1 - f.x0;
+  f.cx = mx + nx * 0.15; f.cy = my + ny * 0.15;
+  f.t0 = T + 2;
+  f.dur = Math.max(6, (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) * 1.1) / (size * 0.7));
+  f.n = 8;
+  f.x = f.x0; f.y = f.y0; f.h = Math.atan2(f.cy - f.y0, f.cx - f.x0); f.roll = 0;
+  for (let i = 0; i < f.n; i++) { const b2 = f.birds[i]!; b2.dx = -Math.ceil(i / 2) * f.S * 1.9; b2.dy = (i % 2 ? 1 : -1) * Math.ceil(i / 2) * f.S * 1.5; b2.phase = rnd(0, TAU); b2.amp = 1; b2.glide = false; b2.modeT = rnd(3, 9); }
+}
 function makePod(p: Profile, size: number, n: number): Pod {
   const car = makeCarrot(p, size, size * rnd(2.3, 3), size * 0.35);
   const dL = size * 0.55;
@@ -904,16 +929,28 @@ function makePod(p: Profile, size: number, n: number): Pod {
   });
   return { dolphins, car, next: rnd(3, 8) };
 }
-function createWorld(p: Profile, size: number): World {
+function createWorld(p: Profile, size: number, hint: () => FaunaHints | null): World {
   // Отступы от берега: под профилем ещё ~1.6 гекса отмели и песка, дельфинам с их строем нужен запас побольше.
   // Населённость (решение владельца: живности должно быть заметно): два кита, две косатки, две стаи дельфинов, пять чаек.
   const solo = (kind: CetKind, L: number, off: [number, number], wob: number) => { const car = makeCarrot(p, size, size * rnd(off[0], off[1]), size * wob); return makeCet(cetSpec(kind, L, size), car, car.x, car.y, car.h); };
   const solos = [solo("whale", size * 1.8, [2.8, 4], 0.7), solo("whale", size * 1.6, [3, 4.4], 0.7), solo("orca", size * 1.1, [2.4, 3.4], 0.6), solo("orca", size * 1.0, [2.6, 3.6], 0.6)];
   const pods = [makePod(p, size, 3), makePod(p, size, 4)];
-  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size), makeShip("cog", p, size)] };
+  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), hint, portGulls: [], portKey: "", birdShown: false, ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size), makeShip("cog", p, size)] };
 }
 function stepWorld(w: World, dt: number): void {
   w.T += dt; const T = w.T;
+  const hs = w.hint();
+  // Чайки над взятыми портами команды: по две на порт; список пересобирается, когда меняются порты.
+  const portKey = hs ? hs.ports.map((pt) => `${Math.round(pt.x)},${Math.round(pt.y)}`).join(";") : "";
+  if (portKey !== w.portKey) { w.portKey = portKey; w.portGulls = (hs?.ports ?? []).flatMap((pt) => [makePortGull(w.p, pt.x, pt.y, w.size), makePortGull(w.p, pt.x, pt.y, w.size)]); }
+  // Клин птиц к ближайшему неоткрытому городу — раз в день на цель (день запоминается в браузере).
+  if (!w.birdShown && hs?.bird) {
+    w.birdShown = true;
+    const day = new Date().toISOString().slice(0, 10), k = "lotw.bird." + hs.bird.key;
+    let seen = "";
+    try { seen = localStorage.getItem(k) ?? ""; } catch { /* приватный режим */ }
+    if (seen !== day) { hintRoute(w.flock, w.size, T, hs.bird.from, hs.bird.to); try { localStorage.setItem(k, day); } catch { /* нет хранилища */ } }
+  }
   for (const c of w.solos) stepSolo(c, w.p, w.size, w.fx, dt, T);
   for (const pd of w.pods) {
     if (T >= pd.next) { // серия прыжков: по одному, с запаздыванием
@@ -921,9 +958,11 @@ function stepWorld(w: World, dt: number): void {
       pd.dolphins.forEach((d, i) => { d.jumpAt = T + (rev ? pd.dolphins.length - 1 - i : i) * rnd(0.4, 0.6); });
       pd.next = T + rnd(7, 13);
     }
-    stepPod(pd.dolphins, pd.car, w.p, w.size, w.fx, dt, T);
+    // Первая стая сопровождает корабль команды, пока он в море.
+    stepPod(pd.dolphins, pd.car, w.p, w.size, w.fx, dt, T, pd === w.pods[0] ? hs?.ship ?? null : null);
   }
   for (const g of w.gulls) stepGull(g, w.p, w.size, dt, T);
+  for (const g of w.portGulls) stepGull(g, w.p, w.size, dt, T);
   for (const sh of w.ships) stepShip(sh, w.p, w.size, dt, T);
   stepFlock(w.flock, w.p, w.size, dt, T);
   // Порядок рисования — от глубоких к мелким (вставками, массив короткий).
@@ -938,7 +977,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis)
   for (const c of w.cets) if (inView(vis, c.x, c.y)) drawCet(ctx, c, T, px, lod);
   drawFx(ctx, w.fx, T, px, vis);
   for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
-  for (const g of w.gulls) {
+  for (const g of w.portGulls.length ? [...w.gulls, ...w.portGulls] : w.gulls) {
     if (!inView(vis, g.x, g.y)) continue;
     ctx.save(); ctx.translate(g.x, g.y);
     drawBirdShadow(ctx, GULL, g.S, g.phase, g.amp, g.roll, g.h, g.alt, 0.22 * (1 - 0.5 * g.alt));
@@ -1172,7 +1211,7 @@ export function drawShipsPreview(ctx: CanvasRenderingContext2D, size: number, T:
 /** Стенд (scripts): прогон мира живности без экрана — треки положений и курсов для проверки физики движения. */
 export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, step: number): Array<{ kind: string; samples: Array<[number, number, number, number]> }> {
   const p = islandProfile(hexes, size, []); if (!p) return [];
-  const w = createWorld(p, size);
+  const w = createWorld(p, size, () => null);
   const movers: Array<{ kind: string; m: { x: number; y: number; h: number }; car: Carrot | null }> = [...w.cets.map((c) => ({ kind: c.spec.kind, m: c, car: c.car })), ...w.ships.map((sh) => ({ kind: sh.spec.kind, m: sh, car: sh.car }))];
   const out = movers.map((mv) => ({ kind: mv.kind, samples: [] as Array<[number, number, number, number]> }));
   for (let t = 0; t < seconds; t += step) { stepWorld(w, step); movers.forEach((mv, i) => out[i]!.samples.push([mv.m.x, mv.m.y, mv.m.h, mv.car ? mv.car.wait : -1])); }
@@ -1182,15 +1221,16 @@ export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, st
 /** Стенд (scripts): прогнать мир seconds секунд и нарисовать его целиком на ctx (в единицах карты, масштаб задаёт ctx). */
 export function renderWorldSnapshot(ctx: CanvasRenderingContext2D, hexes: MapHexDto[], size: number, seconds: number, k: number): void {
   const p = islandProfile(hexes, size, []); if (!p) return;
-  const w = createWorld(p, size);
+  const w = createWorld(p, size, () => null);
   for (let t = 0; t < seconds; t += 1 / 24) stepWorld(w, 1 / 24);
   drawWorld(ctx, w, k, { x0: -1e9, y0: -1e9, x1: 1e9, y1: 1e9 });
 }
 
 // ───────────────────────────── Слой ─────────────────────────────
 const NO_ISLETS: Islet[] = [];
-export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE }: { vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number }) {
+export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, hints = null }: { vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; hints?: FaunaHints | null }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const hintsRef = useRef(hints); hintsRef.current = hints;
   const key = hexes.length ? `${hexes.length}:${hexes[0]!.q},${hexes[0]!.r}` : "";
   const profile = useMemo(() => islandProfile(hexes, size, islets), [key, size, islets]); // eslint-disable-line react-hooks/exhaustive-deps
   const profileRef = useRef(profile); profileRef.current = profile;
@@ -1209,7 +1249,7 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE }: {
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } };
     resize();
     const ro = new ResizeObserver(resize); ro.observe(host);
-    const world = createWorld(profileRef.current, size);
+    const world = createWorld(profileRef.current, size, () => hintsRef.current);
     const vis: Vis = { x0: 0, y0: 0, x1: 0, y1: 0 };
     let last = performance.now(), lastDraw = 0, raf = 0, dirty = false;
     // При движении карты перерисовываем сразу (иначе звери «примерзают» к экрану до следующего кадра по таймеру).
