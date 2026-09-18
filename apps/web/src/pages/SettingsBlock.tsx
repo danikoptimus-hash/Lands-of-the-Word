@@ -112,7 +112,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
           {RULE_FIELDS.map((f) => (
             <div key={f.key} className="rule-row">
               <label htmlFor={"rule-" + f.key}>{f.label()}</label>
-              <input id={"rule-" + f.key} type="number" min={f.min} max={f.max} value={rules[f.key]} onChange={(e) => setRules({ ...rules, [f.key]: e.target.value === "" ? "" : Number(e.target.value) })} />
+              <input id={"rule-" + f.key} type="number" step="any" min={f.min} max={f.max} value={rules[f.key]} onChange={(e) => setRules({ ...rules, [f.key]: e.target.value === "" ? "" : Number(e.target.value) })} />
             </div>
           ))}
           <div className="rule-row">

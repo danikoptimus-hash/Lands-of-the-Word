@@ -249,6 +249,20 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     } catch (e) { return { ...check, ok: false, sent: false, error: describeMailError(e) }; }
   });
 
+  /**
+   * Суперадмин: подтвердить почту тестового аккаунта вручную — для тестовых партий с ботами (аккаунты tg_* с почтой
+   * на example.com, куда письмо дойти не может). Обычным пользователям почту подтверждает только письмо.
+   */
+  app.post("/api/auth/verify-user", { preHandler: requireUser }, async (request, reply) => {
+    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Только для администратора платформы") });
+    const body = z.object({ nickname: z.string().trim().min(3).max(24) }).parse(request.body);
+    const user = await prisma.user.findFirst({ where: { nickname: { equals: body.nickname, mode: "insensitive" } } });
+    if (!user) return reply.code(404).send({ error: "not_found", message: err(request, "Пользователь не найден") });
+    if (!user.email || !/@example\.com$/i.test(user.email)) return reply.code(409).send({ error: "conflict", message: err(request, "Вручную подтверждаются только тестовые аккаунты с почтой на example.com") });
+    await prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } });
+    return { ok: true, nickname: user.nickname };
+  });
+
   /** Суперадмин: ссылка сброса для любого пользователя (по никнейму), 24 часа. */
   app.post("/api/auth/reset-link", { preHandler: requireUser }, async (request, reply) => {
     if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Только для администратора платформы") });

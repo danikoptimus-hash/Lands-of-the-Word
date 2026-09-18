@@ -1,5 +1,7 @@
 /** EN-строки области «admin». Ключ — русская строка как в коде. Добавлять только сюда; legacy.ts не трогать. */
 export const ADMIN: Record<string, string> = {
+  // Тестовые аккаунты (суперадмин)
+  "Тестовые аккаунты": "Test accounts", "Для тестовой партии с ботами: подтвердить почту аккаунтов с адресом на example.com (письмо туда не доходит). Никнеймы через пробел или запятую.": "For a test game with bots: confirm the e-mail of accounts with an example.com address (mail cannot reach it). Nicknames separated by spaces or commas.", "Никнеймы": "Nicknames", "Подтвердить": "Confirm", "Подтверждено аккаунтов: {n}": "Accounts confirmed: {n}",
   // Пакетная проверка и дайджест (этап 4 решений 18.09)
   "Принято сдач: {n}": "Submissions approved: {n}", "уже рассмотрено: {n}": "already reviewed: {n}", "только что": "just now", "{n} ч назад": "{n} h ago", "{n} дн назад": "{n} d ago",
   "Все команды": "All teams", "Вид сдачи": "Kind of proof", "Любой вид": "Any kind", "старые сверху": "oldest first", "новые сверху": "newest first", "Принять выбранные ({n})": "Approve selected ({n})", "Выбрать для пакетного принятия": "Select for batch approval",
