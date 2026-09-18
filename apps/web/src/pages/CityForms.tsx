@@ -352,11 +352,7 @@ export function ProphetCandle({ availableAt, now }: { availableAt: number | null
   const lit = availableAt <= now;
   return (
     <span className={"candle" + (lit ? " lit" : " stub")} title={lit ? t("Свеча пророка: подсказка доступна") : t("Огарок: следующая подсказка {d}", { d: fmtDate(availableAt, { time: false }) })}>
-      <svg viewBox="0 0 24 32" width="18" height="24" aria-hidden="true">
-        <path className="flame" d="M12 2c2 3 4 5 4 8a4 4 0 0 1-8 0c0-3 2-5 4-8Z" />
-        <rect className="body" x="8" y="12" width="8" height={lit ? 18 : 10} rx="1.5" />
-        <rect className="plate" x="4" y="29" width="16" height="2.5" rx="1" />
-      </svg>
+      <img src={lit ? "/img/props/candle-lit.webp" : "/img/props/candle-stub.webp"} alt="" width={lit ? 30 : 27} height={30} aria-hidden="true" />
       <span className="small">{lit ? t("подсказка доступна") : t("до {d}", { d: fmtDate(availableAt, { time: false }) })}</span>
     </span>
   );

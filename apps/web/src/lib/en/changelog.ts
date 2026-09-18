@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Город: свеча пророка стала настоящей свечой (горит или огарок с дымком), цитата с пропуском лежит на обгоревшем пергаменте, письмо пророка, конверт и грамота — на пергаменте.": "City: the prophet's candle is now a real candle (burning, or a stub with a wisp of smoke), the quote with a gap lies on burnt parchment, and the prophet's letter, the envelope and the charter are on parchment.",
   "Замок в городе стал похож на настоящий навесной: корпус из тёмного металла с бронзовым отливом, стальная дужка входит в корпус и при открытии приподнимается.": "The city lock now looks like a real padlock: a dark metal body with a bronze sheen, a steel shackle that enters the body and lifts when the lock opens.",
   "Кроссворд теперь есть в каждой из 66 книг — по одному району в книге (в коротких посланиях — по всей книге).": "Every one of the 66 books now has a crossword — one district per book (in the short epistles, the whole book).",
   "Выбор ответа в городе — тоже замок: одно кольцо с вариантами и «Провернуть замок»; весы убраны.": "Multiple choice in a city is a lock too: one ring with the options and “Turn the lock”; the scales are gone.",
