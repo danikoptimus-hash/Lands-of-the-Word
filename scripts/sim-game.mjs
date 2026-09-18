@@ -319,11 +319,18 @@ async function main() {
     cityM = await reachCity("M"); cityB = await reachCity("B"); cityP = await reachCity("P");
     say(`города: M=${cityM} B=${cityB} P=${cityP}`);
     for (const [T, c] of [["M", cityM], ["B", cityB], ["P", cityP]]) if (!c) { const { target } = toNearestCity(S.teams[T].startNodeKey); await reveal(T, target); if (T === "M") cityM = target; else if (T === "B") cityB = target; else cityP = target; }
+    // Кроссворд должен попасть в партию: если книга города «Моряков» без кроссворда — открыть им ближайший город с кроссвордом.
+    const hasCrossword = (key) => { const b = nodeOf(key)?.bookCode; return !!b && content(b).tasks.some((t) => t.type === "crossword"); };
+    if (cityM && !hasCrossword(cityM)) {
+      const d = distances(cityM); let best = Infinity, target = null;
+      for (const n of S.nodes) if (n.kind === "CITY" && n.cityType !== "port" && ![cityB, cityP].includes(n.key) && d.has(n.key) && d.get(n.key) < best && hasCrossword(n.key)) { best = d.get(n.key); target = n.key; }
+      if (target) { await reveal("M", target); cityM = target; say(`город с кроссвордом для «Моряков»: ${target}`); }
+    }
   });
   await snap(e4, ADMIN, `/games/${S.gameId}`, "admin-map-paths", "Карта администратора: пройденные стороны трёх команд, ползунок истории ходов внизу.");
 
   // 3. Город команды «Моряки» — все формы
-  const e5 = entry("Город", "«Моряки» изучают свой первый город", "Замок с кольцами для порядка районов, районы окрашиваются, задания в разных формах (весы, обгоревший свиток, замок, число, кроссворд), печать шифра, остывающая отмычка, подсказка пророка, обращение в поддержку.");
+  const e5 = entry("Город", "«Моряки» изучают свой первый город", "Замок с кольцами для порядка районов, районы окрашиваются, задания в разных формах (замок с одним кольцом, обгоревший свиток, замок с кольцами, число, кроссворд), печать шифра, остывающая отмычка, подсказка пророка, обращение в поддержку.");
   await step("Город M", async () => {
     const book = nodeOf(cityM).bookCode; const bn = bookName(book);
     S.bookM = book; S.bookMName = bn;
