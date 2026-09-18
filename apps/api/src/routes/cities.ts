@@ -4,7 +4,7 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { requireActiveMember, requireAdmin, requireMember, requireSuperadmin } from "./teamMap.js";
-import { pauseAfter, rulesOf } from "../services/rules.js";
+import { pauseAfter, rulesOf, days } from "../services/rules.js";
 import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask, stripAnswers } from "../services/cities.js";
 import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
@@ -98,6 +98,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         secondCapital: state?.secondCapital ?? false,
         // Подсказки пророка видит только пророк: команда спрашивает у него (решение владельца 18.09).
         hintTasks: m.gameRole === "PROPHET" ? state?.hintTasks ?? [] : [],
+        // Свеча пророка (C-15): когда право на подсказку снова доступно; не пророку не отдаётся.
+        hintAvailableAt: m.gameRole === "PROPHET" ? (m.team.lastHintAt ? m.team.lastHintAt.getTime() + days(rules.roleCooldownDays) : 0) : null,
         keyLockedUntil: keyLockedUntil > Date.now() ? keyLockedUntil : null,
         keyWrong: state?.keyWrong ?? 0,
         pauseSteps: rules.pauseSteps,

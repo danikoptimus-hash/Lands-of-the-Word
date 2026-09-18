@@ -297,7 +297,7 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
                 {city.content.districts.map((d, i) => {
                   const task = city.content!.tasks[i];
                   if (!task) return null;
-                  const answer = task.type === "number" ? String(task.answer) : task.type === "text" ? (task.answers ?? []).join(" / ") : task.type === "choice" ? task.options?.[task.correct ?? 0] : (task.items ?? []).join(", ");
+                  const answer = task.type === "number" ? String(task.answer) : task.type === "text" ? (task.answers ?? []).join(" / ") : task.type === "choice" ? task.options?.[task.correct ?? 0] : task.type === "crossword" ? (task.words ?? []).map((w) => `${w.clue} — ${w.answer ?? ""}`).join("; ") : (task.items ?? []).join(", ");
                   const sign = city.node.cityCode?.[i];
                   return (
                     <li key={i}>

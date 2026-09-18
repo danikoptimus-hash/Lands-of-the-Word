@@ -3,6 +3,7 @@ import { createHmac, randomBytes } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { gridLetters, layoutCrossword } from "./crossword.js";
 
 /**
  * Города на перекрёстках: неизменяемый контент платформы (content/cities/<книга>.json).
@@ -17,6 +18,8 @@ const taskSchema = z.discriminatedUnion("type", [
   z.object({ ...taskBase, type: z.literal("text"), answers: z.array(z.string().min(1)).min(1) }),
   z.object({ ...taskBase, type: z.literal("choice"), options: z.array(z.string().min(1)).min(2), correct: z.number().int().min(0) }),
   z.object({ ...taskBase, type: z.literal("order"), items: z.array(z.string().min(1)).min(2) }),
+  // Кроссворд по району (решение владельца 18.09): 4–8 слов из текста района, подсказки — вопросы к ним.
+  z.object({ ...taskBase, type: z.literal("crossword"), words: z.array(z.object({ clue: z.string().min(1), answer: z.string().min(2) })).min(3).max(8) }),
 ]);
 const contentSchema = z.object({
   book: z.string().min(1),
@@ -97,6 +100,11 @@ export function publicTask(task: CityTask, index: number, secret: string, scopeK
     const items = task.items.map((text, i) => ({ id: opaqueId(secret, scopeKey, "task", index, i), text }));
     return { ...base, items: seededShuffle(`${scopeKey}|task|${index}`, items) };
   }
+  if (task.type === "crossword") {
+    // Сетка без букв: номера, позиции, направления, длины и вопросы. Ответ — слова в этом же порядке.
+    const l = layoutCrossword(task.words);
+    return { ...base, rows: l.rows, cols: l.cols, words: l.words.map(({ src: _src, ...w }) => w) };
+  }
   return base;
 }
 
@@ -121,6 +129,12 @@ export function checkAnswer(task: CityTask, index: number, secret: string, scope
       if (!Array.isArray(answer) || answer.length !== task.items.length) return false;
       return task.items.every((_, i) => answer[i] === opaqueId(secret, scopeKey, "task", index, i));
     }
+    case "crossword": {
+      // Все слова разом: сравниваются буквы сетки (регистр, ё/е, пробелы и дефисы не важны).
+      const l = layoutCrossword(task.words);
+      if (!Array.isArray(answer) || answer.length !== l.words.length) return false;
+      return l.words.every((w, i) => typeof answer[i] === "string" && gridLetters(answer[i] as string).join("") === gridLetters(task.words[w.src]!.answer).join(""));
+    }
   }
 }
 
@@ -144,7 +158,7 @@ export function stripAnswers(content: CityContent) {
     ...content,
     tasks: content.tasks.map((t) => {
       const base = { scope: t.scope, groupDistricts: t.groupDistricts ?? null, type: t.type, prompt: t.prompt };
-      return t.type === "choice" ? { ...base, options: t.options } : base;
+      return t.type === "choice" ? { ...base, options: t.options } : t.type === "crossword" ? { ...base, words: t.words.map((w) => ({ clue: w.clue, len: gridLetters(w.answer).length })) } : base;
     }),
   };
 }

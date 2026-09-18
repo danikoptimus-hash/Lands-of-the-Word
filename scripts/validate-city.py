@@ -116,8 +116,64 @@ def check(path):
             if all(x >= 0 for x in pos): pass
             elif all(scope_text.find(norm(x)) >= 0 for x in items): errs.append(f"задание {i}: пункты order встречаются в тексте не в этом порядке")
             else: warns.append(f"задание {i}: не все пункты order найдены дословно (перефраз?) — порядок не проверен")
+        elif typ == "crossword":
+            words = t.get("words") or []
+            if not (3 <= len(words) <= 8): errs.append(f"задание {i}: кроссворд — от 3 до 8 слов"); continue
+            answers = [w.get("answer", "") for w in words]
+            if len(set(grid_letters(a) for a in answers)) != len(answers): errs.append(f"задание {i}: повтор слов кроссворда")
+            for w in words:
+                a = w.get("answer", ""); g = grid_letters(a)
+                if not w.get("clue"): errs.append(f"задание {i}: слово «{a}» без вопроса")
+                if len(g) < 2 or not re.fullmatch(r"[А-Я]+", g): errs.append(f"задание {i}: слово «{a}» — только буквы, не короче двух")
+                if norm(a) not in scope_text: errs.append(f"задание {i}: слово «{a}» не найдено в стихах района")
+                if len(norm(a)) >= 4 and re.search(r"\b" + re.escape(norm(a)) + r"\b", leak): errs.append(f"задание {i}: слово «{a}» видно в названии/пересказе района")
+            lay = layout_crossword(answers)
+            if lay["rows"] > 14 or lay["cols"] > 14: warns.append(f"задание {i}: сетка кроссворда {lay['rows']}×{lay['cols']} крупная для телефона")
+            if lay["loose"]: warns.append(f"задание {i}: слова без пересечений: {', '.join(answers[k] for k in lay['loose'])}")
         else: errs.append(f"задание {i}: тип «{typ}»")
     return errs, warns
+
+def grid_letters(s): return re.sub(r"[^А-ЯA-Z]", "", s.upper().replace("Ё", "Е"))
+
+def layout_crossword(answers):
+    """Тот же жадный алгоритм, что в apps/api/src/services/crossword.ts: длинное слово по горизонтали, остальные
+    цепляются перпендикулярно за общую букву; без пересечений — отдельной строкой ниже. Возвращает размер и «отдельные» слова."""
+    cells = {}; placed = []; loose = []
+    order = sorted(range(len(answers)), key=lambda k: (-len(grid_letters(answers[k])), k))
+    def fits(letters, row, col, d):
+        dr, dc = (1, 0) if d == "down" else (0, 1)
+        if cells.get((row - dr, col - dc)) or cells.get((row + dr * len(letters), col + dc * len(letters))): return -1
+        cross = 0
+        for k, ch in enumerate(letters):
+            r, c = row + dr * k, col + dc * k
+            cur = cells.get((r, c))
+            if cur:
+                if cur != ch: return -1
+                cross += 1; continue
+            if cells.get((r + dc, c + dr)) or cells.get((r - dc, c - dr)): return -1
+        return cross
+    def put(letters, row, col, d):
+        dr, dc = (1, 0) if d == "down" else (0, 1)
+        for k, ch in enumerate(letters): cells[(row + dr * k, col + dc * k)] = ch
+        placed.append((row, col, d, letters))
+    for src in order:
+        letters = grid_letters(answers[src])
+        if not placed: put(letters, 0, 0, "across"); continue
+        best = None
+        for (prow, pcol, pd, pl) in placed:
+            d = "down" if pd == "across" else "across"
+            for pi, ch in enumerate(pl):
+                for wi, wc in enumerate(letters):
+                    if ch != wc: continue
+                    pr = prow + (pi if pd == "down" else 0); pc = pcol + (pi if pd == "across" else 0)
+                    row = pr - (wi if d == "down" else 0); col = pc - (wi if d == "across" else 0)
+                    cross = fits(letters, row, col, d)
+                    if cross > 0 and (best is None or cross > best[3]): best = (row, col, d, cross)
+        if best: put(letters, best[0], best[1], best[2]); continue
+        loose.append(src)
+        put(letters, max(r for r, _ in cells) + 2, min(c for _, c in cells), "across")
+    rs = [r for r, _ in cells]; cs = [c for _, c in cells]
+    return {"rows": max(rs) - min(rs) + 1, "cols": max(cs) - min(cs) + 1, "loose": loose}
 
 bad = 0
 for path in sys.argv[1:]:

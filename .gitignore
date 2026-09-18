@@ -5,3 +5,4 @@ dist/
 .DS_Store
 docs/review/*.html
 docs/review/*.pdf
+__pycache__/

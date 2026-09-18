@@ -59,7 +59,8 @@ describe("город на перекрёстке", () => {
     expect(adm.statusCode).toBe(200);
     expect(adm.json().node.cityKey).toMatch(/^[A-Z2-9]{6}$/);
     expect(adm.json().node.cityCode).toMatch(new RegExp(`^[А-Я2-9]{${content.tasks.length}}$`));
-    expect(adm.json().content.tasks[0].correct).toBe(0);
+    expect(adm.json().content.tasks[0].words[0].answer).toBe("Ноеминь");
+    expect(adm.json().content.tasks[1].correct).toBe(0);
     expect(adm.json().content.tasks[11].answer).toBe(6);
     const forbidden = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: p1Cookie } });
     expect(forbidden.statusCode).toBe(403);
@@ -107,7 +108,17 @@ describe("город на перекрёстке", () => {
     await prisma.teamTaskLock.deleteMany({ where: { teamId: team1, nodeKey: rutKey } });
 
     const city = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
-    const tasks = city.json().content.tasks as Array<{ index: number; type: string; items?: Array<{ id: string; text: string }>; options?: string[] }>;
+    const tasks = city.json().content.tasks as Array<{ index: number; type: string; items?: Array<{ id: string; text: string }>; options?: string[]; rows?: number; cols?: number; words?: Array<{ n: number; row: number; col: number; dir: string; len: number; clue: string; answer?: string; src?: number }> }>;
+    // Кроссворд (район 1 Руфи): сетка без букв — только номера, клетки, направления, длины и вопросы.
+    const cw = tasks.find((t) => t.type === "crossword")!;
+    expect(cw).toBeDefined();
+    expect(cw.rows).toBeGreaterThan(2); expect(cw.cols).toBeGreaterThan(2);
+    expect(cw.words!.length).toBe((content.tasks[cw.index] as { words: unknown[] }).words.length);
+    for (const w of cw.words!) { expect(w.answer).toBeUndefined(); expect(w.src).toBeUndefined(); expect(w.len).toBeGreaterThan(1); expect(["across", "down"]).toContain(w.dir); }
+    const cwSrc = (content.tasks[cw.index] as { words: Array<{ clue: string; answer: string }> }).words;
+    const wrongWords = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/${cw.index}/answer`, headers: { cookie: p1Cookie }, payload: { answer: cw.words!.map(() => "абв") } });
+    expect(wrongWords.json().correct).toBe(false);
+    await prisma.teamTaskLock.deleteMany({ where: { teamId: team1, nodeKey: rutKey } });
     for (const t of tasks) {
       const src = content.tasks[t.index]!;
       let answer: unknown;
@@ -115,6 +126,8 @@ describe("город на перекрёстке", () => {
       else if (src.type === "text") answer = src.answers![0]!.toUpperCase() + "!";
       // Варианты у команды перетасованы: ищем показанный номер верного по тексту.
       else if (src.type === "choice") answer = t.options!.indexOf(src.options![src.correct!]!);
+      // Кроссворд: слова в порядке показанного списка, регистр и ё/е не важны.
+      else if (src.type === "crossword") answer = t.words!.map((w) => cwSrc.find((x) => x.clue === w.clue)!.answer.toLowerCase().replace(/е/g, "ё"));
       else answer = src.items!.map((text) => t.items!.find((i) => i.text === text)!.id);
       const res = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/${t.index}/answer`, headers: { cookie: p1Cookie }, payload: { answer } });
       expect(res.statusCode, `задание ${t.index}`).toBe(200);

@@ -255,3 +255,159 @@
 .deed-sheet details.codex li { margin-bottom: 4px; }
 .deed-sheet .chips label.check.inline { display: inline-flex; align-items: center; gap: 6px; margin: 0 var(--sp-2) var(--sp-1) 0; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 14px; }
 .deed-sheet .field .label { display: block; font-weight: 600; margin-bottom: 4px; }
+
+/* ===== Формы заданий города (решения владельца 18.09, глава 5): замок, весы, печать, конверт, свиток, кроссворд, отмычка, свеча ===== */
+/* Замок с кольцами. Текстуру корпуса можно заменить картинкой через --lock-tex (см. документ §2.6). */
+.lock { --lock-metal: #6B6258; --lock-dark: #3E3730; --lock-light: #A79C8E; margin-top: var(--sp-3); position: relative; padding-top: 34px; }
+.lock .shackle { position: absolute; top: 0; left: 50%; width: 96px; height: 56px; transform: translateX(-50%); transition: transform .5s var(--spring); z-index: 0; }
+.lock .shackle svg { width: 100%; height: 100%; overflow: visible; }
+.lock .shackle path { fill: none; stroke: var(--lock-light); stroke-width: 14; stroke-linecap: round; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
+.lock.open .shackle { transform: translateX(-50%) translateY(-18px) rotate(-12deg); }
+.lock.jam { animation: lockJam .5s var(--ease-out); }
+.lock-body { position: relative; z-index: 1; border-radius: var(--r-md); padding: var(--sp-3); color: #F4EEE4; background: var(--lock-tex, linear-gradient(160deg, var(--lock-light) 0%, var(--lock-metal) 35%, var(--lock-dark) 100%)); background-size: cover; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 8px 18px rgba(0,0,0,.25); }
+.lock-top .strong { display: inline-flex; align-items: center; gap: var(--sp-1); color: inherit; }
+.lock-top .ghost { color: #F4EEE4; }
+.lock-body .hint { color: rgba(244,238,228,.8); margin: var(--sp-1) 0 0; }
+.lock-body .sortable li { background: rgba(255,255,255,.9); color: var(--text); }
+.rings { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.ring { display: grid; grid-template-columns: 26px 1fr; grid-template-rows: auto auto auto; grid-template-areas: "pos up" "pos drum" "pos down"; align-items: center; column-gap: var(--sp-2); background: linear-gradient(180deg, rgba(0,0,0,.35), rgba(255,255,255,.08) 50%, rgba(0,0,0,.35)); border: 1px solid rgba(0,0,0,.45); border-radius: var(--r-sm); padding: 2px var(--sp-2); }
+.ring .pos { grid-area: pos; width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,.4); display: inline-flex; align-items: center; justify-content: center; font-size: var(--fs-xs); font-weight: 700; }
+.ring .turn { grid-area: up; justify-self: center; color: #F4EEE4; min-height: 28px; padding: 0 var(--sp-3); }
+.ring .turn + .drum + .turn { grid-area: down; }
+.ring .drum { grid-area: drum; display: flex; flex-direction: column; align-items: center; text-align: center; min-height: 52px; justify-content: center; overflow: hidden; }
+.ring .ghost-item { font-size: var(--fs-xs); opacity: .4; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
+.ring .cur { display: flex; flex-direction: column; align-items: center; gap: 1px; font-weight: 600; padding: 3px 10px; border-radius: var(--r-xs); background: rgba(255,255,255,.14); box-shadow: inset 0 0 0 1px rgba(255,255,255,.2); max-width: 100%; }
+.ring .cur small { color: rgba(244,238,228,.75); font-weight: 400; font-size: var(--fs-xs); line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ring.spin-up .cur { animation: ringSpinUp .22s var(--ease-out); }
+.ring.spin-down .cur { animation: ringSpinDown .22s var(--ease-out); }
+/* Разорванные полоски цитаты (C-08): пункты «по порядку» с цитатой. */
+.lock.strips .ring .cur { background: #F3EAD3; color: var(--text); font-family: Georgia, "Times New Roman", serif; font-style: italic; clip-path: polygon(0 6%, 4% 0, 12% 8%, 22% 2%, 35% 9%, 48% 1%, 60% 8%, 72% 2%, 85% 9%, 96% 1%, 100% 8%, 100% 92%, 95% 100%, 84% 93%, 70% 100%, 58% 92%, 45% 99%, 30% 92%, 18% 100%, 6% 93%, 0 100%); padding: 6px 14px; }
+.lock.strips .ring .ghost-item { font-family: Georgia, serif; font-style: italic; }
+.pins { margin-top: var(--sp-3); display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.pin-row { display: inline-flex; gap: 4px; align-items: flex-end; height: 18px; }
+.pin-row i { display: inline-block; width: 6px; height: 12px; border-radius: 3px 3px 1px 1px; background: rgba(0,0,0,.45); }
+.pin-row i.up { height: 18px; background: var(--danger); animation: pinUp .35s var(--spring); }
+@keyframes lockJam { 0%, 100% { transform: none; } 20% { transform: translateX(-4px) rotate(-.5deg); } 40% { transform: translateX(4px) rotate(.5deg); } 60% { transform: translateX(-3px); } 80% { transform: translateX(3px); } }
+@keyframes ringSpinUp { from { transform: translateY(14px); opacity: .3; } to { transform: none; opacity: 1; } }
+@keyframes ringSpinDown { from { transform: translateY(-14px); opacity: .3; } to { transform: none; opacity: 1; } }
+@keyframes pinUp { from { height: 12px; } to { height: 18px; } }
+
+/* Весы: коромысло наклонено одинаково до ответа; ровно — верно; чаша проваливается — неверно. Текстура: --scales-tex. */
+.scales { margin-top: var(--sp-2); }
+.scales-scene { position: relative; height: 150px; margin: 0 auto var(--sp-3); max-width: 340px; }
+.scales .post { position: absolute; left: 50%; bottom: 10px; width: 10px; height: 118px; transform: translateX(-50%); background: linear-gradient(90deg, #6E5A3E, #A8895E, #6E5A3E); border-radius: 4px 4px 0 0; }
+.scales .base { position: absolute; left: 50%; bottom: 0; width: 120px; height: 12px; transform: translateX(-50%); background: var(--scales-tex, linear-gradient(180deg, #8A7048, #5C4A30)); border-radius: 6px; }
+.scales .beam { position: absolute; left: 50%; top: 24px; width: 260px; height: 8px; margin-left: -130px; border-radius: 4px; background: linear-gradient(180deg, #C9AE7B, #8A7048); transform-origin: 50% 50%; transform: rotate(-6deg); transition: transform .6s var(--spring); }
+.scales .beam::before { content: ""; position: absolute; left: 50%; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #E9D6AE, #6E5A3E); }
+.scales .pan { position: absolute; top: 4px; width: 84px; display: flex; flex-direction: column; align-items: center; transition: transform .6s var(--spring); }
+.scales .pan::before { content: ""; width: 2px; height: 46px; background: #6E5A3E; }
+.scales .pan::after { content: ""; width: 84px; height: 12px; border-radius: 0 0 42px 42px; background: linear-gradient(180deg, #C9AE7B, #8A7048); }
+.scales .pan.left { left: 2px; }
+.scales .pan.right { right: 2px; }
+.scales .weight, .scales .stone { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; justify-content: center; }
+.scales .weight { width: 34px; height: 34px; border-radius: 6px 6px 4px 4px; background: linear-gradient(160deg, #7C7368, #3E3730); color: #F4EEE4; font-size: var(--fs-md); box-shadow: inset 0 1px 0 rgba(255,255,255,.3); }
+.scales .weight .sign { color: #FFD98A; font-size: var(--fs-lg); animation: flipIn .5s var(--spring); }
+.scales .stone { width: 92px; height: 40px; padding: 2px 8px; border-radius: 46% 50% 44% 52%; font-size: 11px; line-height: 1.1; text-align: center; background: linear-gradient(160deg, #B9B0A0, #6B645A); color: #fff; opacity: 0; transition: opacity .2s; white-space: normal; overflow: hidden; }
+.scales .stone.on { opacity: 1; }
+.scales .stone.cracked { background: linear-gradient(160deg, #8A7E6E 48%, #3E3730 50%, #8A7E6E 52%); animation: crack .5s var(--ease-out); }
+.scales.ok .beam { transform: rotate(0deg); }
+.scales.bad .beam { transform: rotate(12deg); }
+.scales.bad .pan.right { transform: translateY(14px); }
+.stones { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.stone-btn { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); background: var(--surface); color: var(--text); border: 1px solid var(--border); font-weight: 400; line-height: var(--lh-ui); }
+.stone-btn:hover { background: var(--surface-2); }
+.stone-btn.on { border-color: var(--accent); background: var(--accent-soft); }
+.stone-btn .pebble { width: 20px; height: 16px; flex: none; border-radius: 45% 50% 40% 55%; background: linear-gradient(160deg, #C9C0B0, #7C7368); box-shadow: inset 0 1px 0 rgba(255,255,255,.4); }
+.stone-btn.on .pebble { background: linear-gradient(160deg, #E0B27A, var(--accent-strong)); }
+@keyframes crack { 0% { transform: translateX(-50%) scale(1); } 40% { transform: translateX(-50%) scale(1.08) rotate(-3deg); } 100% { transform: translateX(-50%) scale(1); } }
+
+/* Печать из знаков шифра. */
+.seal { display: block; flex: none; }
+.seal .rim { fill: #F3EAD3; stroke: var(--accent-strong); stroke-width: 1.5; }
+.seal .sector { fill: #EDE2C8; stroke: #FFFFFF; stroke-width: .8; transition: fill .3s; }
+.seal .sector.on { fill: var(--accent); }
+.seal .sector.struck { animation: strike .6s var(--spring); transform-origin: 50px 50px; }
+.seal .glyph { fill: transparent; font-weight: 700; font-family: var(--font-mono); }
+.seal .glyph.on { fill: #FFFFFF; }
+.seal .core { fill: #F3EAD3; stroke: var(--accent-strong); stroke-width: 1; }
+.seal .core-text { fill: var(--accent-ink); font-weight: 700; font-family: var(--font-mono); }
+.seal.imprint .rim { fill: #9E2B2B; stroke: #5E1414; }
+.seal.imprint .sector { fill: #B23434; stroke: #7A1E1E; }
+.seal.imprint .sector.on { fill: #8E2222; }
+.seal.imprint .glyph.on { fill: #F1C9C9; }
+.seal.imprint .core { fill: #A82E2E; stroke: #5E1414; }
+.seal.imprint .core-text { fill: #F1C9C9; }
+.seal.corner { opacity: .9; }
+@keyframes strike { 0% { transform: scale(1); } 30% { transform: scale(1.18); } 100% { transform: scale(1); } }
+.cipher { display: flex; align-items: center; gap: var(--sp-3); }
+.cipher-side { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+
+/* Конверт с сургучом. */
+.envelope { position: relative; margin-top: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-md); background: #F7F1E4; border: 1px solid #E0D3B8; box-shadow: var(--shadow-1); overflow: hidden; }
+.envelope .paper { position: relative; height: 96px; margin: 0 auto var(--sp-2); max-width: 300px; background: #EFE4CC; border: 1px solid #D6C6A4; border-radius: var(--r-sm); overflow: visible; }
+.envelope .flap { position: absolute; inset: 0 0 auto 0; height: 52px; background: linear-gradient(180deg, #E4D5B5, #D6C6A4); clip-path: polygon(0 0, 100% 0, 50% 100%); transform-origin: 50% 0; transition: transform .6s var(--spring); }
+.envelope .wax { position: absolute; left: 50%; top: 22px; width: 72px; height: 72px; transform: translateX(-50%); transition: transform .5s var(--spring), filter .4s; filter: drop-shadow(0 3px 4px rgba(0,0,0,.3)); }
+.envelope .wax .seal.imprint .rim { fill: var(--wax, #9E2B2B); }
+.envelope.broken .flap { transform: rotateX(160deg); }
+.envelope.broken .wax { transform: translateX(-50%) translateY(14px) rotate(18deg); filter: drop-shadow(0 3px 4px rgba(0,0,0,.3)) brightness(.7); clip-path: polygon(0 0, 55% 0, 45% 100%, 0 100%); }
+.envelope.scratched .wax { animation: lockJam .5s var(--ease-out); }
+.envelope.dry .wax { filter: grayscale(.8) drop-shadow(0 3px 4px rgba(0,0,0,.3)); }
+.envelope .cipher-line { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: var(--sp-2) 0; }
+.envelope .cipher-text { font-family: var(--font-mono); font-size: var(--fs-xl); letter-spacing: .25em; padding-left: .25em; color: var(--accent-ink); }
+.envelope p .i { vertical-align: -.2em; color: var(--accent); }
+.key-cells { position: relative; display: flex; gap: 6px; justify-content: center; margin: var(--sp-1) 0 var(--sp-2); cursor: text; }
+.key-cells .cell { width: 40px; height: 48px; border-radius: var(--r-xs); border: 1px solid var(--border-strong); background: var(--surface); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: var(--fs-xl); font-weight: 700; color: var(--text); }
+.key-cells .cell.on { border-color: var(--accent); background: var(--accent-soft); }
+.key-cells:focus-within .cell.cursor { box-shadow: var(--ring); }
+.key-cells .key-input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; font-size: 16px; }
+.envelope .charter { text-align: center; padding: var(--sp-3); margin-top: var(--sp-2); border: 2px double var(--accent-strong); border-radius: var(--r-sm); background: #FBF6EA; animation: charterIn .6s var(--spring); }
+.envelope .charter .crowns { color: var(--accent); display: flex; justify-content: center; gap: var(--sp-1); }
+.envelope .charter .crowns .i { width: 26px; height: 26px; }
+.envelope .charter.foreign { border-style: dashed; }
+@keyframes charterIn { from { transform: translateY(16px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* Обгоревший свиток: пропуск в цитате — дыра с полем фиксированной ширины (длина ответа не утекает). */
+.burnt .scroll-paper { position: relative; margin: var(--sp-3) 0; padding: var(--sp-4) var(--sp-4); background: radial-gradient(ellipse at 2% 8%, rgba(60,35,10,.55), transparent 22%), radial-gradient(ellipse at 98% 92%, rgba(60,35,10,.5), transparent 24%), radial-gradient(ellipse at 90% 4%, rgba(60,35,10,.35), transparent 14%), #F3EAD3; border-radius: 6px; clip-path: polygon(2% 0, 30% 2%, 55% 0, 80% 3%, 100% 1%, 99% 40%, 100% 75%, 98% 100%, 70% 98%, 40% 100%, 12% 97%, 0 100%, 1% 60%, 0 25%); font-family: Georgia, "Times New Roman", serif; font-size: var(--fs-lg); line-height: 1.8; color: #3A2A17; }
+.burnt .hole { display: inline-block; margin: 0 .2em; vertical-align: baseline; }
+.burnt .hole input { width: 8ch; min-width: 8ch; height: 1.7em; padding: 0 .3em; border: 0; border-bottom: 2px solid #7A5A2E; border-radius: 4px 4px 0 0; background: radial-gradient(ellipse at 50% 60%, rgba(70,40,10,.18), rgba(70,40,10,.05)); font: inherit; color: #1E140A; text-align: center; letter-spacing: .02em; }
+.burnt .hole input:focus { outline: none; box-shadow: 0 2px 0 var(--accent); }
+.burnt .hole input:not(:placeholder-shown) { animation: inkIn .4s var(--ease-out); }
+@keyframes inkIn { from { color: transparent; } to { color: #1E140A; } }
+
+/* Кроссворд района. */
+.crossword { margin-top: var(--sp-2); }
+.cw-grid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 2px; max-width: calc(var(--cols) * 34px); margin: 0 auto var(--sp-3); }
+.cw-cell { position: relative; aspect-ratio: 1; }
+.cw-cell.empty { visibility: hidden; }
+.cw-cell input { width: 100%; height: 100%; min-height: 0; padding: 0; text-align: center; text-transform: uppercase; font-weight: 700; font-size: var(--fs-md); border: 1px solid var(--border-strong); border-radius: 3px; background: var(--surface); }
+.cw-cell.active input { background: var(--accent-soft); border-color: var(--accent); }
+.cw-cell .cw-n { position: absolute; top: 1px; left: 3px; font-size: 9px; line-height: 1; color: var(--muted); pointer-events: none; z-index: 1; }
+.cw-clues { display: flex; flex-direction: column; gap: var(--sp-2); }
+.cw-list { list-style: none; margin: var(--sp-1) 0 0; padding: 0; display: flex; flex-direction: column; }
+.cw-list li.active > button { background: var(--accent-soft); }
+.cw-list button { width: 100%; justify-content: flex-start; text-align: left; white-space: normal; padding: 4px var(--sp-2); font-weight: 400; color: var(--text); line-height: var(--lh-ui); }
+
+/* Отмычка остывает: кольцо-таймер; свеча пророка в шапке. */
+.pick-cooling { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.pick-cooling .track { fill: none; stroke: var(--border); stroke-width: 3; }
+.pick-cooling .heat { fill: none; stroke: var(--danger); stroke-width: 3; stroke-linecap: round; transform: rotate(-90deg); transform-origin: 50% 50%; transition: stroke-dashoffset 1s linear; }
+.pick-cooling .pick { fill: none; stroke: var(--text); stroke-width: 1.8; stroke-linecap: round; }
+.candle { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px 2px 4px; border-radius: 999px; background: rgba(0,0,0,.28); color: color-mix(in srgb, white 90%, transparent); }
+.candle svg { flex: none; }
+.candle .body { fill: #F1E3B8; }
+.candle .plate { fill: #B78A3E; }
+.candle .flame { fill: #FFB347; transform-origin: 12px 10px; }
+.candle.lit .flame { animation: flicker 1.1s ease-in-out infinite alternate; filter: drop-shadow(0 0 4px #FFC85C); }
+.candle.stub .flame { display: none; }
+@keyframes flicker { from { transform: scale(1) rotate(-3deg); } to { transform: scale(1.12) rotate(3deg); } }
+/* Районы окрашиваются и застывают, когда порядок собран; горящее окно — открытая подсказка пророка. */
+.district.set { background: color-mix(in srgb, hsl(var(--d-hue) 65% 55%) 12%, var(--surface)); border-color: color-mix(in srgb, hsl(var(--d-hue) 65% 45%) 40%, var(--border)); }
+.district.set .num { background: hsl(var(--d-hue) 55% 42%); }
+.district.set.done .num { background: var(--success); }
+.districts li.reveal { animation: freezeIn .5s var(--spring) both; }
+.district .window { width: 10px; height: 14px; border-radius: 5px 5px 2px 2px; background: #FFD98A; box-shadow: 0 0 8px 2px rgba(255,200,90,.7); flex: none; }
+@keyframes freezeIn { from { transform: translateX(-12px); opacity: .2; filter: grayscale(1); } to { transform: none; opacity: 1; filter: none; } }
+.prophet-letter { background: #FBF6EA; border: 1px solid #E0D3B8; font-family: Georgia, "Times New Roman", serif; }
+.prophet-letter .letter-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-2); font-family: var(--font); }
+.prophet-letter .letter-head .i { color: var(--accent); }
+.prophet-letter .letter-sign { margin-top: var(--sp-2); text-align: right; font-family: var(--font); }

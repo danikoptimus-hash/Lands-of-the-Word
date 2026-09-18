@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, type CityTaskDto, type MyCityDto, type SupportItemDto, type TaskLockDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
-import { SortableList } from "./SortableList";
+import { BurntScroll, CipherSeal, Crossword, LockRings, PickCooling, ProphetCandle, Scales, WaxEnvelope, findGap } from "./CityForms";
 import { WarSection } from "./BattlePanel";
 import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
@@ -17,9 +17,11 @@ import { kindLabel } from "./RecipientsBlock";
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 
 /**
- * Попап города у команды: шапка (иллюстрация, книга, статус, «Столица»), индикатор шагов
+ * Попап города у команды: шапка (иллюстрация, книга, статус, «Столица», свеча пророка), индикатор шагов
  * 1 Порядок · 2 Районы · 3 Конверт, тело текущего шага, ниже свёрнутые секции «Проход» и «Испытание».
+ * Шаги оформлены как замок с кольцами, районы-кварталы с печатью шифра и конверт с сургучом (решения 18.09).
  */
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, container, onClose, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
   const { notify, confirm } = useUi();
 
@@ -32,6 +34,11 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   const [busy, setBusy] = useState(false);
   const [key, setKey] = useState("");
   const [now, setNow] = useState(Date.now());
+  /** Сцены форм: замок открылся/заклинило, районы только что встали по порядку, какой сектор печати выбит, сургуч. */
+  const [lockState, setLockState] = useState<"idle" | "open" | "jam">("idle");
+  const [justSolved, setJustSolved] = useState(false);
+  const [struck, setStruck] = useState<number | null>(null);
+  const [capResult, setCapResult] = useState<"ok" | "bad" | null>(null);
 
   const load = useCallback(() => api<MyCityDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`).then((c) => { setCity(c); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [gameId, nodeKey]);
   useEffect(() => { void load(); }, [load, version]);
@@ -53,7 +60,11 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
     try {
       const r = await api<{ correct: boolean; wrong: number }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/order`, { method: "POST", body: JSON.stringify({ ids: order }) });
       setOrderResult(r.wrong);
-      if (r.correct) { notify(t("Порядок верный: районы открыты")); setOrder(null); }
+      if (r.correct) {
+        // Дужка открывается, затем районы окрашиваются и застывают по порядку книги.
+        setLockState("open"); await sleep(900);
+        notify(t("Порядок верный: районы открыты")); setOrder(null); setJustSolved(true);
+      } else { setLockState("jam"); setTimeout(() => setLockState("idle"), 700); }
       await load(); onChanged();
     } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
@@ -62,7 +73,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
     setBusy(true); setError(null);
     try {
       const r = await api<{ correct: boolean; fragment?: string; retryAt?: number | null; wrong?: number }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
-      if (r.correct) notify(t("Верно. Знак шифра: {f}", { f: r.fragment ?? "" }));
+      if (r.correct) { setStruck(index); notify(t("Верно. Знак шифра: {f}", { f: r.fragment ?? "" })); await sleep(900); }
       else notify(t("Неверно. Отмычка остывает: следующая попытка через {t}", { t: r.retryAt ? fmtLeft(r.retryAt - Date.now()) : "" }), "bad");
       await load(); onChanged();
       return r.correct;
@@ -96,10 +107,12 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
     setBusy(true); setError(null);
     try {
       const r = await api<{ ok: boolean; isCapital: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/capture`, { method: "POST", body: JSON.stringify({ key }) });
+      setCapResult("ok");
       notify(r.isCapital ? t("Город ваш. Это ваша столица") : t("Город ваш"));
       setKey("");
+      await sleep(700);
       await load(); onChanged();
-    } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
+    } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); setCapResult("bad"); setTimeout(() => setCapResult(null), 800); if (e instanceof ApiError && (e.status === 400 || e.status === 429)) void load(); }
     finally { setBusy(false); }
   }
 
@@ -113,7 +126,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       <img src={IMG.city(city?.node.cityType)} alt="" />
       <div className="title">
         <h2 id="city-title">{book?.nameRu ?? t("Город")}</h2>
-        <div className="status">{statusLine}{city?.state.isCapital && <Chip tone="solid" icon="crown">{t("Столица")}</Chip>}</div>
+        <div className="status">{statusLine}{city?.state.isCapital && <Chip tone="solid" icon="crown">{t("Столица")}</Chip>}{city?.content && <ProphetCandle availableAt={city.state.hintAvailableAt} now={now} />}</div>
       </div>
     </div>
   );
@@ -137,10 +150,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       {city?.content && step === 1 && order && (
         <section className="step-body">
           <h3>{t("Расставьте районы по порядку книги")}</h3>
-          <p className="hint">{t("Тяните за ручку или пользуйтесь стрелками.")}</p>
-          {orderResult != null && orderResult > 0 && <div className="note bad"><Icon name="alert" /><span>{t("Не на месте: {n} · попытка {k}", { n: orderResult, k: city.state.orderAttempts })}</span></div>}
-          <SortableList ids={order} onChange={setOrder} render={(id) => { const d = byId.get(id)!; return <><div className="d-title">{d.title}</div><div className="d-sum muted">{d.summary}</div></>; }} />
-          <div className="actions"><button type="button" disabled={busy} onClick={() => void checkOrder()}><Icon name="check" />{t("Проверить порядок")}</button></div>
+          <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { setOrder(ids); setOrderResult(null); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
+            hint={t("Крутите кольца стрелками, пока сцены не встанут по порядку книги, и проверните замок. Попыток: {k}", { k: city.state.orderAttempts })} />
+          <div className="actions"><button type="button" disabled={busy || lockState === "open"} onClick={() => void checkOrder()}><Icon name="lock" />{t("Провернуть замок")}</button></div>
         </section>
       )}
 
@@ -153,11 +165,14 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
                 const i = d.index ?? 0;
                 const ok = done.includes(i);
                 const locked = isLocked(city.state.locks, i, now);
+                const hue = Math.round(20 + (300 * i) / Math.max(districts.length, 1));
+                const lit = city.state.hintTasks.includes(i);
                 return (
-                  <li key={d.id}>
-                    <button type="button" className={"district" + (ok ? " done" : "") + (locked ? " locked" : "")} onClick={() => setTaskIndex(i)} aria-label={`${i + 1}. ${d.title} · ${ok ? t("выполнено") : locked ? t("закрыто") : t("не выполнено")}`}>
+                  <li key={d.id} className={justSolved ? "reveal" : ""} style={{ ["--d-hue" as string]: hue, animationDelay: justSolved ? `${i * 90}ms` : undefined }}>
+                    <button type="button" className={"district set" + (ok ? " done" : "") + (locked ? " locked" : "") + (lit ? " lit" : "")} onClick={() => setTaskIndex(i)} aria-label={`${i + 1}. ${d.title} · ${ok ? t("выполнено") : locked ? t("закрыто") : t("не выполнено")}`}>
                       <span className="num">{i + 1}</span>
                       <span className="body"><span className="d-title">{d.title} <span className="muted">{d.verses}</span></span><span className="d-sum muted">{d.summary}</span></span>
+                      {lit && <span className="window" title={t("Подсказка пророка открыта")} aria-hidden="true" />}
                       <span className={"check" + (ok ? " on" : "")}><Icon name={ok ? "check" : locked ? "lock" : "chevron"} /></span>
                     </button>
                   </li>
@@ -187,32 +202,27 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
           )}
 
           {step === 3 && !city.state.capturedAt && <h3>{t("Получите конверт с ключом")}</h3>}
-          <div className="cipher">
-            <div className="row between"><span className="strong">{t("Шифр города")}</span>{!allDone && <span className="hint">{t("Соберётся, когда решите все районы")}</span>}</div>
-            <div className="letters">{city.content.fragments.map((f, i) => <span key={i} className={f ? "on" : ""}>{f ?? ""}</span>)}</div>
-            {allDone && <p className="hint">{city.content.codeRule}</p>}
-          </div>
-
-          {allDone && !city.state.capturedAt && city.node.ruined && !city.owner && (
-            <div className="capture">
-              <div className="note warn"><Icon name="info" /><span>{t("Город в руинах: его можно занять без конверта.")}</span></div>
-              <div className="actions"><button type="button" disabled={busy} onClick={() => void capture()}><Icon name="city" />{t("Занять руины")}</button></div>
-            </div>
-          )}
-          {allDone && !city.state.capturedAt && !city.node.ruined && (
-            <div className="capture">
-              <p className="mt-3"><Icon name="mail" /> {city.recipient ? t("Назовите шифр адресату «{label}» ({kind}) и получите конверт с ключом.", { label: city.recipient.label, kind: kindLabel(city.recipient.kind) }) : t("Назовите шифр адресату, к которому вас направили, и получите конверт с ключом.")}</p>
-              <div className="field">
-                <label htmlFor="city-key">{t("Ключ из конверта")}</label>
-                <div className="row nowrap">
-                  <input id="city-key" className="key-input" value={key} onChange={(e) => setKey(e.target.value.toUpperCase())} maxLength={12} autoCapitalize="characters" autoComplete="off" />
-                  <button type="button" disabled={busy || key.trim().length < 4 || cooldown > 0} onClick={() => void capture()}><Icon name="city" />{t("Взять город")}</button>
-                </div>
-                <p className="hint">{cooldown > 0 ? t("Печать остывает после неверного ключа: подождите {t}", { t: fmtLeft(cooldown * 1000) }) : t("Ключ напечатан в конверте: не меньше 4 знаков")}</p>
+          {!allDone && (
+            <div className="cipher">
+              <CipherSeal fragments={city.content.fragments} struck={struck} />
+              <div className="cipher-side">
+                <span className="strong">{t("Печать города")}</span>
+                <span className="hint">{t("Каждый решённый район выбивает на печати свой знак. Соберётся, когда решите все районы.")}</span>
+                <span className="letters sr-only">{city.content.fragments.map((f) => f ?? "·").join(" ")}</span>
               </div>
             </div>
           )}
-          {city.state.capturedAt && <div className="note ok"><Icon name="check" /><span>{city.state.isCapital ? (city.state.secondCapital ? t("Город ваш — это ваша вторая столица.") : t("Город ваш — это ваша столица.")) : t("Город ваш.")}</span></div>}
+          {allDone && (
+            <div className="capture">
+              {city.node.ruined && !city.owner && !city.state.capturedAt && <div className="note warn"><Icon name="info" /><span>{t("Город в руинах: его можно занять без конверта.")}</span></div>}
+              <WaxEnvelope fragments={city.content.fragments} cipher={city.content.fragments.map((f) => f ?? "·").join("")}
+                recipientText={city.recipient ? t("Назовите шифр адресату «{label}» ({kind}) и получите конверт с ключом.", { label: city.recipient.label, kind: kindLabel(city.recipient.kind) }) : t("Назовите шифр адресату, к которому вас направили, и получите конверт с ключом.")}
+                keyValue={key} onKey={setKey} onBreak={() => void capture()} busy={busy} cooldown={cooldown} ruined={city.node.ruined && !city.owner} result={capResult}
+                captured={city.state.capturedAt ? { isCapital: city.state.isCapital, secondCapital: city.state.secondCapital } : null}
+                ownedBy={city.owner && !city.state.capturedAt ? { name: city.owner.name, color: city.owner.color } : null} />
+              {!city.state.capturedAt && !city.owner && <p className="hint mt-2">{city.content.codeRule}</p>}
+            </div>
+          )}
           {city.state.capturedAt && !city.state.isCapital && isCaptain && (
             <div className="row mt-2">
               <button type="button" className="secondary" disabled={busy || Boolean(city.team.capitalMovedAt)} onClick={() => void makeCapital()}><Icon name="crown" />{t("Перенести столицу сюда")}</button>
@@ -236,7 +246,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
         </details>
       )}
       {city?.content && task && (
-        <TaskView task={task} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
+        <TaskView task={task} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
           hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey}
           lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} pauseSteps={city.state.pauseSteps} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />
       )}
@@ -246,7 +256,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
 
 const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.some((l) => l.index === index && l.lockedUntil != null && l.lockedUntil > now);
 
-function TaskView({ task, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify }: { task: CityTaskDto; district?: { title: string; verses: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
+function TaskView({ task, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify }: { task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
   /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
   const cooldown = 0;
@@ -262,23 +272,32 @@ function TaskView({ task, district, groupTitles, done, fragment, busy, onBack, o
   const [text, setText] = useState("");
   const [choice, setChoice] = useState<number | null>(null);
   const [order, setOrder] = useState<string[]>(task.type === "order" ? task.items.map((i) => i.id) : []);
+  const [words, setWords] = useState<string[] | null>(null);
+  /** Итог последней отправки — для сцены формы (весы выравниваются, замок заклинивает); сбрасывается при смене ответа. */
+  const [result, setResult] = useState<"ok" | "bad" | null>(null);
   const itemText = useMemo(() => (task.type === "order" ? new Map(task.items.map((i) => [i.id, i.text])) : new Map<string, string>()), [task]);
-  const value = task.type === "choice" ? choice : task.type === "order" ? order : text.trim();
-  const filled = task.type === "choice" ? choice != null : task.type === "order" ? order.length > 0 : text.trim().length > 0;
+  const gap = useMemo(() => (task.type === "text" ? findGap(task.prompt) : null), [task]);
+  const value = task.type === "choice" ? choice : task.type === "order" ? order : task.type === "crossword" ? words : text.trim();
+  const filled = task.type === "choice" ? choice != null : task.type === "order" ? order.length > 0 : task.type === "crossword" ? words != null : text.trim().length > 0;
   const canSend = !done && !busy && cooldown === 0 && !locked && filled;
+  const send = async () => { const ok = await onAnswer(value); setResult(ok ? "ok" : "bad"); if (!ok) setTimeout(() => setResult(null), 900); };
   const scope = task.scope === "book" ? t("По всей книге") : task.scope === "group" ? t("По районам: {list}", { list: groupTitles?.join(", ") ?? "" }) : t("По этому району");
   const title = task.scope === "district" && district ? [t("Район {n}", { n: task.index + 1 }), district.title, district.verses].filter(Boolean).join(" · ") : t("Задание {n}", { n: task.index + 1 });
   const why = locked ? t("Отмычка остывает") : null;
   return (
     <div className="task-view" onContextMenu={(e) => e.preventDefault()}>
-      <button type="button" className="ghost back-btn" onClick={onBack}><Icon name="back" />{t("К районам")}</button>
+      <div className="row between nowrap">
+        <button type="button" className="ghost back-btn" onClick={onBack}><Icon name="back" />{t("К районам")}</button>
+        <CipherSeal fragments={fragments} size={44} className="corner" />
+      </div>
       <h3 className="mt-2">{title}</h3>
       <p className="muted small">{scope}</p>
-      <p className="prompt no-copy" onCopy={(e) => e.preventDefault()}>{task.prompt}</p>
+      {!(task.type === "text" && gap && !done) && <p className="prompt no-copy" onCopy={(e) => e.preventDefault()}>{task.prompt}</p>}
       {!done && !locked && (lock?.wrong ?? 0) > 0 && <p className="muted small">{t("Неверных подряд: {n}. Следующая ошибка остудит отмычку на {t}.", { n: lock!.wrong, t: fmtLeft(nextPause * 1000) })}</p>}
       {locked && lock && (
         <div className="note bad lock-note">
-          <div className="row nowrap"><Icon name="clock" /><span>{t("Отмычка остывает после неверного ответа. Следующая попытка через {t}.", { t: fmtLeft(lock.lockedUntil! - now) })}</span></div>
+          <div className="row nowrap"><PickCooling until={lock.lockedUntil!} now={now} label={t("Отмычка остывает")} total={(pauseSteps[Math.min(Math.max(lock.wrong - 1, 0), pauseSteps.length - 1)] ?? 20) * 1000} /></div>
+          <span className="small">{t("Отмычка остывает после неверного ответа. Следующая попытка через {t}.", { t: fmtLeft(lock.lockedUntil! - now) })}</span>
         </div>
       )}
       {openRequest && <div className="note info"><Icon name="send" /><span>{t("Обращение в поддержку отправлено {d}. Ждём ответа.", { d: fmtDate(new Date(openRequest.createdAt).toISOString()) })}</span></div>}
@@ -295,23 +314,27 @@ function TaskView({ task, district, groupTitles, done, fragment, busy, onBack, o
           </div>
         </div>
       )}
-      {hintOpen && hintText && <div className="hint-box no-copy"><div className="muted small">{t("Подсказка пророка · текст района {verses} · видна только вам: расскажите команде", { verses: district?.verses ?? "" })}</div>{hintText.map((x, i) => <p key={i}>{x}</p>)}</div>}
-      {!hintOpen && !done && canHint && <p className="mt-2"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Подсказка пророка · раз в неделю")}</button></p>}
+      {hintOpen && hintText && (
+        <div className="hint-box prophet-letter no-copy">
+          <div className="letter-head"><Icon name="mail" /><span className="strong">{t("Письмо пророка")}</span><span className="muted small">{t("текст района {verses}", { verses: district?.verses ?? "" })}</span></div>
+          {hintText.map((x, i) => <p key={i}>{x}</p>)}
+          <div className="muted small letter-sign">{t("Видно только вам: расскажите команде. — пророк команды")}</div>
+        </div>
+      )}
+      {!hintOpen && !done && canHint && <p className="mt-2"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Осветить этот район свечой пророка · раз в неделю")}</button></p>}
       {done ? (
         <div className="note ok"><Icon name="check" /><span>{t("Выполнено. Знак шифра: {f}", { f: fragment ?? "" })}</span></div>
       ) : (
         <div className="answer">
           {task.type === "number" && <div className="field"><label htmlFor="answer-num">{t("Число")}</label><input id="answer-num" type="number" inputMode="numeric" value={text} onChange={(e) => setText(e.target.value)} onPaste={noPaste} onDrop={noPaste} autoComplete="off" /></div>}
-          {task.type === "text" && <div className="field"><label htmlFor="answer-text">{t("Ответ")}</label><input id="answer-text" className="full" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" autoCorrect="off" spellCheck={false} onPaste={noPaste} onDrop={noPaste} /></div>}
-          {task.type === "choice" && (
-            <ul className="choices" role="radiogroup" aria-label={t("Варианты ответа")}>
-              {task.options.map((o, i) => <li key={i}><button type="button" role="radio" aria-checked={choice === i} className={choice === i ? "on" : ""} onClick={() => setChoice(i)}><span className="radio" />{o}</button></li>)}
-            </ul>
-          )}
-          {task.type === "order" && <SortableList ids={order} onChange={setOrder} render={(id) => <div className="d-title">{itemText.get(id)}</div>} />}
+          {task.type === "text" && gap && <BurntScroll gap={gap} value={text} onChange={setText} disabled={locked} onPaste={noPaste} />}
+          {task.type === "text" && !gap && <div className="field"><label htmlFor="answer-text">{t("Ответ")}</label><input id="answer-text" className="full" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" autoCorrect="off" spellCheck={false} onPaste={noPaste} onDrop={noPaste} /></div>}
+          {task.type === "choice" && <Scales options={task.options} choice={choice} onPick={(i) => { setChoice(i); setResult(null); }} disabled={locked || busy} result={result} fragment={fragment} />}
+          {task.type === "order" && <LockRings ids={order} labels={itemText} onChange={(ids) => { setOrder(ids); setResult(null); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} pinsWrong={result === "bad" ? -1 : null} strips />}
+          {task.type === "crossword" && <Crossword rows={task.rows} cols={task.cols} words={task.words} onChange={setWords} disabled={locked || busy} onPaste={noPaste} />}
           {why && <p className="hint" aria-live="polite">{why}</p>}
           <div className="actions">
-            <button type="button" disabled={!canSend} onClick={() => void onAnswer(value)}><Icon name="send" />{t("Ответить")}</button>
+            <button type="button" disabled={!canSend} onClick={() => void send()}><Icon name={task.type === "choice" ? "check" : task.type === "order" ? "lock" : "send"} />{task.type === "choice" ? t("Взвесить") : task.type === "order" ? t("Провернуть замок") : t("Ответить")}</button>
           </div>
         </div>
       )}

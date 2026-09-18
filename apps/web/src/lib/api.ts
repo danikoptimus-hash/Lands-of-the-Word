@@ -41,7 +41,10 @@ export interface CityDistrictDto { id: string; verses: string; title: string; su
 export type CityTaskDto =
   | { index: number; scope: string; groupDistricts: number[] | null; type: "number" | "text"; prompt: string }
   | { index: number; scope: string; groupDistricts: number[] | null; type: "choice"; prompt: string; options: string[] }
-  | { index: number; scope: string; groupDistricts: number[] | null; type: "order"; prompt: string; items: Array<{ id: string; text: string }> };
+  | { index: number; scope: string; groupDistricts: number[] | null; type: "order"; prompt: string; items: Array<{ id: string; text: string }> }
+  | { index: number; scope: string; groupDistricts: number[] | null; type: "crossword"; prompt: string; rows: number; cols: number; words: CrosswordWordDto[] };
+/** Слово кроссворда без букв: номер, клетка начала, направление, длина и вопрос. Ответ — слова в порядке этого списка. */
+export interface CrosswordWordDto { n: number; row: number; col: number; dir: "across" | "down"; len: number; clue: string }
 /** Блокировка задания с выбором ответа (две попытки → сутки) и спор с админом. */
 export interface TaskLockDto { index: number; wrong: number; lockedUntil: number | null; unlocked: boolean }
 /** Обращение команды в поддержку по городу: открытое или закрытое с ответом (две недели). */
@@ -53,10 +56,10 @@ export interface MyCityDto {
   owner: { id: string; index: number; name: string; color: string } | null;
   team: { capitalMovedAt: string | null; gameRole: GameRole; role: TeamRole };
   content: { title: string; translation: string; codeRule: string; districts: CityDistrictDto[]; tasks: CityTaskDto[]; fragments: Array<string | null> } | null;
-  state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; keyLockedUntil: number | null; keyWrong: number; pauseSteps: number[]; locks: TaskLockDto[]; support: SupportItemDto[] };
+  state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; /** Свеча пророка: когда подсказка снова доступна (0 — сейчас); не пророку null. */ hintAvailableAt: number | null; keyLockedUntil: number | null; keyWrong: number; pauseSteps: number[]; locks: TaskLockDto[]; support: SupportItemDto[] };
 }
 /** Город глазами админа: контент с ответами, ключ конверта, прогресс команд. */
-export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[] }
+export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order" | "crossword"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[]; words?: Array<{ clue: string; answer?: string; len?: number }> }
 export interface AdminCityDto {
   node: { key: string; bookCode: string; cityType: string | null; cityKey: string | null; cityCode: string | null };
   content: { title: string; translation: string; codeRule: string; districts: Array<{ verses: string; title: string; summary: string }>; tasks: AdminCityTask[] } | null;

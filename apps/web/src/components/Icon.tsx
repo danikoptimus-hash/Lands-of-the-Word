@@ -53,6 +53,7 @@ const P: Record<string, string> = {
   info: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm0-6v-4m0-4h.01",
   help: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Zm-2.5-11a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.7m0 3h.01",
   "chevron-down": "m6 9 6 6 6-6",
+  "chevron-up": "m18 15-6-6-6 6",
   sparkle: "m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3ZM5 19l.7 1.8L7.5 21.5l-1.8.7L5 24l-.7-1.8L2.5 21.5l1.8-.7L5 19Z",
 };
 export function Icon({ name, size, className, title }: { name: keyof typeof P | string; size?: number; className?: string; title?: string }) {
