@@ -31,8 +31,8 @@ export const GAME_ROLE_LABEL: Record<GameRole, string> = { get NONE() { return t
 export const TEAM_ROLE_LABEL: Record<TeamRole, string> = { get CAPTAIN() { return t("капитан"); }, get DEPUTY() { return t("заместитель"); }, get MEMBER() { return t("участник"); } };
 
 export type EdgeTaskStatus = "OPEN" | "TAKEN" | "SUBMITTED" | "APPROVED" | "REJECTED";
-export interface DeedLite { id: string; title: string; description: string; direction: string; proofType: "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "CONFIRMATION"; difficulty: number; /** Тайное дело: ссылки и описание сдачи видит только тот, кто взял, и администратор. */ secret?: boolean }
-export interface EdgeTaskDto { id: string; fromKey: string; toKey: string; deedId: string; status: EdgeTaskStatus; takenById: string | null; links: string[]; note: string; adminComment: string; submittedAt: string | null; deed: DeedLite; donation?: boolean; donationAmount?: number | null; /** Морская сторона из порта; landing — одобрено, капитан выбирает место высадки из candidates. */ sea?: boolean; landing?: boolean; candidates?: string[] }
+export interface DeedLite { id: string; title: string; description: string; direction: string; proofType: "REPORT" | "PHOTO_LINK" | "VIDEO_LINK"; /** Тайное дело: ссылки и описание сдачи видит только тот, кто взял, и администратор. */ secret?: boolean; /** Можно сделать издалека. */ remote?: boolean }
+export interface EdgeTaskDto { id: string; fromKey: string; toKey: string; deedId: string; status: EdgeTaskStatus; takenById: string | null; links: string[]; note: string; adminComment: string; submittedAt: string | null; deed: DeedLite; /** Кто участвовал в деле группой. */ participants?: string[]; donation?: boolean; donationAmount?: number | null; /** Морская сторона из порта; landing — одобрено, капитан выбирает место высадки из candidates. */ sea?: boolean; landing?: boolean; candidates?: string[] }
 export interface MapCityDto { nodeKey: string; hasContent: boolean; total: number; owner: { index: number; name: string; color: string } | null; orderSolved: boolean; done: number; captured: boolean; isCapital: boolean; battle: "ATTACK" | "DEFENSE" | null; ruined: boolean; blocked: boolean; passage: string | null }
 export interface MyMapDto { status: string; team: { id: string; name: string; color: string; startNodeKey?: string | null }; hexes: MapHexDto[]; revealed: MapNodeDto[]; edges: MapEdgeDto[]; tasks: EdgeTaskDto[]; cities: MapCityDto[]; peeked: Array<{ key: string; kind: string }>; /** Чужие пройденные стороны там, где открыт туман. */ foreign?: Array<{ aKey: string; bKey: string; teamIndex: number; color: string }>; /** Только в ответе администратору («глазами команды»): участники, чтобы подписать, кто взял дело. */ members?: Array<{ id: string; nickname: string; displayName: string | null }> }
 
@@ -64,7 +64,10 @@ export interface AdminCityDto {
   /** Ответы видит только администратор платформы; администратору игры приходят задания без ответов. */
   answersHidden?: boolean;
 }
-export const PROOF_LABEL: Record<DeedLite["proofType"], string> = { get REPORT() { return t("отчёт"); }, get PHOTO_LINK() { return t("фото"); }, get VIDEO_LINK() { return t("видео"); }, get CONFIRMATION() { return t("подтверждение"); } };
+export const PROOF_LABEL: Record<DeedLite["proofType"], string> = { get REPORT() { return t("отчёт"); }, get PHOTO_LINK() { return t("фото"); }, get VIDEO_LINK() { return t("видео"); } };
+/** Осада делами (город с максимумом защиты). */
+export interface SiegeDto { id: string; status: "ACTIVE" | "WON" | "REPELLED" | "CANCELLED"; startedAt: string; endsAt: string; attackerPoints: number; defenderPoints: number; attacker: { id: string; name: string; color: string } | null; defender: { id: string; name: string; color: string } | null; mine: "ATTACK" | "DEFENSE" }
+export interface SiegeInfoDto { available: boolean; canDeclare: boolean; reason: string | null; days: number; deedPoints: number; list: SiegeDto[] }
 export const TASK_STATUS_LABEL: Record<EdgeTaskStatus, string> = { get OPEN() { return t("свободно"); }, get TAKEN() { return t("в работе"); }, get SUBMITTED() { return t("на проверке"); }, get APPROVED() { return t("принято"); }, get REJECTED() { return t("возвращено"); } };
 
 /** Битва за город. Записи чужой стороны команде не видны. */
@@ -80,7 +83,7 @@ export interface BattleDto {
   attackSum: number; attackApproved: number; defenseSum: number; defenseApproved: number; entries: BattleEntryDto[]; myVerses: number[]; bookTotal: number | null;
 }
 export interface BookTextDto { code: string; name: string; verseCounts: number[]; chapters: string[][] | null; total: number }
-export interface WarDto { defenseLevel: number; sumMode: boolean; locked: boolean; lockedUntil?: string | null; bookVerses: number | null; penalty: number; minBid: number; attackDays?: number; burnPenalty?: number; canDeclare: boolean; reason: string | null; owner: { id: string; name: string; color: string } | null; queue: number; battles: BattleDto[] }
+export interface WarDto { defenseLevel: number; sumMode: boolean; locked: boolean; lockedUntil?: string | null; maxed?: boolean; siege?: SiegeInfoDto; bookVerses: number | null; penalty: number; minBid: number; attackDays?: number; burnPenalty?: number; canDeclare: boolean; reason: string | null; owner: { id: string; name: string; color: string } | null; queue: number; battles: BattleDto[] }
 export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { get QUEUED() { return t("в очереди"); }, get ATTACK() { return t("вызов"); }, get DEFENSE() { return t("ответ"); }, get WON() { return t("город перешёл"); }, get REPELLED() { return t("город устоял"); }, get EXPIRED() { return t("вызов не завершён"); }, get CANCELLED() { return t("отменено"); } };
 
 /** Итоги игры: положение команд и победитель. */

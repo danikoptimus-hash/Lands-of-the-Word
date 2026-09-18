@@ -52,7 +52,7 @@ afterAll(async () => {
 describe("стандартный набор дел", () => {
   it("синхронизация при старте сервера: нередактированные дела обновляются, правленные — нет, исчезнувшие из набора убираются", async () => {
     const deeds = (await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } })).json().deeds as Array<{ id: string; title: string; description: string }>;
-    const a = deeds.find((d) => d.title === "Посетить больного")!, b = deeds.find((d) => d.title === "Помощь на поле")!;
+    const a = deeds.find((d) => d.title === "Посетить больного")!, b = deeds.find((d) => d.title === "Помощь по хозяйству")!;
     // a: старая версия набора, администратор не трогал (хеш содержимого = sourceHash) → обновится
     const aOld = await prisma.deed.update({ where: { id: a.id }, data: { description: "старый текст набора" } });
     await prisma.deed.update({ where: { id: a.id }, data: { sourceHash: deedHash(aOld) } });

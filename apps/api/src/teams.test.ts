@@ -145,8 +145,8 @@ describe("дела и старт игры", () => {
     const created = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie }, payload: { title: "Своё дело", direction: "Посещение", canRepeat: true } });
     expect(created.statusCode).toBe(201);
     const deedId = created.json().deed.id;
-    const upd = await app.inject({ method: "PUT", url: `/api/games/${gameId}/deeds/${deedId}`, headers: { cookie: adminCookie }, payload: { difficulty: 3 } });
-    expect(upd.json().deed.difficulty).toBe(3);
+    const upd = await app.inject({ method: "PUT", url: `/api/games/${gameId}/deeds/${deedId}`, headers: { cookie: adminCookie }, payload: { frequency: 3 } });
+    expect(upd.json().deed.frequency).toBe(3);
     const list = await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } });
     expect(list.json().deeds.length).toBeGreaterThan(6);
     expect(list.json().recommendedMin).toBeGreaterThan(0);

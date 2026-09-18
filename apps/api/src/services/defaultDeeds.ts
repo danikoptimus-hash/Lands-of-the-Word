@@ -24,16 +24,22 @@ export const DIRECTIONS = [
   "Помощь миссионерам и большим семьям", "Труд в лагерях и домах молитвы", "Педагогическое служение", "Финансовое участие",
 ] as const;
 const BOOK_CODES = new Set(BOOKS.map((b) => b.code));
+/**
+ * Поля дела. Решения владельца 18.09: «тяжесть» убрана (колонка difficulty в базе остаётся ради хешей старых игр,
+ * в интерфейсе и наборе её нет); вида сдачи «подтверждение» нет — остаются отчёт, фото, видео (старое значение
+ * читается как отчёт); remote — «можно издалека»; siegePoints — цена дела при осаде делами.
+ */
 export const deedBody = z.object({
   title: z.string().trim().min(2).max(120),
   description: z.string().trim().max(2000).default(""),
   direction: z.enum(DIRECTIONS),
-  proofType: z.enum(["REPORT", "PHOTO_LINK", "VIDEO_LINK", "CONFIRMATION"]).default("PHOTO_LINK"),
+  proofType: z.preprocess((v) => (v === "CONFIRMATION" ? "REPORT" : v), z.enum(["REPORT", "PHOTO_LINK", "VIDEO_LINK"]).default("PHOTO_LINK")),
   canRepeat: z.boolean().default(false),
   bookCodes: z.array(z.string().trim().min(3).max(3)).max(66).default([]).transform((a) => [...new Set(a)].filter((c) => BOOK_CODES.has(c))),
-  difficulty: z.number().int().min(1).max(3).default(1),
   frequency: z.number().int().min(1).max(3).default(2),
   secret: z.boolean().default(false),
+  remote: z.boolean().default(false),
+  siegePoints: z.number().int().min(0).max(100).nullable().default(null),
 });
 export type DeedFields = z.infer<typeof deedBody>;
 const setItem = deedBody.extend({ replaces: z.array(z.string().trim().min(2)).default([]) });
@@ -51,13 +57,15 @@ export async function loadDefaultDeeds(): Promise<DefaultDeed[]> {
   return z.array(setItem).parse(JSON.parse(await readFile(FILE, "utf8")));
 }
 
-/** Хеш содержимого дела (только поля набора, книги — отсортированы). */
-export interface DeedLike { title: string; description: string; direction: string; proofType: string; canRepeat: boolean; bookCodes: string[]; difficulty: number; frequency: number; secret: boolean }
+/** Хеш содержимого дела (только поля набора, книги — отсортированы). Новые поля входят в хеш, только если заданы, чтобы хеши старых игр не менялись. */
+export interface DeedLike { title: string; description: string; direction: string; proofType: string; canRepeat: boolean; bookCodes: string[]; difficulty?: number; frequency: number; secret: boolean; remote?: boolean; siegePoints?: number | null }
 export function deedHash(d: DeedLike): string {
-  const canon = JSON.stringify([d.title, d.description, d.direction, d.proofType, d.canRepeat, [...d.bookCodes].sort(), d.difficulty, d.frequency, d.secret]);
+  const base: unknown[] = [d.title, d.description, d.direction, d.proofType, d.canRepeat, [...d.bookCodes].sort(), d.difficulty ?? 1, d.frequency, d.secret];
+  if (d.remote || d.siegePoints != null) base.push(Boolean(d.remote), d.siegePoints ?? null);
+  const canon = JSON.stringify(base);
   return createHash("sha1").update(canon).digest("base64url");
 }
-const fields = (d: DefaultDeed): DeedFields => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, difficulty: d.difficulty, frequency: d.frequency, secret: d.secret });
+const fields = (d: DefaultDeed): DeedFields => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, frequency: d.frequency, secret: d.secret, remote: d.remote, siegePoints: d.siegePoints });
 const lc = (s: string) => s.trim().toLowerCase();
 
 export interface SyncResult { added: number; updated: number; removed: number }

@@ -58,6 +58,17 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
 
   const active = war.battles.filter((b) => b.status === "QUEUED" || b.status === "ATTACK" || b.status === "DEFENSE");
   const past = war.battles.filter((b) => !active.includes(b)).slice(0, 3);
+  const siege = war.siege;
+  const activeSiege = siege?.list.find((s) => s.status === "ACTIVE") ?? null;
+  async function declareSiege() {
+    if (!siege) return;
+    const ok = await confirm(t("{d} дней обе команды делают дела из списка игры; за каждое одобренное — баллы. У кого больше к сроку, тот владеет городом; при равенстве город остаётся у хранителей.", { d: siege.days }), { title: t("Объявить осаду делами?"), okLabel: t("Объявить осаду"), danger: true });
+    if (!ok) return;
+    setBusy(true); setError(null);
+    try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/siege`, { method: "POST" }); notify(t("Осада объявлена: считаются дела обеих команд")); await load(); onChanged(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
+    finally { setBusy(false); }
+  }
   return (
     <div className="war">
       <h3>{t("Испытание города")}</h3>
@@ -86,6 +97,20 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
         </div>
       )}
       {!war.canDeclare && war.reason && !active.length && <p className="muted small mt-2">{war.reason}</p>}
+      {siege?.available && !activeSiege && siege.canDeclare && isCaptain && (
+        <div className="actions mt-2"><button type="button" disabled={busy} onClick={() => void declareSiege()}><Icon name="scroll" />{t("Объявить осаду делами")}</button></div>
+      )}
+      {siege?.available && !activeSiege && !siege.canDeclare && siege.reason && <p className="muted small mt-2">{siege.reason}</p>}
+      {activeSiege && (
+        <div className="battle defense">
+          <div className="row between nowrap">
+            <div className="grow"><div className="strong"><Icon name="scroll" /> {t("Осада делами")}</div><div className="muted small">{activeSiege.mine === "ATTACK" ? t("Вы — претенденты, против «{team}»", { team: activeSiege.defender?.name ?? "" }) : t("Вы — хранители, осада от «{team}»", { team: activeSiege.attacker?.name ?? "" })}</div></div>
+            <Chip tone="warn">{t("до {d}", { d: fmtDate(activeSiege.endsAt, { time: false }) })}</Chip>
+          </div>
+          <p className="muted small mt-2">{t("Баллы за одобренные дела: претенденты {a} · хранители {d}. Осталось {t}.", { a: activeSiege.attackerPoints, d: activeSiege.defenderPoints, t: leftText(activeSiege.endsAt, now) })}</p>
+          <p className="hint">{t("Считаются любые дела из списка игры, одобренные за время осады; при равенстве город остаётся у хранителей.")}</p>
+        </div>
+      )}
       {active.map((b) => <BattleCard key={b.id} gameId={gameId} b={b} teamId={teamId} isCaptain={isCaptain} now={now} onChanged={() => { void load(); onChanged(); }} />)}
       {past.length > 0 && (
         <ul className="list mt-3">

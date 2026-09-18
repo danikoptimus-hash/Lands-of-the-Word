@@ -249,3 +249,9 @@
 .how-to section[id] { scroll-margin-top: var(--sp-4); }
 /* Пунктир открытой стороны: шаг в пикселях экрана через --inv (ставится на каждый кадр жеста), не через React. */
 .m-edge line.dashed { stroke-dasharray: calc(7px * var(--inv, 1)) calc(6px * var(--inv, 1)); }
+/* Кодекс дела (свёрнут под значком) и участники дела группой. */
+.deed-sheet details.codex { margin-top: var(--sp-2); }
+.deed-sheet details.codex ol { margin: var(--sp-2) 0 0; padding-left: 1.2em; }
+.deed-sheet details.codex li { margin-bottom: 4px; }
+.deed-sheet .chips label.check.inline { display: inline-flex; align-items: center; gap: 6px; margin: 0 var(--sp-2) var(--sp-1) 0; padding: 4px 10px; border: 1px solid var(--border); border-radius: 999px; font-size: 14px; }
+.deed-sheet .field .label { display: block; font-weight: 600; margin-bottom: 4px; }

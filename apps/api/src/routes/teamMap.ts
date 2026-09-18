@@ -11,6 +11,8 @@ import { err, msg } from "../services/i18n.js";
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
   note: z.string().trim().max(2000).default(""),
+  /** Кто участвовал в деле группой (id участников команды): каждому засчитывается в личное служение, сторона одна. */
+  participants: z.array(z.string().min(1)).max(50).default([]),
   /** Дело заменено пожертвованием: сумма не меньше минимума из настроек, чек — ссылкой. */
   donation: z.boolean().default(false),
   donationAmount: z.number().int().min(1).optional(),
@@ -47,7 +49,7 @@ export function requireSuperadmin(request: FastifyRequest, reply: FastifyReply):
 }
 
 const taskInclude = {
-  deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, difficulty: true, secret: true } },
+  deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true } },
   team: { select: { id: true, name: true, color: true } },
 } as const;
 type TaskWithDeed = { fromKey: string; deed: { title: string; description: string } };
@@ -144,9 +146,12 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       if (needsLink && body.links.length === 0) return reply.code(400).send({ error: "validation", message: err(request, "Для этого дела нужна хотя бы одна ссылка на фото или видео") });
       if (!needsLink && body.links.length === 0 && body.note.length < 5) return reply.code(400).send({ error: "validation", message: err(request, "Опишите, что сделано") });
     }
+    // Участники дела группой: только свои, всегда включая сдающего/взявшего.
+    const members = new Set((await prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true } })).map((x) => x.userId));
+    const participants = [...new Set([task.takenById ?? request.user!.id, ...body.participants.filter((u) => members.has(u))])];
     const updated = await prisma.teamEdgeTask.update({
       where: { id: taskId },
-      data: { status: "SUBMITTED", takenById: task.takenById ?? request.user!.id, links: body.links, note: body.note, submittedAt: new Date(), adminComment: "", donation: body.donation, donationAmount: body.donation ? body.donationAmount ?? null : null },
+      data: { status: "SUBMITTED", takenById: task.takenById ?? request.user!.id, links: body.links, note: body.note, participants, submittedAt: new Date(), adminComment: "", donation: body.donation, donationAmount: body.donation ? body.donationAmount ?? null : null },
       include: taskInclude,
     }).then((u) => bookIn(id, u));
     publish(id, { type: "submissions", teamId: m.team.id });

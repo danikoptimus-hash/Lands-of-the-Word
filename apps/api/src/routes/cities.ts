@@ -200,7 +200,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (owner) return reply.code(409).send({ error: "conflict", message: err(request, "Город уже принадлежит команде «{team}»", { team: owner.team.name }) });
     const hasCapital = await prisma.teamCityState.count({ where: { teamId: c.m.team.id, isCapital: true } });
     const updated = await prisma.teamCityState.update({ where: { id: c.state.id }, data: { capturedAt: new Date(), firstCapturedAt: c.state.firstCapturedAt ?? new Date(), isCapital: hasCapital === 0, keyWrong: 0, keyLockedUntil: null } });
-    if (c.node.ruined) await prisma.mapNode.update({ where: { id: c.node.id }, data: { ruined: false } });
+    if (c.node.ruined) await prisma.mapNode.update({ where: { id: c.node.id }, data: { ruined: false, maxReachedAt: null, lockedUntil: null, sumMode: false } });
     await onCityOwned(id, nodeKey, c.m.team.id);
     publish(id, { type: "cities", teamId: c.m.team.id });
     publish(id, { type: "map", teamId: c.m.team.id });

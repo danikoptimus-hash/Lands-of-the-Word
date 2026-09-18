@@ -252,3 +252,54 @@ describe("штраф, роли, пророк", () => {
     expect(res.statusCode).toBe(201);
   });
 });
+
+describe("осада делами и дела этапа 2", () => {
+  it("город с максимумом защиты берётся осадой делами: у кого больше одобренных дел за срок, тот владеет", async () => {
+    // Руфь у «Берега» (взята выше в испытании), максимум достигнут, закрепление кончилось.
+    await prisma.mapNode.update({ where: { gameId_key: { gameId, key: rutKey } }, data: { maxReachedAt: new Date(Date.now() - 30 * 86_400_000), lockedUntil: new Date(Date.now() - 1000) } });
+    await prisma.battle.updateMany({ where: { gameId, nodeKey: rutKey, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, data: { status: "CANCELLED", resolvedAt: new Date() } });
+    // Руфь для «Берега» — не столица (иначе проигрыш осады выбьет команду из игры).
+    await prisma.teamCityState.updateMany({ where: { teamId: team2, nodeKey: rutKey }, data: { isCapital: false } });
+    const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie);
+    expect(w.json().canDeclare).toBe(false);
+    expect(w.json().siege.available).toBe(true);
+    expect(w.json().siege.canDeclare).toBe(true);
+    const own = await post(`/api/games/${gameId}/my-city/${rutKey}/siege`, p2Cookie);
+    expect(own.statusCode).toBe(409); // свой город
+    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/siege`, p1Cookie);
+    expect(res.statusCode).toBe(201);
+    const again = await post(`/api/games/${gameId}/my-city/${rutKey}/siege`, p1Cookie);
+    expect(again.statusCode).toBe(409);
+    // «Моряки» за время осады сдали два дела, «Берег» — одно.
+    const deed = await prisma.deed.findFirstOrThrow({ where: { gameId } });
+    const mk = (teamId: string, n: number) => Promise.all(Array.from({ length: n }, (_, i) => prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: `siege-${teamId}-${i}`, toKey: `siege-to-${teamId}-${i}`, deedId: deed.id, status: "APPROVED", decidedAt: new Date(Date.now() - 5000) } })));
+    await mk(team1, 2); await mk(team2, 1);
+    await prisma.siege.update({ where: { id: res.json().id }, data: { startedAt: new Date(Date.now() - 60_000), endsAt: new Date(Date.now() - 1000) } });
+    const after = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie);
+    const s = after.json().siege.list[0];
+    expect(s).toMatchObject({ status: "WON", attackerPoints: 2, defenderPoints: 1 });
+    expect(after.json().owner.id).toBe(team1);
+    const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
+    expect(node.maxReachedAt).toBeNull();
+    expect(node.defenseLevel).toBe(0);
+  });
+
+  it("дело сдаётся с участниками группой; «подтверждение» читается как отчёт; тяжести нет", async () => {
+    const map = await get(`/api/games/${gameId}/my-map`, p2Cookie);
+    const task = (map.json().tasks as Array<{ id: string; status: string; sea: boolean; deed: { proofType: string; remote?: boolean } }>).find((x) => x.status === "OPEN" && !x.sea)!;
+    expect(task.deed).not.toHaveProperty("difficulty");
+    await post(`/api/games/${gameId}/edge-tasks/${task.id}/take`, p2Cookie);
+    const p3 = await prisma.user.findUniqueOrThrow({ where: { nickname: p3Nick } });
+    const sub = await post(`/api/games/${gameId}/edge-tasks/${task.id}/submit`, p2Cookie, { links: ["https://example.com/x"], note: "Что сделал: помогли", participants: [p3.id, "чужой-id"] });
+    expect(sub.statusCode).toBe(200);
+    const row = await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: task.id } });
+    expect(row.participants).toHaveLength(2);
+    expect(row.participants).toContain(p3.id);
+    const created = await post(`/api/games/${gameId}/deeds`, adminCookie, { title: "Дело издалека", direction: "Посещение", proofType: "CONFIRMATION", remote: true, siegePoints: 3 });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().deed).toMatchObject({ proofType: "REPORT", remote: true, siegePoints: 3 });
+    // Среди свободных сторон всегда есть дело «издалека».
+    const map2 = await get(`/api/games/${gameId}/my-map`, p2Cookie);
+    expect((map2.json().tasks as Array<{ status: string; deed: { remote?: boolean } }>).some((x) => x.status === "OPEN" && x.deed.remote)).toBe(true);
+  });
+});

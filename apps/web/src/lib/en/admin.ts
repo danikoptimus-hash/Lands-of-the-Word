@@ -135,6 +135,8 @@ export const ADMIN: Record<string, string> = {
   "Дела, которые команды ещё не получали, будут удалены, а список станет стандартным набором. Дела, уже выданные командам, останутся.": "Deeds no team has received yet will be deleted and the list will become the default set. Deeds already given to teams will stay.",
   "Заменить стандартным набором?": "Replace with the default set?", "Заменить": "Replace", "Список заменён: добавлено {a}, убрано {r}, обновлено {u}": "List replaced: {a} added, {r} removed, {u} updated",
   "старт команды «{name}»": "start of team “{name}”",
+  "издалека": "from afar", "осада: {n} б.": "siege: {n} pts", "Баллы при осаде": "Siege points", "(пусто — по правилам)": "(empty — per the rules)",
+  "Можно издалека: подходит уехавшему или болеющему; такое дело всегда есть среди свободных сторон": "From afar: suits someone away or ill; such a deed is always among the free sides",
   "Роль одобрена": "Role approved", "Запрос роли отклонён": "Role request declined",
   "Переводить некуда: других команд в строю нет": "Nowhere to move: no other teams remain in play",
   "{nick} перейдёт в команду «{team}» рядовым участником; взятые дела вернутся в список.": "{nick} will join team “{team}” as a regular member; taken deeds return to the list.",

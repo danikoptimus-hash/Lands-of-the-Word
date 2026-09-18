@@ -34,8 +34,16 @@ export function deedStatus(s: EdgeTaskStatus): { label: string; tone: ChipTone; 
 }
 const PROOF: Record<EdgeTaskDto["deed"]["proofType"], { icon: string; label: () => string }> = {
   PHOTO_LINK: { icon: "camera", label: () => t("Фото") }, VIDEO_LINK: { icon: "video", label: () => t("Видео") },
-  REPORT: { icon: "edit", label: () => t("Отчёт") }, CONFIRMATION: { icon: "users", label: () => t("Подтверждение") },
+  REPORT: { icon: "edit", label: () => t("Отчёт") },
 };
+/** Кодекс дела (решение владельца 18.09): пять правил, свёрнуты под значком, чтобы не занимать место. */
+const CODEX = () => [
+  t("Дело делается ради человека, а не ради стороны на карте: не для галочки."),
+  t("Людей фотографировать только с их согласия; лучше снимать предмет, результат или записку."),
+  t("Угощать, помогать и навещать — не участников этой игры."),
+  t("В отчёте честно: что сделал, кому и как, что тебя тронуло."),
+  t("Чужое дело как своё не сдаётся; если делали группой — отметьте всех участников."),
+];
 /** Роли: подпись, иконка и одно предложение из правил (2.15) — показывается по нажатию на пилюлю. */
 const ROLE: Record<GameRole | "CAPTAIN" | "DEPUTY", { icon: string; label: () => string; hint: () => string }> = {
   CAPTAIN: { icon: "crown", label: () => t("капитан"), hint: () => t("Бросает вызов и отвечает на испытания, переносит столицу, назначает заместителя и просит роли у администратора.") },
@@ -381,8 +389,12 @@ export function TeamPage() {
           const peeked = peekedKind(task.toKey);
           return (
             <Sheet size="sm" container={mapEl} onClose={() => setSelectedId(null)} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip></div>}>
-              <p className="muted small">{task.deed.direction}</p>
+              <p className="muted small">{task.deed.direction}{task.deed.remote && <> · <Chip icon="send">{t("можно издалека")}</Chip></>}</p>
               {task.deed.description && <p className="mt-2">{task.deed.description}</p>}
+              <details className="disclose sm codex">
+                <summary><Icon name="info" />{t("Кодекс дела")}<Icon name="chevron-down" className="chev" /></summary>
+                <ol className="small muted">{CODEX().map((c, i) => <li key={i}>{c}</li>)}</ol>
+              </details>
               <p className="meta-line mt-2"><Icon name={proof.icon} />{t("Сдать")}: {proof.label()}{taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}</p>
               {task.deed.secret && <div className="note info"><Icon name="lock" /><span>{t("Тайное дело: ссылку и описание сдачи видит только тот, кто его взял, и проверяющий администратор.")}</span></div>}
               {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта. Когда дело одобрят, капитан выберет на карте, куда высадиться на другом острове.")}</span></div>}
@@ -400,7 +412,8 @@ export function TeamPage() {
                 </div>
               )}
               {task.status === "TAKEN" && (
-                <DeedForm key={task.id} donationCfg={donationCfg} busy={busy}
+                <DeedForm key={task.id} donationCfg={donationCfg} busy={busy} proofType={task.deed.proofType}
+                  members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
                   onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
                   onRelease={() => void release(task)} />
               )}
@@ -412,12 +425,19 @@ export function TeamPage() {
   );
 }
 
-/** Форма сдачи дела. Живёт под key=task.id: у каждого дела свой набранный текст. */
-function DeedForm({ donationCfg, busy, onSubmit, onRelease }: { donationCfg: { min: number; currency: string } | null; busy: boolean; onSubmit: (body: { links: string[]; note: string; donation: boolean; donationAmount?: number }) => Promise<boolean>; onRelease: () => void }) {
+/**
+ * Форма сдачи дела. Живёт под key=task.id: у каждого дела свой набранный текст. Отчёт — три вопроса вместо «сделано»
+ * (решение владельца 18.09); участники дела группой отмечаются галочками, каждому засчитывается в личное служение.
+ */
+function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }: { donationCfg: { min: number; currency: string } | null; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; donation: boolean; donationAmount?: number; participants: string[] }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState("");
   const [note, setNote] = useState("");
+  const [q, setQ] = useState({ what: "", who: "", touched: "" });
   const [donation, setDonation] = useState(false);
   const [amount, setAmount] = useState("");
+  const [participants, setParticipants] = useState<string[]>([]);
+  const report = proofType === "REPORT" && !donation;
+  const noteOut = report ? [q.what && `${t("Что сделал")}: ${q.what}`, q.who && `${t("Кому и как")}: ${q.who}`, q.touched && `${t("Что тронуло")}: ${q.touched}`].filter(Boolean).join("\n") : note;
   return (
     <>
       {donationCfg && <label className="check mt-2"><input type="checkbox" checked={donation} onChange={(e) => setDonation(e.target.checked)} />{t("Вместо дела — пожертвование в кассу церкви (от {min} {cur})", { min: donationCfg.min, cur: donationCfg.currency })}</label>}
@@ -431,12 +451,28 @@ function DeedForm({ donationCfg, busy, onSubmit, onRelease }: { donationCfg: { m
         <label htmlFor="deed-links">{donation ? t("Ссылка на чек или подтверждение перевода") : t("Ссылки на фото или видео")} <span className="opt">{t("по одной на строку")}</span></label>
         <textarea id="deed-links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder="https://…" />
       </div>
-      <div className="field">
-        <label htmlFor="deed-note">{donation ? t("Комментарий") : t("Что сделали")}</label>
-        <textarea id="deed-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
-      </div>
+      {report ? (
+        <>
+          <div className="field"><label htmlFor="deed-q1">{t("Что сделал?")}</label><textarea id="deed-q1" rows={2} value={q.what} onChange={(e) => setQ({ ...q, what: e.target.value })} /></div>
+          <div className="field"><label htmlFor="deed-q2">{t("Кому и как?")} <span className="opt">{t("без фамилий")}</span></label><textarea id="deed-q2" rows={2} value={q.who} onChange={(e) => setQ({ ...q, who: e.target.value })} /></div>
+          <div className="field"><label htmlFor="deed-q3">{t("Что тебя тронуло?")}</label><textarea id="deed-q3" rows={2} value={q.touched} onChange={(e) => setQ({ ...q, touched: e.target.value })} /></div>
+        </>
+      ) : (
+        <div className="field">
+          <label htmlFor="deed-note">{donation ? t("Комментарий") : t("Что сделали")}</label>
+          <textarea id="deed-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+        </div>
+      )}
+      {!donation && members.length > 0 && (
+        <div className="field">
+          <span className="label">{t("Кто ещё участвовал")} <span className="opt">{t("если делали группой")}</span></span>
+          <div className="chips">
+            {members.map((mm) => <label key={mm.id} className="check inline"><input type="checkbox" checked={participants.includes(mm.id)} onChange={(e) => setParticipants(e.target.checked ? [...participants, mm.id] : participants.filter((x) => x !== mm.id))} />{mm.name}</label>)}
+          </div>
+        </div>
+      )}
       <div className="actions">
-        <button type="button" disabled={busy || (donation && !amount)} onClick={() => void onSubmit({ links: links.split(/\s+/).filter(Boolean), note, donation, donationAmount: donation ? Number(amount) : undefined })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
+        <button type="button" disabled={busy || (donation && !amount)} onClick={() => void onSubmit({ links: links.split(/\s+/).filter(Boolean), note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
         <button type="button" className="secondary" disabled={busy} onClick={onRelease}>{t("Отказаться от дела")}</button>
       </div>
     </>

@@ -28,11 +28,11 @@ function weightedPick<T extends { frequency: number }>(list: T[]): T {
   for (const d of list) { r -= FREQUENCY_WEIGHT[d.frequency] ?? 3; if (r < 0) return d; }
   return list[list.length - 1]!;
 }
-export async function pickDeed(gameId: string, teamId: string, bookCode: string | null, excludeId?: string): Promise<string | null> {
+export async function pickDeed(gameId: string, teamId: string, bookCode: string | null, excludeId?: string, onlyRemote = false): Promise<string | null> {
   // «Встреченными» считаются только дела, которые команда брала или сдавала: свободные стороны не в счёт
   // (решение владельца 18.09: иначе набор кончался уже на фронтире и повторы шли сразу).
   const [deeds, used] = await Promise.all([
-    prisma.deed.findMany({ where: { gameId, ...(excludeId ? { id: { not: excludeId } } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, frequency: true } }),
+    prisma.deed.findMany({ where: { gameId, ...(excludeId ? { id: { not: excludeId } } : {}), ...(onlyRemote ? { remote: true } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, frequency: true } }),
     prisma.teamEdgeTask.findMany({ where: { teamId, status: { not: "OPEN" } }, select: { deedId: true }, orderBy: { createdAt: "desc" } }),
   ]);
   if (deeds.length === 0) return null;
@@ -101,6 +101,7 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
     if (!deedId) return;
     await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: w.fromKey, toKey: w.toKey, deedId } });
   }
+  await ensureRemoteDeed(gameId, teamId);
   // Морская сторона: из каждого взятого командой порта (береговой город) — одно дело; после его одобрения
   // капитан выбирает пустой береговой узел другого острова и высаживается там (2.3a).
   const ports = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", coastal: true, key: { in: [...ownedBooks.keys()] } }, select: { key: true, island: true, bookCode: true } });
@@ -178,6 +179,18 @@ export async function returnStaleTasks(gameId: string, rules: Rules, now = new D
 }
 
 /**
+ * Среди свободных сторон команды всегда есть хотя бы одно дело «издалека» (решение владельца 18.09): если таких нет,
+ * одна свободная сторона получает дело с пометкой remote. Замена дела по просьбе — нет.
+ */
+export async function ensureRemoteDeed(gameId: string, teamId: string): Promise<void> {
+  const open = await prisma.teamEdgeTask.findMany({ where: { teamId, status: "OPEN", sea: false }, select: { id: true, deedId: true, deed: { select: { remote: true } } }, orderBy: { createdAt: "asc" } });
+  if (open.length === 0 || open.some((t) => t.deed.remote)) return;
+  const remoteId = await pickDeed(gameId, teamId, null, undefined, true);
+  if (!remoteId) return;
+  await prisma.teamEdgeTask.update({ where: { id: open[open.length - 1]!.id }, data: { deedId: remoteId } });
+}
+
+/**
  * Штраф администратора (телефон на собрании; решение владельца 18.09): аннулируется случайный концевой участок пути —
  * пройденная сторона, за которой у команды нет других пройденных сторон; города команды и старт не трогаются.
  * Перекрёсток за стороной снова закрыт, дело на стороне нужно сделать заново.
@@ -227,7 +240,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
     prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true, revealedAt: true } }),
     prisma.teamEdgeTask.findMany({
       where: { teamId },
-      include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, difficulty: true, secret: true } } },
+      include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true, island: true } }),

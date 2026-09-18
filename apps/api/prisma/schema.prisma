@@ -197,6 +197,8 @@ model MapNode {
   sumMode       Boolean @default(false)
   /** Закреплён до этой даты: хранители отбились с максимумом (каждый участник выучил всю книгу). Решение владельца 18.09: навечно — никогда. */
   lockedUntil   DateTime?
+  /** Хранители достигли максимума: после закрепления город берётся только осадой делами. Сбрасывается со сменой владельца. */
+  maxReachedAt  DateTime?
   /** Усталость города: когда уровень защиты в последний раз уменьшался за бездействие (28 дней без дел после города — минус 1 стих каждые 14 дней). */
   fatigueAt     DateTime?
   /** Руины: город выбывшей команды. Берётся выполнением заданий, без ключа и без битвы. */
@@ -320,6 +322,10 @@ model Deed {
   sourceHash  String?
   /** Тайное дело: ссылки и описание сдачи видит только проверяющий администратор, не команда (сюрприз без раскрытия адресата). */
   secret      Boolean   @default(false)
+  /** Можно сделать издалека (уехал, болеет): среди свободных сторон команды всегда есть хотя бы одно такое дело. */
+  remote      Boolean   @default(false)
+  /** Баллы за это дело при осаде делами (пусто — значение по умолчанию из правил игры). */
+  siegePoints Int?
   createdAt   DateTime  @default(now())
   edgeTasks   TeamEdgeTask[]
 
@@ -368,6 +374,8 @@ model TeamEdgeTask {
   donationAmount Int?
   /** Морская сторона: дело из взятого порта; после одобрения капитан выбирает узел высадки на другом острове (toKey до высадки — «sea:<порт>»). */
   sea           Boolean        @default(false)
+  /** Кто участвовал в деле (группой): id пользователей; каждому засчитывается в личное служение, сторона одна. */
+  participants  String[]       @default([])
   decidedById   String?
   adminComment  String         @default("")
   createdAt     DateTime       @default(now())
@@ -513,6 +521,33 @@ model BattleEntry {
   decidedAt    DateTime?
 
   @@index([battleId, side])
+}
+
+enum SiegeStatus {
+  ACTIVE
+  WON
+  REPELLED
+  CANCELLED
+}
+
+/**
+ * Осада делами (решение владельца 18.09): город, где хранители отбились с максимумом, после закрепления берётся не стихами,
+ * а делами — 14 дней обе команды делают дела, за каждое одобренное — баллы; у кого больше, тот владеет; при равенстве город остаётся.
+ */
+model Siege {
+  id         String      @id @default(cuid())
+  gameId     String
+  nodeKey    String
+  attackerId String
+  defenderId String
+  status     SiegeStatus @default(ACTIVE)
+  startedAt  DateTime    @default(now())
+  endsAt     DateTime
+  attackerPoints Int     @default(0)
+  defenderPoints Int     @default(0)
+  resolvedAt DateTime?
+
+  @@index([gameId, nodeKey, status])
 }
 
 /** Штраф администратора (телефон на собрании): аннулирован концевой участок пути команды. */
