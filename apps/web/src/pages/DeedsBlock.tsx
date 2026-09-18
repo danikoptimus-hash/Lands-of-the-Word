@@ -8,6 +8,8 @@ import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { ActionMenu } from "../components/ActionMenu";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
+import { Help } from "../components/Help";
+import { plural } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK";
 interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; frequency: number; secret: boolean; remote: boolean; siegePoints: number | null }
@@ -39,6 +41,10 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   const [sheet, setSheet] = useState<{ id: string | null; form: Form } | null>(null);
   const form = sheet?.form ?? EMPTY;
   const setForm = (patch: Partial<Form>) => setSheet((s) => (s ? { ...s, form: { ...s.form, ...patch } } : s));
+  /** Описание дела в списке свёрнуто в одну строку; полностью — по нажатию на строку (решение владельца 18.09). */
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const toggle = (id: string) => setExpanded((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const bookName = (c: string) => BOOKS.find((b) => b.code === c)?.nameRu ?? c;
 
   const load = useCallback(() => api<{ deeds: DeedDto[]; directions: string[]; recommendedMin: number }>(`/api/games/${gameId}/deeds`)
     .then((r) => { setDeeds(r.deeds); setDirections(r.directions); setRecommended(r.recommendedMin); setLoadError(false); })
@@ -96,25 +102,26 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
         <EmptyState icon="scroll" text={t("Дел пока нет. Возьмите стандартный набор как заготовку или добавьте свои.")} action={<button type="button" className="secondary" onClick={() => void importDefault()} disabled={busy}><Icon name="sparkle" />{t("Стандартный набор")}</button>} />
       ) : (
         <ul className="list">
-          {deeds.map((d) => (
-            <li key={d.id}>
-              <div className="main">
-                <span className="title">{withBook(d.title)} {d.canRepeat && <Chip>{t("повторяемое")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
-                {d.description && <span className="deed-desc small">{withBook(d.description)}</span>}
+          {deeds.map((d) => { const open = expanded.has(d.id); return (
+            <li key={d.id} className={"deed-row" + (open ? " open" : "")}>
+              <div className="main" onClick={() => toggle(d.id)}>
+                <span className="title">{withBook(d.title)} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
+                {d.description && <span className={"deed-desc small" + (open ? " open" : "")}>{withBook(d.description)}</span>}
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
                   {d.siegePoints != null && <span>· {t("осада: {n} б.", { n: d.siegePoints })}</span>}
                   {d.frequency !== 2 && <span>· {t(FREQUENCY[d.frequency] ?? "обычно")}</span>}
-                  {d.bookCodes.length > 0 && <span>· {d.bookCodes.slice(0, 4).map((c) => BOOKS.find((b) => b.code === c)?.nameRu ?? c).join(", ")}{d.bookCodes.length > 4 ? t(" и ещё {n}", { n: d.bookCodes.length - 4 }) : ""}</span>}
+                  {d.bookCodes.length > 0 && <span>· <Chip icon="book" title={d.bookCodes.map(bookName).join(", ")}>{plural(d.bookCodes.length, [t("книга"), t("книги"), t("книг")])}</Chip></span>}
                   <span>· {d.direction}</span>
                 </span>
               </div>
               <div className="side">
+                {d.description && <button type="button" className="ghost sm icon deed-chev" onClick={() => toggle(d.id)} aria-expanded={open} aria-label={t("Описание")} title={t("Описание")}><Icon name="chevron-down" /></button>}
                 <button type="button" className="ghost sm icon" onClick={() => openEdit(d)} aria-label={t("Изменить дело")} title={t("Изменить")}><Icon name="edit" /></button>
                 <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить дело"), icon: "trash", danger: true, onSelect: () => void remove(d) }]} />
               </div>
             </li>
-          ))}
+          ); })}
         </ul>
       )}
       {sheet && (
@@ -144,7 +151,10 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
                 <select id="d-freq" value={form.frequency} onChange={(e) => setForm({ frequency: Number(e.target.value) })}>{[1, 2, 3].map((n) => <option key={n} value={n}>{t(FREQUENCY[n]!)}</option>)}</select>
               </div>
             </div>
-            <label htmlFor="d-book">{t("Книги по теме")} <span className="opt">{t("(необязательно)")}</span></label>
+            <div className="with-help">
+              <label htmlFor="d-book">{t("Книги по теме")} <span className="opt">{t("(необязательно)")}</span></label>
+              <Help>{t("Из взятого города сначала выпадают дела с его книгой. Напишите [Книга] в названии или описании — подставится книга города.")}</Help>
+            </div>
             <select id="d-book" value="" onChange={(e) => { const c = e.target.value; if (c && !form.bookCodes.includes(c)) setForm({ bookCodes: [...form.bookCodes, c] }); }}>
               <option value="">{form.bookCodes.length ? t("Добавить книгу…") : t("Любая книга")}</option>
               {BOOKS.filter((b) => !form.bookCodes.includes(b.code)).map((b) => <option key={b.code} value={b.code}>{b.nameRu}</option>)}
@@ -154,10 +164,9 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
                 {form.bookCodes.map((c) => <button key={c} type="button" className="chip-btn" onClick={() => setForm({ bookCodes: form.bookCodes.filter((x) => x !== c) })} aria-label={t("Убрать книгу {name}", { name: BOOKS.find((b) => b.code === c)?.nameRu ?? c })}>{BOOKS.find((b) => b.code === c)?.nameRu ?? c} ×</button>)}
               </div>
             )}
-            <p className="hint">{t("На сторонах из взятого города сначала выпадают дела с этой книгой. В названии и описании можно написать [Книга] — подставится книга города.")}</p>
-            <label className="check mt-3"><input type="checkbox" checked={form.canRepeat} onChange={(e) => setForm({ canRepeat: e.target.checked })} />{t("Повторяемое: можно выдавать нескольким командам")}</label>
-            <label className="check mt-2"><input type="checkbox" checked={form.secret} onChange={(e) => setForm({ secret: e.target.checked })} />{t("Тайное: ссылку и описание сдачи видит только проверяющий (сюрприз без раскрытия адресата)")}</label>
-            <label className="check mt-2"><input type="checkbox" checked={form.remote} onChange={(e) => setForm({ remote: e.target.checked })} />{t("Можно издалека: подходит уехавшему или болеющему; такое дело всегда есть среди свободных сторон")}</label>
+            <div className="with-help mt-3"><label className="check"><input type="checkbox" checked={form.canRepeat} onChange={(e) => setForm({ canRepeat: e.target.checked })} />{t("Повторяемое")}</label><Help>{t("Можно выдавать нескольким командам.")}</Help></div>
+            <div className="with-help mt-2"><label className="check"><input type="checkbox" checked={form.secret} onChange={(e) => setForm({ secret: e.target.checked })} />{t("Тайное")}</label><Help>{t("Сдачу видит только проверяющий — сюрприз без раскрытия адресата.")}</Help></div>
+            <div className="with-help mt-2"><label className="check"><input type="checkbox" checked={form.remote} onChange={(e) => setForm({ remote: e.target.checked })} />{t("Можно издалека")}</label><Help>{t("Для уехавших и болеющих. Такое дело всегда есть среди свободных сторон.")}</Help></div>
             {error && <p className="error">{error}</p>}
           </form>
         </Sheet>

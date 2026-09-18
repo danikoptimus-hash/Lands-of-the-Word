@@ -9,6 +9,7 @@ import { Chip } from "../components/Chip";
 import { ActionMenu } from "../components/ActionMenu";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { Sheet } from "../components/Sheet";
+import { Help } from "../components/Help";
 
 type Kind = "FAMILY" | "WIDOW" | "ELDER" | "OTHER";
 interface RecipientDto { id: string; label: string; kind: Kind; envelopes: number }
@@ -54,14 +55,14 @@ export function RecipientsBlock({ gameId, status, version = 0 }: { gameId: strin
     <div className="card" id="recipients">
       <div className="card-head">
         <h2><span className="ico"><Icon name="mail" /></span>{t("Адресаты конвертов")} {rows && <span className="count">{rows.length}</span>}</h2>
+        <Help>{t("Кому команды понесут шифр за конвертом. Только подпись, без имён и адресов; список стирается после игры.")}</Help>
         <div className="row nowrap">
           {canPrint && <Link to={`/games/${gameId}/labels`} className="btn secondary sm"><Icon name="printer" />{t("Ярлыки")}</Link>}
           {!finished && <button type="button" className="sm" onClick={() => setOpen(true)} disabled={!rows}><Icon name="plus" />{t("Добавить")}</button>}
         </div>
       </div>
-      <p className="muted small">{t("Кому команды понесут шифр за конвертом. Только подпись без имён и адресов — список стирается после игры.")}</p>
       {uneven && !finished && (
-        <div className="note warn"><Icon name="alert" /><div className="stack sm"><span>{t("Конверты распределены неравномерно: адресаты, добавленные позже, остались без городов.")}</span><div><button type="button" className="sm secondary" onClick={() => void redistribute()}><Icon name="refresh" />{t("Перераспределить поровну")}</button></div></div></div>
+        <div className="note warn"><Icon name="alert" /><div className="stack sm"><span>{t("Новые адресаты остались без конвертов.")}</span><div><button type="button" className="sm secondary" onClick={() => void redistribute()}><Icon name="refresh" />{t("Перераспределить поровну")}</button></div></div></div>
       )}
       {loadError ? <ErrorState onRetry={() => void load()} /> : !rows ? <LoadingState rows={2} /> : rows.length === 0 ? (
         <EmptyState inline icon="mail" text={finished ? t("Игра завершена: список адресатов стёрт.") : t("Адресатов пока нет.")} />

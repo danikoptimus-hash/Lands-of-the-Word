@@ -60,7 +60,7 @@ export function StartBlock({ gameId, version, onStarted, hasMap, nodeCount, city
         <Step n={1} done={hasMap} title={t("Карта")} status={mapStatus} action={<button type="button" className={hasMap ? "secondary sm" : "sm"} onClick={onGenerate} disabled={generating}><Icon name="refresh" />{hasMap ? t("Заново") : t("Сгенерировать карту")}</button>} error={generateError} />
         <Step n={2} done={teams >= teamCount && teams > 0} title={t("Команды и приглашения")} status={t("{a} из {b}", { a: teams, b: teamCount })} action={tabLink("teams")} />
         <Step n={3} done={deeds > 0} title={t("Дела")} status={plural(deeds, ["дело", "дела", "дел"])} action={tabLink("deeds")} />
-        <Step n={4} done={recipients > 0} title={t("Адресаты конвертов и ярлыки")} status={recipients > 0 ? plural(recipients, ["адресат", "адресата", "адресатов"]) : t("Желательно до старта, но можно добавить и позже")} action={<a href="#recipients" onClick={(e) => { e.preventDefault(); goToRecipients(); }}>{t("Ниже")}</a>} />
+        <Step n={4} done={recipients > 0} title={t("Адресаты конвертов и ярлыки")} status={recipients > 0 ? plural(recipients, ["адресат", "адресата", "адресатов"]) : t("Можно и после старта")} action={<a href="#recipients" onClick={(e) => { e.preventDefault(); goToRecipients(); }}>{t("Ниже")}</a>} />
       </ol>
       {loadError ? <ErrorState text={t("Не удалось проверить готовность")} onRetry={() => void load()} /> : !r ? <LoadingState rows={1} /> : (
         <div className="problems">

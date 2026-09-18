@@ -68,6 +68,9 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
   const [kindFilter, setKindFilter] = useState("");
   const [oldFirst, setOldFirst] = useState(true);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  /** Описание дела администратор знает: показываем по кнопке «Описание», отчёт и ссылки — всегда на виду. */
+  const [descOpen, setDescOpen] = useState<Set<string>>(new Set());
+  const toggleDesc = (id: string) => setDescOpen((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const load = useCallback(() => api<{ tasks: Row[] }>(`/api/games/${gameId}/submissions`).then((r) => { setRows(r.tasks); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useAutoRefresh(load, version);
 
@@ -111,7 +114,8 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
               <div className="main">
                 <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName />{r.donation && <Chip tone="accent">{t("пожертвование {n}", { n: `${r.donationAmount ?? ""} ${currency ?? ""}`.trim() })}</Chip>}</span>
                 <span className="title">{r.deed.title}</span>
-                {r.deed.description && <span className="small muted">{r.deed.description}</span>}
+                {r.deed.description && <button type="button" className="ghost sm desc-toggle" aria-expanded={descOpen.has(r.id)} onClick={() => toggleDesc(r.id)}><Icon name="scroll" />{t("Описание")}</button>}
+                {r.deed.description && descOpen.has(r.id) && <span className="deed-desc open small muted">{r.deed.description}</span>}
                 <span className="meta"><span>{PROOF_LABEL[r.deed.proofType]}</span>{r.takenBy && <span>· {r.takenBy.displayName ?? r.takenBy.nickname}</span>}{r.submittedAt && <span>· {fmtDate(r.submittedAt)} · {ageOf(r.submittedAt)}</span>}</span>
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
                 <LinkList links={r.links} kind={linkKind(r.deed.proofType)} />

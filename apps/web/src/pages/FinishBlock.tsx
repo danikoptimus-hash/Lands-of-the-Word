@@ -4,6 +4,7 @@ import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { ErrorState, LoadingState } from "../components/State";
+import { Help } from "../components/Help";
 import { api, ApiError, type StandingRow, type StandingsDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
@@ -64,7 +65,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
       )}
       {!finished && part !== "rest" && (
         <div className="card">
-          <div className="card-head"><h2><span className="ico"><Icon name="users" /></span>{t("Положение команд")}</h2><Link to={`/games/${gameId}/book`} className="btn secondary sm"><Icon name="book" />{t("Книга сезона")}</Link></div>
+          <div className="card-head"><h2><span className="ico"><Icon name="users" /></span>{t("Положение команд")}</h2><Help>{t("Испытания")}: {t("выиграли · устояли · потеряли")}</Help><Link to={`/games/${gameId}/book`} className="btn secondary sm"><Icon name="book" />{t("Книга сезона")}</Link></div>
           <Standings rows={data.standings} winnerId={null} leaderId={data.leaderTeamId} />
         </div>
       )}
@@ -88,7 +89,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
             <div className="card-head"><h2><span className="ico"><Icon name="clock" /></span>{t("Срок окончания")}</h2></div>
             <label htmlFor="ends-at">{t("Дата и время")}</label>
             <input id="ends-at" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
-            <p className="hint">{t("В этот момент игра завершится сама: победит команда с наибольшим числом городов.")}</p>
+            <p className="hint">{t("Игра завершится сама; победит команда с наибольшим числом городов.")}</p>
             {error && <p className="error">{error}</p>}
             <div className="actions">
               <button type="button" onClick={() => void saveDeadline()} disabled={busy || !endsAt}>{t("Сохранить")}</button>
@@ -122,7 +123,7 @@ function Standings({ rows, winnerId, leaderId }: { rows: StandingRow[]; winnerId
                 {tm.teamId === winnerId ? <Chip tone="ok" icon="trophy">{t("победитель")}</Chip> : out ? <Chip tone="bad">{t("выбыла")}</Chip> : tm.teamId === leaderId ? <Chip tone="accent">{t("лидер")}</Chip> : null}
               </div>
               <div className="nums">{plural(tm.cities, ["город", "города", "городов"])} · {plural(tm.capitals, ["столица", "столицы", "столиц"])} · {plural(tm.deedsApproved, ["дело", "дела", "дел"])}</div>
-              <div className="nums">{t("Испытания: {a} выиграли · {b} устояли · {c} потеряли", { a: tm.battlesWon, b: tm.battlesRepelled, c: tm.battlesLost })}</div>
+              <div className="nums" title={t("выиграли · устояли · потеряли")}>{t("Испытания {a} · {b} · {c}", { a: tm.battlesWon, b: tm.battlesRepelled, c: tm.battlesLost })}</div>
             </div>
           </div>
         );

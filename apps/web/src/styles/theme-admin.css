@@ -1,1 +1,168 @@
-/* Материалы экранов администратора (док, попапы, плитки, книга сезона). Заполняется на шаге 4. */
+/* Материалы экранов администратора (решение владельца 18.09, «игра, а не сайт»): переопределения поверх admin.css.
+   Деловая раскладка остаётся; меняются только фон, рамки, тени, шрифт и цвет. Геометрия дока, safe-area, z-index,
+   классы-якоря скриптов (.admin-dock .dock-btn .lbl, details.settings-group summary, details.fold-card summary),
+   .data-table и .labels .label (печатная форма) не трогаются. */
+/* Лён сам по себе темнее потёртого листа: сверху — полупрозрачный слой бумаги, чтобы осталось плетение, а не мешковина. */
+:root { --admin-linen: linear-gradient(rgba(240,227,198,.66), rgba(240,227,198,.66)), var(--tex-linen) center / 384px repeat var(--paper-2); }
+
+/* ---------- Плашки над картой: пергамент без размытия ---------- */
+.admin-title { background: var(--paper-bg); border: 1px solid var(--paper-edge); box-shadow: var(--shadow-paper); font-family: var(--font-ui); }
+.admin-title .name { font-weight: 700; }
+.admin-map.full .view-as { background: var(--admin-linen); border: 1px solid var(--paper-edge); box-shadow: inset 0 1px 3px rgba(59,36,21,.18), var(--shadow-paper); }
+.view-as .chip-btn { background: var(--paper-light); border-color: var(--paper-edge); color: var(--ink); font: 700 var(--fs-sm)/1 var(--font-ui); box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(59,36,21,.14); text-shadow: none; }
+.view-as .chip-btn.on { background: var(--bronze-soft); border-color: var(--bronze); color: var(--bronze-ink); box-shadow: inset 0 1px 0 rgba(255,250,238,.7); }
+.view-as .chip-btn .i { color: var(--bronze-ink); }
+.admin-map.full .view-as-hint { background: var(--paper-bg); border: 1px solid var(--paper-edge); box-shadow: var(--shadow-paper); font-family: var(--font-book); font-style: italic; }
+.admin-timeline { background: var(--paper-bg); border: 1px solid var(--paper-edge); border-top: 3px solid var(--bronze); box-shadow: var(--shadow-paper); }
+.timeline .tl-now { background: var(--admin-linen); border-color: var(--paper-edge); font-family: var(--font-ui); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
+.timeline .tl-now.live { background: var(--bronze-soft); border-color: var(--bronze-light); color: var(--bronze-ink); }
+.timeline .tl-now strong { font-weight: 700; }
+.timeline h3 { font-family: var(--font-display); }
+/* Ползунок истории ходов: дорожка — кромка листа, ползунок — бронзовая монета */
+.timeline input[type=range] { -webkit-appearance: none; appearance: none; height: 26px; margin: 0; background: transparent; }
+.timeline input[type=range]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: var(--paper-edge); box-shadow: inset 0 1px 1px rgba(59,36,21,.3); }
+.timeline input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 22px; height: 22px; margin-top: -9px; border: 0; border-radius: 50%; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); box-shadow: 0 1px 2px rgba(59,36,21,.5); cursor: pointer; }
+.timeline input[type=range]::-moz-range-track { height: 4px; border-radius: 2px; background: var(--paper-edge); }
+.timeline input[type=range]::-moz-range-thumb { width: 22px; height: 22px; border: 0; border-radius: 50%; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); box-shadow: 0 1px 2px rgba(59,36,21,.5); cursor: pointer; }
+.timeline input[type=range]:focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
+
+/* ---------- Док разделов: на компьютере — колонка бумажных ярлыков, активный — бронзовая табличка ---------- */
+.admin-dock .dock-btn { background: var(--paper-bg); border: 1px solid var(--paper-edge); border-radius: var(--r-sm); color: var(--ink); box-shadow: var(--shadow-paper); font: 700 11px/1.1 var(--font-ui); letter-spacing: .01em; text-shadow: none; transition: background var(--dur-fast), box-shadow var(--dur-fast), transform var(--dur-fast); }
+.admin-dock .dock-btn .i { color: var(--bronze-ink); }
+.admin-dock .dock-btn:hover { background: var(--paper-light); border-color: var(--border-strong); }
+.admin-dock .dock-btn.on, .admin-dock .dock-btn.on:hover { background: linear-gradient(180deg, #9A6524 0%, #7A4E17 55%, #5F3C10 100%); border-color: var(--bronze-deep); color: var(--paper-light); box-shadow: var(--shadow-metal); text-shadow: 0 1px 0 rgba(60,32,8,.5); }
+.admin-dock .dock-btn.on .i { color: var(--paper-light); }
+/* Бейджи — монеты; «горячий» (ждёт проверки) — капля сургуча */
+.admin-dock .dock-btn .badge { min-width: 22px; height: 22px; padding: 0 5px; border: 0; border-radius: 50%; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); font: 700 11px/22px var(--font-display); text-shadow: 0 1px 1px rgba(0,0,0,.55); box-shadow: 0 1px 2px rgba(59,36,21,.45); }
+.admin-dock .dock-btn .badge.hot { background: var(--wax); -webkit-mask: var(--wax-mask) center / 100% 100% no-repeat; mask: var(--wax-mask) center / 100% 100% no-repeat; min-width: 24px; height: 24px; line-height: 24px; box-shadow: none; text-shadow: none; }
+@media (max-width: 767px) {
+  /* Телефон: деревянная планка с бронзовой кромкой, ярлыки светлые, активный — табличка */
+  .admin-dock { background: var(--tex-wood) center / 512px repeat var(--wood-dark); border: 1px solid var(--bronze-deep); border-top: 2px solid var(--bronze); border-radius: var(--r-md); box-shadow: inset 0 1px 0 rgba(241,208,138,.35), inset 0 -6px 12px rgba(0,0,0,.35), var(--shadow-deep); }
+  .admin-dock .dock-btn { background: transparent; border-color: transparent; box-shadow: none; color: var(--paper); text-shadow: 0 1px 1px rgba(0,0,0,.55); }
+  .admin-dock .dock-btn .i { color: var(--gold-hi); }
+  .admin-dock .dock-btn:hover { background: rgba(255,246,227,.10); border-color: transparent; }
+  .admin-dock :focus-visible { outline-color: var(--gold-hi); }
+}
+
+/* ---------- Попап раздела: заголовки с монетой, плитки — лён на потёртом листе ---------- */
+.admin-popup .card-head h2 { font-size: var(--fs-xl); }
+.admin-popup .overlay-body .card { border: 1px solid var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
+.summary-tiles a, .tile, .return-box, .keys .key, .chips .chip-btn, .invite-panel.card.flat, .season-book .book-chronicle { background: var(--admin-linen); border: 1px solid var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
+.overlay .invite-panel.card.flat { background: var(--admin-linen); }
+.summary-tiles a:hover { border-color: var(--bronze); background: linear-gradient(rgba(255,246,227,.75), rgba(255,246,227,.75)), var(--tex-linen) center / 384px repeat var(--paper-light); }
+.summary-tiles .sum-value { font: 700 28px/1 var(--font-display); color: var(--bronze-ink); }
+.summary-tiles .sum-value.hot { color: var(--wax-ink); }
+.summary-tiles .sum-label { font-family: var(--font-ui); color: var(--ink-2); }
+.summary-tiles .sum-label .i { color: var(--bronze); }
+.chips .chip-btn { font-family: var(--font-ui); font-weight: 700; color: var(--ink-2); }
+.chips .chip-btn:hover { background: var(--paper-light); border-color: var(--border-strong); }
+/* Чек-лист подготовки: шаги — монеты, сделанные — печать мхом */
+.checklist > li { border-top-color: var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
+.checklist > li:first-child { box-shadow: none; }
+.checklist .step { background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); border: 0; color: var(--paper-light); font: 700 var(--fs-sm)/1 var(--font-display); text-shadow: 0 1px 1px rgba(0,0,0,.55); box-shadow: 0 1px 2px rgba(59,36,21,.45); }
+.checklist .step.done { background: var(--moss); -webkit-mask: var(--wax-mask) center / 100% 100% no-repeat; mask: var(--wax-mask) center / 100% 100% no-repeat; color: var(--paper-light); box-shadow: none; text-shadow: none; animation: stamp .38s var(--stamp); }
+.checklist .body .title { font-family: var(--font-book); }
+.problems .note a.fix { font-family: var(--font-ui); }
+/* Положение команд: место — монета, чипы — ярлычки */
+.standing-row { border-top-color: var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
+.standing-row:first-child { box-shadow: none; }
+.standing-row .rank { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); font: 700 14px/1 var(--font-display); text-shadow: 0 1px 1px rgba(0,0,0,.55); box-shadow: 0 1px 2px rgba(59,36,21,.45); }
+.standing-row .name { font-family: var(--font-book); }
+.standing-row .nums { font-family: var(--font-ui); color: var(--ink-3); }
+.standing-row.out .rank { background: var(--tex-stone) center / 256px repeat var(--stone); text-shadow: 0 1px 0 rgba(0,0,0,.35); }
+/* Команды, испытания, проходы: разделители — «швы» листа */
+.team-block, .trial { border-top-color: var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
+.team-block:first-of-type, .trial:first-child { box-shadow: none; }
+.trial .cols { font-family: var(--font-ui); }
+.trial .cols strong { font-family: var(--font-book); }
+.review-item.picked { background: var(--bronze-soft); }
+.review-item .report { font-family: var(--font-book); }
+.review-item .links a { font-family: var(--font-ui); }
+/* Лента журнала в попапе: иконки на монетах */
+.admin-popup .feed .ico { width: 26px; height: 26px; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); filter: drop-shadow(0 1px 1px rgba(59,36,21,.4)); }
+.admin-popup .feed .ico .i { width: 14px; height: 14px; }
+.admin-popup .feed li { border-top-color: var(--paper-edge); }
+.admin-popup .feed .meta { font-family: var(--font-ui); }
+/* Доска активности и свёртки */
+details.fold-card > summary { font: 700 var(--fs-lg)/1.2 var(--font-display); color: var(--ink); }
+details.fold-card > summary > .i:first-child { color: var(--bronze); }
+details.fold-card > summary .chev { color: var(--bronze-ink); }
+details.fold > summary { font-family: var(--font-ui); }
+details.fold > summary .chev { color: var(--bronze-ink); }
+details.legend > summary { font-family: var(--font-ui); }
+.table.activity th { font: 700 var(--fs-xs)/1.2 var(--font-ui); letter-spacing: .04em; text-transform: uppercase; color: var(--ink-3); }
+.table.activity td { font-family: var(--font-input); font-variant-numeric: tabular-nums; }
+/* Список дел: описание в одну строку, полностью — по нажатию на строку */
+.deed-row .main { cursor: pointer; }
+.deed-desc { -webkit-line-clamp: 1; font-family: var(--font-book); }
+.deed-desc.open { display: block; -webkit-line-clamp: unset; overflow: visible; }
+.deed-row .deed-chev .i { transition: transform var(--dur-fast); }
+.deed-row.open .deed-chev .i { transform: rotate(180deg); }
+.list .meta .chip { height: 20px; }
+/* Сдача в «Проверке»: описание дела — за кнопкой */
+.review-item .desc-toggle { align-self: flex-start; min-height: 32px; padding: 0 var(--sp-2); }
+.review-item .deed-desc.open { margin-top: 0; }
+
+/* ---------- Пояснение «?» рядом с заголовком или подписью: раскрытый текст уходит строкой ниже ---------- */
+.card-head > .help, .page-head > .help, .with-help > .help { margin-left: calc(-1 * var(--sp-1)); margin-right: auto; }
+.card-head > .help[open], .page-head > .help[open], .with-help > .help[open] { flex: 1 1 100%; order: 100; margin-left: 0; }
+.with-help { display: flex; align-items: center; flex-wrap: wrap; gap: 0 var(--sp-1); margin-top: var(--sp-4); }
+.with-help > label { margin: 0; }
+.with-help > label.check { flex: 0 1 auto; }
+.with-help.mt-2 { margin-top: var(--sp-2); }
+.with-help.mt-3 { margin-top: var(--sp-3); }
+
+/* ---------- Настройки: подзаголовки групп, шеврон свёртки — бронза ---------- */
+.settings-group { border-top-color: var(--paper-edge); }
+.settings-group h3 { font-family: var(--font-display); font-size: var(--fs-lg); }
+details.settings-group summary::after { content: ""; width: 20px; height: 20px; background: var(--bronze); -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") center / contain no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") center / contain no-repeat; }
+.rule-group { margin: var(--sp-4) 0 var(--sp-1); font: 700 var(--fs-xs)/1.2 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--bronze-ink); }
+.rule-row { border-bottom-color: var(--paper-edge); }
+.rule-row label { font-family: var(--font-ui); }
+.rule-row select { width: 100%; min-width: 0; }
+.money input.cur { font-family: var(--font-input); }
+.push-row { font-family: var(--font-book); font-style: italic; }
+
+/* ---------- Книга сезона: лист на столе, обложка — кожа ---------- */
+.season-book { background: var(--paper-bg); border: 1px solid var(--paper-edge); box-shadow: var(--shadow-paper); border-radius: var(--r-md); padding: var(--sp-5) var(--sp-6) var(--sp-8); margin: var(--sp-4) auto; }
+.season-book .book-head { position: relative; margin: 0 calc(-1 * var(--sp-6)) var(--sp-6); padding: var(--sp-8) var(--sp-5); border-bottom: 0; background: var(--tex-leather) center / 512px repeat var(--leather); color: var(--paper); box-shadow: inset 0 1px 0 rgba(241,208,138,.25), inset 0 -8px 16px rgba(0,0,0,.35); }
+.season-book .book-head::before { content: ""; position: absolute; inset: 8px; border: 3px double var(--bronze-light); opacity: .85; pointer-events: none; }
+.season-book .book-head .org { color: var(--gold-hi); font: 700 var(--fs-xs)/1.4 var(--font-ui); letter-spacing: .12em; }
+.season-book .book-head h1 { font: 700 34px/1.1 var(--font-display); color: var(--paper-light); text-shadow: 0 1px 2px rgba(0,0,0,.5); }
+.season-book .book-head .dates { color: var(--paper-2); font-family: var(--font-book); font-style: italic; }
+.season-book .book-head .winner { color: var(--gold-hi); font-family: var(--font-ui); }
+.season-book .no-print .page-head h1 { font-family: var(--font-display); }
+.season-book h2 { font: 700 var(--fs-xl)/1.2 var(--font-display); }
+.season-book h3 { font: 700 var(--fs-md)/1.3 var(--font-ui); color: var(--ink-2); }
+.season-book .book-standings li { border-top-color: var(--paper-edge); }
+.season-book .book-standings .rank { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); font: 700 12px/1 var(--font-display); text-shadow: 0 1px 1px rgba(0,0,0,.55); }
+.season-book .book-standings .meta { font-family: var(--font-ui); }
+.season-book ul.plain li { font-family: var(--font-book); }
+.season-book .book-chronicle { border-radius: var(--r-sm); }
+.season-book .book-chronicle p { font-family: var(--font-book); }
+@media (max-width: 639px) { .season-book { padding: var(--sp-4); } .season-book .book-head { margin: 0 calc(-1 * var(--sp-4)) var(--sp-5); } }
+
+/* ---------- Аналитика (администратор платформы): плитки — лён, числа — Inter, дельты — мох и сургуч ---------- */
+.tile .value { font: 700 var(--fs-xl)/var(--lh-tight) var(--font-input); font-variant-numeric: tabular-nums; color: var(--ink); }
+.tile .cap { font-family: var(--font-ui); color: var(--ink-2); }
+.tile .delta { font-family: var(--font-input); font-variant-numeric: tabular-nums; }
+.tile .delta.up { color: var(--moss-ink); }
+.tile .delta.down { color: var(--wax-ink); }
+.tile .delta.flat { color: var(--ink-3); }
+.spark svg polyline { stroke: var(--bronze-light); }
+.spark-label { font-family: var(--font-input); }
+.data-table { font-family: var(--font-input); }
+.support-list .msg { font-family: var(--font-book); }
+.support-list li.closed { opacity: .75; }
+
+/* ---------- Ярлыки: только рамка страницы; сами ярлыки — печатная форма, остаются белыми ---------- */
+.labels-page .page-head h1 { font-family: var(--font-display); }
+
+/* ---------- Печать: книга сезона — на белой бумаге чернилами ---------- */
+@media print {
+  .season-book { background: #fff !important; border: 0; box-shadow: none; border-radius: 0; margin: 0; }
+  .season-book .book-head { background: #fff !important; color: #1F1B16; box-shadow: none; border-bottom: 2px double #5F3C10; margin: 0 0 var(--sp-5); padding: 0 0 var(--sp-4); }
+  .season-book .book-head::before { display: none; }
+  .season-book .book-head h1, .season-book .book-head .org, .season-book .book-head .dates, .season-book .book-head .winner { color: #1F1B16; text-shadow: none; }
+  .season-book .book-chronicle, .season-book .book-standings .rank { background: none !important; color: #1F1B16; border: 0; text-shadow: none; }
+}

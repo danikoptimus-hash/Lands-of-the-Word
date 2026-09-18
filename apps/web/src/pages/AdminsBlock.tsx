@@ -8,6 +8,7 @@ import { Chip } from "../components/Chip";
 import { ActionMenu } from "../components/ActionMenu";
 import { ErrorState, LoadingState } from "../components/State";
 import { Sheet } from "../components/Sheet";
+import { Help } from "../components/Help";
 
 interface AdminRow { id: string; nickname: string; displayName: string | null; email: string | null; creator: boolean }
 
@@ -39,9 +40,9 @@ export function AdminsBlock({ gameId, version = 0 }: { gameId: string; version?:
     <div className="card">
       <div className="card-head">
         <h2><span className="ico"><Icon name="user" /></span>{t("Администраторы")} {rows && <span className="count">{rows.length}</span>}</h2>
+        <Help>{t("Администраторы проверяют сдачи и получают письма о них.")}</Help>
         <button type="button" className="sm" onClick={() => setOpen(true)} disabled={!rows}><Icon name="plus" />{t("Добавить")}</button>
       </div>
-      <p className="muted small">{t("Администраторы проверяют сдачи и получают письма о них.")}</p>
       {loadError ? <ErrorState onRetry={() => void load()} /> : !rows ? <LoadingState rows={2} /> : (
         <ul className="list">
           {rows.map((a) => (

@@ -10,6 +10,7 @@ import { Tabs } from "../components/Tabs";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { useUi } from "../lib/ui";
 import { TeamAvatar } from "../components/TeamAvatar";
+import { Help } from "../components/Help";
 
 interface Metrics {
   period: { days: number; since: string; dates: string[] };
@@ -109,9 +110,9 @@ function SupportBlock() {
     <div className="card" id="support">
       <div className="card-head">
         <h2><span className="ico"><Icon name="send" /></span>{t("Обращения в поддержку")} {rows && <span className="count">{open.length}</span>}</h2>
+        <Help>{t("Игроки пишут из задания: город, задание и состояние попыток подставляются сами. Ответ уходит команде уведомлением и письмом.")}</Help>
         <button type="button" className="secondary sm" onClick={() => setShowClosed((v) => !v)}>{showClosed ? t("Только открытые") : t("Показать закрытые")}</button>
       </div>
-      <p className="muted small">{t("Игроки пишут из задания: город, задание и состояние попыток подставляются сами. Ответ уходит команде уведомлением и письмом.")}</p>
       {error ? <ErrorState text={error} onRetry={load} /> : !rows ? <LoadingState rows={2} /> : rows.length === 0 ? <EmptyState inline icon="send" text={t("Обращений нет.")} /> : (
         <ul className="list support-list">
           {rows.map((r) => (
@@ -196,9 +197,9 @@ export function AdminDashboard() {
       <Back to="/" label={t("Мои игры")} />
       <div className="page-head">
         <h1><span className="ico"><Icon name="check" /></span>{t("Аналитика")}</h1>
+        <Help>{t("Только обобщённые числа: без содержимого игр и без привязки к людям. Наведите на график в плитке, чтобы увидеть день.")}</Help>
       </div>
       <Tabs<Period> value={period} onChange={setPeriod} ariaLabel={t("Период")} items={[{ key: "7", label: forDays(7) }, { key: "30", label: forDays(30) }, { key: "90", label: forDays(90) }]} />
-      <p className="muted small mt-3">{t("Только обобщённые числа: без содержимого игр и без привязки к людям. Наведите на график в плитке, чтобы увидеть день.")}</p>
       <SupportBlock />
       <TestAccountsBlock />
       {error && <div className="card"><ErrorState text={error} onRetry={load} /></div>}

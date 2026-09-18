@@ -10,6 +10,7 @@ import { ActionMenu } from "../components/ActionMenu";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { Sheet } from "../components/Sheet";
 import { ActivityBoard } from "./Journal";
+import { Help } from "../components/Help";
 
 interface Invite { captain: string; members: string }
 
@@ -79,13 +80,16 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   }
 
   const full = (teams?.length ?? 0) >= teamCount;
+  // «Лимит: 3 команд · Изменить»: одна строка перевода, последняя часть после « · » — ссылка в настройки.
+  const limit = t("Лимит: {n} команд · Изменить", { n: teamCount }).split(" · ");
   return (
     <div className="card">
       <div className="card-head">
         <h2><span className="ico"><Icon name="users" /></span>{t("Команды")} {teams && <span className="count">{t("{a} из {b}", { a: teams.length, b: teamCount })}</span>}</h2>
+        <Help>{t("Роли — у участников, не у капитана. Запрос капитана одобрите здесь; ваш выбор применяется сразу.")}</Help>
         {!full && <button type="button" className="sm" onClick={() => setOpen(true)} disabled={!teams}><Icon name="plus" />{t("Добавить")}</button>}
       </div>
-      {teams && full && <p className="hint">{t("Команд по настройкам: {n}.", { n: teamCount })} {goToSettings && <a href="#settings" onClick={(e) => { e.preventDefault(); goToSettings(); }}>{t("Изменить в настройках")}</a>}</p>}
+      {teams && full && <p className="hint">{limit[0]}{goToSettings && limit[1] && <> · <a href="#settings" onClick={(e) => { e.preventDefault(); goToSettings(); }}>{limit[1]}</a></>}</p>}
       {loadError ? <ErrorState onRetry={() => void load()} /> : !teams ? <LoadingState /> : teams.length === 0 ? <EmptyState inline icon="users" text={t("Команд пока нет: добавьте первую.")} /> : teams.map((tm) => (
         <div key={tm.id} className="team-block">
           <div className="row between nowrap">
@@ -140,7 +144,6 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
           )}
         </div>
       ))}
-      {teams && teams.some((tm) => tm.members.length > 0) && <p className="hint">{t("Игровые роли — только у участников: капитан ведёт команду. Роль, запрошенную капитаном, одобрите здесь; сами вы ставите роли сразу.")}</p>}
       {moving && (
         <Sheet title={t("Перевести {nick}", { nick: moving.nick })} onClose={() => setMoving(null)} size="sm">
           <p className="hint">{t("В какую команду?")}</p>
@@ -157,7 +160,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
           <form id="team-form" onSubmit={create}>
             <label htmlFor="tm-name">{t("Название команды")}</label>
             <input id="tm-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={40} autoFocus />
-            <p className="hint">{t("Цвет назначится сам. Участников пригласите по ссылке после добавления.")}</p>
+            <p className="hint">{t("Цвет назначится сам; ссылки для приглашения — после добавления.")}</p>
             {error && <p className="error">{error}</p>}
           </form>
         </Sheet>
@@ -165,7 +168,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
       {status !== "DRAFT" && (
         <details className="card fold-card">
           <summary><Icon name="star" />{t("Активность участников")}<Icon name="chevron-down" className="chev" /></summary>
-          <p className="hint">{t("Кто сколько сделал: дела (с участниками дел группой), решённые районы, выученные стихи, взятые города. Самые активные сверху.")}</p>
+          <Help block>{t("Дела считаются и участникам групповых дел. Самые активные сверху.")}</Help>
           <ActivityBoard gameId={gameId} version={version} />
         </details>
       )}
