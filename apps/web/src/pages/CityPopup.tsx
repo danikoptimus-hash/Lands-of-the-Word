@@ -268,7 +268,9 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
   const [supportText, setSupportText] = useState("");
   const [supportForm, setSupportForm] = useState(false);
   const [hintText, setHintText] = useState<string[] | null>(null);
-  useEffect(() => { if (hintOpen) api<{ text: string[] }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/hint/${task.index}`).then((r) => setHintText(r.text)).catch(() => setHintText(null)); else setHintText(null); }, [hintOpen, gameId, nodeKey, task.index]);
+  /** Стихи письма — из ответа сервера: для задания по группе районов это районы группы, а не район с номером задания. */
+  const [hintVerses, setHintVerses] = useState("");
+  useEffect(() => { if (hintOpen) api<{ text: string[]; verses: string }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/hint/${task.index}`).then((r) => { setHintText(r.text); setHintVerses(r.verses); }).catch(() => setHintText(null)); else setHintText(null); }, [hintOpen, gameId, nodeKey, task.index]);
   const [text, setText] = useState("");
   const [choice, setChoice] = useState<number | null>(null);
   const [order, setOrder] = useState<string[]>(task.type === "order" ? task.items.map((i) => i.id) : []);
@@ -316,7 +318,7 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
       )}
       {hintOpen && hintText && (
         <div className="hint-box prophet-letter no-copy">
-          <div className="letter-head"><Icon name="mail" /><span className="strong">{t("Письмо пророка")}</span><span className="muted small">{t("текст района {verses}", { verses: district?.verses ?? "" })}</span></div>
+          <div className="letter-head"><Icon name="mail" /><span className="strong">{t("Письмо пророка")}</span><span className="muted small">{t("текст района {verses}", { verses: hintVerses || district?.verses || "" })}</span></div>
           {hintText.map((x, i) => <p key={i}>{x}</p>)}
           <div className="muted small letter-sign">{t("Видно только вам: расскажите команде. — пророк команды")}</div>
         </div>

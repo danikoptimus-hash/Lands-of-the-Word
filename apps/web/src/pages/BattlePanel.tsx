@@ -73,7 +73,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
     <div className="war">
       <h3>{t("Испытание города")}</h3>
       <p className="muted small">{t("Уровень испытания: {n}", { n: verses(war.defenseLevel) })}{war.bookVerses ? ` · ${t("в книге {n}", { n: verses(war.bookVerses) })}` : ""}</p>
-      {war.locked && <div className="note info"><Icon name="lock" /><span>{t("Город закреплён до {date}: хранители выучили всю книгу каждым участником.", { date: war.lockedUntil ? fmtDate(war.lockedUntil, { time: false }) : "" })}</span></div>}
+      {war.locked && <div className="note info"><Icon name="lock" /><span>{t("Город закреплён до {date}: хранители выучили всю книгу каждым участником.", { date: war.lockedUntil ? fmtDate(war.lockedUntil) : "" })}</span></div>}
       {error && <p className="error" role="alert">{error}</p>}
       {war.canDeclare && (
         <div className="declare">

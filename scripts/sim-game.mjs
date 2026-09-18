@@ -388,7 +388,7 @@ async function main() {
     const w = await get("tg_p1", `/api/games/${S.gameId}/my-city/${encodeURIComponent(cityM)}/war`);
     say(`вызов при мире: canDeclare=${w.canDeclare} (${w.reason})`);
     if (w.canDeclare) failures.push({ title: "мир не закрыл вызов", error: "canDeclare=true при действующем мире" });
-    await snap(e6, "tg_p1", `/games/${S.gameId}/team`, "peace-blocks-war", "При действующем мире вызов городу «Моряков» невозможен: об этом сказано в разделе «Испытание».", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).click(); await p.waitForTimeout(600); });
+    await snap(e6, "tg_p1", `/games/${S.gameId}/team`, "peace-blocks-war", "При действующем мире вызов городу «Моряков» невозможен: об этом сказано в разделе «Испытание».", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).first().click(); await p.waitForTimeout(600); });
     await post("tg_p1", `/api/games/${S.gameId}/peace/${inc.peaceId}/break`);
   });
 
@@ -399,7 +399,7 @@ async function main() {
     await solveCity("B", cityM);
     const r = await post("tg_b1", `/api/games/${S.gameId}/my-city/${encodeURIComponent(cityM)}/war`, { bid: 10 });
     battle1 = r.id;
-    await snap(e7, "tg_b1", `/games/${S.gameId}/team`, "war-attack", "Претенденты «Берега»: вызов брошен, отрывок выдан, участники отмечают выученные стихи и прикрепляют видео.", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).click(); await p.waitForTimeout(700); });
+    await snap(e7, "tg_b1", `/games/${S.gameId}/team`, "war-attack", "Претенденты «Берега»: вызов брошен, отрывок выдан, участники отмечают выученные стихи и прикрепляют видео.", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).first().click(); await p.waitForTimeout(700); });
     await snap(e7, "tg_m1", `/games/${S.gameId}/team`, "war-defend-alert", "Хранители «Моряков» видят вызов своему городу: ставка, срок; отрывок и суммы претендентов скрыты.", async (p) => { await openMenu(p); await scrollTo("Испытания")(p); });
     await attackPhase("B", battle1, 10, async () => { await snap(e7, ADMIN, `/games/${S.gameId}`, "admin-review-battle", "Проверка у администратора: записи стихов претендентов с видео ждут приёма или возврата.", adminTab("Проверка")); });
     await defendPhase("M", battle1, 10);
@@ -407,7 +407,7 @@ async function main() {
     say(`испытание 1: ${b.status}`);
     if (b.status !== "REPELLED") failures.push({ title: "испытание 1", error: "ожидалось REPELLED, получено " + b.status });
   });
-  await snap(e7, "tg_m1", `/games/${S.gameId}/team`, "war-repelled", "Итог у хранителей: город устоял, уровень защиты вырос до ставки.", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).click(); await p.waitForTimeout(700); });
+  await snap(e7, "tg_m1", `/games/${S.gameId}/team`, "war-repelled", "Итог у хранителей: город устоял, уровень защиты вырос до ставки.", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).first().click(); await p.waitForTimeout(700); });
   await snap(e7, "tg_p2", `/games/${S.gameId}/team`, "news-for-all", "Новость у третьей команды: кто кому бросил вызов и итог — без ставок и чисел стихов.", async (p) => { await openMenu(p); await scrollTo("Что случилось")(p); });
 
   const e8 = entry("Испытания", "Вызов удался: город переходит", "«Пустыня» бросает вызов городу «Берега». Хранители не отвечают в срок — город переходит претендентам с уровнем защиты, равным ставке. Отдельно: вызов «Моряков» городу «Пустыни» не сдан вовремя и сгорает со штрафом к ставке.");
@@ -431,7 +431,7 @@ async function main() {
     // «Берег» встаёт в очередь на город «Пустыни», пока идёт вызов «Моряков».
     await reveal("B", cityP); await solveCity("B", cityP);
     await post("tg_b1", `/api/games/${S.gameId}/my-city/${encodeURIComponent(cityP)}/war`, { bid: 12 });
-    await snap(e8, "tg_b1", `/games/${S.gameId}/team`, "war-queue", "Очередь: «Берег» стоит вторым на город «Пустыни» (буква очереди).", async (p) => { await openCity(bookName(nodeOf(cityP).bookCode))(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).click(); await p.waitForTimeout(700); });
+    await snap(e8, "tg_b1", `/games/${S.gameId}/team`, "war-queue", "Очередь: «Берег» стоит вторым на город «Пустыни» (буква очереди).", async (p) => { await openCity(bookName(nodeOf(cityP).bookCode))(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).first().click(); await p.waitForTimeout(700); });
   });
 
   // 6. Столица, штраф, роли, перевод участника — пока идут сроки
@@ -460,7 +460,7 @@ async function main() {
     await loadWorld();
   });
   await snap(e8, "tg_p1", `/games/${S.gameId}/team`, "war-won", "«Пустыня» взяла город «Берега»: город на карте сменил владельца.", async (p) => { await p.waitForSelector(".map-svg"); });
-  await snap(e8, "tg_m1", `/games/${S.gameId}/team`, "war-burnt", "Сгоревший вызов «Моряков»: штраф к минимальной ставке на этот город; очередь пошла дальше.", async (p) => { await openCity(bookName(nodeOf(cityP).bookCode))(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).click(); await p.waitForTimeout(700); });
+  await snap(e8, "tg_m1", `/games/${S.gameId}/team`, "war-burnt", "Сгоревший вызов «Моряков»: штраф к минимальной ставке на этот город; очередь пошла дальше.", async (p) => { await openCity(bookName(nodeOf(cityP).bookCode))(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).first().click(); await p.waitForTimeout(700); });
 
   // 8. Столица «Берега» потеряна → команда выбыла, руины, сокровище
   const e10 = entry("Выбывание", "Потеря столицы: руины и находка", "Город «Берега» был его столицей: команда выбыла, её остальные города — руины. «Моряки» изучают руины и получают находку — район ближайшего города; руины занимают без конверта.");
@@ -510,13 +510,13 @@ async function main() {
     say(`после максимума: locked=${w.locked} maxed=${w.maxed} до ${w.lockedUntil}`);
     if (!w.maxed) failures.push({ title: "максимум защиты", error: "город не отмечен как достигший максимума" });
   });
-  await snap(e11, "tg_p1", `/games/${S.gameId}/team`, "city-locked", "Город закреплён: вызов невозможен до срока, дальше — осада делами.", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).click(); await p.waitForTimeout(700); });
+  await snap(e11, "tg_p1", `/games/${S.gameId}/team`, "city-locked", "Город закреплён: вызов невозможен до срока, дальше — осада делами.", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).first().click(); await p.waitForTimeout(700); });
   await step("Осада", async () => {
     await sleep(Math.max(0, rulesFast.lockWeeks * 7 * 86_400_000 + 65_000));
     const r = await raw("tg_p1", "POST", `/api/games/${S.gameId}/my-city/${encodeURIComponent(siegeCity)}/siege`);
     say(`осада: ${r.status} ${JSON.stringify(r.body).slice(0, 120)}`);
     if (r.status >= 400) { failures.push({ title: "осада", error: r.body?.message ?? String(r.status) }); return; }
-    await snap(e11, "tg_m1", `/games/${S.gameId}/team`, "siege-declared", "Осада объявлена: у обеих команд считаются принятые дела до срока.", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).click(); await p.waitForTimeout(700); });
+    await snap(e11, "tg_m1", `/games/${S.gameId}/team`, "siege-declared", "Осада объявлена: у обеих команд считаются принятые дела до срока.", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).first().click(); await p.waitForTimeout(700); });
     // Дела во время осады: «Пустыня» два, «Моряки» одно.
     await doDeed("P", 1); await doDeed("P", 2); await doDeed("M", 3);
     const until = Date.now() + rulesFast.siegeDays * 86_400_000 + 70_000;
