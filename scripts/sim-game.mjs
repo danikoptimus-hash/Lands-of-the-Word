@@ -521,7 +521,7 @@ async function main() {
     await doDeed("P", 1); await doDeed("P", 2); await doDeed("M", 3);
     const until = Date.now() + rulesFast.siegeDays * 86_400_000 + 70_000;
     let done = null;
-    while (Date.now() < until) { await sleep(15_000); const list = (await get("tg_p1", `/api/games/${S.gameId}/sieges`).catch(() => ({ list: [] }))).list ?? []; const s = list.find((x) => x.nodeKey === siegeCity); if (s && s.status !== "ACTIVE") { done = s; break; } }
+    while (Date.now() < until) { await sleep(15_000); const list = (await get(ADMIN, `/api/games/${S.gameId}/sieges`).catch(() => ({ sieges: [] }))).sieges ?? []; const s = list.find((x) => x.nodeKey === siegeCity); if (s && s.status !== "ACTIVE") { done = s; break; } }
     say(`итог осады: ${done?.status} ${done?.attackerPoints}:${done?.defenderPoints}`);
     if (!done || done.status !== "WON") failures.push({ title: "осада", error: "ожидалось WON, получено " + (done?.status ?? "не завершена в срок") });
   });
