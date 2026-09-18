@@ -238,3 +238,13 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
   .admin-top { max-width: calc(100% - 2 * var(--sp-3)); }
 }
 .admin-loading { width: min(360px, 80vw); }
+/* Продвинутые настройки: свёрнутая группа, строки «подпись — число». */
+details.settings-group summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: var(--sp-2); }
+details.settings-group summary::-webkit-details-marker { display: none; }
+details.settings-group summary::after { content: "▾"; color: var(--muted); margin-left: auto; transition: transform .15s; }
+details.settings-group[open] summary::after { transform: rotate(180deg); }
+details.settings-group summary h3 { margin: 0; }
+.rule-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: var(--sp-2); align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.rule-row label { margin: 0; font-size: 14px; }
+.rule-row input { width: 100%; }
+@media (max-width: 480px) { .rule-row { grid-template-columns: 1fr; } }

@@ -45,7 +45,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
 
   async function declare() {
     if (!war || bid === "") return;
-    const ok = await confirm(t("Команда обязуется выучить {n} в сумме по участникам. Игра выдаст случайный отрывок; с этого момента идёт время вызова, не больше 14 дней.", { n: verses(bid) }), { title: t("Испытать город со ставкой {n}?", { n: verses(bid) }), okLabel: t("Испытать город"), danger: true });
+    const ok = await confirm(t("Команда обязуется выучить ровно {n} в сумме по участникам: лишние стихи не считаются. Игра выдаст случайный отрывок; с этого момента идёт время вызова, не больше {d} дней.", { n: verses(bid), d: war.attackDays ?? 14 }), { title: t("Испытать город со ставкой {n}?", { n: verses(bid) }), okLabel: t("Испытать город"), danger: true });
     if (!ok) return;
     setBusy(true); setError(null);
     try {
@@ -62,7 +62,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
     <div className="war">
       <h3>{t("Испытание города")}</h3>
       <p className="muted small">{t("Уровень испытания: {n}", { n: verses(war.defenseLevel) })}{war.bookVerses ? ` · ${t("в книге {n}", { n: verses(war.bookVerses) })}` : ""}</p>
-      {war.locked && <div className="note info"><Icon name="lock" /><span>{t("Город устоял окончательно: испытать его больше нельзя.")}</span></div>}
+      {war.locked && <div className="note info"><Icon name="lock" /><span>{t("Город закреплён до {date}: хранители выучили всю книгу каждым участником.", { date: war.lockedUntil ? fmtDate(war.lockedUntil, { time: false }) : "" })}</span></div>}
       {error && <p className="error" role="alert">{error}</p>}
       {war.canDeclare && (
         <div className="declare">
@@ -77,10 +77,10 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
           <details className="disclose sm">
             <summary><Icon name="help" />{t("Как проходит испытание")}<Icon name="chevron-down" className="chev" /></summary>
             <div className="stack-sm small muted">
-              <p>{t("Ставка — сколько стихов команда выучит в сумме по участникам: каждый учит свою часть или весь отрывок. Отрывок выберет игра.")}</p>
-              <p>{t("Каждый отмечает выученные стихи и прикладывает ссылку на видео. Когда сумма набрана, капитан отправляет вызов на проверку администратору.")}</p>
-              <p>{t("Хранителям даётся столько же времени, сколько ушло у претендентов: они выбирают отрывок из книги и учат не меньше стихов. Ничья — в пользу хранителей.")}</p>
-              <p>{t("Не завершённый за 14 дней вызов сгорает, и следующая ставка на этот город для команды растёт на 5 стихов.")}</p>
+              <p>{t("Ставка — сколько стихов команда выучит в сумме по участникам: каждый учит свою часть или весь отрывок. Отрывок выберет игра. Вызов состоит ровно из ставки: лишние стихи не считаются.")}</p>
+              <p>{t("Каждый отмечает выученные стихи и прикладывает ссылку на видео. Когда сумма набрана, капитан отправляет вызов на проверку администратору. Время на проверке не считается.")}</p>
+              <p>{t("Хранителям даётся столько же времени, сколько ушло у претендентов: они выбирают отрывок из книги и учат не меньше стихов. Стихи этой книги, выученные раньше, засчитываются им сами. Ничья — в пользу хранителей.")}</p>
+              <p>{t("Не завершённый за {d} дней вызов сгорает, и следующая ставка на этот город для команды растёт на {p} стихов.", { d: war.attackDays ?? 14, p: war.burnPenalty ?? 5 })}</p>
             </div>
           </details>
         </div>
@@ -103,7 +103,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, onChanged }: { g
   const myTurn = isMyTurn(b, teamId);
   const [error, setError] = useState<string | null>(null);
   const [bid, setBid] = useState(b.bid);
-  const need = attacker ? b.bid : b.attackApproved;
+  const need = b.bid;
   const sum = attacker ? b.attackSum : b.defenseSum;
   const approved = attacker ? b.attackApproved : b.defenseApproved;
   const passage = attacker ? b.passage : b.defensePassage;
@@ -118,11 +118,6 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, onChanged }: { g
     try { await api(`/api/games/${gameId}/battles/${b.id}/submit`, { method: "POST" }); notify(t("Отправлено на проверку администратору")); onChanged(); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
-  async function surrender() {
-    if (!(await confirm(t("Город перейдёт претендентам. Если это столица — команда выбывает из игры."), { title: t("Уступить город?"), okLabel: t("Уступить город"), danger: true }))) return;
-    try { await api(`/api/games/${gameId}/battles/${b.id}/surrender`, { method: "POST" }); onChanged(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
-  }
 
   const deadline = b.status === "ATTACK" ? b.attackDeadline : b.status === "DEFENSE" ? b.defenseDeadline : null;
   const attackTime = b.startedAt && b.attackDoneAt ? fmtLeft(Date.parse(b.attackDoneAt) - Date.parse(b.startedAt)) : "";
@@ -134,7 +129,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, onChanged }: { g
       </div>
       <p className="muted small mt-2">
         {t("Ставка: {n}", { n: verses(b.bid) })}
-        {b.status === "DEFENSE" && ` · ${t("вызов: {n} за {time}", { n: verses(b.attackApproved), time: attackTime })}`}
+        {b.status === "DEFENSE" && ` · ${t("вызов: {n} за {time}", { n: verses(b.bid), time: attackTime })}`}
         {deadline && ` · ${t("осталось {t}", { t: leftText(deadline, now) })}`}
         {b.status === "ATTACK" && b.attackDoneAt && ` · ${t("вызов на проверке")}`}
         {b.status === "DEFENSE" && b.defenseDoneAt && ` · ${t("ответ на проверке")}`}
@@ -150,10 +145,11 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, onChanged }: { g
         </div>
       )}
       {!attacker && b.status === "ATTACK" && <p className="muted small mt-2">{t("Претенденты учат отрывок. Когда администратор примет их записи, у вас будет столько же времени на ответ.")}</p>}
+      {attacker && b.status === "DEFENSE" && <p className="muted small mt-2">{t("Хранители отвечают. Их отрывок и счёт вы увидите, когда испытание завершится.")}</p>}
       {(b.status === "ATTACK" || b.status === "DEFENSE") && (attacker || b.status === "DEFENSE") && (
         <>
           <div className="progress mt-2"><span style={{ width: `${Math.min(100, need ? (sum / need) * 100 : 0)}%` }} /></div>
-          <div className="muted small mt-1">{t("Выучено {a} из {b} · принято {c}", { a: sum, b: need, c: approved })}</div>
+          <div className="muted small mt-1">{t("Выучено {a} из {b} · принято {c}", { a: sum, b: need, c: approved })}{!attacker && b.entries.some((e) => e.carried) ? ` · ${t("зачтено из прошлых испытаний: {n}", { n: b.entries.filter((e) => e.carried).reduce((s, e) => s + e.verses, 0) })}` : ""}</div>
           {!attacker && !passage && b.status === "DEFENSE" && !b.defenseDoneAt && (
             isCaptain ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Капитан выбирает отрывок ответа из книги. Как только выберет — здесь появится текст.")}</span></div>
           )}
@@ -161,7 +157,6 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, onChanged }: { g
           {isCaptain && myTurn && sum < need && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
           <div className="actions">
             {isCaptain && myTurn && <button type="button" disabled={sum < need} onClick={() => void submit()}><Icon name="send" />{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}</button>}
-            {!attacker && isCaptain && (b.status === "DEFENSE" || b.status === "ATTACK") && <button type="button" className="danger secondary" onClick={() => void surrender()}>{t("Уступить город")}</button>}
           </div>
         </>
       )}

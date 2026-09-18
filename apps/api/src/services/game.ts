@@ -18,6 +18,8 @@ export interface Standing {
   cities: number; capitals: number;
   /** Статистика пути: города, которые команда брала (в том числе потерянные), дела, узлы, битвы. */
   citiesOnPath: CityOnPath[]; deedsApproved: number; nodesRevealed: number; battlesWon: number; battlesLost: number; battlesRepelled: number;
+  /** Сумма уровней защиты нынешних городов команды. */
+  defenseSum: number;
 }
 
 export async function standings(gameId: string): Promise<Standing[]> {
@@ -30,10 +32,11 @@ export async function standings(gameId: string): Promise<Standing[]> {
         _count: { select: { nodeStates: true, edgeTasks: { where: { status: "APPROVED" } } } },
       },
     }),
-    prisma.mapNode.findMany({ where: { gameId, kind: "CITY" }, select: { key: true, bookCode: true } }),
+    prisma.mapNode.findMany({ where: { gameId, kind: "CITY" }, select: { key: true, bookCode: true, defenseLevel: true } }),
     prisma.battle.findMany({ where: { gameId, status: { in: ["WON", "REPELLED"] } }, select: { status: true, attackerId: true, defenderId: true } }),
   ]);
   const bookOf = new Map(nodes.map((n) => [n.key, n.bookCode ?? ""]));
+  const levelOf = new Map(nodes.map((n) => [n.key, n.defenseLevel]));
   return teams
     .map((t) => {
       const current = t.cityStates.filter((c) => c.capturedAt);
@@ -47,12 +50,14 @@ export async function standings(gameId: string): Promise<Standing[]> {
         battlesWon: battles.filter((b) => b.status === "WON" && b.attackerId === t.id).length,
         battlesLost: battles.filter((b) => b.status === "WON" && b.defenderId === t.id).length,
         battlesRepelled: battles.filter((b) => b.status === "REPELLED" && b.defenderId === t.id).length,
+        defenseSum: current.reduce((a, c) => a + (levelOf.get(c.nodeKey) ?? 0), 0),
       };
     })
-    .sort((a, b) => (a.status === "defeated") !== (b.status === "defeated") ? (a.status === "defeated" ? 1 : -1) : b.cities - a.cities || b.capitals - a.capitals || a.index - b.index);
+    // Ничья по сроку (решение владельца 18.09): города → столицы → одобренные дела → отражённые вызовы → сумма уровней защиты; номер команды — никогда.
+    .sort((a, b) => (a.status === "defeated") !== (b.status === "defeated") ? (a.status === "defeated" ? 1 : -1) : b.cities - a.cities || b.capitals - a.capitals || b.deedsApproved - a.deedsApproved || b.battlesRepelled - a.battlesRepelled || b.defenseSum - a.defenseSum);
 }
 
-/** Победитель по городам среди команд в строю (при равенстве — больше столиц, затем меньший индекс). */
+/** Победитель по городам среди команд в строю (при равенстве — столицы, дела, отражённые вызовы, сумма защиты). */
 export async function leader(gameId: string): Promise<Standing | null> {
   const rows = (await standings(gameId)).filter((t) => t.status !== "defeated");
   return rows[0] ?? null;

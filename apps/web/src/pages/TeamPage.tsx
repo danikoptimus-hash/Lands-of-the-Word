@@ -37,12 +37,14 @@ const PROOF: Record<EdgeTaskDto["deed"]["proofType"], { icon: string; label: () 
   REPORT: { icon: "edit", label: () => t("Отчёт") }, CONFIRMATION: { icon: "users", label: () => t("Подтверждение") },
 };
 /** Роли: подпись, иконка и одно предложение из правил (2.15) — показывается по нажатию на пилюлю. */
-const ROLE: Record<GameRole | "CAPTAIN", { icon: string; label: () => string; hint: () => string }> = {
-  CAPTAIN: { icon: "crown", label: () => t("капитан"), hint: () => t("Бросает вызов и отвечает на испытания, уступает город, переносит столицу, назначает роли.") },
+const ROLE: Record<GameRole | "CAPTAIN" | "DEPUTY", { icon: string; label: () => string; hint: () => string }> = {
+  CAPTAIN: { icon: "crown", label: () => t("капитан"), hint: () => t("Бросает вызов и отвечает на испытания, переносит столицу, назначает заместителя и просит роли у администратора.") },
+  DEPUTY: { icon: "star", label: () => t("заместитель"), hint: () => t("Всё, что может капитан, кроме назначения ролей: вызов, ответ, столица, высадка.") },
   SCOUT: { icon: "telescope", label: () => t("Разведчик"), hint: () => t("Раз в неделю может разведать, что за стороной: город или развилка.") },
   PROPHET: { icon: "sparkle", label: () => t("Пророк"), hint: () => t("Раз в неделю открывает подсказку к одному заданию города — текст района.") },
   AMBASSADOR: { icon: "handshake", label: () => t("Посол"), hint: () => t("Отправляет запросы прохода другим командам и отвечает на их запросы.") },
   CHRONICLER: { icon: "edit", label: () => t("Летописец"), hint: () => t("Сдаёт дела за команду и следит, чтобы ссылки и фото были приложены.") },
+  HELMSMAN: { icon: "ship", label: () => t("Кормчий"), hint: () => t("Ведёт корабль: выбирает место высадки на другом острове.") },
   NONE: { icon: "user", label: () => t("Без роли"), hint: () => "" },
 };
 
@@ -133,6 +135,8 @@ export function TeamPage() {
 
   const me = team?.members.find((m) => m.user.id === user?.id);
   const isCaptain = me?.role === "CAPTAIN";
+  /** Капитан или заместитель: вызов, ответ, столица, высадка. */
+  const isLeader = isCaptain || me?.role === "DEPUTY" || me?.gameRole === "HELMSMAN";
   const task = useMemo(() => (map?.tasks ?? []).find((tk) => tk.id === selectedId) ?? null, [map, selectedId]);
   const memberName = (userId: string | null) => { const m = team?.members.find((mm) => mm.user.id === userId); return m ? m.user.displayName ?? m.user.nickname : ""; };
 
@@ -161,7 +165,16 @@ export function TeamPage() {
   }
   async function setGameRole(userId: string, gameRole: GameRole) {
     setError(null);
-    try { await api(`/api/games/${id}/teams/${team!.id}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ gameRole }) }); await loadTeam(); }
+    try {
+      const r = await api<{ pending?: boolean }>(`/api/games/${id}/teams/${team!.id}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ gameRole }) });
+      if (r.pending) notify(t("Запрос отправлен администратору: роль назначится после одобрения"), "info");
+      await loadTeam();
+    }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+  }
+  async function setDeputy(userId: string, on: boolean) {
+    setError(null);
+    try { await api(`/api/games/${id}/teams/${team!.id}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ role: on ? "DEPUTY" : "MEMBER" }) }); notify(on ? t("Заместитель назначен") : t("Заместитель снят"), "info"); await loadTeam(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
   }
 
@@ -220,7 +233,7 @@ export function TeamPage() {
           {isCaptain && map.status !== "FINISHED" && <p className="muted mt-2">{t("Пока можно назначить роли участникам: они дают команде разведку, подсказки и переговоры.")}</p>}
           <div className="actions"><Link className="btn secondary" to="/how-to-play"><Icon name="help" />{t("Как играть")}</Link></div>
         </div>
-        <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} /></div>
+        <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></div>
       </main>
     );
   }
@@ -324,7 +337,7 @@ export function TeamPage() {
           </section>
 
           <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />
-          <section className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} /></section>
+          <section className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></section>
           <section className="section"><PushToggle compact /></section>
           <nav className="menu-tiles" aria-label={t("Навигация")}>
             <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
@@ -341,7 +354,7 @@ export function TeamPage() {
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)} />
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">
-            <Icon name="ship" /><span>{isCaptain ? t("Выберите на другом острове место высадки") : t("Капитан выбирает место высадки")}</span>
+            <Icon name="ship" /><span>{isLeader ? t("Выберите на другом острове место высадки") : t("Капитан или кормчий выбирает место высадки")}</span>
             <button type="button" className="ghost sm" onClick={() => setLandingId(null)}>{t("Позже")}</button>
           </div>
         )}
@@ -359,7 +372,7 @@ export function TeamPage() {
           <div className="finish-banner" role="status"><Icon name="trophy" /><span>{winner ? t("Игра завершена: победила «{team}»", { team: winner }) : t("Игра завершена")}</span></div>
         )}
 
-        {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} isCaptain={isCaptain} version={cityVersion} container={mapEl} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); void loadPassages(); }} />}
+        {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} isCaptain={isCaptain || me?.role === "DEPUTY"} version={cityVersion} container={mapEl} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); void loadPassages(); }} />}
 
         {task && (() => {
           const st = deedStatus(task.status);
@@ -373,7 +386,7 @@ export function TeamPage() {
               <p className="meta-line mt-2"><Icon name={proof.icon} />{t("Сдать")}: {proof.label()}{taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}</p>
               {task.deed.secret && <div className="note info"><Icon name="lock" /><span>{t("Тайное дело: ссылку и описание сдачи видит только тот, кто его взял, и проверяющий администратор.")}</span></div>}
               {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта. Когда дело одобрят, капитан выберет на карте, куда высадиться на другом острове.")}</span></div>}
-              {task.landing && (isCaptain
+              {task.landing && (isLeader
                 ? <div className="actions"><button type="button" onClick={() => { setLandingId(task.id); setSelectedId(null); }}><Icon name="anchor" />{t("Выбрать место высадки")}</button></div>
                 : <div className="note info"><Icon name="anchor" /><span>{t("Дело одобрено: капитан выбирает место высадки.")}</span></div>)}
               {task.status === "REJECTED" && <div className="note bad"><Icon name="alert" /><span>{task.adminComment ? t("Администратор вернул дело: «{comment}». Исправьте и сдайте снова.", { comment: task.adminComment }) : t("Администратор вернул дело. Исправьте и сдайте снова.")}</span></div>}
@@ -431,32 +444,37 @@ function DeedForm({ donationCfg, busy, onSubmit, onRelease }: { donationCfg: { m
 }
 
 /** Состав команды: роль — пилюля с объяснением по нажатию; капитан назначает роли выбором. */
-function Roster({ team, isCaptain, onRole }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void }) {
+function Roster({ team, isCaptain, onRole, onDeputy }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void }) {
   const [open, setOpen] = useState<string | null>(null);
+  const nextChange = team.roleChangeAvailableAt && Date.parse(team.roleChangeAvailableAt) > Date.now() ? team.roleChangeAvailableAt : null;
   return (
     <>
       <h2><Icon name="users" />{t("Состав")}<span className="count">{team.members.length}</span></h2>
+      {isCaptain && <p className="hint">{nextChange ? t("Роли меняются раз в неделю с одобрения администратора: следующая смена — {d}.", { d: fmtDate(nextChange, { time: false }) }) : t("Роли назначает капитан, одобряет администратор игры; не чаще раза в неделю.")}</p>}
       <ul className="list roster">
         {team.members.map((m) => {
           const name = m.user.displayName ?? m.user.nickname;
-          const roleKey: GameRole | "CAPTAIN" = m.role === "CAPTAIN" ? "CAPTAIN" : m.gameRole;
+          const roleKey: GameRole | "CAPTAIN" | "DEPUTY" = m.role === "CAPTAIN" ? "CAPTAIN" : m.role === "DEPUTY" && m.gameRole === "NONE" ? "DEPUTY" : m.gameRole;
           const r = ROLE[roleKey];
           const shown = open === m.user.id;
+          const canEdit = m.role !== "CAPTAIN" && isCaptain;
           return (
             <li key={m.user.id}>
               <div className="main">
-                <div className="person"><span className="avatar">{name.slice(0, 1).toUpperCase()}</span><span className="name">{name}</span></div>
+                <div className="person"><span className="avatar">{name.slice(0, 1).toUpperCase()}</span><span className="name">{name}</span>{m.role === "DEPUTY" && m.gameRole !== "NONE" && <Chip tone="accent" icon="star">{t("заместитель")}</Chip>}</div>
+                {m.pendingRole && <p className="hint">{t("Запрошена роль «{role}»: ждёт одобрения администратора", { role: ROLE[m.pendingRole].label() })}</p>}
                 {shown && r.hint() && <p className="hint">{r.hint()}</p>}
               </div>
               <div className="side">
-                {m.role === "MEMBER" && isCaptain ? (
+                {canEdit ? (
                   <select className="role-select" value={m.gameRole} aria-label={t("Роль: {name}", { name })} onChange={(e) => onRole(m.user.id, e.target.value as GameRole)}>
-                    {(Object.keys(ROLE).filter((k) => k !== "CAPTAIN") as GameRole[]).map((k) => <option key={k} value={k}>{ROLE[k].label()}</option>)}
+                    {(Object.keys(ROLE).filter((k) => k !== "CAPTAIN" && k !== "DEPUTY") as GameRole[]).map((k) => <option key={k} value={k}>{ROLE[k].label()}</option>)}
                   </select>
                 ) : roleKey !== "NONE" ? (
-                  <button type="button" className="chip-btn" aria-expanded={shown} onClick={() => setOpen(shown ? null : m.user.id)}><Chip tone={roleKey === "CAPTAIN" ? "accent" : "info"} icon={r.icon}>{r.label()}</Chip></button>
+                  <button type="button" className="chip-btn" aria-expanded={shown} onClick={() => setOpen(shown ? null : m.user.id)}><Chip tone={roleKey === "CAPTAIN" || roleKey === "DEPUTY" ? "accent" : "info"} icon={r.icon}>{r.label()}</Chip></button>
                 ) : null}
-                {m.role === "MEMBER" && isCaptain && m.gameRole !== "NONE" && <button type="button" className="ghost icon sm" aria-label={t("Что даёт роль")} aria-expanded={shown} onClick={() => setOpen(shown ? null : m.user.id)}><Icon name="help" /></button>}
+                {canEdit && <button type="button" className={"ghost icon sm" + (m.role === "DEPUTY" ? " on" : "")} aria-label={m.role === "DEPUTY" ? t("Снять заместителя") : t("Сделать заместителем")} title={m.role === "DEPUTY" ? t("Снять заместителя") : t("Сделать заместителем")} onClick={() => onDeputy(m.user.id, m.role !== "DEPUTY")}><Icon name="star" /></button>}
+                {canEdit && m.gameRole !== "NONE" && <button type="button" className="ghost icon sm" aria-label={t("Что даёт роль")} aria-expanded={shown} onClick={() => setOpen(shown ? null : m.user.id)}><Icon name="help" /></button>}
               </div>
             </li>
           );

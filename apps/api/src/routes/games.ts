@@ -9,6 +9,7 @@ import { recommendedDeedCount } from "./deeds.js";
 import { loadCityContent, makeCityCode, makeCityKey } from "../services/cities.js";
 import { finishGame, leader, standings } from "../services/game.js";
 import { ensureFrontier } from "../services/teamMap.js";
+import { rulesOf, rulesPatchSchema } from "../services/rules.js";
 
 const createBody = z.object({
   name: z.string().trim().min(2).max(80),
@@ -41,6 +42,8 @@ const patchBody = z.object({
       endsAt: z.string().datetime().nullable().optional(),
       donationMin: z.number().int().min(0).nullable().optional(),
       donationCurrency: z.string().trim().max(10).optional(),
+      /** Продвинутые настройки: правила, которые раньше были константами (решение владельца 18.09). */
+      rules: rulesPatchSchema.optional(),
     })
     .optional(),
 });
@@ -98,15 +101,17 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (!game) return;
     const body = patchBody.parse(request.body);
     if (game.status !== "DRAFT") {
-      // После старта меняется только срок окончания игры.
-      const other = body.name !== undefined || body.teamCount !== undefined || Object.keys(body.settings ?? {}).some((k) => !["endsAt", "donationMin", "donationCurrency"].includes(k));
-      if (other || game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра уже начата: после старта можно менять только срок окончания и пожертвование") });
+      // После старта меняются только срок окончания игры, пожертвование и правила (продвинутые настройки).
+      const other = body.name !== undefined || body.teamCount !== undefined || Object.keys(body.settings ?? {}).some((k) => !["endsAt", "donationMin", "donationCurrency", "rules"].includes(k));
+      if (other || game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра уже начата: после старта можно менять только срок окончания, пожертвование и правила") });
     }
     if (body.teamCount !== undefined) {
       const teams = await prisma.team.count({ where: { gameId: id } });
       if (teams > body.teamCount) return reply.code(409).send({ error: "conflict", message: err(request, "Команд уже создано: {n}. Сначала удалите лишние", { n: teams }) });
     }
-    const settings = { ...((game.settings ?? {}) as Record<string, unknown>), ...(body.settings ?? {}) };
+    const prev = (game.settings ?? {}) as Record<string, unknown>;
+    const { rules: rulesPatch, ...rest } = body.settings ?? {};
+    const settings = { ...prev, ...rest, ...(rulesPatch ? { rules: { ...rulesOf(prev), ...rulesPatch } } : {}) };
     const updated = await prisma.game.update({ where: { id }, data: { name: body.name, teamCount: body.teamCount, settings } });
     publish(id, { type: "game" });
     return { game: updated };
@@ -122,7 +127,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.mapEdge.findMany({ where: { gameId: id }, select: { aKey: true, bKey: true } }),
     ]);
     const { admins: _admins, ...rest } = game;
-    return { game: rest, hexes, nodes, edges };
+    return { game: { ...rest, settings: { ...(rest.settings as Record<string, unknown>), rules: rulesOf(rest.settings) } }, hexes, nodes, edges };
   });
 
   /** Генерация (или перегенерация) карты. Пока игра в статусе DRAFT — можно сколько угодно раз. */
@@ -172,7 +177,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const uid = request.user!.id;
     const allowed = game.admins.some((a) => a.userId === uid) || game.teams.some((t) => t.members.some((m) => m.userId === uid));
     if (!allowed) return reply.code(403).send({ error: "forbidden", message: err(request, "Нет доступа") });
-    const rows = await standings(id);
+    const isAdmin = game.admins.some((a) => a.userId === uid);
+    // Во время игры команды видят только взятые города: «города на пути» — разведданные (решение владельца 18.09).
+    const rows = (await standings(id)).map((r) => (isAdmin || game.status === "FINISHED" ? r : { ...r, citiesOnPath: [] }));
     return { status: game.status, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, finishReason: game.finishReason, endsAt: (game.settings as { endsAt?: string | null }).endsAt ?? null, standings: rows, leaderTeamId: game.status === "ACTIVE" ? (await leader(id))?.teamId ?? null : null };
   });
 
@@ -225,10 +232,11 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
-    const [starts, teams, deeds] = await Promise.all([
+    const [starts, teams, deeds, recipients] = await Promise.all([
       prisma.mapNode.count({ where: { gameId: id, kind: "START" } }),
-      prisma.team.findMany({ where: { gameId: id }, include: { _count: { select: { members: true } } } }),
+      prisma.team.findMany({ where: { gameId: id }, include: { _count: { select: { members: true } }, members: { select: { role: true } } } }),
       prisma.deed.count({ where: { gameId: id } }),
+      prisma.recipient.count({ where: { gameId: id } }),
     ]);
     const settings = (game.settings ?? {}) as { nodeCount?: number };
     const recommended = recommendedDeedCount(settings.nodeCount ?? 250);
@@ -240,7 +248,13 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (teams.length < game.teamCount) problemItems.push({ key: "Команд создано {a} из {b} — добавьте команды или уменьшите их число в настройках", vars: { a: teams.length, b: game.teamCount } });
     const empty = teams.filter((t) => t._count.members === 0).map((t) => t.name);
     if (empty.length) problemItems.push({ key: "Команды без участников: {names} — пригласите игроков или удалите эти команды", vars: { names: empty.join(", ") } });
+    // Чек-лист расширен (решение владельца 18.09): капитан в каждой команде, не меньше двух участников, адресаты конвертов.
+    const noCaptain = teams.filter((t) => t._count.members > 0 && !t.members.some((m) => m.role === "CAPTAIN")).map((t) => t.name);
+    if (noCaptain.length) problemItems.push({ key: "Команды без капитана: {names} — назначьте капитана в блоке «Команды»", vars: { names: noCaptain.join(", ") } });
     const warningItems: Item[] = [];
+    const small = teams.filter((t) => t._count.members === 1).map((t) => t.name);
+    if (small.length) warningItems.push({ key: "В командах по одному участнику: {names} — пригласите ещё людей", vars: { names: small.join(", ") } });
+    if (recipients === 0) warningItems.push({ key: "Адресаты конвертов не заданы — добавьте семьи в блоке «Конверты», иначе шифры некому передавать" });
     if (deeds < recommended) warningItems.push({ key: "В списке {a} дел, а нужно не меньше {b}, иначе дела будут повторяться — добавьте дела", vars: { a: deeds, b: recommended } });
     if (deeds === 0) problemItems.push({ key: "Список дел пуст — добавьте дела" });
     const fill = (i: Item) => i.key.replace(/\{(\w+)\}/g, (m, k: string) => (i.vars && k in i.vars ? String(i.vars[k]) : m));

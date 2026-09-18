@@ -76,6 +76,8 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(recipientRoutes);
   // Таймеры битв: сгоревшие атаки и просроченные обороны проверяются раз в минуту.
   if (config.NODE_ENV !== "test") {
+    // Таймеры не должны зависеть от перезапуска сервера: первый проход — сразу после старта.
+    setTimeout(() => { sweep().catch((e) => app.log.error(e, "battle sweep failed")); }, 5_000);
     const timer = setInterval(() => { sweep().catch((e) => app.log.error(e, "battle sweep failed")); }, 60_000);
     app.addHook("onClose", async () => clearInterval(timer));
   }

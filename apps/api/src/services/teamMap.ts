@@ -1,7 +1,10 @@
 import { prisma } from "../db.js";
-import { bookName } from "./i18n.js";
+import { bookName, msg } from "./i18n.js";
 import { hexCorners, vertexKey } from "@lotw/domain";
 import { loadCityContent } from "./cities.js";
+import { notifyTeam, notifyUser } from "./notify.js";
+import { publish } from "./events.js";
+import { days, type Rules } from "./rules.js";
 
 /**
  * Карта глазами команды.
@@ -26,9 +29,11 @@ function weightedPick<T extends { frequency: number }>(list: T[]): T {
   return list[list.length - 1]!;
 }
 export async function pickDeed(gameId: string, teamId: string, bookCode: string | null, excludeId?: string): Promise<string | null> {
+  // «Встреченными» считаются только дела, которые команда брала или сдавала: свободные стороны не в счёт
+  // (решение владельца 18.09: иначе набор кончался уже на фронтире и повторы шли сразу).
   const [deeds, used] = await Promise.all([
     prisma.deed.findMany({ where: { gameId, ...(excludeId ? { id: { not: excludeId } } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, frequency: true } }),
-    prisma.teamEdgeTask.findMany({ where: { teamId }, select: { deedId: true }, orderBy: { createdAt: "desc" } }),
+    prisma.teamEdgeTask.findMany({ where: { teamId, status: { not: "OPEN" } }, select: { deedId: true }, orderBy: { createdAt: "desc" } }),
   ]);
   if (deeds.length === 0) return null;
   const usedIds = new Set(used.map((u) => u.deedId));
@@ -43,7 +48,8 @@ export async function pickDeed(gameId: string, teamId: string, bookCode: string 
     return pool.length ? weightedPick(pool).id : null;
   };
   if (bookCode) {
-    const themed = choose(deeds.filter((d) => d.bookCodes.includes(bookCode)));
+    // Пустой список книг — дело подходит к любой книге (как в документе; решение владельца 18.09).
+    const themed = choose(deeds.filter((d) => d.bookCodes.length === 0 || d.bookCodes.includes(bookCode)));
     if (themed) return themed;
   }
   return choose(deeds) ?? weightedPick(deeds).id;
@@ -74,12 +80,14 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
 
   const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true } })).map((n) => n.nodeKey));
   const edges = await prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } });
-  const existingTasks = await prisma.teamEdgeTask.findMany({ where: { teamId }, select: { fromKey: true, toKey: true, sea: true } });
+  const existingTasks = await prisma.teamEdgeTask.findMany({ where: { teamId }, select: { fromKey: true, toKey: true, sea: true, createdAt: true } });
   const existing = new Set(existingTasks.map((t) => `${t.fromKey}>${t.toKey}`));
-  // Из одного порта — один рейс за взятие: после высадки toKey становится узлом высадки, но дело остаётся.
-  const sailed = new Set(existingTasks.filter((t) => t.sea).map((t) => t.fromKey));
   const blocked = await blockedCities(gameId, teamId);
-  const ownedBooks = await ownedCityBooks(gameId, teamId);
+  const owned = await ownedCities(gameId, teamId);
+  const ownedBooks = new Map([...owned].map(([k, v]) => [k, v.bookCode]));
+  // Из одного порта — один рейс за взятие: после высадки toKey становится узлом высадки, но дело остаётся.
+  // Рейс, начатый до нынешнего взятия порта (порт теряли и вернули), не мешает новому (решение владельца 18.09).
+  const sailed = new Set(existingTasks.filter((t) => t.sea && (owned.get(t.fromKey)?.capturedAt.getTime() ?? 0) - 5_000 <= t.createdAt.getTime()).map((t) => t.fromKey));
 
   const wanted: Array<{ fromKey: string; toKey: string }> = [];
   for (const e of edges) {
@@ -133,18 +141,74 @@ export async function blockedCities(gameId: string, teamId: string): Promise<Set
   return new Set(foreign.map((f) => f.nodeKey).filter((k) => !ok.has(k)));
 }
 
-/** Книги городов, взятых командой (для тематических дел на выходе из города). */
-async function ownedCityBooks(gameId: string, teamId: string): Promise<Map<string, string>> {
-  const rows = await prisma.teamCityState.findMany({ where: { teamId, capturedAt: { not: null } }, select: { nodeKey: true } });
+/** Города, взятые командой: книга и момент нынешнего взятия (для тематических дел на выходе и морских рейсов). */
+async function ownedCities(gameId: string, teamId: string): Promise<Map<string, { bookCode: string; capturedAt: Date }>> {
+  const rows = await prisma.teamCityState.findMany({ where: { teamId, capturedAt: { not: null } }, select: { nodeKey: true, capturedAt: true } });
   if (rows.length === 0) return new Map();
   const nodes = await prisma.mapNode.findMany({ where: { gameId, key: { in: rows.map((r) => r.nodeKey) } }, select: { key: true, bookCode: true } });
-  return new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, n.bookCode!]));
+  const at = new Map(rows.map((r) => [r.nodeKey, r.capturedAt!]));
+  return new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, { bookCode: n.bookCode!, capturedAt: at.get(n.key)! }]));
 }
 
-/** Город получил владельца: другим командам без разрешения дальше через него не пройти — их свободные дела из города убираются. */
+/**
+ * Город получил владельца: другим командам без разрешения дальше через него не пройти — их свободные дела из города
+ * убираются; свободные стороны владельца из этого города получают дела по книге города (2.7; решение владельца 18.09).
+ */
 export async function onCityOwned(gameId: string, nodeKey: string, ownerTeamId: string): Promise<void> {
   const grants = await prisma.passageRequest.findMany({ where: { gameId, nodeKey, status: "APPROVED" }, select: { requesterId: true } });
   await prisma.teamEdgeTask.deleteMany({ where: { gameId, fromKey: nodeKey, status: "OPEN", NOT: { teamId: { in: [ownerTeamId, ...grants.map((g) => g.requesterId)] } } } });
+  const book = await bookOfNodeKey(gameId, nodeKey);
+  if (!book) return;
+  const open = await prisma.teamEdgeTask.findMany({ where: { teamId: ownerTeamId, fromKey: nodeKey, status: "OPEN" }, select: { id: true, deedId: true } });
+  for (const t of open) {
+    const deedId = await pickDeed(gameId, ownerTeamId, book, t.deedId);
+    if (deedId && deedId !== t.deedId) await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId } });
+  }
+  if (open.length) publish(gameId, { type: "tasks", teamId: ownerTeamId });
+}
+
+/** Взятое и не сданное за N дней дело возвращается в общий список само (решение владельца 18.09). */
+export async function returnStaleTasks(gameId: string, rules: Rules, now = new Date()): Promise<void> {
+  const stale = await prisma.teamEdgeTask.findMany({ where: { gameId, status: "TAKEN", takenAt: { lt: new Date(now.getTime() - days(rules.deedReturnDays)) } }, include: { deed: { select: { title: true } } } });
+  for (const t of stale) {
+    await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { status: "OPEN", takenById: null, takenAt: null } });
+    publish(gameId, { type: "tasks", teamId: t.teamId });
+    if (t.takenById) notifyUser(gameId, t.takenById, "дело вернулось в список", "Дело «{deed}» не было сдано за {days} дней и снова свободно для всей команды.", { deed: t.deed.title, days: rules.deedReturnDays });
+  }
+}
+
+/**
+ * Штраф администратора (телефон на собрании; решение владельца 18.09): аннулируется случайный концевой участок пути —
+ * пройденная сторона, за которой у команды нет других пройденных сторон; города команды и старт не трогаются.
+ * Перекрёсток за стороной снова закрыт, дело на стороне нужно сделать заново.
+ */
+export async function penalizeTeam(gameId: string, teamId: string, byId: string): Promise<{ fromKey: string; toKey: string } | null> {
+  const [approved, owned, team] = await Promise.all([
+    prisma.teamEdgeTask.findMany({ where: { teamId, status: "APPROVED", sea: false }, select: { id: true, fromKey: true, toKey: true } }),
+    prisma.teamCityState.findMany({ where: { teamId, capturedAt: { not: null } }, select: { nodeKey: true } }),
+    prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { startNodeKey: true } }),
+  ]);
+  const ownedKeys = new Set(owned.map((o) => o.nodeKey));
+  const outgoing = new Map<string, number>();
+  const incoming = new Map<string, number>();
+  for (const t of approved) { outgoing.set(t.fromKey, (outgoing.get(t.fromKey) ?? 0) + 1); incoming.set(t.toKey, (incoming.get(t.toKey) ?? 0) + 1); }
+  // Конец пути: за перекрёстком ничего не пройдено, он открыт только этой стороной, это не город команды и не старт.
+  const ends = approved.filter((t) => !outgoing.has(t.toKey) && (incoming.get(t.toKey) ?? 0) === 1 && !ownedKeys.has(t.toKey) && t.toKey !== team.startNodeKey);
+  if (ends.length === 0) return null;
+  const pick = ends[Math.floor(Math.random() * ends.length)]!;
+  await prisma.$transaction([
+    prisma.teamEdgeTask.deleteMany({ where: { teamId, fromKey: pick.toKey } }),
+    prisma.teamEdgeTask.deleteMany({ where: { teamId, toKey: pick.toKey, NOT: { id: pick.id } } }),
+    prisma.teamNodeState.deleteMany({ where: { teamId, nodeKey: pick.toKey } }),
+    prisma.teamPeek.deleteMany({ where: { teamId, nodeKey: pick.toKey } }),
+    prisma.teamEdgeTask.update({ where: { id: pick.id }, data: { status: "OPEN", takenById: null, takenAt: null, links: [], note: "", submittedAt: null, decidedAt: null, decidedById: null, adminComment: "Сторона аннулирована штрафом администратора" } }),
+    prisma.teamPenalty.create({ data: { gameId, teamId, fromKey: pick.fromKey, toKey: pick.toKey, byId } }),
+  ]);
+  await ensureFrontier(gameId, teamId);
+  publish(gameId, { type: "map", teamId });
+  publish(gameId, { type: "tasks", teamId });
+  notifyTeam(gameId, teamId, "штраф: участок пути аннулирован", (locale) => msg(locale, "Администратор назначил команде штраф: одна пройденная сторона на конце пути аннулирована, перекрёсток за ней снова закрыт. Дело на этой стороне нужно сделать заново."));
+  return { fromKey: pick.fromKey, toKey: pick.toKey };
 }
 
 /** Разрешение на проход отозвано: незанятые дела на сторонах из этого города убираются (взятые и сданные остаются). */
@@ -170,6 +234,9 @@ export async function getTeamMap(gameId: string, teamId: string) {
     prisma.mapNode.findMany({ where: { gameId }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, ruined: true, island: true, coastal: true } }),
     prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
   ]);
+  // Чужие проходы там, где у команды открыт туман: пройденные другими командами стороны, касающиеся открытых
+  // перекрёстков (решение владельца 18.09: команда должна понимать, где противник).
+  const foreignRows = await prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", sea: false, NOT: { teamId } }, select: { fromKey: true, toKey: true, team: { select: { index: true, color: true } } } });
   // В тексте дела [Книга] — книга города, из которого выходит сторона (или «на выбор», если это не город).
   const bookOfNode = new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, n.bookCode!]));
   const tasks = rawTasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, bookOfNode.get(t.fromKey) ?? null) }));
@@ -216,8 +283,10 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const peeked = nodes.filter((n) => peekKeys.has(n.key) && !revealed.has(n.key)).map((n) => ({ key: n.key, kind: n.kind }));
   // Гекс освещён, если хотя бы один его угол открыт командой. Остальные видны только силуэтом в тумане.
   const lit = (h: { q: number; r: number }) => hexCorners(h).some((c) => revealed.has(vertexKey(c)));
-  // Морское дело одобрено, но высадка ещё не выбрана: команде нужны узлы-кандидаты.
-  const visibleTasks = tasks.filter((t) => t.status === "APPROVED" || !revealed.has(t.toKey));
+  // Взятое или сданное дело остаётся видимым, даже если перекрёсток за ним уже открыт с другой стороны
+  // (решение владельца 18.09: дело делают, оно засчитывается); свободное к открытому перекрёстку не показывается.
+  const visibleTasks = tasks.filter((t) => t.status !== "OPEN" || !revealed.has(t.toKey));
+  const foreign = foreignRows.filter((f) => revealed.has(f.fromKey) || revealed.has(f.toKey)).map((f) => ({ aKey: f.fromKey, bKey: f.toKey, teamIndex: f.team.index, color: f.team.color }));
   const withLanding = await Promise.all(visibleTasks.map(async (t) => {
     if (!t.sea) return t;
     const landing = t.status === "APPROVED" && isSeaKey(t.toKey);
@@ -232,5 +301,6 @@ export async function getTeamMap(gameId: string, teamId: string) {
     tasks: withLanding,
     cities,
     peeked,
+    foreign,
   };
 }

@@ -23,7 +23,7 @@ async function joinTeam(name: string, cookie: string) {
 }
 const answer = (index: number, value: unknown) => app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/${index}/answer`, headers: { cookie: p1Cookie }, payload: { answer: value } });
 const city = async () => (await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } })).json();
-const noCooldown = () => prisma.teamCityState.updateMany({ where: { teamId: team1, nodeKey: rutKey }, data: { lastWrongAt: null } });
+const noCooldown = () => prisma.teamTaskLock.updateMany({ where: { teamId: team1, nodeKey: rutKey }, data: { lockedUntil: null } });
 /** Показанный номер верного варианта: варианты у команды перетасованы, поэтому ищем по тексту. */
 async function shown(index: number): Promise<{ correct: number; wrong: number }> {
   const task = content.tasks[index]! as { options: string[]; correct: number };
@@ -56,32 +56,31 @@ afterAll(async () => {
   await app.close(); await prisma.$disconnect();
 });
 
-describe("две попытки на выбор ответа, блокировка на сутки и обращение в поддержку", () => {
-  it("вторая неверная попытка закрывает задание; обращение в поддержку с автозаполнением; суперадмин снимает блокировку", async () => {
+describe("растущая пауза после неверных ответов и обращение в поддержку", () => {
+  it("каждая неверная попытка удлиняет паузу; обращение в поддержку с автозаполнением; суперадмин снимает паузу", async () => {
     const task = content.tasks[0]!;
     expect(task.type).toBe("choice");
     const { correct, wrong } = await shown(0);
     const first = await answer(0, wrong);
-    expect(first.json()).toMatchObject({ correct: false, attemptsLeft: 1, lockedUntil: null });
+    expect(first.json()).toMatchObject({ correct: false, wrong: 1 });
+    expect(first.json().retryAt).toBeGreaterThan(Date.now() + 15_000);
+    // Пока пауза идёт — ответ не принимается.
+    const early = await answer(0, correct);
+    expect(early.statusCode).toBe(429);
     await noCooldown();
     const second = await answer(0, wrong);
-    expect(second.json().correct).toBe(false);
-    expect(second.json().attemptsLeft).toBe(0);
-    expect(second.json().lockedUntil).toBeGreaterThan(Date.now() + 23 * 3600_000);
-    await noCooldown();
-    const locked = await answer(0, correct);
-    expect(locked.statusCode).toBe(423);
-    expect(locked.json().error).toBe("locked");
+    expect(second.json()).toMatchObject({ correct: false, wrong: 2 });
+    expect(second.json().retryAt).toBeGreaterThan(Date.now() + 50_000);
     const state = (await city()).state;
-    expect(state.choiceAttempts).toBe(2);
+    expect(state.pauseSteps[0]).toBe(20);
     const lock0 = state.locks.find((l: { index: number }) => l.index === 0);
-    expect(lock0).toMatchObject({ index: 0, attemptsLeft: 0, unlocked: false });
+    expect(lock0).toMatchObject({ index: 0, wrong: 2, unlocked: false });
     expect(lock0.lockedUntil).toBeGreaterThan(Date.now());
 
-    // Другие типы заданий не блокируются: неверный текст только даёт паузу.
+    // Пауза считается на задание: неверный текст в другом задании — своя пауза.
     const textIndex = content.tasks.findIndex((t) => t.type === "text");
     const wrongText = await answer(textIndex, "заведомо неверно");
-    expect(wrongText.json()).toMatchObject({ correct: false, attemptsLeft: null, lockedUntil: null });
+    expect(wrongText.json()).toMatchObject({ correct: false, wrong: 1 });
     await noCooldown();
 
     // Адрес поддержки задаёт суперадмин; обращение уходит письмом с автозаполненным контекстом.
@@ -107,24 +106,24 @@ describe("две попытки на выбор ответа, блокировк
     const list = await app.inject({ method: "GET", url: "/api/admin/support", headers: { cookie: adminCookie } });
     const item = list.json().requests.find((r: { message: string }) => r.message.startsWith("Мы уверены"));
     expect(item).toMatchObject({ team: { name: "Львы" }, bookCode: "rut", taskIndex: 0, status: "OPEN" });
-    expect(item.context).toMatchObject({ team: "Львы", task: 1, attemptsLeft: 0 });
+    expect(item.context).toMatchObject({ team: "Львы", task: 1 });
 
     const resolve = await app.inject({ method: "POST", url: `/api/admin/support/${item.id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: true, reply: "Перечитайте первую главу" } });
     expect(resolve.json()).toMatchObject({ ok: true, unlocked: true });
     expect((await app.inject({ method: "POST", url: `/api/admin/support/${item.id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: true } })).statusCode).toBe(409);
     const after = (await city());
-    expect(after.state.locks.find((l: { index: number }) => l.index === 0)).toMatchObject({ lockedUntil: null, attemptsLeft: 2, unlocked: true });
+    expect(after.state.locks.find((l: { index: number }) => l.index === 0)).toMatchObject({ lockedUntil: null, wrong: 0, unlocked: true });
     expect(after.state.support[0]).toMatchObject({ status: "CLOSED", reply: "Перечитайте первую главу", unlocked: true });
     const ok = await answer(0, correct);
     expect(ok.statusCode).toBe(200);
     expect(ok.json().correct).toBe(true);
   });
 
-  it("суперадмин может оставить блокировку: задание закрыто до срока, ответ команде записан", async () => {
+  it("суперадмин может оставить паузу: задание ждёт до срока, ответ команде записан", async () => {
     const idx = content.tasks.findIndex((t, i) => t.type === "choice" && i !== 0);
     const { correct, wrong } = await shown(idx);
     await answer(idx, wrong); await noCooldown();
-    await answer(idx, wrong); await noCooldown();
+    await answer(idx, wrong);
     await app.inject({ method: "POST", url: `/api/games/${gameId}/support`, headers: { cookie: p1Cookie }, payload: { nodeKey: rutKey, taskIndex: idx, message: "Не согласны с ответом" } });
     const list = await app.inject({ method: "GET", url: "/api/admin/support", headers: { cookie: adminCookie } });
     const item = list.json().requests.find((r: { message: string }) => r.message === "Не согласны с ответом");
@@ -133,7 +132,7 @@ describe("две попытки на выбор ответа, блокировк
     const lock = (await city()).state.locks.find((l: { index: number }) => l.index === idx);
     expect(lock.lockedUntil).toBeGreaterThan(Date.now());
     expect((await city()).state.support.find((s: { taskIndex: number }) => s.taskIndex === idx).reply).toBe("Ответ в тексте есть, ищите внимательнее");
-    expect((await answer(idx, correct)).statusCode).toBe(423);
+    expect((await answer(idx, correct)).statusCode).toBe(429);
   });
 
   it("ответы видит только администратор платформы; тестовые действия закрыты администратору игры", async () => {

@@ -95,14 +95,25 @@ describe("команды и приглашения", () => {
     // Капитан (player) сам роль не получает: капитан — уже роль.
     const r1 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${player.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "SCOUT" } });
     expect(r1.statusCode).toBe(409);
+    // Капитан запрашивает роль — она ждёт одобрения администратора (решение владельца 18.09).
     const r2 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "SCOUT" } });
     expect(r2.statusCode).toBe(200);
-    const r3 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "PROPHET" } });
+    expect(r2.json()).toMatchObject({ pending: true, member: { gameRole: "NONE", pendingRole: "SCOUT" } });
+    const approve = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}/role-decide`, headers: { cookie: adminCookie }, payload: { approve: true } });
+    expect(approve.statusCode).toBe(200);
+    // Следующая смена капитаном — не раньше чем через неделю.
+    const soon = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "PROPHET" } });
+    expect(soon.statusCode).toBe(429);
+    // Администратор ставит роль сразу; одна роль — один человек.
+    const r3 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "PROPHET" } });
     expect(r3.statusCode).toBe(200);
     const teams = await app.inject({ method: "GET", url: `/api/games/${gameId}/teams`, headers: { cookie: adminCookie } });
     const members = teams.json().teams[0].members as Array<{ user: { nickname: string }; gameRole: string }>;
     expect(members.filter((m) => m.gameRole === "SCOUT")).toHaveLength(0);
     expect(members.filter((m) => m.gameRole === "PROPHET")).toHaveLength(1);
+    // Капитан назначает заместителя.
+    const dep = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { role: "DEPUTY" } });
+    expect(dep.json().member.role).toBe("DEPUTY");
     // Рядовой участник не может назначать капитана.
     const forb = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: otherCookie }, payload: { role: "CAPTAIN" } });
     expect(forb.statusCode).toBe(403);
@@ -145,11 +156,11 @@ describe("дела и старт игры", () => {
 
   it("старт: карта, команды с людьми, дела → ACTIVE и стартовые точки", async () => {
     await app.inject({ method: "POST", url: `/api/games/${gameId}/generate`, headers: { cookie: adminCookie }, payload: { seed: 5 } });
-    // Вторая команда без участников — старт запрещён.
+    // Вторая команда без участников — старт запрещён; команда без капитана — тоже (чек-лист 18.09).
     const notReady = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });
     expect(notReady.statusCode).toBe(409);
     const teams = await prisma.team.findMany({ where: { gameId }, orderBy: { index: "asc" } });
-    const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teams[1]!.id}/invites`, headers: { cookie: adminCookie }, payload: {} });
+    const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teams[1]!.id}/invites`, headers: { cookie: adminCookie }, payload: { role: "CAPTAIN" } });
     const third = await registerVerified(app, { nickname: "th_" + stamp, password: "secret123" });
     await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: third.headers["set-cookie"] as string } });
     const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });

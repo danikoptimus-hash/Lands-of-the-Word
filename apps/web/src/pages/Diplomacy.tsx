@@ -67,19 +67,12 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
 
 /** В боковом меню «Проходы»: входящие запросы (ответить, можно текстом), выданные разрешения (отозвать), наши запросы. */
 export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; data: PassagesDto | null; onChanged: () => void }) {
-  const { confirm, notify } = useUi();
+  const { notify } = useUi();
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   async function decide(r: PassageDto, approve: boolean) {
     setBusy(r.id);
     try { await api(`/api/games/${gameId}/passages/${r.id}/decide`, { method: "POST", body: JSON.stringify({ approve, answer: answers[r.id] ?? "" }) }); notify(approve ? t("Проход разрешён") : t("В проходе отказано"), "info"); onChanged(); }
-    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-    finally { setBusy(null); }
-  }
-  async function revoke(r: PassageDto) {
-    if (!(await confirm(t("Их уже взятые дела останутся, новые дела за городом им не достанутся."), { title: t("Отозвать проход для «{team}» через {book}?", { team: r.requester.name, book: r.bookName }), okLabel: t("Отозвать проход"), danger: true }))) return;
-    setBusy(r.id);
-    try { await api(`/api/games/${gameId}/passages/${r.id}/revoke`, { method: "POST" }); notify(t("Проход отозван"), "info"); onChanged(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(null); }
   }
@@ -115,7 +108,7 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
           {granted.map((r) => (
             <li key={r.id}>
               <div className="main"><span className="title">{t("Проход для «{team}»", { team: r.requester.name })}</span><span className="meta">{r.bookName}</span></div>
-              {data?.canSpeak && <button type="button" className="ghost sm" disabled={busy === r.id} onClick={() => void revoke(r)}>{t("Отозвать проход")}</button>}
+              <span className="muted small">{t("действует, пока город ваш")}</span>
             </li>
           ))}
         </ul>

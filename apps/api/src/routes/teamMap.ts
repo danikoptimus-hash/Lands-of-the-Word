@@ -22,6 +22,16 @@ export async function requireMember(request: FastifyRequest, reply: FastifyReply
   if (!m) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не состоите в команде этой игры") }); return null; }
   return m;
 }
+/** Капитан или заместитель: ведут команду (вызов, ставка, отправка, столица, высадка). */
+export const isLeader = (m: { role: string }) => m.role === "CAPTAIN" || m.role === "DEPUTY";
+
+/** Участник команды, которая ещё в игре: выбывшая команда заморожена до перевода участников (решение владельца 18.09). */
+export async function requireActiveMember(request: FastifyRequest, reply: FastifyReply, gameId: string) {
+  const m = await requireMember(request, reply, gameId);
+  if (!m) return null;
+  if (m.team.status === "defeated") { await reply.code(409).send({ error: "conflict", message: err(request, "Команда выбыла из игры: администратор переведёт вас в другую команду") }); return null; }
+  return m;
+}
 export async function requireAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: { select: { userId: true } } } });
   if (!game) { await reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") }); return null; }
@@ -90,12 +100,12 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/api/games/:id/edge-tasks/:taskId/take", async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
-    const m = await requireMember(request, reply, id);
+    const m = await requireActiveMember(request, reply, id);
     if (!m) return;
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     if (task.status !== "OPEN" && task.status !== "REJECTED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже взято или сдано") });
-    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id }, include: taskInclude }));
+    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id, takenAt: new Date() }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: hideSecret(updated, request.user!.id) };
   });
@@ -106,8 +116,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task || task.status !== "TAKEN") return reply.code(409).send({ error: "conflict", message: err(request, "Дело не взято: отпускать нечего") });
-    if (task.takenById !== request.user!.id && m.role !== "CAPTAIN" && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: err(request, "Отпустить дело может тот, кто взял, капитан или летописец") });
-    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "OPEN", takenById: null }, include: taskInclude }));
+    if (task.takenById !== request.user!.id && !isLeader(m) && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: err(request, "Отпустить дело может тот, кто взял, капитан или летописец") });
+    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "OPEN", takenById: null, takenAt: null }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: hideSecret(updated, request.user!.id) };
   });
@@ -115,14 +125,14 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
   /** Сдача дела: ссылки на фото/видео и текст. Файлы не принимаем. */
   app.post("/api/games/:id/edge-tasks/:taskId/submit", async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
-    const m = await requireMember(request, reply, id);
+    const m = await requireActiveMember(request, reply, id);
     if (!m) return;
     const body = submitBody.parse(request.body);
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id }, include: { deed: true } });
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     if (task.status === "SUBMITTED" || task.status === "APPROVED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже сдано") });
     // Сдаёт тот, кто взял дело, капитан или летописец (2.15).
-    if (task.takenById && task.takenById !== request.user!.id && m.role !== "CAPTAIN" && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: err(request, "Сдать чужое дело может только капитан или летописец") });
+    if (task.takenById && task.takenById !== request.user!.id && !isLeader(m) && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: err(request, "Сдать чужое дело может только капитан или летописец") });
     if (body.donation) {
       const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } });
       const st = game.settings as { donationMin?: number; donationCurrency?: string };
@@ -168,21 +178,25 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       data: { status: body.approve ? "APPROVED" : "REJECTED", decidedAt: new Date(), decidedById: request.user!.id, adminComment: body.comment },
       include: taskInclude,
     }).then((u) => bookIn(id, u));
-    // Морское дело: узел не открывается — капитан сам выбирает место высадки на другом острове.
-    if (body.approve && task.sea) notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title }));
-    else if (body.approve) await revealNode(id, task.teamId, task.toKey);
+    // Морское дело: узел не открывается — капитан (или кормчий) сам выбирает место высадки на другом острове.
+    if (body.approve && task.sea) notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан или кормчий может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title }));
+    else if (body.approve) {
+      await revealNode(id, task.teamId, task.toKey);
+      // Уведомление об одобрении дела (решение владельца 18.09): раньше команда узнавала о зачёте, только открыв карту.
+      notifyTeam(id, task.teamId, "дело одобрено: открыт перекрёсток", (locale) => msg(locale, "Дело «{deed}» принято. Перекрёсток за стороной открыт: на карте новые стороны и дела.", { deed: updated.deed.title }));
+    }
     else if (task.takenById) notifyUser(id, task.takenById, "дело вернули на доработку", (locale) => msg(locale, "Администратор вернул дело «{deed}».{comment}", { deed: updated.deed.title, comment: body.comment ? msg(locale, " Комментарий: {comment}", { comment: body.comment }) : "" }));
     publish(id, { type: "submissions", teamId: task.teamId });
     publish(id, { type: "tasks", teamId: task.teamId });
     return { task: updated };
   });
 
-  /** Высадка: капитан выбирает пустой береговой узел другого острова; узел открывается, как после обычного дела. */
+  /** Высадка: капитан или кормчий выбирает пустой береговой узел другого острова; узел открывается, как после обычного дела. */
   app.post("/api/games/:id/edge-tasks/:taskId/land", async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
-    const m = await requireMember(request, reply, id);
+    const m = await requireActiveMember(request, reply, id);
     if (!m) return;
-    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Место высадки выбирает капитан") });
+    if (!isLeader(m) && m.gameRole !== "HELMSMAN") return reply.code(403).send({ error: "forbidden", message: err(request, "Место высадки выбирает капитан или кормчий") });
     const body = z.object({ nodeKey: z.string().min(3).max(40) }).parse(request.body);
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task || !task.sea) return reply.code(404).send({ error: "not_found", message: err(request, "Морское дело не найдено") });

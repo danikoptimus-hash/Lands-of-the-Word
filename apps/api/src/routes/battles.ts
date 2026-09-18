@@ -4,9 +4,9 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
-import { requireAdmin, requireMember } from "./teamMap.js";
+import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { formatRange, loadBook, refToIndex, parseRef, verseText, type BibleBook } from "../services/bible.js";
-import { afterReject, maybeRepel, maybeStartDefense, minBidFor, resolveWon, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
+import { afterReject, gameRules, maybeRepel, maybeStartDefense, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
 import { BOOKS } from "@lotw/domain";
 
@@ -28,26 +28,31 @@ function versesOf(book: BibleBook, start: number, end: number) {
   return Array.from({ length: end - start + 1 }, (_, i) => ({ idx: start + i, ref: formatRange(book, start + i, start + i), text: verseText(book, start + i) }));
 }
 
-/** Битва в ответе: отрывки с текстом, суммы, записи своей стороны, мои отмеченные стихи. Админ видит всё. */
+/**
+ * Испытание в ответе: отрывки с текстом, суммы, записи своей стороны, мои отмеченные стихи. Админ видит всё.
+ * Претенденты не видят ни отрывка, ни сумм хранителей, пока испытание идёт (утечка закрыта 18.09).
+ */
 async function view(b: Full, users: Map<string, string>, forTeamId: string | null, userId: string | null) {
   const book = await loadBook(b.bookCode);
   const range = (s: number, e: number) => (book ? formatRange(book, s, e) : `${s}–${e}`);
   const mySide = forTeamId === null ? null : b.attackerId === forTeamId ? "ATTACK" : b.defenderId === forTeamId ? "DEFENSE" : null;
   const showAttackText = forTeamId === null || mySide === "ATTACK";
   const showDefenseText = forTeamId === null || mySide === "DEFENSE";
+  const live = b.status === "QUEUED" || b.status === "ATTACK" || b.status === "DEFENSE";
+  const hideDefense = mySide === "ATTACK" && live;
   const passage = b.passageStart != null && b.passageEnd != null && book ? { ref: range(b.passageStart, b.passageEnd), start: b.passageStart, end: b.passageEnd, verses: showAttackText ? versesOf(book, b.passageStart, b.passageEnd) : null } : null;
-  const defensePassage = b.defenseStart != null && b.defenseEnd != null && book ? { ref: range(b.defenseStart, b.defenseEnd), start: b.defenseStart, end: b.defenseEnd, verses: showDefenseText ? versesOf(book, b.defenseStart, b.defenseEnd) : null } : null;
+  const defensePassage = !hideDefense && b.defenseStart != null && b.defenseEnd != null && book ? { ref: range(b.defenseStart, b.defenseEnd), start: b.defenseStart, end: b.defenseEnd, verses: showDefenseText ? versesOf(book, b.defenseStart, b.defenseEnd) : null } : null;
   const entries = b.entries
     .filter((e) => forTeamId === null || e.teamId === forTeamId)
-    .map((e) => ({ id: e.id, side: e.side, userId: e.userId, nickname: users.get(e.userId) ?? "?", ref: range(e.startIdx, e.endIdx), start: e.startIdx, end: e.endIdx, verses: e.endIdx - e.startIdx + 1, links: e.links, note: e.note, status: e.status, adminComment: e.adminComment, createdAt: e.createdAt }));
+    .map((e) => ({ id: e.id, side: e.side, userId: e.userId, nickname: users.get(e.userId) ?? "?", ref: range(e.startIdx, e.endIdx), start: e.startIdx, end: e.endIdx, verses: e.endIdx - e.startIdx + 1, links: e.links, note: e.note, status: e.status, adminComment: e.adminComment, carried: e.carried, createdAt: e.createdAt }));
   const my = mySide && userId ? [...userVerses(b.entries, mySide, userId)] : [];
   return {
-    id: b.id, nodeKey: b.nodeKey, bookCode: b.bookCode, bookName: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode, status: b.status, sumMode: b.sumMode, bid: b.bid, defenseBid: b.defenseBid,
+    id: b.id, nodeKey: b.nodeKey, bookCode: b.bookCode, bookName: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode, status: b.status, sumMode: b.sumMode, bid: b.bid, defenseBid: hideDefense ? null : b.defenseBid,
     attacker: b.attacker, defender: b.defender, mySide, passage, defensePassage,
     declaredAt: b.declaredAt, startedAt: b.startedAt, attackDeadline: b.attackDeadline, attackDoneAt: b.attackDoneAt, attackApprovedAt: b.attackApprovedAt,
     defenseDeadline: b.defenseDeadline, defenseDoneAt: b.defenseDoneAt, resolvedAt: b.resolvedAt,
     attackSum: sumVerses(b.entries, "ATTACK", false), attackApproved: sumVerses(b.entries, "ATTACK", true),
-    defenseSum: sumVerses(b.entries, "DEFENSE", false), defenseApproved: sumVerses(b.entries, "DEFENSE", true),
+    defenseSum: hideDefense ? 0 : sumVerses(b.entries, "DEFENSE", false), defenseApproved: hideDefense ? 0 : sumVerses(b.entries, "DEFENSE", true),
     entries, myVerses: my, bookTotal: book?.total ?? null,
   };
 }
@@ -101,11 +106,12 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     return { code: book.code, name: BOOK_BY_CODE.get(book.code)?.nameRu ?? book.code, verseCounts: book.verseCounts, chapters: book.chapters ?? null, total: book.total };
   });
 
-  /** Бросить вызов: только количество стихов (сумма по участникам). Если битва уже идёт — очередь. */
+  /** Бросить вызов (только капитан или заместитель): количество стихов (сумма по участникам). Если испытание уже идёт — очередь. */
   app.post("/api/games/:id/my-city/:nodeKey/war", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
-    const m = await requireMember(request, reply, id);
+    const m = await requireActiveMember(request, reply, id);
     if (!m) return;
+    if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Вызов бросает капитан") });
     const game = await prisma.game.findUnique({ where: { id }, select: { status: true, name: true } });
     if (game?.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра не идёт") });
     const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
@@ -119,26 +125,30 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const sumMode = node.sumMode || body.bid >= (o.bookVerses ?? Infinity);
     if (sumMode && !node.sumMode) await prisma.mapNode.update({ where: { id: node.id }, data: { sumMode: true } });
     const active = await prisma.battle.count({ where: { gameId: id, nodeKey, status: { in: ["ATTACK", "DEFENSE"] } } });
-    const created = await prisma.battle.create({ data: { gameId: id, nodeKey, bookCode: node.bookCode!, attackerId: m.team.id, defenderId: o.owner.id, bid: body.bid, sumMode, status: "QUEUED" } });
+    // Сгоревший раньше вызов этой команды этому городу: в очереди — после всех, кто встал раньше.
+    const last = await prisma.battle.findFirst({ where: { gameId: id, nodeKey, attackerId: m.team.id, status: { in: ["EXPIRED", "WON", "REPELLED"] } }, orderBy: { resolvedAt: "desc" }, select: { status: true } });
+    const created = await prisma.battle.create({ data: { gameId: id, nodeKey, bookCode: node.bookCode!, attackerId: m.team.id, defenderId: o.owner.id, bid: body.bid, sumMode, status: "QUEUED", afterBurn: last?.status === "EXPIRED" } });
     if (active === 0) await startAttack(created.id);
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "battles", teamId: o.owner.id });
     if (active === 0) notifyTeam(id, o.owner.id, "вызов вашему городу {book}", "Команда «{team}» бросила вызов вашему городу {book} (игра «{game}»), ставка {bid} стихов. Когда админ одобрит их записи, у вас будет ровно столько же времени, сколько ушло у них.", { book: node.bookCode ?? "", team: m.team.name, game: game.name, bid: body.bid });
+    else notifyTeam(id, o.owner.id, "очередь на ваш город {book}", "Команда «{team}» встала в очередь на вызов вашему городу {book} (игра «{game}»), ставка {bid} стихов. Вызов начнётся, когда закончится идущее испытание.", { book: node.bookCode ?? "", team: m.team.name, game: game.name, bid: body.bid });
     return reply.code(201).send({ id: created.id, status: active === 0 ? "ATTACK" : "QUEUED", sumMode });
   });
 
-  /** Поднять ставку, пока атака в очереди. */
+  /** Поднять ставку, пока вызов в очереди (капитан или заместитель). */
   app.post("/api/games/:id/battles/:battleId/bid", async (request, reply) => {
     const { id, battleId } = request.params as { id: string; battleId: string };
-    const m = await requireMember(request, reply, id);
+    const m = await requireActiveMember(request, reply, id);
     if (!m) return;
+    if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Ставку меняет капитан") });
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id, attackerId: m.team.id } });
     if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
     if (b.status !== "QUEUED") return reply.code(409).send({ error: "conflict", message: err(request, "Ставку можно менять, только пока вызов в очереди") });
     const body = declareBody.parse(request.body);
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId: id, key: b.nodeKey } } });
     const st = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey: b.nodeKey } } });
-    const min = minBidFor(node.defenseLevel, st?.attackPenalty ?? 0);
+    const min = minBidFor(node.defenseLevel, st?.attackPenalty ?? 0, await gameRules(id));
     if (body.bid < min) return reply.code(400).send({ error: "validation", message: err(request, "Минимальная ставка — {min} стихов", { min }) });
     await prisma.battle.update({ where: { id: b.id }, data: { bid: body.bid, sumMode: node.sumMode || body.bid >= ((await loadBook(b.bookCode))?.total ?? Infinity) } });
     publish(id, { type: "battles", teamId: m.team.id });
@@ -150,11 +160,11 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const { id, battleId } = request.params as { id: string; battleId: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Отрывок ответа выбирает капитан") });
+    if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Отрывок ответа выбирает капитан") });
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id, defenderId: m.team.id }, include: { entries: true } });
     if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
     if (b.status !== "DEFENSE") return reply.code(409).send({ error: "conflict", message: err(request, "Ответ ещё не начался или уже завершён") });
-    if (b.entries.some((e) => e.side === "DEFENSE")) return reply.code(409).send({ error: "conflict", message: err(request, "Отрывок нельзя менять: участники уже отметили стихи") });
+    if (b.entries.some((e) => e.side === "DEFENSE" && !e.carried)) return reply.code(409).send({ error: "conflict", message: err(request, "Отрывок нельзя менять: участники уже отметили стихи") });
     const body = passageBody.parse(request.body);
     const book = await loadBook(b.bookCode);
     if (!book) return reply.code(409).send({ error: "conflict", message: err(request, "Текст этой книги ещё не загружен") });
@@ -169,7 +179,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
   /** Участник отмечает выученные стихи (по индексам) и прикрепляет ссылку на видео. */
   app.post("/api/games/:id/battles/:battleId/entries", async (request, reply) => {
     const { id, battleId } = request.params as { id: string; battleId: string };
-    const m = await requireMember(request, reply, id);
+    const m = await requireActiveMember(request, reply, id);
     if (!m) return;
     await sweep(id);
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true } });
@@ -208,7 +218,8 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!e || e.battle.gameId !== id) return reply.code(404).send({ error: "not_found", message: err(request, "Запись не найдена") });
     if (e.status === "APPROVED") return reply.code(409).send({ error: "conflict", message: err(request, "Принятую запись убрать нельзя") });
     if ((e.side === "ATTACK" && e.battle.attackDoneAt) || (e.side === "DEFENSE" && e.battle.defenseDoneAt)) return reply.code(409).send({ error: "conflict", message: err(request, e.side === "ATTACK" ? "Вызов уже отправлен на проверку" : "Ответ уже отправлен на проверку") });
-    if (e.userId !== request.user!.id && m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Чужую запись может убрать только капитан") });
+    if (e.carried) return reply.code(409).send({ error: "conflict", message: err(request, "Зачтённую из прошлого испытания запись убрать нельзя") });
+    if (e.userId !== request.user!.id && !isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Чужую запись может убрать только капитан") });
     await prisma.battleEntry.delete({ where: { id: e.id } });
     publish(id, { type: "battles", teamId: m.team.id });
     return { ok: true };
@@ -219,7 +230,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const { id, battleId } = request.params as { id: string; battleId: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Отправить на проверку может только капитан") });
+    if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Отправить на проверку может только капитан") });
     await sweep(id);
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true } });
     if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
@@ -231,18 +242,6 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "submissions" });
     notifyAdmins(id, "{side} отправлен на проверку", "Команда «{team}» отправила {side} за город {book} на проверку. Проверьте записи в блоке «Испытания».", { side: side === "ATTACK" ? "вызов" : "ответ", team: m.team.name, book: b.bookCode });
     return { ok: true, status: r.battle.status };
-  });
-
-  /** Капитан защитников сдаёт город. */
-  app.post("/api/games/:id/battles/:battleId/surrender", async (request, reply) => {
-    const { id, battleId } = request.params as { id: string; battleId: string };
-    const m = await requireMember(request, reply, id);
-    if (!m) return;
-    if (m.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Уступить город может только капитан") });
-    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id, defenderId: m.team.id, status: { in: ["ATTACK", "DEFENSE"] } } });
-    if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Идущее испытание не найдено") });
-    await resolveWon(b);
-    return { ok: true };
   });
 
   /** Админ: все битвы игры с записями обеих сторон. */

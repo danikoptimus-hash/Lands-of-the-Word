@@ -103,7 +103,8 @@ describe("город на перекрёстке", () => {
     expect(bad.json().correct).toBe(false);
     const paused = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/answer`, headers: { cookie: p1Cookie }, payload: { answer: 10 } });
     expect(paused.statusCode).toBe(429);
-    await prisma.teamCityState.updateMany({ where: { teamId: team1, nodeKey: rutKey }, data: { lastWrongAt: null } });
+    // Растущая пауза считается на задание: снимаем её, чтобы ответить верно.
+    await prisma.teamTaskLock.deleteMany({ where: { teamId: team1, nodeKey: rutKey } });
 
     const city = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
     const tasks = city.json().content.tasks as Array<{ index: number; type: string; items?: Array<{ id: string; text: string }>; options?: string[] }>;
@@ -126,6 +127,11 @@ describe("город на перекрёстке", () => {
 
     const wrongKey = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/capture`, headers: { cookie: p1Cookie }, payload: { key: "NOPE22" } });
     expect(wrongKey.statusCode).toBe(400);
+    expect(wrongKey.json().retryAt).toBeGreaterThan(Date.now());
+    // Неверный ключ ставит растущую паузу на город.
+    const pausedKey = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/capture`, headers: { cookie: p1Cookie }, payload: { key: "NOPE22" } });
+    expect(pausedKey.statusCode).toBe(429);
+    await prisma.teamCityState.updateMany({ where: { teamId: team1, nodeKey: rutKey }, data: { keyLockedUntil: null } });
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/capture`, headers: { cookie: p1Cookie }, payload: { key: node.cityKey!.toLowerCase() } });
     expect(ok.statusCode).toBe(200);
@@ -178,7 +184,7 @@ describe("город на перекрёстке", () => {
 });
 
 describe("дипломатия, роли, столица, руины, пожертвование", () => {
-  it("проход через чужой город закрыт без разрешения; запрос → ответ владельца → проход открыт; отзыв убирает свободные дела", async () => {
+  it("проход через чужой город закрыт без разрешения; запрос → ответ владельца → проход открыт; отзыва нет", async () => {
     // Город Руфь принадлежит Львам (взят выше), Орлы дошли до него: дальше идти нельзя.
     await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${rutKey}/assign`, headers: { cookie: adminCookie }, payload: { teamId: team1 } });
     const map0 = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
@@ -200,10 +206,9 @@ describe("дипломатия, роли, столица, руины, пожер
     expect(city1).toMatchObject({ blocked: false, passage: "APPROVED" });
     const out1 = (map1.json().tasks as Array<{ fromKey: string; status: string }>).filter((t) => t.fromKey === rutKey);
     expect(out1.length).toBeGreaterThan(0);
+    // Отзыва разрешения нет: дал — значит дал (решение владельца 18.09).
     const revoke = await app.inject({ method: "POST", url: `/api/games/${gameId}/passages/${reqId}/revoke`, headers: { cookie: p1Cookie } });
-    expect(revoke.statusCode).toBe(200);
-    const map2 = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
-    expect((map2.json().tasks as Array<{ fromKey: string }>).filter((t) => t.fromKey === rutKey)).toHaveLength(0);
+    expect(revoke.statusCode).toBe(404);
   });
 
   it("роли: разведчик заглядывает за ребро раз в неделю; не-разведчику нельзя", async () => {

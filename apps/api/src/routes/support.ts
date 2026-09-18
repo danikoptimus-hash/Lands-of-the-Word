@@ -49,7 +49,7 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
         ctx.task = body.taskIndex + 1; ctx.taskType = task.type; ctx.prompt = task.prompt;
         const lock = await prisma.teamTaskLock.findUnique({ where: { teamId_nodeKey_taskIndex: { teamId: m.team.id, nodeKey: body.nodeKey, taskIndex: body.taskIndex } } });
         const locked = lock?.lockedUntil && lock.lockedUntil.getTime() > Date.now();
-        ctx.attemptsLeft = task.type === "choice" ? (locked ? 0 : Math.max(0, 2 - (lock?.wrong ?? 0))) : null;
+        ctx.attemptsLeft = null; // попытки не ограничены: только растущая пауза (решение владельца 18.09)
         ctx.lockedUntil = locked ? lock!.lockedUntil!.toISOString() : null;
       }
     }
@@ -60,7 +60,7 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
         `Игра: ${ctx.game} (${ctx.org})`, `Команда: ${ctx.team ?? "—"}`, `Написал: ${ctx.user}`,
         ctx.city ? `Город: ${ctx.city} (${ctx.book})` : null,
         ctx.task ? `Задание ${ctx.task} (${ctx.taskType}): ${ctx.prompt}` : null,
-        ctx.task ? `Состояние: решено ${ctx.doneTasks}/${ctx.totalTasks}, попыток осталось ${ctx.attemptsLeft ?? "—"}, ${ctx.lockedUntil ? "закрыто до " + new Date(ctx.lockedUntil).toLocaleString("ru-RU") : "не закрыто"}, чтение ${ctx.readMin} мин` : null,
+        ctx.task ? `Состояние: решено ${ctx.doneTasks}/${ctx.totalTasks}, неверных подряд ${ctx.attemptsLeft ?? "—"}, ${ctx.lockedUntil ? "пауза до " + new Date(ctx.lockedUntil).toLocaleString("ru-RU") : "без паузы"}, чтение ${ctx.readMin} мин` : null,
         "", "Сообщение:", body.message, "",
         `Ответить и снять блокировку: ${getPublicUrl()}/admin#support`,
       ].filter((l): l is string => l !== null);

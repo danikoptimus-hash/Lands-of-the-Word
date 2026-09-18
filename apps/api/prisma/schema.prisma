@@ -195,8 +195,10 @@ model MapNode {
   defenseLevel  Int     @default(0)
   /** Книга исчерпана: ставки считаются суммой стихов по участникам. */
   sumMode       Boolean @default(false)
-  /** Отражена атака в суммарном режиме: город закреплён навсегда. */
-  lockedForever Boolean @default(false)
+  /** Закреплён до этой даты: хранители отбились с максимумом (каждый участник выучил всю книгу). Решение владельца 18.09: навечно — никогда. */
+  lockedUntil   DateTime?
+  /** Усталость города: когда уровень защиты в последний раз уменьшался за бездействие (28 дней без дел после города — минус 1 стих каждые 14 дней). */
+  fatigueAt     DateTime?
   /** Руины: город выбывшей команды. Берётся выполнением заданий, без ключа и без битвы. */
   ruined        Boolean @default(false)
 
@@ -215,6 +217,8 @@ model MapEdge {
 
 enum TeamRole {
   CAPTAIN
+  /** Заместитель капитана: назначает капитан; все права капитана, кроме назначения ролей. */
+  DEPUTY
   MEMBER
 }
 
@@ -224,6 +228,8 @@ enum GameRole {
   PROPHET
   AMBASSADOR
   CHRONICLER
+  /** Кормчий: морские переходы и выбор места высадки. */
+  HELMSMAN
 }
 
 model Team {
@@ -241,6 +247,9 @@ model Team {
   lastPeekAt     DateTime?
   /** Пророк: последняя подсказка к заданию города (раз в неделю). */
   lastHintAt     DateTime?
+  /** Смена игровых ролей — не чаще раза в неделю и только с одобрения администратора (решение владельца 18.09). */
+  lastRoleChangeAt DateTime?
+  penalties      TeamPenalty[]
   peeks          TeamPeek[]
   passageOut     PassageRequest[] @relation("requester")
   passageIn      PassageRequest[] @relation("owner")
@@ -266,6 +275,8 @@ model Membership {
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   role     TeamRole @default(MEMBER)
   gameRole GameRole @default(NONE)
+  /** Роль, запрошенная капитаном и ждущая одобрения администратора. */
+  pendingRole GameRole?
   joinedAt DateTime @default(now())
 
   @@id([teamId, userId])
@@ -346,6 +357,8 @@ model TeamEdgeTask {
   deed          Deed           @relation(fields: [deedId], references: [id])
   status        EdgeTaskStatus @default(OPEN)
   takenById     String?
+  /** Когда дело взято: не сданное за 14 дней возвращается в общий список само. */
+  takenAt       DateTime?
   links         String[]       @default([])
   note          String         @default("")
   submittedAt   DateTime?
@@ -410,6 +423,9 @@ model TeamCityState {
   attackPenalty  Int       @default(0)
   /** Задания, к которым пророк открыл подсказку (текст стихов района). */
   hintTasks      Int[]     @default([])
+  /** Неверные ключи конверта подряд и пауза до следующей попытки (растущая пауза, решение владельца 18.09). */
+  keyWrong       Int       @default(0)
+  keyLockedUntil DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
@@ -468,6 +484,10 @@ model Battle {
   defenseDeadline   DateTime?
   defenseDoneAt     DateTime?
   resolvedAt        DateTime?
+  /** Сколько времени вызов стоял на проверке у администратора (после возврата записи): в T не входит — стоп-часы. */
+  attackPausedMs    Int          @default(0)
+  /** Вызов объявлен после того, как предыдущий вызов этой команды этому городу сгорел: в очереди — после всех, кто встал раньше. */
+  afterBurn         Boolean      @default(false)
   entries           BattleEntry[]
 
   @@index([gameId, nodeKey, status])
@@ -487,10 +507,26 @@ model BattleEntry {
   note         String      @default("")
   status       EntryStatus @default(SUBMITTED)
   adminComment String      @default("")
+  /** Зачтено из прошлого испытания: выученные стихи хранителей засчитываются в новых вызовах автоматически. */
+  carried      Boolean     @default(false)
   createdAt    DateTime    @default(now())
   decidedAt    DateTime?
 
   @@index([battleId, side])
+}
+
+/** Штраф администратора (телефон на собрании): аннулирован концевой участок пути команды. */
+model TeamPenalty {
+  id        String   @id @default(cuid())
+  gameId    String
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  fromKey   String
+  toKey     String
+  byId      String
+  createdAt DateTime @default(now())
+
+  @@index([gameId, teamId])
 }
 
 enum PassageStatus {

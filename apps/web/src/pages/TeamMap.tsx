@@ -86,18 +86,31 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
 
   // Мир и экранные элементы — мемо по данным: фиксация масштаба (vp.view) не должна заново строить сотни SVG-элементов;
   // масштаб деталей идёт через CSS-переменные, пороги детализации — через флаги.
+  // Чужие проходы (решение владельца 18.09): сторона, пройденная другой командой, красится её цветом; пройденная
+  // двумя командами — пополам: своя половина от известного перекрёстка, чужая — дальше.
+  const foreignByEdge = useMemo(() => {
+    const m = new Map<string, Array<{ color: string }>>();
+    for (const f of map.foreign ?? []) { const k = [f.aKey, f.bKey].sort().join("|"); const list = m.get(k) ?? []; if (!list.some((x) => x.color === f.color)) list.push({ color: f.color }); m.set(k, list); }
+    return m;
+  }, [map.foreign]);
   const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
-          const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
+          const key = [e.aKey, e.bKey].sort().join("|");
+          const tk = taskByEdge.get(key);
           const done = tk?.status === "APPROVED";
           const active = tk && !done;
           const sel = tk?.id === selectedTaskId;
           const cls = done ? "done" : sel ? "sel" : active ? "active" : "idle";
+          const others = foreignByEdge.get(key) ?? [];
+          // Чужие отрезки: если сторона пройдена и нами — вторая половина, иначе вся сторона, поделённая между командами.
+          const from = done ? 0.5 : 0, span = (1 - from) / Math.max(1, others.length);
+          const pt = (tt: number) => ({ x: a.x + (b.x - a.x) * tt, y: a.y + (b.y - a.y) * tt });
           return (
             <g key={e.aKey + e.bKey} className={"m-edge " + cls} onClick={() => active && click(tk.id)}>
               {active && <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
               <line className={active && !sel ? "dashed" : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={done ? map.team.color : undefined} />
+              {others.map((o, i) => { const p1 = pt(from + span * i), p2 = pt(from + span * (i + 1)); return <line key={o.color} className="foreign" x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={o.color} />; })}
             </g>
           );
         })}
@@ -114,7 +127,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           }
           return null;
         })}
-  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge]); // eslint-disable-line react-hooks/exhaustive-deps
   const screenBody = useMemo(() => (<>
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;

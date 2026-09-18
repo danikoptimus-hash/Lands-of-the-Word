@@ -49,8 +49,26 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
     try { await api(`/api/games/${gameId}/teams/${tm.id}`, { method: "DELETE" }); notify(t("Команда удалена")); await reload(); }
     catch (err) { fail(err); }
   }
-  async function patch(teamId: string, userId: string, body: { role?: "CAPTAIN" | "MEMBER"; gameRole?: GameRole }, done: string) {
+  async function patch(teamId: string, userId: string, body: { role?: "CAPTAIN" | "DEPUTY" | "MEMBER"; gameRole?: GameRole }, done: string) {
     try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}`, { method: "PATCH", body: JSON.stringify(body) }); notify(done); await reload(); }
+    catch (err) { fail(err); }
+  }
+  async function decideRole(teamId: string, userId: string, approve: boolean) {
+    try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}/role-decide`, { method: "POST", body: JSON.stringify({ approve }) }); notify(approve ? t("Роль одобрена") : t("Запрос роли отклонён")); await reload(); }
+    catch (err) { fail(err); }
+  }
+  /** Перевод участника (по спискам молодёжного совета): выбор команды в собственном листе, без системных диалогов. */
+  const [moving, setMoving] = useState<{ teamId: string; userId: string; nick: string } | null>(null);
+  async function moveTo(to: TeamDto) {
+    if (!moving) return;
+    const { teamId, userId, nick } = moving;
+    if (!(await confirm(t("{nick} перейдёт в команду «{team}» рядовым участником; взятые дела вернутся в список.", { nick, team: to.name }), { title: t("Перевести участника?"), okLabel: t("Перевести") }))) return;
+    try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}/move`, { method: "POST", body: JSON.stringify({ toTeamId: to.id }) }); notify(t("{nick} переведён в «{team}»", { nick, team: to.name })); setMoving(null); await reload(); }
+    catch (err) { fail(err); }
+  }
+  async function penalize(tm: TeamDto) {
+    if (!(await confirm(t("Игра сама выберет случайный концевой участок пути команды и аннулирует его: перекрёсток за ним закроется, дело придётся сделать заново. Города и старт не трогаются."), { title: t("Оштрафовать «{name}»?", { name: tm.name }), okLabel: t("Оштрафовать"), danger: true }))) return;
+    try { const r = await api<{ message: string }>(`/api/games/${gameId}/teams/${tm.id}/penalty`, { method: "POST" }); notify(r.message); await reload(); }
     catch (err) { fail(err); }
   }
   async function kick(teamId: string, userId: string, nick: string) {
@@ -74,6 +92,8 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
             <div className="row nowrap">
               <button type="button" className={(invite?.teamId === tm.id ? "" : "secondary ") + "sm"} onClick={() => void toggleInvite(tm.id)} aria-expanded={invite?.teamId === tm.id}><Icon name="link" />{t("Пригласить")}</button>
               {status === "DRAFT" && <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }]} />}
+              {status === "ACTIVE" && tm.status !== "defeated" && <ActionMenu label={t("Ещё")} items={[{ label: t("Оштрафовать: аннулировать участок пути"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }]} />}
+              {tm.status === "defeated" && <Chip tone="bad">{t("выбыла")}</Chip>}
             </div>
           </div>
           {invite?.teamId === tm.id && (
@@ -95,9 +115,11 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                 const nick = m.user.displayName ?? m.user.nickname;
                 return (
                   <li key={m.user.id}>
-                    <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span><Chip tone={m.role === "CAPTAIN" ? "accent" : "neutral"}>{TEAM_ROLE_LABEL[m.role]}</Chip></span></div>
+                    <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span><Chip tone={m.role === "CAPTAIN" || m.role === "DEPUTY" ? "accent" : "neutral"}>{TEAM_ROLE_LABEL[m.role]}</Chip></span>
+                      {m.pendingRole && <span className="row nowrap mt-1"><Chip tone="warn">{t("запрос: {role}", { role: m.pendingRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.pendingRole] })}</Chip><button type="button" className="sm" onClick={() => void decideRole(tm.id, m.user.id, true)}>{t("Одобрить")}</button><button type="button" className="ghost sm" onClick={() => void decideRole(tm.id, m.user.id, false)}>{t("Отклонить")}</button></span>}
+                    </div>
                     <div className="side">
-                      {m.role === "MEMBER" && (
+                      {m.role !== "CAPTAIN" && (
                         <select value={m.gameRole} aria-label={t("Игровая роль")} onChange={(e) => void patch(tm.id, m.user.id, { gameRole: e.target.value as GameRole }, t("Роль сохранена"))}>
                           {(Object.keys(GAME_ROLE_LABEL) as GameRole[]).map((r) => <option key={r} value={r}>{r === "NONE" ? t("Без роли") : GAME_ROLE_LABEL[r]}</option>)}
                         </select>
@@ -106,6 +128,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                         m.role === "CAPTAIN"
                           ? { label: t("Снять капитана"), icon: "user", onSelect: () => void patch(tm.id, m.user.id, { role: "MEMBER" }, t("{nick} больше не капитан", { nick })) }
                           : { label: t("Сделать капитаном"), icon: "flag", onSelect: () => void patch(tm.id, m.user.id, { role: "CAPTAIN" }, t("{nick} теперь капитан", { nick })) },
+                        { label: t("Перевести в другую команду"), icon: "users", onSelect: () => setMoving({ teamId: tm.id, userId: m.user.id, nick }) },
                         { label: t("Убрать из команды"), icon: "trash", danger: true, sep: true, onSelect: () => void kick(tm.id, m.user.id, nick) },
                       ]} />
                     </div>
@@ -116,7 +139,17 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
           )}
         </div>
       ))}
-      {teams && teams.some((tm) => tm.members.length > 0) && <p className="hint">{t("Игровые роли — только у участников: капитан ведёт команду.")}</p>}
+      {teams && teams.some((tm) => tm.members.length > 0) && <p className="hint">{t("Игровые роли — только у участников: капитан ведёт команду. Роль, запрошенную капитаном, одобрите здесь; сами вы ставите роли сразу.")}</p>}
+      {moving && (
+        <Sheet title={t("Перевести {nick}", { nick: moving.nick })} onClose={() => setMoving(null)} size="sm">
+          <p className="hint">{t("В какую команду?")}</p>
+          <ul className="list">
+            {(teams ?? []).filter((tm) => tm.id !== moving.teamId && tm.status !== "defeated").map((tm) => (
+              <li key={tm.id}><div className="main"><TeamAvatar name={tm.name} color={tm.color} withName /></div><div className="side"><button type="button" className="sm" onClick={() => void moveTo(tm)}>{t("Перевести")}</button></div></li>
+            ))}
+          </ul>
+        </Sheet>
+      )}
       {open && (
         <Sheet title={t("Новая команда")} onClose={close} size="sm"
           foot={<><button type="button" className="secondary" onClick={close}>{t("Отмена")}</button><button type="submit" form="team-form" disabled={busy || name.trim().length < 2}>{t("Добавить")}</button></>}>

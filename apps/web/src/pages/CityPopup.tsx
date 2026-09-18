@@ -44,7 +44,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   const done = city?.state.doneTasks ?? [];
   const total = city?.content?.tasks.length ?? 0;
   const allDone = total > 0 && done.length >= total;
-  const cooldown = city?.state.cooldownUntil && city.state.cooldownUntil > now ? Math.ceil((city.state.cooldownUntil - now) / 1000) : 0;
+  /** Пауза на ключ конверта (растущая после каждого неверного ключа). */
+  const cooldown = city?.state.keyLockedUntil && city.state.keyLockedUntil > now ? Math.ceil((city.state.keyLockedUntil - now) / 1000) : 0;
 
   async function checkOrder() {
     if (!order) return;
@@ -60,14 +61,12 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   async function answer(index: number, value: unknown): Promise<boolean> {
     setBusy(true); setError(null);
     try {
-      const r = await api<{ correct: boolean; fragment?: string; lockedUntil?: number | null; attemptsLeft?: number | null }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
+      const r = await api<{ correct: boolean; fragment?: string; retryAt?: number | null; wrong?: number }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
       if (r.correct) notify(t("Верно. Знак шифра: {f}", { f: r.fragment ?? "" }));
-      else if (r.lockedUntil) notify(t("Неверно. Две попытки истрачены: задание закрыто на сутки"), "bad");
-      else if (r.attemptsLeft != null) notify(t("Неверно. Осталась попытка: {n}", { n: r.attemptsLeft }), "bad");
-      else notify(t("Неверно. Перечитайте это место в книге"), "bad");
+      else notify(t("Неверно. Отмычка остывает: следующая попытка через {t}", { t: r.retryAt ? fmtLeft(r.retryAt - Date.now()) : "" }), "bad");
       await load(); onChanged();
       return r.correct;
-    } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); if (e instanceof ApiError && e.status === 423) void load(); return false; }
+    } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); if (e instanceof ApiError && e.status === 429) void load(); return false; }
     finally { setBusy(false); }
   }
   /** Обращение в поддержку: игрок пишет только текст, город и задание сервер подставляет сам. */
@@ -209,7 +208,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
                   <input id="city-key" className="key-input" value={key} onChange={(e) => setKey(e.target.value.toUpperCase())} maxLength={12} autoCapitalize="characters" autoComplete="off" />
                   <button type="button" disabled={busy || key.trim().length < 4 || cooldown > 0} onClick={() => void capture()}><Icon name="city" />{t("Взять город")}</button>
                 </div>
-                <p className="hint">{cooldown > 0 ? t("Подождите {n} с", { n: cooldown }) : t("Ключ напечатан в конверте: не меньше 4 знаков")}</p>
+                <p className="hint">{cooldown > 0 ? t("Печать остывает после неверного ключа: подождите {t}", { t: fmtLeft(cooldown * 1000) }) : t("Ключ напечатан в конверте: не меньше 4 знаков")}</p>
               </div>
             </div>
           )}
@@ -239,7 +238,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       {city?.content && task && (
         <TaskView task={task} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
           hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey}
-          lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} choiceAttempts={city.state.choiceAttempts} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />
+          lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} pauseSteps={city.state.pauseSteps} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />
       )}
     </Sheet>
   );
@@ -247,8 +246,11 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
 
 const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.some((l) => l.index === index && l.lockedUntil != null && l.lockedUntil > now);
 
-function TaskView({ task, district, groupTitles, done, fragment, busy, cooldown, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, choiceAttempts, now, onSupport, notify }: { task: CityTaskDto; district?: { title: string; verses: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; choiceAttempts: number; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
+function TaskView({ task, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify }: { task: CityTaskDto; district?: { title: string; verses: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
+  /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
+  const cooldown = 0;
+  const nextPause = pauseSteps[Math.min(lock?.wrong ?? 0, pauseSteps.length - 1)] ?? 20;
   /** Вставка из буфера отключена (решение владельца): ответ набирается вручную. */
   const noPaste = (e: React.ClipboardEvent | React.DragEvent) => { e.preventDefault(); notify(t("Вставка отключена: наберите ответ вручную"), "bad"); };
   const openRequest = support.find((r) => r.status === "OPEN") ?? null;
@@ -266,23 +268,17 @@ function TaskView({ task, district, groupTitles, done, fragment, busy, cooldown,
   const canSend = !done && !busy && cooldown === 0 && !locked && filled;
   const scope = task.scope === "book" ? t("По всей книге") : task.scope === "group" ? t("По районам: {list}", { list: groupTitles?.join(", ") ?? "" }) : t("По этому району");
   const title = task.scope === "district" && district ? [t("Район {n}", { n: task.index + 1 }), district.title, district.verses].filter(Boolean).join(" · ") : t("Задание {n}", { n: task.index + 1 });
-  const attemptsTotal = Math.max(1, choiceAttempts), attemptsLeft = lock ? lock.attemptsLeft : attemptsTotal;
-  const attemptNo = Math.min(attemptsTotal, attemptsTotal - attemptsLeft + 1);
-  const why = locked ? t("Задание закрыто") : cooldown > 0 ? t("Подождите {n} с", { n: cooldown }) : null;
+  const why = locked ? t("Отмычка остывает") : null;
   return (
     <div className="task-view" onContextMenu={(e) => e.preventDefault()}>
       <button type="button" className="ghost back-btn" onClick={onBack}><Icon name="back" />{t("К районам")}</button>
       <h3 className="mt-2">{title}</h3>
       <p className="muted small">{scope}</p>
       <p className="prompt no-copy" onCopy={(e) => e.preventDefault()}>{task.prompt}</p>
-      {task.type === "choice" && !done && !locked && (
-        attemptsLeft <= 1
-          ? <div className="note warn"><Icon name="alert" /><span>{t("Попытка {a} из {b}: после неверного ответа задание закроется на сутки.", { a: attemptNo, b: attemptsTotal })}</span></div>
-          : <p className="muted small">{t("Попытка {a} из {b}", { a: attemptNo, b: attemptsTotal })}</p>
-      )}
+      {!done && !locked && (lock?.wrong ?? 0) > 0 && <p className="muted small">{t("Неверных подряд: {n}. Следующая ошибка остудит отмычку на {t}.", { n: lock!.wrong, t: fmtLeft(nextPause * 1000) })}</p>}
       {locked && lock && (
         <div className="note bad lock-note">
-          <div className="row nowrap"><Icon name="clock" /><span>{t("Задание закрыто после двух неверных ответов. Откроется через {t}.", { t: fmtLeft(lock.lockedUntil! - now) })}</span></div>
+          <div className="row nowrap"><Icon name="clock" /><span>{t("Отмычка остывает после неверного ответа. Следующая попытка через {t}.", { t: fmtLeft(lock.lockedUntil! - now) })}</span></div>
         </div>
       )}
       {openRequest && <div className="note info"><Icon name="send" /><span>{t("Обращение в поддержку отправлено {d}. Ждём ответа.", { d: fmtDate(new Date(openRequest.createdAt).toISOString()) })}</span></div>}
@@ -299,7 +295,7 @@ function TaskView({ task, district, groupTitles, done, fragment, busy, cooldown,
           </div>
         </div>
       )}
-      {hintOpen && hintText && <div className="hint-box no-copy"><div className="muted small">{t("Подсказка пророка · текст района {verses}", { verses: district?.verses ?? "" })}</div>{hintText.map((x, i) => <p key={i}>{x}</p>)}</div>}
+      {hintOpen && hintText && <div className="hint-box no-copy"><div className="muted small">{t("Подсказка пророка · текст района {verses} · видна только вам: расскажите команде", { verses: district?.verses ?? "" })}</div>{hintText.map((x, i) => <p key={i}>{x}</p>)}</div>}
       {!hintOpen && !done && canHint && <p className="mt-2"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Подсказка пророка · раз в неделю")}</button></p>}
       {done ? (
         <div className="note ok"><Icon name="check" /><span>{t("Выполнено. Знак шифра: {f}", { f: fragment ?? "" })}</span></div>
