@@ -5,4 +5,7 @@
 @import "./guest.css";
 @import "./player.css";
 @import "./admin.css";
+@import "./theme.css";
+@import "./theme-player.css";
+@import "./theme-admin.css";
 @import "./print.css";

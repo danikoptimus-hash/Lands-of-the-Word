@@ -1,46 +1,86 @@
-/* Токены дизайн-системы. Единственное место с литералами цвета/размеров (кроме печати). См. docs/design/DESIGN.md. */
+/* Токены дизайн-системы. Единственное место с литералами цвета/размеров (кроме печати). См. docs/design/DESIGN.md.
+   Решение владельца 18.09 («игра, а не сайт»): материал вместо цвета — бумага, чернила, бронза, сургуч, мох, море, дерево.
+   Старые имена (--surface, --accent, …) — псевдонимы ниже: страницы на них завязаны. */
 :root {
   color-scheme: light;
-  /* Цвет */
-  --bg: #F6F4EF;            /* пергамент страницы */
-  --surface: #FFFFFF;       /* карточки, поля */
-  --surface-2: #FAF8F3;     /* вложенные плитки */
-  --border: #E3DDD0;
-  --border-strong: #B9B0A0; /* рамки контролов (3:1 на белом) */
-  --text: #2A241E;
-  --muted: #6B645A;
-  --accent: #C7742A;        /* бренд: заливки, иконки, индикаторы */
-  --accent-ink: #9B5A21;    /* текст и ссылки акцентом (≥4.5:1), главная кнопка */
-  --accent-strong: #8F541E; /* hover/active главной кнопки */
-  --accent-soft: #FBEEDF;
-  --on-accent: #FFFFFF;
-  --success: #356A44; --success-soft: #E6F2E9;
-  --warn: #8A6A12;    --warn-soft: #FBF3DD;
-  --danger: #B3402F;  --danger-soft: #FBE9E5;
-  --info: #2F6FB3;    --info-soft: #E4EEF9;
-  --link: var(--accent-ink);
-  --overlay: rgba(42,36,30,.45);
+  /* Бумага */
+  --paper-light: #FFF6E3;   /* свежий лист: поля ввода, активная вкладка, текст на бронзе и сургуче */
+  --paper:       #F2E7CF;   /* лист: карточки, шторки, попапы */
+  --paper-2:     #E8D9B8;   /* потёртый лист: вложенные плитки, фон вкладок, полосы */
+  --paper-edge:  #C9B58C;   /* кромка листа: рамки карточек */
+  --bg:          #E9DCBF;   /* стол: фон страниц под текстурой */
+  /* Чернила */
+  --ink:   #2B1D12;         /* текст — 13.3:1 на --paper */
+  --ink-2: #5C4A36;         /* вторичный текст — 6.9:1 на --paper */
+  --ink-3: #6E6558;         /* подписи — 4.7:1 на --paper, только ≥ 14px */
+  --border:        #D9C9A6;
+  --border-strong: #86704A; /* рамки контролов — 3.9:1 на --paper */
+  /* Бронза (акцент) */
+  --bronze:       #A8722E;  /* заливки, иконки; не для текста */
+  --bronze-ink:   #7A4E17;  /* текст и ссылки — 5.8:1 на --paper; тело главной кнопки */
+  --bronze-deep:  #5F3C10;
+  --bronze-light: #D9A75B;
+  --bronze-soft:  #F3E4C0;
+  --gold-hi:      #F1D08A;  /* блик и фокус на тёмных материалах */
+  /* Сургуч (опасное, потеря), мох (успех), море (в работе), янтарь (внимание) */
+  --wax: #8E2B24;  --wax-ink: #7E241E;  --wax-soft: #F0D9D2;
+  --moss: #4E6B3A; --moss-ink: #3E5A2C; --moss-soft: #DFE6CB;
+  --sea: #2F6F8F;  --sea-ink: #275E7A;  --sea-soft: #D6E4EA;
+  --amber: #8A5A12; --amber-ink: #7C4F0E; --amber-soft: #F3E4C0;
+  /* Дерево, камень — рамки, балки, неактивное */
+  --wood: #5A3B22; --wood-dark: #3B2415; --leather: #4A3223;
+  --stone: #8E877A; --stone-dark: #4B463F;
+  /* Псевдонимы старых имён */
+  --surface: var(--paper); --surface-2: var(--paper-2);
+  --text: var(--ink); --muted: var(--ink-2);
+  --accent: var(--bronze); --accent-ink: var(--bronze-ink); --accent-strong: var(--bronze-deep);
+  --accent-soft: var(--bronze-soft); --on-accent: var(--paper-light);
+  --success: var(--moss-ink); --success-soft: var(--moss-soft);
+  --warn: var(--amber-ink);   --warn-soft: var(--amber-soft);
+  --danger: var(--wax);       --danger-soft: var(--wax-soft);
+  --info: var(--sea-ink);     --info-soft: var(--sea-soft);
+  --link: var(--bronze-ink);
+  --overlay: rgba(43, 29, 18, .55);
   --map-bg: #2B2724; --map-fog: #3F3A34; --map-paper: #F3EAD3; --map-far: #B9B1A5;
-  /* Шрифт */
-  --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  /* Текстуры: одно место, чтобы менять картинки без правки стилей (файлы в public/img/ui). */
+  --tex-paper:   url("/img/ui/parchment-512.webp");
+  --tex-desk:    url("/img/ui/parchment-dark-640.webp");
+  --tex-wood:    url("/img/ui/wood-512.webp");
+  --tex-leather: url("/img/ui/leather-512.webp");
+  --tex-linen:   url("/img/ui/linen-384.webp");
+  --tex-stone:   url("/img/ui/stone-256.webp");
+  --coin:        url("/img/ui/coin-bronze-128.webp");
+  --plaque:      url("/img/ui/plaque-bronze-512.webp");
+  --paper-frame: url("/img/ui/paper-frame-768.webp");
+  --wax-mask:    url("/img/props/wax-seal.webp");
+  --paper-lift:  linear-gradient(rgba(255,250,238,.5), rgba(255,250,238,.5));
+  --paper-bg:    var(--paper-lift), var(--tex-paper) center / 512px repeat var(--paper);
+  /* Шрифты: заголовки — Cormorant Garamond, чтение — Literata, интерфейс — Philosopher, ввод — Inter (все в public/fonts). */
+  --font-display: "Cormorant Garamond", "Philosopher", Georgia, serif;
+  --font-book:    "Literata", Georgia, "Times New Roman", serif;
+  --font-ui:      "Philosopher", "Inter", system-ui, sans-serif;
+  --font-input:   "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --font: var(--font-book);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --fs-xs: 12px; --fs-sm: 14px; --fs-md: 16px; --fs-lg: 18px; --fs-xl: 22px; --fs-2xl: 28px;
-  --lh-tight: 1.2; --lh-ui: 1.45; --lh-text: 1.55;
+  --fs-xs: 12px; --fs-sm: 14px; --fs-md: 16px; --fs-lg: 18px; --fs-xl: 22px; --fs-2xl: 30px;
+  --lh-tight: 1.15; --lh-ui: 1.4; --lh-text: 1.55;
   /* Сетка 4px */
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
   --gutter: clamp(16px, 4vw, 24px);
   --control-h: 44px; --control-h-sm: 36px; --touch: 44px;
-  /* Радиусы, тени */
-  --r-xs: 4px; --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-full: 999px;
-  --radius: var(--r-md); --radius-sm: var(--r-sm); /* старые имена */
-  --shadow-1: 0 1px 2px rgba(42,36,30,.05), 0 2px 8px rgba(42,36,30,.06);
-  --shadow-2: 0 4px 12px rgba(42,36,30,.10), 0 12px 32px rgba(42,36,30,.10);
-  --shadow-3: 0 12px 40px rgba(42,36,30,.25);
-  --shadow: var(--shadow-1);
-  --ring: 0 0 0 3px var(--accent-soft);
+  /* Радиусы меньше — предметы, а не приложение; тени тёплые (умбра) с бликом сверху */
+  --r-xs: 3px; --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-full: 999px;
+  --radius: var(--r-md); --radius-sm: var(--r-sm);
+  --shadow-paper: inset 0 1px 0 rgba(255,250,238,.7), 0 1px 2px rgba(59,36,21,.14), 0 4px 10px rgba(59,36,21,.12);
+  --shadow-lift:  0 2px 6px rgba(59,36,21,.16), 0 10px 26px rgba(59,36,21,.22);
+  --shadow-deep:  0 24px 48px rgba(31,20,10,.45);
+  --shadow-metal: inset 0 1px 0 rgba(255,235,190,.55), inset 0 -2px 0 rgba(60,32,8,.35), 0 2px 4px rgba(59,36,21,.28);
+  --shadow-1: var(--shadow-paper); --shadow-2: var(--shadow-lift); --shadow-3: var(--shadow-deep); --shadow: var(--shadow-paper);
+  --ring: 0 0 0 3px rgba(122,78,23,.28);
   /* Движение, слои */
   --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 320ms;
   --ease-out: cubic-bezier(.2,.7,.2,1); --ease-in: cubic-bezier(.4,0,1,1); --spring: cubic-bezier(.2,.9,.3,1.15); --ease: var(--ease-out);
+  --stamp: cubic-bezier(.3,1.6,.5,1);
   --z-sticky: 10; --z-overlay: 20; --z-drawer: 30; --z-dialog: 40; --z-toast: 50;
   --icon-sm: 16px; --icon-md: 20px; --icon-lg: 24px;
   --safe-top: env(safe-area-inset-top, 0px); --safe-bottom: env(safe-area-inset-bottom, 0px);

@@ -3,4 +3,5 @@
   body { background: #fff !important; }
   body::before, .topbar, .no-print, .toasts { display: none !important; }
   .container { max-width: none; padding: 0; }
+  .card, .overlay, .district, .home-card { background: #fff !important; box-shadow: none !important; border-image: none !important; }
 }
