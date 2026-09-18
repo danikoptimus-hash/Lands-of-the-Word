@@ -99,11 +99,11 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
       <h2><Icon name="user" />{t("Моё служение")}</h2>
       {!s ? <LoadingState rows={1} /> : (
         <div className="service">
-          <div className="stat"><b>{s.deeds}</b><span>{plural(s.deeds, ["дело", "дела", "дел"]).replace(/^\d+\s*/, "")}</span></div>
-          <div className="stat"><b>{s.tasks}</b><span>{t("районов")}</span></div>
-          <div className="stat"><b>{s.verses}</b><span>{t("стихов")}</span></div>
-          <div className="stat"><b>{s.cities}</b><span>{t("городов")}</span></div>
-          {s.trips > 0 && <div className="stat"><b>{s.trips}</b><span>{t("переправ")}</span></div>}
+          <div className="svc-stat"><b>{s.deeds}</b><span>{plural(s.deeds, ["дело", "дела", "дел"]).replace(/^\d+\s*/, "")}</span></div>
+          <div className="svc-stat"><b>{s.tasks}</b><span>{t("районов")}</span></div>
+          <div className="svc-stat"><b>{s.verses}</b><span>{t("стихов")}</span></div>
+          <div className="svc-stat"><b>{s.cities}</b><span>{t("городов")}</span></div>
+          {s.trips > 0 && <div className="svc-stat"><b>{s.trips}</b><span>{t("переправ")}</span></div>}
         </div>
       )}
       {s && s.deedsPending > 0 && <p className="hint">{t("В работе или на проверке: {n}", { n: s.deedsPending })}</p>}

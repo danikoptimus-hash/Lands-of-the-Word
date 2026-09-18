@@ -425,6 +425,6 @@
 .feed details p { margin: var(--sp-1) 0 0; }
 .feed.compact li { padding: 6px 0; }
 .service { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
-.service .stat { flex: 1 1 70px; min-width: 70px; display: flex; flex-direction: column; align-items: center; padding: var(--sp-2); border-radius: var(--r-sm); background: var(--surface-2); }
-.service .stat b { font-size: var(--fs-xl); line-height: 1.1; color: var(--accent-ink); }
-.service .stat span { font-size: var(--fs-xs); color: var(--muted); }
+.service .svc-stat { flex: 1 1 70px; min-width: 70px; display: flex; flex-direction: column; align-items: center; padding: var(--sp-2); border-radius: var(--r-sm); background: var(--surface-2); }
+.service .svc-stat b { font-size: var(--fs-xl); line-height: 1.1; color: var(--accent-ink); }
+.service .svc-stat span { font-size: var(--fs-xs); color: var(--muted); }
