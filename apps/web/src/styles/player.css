@@ -305,23 +305,30 @@
 .ring.single .cur { font-size: var(--fs-md); padding: 6px 12px; }
 .ring.single .pos .i { width: 14px; height: 14px; }
 
-/* Печать из знаков шифра. */
-.seal { display: block; flex: none; }
-.seal .rim { fill: #F3EAD3; stroke: var(--accent-strong); stroke-width: 1.5; }
-.seal .sector { fill: #EDE2C8; stroke: #FFFFFF; stroke-width: .8; transition: fill .3s; }
-.seal .sector.on { fill: var(--accent); }
+/* Печать из знаков шифра: бронзовый медальон (картинка), поверх — сектора со знаками; сургуч — цвет команды по маске капли и рельеф поверх. */
+.seal-wrap { position: relative; display: inline-block; flex: none; line-height: 0; }
+.seal-wrap > .seal { position: relative; z-index: 2; display: block; width: 100%; height: 100%; }
+.seal-wrap:not(.imprint) { background: url("/img/props/seal-bronze.webp") center / 100% 100% no-repeat; filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
+.seal-wrap:not(.imprint) > .seal { transform: scale(var(--seal-fit, .84)); }
+.seal .rim { fill: none; stroke: rgba(0,0,0,.28); stroke-width: 1; }
+.seal .sector { fill: rgba(255,255,255,.08); stroke: rgba(255,244,220,.38); stroke-width: .8; transition: fill .3s; }
+.seal .sector.on { fill: color-mix(in srgb, var(--accent) 80%, transparent); }
 .seal .sector.struck { animation: strike .6s var(--spring); transform-origin: 50px 50px; }
 .seal .glyph { fill: transparent; font-weight: 700; font-family: var(--font-mono); }
-.seal .glyph.on { fill: #FFFFFF; }
-.seal .core { fill: #F3EAD3; stroke: var(--accent-strong); stroke-width: 1; }
-.seal .core-text { fill: var(--accent-ink); font-weight: 700; font-family: var(--font-mono); }
-.seal.imprint .rim { fill: #9E2B2B; stroke: #5E1414; }
-.seal.imprint .sector { fill: #B23434; stroke: #7A1E1E; }
-.seal.imprint .sector.on { fill: #8E2222; }
-.seal.imprint .glyph.on { fill: #F1C9C9; }
-.seal.imprint .core { fill: #A82E2E; stroke: #5E1414; }
-.seal.imprint .core-text { fill: #F1C9C9; }
-.seal.corner { opacity: .9; }
+.seal .glyph.on { fill: #FFF6E6; }
+.seal .core { fill: rgba(22,14,6,.5); stroke: rgba(255,244,220,.35); stroke-width: 1; }
+.seal .core-text { fill: #FFF6E6; font-weight: 700; font-family: var(--font-mono); }
+.seal-wrap.imprint .wax-color, .seal-wrap.imprint .wax-relief { position: absolute; inset: 0; display: block; }
+.seal-wrap.imprint .wax-color { background: var(--wax, #9E2B2B); -webkit-mask: url("/img/props/wax-seal.webp") center / 100% 100% no-repeat; mask: url("/img/props/wax-seal.webp") center / 100% 100% no-repeat; }
+.seal-wrap.imprint .wax-relief { background: url("/img/props/wax-seal.webp") center / 100% 100% no-repeat; mix-blend-mode: hard-light; }
+.seal-wrap.imprint > .seal { transform: scale(var(--seal-fit, .66)); }
+.seal.imprint .rim { fill: none; stroke: none; }
+.seal.imprint .sector { fill: rgba(0,0,0,.08); stroke: rgba(255,255,255,.16); }
+.seal.imprint .sector.on { fill: rgba(0,0,0,.26); }
+.seal.imprint .glyph.on { fill: rgba(255,236,226,.92); }
+.seal.imprint .core { fill: rgba(0,0,0,.28); stroke: rgba(255,255,255,.2); }
+.seal.imprint .core-text { fill: rgba(255,236,226,.95); }
+.seal-wrap.corner { opacity: .95; }
 @keyframes strike { 0% { transform: scale(1); } 30% { transform: scale(1.18); } 100% { transform: scale(1); } }
 .cipher { display: flex; align-items: center; gap: var(--sp-3); }
 .cipher-side { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
@@ -330,8 +337,7 @@
 .envelope { position: relative; margin-top: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-md); background: linear-gradient(rgba(255,255,255,.35), rgba(255,255,255,.35)), url("/img/props/parchment.webp") center / 512px repeat #F7F1E4; border: 1px solid #E0D3B8; box-shadow: var(--shadow-1); overflow: hidden; }
 .envelope .paper { position: relative; height: 96px; margin: 0 auto var(--sp-2); max-width: 300px; background: url("/img/props/parchment.webp") center / 512px repeat #EFE4CC; border: 1px solid #D6C6A4; border-radius: var(--r-sm); overflow: visible; }
 .envelope .flap { position: absolute; inset: 0 0 auto 0; height: 52px; background: linear-gradient(180deg, rgba(0,0,0,.06), rgba(0,0,0,.16)), url("/img/props/parchment.webp") center / 512px repeat #D6C6A4; clip-path: polygon(0 0, 100% 0, 50% 100%); transform-origin: 50% 0; transition: transform .6s var(--spring); }
-.envelope .wax { position: absolute; left: 50%; top: 22px; width: 72px; height: 72px; transform: translateX(-50%); transition: transform .5s var(--spring), filter .4s; filter: drop-shadow(0 3px 4px rgba(0,0,0,.3)); }
-.envelope .wax .seal.imprint .rim { fill: var(--wax, #9E2B2B); }
+.envelope .wax { position: absolute; left: 50%; top: 14px; width: 86px; height: 86px; transform: translateX(-50%); transition: transform .5s var(--spring), filter .4s; filter: drop-shadow(0 3px 4px rgba(0,0,0,.3)); }
 .envelope.broken .flap { transform: rotateX(160deg); }
 .envelope.broken .wax { transform: translateX(-50%) translateY(14px) rotate(18deg); filter: drop-shadow(0 3px 4px rgba(0,0,0,.3)) brightness(.7); clip-path: polygon(0 0, 55% 0, 45% 100%, 0 100%); }
 .envelope.scratched .wax { animation: lockJam .5s var(--ease-out); }

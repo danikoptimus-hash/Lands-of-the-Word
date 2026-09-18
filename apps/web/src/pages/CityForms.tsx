@@ -150,13 +150,16 @@ export function CipherSeal({ fragments, size = 148, struck, imprint, className }
   });
   const done = fragments.filter(Boolean).length;
   return (
-    <svg className={"seal" + (imprint ? " imprint" : "") + (className ? " " + className : "")} viewBox="0 0 100 100" width={size} height={size} role="img" aria-label={t("Печать города: знаков {a} из {b}", { a: done, b: n })}>
-      <circle className="rim" cx="50" cy="50" r="49" />
-      {sectors.map((s, i) => <path key={i} className={"sector" + (s.f ? " on" : "") + (struck === i ? " struck" : "")} d={s.d} />)}
-      {sectors.map((s, i) => <text key={"t" + i} className={"glyph" + (s.f ? " on" : "")} x={s.x} y={s.y} textAnchor="middle" dominantBaseline="central" fontSize={n > 12 ? 8 : n > 8 ? 10 : 12}>{s.f ?? ""}</text>)}
-      <circle className="core" cx="50" cy="50" r={r - 2} />
-      <text className="core-text" x="50" y="50" textAnchor="middle" dominantBaseline="central" fontSize="11">{done}/{n}</text>
-    </svg>
+    <span className={"seal-wrap" + (imprint ? " imprint" : "") + (className ? " " + className : "")} style={{ width: size, height: size }}>
+      {imprint && <><i className="wax-color" /><i className="wax-relief" /></>}
+      <svg className={"seal" + (imprint ? " imprint" : "") + (className ? " " + className : "")} viewBox="0 0 100 100" width={size} height={size} role="img" aria-label={t("Печать города: знаков {a} из {b}", { a: done, b: n })}>
+        <circle className="rim" cx="50" cy="50" r="49" />
+        {sectors.map((s, i) => <path key={i} className={"sector" + (s.f ? " on" : "") + (struck === i ? " struck" : "")} d={s.d} />)}
+        {sectors.map((s, i) => <text key={"t" + i} className={"glyph" + (s.f ? " on" : "")} x={s.x} y={s.y} textAnchor="middle" dominantBaseline="central" fontSize={n > 12 ? 8 : n > 8 ? 10 : 12}>{s.f ?? ""}</text>)}
+        <circle className="core" cx="50" cy="50" r={r - 2} />
+        <text className="core-text" x="50" y="50" textAnchor="middle" dominantBaseline="central" fontSize="11">{done}/{n}</text>
+      </svg>
+    </span>
   );
 }
 
@@ -191,7 +194,7 @@ export function WaxEnvelope(p: EnvelopeProps) {
     <div className={cls}>
       <div className="paper" aria-hidden="true">
         <div className="flap" />
-        <div className="wax" style={p.ownedBy ? { ["--wax" as string]: p.ownedBy.color } : undefined}><CipherSeal fragments={p.fragments} size={72} imprint /></div>
+        <div className="wax" style={p.ownedBy ? { ["--wax" as string]: p.ownedBy.color } : undefined}><CipherSeal fragments={p.fragments} size={86} imprint /></div>
       </div>
       {p.captured ? (
         <div className="charter" role="status">
