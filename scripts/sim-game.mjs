@@ -87,7 +87,7 @@ async function snap(e, nick, path, name, caption, act) {
 const openMenu = async (page) => { await page.locator(".hud-left button").first().click(); await page.waitForTimeout(700); };
 const openCity = (book) => async (page) => { await page.waitForSelector(".map-svg"); const ok = await page.evaluate((b) => { for (const el of document.querySelectorAll(".m-label")) if (el.textContent?.includes(b)) { el.dispatchEvent(new MouseEvent("click", { bubbles: true })); return true; } return false; }, book); if (!ok) throw new Error("нет подписи города " + book); await page.waitForSelector(".city-sheet"); await page.waitForTimeout(700); };
 const adminTab = (tab) => async (page) => { await page.waitForSelector(".map-svg"); await page.locator(".admin-dock .dock-btn", { hasText: tab }).click(); await page.waitForTimeout(1200); };
-const scrollTo = (text) => async (page) => { await page.evaluate((tx) => { const h = [...document.querySelectorAll("h2,h3,summary")].find((x) => x.textContent?.includes(tx)); h?.scrollIntoView({ block: "start" }); }, text); await page.waitForTimeout(300); };
+const scrollTo = (text) => async (page) => { await page.evaluate((tx) => { const h = [...document.querySelectorAll("h2,h3,summary")].find((x) => x.textContent?.includes(tx)); if (!h) return; h.scrollIntoView({ block: "start" }); let el = h.parentElement; while (el && el !== document.body) { if (el.scrollHeight > el.clientHeight + 4 && getComputedStyle(el).overflowY !== "visible") { el.scrollTop -= 96; break; } el = el.parentElement; } window.scrollBy(0, -96); }, text); await page.waitForTimeout(300); };
 
 /* ---------- Карта (знание администратора) ---------- */
 const bookName = (code) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
@@ -114,7 +114,8 @@ const content = (book) => JSON.parse(readFileSync(join(CONTENT, book + ".json"),
 
 /* ---------- Команда: люди и дела ---------- */
 const cap = (T) => TEAMS[T].nicks[0];
-const members = (T) => TEAMS[T].nicks;
+/** Текущий состав (после переводов участников администратором состав меняется). */
+const members = (T) => (S.teams[T]?.members?.length ? S.teams[T].members.map((m) => m.user.nickname) : TEAMS[T].nicks);
 const userId = (nick) => S.users[nick];
 async function refreshTeams() {
   const r = await get(ADMIN, `/api/games/${S.gameId}/teams`);
@@ -336,14 +337,15 @@ async function main() {
         if (!S.shown) S.shown = new Set();
         if (S.shown.has(pub.type)) return;
         S.shown.add(pub.type);
+        if (pub.index === 2) {
+          await post("tg_m4", `/api/games/${S.gameId}/my-city/${encodeURIComponent(cityM)}/hint`, { index: 2 }).catch((e) => failures.push({ title: "подсказка пророка", error: String(e.message) }));
+          await snap(e5, "tg_m4", `/games/${S.gameId}/team`, "city-prophet-letter", "Пророк: свеча в шапке города и «Письмо пророка» с текстом района (видит только пророк).", async (p) => { await openCity(bn)(p); await p.locator(".district").nth(2).click(); await p.waitForTimeout(700); await scrollTo("Письмо")(p); });
+        }
         const cap = { choice: "Задание с выбором: весы — камень на чашу, «Взвесить».", text: "Текстовое задание: обгоревший свиток с пропуском в цитате или обычное поле.", order: "«Расставьте по порядку»: замок, пункты — разорванные полоски.", number: "Числовое задание.", crossword: "Кроссворд по району: сетка и вопросы." }[pub.type];
         await snap(e5, who, `/games/${S.gameId}/team`, "city-task-" + name, cap, async (p) => { await openCity(bn)(p); await p.locator(".district").nth(pub.index).click(); await p.waitForTimeout(700); if (pub.type === "choice") { await p.locator(".stone-btn").nth(1).click(); await p.waitForTimeout(300); } });
       },
       afterWrong: async (pub, who) => { await snap(e5, who, `/games/${S.gameId}/team`, "city-task-cooldown", "Неверный ответ: отмычка остывает, кольцо-таймер и точное время следующей попытки.", async (p) => { await openCity(bn)(p); await p.locator(".district").nth(pub.index).click(); await p.waitForTimeout(700); }); },
     });
-    // Пророк: свеча и письмо к последнему заданию (все уже решены — открываем подсказку к району 1 ради снимка не выйдет: подсказка только для нерешённых? нет, открывается всегда)
-    await post("tg_m4", `/api/games/${S.gameId}/my-city/${encodeURIComponent(cityM)}/hint`, { index: 0 }).catch((e) => failures.push({ title: "подсказка пророка", error: String(e.message) }));
-    await snap(e5, "tg_m4", `/games/${S.gameId}/team`, "city-prophet-letter", "Пророк: свеча в шапке города и «Письмо пророка» с текстом района (видит только пророк).", async (p) => { await openCity(bn)(p); await p.locator(".district").nth(0).click(); await p.waitForTimeout(700); await scrollTo("Письмо")(p); });
     await post("tg_m5", `/api/games/${S.gameId}/support`, { nodeKey: cityM, taskIndex: 1, message: "Мы уверены, что ответ был верный: проверьте, пожалуйста" });
     await snap(e5, "tg_m1", `/games/${S.gameId}/team`, "city-envelope", "Все районы решены: печать собрана, конверт с сургучом, шифр для адресата и ячейки ключа.", async (p) => { await openCity(bn)(p); await scrollTo("Получите")(p); });
     await snap(e5, "tg_m1", `/games/${S.gameId}/team`, "city-envelope-wrong", "Неверный ключ: печать царапается, растущая пауза.", async (p) => { await openCity(bn)(p); await p.locator("#city-key").fill("ABCDEF"); await p.getByRole("button", { name: "Сломать печать" }).click(); await p.waitForTimeout(1500); });
