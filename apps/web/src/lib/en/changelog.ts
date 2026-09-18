@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Замок в городе стал похож на настоящий навесной: корпус из тёмного металла с бронзовым отливом, стальная дужка входит в корпус и при открытии приподнимается.": "The city lock now looks like a real padlock: a dark metal body with a bronze sheen, a steel shackle that enters the body and lifts when the lock opens.",
   "Кроссворд теперь есть в каждой из 66 книг — по одному району в книге (в коротких посланиях — по всей книге).": "Every one of the 66 books now has a crossword — one district per book (in the short epistles, the whole book).",
   "Выбор ответа в городе — тоже замок: одно кольцо с вариантами и «Провернуть замок»; весы убраны.": "Multiple choice in a city is a lock too: one ring with the options and “Turn the lock”; the scales are gone.",
   "Письмо пророка к заданию по нескольким районам подписано стихами тех районов, что в письме; срок закрепления города показывается с временем.": "The prophet's letter for a multi-district task is labelled with the verses of the districts in the letter; a city's lock deadline is shown with the time.",

@@ -19,6 +19,25 @@ import type { CrosswordWordDto } from "../lib/api";
  * списку; пункт, стоявший на другом кольце, меняется местами с текущим — так порядок всегда остаётся перестановкой.
  * «Список» — простой вид с перетаскиванием для длинных списков.
  */
+/** Дужка навесного замка: П-образная скоба из стали, пятка (правая нога) длиннее носка, тень и блик — как у настоящего замка. */
+function Shackle() {
+  return (
+    <div className="shackle" aria-hidden="true">
+      <svg viewBox="0 0 160 118">
+        <defs>
+          <linearGradient id="shk" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#5C5A57" /><stop offset=".28" stopColor="#D9D6D0" /><stop offset=".55" stopColor="#8E8B86" /><stop offset=".8" stopColor="#C9C5BE" /><stop offset="1" stopColor="#55534F" />
+          </linearGradient>
+        </defs>
+        <path className="shk-shadow" d="M36 118V62a44 44 0 0 1 88 0v56" />
+        <path className="shk-base" d="M34 116V60a44 44 0 0 1 88 0v56" />
+        <path className="shk-body" d="M34 116V60a44 44 0 0 1 88 0v56" />
+        <path className="shk-hi" d="M40 108V60a38 38 0 0 1 76 0v8" />
+      </svg>
+    </div>
+  );
+}
+
 export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWrong, strips, hint }: { ids: string[]; labels: Map<string, string>; sub?: Map<string, string>; onChange: (ids: string[]) => void; disabled?: boolean; state: "idle" | "open" | "jam"; pinsWrong: number | null; strips?: boolean; hint?: string }) {
   const drum = useRef(ids.slice()).current;
   const [simple, setSimple] = useState(false);
@@ -39,7 +58,7 @@ export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWro
   const label = (id: string) => labels.get(id) ?? "";
   return (
     <div className={"lock" + (state === "open" ? " open" : state === "jam" ? " jam" : "") + (strips ? " strips" : "")}>
-      <div className="shackle" aria-hidden="true"><svg viewBox="0 0 120 70"><path d="M22 70V38a38 38 0 0 1 76 0v32" /></svg></div>
+      <Shackle />
       <div className="lock-body">
         <div className="row between lock-top">
           <span className="strong"><Icon name="lock" />{t("Замок")}</span>
@@ -93,7 +112,7 @@ export function LockChoice({ options, choice, onPick, disabled, state }: { optio
   const step = (dir: 1 | -1) => { if (disabled) return; setSpin(dir); onPick((cur + dir + n) % n); };
   return (
     <div className={"lock" + (state === "open" ? " open" : state === "jam" ? " jam" : "")}>
-      <div className="shackle" aria-hidden="true"><svg viewBox="0 0 120 70"><path d="M22 70V38a38 38 0 0 1 76 0v32" /></svg></div>
+      <Shackle />
       <div className="lock-body">
         <div className="row between lock-top"><span className="strong"><Icon name="lock" />{t("Замок")}</span><span className="small">{t("вариант {a} из {b}", { a: cur + 1, b: n })}</span></div>
         <p className="hint">{t("Листайте кольцо, пока на нём не окажется верный ответ, и проверните замок.")}</p>

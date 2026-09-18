@@ -257,14 +257,22 @@
 .deed-sheet .field .label { display: block; font-weight: 600; margin-bottom: 4px; }
 
 /* ===== Формы заданий города (решения владельца 18.09, глава 5): замок, весы, печать, конверт, свиток, кроссворд, отмычка, свеча ===== */
-/* Замок с кольцами. Текстуру корпуса можно заменить картинкой через --lock-tex (см. документ §2.6). */
-.lock { --lock-metal: #6B6258; --lock-dark: #3E3730; --lock-light: #A79C8E; margin-top: var(--sp-3); position: relative; padding-top: 34px; }
-.lock .shackle { position: absolute; top: 0; left: 50%; width: 96px; height: 56px; transform: translateX(-50%); transition: transform .5s var(--spring); z-index: 0; }
+/* Замок с кольцами. Корпус — текстура /img/lock/body.webp (сгенерирована 18.09, см. документ §12.5), дужка — стальная скоба. */
+.lock { --lock-metal: #6B6258; --lock-dark: #3E3730; --lock-light: #A79C8E; --lock-tex: url("/img/lock/body.webp"); --shackle-w: 152px; margin-top: var(--sp-3); position: relative; padding-top: 74px; }
+.lock .shackle { position: absolute; top: 0; left: 50%; width: var(--shackle-w); height: 112px; transform: translateX(-50%); transform-origin: 76% 100%; transition: transform .55s var(--spring); z-index: 0; }
 .lock .shackle svg { width: 100%; height: 100%; overflow: visible; }
-.lock .shackle path { fill: none; stroke: var(--lock-light); stroke-width: 14; stroke-linecap: round; filter: drop-shadow(0 2px 2px rgba(0,0,0,.35)); }
-.lock.open .shackle { transform: translateX(-50%) translateY(-18px) rotate(-12deg); }
+.lock .shackle path { fill: none; stroke-linecap: butt; }
+.lock .shackle .shk-shadow { stroke: rgba(0,0,0,.35); stroke-width: 22; filter: blur(3px); }
+.lock .shackle .shk-base { stroke: #3A3835; stroke-width: 22; }
+.lock .shackle .shk-body { stroke: url(#shk); stroke-width: 18; }
+.lock .shackle .shk-hi { stroke: rgba(255,255,255,.55); stroke-width: 3; stroke-linecap: round; }
+.lock.open .shackle { transform: translateX(-50%) translateY(-22px) rotate(-16deg); }
 .lock.jam { animation: lockJam .5s var(--ease-out); }
-.lock-body { position: relative; z-index: 1; border-radius: var(--r-md); padding: var(--sp-3); color: #F4EEE4; background: var(--lock-tex, linear-gradient(160deg, var(--lock-light) 0%, var(--lock-metal) 35%, var(--lock-dark) 100%)); background-size: cover; box-shadow: inset 0 1px 0 rgba(255,255,255,.25), 0 8px 18px rgba(0,0,0,.25); }
+.lock-body { position: relative; z-index: 1; border-radius: 14px 14px 22px 22px; padding: var(--sp-3); color: #F4EEE4; background: var(--lock-tex, linear-gradient(160deg, var(--lock-light) 0%, var(--lock-metal) 35%, var(--lock-dark) 100%)); background-size: cover; background-position: center; box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -3px 8px rgba(0,0,0,.45), inset 0 0 0 1px rgba(0,0,0,.35), 0 10px 22px rgba(0,0,0,.35); }
+/* Втулки: отверстия в корпусе, куда входят ноги дужки. */
+.lock-body::before, .lock-body::after { content: ""; position: absolute; top: -1px; width: 30px; height: 12px; border-radius: 0 0 8px 8px; background: linear-gradient(180deg, #17150F, #3B342C); box-shadow: inset 0 -2px 3px rgba(255,255,255,.12), 0 1px 0 rgba(255,255,255,.15); }
+.lock-body::before { left: calc(50% - var(--shackle-w) * .5 + 5px); }
+.lock-body::after { left: calc(50% + var(--shackle-w) * .5 - 35px); }
 .lock-top .strong { display: inline-flex; align-items: center; gap: var(--sp-1); color: inherit; }
 .lock-top .ghost { color: #F4EEE4; }
 .lock-body .hint { color: rgba(244,238,228,.8); margin: var(--sp-1) 0 0; }
