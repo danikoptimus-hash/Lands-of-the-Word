@@ -13,7 +13,7 @@ export function WhatsNewPage() {
     <div className="how-to">
       <Back to="-1" label={t("Назад")} />
       <h1 className="mt-2">{t("Что нового")}</h1>
-      <p className="muted mt-2">{t("Кратко об изменениях игры по датам. Подробности:")} <Link to="/how-to-play">{t("Как играть?")}</Link></p>
+      <p className="muted mt-2">{t("Изменения по датам. Подробности —")} <Link to="/how-to-play">{t("Как играть?")}</Link></p>
       {CHANGELOG.map((day) => (
         <section key={day.date} className="card mt-4">
           <h2><span className="ico"><Icon name="sparkle" /></span>{dayLabel(day.date)}</h2>

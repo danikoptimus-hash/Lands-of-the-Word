@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtLeft } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { Help } from "../components/Help";
 import { SortableList } from "./SortableList";
 import type { CrosswordWordDto } from "../lib/api";
 
@@ -38,7 +39,8 @@ function Shackle() {
   );
 }
 
-export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWrong, strips, hint }: { ids: string[]; labels: Map<string, string>; sub?: Map<string, string>; onChange: (ids: string[]) => void; disabled?: boolean; state: "idle" | "open" | "jam"; pinsWrong: number | null; strips?: boolean; hint?: string }) {
+/** hint — короткая строка состояния под шапкой замка; help — инструкция «за кнопкой» рядом со словом «Замок»; tools — кнопки справа (переключатель пересказа). */
+export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWrong, strips, hint, help, tools }: { ids: string[]; labels: Map<string, string>; sub?: Map<string, string>; onChange: (ids: string[]) => void; disabled?: boolean; state: "idle" | "open" | "jam"; pinsWrong: number | null; strips?: boolean; hint?: string; help?: string; tools?: ReactNode }) {
   const drum = useRef(ids.slice()).current;
   const [simple, setSimple] = useState(false);
   const [spin, setSpin] = useState<{ k: number; dir: 1 | -1 } | null>(null);
@@ -61,8 +63,8 @@ export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWro
       <Shackle />
       <div className="lock-body">
         <div className="row between lock-top">
-          <span className="strong"><Icon name="lock" />{t("Замок")}</span>
-          <button type="button" className="ghost sm" onClick={() => setSimple((v) => !v)} aria-pressed={simple}>{simple ? t("Кольца") : t("Список")}</button>
+          <span className="strong"><Icon name="lock" />{t("Замок")}{help && <Help>{help}</Help>}</span>
+          <span className="row nowrap lock-tools">{tools}<button type="button" className="ghost sm" onClick={() => setSimple((v) => !v)} aria-pressed={simple}>{simple ? t("Кольца") : t("Список")}</button></span>
         </div>
         {hint && <p className="hint">{hint}</p>}
         {simple ? (
@@ -90,7 +92,7 @@ export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWro
         {pinsWrong != null && pinsWrong !== 0 && (
           <div className="pins" role="status">
             <span className="pin-row" aria-hidden="true">{Array.from({ length: n }, (_, i) => <i key={i} className={pinsWrong < 0 || i < pinsWrong ? "up" : ""} />)}</span>
-            <span className="small">{pinsWrong < 0 ? t("Замок заклинило: порядок не тот.") : t("Не село штифтов: {n}. Каких — замок не говорит.", { n: pinsWrong })}</span>
+            <span className="small">{pinsWrong < 0 ? t("Заклинило: порядок не тот.") : t("Не село штифтов: {n}.", { n: pinsWrong })}</span>
           </div>
         )}
       </div>
@@ -114,8 +116,7 @@ export function LockChoice({ options, choice, onPick, disabled, state }: { optio
     <div className={"lock" + (state === "open" ? " open" : state === "jam" ? " jam" : "")}>
       <Shackle />
       <div className="lock-body">
-        <div className="row between lock-top"><span className="strong"><Icon name="lock" />{t("Замок")}</span><span className="small">{t("вариант {a} из {b}", { a: cur + 1, b: n })}</span></div>
-        <p className="hint">{t("Листайте кольцо, пока на нём не окажется верный ответ, и проверните замок.")}</p>
+        <div className="row between lock-top"><span className="strong"><Icon name="lock" />{t("Замок")}<Help>{t("Стрелки листают варианты. Верный на кольце — проверните замок.")}</Help></span><span className="small">{t("вариант {a} из {b}", { a: cur + 1, b: n })}</span></div>
         <ol className="rings" aria-label={t("Кольцо замка")}>
           <li className={"ring single" + (spin === 1 ? " spin-down" : spin === -1 ? " spin-up" : "")}>
             <span className="pos" aria-hidden="true"><Icon name="lock" /></span>
@@ -128,7 +129,7 @@ export function LockChoice({ options, choice, onPick, disabled, state }: { optio
             <button type="button" className="ghost turn" disabled={disabled} onClick={() => step(1)} aria-label={t("Следующий вариант")}><Icon name="chevron-down" /></button>
           </li>
         </ol>
-        {state === "jam" && <div className="pins" role="status"><span className="pin-row" aria-hidden="true">{Array.from({ length: n }, (_, i) => <i key={i} className="up" />)}</span><span className="small">{t("Замок заклинило: ответ не тот.")}</span></div>}
+        {state === "jam" && <div className="pins" role="status"><span className="pin-row" aria-hidden="true">{Array.from({ length: n }, (_, i) => <i key={i} className="up" />)}</span><span className="small">{t("Заклинило: ответ не тот.")}</span></div>}
       </div>
     </div>
   );
@@ -169,6 +170,8 @@ export interface EnvelopeProps {
   fragments: Array<string | null>;
   cipher: string;
   recipientText: string;
+  /** Правило шифра города — под «?» рядом с шифром. */
+  codeRule?: string;
   keyValue: string;
   onKey: (v: string) => void;
   onBreak: () => void;
@@ -209,7 +212,7 @@ export function WaxEnvelope(p: EnvelopeProps) {
         </div>
       ) : (
         <>
-          <div className="cipher-line"><span className="small muted">{t("Шифр для адресата")}</span><b className="cipher-text">{p.cipher}</b></div>
+          <div className="cipher-line"><span className="small muted">{t("Шифр для адресата")}{p.codeRule && <Help>{p.codeRule}</Help>}</span><b className="cipher-text">{p.cipher}</b></div>
           <p className="small"><Icon name="mail" /> {p.recipientText}</p>
           {p.ruined ? (
             <div className="actions"><button type="button" disabled={p.busy} onClick={p.onBreak}><Icon name="city" />{t("Занять руины")}</button></div>
@@ -222,7 +225,7 @@ export function WaxEnvelope(p: EnvelopeProps) {
               </div>
               <div className="actions row">
                 <button type="button" disabled={p.busy || p.keyValue.trim().length < 4 || p.cooldown > 0} onClick={p.onBreak}><Icon name="city" />{t("Сломать печать")}</button>
-                {p.cooldown > 0 ? <PickCooling until={Date.now() + p.cooldown * 1000} now={Date.now()} label={t("Печать остывает после неверного ключа")} /> : <span className="hint">{t("Ключ напечатан в конверте: не меньше 4 знаков")}</span>}
+                {p.cooldown > 0 ? <PickCooling until={Date.now() + p.cooldown * 1000} now={Date.now()} label={t("Печать остывает после неверного ключа")} /> : <span className="hint">{t("4–6 знаков")}</span>}
               </div>
             </div>
           )}

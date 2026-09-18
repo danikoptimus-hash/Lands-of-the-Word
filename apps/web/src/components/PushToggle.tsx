@@ -3,6 +3,7 @@ import { disablePush, enablePush, isIos, isStandalone, pushState, type PushState
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "./Icon";
+import { Help } from "./Help";
 
 /**
  * Уведомления на этом устройстве. compact — карточка в одну строку для настроек игры и меню команды:
@@ -36,8 +37,8 @@ export function PushToggle({ compact = false }: { compact?: boolean }) {
         <div className="card-head"><h2><span className="ico"><Icon name="bell" /></span>{t("Уведомления")}</h2></div>
         {iosHint ? <p className="muted small">{t("Чтобы получать уведомления на iPhone, добавьте сайт на экран «Домой» и включите их в аккаунте.")}</p> : (
           <div className="push-row">
-            <span>{t("Уведомления о делах, испытаниях и проходах — на это устройство.")}</span>
-            <button type="button" className="secondary sm" onClick={() => void toggle()} disabled={busy || state === "denied"}><Icon name="bell" />{state === "denied" ? t("Запрещены в браузере") : t("Включить")}</button>
+            <button type="button" className="secondary sm" onClick={() => void toggle()} disabled={busy || state === "denied"}><Icon name="bell" />{state === "denied" ? t("Запрещены в браузере") : t("Включить уведомления")}</button>
+            <Help>{t("Придут на это устройство: проверка дела, испытание, запрос прохода — даже при закрытом сайте.")}</Help>
           </div>
         )}
       </div>
@@ -51,7 +52,7 @@ export function PushToggle({ compact = false }: { compact?: boolean }) {
       {state === "denied" && <p className="note warn"><Icon name="alert" /><span>{t("Уведомления запрещены в настройках браузера для этого сайта. Разрешите их там и обновите страницу.")}</span></p>}
       {(state === "off" || state === "on") && (
         <>
-          <p className="muted">{state === "on" ? t("Включены: уведомления о делах, испытаниях и проходах приходят сюда даже при закрытом сайте.") : t("Уведомления о делах, испытаниях и проходах будут приходить на это устройство даже при закрытом сайте. Письма на почту при этом остаются.")}</p>
+          <p className="muted">{state === "on" ? t("Включены: уведомления о делах, испытаниях и проходах приходят сюда даже при закрытом сайте.") : t("Проверка дела, испытание, запрос прохода — на это устройство, даже при закрытом сайте. Письма остаются.")}</p>
           <div className="actions"><button type="button" className={state === "on" ? "secondary" : ""} disabled={busy} onClick={() => void toggle()}>{state === "on" ? t("Выключить") : t("Включить уведомления")}</button></div>
         </>
       )}

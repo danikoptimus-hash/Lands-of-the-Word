@@ -5,6 +5,7 @@ import { t } from "../lib/i18n";
 import { fmtDate, fmtLeft, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Chip, type ChipTone } from "../components/Chip";
+import { Help } from "../components/Help";
 
 /** Статусы испытания: средний род, единая палитра (DESIGN.md §1, §3). */
 export const BATTLE_STATUS: Record<BattleStatus, string> = { get QUEUED() { return t("в очереди"); }, get ATTACK() { return t("вызов"); }, get DEFENSE() { return t("ответ"); }, get WON() { return t("город перешёл"); }, get REPELLED() { return t("город устоял"); }, get EXPIRED() { return t("вызов не завершён"); }, get CANCELLED() { return t("отменено"); } };
@@ -72,7 +73,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
   return (
     <div className="war">
       <h3>{t("Испытание города")}</h3>
-      <p className="muted small">{t("Уровень испытания: {n}", { n: verses(war.defenseLevel) })}{war.bookVerses ? ` · ${t("в книге {n}", { n: verses(war.bookVerses) })}` : ""}</p>
+      <p className="muted small">{t("Уровень испытания: {n}", { n: verses(war.defenseLevel) })}{war.bookVerses ? ` · ${t("в книге {n}", { n: verses(war.bookVerses) })}` : ""}<Help>{t("Уровень — ставка, с которой город взяли. Новая ставка не меньше минимума.")}</Help></p>
       {war.locked && <div className="note info"><Icon name="lock" /><span>{t("Город закреплён до {date}: хранители выучили всю книгу каждым участником.", { date: war.lockedUntil ? fmtDate(war.lockedUntil) : "" })}</span></div>}
       {error && <p className="error" role="alert">{error}</p>}
       {war.canDeclare && (
@@ -104,11 +105,10 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
       {activeSiege && (
         <div className="battle defense">
           <div className="row between nowrap">
-            <div className="grow"><div className="strong"><Icon name="scroll" /> {t("Осада делами")}</div><div className="muted small">{activeSiege.mine === "ATTACK" ? t("Вы — претенденты, против «{team}»", { team: activeSiege.defender?.name ?? "" }) : t("Вы — хранители, осада от «{team}»", { team: activeSiege.attacker?.name ?? "" })}</div></div>
+            <div className="grow"><div className="strong"><Icon name="scroll" /> {t("Осада делами")}<Help>{t("Считаются любые дела из списка игры, одобренные за время осады; при равенстве город остаётся у хранителей.")}</Help></div><div className="muted small">{activeSiege.mine === "ATTACK" ? t("Вы — претенденты, против «{team}»", { team: activeSiege.defender?.name ?? "" }) : t("Вы — хранители, осада от «{team}»", { team: activeSiege.attacker?.name ?? "" })}</div></div>
             <Chip tone="warn">{t("до {d}", { d: fmtDate(activeSiege.endsAt, { time: false }) })}</Chip>
           </div>
           <p className="muted small mt-2">{t("Баллы за одобренные дела: претенденты {a} · хранители {d}. Осталось {t}.", { a: activeSiege.attackerPoints, d: activeSiege.defenderPoints, t: leftText(activeSiege.endsAt, now) })}</p>
-          <p className="hint">{t("Считаются любые дела из списка игры, одобренные за время осады; при равенстве город остаётся у хранителей.")}</p>
         </div>
       )}
       {active.map((b) => <BattleCard key={b.id} gameId={gameId} b={b} teamId={teamId} isCaptain={isCaptain} now={now} onChanged={() => { void load(); onChanged(); }} />)}
@@ -169,14 +169,14 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, onChanged }: { g
           </div>
         </div>
       )}
-      {!attacker && b.status === "ATTACK" && <p className="muted small mt-2">{t("Претенденты учат отрывок. Когда администратор примет их записи, у вас будет столько же времени на ответ.")}</p>}
-      {attacker && b.status === "DEFENSE" && <p className="muted small mt-2">{t("Хранители отвечают. Их отрывок и счёт вы увидите, когда испытание завершится.")}</p>}
+      {!attacker && b.status === "ATTACK" && <p className="muted small mt-2">{t("Претенденты учат. После проверки их записей у вас будет столько же времени на ответ.")}</p>}
+      {attacker && b.status === "DEFENSE" && <p className="muted small mt-2">{t("Хранители отвечают. Их счёт откроется в конце испытания.")}</p>}
       {(b.status === "ATTACK" || b.status === "DEFENSE") && (attacker || b.status === "DEFENSE") && (
         <>
           <div className="progress mt-2"><span style={{ width: `${Math.min(100, need ? (sum / need) * 100 : 0)}%` }} /></div>
           <div className="muted small mt-1">{t("Выучено {a} из {b} · принято {c}", { a: sum, b: need, c: approved })}{!attacker && b.entries.some((e) => e.carried) ? ` · ${t("зачтено из прошлых испытаний: {n}", { n: b.entries.filter((e) => e.carried).reduce((s, e) => s + e.verses, 0) })}` : ""}</div>
           {!attacker && !passage && b.status === "DEFENSE" && !b.defenseDoneAt && (
-            isCaptain ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Капитан выбирает отрывок ответа из книги. Как только выберет — здесь появится текст.")}</span></div>
+            isCaptain ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Ждём: капитан выбирает отрывок ответа.")}</span></div>
           )}
           {passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn} onChanged={onChanged} />}
           {isCaptain && myTurn && sum < need && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
@@ -210,8 +210,8 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
   const entries = b.entries.filter((e) => e.side === (b.mySide ?? "ATTACK"));
   return (
     <div className="passage mt-3">
-      <div className="row between"><span className="strong">{t("Отрывок {ref}", { ref: passage.ref })}</span><span className="muted small">{t("вы выучили {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 })}</span></div>
-      {!locked && <p className="hint">{t("Отметьте стихи, которые выучили и записали на видео, вставьте ссылку и нажмите «Засчитать». Можно частями.")}</p>}
+      <div className="row between"><span className="strong">{t("Отрывок {ref}", { ref: passage.ref })}{!locked && mine.size > 0 && <Help>{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}</Help>}</span><span className="muted small">{t("вы выучили {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 })}</span></div>
+      {!locked && mine.size === 0 && <p className="hint">{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}</p>}
       {!locked && <button type="button" className="ghost sm" onClick={selectAll}>{t("Выбрать все оставшиеся")}</button>}
       <ul className="verses">
         {(passage.verses ?? []).map((v) => {
@@ -230,8 +230,8 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
       {!locked && (
         <div className="entry-form">
           <div className="field">
-            <label htmlFor={"links-" + b.id}>{t("Ссылки на видео")} <span className="opt">{t("по одной на строку")}</span></label>
-            <textarea id={"links-" + b.id} rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder="https://…" />
+            <label htmlFor={"links-" + b.id}>{t("Ссылки на видео")}</label>
+            <textarea id={"links-" + b.id} rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} />
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="actions"><button type="button" disabled={busy || sel.size === 0 || !links.trim()} onClick={() => void send()}><Icon name="check" />{sel.size ? t("Засчитать {n}", { n: verses(sel.size) }) : t("Засчитать")}</button></div>
@@ -281,7 +281,7 @@ function PassagePicker({ gameId, battleId, need, onChosen }: { gameId: string; b
   const status = a ? (z ? `${a.c + 1}:${a.v + 1} — ${z.c + 1}:${z.v + 1} · ${verses(count)}` : t("начало {ref}, выберите конец", { ref: `${a.c + 1}:${a.v + 1}` })) : t("ничего не выбрано");
   return (
     <div className="picker mt-3">
-      <p className="hint">{t("Нажмите первый и последний стих отрывка из книги {name}. Нужно не меньше {n} на команду.", { name: book.name, n: verses(need) })}</p>
+      <p className="hint">{t("Нажмите первый и последний стих — не меньше {n}.", { n: verses(need) })}</p>
       <div className="field">
         <label htmlFor={"chapter-" + battleId}>{t("Глава")}</label>
         <select id={"chapter-" + battleId} className="chapter-select" value={chapter} onChange={(e) => setChapter(Number(e.target.value))}>

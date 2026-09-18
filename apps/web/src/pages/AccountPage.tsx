@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { Chip } from "../components/Chip";
 import { CopyField } from "../components/CopyField";
+import { Help } from "../components/Help";
 import { PushToggle } from "../components/PushToggle";
 import { errorText } from "./LoginPage";
 
@@ -52,9 +53,8 @@ export function AccountPage() {
           <input id="a-nick" value={user.nickname} readOnly tabIndex={-1} />
           <label htmlFor="a-name">{t("Имя в команде")} <span className="opt">· {t("необязательно")}</span></label>
           <input id="a-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={60} placeholder={t("Как вас показывать команде")} autoComplete="nickname" />
-          <label htmlFor="a-email">{t("Почта")}</label>
+          <label htmlFor="a-email">{t("Почта")}<Help>{t("Для писем и восстановления пароля. Новую почту подтвердите по ссылке из письма.")}</Help></label>
           <input id="a-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
-          <p className="hint">{t("Нужна для восстановления пароля и уведомлений. Новую почту нужно будет подтвердить по ссылке из письма.")}</p>
           <label htmlFor="a-locale">{t("Язык")}</label>
           <select id="a-locale" value={locale} onChange={(e) => setLocale(e.target.value)}><option value="ru">Русский</option><option value="en">English</option></select>
           {profileError && <p className="error" role="alert">{profileError}</p>}
@@ -70,7 +70,7 @@ export function AccountPage() {
           <label htmlFor="a-next">{t("Новый пароль")} <span className="opt">· {t("не короче 8 символов")}</span></label>
           <input id="a-next" type="password" value={next} onChange={(e) => setNext(e.target.value)} autoComplete="new-password" required minLength={8} />
           {passwordError && <p className="error" role="alert">{passwordError}</p>}
-          <div className="actions"><button type="submit" disabled={passwordBusy}>{t("Сменить пароль")}</button></div>
+          <div className="actions"><button type="submit" className="secondary" disabled={passwordBusy}>{t("Сменить пароль")}</button></div>
         </form>
       </div>
 

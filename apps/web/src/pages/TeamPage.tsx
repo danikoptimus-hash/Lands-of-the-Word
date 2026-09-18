@@ -15,6 +15,7 @@ import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
+import { Help } from "../components/Help";
 import { FeedSection, MyServiceSection, PeaceSection } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
@@ -91,6 +92,11 @@ export function TeamPage() {
   const [busy, setBusy] = useState(false);
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const seenBattles = useRef<Map<string, string> | null>(null);
+  /** Описание дела свёрнуто до двух строк («Подробнее»), пока дело не взято мной; при смене дела сворачивается снова. */
+  const [descOpen, setDescOpen] = useState(false);
+  useEffect(() => { setDescOpen(false); }, [selectedId]);
+  /** Положение команд: подробности (испытания, города) раскрыты у одной команды; по умолчанию — у нашей. */
+  const [openStanding, setOpenStanding] = useState<string | null>(null);
 
   const loadStandings = useCallback(() => api<StandingsDto>(`/api/games/${id}/standings`).then(setStandings).catch(() => {}), [id]);
   const loadPassages = useCallback(() => api<PassagesDto>(`/api/games/${id}/my-passages`).then(setPassages).catch(() => {}), [id]);
@@ -281,7 +287,7 @@ export function TeamPage() {
       {menuOpen && !wide && <div className="side-backdrop" onClick={() => setMenu(false)} />}
       {menuOpen && (
         <aside className="side-menu" role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")}>
-          <div className="side-head">
+          <div className="side-head" style={{ ["--team" as string]: team.color }}>
             <TeamAvatar name={team.name} color={team.color} size="lg" />
             <div className="grow"><div className="side-name">{team.name}</div><div className="muted small">{gameName || t("Игра")}{isCaptain ? ` · ${t("вы капитан")}` : ""}</div></div>
             {!wide && <button type="button" className="ghost icon" onClick={() => setMenu(false)} aria-label={t("Закрыть")}><Icon name="x" /></button>}
@@ -289,7 +295,7 @@ export function TeamPage() {
 
           <section className="section">
             <h2><Icon name="scroll" />{t("Наши дела")}<span className="count">{ourTasks.length}</span></h2>
-            {ourTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Дела ждут на карте: нажмите на метку на стороне.")} /> : (
+            {ourTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Возьмите дело: нажмите метку на карте.")} /> : (
               <ul className="list interactive">
                 {ourTasks.map((tk) => { const st = deedStatus(tk.status); return (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
@@ -328,17 +334,23 @@ export function TeamPage() {
               <ol className="standings-list">
                 {standings.standings.map((st, i) => {
                   const trials = st.battlesWon + st.battlesRepelled + st.battlesLost;
+                  const details = trials > 0 || st.citiesOnPath.length > 0;
+                  const opened = openStanding ?? team.id;
+                  const shown = details && opened === st.teamId;
+                  const toggle = () => setOpenStanding(opened === st.teamId ? "" : st.teamId);
                   return (
-                    <li key={st.teamId} className="standing">
+                    <li key={st.teamId} className={"standing" + (details ? " expandable" : "")} role={details ? "button" : undefined} tabIndex={details ? 0 : undefined} aria-expanded={details ? shown : undefined}
+                      onClick={details ? toggle : undefined} onKeyDown={details ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } : undefined}>
                       <span className="rank">{st.teamId === standings.winnerTeamId ? <Icon name="trophy" /> : i + 1}</span>
                       <div className="body">
                         <div className="name">
                           <TeamAvatar name={st.name} color={st.color} size="sm" withName />
                           {st.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : st.teamId === standings.winnerTeamId ? <Chip tone="ok" icon="trophy">{t("победитель")}</Chip> : st.teamId === team.id ? <Chip tone="accent">{t("мы")}</Chip> : null}
+                          {details && <Icon name="chevron-down" className="chev" />}
                         </div>
                         <div className="meta">{plural(st.cities, ["город", "города", "городов"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])} · {plural(st.nodesRevealed, ["перекрёсток", "перекрёстка", "перекрёстков"])}</div>
-                        {trials > 0 && <div className="meta">{t("Испытания")}: {t("выиграли {n}", { n: st.battlesWon })} · {t("устояли {n}", { n: st.battlesRepelled })} · {t("потеряли {n}", { n: st.battlesLost })}</div>}
-                        {st.citiesOnPath.length > 0 && <div className="meta">{t("Города")}: {st.citiesOnPath.map((c) => c.name + (c.current ? "" : ` (${t("потерян")})`)).join(", ")}</div>}
+                        {shown && trials > 0 && <div className="meta">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}<span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><Help>{t("выиграли · устояли · потеряли")}</Help></span></div>}
+                        {shown && st.citiesOnPath.length > 0 && <div className="meta">{t("Города")}: {st.citiesOnPath.map((c) => c.name + (c.current ? "" : ` (${t("потерян")})`)).join(", ")}</div>}
                       </div>
                     </li>
                   );
@@ -394,28 +406,32 @@ export function TeamPage() {
           const proof = PROOF[task.deed.proofType];
           const taker = task.takenById ? memberName(task.takenById) : "";
           const peeked = peekedKind(task.toKey);
+          // Порядок листа (решение владельца 18.09): суть → как сдать → состояние → действие → правила (кодекс).
+          const mine = Boolean(task.takenById) && task.takenById === user?.id;
+          const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
           return (
             <Sheet size="sm" container={mapEl} onClose={() => setSelectedId(null)} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip></div>}>
-              <p className="muted small">{task.deed.direction}{task.deed.remote && <> · <Chip icon="send">{t("можно издалека")}</Chip></>}</p>
-              {task.deed.description && <p className="mt-2">{task.deed.description}</p>}
-              <details className="disclose sm codex">
-                <summary><Icon name="info" />{t("Кодекс дела")}<Icon name="chevron-down" className="chev" /></summary>
-                <ol className="small muted">{CODEX().map((c, i) => <li key={i}>{c}</li>)}</ol>
-              </details>
-              <p className="meta-line mt-2"><Icon name={proof.icon} />{t("Сдать")}: {proof.label()}{taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}</p>
-              {task.deed.secret && <div className="note info"><Icon name="lock" /><span>{t("Тайное дело: ссылку и описание сдачи видит только тот, кто его взял, и проверяющий администратор.")}</span></div>}
-              {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта. Когда дело одобрят, капитан выберет на карте, куда высадиться на другом острове.")}</span></div>}
+              <p className="direction">{task.deed.direction}</p>
+              <p className="meta-line mt-2">
+                <Icon name={proof.icon} />{t("Сдать")}: {proof.label()}
+                {taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}
+                {task.deed.remote && <Chip icon="send">{t("можно издалека")}</Chip>}
+                {task.deed.secret && <><Chip icon="lock">{t("тайное")}</Chip><Help>{t("Сдачу видят только вы и проверяющий.")}</Help></>}
+                {task.sea && <><Chip icon="ship">{t("корабль")}</Chip><Help>{t("После одобрения капитан или кормчий выберет место высадки на другом острове.")}</Help></>}
+              </p>
+              {task.deed.description && <p className={"deed-desc mt-2" + (longDesc && !descOpen ? " clamp" : "")}>{task.deed.description}</p>}
+              {longDesc && <button type="button" className="ghost sm desc-more" aria-expanded={descOpen} onClick={() => setDescOpen((v) => !v)}><Icon name={descOpen ? "chevron-up" : "chevron-down"} />{descOpen ? t("Свернуть") : t("Подробнее")}</button>}
               {task.landing && (isLeader
                 ? <div className="actions"><button type="button" onClick={() => { setLandingId(task.id); setSelectedId(null); }}><Icon name="anchor" />{t("Выбрать место высадки")}</button></div>
                 : <div className="note info"><Icon name="anchor" /><span>{t("Дело одобрено: капитан выбирает место высадки.")}</span></div>)}
               {task.status === "REJECTED" && <div className="note bad"><Icon name="alert" /><span>{task.adminComment ? t("Администратор вернул дело: «{comment}». Исправьте и сдайте снова.", { comment: task.adminComment }) : t("Администратор вернул дело. Исправьте и сдайте снова.")}</span></div>}
-              {task.status === "SUBMITTED" && <div className="note info"><Icon name="clock" /><span>{t("Сдано, ждём проверки администратора.")}</span></div>}
-              {peeked && <div className="note info"><Icon name="telescope" /><span>{peeked === "CITY" ? t("Разведка: за этой стороной город.") : t("Разведка: за этой стороной развилка.")}</span></div>}
+              {task.status === "SUBMITTED" && <div className="note info"><Icon name="clock" /><span>{t("На проверке у администратора.")}</span></div>}
+              {peeked && <div className="note info"><Icon name="telescope" /><span>{peeked === "CITY" ? t("Разведано: там город.") : t("Разведано: там развилка.")}</span></div>}
               {error && <p className="error" role="alert">{error}</p>}
               {(task.status === "OPEN" || task.status === "REJECTED") && (
                 <div className="actions">
                   <button type="button" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
-                  {me?.gameRole === "SCOUT" && !peeked && <button type="button" className="secondary" disabled={busy} onClick={() => void peek(task.toKey)}><Icon name="telescope" />{t("Разведать · раз в неделю")}</button>}
+                  {me?.gameRole === "SCOUT" && !peeked && <><button type="button" className="secondary" disabled={busy} onClick={() => void peek(task.toKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></>}
                 </div>
               )}
               {task.status === "TAKEN" && (
@@ -424,6 +440,10 @@ export function TeamPage() {
                   onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
                   onRelease={() => void release(task)} />
               )}
+              <details className="disclose sm codex">
+                <summary><Icon name="info" />{t("Кодекс дела")}<Icon name="chevron-down" className="chev" /></summary>
+                <ol className="small muted">{CODEX().map((c, i) => <li key={i}>{c}</li>)}</ol>
+              </details>
             </Sheet>
           );
         })()}
@@ -447,7 +467,7 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
   const noteOut = report ? [q.what && `${t("Что сделал")}: ${q.what}`, q.who && `${t("Кому и как")}: ${q.who}`, q.touched && `${t("Что тронуло")}: ${q.touched}`].filter(Boolean).join("\n") : note;
   return (
     <>
-      {donationCfg && <label className="check mt-2"><input type="checkbox" checked={donation} onChange={(e) => setDonation(e.target.checked)} />{t("Вместо дела — пожертвование в кассу церкви (от {min} {cur})", { min: donationCfg.min, cur: donationCfg.currency })}</label>}
+      {donationCfg && <div className="row nowrap mt-2"><label className="check grow"><input type="checkbox" checked={donation} onChange={(e) => setDonation(e.target.checked)} />{t("Вместо дела — пожертвование (от {min} {cur})", { min: donationCfg.min, cur: donationCfg.currency })}</label><Help>{t("В кассу церкви. Сдаётся ссылка на чек или подтверждение перевода.")}</Help></div>}
       {donation && donationCfg && (
         <div className="field">
           <label htmlFor="deed-amount">{t("Сумма")}, {donationCfg.currency}</label>
@@ -455,8 +475,8 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
         </div>
       )}
       <div className="field">
-        <label htmlFor="deed-links">{donation ? t("Ссылка на чек или подтверждение перевода") : t("Ссылки на фото или видео")} <span className="opt">{t("по одной на строку")}</span></label>
-        <textarea id="deed-links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder="https://…" />
+        <label htmlFor="deed-links">{donation ? t("Ссылка на чек или подтверждение перевода") : t("Ссылки на фото или видео")}</label>
+        <textarea id="deed-links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} />
       </div>
       {report ? (
         <>
@@ -492,8 +512,8 @@ function Roster({ team, isCaptain, onRole, onDeputy }: { team: TeamDto; isCaptai
   const nextChange = team.roleChangeAvailableAt && Date.parse(team.roleChangeAvailableAt) > Date.now() ? team.roleChangeAvailableAt : null;
   return (
     <>
-      <h2><Icon name="users" />{t("Состав")}<span className="count">{team.members.length}</span></h2>
-      {isCaptain && <p className="hint">{nextChange ? t("Роли меняются раз в неделю с одобрения администратора: следующая смена — {d}.", { d: fmtDate(nextChange, { time: false }) }) : t("Роли назначает капитан, одобряет администратор игры; не чаще раза в неделю.")}</p>}
+      <h2><Icon name="users" />{t("Состав")}<span className="count">{team.members.length}</span>{isCaptain && <Help>{t("Роли назначает капитан, одобряет администратор. Менять — не чаще раза в неделю.")}</Help>}</h2>
+      {isCaptain && nextChange && <p className="hint">{t("Следующая смена ролей — {d}.", { d: fmtDate(nextChange, { time: false }) })}</p>}
       <ul className="list roster">
         {team.members.map((m) => {
           const name = m.user.displayName ?? m.user.nickname;
@@ -505,7 +525,7 @@ function Roster({ team, isCaptain, onRole, onDeputy }: { team: TeamDto; isCaptai
             <li key={m.user.id}>
               <div className="main">
                 <div className="person"><span className="avatar">{name.slice(0, 1).toUpperCase()}</span><span className="name">{name}</span>{m.role === "DEPUTY" && m.gameRole !== "NONE" && <Chip tone="accent" icon="star">{t("заместитель")}</Chip>}</div>
-                {m.pendingRole && <p className="hint">{t("Запрошена роль «{role}»: ждёт одобрения администратора", { role: ROLE[m.pendingRole].label() })}</p>}
+                {m.pendingRole && <p className="mt-1"><Chip tone="warn" icon="clock">{t("{role} · ждёт одобрения", { role: ROLE[m.pendingRole].label() })}</Chip></p>}
                 {shown && r.hint() && <p className="hint">{r.hint()}</p>}
               </div>
               <div className="side">

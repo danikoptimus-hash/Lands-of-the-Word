@@ -8,6 +8,7 @@ import { useUi } from "../lib/ui";
 import { Icon } from "../components/Icon";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { Back } from "../components/Back";
+import { Help } from "../components/Help";
 import { EmptyState, LoadingState } from "../components/State";
 
 /**
@@ -68,11 +69,12 @@ export function FeedSection({ gameId, version }: { gameId: string; version: numb
   const [all, setAll] = useState(false);
   const load = useCallback(() => api<{ items: FeedItemDto[] }>(`/api/games/${gameId}/feed`).then((r) => setItems(r.items)).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load, version]);
-  const shown = items ? (all ? items : items.slice(0, 12)) : [];
+  /** По умолчанию шесть записей — меню укладывается в экран телефона; дальше «Показать всё». */
+  const shown = items ? (all ? items : items.slice(0, 6)) : [];
   return (
     <section className="section">
       <h2><Icon name="scroll" />{t("Что случилось")}</h2>
-      {!items ? <LoadingState rows={2} /> : items.length === 0 ? <EmptyState inline icon="scroll" text={t("Пока тихо: первые события появятся, когда команда возьмёт дело.")} /> : (
+      {!items ? <LoadingState rows={2} /> : items.length === 0 ? <EmptyState inline icon="scroll" text={t("Пока тихо. Первые события — после первого дела.")} /> : (
         <ul className="feed">
           {shown.map((it) => (
             <li key={it.id} className={it.everyone && !it.mine ? "news" : ""}>
@@ -85,7 +87,7 @@ export function FeedSection({ gameId, version }: { gameId: string; version: numb
           ))}
         </ul>
       )}
-      {items && items.length > 12 && !all && <p className="mt-2"><button type="button" className="ghost sm" onClick={() => setAll(true)}>{t("Показать всё ({n})", { n: items.length })}</button></p>}
+      {items && items.length > 6 && !all && <p className="mt-2"><button type="button" className="ghost sm" onClick={() => setAll(true)}>{t("Показать всё ({n})", { n: items.length })}</button></p>}
     </section>
   );
 }
@@ -131,7 +133,7 @@ export function PeaceSection({ gameId, version }: { gameId: string; version: num
   if (!data || data.teams.length === 0) return null;
   return (
     <section className="section">
-      <h2><Icon name="handshake" />{t("Мир")}{data.teams.some((p) => p.state === "incoming") && <span className="count-chip hot">{data.teams.filter((p) => p.state === "incoming").length}</span>}</h2>
+      <h2><Icon name="handshake" />{t("Мир")}{data.teams.some((p) => p.state === "incoming") && <span className="count-chip hot">{data.teams.filter((p) => p.state === "incoming").length}</span>}<Help>{t("В мире команды не испытывают города друг друга и не объявляют осад. Мир бессрочный: держится, пока одна из сторон его не расторгнет.")}</Help></h2>
       <ul className="list">
         {data.teams.map((p) => (
           <li key={p.team.id}>
@@ -146,7 +148,6 @@ export function PeaceSection({ gameId, version }: { gameId: string; version: num
           </li>
         ))}
       </ul>
-      <p className="hint">{t("Пока мир действует, команды не бросают вызов городам друг друга и не объявляют осад. Мир не на срок: он действует, пока одна из сторон его не расторгнет.")}</p>
     </section>
   );
 }
@@ -196,10 +197,9 @@ export function JournalAdmin({ gameId, version, active }: { gameId: string; vers
   return (
     <div className="card">
       <div className="card-head">
-        <h2><span className="ico"><Icon name="scroll" /></span>{t("Журнал событий")}</h2>
+        <h2><span className="ico"><Icon name="scroll" /></span>{t("Журнал событий")}<Help>{t("Летопись уходит сама раз в неделю (день и час — в продвинутых настройках): дела, города, испытания без ставок, положение команд.")}</Help></h2>
         {active && <button type="button" className="secondary sm" disabled={busy} onClick={() => void chronicle()}><Icon name="send" />{t("Отправить летопись сейчас")}</button>}
       </div>
-      <p className="hint">{t("Летопись недели уходит сама раз в неделю (день и час — в продвинутых настройках); в неё входят дела, города, испытания без ставок и положение команд.")}</p>
       {!items ? <LoadingState rows={2} /> : items.length === 0 ? <EmptyState inline icon="scroll" text={t("Событий пока нет.")} /> : (
         <ul className="feed compact">
           {items.slice(0, 80).map((it) => { const tm = teamOf(it.teamId); return (
@@ -237,7 +237,7 @@ export function SeasonBookPage() {
           <h1><span className="ico"><Icon name="book" /></span>{t("Книга сезона")}</h1>
           <button type="button" className="btn" onClick={() => window.print()}><Icon name="printer" />{t("Печать")}</button>
         </div>
-        <p className="hint">{t("Итоги игры для показа на собрании: положение команд, города, дела по командам и участникам, испытания и летописи.")}</p>
+        <p className="hint">{t("Итоги для показа на собрании. Кнопка «Печать» — для бумаги.")}</p>
       </div>
       <header className="book-head">
         <div className="org">{book.game.org}</div>

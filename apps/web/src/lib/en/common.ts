@@ -1,6 +1,8 @@
 /** EN-строки общих компонентов (шапка, состояния, тосты, даты). Ключ — русская строка как в коде. */
 export const COMMON: Record<string, string> = {
   "Что это?": "What is this?", "Как это работает": "How it works",
+  "Придут на это устройство: проверка дела, испытание, запрос прохода — даже при закрытом сайте.": "They arrive on this device: deed review, a trial, a passage request — even with the site closed.",
+  "Проверка дела, испытание, запрос прохода — на это устройство, даже при закрытом сайте. Письма остаются.": "Deed review, a trial, a passage request — on this device, even with the site closed. E-mails stay.",
   "Подтвердите": "Confirm", "Ещё": "More", "Меню пользователя": "User menu", "Аналитика": "Analytics",
   "Не удалось загрузить": "Could not load", "Повторить": "Retry", "Закрыть": "Close",
   "Скопировано": "Copied", "Скопировать": "Copy", "Не удалось скопировать: выделите текст вручную": "Could not copy: select the text by hand",

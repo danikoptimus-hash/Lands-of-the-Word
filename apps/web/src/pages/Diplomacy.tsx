@@ -6,6 +6,7 @@ import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Chip, type ChipTone } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
+import { Help } from "../components/Help";
 import { EmptyState } from "../components/State";
 
 export interface PassagesDto { canSpeak: boolean; outgoing: PassageDto[]; incoming: PassageDto[] }
@@ -41,14 +42,14 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
   }
   return (
     <div className="passage-section">
-      <div className="row between"><h3>{t("Проход через город")}</h3>{last && <PassageChip s={last.status} />}</div>
+      <div className="row between"><h3>{t("Проход через город")}<Help>{t("Дальше через чужой город идти нельзя без разрешения владельца.")}</Help></h3>{last && <PassageChip s={last.status} />}</div>
       {last?.status === "APPROVED" ? (
-        <p className="muted small mt-2">{t("Проход открыт: стороны за городом доступны. Владелец может закрыть его в любой момент.")}{last.answer ? ` ${t("Ответ: «{a}»", { a: last.answer })}` : ""}</p>
+        <p className="muted small mt-2">{t("Проход открыт: стороны за городом доступны.")}{last.answer ? ` ${t("Ответ: «{a}»", { a: last.answer })}` : ""}</p>
       ) : last?.status === "PENDING" ? (
         <p className="muted small mt-2">{t("Запрос отправлен {d}. Ответ до {until}; молчание — отказ.", { d: fmtDate(last.createdAt), until: fmtDate(last.expiresAt) })}</p>
       ) : (
         <>
-          <p className="muted small mt-2">{t("Дальше через чужой город идти нельзя без разрешения владельца.")}{last ? ` ${t("Последний ответ: {s}", { s: passageStatus(last.status).label })}${last.answer ? ` («${last.answer}»)` : ""}.` : ""}</p>
+          {last && <p className="muted small mt-2">{t("Последний ответ: {s}", { s: passageStatus(last.status).label })}{last.answer ? ` («${last.answer}»)` : ""}.</p>}
           {data?.canSpeak ? (
             <>
               <div className="field">
@@ -57,7 +58,7 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
               </div>
               <div className="actions"><button type="button" disabled={busy} onClick={() => void request()}><Icon name="handshake" />{t("Запросить проход")}</button></div>
             </>
-          ) : <p className="hint">{t("Запрос отправляет посол команды, а если посла нет — капитан.")}</p>}
+          ) : <p className="hint">{t("Запрос отправляет посол или капитан.")}</p>}
         </>
       )}
       {error && <p className="error" role="alert">{error}</p>}

@@ -6,6 +6,7 @@ export const GUEST: Record<string, string> = {
   "Почта нужна, чтобы восстановить пароль и получать уведомления.": "Email is needed to recover your password and receive notifications.",
   "Создать аккаунт": "Create account",
   "На почту придёт письмо со ссылкой: без подтверждения играть нельзя. Она же нужна, чтобы восстановить пароль.": "A confirmation link will be sent to this email: you cannot play until it is confirmed. It is also used to recover your password.",
+  "Пришлём письмо со ссылкой — без неё играть нельзя. По этой почте восстанавливают пароль.": "We will send a link by e-mail — you cannot play until you open it. The same e-mail restores your password.",
   // Подтверждение почты
   "Подтверждение почты": "Email confirmation",
   "Почта подтверждена": "Email confirmed",
@@ -48,5 +49,6 @@ export const GUEST: Record<string, string> = {
   "нельзя изменить": "cannot be changed",
   "Имя в команде": "Name in the team",
   "Нужна для восстановления пароля и уведомлений.": "Needed for password recovery and notifications.",
+  "Для писем и восстановления пароля. Новую почту подтвердите по ссылке из письма.": "For e-mails and password recovery. Confirm a new e-mail via the link we send.",
   "Ссылка для сброса пароля": "Password reset link",
 };

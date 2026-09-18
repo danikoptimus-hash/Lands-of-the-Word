@@ -85,7 +85,7 @@ export function LoginPage() {
           <>
             <label htmlFor="email">{t("Почта")}</label>
             <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
-            <p className="hint">{t("На почту придёт письмо со ссылкой: без подтверждения играть нельзя. Она же нужна, чтобы восстановить пароль.")}</p>
+            <p className="hint">{t("Пришлём письмо со ссылкой — без неё играть нельзя. По этой почте восстанавливают пароль.")}</p>
           </>
         )}
         {error && <p className="error" role="alert">{error}</p>}
