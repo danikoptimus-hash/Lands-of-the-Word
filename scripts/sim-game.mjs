@@ -116,6 +116,7 @@ const content = (book) => JSON.parse(readFileSync(join(CONTENT, book + ".json"),
 const cap = (T) => TEAMS[T].nicks[0];
 /** Текущий состав (после переводов участников администратором состав меняется). */
 const members = (T) => (S.teams[T]?.members?.length ? S.teams[T].members.map((m) => m.user.nickname) : TEAMS[T].nicks);
+const memberAt = (T, i) => { const ms = members(T); return ms[i % ms.length]; };
 const userId = (nick) => S.users[nick];
 async function refreshTeams() {
   const r = await get(ADMIN, `/api/games/${S.gameId}/teams`);
@@ -125,7 +126,7 @@ const myMap = (nick) => get(nick, `/api/games/${S.gameId}/my-map`);
 
 /** Один шаг по делам: взять дело в сторону ближайшего города, сдать группой, администратор одобряет. */
 async function doDeed(T, i, opts = {}) {
-  const who = members(T)[i % 6];
+  const who = memberAt(T, i);
   const m = await myMap(cap(T));
   const owned = new Set((m.cities ?? []).filter((c) => c.captured).map((c) => c.nodeKey));
   const open = m.tasks.filter((t) => t.status === "OPEN" && !t.sea);
@@ -189,7 +190,7 @@ async function solveCity(T, key, opts = {}) {
   }
   for (const pub of c.content.tasks) {
     if (c.state.doneTasks.includes(pub.index)) continue;
-    const who = members(T)[pub.index % 6];
+    const who = memberAt(T, pub.index);
     if (opts.beforeTask) await opts.beforeTask(pub, who);
     if (opts.wrongOn === pub.type) {
       const wrong = pub.type === "choice" ? (answerFor(src.tasks[pub.index], pub) + 1) % pub.options.length : pub.type === "number" ? "9999" : pub.type === "text" ? "неверно" : pub.type === "order" ? pub.items.map((i) => i.id).reverse() : pub.words.map(() => "абв");
@@ -475,6 +476,7 @@ async function main() {
     await post("tg_m1", `/api/games/${S.gameId}/my-city/${encodeURIComponent(ruinNode.key)}/capture`, { key: "" }).catch(async () => capture("M", ruinNode.key));
     await snap(e10, "tg_m1", `/games/${S.gameId}/team`, "treasure-feed", "Лента «Моряков»: находка в руинах — знак шифра ближайшего города; руины заняты.", async (p) => { await openMenu(p); await scrollTo("Что случилось")(p); });
     await post(ADMIN, `/api/games/${S.gameId}/teams/${S.teams.B.id}/members/${userId("tg_b2")}/move`, { toTeamId: S.teams.P.id }).catch((e) => failures.push({ title: "перевод из выбывшей команды", error: e.message }));
+    await refreshTeams();
   });
 
   // 9. Столица: перенос
