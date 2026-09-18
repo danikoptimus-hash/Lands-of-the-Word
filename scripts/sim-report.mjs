@@ -66,5 +66,27 @@ ${R.failures.length ? R.failures.map((f) => `<div class="fail"><b>${esc(f.title)
 <h2>Журнал прогона</h2><pre>${esc((R.log ?? []).join("\n"))}</pre>
 </div></body></html>`;
 writeFileSync(join(DIR, "report.html"), html);
+// Вариант для публикации как артефакт (без обёртки документа, с тёмной темой).
+const body = html.slice(html.indexOf("<div class=\"wrap\">"), html.lastIndexOf("</body>"));
+const css = `<title>Тестовая партия 18.09</title>
+<style>
+:root{--bg:#F6F4EF;--ink:#2A241E;--muted:#6B645A;--accent:#C7742A;--line:#E3DDD0;--card:#fff;--chip:#FBEEDF;--fail-bg:#FBE9E5;--fail-line:#B3402F;--ok-bg:#E6F2E9;--ok-line:#356A44}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1F1B17;--ink:#EDE6DA;--muted:#A79C8E;--accent:#E0965A;--line:#3B342C;--card:#2A241E;--chip:#3B2E22;--fail-bg:#3A2320;--fail-line:#D9705E;--ok-bg:#1F3326;--ok-line:#7FBF93}}
+:root[data-theme="dark"]{--bg:#1F1B17;--ink:#EDE6DA;--muted:#A79C8E;--accent:#E0965A;--line:#3B342C;--card:#2A241E;--chip:#3B2E22;--fail-bg:#3A2320;--fail-line:#D9705E;--ok-bg:#1F3326;--ok-line:#7FBF93}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 Inter,system-ui,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:24px 16px 64px}
+h1{font-size:1.8rem;line-height:1.2;margin:0 0 8px;text-wrap:balance}h2{font-size:1.35rem;margin:40px 0 12px;padding-top:12px;border-top:2px solid var(--accent)}h3{font-size:1.1rem;margin:24px 0 6px}
+p{max-width:70ch}.lead{color:var(--muted)}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0}.toc a{font-size:.9rem;padding:4px 10px;border-radius:999px;background:var(--chip);color:var(--ink);text-decoration:none}
+.shots{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start;margin:12px 0 20px}
+figure{margin:0;flex:1 1 240px;max-width:300px}figure.wide{flex-basis:100%;max-width:100%}
+figure img{display:block;width:100%;max-width:100%;height:auto;border-radius:8px;border:1px solid var(--line);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+figcaption{font-size:.9rem;color:var(--muted);margin-top:6px}figcaption b{color:var(--ink);font-weight:600}
+.fail{background:var(--fail-bg);border-left:4px solid var(--fail-line);padding:10px 14px;border-radius:6px;margin:8px 0}
+.ok{background:var(--ok-bg);border-left:4px solid var(--ok-line);padding:10px 14px;border-radius:6px}
+pre{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:12px;font-size:.8rem;overflow:auto}
+</style>
+`;
+writeFileSync(join(DIR, "artifact.html"), css + body);
 console.log(`готово: ${R.entries.reduce((a, e) => a + e.shots.length, 0)} снимков, сбоев ${R.failures.length}`);
 if (!existsSync(join(DIR, "img"))) console.warn("нет папки img");
