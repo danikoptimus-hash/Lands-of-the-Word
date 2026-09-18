@@ -161,7 +161,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const lock = await prisma.teamTaskLock.findUnique({ where: lockWhere });
     // Растущая пауза на это задание: пока не прошла, ответ не принимается.
     if (lock?.lockedUntil && lock.lockedUntil.getTime() > now) {
-      return reply.code(429).send({ error: "cooldown", message: err(request, "Отмычка остывает: подождите перед следующей попыткой"), retryAt: lock.lockedUntil.getTime() });
+      return reply.code(429).send({ error: "cooldown", message: err(request, "Замок заклинило: подождите перед следующей попыткой"), retryAt: lock.lockedUntil.getTime() });
     }
     const correct = checkAnswer(task, index, secret, c.scopeKey, body.answer);
     let retryAt: number | null = null;

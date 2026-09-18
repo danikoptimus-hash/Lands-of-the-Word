@@ -74,7 +74,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
     try {
       const r = await api<{ correct: boolean; fragment?: string; retryAt?: number | null; wrong?: number }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
       if (r.correct) { setStruck(index); notify(t("Верно. Знак шифра: {f}", { f: r.fragment ?? "" })); await sleep(900); }
-      else notify(t("Неверно. Отмычка остывает: следующая попытка через {t}", { t: r.retryAt ? fmtLeft(r.retryAt - Date.now()) : "" }), "bad");
+      else notify(t("Неверно. Замок заклинило: следующая попытка через {t}", { t: r.retryAt ? fmtLeft(r.retryAt - Date.now()) : "" }), "bad");
       await load(); onChanged();
       return r.correct;
     } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); if (e instanceof ApiError && e.status === 429) void load(); return false; }
@@ -257,7 +257,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
 const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.some((l) => l.index === index && l.lockedUntil != null && l.lockedUntil > now);
 
 function TaskView({ task, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify }: { task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
-  /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
+  /** Замок заклинило: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
   const cooldown = 0;
   const nextPause = pauseSteps[Math.min(lock?.wrong ?? 0, pauseSteps.length - 1)] ?? 20;
@@ -285,7 +285,7 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
   const send = async () => { const ok = await onAnswer(value); setResult(ok ? "ok" : "bad"); if (!ok) setTimeout(() => setResult(null), 900); };
   const scope = task.scope === "book" ? t("По всей книге") : task.scope === "group" ? t("По районам: {list}", { list: groupTitles?.join(", ") ?? "" }) : t("По этому району");
   const title = task.scope === "district" && district ? [t("Район {n}", { n: task.index + 1 }), district.title, district.verses].filter(Boolean).join(" · ") : t("Задание {n}", { n: task.index + 1 });
-  const why = locked ? t("Отмычка остывает") : null;
+  const why = locked ? t("Замок заклинило") : null;
   return (
     <div className="task-view" onContextMenu={(e) => e.preventDefault()}>
       <div className="row between nowrap">
@@ -295,11 +295,11 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
       <h3 className="mt-2">{title}</h3>
       <p className="muted small">{scope}</p>
       {!(task.type === "text" && gap && !done) && <p className="prompt no-copy" onCopy={(e) => e.preventDefault()}>{task.prompt}</p>}
-      {!done && !locked && (lock?.wrong ?? 0) > 0 && <p className="muted small">{t("Неверных подряд: {n}. Следующая ошибка остудит отмычку на {t}.", { n: lock!.wrong, t: fmtLeft(nextPause * 1000) })}</p>}
+      {!done && !locked && (lock?.wrong ?? 0) > 0 && <p className="muted small">{t("Неверных подряд: {n}. Следующая ошибка заклинит замок на {t}.", { n: lock!.wrong, t: fmtLeft(nextPause * 1000) })}</p>}
       {locked && lock && (
         <div className="note bad lock-note">
-          <div className="row nowrap"><PickCooling until={lock.lockedUntil!} now={now} label={t("Отмычка остывает")} total={(pauseSteps[Math.min(Math.max(lock.wrong - 1, 0), pauseSteps.length - 1)] ?? 20) * 1000} /></div>
-          <span className="small">{t("Отмычка остывает после неверного ответа. Следующая попытка через {t}.", { t: fmtLeft(lock.lockedUntil! - now) })}</span>
+          <div className="row nowrap"><PickCooling until={lock.lockedUntil!} now={now} label={t("Замок заклинило")} total={(pauseSteps[Math.min(Math.max(lock.wrong - 1, 0), pauseSteps.length - 1)] ?? 20) * 1000} /></div>
+          <span className="small">{t("Замок заклинило после неверного ответа. Следующая попытка через {t}.", { t: fmtLeft(lock.lockedUntil! - now) })}</span>
         </div>
       )}
       {openRequest && <div className="note info"><Icon name="send" /><span>{t("Обращение в поддержку отправлено {d}. Ждём ответа.", { d: fmtDate(new Date(openRequest.createdAt).toISOString()) })}</span></div>}

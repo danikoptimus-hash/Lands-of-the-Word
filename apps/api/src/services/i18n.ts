@@ -9,6 +9,7 @@ import { BOOKS } from "@lotw/domain";
 export type Locale = "ru" | "en";
 
 const EN: Record<string, string> = {
+  "Замок заклинило: подождите перед следующей попыткой": "The lock jammed: wait before the next attempt",
   // Журнал событий (лента, летопись, книга сезона)
   "{user} сдал(а) дело «{deed}» на проверку": "{user} submitted the deed “{deed}” for review",
   "Дело «{deed}» принято{who}: перекрёсток открыт": "Deed “{deed}” approved{who}: the crossroads is open",
