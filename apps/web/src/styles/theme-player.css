@@ -1,38 +1,39 @@
 /* Материалы экранов игрока (решение владельца 18.09, «игра, а не сайт»): HUD, меню команды, карточка дела, город,
    шаги, районы, задание, конверт и грамоты, испытание, «Как играть». Подключается после player.css и theme.css:
    только фон, рамки, тени, шрифт, цвет. Размеры, позиции, safe-area и классы-якоря скриптов (.hud-left, .district,
-   .city-sheet, details.disclose, #city-key) не трогаем. */
+   .city-sheet, details.disclose, #city-key) не трогаем.
+   Поправка 19.09 («аккуратно и легко»): HUD — светлый лист с одной кромкой; номера и места — светлые кружки с обводкой,
+   а не монеты; иконки заголовков — плоские; текстуры сняты со строк, кнопок и вариантов; реквизит (замок, свеча,
+   печати, рваный лист, колесо шифра) остаётся. */
 
-/* ---------- HUD: пергаментные кнопки в бронзовой оправе, без размытия над морем ---------- */
+/* ---------- HUD: светлый лист с одной кромкой и одной тенью, без размытия над морем ---------- */
 .hud-left .hud-btn, .hud-left .hud-team, .map-area .map-controls button {
-  background: var(--paper-lift), var(--tex-paper) center / 256px repeat var(--paper); border: 1px solid var(--bronze-deep); color: var(--ink);
-  box-shadow: 0 0 0 2px rgba(241,208,138,.45), 0 2px 6px rgba(0,0,0,.4); text-shadow: none; }
-.hud-left .hud-btn:hover, .hud-left .hud-team:hover, .map-area .map-controls button:hover { background: var(--paper-lift), var(--tex-paper) center / 256px repeat var(--paper-light); border-color: var(--bronze-deep); }
+  background: var(--paper-light); border: 1px solid var(--border-strong); color: var(--ink);
+  box-shadow: 0 1px 3px rgba(0,0,0,.28); text-shadow: none; }
+.hud-left .hud-btn:hover, .hud-left .hud-team:hover, .map-area .map-controls button:hover { background: #FFFBF0; border-color: var(--ink-2); }
 .hud-left .hud-team { backdrop-filter: none; -webkit-backdrop-filter: none; font: 700 var(--fs-sm)/1 var(--font-ui); }
 .hud-left .hud-btn .count-chip.hot { box-shadow: none; }
-.finish-banner { background: var(--paper-bg); border: 1px solid var(--moss-ink); color: var(--moss-ink); font-family: var(--font-ui); box-shadow: var(--shadow-paper); }
+.finish-banner { background: var(--paper-light); border: 1px solid var(--moss-ink); color: var(--moss-ink); font-family: var(--font-ui); box-shadow: 0 1px 3px rgba(0,0,0,.28); }
 
 /* ---------- Меню команды: голова — дерево с лентой цвета команды, секции — лист ---------- */
 .side-menu { background: var(--paper-bg); }
-@media (min-width: 1024px) { .side-menu { border-right: 2px solid var(--bronze-deep); box-shadow: 4px 0 12px rgba(31,20,10,.22); } }
-.side-head { background: var(--tex-wood) center / 512px repeat var(--wood-dark); color: var(--paper); border-bottom: 4px solid var(--team, var(--bronze)); box-shadow: inset 0 -6px 12px rgba(0,0,0,.35); }
+@media (min-width: 1024px) { .side-menu { border-right: 1px solid var(--bronze-deep); box-shadow: 2px 0 8px rgba(31,20,10,.16); } }
+.side-head { background: var(--tex-wood) center / 512px repeat var(--wood-dark); color: var(--paper); border-bottom: 3px solid var(--team, var(--bronze)); box-shadow: none; }
 .side-head .side-name { font: 700 var(--fs-xl)/1.1 var(--font-display); }
 .side-head .muted { color: var(--paper-2); font-family: var(--font-ui); }
 .side-head button.ghost { color: var(--paper); }
 .side-head button.ghost:hover { background: rgba(255,246,227,.12); color: var(--paper-light); }
-.side-menu .section { border-bottom: 1px solid var(--paper-edge); box-shadow: 0 1px 0 rgba(255,250,238,.6); }
+.side-menu .section { border-bottom: 1px solid var(--paper-edge); box-shadow: none; }
 .side-menu .section h2 { font: 700 20px/1.15 var(--font-display); color: var(--ink); }
-.side-menu .section h2 > .i { width: 26px; height: 26px; padding: 6px; border-radius: 50%; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); filter: drop-shadow(0 1px 1px rgba(59,36,21,.4)); }
+.side-menu .section h2 > .i { width: 22px; height: 22px; padding: 0; border-radius: 0; background: none; color: var(--bronze-ink); filter: none; }
 .side-menu .section h2 .count { font: 400 18px/1 var(--font-display); color: var(--ink-2); }
 .side-menu .list .title { font-family: var(--font-book); }
 .side-menu .card { background: var(--paper-2); box-shadow: none; padding: var(--sp-3); margin-bottom: 0; }
-.side-menu .card::after { display: none; }
 .side-menu .card-head h2 { font-size: var(--fs-lg); }
-/* Положение команд: места — монеты, названия — Philosopher, счёт — Literata с табличными цифрами */
-.standing { border-top: 1px solid var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
-.standing:first-child { box-shadow: none; }
-.standing .rank { width: 26px; height: 26px; padding: 0; margin-top: 2px; border-radius: 50%; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); font: 700 14px/26px var(--font-display); text-shadow: 0 1px 1px rgba(0,0,0,.55); filter: drop-shadow(0 1px 1px rgba(59,36,21,.4)); }
-.standing .rank .i { color: var(--gold-hi); width: 14px; height: 14px; vertical-align: -2px; }
+/* Положение команд: место — светлый кружок с обводкой, названия — Philosopher, счёт — Literata с табличными цифрами */
+.standing { border-top: 1px solid var(--paper-edge); box-shadow: none; }
+.standing .rank { width: 24px; height: 24px; padding: 0; margin-top: 2px; border-radius: 50%; background: var(--paper-light); border: 1px solid var(--bronze); color: var(--bronze-ink); font: 700 13px/22px var(--font-display); text-shadow: none; filter: none; }
+.standing .rank .i { color: var(--bronze-ink); width: 13px; height: 13px; vertical-align: -2px; }
 .standing .name { font-family: var(--font-ui); font-weight: 700; }
 .standing .name .chev { margin-left: auto; color: var(--bronze); transition: transform var(--dur-fast); }
 .standing[aria-expanded="true"] .name .chev { transform: rotate(180deg); }
@@ -42,22 +43,22 @@
 .standing .meta + .meta { color: var(--ink-3); }
 .standing .meta .help { margin-left: 2px; }
 .standing .meta .help > summary { width: 20px; height: 20px; vertical-align: -5px; }
-/* Лента «Что случилось» — летопись: пунктирные чернильные разделители, значок на монете, дата капителью */
+/* Лента «Что случилось» — летопись: пунктирные чернильные разделители, значок в светлом кружке, дата капителью */
 .feed li { border-top: 1px dashed var(--paper-edge); }
-.feed .ico { width: 26px; height: 26px; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); filter: drop-shadow(0 1px 1px rgba(59,36,21,.4)); }
+.feed .ico { width: 26px; height: 26px; background: var(--paper-light); border: 1px solid var(--paper-edge); color: var(--bronze-ink); filter: none; }
 .feed .ico .i { width: 14px; height: 14px; }
-.feed li.news .ico { box-shadow: 0 0 0 2px var(--sea-soft); color: var(--sea-soft); }
+.feed li.news .ico { border-color: var(--sea); color: var(--sea-ink); }
 .feed .body { font: 400 15px/1.4 var(--font-book); }
 .feed .meta { font: 400 12px/1.3 var(--font-ui); color: var(--ink-3); }
 .feed details summary { font: 700 17px/1.2 var(--font-display); color: var(--ink); }
 .feed details p { font-size: var(--fs-sm); }
 /* Проходы, служение, плитки навигации */
-.passage-card { background: var(--paper-2); border-color: var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
-.service .svc-stat { background: var(--paper-2); border: 1px solid var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
+.passage-card { background: var(--paper-2); border-color: var(--paper-edge); box-shadow: none; }
+.service .svc-stat { background: var(--paper-2); border: 1px solid var(--paper-edge); box-shadow: none; }
 .service .svc-stat b { font: 700 var(--fs-xl)/1.1 var(--font-display); color: var(--bronze-ink); }
 .service .svc-stat span { font-family: var(--font-ui); }
-.menu-tiles { background: var(--paper-2); border-top: 1px solid var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
-.menu-tiles > a, .menu-tiles > button { background: var(--paper-light); border: 1px solid var(--paper-edge); color: var(--ink); font: 700 var(--fs-xs)/1 var(--font-ui); text-shadow: none; box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(59,36,21,.14); }
+.menu-tiles { background: var(--paper-2); border-top: 1px solid var(--paper-edge); box-shadow: none; }
+.menu-tiles > a, .menu-tiles > button { background: var(--paper-light); border: 1px solid var(--paper-edge); color: var(--ink); font: 700 var(--fs-xs)/1 var(--font-ui); text-shadow: none; box-shadow: none; }
 .menu-tiles > a:hover, .menu-tiles > button:hover { background: var(--paper-light); border-color: var(--bronze); color: var(--ink); }
 .menu-tiles .i { color: var(--bronze-ink); }
 .chip-btn, .chip-btn:hover { box-shadow: none; text-shadow: none; }
@@ -65,7 +66,7 @@
 .side-menu .push-row { color: var(--ink-2); }
 .side-menu .push-row > span { flex: 1 1 160px; }
 
-/* ---------- Карточка дела: лист, заголовок гарнитурой, направление капителью, кодекс — грамота ---------- */
+/* ---------- Карточка дела: лист, заголовок гарнитурой, направление капителью, кодекс — лист с кромкой ---------- */
 .sheet-title h2 { font: 700 24px/1.1 var(--font-display); }
 .deed-sheet .direction { font: 400 13px/1.3 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--bronze-ink); }
 .deed-sheet .deed-desc { font: 400 var(--fs-md)/var(--lh-text) var(--font-book); color: var(--ink); }
@@ -76,60 +77,52 @@
 .meta-line .chip .i { color: inherit; }
 .meta-line .help > summary { margin-left: 0; }
 .deed-sheet details.codex { margin-top: var(--sp-3); }
-.deed-sheet details.codex ol { background: var(--paper-bg); border: 1px solid var(--paper-edge); border-radius: var(--r-xs); padding: var(--sp-3) var(--sp-3) var(--sp-3) 2em; font: italic 400 var(--fs-sm)/var(--lh-ui) var(--font-book); color: var(--ink); box-shadow: var(--shadow-paper); }
+.deed-sheet details.codex ol { background: var(--paper-light); border: 1px solid var(--paper-edge); border-radius: var(--r-xs); padding: var(--sp-3) var(--sp-3) var(--sp-3) 2em; font: italic 400 var(--fs-sm)/var(--lh-ui) var(--font-book); color: var(--ink); box-shadow: none; }
 .deed-sheet details.codex li::marker { color: var(--bronze-ink); font-weight: 700; }
-.deed-sheet .chips label.check.inline { background: var(--paper-light); border-color: var(--paper-edge); font-family: var(--font-ui); box-shadow: inset 0 1px 0 #fff; }
+.deed-sheet .chips label.check.inline { background: var(--paper-light); border-color: var(--paper-edge); font-family: var(--font-ui); box-shadow: none; }
 .deed-sheet .field .label { font-family: var(--font-ui); }
-/* Главная кнопка шторки — тяжёлая бронзовая табличка с заклёпками по углам (заклёпки — радиальные градиенты, картинки не нужны). */
+/* Главная кнопка шторки и формы входа — та же плоская бронза, только выше и крупнее (без заклёпок и гравировки, владелец 19.09). */
 .deed-sheet .actions > button:first-child:not(.secondary):not(.ghost), .task-view .actions > button:first-child:not(.secondary):not(.ghost), .capture .actions > button:first-child:not(.secondary):not(.ghost), .login-page .auth form .actions > button:first-child {
-  min-height: 52px; font-size: var(--fs-lg); border-radius: var(--r-xs); border-color: #4A2D0C;
-  background:
-    radial-gradient(circle at 9px 9px, #E8C27A 0 1.5px, #5A3810 2.5px, transparent 3.5px),
-    radial-gradient(circle at calc(100% - 9px) 9px, #E8C27A 0 1.5px, #5A3810 2.5px, transparent 3.5px),
-    radial-gradient(circle at 9px calc(100% - 9px), #E8C27A 0 1.5px, #5A3810 2.5px, transparent 3.5px),
-    radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), #E8C27A 0 1.5px, #5A3810 2.5px, transparent 3.5px),
-    linear-gradient(180deg, #9A6524 0%, #7A4E17 55%, #5F3C10 100%);
-  box-shadow: var(--shadow-metal), inset 0 0 0 2px rgba(60,32,8,.35), inset 0 0 0 3px rgba(241,208,138,.18); }
-.deed-sheet .actions > button:first-child:not(.secondary):not(.ghost):hover, .task-view .actions > button:first-child:not(.secondary):not(.ghost):hover, .capture .actions > button:first-child:not(.secondary):not(.ghost):hover, .login-page .auth form .actions > button:first-child:hover { filter: brightness(1.08); }
-.deed-sheet .actions > button:first-child:not(.secondary):not(.ghost):disabled, .task-view .actions > button:first-child:not(.secondary):not(.ghost):disabled, .capture .actions > button:first-child:not(.secondary):not(.ghost):disabled, .login-page .auth form .actions > button:first-child:disabled {
-  background: var(--tex-stone) center / 256px repeat var(--stone); border-color: var(--stone-dark); box-shadow: none; filter: none; }
+  min-height: 52px; font-size: var(--fs-lg); }
 
-/* ---------- Город: шапка — тёплая умбра, шаги — монеты на линии ---------- */
-.city-head { color: var(--paper-light); background: linear-gradient(90deg, rgba(43,29,18,.88), rgba(43,29,18,.55) 60%, rgba(43,29,18,.35)), var(--city-img) center / cover; box-shadow: inset 0 -12px 20px rgba(31,20,10,.45); }
+/* ---------- Город: шапка — тёплая умбра, шаги — кружки на линии ---------- */
+.city-head { color: var(--paper-light); background: linear-gradient(90deg, rgba(43,29,18,.88), rgba(43,29,18,.55) 60%, rgba(43,29,18,.35)), var(--city-img) center / cover; box-shadow: inset 0 -6px 12px rgba(31,20,10,.3); }
 .city-head h2 { font: 700 var(--fs-2xl)/1 var(--font-display); color: var(--paper-light); text-shadow: 0 1px 2px rgba(0,0,0,.6); }
 .city-head .status { color: var(--paper-2); font-family: var(--font-ui); }
-.city-head .chip.solid { box-shadow: 0 0 0 1px var(--gold-hi); }
+.city-head .chip.solid { box-shadow: none; }
 .city-sheet .overlay-head > button { color: var(--paper-light); }
 .steps { position: relative; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-1) 0; }
-.steps::before { content: ""; position: absolute; left: 12%; right: 12%; top: 50%; height: 2px; background: var(--paper-edge); box-shadow: 0 1px 0 rgba(255,250,238,.6); z-index: 0; }
+.steps::before { content: ""; position: absolute; left: 12%; right: 12%; top: 50%; height: 1px; background: var(--paper-edge); box-shadow: none; z-index: 0; }
 .steps li { position: relative; z-index: 1; flex: 0 1 auto; padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-1); border-radius: var(--r-xs); background: var(--paper-bg); color: var(--ink-2); font: 700 var(--fs-sm)/1 var(--font-ui); }
-.steps .num { width: 28px; height: 28px; border: 0; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); font: 700 14px/1 var(--font-display); text-shadow: 0 1px 1px rgba(0,0,0,.6); filter: drop-shadow(0 1px 1px rgba(59,36,21,.45)); }
-.steps li.current { background: var(--paper-lift), var(--tex-paper) center / 512px repeat var(--paper-light); color: var(--bronze-ink); box-shadow: inset 0 -3px 0 var(--bronze), 0 1px 2px rgba(59,36,21,.18); }
-.steps li.current .num { animation: flipIn .45s var(--spring); }
+.steps .num { width: 26px; height: 26px; border: 1px solid var(--bronze); background: var(--paper-light); color: var(--bronze-ink); font: 700 13px/1 var(--font-display); text-shadow: none; filter: none; }
+.steps li.current { background: var(--paper-light); color: var(--bronze-ink); box-shadow: inset 0 -2px 0 var(--bronze); }
+.steps li.current .num { background: var(--bronze-ink); border-color: var(--bronze-ink); color: var(--paper-light); animation: flipIn .45s var(--spring); }
 .steps li.done { color: var(--moss-ink); }
-.steps li.done .num { width: 32px; height: 32px; margin: -2px; background: var(--moss-ink); -webkit-mask: var(--wax-mask) center / 100% 100% no-repeat; mask: var(--wax-mask) center / 100% 100% no-repeat; filter: none; text-shadow: none; animation: stamp .38s var(--stamp); }
+.steps li.done .num { width: 30px; height: 30px; margin: -2px; border: 0; background: var(--moss-ink); -webkit-mask: var(--wax-mask) center / 100% 100% no-repeat; mask: var(--wax-mask) center / 100% 100% no-repeat; filter: none; text-shadow: none; animation: stamp .38s var(--stamp); }
 .steps .num .i { width: 14px; height: 14px; }
 .step-body > h3, .step-head h3 { font: 600 20px/1.2 var(--font-display); }
 .step-head { margin-bottom: var(--sp-2); }
 .step-head h3 { margin-bottom: 0; }
 .sum-toggle { flex: none; font-size: var(--fs-sm); }
 
-/* ---------- Районы: табличка на стене города — лента цвета района, монета с номером, печать «выполнено» ---------- */
+/* ---------- Районы: плоская табличка — лента цвета района, номер в светлом кружке, печать «выполнено» ---------- */
 .districts { gap: var(--sp-3); }
 .district { position: relative; min-height: 60px; padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-3); gap: var(--sp-3); font: 400 var(--fs-md)/var(--lh-ui) var(--font-book); letter-spacing: 0; text-shadow: none;
-  border: 1px solid var(--paper-edge); border-left: 7px solid var(--bronze); border-radius: var(--r-sm);
-  background: var(--paper-lift), var(--tex-paper) center / 512px repeat var(--paper); color: var(--ink);
-  box-shadow: var(--shadow-paper); transition: transform var(--dur-fast), box-shadow var(--dur-fast), border-left-color .4s, background var(--dur-fast); }
-.district::after { content: ""; position: absolute; inset: 4px 4px 4px 0; border: 1px solid rgba(122,78,23,.18); border-left: 0; border-radius: 0 var(--r-xs) var(--r-xs) 0; pointer-events: none; }
-.district:hover { background: var(--paper-lift), var(--tex-paper) center / 512px repeat var(--paper-light); transform: translateY(-1px); box-shadow: var(--shadow-lift); border-color: var(--border-strong); }
+  border: 1px solid var(--paper-edge); border-left: 4px solid var(--bronze); border-radius: var(--r-sm);
+  background: var(--paper); color: var(--ink);
+  box-shadow: var(--shadow-paper); transition: box-shadow var(--dur-fast), border-color var(--dur-fast), border-left-color .4s, background var(--dur-fast); }
+.district::after { display: none; }
+.district:hover { background: var(--paper-light); transform: none; box-shadow: var(--shadow-lift); border-color: var(--border-strong); }
 .district:active { transform: none; box-shadow: var(--shadow-paper); }
-.district.set { background: var(--paper-lift), var(--tex-paper) center / 512px repeat var(--paper); border-color: var(--paper-edge); border-left-color: hsl(var(--d-hue) 42% 38%); }
-.district.set:hover { background: var(--paper-lift), var(--tex-paper) center / 512px repeat var(--paper-light); border-color: var(--border-strong); border-left-color: hsl(var(--d-hue) 42% 38%); }
-.district.done, .district.set.done { border-left-color: var(--moss-ink); }
-.district.locked, .district.set.locked { background: var(--tex-stone) center / 256px repeat var(--paper-2); color: var(--ink-2); border-left-color: var(--stone); }
-.district .num { width: 34px; height: 34px; border-radius: 50%; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); font: 700 15px/1 var(--font-display); text-shadow: 0 1px 1px rgba(0,0,0,.6); filter: drop-shadow(0 1px 1px rgba(59,36,21,.45)); }
-.district.set .num, .district.set.done .num, .district.extra .num, .district.done .num { background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); }
-.district.done .num { filter: drop-shadow(0 1px 1px rgba(59,36,21,.45)) sepia(.2) hue-rotate(60deg) saturate(.7); }
+.district.set { background: var(--paper); border-color: var(--paper-edge); border-left-color: hsl(var(--d-hue) 42% 38%); }
+.district.set:hover { background: var(--paper-light); border-color: var(--border-strong); border-left-color: hsl(var(--d-hue) 42% 38%); }
+.district.done, .district.set.done { border-color: var(--paper-edge); border-left-color: var(--moss-ink); }
+.district.locked, .district.set.locked { background: var(--paper-2); color: var(--ink-2); border-left-color: var(--stone); box-shadow: none; }
+.district .num { width: 32px; height: 32px; border-radius: 50%; background: var(--paper-light); border: 1px solid var(--bronze); color: var(--bronze-ink); font: 700 15px/1 var(--font-display); text-shadow: none; filter: none; }
+.district.set .num { border-color: hsl(var(--d-hue) 42% 38%); color: hsl(var(--d-hue) 42% 30%); }
+.district.extra .num { background: var(--bronze-soft); border-color: var(--bronze); color: var(--bronze-ink); }
+.district.done .num, .district.set.done .num { background: var(--moss-ink); border-color: var(--moss-ink); color: var(--paper-light); filter: none; }
+.district.locked .num { background: var(--paper-2); border-color: var(--stone); color: var(--stone-dark); }
 .district .body { gap: 3px; }
 .district .d-title { font: 700 20px/1.15 var(--font-display); color: var(--ink); }
 .district .d-title .muted { font: 700 12px/1 var(--font-ui); letter-spacing: .06em; color: var(--bronze-ink); margin-left: var(--sp-1); white-space: nowrap; }
@@ -145,30 +138,30 @@
 @keyframes flicker { 0%, 100% { opacity: 1; box-shadow: 0 0 8px 2px rgba(255,200,90,.7); } 50% { opacity: .85; box-shadow: 0 0 5px 1px rgba(255,200,90,.5); } }
 @media (prefers-reduced-motion: reduce) { .district .window, .district .check.on, .steps li.done .num, .steps li.current .num { animation: none; } }
 /* Печать шифра рядом со списком */
-.cipher { background: var(--paper-2); border: 1px solid var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
+.cipher { background: var(--paper-2); border: 1px solid var(--paper-edge); box-shadow: none; }
 .cipher-side .strong { font: 700 var(--fs-lg)/1.2 var(--font-display); }
 .cipher-side .hint { font-family: var(--font-ui); font-style: normal; font-variant-numeric: tabular-nums; }
 
-/* ---------- Задание: текст на листе внутри листа, ответ — строка чернилами, варианты — таблички ---------- */
+/* ---------- Задание: текст на свежем листе, ответ — строка чернилами, варианты — плоские таблички ---------- */
 .task-view .back-btn { font-family: var(--font-ui); }
 .task-view .back-btn .i { color: var(--bronze); }
 .task-view h3 { font: 700 var(--fs-xl)/1.15 var(--font-display); }
 .task-view .scope { font: 700 12px/1.3 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--bronze-ink); margin-top: 2px; }
-.task-view .prompt { background: var(--paper-lift), var(--tex-paper) center / 512px repeat var(--paper-light); border: 1px solid var(--paper-edge); padding: var(--sp-4); border-radius: var(--r-xs); box-shadow: inset 0 1px 0 #fff, 0 1px 3px rgba(59,36,21,.14); font: 400 var(--fs-lg)/1.6 var(--font-book); color: var(--ink); }
+.task-view .prompt { background: var(--paper-light); border: 1px solid var(--paper-edge); padding: var(--sp-4); border-radius: var(--r-xs); box-shadow: none; font: 400 var(--fs-lg)/1.6 var(--font-book); color: var(--ink); }
 .task-view .burnt .prompt { background: none; border: 0; padding: 0; box-shadow: none; }
 .task-view .field > label { font-family: var(--font-ui); }
 .task-view .field > input { background: transparent; border: 0; border-bottom: 2px solid var(--ink-2); border-radius: 0; box-shadow: none; padding-left: 0; font: 600 var(--fs-lg)/1.2 var(--font-book); }
 .task-view .field > input:focus { border-bottom-color: var(--bronze-ink); box-shadow: 0 2px 0 rgba(122,78,23,.35); }
 .task-view .support-link button { font-family: var(--font-ui); }
 .task-view .support-form textarea { font-family: var(--font-input); }
-.choices button { background: var(--paper-bg); border: 1px solid var(--paper-edge); border-left: 5px solid var(--paper-edge); color: var(--ink); font: 400 var(--fs-md)/var(--lh-ui) var(--font-book); letter-spacing: 0; text-shadow: none; box-shadow: var(--shadow-paper); transition: transform var(--dur-fast), box-shadow var(--dur-fast), border-color var(--dur-fast); }
-.choices button:hover { background: var(--paper-lift), var(--tex-paper) center / 512px repeat var(--paper-light); transform: translateY(-1px); box-shadow: var(--shadow-lift); }
-.choices button.on { border-color: var(--bronze); border-left-color: var(--bronze); background: var(--paper-lift), var(--tex-paper) center / 512px repeat var(--bronze-soft); }
+.choices button { background: var(--paper); border: 1px solid var(--paper-edge); border-left: 4px solid var(--paper-edge); color: var(--ink); font: 400 var(--fs-md)/var(--lh-ui) var(--font-book); letter-spacing: 0; text-shadow: none; box-shadow: none; transition: background var(--dur-fast), border-color var(--dur-fast); }
+.choices button:hover { background: var(--paper-light); transform: none; box-shadow: none; border-color: var(--border-strong); }
+.choices button.on { border-color: var(--bronze); border-left-color: var(--bronze); background: var(--bronze-soft); }
 .choices .radio { border-color: var(--bronze); background: var(--paper-light); }
 .choices button.on .radio { background: var(--bronze); border-color: var(--bronze-deep); box-shadow: inset 0 0 0 3px var(--paper-light); }
 .lock-note { font-family: var(--font-ui); }
 .lock-note button.secondary { background: var(--paper-light); }
-.pick-cooling svg { background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); border-radius: 50%; filter: drop-shadow(0 1px 1px rgba(59,36,21,.4)); }
+.pick-cooling svg { background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); border-radius: 50%; filter: none; }
 .pick-cooling .track { stroke: rgba(255,246,227,.35); }
 .pick-cooling .heat { stroke: var(--wax); }
 .pick-cooling .pick { stroke: var(--paper-light); }
@@ -190,18 +183,18 @@
 .cw-cell .cw-n { color: var(--ink-3); }
 .cw-list button { font-family: var(--font-book); }
 
-/* ---------- Конверт и грамоты: рваный лист через border-image (кадр paper-frame-768: рваная кромка ≈ 60px из 768) ---------- */
-.envelope { background: var(--paper-bg); border-color: var(--paper-edge); box-shadow: var(--shadow-paper); }
+/* ---------- Конверт и грамоты: рваный лист через border-image (кадр paper-frame-768: рваная кромка ≈ 60px из 768).
+   Рваная кромка — единственная рамка грамоты: двойной и пунктирной линии внутри больше нет. ---------- */
+.envelope { background: var(--paper-bg); border-color: var(--paper-edge); box-shadow: none; }
 .envelope .cipher-text { font-family: var(--font-input); color: var(--bronze-ink); }
 .envelope .cipher-line .small { font-family: var(--font-ui); }
 .envelope p .i { color: var(--bronze); }
 .envelope .field > label, .capture .hint { font-family: var(--font-ui); }
-.key-cells .cell { background: var(--paper-light); border-color: var(--border-strong); font-family: var(--font-input); box-shadow: inset 0 1px 2px rgba(59,36,21,.12); }
+.key-cells .cell { background: var(--paper-light); border-color: var(--border-strong); font-family: var(--font-input); box-shadow: none; }
 .key-cells .cell.on { border-color: var(--bronze); background: var(--bronze-soft); }
-.envelope .charter { position: relative; margin-top: var(--sp-3); padding: var(--sp-3) var(--sp-3); border: 22px solid transparent; border-image: var(--paper-frame) 60 fill / 22px / 6px stretch; border-radius: 0; background: none; box-shadow: none; filter: drop-shadow(0 6px 10px rgba(59,36,21,.28)); animation: stamp .5s var(--stamp); }
-.envelope .charter::before { content: ""; position: absolute; inset: -8px; border: 2px double var(--bronze-deep); pointer-events: none; }
+.envelope .charter { position: relative; margin-top: var(--sp-3); padding: var(--sp-3) var(--sp-3); border: 22px solid transparent; border-image: var(--paper-frame) 60 fill / 22px / 6px stretch; border-radius: 0; background: none; box-shadow: none; filter: drop-shadow(0 3px 6px rgba(59,36,21,.2)); animation: stamp .5s var(--stamp); }
+.envelope .charter::before { display: none; }
 .envelope .charter.foreign { border-style: solid; }
-.envelope .charter.foreign::before { border: 2px dashed var(--wax); }
 .envelope .charter .strong { font: 700 26px/1.1 var(--font-display); color: var(--ink); }
 .envelope .charter.foreign .strong { font-size: var(--fs-xl); color: var(--wax-ink); }
 .envelope .charter .small { font-family: var(--font-book); font-style: italic; color: var(--ink-2); margin-top: var(--sp-1); }
@@ -210,32 +203,31 @@
 @media (prefers-reduced-motion: reduce) { .envelope .charter { animation: none; } }
 .capture .row .hint { font-family: var(--font-ui); }
 /* Письмо пророка — тот же рваный лист */
-.prophet-letter { margin: var(--sp-3) 0; padding: var(--sp-1) var(--sp-2); border: 22px solid transparent; border-image: var(--paper-frame) 60 fill / 22px / 4px stretch; border-radius: 0; background: none; box-shadow: none; filter: drop-shadow(0 4px 8px rgba(59,36,21,.25)); font-family: var(--font-book); color: var(--ink); }
+.prophet-letter { margin: var(--sp-3) 0; padding: var(--sp-1) var(--sp-2); border: 22px solid transparent; border-image: var(--paper-frame) 60 fill / 22px / 4px stretch; border-radius: 0; background: none; box-shadow: none; filter: drop-shadow(0 3px 6px rgba(59,36,21,.2)); font-family: var(--font-book); color: var(--ink); }
 .prophet-letter .letter-head { font-family: var(--font-ui); }
 .prophet-letter .letter-head .strong { font: 700 var(--fs-lg)/1.2 var(--font-display); }
 .prophet-letter .letter-head .i { color: var(--bronze); }
 .prophet-letter .letter-sign { font-family: var(--font-book); font-style: italic; }
 /* Вход: карточка — рваный лист поверх панорамы */
-.login-page .card { border: 26px solid transparent; border-image: var(--paper-frame) 60 fill / 26px / 8px stretch; border-radius: 0; background: none; box-shadow: none; filter: drop-shadow(0 8px 14px rgba(31,20,10,.35)); padding: var(--sp-2) var(--sp-3) var(--sp-3); }
-.login-page .card::after { display: none; }
+.login-page .card { border: 26px solid transparent; border-image: var(--paper-frame) 60 fill / 26px / 8px stretch; border-radius: 0; background: none; box-shadow: none; filter: drop-shadow(0 6px 12px rgba(31,20,10,.3)); padding: var(--sp-2) var(--sp-3) var(--sp-3); }
 .login-page .auth-logo img { filter: drop-shadow(0 1px 2px rgba(59,36,21,.35)); }
 .login-page .guest-bar .ghost { font-family: var(--font-ui); }
 
-/* ---------- Раскрывашки «Проход» / «Испытание» / «Кодекс дела» ---------- */
-.disclose { border-top: 1px solid var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
+/* ---------- Раскрывашки «Проход» / «Испытание» / «Кодекс дела»: плоская иконка, шеврон показывает раскрытие ---------- */
+.disclose { border-top: 1px solid var(--paper-edge); box-shadow: none; }
 .disclose > summary { font: 700 var(--fs-md)/1.3 var(--font-ui); color: var(--ink); }
-.disclose > summary > .i:first-child { width: 26px; height: 26px; padding: 6px; border-radius: 50%; background: var(--coin) center / 100% 100% no-repeat var(--bronze-deep); color: var(--paper-light); filter: drop-shadow(0 1px 1px rgba(59,36,21,.4)); }
+.disclose > summary > .i:first-child { width: 22px; height: 22px; padding: 0; border-radius: 0; background: none; color: var(--bronze-ink); filter: none; }
 .disclose > summary .chev { color: var(--bronze); }
 .disclose.sm { border-top: 0; box-shadow: none; }
 .disclose.sm > summary { font: 700 var(--fs-sm)/1.3 var(--font-ui); color: var(--bronze-ink); }
-.disclose.sm > summary > .i:first-child { width: 18px; height: 18px; padding: 0; background: none; color: var(--bronze-ink); filter: none; border-radius: 0; }
+.disclose.sm > summary > .i:first-child { width: 18px; height: 18px; color: var(--bronze-ink); }
 .disclose.sm > summary:hover { color: var(--ink); }
 .disclose.sm > :not(summary) { font-family: var(--font-book); }
 
 /* ---------- Испытание и проход: блок — потёртый лист, стихи — свежий лист ---------- */
 .war h3, .passage-section h3 { font: 600 20px/1.2 var(--font-display); }
 .war .muted.small, .passage-section .muted.small { font-family: var(--font-book); }
-.battle { background: var(--paper-2); border-color: var(--paper-edge); box-shadow: inset 0 1px 0 rgba(255,250,238,.6); }
+.battle { background: var(--paper-2); border-color: var(--paper-edge); box-shadow: none; }
 .battle .strong { font-family: var(--font-ui); }
 .battle .strong .i { color: var(--bronze); }
 .verses { background: var(--paper-light); border-color: var(--paper-edge); }
@@ -250,15 +242,13 @@
 .verses li.done button, .verses li.done button:disabled { background: var(--moss-soft); }
 .verses li.done .box { background: var(--moss-ink); border-color: var(--moss-ink); color: var(--paper-light); }
 .passage .strong, .picker .hint, .entry-form label { font-family: var(--font-ui); }
-.progress span { background: linear-gradient(180deg, var(--bronze-light), var(--bronze)); }
+.progress span { background: var(--bronze); }
 
-/* ---------- «Как играть», «Что нового»: росчерк под заголовком, ярлычки оглавления, бронзовые ромбы в списках ---------- */
-.how-to > h1 { position: relative; padding-bottom: var(--sp-2); }
-.how-to > h1::after { content: ""; position: absolute; left: 0; bottom: 0; width: 120px; height: 3px; background: linear-gradient(90deg, var(--bronze) 0, var(--bronze) 40px, var(--bronze-light) 40px, transparent); border-radius: 2px; }
+/* ---------- «Как играть», «Что нового»: ярлычки оглавления плоские, бронзовые ромбы в списках ---------- */
 .how-to > p.muted { font-family: var(--font-book); font-style: italic; }
-.how-to .guide-toc a { background: var(--paper-light); border: 1px solid var(--paper-edge); color: var(--ink); font: 700 var(--fs-sm)/1 var(--font-ui); padding: 8px 12px; border-radius: var(--r-sm); box-shadow: inset 0 1px 0 #fff, 0 1px 2px rgba(59,36,21,.14); }
+.how-to .guide-toc a { background: var(--paper-light); border: 1px solid var(--paper-edge); color: var(--ink); font: 700 var(--fs-sm)/1 var(--font-ui); padding: 8px 12px; border-radius: var(--r-sm); box-shadow: none; }
 .how-to .guide-toc a:hover { background: #FFFBF0; border-color: var(--bronze); text-decoration: none; }
-.how-to .guide-fig img { border: 1px solid var(--paper-edge); border-radius: var(--r-xs); box-shadow: var(--shadow-paper); }
+.how-to .guide-fig img { border: 1px solid var(--paper-edge); border-radius: var(--r-xs); box-shadow: none; }
 .how-to .guide-fig figcaption { font-family: var(--font-book); font-style: italic; color: var(--ink-2); }
 .how-to .changelog { list-style: none; padding-left: 1.2em; }
 .how-to .changelog li { position: relative; }

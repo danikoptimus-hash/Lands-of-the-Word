@@ -1,6 +1,6 @@
 /**
  * Отчёт «было/стало» по всем экранам (решение владельца 18.09): пары снимков из двух прогонов scripts/ui-tour.mjs.
- * Запуск: node scripts/ui-report.mjs <папка «было»> <папка «стало»> <папка отчёта>
+ * Запуск: node scripts/ui-report.mjs <папка «было»> <папка «стало»> <папка отчёта>; заголовок — переменная UI_TITLE (необязательно).
  * Снимки сжимаются в webp (телефон 780 px, компьютер 1200 px), пишутся README.md и artifact.html (для публикации).
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from "node:fs";
@@ -8,6 +8,7 @@ import { join, basename } from "node:path";
 import { execFileSync } from "node:child_process";
 
 const [BEFORE, AFTER, OUT] = process.argv.slice(2);
+const TITLE = process.env.UI_TITLE ?? "Оформление «игра, а не сайт»: было и стало";
 if (!BEFORE || !AFTER || !OUT) { console.error("нужны три папки: было, стало, отчёт"); process.exit(1); }
 mkdirSync(join(OUT, "img"), { recursive: true });
 const before = JSON.parse(readFileSync(join(BEFORE, "tour.json"), "utf8"));
@@ -31,11 +32,11 @@ for b, a, name in pairs:
 `]);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
 const who = (x) => (x.who === "гость" ? "гость" : x.kind === "desk" ? "администратор, компьютер" : x.who.startsWith("tg_admin") ? "администратор, телефон" : "участник, телефон");
-let md = `# Оформление «игра, а не сайт»: было и стало по всем экранам\n\n`;
+let md = `# ${TITLE} — по всем экранам\n\n`;
 md += `Решение владельца 18.09: убрать белые фоны и «офисные» блоки, спрятать пояснения за кнопки, оформить интерфейс материалами игры — пергамент, дерево, бронза, сургуч. Снимки сделаны на стенде с данными тестовой партии (команды «Моряки», «Берег», «Пустыня»; реальных людей нет). Слева — до правок, справа — после.\n\n`;
 for (const p of pairs) md += `## ${p.a.caption}\n\n*${who(p.a)}*\n\n| Было | Стало |\n|---|---|\n| ${p.b ? `![было](img/${p.a.name}-before.webp)` : "—"} | ![стало](img/${p.a.name}-after.webp) |\n\n`;
 writeFileSync(join(OUT, "README.md"), md);
-const html = `<title>Было и стало: оформление игры</title>
+const html = `<title>${TITLE}</title>
 <style>
 :root{--bg:#F2E7CF;--ink:#2B1D12;--muted:#5C4A36;--accent:#A8722E;--line:#C9B58C;--card:#FFF6E3}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#1F1B17;--ink:#EDE6DA;--muted:#A79C8E;--accent:#E0965A;--line:#3B342C;--card:#2A241E}}
@@ -51,7 +52,7 @@ figcaption{font-size:.85rem;color:var(--muted);margin-top:4px;text-transform:upp
 @media (max-width:700px){.pair{grid-template-columns:1fr}}
 </style>
 <div class="wrap">
-<h1>Оформление «игра, а не сайт»: было и стало</h1>
+<h1>${TITLE}</h1>
 <p class="lead">Все экраны игрока (телефон) и администратора (компьютер и телефон) до и после правок. Стенд с данными тестовой партии; реальных людей нет.</p>
 <div class="toc">${pairs.map((p, i) => `<a href="#s${i}">${esc(p.a.caption)}</a>`).join("")}</div>
 ${pairs.map((p, i) => `<h2 id="s${i}">${esc(p.a.caption)}</h2><p class="who">${esc(who(p.a))}</p><div class="pair${p.a.kind === "desk" ? " desk" : ""}">${p.b ? `<figure><img src="img/${p.a.name}-before.webp" alt="было" loading="lazy"><figcaption>Было</figcaption></figure>` : ""}<figure><img src="img/${p.a.name}-after.webp" alt="стало" loading="lazy"><figcaption>Стало</figcaption></figure></div>`).join("")}

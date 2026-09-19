@@ -68,13 +68,14 @@
   --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 20px; --sp-6: 24px; --sp-8: 32px; --sp-10: 40px;
   --gutter: clamp(16px, 4vw, 24px);
   --control-h: 44px; --control-h-sm: 36px; --touch: 44px;
-  /* Радиусы меньше — предметы, а не приложение; тени тёплые (умбра) с бликом сверху */
+  /* Радиусы меньше — предметы, а не приложение. Тени тёплые (умбра) и одиночные: без бликов сверху и без металла
+     (решение владельца 19.09: элементы должны быть лёгкими; одна кромка + одна мягкая тень на предмет). */
   --r-xs: 3px; --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-full: 999px;
   --radius: var(--r-md); --radius-sm: var(--r-sm);
-  --shadow-paper: inset 0 1px 0 rgba(255,250,238,.7), 0 1px 2px rgba(59,36,21,.14), 0 4px 10px rgba(59,36,21,.12);
-  --shadow-lift:  0 2px 6px rgba(59,36,21,.16), 0 10px 26px rgba(59,36,21,.22);
-  --shadow-deep:  0 24px 48px rgba(31,20,10,.45);
-  --shadow-metal: inset 0 1px 0 rgba(255,235,190,.55), inset 0 -2px 0 rgba(60,32,8,.35), 0 2px 4px rgba(59,36,21,.28);
+  --shadow-paper: 0 1px 2px rgba(59,36,21,.10), 0 3px 8px rgba(59,36,21,.08);
+  --shadow-lift:  0 2px 6px rgba(59,36,21,.14), 0 8px 20px rgba(59,36,21,.14);
+  --shadow-deep:  0 12px 32px rgba(31,20,10,.30);
+  --shadow-metal: 0 1px 2px rgba(59,36,21,.22);
   --shadow-1: var(--shadow-paper); --shadow-2: var(--shadow-lift); --shadow-3: var(--shadow-deep); --shadow: var(--shadow-paper);
   --ring: 0 0 0 3px rgba(122,78,23,.28);
   /* Движение, слои */
