@@ -183,7 +183,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  /** Штраф администратора (телефон на собрании): игра сама аннулирует случайный концевой участок пути команды. */
+  /** Штраф администратора (телефон на собрании): игра сама аннулирует случайный концевой участок пути команды, в том числе ведущий в ещё не взятый город (его задания начинаются заново). */
   app.post("/api/games/:id/teams/:teamId/penalty", async (request, reply) => {
     const { id, teamId } = request.params as { id: string; teamId: string };
     const game = await requireGameAdmin(request, reply, id);
@@ -193,7 +193,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     if (!team) return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
     const res = await penalizeTeam(id, teamId, request.user!.id);
     if (res) journal(id, "penalty", { teamId });
-    if (!res) return reply.code(409).send({ error: "conflict", message: err(request, "У команды нет концевых участков пути: штраф наложить не на что") });
+    if (!res) return reply.code(409).send({ error: "conflict", message: err(request, "У команды нет концевых участков пути (взятые города и старт не трогаются): штраф наложить не на что") });
     return { ok: true, ...res, message: msg("ru", "Аннулирован участок {from} → {to}", { from: res.fromKey, to: res.toKey }) };
   });
 

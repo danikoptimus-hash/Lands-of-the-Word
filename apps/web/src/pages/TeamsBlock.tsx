@@ -69,7 +69,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
     catch (err) { fail(err); }
   }
   async function penalize(tm: TeamDto) {
-    if (!(await confirm(t("Игра сама выберет случайный концевой участок пути команды и аннулирует его: перекрёсток за ним закроется, дело придётся сделать заново. Города и старт не трогаются."), { title: t("Оштрафовать «{name}»?", { name: tm.name }), okLabel: t("Оштрафовать"), danger: true }))) return;
+    if (!(await confirm(t("Игра сама выберет случайный концевой участок пути команды и аннулирует его: перекрёсток или ещё не взятый город за ним закроется (задания города начнутся заново), дело придётся сделать заново. Взятые города и старт не трогаются."), { title: t("Оштрафовать «{name}»?", { name: tm.name }), okLabel: t("Оштрафовать"), danger: true }))) return;
     try { const r = await api<{ message: string }>(`/api/games/${gameId}/teams/${tm.id}/penalty`, { method: "POST" }); notify(r.message); await reload(); }
     catch (err) { fail(err); }
   }

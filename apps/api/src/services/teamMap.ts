@@ -195,36 +195,48 @@ export async function ensureRemoteDeed(gameId: string, teamId: string): Promise<
  * пройденная сторона, за которой у команды нет других пройденных сторон; города команды и старт не трогаются.
  * Перекрёсток за стороной снова закрыт, дело на стороне нужно сделать заново.
  */
-export async function penalizeTeam(gameId: string, teamId: string, byId: string): Promise<{ fromKey: string; toKey: string } | null> {
-  const [approved, owned, team] = await Promise.all([
+export async function penalizeTeam(gameId: string, teamId: string, byId: string): Promise<{ fromKey: string; toKey: string; city: boolean } | null> {
+  const [approved, owned, team, battling, cities] = await Promise.all([
     prisma.teamEdgeTask.findMany({ where: { teamId, status: "APPROVED", sea: false }, select: { id: true, fromKey: true, toKey: true } }),
     prisma.teamCityState.findMany({ where: { teamId, capturedAt: { not: null } }, select: { nodeKey: true } }),
     prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { startNodeKey: true } }),
+    prisma.battle.findMany({ where: { gameId, attackerId: teamId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, select: { nodeKey: true } }),
+    prisma.mapNode.findMany({ where: { gameId, kind: "CITY" }, select: { key: true } }),
   ]);
   const ownedKeys = new Set(owned.map((o) => o.nodeKey));
+  const battleKeys = new Set(battling.map((b) => b.nodeKey));
+  const cityKeys = new Set(cities.map((c) => c.key));
   const outgoing = new Map<string, number>();
   const incoming = new Map<string, number>();
   for (const t of approved) { outgoing.set(t.fromKey, (outgoing.get(t.fromKey) ?? 0) + 1); incoming.set(t.toKey, (incoming.get(t.toKey) ?? 0) + 1); }
-  // Конец пути: за перекрёстком ничего не пройдено, он открыт только этой стороной, это не город команды и не старт.
-  const ends = approved.filter((t) => !outgoing.has(t.toKey) && (incoming.get(t.toKey) ?? 0) === 1 && !ownedKeys.has(t.toKey) && t.toKey !== team.startNodeKey);
+  // Концевой участок (решение владельца 19.09): за узлом ничего не пройдено и он открыт только этой стороной. Узел может быть
+  // перекрёстком или городом, который команда дошла и изучает; не трогаются взятые города, старт и город, на который брошен вызов.
+  const ends = approved.filter((t) => !outgoing.has(t.toKey) && (incoming.get(t.toKey) ?? 0) === 1 && !ownedKeys.has(t.toKey) && !battleKeys.has(t.toKey) && t.toKey !== team.startNodeKey);
   if (ends.length === 0) return null;
   const pick = ends[Math.floor(Math.random() * ends.length)]!;
+  const city = cityKeys.has(pick.toKey);
   await prisma.$transaction([
     prisma.teamEdgeTask.deleteMany({ where: { teamId, fromKey: pick.toKey } }),
     prisma.teamEdgeTask.deleteMany({ where: { teamId, toKey: pick.toKey, NOT: { id: pick.id } } }),
     prisma.teamNodeState.deleteMany({ where: { teamId, nodeKey: pick.toKey } }),
     prisma.teamPeek.deleteMany({ where: { teamId, nodeKey: pick.toKey } }),
+    // Город, до которого дошли и изучали: задания начинаются заново, ничего не открыто (штраф за сгоревшие вызовы остаётся).
+    prisma.teamCityState.updateMany({ where: { teamId, nodeKey: pick.toKey }, data: { orderSolved: false, orderAttempts: 0, doneTasks: [], answerAttempts: 0, lastWrongAt: null, hintTasks: [], keyWrong: 0, keyLockedUntil: null } }),
+    prisma.teamTaskLock.deleteMany({ where: { teamId, nodeKey: pick.toKey } }),
     prisma.teamEdgeTask.update({ where: { id: pick.id }, data: { status: "OPEN", takenById: null, takenAt: null, links: [], note: "", submittedAt: null, decidedAt: null, decidedById: null, adminComment: "Сторона аннулирована штрафом администратора" } }),
     prisma.teamPenalty.create({ data: { gameId, teamId, fromKey: pick.fromKey, toKey: pick.toKey, byId } }),
   ]);
   await ensureFrontier(gameId, teamId);
   publish(gameId, { type: "map", teamId });
   publish(gameId, { type: "tasks", teamId });
-  notifyTeam(gameId, teamId, "штраф: участок пути аннулирован", (locale) => msg(locale, "Администратор назначил команде штраф: одна пройденная сторона на конце пути аннулирована, перекрёсток за ней снова закрыт. Дело на этой стороне нужно сделать заново."));
-  return { fromKey: pick.fromKey, toKey: pick.toKey };
+  publish(gameId, { type: "cities", teamId });
+  notifyTeam(gameId, teamId, "штраф: участок пути аннулирован", (locale) => msg(locale, city
+    ? "Администратор назначил команде штраф: последняя пройденная сторона аннулирована, город за ней снова закрыт, его задания начинаются заново. Дело на этой стороне нужно сделать заново."
+    : "Администратор назначил команде штраф: одна пройденная сторона на конце пути аннулирована, перекрёсток за ней снова закрыт. Дело на этой стороне нужно сделать заново."));
+  return { fromKey: pick.fromKey, toKey: pick.toKey, city };
 }
 
-/** Разрешение на проход отозвано: незанятые дела на сторонах из этого города убираются (взятые и сданные остаются). */
+/** Город сменил владельца, разрешения на проход через него сброшены: незанятые дела на сторонах из этого города убираются (взятые и сданные остаются). */
 export async function closePassage(gameId: string, teamId: string, nodeKey: string): Promise<void> {
   await prisma.teamEdgeTask.deleteMany({ where: { gameId, teamId, fromKey: nodeKey, status: "OPEN" } });
 }

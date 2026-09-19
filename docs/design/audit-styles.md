@@ -1,5 +1,7 @@
 # Аудит визуальной системы веб‑клиента «Земли Слова»
 
+> Снимок на дату аудита: цитаты строк и описания поведения даны по состоянию на тот день. Действующие правила — в `docs/LANDS_OF_THE_WORD.md` и `docs/proposals/audit-2026-09/decisions.md` (в частности, разрешение на проход отозвать нельзя, штраф аннулирует концевой участок пути).
+
 Дата: 2026‑09‑11. Режим: только чтение, ни один файл не менялся.
 
 Объём проверки: `apps/web/src/styles.css` (419 строк, 172 класса), `apps/web/src/components/Icon.tsx`, `apps/web/index.html`, `apps/web/public` (бренд‑ассеты, манифест), `apps/web/src/lib/ui.tsx`, все `apps/web/src/pages/*.tsx` (28 файлов), `lib/hexmap.ts`, `lib/useViewport.ts`, `vite.config.ts`, `docs/ART_BRIEF.md` (эталонная палитра иллюстраций).

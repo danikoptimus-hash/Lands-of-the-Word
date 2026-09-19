@@ -21,6 +21,44 @@ import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { PushToggle } from "../components/PushToggle";
 
+/** Положение команд (меню и итоги): строка раскрывается, если есть испытания или города на пути. */
+function StandingsList({ standings, teamId, open, setOpen }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void }) {
+  if (!standings) return <LoadingState rows={2} />;
+  if (standings.standings.length === 0) return <EmptyState inline icon="crown" text={t("Пока нечего показать.")} />;
+  return (
+    <ol className="standings-list">
+      {standings.standings.map((st, i) => {
+        const trials = st.battlesWon + st.battlesRepelled + st.battlesLost;
+        const details = trials > 0 || st.citiesOnPath.length > 0;
+        const opened = open ?? teamId;
+        const shown = details && opened === st.teamId;
+        const toggle = () => setOpen(opened === st.teamId ? "" : st.teamId);
+        return (
+          <li key={st.teamId} className={"standing" + (details ? " expandable" : "")} role={details ? "button" : undefined} tabIndex={details ? 0 : undefined} aria-expanded={details ? shown : undefined}
+            onClick={details ? toggle : undefined} onKeyDown={details ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } : undefined}>
+            <span className="rank">{st.teamId === standings.winnerTeamId ? <Icon name="trophy" /> : i + 1}</span>
+            <div className="body">
+              <div className="name">
+                <TeamAvatar name={st.name} color={st.color} size="sm" withName />
+                {st.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : st.teamId === standings.winnerTeamId ? <Chip tone="ok" icon="trophy">{t("победитель")}</Chip> : st.teamId === teamId ? <Chip tone="accent">{t("мы")}</Chip> : null}
+                {details && <Icon name="chevron-down" className="chev" />}
+              </div>
+              <div className="meta">{plural(st.cities, ["город", "города", "городов"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])} · {plural(st.nodesRevealed, ["перекрёсток", "перекрёстка", "перекрёстков"])}</div>
+              {shown && trials > 0 && <div className="meta">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}<span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><Help>{t("выиграли · устояли · потеряли")}</Help></span></div>}
+              {shown && st.citiesOnPath.length > 0 && <div className="meta">{t("Города")}: {st.citiesOnPath.map((c) => c.name + (c.current ? "" : ` (${t("потерян")})`)).join(", ")}</div>}
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** Почему игра завершилась — одинаково у участников и администратора. */
+export function finishReasonLabel(reason: string | null): string {
+  return reason === "last_team" ? t("осталась одна команда") : reason === "time_limit" ? t("вышел срок") : t("завершена администратором");
+}
+
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const bookName = (code: string) => BOOK_BY_CODE.get(code)?.nameRu ?? "";
 
@@ -240,6 +278,7 @@ export function TeamPage() {
       </main>
     );
   }
+  const winner = standings?.winnerTeamId ? standings.standings.find((s) => s.teamId === standings.winnerTeamId)?.name ?? "" : "";
   if (map.status !== "ACTIVE") {
     return (
       <main className="container narrow">
@@ -247,10 +286,25 @@ export function TeamPage() {
         <div className="card">
           <h1 className="row"><TeamAvatar name={team.name} color={team.color} size="lg" />{team.name}</h1>
           {gameName && <p className="muted mt-1">{gameName}</p>}
-          <p className="mt-3">{map.status === "FINISHED" ? t("Игра завершена. Итоги — на странице игры у администратора.") : t("Игра ещё не началась. Когда администратор начнёт её, здесь появится карта.")}</p>
-          {isCaptain && map.status !== "FINISHED" && <p className="muted mt-2">{t("Пока можно назначить роли участникам: они дают команде разведку, подсказки и переговоры.")}</p>}
-          <div className="actions"><Link className="btn secondary" to="/how-to-play"><Icon name="help" />{t("Как играть")}</Link></div>
+          {map.status === "FINISHED" ? (
+            <>
+              <p className={"note mt-3 " + (winner ? "ok" : "")}><Icon name="trophy" /><span>{winner ? <>{t("Победила команда")} <strong>«{winner}»</strong></> : t("Победитель не определён")} · {finishReasonLabel(standings?.finishReason ?? null)}{standings?.finishedAt ? ` · ${fmtDate(standings.finishedAt)}` : ""}</span></p>
+              <div className="actions"><Link className="btn secondary" to={`/games/${id}/book`}><Icon name="book" />{t("Книга сезона")}</Link></div>
+            </>
+          ) : (
+            <>
+              <p className="mt-3">{t("Игра ещё не началась. Когда администратор начнёт её, здесь появится карта.")}</p>
+              {isCaptain && <p className="muted mt-2">{t("Пока можно назначить роли участникам: они дают команде разведку, подсказки и переговоры.")}</p>}
+              <div className="actions"><Link className="btn secondary" to="/how-to-play"><Icon name="help" />{t("Как играть")}</Link></div>
+            </>
+          )}
         </div>
+        {map.status === "FINISHED" && (
+          <div className="card">
+            <h2><Icon name="crown" />{t("Итоги")}</h2>
+            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} />
+          </div>
+        )}
         <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></div>
       </main>
     );
@@ -262,7 +316,6 @@ export function TeamPage() {
   const incoming = passages?.incoming.filter((r) => r.status === "PENDING") ?? [];
   // Бейдж на кнопке меню — только то, что требует действия: возвращённое дело, входящий запрос прохода, наш ход в испытании.
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length;
-  const winner = standings?.winnerTeamId ? standings.standings.find((s) => s.teamId === standings.winnerTeamId)?.name ?? "" : "";
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (wide) return;
@@ -330,33 +383,7 @@ export function TeamPage() {
 
           <section className="section">
             <h2><Icon name="crown" />{t("Положение команд")}</h2>
-            {!standings ? <LoadingState rows={2} /> : standings.standings.length === 0 ? <EmptyState inline icon="crown" text={t("Пока нечего показать.")} /> : (
-              <ol className="standings-list">
-                {standings.standings.map((st, i) => {
-                  const trials = st.battlesWon + st.battlesRepelled + st.battlesLost;
-                  const details = trials > 0 || st.citiesOnPath.length > 0;
-                  const opened = openStanding ?? team.id;
-                  const shown = details && opened === st.teamId;
-                  const toggle = () => setOpenStanding(opened === st.teamId ? "" : st.teamId);
-                  return (
-                    <li key={st.teamId} className={"standing" + (details ? " expandable" : "")} role={details ? "button" : undefined} tabIndex={details ? 0 : undefined} aria-expanded={details ? shown : undefined}
-                      onClick={details ? toggle : undefined} onKeyDown={details ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } } : undefined}>
-                      <span className="rank">{st.teamId === standings.winnerTeamId ? <Icon name="trophy" /> : i + 1}</span>
-                      <div className="body">
-                        <div className="name">
-                          <TeamAvatar name={st.name} color={st.color} size="sm" withName />
-                          {st.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : st.teamId === standings.winnerTeamId ? <Chip tone="ok" icon="trophy">{t("победитель")}</Chip> : st.teamId === team.id ? <Chip tone="accent">{t("мы")}</Chip> : null}
-                          {details && <Icon name="chevron-down" className="chev" />}
-                        </div>
-                        <div className="meta">{plural(st.cities, ["город", "города", "городов"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])} · {plural(st.nodesRevealed, ["перекрёсток", "перекрёстка", "перекрёстков"])}</div>
-                        {shown && trials > 0 && <div className="meta">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}<span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><Help>{t("выиграли · устояли · потеряли")}</Help></span></div>}
-                        {shown && st.citiesOnPath.length > 0 && <div className="meta">{t("Города")}: {st.citiesOnPath.map((c) => c.name + (c.current ? "" : ` (${t("потерян")})`)).join(", ")}</div>}
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-            )}
+            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} />
             {standings?.status === "ACTIVE" && standings.endsAt && <p className="hint">{t("Игра идёт до {d}", { d: fmtDate(standings.endsAt) })}</p>}
           </section>
 

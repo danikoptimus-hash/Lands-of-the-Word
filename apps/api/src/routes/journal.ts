@@ -52,10 +52,15 @@ export async function journalRoutes(app: FastifyInstance): Promise<void> {
     return { lines: await sendChronicle(id) };
   });
 
-  /** Администратор: «Книга сезона». */
+  /** «Книга сезона»: администратору — всегда, участникам — после завершения игры (итоги видят все, решение владельца 19.09). */
   app.get("/api/games/:id/season-book", async (request, reply) => {
     const { id } = request.params as { id: string };
-    if (!(await requireAdmin(request, reply, id))) return;
+    const game = await prisma.game.findUnique({ where: { id }, select: { status: true, admins: { select: { userId: true } }, teams: { select: { members: { select: { userId: true } } } } } });
+    if (!game) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
+    const uid = request.user!.id;
+    const isAdmin = game.admins.some((a) => a.userId === uid);
+    const isMember = game.teams.some((t) => t.members.some((m) => m.userId === uid));
+    if (!isAdmin && !(isMember && game.status === "FINISHED")) return reply.code(403).send({ error: "forbidden", message: err(request, isMember ? "Книга сезона откроется участникам после завершения игры" : "Нет доступа") });
     return await seasonBook(id);
   });
 

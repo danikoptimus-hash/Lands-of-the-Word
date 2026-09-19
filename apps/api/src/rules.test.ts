@@ -234,6 +234,30 @@ describe("штраф, роли, пророк", () => {
     expect((await post(`/api/games/${gameId}/teams/${team2}/penalty`, adminCookie)).statusCode).toBe(409);
   });
 
+  it("штраф закрывает и ещё не взятый город на конце пути: задания города начинаются заново (уточнение владельца 19.09)", async () => {
+    // Команда 2 дошла до города и частично изучила его: сторона в город одобрена, район решён, подсказка пророка открыта.
+    const map0 = await get(`/api/games/${gameId}/my-map`, p2Cookie);
+    const toCity = (map0.json().tasks as Array<{ id: string; toKey: string; sea: boolean; status: string }>).find((t) => !t.sea && t.status === "OPEN")!;
+    const cityKey = toCity.toKey;
+    await prisma.mapNode.update({ where: { gameId_key: { gameId, key: cityKey } }, data: { kind: "CITY", bookCode: "jon" } });
+    await prisma.teamEdgeTask.update({ where: { id: toCity.id }, data: { status: "APPROVED", decidedAt: new Date() } });
+    await prisma.teamNodeState.create({ data: { teamId: team2, nodeKey: cityKey } });
+    await prisma.teamCityState.create({ data: { gameId, teamId: team2, nodeKey: cityKey, orderSolved: true, doneTasks: [0], hintTasks: [1], attackPenalty: 5 } });
+    const pen = await post(`/api/games/${gameId}/teams/${team2}/penalty`, adminCookie);
+    expect(pen.statusCode).toBe(200);
+    expect(pen.json().toKey).toBe(cityKey);
+    expect(pen.json().city).toBe(true);
+    const map1 = await get(`/api/games/${gameId}/my-map`, p2Cookie);
+    expect((map1.json().revealed as Array<{ key: string }>).some((n) => n.key === cityKey)).toBe(false);
+    const st = await prisma.teamCityState.findUniqueOrThrow({ where: { teamId_nodeKey: { teamId: team2, nodeKey: cityKey } } });
+    expect(st.orderSolved).toBe(false);
+    expect(st.doneTasks).toEqual([]);
+    expect(st.hintTasks).toEqual([]);
+    expect(st.attackPenalty).toBe(5);
+    // У команды 1 пройденных концевых участков нет (Руфь взята, старт не трогается) — штрафовать не на что.
+    expect((await post(`/api/games/${gameId}/teams/${team1}/penalty`, adminCookie)).statusCode).toBe(409);
+  });
+
   it("подсказку пророка видит только пророк; заместитель бросает вызов", async () => {
     const p3 = await prisma.user.findUniqueOrThrow({ where: { nickname: p3Nick } });
     await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${p3.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "PROPHET" } });
