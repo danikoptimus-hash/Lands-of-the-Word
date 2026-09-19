@@ -236,11 +236,6 @@ export async function penalizeTeam(gameId: string, teamId: string, byId: string)
   return { fromKey: pick.fromKey, toKey: pick.toKey, city };
 }
 
-/** Город сменил владельца, разрешения на проход через него сброшены: незанятые дела на сторонах из этого города убираются (взятые и сданные остаются). */
-export async function closePassage(gameId: string, teamId: string, nodeKey: string): Promise<void> {
-  await prisma.teamEdgeTask.deleteMany({ where: { gameId, teamId, fromKey: nodeKey, status: "OPEN" } });
-}
-
 export async function revealNode(gameId: string, teamId: string, nodeKey: string): Promise<void> {
   await prisma.teamNodeState.upsert({ where: { teamId_nodeKey: { teamId, nodeKey } }, create: { teamId, nodeKey }, update: {} });
   await ensureFrontier(gameId, teamId);

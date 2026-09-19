@@ -55,6 +55,9 @@ export async function recipientRoutes(app: FastifyInstance): Promise<void> {
     if (count === 0) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала добавьте адресатов") });
     await prisma.mapNode.updateMany({ where: { gameId: id, kind: "CITY" }, data: { recipientId: null } });
     const assigned = await assignRecipients(id);
+    // Прежние ярлыки устарели: отметка о скачивании снимается, чек-лист старта снова попросит скачать PDF.
+    const { labelsPrintedAt: _printed, ...settings } = (game.settings ?? {}) as Record<string, unknown>;
+    await prisma.game.update({ where: { id }, data: { settings: settings as object } });
     publish(id, { type: "game" });
     return { ok: true, assigned };
   });
@@ -100,6 +103,9 @@ export async function recipientRoutes(app: FastifyInstance): Promise<void> {
     const r = await labelRows(request, reply, id);
     if (!r) return;
     const pdf = await renderLabelsPdf(r.game.name, r.rows, r.locale);
+    // Чек-лист старта (3.18): ярлыки скачаны — отметка в настройках игры, без миграции схемы.
+    await prisma.game.update({ where: { id }, data: { settings: { ...((r.game.settings ?? {}) as Record<string, unknown>), labelsPrintedAt: new Date().toISOString() } } });
+    publish(id, { type: "game" });
     const file = (r.locale === "en" ? "envelope-labels" : "yarlyki-konvertov") + ".pdf";
     return reply.header("Content-Type", "application/pdf").header("Content-Disposition", `attachment; filename="${file}"`).header("Cache-Control", "no-store").send(pdf);
   });

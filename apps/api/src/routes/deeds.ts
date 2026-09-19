@@ -21,6 +21,15 @@ async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, ga
  * Рекомендуемый минимум дел: дела не должны повторяться на 30 ближайших векторах хода команды,
  * поэтому не меньше 30, а на больших картах больше (примерно один вектор из восьми по карте).
  */
+/**
+ * Сколько перекрёстков генерировать: заданное число, умноженное на (расстояние между городами / 2)² —
+ * при большем промежутке 66 городов помещаются только на большем поле (решение владельца 19.09).
+ */
+export function effectiveNodeCount(settings: { nodeCount?: number; cityGap?: number } | null | undefined): number {
+  const base = settings?.nodeCount ?? 250, gap = settings?.cityGap ?? 2;
+  return Math.round(base * (gap / 2) ** 2);
+}
+
 export function recommendedDeedCount(nodeCount: number): number {
   return Math.max(30, Math.round(nodeCount / 8));
 }
@@ -32,9 +41,11 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return;
-    const deeds = await prisma.deed.findMany({ where: { gameId: id }, orderBy: { createdAt: "asc" } });
-    const settings = (game.settings ?? {}) as { nodeCount?: number };
-    return { deeds, directions: DIRECTIONS, recommendedMin: recommendedDeedCount(settings.nodeCount ?? 250) };
+    const rows = await prisma.deed.findMany({ where: { gameId: id }, orderBy: { createdAt: "asc" } });
+    // «Тяжесть» убрана (решение владельца 3.15): колонка difficulty живёт только ради хешей старых игр и наружу не отдаётся.
+    const deeds = rows.map(({ difficulty: _difficulty, ...d }) => d);
+    const settings = (game.settings ?? {}) as { nodeCount?: number; cityGap?: number };
+    return { deeds, directions: DIRECTIONS, recommendedMin: recommendedDeedCount(effectiveNodeCount(settings)) };
   });
 
   app.post("/api/games/:id/deeds", async (request, reply) => {

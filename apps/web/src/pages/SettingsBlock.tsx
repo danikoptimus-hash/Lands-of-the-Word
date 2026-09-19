@@ -3,9 +3,10 @@ import { api, ApiError } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
+import { Help } from "../components/Help";
 
 export interface RulesDto { minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
-interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string; rules?: RulesDto } }
+interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string; rules?: RulesDto } }
 type NumKey = Exclude<keyof RulesDto, "pauseSteps" | "adminDigest">;
 /** Продвинутые настройки: правила, которые раньше были зашиты в код (решение владельца 18.09). Подписи короткие, единицы — суффиксом; поля сгруппированы. */
 const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: number }> = {
@@ -44,6 +45,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   const [name, setName] = useState(game.name);
   const [teamCount, setTeamCount] = useState(game.teamCount);
   const [nodeCount, setNodeCount] = useState(game.settings.nodeCount ?? 250);
+  const [cityGap, setCityGap] = useState(game.settings.cityGap ?? 2);
   const [equidistant, setEquidistant] = useState(game.settings.equidistantStarts ?? false);
   const [maxDiff, setMaxDiff] = useState(game.settings.maxStartDistanceDiff ?? 3);
   const [genealogies, setGenealogies] = useState(game.settings.includeGenealogies ?? false);
@@ -56,7 +58,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   const draft = game.status === "DRAFT";
   if (game.status === "FINISHED") return null;
   // Предупреждение о перегенерации — только когда число команд или перекрёстков действительно изменено.
-  const mapChanged = draft && Boolean(game.mapSeed) && (teamCount !== game.teamCount || nodeCount !== (game.settings.nodeCount ?? 250));
+  const mapChanged = draft && Boolean(game.mapSeed) && (teamCount !== game.teamCount || nodeCount !== (game.settings.nodeCount ?? 250) || cityGap !== (game.settings.cityGap ?? 2));
 
   async function save(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(null);
@@ -66,7 +68,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     rulesOut.pauseSteps = String(rules.pauseSteps).split(/[\s,;]+/).map(Number).filter((n) => Number.isInteger(n) && n > 0);
     rulesOut.adminDigest = rules.adminDigest || "instant";
     try {
-      await api(`/api/games/${game.id}`, { method: "PATCH", body: JSON.stringify({ ...(draft ? { name, teamCount } : {}), settings: draft ? { nodeCount, equidistantStarts: equidistant, maxStartDistanceDiff: maxDiff, includeGenealogies: genealogies, ...donation, rules: rulesOut } : { ...donation, rules: rulesOut } }) });
+      await api(`/api/games/${game.id}`, { method: "PATCH", body: JSON.stringify({ ...(draft ? { name, teamCount } : {}), settings: draft ? { nodeCount, cityGap, equidistantStarts: equidistant, maxStartDistanceDiff: maxDiff, includeGenealogies: genealogies, ...donation, rules: rulesOut } : { ...donation, rules: rulesOut } }) });
       notify(t("Настройки сохранены"));
       if (mapChanged) notify(t("Карту нужно сгенерировать заново"), "info");
       onSaved();
@@ -128,7 +130,9 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
               <h3>{t("Карта и старты")}</h3>
               <label htmlFor="s-nodes">{t("Перекрёстков на карте")}</label>
               <input id="s-nodes" type="number" min={200} max={600} step={10} value={nodeCount} onChange={(e) => setNodeCount(Number(e.target.value))} />
-              {mapChanged && <p className="note warn"><Icon name="alert" /><span>{t("После изменения числа команд или перекрёстков карту нужно сгенерировать заново.")}</span></p>}
+              <label htmlFor="s-gap">{t("Расстояние между городами · сторон")}<Help>{t("Сколько сторон гексов отделяет соседние города, не меньше. По умолчанию 2 (в среднем чуть больше двух). При 3 или 4 путь между городами длиннее, а карта больше: перекрёстков в (N/2)² раз больше, чем задано выше.")}</Help></label>
+              <input id="s-gap" type="number" min={2} max={4} step={1} value={cityGap} onChange={(e) => setCityGap(Number(e.target.value))} />
+              {mapChanged && <p className="note warn"><Icon name="alert" /><span>{t("После изменения числа команд, перекрёстков или расстояния между городами карту нужно сгенерировать заново.")}</span></p>}
               <label className="check mt-3"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />{t("Выровнять расстояние от стартов до первого города")}</label>
               {equidistant && (
                 <div className="sub">

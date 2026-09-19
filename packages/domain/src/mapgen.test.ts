@@ -99,6 +99,15 @@ describe("generateMap", () => {
     }
   });
 
+  it("расстояние между городами задаётся: gap 3 при поле ×2.25 — минимум 3 ребра, среднее больше, чем при gap 2", () => {
+    const near = generateMap({ seed: 11, teamCount: 3 });
+    const far = generateMap({ seed: 11, teamCount: 3, minCityGap: 3, nodeCount: Math.round(250 * 2.25) });
+    expect(near.stats.minCityGap).toBeGreaterThanOrEqual(2);
+    expect(far.stats.minCityGap).toBeGreaterThanOrEqual(3);
+    expect(far.stats.avgCityGap).toBeGreaterThan(near.stats.avgCityGap);
+    expect(far.stats.cityCount).toBe(near.stats.cityCount);
+  });
+
   it("ругается на одну команду", () => {
     expect(() => generateMap({ seed: 1, teamCount: 1 })).toThrow(MapGenError);
   });

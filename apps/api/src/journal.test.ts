@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
-import { registerVerified } from "./testAuth.js";
+import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 import { chronicleLines, sendChronicle } from "./services/journal.js";
 import { ruinsTreasure } from "./services/treasure.js";
 
@@ -43,6 +43,7 @@ beforeAll(async () => {
   team1 = await joinTeam("Моряки", p1Cookie);
   team2 = await joinTeam("Берег", p2Cookie);
   await post(`/api/games/${gameId}/deeds/import-default`, adminCookie);
+  await readyForStart(app, gameId, adminCookie);
   await post(`/api/games/${gameId}/start`, adminCookie);
   rutKey = (await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "rut" } })).key;
   genKey = (await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "gen" } })).key;
@@ -58,6 +59,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, p1Nick, p2Nick] } } });
+  await cleanupFixtures(gameId);
   await app.close();
   await prisma.$disconnect();
 });

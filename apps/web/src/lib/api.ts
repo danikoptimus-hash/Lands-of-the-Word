@@ -45,10 +45,10 @@ export type CityTaskDto =
   | { index: number; scope: string; groupDistricts: number[] | null; type: "crossword"; prompt: string; rows: number; cols: number; words: CrosswordWordDto[] };
 /** Слово кроссворда без букв: номер, клетка начала, направление, длина и вопрос. Ответ — слова в порядке этого списка. */
 export interface CrosswordWordDto { n: number; row: number; col: number; dir: "across" | "down"; len: number; clue: string }
-/** Блокировка задания с выбором ответа (две попытки → сутки) и спор с админом. */
-export interface TaskLockDto { index: number; wrong: number; lockedUntil: number | null; unlocked: boolean }
+/** Растущая пауза задания после неверных ответов: сколько ошибок подряд и до какого момента ответ не принимается. */
+export interface TaskLockDto { index: number; wrong: number; lockedUntil: number | null }
 /** Обращение команды в поддержку по городу: открытое или закрытое с ответом (две недели). */
-export interface SupportItemDto { id: string; taskIndex: number | null; createdAt: number; status: "OPEN" | "CLOSED"; reply: string | null; unlocked: boolean }
+export interface SupportItemDto { id: string; taskIndex: number | null; createdAt: number; status: "OPEN" | "CLOSED"; reply: string | null }
 export interface MyCityDto {
   node: { key: string; bookCode: string; cityType: string | null; ruined: boolean };
   /** Адресат конверта: только когда все задания решены. */
@@ -110,4 +110,4 @@ export interface StandingsDto { status: string; finishedAt: string | null; winne
 /** Дипломатия: запрос прохода через чужой город. */
 export type PassageStatus = "PENDING" | "APPROVED" | "DECLINED" | "EXPIRED" | "REVOKED";
 export interface PassageDto { id: string; nodeKey: string; bookName: string; message: string; answer: string; status: PassageStatus; createdAt: string; expiresAt: string; decidedAt: string | null; requester: { id: string; name: string; color: string }; owner: { id: string; name: string; color: string } }
-export const PASSAGE_LABEL: Record<PassageStatus, string> = { get PENDING() { return t("ждём ответа"); }, get APPROVED() { return t("разрешён"); }, get DECLINED() { return t("отказано"); }, get EXPIRED() { return t("без ответа"); }, get REVOKED() { return t("закрыт"); } };
+export const PASSAGE_LABEL: Record<PassageStatus, string> = { get PENDING() { return t("ждём ответа"); }, get APPROVED() { return t("разрешён"); }, get DECLINED() { return t("отказано"); }, get EXPIRED() { return t("без ответа"); }, get REVOKED() { return t("сброшен: город сменил владельца"); } };

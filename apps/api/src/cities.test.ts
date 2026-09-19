@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
-import { registerVerified } from "./testAuth.js";
+import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -37,6 +37,7 @@ beforeAll(async () => {
   team1 = await joinTeam("Львы", p1Cookie);
   team2 = await joinTeam("Орлы", p2Cookie);
   await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/import-default`, headers: { cookie: adminCookie } });
+  await readyForStart(app, gameId, adminCookie);
   const start = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });
   expect(start.statusCode).toBe(200);
   const rut = await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "rut" } });
@@ -49,6 +50,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, p1Nick, p2Nick] } } });
+  await cleanupFixtures(gameId);
   await app.close();
   await prisma.$disconnect();
 });

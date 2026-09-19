@@ -26,7 +26,7 @@ import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 
-interface GameDto { id: string; name: string; createdById?: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
+interface GameDto { id: string; name: string; createdById?: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; mapStats?: MapStats; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
 type Tab = "overview" | "map" | "teams" | "deeds" | "review" | "settings";
 const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "settings"];
 type Progress = { teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] };
@@ -69,7 +69,7 @@ export function GamePage() {
 
   const load = useCallback(async () => {
     const r = await api<{ game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[] }>(`/api/games/${id}`);
-    setGame(r.game); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges);
+    setGame(r.game); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges); setStats((s) => s ?? r.game.settings.mapStats ?? null);
     setError(null);
   }, [id]);
 

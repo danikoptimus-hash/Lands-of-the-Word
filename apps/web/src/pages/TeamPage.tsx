@@ -305,7 +305,7 @@ export function TeamPage() {
             <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} />
           </div>
         )}
-        <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></div>
+        <div className="card"><Roster team={team} isCaptain={isCaptain && map.status !== "FINISHED"} onRole={setGameRole} onDeputy={setDeputy} /></div>
       </main>
     );
   }

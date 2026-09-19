@@ -233,7 +233,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
           {city.state.capturedAt && !city.state.isCapital && isCaptain && (
             <div className="row mt-2">
               <button type="button" className="secondary" disabled={busy || Boolean(city.team.capitalMovedAt)} onClick={() => void makeCapital()}><Icon name="crown" />{t("Перенести столицу сюда")}</button>
-              {city.team.capitalMovedAt ? <span className="hint">{t("уже использован")}</span> : <Help>{t("Один раз за игру. Можно и во время испытания.")}</Help>}
+              {city.team.capitalMovedAt ? <span className="hint">{t("уже использован")}</span> : <Help>{t("Один раз за игру. Пока на столицу брошен вызов или стоит очередь, перенести её нельзя.")}</Help>}
             </div>
           )}
         </section>
@@ -316,7 +316,7 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
         </div>
       )}
       {openRequest && <div className="note info"><Icon name="send" /><span>{t("Обращение в поддержку отправлено {d}. Ждём ответа.", { d: fmtDate(new Date(openRequest.createdAt).toISOString()) })}</span></div>}
-      {lastReply && !done && <div className={"note " + (lastReply.unlocked ? "ok" : "info")}><Icon name="info" /><span>{t("Ответ поддержки: {a}", { a: lastReply.reply || (lastReply.unlocked ? t("блокировка снята") : t("обращение рассмотрено")) })}</span></div>}
+      {lastReply && !done && <div className="note info"><Icon name="info" /><span>{t("Ответ поддержки: {a}", { a: lastReply.reply || t("обращение рассмотрено") })}</span></div>}
       {!done && !openRequest && !supportForm && <p className="mt-2 support-link"><button type="button" className="ghost sm" onClick={() => setSupportForm(true)}><Icon name="send" />{t("Написать в поддержку")}</button></p>}
       {supportForm && (
         <div className="support-form card flat">

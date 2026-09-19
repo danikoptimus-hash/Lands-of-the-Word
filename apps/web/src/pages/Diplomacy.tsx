@@ -11,19 +11,19 @@ import { EmptyState } from "../components/State";
 
 export interface PassagesDto { canSpeak: boolean; outgoing: PassageDto[]; incoming: PassageDto[] }
 
-/** Статус запроса прохода: подпись и тон по единой палитре (ждём — warn, разрешён — success, отказ/закрыт — danger). */
+/** Статус запроса прохода: подпись и тон по единой палитре (ждём — warn, разрешён — success, отказ/сброшен при смене владельца — danger). */
 export function passageStatus(s: PassageStatus): { label: string; tone: ChipTone; icon: string } {
   switch (s) {
     case "PENDING": return { label: t("ждём ответа"), tone: "warn", icon: "clock" };
     case "APPROVED": return { label: t("разрешён"), tone: "ok", icon: "check" };
     case "DECLINED": return { label: t("отказ"), tone: "bad", icon: "x" };
     case "EXPIRED": return { label: t("нет ответа — отказ"), tone: "bad", icon: "clock" };
-    default: return { label: t("закрыт"), tone: "bad", icon: "lock" };
+    default: return { label: t("сброшен: город сменил владельца"), tone: "bad", icon: "lock" };
   }
 }
 const PassageChip = ({ s }: { s: PassageStatus }) => { const p = passageStatus(s); return <Chip tone={p.tone} icon={p.icon}>{p.label}</Chip>; };
 
-/** В попапе чужого города: состояние прохода и запрос разрешения (посол или капитан). */
+/** В попапе чужого города: состояние прохода и запрос разрешения (посол, а без посла — капитан или заместитель). */
 export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId: string; nodeKey: string; version: number; onChanged: () => void }) {
   const { notify } = useUi();
   const [data, setData] = useState<PassagesDto | null>(null);
@@ -36,7 +36,7 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
   const last = mine[0];
   async function request() {
     setError(null); setBusy(true);
-    try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/passage`, { method: "POST", body: JSON.stringify({ message }) }); notify(t("Запрос отправлен: у владельца три дня на ответ")); setMessage(""); await load(); onChanged(); }
+    try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/passage`, { method: "POST", body: JSON.stringify({ message }) }); notify(t("Запрос отправлен: ждём ответа владельца, молчание — отказ.")); setMessage(""); await load(); onChanged(); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
@@ -58,7 +58,7 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
               </div>
               <div className="actions"><button type="button" disabled={busy} onClick={() => void request()}><Icon name="handshake" />{t("Запросить проход")}</button></div>
             </>
-          ) : <p className="hint">{t("Запрос отправляет посол или капитан.")}</p>}
+          ) : <p className="hint">{t("Запрос отправляет посол, а без посла — капитан или заместитель.")}</p>}
         </>
       )}
       {error && <p className="error" role="alert">{error}</p>}
@@ -66,7 +66,7 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
   );
 }
 
-/** В боковом меню «Проходы»: входящие запросы (ответить, можно текстом), выданные разрешения (отозвать), наши запросы. */
+/** В боковом меню «Проходы»: входящие запросы (ответить, можно текстом), выданные разрешения (безотзывные), наши запросы. */
 export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; data: PassagesDto | null; onChanged: () => void }) {
   const { notify } = useUi();
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -101,7 +101,7 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
                 <button type="button" className="secondary" disabled={busy === r.id} onClick={() => void decide(r, false)}>{t("Отказать")}</button>
               </div>
             </>
-          ) : <p className="hint">{t("Отвечает посол или капитан.")}</p>}
+          ) : <p className="hint">{t("Отвечает посол, а без посла — капитан или заместитель.")}</p>}
         </div>
       ))}
       {granted.length > 0 && (

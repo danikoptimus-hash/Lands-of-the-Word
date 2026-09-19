@@ -22,9 +22,9 @@ const captureBody = z.object({ key: z.string().trim().min(1).max(32) });
  * ступени из правил игры (20 с, 1 мин, 5 мин, 15 мин, 1 ч, дальше по часу), считается на задание,
  * сбрасывается при верном ответе. Двух попыток и блокировки на сутки больше нет.
  */
-function publicLock(l: { taskIndex: number; wrong: number; lockedUntil: Date | null; unlocked: boolean }, now: number) {
+function publicLock(l: { taskIndex: number; wrong: number; lockedUntil: Date | null }, now: number) {
   const locked = l.lockedUntil && l.lockedUntil.getTime() > now;
-  return { index: l.taskIndex, wrong: l.wrong, lockedUntil: locked ? l.lockedUntil!.getTime() : null, unlocked: l.unlocked };
+  return { index: l.taskIndex, wrong: l.wrong, lockedUntil: locked ? l.lockedUntil!.getTime() : null };
 }
 
 const ownerSelect = { team: { select: { id: true, index: true, name: true, color: true } } } as const;
@@ -106,7 +106,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         keyWrong: state?.keyWrong ?? 0,
         pauseSteps: rules.pauseSteps,
         locks: locks.map((l) => publicLock(l, Date.now())),
-        support: support.map((r) => ({ id: r.id, taskIndex: r.taskIndex, createdAt: r.createdAt.getTime(), status: r.status, reply: r.reply, unlocked: r.unlocked })),
+        support: support.map((r) => ({ id: r.id, taskIndex: r.taskIndex, createdAt: r.createdAt.getTime(), status: r.status, reply: r.reply })),
       },
     };
   });
@@ -173,7 +173,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     else {
       const wrong = (lock?.wrong ?? 0) + 1;
       retryAt = now + pauseAfter(c.rules, wrong);
-      const data = { wrong, lockedUntil: new Date(retryAt), unlocked: false };
+      const data = { wrong, lockedUntil: new Date(retryAt) };
       await prisma.teamTaskLock.upsert({ where: lockWhere, create: { gameId: id, teamId: c.m.team.id, nodeKey, taskIndex: index, ...data }, update: data });
     }
     publish(id, { type: "cities", teamId: c.m.team.id });

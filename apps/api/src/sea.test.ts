@@ -5,7 +5,7 @@ import { BOOKS } from "@lotw/domain";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { withDeedBook } from "./services/teamMap.js";
-import { registerVerified } from "./testAuth.js";
+import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 import { deedHash, syncGameDeeds } from "./services/defaultDeeds.js";
 
 /**
@@ -41,11 +41,13 @@ beforeAll(async () => {
   await joinTeam("", memCookie, "MEMBER", team1);
   await joinTeam("Берег", p2Cookie, "CAPTAIN");
   await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/import-default`, headers: { cookie: adminCookie } });
+  await readyForStart(app, gameId, adminCookie);
   expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } })).statusCode).toBe(200);
 });
 afterAll(async () => {
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, capNick, memNick, p2Nick] } } });
+  await cleanupFixtures(gameId);
   await app.close(); await prisma.$disconnect();
 });
 

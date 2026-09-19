@@ -75,9 +75,9 @@ function Tile({ label, value, hint, trend, dates, cumulative, delta }: { label: 
 }
 
 
-interface SupportRow { id: string; createdAt: string; status: "OPEN" | "CLOSED"; game: string; team: { name: string; color: string } | null; user: string; bookCode: string | null; taskIndex: number | null; message: string; context: { city?: string | null; prompt?: string | null; attemptsLeft?: number | null; lockedUntil?: string | null;  doneTasks?: number | null; totalTasks?: number | null; org?: string }; reply: string | null; resolvedAt: string | null; unlocked: boolean }
+interface SupportRow { id: string; createdAt: string; status: "OPEN" | "CLOSED"; game: string; team: { name: string; color: string } | null; user: string; bookCode: string | null; taskIndex: number | null; message: string; context: { city?: string | null; prompt?: string | null; lockedUntil?: string | null; doneTasks?: number | null; totalTasks?: number | null; org?: string }; reply: string | null; resolvedAt: string | null }
 
-/** Обращения в поддержку: открытые сверху, ответ и снятие блокировки — здесь. Адрес для писем — в настройке ниже. */
+/** Обращения в поддержку: открытые сверху, ответ команде — здесь (пауза задания не снимается). Адрес для писем — в настройке ниже. */
 function SupportBlock() {
   const { notify } = useUi();
   const [rows, setRows] = useState<SupportRow[] | null>(null);
@@ -92,11 +92,11 @@ function SupportBlock() {
   }, [showClosed]);
   useEffect(() => { load(); }, [load]);
   useEffect(() => { api<{ supportEmail: string | null; fallback: string | null }>("/api/admin/settings").then((s) => { setSettings(s); setEmail(s.supportEmail ?? ""); }).catch(() => undefined); }, []);
-  async function resolve(r: SupportRow, unlock: boolean) {
+  async function resolve(r: SupportRow) {
     setBusy(r.id);
     try {
-      await api(`/api/admin/support/${r.id}/resolve`, { method: "POST", body: JSON.stringify({ unlock, reply: reply[r.id]?.trim() || undefined }) });
-      notify(unlock ? t("Блокировка снята, команде отправлен ответ") : t("Обращение закрыто, команде отправлен ответ"));
+      await api(`/api/admin/support/${r.id}/resolve`, { method: "POST", body: JSON.stringify({ reply: reply[r.id]?.trim() || undefined }) });
+      notify(t("Обращение закрыто, команде отправлен ответ"));
       load();
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(null); }
@@ -110,7 +110,7 @@ function SupportBlock() {
     <div className="card" id="support">
       <div className="card-head">
         <h2><span className="ico"><Icon name="send" /></span>{t("Обращения в поддержку")} {rows && <span className="count">{open.length}</span>}</h2>
-        <Help>{t("Игроки пишут из задания: город, задание и состояние попыток подставляются сами. Ответ уходит команде уведомлением и письмом.")}</Help>
+        <Help>{t("Игроки пишут из задания: город, задание и текущая пауза подставляются сами. Ответ уходит команде уведомлением и письмом.")}</Help>
         <button type="button" className="secondary sm" onClick={() => setShowClosed((v) => !v)}>{showClosed ? t("Только открытые") : t("Показать закрытые")}</button>
       </div>
       {error ? <ErrorState text={error} onRetry={load} /> : !rows ? <LoadingState rows={2} /> : rows.length === 0 ? <EmptyState inline icon="send" text={t("Обращений нет.")} /> : (
@@ -119,17 +119,16 @@ function SupportBlock() {
             <li key={r.id} className={r.status === "CLOSED" ? "closed" : ""}>
               <div className="main">
                 <span className="title">{r.game}{r.team && <> · <TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName /></>} <span className="muted small">· {r.user} · {fmtDate(r.createdAt)}</span></span>
-                {r.context.city && <span className="meta">{r.context.city}{r.taskIndex !== null && <> · {t("задание {n}", { n: r.taskIndex + 1 })}{r.context.attemptsLeft !== null && r.context.attemptsLeft !== undefined && <> · {t("попыток осталось {n}", { n: r.context.attemptsLeft })}</>}{r.context.lockedUntil && <> · {t("закрыто до {d}", { d: fmtDate(r.context.lockedUntil) })}</>}</>}</span>}
+                {r.context.city && <span className="meta">{r.context.city}{r.taskIndex !== null && <> · {t("задание {n}", { n: r.taskIndex + 1 })}{r.context.lockedUntil && <> · {t("закрыто до {d}", { d: fmtDate(r.context.lockedUntil) })}</>}</>}</span>}
                 {r.context.prompt && <span className="muted small">{r.context.prompt}</span>}
                 <p className="msg">{r.message}</p>
                 {r.status === "CLOSED" ? (
-                  <span className="muted small">{r.unlocked ? t("Блокировка снята") : t("Закрыто")}{r.reply ? ` · ${t("ответ команде")}: ${r.reply}` : ""}{r.resolvedAt ? ` · ${fmtDate(r.resolvedAt)}` : ""}</span>
+                  <span className="muted small">{t("Закрыто")}{r.reply ? ` · ${t("ответ команде")}: ${r.reply}` : ""}{r.resolvedAt ? ` · ${fmtDate(r.resolvedAt)}` : ""}</span>
                 ) : (
                   <div className="support-reply">
                     <textarea value={reply[r.id] ?? ""} onChange={(e) => setReply((m) => ({ ...m, [r.id]: e.target.value }))} placeholder={t("Ответ команде (необязательно)")} maxLength={1000} rows={2} />
                     <div className="row mt-2">
-                      {r.taskIndex !== null && <button type="button" className="sm" disabled={busy === r.id} onClick={() => void resolve(r, true)}><Icon name="check" />{t("Снять блокировку и закрыть")}</button>}
-                      <button type="button" className="secondary sm" disabled={busy === r.id} onClick={() => void resolve(r, false)}>{t("Закрыть с ответом")}</button>
+                      <button type="button" className="sm" disabled={busy === r.id} onClick={() => void resolve(r)}><Icon name="check" />{t("Закрыть с ответом")}</button>
                     </div>
                   </div>
                 )}

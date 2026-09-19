@@ -34,7 +34,7 @@ export interface GeneratedMap {
   hexes: MapHexTile[];
   nodes: MapNode[];
   edges: MapEdge[];
-  stats: { hexCount: number; nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number; islands: Record<Island, { hexes: number; cities: number; ports: number }> };
+  stats: { hexCount: number; nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number; avgCityGap: number; islands: Record<Island, { hexes: number; cities: number; ports: number }> };
 }
 
 export interface MapGenOptions {
@@ -44,7 +44,7 @@ export interface MapGenOptions {
   cityCount?: number;            // 66
   equidistantStarts?: boolean;
   maxStartDistanceDiff?: number; // разница расстояний до первого города между командами, 2–3
-  minCityGap?: number;           // минимум рёбер между городами (2 = хотя бы одна развилка между ними)
+  minCityGap?: number;           // минимум рёбер между городами (2 = хотя бы одна развилка между ними); поле под него подбирает вызывающий (nodeCount ∝ gap²)
 }
 
 const CITY_TYPES = ["village", "walled_city", "fortress", "temple_city", "port", "tent_camp", "hill_city", "ruins"];
@@ -265,12 +265,18 @@ export function generateMap(opts: MapGenOptions): GeneratedMap {
     return { ...base, kind: "empty" as const };
   });
 
-  let minGap = Infinity;
+  // Промежутки между городами: наименьший и средний (до ближайшего соседнего города, в рёбрах).
+  let minGap = Infinity, gapSum = 0, gapCount = 0;
   const citySet = new Set(cities);
-  for (const c of cities) { const d = graphDistances(graph, c, 6); for (const [k, dd] of d) if (k !== c && citySet.has(k)) minGap = Math.min(minGap, dd); }
+  for (const c of cities) {
+    let nearestGap = Infinity;
+    for (const [k, dd] of graphDistances(graph, c, Math.max(6, minCityGap * 3))) if (k !== c && citySet.has(k)) nearestGap = Math.min(nearestGap, dd);
+    if (Number.isFinite(nearestGap)) { minGap = Math.min(minGap, nearestGap); gapSum += nearestGap; gapCount++; }
+  }
+  const avgCityGap = gapCount ? Math.round((gapSum / gapCount) * 10) / 10 : 0;
   const islandStats = (isl: Island) => ({ hexes: hexes.filter((h) => h.island === isl).length, cities: nodes.filter((n) => n.island === isl && n.kind === "city").length, ports: nodes.filter((n) => n.island === isl && n.kind === "city" && n.coastal).length });
 
-  return { seed: opts.seed, hexes, nodes, edges: graph.edges, stats: { hexCount: hexes.length, nodeCount: nodes.length, cityCount: cities.length, startDistances, minCityGap: minGap, islands: { OT: islandStats("OT"), NT: islandStats("NT") } } };
+  return { seed: opts.seed, hexes, nodes, edges: graph.edges, stats: { hexCount: hexes.length, nodeCount: nodes.length, cityCount: cities.length, startDistances, minCityGap: minGap, avgCityGap, islands: { OT: islandStats("OT"), NT: islandStats("NT") } } };
 }
 
 export { TERRAINS, CITY_TYPES };

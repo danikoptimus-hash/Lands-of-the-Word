@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
-import { registerVerified } from "./testAuth.js";
+import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -25,6 +25,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, playerNick, otherNick] } } });
+  await cleanupFixtures(gameId);
   await app.close();
   await prisma.$disconnect();
 });
@@ -163,6 +164,15 @@ describe("дела и старт игры", () => {
     const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teams[1]!.id}/invites`, headers: { cookie: adminCookie }, payload: { role: "CAPTAIN" } });
     const third = await registerVerified(app, { nickname: "th_" + stamp, password: "secret123" });
     await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: third.headers["set-cookie"] as string } });
+    // Капитан есть, но команды из одного человека и города без адресатов — старт всё ещё закрыт (чек-лист 3.18).
+    const stillNotReady = await app.inject({ method: "GET", url: `/api/games/${gameId}/readiness`, headers: { cookie: adminCookie } });
+    expect(stillNotReady.json().canStart).toBe(false);
+    expect(stillNotReady.json().problems.join(" ")).toContain("по одному участнику");
+    expect(stillNotReady.json().problems.join(" ")).toContain("без адресата");
+    await readyForStart(app, gameId, adminCookie);
+    const ready = await app.inject({ method: "GET", url: `/api/games/${gameId}/readiness`, headers: { cookie: adminCookie } });
+    expect(ready.json().canStart).toBe(true);
+    expect(ready.json().warnings.join(" ")).toContain("Ярлыки");
     const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });
     expect(ok.statusCode).toBe(200);
     const after = await prisma.team.findMany({ where: { gameId }, orderBy: { index: "asc" } });
@@ -299,6 +309,7 @@ describe("администраторы игры", () => {
       tids.push(t.json().team.id);
     }
     await app.inject({ method: "POST", url: `/api/games/${gid}/deeds/import-default`, headers: { cookie: a } });
+    await readyForStart(app, gid, a);
     await app.inject({ method: "POST", url: `/api/games/${gid}/start`, headers: { cookie: a } });
     const nameChange = await app.inject({ method: "PATCH", url: `/api/games/${gid}`, headers: { cookie: a }, payload: { name: "Другое" } });
     expect(nameChange.statusCode).toBe(409);
@@ -318,6 +329,7 @@ describe("администраторы игры", () => {
     expect(after.json()).toMatchObject({ status: "FINISHED", finishReason: "manual", winnerTeamId: tids[1] });
     await prisma.game.deleteMany({ where: { id: gid } });
     await prisma.user.deleteMany({ where: { nickname: { in: [`fadm_${stampF}`, `fc1_${stampF}`, `fc2_${stampF}`] } } });
+    await cleanupFixtures(gid);
   });
 
   it("вход по почте", async () => {

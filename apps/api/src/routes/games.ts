@@ -5,10 +5,11 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
-import { recommendedDeedCount } from "./deeds.js";
+import { effectiveNodeCount, recommendedDeedCount } from "./deeds.js";
 import { loadCityContent, makeCityCode, makeCityKey } from "../services/cities.js";
 import { finishGame, leader, standings } from "../services/game.js";
 import { ensureFrontier } from "../services/teamMap.js";
+import { assignRecipients } from "../services/recipients.js";
 import { rulesOf, rulesPatchSchema } from "../services/rules.js";
 
 const createBody = z.object({
@@ -18,6 +19,7 @@ const createBody = z.object({
   settings: z
     .object({
       nodeCount: z.number().int().min(200).max(600).default(250),
+      cityGap: z.number().int().min(2).max(4).default(2),
       equidistantStarts: z.boolean().default(false),
       maxStartDistanceDiff: z.number().int().min(0).max(6).default(3),
       includeGenealogies: z.boolean().default(false),
@@ -36,6 +38,7 @@ const patchBody = z.object({
   settings: z
     .object({
       nodeCount: z.number().int().min(200).max(600).optional(),
+      cityGap: z.number().int().min(2).max(4).optional(),
       equidistantStarts: z.boolean().optional(),
       maxStartDistanceDiff: z.number().int().min(0).max(6).optional(),
       includeGenealogies: z.boolean().optional(),
@@ -137,12 +140,12 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (!game) return;
     if (game.status !== "DRAFT") return reply.code(409).send({ error: "conflict", message: err(request, "Игра уже начата: карту менять нельзя") });
     const body = generateBody.parse(request.body ?? {});
-    const settings = (game.settings ?? {}) as { nodeCount?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number };
+    const settings = (game.settings ?? {}) as { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number };
     const seed = body.seed ?? Math.floor(Math.random() * 2 ** 31);
 
     let map;
     try {
-      map = generateMap({ seed, teamCount: game.teamCount, nodeCount: settings.nodeCount, equidistantStarts: settings.equidistantStarts, maxStartDistanceDiff: settings.maxStartDistanceDiff });
+      map = generateMap({ seed, teamCount: game.teamCount, nodeCount: effectiveNodeCount(settings), minCityGap: settings.cityGap ?? 2, equidistantStarts: settings.equidistantStarts, maxStartDistanceDiff: settings.maxStartDistanceDiff });
     } catch (e) {
       if (e instanceof MapGenError) return reply.code(422).send({ error: "mapgen", message: e.message });
       throw e;
@@ -162,7 +165,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         })),
       }),
       prisma.mapEdge.createMany({ data: map.edges.map((e) => ({ gameId: id, aKey: e.a, bKey: e.b })) }),
-      prisma.game.update({ where: { id }, data: { mapSeed: seed } }),
+      // Сводка карты хранится в настройках, чтобы шаг «Карта» показывал её и после перезагрузки страницы.
+      prisma.game.update({ where: { id }, data: { mapSeed: seed, settings: { ...(game.settings as object), mapStats: { startDistances: map.stats.startDistances, minCityGap: map.stats.minCityGap, avgCityGap: map.stats.avgCityGap } } } }),
     ]);
     publish(id, { type: "map" });
     return { seed, stats: map.stats };
@@ -238,8 +242,11 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.deed.count({ where: { gameId: id } }),
       prisma.recipient.count({ where: { gameId: id } }),
     ]);
-    const settings = (game.settings ?? {}) as { nodeCount?: number };
-    const recommended = recommendedDeedCount(settings.nodeCount ?? 250);
+    // Игра сама раздаёт конверты адресатам поровну (как при печати ярлыков): без адресата остаются города только когда адресатов нет.
+    if (recipients > 0) await assignRecipients(id);
+    const noRecipient = await prisma.mapNode.count({ where: { gameId: id, kind: "CITY", recipientId: null } });
+    const settings = (game.settings ?? {}) as { nodeCount?: number; labelsPrintedAt?: string };
+    const recommended = recommendedDeedCount(effectiveNodeCount(settings));
     // Тексты — шаблоны с подстановками: клиент переводит их по ключу (см. i18n), `problems`/`warnings` — готовые русские строки.
     type Item = { key: string; vars?: Record<string, string | number> };
     const problemItems: Item[] = [];
@@ -248,13 +255,15 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (teams.length < game.teamCount) problemItems.push({ key: "Команд создано {a} из {b} — добавьте команды или уменьшите их число в настройках", vars: { a: teams.length, b: game.teamCount } });
     const empty = teams.filter((t) => t._count.members === 0).map((t) => t.name);
     if (empty.length) problemItems.push({ key: "Команды без участников: {names} — пригласите игроков или удалите эти команды", vars: { names: empty.join(", ") } });
-    // Чек-лист расширен (решение владельца 18.09): капитан в каждой команде, не меньше двух участников, адресаты конвертов.
+    // Чек-лист старта (решение владельца 3.18): капитан в каждой команде, не меньше двух участников, адресат у каждого конверта — без этого старт закрыт;
+    // ещё не скачанные ярлыки — предупреждение.
     const noCaptain = teams.filter((t) => t._count.members > 0 && !t.members.some((m) => m.role === "CAPTAIN")).map((t) => t.name);
     if (noCaptain.length) problemItems.push({ key: "Команды без капитана: {names} — назначьте капитана в блоке «Команды»", vars: { names: noCaptain.join(", ") } });
-    const warningItems: Item[] = [];
     const small = teams.filter((t) => t._count.members === 1).map((t) => t.name);
-    if (small.length) warningItems.push({ key: "В командах по одному участнику: {names} — пригласите ещё людей", vars: { names: small.join(", ") } });
-    if (recipients === 0) warningItems.push({ key: "Адресаты конвертов не заданы — добавьте семьи в блоке «Конверты», иначе шифры некому передавать" });
+    if (small.length) problemItems.push({ key: "В командах по одному участнику: {names} — нужно не меньше двух, пригласите ещё людей", vars: { names: small.join(", ") } });
+    if (noRecipient > 0) problemItems.push({ key: "Городов без адресата конверта: {n} — добавьте семьи в блоке «Конверты»: без адресата шифр некому назвать", vars: { n: noRecipient } });
+    const warningItems: Item[] = [];
+    if (!settings.labelsPrintedAt) warningItems.push({ key: "Ярлыки конвертов ещё не скачаны — откройте «Ярлыки» и нажмите «Скачать PDF», чтобы раздать конверты адресатам" });
     if (deeds < recommended) warningItems.push({ key: "В списке {a} дел, а нужно не меньше {b}, иначе дела будут повторяться — добавьте дела", vars: { a: deeds, b: recommended } });
     if (deeds === 0) problemItems.push({ key: "Список дел пуст — добавьте дела" });
     const fill = (i: Item) => i.key.replace(/\{(\w+)\}/g, (m, k: string) => (i.vars && k in i.vars ? String(i.vars[k]) : m));

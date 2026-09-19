@@ -72,7 +72,7 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
                   {(b.status === "DEFENSE" || b.defenseSum > 0 || b.defensePassage) && (
                     <div>
                       <strong>{t("Ответ")}</strong>{b.defensePassage ? ` · ${b.defensePassage.ref}` : ""}<br />
-                      {t("выучено {a} · принято {b} · нужно {c}", { a: b.defenseSum, b: b.defenseApproved, c: b.attackApproved })}
+                      {t("выучено {a} · принято {b} · нужно {c}", { a: b.defenseSum, b: b.defenseApproved, c: b.bid })}
                       {b.defenseDoneAt ? ` · ${t("сдано на проверку")}` : b.defenseDeadline && b.status === "DEFENSE" ? ` · ${t("до {d}", { d: fmtDate(b.defenseDeadline) })}` : ""}
                       {b.defenseBid != null && b.status === "REPELLED" ? ` · ${t("устояли на {n}", { n: verses(b.defenseBid) })}` : ""}
                     </div>

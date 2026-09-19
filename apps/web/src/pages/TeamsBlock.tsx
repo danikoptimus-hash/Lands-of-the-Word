@@ -86,7 +86,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
     <div className="card">
       <div className="card-head">
         <h2><span className="ico"><Icon name="users" /></span>{t("Команды")} {teams && <span className="count">{t("{a} из {b}", { a: teams.length, b: teamCount })}</span>}</h2>
-        <Help>{t("Роли — у участников, не у капитана. Запрос капитана одобрите здесь; ваш выбор применяется сразу.")}</Help>
+        <Help>{t("Роли — у участников, не у капитана. Запрос капитана одобрите здесь; ваш выбор применяется сразу и начинает недельный отсчёт до следующей смены.")}</Help>
         {!full && <button type="button" className="sm" onClick={() => setOpen(true)} disabled={!teams}><Icon name="plus" />{t("Добавить")}</button>}
       </div>
       {teams && full && <p className="hint">{limit[0]}{goToSettings && limit[1] && <> · <a href="#settings" onClick={(e) => { e.preventDefault(); goToSettings(); }}>{limit[1]}</a></>}</p>}

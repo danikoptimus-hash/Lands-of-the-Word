@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { outbox } from "./services/mail.js";
-import { registerVerified } from "./testAuth.js";
+import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -44,6 +44,7 @@ beforeAll(async () => {
   team1 = await joinTeam("Львы", p1Cookie);
   await joinTeam("Орлы", p2Cookie);
   await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/import-default`, headers: { cookie: adminCookie } });
+  await readyForStart(app, gameId, adminCookie);
   expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } })).statusCode).toBe(200);
   rutKey = (await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "rut" } })).key;
   await prisma.teamNodeState.create({ data: { teamId: team1, nodeKey: rutKey } });
@@ -55,11 +56,12 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, p1Nick, p2Nick] } } });
+  await cleanupFixtures(gameId);
   await app.close(); await prisma.$disconnect();
 });
 
 describe("растущая пауза после неверных ответов и обращение в поддержку", () => {
-  it("каждая неверная попытка удлиняет паузу; обращение в поддержку с автозаполнением; суперадмин снимает паузу", async () => {
+  it("каждая неверная попытка удлиняет паузу; обращение в поддержку с автозаполнением; ответ поддержки не трогает паузу", async () => {
     const task = content.tasks[c0]!;
     expect(task.type).toBe("choice");
     const { correct, wrong } = await shown(c0);
@@ -76,7 +78,8 @@ describe("растущая пауза после неверных ответов
     const state = (await city()).state;
     expect(state.pauseSteps[0]).toBe(20);
     const lock0 = state.locks.find((l: { index: number }) => l.index === c0);
-    expect(lock0).toMatchObject({ index: c0, wrong: 2, unlocked: false });
+    expect(lock0).toMatchObject({ index: c0, wrong: 2 });
+    expect(lock0).not.toHaveProperty("unlocked");
     expect(lock0.lockedUntil).toBeGreaterThan(Date.now());
 
     // Пауза считается на задание: неверный текст в другом задании — своя пауза.
@@ -90,6 +93,9 @@ describe("растущая пауза после неверных ответов
     expect((await app.inject({ method: "PATCH", url: "/api/admin/settings", headers: { cookie: p1Cookie }, payload: { supportEmail: "x@example.com" } })).statusCode).toBe(403);
     const settings = await app.inject({ method: "PATCH", url: "/api/admin/settings", headers: { cookie: adminCookie }, payload: { supportEmail: `support_${stamp}@example.com` } });
     expect(settings.json().supportEmail).toBe(`support_${stamp}@example.com`);
+    // Перед обращением — свежая пауза на задание (третья ошибка подряд), чтобы проверить, что ответ поддержки её не трогает.
+    const third = await answer(c0, wrong);
+    expect(third.json()).toMatchObject({ correct: false, wrong: 3 });
     outbox.length = 0;
     const req = await app.inject({ method: "POST", url: `/api/games/${gameId}/support`, headers: { cookie: p1Cookie }, payload: { nodeKey: rutKey, taskIndex: c0, message: "Мы уверены, что ответ был верный: проверьте, пожалуйста" } });
     expect(req.statusCode).toBe(201);
@@ -109,19 +115,28 @@ describe("растущая пауза после неверных ответов
     const item = list.json().requests.find((r: { message: string }) => r.message.startsWith("Мы уверены"));
     expect(item).toMatchObject({ team: { name: "Львы" }, bookCode: "rut", taskIndex: c0, status: "OPEN" });
     expect(item.context).toMatchObject({ team: "Львы", task: c0 + 1 });
+    expect(item.context).not.toHaveProperty("attemptsLeft");
+    expect(item).not.toHaveProperty("unlocked");
 
+    // Ответ поддержки только отвечает: пауза задания идёт своим чередом (решение владельца 3.19), «снять блокировку» больше нет.
     const resolve = await app.inject({ method: "POST", url: `/api/admin/support/${item.id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: true, reply: "Перечитайте первую главу" } });
-    expect(resolve.json()).toMatchObject({ ok: true, unlocked: true });
-    expect((await app.inject({ method: "POST", url: `/api/admin/support/${item.id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: true } })).statusCode).toBe(409);
+    expect(resolve.json()).toEqual({ ok: true });
+    expect((await app.inject({ method: "POST", url: `/api/admin/support/${item.id}/resolve`, headers: { cookie: adminCookie }, payload: {} })).statusCode).toBe(409);
     const after = (await city());
-    expect(after.state.locks.find((l: { index: number }) => l.index === c0)).toMatchObject({ lockedUntil: null, wrong: 0, unlocked: true });
-    expect(after.state.support[0]).toMatchObject({ status: "CLOSED", reply: "Перечитайте первую главу", unlocked: true });
+    const lockAfter = after.state.locks.find((l: { index: number }) => l.index === c0);
+    expect(lockAfter).toMatchObject({ index: c0, wrong: 3 });
+    expect(lockAfter.lockedUntil).toBeGreaterThan(Date.now());
+    expect(after.state.support[0]).toMatchObject({ status: "CLOSED", reply: "Перечитайте первую главу" });
+    expect(after.state.support[0]).not.toHaveProperty("unlocked");
+    expect((await answer(c0, correct)).statusCode).toBe(429);
+    // Когда пауза прошла — верный ответ принимается, счёт ошибок сброшен.
+    await noCooldown();
     const ok = await answer(c0, correct);
     expect(ok.statusCode).toBe(200);
     expect(ok.json().correct).toBe(true);
   });
 
-  it("суперадмин может оставить паузу: задание ждёт до срока, ответ команде записан", async () => {
+  it("ответ поддержки без текста: обращение закрыто, пауза задания остаётся до срока", async () => {
     const idx = content.tasks.findIndex((t, i) => t.type === "choice" && i !== c0);
     const { correct, wrong } = await shown(idx);
     await answer(idx, wrong); await noCooldown();
@@ -129,11 +144,11 @@ describe("растущая пауза после неверных ответов
     await app.inject({ method: "POST", url: `/api/games/${gameId}/support`, headers: { cookie: p1Cookie }, payload: { nodeKey: rutKey, taskIndex: idx, message: "Не согласны с ответом" } });
     const list = await app.inject({ method: "GET", url: "/api/admin/support", headers: { cookie: adminCookie } });
     const item = list.json().requests.find((r: { message: string }) => r.message === "Не согласны с ответом");
-    const r = await app.inject({ method: "POST", url: `/api/admin/support/${item.id}/resolve`, headers: { cookie: adminCookie }, payload: { unlock: false, reply: "Ответ в тексте есть, ищите внимательнее" } });
-    expect(r.json()).toMatchObject({ ok: true, unlocked: false });
+    const r = await app.inject({ method: "POST", url: `/api/admin/support/${item.id}/resolve`, headers: { cookie: adminCookie }, payload: {} });
+    expect(r.json()).toEqual({ ok: true });
     const lock = (await city()).state.locks.find((l: { index: number }) => l.index === idx);
     expect(lock.lockedUntil).toBeGreaterThan(Date.now());
-    expect((await city()).state.support.find((s: { taskIndex: number }) => s.taskIndex === idx).reply).toBe("Ответ в тексте есть, ищите внимательнее");
+    expect((await city()).state.support.find((s: { taskIndex: number }) => s.taskIndex === idx)).toMatchObject({ status: "CLOSED", reply: null });
     expect((await answer(idx, correct)).statusCode).toBe(429);
   });
 

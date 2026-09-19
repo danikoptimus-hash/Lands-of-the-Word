@@ -59,7 +59,8 @@ export function journalLine(kind: JournalKind, vars: Record<string, string | num
   const v: Record<string, string | number> = { ...vars };
   if (typeof v.book === "string") v.book = bookName(v.book);
   if (typeof v.other === "string" && kind === "treasure") v.other = bookName(v.other);
-  for (const k of ["capital", "who", "winner", "role"]) if (typeof v[k] === "string" && v[k]) v[k] = t(v[k] as string);
+  // Служебные подстановки — сами шаблоны (например {winner} = «: победила команда «{team}»»): переводятся и заполняются теми же переменными.
+  for (const k of ["capital", "who", "winner", "role"]) if (typeof v[k] === "string" && v[k]) v[k] = t(v[k] as string, v);
   return t(JOURNAL_TEXT[kind] ?? kind, v);
 }
 

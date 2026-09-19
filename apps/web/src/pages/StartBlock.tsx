@@ -8,14 +8,15 @@ import { ErrorState, LoadingState } from "../components/State";
 
 interface Item { key: string; vars?: Record<string, string | number> }
 interface Readiness { canStart: boolean; problems: string[]; warnings: string[]; problemItems: Item[]; warningItems: Item[] }
-export interface MapStats { nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number }
+export interface MapStats { nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number; avgCityGap?: number }
 type Tab = "teams" | "deeds";
 
 /** Куда ведёт проблема готовности: по ключу сервера — про команды или про дела. Карту чинит кнопка в первом шаге, ссылка ей не нужна. */
 const PROBLEM_TAB: Record<string, Tab | undefined> = new Proxy({}, { get: (_t, key: string) => (/оманд/.test(key) ? "teams" : /\bдел/.test(key) ? "deeds" : undefined) });
 
 /**
- * Чек-лист подготовки в черновике: карта → команды и приглашения → дела → адресаты конвертов → «Начать игру».
+ * Чек-лист подготовки в черновике: карта → команды и приглашения → дела → адресаты конвертов и ярлыки → «Начать игру».
+ * Без адресатов конвертов старт закрыт (решение владельца 3.18): без адресата шифр некому назвать; не скачанные ярлыки — предупреждение.
  * Готовность проверяет сервер; список обновляется при любом изменении на странице (version), при возврате на вкладку и раз в 15 секунд.
  */
 export function StartBlock({ gameId, version, onStarted, hasMap, nodeCount, cityCount, stats, onGenerate, generating, generateError, teams, teamCount, deeds, recipients, goTo, goToRecipients }: {
@@ -50,7 +51,7 @@ export function StartBlock({ gameId, version, onStarted, hasMap, nodeCount, city
   const tabLink = (tab: Tab | undefined) => tab && <a href={"#" + tab} onClick={(e) => { e.preventDefault(); goTo(tab); }}>{tab === "teams" ? t("Команды") : t("Дела")}</a>;
   const fixLink = (tab: Tab | undefined) => tab && <a className="fix" href={"#" + tab} onClick={(e) => { e.preventDefault(); goTo(tab); }}>{tab === "teams" ? t("Открыть «Команды»") : t("Открыть «Дела»")}</a>;
   const mapStatus = hasMap
-    ? `${plural(cityCount, ["город", "города", "городов"])}, ${plural(nodeCount, ["перекрёсток", "перекрёстка", "перекрёстков"])}` + (stats ? ` · ${t("от старта до ближайшего города: {d} ходов", { d: stats.startDistances.join(" / ") })}` : "")
+    ? `${plural(cityCount, ["город", "города", "городов"])}, ${plural(nodeCount, ["перекрёсток", "перекрёстка", "перекрёстков"])}` + (stats ? ` · ${t("от старта до ближайшего города: {d} ходов", { d: stats.startDistances.join(" / ") })}` + (stats.avgCityGap ? ` · ${t("между городами в среднем {d} сторон", { d: String(stats.avgCityGap) })}` : "") : "")
     : t("Ещё не создана");
 
   return (
@@ -60,7 +61,7 @@ export function StartBlock({ gameId, version, onStarted, hasMap, nodeCount, city
         <Step n={1} done={hasMap} title={t("Карта")} status={mapStatus} action={<button type="button" className={hasMap ? "secondary sm" : "sm"} onClick={onGenerate} disabled={generating}><Icon name="refresh" />{hasMap ? t("Заново") : t("Сгенерировать карту")}</button>} error={generateError} />
         <Step n={2} done={teams >= teamCount && teams > 0} title={t("Команды и приглашения")} status={t("{a} из {b}", { a: teams, b: teamCount })} action={tabLink("teams")} />
         <Step n={3} done={deeds > 0} title={t("Дела")} status={plural(deeds, ["дело", "дела", "дел"])} action={tabLink("deeds")} />
-        <Step n={4} done={recipients > 0} title={t("Адресаты конвертов и ярлыки")} status={recipients > 0 ? plural(recipients, ["адресат", "адресата", "адресатов"]) : t("Можно и после старта")} action={<a href="#recipients" onClick={(e) => { e.preventDefault(); goToRecipients(); }}>{t("Ниже")}</a>} />
+        <Step n={4} done={recipients > 0} title={t("Адресаты конвертов и ярлыки")} status={recipients > 0 ? plural(recipients, ["адресат", "адресата", "адресатов"]) : t("Нужны до старта: без адресата шифр некому назвать")} action={<a href="#recipients" onClick={(e) => { e.preventDefault(); goToRecipients(); }}>{t("Ниже")}</a>} />
       </ol>
       {loadError ? <ErrorState text={t("Не удалось проверить готовность")} onRetry={() => void load()} /> : !r ? <LoadingState rows={1} /> : (
         <div className="problems">

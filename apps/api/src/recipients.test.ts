@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
-import { registerVerified } from "./testAuth.js";
+import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -35,6 +35,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, p1Nick, p2Nick] } } });
+  await cleanupFixtures(gameId);
   await app.close();
   await prisma.$disconnect();
 });
@@ -90,6 +91,7 @@ describe("адресаты конвертов", () => {
   });
 
   it("команда видит адресата только когда все задания города решены; после финиша список стёрт", async () => {
+    await readyForStart(app, gameId, adminCookie);
     const start = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });
     expect(start.statusCode).toBe(200);
     await prisma.teamNodeState.create({ data: { teamId: team1, nodeKey: rutKey } });
