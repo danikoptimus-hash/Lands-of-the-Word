@@ -210,8 +210,10 @@
 .prophet-letter .letter-head .i { color: var(--bronze); }
 .prophet-letter .letter-sign { font-family: var(--font-book); font-style: italic; }
 /* Вход: карточка — рваный лист поверх панорамы */
-.login-page .card { border: 26px solid transparent; border-image: var(--paper-frame) 60 fill / 26px / 8px stretch; border-radius: 0; background: none; box-shadow: none; filter: drop-shadow(0 6px 12px rgba(31,20,10,.3)); padding: var(--sp-2) var(--sp-3) var(--sp-3); }
-.login-page .auth-logo img { filter: drop-shadow(0 1px 2px rgba(59,36,21,.35)); }
+/* Карточка входа — стекло (решение владельца 20.09), рваный лист снят */
+.login-page .auth-logo img { filter: drop-shadow(0 1px 2px rgba(59,36,21,.25)); }
+/* «Как играть»: блоки текста — стекло с размытием пейзажа, как карточки на главной */
+.how-to .card { background: rgba(255,250,236,.5); border: 1px solid rgba(255,250,236,.72); box-shadow: 0 6px 20px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(14px) saturate(1.05); backdrop-filter: blur(14px) saturate(1.05); }
 .login-page .guest-bar .ghost { font-family: var(--font-ui); }
 
 /* ---------- Раскрывашки «Проход» / «Испытание» / «Кодекс дела»: плоская иконка, шеврон показывает раскрытие ---------- */
