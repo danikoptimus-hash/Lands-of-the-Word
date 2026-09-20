@@ -70,7 +70,7 @@ async function ctxFor(nick) {
 function entry(phase, title, text) { const e = { phase, title, text, shots: [] }; report.push(e); return e; }
 /** Снимок страницы: file — имя без расширения. */
 /** Отдалить карту колёсиком над её центром (кнопок «+/−» на карте нет, решение владельца 20.09). */
-async function zoomOutBy(p, n) { const b = await p.locator(".map-svg").boundingBox(); for (let i = 0; i < n; i++) { await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await p.mouse.wheel(0, 240); await p.waitForTimeout(150); } }
+async function zoomOutBy(p, n) { const b = await p.locator(".map-svg").first().boundingBox(); for (let i = 0; i < n; i++) { await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await p.mouse.wheel(0, 240); await p.waitForTimeout(150); } }
 async function snap(e, nick, path, name, caption, act) {
   const ctx = await ctxFor(nick); const page = await ctx.newPage();
   const errors = []; page.on("pageerror", (x) => errors.push(x.message));

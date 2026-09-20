@@ -42,7 +42,7 @@ await login(ctx, CAPTAIN);
 await page.goto(`/games/${GAME}/team`); await page.waitForSelector(".map-svg"); await page.waitForTimeout(1800);
 await shot(page, "map");
 // Кнопок «+/−» на карте нет (решение владельца 20.09): отдаляем колёсиком над центром карты.
-const zoomOut = { click: async () => { const b = await page.locator(".map-svg").boundingBox(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.wheel(0, 240); } };
+const zoomOut = { click: async () => { const b = await page.locator(".map-svg").first().boundingBox(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.wheel(0, 240); } };
 for (let i = 0; i < 3; i++) { await zoomOut.click(); await page.waitForTimeout(150); }
 await page.waitForTimeout(800); await shot(page, "map-far");
 for (let i = 0; i < 5; i++) { await zoomOut.click(); await page.waitForTimeout(150); }
