@@ -6,7 +6,7 @@
 
 /* ---------- Шапка: деревянная балка с тонкой бронзовой кромкой ---------- */
 /* Шапка без полосы (решение владельца 20.09: ничего тёмного): название, раздел и аккаунт прямо на светлом фоне */
-.topbar { background: transparent; border-bottom: 0; box-shadow: none; }
+.topbar { background: rgba(247,240,224,.55); border-bottom: 1px solid rgba(122,78,23,.10); box-shadow: none; -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .brand { color: var(--ink); font: 700 var(--fs-xl)/1 var(--font-display); letter-spacing: .01em; }
 .brand:hover { color: var(--bronze-ink); }
 .brand .mark { filter: none; }
@@ -120,6 +120,8 @@ code { background: var(--paper-light); border-color: var(--paper-edge); }
 .toast.bad .i { color: var(--wax-ink); }
 .crumb { font-family: var(--font-ui); color: var(--bronze-ink); }
 .crumb:hover { color: var(--ink); }
+/* Кнопка «назад» на страницах с шапкой закреплена под ней и видна при прокрутке (решение владельца 20.09) */
+.container > .crumb { position: sticky; top: calc(var(--topbar-h) + var(--safe-top) + var(--sp-2)); z-index: 4; margin-left: 0; padding: 0 var(--sp-3) 0 var(--sp-2); border-radius: var(--r-full); background: rgba(255,250,236,.88); border: 1px solid rgba(122,78,23,.18); box-shadow: 0 2px 8px rgba(59,36,21,.12); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 .page-head h1 { font-family: var(--font-display); }
 
 /* ---------- Подсказка «за кнопкой» (components/Help.tsx) ---------- */
