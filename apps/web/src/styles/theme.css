@@ -144,8 +144,9 @@ code { background: var(--paper-light); border-color: var(--paper-edge); }
 .lang-switch button.active { background: var(--paper-light); color: var(--ink); box-shadow: none; }
 .disclosure summary { font-family: var(--font-ui); }
 .home-section > h2 { font-family: var(--font-display); }
-.home-card { background: var(--paper-bg); border: 1px solid var(--paper-edge); border-left: 4px solid var(--team, var(--bronze)); box-shadow: var(--shadow-paper); transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
-.home-card:hover { box-shadow: var(--shadow-lift); border-color: var(--border-strong); border-left-color: var(--team, var(--bronze)); }
+/* Карточки игр — стекло: без бумаги, полупрозрачная светлая пелена с размытием фона (решение владельца 20.09) */
+.home-card { background: rgba(255,250,236,.46); border: 1px solid rgba(255,250,236,.7); border-left: 4px solid var(--team, var(--bronze)); box-shadow: 0 6px 20px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(14px) saturate(1.05); backdrop-filter: blur(14px) saturate(1.05); transition: background-color var(--dur-fast), box-shadow var(--dur-fast); }
+.home-card:hover { background: rgba(255,250,236,.6); box-shadow: 0 8px 24px rgba(59,36,21,.14); border-color: rgba(255,250,236,.85); border-left-color: var(--team, var(--bronze)); }
 .home-card .title { font-family: var(--font-display); font-size: var(--fs-lg); font-weight: 700; }
 .home-card .meta { font-family: var(--font-book); font-style: italic; color: var(--ink-2); }
 .home-card .meta .i { color: var(--bronze); }
