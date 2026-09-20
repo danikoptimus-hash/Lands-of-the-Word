@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Back } from "../components/Back";
+import { ScrollTop } from "../components/ScrollTop";
 import { Icon } from "../components/Icon";
 import { t } from "../lib/i18n";
 
@@ -84,6 +85,7 @@ export function HowToPlayPage() {
   return (
     <div className="how-to">
       <Back to="-1" label={t("Назад")} />
+      <ScrollTop />
       <h1 className="mt-2">{t("Как играть?")}</h1>
       <p className="muted mt-2">{t("Вся инструкция. Картинки — с настоящих экранов игры.")} <Link to="/whats-new">{t("Что нового")}</Link></p>
       <nav className="guide-toc mt-3" aria-label={t("Разделы")}>

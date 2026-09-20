@@ -6,6 +6,7 @@ import { t, getLocale } from "../lib/i18n";
 import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
+import { ScrollTop } from "../components/ScrollTop";
 import { Tabs } from "../components/Tabs";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { useUi } from "../lib/ui";
@@ -194,6 +195,7 @@ export function AdminDashboard() {
   return (
     <>
       <Back to="/" label={t("Мои игры")} />
+      <ScrollTop />
       <div className="page-head">
         <h1><span className="ico"><Icon name="check" /></span>{t("Аналитика")}</h1>
         <Help>{t("Только обобщённые числа: без содержимого игр и без привязки к людям. Наведите на график в плитке, чтобы увидеть день.")}</Help>
