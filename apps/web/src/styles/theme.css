@@ -5,13 +5,15 @@
    поверхностях: стол, шапка, голова меню, обложка книги, лист карточки. */
 
 /* ---------- Шапка: деревянная балка с тонкой бронзовой кромкой ---------- */
-.topbar { background: var(--tex-wood) center / 512px repeat var(--wood-dark); border-bottom: 1px solid var(--bronze-deep); box-shadow: 0 2px 8px rgba(31,20,10,.22); }
-.brand { color: var(--paper); font: 700 var(--fs-xl)/1 var(--font-display); letter-spacing: .01em; }
-.brand .mark { filter: drop-shadow(0 1px 1px rgba(0,0,0,.35)); }
+/* Шапка без полосы (решение владельца 20.09: ничего тёмного): название, раздел и аккаунт прямо на светлом фоне */
+.topbar { background: transparent; border-bottom: 0; box-shadow: none; }
+.brand { color: var(--ink); font: 700 var(--fs-xl)/1 var(--font-display); letter-spacing: .01em; }
+.brand:hover { color: var(--bronze-ink); }
+.brand .mark { filter: none; }
 /* Ник в шапке — без рамки и подложки, только аватар с тонким ободком (решение владельца 19.09: легче, минималистичнее) */
-.user-menu, .user-menu:hover, .user-menu:active { background: transparent; border: 0; box-shadow: none; text-shadow: none; transform: none; color: var(--paper); border-radius: var(--r-sm); }
-.user-menu:hover { color: var(--gold-hi); }
-.user-menu .avatar { box-shadow: 0 0 0 1px var(--bronze-light); }
+.user-menu, .user-menu:hover, .user-menu:active { background: transparent; border: 0; box-shadow: none; text-shadow: none; transform: none; color: var(--ink); border-radius: var(--r-sm); }
+.user-menu:hover { color: var(--bronze-ink); }
+.user-menu .avatar { box-shadow: 0 0 0 1px var(--bronze); }
 .user-menu .i-sm { opacity: .8; }
 .user-menu .name { font-family: var(--font-ui); }
 
@@ -110,8 +112,12 @@ code { background: var(--paper-light); border-color: var(--paper-edge); }
 .menu button.danger { color: var(--wax-ink); background: transparent; }
 .menu button.danger:hover { background: var(--wax-soft); }
 .menu .sep { background: var(--paper-edge); }
-.toast { background: var(--wood-dark); color: var(--paper); border: 1px solid var(--bronze-deep); box-shadow: var(--shadow-deep); font-family: var(--font-ui); }
-.toast.bad { background: var(--wax); border-color: #4A1410; }
+/* Всплывающие сообщения — светлый лист, не тёмная плашка (решение владельца 20.09) */
+.toast { background: var(--paper-light); color: var(--ink); border: 1px solid var(--bronze); box-shadow: var(--shadow-lift); font-family: var(--font-ui); }
+.toast .i { color: var(--bronze-ink); }
+.toast.ok .i { color: var(--moss-ink); }
+.toast.bad { background: var(--wax-soft); color: var(--wax-ink); border-color: var(--wax); }
+.toast.bad .i { color: var(--wax-ink); }
 .crumb { font-family: var(--font-ui); color: var(--bronze-ink); }
 .crumb:hover { color: var(--ink); }
 .page-head h1 { font-family: var(--font-display); }

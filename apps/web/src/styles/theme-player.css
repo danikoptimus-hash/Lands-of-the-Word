@@ -18,11 +18,12 @@
 /* ---------- Меню команды: голова — дерево с лентой цвета команды, секции — лист ---------- */
 .side-menu { background: var(--paper-bg); }
 @media (min-width: 1024px) { .side-menu { border-right: 1px solid var(--bronze-deep); box-shadow: 2px 0 8px rgba(31,20,10,.16); } }
-.side-head { background: var(--tex-wood) center / 512px repeat var(--wood-dark); color: var(--paper); border-bottom: 3px solid var(--team, var(--bronze)); box-shadow: none; }
+/* Голова меню команды — светлый лист с лентой цвета команды (решение владельца 20.09: ничего тёмного) */
+.side-head { background: var(--paper-light); color: var(--ink); border-bottom: 3px solid var(--team, var(--bronze)); box-shadow: none; }
 .side-head .side-name { font: 700 var(--fs-xl)/1.1 var(--font-display); }
-.side-head .muted { color: var(--paper-2); font-family: var(--font-ui); }
-.side-head button.ghost { color: var(--paper); }
-.side-head button.ghost:hover { background: rgba(255,246,227,.12); color: var(--paper-light); }
+.side-head .muted { color: var(--ink-2); font-family: var(--font-ui); }
+.side-head button.ghost { color: var(--bronze-ink); }
+.side-head button.ghost:hover { background: rgba(122,78,23,.08); color: var(--ink); }
 .side-menu .section { border-bottom: 1px solid var(--paper-edge); box-shadow: none; }
 .side-menu .section h2 { font: 700 20px/1.15 var(--font-display); color: var(--ink); }
 .side-menu .section h2 > .i { width: 22px; height: 22px; padding: 0; border-radius: 0; background: none; color: var(--bronze-ink); filter: none; }

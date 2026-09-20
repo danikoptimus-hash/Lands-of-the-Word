@@ -21,13 +21,13 @@
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; overscroll-behavior-x: none; background: var(--bg); color: var(--text); font: 400 var(--fs-md)/var(--lh-text) var(--font-book); }
 body.no-scroll { overflow: hidden; }
-/* Стол картографа: тёмный пергамент, свет лампы сверху, тень стола снизу, виньетка по бокам. */
+/* Фон — светлый пейзаж с высоты: гексовое поле, река, горы в дымке (решение владельца 20.09). Сверху лёгкая
+   молочная пелена, чтобы картинка создавала объём, но не отвлекала от содержимого. */
 body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
   background:
-    radial-gradient(120% 70% at 50% 0%, rgba(255,246,222,.35), transparent 60%),
-    radial-gradient(140% 100% at 50% 110%, rgba(59,36,21,.30), transparent 60%),
-    linear-gradient(90deg, rgba(59,36,21,.18), transparent 12%, transparent 88%, rgba(59,36,21,.18)),
-    var(--tex-desk) center top / 640px auto repeat var(--bg); }
+    linear-gradient(180deg, rgba(247,240,224,.42) 0%, rgba(247,240,224,.30) 40%, rgba(247,240,224,.38) 100%),
+    var(--bg-land, url("/img/ui/bg-land-wide.webp")) center / cover no-repeat var(--bg); }
+@media (max-width: 767px) { body::before { background-image: linear-gradient(180deg, rgba(247,240,224,.42), rgba(247,240,224,.34)), var(--bg-land-tall, url("/img/ui/bg-land-tall.webp")); } }
 :focus { outline: none; }
 :focus-visible { outline: 2px solid var(--bronze-ink); outline-offset: 2px; }
 .topbar :focus-visible, .side-head :focus-visible, .lock :focus-visible, .admin-dock :focus-visible, .city-head :focus-visible, .menu-tiles :focus-visible { outline-color: var(--gold-hi); }
