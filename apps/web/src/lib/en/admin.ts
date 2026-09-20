@@ -63,7 +63,7 @@ export const ADMIN: Record<string, string> = {
   "Убрать срок": "Remove deadline", "Необратимо: испытания отменятся, действия команд остановятся, победитель — по числу городов.": "Irreversible: trials are cancelled, team actions stop, the winner is by the number of cities.",
   "Испытания {a} · {b} · {c}": "Trials {a} · {b} · {c}", "выиграли · устояли · потеряли": "won · held · lost",
   // Карта
-  "Приблизить": "Zoom in", "Отдалить": "Zoom out", "Обозначения": "Legend", "пройденная сторона": "passed side", "открытый перекрёсток": "opened crossroad", "город с владельцем": "city with an owner", "идёт испытание": "trial in progress",
+  "Обозначения": "Legend", "пройденная сторона": "passed side", "открытый перекрёсток": "opened crossroad", "город с владельцем": "city with an owner", "идёт испытание": "trial in progress",
   "Ключ (в конверте)": "Key (in the envelope)", "Испытание: «{a}» бросает вызов «{d}», ставка {n}": "Trial: “{a}” challenges “{d}”, bid {n}", "Открыть в Проверке": "Open in Review", "Команд пока нет.": "No teams yet.",
   "столица здесь": "capital is here", "взяла город": "took the city", "задания {a} из {b}": "tasks {a} of {b}", "собирает порядок районов · попыток {n}": "arranging the districts · attempts {n}",
   "Задания и ответы": "Tasks and answers", "знак шифра": "cipher sign", "Тестовые действия": "Test actions", "Старт команды «{name}»": "Start of team “{name}”", "Перекрёсток ещё никто не открыл.": "Nobody has opened this crossroad yet.",

@@ -69,6 +69,8 @@ async function ctxFor(nick) {
 }
 function entry(phase, title, text) { const e = { phase, title, text, shots: [] }; report.push(e); return e; }
 /** Снимок страницы: file — имя без расширения. */
+/** Отдалить карту колёсиком над её центром (кнопок «+/−» на карте нет, решение владельца 20.09). */
+async function zoomOutBy(p, n) { const b = await p.locator(".map-svg").boundingBox(); for (let i = 0; i < n; i++) { await p.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await p.mouse.wheel(0, 240); await p.waitForTimeout(150); } }
 async function snap(e, nick, path, name, caption, act) {
   const ctx = await ctxFor(nick); const page = await ctx.newPage();
   const errors = []; page.on("pageerror", (x) => errors.push(x.message));
@@ -545,11 +547,11 @@ async function main() {
     await post("tg_m6", `/api/games/${S.gameId}/edge-tasks/${sea.id}/take`);
     await post("tg_m6", `/api/games/${S.gameId}/edge-tasks/${sea.id}/submit`, { links: ["https://example.com/photo/sea"], note: "Сделали морское дело всей командой.", participants: [userId("tg_m1")] });
     await post(ADMIN, `/api/games/${S.gameId}/edge-tasks/${sea.id}/decide`, { approve: true });
-    await snap(e12, "tg_m6", `/games/${S.gameId}/team`, "sea-ship", "Корабль у порта после принятого морского дела: кормчий выбирает место высадки.", async (p) => { await p.waitForSelector(".map-svg"); for (let i = 0; i < 4; i++) { await p.locator('button[aria-label="Отдалить"]').click(); await p.waitForTimeout(150); } await p.waitForTimeout(800); });
+    await snap(e12, "tg_m6", `/games/${S.gameId}/team`, "sea-ship", "Корабль у порта после принятого морского дела: кормчий выбирает место высадки.", async (p) => { await p.waitForSelector(".map-svg"); await zoomOutBy(p, 4); await p.waitForTimeout(800); });
     const m2 = await myMap("tg_m6"); const t = m2.tasks.find((x) => x.id === sea.id);
     const target = t.candidates?.[0]; if (!target) throw new Error("нет мест высадки");
     await post("tg_m6", `/api/games/${S.gameId}/edge-tasks/${sea.id}/land`, { nodeKey: target });
-    await snap(e12, "tg_m6", `/games/${S.gameId}/team`, "sea-landed", "Высадка на другом острове: новый берег открыт.", async (p) => { await p.waitForSelector(".map-svg"); for (let i = 0; i < 5; i++) { await p.locator('button[aria-label="Отдалить"]').click(); await p.waitForTimeout(150); } await p.waitForTimeout(800); });
+    await snap(e12, "tg_m6", `/games/${S.gameId}/team`, "sea-landed", "Высадка на другом острове: новый берег открыт.", async (p) => { await p.waitForSelector(".map-svg"); await zoomOutBy(p, 5); await p.waitForTimeout(800); });
   });
 
   // 12. Летопись, журнал, доска, книга сезона, финиш

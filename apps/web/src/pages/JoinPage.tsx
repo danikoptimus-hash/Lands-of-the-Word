@@ -51,7 +51,7 @@ export function JoinPage() {
       )}
       {info && (
         <div className="stack">
-          <p><span className="muted">{t("Игра")}</span> <strong>{info.invite.game.name}</strong> · {info.invite.game.org.name}</p>
+          <p><span className="muted">{t("Игра")}</span> <strong>{info.invite.game.name}</strong></p>
           <div className="invite-team">
             <TeamAvatar name={info.invite.team.name} color={info.invite.team.color} withName />
             {info.invite.role === "CAPTAIN" && <Chip icon="star">{t("капитан")}</Chip>}

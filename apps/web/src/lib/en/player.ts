@@ -8,7 +8,7 @@ export const PLAYER: Record<string, string> = {
   "Как играть": "How to play", "Назад": "Back",
   // HUD и меню
   "Меню": "Menu", "Меню · требует внимания: {n}": "Menu · needs attention: {n}", "Меню команды": "Team menu", "Навигация": "Navigation",
-  "Приблизить": "Zoom in", "Отдалить": "Zoom out", "вы капитан": "you are the captain",
+  "вы капитан": "you are the captain",
   "Игра завершена: победила «{team}»": "Game over: “{team}” wins",
   "Наши дела": "Our deeds", "Дела ждут на карте: нажмите на метку на стороне.": "Deeds are waiting on the map: tap a marker on a side.",
   "Испытания": "Trials", "Сейчас испытаний нет.": "No trials right now.", "Испытание · {city}": "Trial · {city}",
@@ -148,7 +148,7 @@ export const PLAYER: Record<string, string> = {
   "В команду попадают по ссылке-приглашению от капитана или администратора. Откройте ссылку, войдите — и команда появится на главной.": "You join a team through an invitation link from the captain or the administrator. Open the link, sign in, and the team appears on the home screen.",
   "Вход и регистрация. Справа сверху — переключение языка.": "Sign in and registration. Top right: language switch.",
   "Главная: ваши команды и игры, кнопка «Как играть?».": "Home: your teams and games, the “How to play?” button.",
-  "Карту двигают одним пальцем, приближают щипком двумя или колесом мыши. Кнопки справа: вся карта, к старту, приблизить, отдалить. Кнопка меню слева сверху открывает дела команды, испытания, положение команд и состав.": "Drag the map with one finger, zoom with a two-finger pinch or the mouse wheel. Buttons on the right: whole map, to the start, zoom in, zoom out. The menu button at the top left opens the team’s deeds, trials, standings and roster.",
+  "Карту двигают одним пальцем, приближают щипком двумя или колесом мыши. Кнопки справа: вся карта и к старту. Кнопка меню слева сверху открывает дела команды, испытания, положение команд и состав.": "Drag the map with one finger, zoom with a two-finger pinch or the mouse wheel. Buttons on the right: whole map and to the start. The menu button at the top left opens the team’s deeds, trials, standings and roster.",
   "Открытая часть карты: перекрёстки, стороны с метками дел, город команды.": "The revealed part of the map: crossroads, sides with deed markers, the team’s city.",
   "Отдалённый вид: туман над неоткрытыми землями, подписи городов.": "Zoomed out: fog over unexplored lands, city labels.",
   "Корабль — обычное дело. Когда его одобрят, капитан выбирает на карте пустую береговую развилку другого острова и высаживается там. Вернуться можно так же, взяв порт на другом острове. Внутри одного острова корабли не ходят.": "A ship is an ordinary deed. Once it is approved, the captain picks an empty coastal crossroads on the other island and lands there. You can return the same way by taking a port on the other island. Ships do not sail within one island.",

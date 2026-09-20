@@ -104,7 +104,8 @@ code { background: var(--paper-light); border-color: var(--paper-edge); }
 .overlay .overlay-foot { border-top: 1px solid var(--paper-edge); }
 .overlay .grabber { background: var(--bronze-light); width: 36px; }
 @media (min-width: 640px) { .overlay { border: 1px solid var(--paper-edge); border-top: 2px solid var(--bronze); } }
-.modal { background: var(--paper-bg); border: 1px solid var(--paper-edge); box-shadow: var(--shadow-deep); }
+/* Диалоги — стекло с размытием (решение владельца 20.09) */
+.modal { background: rgba(255,250,236,.62); border: 1px solid rgba(255,250,236,.75); box-shadow: 0 10px 30px rgba(59,36,21,.18); -webkit-backdrop-filter: blur(16px) saturate(1.05); backdrop-filter: blur(16px) saturate(1.05); }
 .modal h2 { font-family: var(--font-display); }
 .menu { background: var(--paper-light); border-color: var(--paper-edge); box-shadow: var(--shadow-lift); }
 .menu button { background: transparent; color: var(--ink); border: 0; box-shadow: none; text-shadow: none; font-weight: 400; }
@@ -166,3 +167,22 @@ code { background: var(--paper-light); border-color: var(--paper-edge); }
 .scroll-top:hover { background: var(--paper-light); color: var(--ink); }
 .scroll-top .i { width: 22px; height: 22px; }
 @media (prefers-reduced-motion: reduce) { .scroll-top { animation: none; } }
+
+/* ---------- Стекло (решение владельца 20.09): блоки на страницах под шапкой — полупрозрачные с размытием пейзажа ---------- */
+.container .card:not(.season-book .card), .container .tile, .container .summary-tiles a { background: rgba(255,250,236,.5); border: 1px solid rgba(255,250,236,.72); box-shadow: 0 6px 20px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(14px) saturate(1.05); backdrop-filter: blur(14px) saturate(1.05); }
+.container .card .card { background: rgba(255,250,236,.4); box-shadow: none; }
+.container .tile, .container .summary-tiles a { box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255,250,236,.55); }
+
+/* Числовое поле со стрелками (решение владельца 20.09) */
+.stepper { display: inline-flex; align-items: stretch; width: 128px; max-width: 100%; border: 1px solid var(--border-strong); border-radius: var(--r-xs); background: var(--paper-light); overflow: hidden; }
+.stepper input { flex: 1 1 auto; min-width: 0; width: auto; border: 0; border-radius: 0; background: transparent; box-shadow: none; text-align: center; font: 600 var(--fs-lg)/1 var(--font-input); -moz-appearance: textfield; appearance: textfield; padding: 0 var(--sp-1); }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.stepper input:focus { box-shadow: none; }
+.stepper:focus-within { border-color: var(--bronze-ink); box-shadow: var(--ring); }
+.stepper .arrows { display: flex; flex-direction: column; border-left: 1px solid var(--paper-edge); }
+.stepper .arrows button { flex: 1 1 50%; min-height: 0; height: auto; width: 34px; padding: 0; border: 0; border-radius: 0; background: rgba(122,78,23,.05); color: var(--bronze-ink); box-shadow: none; text-shadow: none; display: inline-flex; align-items: center; justify-content: center; }
+.stepper .arrows button + button { border-top: 1px solid var(--paper-edge); }
+.stepper .arrows button:hover { background: rgba(122,78,23,.12); color: var(--ink); }
+.stepper .arrows button:disabled { opacity: .35; }
+.stepper .arrows .i { width: 16px; height: 16px; }
+.rule-row .stepper { width: 140px; }

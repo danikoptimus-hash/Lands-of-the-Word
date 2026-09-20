@@ -241,7 +241,6 @@ export function SeasonBookPage() {
         <p className="hint">{t("Итоги для показа на собрании. Кнопка «Печать» — для бумаги.")}</p>
       </div>
       <header className="book-head">
-        <div className="org">{book.game.org}</div>
         <h1>{book.game.name}</h1>
         <div className="dates">{book.game.startedAt ? fmtDate(book.game.startedAt, { time: false }) : ""}{book.game.finishedAt ? ` — ${fmtDate(book.game.finishedAt, { time: false })}` : ` — ${t("идёт")}`}</div>
         {winner && <div className="winner"><Icon name="trophy" /> {t("Победила команда")} «{winner.name}»</div>}

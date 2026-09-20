@@ -1,5 +1,6 @@
 /** EN-строки общих компонентов (шапка, состояния, тосты, даты). Ключ — русская строка как в коде. */
 export const COMMON: Record<string, string> = {
+  "Больше": "More", "Меньше": "Less",
   "Наверх": "To the top",
   "Что это?": "What is this?", "Как это работает": "How it works",
   "Придут на это устройство: проверка дела, испытание, запрос прохода — даже при закрытом сайте.": "They arrive on this device: deed review, a trial, a passage request — even with the site closed.",

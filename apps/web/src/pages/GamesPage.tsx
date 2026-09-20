@@ -85,7 +85,7 @@ export function GamesPage() {
                 <TeamAvatar name={tm.team.name} color={tm.team.color} size="lg" />
                 <div className="main">
                   <div className="title"><span className="name">{tm.team.name}</span>{tm.role === "CAPTAIN" && <Chip icon="star">{t("капитан")}</Chip>}<StatusChip status={tm.game.status} /></div>
-                  <div className="meta"><span>{tm.game.name} · {tm.game.org.name}</span></div>
+                  <div className="meta"><span>{tm.game.name}</span></div>
                 </div>
                 <div className="side"><Icon name="chevron" /></div>
               </Link>
@@ -103,7 +103,6 @@ export function GamesPage() {
                 <Link to={`/games/${g.id}`} className="card-link">
                   <div className="title"><span className="name">{g.name}</span><StatusChip status={g.status} /></div>
                   <div className="meta">
-                    <span><Icon name="home" />{g.org.name}</span>
                     <span><Icon name="users" />{plural(g.teamCount, ["команда", "команды", "команд"])}</span>
                     {g.status === "DRAFT" && g.mapSeed == null && <span><Icon name="map" />{t("карта не создана")}</span>}
                   </div>

@@ -4,12 +4,13 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
 import { Help } from "../components/Help";
+import { Stepper } from "../components/Stepper";
 
 export interface RulesDto { minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string; rules?: RulesDto } }
 type NumKey = Exclude<keyof RulesDto, "pauseSteps" | "adminDigest">;
 /** Продвинутые настройки: правила, которые раньше были зашиты в код (решение владельца 18.09). Подписи короткие, единицы — суффиксом; поля сгруппированы. */
-const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: number }> = {
+const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: number; step?: number }> = {
   minBid: { label: () => t("Минимальная ставка · стихов"), min: 1, max: 1000 },
   attackDays: { label: () => t("Срок вызова · дней"), min: 1, max: 60 },
   burnPenalty: { label: () => t("Штраф за сгоревший вызов · стихов"), min: 0, max: 100 },
@@ -108,7 +109,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     return (
       <div key={key} className="rule-row">
         <label htmlFor={id}>{f.label()}</label>
-        <input id={id} type="number" step="any" min={f.min} max={f.max} value={rules[key]} onChange={(e) => setRule(key, e.target.value === "" ? "" : Number(e.target.value))} />
+        <Stepper id={id} value={rules[key] === "" ? "" : Number(rules[key])} min={f.min} max={f.max} step={f.step ?? 1} onChange={(v) => setRule(key, v)} />
       </div>
     );
   };
@@ -124,20 +125,20 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
               <label htmlFor="s-name">{t("Название")}</label>
               <input id="s-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={80} />
               <label htmlFor="s-teams">{t("Команд")}</label>
-              <input id="s-teams" type="number" min={2} max={12} value={teamCount} onChange={(e) => setTeamCount(Number(e.target.value))} />
+              <Stepper id="s-teams" value={teamCount} min={2} max={12} onChange={(v) => setTeamCount(v === "" ? 2 : v)} />
             </div>
             <div className="settings-group">
               <h3>{t("Карта и старты")}</h3>
               <label htmlFor="s-nodes">{t("Перекрёстков на карте")}</label>
-              <input id="s-nodes" type="number" min={200} max={600} step={10} value={nodeCount} onChange={(e) => setNodeCount(Number(e.target.value))} />
+              <Stepper id="s-nodes" value={nodeCount} min={200} max={600} step={10} onChange={(v) => setNodeCount(v === "" ? 250 : v)} />
               <label htmlFor="s-gap">{t("Расстояние между городами · сторон")}<Help>{t("Сколько сторон гексов отделяет соседние города, не меньше. По умолчанию 2 (в среднем чуть больше двух). При 3 или 4 путь между городами длиннее, а карта больше: перекрёстков в (N/2)² раз больше, чем задано выше.")}</Help></label>
-              <input id="s-gap" type="number" min={2} max={4} step={1} value={cityGap} onChange={(e) => setCityGap(Number(e.target.value))} />
+              <Stepper id="s-gap" value={cityGap} min={2} max={4} onChange={(v) => setCityGap(v === "" ? 2 : v)} />
               {mapChanged && <p className="note warn"><Icon name="alert" /><span>{t("После изменения числа команд, перекрёстков или расстояния между городами карту нужно сгенерировать заново.")}</span></p>}
               <label className="check mt-3"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />{t("Выровнять расстояние от стартов до первого города")}</label>
               {equidistant && (
                 <div className="sub">
                   <label htmlFor="s-diff">{t("Допустимая разница, ходов")}</label>
-                  <input id="s-diff" type="number" min={0} max={6} value={maxDiff} onChange={(e) => setMaxDiff(Number(e.target.value))} />
+                  <Stepper id="s-diff" value={maxDiff} min={0} max={6} onChange={(v) => setMaxDiff(v === "" ? 3 : v)} />
                 </div>
               )}
             </div>
@@ -152,7 +153,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
           <div className="money">
             <div>
               <label htmlFor="s-don">{t("Минимум")}</label>
-              <input id="s-don" type="number" min={0} value={donationMin} onChange={(e) => setDonationMin(e.target.value === "" ? "" : Number(e.target.value))} />
+              <Stepper id="s-don" value={donationMin} min={0} step={50} onChange={setDonationMin} />
             </div>
             <div>
               <label htmlFor="s-cur">{t("Валюта")}</label>
