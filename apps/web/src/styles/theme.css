@@ -56,7 +56,7 @@ input[type=range]:read-only:not([type=checkbox]):not([type=radio]) { background:
 h1 .ico, h2 .ico, h3 .ico { width: 28px; height: 28px; border-radius: 0; background: none; color: var(--bronze-ink); filter: none; margin-right: 2px; }
 h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 22px; height: 22px; }
 /* Внутри шторки лист не повторяем: карточки — потёртый лист без текстуры. */
-.overlay .card { background: var(--paper-2); border-color: var(--paper-edge); box-shadow: none; }
+.overlay .card { background: rgba(255,250,236,.3); border-color: rgba(255,250,236,.6); box-shadow: none; }
 
 /* ---------- Чипы: ярлычки с одной кромкой; счётчики — светлые кружки ---------- */
 .chip, .badge, .pill, .stat { font: 700 var(--fs-xs)/1 var(--font-ui); letter-spacing: .02em; background: var(--paper-light); border-color: var(--paper-edge); color: var(--ink-2); box-shadow: none; }
@@ -98,7 +98,9 @@ code { background: var(--paper-light); border-color: var(--paper-edge); }
 .tabs.sticky { background: var(--paper-2); }
 
 /* ---------- Шторка, диалог, меню «⋯», тост ---------- */
-.overlay { isolation: isolate; background: var(--paper-bg); border-top: 2px solid var(--bronze); box-shadow: var(--shadow-deep); overflow: hidden; }
+/* Все шторки и листы (дело, город, испытание, разделы администратора) — стекло: фон просвечивает сквозь них (решение владельца 21.09) */
+.overlay { isolation: isolate; background: rgba(255,250,236,.55); border-top: 2px solid var(--bronze); box-shadow: 0 10px 30px rgba(59,36,21,.18); overflow: hidden; -webkit-backdrop-filter: blur(18px) saturate(1.05); backdrop-filter: blur(18px) saturate(1.05); }
+.overlay input, .overlay select, .overlay textarea, .overlay .stepper { background: rgba(255,250,236,.7); }
 .overlay .overlay-head { border-bottom: 1px solid var(--paper-edge); box-shadow: none; }
 .overlay .overlay-head h2 { font: 700 var(--fs-xl)/var(--lh-tight) var(--font-display); }
 .overlay .overlay-foot { border-top: 1px solid var(--paper-edge); }

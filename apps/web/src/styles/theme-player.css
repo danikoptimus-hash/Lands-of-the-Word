@@ -16,7 +16,9 @@
 .finish-banner { background: var(--paper-light); border: 1px solid var(--moss-ink); color: var(--moss-ink); font-family: var(--font-ui); box-shadow: 0 1px 3px rgba(0,0,0,.28); }
 
 /* ---------- Меню команды: голова — дерево с лентой цвета команды, секции — лист ---------- */
-.side-menu { background: var(--paper-bg); }
+/* Боковое меню команды — стекло (решение владельца 21.09) */
+.side-menu { background: rgba(255,250,236,.55); -webkit-backdrop-filter: blur(18px) saturate(1.05); backdrop-filter: blur(18px) saturate(1.05); }
+.side-menu .side-head { background: rgba(255,250,236,.35); }
 @media (min-width: 1024px) { .side-menu { border-right: 1px solid var(--bronze-deep); box-shadow: 2px 0 8px rgba(31,20,10,.16); } }
 /* Голова меню команды — светлый лист с лентой цвета команды (решение владельца 20.09: ничего тёмного) */
 .side-head { background: var(--paper-light); color: var(--ink); border-bottom: 3px solid var(--team, var(--bronze)); box-shadow: none; }
@@ -29,7 +31,7 @@
 .side-menu .section h2 > .i { width: 22px; height: 22px; padding: 0; border-radius: 0; background: none; color: var(--bronze-ink); filter: none; }
 .side-menu .section h2 .count { font: 400 18px/1 var(--font-display); color: var(--ink-2); }
 .side-menu .list .title { font-family: var(--font-book); }
-.side-menu .card { background: var(--paper-2); box-shadow: none; padding: var(--sp-3); margin-bottom: 0; }
+.side-menu .card { background: rgba(255,250,236,.3); border-color: rgba(255,250,236,.6); box-shadow: none; padding: var(--sp-3); margin-bottom: 0; }
 .side-menu .card-head h2 { font-size: var(--fs-lg); }
 /* Положение команд: место — светлый кружок с обводкой, названия — Philosopher, счёт — Literata с табличными цифрами */
 .standing { border-top: 1px solid var(--paper-edge); box-shadow: none; }
