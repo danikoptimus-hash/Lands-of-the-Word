@@ -5,6 +5,7 @@ import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { ErrorState, LoadingState } from "../components/State";
 import { Help } from "../components/Help";
+import { DeadlinePicker } from "../components/DeadlinePicker";
 import { api, ApiError, type StandingRow, type StandingsDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
@@ -21,7 +22,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
   const [endsAt, setEndsAt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const load = useCallback(() => api<StandingsDto>(`/api/games/${gameId}/standings`).then((d) => { setData(d); setEndsAt(d.endsAt ? toLocalInput(d.endsAt) : ""); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
+  const load = useCallback(() => api<StandingsDto>(`/api/games/${gameId}/standings`).then((d) => { setData(d); setEndsAt(d.endsAt ?? ""); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useEffect(() => { void load(); }, [load, version, status]);
   if (status === "DRAFT") return null;
   if (loadError) return <div className="card"><ErrorState onRetry={() => void load()} /></div>;
@@ -33,7 +34,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
   async function saveDeadline(clear = false) {
     setError(null); setBusy(true);
     const value = clear ? "" : endsAt;
-    try { await api(`/api/games/${gameId}`, { method: "PATCH", body: JSON.stringify({ settings: { endsAt: value ? new Date(value).toISOString() : null } }) }); notify(value ? t("Срок сохранён") : t("Срок убран")); if (clear) setEndsAt(""); onChanged(); }
+    try { await api(`/api/games/${gameId}`, { method: "PATCH", body: JSON.stringify({ settings: { endsAt: value || null } }) }); notify(value ? t("Срок сохранён") : t("Срок убран")); if (clear) setEndsAt(""); onChanged(); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
@@ -87,8 +88,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
         <>
           <div className="card">
             <div className="card-head"><h2><span className="ico"><Icon name="clock" /></span>{t("Срок окончания")}</h2></div>
-            <label htmlFor="ends-at">{t("Дата и время")}</label>
-            <input id="ends-at" type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
+            <DeadlinePicker value={endsAt} onChange={setEndsAt} />
             <p className="hint">{t("Игра завершится сама; победит команда с наибольшим числом городов.")}</p>
             {error && <p className="error">{error}</p>}
             <div className="actions">
@@ -132,8 +132,3 @@ function Standings({ rows, winnerId, leaderId }: { rows: StandingRow[]; winnerId
   );
 }
 
-function toLocalInput(iso: string): string {
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}

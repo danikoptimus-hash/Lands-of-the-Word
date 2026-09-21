@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Срок окончания игры задаётся без ввода по формату: дни и час со стрелками, быстрые сроки (2 недели, месяц, 6 недель, 2 месяца) и календарь по кнопке.": "The game end is set without typing a format: days and hour with arrows, quick terms (2 weeks, a month, 6 weeks, 2 months) and a calendar behind a button.",
   "У игроков тоже стекло: боковое меню команды, лист дела, город и испытание просвечивают карту сквозь размытие.": "Players get glass too: the team side menu, the deed sheet, the city and the trial show the map through a blur.",
   "Разделы администратора над картой стали настоящим стеклом: карта просвечивает сквозь попап и блоки внутри него.": "The administrator's sections over the map are now real glass: the map shows through the pop-up and the blocks inside it.",
   "Карта администратора: переключатель «чьими глазами» стал рядом кружков (корона и команды, имя по наведению), история ходов — одной плашкой «Сейчас · N ходов», которая раскрывается стрелками и ползунком по нажатию.": "Administrator's map: the “whose view” switch is now a row of circles (crown and teams, name on hover), and the move history is a single “Now · N moves” pill that expands into arrows and a slider on tap.",
