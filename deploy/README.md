@@ -82,6 +82,25 @@ Resend (бесплатно до 3 000 писем в месяц) или Mailgun: 
 
 Ключи и пароли только в `deploy/.env` на сервере, в репозиторий их не класть.
 
+## Вход через Google
+
+Кнопка «Войти через Google» появляется на странице входа, только когда в `deploy/.env` заданы **оба** значения: `GOOGLE_CLIENT_ID` и `GOOGLE_CLIENT_SECRET`. Без них вход по никнейму и паролю работает как раньше, а `GET /api/auth/google` отвечает 404. Из Google сайт берёт только почту и идентификатор учётки (scope `openid email`): имя и фото не запрашиваются и не хранятся.
+
+1. [Google Cloud Console](https://console.cloud.google.com/) → создать проект (или взять существующий) → «APIs & Services» → «OAuth consent screen»: тип External, название «Земли Слова», почта поддержки; scopes — только `openid` и `email`; опубликовать (Publishing status: In production), иначе входить смогут только тестовые пользователи.
+2. «Credentials» → «Create credentials» → «OAuth client ID» → тип «Web application»:
+   - Authorized JavaScript origins: `https://landsoftheword.com`
+   - Authorized redirect URIs: `https://landsoftheword.com/api/auth/google/callback` (ровно так: адрес собирается из `PUBLIC_URL` + `/api/auth/google/callback`).
+3. Скопировать Client ID и Client secret и дописать на сервере в `deploy/.env`:
+
+```
+GOOGLE_CLIENT_ID=….apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=…
+```
+
+4. Перезапустить: `cd /opt/lotw/deploy && docker compose up -d app`. Переменные попадают в контейнер через `deploy/docker-compose.yml` (секция `environment` сервиса `app`), как и SMTP.
+
+Секрет — только в `deploy/.env` на сервере; в репозиторий и в GitHub Secrets его класть не нужно (деплой не передаёт переменные приложения, он только обновляет код и образ). Для локальной разработки те же переменные можно положить в `apps/api/.env` с redirect URI `http://localhost:3000/api/auth/google/callback`.
+
 ## Бэкапы и восстановление
 
 Дамп базы делается каждый день в 03:30 (`deploy/backup.sh`, cron пользователя deploy) в `/opt/lotw-backups`, хранятся 14 последних. Проверить, что бэкапы идут:

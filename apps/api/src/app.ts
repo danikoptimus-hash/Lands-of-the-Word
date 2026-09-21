@@ -7,6 +7,7 @@ import { ZodError } from "zod";
 import { loadEnv, type Env } from "./env.js";
 import { attachUser } from "./auth.js";
 import { authRoutes } from "./routes/auth.js";
+import { googleRoutes } from "./routes/google.js";
 import { gameRoutes } from "./routes/games.js";
 import { teamRoutes } from "./routes/teams.js";
 import { deedRoutes } from "./routes/deeds.js";
@@ -64,6 +65,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
 
   app.get("/api/health", async () => ({ ok: true, version: process.env.APP_VERSION ?? "dev" }));
   await app.register(authRoutes);
+  await app.register(googleRoutes);
   await app.register(pushRoutes);
   await app.register(uiMetricRoutes);
   await app.register(supportRoutes);

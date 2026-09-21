@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, type User } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
@@ -9,7 +10,8 @@ import { Chip } from "../components/Chip";
 import { CopyField } from "../components/CopyField";
 import { Help } from "../components/Help";
 import { PushToggle } from "../components/PushToggle";
-import { errorText } from "./LoginPage";
+import { GoogleMark } from "../components/GoogleMark";
+import { errorText, useProviders } from "./LoginPage";
 
 /** Аккаунт: имя в команде, почта, язык; смена пароля; уведомления. Никнейм не меняется. У каждой формы своя ошибка. */
 export function AccountPage() {
@@ -74,8 +76,54 @@ export function AccountPage() {
         </form>
       </div>
 
+      <GoogleCard user={user} />
       <PushToggle />
       {user.platformRole === "SUPERADMIN" && <><MailTest /><ResetLinkTool /></>}
+      <p className="muted small center mt-4"><Link to="/privacy">{t("О персональных данных")}</Link></p>
+    </div>
+  );
+}
+
+/**
+ * Вход через Google: привязать (переход на /api/auth/google?link=1, сервер вернёт ?google=linked|taken) или отвязать.
+ * Показывается, только если Google настроен на сервере. Из Google хранится только почта.
+ */
+function GoogleCard({ user }: { user: User }) {
+  const { refresh } = useAuth();
+  const ui = useUi();
+  const providers = useProviders();
+  const [params, setParams] = useSearchParams();
+  const [busy, setBusy] = useState(false);
+  const result = params.get("google");
+  useEffect(() => {
+    if (!result) return;
+    if (result === "linked") { ui.notify(t("Google привязан")); void refresh(); }
+    else if (result === "taken") ui.notify(t("Эта учётка Google уже привязана к другому аккаунту"), "bad");
+    else ui.notify(t("Не удалось привязать Google, попробуйте ещё раз"), "bad");
+    setParams({}, { replace: true });
+  }, [result, ui, refresh, setParams]);
+  if (!providers?.google) return null;
+  async function unlink() {
+    setBusy(true);
+    try { await api("/api/auth/google", { method: "DELETE" }); await refresh(); ui.notify(t("Google отвязан")); }
+    catch (e) { ui.notify(errorText(e), "bad"); }
+    finally { setBusy(false); }
+  }
+  return (
+    <div className="card">
+      <h2><span className="ico"><GoogleMark /></span>{t("Вход через Google")}</h2>
+      {user.googleLinked ? (
+        <>
+          <p className="mt-3">{t("Google привязан: {email}", { email: user.email ?? "" })}</p>
+          <p className="hint">{t("Вход по никнейму и паролю тоже работает. После отвязки войти можно будет только по паролю.")}</p>
+          <div className="actions"><button type="button" className="secondary" disabled={busy} onClick={() => void unlink()}>{t("Отвязать")}</button></div>
+        </>
+      ) : (
+        <>
+          <p className="hint">{t("Привяжите Google, чтобы входить одной кнопкой. Из Google мы храним только почту.")}</p>
+          <div className="actions"><a className="btn secondary google-btn" href="/api/auth/google?link=1"><GoogleMark />{t("Привязать Google")}</a></div>
+        </>
+      )}
     </div>
   );
 }

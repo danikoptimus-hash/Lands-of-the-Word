@@ -65,5 +65,5 @@ export async function requireUser(request: FastifyRequest, reply: FastifyReply):
 }
 
 export function publicUser(u: User) {
-  return { id: u.id, nickname: u.nickname, displayName: u.displayName, email: u.email, emailVerified: u.emailVerified, locale: u.locale, platformRole: u.platformRole };
+  return { id: u.id, nickname: u.nickname, displayName: u.displayName, email: u.email, emailVerified: u.emailVerified, locale: u.locale, platformRole: u.platformRole, googleLinked: Boolean(u.googleId) };
 }

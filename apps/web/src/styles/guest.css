@@ -19,6 +19,14 @@
 .lang-switch button:hover { background: rgba(255,255,255,.7); color: var(--text); }
 .lang-switch button.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
 
+/* Вход через Google: кнопка с четырёхцветной «G», под ней разделитель «или» перед формой; ссылка на персональные данные внизу карточки. */
+.google-btn { display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); }
+.google-btn .google-mark { flex: none; }
+.or-divider { display: flex; align-items: center; gap: var(--sp-3); margin: var(--sp-4) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.or-divider::before, .or-divider::after { content: ""; flex: 1 1 auto; height: 1px; background: var(--border); }
+.auth-foot { margin: var(--sp-5) 0 0; text-align: center; font-size: var(--fs-sm); }
+.auth-foot a { color: var(--muted); }
+
 /* Свёрнутая подсказка «а если…» */
 .disclosure summary { display: flex; align-items: center; gap: var(--sp-1); min-height: var(--touch); color: var(--link); font-size: var(--fs-sm); font-weight: 500; cursor: pointer; list-style: none; }
 .disclosure summary::-webkit-details-marker { display: none; }

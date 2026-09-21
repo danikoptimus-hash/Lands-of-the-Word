@@ -15,6 +15,9 @@ const schema = z.object({
   SMTP_USER: z.string().optional().or(z.literal("").transform(() => undefined)),
   SMTP_PASS: z.string().optional().or(z.literal("").transform(() => undefined)),
   MAIL_FROM: z.string().default("Земли Слова <noreply@landsoftheword.com>"),
+  /** Вход через Google (OpenID Connect). Включается, только когда заданы оба значения; храним только почту и id (sub). */
+  GOOGLE_CLIENT_ID: z.string().optional().or(z.literal("").transform(() => undefined)),
+  GOOGLE_CLIENT_SECRET: z.string().optional().or(z.literal("").transform(() => undefined)),
 });
 
 export type Env = z.infer<typeof schema>;

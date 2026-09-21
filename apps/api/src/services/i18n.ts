@@ -146,6 +146,8 @@ const EN: Record<string, string> = {
   "Ярлыки для конвертов · {game} · {n} конвертов": "Envelope labels · {game} · {n} envelopes",
   // ответы API (ошибки 4xx): ключ — русская строка из routes/*.ts и services/*.ts
   "Такой никнейм или почта уже заняты": "This nickname or email is already taken",
+  "Вход через Google не настроен": "Sign-in with Google is not set up",
+  "Вход через Google не начат или устарел. Начните заново": "Sign-in with Google was not started or has expired. Start again",
   "Неверный никнейм, почта или пароль": "Wrong nickname, email or password",
   "Эта почта уже занята": "This email is already taken",
   "Текущий пароль неверный": "The current password is wrong",

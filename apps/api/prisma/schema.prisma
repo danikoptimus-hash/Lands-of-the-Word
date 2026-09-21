@@ -31,6 +31,8 @@ model User {
   email        String?      @unique
   /** Почта подтверждена ссылкой из письма. Учётки, созданные до ввода подтверждения, считаются подтверждёнными. */
   emailVerified Boolean     @default(false)
+  /** Идентификатор Google (sub) для входа через Google. Имя и фото из Google не хранятся. */
+  googleId     String?      @unique
   displayName  String?
   locale       String       @default("ru")
   platformRole PlatformRole @default(USER)

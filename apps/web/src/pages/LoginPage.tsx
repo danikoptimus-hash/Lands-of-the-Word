@@ -1,10 +1,23 @@
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../lib/auth";
-import { api, ApiError, type User } from "../lib/api";
+import { api, ApiError, type ProvidersDto, type User } from "../lib/api";
 import { t, type Locale } from "../lib/i18n";
 import { Tabs } from "../components/Tabs";
 import { Icon } from "../components/Icon";
+import { GoogleMark } from "../components/GoogleMark";
+
+/** Включён ли вход через Google на сервере: спрашиваем один раз, до ответа (и при ошибке) кнопку не показываем. */
+let providersCache: Promise<ProvidersDto> | null = null;
+export function useProviders(): ProvidersDto | null {
+  const [p, setP] = useState<ProvidersDto | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (providersCache ??= api<ProvidersDto>("/api/auth/providers")).then((r) => { if (alive) setP(r); }).catch(() => { providersCache = null; });
+    return () => { alive = false; };
+  }, []);
+  return p;
+}
 
 /**
  * Гостевой лэйаут: панорама на фоне, карточка 420px, в верхней строке «назад» (если есть) и переключатель RU/EN,
@@ -57,8 +70,10 @@ export function LoginPage() {
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
   const [email, setEmail] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  // ?google=state|error — сюда вернул сервер после неудачного входа через Google.
+  const [error, setError] = useState<string | null>(params.get("google") ? t("Не удалось войти через Google, попробуйте ещё раз") : null);
   const [busy, setBusy] = useState(false);
+  const providers = useProviders();
 
   if (user) return <Navigate to={next} replace />;
 
@@ -76,6 +91,12 @@ export function LoginPage() {
   return (
     <GuestShell title={t("Земли Слова")}>
       <Tabs<Mode> ariaLabel={t("Вход или регистрация")} items={[{ key: "login", label: t("Вход") }, { key: "register", label: t("Регистрация") }]} value={mode} onChange={(m) => { setMode(m); setError(null); }} />
+      {providers?.google && (
+        <>
+          <a className="btn secondary block google-btn" href={"/api/auth/google?next=" + encodeURIComponent(next)}><GoogleMark />{t("Войти через Google")}</a>
+          <div className="or-divider" role="separator"><span>{t("или")}</span></div>
+        </>
+      )}
       <form onSubmit={submit}>
         <label htmlFor="nickname">{mode === "login" ? t("Никнейм или почта") : t("Никнейм")}</label>
         <input id="nickname" value={nickname} onChange={(e) => setNickname(e.target.value)} autoComplete="username" required minLength={3} maxLength={mode === "login" ? 120 : 24} autoFocus />
@@ -94,6 +115,7 @@ export function LoginPage() {
           {mode === "login" && <Link to="/forgot" className="btn ghost block">{t("Забыли пароль?")}</Link>}
         </div>
       </form>
+      <p className="auth-foot"><Link to="/privacy">{t("О персональных данных")}</Link></p>
     </GuestShell>
   );
 }

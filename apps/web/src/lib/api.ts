@@ -15,7 +15,9 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN" }
+export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean }
+/** Какие способы входа включены на сервере (GET /api/auth/providers). */
+export interface ProvidersDto { google: boolean }
 export interface GameSummary { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; createdAt: string; createdById?: string; org: { name: string } }
 export interface MapHexDto { q: number; r: number; terrain?: string; rotation?: number; lit?: boolean; island?: "OT" | "NT" }
 export interface MapNodeDto { key: string; corner: "N" | "S"; q: number; r: number; kind: "EMPTY" | "CITY" | "START"; bookCode: string | null; cityType: string | null; teamIndex: number | null; island?: "OT" | "NT"; coastal?: boolean }

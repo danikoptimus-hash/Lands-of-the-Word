@@ -20,6 +20,8 @@ import { AdminDashboard } from "./pages/AdminDashboard";
 import { NewGamePage } from "./pages/NewGamePage";
 import { HowToPlayPage } from "./pages/HowToPlayPage";
 import { WhatsNewPage } from "./pages/WhatsNewPage";
+import { GoogleNicknamePage } from "./pages/GoogleNicknamePage";
+import { PrivacyPage } from "./pages/PrivacyPage";
 import "./styles/index.css";
 import { t } from "./lib/i18n";
 
@@ -40,6 +42,8 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <Route element={<Layout />}>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/forgot" element={<ForgotPage />} />
+            <Route path="/google/nickname" element={<GoogleNicknamePage />} />
+            <Route path="/privacy" element={<PrivacyPage />} />
             <Route path="/reset/:token" element={<ResetPage />} />
             <Route path="/verify/:token" element={<VerifyPage />} />
             <Route path="/" element={<Private><GamesPage /></Private>} />
