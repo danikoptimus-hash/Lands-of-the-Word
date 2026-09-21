@@ -1,6 +1,6 @@
 /* Экраны игрока: карта, HUD, боковое меню, карточка дела, попап города, задание, испытания, проходы, «Как играть». */
 
-/* Полноэкранная карта команды: на ≥1024px меню — постоянная левая колонка, карта справа. */
+/* Полноэкранная карта команды: на ≥1024px меню — постоянная колонка слева поверх карты (решение владельца 21.09: просвечивает), карта во весь экран. */
 .map-screen { position: fixed; inset: 0; overscroll-behavior: none; background: var(--map-bg); display: flex; }
 .map-area { position: relative; flex: 1 1 auto; min-width: 0; overflow: hidden; }
 .map-canvas { position: absolute; inset: 0; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; overflow: hidden; background: var(--map-bg); }
@@ -95,10 +95,14 @@
 .city-hit { cursor: pointer; transition: transform var(--dur-fast) var(--spring); transform-box: fill-box; transform-origin: center; }
 .city-hit:active { transform: scale(.92); }
 
-/* Боковое меню команды: шторка слева на телефоне, колонка 360px на ≥1024px. */
+/* Боковое меню команды: шторка слева на телефоне, колонка 360px поверх карты на ≥1024px. */
 .side-backdrop { position: absolute; inset: 0; z-index: var(--z-drawer); background: var(--overlay); animation: fade var(--dur-base) var(--ease-out); }
 .side-menu { position: absolute; top: 0; bottom: 0; left: 0; z-index: calc(var(--z-drawer) + 1); width: min(380px, 88%); background: var(--surface); box-shadow: var(--shadow-3); overflow: auto; -webkit-overflow-scrolling: touch; animation: slideIn var(--dur-slow) var(--ease-out); display: flex; flex-direction: column; padding-top: var(--safe-top); padding-left: var(--safe-left); }
-@media (min-width: 1024px) { .side-menu { position: relative; width: 360px; flex: none; box-shadow: none; border-right: 1px solid var(--border); animation: none; z-index: auto; } }
+@media (min-width: 1024px) {
+  .side-menu { width: 360px; box-shadow: none; border-right: 1px solid var(--border); animation: none; z-index: 6; }
+  .map-canvas { --map-pad-left: 360px; }
+  .hud-left { left: calc(360px + var(--sp-3) + var(--safe-left)); }
+}
 .side-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
 .side-name { font-weight: 700; font-size: var(--fs-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-menu .section { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); }

@@ -64,7 +64,7 @@ export function journalLine(kind: JournalKind, vars: Record<string, string | num
   return t(JOURNAL_TEXT[kind] ?? kind, v);
 }
 
-/** Лента команды «Что случилось»: свои события и новости для всех команд. */
+/** Лента команды «Летопись» (до 21.09 — «Что случилось»): свои события и новости для всех команд. */
 export function FeedSection({ gameId, version }: { gameId: string; version: number }) {
   const [items, setItems] = useState<FeedItemDto[] | null>(null);
   const [all, setAll] = useState(false);
@@ -74,7 +74,7 @@ export function FeedSection({ gameId, version }: { gameId: string; version: numb
   const shown = items ? (all ? items : items.slice(0, 6)) : [];
   return (
     <section className="section">
-      <h2><Icon name="scroll" />{t("Что случилось")}</h2>
+      <h2><Icon name="feather" />{t("Летопись")}</h2>
       {!items ? <LoadingState rows={2} /> : items.length === 0 ? <EmptyState inline icon="scroll" text={t("Пока тихо. Первые события — после первого дела.")} /> : (
         <ul className="feed">
           {shown.map((it) => (

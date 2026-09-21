@@ -89,7 +89,16 @@ async function snap(e, nick, path, name, caption, act) {
 const openMenu = async (page) => { await page.locator(".hud-left button").first().click(); await page.waitForTimeout(700); };
 const openCity = (book) => async (page) => { await page.waitForSelector(".map-svg"); const ok = await page.evaluate((b) => { for (const el of document.querySelectorAll(".m-label")) if (el.textContent?.includes(b)) { el.dispatchEvent(new MouseEvent("click", { bubbles: true })); return true; } return false; }, book); if (!ok) throw new Error("нет подписи города " + book); await page.waitForSelector(".city-sheet"); await page.waitForTimeout(700); };
 const adminTab = (tab) => async (page) => { await page.waitForSelector(".map-svg"); await page.locator(".admin-dock .dock-btn", { hasText: tab }).click(); await page.waitForTimeout(1200); };
-const scrollTo = (text) => async (page) => { await page.evaluate((tx) => { const h = [...document.querySelectorAll("h2,h3,summary")].find((x) => x.textContent?.includes(tx)); if (!h) return; h.scrollIntoView({ block: "start" }); let el = h.parentElement; while (el && el !== document.body) { if (el.scrollHeight > el.clientHeight + 4 && getComputedStyle(el).overflowY !== "visible") { el.scrollTop -= 96; break; } el = el.parentElement; } window.scrollBy(0, -96); }, text); await page.waitForTimeout(300); };
+/* Разделы меню команды спрятаны за плитками (21.09): если заголовка нет на экране, сначала нажимаем плитку раздела. */
+const MENU_TILE = { "Летопись": "Летопись", "Моё служение": "Моё служение", "Испытания": "Испытания", "Проходы": "Команды", "Мир": "Команды", "Состав": "Команды", "Дела": "Дела" };
+const openTile = (text) => async (page) => {
+  const tile = MENU_TILE[text]; if (!tile) return;
+  const has = await page.evaluate((tx) => [...document.querySelectorAll(".side-menu h2")].some((x) => x.textContent?.includes(tx)), text);
+  if (has) return;
+  const btn = page.locator(".side-menu .menu-grid button", { hasText: tile }).first();
+  if (await btn.count()) { await btn.click(); await page.waitForTimeout(700); }
+};
+const scrollTo = (text) => async (page) => { await openTile(text)(page); await page.evaluate((tx) => { const h = [...document.querySelectorAll("h2,h3,summary")].find((x) => x.textContent?.includes(tx)); if (!h) return; h.scrollIntoView({ block: "start" }); let el = h.parentElement; while (el && el !== document.body) { if (el.scrollHeight > el.clientHeight + 4 && getComputedStyle(el).overflowY !== "visible") { el.scrollTop -= 96; break; } el = el.parentElement; } window.scrollBy(0, -96); }, text); await page.waitForTimeout(300); };
 
 /* ---------- Карта (знание администратора) ---------- */
 const bookName = (code) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
@@ -313,7 +322,7 @@ async function main() {
     await post("tg_m2", `/api/games/${S.gameId}/edge-tasks/${open.id}/submit`, { links: ["https://example.com/photo/first", "https://example.com/photo/second"], note: "Добавили второе фото.", participants: [userId("tg_m3"), userId("tg_m4")] });
     await post(ADMIN, `/api/games/${S.gameId}/edge-tasks/${open.id}/decide`, { approve: true });
   });
-  await snap(e4, "tg_m2", `/games/${S.gameId}/team`, "player-menu-after-deed", "Меню команды после принятого дела: лента «Что случилось» с возвратом и принятием, «Моё служение».", openMenu);
+  await snap(e4, "tg_m2", `/games/${S.gameId}/team`, "player-menu-after-deed", "Меню команды после принятого дела: лента «Летопись» с возвратом и принятием, «Моё служение».", openMenu);
   await snap(e4, "tg_m1", `/games/${S.gameId}/team`, "player-map-revealed", "Карта после принятого дела: перекрёсток открыт, дальше новые стороны.", async (p) => { await p.waitForSelector(".map-svg"); });
 
   let cityM, cityB, cityP;
@@ -417,7 +426,7 @@ async function main() {
     if (b.status !== "REPELLED") failures.push({ title: "испытание 1", error: "ожидалось REPELLED, получено " + b.status });
   });
   await snap(e7, "tg_m1", `/games/${S.gameId}/team`, "war-repelled", "Итог у хранителей: город устоял, уровень защиты вырос до ставки.", async (p) => { await openCity(S.bookMName)(p); await p.locator("details.disclose summary", { hasText: "Испытание" }).first().click(); await p.waitForTimeout(700); });
-  await snap(e7, "tg_p2", `/games/${S.gameId}/team`, "news-for-all", "Новость у третьей команды: кто кому бросил вызов и итог — без ставок и чисел стихов.", async (p) => { await openMenu(p); await scrollTo("Что случилось")(p); });
+  await snap(e7, "tg_p2", `/games/${S.gameId}/team`, "news-for-all", "Новость у третьей команды: кто кому бросил вызов и итог — без ставок и чисел стихов.", async (p) => { await openMenu(p); await scrollTo("Летопись")(p); });
 
   const e8 = entry("Испытания", "Вызов удался: город переходит", "«Пустыня» бросает вызов городу «Берега». Хранители не отвечают в срок — город переходит претендентам с уровнем защиты, равным ставке. Отдельно: вызов «Моряков» городу «Пустыни» не сдан вовремя и сгорает со штрафом к ставке.");
   let battle2, battle3;
@@ -452,7 +461,7 @@ async function main() {
     const pen = await raw(ADMIN, "POST", `/api/games/${S.gameId}/teams/${S.teams.B.id}/penalty`);
     say(`штраф: ${pen.status} ${JSON.stringify(pen.body).slice(0, 120)}`);
     if (pen.status >= 400) failures.push({ title: "штраф", error: pen.body?.message ?? String(pen.status) });
-    await snap(e9, "tg_b1", `/games/${S.gameId}/team`, "penalty-feed", "Команда «Берег» видит штраф в ленте.", async (p) => { await openMenu(p); await scrollTo("Что случилось")(p); });
+    await snap(e9, "tg_b1", `/games/${S.gameId}/team`, "penalty-feed", "Команда «Берег» видит штраф в ленте.", async (p) => { await openMenu(p); await scrollTo("Летопись")(p); });
     await post(ADMIN, `/api/games/${S.gameId}/teams/${S.teams.P.id}/members/${userId("tg_p6")}/move`, { toTeamId: S.teams.M.id });
     await refreshTeams();
     // Смена роли: капитан «Пустыни» просит нового кормчего, администратор одобряет.
@@ -483,7 +492,7 @@ async function main() {
     await solveCity("M", ruinNode.key);
     await snap(e10, "tg_m1", `/games/${S.gameId}/team`, "ruins-envelope", "Руины: сухая печать, занять можно без конверта.", async (p) => { await openCity(bookName(ruinNode.bookCode))(p); await scrollTo("Получите")(p); });
     await post("tg_m1", `/api/games/${S.gameId}/my-city/${encodeURIComponent(ruinNode.key)}/capture`, { key: "" }).catch(async () => capture("M", ruinNode.key));
-    await snap(e10, "tg_m1", `/games/${S.gameId}/team`, "treasure-feed", "Лента «Моряков»: находка в руинах — знак шифра ближайшего города; руины заняты.", async (p) => { await openMenu(p); await scrollTo("Что случилось")(p); });
+    await snap(e10, "tg_m1", `/games/${S.gameId}/team`, "treasure-feed", "Лента «Моряков»: находка в руинах — знак шифра ближайшего города; руины заняты.", async (p) => { await openMenu(p); await scrollTo("Летопись")(p); });
     await post(ADMIN, `/api/games/${S.gameId}/teams/${S.teams.B.id}/members/${userId("tg_b2")}/move`, { toTeamId: S.teams.P.id }).catch((e) => failures.push({ title: "перевод из выбывшей команды", error: e.message }));
     await refreshTeams();
   });
@@ -534,7 +543,7 @@ async function main() {
     say(`итог осады: ${done?.status} ${done?.attackerPoints}:${done?.defenderPoints}`);
     if (!done || done.status !== "WON") failures.push({ title: "осада", error: "ожидалось WON, получено " + (done?.status ?? "не завершена в срок") });
   });
-  await snap(e11, "tg_p1", `/games/${S.gameId}/team`, "siege-result", "Итог осады у «Пустыни»: город перешёл по числу дел.", async (p) => { await openMenu(p); await scrollTo("Что случилось")(p); });
+  await snap(e11, "tg_p1", `/games/${S.gameId}/team`, "siege-result", "Итог осады у «Пустыни»: город перешёл по числу дел.", async (p) => { await openMenu(p); await scrollTo("Летопись")(p); });
 
   // 11. Морской переход
   const e12 = entry("Море", "Порт, корабль и высадка", "Из взятого порта команда уходит в море морским делом; после его приёма кормчий выбирает место высадки на другом острове. Над портом кружат чайки, дельфины сопровождают корабль.");
@@ -558,7 +567,7 @@ async function main() {
   const e13 = entry("Итоги", "Летопись, журнал, доска активности, Книга сезона, финиш", "Администратор отправляет летопись недели, смотрит журнал событий и доску активности, завершает игру и открывает «Книгу сезона» для показа на собрании.");
   await step("Летопись и итоги", async () => {
     await post(ADMIN, `/api/games/${S.gameId}/chronicle`);
-    await snap(e13, "tg_m2", `/games/${S.gameId}/team`, "chronicle-feed", "Летопись недели пришла в ленту каждой команды (и письмом, и уведомлением).", async (p) => { await openMenu(p); await scrollTo("Что случилось")(p); await p.locator(".feed details summary").first().click().catch(() => {}); await p.waitForTimeout(300); });
+    await snap(e13, "tg_m2", `/games/${S.gameId}/team`, "chronicle-feed", "Летопись недели пришла в ленту каждой команды (и письмом, и уведомлением).", async (p) => { await openMenu(p); await scrollTo("Летопись")(p); await p.locator(".feed details summary").first().click().catch(() => {}); await p.waitForTimeout(300); });
     await snap(e13, "tg_m2", `/games/${S.gameId}/team`, "my-service", "«Моё служение»: дела, районы, стихи, города участника.", async (p) => { await openMenu(p); await scrollTo("Моё служение")(p); });
     await snap(e13, ADMIN, `/games/${S.gameId}`, "admin-activity", "Доска активности участников в блоке «Команды».", async (p) => { await adminTab("Команды")(p); await p.locator("details.fold-card summary").first().click(); await p.waitForTimeout(800); await scrollTo("Активность")(p); });
     await snap(e13, ADMIN, `/games/${S.gameId}`, "admin-journal", "Журнал событий и кнопка «Отправить летопись сейчас» в «Летописи».", async (p) => { await adminTab("Летопись")(p); await scrollTo("Журнал событий")(p); });

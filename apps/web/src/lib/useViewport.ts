@@ -79,17 +79,20 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   const gesture = useRef<{ moved: number; pinch: { dist: number; mid: { x: number; y: number } } | null } | null>(null);
   const [dragging, setDragging] = useState(false);
 
+  /** Слева карту может закрывать стеклянная колонка меню (компьютер): её ширина приходит из CSS (`--map-pad-left`),
+   *  «вся карта» и центрирование считаются по свободной части окна. */
+  const padLeft = (el: HTMLElement) => parseFloat(getComputedStyle(el).getPropertyValue("--map-pad-left")) || 0;
   const measureFit = useCallback(() => {
     const el = ref.current, b = boundsRef.current;
     if (!el || !b) return 1;
-    fitK.current = Math.min(el.clientWidth / b.width, el.clientHeight / b.height) * 0.9;
+    fitK.current = Math.min((el.clientWidth - padLeft(el)) / b.width, el.clientHeight / b.height) * 0.9;
     return fitK.current;
   }, []);
   const fit = useCallback(() => {
     const el = ref.current, b = boundsRef.current;
     if (!el || !b) return;
-    const k = measureFit();
-    setView({ k, tx: (el.clientWidth - b.width * k) / 2 - b.minX * k, ty: (el.clientHeight - b.height * k) / 2 - b.minY * k }, true);
+    const k = measureFit(), pad = padLeft(el);
+    setView({ k, tx: pad + (el.clientWidth - pad - b.width * k) / 2 - b.minX * k, ty: (el.clientHeight - b.height * k) / 2 - b.minY * k }, true);
   }, [measureFit, setView]);
 
   /** Центрировать точку карты (в координатах сцены) с масштабом k. */
@@ -97,7 +100,8 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     const el = ref.current;
     if (!el) return;
     measureFit();
-    setView({ k, tx: el.clientWidth / 2 - x * k, ty: el.clientHeight / 2 - y * k }, true);
+    const pad = padLeft(el);
+    setView({ k, tx: pad + (el.clientWidth - pad) / 2 - x * k, ty: el.clientHeight / 2 - y * k }, true);
   }, [measureFit, setView]);
 
   // Начальное положение ставится ровно один раз, когда поле карты впервые известно. Дальше карта живёт
