@@ -35,7 +35,6 @@ export const ADMIN: Record<string, string> = {
   "Не удалось скопировать: выделите ссылку вручную": "Could not copy: select the link by hand",
   "Пока никого: отправьте ссылку капитану.": "Nobody yet: send the link to the captain.", "Игровая роль": "Game role", "Роль сохранена": "Role saved",
   "{nick} больше не капитан": "{nick} is no longer captain", "{nick} теперь капитан": "{nick} is now captain", "Лимит: {n} команд · Изменить": "Limit: {n} teams · Change",
-  "Роли — у участников, не у капитана. Запрос капитана одобрите здесь; ваш выбор применяется сразу и начинает недельный отсчёт до следующей смены.": "Roles belong to members, not to the captain. Approve the captain's request here; your choice applies at once and starts the week-long countdown to the next change.",
   "Дела считаются и участникам групповых дел. Самые активные сверху.": "Group deeds count for every participant. Most active first.",
   // Дела
   "Дело добавлено": "Deed added", "Дело удалено": "Deed deleted", "Рекомендуется не меньше {n} дел, иначе они начнут повторяться.": "At least {n} deeds are recommended, otherwise they will repeat.",
