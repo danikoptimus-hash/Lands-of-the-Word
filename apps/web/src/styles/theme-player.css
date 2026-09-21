@@ -18,7 +18,7 @@
 /* ---------- Меню команды: голова — дерево с лентой цвета команды, секции — лист ---------- */
 /* Боковое меню команды — стекло (решение владельца 21.09) */
 .side-menu { background: rgba(255,250,236,.55); -webkit-backdrop-filter: blur(18px) saturate(1.05); backdrop-filter: blur(18px) saturate(1.05); }
-.side-menu .side-head { background: rgba(255,250,236,.35); }
+.side-menu .side-head { background: rgba(255,250,236,.82); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); z-index: 2; }
 @media (min-width: 1024px) { .side-menu { border-right: 1px solid var(--bronze-deep); box-shadow: 2px 0 8px rgba(31,20,10,.16); } }
 /* Голова меню команды — светлый лист с лентой цвета команды (решение владельца 20.09: ничего тёмного) */
 .side-head { background: var(--paper-light); color: var(--ink); border-bottom: 3px solid var(--team, var(--bronze)); box-shadow: none; }
@@ -267,3 +267,23 @@
 /* Кнопки карты у игрока — стекло (решение владельца 21.09) */
 .hud-left .hud-btn, .hud-left .hud-team, .map-area .map-controls button { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 .hud-left .hud-btn:hover, .hud-left .hud-team:hover, .map-area .map-controls button:hover { background: rgba(255,250,236,.8); }
+
+/* Меню команды (решение владельца 21.09): наверху только «требует внимания», разделы — значками */
+.menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); }
+.menu-grid > button { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; min-height: 72px; padding: var(--sp-2) 4px; border-radius: var(--r-md); background: rgba(255,250,236,.45); border: 1px solid rgba(255,250,236,.7); color: var(--ink); box-shadow: none; text-shadow: none; font: 600 var(--fs-xs)/1.15 var(--font-ui); text-align: center; }
+.menu-grid > button:hover { background: rgba(255,250,236,.75); border-color: var(--border-strong); }
+.menu-grid > button .i { width: 24px; height: 24px; color: var(--bronze-ink); }
+.menu-grid > button .count-chip { position: absolute; top: 6px; right: 6px; }
+.menu-sub { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: rgba(255,250,236,.82); border-bottom: 1px solid var(--paper-edge); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.menu-sub h2 { margin: 0; font: 700 var(--fs-lg)/1.1 var(--font-display); color: var(--ink); }
+.menu-sub .ghost.sm { padding-left: var(--sp-1); }
+.side-menu .section.attention h2 .i { color: var(--wax-ink); }
+.side-menu .section.attention .list li .chev { flex: none; width: 18px; height: 18px; color: var(--ink-2); }
+.side-menu .section.attention .list li .title { font-weight: 700; }
+.menu-hint { padding: 0 var(--sp-4) var(--sp-2); margin: 0; }
+
+/* На компьютере меню стоит рядом с картой, а не над ней: под стеклом — тот же светлый пейзаж, что на главной */
+@media (min-width: 1024px) { .side-menu { background: linear-gradient(180deg, rgba(255,250,236,.62), rgba(255,250,236,.62)), url("/img/ui/bg-land-tall.webp") center / cover no-repeat var(--bg); -webkit-backdrop-filter: none; backdrop-filter: none; border-right: 1px solid rgba(122,78,23,.15); } }
+.menu-tiles { background: transparent; border-top: 1px solid rgba(122,78,23,.12); }
+.menu-tiles > a, .menu-tiles > button { background: rgba(255,250,236,.45); border: 1px solid rgba(255,250,236,.7); box-shadow: none; }
+.menu-tiles > a:hover, .menu-tiles > button:hover { background: rgba(255,250,236,.75); }

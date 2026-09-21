@@ -59,6 +59,20 @@ export function finishReasonLabel(reason: string | null): string {
   return reason === "last_team" ? t("осталась одна команда") : reason === "time_limit" ? t("вышел срок") : t("завершена администратором");
 }
 
+/** Разделы меню команды (решение владельца 21.09): на главном экране меню — только то, что требует внимания, и значки разделов. */
+type MenuView = "home" | "deeds" | "battles" | "standings" | "feed" | "service" | "passages" | "peace" | "roster" | "notify";
+const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: () => string; hot?: boolean }> = [
+  { key: "deeds", icon: "scroll", label: () => t("Дела") },
+  { key: "battles", icon: "wave", label: () => t("Испытания"), hot: true },
+  { key: "standings", icon: "crown", label: () => t("Команды") },
+  { key: "feed", icon: "list", label: () => t("Что случилось") },
+  { key: "service", icon: "user", label: () => t("Моё служение") },
+  { key: "passages", icon: "handshake", label: () => t("Проходы"), hot: true },
+  { key: "peace", icon: "handshake", label: () => t("Мир") },
+  { key: "roster", icon: "users", label: () => t("Состав") },
+  { key: "notify", icon: "bell", label: () => t("Уведомления") },
+];
+
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const bookName = (code: string) => BOOK_BY_CODE.get(code)?.nameRu ?? "";
 
@@ -135,6 +149,7 @@ export function TeamPage() {
   useEffect(() => { setDescOpen(false); }, [selectedId]);
   /** Положение команд: подробности (испытания, города) раскрыты у одной команды; по умолчанию — у нашей. */
   const [openStanding, setOpenStanding] = useState<string | null>(null);
+  const [menuView, setMenuView] = useState<MenuView>("home");
 
   const loadStandings = useCallback(() => api<StandingsDto>(`/api/games/${id}/standings`).then(setStandings).catch(() => {}), [id]);
   const loadPassages = useCallback(() => api<PassagesDto>(`/api/games/${id}/my-passages`).then(setPassages).catch(() => {}), [id]);
@@ -316,6 +331,9 @@ export function TeamPage() {
   const incoming = passages?.incoming.filter((r) => r.status === "PENDING") ?? [];
   // Бейдж на кнопке меню — только то, что требует действия: возвращённое дело, входящий запрос прохода, наш ход в испытании.
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length;
+  const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
+  const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
+  const menuCounts: Partial<Record<MenuView, number>> = { deeds: ourTasks.length, battles: activeBattles.length, passages: incoming.length, roster: team.members?.length ?? 0 };
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (wide) return;
@@ -346,8 +364,48 @@ export function TeamPage() {
             {!wide && <button type="button" className="ghost icon" onClick={() => setMenu(false)} aria-label={t("Закрыть")}><Icon name="x" /></button>}
           </div>
 
-          <section className="section">
-            <h2><Icon name="scroll" />{t("Наши дела")}<span className="count">{ourTasks.length}</span></h2>
+          {menuView !== "home" && (
+            <div className="menu-sub">
+              <button type="button" className="ghost sm" onClick={() => setMenuView("home")}><Icon name="back" />{t("Меню")}</button>
+              <h2>{MENU_ITEMS.find((m) => m.key === menuView)?.label()}</h2>
+            </div>
+          )}
+          {menuView === "home" && (
+            <>
+              {(rejectedTasks.length > 0 || incoming.length > 0 || myTurnBattles.length > 0) && (
+                <section className="section attention">
+                  <h2><Icon name="bell" />{t("Требует внимания")}</h2>
+                  <ul className="list interactive">
+                    {rejectedTasks.map((tk) => (
+                      <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
+                        <div className="main"><span className="title">{t("Дело возвращено: {title}", { title: tk.deed.title })}</span>{tk.adminComment && <span className="meta">{tk.adminComment}</span>}</div><Icon name="chevron" className="chev" />
+                      </li>
+                    ))}
+                    {incoming.map((r) => (
+                      <li key={r.id} role="button" tabIndex={0} onClick={() => setMenuView("passages")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMenuView("passages"); } }}>
+                        <div className="main"><span className="title">{t("Запрос прохода через {book}", { book: r.bookName })}</span><span className="meta">{t("от команды «{team}»", { team: r.requester.name })}</span></div><Icon name="chevron" className="chev" />
+                      </li>
+                    ))}
+                    {myTurnBattles.map((b) => (
+                      <li key={b.id} role="button" tabIndex={0} onClick={() => openCity(b.nodeKey)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCity(b.nodeKey); } }}>
+                        <div className="main"><span className="title">{t("Испытание · {city}", { city: bookName(b.bookCode) })}</span><span className="meta">{t("ваш ход")}</span></div><Icon name="chevron" className="chev" />
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
+              <nav className="menu-grid" aria-label={t("Разделы")}>
+                {MENU_ITEMS.map((m) => { const n = menuCounts[m.key] ?? 0; return (
+                  <button key={m.key} type="button" onClick={() => setMenuView(m.key)}>
+                    <Icon name={m.icon} />{m.label()}{n > 0 && <span className={"count-chip" + (m.hot && n > 0 ? " hot" : "")}>{n}</span>}
+                  </button>
+                ); })}
+              </nav>
+              {standings?.status === "ACTIVE" && standings.endsAt && <p className="hint menu-hint">{t("Игра идёт до {d}", { d: fmtDate(standings.endsAt) })}</p>}
+            </>
+          )}
+          {menuView === "deeds" && (
+            <section className="section">
             {ourTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Возьмите дело: нажмите метку на карте.")} /> : (
               <ul className="list interactive">
                 {ourTasks.map((tk) => { const st = deedStatus(tk.status); return (
@@ -358,10 +416,11 @@ export function TeamPage() {
                 ); })}
               </ul>
             )}
-          </section>
-
-          <section className="section">
-            <h2><Icon name="wave" />{t("Испытания")}{activeBattles.length > 0 && <span className="count">{activeBattles.length}</span>}</h2>
+          
+            </section>
+          )}
+          {menuView === "battles" && (
+            <section className="section">
             {activeBattles.length === 0 ? <EmptyState inline icon="wave" text={t("Сейчас испытаний нет.")} /> : (
               <ul className="list interactive">
                 {activeBattles.map((b) => {
@@ -379,27 +438,31 @@ export function TeamPage() {
                 })}
               </ul>
             )}
-          </section>
-
-          <section className="section">
-            <h2><Icon name="crown" />{t("Положение команд")}</h2>
+          
+            </section>
+          )}
+          {menuView === "standings" && (
+            <section className="section">
             <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} />
             {standings?.status === "ACTIVE" && standings.endsAt && <p className="hint">{t("Игра идёт до {d}", { d: fmtDate(standings.endsAt) })}</p>}
-          </section>
-
-          <FeedSection gameId={id} version={feedVersion} />
-          <MyServiceSection gameId={id} version={feedVersion} />
-          <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />
-          <PeaceSection gameId={id} version={feedVersion} />
-          <section className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></section>
-          <section className="section"><PushToggle compact /></section>
-          <nav className="menu-tiles" aria-label={t("Навигация")}>
+          
+            </section>
+          )}
+          {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} />}
+          {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} />}
+          {menuView === "passages" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
+          {menuView === "peace" && <PeaceSection gameId={id} version={feedVersion} />}
+          {menuView === "roster" && <section className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></section>}
+          {menuView === "notify" && <section className="section"><PushToggle compact /></section>}
+          {menuView === "home" && (
+            <nav className="menu-tiles" aria-label={t("Навигация")}>
             <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
             <Link to="/account"><Icon name="user" />{t("Аккаунт")}</Link>
             <Link to="/how-to-play"><Icon name="help" />{t("Как играть")}</Link>
             <Link to="/whats-new"><Icon name="sparkle" />{t("Что нового")}</Link>
             <button type="button" onClick={() => void logout()}><Icon name="logout" />{t("Выйти")}</button>
           </nav>
+          )}
         </aside>
       )}
 
