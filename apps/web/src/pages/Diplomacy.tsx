@@ -80,11 +80,11 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
   const pending = data?.incoming.filter((r) => r.status === "PENDING") ?? [];
   const granted = data?.incoming.filter((r) => r.status === "APPROVED") ?? [];
   const outgoing = data?.outgoing.slice(0, 5) ?? [];
-  const empty = pending.length === 0 && granted.length === 0 && outgoing.length === 0;
+  // Пока запросов нет, блока нет вовсе (решение владельца 21.09): появляется вместе с первым запросом.
+  if (pending.length === 0 && granted.length === 0 && outgoing.length === 0) return null;
   return (
     <section className="section">
       <h2><Icon name="handshake" />{t("Проходы")}{pending.length > 0 && <span className="count-chip hot">{pending.length}</span>}</h2>
-      {empty && <EmptyState inline icon="handshake" text={t("Запросов прохода нет.")} />}
       {pending.map((r) => (
         <div key={r.id} className="passage-card">
           <div><strong>«{r.requester.name}»</strong> {t("просит проход через")} <strong>{r.bookName}</strong></div>

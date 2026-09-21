@@ -139,7 +139,7 @@ export const PLAYER: Record<string, string> = {
   "Глава": "Chapter", "начало {ref}, выберите конец": "start {ref}, choose the end",
   "Нажмите первый и последний стих отрывка из книги {name}. Нужно не меньше {n} на команду.": "Tap the first and the last verse of a passage from {name}. At least {n} per team are needed.",
   // Проходы
-  "Проходы": "Passages", "Запросов прохода нет.": "No passage requests.", "Запросов прохода пока не было.": "No passage requests yet.",
+  "Проходы": "Passages", "Запросов прохода пока не было.": "No passage requests yet.",
   "Ответ: «{a}»": "Answer: “{a}”", "Запрос отправлен {d}. Ответ до {until}; молчание — отказ.": "Request sent {d}. Answer due {until}; silence means no.",
   "Дальше через чужой город идти нельзя без разрешения владельца.": "You cannot go on through another team's city without the owner's permission.", "Последний ответ: {s}": "Last answer: {s}",
   "Сообщение владельцу": "Message to the owner", "В проходе отказано": "Passage declined",

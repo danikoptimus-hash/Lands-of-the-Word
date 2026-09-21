@@ -963,7 +963,7 @@ function stepWorld(w: World, dt: number): void {
   }
   for (const g of w.gulls) stepGull(g, w.p, w.size, dt, T);
   for (const g of w.portGulls) stepGull(g, w.p, w.size, dt, T);
-  for (const sh of w.ships) stepShip(sh, w.p, w.size, dt, T);
+  for (const sh of w.ships) stepShip(sh, w.p, w.size, dt, T, w.ships);
   stepFlock(w.flock, w.p, w.size, dt, T);
   // Порядок рисования — от глубоких к мелким (вставками, массив короткий).
   const cs = w.cets;
@@ -1027,7 +1027,29 @@ function makeShip(kind: ShipKind, p: Profile, size: number): Ship {
   const car = makeCarrot(p, size, size * rnd(2.8, 4.2), size * 0.3);
   const spec = shipSpec(kind, size); return { spec, car, x: car.x, y: car.y, h: car.h, v: spec.speed, om: 0, seed: rnd(0, 100), trail: makeTrail() };
 }
-function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number): void {
+/**
+ * Расхождение кораблей (решение владельца 21.09: корабли не проезжают друг сквозь друга). Смотрим на суда впереди
+ * в пределах трёх сумм длин: расходимся правыми бортами — встречный или судно слева по носу → отворот вправо,
+ * судно справа → отворот влево и сбавить ход (уступаем тому, кто справа). Совсем близко — корпуса раздвигаются.
+ */
+function shipsAhead(sh: Ship, others: readonly Ship[]): { dh: number; slow: number } {
+  let dh = 0, slow = 0;
+  for (const o of others) {
+    if (o === sh || o.car.wait > 0) continue;
+    const dx = o.x - sh.x, dy = o.y - sh.y, d = Math.hypot(dx, dy) || 1e-6;
+    const R = (sh.spec.L + o.spec.L) * 3;
+    if (d > R) continue;
+    const rel = wrapAngle(Math.atan2(dy, dx) - sh.h);
+    const contact = (sh.spec.L + o.spec.L) * 0.7;
+    if (d < contact) { const push = (contact - d) / 2; sh.x -= (dx / d) * push; sh.y -= (dy / d) * push; }
+    if (Math.abs(rel) > Math.PI * 0.6) continue; // позади — не наша забота
+    const w = 1 - d / R;
+    dh += (rel > 0.15 ? -1 : 1) * w * Math.PI * 0.8;
+    if (rel > -0.3 && Math.abs(rel) < Math.PI / 3) slow = Math.max(slow, w);
+  }
+  return { dh: clamp(dh, -Math.PI / 2, Math.PI / 2), slow };
+}
+function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number, others: readonly Ship[] = []): void {
   const sp = sh.spec, car = sh.car;
   // Поводок идёт впереди на 1–2 корпуса; отстал корабль — поводок ждёт, догнал — уходит вперёд.
   const behind = Math.hypot(car.x - sh.x, car.y - sh.y);
@@ -1036,10 +1058,11 @@ function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number): vo
   if (wasWaiting && car.wait <= 0) { sh.x = car.x; sh.y = car.y; sh.h = car.h; sh.om = 0; } // новый маршрут начинается за краем
   if (car.wait > 0) { sh.x += Math.cos(sh.h) * sh.v * dt; sh.y += Math.sin(sh.h) * sh.v * dt; return; }
   // Кинематика корпуса: ход только по курсу, курс — через угловую скорость, не круче радиуса циркуляции, руль с запаздыванием.
-  const want = sp.speed * clamp(behind / (sp.L * 1.5), 0.6, 1.3) * (1 + 0.08 * noise1(T * 0.2, sh.seed));
+  const near = shipsAhead(sh, others);
+  const want = sp.speed * clamp(behind / (sp.L * 1.5), 0.6, 1.3) * (1 + 0.08 * noise1(T * 0.2, sh.seed)) * (1 - 0.5 * near.slow);
   sh.v = ease(sh.v, want, dt, 2.5);
   const omMax = Math.min(sp.maxTurn, Math.max(sh.v, sp.speed * 0.5) / (sp.L * sp.turnR));
-  const aim = avoidHeading(p, sh.x, sh.y, sh.h, car.x, car.y, Math.max(sp.L * 3, sh.v * 6), size * 2.4);
+  const aim = avoidHeading(p, sh.x, sh.y, sh.h, car.x, car.y, Math.max(sp.L * 3, sh.v * 6), size * 2.4) + near.dh;
   const omWant = clamp(wrapAngle(aim - sh.h) * 0.9, -omMax, omMax);
   sh.om = clamp(ease(sh.om, omWant, dt, 1.2), -omMax, omMax);
   sh.h = wrapAngle(sh.h + sh.om * dt);
