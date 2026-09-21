@@ -21,6 +21,8 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   /** Ссылка, которую не удалось положить в буфер: показывается один раз под строкой команды, чтобы выделить вручную. */
   const [fallback, setFallback] = useState<{ teamId: string; url: string } | null>(null);
   const [inviting, setInviting] = useState<string | null>(null);
+  /** Кнопка, с которой только что скопировали: полторы секунды показывает галочку (только она, не соседние). */
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const { confirm, notify } = useUi();
@@ -53,7 +55,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
       } else {
         await navigator.clipboard.writeText(await url);
       }
-      notify(done);
+      notify(done); setCopiedKey(key); setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1500);
     } catch (err) {
       if (err instanceof ApiError) { fail(err); return; }
       try { setFallback({ teamId, url: await url }); notify(t("Не удалось скопировать: выделите ссылку вручную"), "bad"); } catch (e) { fail(e); }
@@ -109,8 +111,8 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
             <TeamAvatar name={tm.name} color={tm.color} withName />
             <div className="row nowrap">
               <span className="invite-btns" role="group" aria-label={t("Пригласить")}>
-                <button type="button" className="secondary sm" disabled={inviting !== null} title={t("Скопировать ссылку для капитана")} onClick={() => void inviteCopy(tm.id, "CAPTAIN")}><Icon name="link" />{t("Капитана")}</button>
-                <button type="button" className="secondary sm" disabled={inviting !== null} title={t("Скопировать ссылку для участников")} onClick={() => void inviteCopy(tm.id, "MEMBER")}><Icon name="link" />{t("Участника")}</button>
+                <button type="button" className="secondary sm" disabled={inviting === `${tm.id}:CAPTAIN`} title={t("Скопировать ссылку для капитана")} onClick={() => void inviteCopy(tm.id, "CAPTAIN")}><Icon name={copiedKey === `${tm.id}:CAPTAIN` ? "check" : "link"} />{t("Капитана")}</button>
+                <button type="button" className="secondary sm" disabled={inviting === `${tm.id}:MEMBER`} title={t("Скопировать ссылку для участников")} onClick={() => void inviteCopy(tm.id, "MEMBER")}><Icon name={copiedKey === `${tm.id}:MEMBER` ? "check" : "link"} />{t("Участника")}</button>
               </span>
               {status === "DRAFT" && <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }]} />}
               {status === "ACTIVE" && tm.status !== "defeated" && <ActionMenu label={t("Ещё")} items={[{ label: t("Оштрафовать: аннулировать участок пути"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }]} />}
