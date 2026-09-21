@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { CityProgress, TeamProgress } from "./AdminMap";
 import { t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
@@ -16,6 +16,7 @@ export function progressAt(teams: TeamProgress[], at: Date): TeamProgress[] {
 
 export type MoveKind = "reveal" | "traverse" | "capture" | "capital";
 export interface Move { at: number; team: string; kind: MoveKind }
+const MOVE_FORMS: [string, string, string] = ["ход", "хода", "ходов"];
 const KIND_TEXT: Record<MoveKind, string> = { reveal: "открыл перекрёсток", traverse: "прошёл сторону", capture: "взял город", capital: "взял город (столица)" };
 
 /** Ходы всех команд по времени: открытие перекрёстка, пройденная сторона, взятый город. Старт не считается ходом. */
@@ -51,7 +52,7 @@ export function Timeline({ moves, startedAt, at, onChange }: { moves: Move[]; st
     <div className="timeline">
       <h3><span className="ico"><Icon name="clock" /></span>{t("История ходов")}</h3>
       <div className={"tl-now" + (at ? "" : " live")} aria-live="polite">
-        {!at ? <strong>{t("Сейчас")} · {plural(n, ["ход", "хода", "ходов"])}</strong> : pos === 0 ? <strong>{t("Старт")} · {fmtDate(startedAt)}</strong> : (
+        {!at ? <strong>{t("Сейчас")} · {plural(n, MOVE_FORMS)}</strong> : pos === 0 ? <strong>{t("Старт")} · {fmtDate(startedAt)}</strong> : (
           <>
             <strong>{t("Ход {a} из {b}", { a: pos, b: n })} · {fmtDate(current!.at)}</strong>
             <span>{current!.team}: {t(KIND_TEXT[current!.kind])}</span>
@@ -60,6 +61,45 @@ export function Timeline({ moves, startedAt, at, onChange }: { moves: Move[]; st
       </div>
       <input type="range" min={0} max={n} step={1} value={pos} onChange={(e) => set(Number(e.target.value))} aria-label={t("Ход игры")} />
       <div className="row between muted xs"><span>{t("Старт")} · {fmtDate(startedAt)}</span><span>{t("Сейчас")}</span></div>
+    </div>
+  );
+}
+
+/**
+ * История ходов на карте во весь экран (решение владельца 21.09: минимум места): одна плашка «Сейчас · N ходов»
+ * или «Ход a из b»; по нажатию раскрывается строка со стрелками и ползунком, повторное нажатие сворачивает.
+ */
+export function TimelineDock({ moves, startedAt, at, onChange }: { moves: Move[]; startedAt: string; at: Date | null; onChange: (d: Date | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const n = moves.length;
+  const pos = useMemo(() => {
+    if (!at) return n;
+    const ms = at.getTime();
+    let i = 0;
+    while (i < n && moves[i]!.at <= ms) i++;
+    return i;
+  }, [at, moves, n]);
+  const set = (i: number) => { const k = Math.max(0, Math.min(n, i)); onChange(k >= n ? null : k === 0 ? new Date(Date.parse(startedAt)) : new Date(moves[k - 1]!.at)); };
+  const current = pos > 0 ? moves[pos - 1] : undefined;
+  const label = !at ? `${t("Сейчас")} · ${plural(n, MOVE_FORMS)}` : pos === 0 ? t("Старт") : t("Ход {a} из {b}", { a: pos, b: n });
+  return (
+    <div className={"tl-dock" + (open ? " open" : "") + (at ? " past" : "")}>
+      <div className="tl-row">
+        <button type="button" className="tl-toggle" aria-expanded={open} onClick={() => setOpen((v) => !v)} title={open ? t("Скрыть историю ходов") : t("История ходов")}>
+          <Icon name="clock" /><span>{label}</span><Icon name={open ? "chevron-down" : "chevron-up"} className="i-sm" />
+        </button>
+        {at && <button type="button" className="ghost sm" onClick={() => onChange(null)}>{t("Сейчас")}</button>}
+      </div>
+      {open && (
+        <div className="tl-body">
+          <button type="button" className="ghost icon sm" aria-label={t("К старту")} title={t("К старту")} disabled={pos === 0} onClick={() => set(0)}><Icon name="flag" /></button>
+          <button type="button" className="ghost icon sm" aria-label={t("На ход назад")} title={t("На ход назад")} disabled={pos === 0} onClick={() => set(pos - 1)}><Icon name="back" /></button>
+          <input type="range" min={0} max={n} step={1} value={pos} onChange={(e) => set(Number(e.target.value))} aria-label={t("Ход игры")} />
+          <button type="button" className="ghost icon sm" aria-label={t("На ход вперёд")} title={t("На ход вперёд")} disabled={pos >= n} onClick={() => set(pos + 1)}><Icon name="chevron" /></button>
+          {current && <div className="tl-desc">{fmtDate(current.at)} · {current.team}: {t(KIND_TEXT[current.kind])}</div>}
+          {!current && pos === 0 && <div className="tl-desc">{t("Старт")} · {fmtDate(startedAt)}</div>}
+        </div>
+      )}
     </div>
   );
 }

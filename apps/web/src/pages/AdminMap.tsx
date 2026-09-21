@@ -177,10 +177,10 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
       <div className={"admin-map" + (fullscreen ? " full" : "")} ref={setWrapEl}>
         {progress && progress.length > 0 && (
           <div className="view-as" role="tablist" aria-label={t("Чьими глазами")}>
-            <button type="button" role="tab" aria-selected={!viewAs} className={"chip-btn" + (!viewAs ? " on" : "")} onClick={() => setViewAs(null)}><Icon name="crown" />{t("Администратор")}</button>
+            <button type="button" role="tab" aria-selected={!viewAs} className={"va" + (!viewAs ? " on" : "")} title={t("Администратор")} aria-label={t("Администратор")} onClick={() => setViewAs(null)}><Icon name="crown" /></button>
             {progress.map((tm) => (
-              <button key={tm.id} type="button" role="tab" aria-selected={viewAs === tm.id} className={"chip-btn" + (viewAs === tm.id ? " on" : "")} onClick={() => setViewAs(tm.id)}>
-                <TeamAvatar name={tm.name} color={tm.color} size="sm" />{tm.name}
+              <button key={tm.id} type="button" role="tab" aria-selected={viewAs === tm.id} className={"va" + (viewAs === tm.id ? " on" : "")} title={tm.name} aria-label={t("Глазами команды «{name}»", { name: tm.name })} onClick={() => setViewAs(tm.id)}>
+                <TeamAvatar name={tm.name} color={tm.color} size="sm" />
               </button>
             ))}
           </div>
@@ -213,6 +213,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
         </div>
         </>)}
+        {viewedTeam && fullscreen && <div className="view-as-name" aria-live="polite"><TeamAvatar name={viewedTeam.name} color={viewedTeam.color} size="sm" />{t("Глазами команды «{name}»", { name: viewedTeam.name })}</div>}
         {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.", { name: viewedTeam.name })}</p>}
         {selected && wrapEl && (selected.kind === "CITY"
           ? <CitySheet gameId={gameId} node={selected} version={version} container={wrapEl} revealed={revealedBy.get(selected.key) ?? []} battle={battleAt.get(selected.key) ?? null} teamById={teamById} onClose={close} onReview={onReview} />

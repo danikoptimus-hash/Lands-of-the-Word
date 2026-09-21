@@ -120,7 +120,7 @@ export const ADMIN: Record<string, string> = {
   "длинных задач": "long tasks", "за замер, дольше 50 мс": "per sample, over 50 ms", "Срез": "Slice", "Замеров": "Samples", "Кадров/с": "FPS", "Долгих кадров": "Slow frames", "Крупная отрисовка": "Largest paint", "Загружена": "Loaded",
   "телефон": "phone", "компьютер": "desktop", "карта команды": "team map", "карта администратора": "admin map", "другие страницы": "other pages",
   // Карта глазами команды
-  "Чьими глазами": "Whose view", "Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.": "The map as team “{name}” sees it: fog, sides and markers as theirs. Taps do nothing here.",
+  "Чьими глазами": "Whose view", "Глазами команды «{name}»": "As team “{name}”", "Скрыть историю ходов": "Hide move history", "К старту": "To the start", "На ход назад": "One move back", "На ход вперёд": "One move forward", "Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.": "The map as team “{name}” sees it: fog, sides and markers as theirs. Taps do nothing here.",
   "Администратор": "Admin",
   // Обращения в поддержку
   "Обращения в поддержку": "Support requests", "Только открытые": "Open only", "Показать закрытые": "Show closed",

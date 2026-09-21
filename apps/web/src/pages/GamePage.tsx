@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { AdminMap, type BattleProgress, type CityProgress, type TeamProgress } from "./AdminMap";
-import { Timeline, collectMoves, progressAt } from "./Timeline";
+import { collectMoves, progressAt, TimelineDock } from "./Timeline";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamsBlock } from "./TeamsBlock";
 import { DeedsBlock } from "./DeedsBlock";
@@ -151,7 +151,7 @@ export function GamePage() {
             </div>
           </div>
         )}
-        {hasMap && progress?.startedAt && <div className="admin-timeline"><Timeline moves={moves} startedAt={progress.startedAt} at={at} onChange={setAt} /></div>}
+        {hasMap && progress?.startedAt && <div className="admin-timeline"><TimelineDock moves={moves} startedAt={progress.startedAt} at={at} onChange={setAt} /></div>}
       </div>
 
       <div className="admin-top">
