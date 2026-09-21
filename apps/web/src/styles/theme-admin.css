@@ -170,9 +170,12 @@ details.settings-group summary::after { content: ""; width: 20px; height: 20px; 
 /* Страница игры без карты: пейзаж с главной вместо тёмного поля; блок и попапы разделов — стекло (решение владельца 20.09) */
 .admin-map-area:has(.admin-empty) { background: linear-gradient(180deg, rgba(247,240,224,.42), rgba(247,240,224,.34)), url("/img/ui/bg-land-wide.webp") center / cover no-repeat var(--bg); }
 .admin-empty .card { background: rgba(255,250,236,.5); border: 1px solid rgba(255,250,236,.72); box-shadow: 0 6px 20px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(14px) saturate(1.05); backdrop-filter: blur(14px) saturate(1.05); }
-.admin-popup .overlay { background: rgba(255,250,236,.6); border-top: 2px solid var(--bronze); -webkit-backdrop-filter: blur(16px) saturate(1.05); backdrop-filter: blur(16px) saturate(1.05); }
-.admin-popup .overlay .overlay-head { background: rgba(255,250,236,.35); }
-.admin-popup .overlay-body .card { background: rgba(255,250,236,.45); border: 1px solid rgba(255,250,236,.7); box-shadow: none; }
+/* Разделы администратора над картой: попап — стекло, блоки внутри ещё прозрачнее, чтобы карта читалась сквозь них (решение владельца 21.09) */
+.overlay.admin-popup { background: rgba(255,250,236,.5); border-top: 2px solid var(--bronze); -webkit-backdrop-filter: blur(18px) saturate(1.05); backdrop-filter: blur(18px) saturate(1.05); }
+.overlay.admin-popup .overlay-head { background: rgba(255,250,236,.25); }
+.admin-popup .overlay-body .card { background: rgba(255,250,236,.26); border: 1px solid rgba(255,250,236,.55); box-shadow: none; }
+.admin-popup .overlay-body .tile, .admin-popup .overlay-body .summary-tiles a, .admin-popup .overlay-body .card.flat, .admin-popup .overlay-body .keys .key { background: rgba(255,250,236,.32); border-color: rgba(255,250,236,.6); box-shadow: none; }
+.admin-popup .overlay-body input, .admin-popup .overlay-body select, .admin-popup .overlay-body textarea, .admin-popup .overlay-body .stepper { background: rgba(255,250,236,.7); }
 
 /* ---------- Карта во весь экран: «чьими глазами» — ряд кружков, история ходов — плашка (решение владельца 21.09) ---------- */
 .admin-map.full .view-as { padding: 4px; gap: 4px; background: rgba(255,250,236,.8); border: 1px solid rgba(122,78,23,.15); box-shadow: 0 2px 8px rgba(59,36,21,.12); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-radius: var(--r-full); }
