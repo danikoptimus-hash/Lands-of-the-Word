@@ -50,8 +50,7 @@
 /* ---------- Попап раздела: плитки — свежий лист с кромкой на потёртом листе карточки ---------- */
 .admin-popup .card-head h2 { font-size: var(--fs-xl); }
 .admin-popup .overlay-body .card { border: 1px solid var(--paper-edge); box-shadow: none; }
-.summary-tiles a, .tile, .return-box, .keys .key, .chips .chip-btn, .invite-panel.card.flat, .season-book .book-chronicle { background: var(--paper-light); border: 1px solid var(--paper-edge); box-shadow: none; }
-.overlay .invite-panel.card.flat { background: var(--paper-light); }
+.summary-tiles a, .tile, .return-box, .keys .key, .chips .chip-btn, .season-book .book-chronicle { background: var(--paper-light); border: 1px solid var(--paper-edge); box-shadow: none; }
 .summary-tiles a:hover { border-color: var(--bronze); background: #FFFBF0; }
 .summary-tiles .sum-value { font: 700 28px/1 var(--font-display); color: var(--bronze-ink); }
 .summary-tiles .sum-value.hot { color: var(--wax-ink); }

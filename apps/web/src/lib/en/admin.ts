@@ -28,7 +28,11 @@ export const ADMIN: Record<string, string> = {
   // Команды
   "Команда добавлена": "Team added", "Команда «{name}» будет удалена вместе с участниками.": "Team “{name}” will be deleted with its members.", "Команда удалена": "Team deleted",
   "{nick} убран из команды": "{nick} removed from the team", "Команд пока нет: добавьте первую.": "No teams yet: add the first one.", "Пригласить": "Invite",
-  "Ссылка для капитана": "Link for the captain", "Ссылка для участников": "Link for members", "Действует 14 дней, до 20 человек.": "Valid for 14 days, up to 20 people.",
+  // Приглашение одной кнопкой (решение владельца 21.09)
+  "Капитана": "Captain", "Участника": "Member", "Скопировать ссылку для капитана": "Copy the captain link", "Скопировать ссылку для участников": "Copy the members link",
+  "Ссылка для капитана скопирована: действует 14 дней": "Captain link copied: valid for 14 days",
+  "Ссылка для участников скопирована: действует 14 дней, до 20 человек": "Members link copied: valid for 14 days, up to 20 people",
+  "Не удалось скопировать: выделите ссылку вручную": "Could not copy: select the link by hand",
   "Пока никого: отправьте ссылку капитану.": "Nobody yet: send the link to the captain.", "Игровая роль": "Game role", "Роль сохранена": "Role saved",
   "{nick} больше не капитан": "{nick} is no longer captain", "{nick} теперь капитан": "{nick} is now captain", "Лимит: {n} команд · Изменить": "Limit: {n} teams · Change",
   "Роли — у участников, не у капитана. Запрос капитана одобрите здесь; ваш выбор применяется сразу и начинает недельный отсчёт до следующей смены.": "Roles belong to members, not to the captain. Approve the captain's request here; your choice applies at once and starts the week-long countdown to the next change.",

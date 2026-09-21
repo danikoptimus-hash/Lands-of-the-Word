@@ -5,14 +5,12 @@ import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
-import { CopyField } from "../components/CopyField";
 import { ActionMenu } from "../components/ActionMenu";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { Sheet } from "../components/Sheet";
 import { ActivityBoard } from "./Journal";
 import { Help } from "../components/Help";
 
-interface Invite { captain: string; members: string }
 
 /** Вкладка «Команды»: список команд с участниками, приглашения по ссылке, строка добавления снизу. */
 export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, goToSettings }: { gameId: string; teamCount: number; status: string; version?: number; onChange?: () => void; goToSettings?: () => void }) {
@@ -20,7 +18,9 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   const [loadError, setLoadError] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [invite, setInvite] = useState<{ teamId: string; links: Invite | null } | null>(null);
+  /** Ссылка, которую не удалось положить в буфер: показывается один раз под строкой команды, чтобы выделить вручную. */
+  const [fallback, setFallback] = useState<{ teamId: string; url: string } | null>(null);
+  const [inviting, setInviting] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const { confirm, notify } = useUi();
@@ -37,14 +37,27 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
     catch (err) { setError(err instanceof ApiError ? err.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
-  async function toggleInvite(teamId: string) {
-    if (invite?.teamId === teamId) { setInvite(null); return; }
-    setInvite({ teamId, links: null });
+  /**
+   * Приглашение одной кнопкой (решение владельца 21.09): нажатие создаёт ссылку и сразу кладёт её в буфер, без полей.
+   * В Safari буфер доступен только из жеста, поэтому ссылка передаётся обещанием через ClipboardItem; где его нет —
+   * дожидаемся ответа и пишем текст (Chrome и Firefox держат разрешение несколько секунд после нажатия).
+   */
+  async function inviteCopy(teamId: string, role: "CAPTAIN" | "MEMBER") {
+    const key = `${teamId}:${role}`;
+    setInviting(key); setFallback(null);
+    const url = api<{ invite: { path: string } }>(`/api/games/${gameId}/teams/${teamId}/invites`, { method: "POST", body: JSON.stringify({ role }) }).then((r) => window.location.origin + r.invite.path);
+    const done = role === "CAPTAIN" ? t("Ссылка для капитана скопирована: действует 14 дней") : t("Ссылка для участников скопирована: действует 14 дней, до 20 человек");
     try {
-      const mk = (role: "CAPTAIN" | "MEMBER") => api<{ invite: { path: string } }>(`/api/games/${gameId}/teams/${teamId}/invites`, { method: "POST", body: JSON.stringify({ role }) }).then((r) => window.location.origin + r.invite.path);
-      const [captain, members] = await Promise.all([mk("CAPTAIN"), mk("MEMBER")]);
-      setInvite({ teamId, links: { captain, members } });
-    } catch (err) { setInvite(null); fail(err); }
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        await navigator.clipboard.write([new ClipboardItem({ "text/plain": url.then((u) => new Blob([u], { type: "text/plain" })) })]);
+      } else {
+        await navigator.clipboard.writeText(await url);
+      }
+      notify(done);
+    } catch (err) {
+      if (err instanceof ApiError) { fail(err); return; }
+      try { setFallback({ teamId, url: await url }); notify(t("Не удалось скопировать: выделите ссылку вручную"), "bad"); } catch (e) { fail(e); }
+    } finally { setInviting(null); }
   }
   async function remove(tm: TeamDto) {
     if (!(await confirm(t("Команда «{name}» будет удалена вместе с участниками.", { name: tm.name }), { title: t("Удалить команду?"), okLabel: t("Удалить"), danger: true }))) return;
@@ -95,25 +108,16 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
           <div className="row between nowrap">
             <TeamAvatar name={tm.name} color={tm.color} withName />
             <div className="row nowrap">
-              <button type="button" className={(invite?.teamId === tm.id ? "" : "secondary ") + "sm"} onClick={() => void toggleInvite(tm.id)} aria-expanded={invite?.teamId === tm.id}><Icon name="link" />{t("Пригласить")}</button>
+              <span className="invite-btns" role="group" aria-label={t("Пригласить")}>
+                <button type="button" className="secondary sm" disabled={inviting !== null} title={t("Скопировать ссылку для капитана")} onClick={() => void inviteCopy(tm.id, "CAPTAIN")}><Icon name="link" />{t("Капитана")}</button>
+                <button type="button" className="secondary sm" disabled={inviting !== null} title={t("Скопировать ссылку для участников")} onClick={() => void inviteCopy(tm.id, "MEMBER")}><Icon name="link" />{t("Участника")}</button>
+              </span>
               {status === "DRAFT" && <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }]} />}
               {status === "ACTIVE" && tm.status !== "defeated" && <ActionMenu label={t("Ещё")} items={[{ label: t("Оштрафовать: аннулировать участок пути"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }]} />}
               {tm.status === "defeated" && <Chip tone="bad">{t("выбыла")}</Chip>}
             </div>
           </div>
-          {invite?.teamId === tm.id && (
-            <div className="card flat invite-panel">
-              {!invite.links ? <LoadingState rows={2} /> : (
-                <>
-                  <label>{t("Ссылка для капитана")}</label>
-                  <CopyField value={invite.links.captain} label={t("Ссылка для капитана")} />
-                  <label>{t("Ссылка для участников")}</label>
-                  <CopyField value={invite.links.members} label={t("Ссылка для участников")} />
-                  <p className="hint">{t("Действует 14 дней, до 20 человек.")}</p>
-                </>
-              )}
-            </div>
-          )}
+          {fallback?.teamId === tm.id && <p className="hint invite-fallback"><a href={fallback.url}>{fallback.url}</a></p>}
           {tm.members.length === 0 ? <EmptyState inline icon="user" text={t("Пока никого: отправьте ссылку капитану.")} /> : (
             <ul className="list">
               {tm.members.map((m) => {
