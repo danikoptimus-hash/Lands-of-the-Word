@@ -122,9 +122,9 @@ code { background: var(--paper-light); border-color: var(--paper-edge); }
 .crumb { font-family: var(--font-ui); color: var(--bronze-ink); }
 .crumb:hover { color: var(--ink); }
 /* Кнопка «назад» на страницах с шапкой закреплена под ней и видна при прокрутке (решение владельца 20.09) */
-.container > .crumb, .how-to > .crumb { position: sticky; top: calc(var(--topbar-h) + var(--safe-top) + var(--sp-2)); z-index: 4; margin-left: 0; padding: 0 var(--sp-3) 0 var(--sp-2); border-radius: var(--r-full); background: rgba(255,250,236,.88); border: 1px solid rgba(122,78,23,.18); box-shadow: 0 2px 8px rgba(59,36,21,.12); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+.container > .crumb, .how-to > .crumb, .narrow-page > .crumb { position: sticky; top: calc(var(--topbar-h) + var(--safe-top) + var(--sp-2)); z-index: 4; margin-left: 0; padding: 0 var(--sp-3) 0 var(--sp-2); border-radius: var(--r-full); background: rgba(255,250,236,.88); border: 1px solid rgba(122,78,23,.18); box-shadow: 0 2px 8px rgba(59,36,21,.12); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
 /* На широком экране кнопка живёт в свободном поле слева от содержимого и не мешает ему (решение владельца 20.09) */
-@media (min-width: 1200px) { .container > .crumb, .how-to > .crumb { position: fixed; left: max(var(--sp-4), calc((100vw - 1040px) / 2 - 150px)); } }
+@media (min-width: 1200px) { .container > .crumb, .how-to > .crumb, .narrow-page > .crumb { position: fixed; left: max(var(--sp-4), calc((100vw - 1040px) / 2 - 150px)); } }
 .page-head h1 { font-family: var(--font-display); }
 
 /* ---------- Подсказка «за кнопкой» (components/Help.tsx) ---------- */
