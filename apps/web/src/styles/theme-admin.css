@@ -228,3 +228,11 @@ details.settings-group summary::after { content: ""; width: 20px; height: 20px; 
 .cal-day.today { border-color: var(--bronze); }
 .cal-day.sel, .cal-day.sel:hover { background: var(--bronze-ink); color: var(--paper-light); border-color: var(--bronze-deep); }
 @media (max-width: 479px) { .calendar { right: auto; left: 0; } }
+
+/* Кнопки разделов — стекло (решение владельца 21.09) */
+.admin-dock .dock-btn, .admin-dock .dock-btn:hover { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.admin-dock .dock-btn:hover { background: rgba(255,250,236,.75); }
+.admin-dock .dock-btn.on, .admin-dock .dock-btn.on:hover { background: rgba(255,250,236,.9); border-color: var(--bronze); color: var(--bronze-ink); box-shadow: 0 2px 8px rgba(59,36,21,.12); }
+.admin-dock .dock-btn.on .i { color: var(--bronze-ink); }
+@media (max-width: 767px) { .admin-dock .dock-btn { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); } .admin-dock .dock-btn.on { background: rgba(255,250,236,.9); } }
+.admin-map.full .admin-title, .admin-map.full .admin-back, .admin-map .map-controls button { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }

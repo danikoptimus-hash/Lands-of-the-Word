@@ -62,7 +62,7 @@ await shot(P1, "phone", "/account", "account", "Аккаунт", null, { full: t
 await shot(P1, "phone", "/whats-new", "whats-new", "Что нового");
 // Администратор.
 await shot(ADMIN, "desk", G, "admin-map", "Администратор: карта", waitMap);
-for (const [tab, name] of [["Обзор", "admin-overview"], ["Команды", "admin-teams"], ["Дела", "admin-deeds"], ["Проверка", "admin-review"], ["Настройки", "admin-settings"]]) await shot(ADMIN, "desk", G, name, `Администратор: ${tab}`, adminTab(tab), { full: true });
+for (const [tab, name] of [["Летопись", "admin-overview"], ["Команды", "admin-teams"], ["Дела", "admin-deeds"], ["Проверка", "admin-review"], ["Настройки", "admin-settings"]]) await shot(ADMIN, "desk", G, name, `Администратор: ${tab}`, adminTab(tab), { full: true });
 await shot(ADMIN, "desk", `${G}/book`, "admin-season-book", "Книга сезона", null, { full: true });
 await shot(ADMIN, "desk", `${G}/labels`, "admin-labels", "Ярлыки конвертов");
 await shot(ADMIN, "desk", "/", "admin-games", "Мои игры (компьютер)");

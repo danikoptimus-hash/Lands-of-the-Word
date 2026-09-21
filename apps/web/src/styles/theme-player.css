@@ -263,3 +263,7 @@
 /* ---------- Аккаунт и главная ---------- */
 .narrow-page .hint { font-family: var(--font-book); }
 .home-card .chip:not(.ok):not(.warn):not(.bad):not(.info):not(.accent) { color: var(--stone-dark); }
+
+/* Кнопки карты у игрока — стекло (решение владельца 21.09) */
+.hud-left .hud-btn, .hud-left .hud-team, .map-area .map-controls button { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.hud-left .hud-btn:hover, .hud-left .hud-team:hover, .map-area .map-controls button:hover { background: rgba(255,250,236,.8); }

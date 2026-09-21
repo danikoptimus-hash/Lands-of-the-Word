@@ -22,6 +22,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
   const [endsAt, setEndsAt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editing, setEditing] = useState(false);
   const load = useCallback(() => api<StandingsDto>(`/api/games/${gameId}/standings`).then((d) => { setData(d); setEndsAt(d.endsAt ?? ""); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useEffect(() => { void load(); }, [load, version, status]);
   if (status === "DRAFT") return null;
@@ -33,7 +34,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
 
   async function saveDeadline() {
     setError(null); setBusy(true);
-    try { await api(`/api/games/${gameId}`, { method: "PATCH", body: JSON.stringify({ settings: { endsAt: endsAt || null } }) }); notify(t("Срок сохранён")); setData((d) => (d ? { ...d, endsAt } : d)); }
+    try { await api(`/api/games/${gameId}`, { method: "PATCH", body: JSON.stringify({ settings: { endsAt: endsAt || null } }) }); notify(t("Срок сохранён")); setData((d) => (d ? { ...d, endsAt } : d)); setEditing(false); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
@@ -87,14 +88,21 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
       {!finished && part !== "standings" && (
         <>
           <div className="card">
-            <div className="card-head"><h2><span className="ico"><Icon name="clock" /></span>{t("Срок окончания")}</h2></div>
-            <DeadlinePicker value={endsAt} onChange={setEndsAt} />
-            <p className="hint">{t("Игра завершится сама; победит команда с наибольшим числом городов.")}</p>
-            {error && <p className="error">{error}</p>}
-            {endsAt && endsAt !== (data.endsAt ?? "") && (
-              <div className="actions">
-                <button type="button" onClick={() => void saveDeadline()} disabled={busy}>{t("Сохранить")}</button>
-              </div>
+            <div className="card-head"><h2><span className="ico"><Icon name="clock" /></span>{t("Срок окончания")}</h2>
+              {data.endsAt && !editing && <button type="button" className="ghost icon" aria-label={t("Изменить срок")} title={t("Изменить срок")} onClick={() => setEditing(true)}><Icon name="edit" /></button>}
+            </div>
+            {data.endsAt && !editing ? (
+              <p className="deadline-when"><Icon name="clock" />{t("Игра закончится {d}", { d: fmtDate(data.endsAt) })}</p>
+            ) : (
+              <>
+                <DeadlinePicker value={endsAt} onChange={setEndsAt} />
+                <p className="hint">{t("Игра завершится сама; победит команда с наибольшим числом городов.")}</p>
+                {error && <p className="error">{error}</p>}
+                <div className="actions">
+                  {endsAt && endsAt !== (data.endsAt ?? "") && <button type="button" onClick={() => void saveDeadline()} disabled={busy}>{t("Сохранить")}</button>}
+                  {data.endsAt && <button type="button" className="ghost" onClick={() => { setEndsAt(data.endsAt ?? ""); setEditing(false); }}>{t("Отмена")}</button>}
+                </div>
+              </>
             )}
           </div>
           <div className="card">

@@ -561,9 +561,9 @@ async function main() {
     await snap(e13, "tg_m2", `/games/${S.gameId}/team`, "chronicle-feed", "Летопись недели пришла в ленту каждой команды (и письмом, и уведомлением).", async (p) => { await openMenu(p); await scrollTo("Что случилось")(p); await p.locator(".feed details summary").first().click().catch(() => {}); await p.waitForTimeout(300); });
     await snap(e13, "tg_m2", `/games/${S.gameId}/team`, "my-service", "«Моё служение»: дела, районы, стихи, города участника.", async (p) => { await openMenu(p); await scrollTo("Моё служение")(p); });
     await snap(e13, ADMIN, `/games/${S.gameId}`, "admin-activity", "Доска активности участников в блоке «Команды».", async (p) => { await adminTab("Команды")(p); await p.locator("details.fold-card summary").first().click(); await p.waitForTimeout(800); await scrollTo("Активность")(p); });
-    await snap(e13, ADMIN, `/games/${S.gameId}`, "admin-journal", "Журнал событий и кнопка «Отправить летопись сейчас» в «Обзоре».", async (p) => { await adminTab("Обзор")(p); await scrollTo("Журнал событий")(p); });
+    await snap(e13, ADMIN, `/games/${S.gameId}`, "admin-journal", "Журнал событий и кнопка «Отправить летопись сейчас» в «Летописи».", async (p) => { await adminTab("Летопись")(p); await scrollTo("Журнал событий")(p); });
     await post(ADMIN, `/api/games/${S.gameId}/finish`);
-    await snap(e13, ADMIN, `/games/${S.gameId}`, "admin-finished", "Игра завершена: победитель и положение команд.", adminTab("Обзор"));
+    await snap(e13, ADMIN, `/games/${S.gameId}`, "admin-finished", "Игра завершена: победитель и положение команд.", adminTab("Летопись"));
     await snap(e13, "tg_p1", `/games/${S.gameId}/team`, "player-finished", "Страница команды после завершения игры.");
     await snap(e13, ADMIN, `/games/${S.gameId}/book`, "season-book", "«Книга сезона»: положение, участники, города, дела, испытания, летописи — для показа на собрании и печати.");
   });

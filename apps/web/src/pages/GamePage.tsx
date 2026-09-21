@@ -65,7 +65,6 @@ export function GamePage() {
   const shownCities = useMemo(() => (progress && at ? progress.cities.filter((c) => !c.capturedAt || Date.parse(c.capturedAt) <= at.getTime()) : progress?.cities ?? null), [progress, at]);
   const bump = () => setVersion((v) => v + 1);
   useGameEvents(id, (e) => { if (e.type === "game" || e.type === "map") void load(); if (e.type !== "deeds") void loadProgress(); bump(); });
-  const recipientsRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     const r = await api<{ game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[] }>(`/api/games/${id}`);
@@ -123,12 +122,11 @@ export function GamePage() {
   const active = game.status === "ACTIVE";
   const draft = game.status === "DRAFT";
   const reviewCount = counts.submissions + counts.battles;
-  const trials = progress?.battles.length ?? 0;
   const hasMap = hexes.length > 0;
   const refresh = () => { void load(); void loadProgress(); };
 
   const sections: Array<{ key: Tab; label: string; icon: string; count?: number; hot?: boolean }> = [
-    { key: "overview", label: t("Обзор"), icon: "crown" },
+    { key: "overview", label: t("Летопись"), icon: "feather" },
     { key: "teams", label: t("Команды"), icon: "users", count: counts.teams },
     { key: "deeds", label: t("Дела"), icon: "scroll", count: counts.deeds },
     { key: "review", label: t("Проверка"), icon: "check", count: reviewCount, hot: true },
@@ -184,27 +182,8 @@ export function GamePage() {
                     hasMap={hasMap} nodeCount={nodes.length} cityCount={nodes.filter((n) => n.kind === "CITY").length} stats={stats}
                     onGenerate={() => void generate()} generating={busy} generateError={genError}
                     teams={counts.teams} teamCount={game.teamCount} deeds={counts.deeds} recipients={counts.recipients}
-                    goTo={setTab} goToRecipients={() => recipientsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+                    goTo={setTab} goToRecipients={() => setTab("settings")}
                   />
-                  <div ref={recipientsRef}><RecipientsBlock gameId={game.id} status={game.status} version={version} /></div>
-                </>
-              )}
-              {active && (
-                <>
-                  <div className="card">
-                    <div className="card-head"><h2><span className="ico"><Icon name="check" /></span>{t("Сейчас")}</h2></div>
-                    <div className="summary-tiles">
-                      <a href="#review" onClick={(e) => { e.preventDefault(); setTab("review"); }}>
-                        <span className={"sum-value" + (reviewCount ? " hot" : "")}>{reviewCount}</span>
-                        <span className="sum-label"><Icon name="check" />{t("ждёт проверки")}</span>
-                      </a>
-                      <a href="#review" onClick={(e) => { e.preventDefault(); setTab("review"); }}>
-                        <span className="sum-value">{trials}</span>
-                        <span className="sum-label"><Icon name="wave" />{t("идёт испытаний")}</span>
-                      </a>
-                    </div>
-                  </div>
-                  <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} part="rest" between={<RecipientsBlock gameId={game.id} status={game.status} version={version} />} />
                 </>
               )}
               {game.status === "FINISHED" && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} />}
@@ -225,6 +204,8 @@ export function GamePage() {
           {open === "settings" && (
             <div key="settings">
               <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
+              {active && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} part="rest" />}
+              {game.status !== "FINISHED" && <RecipientsBlock gameId={game.id} status={game.status} version={version} />}
               <AdminsBlock gameId={game.id} version={version} />
               <PushToggle compact />
             </div>

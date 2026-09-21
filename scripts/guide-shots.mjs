@@ -63,7 +63,7 @@ ctx = await browser.newContext({ baseURL: BASE, viewport: { width: 1200, height:
 await login(ctx, ADMIN);
 // Экран администратора: карта во весь экран, разделы — кнопки дока, содержимое — попап над картой.
 await page.goto(`/games/${GAME}`); await page.waitForSelector(".map-svg"); await page.waitForTimeout(1800); await shot(page, "admin-map");
-for (const [tab, name] of [["Обзор", "admin-overview"], ["Команды", "admin-teams"], ["Дела", "admin-deeds"], ["Проверка", "admin-review"]]) {
+for (const [tab, name] of [["Летопись", "admin-overview"], ["Команды", "admin-teams"], ["Дела", "admin-deeds"], ["Проверка", "admin-review"]]) {
   await page.locator(".admin-dock .dock-btn", { hasText: tab }).click(); await page.waitForTimeout(1500); await shot(page, name);
   await page.keyboard.press("Escape"); await page.waitForTimeout(400);
 }
