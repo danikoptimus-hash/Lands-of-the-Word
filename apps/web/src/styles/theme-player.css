@@ -41,7 +41,6 @@
 .standing .name .chev { margin-left: auto; color: var(--bronze); transition: transform var(--dur-fast); }
 .standing[aria-expanded="true"] .name .chev { transform: rotate(180deg); }
 .standing.expandable { cursor: pointer; }
-.standing.expandable:hover { background: rgba(255,246,227,.5); }
 .standing .meta { font: 400 13px/1.4 var(--font-book); font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .standing .meta + .meta { color: var(--ink-3); }
 .standing .meta .help { margin-left: 2px; }
