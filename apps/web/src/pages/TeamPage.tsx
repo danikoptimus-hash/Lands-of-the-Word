@@ -19,7 +19,6 @@ import { Help } from "../components/Help";
 import { FeedSection, MyServiceSection, PeaceSection } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
-import { PushToggle } from "../components/PushToggle";
 
 /** Положение команд (меню и итоги): строка раскрывается, если есть испытания или города на пути. */
 function StandingsList({ standings, teamId, open, setOpen }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void }) {
@@ -60,7 +59,7 @@ export function finishReasonLabel(reason: string | null): string {
 }
 
 /** Разделы меню команды (решение владельца 21.09): на главном экране меню — только то, что требует внимания, и значки разделов. */
-type MenuView = "home" | "deeds" | "battles" | "standings" | "feed" | "service" | "passages" | "peace" | "roster" | "notify";
+type MenuView = "home" | "deeds" | "battles" | "standings" | "feed" | "service" | "passages" | "peace" | "roster";
 const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: () => string; hot?: boolean }> = [
   { key: "deeds", icon: "scroll", label: () => t("Дела") },
   { key: "battles", icon: "wave", label: () => t("Испытания"), hot: true },
@@ -70,7 +69,6 @@ const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: (
   { key: "passages", icon: "handshake", label: () => t("Проходы"), hot: true },
   { key: "peace", icon: "handshake", label: () => t("Мир") },
   { key: "roster", icon: "users", label: () => t("Состав") },
-  { key: "notify", icon: "bell", label: () => t("Уведомления") },
 ];
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -453,7 +451,6 @@ export function TeamPage() {
           {menuView === "passages" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
           {menuView === "peace" && <PeaceSection gameId={id} version={feedVersion} />}
           {menuView === "roster" && <section className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></section>}
-          {menuView === "notify" && <section className="section"><PushToggle compact /></section>}
           {menuView === "home" && (
             <nav className="menu-tiles" aria-label={t("Навигация")}>
             <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
