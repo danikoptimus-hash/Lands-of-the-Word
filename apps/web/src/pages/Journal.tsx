@@ -114,45 +114,6 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
   );
 }
 
-/** Мир между командами. */
-export function PeaceSection({ gameId, version }: { gameId: string; version: number }) {
-  const { notify, confirm } = useUi();
-  const [data, setData] = useState<{ canSpeak: boolean; teams: PeaceTeamDto[] } | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const load = useCallback(() => api<{ canSpeak: boolean; teams: PeaceTeamDto[] }>(`/api/games/${gameId}/peace`).then(setData).catch(() => {}), [gameId]);
-  useEffect(() => { void load(); }, [load, version]);
-  async function act(teamId: string, path: string, body?: unknown, ok?: string) {
-    setBusy(teamId);
-    try { await api(path, { method: "POST", body: JSON.stringify(body ?? {}) }); if (ok) notify(ok); await load(); }
-    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-    finally { setBusy(null); }
-  }
-  async function breakPeace(p: PeaceTeamDto) {
-    if (!(await confirm(t("Расторжение вступает в силу сразу, об этом узнают все команды."), { title: t("Расторгнуть мир с «{team}»?", { team: p.team.name }), okLabel: t("Расторгнуть") }))) return;
-    await act(p.team.id, `/api/games/${gameId}/peace/${p.peaceId}/break`, {}, t("Мир расторгнут"));
-  }
-  if (!data || data.teams.length === 0) return null;
-  return (
-    <section className="section">
-      <h2><Icon name="handshake" />{t("Мир")}{data.teams.some((p) => p.state === "incoming") && <span className="count-chip hot">{data.teams.filter((p) => p.state === "incoming").length}</span>}<Help>{t("В мире команды не испытывают города друг друга и не объявляют осад. Мир бессрочный: держится, пока одна из сторон его не расторгнет.")}</Help></h2>
-      <ul className="list">
-        {data.teams.map((p) => (
-          <li key={p.team.id}>
-            <div className="main"><TeamAvatar name={p.team.name} color={p.team.color} size="sm" withName /><span className="meta">{p.state === "peace" ? t("мир с {d}", { d: fmtDate(p.since, { time: false }) }) : p.state === "offered" ? t("предложение отправлено") : p.state === "incoming" ? t("предлагает мир") : p.team.status === "defeated" ? t("выбыла") : t("мира нет")}</span></div>
-            {data.canSpeak && p.team.status !== "defeated" && (
-              <div className="row">
-                {p.state === "none" && <button type="button" className="secondary sm" disabled={busy === p.team.id} onClick={() => void act(p.team.id, `/api/games/${gameId}/peace`, { teamId: p.team.id }, t("Мир предложен"))}><Icon name="handshake" />{t("Предложить мир")}</button>}
-                {p.state === "incoming" && <><button type="button" className="sm" disabled={busy === p.team.id} onClick={() => void act(p.team.id, `/api/games/${gameId}/peace/${p.peaceId}/accept`, {}, t("Мир заключён"))}><Icon name="check" />{t("Принять")}</button><button type="button" className="secondary sm" disabled={busy === p.team.id} onClick={() => void act(p.team.id, `/api/games/${gameId}/peace/${p.peaceId}/decline`, {}, t("Отклонено"))}>{t("Отклонить")}</button></>}
-                {p.state === "peace" && <button type="button" className="secondary sm" disabled={busy === p.team.id} onClick={() => void breakPeace(p)}>{t("Расторгнуть")}</button>}
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
-    </section>
-  );
-}
-
 /** Администратор: доска активности участников. */
 export function ActivityBoard({ gameId, version }: { gameId: string; version: number }) {
   const [rows, setRows] = useState<ActivityRowDto[] | null>(null);

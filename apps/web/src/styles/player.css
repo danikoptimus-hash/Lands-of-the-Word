@@ -423,3 +423,7 @@
 .service .svc-stat { flex: 1 1 70px; min-width: 70px; display: flex; flex-direction: column; align-items: center; padding: var(--sp-2); border-radius: var(--r-sm); background: var(--surface-2); }
 .service .svc-stat b { font-size: var(--fs-xl); line-height: 1.1; color: var(--accent-ink); }
 .service .svc-stat span { font-size: var(--fs-xs); color: var(--muted); }
+/* Мир в строке таблицы команд: знак напротив чужой команды, ответ на предложение — кнопки под цифрами */
+.standing .peace-slot { margin-left: auto; display: inline-flex; }
+.standing .peace-btn { color: var(--accent); }
+.standing .peace-row { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); }
