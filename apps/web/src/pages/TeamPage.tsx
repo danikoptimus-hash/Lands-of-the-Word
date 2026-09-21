@@ -21,14 +21,16 @@ import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 
 /** Положение команд (меню и итоги): строка раскрывается, если есть испытания или города на пути. */
-function StandingsList({ standings, teamId, open, setOpen }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void }) {
+/** Таблица команд; у своей команды в раскрытой строке — состав (решение владельца 21.09: один раздел, а не два). */
+function StandingsList({ standings, teamId, open, setOpen, roster }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void; roster?: React.ReactNode }) {
   if (!standings) return <LoadingState rows={2} />;
   if (standings.standings.length === 0) return <EmptyState inline icon="crown" text={t("Пока нечего показать.")} />;
   return (
     <ol className="standings-list">
       {standings.standings.map((st, i) => {
         const trials = st.battlesWon + st.battlesRepelled + st.battlesLost;
-        const details = trials > 0 || st.citiesOnPath.length > 0;
+        const mine = st.teamId === teamId;
+        const details = trials > 0 || st.citiesOnPath.length > 0 || (mine && Boolean(roster));
         const opened = open ?? teamId;
         const shown = details && opened === st.teamId;
         const toggle = () => setOpen(opened === st.teamId ? "" : st.teamId);
@@ -45,6 +47,7 @@ function StandingsList({ standings, teamId, open, setOpen }: { standings: Standi
               <div className="meta">{plural(st.cities, ["город", "города", "городов"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])} · {plural(st.nodesRevealed, ["перекрёсток", "перекрёстка", "перекрёстков"])}</div>
               {shown && trials > 0 && <div className="meta">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}<span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><Help>{t("выиграли · устояли · потеряли")}</Help></span></div>}
               {shown && st.citiesOnPath.length > 0 && <div className="meta">{t("Города")}: {st.citiesOnPath.map((c) => c.name + (c.current ? "" : ` (${t("потерян")})`)).join(", ")}</div>}
+              {shown && mine && roster && <div className="standing-roster" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>{roster}</div>}
             </div>
           </li>
         );
@@ -312,10 +315,10 @@ export function TeamPage() {
         {map.status === "FINISHED" && (
           <div className="card">
             <h2><Icon name="crown" />{t("Итоги")}</h2>
-            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} />
+            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} roster={<Roster embedded team={team} isCaptain={false} onRole={setGameRole} onDeputy={setDeputy} />} />
           </div>
         )}
-        <div className="card"><Roster team={team} isCaptain={isCaptain && map.status !== "FINISHED"} onRole={setGameRole} onDeputy={setDeputy} /></div>
+        {map.status !== "FINISHED" && <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></div>}
       </main>
     );
   }
@@ -438,11 +441,10 @@ export function TeamPage() {
           )}
           {menuView === "standings" && (
             <section className="section">
-            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} />
+            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} roster={<Roster embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} />} />
             {standings?.status === "ACTIVE" && standings.endsAt && <p className="hint">{t("Игра идёт до {d}", { d: fmtDate(standings.endsAt) })}</p>}
             </section>
           )}
-          {menuView === "standings" && <section className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></section>}
           {menuView === "standings" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
           {menuView === "standings" && <PeaceSection gameId={id} version={feedVersion} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} />}
@@ -590,12 +592,15 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
 }
 
 /** Состав команды: роль — пилюля с объяснением по нажатию; капитан назначает роли выбором. */
-function Roster({ team, isCaptain, onRole, onDeputy }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void }) {
+/** embedded — внутри строки таблицы команд: вместо заголовка раздела — строка «Состав · N». */
+function Roster({ team, isCaptain, onRole, onDeputy, embedded = false }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean }) {
   const [open, setOpen] = useState<string | null>(null);
   const nextChange = team.roleChangeAvailableAt && Date.parse(team.roleChangeAvailableAt) > Date.now() ? team.roleChangeAvailableAt : null;
   return (
     <>
-      <h2><Icon name="users" />{t("Состав")}<span className="count">{team.members.length}</span>{isCaptain && <Help>{t("Роли назначает капитан, одобряет администратор. Менять — не чаще раза в неделю.")}</Help>}</h2>
+      {embedded
+        ? <div className="meta roster-head"><Icon name="users" />{t("Состав")} · {team.members.length}{isCaptain && <Help>{t("Роли назначает капитан, одобряет администратор. Менять — не чаще раза в неделю.")}</Help>}</div>
+        : <h2><Icon name="users" />{t("Состав")}<span className="count">{team.members.length}</span>{isCaptain && <Help>{t("Роли назначает капитан, одобряет администратор. Менять — не чаще раза в неделю.")}</Help>}</h2>}
       {isCaptain && nextChange && <p className="hint">{t("Следующая смена ролей — {d}.", { d: fmtDate(nextChange, { time: false }) })}</p>}
       <ul className="list roster">
         {team.members.map((m) => {

@@ -123,6 +123,11 @@
 .passage-card { padding: var(--sp-3); margin-top: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
 .passage-card .actions { margin-top: var(--sp-3); }
 .roster .main { flex-basis: 140px; }
+/* Состав своей команды внутри раскрытой строки таблицы команд */
+.standing-roster { margin-top: var(--sp-2); cursor: auto; }
+.standing-roster .roster-head { display: flex; align-items: center; gap: var(--sp-1); font-weight: 600; margin-bottom: var(--sp-1); }
+.standing-roster .roster-head .i { width: 16px; height: 16px; }
+.standing-roster .roster > li { padding: var(--sp-1) 0; }
 .roster .side { align-items: center; }
 .role-select { width: auto; max-width: 170px; }
 .chip-btn { background: transparent; border: 0; padding: 0 var(--sp-1); min-height: var(--touch); color: inherit; }
