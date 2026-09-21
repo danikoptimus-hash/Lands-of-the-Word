@@ -17,6 +17,15 @@ let adminCookie = "", p1Cookie = "", p2Cookie = "", gameId = "", rutKey = "", ge
 const content = JSON.parse(await readFile(new URL("../../../content/cities/rut.json", import.meta.url), "utf8")) as { tasks: unknown[] };
 const allTasks = content.tasks.map((_, i) => i);
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Журнал пишется после ответа сервера: ждём в ленте запись нужного вида (до 5 с), а не фиксированную паузу — на машинах GitHub она не хватала. */
+async function feedUntil<T = { kind: string }>(gameId: string, cookie: string, kind: string, ms = 5000): Promise<T[]> {
+  const until = Date.now() + ms;
+  for (;;) {
+    const items = (await get(`/api/games/${gameId}/feed`, cookie)).json().items as Array<T & { kind: string }>;
+    if (items.some((f) => f.kind === kind) || Date.now() > until) return items;
+    await wait(50);
+  }
+}
 
 async function register(nickname: string) {
   const res = await registerVerified(app, { nickname, password: "secret123" });
@@ -73,8 +82,7 @@ describe("журнал событий: лента, новости, служен�
     const sub = await post(`/api/games/${gameId}/edge-tasks/${task.id}/submit`, p1Cookie, { links: ["https://example.com/photo1"], note: "Сделали всё как надо" });
     expect(sub.statusCode).toBe(200);
     expect((await post(`/api/games/${gameId}/edge-tasks/${task.id}/decide`, adminCookie, { approve: true })).statusCode).toBe(200);
-    await wait(150);
-    const feed = (await get(`/api/games/${gameId}/feed`, p1Cookie)).json().items as Array<{ kind: string; vars: Record<string, string>; mine: boolean; everyone: boolean }>;
+    const feed = await feedUntil<{ kind: string; vars: Record<string, string>; mine: boolean; everyone: boolean }>(gameId, p1Cookie, "deed_approved");
     expect(feed.some((f) => f.kind === "deed_submitted" && f.mine)).toBe(true);
     const approved = feed.find((f) => f.kind === "deed_approved");
     expect(approved?.vars.deed).toBe(task.deed.title);
@@ -103,15 +111,13 @@ describe("журнал событий: лента, новости, служен�
     expect(war.reason).toMatch(/мир/i);
     const blocked = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 10 });
     expect(blocked.statusCode).toBe(409);
-    await wait(100);
-    const news = (await get(`/api/games/${gameId}/feed`, p2Cookie)).json().items as Array<{ kind: string; everyone: boolean }>;
+    const news = await feedUntil<{ kind: string; everyone: boolean }>(gameId, p2Cookie, "peace_made");
     expect(news.find((f) => f.kind === "peace_made")?.everyone).toBe(true);
     // Расторжение — сразу, и вызов снова возможен.
     expect((await post(`/api/games/${gameId}/peace/${incoming.peaceId}/break`, p2Cookie)).statusCode).toBe(200);
     const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 10 });
     expect(declared.statusCode).toBe(201);
-    await wait(150);
-    const feed1 = (await get(`/api/games/${gameId}/feed`, p1Cookie)).json().items as Array<{ kind: string; vars: Record<string, string | number>; everyone: boolean }>;
+    const feed1 = await feedUntil<{ kind: string; vars: Record<string, string | number>; everyone: boolean }>(gameId, p1Cookie, "trial_declared");
     const trial = feed1.find((f) => f.kind === "trial_declared");
     expect(trial?.everyone).toBe(true);
     expect(trial?.vars).toMatchObject({ team: "Берег", other: "Моряки", book: "rut" });
@@ -129,8 +135,7 @@ describe("журнал событий: лента, новости, служен�
     expect(lines.join("\n")).not.toMatch(/ставк|стих/i);
     const sent = await sendChronicle(gameId);
     expect(sent.length).toBeGreaterThan(1);
-    await wait(150);
-    const feed = (await get(`/api/games/${gameId}/feed`, p2Cookie)).json().items as Array<{ kind: string; text: string }>;
+    const feed = await feedUntil<{ kind: string; text: string }>(gameId, p2Cookie, "chronicle");
     expect(feed.find((f) => f.kind === "chronicle")?.text).toContain("Положение");
     const viaRoute = await post(`/api/games/${gameId}/chronicle`, adminCookie);
     expect(viaRoute.statusCode).toBe(200);
@@ -149,7 +154,7 @@ describe("журнал событий: лента, новости, служен�
     await prisma.mapNode.update({ where: { gameId_key: { gameId, key: rutKey } }, data: { ruined: true } });
     await ruinsTreasure(gameId, team2, rutKey, "rut");
     await ruinsTreasure(gameId, team2, rutKey, "rut");
-    await wait(150);
+    await feedUntil(gameId, p2Cookie, "treasure");
     const found = await prisma.teamCityState.findMany({ where: { teamId: team2, NOT: { nodeKey: rutKey } } });
     expect(found.length).toBe(1);
     expect(found[0]!.doneTasks).toEqual([0]);
