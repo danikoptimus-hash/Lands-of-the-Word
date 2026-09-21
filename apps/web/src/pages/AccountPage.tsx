@@ -6,6 +6,7 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
+import { ScrollTop } from "../components/ScrollTop";
 import { Chip } from "../components/Chip";
 import { CopyField } from "../components/CopyField";
 import { Help } from "../components/Help";
@@ -44,6 +45,7 @@ export function AccountPage() {
   return (
     <div className="narrow-page">
       <Back to="/" label={t("Мои игры")} />
+      <ScrollTop />
       <div className="page-head">
         <h1><span className="ico"><Icon name="user" /></span>{t("Аккаунт")}</h1>
         {user.platformRole === "SUPERADMIN" && <Chip tone="accent" icon="star">{t("суперадмин")}</Chip>}
