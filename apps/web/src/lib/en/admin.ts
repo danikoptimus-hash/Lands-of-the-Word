@@ -57,10 +57,10 @@ export const ADMIN: Record<string, string> = {
   "{nick} больше не сможет вести эту игру.": "{nick} will no longer be able to run this game.", "Убрать администратора?": "Remove administrator?", "{nick} убран из администраторов": "{nick} removed from administrators",
   "без почты": "no email", "Администраторы проверяют сдачи и получают письма о них.": "Administrators review submissions and get emails about them.",
   // Итоги и завершение
-  "Срок убран": "Deadline removed", "Победителем станет «{name}»: больше всего городов.": "“{name}” will win: the most cities.", "Испытания будут отменены, действия команд остановятся.": "Trials will be cancelled and team actions will stop.",
+"Победителем станет «{name}»: больше всего городов.": "“{name}” will win: the most cities.", "Испытания будут отменены, действия команд остановятся.": "Trials will be cancelled and team actions will stop.",
   "Завершить игру?": "Finish the game?", "Завершить": "Finish", "осталась одна команда": "one team left", "вышел срок": "time is up", "Итоги": "Results", "Взятые города": "Cities taken", "потерян": "lost",
   "Срок окончания": "End date", "Дата и время": "Date and time", "Игра завершится сама; победит команда с наибольшим числом городов.": "The game ends by itself; the team with the most cities wins.",
-  "Убрать срок": "Remove deadline", "Необратимо: испытания отменятся, действия команд остановятся, победитель — по числу городов.": "Irreversible: trials are cancelled, team actions stop, the winner is by the number of cities.",
+"Необратимо: испытания отменятся, действия команд остановятся, победитель — по числу городов.": "Irreversible: trials are cancelled, team actions stop, the winner is by the number of cities.",
   "Испытания {a} · {b} · {c}": "Trials {a} · {b} · {c}", "выиграли · устояли · потеряли": "won · held · lost",
   // Карта
   "Обозначения": "Legend", "пройденная сторона": "passed side", "открытый перекрёсток": "opened crossroad", "город с владельцем": "city with an owner", "идёт испытание": "trial in progress",

@@ -31,13 +31,13 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
   const winner = data.standings.find((tm) => tm.teamId === data.winnerTeamId);
   const leader = data.standings.find((tm) => tm.teamId === data.leaderTeamId);
 
-  async function saveDeadline(clear = false) {
+  async function saveDeadline() {
     setError(null); setBusy(true);
-    const value = clear ? "" : endsAt;
-    try { await api(`/api/games/${gameId}`, { method: "PATCH", body: JSON.stringify({ settings: { endsAt: value || null } }) }); notify(value ? t("Срок сохранён") : t("Срок убран")); if (clear) setEndsAt(""); onChanged(); }
+    try { await api(`/api/games/${gameId}`, { method: "PATCH", body: JSON.stringify({ settings: { endsAt: endsAt || null } }) }); notify(t("Срок сохранён")); setData((d) => (d ? { ...d, endsAt } : d)); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
+
   async function finish() {
     const who = leader ? t("Победителем станет «{name}»: больше всего городов.", { name: leader.name }) : t("Победителя не будет.");
     if (!(await confirm(`${who} ${t("Испытания будут отменены, действия команд остановятся.")}`, { title: t("Завершить игру?"), okLabel: t("Завершить"), danger: true }))) return;
@@ -91,10 +91,11 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
             <DeadlinePicker value={endsAt} onChange={setEndsAt} />
             <p className="hint">{t("Игра завершится сама; победит команда с наибольшим числом городов.")}</p>
             {error && <p className="error">{error}</p>}
-            <div className="actions">
-              <button type="button" onClick={() => void saveDeadline()} disabled={busy || !endsAt}>{t("Сохранить")}</button>
-              {data.endsAt && <button type="button" className="secondary" onClick={() => void saveDeadline(true)} disabled={busy}>{t("Убрать срок")}</button>}
-            </div>
+            {endsAt && endsAt !== (data.endsAt ?? "") && (
+              <div className="actions">
+                <button type="button" onClick={() => void saveDeadline()} disabled={busy}>{t("Сохранить")}</button>
+              </div>
+            )}
           </div>
           <div className="card">
             <div className="card-head"><h2><span className="ico"><Icon name="flag" /></span>{t("Завершить игру")}</h2></div>
