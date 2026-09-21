@@ -18,7 +18,7 @@ const plain = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-pl
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please", GOOGLE_CLIENT_ID: CLIENT_ID, GOOGLE_CLIENT_SECRET: "test-client-secret" });
 // Никнейм не длиннее 24 символов, поэтому хвост из времени укорочен.
 const nick = "gt_" + String(Date.now()).slice(-8);
-const subs = { fresh: `sub_${nick}_1`, byMail: `sub_${nick}_2`, link: `sub_${nick}_3` };
+const subs = { fresh: `sub_${nick}_1`, byMail: `sub_${nick}_2` };
 
 beforeAll(async () => { await plain.ready(); await app.ready(); });
 afterAll(async () => {
@@ -163,38 +163,5 @@ describe("вход через Google", () => {
     expect((await prisma.user.findUniqueOrThrow({ where: { googleId: subs.byMail } })).nickname).toBe(n2);
     // Вход по паролю остаётся.
     expect((await app.inject({ method: "POST", url: "/api/auth/login", payload: { nickname: n2, password: "secret123" } })).statusCode).toBe(200);
-  });
-
-  it("привязка из аккаунта (link=1): linked, занятый sub — taken, отвязка — DELETE", async () => {
-    const n3 = `${nick}_link`;
-    const reg = await registerVerified(app, { nickname: n3, password: "secret123" });
-    expect(reg.statusCode).toBe(201);
-    const session = cookiesOf(reg);
-    expect((await app.inject({ method: "GET", url: "/api/auth/me", headers: { cookie: session } })).json().user.googleLinked).toBe(false);
-    // Google-почта отличается от почты учётки: привязывается по sub, почта в учётке не меняется.
-    const { state, cookie } = await start("?link=1", session);
-    googleSays(subs.link, `${n3}_google@example.com`);
-    const cb = await app.inject({ method: "GET", url: `/api/auth/google/callback?code=c&state=${state}`, headers: { cookie } });
-    expect(cb.headers.location).toBe("/account?google=linked");
-    const me = await app.inject({ method: "GET", url: "/api/auth/me", headers: { cookie: session } });
-    expect(me.json().user).toMatchObject({ googleLinked: true, email: `${n3}@example.com` });
-    // Другая учётка пытается привязать тот же Google — занято.
-    const n4 = `${nick}_link2`;
-    const reg4 = await registerVerified(app, { nickname: n4, password: "secret123" });
-    expect(reg4.statusCode).toBe(201);
-    const session4 = cookiesOf(reg4);
-    const s4 = await start("?link=1", session4);
-    googleSays(subs.link, `${n3}_google@example.com`);
-    expect((await app.inject({ method: "GET", url: `/api/auth/google/callback?code=c&state=${s4.state}`, headers: { cookie: s4.cookie } })).headers.location).toBe("/account?google=taken");
-    expect((await app.inject({ method: "GET", url: "/api/auth/me", headers: { cookie: session4 } })).json().user.googleLinked).toBe(false);
-    // Ошибка state в режиме привязки ведёт в аккаунт.
-    const s5 = await start("?link=1", session4);
-    expect((await app.inject({ method: "GET", url: "/api/auth/google/callback?code=c&state=wrong", headers: { cookie: s5.cookie } })).headers.location).toBe("/account?google=state");
-    // Отвязка.
-    expect((await app.inject({ method: "DELETE", url: "/api/auth/google" })).statusCode).toBe(401);
-    const del = await app.inject({ method: "DELETE", url: "/api/auth/google", headers: { cookie: session } });
-    expect(del.statusCode).toBe(200);
-    expect(del.json().user.googleLinked).toBe(false);
-    expect(await prisma.user.findUnique({ where: { googleId: subs.link } })).toBeNull();
   });
 });

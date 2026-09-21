@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { prisma } from "../db.js";
-import { createSession, publicUser, requireUser } from "../auth.js";
+import { createSession, publicUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { exchangeCode, GOOGLE_AUTH_URL, verifyIdToken } from "../services/google.js";
 
@@ -12,7 +12,6 @@ import { exchangeCode, GOOGLE_AUTH_URL, verifyIdToken } from "../services/google
  * Храним только почту и идентификатор Google (sub): имя и фото не запрашиваем. Вход по никнейму и паролю остаётся.
  *
  * Поток: GET /api/auth/google → Google → GET /api/auth/google/callback. Дальше три случая:
- *  - вошедший пользователь привязывает Google к своей учётке (link=1) → /account?google=linked|taken;
  *  - учётка найдена по sub или по почте → сессия, почта считается подтверждённой (её подтвердил Google);
  *  - учётки нет → короткоживущий cookie с почтой и sub, страница /google/nickname → POST /api/auth/google/complete.
  */
@@ -24,10 +23,10 @@ const ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 
 const nickname = z.string().trim().min(3).max(24).regex(/^[\p{L}\p{N}_-]+$/u, "Только буквы, цифры, _ и -");
 const completeBody = z.object({ nickname, locale: z.enum(["ru", "en"]).optional() });
-const stateQuery = z.object({ next: z.string().max(500).optional(), link: z.string().optional() });
+const stateQuery = z.object({ next: z.string().max(500).optional() });
 const callbackQuery = z.object({ code: z.string().optional(), state: z.string().optional(), error: z.string().optional() });
 
-interface StateData { s: string; next: string; link: boolean }
+interface StateData { s: string; next: string }
 interface PendingData { sub: string; email: string; exp: number }
 
 /** Только путь на нашем сайте: начинается с «/», но не «//» (иначе это адрес другого сайта). */
@@ -73,7 +72,7 @@ export async function googleRoutes(app: FastifyInstance): Promise<void> {
     if (!enabled) return reply.code(404).send({ error: "not_configured", message: err(request, "Вход через Google не настроен") });
     const q = stateQuery.parse(request.query ?? {});
     const state = randomBytes(32).toString("base64url");
-    const data: StateData = { s: state, next: safeNext(q.next), link: q.link === "1" && Boolean(request.user) };
+    const data: StateData = { s: state, next: safeNext(q.next) };
     reply.setCookie(STATE_COOKIE, JSON.stringify(data), { ...cookieBase, signed: true, maxAge: STATE_TTL_MS / 1000 });
     const url = new URL(GOOGLE_AUTH_URL);
     url.searchParams.set("client_id", cfg.GOOGLE_CLIENT_ID!);
@@ -94,7 +93,7 @@ export async function googleRoutes(app: FastifyInstance): Promise<void> {
     const unsigned = raw ? request.unsignCookie(raw) : null;
     let st: StateData | null = null;
     try { st = unsigned?.valid && unsigned.value ? (JSON.parse(unsigned.value) as StateData) : null; } catch { st = null; }
-    const fail = (code: string) => reply.redirect(`${st?.link ? "/account" : "/login"}?google=${code}`, 302);
+    const fail = (code: string) => reply.redirect(`/login?google=${code}`, 302);
     if (!st || !q.state || q.state !== st.s) return fail("state");
     if (!q.code) return fail("error");
 
@@ -112,16 +111,7 @@ export async function googleRoutes(app: FastifyInstance): Promise<void> {
       return fail("error");
     }
 
-    // а) Привязка к текущей учётке.
-    if (st.link && request.user) {
-      const me = request.user;
-      const other = await prisma.user.findFirst({ where: { NOT: { id: me.id }, OR: [{ googleId: sub }, { email: { equals: email, mode: "insensitive" } }] } });
-      if (other) return reply.redirect("/account?google=taken", 302);
-      await prisma.user.update({ where: { id: me.id }, data: { googleId: sub, ...(me.email ? {} : { email, emailVerified: true }) } });
-      return reply.redirect("/account?google=linked", 302);
-    }
-
-    // б) Учётка уже есть: по sub или по почте (Google подтвердил, что почта принадлежит человеку).
+    // а) Учётка уже есть: по sub или по почте (Google подтвердил, что почта принадлежит человеку).
     let user = await prisma.user.findUnique({ where: { googleId: sub } });
     if (!user) {
       const byEmail = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
@@ -132,7 +122,7 @@ export async function googleRoutes(app: FastifyInstance): Promise<void> {
       return reply.redirect(st.next, 302);
     }
 
-    // в) Учётки нет: осталось выбрать никнейм.
+    // б) Учётки нет: осталось выбрать никнейм.
     const pending: PendingData = { sub, email, exp: Date.now() + PENDING_TTL_MS };
     reply.setCookie(PENDING_COOKIE, sign(cfg.SESSION_SECRET, pending), { ...cookieBase, maxAge: PENDING_TTL_MS / 1000 });
     return reply.redirect("/google/nickname", 302);
@@ -170,11 +160,5 @@ export async function googleRoutes(app: FastifyInstance): Promise<void> {
     clearPending(reply);
     await createSession(reply, user.id, secure);
     return reply.code(201).send({ user: publicUser(user) });
-  });
-
-  /** Отвязать Google от учётки. Вход по паролю остаётся (если пароля не было — задать через «Забыли пароль?»). */
-  app.delete("/api/auth/google", { preHandler: requireUser }, async (request) => {
-    const user = await prisma.user.update({ where: { id: request.user!.id }, data: { googleId: null } });
-    return { user: publicUser(user) };
   });
 }

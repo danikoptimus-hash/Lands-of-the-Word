@@ -58,16 +58,14 @@ export function finishReasonLabel(reason: string | null): string {
   return reason === "last_team" ? t("осталась одна команда") : reason === "time_limit" ? t("вышел срок") : t("завершена администратором");
 }
 
-/** Разделы меню команды (решение владельца 21.09): на главном экране меню — только то, что требует внимания, и значки разделов. */
-type MenuView = "home" | "deeds" | "battles" | "standings" | "feed" | "service" | "passages" | "peace" | "roster";
+/** Разделы меню команды (решение владельца 21.09): на главном экране меню — только то, что требует внимания, и значки разделов. Проходы и мир — внутри «Команд». */
+type MenuView = "home" | "deeds" | "battles" | "standings" | "feed" | "service" | "roster";
 const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: () => string; hot?: boolean }> = [
   { key: "deeds", icon: "scroll", label: () => t("Дела") },
   { key: "battles", icon: "wave", label: () => t("Испытания"), hot: true },
-  { key: "standings", icon: "crown", label: () => t("Команды") },
+  { key: "standings", icon: "crown", label: () => t("Команды"), hot: true },
   { key: "feed", icon: "list", label: () => t("Что случилось") },
   { key: "service", icon: "user", label: () => t("Моё служение") },
-  { key: "passages", icon: "handshake", label: () => t("Проходы"), hot: true },
-  { key: "peace", icon: "handshake", label: () => t("Мир") },
   { key: "roster", icon: "users", label: () => t("Состав") },
 ];
 
@@ -331,7 +329,7 @@ export function TeamPage() {
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length;
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
-  const menuCounts: Partial<Record<MenuView, number>> = { deeds: ourTasks.length, battles: activeBattles.length, passages: incoming.length, roster: team.members?.length ?? 0 };
+  const menuCounts: Partial<Record<MenuView, number>> = { deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length, roster: team.members?.length ?? 0 };
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (wide) return;
@@ -380,7 +378,7 @@ export function TeamPage() {
                       </li>
                     ))}
                     {incoming.map((r) => (
-                      <li key={r.id} role="button" tabIndex={0} onClick={() => setMenuView("passages")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMenuView("passages"); } }}>
+                      <li key={r.id} role="button" tabIndex={0} onClick={() => setMenuView("standings")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMenuView("standings"); } }}>
                         <div className="main"><span className="title">{t("Запрос прохода через {book}", { book: r.bookName })}</span><span className="meta">{t("от команды «{team}»", { team: r.requester.name })}</span></div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
@@ -443,13 +441,12 @@ export function TeamPage() {
             <section className="section">
             <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} />
             {standings?.status === "ACTIVE" && standings.endsAt && <p className="hint">{t("Игра идёт до {d}", { d: fmtDate(standings.endsAt) })}</p>}
-          
             </section>
           )}
+          {menuView === "standings" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
+          {menuView === "standings" && <PeaceSection gameId={id} version={feedVersion} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} />}
           {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} />}
-          {menuView === "passages" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
-          {menuView === "peace" && <PeaceSection gameId={id} version={feedVersion} />}
           {menuView === "roster" && <section className="section"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></section>}
           {menuView === "home" && (
             <nav className="menu-tiles" aria-label={t("Навигация")}>
