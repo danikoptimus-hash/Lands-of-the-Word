@@ -40,7 +40,12 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
     if (taskIndex !== null) { lastTask.current = taskIndex; return; }
     const i = lastTask.current; if (i === null) return;
     const el = document.querySelector<HTMLElement>(`[data-task-index="${i}"]`);
-    el?.scrollIntoView({ block: "center" });
+    // Крутим только тело шторки: scrollIntoView прокручивал и саму шторку (у неё overflow: hidden), шапка города
+    // уезжала вверх, и вернуть её было нельзя.
+    const body = el?.closest<HTMLElement>(".overlay-body");
+    if (!el || !body) return;
+    const r = el.getBoundingClientRect(), b = body.getBoundingClientRect();
+    body.scrollTop += r.top - b.top - (b.height - r.height) / 2;
   }, [taskIndex]);
   const [busy, setBusy] = useState(false);
   const [key, setKey] = useState("");
