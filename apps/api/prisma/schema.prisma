@@ -37,6 +37,10 @@ model User {
   locale       String       @default("ru")
   platformRole PlatformRole @default(USER)
   createdAt    DateTime     @default(now())
+  /** Защита от подбора пароля (решение владельца 22.09): неверных попыток подряд; после 10 — вход закрыт до lockedUntil (15 минут),
+   *  владельцу уходит письмо один раз за блокировку. Успешный вход и смена пароля обнуляют. */
+  failedLogins Int          @default(0)
+  lockedUntil  DateTime?
   /** Последняя активность (обновляется не чаще раза в 10 минут) — для DAU/WAU/MAU и удержания. */
   lastSeenAt   DateTime?
   sessions     Session[]

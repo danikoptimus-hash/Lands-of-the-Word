@@ -149,6 +149,10 @@ const EN: Record<string, string> = {
   "Вход через Google не настроен": "Sign-in with Google is not set up",
   "Вход через Google не начат или устарел. Начните заново": "Sign-in with Google was not started or has expired. Start again",
   "Неверный никнейм, почта или пароль": "Wrong nickname, email or password",
+  // Защита от подбора пароля (22.09)
+  "Слишком много неверных попыток: вход в эту учётку закрыт на 15 минут": "Too many wrong attempts: sign-in to this account is closed for 15 minutes",
+  "кто-то подбирает пароль": "someone is guessing the password",
+  "Здравствуйте!\n\nКто-то {n} раз подряд ввёл неверный пароль для учётки «{nickname}» на сайте Земли Слова. Вход в неё закрыт на 15 минут.\n\nЕсли это были вы — просто подождите и попробуйте снова. Если нет — после паузы смените пароль: на странице входа есть «Забыли пароль?».": "Hello!\n\nSomeone entered a wrong password {n} times in a row for the account “{nickname}” on Lands of the Word. Sign-in to it is closed for 15 minutes.\n\nIf that was you, just wait and try again. If not, change your password after the pause: the sign-in page has “Forgot password?”.",
   "Эта почта уже занята": "This email is already taken",
   "Текущий пароль неверный": "The current password is wrong",
   "Письмо не отправилось: почтовый сервер не отвечает. Попробуйте позже или сообщите администратору": "The email was not sent: the mail server is not responding. Try again later or tell an administrator",

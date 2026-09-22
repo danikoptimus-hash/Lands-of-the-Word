@@ -88,6 +88,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - if: steps.check.outputs.has_app == 'true'
+        name: Сборка и публикация Caddy с модулем ограничения запросов
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/caddy
+          push: true
+          tags: |
+            ghcr.io/danikoptimus-hash/lotw-caddy:latest
+            ghcr.io/danikoptimus-hash/lotw-caddy:${{ github.sha }}
+          cache-from: type=gha,scope=caddy
+          cache-to: type=gha,mode=max,scope=caddy
+
   deploy:
     needs: build
     runs-on: ubuntu-latest

@@ -42,7 +42,8 @@ services:
       - "3000"
 
   caddy:
-    image: caddy:2
+    # Свой образ: Caddy + модуль rate_limit (deploy/caddy/Dockerfile), собирается в GitHub Actions.
+    image: ghcr.io/danikoptimus-hash/lotw-caddy:${APP_TAG:-latest}
     container_name: lotw-caddy
     restart: unless-stopped
     depends_on:

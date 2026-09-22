@@ -11,6 +11,12 @@ bash bootstrap.sh landsoftheword.com
 
 Скрипт идемпотентный: повторный запуск безопасен. Что он делает — в шапке `bootstrap.sh`.
 
+## Ограничение запросов (Caddy)
+
+Caddy собран со сторонним модулем `rate_limit` (`deploy/caddy/Dockerfile`, образ `ghcr.io/danikoptimus-hash/lotw-caddy`, собирается тем же workflow, что и приложение). В `Caddyfile` два лимита на адрес: `/api/auth/*` — 30 запросов в минуту, весь сайт — 300 за 10 секунд; сверх лимита клиент получает 429. Внутри приложения отдельно: лимиты по IP на входе/регистрации/восстановлении (`@fastify/rate-limit`) и блокировка учётки на 15 минут после 10 неверных паролей подряд с письмом владельцу.
+
+Проверить конфиг перед выкладкой: `DOMAIN=example.org caddy validate --config deploy/caddy/Caddyfile --adapter caddyfile` (нужен caddy с модулем: `https://caddyserver.com/api/download?os=linux&arch=amd64&p=github.com/mholt/caddy-ratelimit`).
+
 ## Обновление заглушки или конфигурации Caddy
 
 ```

@@ -1,3 +1,8 @@
+{
+	# Модуль rate_limit (сборка в deploy/caddy/Dockerfile) стоит перед проксированием.
+	order rate_limit before reverse_proxy
+}
+
 {$DOMAIN} {
 	encode gzip zstd
 	header {
@@ -5,6 +10,23 @@
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
 		Referrer-Policy strict-origin-when-cross-origin
+	}
+	# Ограничение запросов с одного адреса (решение владельца 22.09): вход и регистрация — 30 в минуту,
+	# весь сайт — 300 за 10 секунд (страница с картой и картинками укладывается с запасом). Сверх лимита — 429.
+	rate_limit {
+		zone auth {
+			match {
+				path /api/auth/*
+			}
+			key {remote_host}
+			events 30
+			window 1m
+		}
+		zone site {
+			key {remote_host}
+			events 300
+			window 10s
+		}
 	}
 	reverse_proxy app:3000 {
 		flush_interval -1

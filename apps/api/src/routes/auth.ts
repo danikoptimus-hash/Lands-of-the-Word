@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import type { User } from "@prisma/client";
 import { prisma } from "../db.js";
 import { createSession, destroySession, publicUser, requireUser } from "../auth.js";
 import { createHash, randomBytes } from "node:crypto";
@@ -61,6 +62,27 @@ export async function sendVerification(user: { id: string; nickname: string; ema
     text: msg(locale, "Здравствуйте!\n\nЭта почта указана для учётки «{nickname}» на сайте Земли Слова.\n\nЧтобы подтвердить её и начать играть, откройте ссылку (действует сутки):\n{url}\n\nЕсли это были не вы, просто не открывайте ссылку.", { nickname: user.nickname, url }),
   });
   return "sent";
+}
+
+/** Неверных попыток подряд до блокировки и её длительность (решение владельца 22.09). */
+export const LOCK_AFTER = 10;
+export const LOCK_MS = 15 * 60_000;
+
+/** Неверный пароль: счётчик +1; на десятой попытке — блокировка и письмо владельцу (если есть почта; сбой почты не мешает блокировке). */
+async function registerFailedLogin(user: User, log: { error: (e: unknown, msg: string) => void }): Promise<void> {
+  const failed = user.failedLogins + 1;
+  if (failed < LOCK_AFTER) { await prisma.user.update({ where: { id: user.id }, data: { failedLogins: failed } }); return; }
+  const until = new Date(Date.now() + LOCK_MS);
+  await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: until } });
+  if (!user.email || !user.emailVerified) return;
+  try {
+    const locale = toLocale(user.locale);
+    await sendMail({
+      to: user.email,
+      subject: `${msg(locale, "Земли Слова")}: ${msg(locale, "кто-то подбирает пароль")}`,
+      text: msg(locale, "Здравствуйте!\n\nКто-то {n} раз подряд ввёл неверный пароль для учётки «{nickname}» на сайте Земли Слова. Вход в неё закрыт на 15 минут.\n\nЕсли это были вы — просто подождите и попробуйте снова. Если нет — после паузы смените пароль: на странице входа есть «Забыли пароль?».", { n: LOCK_AFTER, nickname: user.nickname }),
+    });
+  } catch (e) { log.error(e, "lockout mail failed"); }
 }
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
@@ -136,8 +158,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const body = loginBody.parse(request.body);
     // Вход по никнейму или по почте из учётки.
     const user = await prisma.user.findFirst({ where: { OR: [{ nickname: { equals: body.nickname, mode: "insensitive" } }, { email: { equals: body.nickname, mode: "insensitive" } }] } });
+    // Защита от подбора по одной учётке (решение владельца 22.09): после LOCK_AFTER неверных попыток подряд вход закрыт
+    // на LOCK_MS даже с верным паролем; владельцу — письмо. Лимит по IP выше этого не ловит перебор с многих адресов.
+    if (user?.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      return reply.code(423).send({ error: "locked", message: err(request, "Слишком много неверных попыток: вход в эту учётку закрыт на 15 минут"), lockedUntil: user.lockedUntil.toISOString() });
+    }
     const ok = user ? await bcrypt.compare(body.password, user.passwordHash) : false;
-    if (!user || !ok) return reply.code(401).send({ error: "unauthorized", message: err(request, "Неверный никнейм, почта или пароль") });
+    if (!user || !ok) {
+      if (user) await registerFailedLogin(user, request.log);
+      return reply.code(401).send({ error: "unauthorized", message: err(request, "Неверный никнейм, почта или пароль") });
+    }
+    if (user.failedLogins > 0 || user.lockedUntil) await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });
     await createSession(reply, user.id, secure);
     return { user: publicUser(user) };
   });
@@ -221,7 +252,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     if (!r || r.usedAt || r.expiresAt.getTime() < Date.now()) return reply.code(400).send({ error: "invalid_token", message: err(request, "Ссылка недействительна или устарела. Запросите новую") });
     await prisma.$transaction([
       prisma.passwordReset.update({ where: { id: r.id }, data: { usedAt: new Date() } }),
-      prisma.user.update({ where: { id: r.userId }, data: { passwordHash: await bcrypt.hash(body.password, 10) } }),
+      prisma.user.update({ where: { id: r.userId }, data: { passwordHash: await bcrypt.hash(body.password, 10), failedLogins: 0, lockedUntil: null } }),
       prisma.session.deleteMany({ where: { userId: r.userId } }),
     ]);
     const user = await prisma.user.findUniqueOrThrow({ where: { id: r.userId } });
