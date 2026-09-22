@@ -64,12 +64,11 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   }), [map.tasks, islandCenters, nodeByKey, size]);
 
 
-  // Живность-подсказка (M-13): чайки над взятыми портами, клин к ближайшему неоткрытому городу, дельфины у корабля.
+  // Живность-подсказка (M-13): клин к ближайшему неоткрытому городу, дельфины у корабля (чайки над портами убраны 22.09).
   const faunaHints = useMemo<FaunaHints>(() => ({
-    ports: map.cities.filter((c) => c.captured && nodeByKey.get(c.nodeKey)?.cityType === "port").map((c) => nodePos(c.nodeKey, size)),
     bird: map.birdTarget && start ? { from: start, to: nodePos(map.birdTarget.key, size), key: `${map.team.id}.${map.birdTarget.key}` } : null,
     ship: ships[0] ? { x: ships[0].x, y: ships[0].y } : null,
-  }), [map.cities, map.birdTarget, map.team.id, nodeByKey, start, ships, size]);
+  }), [map.birdTarget, map.team.id, start, ships, size]);
   const { k } = vp.view;
   // Элементы постоянного экранного размера (подписи, метки, развилки) стоят в координатах карты со scale(1/k):
   // при перетаскивании их двигает композитор, при смене масштаба React пересчитывает 1/k.

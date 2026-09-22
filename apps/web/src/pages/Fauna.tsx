@@ -893,18 +893,11 @@ function stepFlock(f: Flock, p: Profile, size: number, dt: number, T: number): v
 /** Стая дельфинов: звери, поводок и время следующей серии прыжков. */
 interface Pod { dolphins: Cet[]; car: Carrot; next: number }
 /**
- * Живность-подсказка (решение владельца 18.09, M-13): чайки над взятыми портами команды, клин птиц раз в день от
+ * Живность-подсказка (решение владельца 18.09, M-13; чайки над портами убраны 22.09): клин птиц раз в день от
  * старта к ближайшему неоткрытому городу, дельфины сопровождают корабль команды. Координаты — в единицах карты.
  */
-export interface FaunaHints { ports: Array<{ x: number; y: number }>; bird: { from: { x: number; y: number }; to: { x: number; y: number }; key: string } | null; ship: { x: number; y: number } | null }
-interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[]; hint: () => FaunaHints | null; portGulls: Gull[]; portKey: string; birdShown: boolean }
-/** Чайка над портом: якорь — точка порта, кружит рядом с ним. */
-function makePortGull(p: Profile, x: number, y: number, size: number): Gull {
-  const g = makeGull(p, size);
-  g.part = { cx: x, cy: y, r: new Array(BINS).fill(0), maxR: 0 }; g.anchorA = rnd(-Math.PI, Math.PI); g.off = 0; g.R = size * rnd(0.7, 1.0);
-  g.x = x + Math.cos(g.anchorA) * g.R; g.y = y + Math.sin(g.anchorA) * g.R;
-  return g;
-}
+export interface FaunaHints { bird: { from: { x: number; y: number }; to: { x: number; y: number }; key: string } | null; ship: { x: number; y: number } | null }
+interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[]; hint: () => FaunaHints | null;   birdShown: boolean }
 /** Маршрут клина по подсказке: от старта команды к ближайшему неоткрытому городу, плавной дугой. */
 function hintRoute(f: Flock, size: number, T: number, from: { x: number; y: number }, to: { x: number; y: number }): void {
   f.x0 = from.x; f.y0 = from.y; f.x1 = to.x; f.y1 = to.y;
@@ -935,14 +928,11 @@ function createWorld(p: Profile, size: number, hint: () => FaunaHints | null): W
   const solo = (kind: CetKind, L: number, off: [number, number], wob: number) => { const car = makeCarrot(p, size, size * rnd(off[0], off[1]), size * wob); return makeCet(cetSpec(kind, L, size), car, car.x, car.y, car.h); };
   const solos = [solo("whale", size * 1.8, [2.8, 4], 0.7), solo("whale", size * 1.6, [3, 4.4], 0.7), solo("orca", size * 1.1, [2.4, 3.4], 0.6), solo("orca", size * 1.0, [2.6, 3.6], 0.6)];
   const pods = [makePod(p, size, 3), makePod(p, size, 4)];
-  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), hint, portGulls: [], portKey: "", birdShown: false, ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size), makeShip("cog", p, size)] };
+  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), hint, birdShown: false, ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size), makeShip("cog", p, size)] };
 }
 function stepWorld(w: World, dt: number): void {
   w.T += dt; const T = w.T;
   const hs = w.hint();
-  // Чайки над взятыми портами команды: по две на порт; список пересобирается, когда меняются порты.
-  const portKey = hs ? hs.ports.map((pt) => `${Math.round(pt.x)},${Math.round(pt.y)}`).join(";") : "";
-  if (portKey !== w.portKey) { w.portKey = portKey; w.portGulls = (hs?.ports ?? []).flatMap((pt) => [makePortGull(w.p, pt.x, pt.y, w.size), makePortGull(w.p, pt.x, pt.y, w.size)]); }
   // Клин птиц к ближайшему неоткрытому городу — раз в день на цель (день запоминается в браузере).
   if (!w.birdShown && hs?.bird) {
     w.birdShown = true;
@@ -962,7 +952,6 @@ function stepWorld(w: World, dt: number): void {
     stepPod(pd.dolphins, pd.car, w.p, w.size, w.fx, dt, T, pd === w.pods[0] ? hs?.ship ?? null : null);
   }
   for (const g of w.gulls) stepGull(g, w.p, w.size, dt, T);
-  for (const g of w.portGulls) stepGull(g, w.p, w.size, dt, T);
   for (const sh of w.ships) stepShip(sh, w.p, w.size, dt, T, w.ships);
   stepFlock(w.flock, w.p, w.size, dt, T);
   // Порядок рисования — от глубоких к мелким (вставками, массив короткий).
@@ -977,7 +966,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis)
   for (const c of w.cets) if (inView(vis, c.x, c.y)) drawCet(ctx, c, T, px, lod);
   drawFx(ctx, w.fx, T, px, vis);
   for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
-  for (const g of w.portGulls.length ? [...w.gulls, ...w.portGulls] : w.gulls) {
+  for (const g of w.gulls) {
     if (!inView(vis, g.x, g.y)) continue;
     ctx.save(); ctx.translate(g.x, g.y);
     drawBirdShadow(ctx, GULL, g.S, g.phase, g.amp, g.roll, g.h, g.alt, 0.22 * (1 - 0.5 * g.alt));
