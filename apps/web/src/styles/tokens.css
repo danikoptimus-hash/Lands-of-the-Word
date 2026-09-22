@@ -55,8 +55,8 @@
   --wax-mask:    url("/img/props/wax-seal.webp");
   --paper-lift:  linear-gradient(rgba(255,250,238,.5), rgba(255,250,238,.5));
   --paper-bg:    var(--paper-lift), var(--tex-paper) center / 512px repeat var(--paper);
-  /* Шрифты: заголовки — Cormorant Garamond, чтение — Literata, интерфейс — Philosopher, ввод — Inter (все в public/fonts). */
-  --font-display: "Cormorant Garamond", "Philosopher", Georgia, serif;
+  /* Шрифты: заголовки и всё крупное — Philosopher (решение владельца 22.09), чтение — Literata, интерфейс — Philosopher, ввод — Inter (все в public/fonts). */
+  --font-display: "Philosopher", Georgia, serif;
   --font-book:    "Literata", Georgia, "Times New Roman", serif;
   --font-ui:      "Philosopher", "Inter", system-ui, sans-serif;
   --font-input:   "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
