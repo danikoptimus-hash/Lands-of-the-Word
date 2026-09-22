@@ -284,7 +284,7 @@ export function TeamPage() {
   // Служебные состояния: всегда с навигацией, никогда тупик.
   if (error && !team) {
     return (
-      <main className="container narrow">
+      <main className="container narrow bare">
         <Back to="/" label={t("Мои игры")} />
         <div className="card">
           <h1>{t("Не удалось открыть команду")}</h1>
@@ -316,7 +316,7 @@ export function TeamPage() {
   }
   if (!map) {
     return (
-      <main className="container narrow">
+      <main className="container narrow bare">
         <Back to="/" label={t("Мои игры")} />
         <div className="card">
           <h1 className="row"><TeamAvatar name={team.name} color={team.color} size="lg" />{team.name}</h1>
@@ -328,7 +328,7 @@ export function TeamPage() {
   const winner = standings?.winnerTeamId ? standings.standings.find((s) => s.teamId === standings.winnerTeamId)?.name ?? "" : "";
   if (map.status !== "ACTIVE") {
     return (
-      <main className="container narrow">
+      <main className="container narrow bare">
         <Back to="/" label={t("Мои игры")} />
         <div className="card">
           <h1 className="row"><TeamAvatar name={team.name} color={team.color} size="lg" />{team.name}</h1>
