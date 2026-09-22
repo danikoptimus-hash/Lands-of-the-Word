@@ -850,13 +850,15 @@ function stepGull(g: Gull, p: Profile, size: number, dt: number, T: number): voi
 
 /** Стая над сушей: перелёт по дуге с одного края острова на другой клином, потом пауза и новый маршрут. */
 interface FlockBird { dx: number; dy: number; phase: number; seed: number; amp: number; glide: boolean; modeT: number }
-interface Flock { x0: number; y0: number; cx: number; cy: number; x1: number; y1: number; t0: number; dur: number; n: number; x: number; y: number; h: number; roll: number; birds: FlockBird[]; S: number }
+/** hint — маршрут подсказки: в конце клин не улетает, а кружит над городом (hover), потом уходит за край своим ходом. */
+interface Flock { x0: number; y0: number; cx: number; cy: number; x1: number; y1: number; t0: number; dur: number; n: number; x: number; y: number; h: number; roll: number; birds: FlockBird[]; S: number; hint: boolean; hover: { cx: number; cy: number; r: number; a: number; until: number } | null }
 function newRoute(f: Flock, p: Profile, size: number, T: number, first: boolean): void {
   const a = rnd(-Math.PI, Math.PI), R = farR(p, size), b = a + Math.PI + rnd(-0.6, 0.6);
   f.x0 = p.cx + Math.cos(a) * R; f.y0 = p.cy + Math.sin(a) * R; f.x1 = p.cx + Math.cos(b) * R; f.y1 = p.cy + Math.sin(b) * R;
   const mx = (f.x0 + f.x1) / 2, my = (f.y0 + f.y1) / 2, nx = -(f.y1 - f.y0), ny = f.x1 - f.x0, bow = rnd(-0.3, 0.3);
   f.cx = mx + nx * bow; f.cy = my + ny * bow; // изгиб маршрута — плавный поворот в пути
   f.t0 = T + (first ? rnd(2, 8) : rnd(8, 25));
+  f.hint = false; f.hover = null;
   f.dur = (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) * 1.1) / (size * 0.95);
   f.n = Math.floor(rnd(5, 9));
   f.x = f.x0; f.y = f.y0; f.h = Math.atan2(f.cy - f.y0, f.cx - f.x0); f.roll = 0;
@@ -867,16 +869,37 @@ function newRoute(f: Flock, p: Profile, size: number, T: number, first: boolean)
   }
 }
 function makeFlock(p: Profile, size: number, T: number): Flock {
-  const f: Flock = { x0: 0, y0: 0, cx: 0, cy: 0, x1: 0, y1: 0, t0: 0, dur: 1, n: 0, x: 0, y: 0, h: 0, roll: 0, S: size * 0.15, birds: Array.from({ length: 8 }, () => ({ dx: 0, dy: 0, phase: 0, seed: rnd(0, 100), amp: 1, glide: false, modeT: 5 })) };
+  const f: Flock = { x0: 0, y0: 0, cx: 0, cy: 0, x1: 0, y1: 0, t0: 0, dur: 1, n: 0, x: 0, y: 0, h: 0, roll: 0, S: size * 0.15, hint: false, hover: null, birds: Array.from({ length: 8 }, () => ({ dx: 0, dy: 0, phase: 0, seed: rnd(0, 100), amp: 1, glide: false, modeT: 5 })) };
   newRoute(f, p, size, T, true);
   return f;
 }
+/** Уход с места кружения: маршрут от текущей точки за край карты, без паузы — клин не пропадает, а улетает. */
+function leaveRoute(f: Flock, p: Profile, size: number, T: number): void {
+  const R = farR(p, size), a = f.h + rnd(-0.4, 0.4);
+  f.x0 = f.x; f.y0 = f.y; f.x1 = p.cx + Math.cos(a) * R; f.y1 = p.cy + Math.sin(a) * R;
+  const mx = (f.x0 + f.x1) / 2, my = (f.y0 + f.y1) / 2, nx = -(f.y1 - f.y0), ny = f.x1 - f.x0;
+  f.cx = mx + nx * 0.1; f.cy = my + ny * 0.1;
+  f.t0 = T; f.dur = (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) * 1.1) / (size * 0.95);
+  f.hint = false; f.hover = null;
+}
 function stepFlock(f: Flock, p: Profile, size: number, dt: number, T: number): void {
   if (T < f.t0) return;
-  const u = (T - f.t0) / f.dur;
-  if (u >= 1) { newRoute(f, p, size, T, false); return; }
-  const w0 = (1 - u) * (1 - u), w1 = 2 * u * (1 - u), w2 = u * u;
-  const x = w0 * f.x0 + w1 * f.cx + w2 * f.x1, y = w0 * f.y0 + w1 * f.cy + w2 * f.y1;
+  let x: number, y: number;
+  if (f.hover) {
+    // Кружение над городом (решение владельца 22.09, вариант 1): круг радиусом ~1,2 гекса, 30–60 с, затем уход.
+    const hv = f.hover;
+    if (T >= hv.until) { leaveRoute(f, p, size, T); return; }
+    hv.a += (dt * size * 0.7) / hv.r;
+    x = hv.cx + Math.cos(hv.a) * hv.r; y = hv.cy + Math.sin(hv.a) * hv.r;
+  } else {
+    const u = (T - f.t0) / f.dur;
+    if (u >= 1) {
+      if (f.hint) { f.hover = { cx: f.x1, cy: f.y1, r: size * 1.2, a: Math.atan2(f.y - f.y1, f.x - f.x1), until: T + rnd(30, 60) }; f.hint = false; return; }
+      newRoute(f, p, size, T, false); return;
+    }
+    const w0 = (1 - u) * (1 - u), w1 = 2 * u * (1 - u), w2 = u * u;
+    x = w0 * f.x0 + w1 * f.cx + w2 * f.x1; y = w0 * f.y0 + w1 * f.cy + w2 * f.y1;
+  }
   const h = Math.atan2(y - f.y, x - f.x), om = wrapAngle(h - f.h) / Math.max(dt, 1e-3);
   f.roll = ease(f.roll, clamp((om * size * 0.95) / (size * 2.5), -0.5, 0.5), dt, 0.6);
   f.x = x; f.y = y; f.h = h;
@@ -903,7 +926,7 @@ function hintRoute(f: Flock, size: number, T: number, from: { x: number; y: numb
   f.x0 = from.x; f.y0 = from.y; f.x1 = to.x; f.y1 = to.y;
   const mx = (f.x0 + f.x1) / 2, my = (f.y0 + f.y1) / 2, nx = -(f.y1 - f.y0), ny = f.x1 - f.x0;
   f.cx = mx + nx * 0.15; f.cy = my + ny * 0.15;
-  f.t0 = T + 2;
+  f.t0 = T + 2; f.hint = true; f.hover = null;
   f.dur = Math.max(6, (Math.hypot(f.x1 - f.x0, f.y1 - f.y0) * 1.1) / (size * 0.7));
   f.n = 8;
   f.x = f.x0; f.y = f.y0; f.h = Math.atan2(f.cy - f.y0, f.cx - f.x0); f.roll = 0;
@@ -1221,10 +1244,10 @@ export function drawShipsPreview(ctx: CanvasRenderingContext2D, size: number, T:
   });
 }
 /** Стенд (scripts): прогон мира живности без экрана — треки положений и курсов для проверки физики движения. */
-export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, step: number): Array<{ kind: string; samples: Array<[number, number, number, number]> }> {
+export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, step: number, hint: FaunaHints | null = null): Array<{ kind: string; samples: Array<[number, number, number, number]> }> {
   const p = islandProfile(hexes, size, []); if (!p) return [];
-  const w = createWorld(p, size, () => null);
-  const movers: Array<{ kind: string; m: { x: number; y: number; h: number }; car: Carrot | null }> = [...w.cets.map((c) => ({ kind: c.spec.kind, m: c, car: c.car })), ...w.ships.map((sh) => ({ kind: sh.spec.kind, m: sh, car: sh.car }))];
+  const w = createWorld(p, size, () => hint);
+  const movers: Array<{ kind: string; m: { x: number; y: number; h: number }; car: Carrot | null }> = [...w.cets.map((c) => ({ kind: c.spec.kind, m: c, car: c.car })), ...w.ships.map((sh) => ({ kind: sh.spec.kind, m: sh, car: sh.car })), { kind: "flock", m: w.flock, car: null }];
   const out = movers.map((mv) => ({ kind: mv.kind, samples: [] as Array<[number, number, number, number]> }));
   for (let t = 0; t < seconds; t += step) { stepWorld(w, step); movers.forEach((mv, i) => out[i]!.samples.push([mv.m.x, mv.m.y, mv.m.h, mv.car ? mv.car.wait : -1])); }
   return out;
