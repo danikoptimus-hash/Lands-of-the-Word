@@ -3,7 +3,6 @@ import { t } from "../lib/i18n";
 import { fmtDate, fmtLeft } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Help } from "../components/Help";
-import { SortableList } from "./SortableList";
 import type { CrosswordWordDto } from "../lib/api";
 
 /**
@@ -41,7 +40,6 @@ function Shackle() {
 
 /** hint — короткая строка состояния под шапкой замка; help — инструкция «за кнопкой» рядом со словом «Замок»; tools — кнопки справа (переключатель пересказа). */
 export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWrong, strips, hint, help, tools }: { ids: string[]; labels: Map<string, string>; sub?: Map<string, string>; onChange: (ids: string[]) => void; disabled?: boolean; state: "idle" | "open" | "jam"; pinsWrong: number | null; strips?: boolean; hint?: string; help?: string; tools?: ReactNode }) {
-  const [simple, setSimple] = useState(false);
   const [spin, setSpin] = useState<{ k: number; dir: 1 | -1 } | null>(null);
   const n = ids.length;
   /** Стрелка двигает саму строку: вверх — меняется местами с соседом выше, вниз — с соседом ниже (решение владельца 22.09:
@@ -63,13 +61,10 @@ export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWro
       <div className="lock-body">
         <div className="row between lock-top">
           <span className="strong"><Icon name="lock" />{t("Замок")}{help && <Help>{help}</Help>}</span>
-          <span className="row nowrap lock-tools">{tools}<button type="button" className="ghost sm" onClick={() => setSimple((v) => !v)} aria-pressed={simple}>{simple ? t("Кольца") : t("Список")}</button></span>
+          {tools && <span className="row nowrap lock-tools">{tools}</span>}
         </div>
         {hint && <p className="hint">{hint}</p>}
-        {simple ? (
-          <SortableList ids={ids} onChange={onChange} disabled={disabled} render={(id) => <><div className="d-title">{label(id)}</div>{sub?.get(id) && <div className="d-sum muted">{sub.get(id)}</div>}</>} />
-        ) : (
-          <ol className="rings" aria-label={t("Кольца замка")}>
+        <ol className="rings" aria-label={t("Кольца замка")}>
             {ids.map((id, k) => (
               <li key={id} className={"ring" + (spin?.k === k ? (spin.dir === 1 ? " spin-down" : " spin-up") : "")}>
                 <span className="pos" aria-hidden="true">{k + 1}</span>
@@ -80,8 +75,7 @@ export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWro
                 <button type="button" className="ghost turn" disabled={disabled || k === n - 1} onClick={() => step(k, 1)} aria-label={t("Опустить «{v}» ниже", { v: label(id) })}><Icon name="chevron-down" /></button>
               </li>
             ))}
-          </ol>
-        )}
+        </ol>
         {pinsWrong != null && pinsWrong !== 0 && (
           <div className="pins" role="status">
             <span className="pin-row" aria-hidden="true">{Array.from({ length: n }, (_, i) => <i key={i} className={pinsWrong < 0 || i < pinsWrong ? "up" : ""} />)}</span>

@@ -17,8 +17,6 @@ import { kindLabel } from "./RecipientsBlock";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 /** Пересказы районов (в списке и на кольцах замка) — личное удобство читателя, запоминается в браузере. */
-const SUMMARIES_KEY = "lotw.summaries";
-const readSummaries = () => { try { return localStorage.getItem(SUMMARIES_KEY) === "1"; } catch { return false; } };
 
 /**
  * Попап города у команды: шапка (иллюстрация, книга, статус, «Столица», свеча пророка), индикатор шагов
@@ -43,9 +41,6 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   const [justSolved, setJustSolved] = useState(false);
   const [struck, setStruck] = useState<number | null>(null);
   const [capResult, setCapResult] = useState<"ok" | "bad" | null>(null);
-  const [summaries, setSummaries] = useState(readSummaries);
-  const toggleSummaries = () => setSummaries((v) => { const next = !v; try { localStorage.setItem(SUMMARIES_KEY, next ? "1" : "0"); } catch { /* приватный режим */ } return next; });
-  const sumToggle = <button type="button" className="ghost sm sum-toggle" aria-pressed={summaries} onClick={toggleSummaries}><Icon name="book" />{summaries ? t("Скрыть пересказ") : t("Пересказ")}</button>;
 
   const load = useCallback(() => api<MyCityDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`).then((c) => { setCity(c); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [gameId, nodeKey]);
   useEffect(() => { void load(); }, [load, version]);
@@ -157,16 +152,16 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       {city?.content && step === 1 && order && (
         <section className="step-body">
           <h3>{t("Расставьте районы по порядку книги")}</h3>
-          <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={summaries ? new Map(districts.map((d) => [d.id, d.summary])) : undefined} onChange={(ids) => { setOrder(ids); setOrderResult(null); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
+          <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { setOrder(ids); setOrderResult(null); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
             hint={city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Стрелки двигают район вверх и вниз. Готово — проверните замок.")}
-            help={t("Замок скажет, сколько штифтов не село, но не каких. Для длинного списка есть вид «Список».")} tools={sumToggle} />
+            help={t("Замок скажет, сколько штифтов не село, но не каких.")} />
           <div className="actions"><button type="button" disabled={busy || lockState === "open"} onClick={() => void checkOrder()}><Icon name="lock" />{t("Провернуть замок")}</button></div>
         </section>
       )}
 
       {city?.content && step >= 2 && !task && (
         <section className="step-body">
-          {step === 2 && <div className="row between nowrap step-head"><h3>{t("Решите задание в каждом районе")}</h3>{sumToggle}</div>}
+          {step === 2 && <div className="row between nowrap step-head"><h3>{t("Решите задание в каждом районе")}</h3></div>}
           {step === 2 && (
             <ul className="districts">
               {districts.map((d) => {
@@ -179,7 +174,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
                   <li key={d.id} className={justSolved ? "reveal" : ""} style={{ ["--d-hue" as string]: hue, animationDelay: justSolved ? `${i * 90}ms` : undefined }}>
                     <button type="button" className={"district set" + (ok ? " done" : "") + (locked ? " locked" : "") + (lit ? " lit" : "")} onClick={() => setTaskIndex(i)} aria-label={`${i + 1}. ${d.title} · ${ok ? t("выполнено") : locked ? t("закрыто") : t("не выполнено")}`}>
                       <span className="num">{i + 1}</span>
-                      <span className="body"><span className="d-title">{d.title} <span className="muted">{d.verses}</span></span>{summaries && <span className="d-sum muted">{d.summary}</span>}</span>
+                      <span className="body"><span className="d-title">{d.title} <span className="muted">{d.verses}</span></span><span className="d-sum muted">{d.summary}</span></span>
                       {lit && <span className="window" title={t("Подсказка пророка открыта")} aria-hidden="true" />}
                       <span className={"check" + (ok ? " on" : "")}><Icon name={ok ? "check" : locked ? "lock" : "chevron"} /></span>
                     </button>

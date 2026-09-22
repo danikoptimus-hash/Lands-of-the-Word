@@ -56,7 +56,7 @@ def check(path):
         if refs is None: errs.append(f"район {i}: не разобрать стихи «{dist.get('verses')}»")
         if dist.get("title") in seen: errs.append(f"район {i}: повтор названия «{dist['title']}»")
         seen.add(dist.get("title"))
-        if len(dist.get("summary", "")) > 400: warns.append(f"район {i}: пересказ длинный ({len(dist['summary'])})")
+        if len(dist.get("summary", "")) > 180: warns.append(f"район {i}: пересказ длинный ({len(dist['summary'])}) — на кольце замка помещается ~150 знаков (решение владельца 22.09)")
     for i, t in enumerate(ts, 1):
         p = t.get("prompt", ""); typ = t.get("type"); scope = t.get("scope")
         if scope not in ("district", "group", "book"): errs.append(f"задание {i}: scope «{scope}»")

@@ -295,7 +295,7 @@
 .ring .drum { grid-area: drum; display: flex; flex-direction: column; align-items: center; text-align: center; min-height: 44px; justify-content: center; overflow: hidden; }
 .ring .ghost-item { font-size: var(--fs-xs); opacity: .4; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.2; }
 .ring .cur { display: flex; flex-direction: column; align-items: center; gap: 1px; font-weight: 600; padding: 5px 12px; border-radius: var(--r-xs); background: rgba(16,12,8,.62); box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); max-width: 100%; }
-.ring .cur small { color: rgba(244,238,228,.75); font-weight: 400; font-size: var(--fs-xs); line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ring .cur small { color: rgba(244,238,228,.8); font-weight: 400; font-size: var(--fs-xs); line-height: 1.3; }
 .ring.spin-up .cur { animation: ringSpinUp .22s var(--ease-out); }
 .ring.spin-down .cur { animation: ringSpinDown .22s var(--ease-out); }
 /* Разорванные полоски цитаты (C-08): пункты «по порядку» с цитатой. */

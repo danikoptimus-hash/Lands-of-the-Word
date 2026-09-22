@@ -97,7 +97,7 @@ export const PLAYER: Record<string, string> = {
   // Замок с одним кольцом для выбора ответа (весы убраны, решение владельца 18.09)
   "вариант {a} из {b}": "option {a} of {b}", "Листайте кольцо, пока на нём не окажется верный ответ, и проверните замок.": "Turn the ring until the right answer is on it, then turn the lock.", "Кольцо замка": "Lock ring", "Предыдущий вариант": "Previous option", "Следующий вариант": "Next option", "Замок заклинило: ответ не тот.": "The lock jammed: wrong answer.",
   // Формы заданий (решения 18.09): замок, весы, печать, конверт, свиток, кроссворд, отмычка, свеча
-  "Замок": "Lock", "Кольца": "Rings", "Список": "List", "Кольца замка": "Lock rings", "Кольцо {k}: {v}": "Ring {k}: {v}",
+  "Замок": "Lock", "Кольца замка": "Lock rings", "Кольцо {k}: {v}": "Ring {k}: {v}",
   "Замок заклинило: порядок не тот.": "The lock jammed: the order is wrong.", "Не село штифтов: {n}. Каких — замок не говорит.": "Pins not seated: {n}. The lock does not say which.",
   "Крутите кольца стрелками, пока сцены не встанут по порядку книги, и проверните замок. Попыток: {k}": "Turn the rings with the arrows until the scenes stand in the order of the book, then turn the lock. Attempts: {k}",
   "Провернуть замок": "Turn the lock", "Взвесить": "Weigh",
@@ -270,9 +270,9 @@ export const PLAYER: Record<string, string> = {
   "Вместо дела — пожертвование (от {min} {cur})": "A donation instead of the deed (from {min} {cur})",
   "В кассу церкви. Сдаётся ссылка на чек или подтверждение перевода.": "To the church treasury. Submit a link to the receipt or transfer confirmation.",
   "https://… — по одной на строку": "https://… — one per line",
-  "Пересказ": "Summary", "Скрыть пересказ": "Hide summary", "Пересказ района": "District summary",
+  "Пересказ района": "District summary",
   "Стрелки двигают район вверх и вниз. Готово — проверните замок.": "Arrows move a district up or down. Done — turn the lock.", "Поднять «{v}» выше": "Move “{v}” up", "Опустить «{v}» ниже": "Move “{v}” down", "Попыток: {k}": "Attempts: {k}",
-  "Замок скажет, сколько штифтов не село, но не каких. Для длинного списка есть вид «Список».": "The lock tells how many pins did not set, but not which. A long list has a “List” view.",
+  "Замок скажет, сколько штифтов не село, но не каких.": "The lock tells how many pins did not set, but not which.",
   "Не село штифтов: {n}.": "Pins not set: {n}.", "Заклинило: порядок не тот.": "Jammed: wrong order.", "Заклинило: ответ не тот.": "Jammed: wrong answer.",
   "Стрелки листают варианты. Верный на кольце — проверните замок.": "Arrows turn the options. Right one on the ring — turn the lock.",
   "Знаков: {a} из {b}": "Marks: {a} of {b}",
