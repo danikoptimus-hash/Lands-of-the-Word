@@ -170,7 +170,9 @@
 .pick-cooling .small { font-family: var(--font-ui); }
 .candle .small { font-family: var(--font-ui); }
 /* Замок: подсказка «?» и служебные строки на тёмном корпусе, призрачные пункты колец */
-.lock-top .ghost { color: var(--gold-hi); }
+/* Кнопки на корпусе замка: золото во всех состояниях — после касания на телефоне «наведение» из общей темы делало их тёмными на тёмном (решение владельца 22.09) */
+.lock-top .ghost, .lock-top .ghost:hover, .lock-top .ghost:focus-visible, .lock-top .ghost:active, .lock-top .ghost[aria-pressed="true"] { color: var(--gold-hi); background: transparent; }
+.lock-top .ghost:hover { background: rgba(255,255,255,.08); }
 .lock-top .lock-tools { margin-left: auto; }
 .lock-top .strong { font-family: var(--font-ui); }
 .lock-body .hint { font-family: var(--font-ui); font-style: normal; }
