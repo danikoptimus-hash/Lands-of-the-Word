@@ -44,6 +44,19 @@ describe("команды и приглашения", () => {
     expect(t3.statusCode).toBe(409);
   });
 
+  it("админ переименовывает команду; дубликат названия — 409; не админ — 403", async () => {
+    const list = (await app.inject({ method: "GET", url: `/api/games/${gameId}/teams`, headers: { cookie: adminCookie } })).json().teams as Array<{ id: string; name: string }>;
+    const [a, b] = list;
+    const ok = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${a!.id}`, headers: { cookie: adminCookie }, payload: { name: "Переименованные" } });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().team.name).toBe("Переименованные");
+    const dup = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${b!.id}`, headers: { cookie: adminCookie }, payload: { name: "переименованные" } });
+    expect(dup.statusCode).toBe(409);
+    const back = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${a!.id}`, headers: { cookie: adminCookie }, payload: { name: a!.name } });
+    expect(back.statusCode).toBe(200);
+    expect((await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${a!.id}`, headers: { cookie: playerCookie }, payload: { name: "Чужие" } })).statusCode).toBe(403);
+  });
+
   it("удалить игру может только создатель, и только не идущую", async () => {
     const g = await app.inject({ method: "POST", url: "/api/games", headers: { cookie: adminCookie }, payload: { name: "На удаление", teamCount: 2 } });
     const gid = g.json().game.id;

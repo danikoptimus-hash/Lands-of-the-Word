@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Администратор может переименовать команду: пункт «Переименовать» в меню команды в блоке «Команды».": "The administrator can rename a team: “Rename” in the team’s menu in the “Teams” block.",
   "Клин птиц, долетев до подсказанного города, кружит над ним полминуты-минуту и только потом улетает.": "The bird flock, on reaching the hinted city, circles over it for half a minute to a minute before flying away.",
   "Чайки над взятыми портами команды убраны с карты.": "Gulls over the team’s captured ports were removed from the map.",
   "Защита от подбора пароля: после 10 неверных попыток подряд вход в учётку закрывается на 15 минут, владельцу уходит письмо. На сервере добавлен общий лимит запросов с одного адреса.": "Password-guessing protection: after 10 wrong attempts in a row, sign-in to the account is closed for 15 minutes and the owner gets an email. The server also got a general per-address request limit.",

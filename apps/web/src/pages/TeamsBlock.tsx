@@ -21,6 +21,9 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   /** Ссылка, которую не удалось положить в буфер: показывается один раз под строкой команды, чтобы выделить вручную. */
   const [fallback, setFallback] = useState<{ teamId: string; url: string } | null>(null);
   const [inviting, setInviting] = useState<string | null>(null);
+  /** Переименование команды: шторка с одним полем (решение владельца 22.09). */
+  const [renaming, setRenaming] = useState<{ id: string; name: string } | null>(null);
+  const [renameError, setRenameError] = useState<string | null>(null);
   /** Кнопка, с которой только что скопировали: полторы секунды показывает галочку (только она, не соседние). */
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -60,6 +63,13 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
       if (err instanceof ApiError) { fail(err); return; }
       try { setFallback({ teamId, url: await url }); notify(t("Не удалось скопировать: выделите ссылку вручную"), "bad"); } catch (e) { fail(e); }
     } finally { setInviting(null); }
+  }
+  async function rename(e: FormEvent) {
+    e.preventDefault(); if (!renaming) return;
+    setBusy(true); setRenameError(null);
+    try { await api(`/api/games/${gameId}/teams/${renaming.id}`, { method: "PATCH", body: JSON.stringify({ name: renaming.name }) }); setRenaming(null); notify(t("Команда переименована")); await reload(); }
+    catch (err) { setRenameError(err instanceof ApiError ? err.message : t("Ошибка сети")); }
+    finally { setBusy(false); }
   }
   async function remove(tm: TeamDto) {
     if (!(await confirm(t("Команда «{name}» будет удалена вместе с участниками.", { name: tm.name }), { title: t("Удалить команду?"), okLabel: t("Удалить"), danger: true }))) return;
@@ -113,8 +123,11 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                 <button type="button" className="secondary sm" disabled={inviting === `${tm.id}:CAPTAIN`} title={t("Скопировать ссылку для капитана")} onClick={() => void inviteCopy(tm.id, "CAPTAIN")}><Icon name={copiedKey === `${tm.id}:CAPTAIN` ? "check" : "link"} />{t("Капитана")}</button>
                 <button type="button" className="secondary sm" disabled={inviting === `${tm.id}:MEMBER`} title={t("Скопировать ссылку для участников")} onClick={() => void inviteCopy(tm.id, "MEMBER")}><Icon name={copiedKey === `${tm.id}:MEMBER` ? "check" : "link"} />{t("Участника")}</button>
               </span>
-              {status === "DRAFT" && <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }]} />}
-              {status === "ACTIVE" && tm.status !== "defeated" && <ActionMenu label={t("Ещё")} items={[{ label: t("Оштрафовать: аннулировать участок пути"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }]} />}
+              <ActionMenu label={t("Ещё")} items={[
+                { label: t("Переименовать"), icon: "edit", onSelect: () => { setRenameError(null); setRenaming({ id: tm.id, name: tm.name }); } },
+                ...(status === "DRAFT" ? [{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }] : []),
+                ...(status === "ACTIVE" && tm.status !== "defeated" ? [{ label: t("Оштрафовать: аннулировать участок пути"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }] : []),
+              ]} />
               {tm.status === "defeated" && <Chip tone="bad">{t("выбыла")}</Chip>}
             </div>
           </div>
@@ -157,6 +170,16 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
               <li key={tm.id}><div className="main"><TeamAvatar name={tm.name} color={tm.color} withName /></div><div className="side"><button type="button" className="sm" onClick={() => void moveTo(tm)}>{t("Перевести")}</button></div></li>
             ))}
           </ul>
+        </Sheet>
+      )}
+      {renaming && (
+        <Sheet title={t("Переименовать команду")} onClose={() => setRenaming(null)} size="sm"
+          foot={<><button type="button" className="secondary" onClick={() => setRenaming(null)}>{t("Отмена")}</button><button type="submit" form="team-rename" disabled={busy || renaming.name.trim().length < 2}>{t("Сохранить")}</button></>}>
+          <form id="team-rename" onSubmit={rename}>
+            <label htmlFor="tm-rename">{t("Название команды")}</label>
+            <input id="tm-rename" value={renaming.name} onChange={(e) => setRenaming({ ...renaming, name: e.target.value })} required minLength={2} maxLength={40} autoFocus />
+            {renameError && <p className="error">{renameError}</p>}
+          </form>
         </Sheet>
       )}
       {open && (

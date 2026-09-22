@@ -12,6 +12,7 @@ import { journal, nick, ROLE_RU } from "../services/journal.js";
 
 export const TEAM_COLORS = ["#A9553A", "#4F7C99", "#7D8B4E", "#8E5A9E", "#C48A3F", "#3B6E6E", "#B5473F", "#5C6E91", "#8A7A2E", "#6E4B8E", "#2F7F6F", "#9C5A2E"];
 
+const renameTeamBody = z.object({ name: z.string().trim().min(2).max(40) });
 const createTeamBody = z.object({
   name: z.string().trim().min(2).max(40),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
@@ -63,6 +64,21 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     });
     publish(id, { type: "teams" });
     return reply.code(201).send({ team });
+  });
+
+  /** Переименование команды администратором (решение владельца 22.09): в любом статусе игры, название уникально в игре. */
+  app.patch("/api/games/:id/teams/:teamId", async (request, reply) => {
+    const { id, teamId } = request.params as { id: string; teamId: string };
+    const game = await requireGameAdmin(request, reply, id);
+    if (!game) return;
+    const body = renameTeamBody.parse(request.body);
+    const team = await prisma.team.findFirst({ where: { id: teamId, gameId: id } });
+    if (!team) return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
+    const dup = await prisma.team.findFirst({ where: { gameId: id, id: { not: teamId }, name: { equals: body.name, mode: "insensitive" } } });
+    if (dup) return reply.code(409).send({ error: "conflict", message: err(request, "Команда с таким названием уже есть") });
+    const updated = await prisma.team.update({ where: { id: teamId }, data: { name: body.name }, include: { members: { select: memberSelect } } });
+    publish(id, { type: "teams" });
+    return { team: updated };
   });
 
   app.delete("/api/games/:id/teams/:teamId", async (request, reply) => {

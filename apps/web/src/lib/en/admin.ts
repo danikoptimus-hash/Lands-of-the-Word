@@ -28,6 +28,7 @@ export const ADMIN: Record<string, string> = {
   // Команды
   "Команда добавлена": "Team added", "Команда «{name}» будет удалена вместе с участниками.": "Team “{name}” will be deleted with its members.", "Команда удалена": "Team deleted",
   "{nick} убран из команды": "{nick} removed from the team", "Команд пока нет: добавьте первую.": "No teams yet: add the first one.", "Пригласить": "Invite",
+  "Переименовать": "Rename", "Переименовать команду": "Rename the team", "Команда переименована": "Team renamed",
   // Приглашение одной кнопкой (решение владельца 21.09)
   "Капитана": "Captain", "Участника": "Member", "Скопировать ссылку для капитана": "Copy the captain link", "Скопировать ссылку для участников": "Copy the members link",
   "Ссылка для капитана скопирована: действует 14 дней": "Captain link copied: valid for 14 days",
