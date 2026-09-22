@@ -95,9 +95,9 @@
 .city-sheet .overlay-head > button { color: var(--paper-light); }
 .steps { position: relative; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-1) 0; }
 .steps::before { content: ""; position: absolute; left: 12%; right: 12%; top: 50%; height: 1px; background: var(--paper-edge); box-shadow: none; z-index: 0; }
-.steps li { position: relative; z-index: 1; flex: 0 1 auto; padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-1); border-radius: var(--r-xs); background: var(--paper-bg); color: var(--ink-2); font: 700 var(--fs-sm)/1 var(--font-ui); }
+.steps li { position: relative; z-index: 1; flex: 0 1 auto; padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-1); border-radius: var(--r-xs); background: transparent; color: var(--ink-2); font: 700 var(--fs-sm)/1 var(--font-ui); }
 .steps .num { width: 26px; height: 26px; border: 1px solid var(--bronze); background: var(--paper-light); color: var(--bronze-ink); font: 700 13px/1 var(--font-display); text-shadow: none; filter: none; }
-.steps li.current { background: var(--paper-light); color: var(--bronze-ink); box-shadow: inset 0 -2px 0 var(--bronze); }
+.steps li.current { background: transparent; color: var(--bronze-ink); box-shadow: none; }
 .steps li.current .num { background: var(--bronze-ink); border-color: var(--bronze-ink); color: var(--paper-light); animation: flipIn .45s var(--spring); }
 .steps li.done { color: var(--moss-ink); }
 .steps li.done .num { width: 30px; height: 30px; margin: -2px; border: 0; background: var(--moss-ink); -webkit-mask: var(--wax-mask) center / 100% 100% no-repeat; mask: var(--wax-mask) center / 100% 100% no-repeat; filter: none; text-shadow: none; animation: stamp .38s var(--stamp); }
@@ -177,7 +177,6 @@
 .lock-body .help > summary { background: rgba(0,0,0,.35); border-color: rgba(241,208,138,.6); color: var(--gold-hi); }
 .lock-body .help[open] > summary { background: var(--gold-hi); color: var(--ink); }
 .lock-body .help > .help-body { background: rgba(0,0,0,.35); color: #F4EEE4; border-left-color: var(--gold-hi); }
-.ring .ghost-item { opacity: .5; font-family: var(--font-book); font-style: italic; }
 .ring .cur { font-family: var(--font-ui); }
 .lock-body .sortable li { background: var(--paper-light); }
 .cw-cell input { background: var(--paper-light); border-color: var(--border-strong); font-family: var(--font-input); }

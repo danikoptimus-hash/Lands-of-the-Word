@@ -41,19 +41,18 @@ function Shackle() {
 
 /** hint — короткая строка состояния под шапкой замка; help — инструкция «за кнопкой» рядом со словом «Замок»; tools — кнопки справа (переключатель пересказа). */
 export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWrong, strips, hint, help, tools }: { ids: string[]; labels: Map<string, string>; sub?: Map<string, string>; onChange: (ids: string[]) => void; disabled?: boolean; state: "idle" | "open" | "jam"; pinsWrong: number | null; strips?: boolean; hint?: string; help?: string; tools?: ReactNode }) {
-  const drum = useRef(ids.slice()).current;
   const [simple, setSimple] = useState(false);
   const [spin, setSpin] = useState<{ k: number; dir: 1 | -1 } | null>(null);
   const n = ids.length;
+  /** Стрелка двигает саму строку: вверх — меняется местами с соседом выше, вниз — с соседом ниже (решение владельца 22.09:
+   *  раньше кольцо листало «барабан», и пункт улетал в другое кольцо — это сбивало с толку). */
   const step = (k: number, dir: 1 | -1) => {
     if (disabled) return;
-    const cur = ids[k]!;
-    const i = drum.indexOf(cur);
-    const next = drum[(i + dir + n) % n]!;
-    const j = ids.indexOf(next);
+    const j = k + dir;
+    if (j < 0 || j >= n) return;
     const out = ids.slice();
-    out[k] = next; out[j] = cur;
-    setSpin({ k, dir });
+    out[k] = ids[j]!; out[j] = ids[k]!;
+    setSpin({ k: j, dir });
     onChange(out);
   };
   useEffect(() => { if (!spin) return; const tm = setTimeout(() => setSpin(null), 220); return () => clearTimeout(tm); }, [spin]);
@@ -71,22 +70,16 @@ export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWro
           <SortableList ids={ids} onChange={onChange} disabled={disabled} render={(id) => <><div className="d-title">{label(id)}</div>{sub?.get(id) && <div className="d-sum muted">{sub.get(id)}</div>}</>} />
         ) : (
           <ol className="rings" aria-label={t("Кольца замка")}>
-            {ids.map((id, k) => {
-              const i = drum.indexOf(id);
-              const prev = drum[(i - 1 + n) % n]!, next = drum[(i + 1) % n]!;
-              return (
-                <li key={k} className={"ring" + (spin?.k === k ? (spin.dir === 1 ? " spin-down" : " spin-up") : "")}>
-                  <span className="pos" aria-hidden="true">{k + 1}</span>
-                  <button type="button" className="ghost turn" disabled={disabled} onClick={() => step(k, -1)} aria-label={t("Кольцо {k}: предыдущий пункт", { k: k + 1 })}><Icon name="chevron-up" /></button>
-                  <div className="drum" role="group" aria-label={t("Кольцо {k}: {v}", { k: k + 1, v: label(id) })}>
-                    <span className="ghost-item prev" aria-hidden="true">{label(prev)}</span>
-                    <span className="cur">{label(id)}{sub?.get(id) && <small className="muted">{sub.get(id)}</small>}</span>
-                    <span className="ghost-item next" aria-hidden="true">{label(next)}</span>
-                  </div>
-                  <button type="button" className="ghost turn" disabled={disabled} onClick={() => step(k, 1)} aria-label={t("Кольцо {k}: следующий пункт", { k: k + 1 })}><Icon name="chevron-down" /></button>
-                </li>
-              );
-            })}
+            {ids.map((id, k) => (
+              <li key={id} className={"ring" + (spin?.k === k ? (spin.dir === 1 ? " spin-down" : " spin-up") : "")}>
+                <span className="pos" aria-hidden="true">{k + 1}</span>
+                <button type="button" className="ghost turn" disabled={disabled || k === 0} onClick={() => step(k, -1)} aria-label={t("Поднять «{v}» выше", { v: label(id) })}><Icon name="chevron-up" /></button>
+                <div className="drum" role="group" aria-label={t("Кольцо {k}: {v}", { k: k + 1, v: label(id) })}>
+                  <span className="cur">{label(id)}{sub?.get(id) && <small className="muted">{sub.get(id)}</small>}</span>
+                </div>
+                <button type="button" className="ghost turn" disabled={disabled || k === n - 1} onClick={() => step(k, 1)} aria-label={t("Опустить «{v}» ниже", { v: label(id) })}><Icon name="chevron-down" /></button>
+              </li>
+            ))}
           </ol>
         )}
         {pinsWrong != null && pinsWrong !== 0 && (

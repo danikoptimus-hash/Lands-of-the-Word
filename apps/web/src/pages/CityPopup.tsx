@@ -158,7 +158,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
         <section className="step-body">
           <h3>{t("Расставьте районы по порядку книги")}</h3>
           <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={summaries ? new Map(districts.map((d) => [d.id, d.summary])) : undefined} onChange={(ids) => { setOrder(ids); setOrderResult(null); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
-            hint={city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Стрелки листают кольцо. Готово — проверните замок.")}
+            hint={city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Стрелки двигают район вверх и вниз. Готово — проверните замок.")}
             help={t("Замок скажет, сколько штифтов не село, но не каких. Для длинного списка есть вид «Список».")} tools={sumToggle} />
           <div className="actions"><button type="button" disabled={busy || lockState === "open"} onClick={() => void checkOrder()}><Icon name="lock" />{t("Провернуть замок")}</button></div>
         </section>
