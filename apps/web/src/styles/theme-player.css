@@ -121,7 +121,8 @@
 .district.done, .district.set.done { border-color: var(--paper-edge); border-left-color: var(--moss-ink); }
 .district.locked, .district.set.locked { background: var(--paper-2); color: var(--ink-2); border-left-color: var(--stone); box-shadow: none; }
 .district .num { width: 32px; height: 32px; border-radius: 50%; background: var(--paper-light); border: 1px solid var(--bronze); color: var(--bronze-ink); font: 700 15px/1 var(--font-display); text-shadow: none; filter: none; }
-.district.set .num { border-color: hsl(var(--d-hue) 42% 38%); color: hsl(var(--d-hue) 42% 30%); }
+/* Номер района: заливка в цвет района, цифра в цвет бумаги карточки (решение владельца 22.09: тёмная цифра сливалась с кружком) */
+.district.set .num { background: hsl(var(--d-hue) 42% 38%); border-color: hsl(var(--d-hue) 42% 38%); color: var(--paper-light); }
 .district.extra .num { background: var(--bronze-soft); border-color: var(--bronze); color: var(--bronze-ink); }
 .district.done .num, .district.set.done .num { background: var(--moss-ink); border-color: var(--moss-ink); color: var(--paper-light); filter: none; }
 .district.locked .num { background: var(--paper-2); border-color: var(--stone); color: var(--stone-dark); }

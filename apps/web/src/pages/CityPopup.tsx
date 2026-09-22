@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, type CityTaskDto, type MyCityDto, type SupportItemDto, type TaskLockDto } from "../lib/api";
 import { useUi } from "../lib/ui";
@@ -33,6 +33,15 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   const [order, setOrder] = useState<string[] | null>(null);
   const [orderResult, setOrderResult] = useState<number | null>(null);
   const [taskIndex, setTaskIndex] = useState<number | null>(null);
+  /** «К районам» возвращает к тому району, из которого ушли (решение владельца 22.09): запоминаем индекс и после
+   *  возврата подводим список к его карточке. */
+  const lastTask = useRef<number | null>(null);
+  useEffect(() => {
+    if (taskIndex !== null) { lastTask.current = taskIndex; return; }
+    const i = lastTask.current; if (i === null) return;
+    const el = document.querySelector<HTMLElement>(`[data-task-index="${i}"]`);
+    el?.scrollIntoView({ block: "center" });
+  }, [taskIndex]);
   const [busy, setBusy] = useState(false);
   const [key, setKey] = useState("");
   const [now, setNow] = useState(Date.now());
@@ -171,7 +180,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
                 const hue = Math.round(20 + (300 * i) / Math.max(districts.length, 1));
                 const lit = city.state.hintTasks.includes(i);
                 return (
-                  <li key={d.id} className={justSolved ? "reveal" : ""} style={{ ["--d-hue" as string]: hue, animationDelay: justSolved ? `${i * 90}ms` : undefined }}>
+                  <li key={d.id} data-task-index={i} className={justSolved ? "reveal" : ""} style={{ ["--d-hue" as string]: hue, animationDelay: justSolved ? `${i * 90}ms` : undefined }}>
                     <button type="button" className={"district set" + (ok ? " done" : "") + (locked ? " locked" : "") + (lit ? " lit" : "")} onClick={() => setTaskIndex(i)} aria-label={`${i + 1}. ${d.title} · ${ok ? t("выполнено") : locked ? t("закрыто") : t("не выполнено")}`}>
                       <span className="num">{i + 1}</span>
                       <span className="body"><span className="d-title">{d.title} <span className="muted">{d.verses}</span></span><span className="d-sum muted">{d.summary}</span></span>
@@ -191,7 +200,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
                   const ok = done.includes(x.index);
                   const locked = isLocked(city.state.locks, x.index, now);
                   return (
-                    <li key={"x" + x.index}>
+                    <li key={"x" + x.index} data-task-index={x.index}>
                       <button type="button" className={"district extra" + (ok ? " done" : "") + (locked ? " locked" : "")} onClick={() => setTaskIndex(x.index)}>
                         <span className="num">{x.index + 1}</span>
                         <span className="body"><span className="d-title">{x.scope === "book" ? t("По всей книге") : t("По нескольким районам")}</span><span className="d-sum muted one">{x.prompt.length > 90 ? x.prompt.slice(0, 90) + "…" : x.prompt}</span></span>
