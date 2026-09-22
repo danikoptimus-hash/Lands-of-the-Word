@@ -80,10 +80,6 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
     try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}`, { method: "PATCH", body: JSON.stringify(body) }); notify(done); await reload(); }
     catch (err) { fail(err); }
   }
-  async function decideRole(teamId: string, userId: string, approve: boolean) {
-    try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}/role-decide`, { method: "POST", body: JSON.stringify({ approve }) }); notify(approve ? t("Роль одобрена") : t("Запрос роли отклонён")); await reload(); }
-    catch (err) { fail(err); }
-  }
   /** Перевод участника (по спискам молодёжного совета): выбор команды в собственном листе, без системных диалогов. */
   const [moving, setMoving] = useState<{ teamId: string; userId: string; nick: string } | null>(null);
   async function moveTo(to: TeamDto) {
@@ -139,7 +135,6 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                 return (
                   <li key={m.user.id}>
                     <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span><Chip tone={m.role === "CAPTAIN" || m.role === "DEPUTY" ? "accent" : "neutral"}>{TEAM_ROLE_LABEL[m.role]}</Chip></span>
-                      {m.pendingRole && <span className="row nowrap mt-1"><Chip tone="warn">{t("запрос: {role}", { role: m.pendingRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.pendingRole] })}</Chip><button type="button" className="sm" onClick={() => void decideRole(tm.id, m.user.id, true)}>{t("Одобрить")}</button><button type="button" className="ghost sm" onClick={() => void decideRole(tm.id, m.user.id, false)}>{t("Отклонить")}</button></span>}
                     </div>
                     <div className="side">
                       {m.role !== "CAPTAIN" && (

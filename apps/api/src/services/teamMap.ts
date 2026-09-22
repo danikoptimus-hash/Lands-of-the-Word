@@ -269,9 +269,10 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
   // Города, до которых команда дошла: чей город, и мой прогресс в нём.
   const cityNodes = nodes.filter((n) => n.kind === "CITY" && revealed.has(n.key));
-  const [blocked, peeks, passages] = await Promise.all([
+  const [blocked, peeks, marks, passages] = await Promise.all([
     blockedCities(gameId, teamId),
     prisma.teamPeek.findMany({ where: { teamId }, select: { nodeKey: true } }),
+    prisma.teamMark.findMany({ where: { teamId }, orderBy: { createdAt: "asc" }, select: { id: true, q: true, r: true, note: true } }),
     prisma.passageRequest.findMany({ where: { gameId, requesterId: teamId, status: { in: ["PENDING", "APPROVED", "DECLINED", "EXPIRED", "REVOKED"] } }, orderBy: { createdAt: "desc" }, select: { nodeKey: true, status: true } }),
   ]);
   const passageByKey = new Map<string, string>();
@@ -346,6 +347,8 @@ export async function getTeamMap(gameId: string, teamId: string) {
     tasks: withLanding,
     cities,
     peeked,
+    // Метки команды (решение владельца 22.09): видны всем участникам команды.
+    marks,
     foreign,
     birdTarget,
   };

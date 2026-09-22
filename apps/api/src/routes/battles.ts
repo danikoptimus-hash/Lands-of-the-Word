@@ -46,7 +46,7 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
   const defensePassage = !hideDefense && b.defenseStart != null && b.defenseEnd != null && book ? { ref: range(b.defenseStart, b.defenseEnd), start: b.defenseStart, end: b.defenseEnd, verses: showDefenseText ? versesOf(book, b.defenseStart, b.defenseEnd) : null } : null;
   const entries = b.entries
     .filter((e) => forTeamId === null || e.teamId === forTeamId)
-    .map((e) => ({ id: e.id, side: e.side, userId: e.userId, nickname: users.get(e.userId) ?? "?", ref: range(e.startIdx, e.endIdx), start: e.startIdx, end: e.endIdx, verses: e.endIdx - e.startIdx + 1, links: e.links, note: e.note, status: e.status, adminComment: e.adminComment, carried: e.carried, createdAt: e.createdAt }));
+    .map((e) => ({ id: e.id, side: e.side, userId: e.userId, nickname: users.get(e.userId) ?? "?", ref: range(e.startIdx, e.endIdx), start: e.startIdx, end: e.endIdx, verses: e.endIdx - e.startIdx + 1, weight: e.weight, links: e.links, note: e.note, status: e.status, adminComment: e.adminComment, carried: e.carried, createdAt: e.createdAt }));
   const my = mySide && userId ? [...userVerses(b.entries, mySide, userId)] : [];
   return {
     id: b.id, nodeKey: b.nodeKey, bookCode: b.bookCode, bookName: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode, status: b.status, sumMode: b.sumMode, bid: b.bid, defenseBid: hideDefense ? null : b.defenseBid,
@@ -236,7 +236,9 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const fresh = body.verses.filter((v) => !mine.has(v));
     if (fresh.length === 0) return reply.code(409).send({ error: "conflict", message: err(request, "Эти стихи вы уже отметили") });
     const ranges = toRanges(fresh);
-    await prisma.battleEntry.createMany({ data: ranges.map((r) => ({ battleId: b.id, side, teamId: m.team.id, userId: request.user!.id, startIdx: r.start, endIdx: r.end, links: body.links, note: body.note })) });
+    // Воин (решение владельца 22.09): его стихи считаются вдвое — вес фиксируется на момент отметки.
+    const weight = m.gameRole === "WARRIOR" ? 2 : 1;
+    await prisma.battleEntry.createMany({ data: ranges.map((r) => ({ battleId: b.id, side, teamId: m.team.id, userId: request.user!.id, startIdx: r.start, endIdx: r.end, links: body.links, note: body.note, weight })) });
     const full = (await prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } })) as BattleWithEntries;
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "submissions" });

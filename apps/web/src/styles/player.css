@@ -81,6 +81,20 @@
 .landing-banner button { flex: none; }
 .m-battle.att circle { stroke: var(--info); } .m-battle.att use { color: var(--info); }
 .m-battle.def circle { stroke: var(--danger); } .m-battle.def use { color: var(--danger); }
+/* Метки команды: флажок цвета команды на гексе, подпись под ним; режим метки — крестик и глухие маркеры. */
+.map-canvas.marking { cursor: crosshair; }
+.map-canvas.marking .screen-items { pointer-events: none; }
+.map-area .map-controls button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.m-mark { cursor: pointer; pointer-events: auto; }
+.map-canvas.marking .m-mark { pointer-events: none; }
+.m-mark circle { stroke: var(--surface); stroke-width: 1.5; }
+.m-mark use { color: #fff; pointer-events: none; }
+.m-mark rect { fill: var(--map-paper); stroke: var(--text); stroke-width: 1; }
+.m-mark text { fill: var(--text); pointer-events: none; }
+.mark-banner { border-color: var(--accent); color: var(--accent); gap: var(--sp-3); width: calc(100% - 2 * var(--sp-4)); max-width: 520px; }
+.mark-banner span { flex: 1 1 auto; min-width: 0; }
+.mark-banner button { flex: none; }
+.roster-head .roster-invite, h2 .roster-invite { margin-left: auto; }
 .m-peek { pointer-events: none; }
 .m-peek circle { fill: var(--surface); stroke: var(--text); stroke-width: 1.2; }
 .m-peek use { color: var(--text); }

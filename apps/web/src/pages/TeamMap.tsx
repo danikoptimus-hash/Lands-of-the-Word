@@ -1,10 +1,10 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useMemo, useState, type MouseEvent } from "react";
 import { reportPage } from "../lib/perf";
 import { BOOKS, startName } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
-import type { EdgeTaskStatus, MyMapDto } from "../lib/api";
+import type { EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
 import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
 import { FaunaLayer, type FaunaHints } from "./Fauna";
@@ -23,7 +23,7 @@ const textWidth = (s: string, fs: number) => Math.ceil(s.length * fs * 0.62);
  * Карта команды на весь экран. Гексы и стороны — в масштабируемом слое,
  * значки (старт, город, метки дел, подписи) — в экранном слое постоянного размера.
  */
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт ближайший гекс; нажатие на флажок — убрать. */ onMark?: (q: number, r: number) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -46,6 +46,18 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     return m;
   }, [map, size]);
   const [ripple, setRipple] = useState<{ x: number; y: number; n: number } | null>(null);
+  const [marking, setMarking] = useState(false);
+  useEffect(() => { if (!onMark) setMarking(false); }, [onMark]);
+  /** Режим метки: точка экрана → точка карты (w·k + t = px) → ближайший гекс, не дальше радиуса гекса. Кнопки внутри карты не считаются. */
+  const placeMark = (e: MouseEvent<HTMLDivElement>) => {
+    if (!marking || vp.wasDrag() || (e.target as HTMLElement).closest("button")) return;
+    const rect = e.currentTarget.getBoundingClientRect(), v = vp.viewRef.current;
+    const x = (e.clientX - rect.left - v.tx) / v.k, y = (e.clientY - rect.top - v.ty) / v.k;
+    let best: { q: number; r: number } | null = null, bd = Infinity;
+    for (const h of map.hexes) { const c = hexCenter(h, size); const d = (c.x - x) ** 2 + (c.y - y) ** 2; if (d < bd) { bd = d; best = h; } }
+    if (!best || bd > (size * 1.1) ** 2) return;
+    setMarking(false); onMark?.(best.q, best.r);
+  };
   useEffect(() => { reportPage("map"); }, []);
   const coast = useCoast(map.hexes, size);
   const islets = useIslets(map.hexes, size, bounds);
@@ -235,10 +247,21 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             </g>
           ))}
           {ripple && <g style={sc(ripple.x, ripple.y)}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
-  </>), [map.revealed, map.edges, map.peeked, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
+          {showMarkers && (map.marks ?? []).map((mk) => {
+            const c = hexCenter(mk, size);
+            const w = mk.note ? textWidth(mk.note, 11) + 14 : 0;
+            return (
+              <g key={"mk" + mk.id} className="m-mark" style={sc(c.x, c.y, "translate(0, -12px)")} role="button" aria-label={mk.note ? t("Метка команды: {note}", { note: mk.note }) : t("Метка команды")} onClick={() => { if (!vp.wasDrag()) onMarkTap?.(mk); }}>
+                <circle r={11} style={{ fill: map.team.color }} />
+                <use href="#m-pin" x={-7} y={-7} width={14} height={14} />
+                {mk.note && <g transform="translate(0, 21)"><rect x={-w / 2} y={-9} width={w} height={18} rx={9} /><text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={600}>{mk.note}</text></g>}
+              </g>
+            );
+          })}
+  </>), [map.revealed, map.edges, map.peeked, map.marks, onMarkTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   return (
-    <div ref={vp.ref} {...vp.handlers} className="map-canvas">
+    <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "")} onClick={marking ? placeMark : undefined}>
       <SeaLayer vp={vp} bed={bed} />
       <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
       <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} />
@@ -260,7 +283,14 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       <div className="map-controls">
         <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
         {start && <button type="button" className="secondary icon" onClick={() => vp.focusOn(start.x, start.y, 2.4)} aria-label={t("К старту")} title={t("К старту")}><Icon name="flag" /></button>}
+        {onMark && <button type="button" className={"secondary icon" + (marking ? " on" : "")} aria-pressed={marking} onClick={() => setMarking((m) => !m)} aria-label={t("Метка на карте")} title={t("Метка на карте")}><Icon name="pin" /></button>}
       </div>
+      {marking && (
+        <div className="finish-banner mark-banner" role="status">
+          <Icon name="pin" /><span>{t("Нажмите на карту там, где поставить метку")}</span>
+          <button type="button" className="ghost sm" onClick={() => setMarking(false)}>{t("Отмена")}</button>
+        </div>
+      )}
     </div>
   );
 }

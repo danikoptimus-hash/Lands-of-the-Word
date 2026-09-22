@@ -362,7 +362,7 @@ const EN: Record<string, string> = {
   "Команда «{team}» объявила осаду делами: до {date} считаются одобренные дела обеих команд ({points} балл(ов) за дело, если у дела не задана своя цена). Кто сделает больше — тот владеет городом; при равенстве город остаётся вашим.": "Team “{team}” declared a siege of deeds: until {date} the approved deeds of both teams are counted ({points} point(s) per deed unless the deed has its own price). Whoever does more owns the city; on a tie the city stays yours.",
   "осада города {book} объявлена": "the siege of the city of {book} is declared",
   "До {date} считаются одобренные дела обеих команд. Делайте дела: у кого больше баллов к сроку, тот владеет городом; при равенстве город остаётся у хранителей.": "Until {date} the approved deeds of both teams are counted. Do deeds: whoever has more points by the deadline owns the city; on a tie the city stays with the keepers.",
-  "разведчик": "scout", "пророк": "prophet", "посол": "ambassador", "летописец": "chronicler", "кормчий": "helmsman", "без роли": "no role",
+  "разведчик": "scout", "пророк": "prophet", "посол": "ambassador", "летописец": "chronicler", "кормчий": "helmsman", "воин": "warrior", "без роли": "no role",
 };
 
 export const toLocale = (l: string | null | undefined): Locale => (l === "en" ? "en" : "ru");

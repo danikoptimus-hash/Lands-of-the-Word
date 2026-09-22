@@ -285,19 +285,18 @@ async function main() {
   await snap(e1, ADMIN, `/games/${S.gameId}`, "admin-settings-advanced", "Продвинутые настройки: сроки в днях (дробные — для ускоренной партии), пауза, дайджест писем.", async (p) => { await adminTab("Настройки")(p); await p.locator("details.settings-group summary").click(); await p.waitForTimeout(400); await scrollTo("Продвинутые")(p); });
   await snap(e1, ADMIN, `/games/${S.gameId}/labels`, "admin-labels", "Ярлыки для конвертов: шифр и ключ каждого города, адресат.");
 
-  const e2 = entry("Подготовка", "Роли в командах", "Капитан назначает заместителя и просит роли (разведчик, пророк, посол, кормчий); администратор одобряет запросы в блоке «Команды».");
+  const e2 = entry("Подготовка", "Роли в командах", "Капитан назначает заместителя и раздаёт роли сам (разведчик, пророк, посол, кормчий): без одобрения администратора (22.09).");
   await step("Роли", async () => {
     for (const k of Object.keys(TEAMS)) {
       const t = S.teams[k]; const n = TEAMS[k].nicks;
       await api(n[0], "PATCH", `/api/games/${S.gameId}/teams/${t.id}/members/${userId(n[1])}`, { role: "DEPUTY" });
       const roles = [["SCOUT", n[2]], ["PROPHET", n[3]], ["AMBASSADOR", n[4]], ["HELMSMAN", n[5]]];
       for (const [role, nick] of roles) await api(n[0], "PATCH", `/api/games/${S.gameId}/teams/${t.id}/members/${userId(nick)}`, { gameRole: role });
-      if (k === "M") await snap(e2, ADMIN, `/games/${S.gameId}`, "admin-roles-pending", "Запросы ролей от капитана ждут одобрения администратора.", adminTab("Команды"));
-      for (const [, nick] of roles) await post(ADMIN, `/api/games/${S.gameId}/teams/${t.id}/members/${userId(nick)}/role-decide`, { approve: true });
+      if (k === "M") await snap(e2, ADMIN, `/games/${S.gameId}`, "admin-roles", "Роли, назначенные капитаном, видны администратору в блоке «Команды».", adminTab("Команды"));
     }
     await refreshTeams();
   });
-  await snap(e2, "tg_m1", `/games/${S.gameId}/team`, "player-roster", "Состав команды у капитана до старта: заместитель и роли утверждены.", async (p) => { await p.waitForTimeout(800); });
+  await snap(e2, "tg_m1", `/games/${S.gameId}/team`, "player-roster", "Состав команды у капитана до старта: заместитель и роли назначены, кнопка «Пригласить участника».", async (p) => { await p.waitForTimeout(800); });
 
   const e3 = entry("Старт", "Старт игры", "Администратор запускает игру: команды получают стартовые точки на карте, вокруг — дела на сторонах.");
   await step("Старт", async () => { await post(ADMIN, `/api/games/${S.gameId}/start`); await loadWorld(); await refreshTeams(); });
@@ -357,8 +356,8 @@ async function main() {
         if (S.shown.has(pub.type)) return;
         S.shown.add(pub.type);
         if (pub.index === 2) {
-          await post("tg_m4", `/api/games/${S.gameId}/my-city/${encodeURIComponent(cityM)}/hint`, { index: 2 }).catch((e) => failures.push({ title: "подсказка пророка", error: String(e.message) }));
-          await snap(e5, "tg_m4", `/games/${S.gameId}/team`, "city-prophet-letter", "Пророк: свеча в шапке города и «Письмо пророка» с текстом района (видит только пророк).", async (p) => { await openCity(bn)(p); await p.locator(".district").nth(2).click(); await p.waitForTimeout(700); await scrollTo("Письмо")(p); });
+          // Письмо пророка приходит один раз в ответ на свечу (22.09): зажигаем её в интерфейсе и снимаем лист письма.
+          await snap(e5, "tg_m4", `/games/${S.gameId}/team`, "city-prophet-letter", "Пророк: свеча в шапке города и «Письмо пророка», показанное один раз (видит только пророк).", async (p) => { await openCity(bn)(p); await p.locator(".district").nth(2).click(); await p.waitForTimeout(700); const candle = p.getByRole("button", { name: /Свеч|пророк/i }).first(); if (await candle.count()) { await candle.click(); await p.waitForTimeout(900); } else failures.push({ title: "подсказка пророка", error: "кнопка свечи не найдена" }); });
         }
         const cap = { choice: "Задание с выбором: замок с одним кольцом — листайте до верного варианта и проверните.", text: "Текстовое задание: обгоревший свиток с пропуском в цитате или обычное поле.", order: "«Расставьте по порядку»: замок, пункты — разорванные полоски.", number: "Числовое задание.", crossword: "Кроссворд по району: сетка и вопросы." }[pub.type];
         await snap(e5, who, `/games/${S.gameId}/team`, "city-task-" + name, cap, async (p) => { await openCity(bn)(p); await p.locator(".district").nth(pub.index).click(); await p.waitForTimeout(700); if (pub.type === "choice") { await p.locator(".ring .turn").first().click(); await p.waitForTimeout(300); } });
@@ -466,7 +465,6 @@ async function main() {
     await refreshTeams();
     // Смена роли: капитан «Пустыни» просит нового кормчего, администратор одобряет.
     await api("tg_p1", "PATCH", `/api/games/${S.gameId}/teams/${S.teams.P.id}/members/${userId("tg_p5")}`, { gameRole: "HELMSMAN" });
-    await post(ADMIN, `/api/games/${S.gameId}/teams/${S.teams.P.id}/members/${userId("tg_p5")}/role-decide`, { approve: true });
   });
 
   // 7. Ждём срок ответа хранителей (испытание 2) и сгорание вызова (испытание 3)

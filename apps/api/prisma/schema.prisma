@@ -242,6 +242,8 @@ enum GameRole {
   CHRONICLER
   /** Кормчий: морские переходы и выбор места высадки. */
   HELMSMAN
+  /** Воин (решение владельца 22.09): его стихи в испытаниях считаются вдвое. */
+  WARRIOR
 }
 
 model Team {
@@ -263,6 +265,7 @@ model Team {
   lastRoleChangeAt DateTime?
   penalties      TeamPenalty[]
   peeks          TeamPeek[]
+  marks          TeamMark[]
   passageOut     PassageRequest[] @relation("requester")
   passageIn      PassageRequest[] @relation("owner")
   createdAt    DateTime     @default(now())
@@ -529,6 +532,8 @@ model BattleEntry {
   note         String      @default("")
   status       EntryStatus @default(SUBMITTED)
   adminComment String      @default("")
+  /** Вес стихов: 2 у воина на момент отметки (решение владельца 22.09), иначе 1. */
+  weight       Int         @default(1)
   /** Зачтено из прошлого испытания: выученные стихи хранителей засчитываются в новых вызовах автоматически. */
   carried      Boolean     @default(false)
   createdAt    DateTime    @default(now())
@@ -616,6 +621,22 @@ model TeamPeek {
   createdAt DateTime @default(now())
 
   @@unique([teamId, nodeKey])
+}
+
+/** Метка команды на карте (решение владельца 22.09): гекс, короткая подпись; видят все участники команды, убрать может любой из них. */
+model TeamMark {
+  id          String   @id @default(cuid())
+  gameId      String
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  q           Int
+  r           Int
+  note        String   @default("")
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@unique([teamId, q, r])
+  @@index([gameId, teamId])
 }
 
 /**

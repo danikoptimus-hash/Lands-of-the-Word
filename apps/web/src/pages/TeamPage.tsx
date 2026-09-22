@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type BattleDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
+import { api, ApiError, type BattleDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamMap } from "./TeamMap";
@@ -121,6 +121,7 @@ const ROLE: Record<GameRole | "CAPTAIN" | "DEPUTY", { icon: string; label: () =>
   AMBASSADOR: { icon: "handshake", label: () => t("Посол"), hint: () => t("Отправляет запросы прохода другим командам и отвечает на их запросы.") },
   CHRONICLER: { icon: "edit", label: () => t("Летописец"), hint: () => t("Сдаёт дела за команду и следит, чтобы ссылки и фото были приложены.") },
   HELMSMAN: { icon: "ship", label: () => t("Кормчий"), hint: () => t("Ведёт корабль: выбирает место высадки на другом острове.") },
+  WARRIOR: { icon: "sword", label: () => t("Воин"), hint: () => t("Его выученные стихи в испытаниях считаются вдвое.") },
   NONE: { icon: "user", label: () => t("Без роли"), hint: () => "" },
 };
 
@@ -157,6 +158,11 @@ export function TeamPage() {
   const [donationCfg, setDonationCfg] = useState<{ min: number; currency: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
+  const [markAt, setMarkAt] = useState<{ q: number; r: number } | null>(null);
+  const [markNote, setMarkNote] = useState("");
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteDone, setInviteDone] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const seenBattles = useRef<Map<string, string> | null>(null);
   /** Описание дела свёрнуто до двух строк («Подробнее»), пока дело не взято мной; при смене дела сворачивается снова. */
   const [descOpen, setDescOpen] = useState(false);
@@ -269,10 +275,43 @@ export function TeamPage() {
   async function setGameRole(userId: string, gameRole: GameRole) {
     setError(null);
     try {
-      const r = await api<{ pending?: boolean }>(`/api/games/${id}/teams/${team!.id}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ gameRole }) });
-      if (r.pending) notify(t("Запрос отправлен администратору: роль назначится после одобрения"), "info");
+      await api(`/api/games/${id}/teams/${team!.id}/members/${userId}`, { method: "PATCH", body: JSON.stringify({ gameRole }) });
+      notify(gameRole === "NONE" ? t("Роль снята") : t("Роль назначена"), "info");
       await loadTeam();
     }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+  }
+  /**
+   * Ссылка для участников от капитана (решение владельца 22.09): одна кнопка, ссылка сразу в буфере.
+   * В Safari буфер доступен только из жеста — ссылка передаётся обещанием через ClipboardItem; где его нет, ждём ответ и пишем текст.
+   */
+  async function inviteCopy() {
+    setInviteBusy(true); setInviteUrl(null);
+    const url = api<{ invite: { path: string } }>(`/api/games/${id}/teams/${team!.id}/invites`, { method: "POST", body: JSON.stringify({ role: "MEMBER" }) }).then((r) => window.location.origin + r.invite.path);
+    try {
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        await navigator.clipboard.write([new ClipboardItem({ "text/plain": url.then((u) => new Blob([u], { type: "text/plain" })) })]);
+      } else {
+        await navigator.clipboard.writeText(await url);
+      }
+      notify(t("Ссылка для участников скопирована: действует 14 дней, до 20 человек")); setInviteDone(true); setTimeout(() => setInviteDone(false), 1500);
+    } catch (e) {
+      if (e instanceof ApiError) { notify(e.message, "bad"); return; }
+      try { setInviteUrl(await url); notify(t("Не удалось скопировать: выделите ссылку вручную"), "bad"); } catch (e2) { notify(e2 instanceof ApiError ? e2.message : t("Ошибка сети"), "bad"); }
+    } finally { setInviteBusy(false); }
+  }
+  async function putMark() {
+    if (!markAt) return;
+    setBusy(true);
+    try {
+      await api(`/api/games/${id}/my-map/marks`, { method: "POST", body: JSON.stringify({ q: markAt.q, r: markAt.r, note: markNote.trim() }) });
+      setMarkAt(null); setMarkNote(""); notify(t("Метка поставлена: её видит вся команда"), "info"); await loadMap();
+    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  }
+  async function removeMark(mk: MapMarkDto) {
+    if (!(await confirm(mk.note ? t("Метка «{note}» исчезнет у всей команды.", { note: mk.note }) : t("Метка исчезнет у всей команды."), { title: t("Убрать метку?"), okLabel: t("Убрать") }))) return;
+    try { await api(`/api/games/${id}/my-map/marks/${mk.id}`, { method: "DELETE" }); await loadMap(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
   }
   async function setDeputy(userId: string, on: boolean) {
@@ -352,7 +391,7 @@ export function TeamPage() {
             <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} roster={<Roster embedded team={team} isCaptain={false} onRole={setGameRole} onDeputy={setDeputy} />} />
           </div>
         )}
-        {map.status !== "FINISHED" && <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></div>}
+        {map.status !== "FINISHED" && <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} /></div>}
       </main>
     );
   }
@@ -481,7 +520,7 @@ export function TeamPage() {
           )}
           {menuView === "standings" && (
             <section className="section">
-            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} />} />
+            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />
             </section>
           )}
           {menuView === "standings" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
@@ -501,7 +540,8 @@ export function TeamPage() {
 
       <div className="map-area" ref={setMapEl}>
         <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
-          landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)} />
+          landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
+          onMark={(q, r) => { setMarkAt({ q, r }); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)} />
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">
             <Icon name="ship" /><span>{isLeader ? t("Выберите на другом острове место высадки") : t("Капитан или кормчий выбирает место высадки")}</span>
@@ -522,6 +562,12 @@ export function TeamPage() {
           <div className="finish-banner" role="status"><Icon name="trophy" /><span>{winner ? t("Игра завершена: победила «{team}»", { team: winner }) : t("Игра завершена")}</span></div>
         )}
 
+        {markAt && (
+          <Sheet size="sm" container={mapEl} title={t("Метка на карте")} onClose={() => setMarkAt(null)} foot={<><button type="button" className="ghost" onClick={() => setMarkAt(null)}>{t("Отмена")}</button><button type="button" disabled={busy} onClick={() => void putMark()}><Icon name="pin" />{t("Поставить")}</button></>}>
+            <p className="muted">{t("Метку увидят все в команде. Убрать её можно нажатием на флажок.")}</p>
+            <div className="field"><label htmlFor="mark-note">{t("Подпись")} <span className="opt">{t("необязательно")}</span></label><input id="mark-note" maxLength={40} value={markNote} onChange={(e) => setMarkNote(e.target.value)} placeholder={t("птицы сели здесь")} /></div>
+          </Sheet>
+        )}
         {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} isCaptain={isCaptain || me?.role === "DEPUTY"} version={cityVersion} container={mapEl} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); void loadPassages(); }} />}
 
         {task && (() => {
@@ -631,14 +677,16 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
 
 /** Состав команды: роль — пилюля с объяснением по нажатию; капитан назначает роли выбором. */
 /** embedded — внутри строки таблицы команд: вместо заголовка раздела — строка «Состав · N». */
-function Roster({ team, isCaptain, onRole, onDeputy, embedded = false }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean }) {
+function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
   const [open, setOpen] = useState<string | null>(null);
   const nextChange = team.roleChangeAvailableAt && Date.parse(team.roleChangeAvailableAt) > Date.now() ? team.roleChangeAvailableAt : null;
+  const invite = onInvite && <button type="button" className="secondary sm roster-invite" disabled={inviteBusy} title={t("Скопировать ссылку для участников")} onClick={onInvite}><Icon name={inviteDone ? "check" : "link"} />{t("Пригласить участника")}</button>;
   return (
     <>
       {embedded
-        ? <div className="meta roster-head"><Icon name="users" />{t("Состав")} · {team.members.length}</div>
-        : <h2><Icon name="users" />{t("Состав")}<span className="count">{team.members.length}</span>{isCaptain && <Help>{t("Роли назначает капитан, одобряет администратор. Менять — не чаще раза в неделю.")}</Help>}</h2>}
+        ? <div className="meta roster-head"><Icon name="users" />{t("Состав")} · {team.members.length}{invite}</div>
+        : <h2><Icon name="users" />{t("Состав")}<span className="count">{team.members.length}</span>{isCaptain && <Help>{t("Роли назначает капитан; менять — не чаще раза в неделю.")}</Help>}{invite}</h2>}
+      {inviteUrl && <p className="hint invite-fallback"><a href={inviteUrl}>{inviteUrl}</a></p>}
       {isCaptain && nextChange && <p className="hint">{t("Следующая смена ролей — {d}.", { d: fmtDate(nextChange, { time: false }) })}</p>}
       <ul className="list roster">
         {team.members.map((m) => {
@@ -651,7 +699,6 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false }: { team:
             <li key={m.user.id}>
               <div className="main">
                 <div className="person"><span className="avatar">{name.slice(0, 1).toUpperCase()}</span><span className="name">{name}</span>{m.role === "DEPUTY" && m.gameRole !== "NONE" && <Chip tone="accent" icon="star">{t("заместитель")}</Chip>}</div>
-                {m.pendingRole && <p className="mt-1"><Chip tone="warn" icon="clock">{t("{role} · ждёт одобрения", { role: ROLE[m.pendingRole].label() })}</Chip></p>}
                 {shown && r.hint() && <p className="hint">{r.hint()}</p>}
               </div>
               <div className="side">

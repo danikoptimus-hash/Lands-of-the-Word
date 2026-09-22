@@ -5,7 +5,7 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err, msg } from "../services/i18n.js";
-import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
+import { notifyTeam, notifyUser } from "../services/notify.js";
 import { ensureFrontier, penalizeTeam } from "../services/teamMap.js";
 import { days, rulesOf } from "../services/rules.js";
 import { journal, nick, ROLE_RU } from "../services/journal.js";
@@ -18,7 +18,7 @@ const createTeamBody = z.object({
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
 });
 const inviteBody = z.object({ role: z.enum(["CAPTAIN", "MEMBER"]).default("MEMBER"), uses: z.number().int().min(1).max(100).default(20), days: z.number().int().min(1).max(60).default(14) });
-const GAME_ROLES = ["NONE", "SCOUT", "PROPHET", "AMBASSADOR", "CHRONICLER", "HELMSMAN"] as const;
+const GAME_ROLES = ["NONE", "SCOUT", "PROPHET", "AMBASSADOR", "CHRONICLER", "HELMSMAN", "WARRIOR"] as const;
 const memberPatch = z.object({ role: z.enum(["CAPTAIN", "DEPUTY", "MEMBER"]).optional(), gameRole: z.enum(GAME_ROLES).optional() });
 
 async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
@@ -96,14 +96,23 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  /** Ссылка-приглашение в команду. Выдаёт админ игры. */
+  /**
+   * Ссылка-приглашение в команду. Ссылку для капитана выдаёт администратор игры; ссылку для участников — администратор
+   * или капитан этой команды (решение владельца 22.09: капитан сам набирает команду).
+   */
   app.post("/api/games/:id/teams/:teamId/invites", async (request, reply) => {
     const { id, teamId } = request.params as { id: string; teamId: string };
-    const game = await requireGameAdmin(request, reply, id);
-    if (!game) return;
+    const body = inviteBody.parse(request.body ?? {});
+    const game = await prisma.game.findUnique({ where: { id }, include: { admins: { select: { userId: true } } } });
+    if (!game) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
+    const isAdmin = game.admins.some((a) => a.userId === request.user!.id);
+    if (!isAdmin) {
+      const me = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId: request.user!.id } } });
+      if (me?.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Приглашать участников может администратор или капитан команды") });
+      if (body.role === "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Ссылку для капитана выдаёт администратор игры") });
+    }
     const team = await prisma.team.findFirst({ where: { id: teamId, gameId: id } });
     if (!team) return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
-    const body = inviteBody.parse(request.body ?? {});
     const invite = await prisma.invite.create({
       data: { id: randomBytes(18).toString("base64url"), gameId: id, teamId, role: body.role, usesLeft: body.uses, expiresAt: new Date(Date.now() + body.days * 86400_000) },
     });
@@ -111,8 +120,9 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /**
-   * Роли (решение владельца 18.09): капитана назначает администратор; заместителя — капитан; игровые роли капитан
-   * запрашивает, администратор одобряет, смена — не чаще раза в неделю (по правилам игры). Администратор ставит роли сразу.
+   * Роли: капитана назначает администратор; заместителя — капитан; игровые роли капитан ставит сам, сразу, без одобрения
+   * (решение владельца 22.09; раньше запрос ждал администратора), смена — не чаще раза в неделю по правилам игры.
+   * Администратор ставит роли без ограничения по сроку.
    */
   app.patch("/api/games/:id/teams/:teamId/members/:userId", async (request, reply) => {
     const { id, teamId, userId } = request.params as { id: string; teamId: string; userId: string };
@@ -133,45 +143,21 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     }
     if (body.role === "CAPTAIN") body.gameRole = "NONE";
     if (body.role === "DEPUTY") await prisma.membership.updateMany({ where: { teamId, role: "DEPUTY" }, data: { role: "MEMBER" } }); // один заместитель
-    // Игровая роль от капитана — запрос администратору, не чаще раза в неделю.
-    if (body.gameRole !== undefined && !isAdmin) {
-      if (membership.team.lastRoleChangeAt && rules.roleChangeDays > 0 && Date.now() - membership.team.lastRoleChangeAt.getTime() < days(rules.roleChangeDays)) {
-        return reply.code(429).send({ error: "cooldown", message: err(request, "Роли меняются не чаще раза в {n} дн.; следующая смена — {date}", { n: rules.roleChangeDays, date: new Date(membership.team.lastRoleChangeAt.getTime() + days(rules.roleChangeDays)).toLocaleDateString("ru-RU") }) });
-      }
-      const pending = await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { ...(body.role ? { role: body.role } : {}), pendingRole: body.gameRole }, select: memberSelect });
-      publish(id, { type: "teams", teamId });
-      notifyAdmins(id, "запрос смены роли в команде «{team}»", "Капитан команды «{team}» просит назначить роль участнику. Одобрите или отклоните в блоке «Команды».", { team: membership.team.name });
-      return { member: pending, pending: true };
+    // Смена игровой роли капитаном — не чаще раза в неделю (по правилам игры).
+    if (body.gameRole !== undefined && !isAdmin && membership.team.lastRoleChangeAt && rules.roleChangeDays > 0 && Date.now() - membership.team.lastRoleChangeAt.getTime() < days(rules.roleChangeDays)) {
+      return reply.code(429).send({ error: "cooldown", message: err(request, "Роли меняются не чаще раза в {n} дн.; следующая смена — {date}", { n: rules.roleChangeDays, date: new Date(membership.team.lastRoleChangeAt.getTime() + days(rules.roleChangeDays)).toLocaleDateString("ru-RU") }) });
     }
     if (body.gameRole && body.gameRole !== "NONE") {
       // Одна игровая роль — один участник.
       await prisma.membership.updateMany({ where: { teamId, gameRole: body.gameRole }, data: { gameRole: "NONE" } });
     }
     const updated = await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { ...body, ...(body.gameRole !== undefined ? { pendingRole: null } : {}) }, select: memberSelect });
-    if (body.gameRole !== undefined) await prisma.team.update({ where: { id: teamId }, data: { lastRoleChangeAt: new Date() } });
+    if (body.gameRole !== undefined) {
+      await prisma.team.update({ where: { id: teamId }, data: { lastRoleChangeAt: new Date() } });
+      if (body.gameRole !== "NONE") journal(id, "role_changed", { teamId, userId, vars: { user: await nick(userId), role: ROLE_RU[body.gameRole] ?? body.gameRole } });
+    }
     publish(id, { type: "teams", teamId });
     return { member: updated };
-  });
-
-  /** Администратор одобряет или отклоняет запрошенную капитаном роль. */
-  app.post("/api/games/:id/teams/:teamId/members/:userId/role-decide", async (request, reply) => {
-    const { id, teamId, userId } = request.params as { id: string; teamId: string; userId: string };
-    const game = await requireGameAdmin(request, reply, id);
-    if (!game) return;
-    const body = z.object({ approve: z.boolean() }).parse(request.body);
-    const membership = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId } }, include: { team: true } });
-    if (!membership || membership.team.gameId !== id || !membership.pendingRole) return reply.code(404).send({ error: "not_found", message: err(request, "Запрос роли не найден") });
-    if (body.approve) {
-      if (membership.pendingRole !== "NONE") await prisma.membership.updateMany({ where: { teamId, gameRole: membership.pendingRole }, data: { gameRole: "NONE" } });
-      await prisma.$transaction([
-        prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { gameRole: membership.pendingRole, pendingRole: null } }),
-        prisma.team.update({ where: { id: teamId }, data: { lastRoleChangeAt: new Date() } }),
-      ]);
-      journal(id, "role_changed", { teamId, userId, vars: { user: await nick(userId), role: ROLE_RU[membership.pendingRole] ?? membership.pendingRole } });
-    } else await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { pendingRole: null } });
-    publish(id, { type: "teams", teamId });
-    notifyTeam(id, teamId, body.approve ? "роль назначена" : "смена роли отклонена", body.approve ? "Администратор одобрил смену роли в команде." : "Администратор не одобрил смену роли в команде.");
-    return { ok: true };
   });
 
   /** Администратор переводит участника в другую команду (по спискам молодёжного совета; выбывшие команды — так же). */

@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
-import { orderQueue } from "./services/battles.js";
+import { orderQueue, sumVerses } from "./services/battles.js";
 import { pauseAfter, rulesOf } from "./services/rules.js";
 
 /**
@@ -76,6 +76,12 @@ describe("правила и настройки", () => {
     expect(pauseAfter(r, 1)).toBe(20_000);
     expect(pauseAfter(r, 3)).toBe(300_000);
     expect(pauseAfter(r, 99)).toBe(3_600_000);
+  });
+
+  it("воин: его стихи считаются вдвое; вес берётся по участнику, стихи не дублируются", () => {
+    const e = (userId: string, startIdx: number, endIdx: number, weight: number) => ({ userId, side: "ATTACK", status: "PENDING", startIdx, endIdx, weight }) as unknown as Parameters<typeof sumVerses>[0][number];
+    expect(sumVerses([e("a", 0, 4, 2), e("a", 3, 6, 2), e("b", 0, 2, 1)], "ATTACK", false)).toBe(7 * 2 + 3);
+    expect(sumVerses([e("a", 0, 4, 1)], "ATTACK", false)).toBe(5);
   });
 
   it("очередь: по ставке, но сгоревшая команда — после всех, кто встал раньше", () => {
@@ -263,14 +269,17 @@ describe("штраф, роли, пророк", () => {
   it("подсказку пророка видит только пророк; заместитель бросает вызов", async () => {
     const p3 = await prisma.user.findUniqueOrThrow({ where: { nickname: p3Nick } });
     await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${p3.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "PROPHET" } });
+    expect((await post(`/api/games/${gameId}/my-city/${rutKey}/hint`, p2Cookie, { index: 0 })).statusCode).toBe(403);
+    // Письмо пророка приходит один раз, в ответ на зажжённую свечу; отдельного маршрута чтения нет (решение владельца 22.09).
     const hint = await post(`/api/games/${gameId}/my-city/${rutKey}/hint`, p3Cookie, { index: 0 });
     expect(hint.statusCode).toBe(200);
+    expect(hint.json().text.length).toBeGreaterThan(0);
+    expect(hint.json().verses).toBeTruthy();
     const prophetView = await get(`/api/games/${gameId}/my-city/${rutKey}`, p3Cookie);
     expect(prophetView.json().state.hintTasks).toEqual([0]);
     const captainView = await get(`/api/games/${gameId}/my-city/${rutKey}`, p2Cookie);
     expect(captainView.json().state.hintTasks).toEqual([]);
-    expect((await get(`/api/games/${gameId}/my-city/${rutKey}/hint/0`, p2Cookie)).statusCode).toBe(403);
-    expect((await get(`/api/games/${gameId}/my-city/${rutKey}/hint/0`, p3Cookie)).json().text.length).toBeGreaterThan(0);
+    expect((await get(`/api/games/${gameId}/my-city/${rutKey}/hint/0`, p3Cookie)).statusCode).toBe(404);
     // Заместитель капитана может бросить вызов.
     const dep = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${p3.id}`, headers: { cookie: p2Cookie }, payload: { role: "DEPUTY" } });
     expect(dep.json().member.role).toBe("DEPUTY");
@@ -327,5 +336,24 @@ describe("осада делами и дела этапа 2", () => {
     // Среди свободных сторон всегда есть дело «издалека».
     const map2 = await get(`/api/games/${gameId}/my-map`, p2Cookie);
     expect((map2.json().tasks as Array<{ status: string; deed: { remote?: boolean } }>).some((x) => x.status === "OPEN" && x.deed.remote)).toBe(true);
+  });
+  it("метки команды на карте: ставит любой участник, видит вся команда, чужие не видят; удаляет команда", async () => {
+    const hex = (await get(`/api/games/${gameId}/my-map`, p3Cookie)).json().hexes[0] as { q: number; r: number };
+    const bad = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: 150, r: 150, note: "" });
+    expect(bad.statusCode).toBe(404);
+    const put = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: hex.q, r: hex.r, note: "птицы сели здесь" });
+    expect(put.statusCode).toBe(201);
+    const markId = put.json().mark.id as string;
+    const mates = (await get(`/api/games/${gameId}/my-map`, p2Cookie)).json().marks as Array<{ id: string; q: number; r: number; note: string }>;
+    expect(mates).toEqual([{ id: markId, q: hex.q, r: hex.r, note: "птицы сели здесь" }]);
+    const others = (await get(`/api/games/${gameId}/my-map`, p1Cookie)).json().marks as unknown[];
+    expect(others.some((m) => (m as { id: string }).id === markId)).toBe(false);
+    // Та же клетка — метка обновляется, не дублируется.
+    const again = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: hex.q, r: hex.r, note: "" });
+    expect(again.statusCode).toBe(201);
+    expect((await get(`/api/games/${gameId}/my-map`, p2Cookie)).json().marks).toHaveLength(1);
+    expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${markId}`, headers: { cookie: p1Cookie } })).statusCode).toBe(404);
+    expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${markId}`, headers: { cookie: p2Cookie } })).statusCode).toBe(200);
+    expect((await get(`/api/games/${gameId}/my-map`, p3Cookie)).json().marks).toHaveLength(0);
   });
 });

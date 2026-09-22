@@ -74,7 +74,7 @@ export async function teamNames(...ids: string[]): Promise<string[]> {
   const rows = await prisma.team.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } });
   return ids.map((id) => rows.find((r) => r.id === id)?.name ?? "");
 }
-export const ROLE_RU: Record<string, string> = { NONE: "без роли", SCOUT: "разведчик", PROPHET: "пророк", AMBASSADOR: "посол", CHRONICLER: "летописец", HELMSMAN: "кормчий" };
+export const ROLE_RU: Record<string, string> = { NONE: "без роли", SCOUT: "разведчик", PROPHET: "пророк", AMBASSADOR: "посол", CHRONICLER: "летописец", HELMSMAN: "кормчий", WARRIOR: "воин" };
 
 /** Записать событие. Не ломает запрос: ошибка только в консоль. */
 export function journal(gameId: string, kind: JournalKind, o: { teamId?: string | null; userId?: string | null; everyone?: boolean; vars?: JournalVars; text?: string } = {}): void {

@@ -109,16 +109,18 @@ describe("команды и приглашения", () => {
     // Капитан (player) сам роль не получает: капитан — уже роль.
     const r1 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${player.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "SCOUT" } });
     expect(r1.statusCode).toBe(409);
-    // Капитан запрашивает роль — она ждёт одобрения администратора (решение владельца 18.09).
+    // Капитан ставит роль сам, сразу, без одобрения администратора (решение владельца 22.09).
     const r2 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "SCOUT" } });
     expect(r2.statusCode).toBe(200);
-    expect(r2.json()).toMatchObject({ pending: true, member: { gameRole: "NONE", pendingRole: "SCOUT" } });
-    const approve = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}/role-decide`, headers: { cookie: adminCookie }, payload: { approve: true } });
-    expect(approve.statusCode).toBe(200);
+    expect(r2.json()).toMatchObject({ member: { gameRole: "SCOUT", pendingRole: null } });
+    expect(r2.json().pending).toBeUndefined();
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}/role-decide`, headers: { cookie: adminCookie }, payload: { approve: true } })).statusCode).toBe(404);
     // Следующая смена капитаном — не раньше чем через неделю.
     const soon = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "PROPHET" } });
     expect(soon.statusCode).toBe(429);
-    // Администратор ставит роль сразу; одна роль — один человек.
+    // Администратор ставит роль без ожидания; одна роль — один человек. «Воин» — тоже роль.
+    const warrior = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "WARRIOR" } });
+    expect(warrior.json().member.gameRole).toBe("WARRIOR");
     const r3 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "PROPHET" } });
     expect(r3.statusCode).toBe(200);
     const teams = await app.inject({ method: "GET", url: `/api/games/${gameId}/teams`, headers: { cookie: adminCookie } });
@@ -131,6 +133,17 @@ describe("команды и приглашения", () => {
     // Рядовой участник не может назначать капитана.
     const forb = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: otherCookie }, payload: { role: "CAPTAIN" } });
     expect(forb.statusCode).toBe(403);
+  });
+
+  it("капитан выдаёт ссылку для участников; ссылку для капитана — только администратор", async () => {
+    const member = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/invites`, headers: { cookie: playerCookie }, payload: { role: "MEMBER" } });
+    expect(member.statusCode).toBe(201);
+    expect(member.json().invite).toMatchObject({ role: "MEMBER", usesLeft: 20 });
+    const captain = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/invites`, headers: { cookie: playerCookie }, payload: { role: "CAPTAIN" } });
+    expect(captain.statusCode).toBe(403);
+    // Рядовой участник ссылку не выдаёт.
+    const other = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/invites`, headers: { cookie: otherCookie }, payload: { role: "MEMBER" } });
+    expect(other.statusCode).toBe(403);
   });
 
   it("мои команды", async () => {

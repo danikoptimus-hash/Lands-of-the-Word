@@ -104,7 +104,6 @@ export const LEGACY: Record<string, string> = {
   "Перенести столицу сюда": "Move the capital here",
   "Перетащить": "Drag",
   "Письма нет? Проверьте «Спам». Если почта в учётке не была указана, восстановить пароль нельзя: заведите новую учётку и попросите капитана прислать приглашение в команду.": "No email? Check “Spam”. If the account had no email, the password cannot be recovered: create a new account and ask the captain for a team invite.",
-  "Подсказка открыта: текст района ниже": "Hint opened: the district text is below",
   "Пока нет игр. Создай первую.": "No games yet. Create the first one.",
   "Пока ничего не взято. Нажми на сторону с меткой на карте.": "Nothing taken yet. Tap a marked side on the map.",
   "Положение команд": "Standings",

@@ -24,19 +24,20 @@ export interface MapNodeDto { key: string; corner: "N" | "S"; q: number; r: numb
 export interface MapEdgeDto { aKey: string; bKey: string }
 
 export type TeamRole = "CAPTAIN" | "DEPUTY" | "MEMBER";
-export type GameRole = "NONE" | "SCOUT" | "PROPHET" | "AMBASSADOR" | "CHRONICLER" | "HELMSMAN";
+export type GameRole = "NONE" | "SCOUT" | "PROPHET" | "AMBASSADOR" | "CHRONICLER" | "HELMSMAN" | "WARRIOR";
 export interface MemberDto { role: TeamRole; gameRole: GameRole; pendingRole?: GameRole | null; joinedAt: string; user: { id: string; nickname: string; displayName: string | null } }
 export interface TeamDto { id: string; index: number; name: string; color: string; startNodeKey: string | null; status?: string; roleChangeAvailableAt?: string | null; members: MemberDto[] }
 export interface MyTeamDto { role: TeamRole; gameRole: GameRole; team: { id: string; name: string; color: string }; game: { id: string; name: string; status: string; org: { name: string } } }
 
-export const GAME_ROLE_LABEL: Record<GameRole, string> = { get NONE() { return t("Без роли"); }, get SCOUT() { return t("Разведчик"); }, get PROPHET() { return t("Пророк"); }, get AMBASSADOR() { return t("Посол"); }, get CHRONICLER() { return t("Летописец"); }, get HELMSMAN() { return t("Кормчий"); } };
+export const GAME_ROLE_LABEL: Record<GameRole, string> = { get NONE() { return t("Без роли"); }, get SCOUT() { return t("Разведчик"); }, get PROPHET() { return t("Пророк"); }, get AMBASSADOR() { return t("Посол"); }, get CHRONICLER() { return t("Летописец"); }, get HELMSMAN() { return t("Кормчий"); }, get WARRIOR() { return t("Воин"); } };
 export const TEAM_ROLE_LABEL: Record<TeamRole, string> = { get CAPTAIN() { return t("капитан"); }, get DEPUTY() { return t("заместитель"); }, get MEMBER() { return t("участник"); } };
 
 export type EdgeTaskStatus = "OPEN" | "TAKEN" | "SUBMITTED" | "APPROVED" | "REJECTED";
 export interface DeedLite { id: string; title: string; description: string; direction: string; proofType: "REPORT" | "PHOTO_LINK" | "VIDEO_LINK"; /** Тайное дело: ссылки и описание сдачи видит только тот, кто взял, и администратор. */ secret?: boolean; /** Можно сделать издалека. */ remote?: boolean }
 export interface EdgeTaskDto { id: string; fromKey: string; toKey: string; deedId: string; status: EdgeTaskStatus; takenById: string | null; links: string[]; note: string; adminComment: string; submittedAt: string | null; deed: DeedLite; /** Кто участвовал в деле группой. */ participants?: string[]; donation?: boolean; donationAmount?: number | null; /** Морская сторона из порта; landing — одобрено, капитан выбирает место высадки из candidates. */ sea?: boolean; landing?: boolean; candidates?: string[] }
 export interface MapCityDto { nodeKey: string; hasContent: boolean; total: number; owner: { index: number; name: string; color: string } | null; orderSolved: boolean; done: number; captured: boolean; isCapital: boolean; battle: "ATTACK" | "DEFENSE" | null; ruined: boolean; blocked: boolean; passage: string | null }
-export interface MyMapDto { status: string; team: { id: string; name: string; color: string; startNodeKey?: string | null }; hexes: MapHexDto[]; revealed: MapNodeDto[]; edges: MapEdgeDto[]; tasks: EdgeTaskDto[]; cities: MapCityDto[]; peeked: Array<{ key: string; kind: string }>; /** Чужие пройденные стороны там, где открыт туман. */ foreign?: Array<{ aKey: string; bKey: string; teamIndex: number; color: string }>; /** Только в ответе администратору («глазами команды»): участники, чтобы подписать, кто взял дело. */ members?: Array<{ id: string; nickname: string; displayName: string | null }>; /** Живность-подсказка: ближайший неоткрытый город от старта (клин птиц раз в день). */ birdTarget?: { key: string; corner: string; q: number; r: number } | null }
+export interface MapMarkDto { id: string; q: number; r: number; note: string }
+export interface MyMapDto { status: string; team: { id: string; name: string; color: string; startNodeKey?: string | null }; hexes: MapHexDto[]; revealed: MapNodeDto[]; edges: MapEdgeDto[]; tasks: EdgeTaskDto[]; cities: MapCityDto[]; peeked: Array<{ key: string; kind: string }>; /** Метки команды на гексах: видит вся команда (решение владельца 22.09). */ marks?: MapMarkDto[]; /** Чужие пройденные стороны там, где открыт туман. */ foreign?: Array<{ aKey: string; bKey: string; teamIndex: number; color: string }>; /** Только в ответе администратору («глазами команды»): участники, чтобы подписать, кто взял дело. */ members?: Array<{ id: string; nickname: string; displayName: string | null }>; /** Живность-подсказка: ближайший неоткрытый город от старта (клин птиц раз в день). */ birdTarget?: { key: string; corner: string; q: number; r: number } | null }
 
 /** Город глазами команды: районы (сцены книги), задания без ответов, буквы шифра, состояние. */
 export interface CityDistrictDto { id: string; verses: string; title: string; summary: string; index: number | null }
@@ -90,7 +91,7 @@ export interface SeasonBookDto {
 
 /** Битва за город. Записи чужой стороны команде не видны. */
 export type BattleStatus = "QUEUED" | "ATTACK" | "DEFENSE" | "WON" | "REPELLED" | "EXPIRED" | "CANCELLED";
-export interface BattleEntryDto { id: string; side: "ATTACK" | "DEFENSE"; userId: string; nickname: string; ref: string; start: number; end: number; verses: number; links: string[]; note: string; status: "SUBMITTED" | "APPROVED" | "REJECTED"; adminComment: string; carried?: boolean; createdAt: string }
+export interface BattleEntryDto { id: string; side: "ATTACK" | "DEFENSE"; userId: string; nickname: string; ref: string; start: number; end: number; verses: number; weight?: number; links: string[]; note: string; status: "SUBMITTED" | "APPROVED" | "REJECTED"; adminComment: string; carried?: boolean; createdAt: string }
 export interface PassageDto { ref: string; start: number; end: number; verses: Array<{ idx: number; ref: string; text: string | null }> | null }
 export interface BattleDto {
   id: string; nodeKey: string; bookCode: string; bookName: string; status: BattleStatus; sumMode: boolean; bid: number; defenseBid: number | null;

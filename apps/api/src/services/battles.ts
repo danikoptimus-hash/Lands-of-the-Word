@@ -46,17 +46,18 @@ export function minBidFor(defenseLevel: number, penalty: number, rules: Rules): 
   return Math.max(rules.minBid + penalty, defenseLevel + 1);
 }
 
-/** Сумма выученных стихов по участникам стороны (внутри участника стих считается один раз). */
+/** Сумма выученных стихов по участникам стороны (внутри участника стих считается один раз; у воина — с весом 2, решение владельца 22.09). */
 export function sumVerses(entries: BattleEntry[], side: "ATTACK" | "DEFENSE", onlyApproved: boolean): number {
-  const byUser = new Map<string, Set<number>>();
+  const byUser = new Map<string, { set: Set<number>; weight: number }>();
   for (const e of entries) {
     if (e.side !== side || e.status === "REJECTED" || (onlyApproved && e.status !== "APPROVED")) continue;
-    const set = byUser.get(e.userId) ?? new Set<number>();
-    for (let i = e.startIdx; i <= e.endIdx; i++) set.add(i);
-    byUser.set(e.userId, set);
+    const u = byUser.get(e.userId) ?? { set: new Set<number>(), weight: 1 };
+    for (let i = e.startIdx; i <= e.endIdx; i++) u.set.add(i);
+    u.weight = Math.max(u.weight, e.weight ?? 1);
+    byUser.set(e.userId, u);
   }
   let sum = 0;
-  for (const set of byUser.values()) sum += set.size;
+  for (const u of byUser.values()) sum += u.set.size * u.weight;
   return sum;
 }
 
@@ -192,19 +193,20 @@ async function carryLearnedVerses(b: BattleWithEntries): Promise<BattleWithEntri
   const members = new Set((await prisma.membership.findMany({ where: { teamId: b.defenderId }, select: { userId: true } })).map((m) => m.userId));
   const past = await prisma.battleEntry.findMany({
     where: { teamId: b.defenderId, status: "APPROVED", carried: false, battle: { gameId: b.gameId, bookCode: b.bookCode, NOT: { id: b.id } } },
-    select: { userId: true, startIdx: true, endIdx: true, links: true },
+    select: { userId: true, startIdx: true, endIdx: true, links: true, weight: true },
   });
-  const byUser = new Map<string, { verses: Set<number>; links: Set<string> }>();
+  const byUser = new Map<string, { verses: Set<number>; links: Set<string>; weight: number }>();
   for (const e of past) {
     if (!members.has(e.userId)) continue;
-    const u = byUser.get(e.userId) ?? { verses: new Set<number>(), links: new Set<string>() };
+    const u = byUser.get(e.userId) ?? { verses: new Set<number>(), links: new Set<string>(), weight: 1 };
     for (let i = e.startIdx; i <= e.endIdx; i++) u.verses.add(i);
     for (const l of e.links) u.links.add(l);
+    u.weight = Math.max(u.weight, e.weight);
     byUser.set(e.userId, u);
   }
   const rows: Prisma.BattleEntryCreateManyInput[] = [];
   for (const [userId, u] of byUser) {
-    for (const r of toRanges([...u.verses])) rows.push({ battleId: b.id, side: "DEFENSE", teamId: b.defenderId, userId, startIdx: r.start, endIdx: r.end, links: [...u.links].slice(0, 20), note: "Зачтено из прошлого испытания", status: "APPROVED", carried: true, decidedAt: new Date() });
+    for (const r of toRanges([...u.verses])) rows.push({ battleId: b.id, side: "DEFENSE", teamId: b.defenderId, userId, startIdx: r.start, endIdx: r.end, links: [...u.links].slice(0, 20), weight: u.weight, note: "Зачтено из прошлого испытания", status: "APPROVED", carried: true, decidedAt: new Date() });
   }
   if (rows.length) await prisma.battleEntry.createMany({ data: rows });
   return prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } });
