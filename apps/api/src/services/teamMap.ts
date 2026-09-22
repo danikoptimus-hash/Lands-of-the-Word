@@ -31,20 +31,25 @@ function weightedPick<T extends { frequency: number }>(list: T[]): T {
 export async function pickDeed(gameId: string, teamId: string, bookCode: string | null, excludeId?: string, onlyRemote = false): Promise<string | null> {
   // «Встреченными» считаются только дела, которые команда брала или сдавала: свободные стороны не в счёт
   // (решение владельца 18.09: иначе набор кончался уже на фронтире и повторы шли сразу).
-  const [deeds, used] = await Promise.all([
+  const [deeds, used, open] = await Promise.all([
     prisma.deed.findMany({ where: { gameId, ...(excludeId ? { id: { not: excludeId } } : {}), ...(onlyRemote ? { remote: true } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, frequency: true } }),
     prisma.teamEdgeTask.findMany({ where: { teamId, status: { not: "OPEN" } }, select: { deedId: true }, orderBy: { createdAt: "desc" } }),
+    prisma.teamEdgeTask.findMany({ where: { teamId, status: "OPEN" }, select: { deedId: true } }),
   ]);
   if (deeds.length === 0) return null;
   const usedIds = new Set(used.map((u) => u.deedId));
   const recentIds = new Set(used.slice(0, NO_REPEAT_WINDOW).map((u) => u.deedId));
+  // Дела, которые уже лежат на свободных сторонах команды: не «встреченные» (набор от них не кончается), но одно и то же
+  // дело на двух соседних сторонах — путаница, поэтому такие берём в последнюю очередь.
+  const openIds = new Set(open.map((u) => u.deedId));
   const choose = (list: typeof deeds) => {
     // 1) ещё не встречавшиеся команде; 2) допускающие повтор и не встречавшиеся на 30 последних векторах;
-    // 3) любое допускающее повтор.
+    // 3) любое допускающее повтор. На каждом шаге сначала те, которых сейчас нет на открытых сторонах.
     const fresh = list.filter((d) => !usedIds.has(d.id));
     const repeatable = list.filter((d) => d.canRepeat);
     const notRecent = repeatable.filter((d) => !recentIds.has(d.id));
-    const pool = fresh.length ? fresh : notRecent.length ? notRecent : repeatable;
+    const notOpen = (l: typeof deeds) => l.filter((d) => !openIds.has(d.id));
+    const pool = [notOpen(fresh), fresh, notOpen(notRecent), notRecent, notOpen(repeatable), repeatable].find((l) => l.length > 0) ?? [];
     return pool.length ? weightedPick(pool).id : null;
   };
   if (bookCode) {
