@@ -144,7 +144,9 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     if (body.role === "CAPTAIN") body.gameRole = "NONE";
     if (body.role === "DEPUTY") await prisma.membership.updateMany({ where: { teamId, role: "DEPUTY" }, data: { role: "MEMBER" } }); // один заместитель
     // Недельный лимит — только на смену уже выданной роли (решение владельца 23.09): раздать роли участникам без роли капитан может в любой момент.
-    const isChange = body.gameRole !== undefined && membership.gameRole !== "NONE" && body.gameRole !== membership.gameRole;
+    // До старта игры лимита нет вовсе: капитан перебирает роли сколько угодно (решение владельца 23.09).
+    const started = game?.status === "ACTIVE";
+    const isChange = started && body.gameRole !== undefined && membership.gameRole !== "NONE" && body.gameRole !== membership.gameRole;
     if (isChange && !isAdmin && membership.team.lastRoleChangeAt && rules.roleChangeDays > 0 && Date.now() - membership.team.lastRoleChangeAt.getTime() < days(rules.roleChangeDays)) {
       return reply.code(429).send({ error: "cooldown", message: err(request, "Роли меняются не чаще раза в {n} дн.; следующая смена — {date}", { n: rules.roleChangeDays, date: new Date(membership.team.lastRoleChangeAt.getTime() + days(rules.roleChangeDays)).toLocaleDateString("ru-RU") }) });
     }
@@ -154,7 +156,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     }
     const updated = await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { ...body, ...(body.gameRole !== undefined ? { pendingRole: null } : {}) }, select: memberSelect });
     if (body.gameRole !== undefined) {
-      await prisma.team.update({ where: { id: teamId }, data: { lastRoleChangeAt: new Date() } });
+      if (started) await prisma.team.update({ where: { id: teamId }, data: { lastRoleChangeAt: new Date() } });
       if (body.gameRole !== "NONE") journal(id, "role_changed", { teamId, userId, vars: { user: await nick(userId), role: ROLE_RU[body.gameRole] ?? body.gameRole } });
     }
     publish(id, { type: "teams", teamId });

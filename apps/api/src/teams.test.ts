@@ -115,9 +115,10 @@ describe("команды и приглашения", () => {
     expect(r2.json()).toMatchObject({ member: { gameRole: "SCOUT", pendingRole: null } });
     expect(r2.json().pending).toBeUndefined();
     expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}/role-decide`, headers: { cookie: adminCookie }, payload: { approve: true } })).statusCode).toBe(404);
-    // Сменить уже выданную роль капитан может не раньше чем через неделю; снять роль и выдать новому участнику — можно сразу.
+    // До старта игры лимита на смену ролей нет (решение владельца 23.09): капитан перебирает роли сколько угодно.
     const soon = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "PROPHET" } });
-    expect(soon.statusCode).toBe(429);
+    expect(soon.statusCode).toBe(200);
+    expect(soon.json().member.gameRole).toBe("PROPHET");
     const third = await register(otherNick + "_3");
     const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/invites`, headers: { cookie: playerCookie }, payload: { role: "MEMBER" } });
     await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: third } });

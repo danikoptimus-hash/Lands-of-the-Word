@@ -95,6 +95,7 @@
 .mark-banner span { flex: 1 1 auto; min-width: 0; }
 .mark-banner button { flex: none; }
 .roster-head .roster-invite, h2 .roster-invite { margin-left: auto; }
+.roster-head > span { white-space: nowrap; }
 .m-peek { pointer-events: none; }
 .m-peek circle { fill: var(--surface); stroke: var(--text); stroke-width: 1.2; }
 .m-peek use { color: var(--text); }
@@ -143,7 +144,16 @@
 .standing-roster .roster-head .i { width: 16px; height: 16px; }
 .standing-roster .roster > li { padding: var(--sp-1) 0; }
 .roster .side { align-items: center; }
-.role-select { width: auto; max-width: 170px; }
+/* Выбор роли пилюлями (вариант 1, 23.09): пилюля в строке, ряд пилюль под строкой, без системного списка. */
+.role-pick .chip { gap: 4px; padding-right: 6px; }
+.role-pick .chip .chev { width: 12px; height: 12px; transform: rotate(90deg); transition: transform .2s; }
+.role-pick[aria-expanded="true"] .chip .chev { transform: rotate(-90deg); }
+.role-pick.none .chip { background: transparent; border: 1px dashed var(--accent); color: var(--accent-ink); }
+.role-tray { flex: 1 1 100%; display: flex; flex-wrap: wrap; gap: var(--sp-1); padding-left: 40px; }
+.role-tray .chip-btn { min-height: 32px; padding: 0; }
+.role-tray .chip { height: 28px; padding: 0 var(--sp-3); }
+.role-tray .hint { flex: 1 1 100%; margin: 0; }
+.roster > li.picking .side { align-self: flex-start; }
 .chip-btn { background: transparent; border: 0; padding: 0 var(--sp-1); min-height: var(--touch); color: inherit; }
 .chip-btn:hover { background: transparent; }
 .menu-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) calc(var(--sp-4) + var(--safe-bottom)); margin-top: auto; }

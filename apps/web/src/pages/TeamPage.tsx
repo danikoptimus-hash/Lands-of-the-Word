@@ -679,12 +679,15 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
 /** embedded — внутри строки таблицы команд: вместо заголовка раздела — строка «Состав · N». */
 function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
   const [open, setOpen] = useState<string | null>(null);
+  /** Кому раскрыт ряд ролей (вариант 1, решение владельца 23.09): выбор пилюлей назначает роль сразу, повторное нажатие снимает. */
+  const [pick, setPick] = useState<string | null>(null);
   const nextChange = team.roleChangeAvailableAt && Date.parse(team.roleChangeAvailableAt) > Date.now() ? team.roleChangeAvailableAt : null;
+  const GAME_ROLES = (Object.keys(ROLE).filter((k) => k !== "CAPTAIN" && k !== "DEPUTY" && k !== "NONE") as GameRole[]);
   const invite = onInvite && <button type="button" className="secondary sm roster-invite" disabled={inviteBusy} title={t("Скопировать ссылку для участников")} onClick={onInvite}><Icon name={inviteDone ? "check" : "link"} />{t("Пригласить участника")}</button>;
   return (
     <>
       {embedded
-        ? <div className="meta roster-head"><Icon name="users" />{t("Состав")} · {team.members.length}{invite}</div>
+        ? <div className="meta roster-head"><Icon name="users" /><span>{t("Состав")} · {team.members.length}</span>{invite}</div>
         : <h2><Icon name="users" />{t("Состав")}<span className="count">{team.members.length}</span>{isCaptain && <Help>{t("Роли раздаёт капитан; сменить уже выданную роль можно раз в неделю.")}</Help>}{invite}</h2>}
       {inviteUrl && <p className="hint invite-fallback"><a href={inviteUrl}>{inviteUrl}</a></p>}
       {isCaptain && nextChange && <p className="hint">{t("Сменить уже выданную роль можно с {d}; участникам без роли — сразу.", { d: fmtDate(nextChange, { time: false }) })}</p>}
@@ -695,23 +698,33 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
           const r = ROLE[roleKey];
           const shown = open === m.user.id;
           const canEdit = m.role !== "CAPTAIN" && isCaptain;
+          const picking = canEdit && pick === m.user.id;
           return (
-            <li key={m.user.id}>
+            <li key={m.user.id} className={picking ? "picking" : undefined}>
               <div className="main">
                 <div className="person"><span className="avatar">{name.slice(0, 1).toUpperCase()}</span><span className="name">{name}</span>{m.role === "DEPUTY" && m.gameRole !== "NONE" && <Chip tone="accent" icon="star">{t("заместитель")}</Chip>}</div>
                 {shown && r.hint() && <p className="hint">{r.hint()}</p>}
               </div>
               <div className="side">
                 {canEdit ? (
-                  <select className="role-select" value={m.gameRole} aria-label={t("Роль: {name}", { name })} onChange={(e) => onRole(m.user.id, e.target.value as GameRole)}>
-                    {(Object.keys(ROLE).filter((k) => k !== "CAPTAIN" && k !== "DEPUTY") as GameRole[]).map((k) => <option key={k} value={k}>{ROLE[k].label()}</option>)}
-                  </select>
+                  <button type="button" className={"chip-btn role-pick" + (m.gameRole === "NONE" ? " none" : "")} aria-label={t("Роль: {name}", { name })} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>
+                    <Chip tone={m.gameRole === "NONE" ? "neutral" : "info"} icon={m.gameRole === "NONE" ? undefined : ROLE[m.gameRole].icon}>{m.gameRole === "NONE" ? t("без роли") : ROLE[m.gameRole].label()}<Icon name="chevron" className="chev" /></Chip>
+                  </button>
                 ) : roleKey !== "NONE" ? (
                   <button type="button" className="chip-btn" aria-expanded={shown} onClick={() => setOpen(shown ? null : m.user.id)}><Chip tone={roleKey === "CAPTAIN" || roleKey === "DEPUTY" ? "accent" : "info"} icon={r.icon}>{r.label()}</Chip></button>
                 ) : null}
                 {canEdit && <button type="button" className={"ghost icon sm" + (m.role === "DEPUTY" ? " on" : "")} aria-label={m.role === "DEPUTY" ? t("Снять заместителя") : t("Сделать заместителем")} title={m.role === "DEPUTY" ? t("Снять заместителя") : t("Сделать заместителем")} onClick={() => onDeputy(m.user.id, m.role !== "DEPUTY")}><Icon name="star" /></button>}
-                {canEdit && m.gameRole !== "NONE" && <button type="button" className="ghost icon sm" aria-label={t("Что даёт роль")} aria-expanded={shown} onClick={() => setOpen(shown ? null : m.user.id)}><Icon name="help" /></button>}
               </div>
+              {picking && (
+                <div className="role-tray" role="group" aria-label={t("Роль: {name}", { name })}>
+                  {GAME_ROLES.map((k) => (
+                    <button key={k} type="button" className={"chip-btn" + (k === m.gameRole ? " on" : "")} aria-pressed={k === m.gameRole} onClick={() => { setPick(null); onRole(m.user.id, k === m.gameRole ? "NONE" : k); }}>
+                      <Chip tone={k === m.gameRole ? "solid" : "neutral"} icon={ROLE[k].icon}>{ROLE[k].label()}</Chip>
+                    </button>
+                  ))}
+                  <p className="hint">{m.gameRole !== "NONE" ? ROLE[m.gameRole].hint() : t("Нажмите роль — она назначится сразу. Повторное нажатие на выданную роль снимает её.")}</p>
+                </div>
+              )}
             </li>
           );
         })}

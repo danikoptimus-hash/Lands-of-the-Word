@@ -269,6 +269,9 @@ describe("штраф, роли, пророк", () => {
   it("подсказку пророка видит только пророк; заместитель бросает вызов", async () => {
     const p3 = await prisma.user.findUniqueOrThrow({ where: { nickname: p3Nick } });
     await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${p3.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "PROPHET" } });
+    // В идущей игре сменить уже выданную роль капитан может не чаще раза в неделю; администратор — без ограничения.
+    const swap = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${p3.id}`, headers: { cookie: p2Cookie }, payload: { gameRole: "SCOUT" } });
+    expect(swap.statusCode).toBe(429);
     expect((await post(`/api/games/${gameId}/my-city/${rutKey}/hint`, p2Cookie, { index: 0 })).statusCode).toBe(403);
     // Письмо пророка приходит один раз, в ответ на зажжённую свечу; отдельного маршрута чтения нет (решение владельца 22.09).
     const hint = await post(`/api/games/${gameId}/my-city/${rutKey}/hint`, p3Cookie, { index: 0 });
