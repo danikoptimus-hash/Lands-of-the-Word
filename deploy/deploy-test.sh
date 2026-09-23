@@ -33,6 +33,10 @@ echo "==> Вход в реестр образов и скачивание обр
 echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev/null
 $C pull --quiet
 
+echo "==> Убираю контейнеры стенда прежних имён (после переименования сервисов они мешают и держат псевдонимы app/db в сети)"
+$C down --remove-orphans >/dev/null 2>&1 || true
+docker rm -f lotw-app-test lotw-db-test >/dev/null 2>&1 || true
+
 echo "==> База и миграции"
 $C up -d db-test
 $C run --rm --no-deps app-test npm run db:migrate || echo "миграции не применились: смотри вывод выше"
