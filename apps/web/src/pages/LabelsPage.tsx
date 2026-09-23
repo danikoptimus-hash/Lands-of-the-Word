@@ -5,7 +5,6 @@ import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { LoadingState } from "../components/State";
-import { kindLabel } from "./RecipientsBlock";
 
 interface Row { nodeKey: string; bookCode: string; number: number; name: string; cityKey: string; cityCode: string; recipient: { label: string; kind: "FAMILY" | "WIDOW" | "ELDER" | "OTHER" } | null }
 
@@ -40,7 +39,7 @@ export function LabelsPage() {
               <div className="label outer">
                 <div className="lbl-top"><span className="lbl-brand">{t("Земли Слова")} · {game}</span><span className="lbl-num">{r.number}</span></div>
                 <div className="lbl-city">{t("Город {name}", { name: r.name })}</div>
-                {r.recipient && <div className="lbl-to">{t("Кому")}: <strong>{r.recipient.label}</strong> <span className="muted">({kindLabel(r.recipient.kind)})</span></div>}
+                {r.recipient && <div className="lbl-to">{t("Кому")}: <strong>{r.recipient.label}</strong></div>}
                 <div className="lbl-code"><span className="muted">{t("Шифр")}</span><strong>{r.cityCode}</strong></div>
                 <div className="lbl-hint">{t("Отдайте конверт команде, которая назовёт этот шифр.")}</div>
               </div>

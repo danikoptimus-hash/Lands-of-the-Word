@@ -1,7 +1,6 @@
 import PDFDocument from "pdfkit";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { RECIPIENT_KIND_LABEL } from "./recipients.js";
 import { msg, type Locale } from "./i18n.js";
 
 /**
@@ -62,9 +61,9 @@ export function renderLabelsPdf(game: string, rows: LabelRow[], locale: Locale):
       top(x);
       doc.font("bold").fontSize(15).fillColor(INK).text(msg(locale, "Город {name}", { name: r.name }), x + pad, y0 + pad + 6 * MM, { width: colW - pad * 2, lineBreak: false, ellipsis: true });
       if (r.recipient) {
-        doc.font("body").fontSize(10.5).fillColor(INK).text(`${msg(locale, "Кому")}: `, x + pad, y0 + pad + 14 * MM, { continued: true, lineBreak: false })
-          .font("bold").text(r.recipient.label, { continued: true, lineBreak: false })
-          .font("body").fillColor(MUTED).text(` (${msg(locale, RECIPIENT_KIND_LABEL[r.recipient.kind] ?? r.recipient.kind)})`, { lineBreak: false });
+        // Имя адресата без вида («семья» и т. п., решение владельца 23.09); длинное имя переносится на вторую строку, не вылезая за ярлык.
+        doc.font("body").fontSize(10.5).fillColor(INK).text(`${msg(locale, "Кому")}: `, x + pad, y0 + pad + 14 * MM, { width: colW - pad * 2, continued: true })
+          .font("bold").text(r.recipient.label, { width: colW - pad * 2, height: 10 * MM, ellipsis: true });
       }
       doc.font("body").fontSize(8.5).fillColor(MUTED).text(msg(locale, "Шифр для семьи"), x + pad, y0 + ROW_H - pad - 21 * MM, { lineBreak: false });
       const code = fitText(doc, r.cityCode, colW - pad * 2, 20, 2.5);
