@@ -117,8 +117,8 @@ const ROLE: Record<GameRole | "CAPTAIN" | "DEPUTY", { icon: string; label: () =>
   CAPTAIN: { icon: "crown", label: () => t("капитан"), hint: () => t("Бросает вызов и отвечает на испытания, переносит столицу, назначает заместителя и просит роли у администратора.") },
   DEPUTY: { icon: "star", label: () => t("заместитель"), hint: () => t("Всё, что может капитан, кроме назначения ролей: вызов, ответ, столица, высадка.") },
   SCOUT: { icon: "telescope", label: () => t("Разведчик"), hint: () => t("Раз в неделю может разведать, что за стороной: город или развилка.") },
-  PROPHET: { icon: "sparkle", label: () => t("Пророк"), hint: () => t("Раз в неделю открывает подсказку к одному заданию города — текст района.") },
-  AMBASSADOR: { icon: "handshake", label: () => t("Посол"), hint: () => t("Отправляет запросы прохода другим командам и отвечает на их запросы.") },
+  PROPHET: { icon: "sparkle", label: () => t("Пророк"), hint: () => t("Раз в неделю зажигает свечу к заданию города и один раз видит письмо с подсказкой.") },
+  AMBASSADOR: { icon: "handshake", label: () => t("Посол"), hint: () => t("Просит проходы через чужие города, отвечает на чужие запросы, предлагает мир.") },
   CHRONICLER: { icon: "edit", label: () => t("Летописец"), hint: () => t("Сдаёт дела за команду и следит, чтобы ссылки и фото были приложены.") },
   HELMSMAN: { icon: "ship", label: () => t("Кормчий"), hint: () => t("Ведёт корабль: выбирает место высадки на другом острове.") },
   WARRIOR: { icon: "sword", label: () => t("Воин"), hint: () => t("Его выученные стихи в испытаниях считаются вдвое.") },
@@ -718,11 +718,12 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
               {picking && (
                 <div className="role-tray" role="group" aria-label={t("Роль: {name}", { name })}>
                   {GAME_ROLES.map((k) => (
-                    <button key={k} type="button" className={"chip-btn" + (k === m.gameRole ? " on" : "")} aria-pressed={k === m.gameRole} onClick={() => { setPick(null); onRole(m.user.id, k === m.gameRole ? "NONE" : k); }}>
+                    <button key={k} type="button" className={"role-opt" + (k === m.gameRole ? " on" : "")} aria-pressed={k === m.gameRole} onClick={() => { setPick(null); onRole(m.user.id, k === m.gameRole ? "NONE" : k); }}>
                       <Chip tone={k === m.gameRole ? "solid" : "neutral"} icon={ROLE[k].icon}>{ROLE[k].label()}</Chip>
+                      <span className="desc">{ROLE[k].hint()}</span>
                     </button>
                   ))}
-                  <p className="hint">{m.gameRole !== "NONE" ? ROLE[m.gameRole].hint() : t("Нажмите роль — она назначится сразу. Повторное нажатие на выданную роль снимает её.")}</p>
+                  <p className="hint">{t("Нажмите роль — она назначится сразу. Повторное нажатие на выданную роль снимает её.")}</p>
                 </div>
               )}
             </li>

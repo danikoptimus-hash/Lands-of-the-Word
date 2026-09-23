@@ -21,8 +21,8 @@ export const PLAYER: Record<string, string> = {
   // Состав и роли
   "Роль: {name}": "Role: {name}", "Что даёт роль": "What the role gives", "Нажмите роль — она назначится сразу. Повторное нажатие на выданную роль снимает её.": "Tap a role — it is assigned at once. Tapping the given role again removes it.",
   "Раз в неделю может разведать, что за стороной: город или развилка.": "Once a week can scout what lies beyond a side: a city or a crossroads.",
-  "Раз в неделю открывает подсказку к одному заданию города — текст района.": "Once a week opens a hint for one city task — the district text.",
-  "Отправляет запросы прохода другим командам и отвечает на их запросы.": "Sends passage requests to other teams and answers theirs.",
+  "Раз в неделю зажигает свечу к заданию города и один раз видит письмо с подсказкой.": "Once a week lights a candle for a city task and sees the hint letter once.",
+  "Просит проходы через чужие города, отвечает на чужие запросы, предлагает мир.": "Asks for passage through other teams’ cities, answers their requests, offers peace.",
   "Сдаёт дела за команду и следит, чтобы ссылки и фото были приложены.": "Submits deeds for the team and makes sure links and photos are attached.",
   // Карточка дела
   "Фото": "Photo", "Видео": "Video", "Отчёт": "Report", "Сдать": "Submit", "Взял: {name}": "Taken by {name}",
