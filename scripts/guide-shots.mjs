@@ -9,6 +9,8 @@
  * Ники и пароль берутся только из переменных окружения — в репозитории их нет. Нужен Playwright (есть в devDependencies)
  * и Chromium (переменная PW_CHROMIUM, по умолчанию /opt/pw-browsers/chromium).
  * Картинки пишутся в apps/web/public/img/guide/*.png; затем `python3 scripts/guide-webp.py` сжимает их в webp.
+ * Чтобы на снимке входа была кнопка «Войти через Google», запустите локальный сервер с любыми непустыми
+ * GOOGLE_CLIENT_ID и GOOGLE_CLIENT_SECRET (кнопка показывается, когда заданы оба; нажимать её на стенде не нужно).
  */
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
