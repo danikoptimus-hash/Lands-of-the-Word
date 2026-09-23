@@ -37,6 +37,26 @@ await login(ctx, ADMIN);
 await page.goto("/"); await page.waitForTimeout(1200); await shot(page, "games");
 await ctx.close();
 
+// Участник-фикстура (GUIDE_MEMBER, по умолчанию <капитан>_m) для снимков состава с ролями и метка на карте для снимка карты.
+const MEMBER = process.env.GUIDE_MEMBER ?? `${CAPTAIN}_m`;
+const api = async (path, opts = {}, cookie = "") => { const r = await fetch(BASE + path, { ...opts, headers: { "content-type": "application/json", cookie, ...(opts.headers ?? {}) } }); let b; try { b = await r.json(); } catch { b = null; } return { status: r.status, body: b, cookie: (r.headers.get("set-cookie") ?? "").split(";")[0] }; };
+const loginApi = async (n) => (await api("/api/auth/login", { method: "POST", body: JSON.stringify({ nickname: n, password: PASS }) })).cookie;
+const capCookie = await loginApi(CAPTAIN);
+let memCookie = await loginApi(MEMBER);
+if (!memCookie) memCookie = (await api("/api/auth/register", { method: "POST", body: JSON.stringify({ nickname: MEMBER, password: PASS, email: `${MEMBER}@example.com` }) })).cookie;
+let teams = (await api(`/api/games/${GAME}/teams`, {}, capCookie)).body.teams;
+let myTeam = teams.find((tm) => tm.members.some((m) => m.user.nickname === CAPTAIN));
+if (myTeam && !myTeam.members.some((m) => m.user.nickname === MEMBER)) {
+  const inv = await api(`/api/games/${GAME}/teams/${myTeam.id}/invites`, { method: "POST", body: JSON.stringify({ role: "MEMBER" }) }, capCookie);
+  await api(`/api/invites/${inv.body.invite.token}/accept`, { method: "POST", body: "{}" }, memCookie);
+  teams = (await api(`/api/games/${GAME}/teams`, {}, capCookie)).body.teams; myTeam = teams.find((tm) => tm.id === myTeam.id);
+}
+const mem = myTeam?.members.find((m) => m.user.nickname === MEMBER);
+if (mem && mem.gameRole === "NONE") await api(`/api/games/${GAME}/teams/${myTeam.id}/members/${mem.user.id}`, { method: "PATCH", body: JSON.stringify({ gameRole: "SCOUT" }) }, capCookie);
+const myMap = (await api(`/api/games/${GAME}/my-map`, {}, capCookie)).body;
+const markHex = myMap.hexes.find((h) => h.q === -3 && h.r === 0) ?? myMap.hexes.find((h) => h.lit !== false) ?? myMap.hexes[0];
+const mark = await api(`/api/games/${GAME}/my-map/marks`, { method: "POST", body: JSON.stringify({ q: markHex.q, r: markHex.r, note: "птицы сели здесь" }) }, capCookie);
+
 ctx = await browser.newContext({ baseURL: BASE, ...phone }); page = await ctx.newPage();
 await login(ctx, CAPTAIN);
 await page.goto(`/games/${GAME}/team`); await page.waitForSelector(".map-svg"); await page.waitForTimeout(1800);
@@ -55,18 +75,34 @@ await page.waitForTimeout(800);
 // Подпись города может перекрывать значок дела на стороне — кликаем сам элемент подписи, а не точку экрана.
 if (await page.evaluate(() => { const el = document.querySelector(".m-label:not(.start)"); if (!el) return false; el.dispatchEvent(new MouseEvent("click", { bubbles: true })); return true; })) { await page.waitForTimeout(1500); await shot(page, "city"); }
 else console.warn("не найден: .m-label");
+// Задание района: страница задания с формой ответа (и свечой пророка, если капитан — пророк в фикстуре).
+if (await page.locator(".district").count()) { await page.locator(".district").first().click(); await page.waitForTimeout(900); await shot(page, "city-task"); }
 await page.keyboard.press("Escape"); await page.waitForTimeout(500);
 await page.locator(".hud-left button").first().click(); await page.waitForTimeout(700); await shot(page, "menu");
+// Состав своей команды с рядом ролей (раздел «Команды», строка своей команды раскрыта).
+const teamsTile = page.locator(".side-menu .menu-grid button", { hasText: "Команды" }).first();
+if (await teamsTile.count()) {
+  await teamsTile.click(); await page.waitForTimeout(700);
+  const mine = page.locator(".standing.expandable", { hasText: "мы" }).first();
+  if (await mine.count() && (await mine.getAttribute("aria-expanded")) !== "true") { await mine.click({ force: true }); await page.waitForTimeout(500); }
+  if (await page.locator(".role-pick").count()) { await page.locator(".role-pick").first().click(); await page.waitForTimeout(400); }
+  await shot(page, "roster");
+}
 await ctx.close();
+if (mark.body?.mark?.id) await api(`/api/games/${GAME}/my-map/marks/${mark.body.mark.id}`, { method: "DELETE" }, capCookie);
 
 ctx = await browser.newContext({ baseURL: BASE, viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1.5 }); page = await ctx.newPage();
 await login(ctx, ADMIN);
 // Экран администратора: карта во весь экран, разделы — кнопки дока, содержимое — попап над картой.
 await page.goto(`/games/${GAME}`); await page.waitForSelector(".map-svg"); await page.waitForTimeout(1800); await shot(page, "admin-map");
-for (const [tab, name] of [["Летопись", "admin-overview"], ["Команды", "admin-teams"], ["Дела", "admin-deeds"], ["Проверка", "admin-review"]]) {
-  await page.locator(".admin-dock .dock-btn", { hasText: tab }).click(); await page.waitForTimeout(1500); await shot(page, name);
+for (const [tab, name] of [["Летопись", "admin-overview"], ["Команды", "admin-teams"], ["Дела", "admin-deeds"], ["Проверка", "admin-review"], ["Настройки", "admin-settings"]]) {
+  await page.locator(".admin-dock .dock-btn", { hasText: tab }).click(); await page.waitForTimeout(1500);
+  // Блок «Команды»: строка команды раскрыта — видны участники, приглашения и роли.
+  if (name === "admin-teams" && (await page.locator(".team-head").count())) { await page.locator(".team-head").first().click(); await page.waitForTimeout(500); }
+  await shot(page, name);
   await page.keyboard.press("Escape"); await page.waitForTimeout(400);
 }
+await page.goto(`/games/${GAME}/labels`); await page.waitForTimeout(1500); await shot(page, "admin-labels");
 await ctx.close();
 await browser.close();
 console.log("готово:", OUT);

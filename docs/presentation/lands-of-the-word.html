@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Земли Слова · презентация</title>
+<style>
+@font-face { font-family: "Philosopher"; src: url("../../apps/web/public/fonts/philosopher-700-cyrillic.woff2") format("woff2"); font-weight: 700; }
+@font-face { font-family: "Philosopher"; src: url("../../apps/web/public/fonts/philosopher-700-latin.woff2") format("woff2"); font-weight: 700; unicode-range: U+0000-00FF; }
+@font-face { font-family: "Literata"; src: url("../../apps/web/public/fonts/literata-400-cyrillic.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "Literata"; src: url("../../apps/web/public/fonts/literata-400-latin.woff2") format("woff2"); font-weight: 400; unicode-range: U+0000-00FF; }
+@font-face { font-family: "Literata"; src: url("../../apps/web/public/fonts/literata-600-cyrillic.woff2") format("woff2"); font-weight: 600; }
+@font-face { font-family: "Literata"; src: url("../../apps/web/public/fonts/literata-400-italic-cyrillic.woff2") format("woff2"); font-weight: 400; font-style: italic; }
+:root { --paper: #F2E7CF; --paper-light: #FFF6E3; --paper-2: #E8D9B8; --edge: #C9B58C; --ink: #2B1D12; --ink-2: #5C4A36; --ink-3: #6E6558; --bronze: #A8722E; --bronze-ink: #7A4E17; --bronze-soft: #F3E4C0; --moss: #4E6B3A; --sea: #4F7C99; --clay: #A9553A; }
+@page { size: 1920px 1080px; margin: 0; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: "Literata", Georgia, serif; }
+.s { position: relative; width: 1920px; height: 1080px; overflow: hidden; page-break-after: always; break-after: page; background: var(--paper); box-sizing: border-box; padding: 88px 110px 80px; }
+.s::before { content: ""; position: absolute; inset: 0; background:
+  radial-gradient(1200px 700px at 85% 110%, rgba(168,114,46,.16), transparent 60%),
+  radial-gradient(900px 600px at -10% -20%, rgba(79,124,153,.14), transparent 60%); pointer-events: none; }
+.s > * { position: relative; }
+h1, h2 { font-family: "Philosopher", "Literata", serif; font-weight: 700; margin: 0; color: var(--ink); letter-spacing: .005em; }
+h1 { font-size: 112px; line-height: 1.05; }
+h2 { font-size: 66px; line-height: 1.1; }
+.kicker { font-family: "Philosopher", serif; font-weight: 700; font-size: 26px; color: var(--bronze-ink); letter-spacing: .14em; text-transform: uppercase; margin-bottom: 18px; }
+.lead { font-size: 40px; line-height: 1.35; color: var(--ink-2); margin: 28px 0 0; max-width: 1400px; }
+ul { list-style: none; margin: 44px 0 0; padding: 0; }
+li { font-size: 38px; line-height: 1.3; margin: 0 0 26px; padding-left: 52px; position: relative; color: var(--ink); }
+li::before { content: ""; position: absolute; left: 0; top: 16px; width: 22px; height: 22px; border-radius: 50%; background: var(--bronze); box-shadow: 0 0 0 5px var(--bronze-soft); }
+li b { font-weight: 600; color: var(--bronze-ink); }
+.two { display: grid; grid-template-columns: 1fr 460px; gap: 80px; align-items: start; height: 100%; }
+.two.rev { grid-template-columns: 660px 1fr; }
+.two.pair { grid-template-columns: 1fr 760px; }
+.shot { display: block; border-radius: 28px; border: 1px solid var(--edge); box-shadow: 0 30px 60px rgba(43,29,18,.22), 0 4px 12px rgba(43,29,18,.12); background: #fff; }
+.phone .shot { height: 880px; width: auto; justify-self: end; margin-top: -10px; }
+.phone .shot.two-up { height: 640px; width: auto; }
+.phones { display: flex; gap: 32px; justify-content: flex-end; }
+.wide .shot { display: block; max-height: 600px; width: auto; max-width: 100%; margin: 36px auto 0; }
+.wide li { font-size: 34px; margin-bottom: 14px; }
+.wide ul { margin-top: 26px; }
+.num { position: absolute; right: 60px; bottom: 44px; font-family: "Philosopher", serif; font-size: 24px; color: var(--ink-3); }
+.brand { position: absolute; left: 110px; bottom: 44px; font-family: "Philosopher", serif; font-size: 24px; color: var(--ink-3); }
+.cover { padding: 0; display: grid; grid-template-columns: 1fr 1fr; }
+.cover .txt { padding: 200px 0 0 130px; }
+.cover .img { position: relative; overflow: hidden; }
+.cover .img img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
+.cover .img::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, var(--paper) 0, rgba(242,231,207,0) 28%); }
+.cover h1 { font-size: 150px; }
+.cover .lead { font-size: 44px; }
+.roles { display: grid; grid-template-columns: 1fr; gap: 12px 0; margin-top: 36px; }
+.role { display: flex; gap: 22px; align-items: baseline; font-size: 33px; line-height: 1.3; }
+.role b { font-family: "Philosopher", serif; font-weight: 700; color: var(--bronze-ink); min-width: 290px; font-size: 36px; }
+.steps { counter-reset: st; margin-top: 40px; display: grid; grid-template-columns: 1fr 1fr; gap: 22px 60px; }
+.step { counter-increment: st; display: flex; gap: 26px; align-items: flex-start; font-size: 36px; line-height: 1.3; }
+.step::before { content: counter(st); flex: none; width: 64px; height: 64px; border-radius: 50%; background: var(--bronze-ink); color: var(--paper-light); font-family: "Philosopher", serif; font-weight: 700; font-size: 34px; display: flex; align-items: center; justify-content: center; }
+.cycle { display: flex; align-items: center; gap: 28px; margin-top: 70px; flex-wrap: wrap; }
+.cycle .c { background: var(--paper-light); border: 1px solid var(--edge); border-radius: 999px; padding: 26px 46px; font-family: "Philosopher", serif; font-weight: 700; font-size: 40px; color: var(--ink); box-shadow: 0 6px 18px rgba(43,29,18,.10); }
+.cycle .a { font-size: 44px; color: var(--bronze); }
+.big { font-family: "Philosopher", serif; font-weight: 700; font-size: 150px; color: var(--bronze-ink); line-height: 1; }
+.final { text-align: center; padding-top: 300px; }
+.final h1 { font-size: 130px; }
+.final .lead { margin: 30px auto 0; font-size: 46px; }
+.final .url { margin-top: 70px; font-family: "Philosopher", serif; font-size: 64px; color: var(--bronze-ink); }
+</style>
+</head>
+<body>
+
+<section class="s cover">
+  <div class="txt">
+    <div class="kicker">Игра для молодёжи церкви</div>
+    <h1>Земли Слова</h1>
+    <p class="lead">Путешествие команд по карте из 66 городов, где каждый город — книга Библии, а дорога — настоящие добрые дела.</p>
+  </div>
+  <div class="img"><img src="../../apps/web/public/img/guide/islands.webp" alt=""></div>
+</section>
+
+<section class="s">
+  <div class="two phone">
+    <div>
+      <div class="kicker">Что это</div>
+      <h2>Карта, команды и Библия</h2>
+      <ul>
+        <li><b>66 городов</b> — 66 книг Библии на двух островах: Ветхий и Новый Завет.</li>
+        <li><b>Команды</b> идут по карте, делая добрые дела в реальной жизни.</li>
+        <li><b>Город берётся</b>, когда команда изучила книгу и принесла ключ из конверта.</li>
+        <li>Побеждает команда, у которой больше городов и столиц.</li>
+      </ul>
+    </div>
+    <img class="shot" src="../../apps/web/public/img/guide/map-far.webp" alt="">
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">2</div>
+</section>
+
+<section class="s">
+  <div class="kicker">Как играют</div>
+  <h2>Один круг игры</h2>
+  <div class="cycle">
+    <span class="c">Дело</span><span class="a">→</span>
+    <span class="c">Открыта сторона</span><span class="a">→</span>
+    <span class="c">Город: книга</span><span class="a">→</span>
+    <span class="c">Конверт и ключ</span><span class="a">→</span>
+    <span class="c">Город наш</span>
+  </div>
+  <ul style="margin-top:70px">
+    <li>Дела открывают дорогу, книги открывают города.</li>
+    <li>Чужой город можно испытать: выучить стихи и бросить вызов.</li>
+    <li>Первый взятый город — столица. Потерял столицу — вышел из игры.</li>
+  </ul>
+  <div class="brand">Земли Слова</div><div class="num">3</div>
+</section>
+
+<section class="s">
+  <div class="two phone pair">
+    <div>
+      <div class="kicker">Начало</div>
+      <h2>Вход и команда</h2>
+      <ul>
+        <li>Регистрация: никнейм, пароль, почта. Ничего устанавливать не нужно.</li>
+        <li>В команду попадают по <b>ссылке-приглашению</b> от капитана или администратора.</li>
+        <li>На телефоне игру можно добавить на экран «Домой» как приложение.</li>
+      </ul>
+    </div>
+    <div class="phones"><img class="shot two-up" src="../../apps/web/public/img/guide/login.webp" alt=""><img class="shot two-up" src="../../apps/web/public/img/guide/games.webp" alt=""></div>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">4</div>
+</section>
+
+<section class="s">
+  <div class="two phone">
+    <div>
+      <div class="kicker">Карта</div>
+      <h2>Туман, перекрёстки, дела</h2>
+      <ul>
+        <li>Команда стоит на перекрёстке и видит дела на сторонах, но не видит, что за ними.</li>
+        <li>Пройденная сторона окрашивается в цвет команды и открывает следующий перекрёсток.</li>
+        <li><b>Метки</b>: булавка над картой ставит флажок, который видит вся команда.</li>
+        <li>Раз в день клин птиц летит к ближайшему неоткрытому городу.</li>
+      </ul>
+    </div>
+    <img class="shot" src="../../apps/web/public/img/guide/map.webp" alt="">
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">5</div>
+</section>
+
+<section class="s">
+  <div class="two phone">
+    <div>
+      <div class="kicker">Море</div>
+      <h2>Два острова и корабли</h2>
+      <ul>
+        <li>Старт — на острове Ветхого Завета.</li>
+        <li>Прибрежный город — <b>порт</b>: взяли порт, у него появился корабль.</li>
+        <li>Корабль — обычное дело. Одобрили, и капитан выбирает место высадки на другом острове.</li>
+      </ul>
+    </div>
+    <img class="shot" src="../../apps/web/public/img/guide/islands.webp" alt="">
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">6</div>
+</section>
+
+<section class="s">
+  <div class="two phone">
+    <div>
+      <div class="kicker">Дела</div>
+      <h2>Настоящее служение</h2>
+      <ul>
+        <li>Помочь семье, навестить одинокого, поработать в лагере: дело стоит на стороне карты.</li>
+        <li><b>Взять</b> → сделать → <b>сдать</b>: ссылка на фото или видео и короткий отчёт из трёх вопросов.</li>
+        <li>Администратор проверяет. Принято — сторона открыта. Возвращено — можно исправить.</li>
+        <li>Дело можно делать группой: засчитается каждому.</li>
+      </ul>
+    </div>
+    <img class="shot" src="../../apps/web/public/img/guide/deed.webp" alt="">
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">7</div>
+</section>
+
+<section class="s">
+  <div class="two phone">
+    <div>
+      <div class="kicker">Города</div>
+      <h2>Книга в три шага</h2>
+      <ul>
+        <li><b>Порядок</b>: районы города — сцены книги. Расставьте их по порядку и проверните замок.</li>
+        <li><b>Районы</b>: в каждом задание по тексту. Верный ответ открывает букву шифра.</li>
+        <li><b>Конверт</b>: назовите шифр адресату, получите ключ и сломайте сургуч. Город ваш.</li>
+      </ul>
+    </div>
+    <img class="shot" src="../../apps/web/public/img/guide/city.webp" alt="">
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">8</div>
+</section>
+
+<section class="s">
+  <div class="two phone">
+    <div>
+      <div class="kicker">Задания</div>
+      <h2>Формы заданий</h2>
+      <ul>
+        <li>Выбор ответа — замок с кольцом, пропуск в цитате — обгоревший свиток.</li>
+        <li>Порядок событий — весы, имена и места — кроссворд.</li>
+        <li>Ошибся — отмычка остывает: пауза растёт с каждой ошибкой.</li>
+        <li>Пророк команды раз в неделю зажигает свечу и один раз видит письмо с подсказкой.</li>
+      </ul>
+    </div>
+    <img class="shot" src="../../apps/web/public/img/guide/city-task.webp" alt="">
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">9</div>
+</section>
+
+<section class="s wide">
+  <div class="kicker">Конверты</div>
+  <h2>Шифр, адресат, ключ</h2>
+  <ul>
+    <li>Каждый город закреплён за адресатом: семья, вдова, пожилой человек. Команда идёт к ним с шифром и получает конверт.</li>
+    <li>Администратор печатает ярлыки одним PDF: снаружи шифр, внутри ключ.</li>
+  </ul>
+  <img class="shot" src="../../apps/web/public/img/guide/admin-labels.webp" alt="">
+  <div class="brand">Земли Слова</div><div class="num">10</div>
+</section>
+
+<section class="s">
+  <div class="kicker">Испытания</div>
+  <h2>Как забрать чужой город</h2>
+  <ul>
+    <li>Капитан называет <b>ставку</b>: сколько стихов из этой книги команда выучит.</li>
+    <li>Игра выдаёт отрывок. Каждый учит свою часть и записывает видео.</li>
+    <li>Хранители отвечают тем же: выучили не меньше — город устоял, меньше — город перешёл.</li>
+    <li>Время на проверке не считается. Ничья — в пользу хранителей.</li>
+    <li>Город, где хранители выучили всю книгу, берётся только <b>осадой делами</b>.</li>
+  </ul>
+  <div class="brand">Земли Слова</div><div class="num">11</div>
+</section>
+
+<section class="s">
+  <div class="two phone">
+    <div>
+      <div class="kicker">Дипломатия</div>
+      <h2>Проходы и мир</h2>
+      <ul>
+        <li>Через чужой город можно пройти с разрешения владельца. Запрос отправляет посол.</li>
+        <li>Разрешение не отзывается и действует, пока город у того же владельца.</li>
+        <li><b>Мир</b>: знак рукопожатия напротив команды. Пока мир, вызовы друг другу невозможны.</li>
+      </ul>
+    </div>
+    <img class="shot" src="../../apps/web/public/img/guide/menu.webp" alt="">
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">12</div>
+</section>
+
+<section class="s">
+  <div class="two phone">
+    <div>
+      <div class="kicker">Команда</div>
+      <h2>Роли</h2>
+      <div class="roles">
+        <div class="role"><b>Капитан</b><span>вызовы, столица, приглашения, роли</span></div>
+        <div class="role"><b>Заместитель</b><span>всё, что капитан, кроме ролей</span></div>
+        <div class="role"><b>Разведчик</b><span>раз в неделю узнаёт, что за стороной</span></div>
+        <div class="role"><b>Пророк</b><span>письмо с подсказкой к заданию</span></div>
+        <div class="role"><b>Посол</b><span>проходы и мир</span></div>
+        <div class="role"><b>Летописец</b><span>сдаёт дела за команду</span></div>
+        <div class="role"><b>Кормчий</b><span>выбирает место высадки</span></div>
+        <div class="role"><b>Воин</b><span>его стихи считаются вдвое</span></div>
+      </div>
+      <p class="lead" style="font-size:32px;margin-top:40px">Роли раздаёт капитан. Одну роль могут носить несколько человек. Без ролей у всех игра не начнётся.</p>
+    </div>
+    <img class="shot" src="../../apps/web/public/img/guide/roster.webp" alt="">
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">13</div>
+</section>
+
+<section class="s wide">
+  <div class="kicker">Летопись</div>
+  <h2>Что происходит в игре</h2>
+  <ul>
+    <li>«Летопись» в меню команды: события команды и новости обо всех испытаниях.</li>
+    <li>Раз в неделю летопись приходит письмом. «Моё служение» считает дела каждого.</li>
+    <li>«Книга сезона» собирает итоги: положение команд, взятые города, активность.</li>
+  </ul>
+  <img class="shot" src="../../apps/web/public/img/guide/admin-overview.webp" alt="">
+  <div class="brand">Земли Слова</div><div class="num">14</div>
+</section>
+
+<section class="s wide">
+  <div class="kicker">Администратор</div>
+  <h2>Карта во весь экран</h2>
+  <ul>
+    <li>Все города, номера и пути команд. Разделы — кнопки сбоку: Летопись, Команды, Дела, Проверка, Настройки.</li>
+    <li>«Чьими глазами» показывает карту так, как её видит выбранная команда.</li>
+  </ul>
+  <img class="shot" src="../../apps/web/public/img/guide/admin-map.webp" alt="">
+  <div class="brand">Земли Слова</div><div class="num">15</div>
+</section>
+
+<section class="s wide">
+  <div class="kicker">Администратор</div>
+  <h2>Команды</h2>
+  <ul>
+    <li>Строка команды: место, участники, города, столицы, дела, испытания.</li>
+    <li>Нажатие раскрывает участников, ссылки-приглашения, роли и меню: переименовать, оштрафовать.</li>
+  </ul>
+  <img class="shot" src="../../apps/web/public/img/guide/admin-teams.webp" alt="">
+  <div class="brand">Земли Слова</div><div class="num">16</div>
+</section>
+
+<section class="s wide">
+  <div class="kicker">Администратор</div>
+  <h2>Проверка</h2>
+  <ul>
+    <li>Сдачи дел, записи испытаний и запросы проходов в одном месте: одобрить или вернуть с комментарием.</li>
+    <li>Письма о новых сдачах приходят администраторам сразу или дайджестом.</li>
+  </ul>
+  <img class="shot" src="../../apps/web/public/img/guide/admin-review.webp" alt="">
+  <div class="brand">Земли Слова</div><div class="num">17</div>
+</section>
+
+<section class="s wide">
+  <div class="kicker">Администратор</div>
+  <h2>Настройки</h2>
+  <ul>
+    <li>Пожертвование вместо дела, продвинутые правила, срок окончания, завершение игры.</li>
+    <li>Адресаты конвертов и ярлыки. Администраторы: ссылка «Пригласить».</li>
+  </ul>
+  <img class="shot" src="../../apps/web/public/img/guide/admin-settings.webp" alt="">
+  <div class="brand">Земли Слова</div><div class="num">18</div>
+</section>
+
+<section class="s">
+  <div class="kicker">Запуск</div>
+  <h2>Как начать сезон</h2>
+  <div class="steps">
+    <div class="step">Создайте игру и сгенерируйте карту: перегенерируйте, пока не понравится.</div>
+    <div class="step">Создайте команды и отправьте капитанам ссылки.</div>
+    <div class="step">Капитаны приглашают участников и раздают роли.</div>
+    <div class="step">Добавьте адресатов конвертов и распечатайте ярлыки.</div>
+    <div class="step">Проверьте набор дел: дела не должны повторяться.</div>
+    <div class="step">Нажмите «Начать», когда чек-лист зелёный.</div>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">19</div>
+</section>
+
+<section class="s final">
+  <h1>Земли Слова</h1>
+  <p class="lead">Победа — все столицы или больше городов к сроку. Но главное остаётся за картой: прочитанные книги и сделанные дела.</p>
+  <div class="url">landsoftheword.com</div>
+  <div class="num">20</div>
+</section>
+
+</body>
+</html>
