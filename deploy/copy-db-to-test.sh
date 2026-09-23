@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Копия боевой базы на тестовый стенд: чтобы проверять обновления на реальных командах и городах, не трогая прод.
-# Запуск: GitHub Actions «copy-db-to-test» (кнопка Run workflow) или вручную: bash /opt/lotw-test/deploy/copy-db-to-test.sh
+# Запуск: GitHub Actions «copy-db-to-test» (кнопка Run workflow) или вручную: bash ~/lotw-test/deploy/copy-db-to-test.sh
 # Что убирает из копии: подписки на push-уведомления и ключи push (стенд заведёт свои) — чтобы стенд ничего не слал игрокам.
 # Почта на стенде выключена в docker-compose.test.yml.
 set -euo pipefail
-cd /opt/lotw-test
+cd "$HOME/lotw-test"
 C="docker compose -p lotw-test -f deploy/docker-compose.test.yml --env-file deploy/.env.test"
 DUMP=$(mktemp /tmp/lotw-prod-XXXX.sql)
 trap 'rm -f "$DUMP"' EXIT

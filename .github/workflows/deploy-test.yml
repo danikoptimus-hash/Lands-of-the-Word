@@ -90,8 +90,8 @@ jobs:
           envs: GHCR_USER,GHCR_TOKEN
           script: |
             set -e
-            if [ ! -d /opt/lotw-test/.git ]; then git clone --quiet --branch staging "$(git -C /opt/lotw remote get-url origin)" /opt/lotw-test; fi
-            cd /opt/lotw-test
+            if [ ! -d "$HOME/lotw-test/.git" ]; then git clone --quiet --branch staging "$(git -C /opt/lotw remote get-url origin)" "$HOME/lotw-test"; fi
+            cd "$HOME/lotw-test"
             git fetch --quiet origin staging
             git reset --hard --quiet origin/staging
             bash deploy/deploy-test.sh

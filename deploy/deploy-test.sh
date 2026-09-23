@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Обновление тестового стенда (test.<домен>). Вызывается GitHub Actions по SSH после пуша в ветку staging.
-# Переменные окружения: GHCR_USER, GHCR_TOKEN (для скачивания образа).
+# Переменные окружения: GHCR_USER, GHCR_TOKEN (для скачивания образа). Каталог стенда — ~/lotw-test пользователя deploy (в /opt писать нельзя).
 set -euo pipefail
 BRANCH="staging"
-DIR=/opt/lotw-test
+DIR="$HOME/lotw-test"
 PROD_DIR=/opt/lotw
 
 if [[ ! -d "$DIR/.git" ]]; then

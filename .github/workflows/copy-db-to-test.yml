@@ -23,4 +23,4 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             set -e
-            bash /opt/lotw-test/deploy/copy-db-to-test.sh
+            bash "$HOME/lotw-test/deploy/copy-db-to-test.sh"
