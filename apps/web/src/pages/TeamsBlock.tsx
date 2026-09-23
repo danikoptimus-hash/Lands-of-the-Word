@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { api, ApiError, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type TeamDto } from "../lib/api";
+import { api, ApiError, GAME_ROLE_ICON, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type TeamDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
@@ -26,6 +26,8 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   const [renameError, setRenameError] = useState<string | null>(null);
   /** Кнопка, с которой только что скопировали: полторы секунды показывает галочку (только она, не соседние). */
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  /** Кому раскрыт ряд игровых ролей (пилюли вместо системного списка, 23.09). */
+  const [pick, setPick] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const { confirm, notify } = useUi();
@@ -132,15 +134,16 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
             <ul className="list">
               {tm.members.map((m) => {
                 const nick = m.user.displayName ?? m.user.nickname;
+                const picking = pick === m.user.id;
                 return (
-                  <li key={m.user.id}>
-                    <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span><Chip tone={m.role === "CAPTAIN" || m.role === "DEPUTY" ? "accent" : "neutral"}>{TEAM_ROLE_LABEL[m.role]}</Chip></span>
+                  <li key={m.user.id} className="member-row">
+                    <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span>{(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"}>{TEAM_ROLE_LABEL[m.role]}</Chip>}</span>
                     </div>
                     <div className="side">
                       {m.role !== "CAPTAIN" && (
-                        <select value={m.gameRole} aria-label={t("Игровая роль")} onChange={(e) => void patch(tm.id, m.user.id, { gameRole: e.target.value as GameRole }, t("Роль сохранена"))}>
-                          {(Object.keys(GAME_ROLE_LABEL) as GameRole[]).map((r) => <option key={r} value={r}>{r === "NONE" ? t("Без роли") : GAME_ROLE_LABEL[r]}</option>)}
-                        </select>
+                        <button type="button" className={"chip-btn role-pick" + (m.gameRole === "NONE" ? " none" : "")} aria-label={t("Игровая роль")} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>
+                          <Chip tone={m.gameRole === "NONE" ? "neutral" : "info"} icon={m.gameRole === "NONE" ? undefined : GAME_ROLE_ICON[m.gameRole]}>{m.gameRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.gameRole]}<Icon name="chevron" className="chev" /></Chip>
+                        </button>
                       )}
                       <ActionMenu label={t("Ещё")} items={[
                         m.role === "CAPTAIN"
@@ -150,6 +153,15 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                         { label: t("Убрать из команды"), icon: "trash", danger: true, sep: true, onSelect: () => void kick(tm.id, m.user.id, nick) },
                       ]} />
                     </div>
+                    {picking && (
+                      <div className="role-tray compact" role="group" aria-label={t("Игровая роль")}>
+                        {(Object.keys(GAME_ROLE_LABEL).filter((r) => r !== "NONE") as GameRole[]).map((r) => (
+                          <button key={r} type="button" className={"chip-btn" + (r === m.gameRole ? " on" : "")} aria-pressed={r === m.gameRole} onClick={() => { setPick(null); void patch(tm.id, m.user.id, { gameRole: r === m.gameRole ? "NONE" : r }, t("Роль сохранена")); }}>
+                            <Chip tone={r === m.gameRole ? "solid" : "neutral"} icon={GAME_ROLE_ICON[r]}>{GAME_ROLE_LABEL[r]}</Chip>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </li>
                 );
               })}

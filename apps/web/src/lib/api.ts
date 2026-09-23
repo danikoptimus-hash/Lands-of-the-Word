@@ -29,6 +29,8 @@ export interface MemberDto { role: TeamRole; gameRole: GameRole; pendingRole?: G
 export interface TeamDto { id: string; index: number; name: string; color: string; startNodeKey: string | null; status?: string; roleChangeAvailableAt?: string | null; members: MemberDto[] }
 export interface MyTeamDto { role: TeamRole; gameRole: GameRole; team: { id: string; name: string; color: string }; game: { id: string; name: string; status: string; org: { name: string } } }
 
+/** Значок роли (общий для состава команды и блока «Команды» администратора). */
+export const GAME_ROLE_ICON: Record<GameRole, string> = { NONE: "user", SCOUT: "telescope", PROPHET: "sparkle", AMBASSADOR: "handshake", CHRONICLER: "edit", HELMSMAN: "ship", WARRIOR: "sword" };
 export const GAME_ROLE_LABEL: Record<GameRole, string> = { get NONE() { return t("Без роли"); }, get SCOUT() { return t("Разведчик"); }, get PROPHET() { return t("Пророк"); }, get AMBASSADOR() { return t("Посол"); }, get CHRONICLER() { return t("Летописец"); }, get HELMSMAN() { return t("Кормчий"); }, get WARRIOR() { return t("Воин"); } };
 export const TEAM_ROLE_LABEL: Record<TeamRole, string> = { get CAPTAIN() { return t("капитан"); }, get DEPUTY() { return t("заместитель"); }, get MEMBER() { return t("участник"); } };
 

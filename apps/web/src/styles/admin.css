@@ -132,6 +132,15 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .team-block:first-of-type { border-top: 0; }
 .team-block .list { margin-top: var(--sp-2); }
 .team-block .list > li { padding: var(--sp-2) 0; }
+/* Строка участника компактно (23.09): имя, роль и меню в одну строку; ряд ролей — под строкой. */
+.team-block .member-row { align-items: center; }
+.team-block .member-row .main { flex: 1 1 0; min-width: 0; }
+.team-block .member-row .side { flex: none; flex-wrap: nowrap; }
+.team-block .member-row .role-pick .chip { max-width: 140px; overflow: hidden; }
+.role-tray.compact { flex-direction: row; flex-wrap: wrap; gap: var(--sp-1); padding-left: 40px; }
+.role-tray.compact .chip-btn { min-height: 32px; padding: 0; }
+.role-tray.compact .chip { height: 28px; padding: 0 var(--sp-3); }
+@media (max-width: 420px) { .role-tray.compact { padding-left: 0; } }
 .team-block .list select { width: auto; min-width: 140px; }
 /* Приглашение: две кнопки в строке команды, ссылка сразу в буфер */
 .invite-btns { display: inline-flex; gap: var(--sp-1); }
