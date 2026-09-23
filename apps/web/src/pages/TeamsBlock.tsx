@@ -132,19 +132,11 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
             <div className="body">
               <div className="name">{tm.name}
                 {st?.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : standings?.leaderTeamId === tm.id ? <Chip tone="accent">{t("лидер")}</Chip> : null}
-                <span className="muted small">· {plural(tm.members.length, ["участник", "участника", "участников"])}</span>
               </div>
-              {st && <div className="nums">{plural(st.cities, ["город", "города", "городов"])} · {plural(st.capitals, ["столица", "столицы", "столиц"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])}</div>}
+              <div className="nums">{plural(tm.members.length, ["участник", "участника", "участников"])}{st && <> · {plural(st.cities, ["город", "города", "городов"])} · {plural(st.capitals, ["столица", "столицы", "столиц"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])}</>}</div>
               {st && <div className="nums">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}</div>}
             </div>
-            <div className="row nowrap" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-              <ActionMenu label={t("Ещё")} items={[
-                { label: t("Переименовать"), icon: "edit", onSelect: () => { setRenameError(null); setRenaming({ id: tm.id, name: tm.name }); } },
-                ...(status === "DRAFT" ? [{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }] : []),
-                ...(status === "ACTIVE" && tm.status !== "defeated" ? [{ label: t("Оштрафовать: аннулировать участок пути"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }] : []),
-              ]} />
-              <Icon name="chevron" className="chev" />
-            </div>
+            <Icon name="chevron" className="chev" />
           </div>
           {isOpen && (<>
           <div className="row team-invites">
@@ -153,6 +145,11 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
               <button type="button" className="secondary sm" disabled={inviting === `${tm.id}:CAPTAIN`} title={t("Скопировать ссылку для капитана")} onClick={() => void inviteCopy(tm.id, "CAPTAIN")}><Icon name={copiedKey === `${tm.id}:CAPTAIN` ? "check" : "link"} />{t("Капитана")}</button>
               <button type="button" className="secondary sm" disabled={inviting === `${tm.id}:MEMBER`} title={t("Скопировать ссылку для участников")} onClick={() => void inviteCopy(tm.id, "MEMBER")}><Icon name={copiedKey === `${tm.id}:MEMBER` ? "check" : "link"} />{t("Участника")}</button>
             </span>
+              <ActionMenu label={t("Ещё")} items={[
+                { label: t("Переименовать"), icon: "edit", onSelect: () => { setRenameError(null); setRenaming({ id: tm.id, name: tm.name }); } },
+                ...(status === "DRAFT" ? [{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }] : []),
+                ...(status === "ACTIVE" && tm.status !== "defeated" ? [{ label: t("Оштрафовать: аннулировать участок пути"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }] : []),
+              ]} />
           </div>
           {fallback?.teamId === tm.id && <p className="hint invite-fallback"><a href={fallback.url}>{fallback.url}</a></p>}
           {tm.members.length === 0 ? <EmptyState inline icon="user" text={t("Пока никого: отправьте ссылку капитану.")} /> : (
