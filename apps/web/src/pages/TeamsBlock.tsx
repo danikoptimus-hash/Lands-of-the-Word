@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { api, ApiError, GAME_ROLE_ICON, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type TeamDto } from "../lib/api";
+import { api, ApiError, GAME_ROLE_ICON, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type StandingRow, type StandingsDto, type TeamDto } from "../lib/api";
+import { Link } from "react-router-dom";
+import { plural } from "../lib/format";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
@@ -28,6 +30,10 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   /** Кому раскрыт ряд игровых ролей (пилюли вместо системного списка, 23.09). */
   const [pick, setPick] = useState<string | null>(null);
+  /** Положение команд и список участников — один раздел (решение владельца 23.09): строка команды с местом и цифрами,
+   * по нажатию раскрываются участники, приглашения и меню. */
+  const [standings, setStandings] = useState<StandingsDto | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const { confirm, notify } = useUi();
@@ -35,6 +41,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   const fail = (err: unknown) => notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad");
 
   const load = useCallback(() => api<{ teams: TeamDto[] }>(`/api/games/${gameId}/teams`).then((r) => { setTeams(r.teams); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
+  useEffect(() => { if (status === "DRAFT") { setStandings(null); return; } api<StandingsDto>(`/api/games/${gameId}/standings`).then(setStandings).catch(() => {}); }, [gameId, status, version]);
   const reload = async () => { await load(); onChange?.(); };
   useEffect(() => { void load(); }, [load, teamCount, version]);
 
@@ -109,25 +116,43 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
     <div className="card">
       <div className="card-head">
         <h2><span className="ico"><Icon name="users" /></span>{t("Команды")} {teams && <span className="count">{t("{a} из {b}", { a: teams.length, b: teamCount })}</span>}</h2>
+        {standings && <Link to={`/games/${gameId}/book`} className="btn secondary sm"><Icon name="book" />{t("Книга сезона")}</Link>}
         {!full && <button type="button" className="sm" onClick={() => setOpen(true)} disabled={!teams}><Icon name="plus" />{t("Добавить")}</button>}
       </div>
       {teams && full && <p className="hint">{limit[0]}{goToSettings && limit[1] && <> · <a href="#settings" onClick={(e) => { e.preventDefault(); goToSettings(); }}>{limit[1]}</a></>}</p>}
-      {loadError ? <ErrorState onRetry={() => void load()} /> : !teams ? <LoadingState /> : teams.length === 0 ? <EmptyState inline icon="users" text={t("Команд пока нет: добавьте первую.")} /> : teams.map((tm) => (
-        <div key={tm.id} className="team-block">
-          <div className="row between nowrap">
-            <TeamAvatar name={tm.name} color={tm.color} withName />
-            <div className="row nowrap">
-              <span className="invite-btns" role="group" aria-label={t("Пригласить")}>
-                <button type="button" className="secondary sm" disabled={inviting === `${tm.id}:CAPTAIN`} title={t("Скопировать ссылку для капитана")} onClick={() => void inviteCopy(tm.id, "CAPTAIN")}><Icon name={copiedKey === `${tm.id}:CAPTAIN` ? "check" : "link"} />{t("Капитана")}</button>
-                <button type="button" className="secondary sm" disabled={inviting === `${tm.id}:MEMBER`} title={t("Скопировать ссылку для участников")} onClick={() => void inviteCopy(tm.id, "MEMBER")}><Icon name={copiedKey === `${tm.id}:MEMBER` ? "check" : "link"} />{t("Участника")}</button>
-              </span>
+      {standings && <p className="hint">{t("Нажмите на команду, чтобы увидеть участников. Испытания: выиграли · устояли · потеряли.")}</p>}
+      {loadError ? <ErrorState onRetry={() => void load()} /> : !teams ? <LoadingState /> : teams.length === 0 ? <EmptyState inline icon="users" text={t("Команд пока нет: добавьте первую.")} /> : ordered(teams, standings).map(({ tm, st, rank }) => {
+        const isOpen = expanded === tm.id;
+        const toggle = () => setExpanded(isOpen ? null : tm.id);
+        return (
+        <div key={tm.id} className={"team-block" + (isOpen ? " open" : "") + (st?.status === "defeated" ? " out" : "")}>
+          <div className="team-head" role="button" tabIndex={0} aria-expanded={isOpen} onClick={toggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}>
+            {st && <span className="rank">{rank}</span>}
+            <TeamAvatar name={tm.name} color={tm.color} />
+            <div className="body">
+              <div className="name">{tm.name}
+                {st?.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : standings?.leaderTeamId === tm.id ? <Chip tone="accent">{t("лидер")}</Chip> : null}
+                <span className="muted small">· {plural(tm.members.length, ["участник", "участника", "участников"])}</span>
+              </div>
+              {st && <div className="nums">{plural(st.cities, ["город", "города", "городов"])} · {plural(st.capitals, ["столица", "столицы", "столиц"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])}</div>}
+              {st && <div className="nums">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}</div>}
+            </div>
+            <div className="row nowrap" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
               <ActionMenu label={t("Ещё")} items={[
                 { label: t("Переименовать"), icon: "edit", onSelect: () => { setRenameError(null); setRenaming({ id: tm.id, name: tm.name }); } },
                 ...(status === "DRAFT" ? [{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }] : []),
                 ...(status === "ACTIVE" && tm.status !== "defeated" ? [{ label: t("Оштрафовать: аннулировать участок пути"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }] : []),
               ]} />
-              {tm.status === "defeated" && <Chip tone="bad">{t("выбыла")}</Chip>}
+              <Icon name="chevron" className="chev" />
             </div>
+          </div>
+          {isOpen && (<>
+          <div className="row team-invites">
+            <span className="muted small">{t("Пригласить")}:</span>
+            <span className="invite-btns" role="group" aria-label={t("Пригласить")}>
+              <button type="button" className="secondary sm" disabled={inviting === `${tm.id}:CAPTAIN`} title={t("Скопировать ссылку для капитана")} onClick={() => void inviteCopy(tm.id, "CAPTAIN")}><Icon name={copiedKey === `${tm.id}:CAPTAIN` ? "check" : "link"} />{t("Капитана")}</button>
+              <button type="button" className="secondary sm" disabled={inviting === `${tm.id}:MEMBER`} title={t("Скопировать ссылку для участников")} onClick={() => void inviteCopy(tm.id, "MEMBER")}><Icon name={copiedKey === `${tm.id}:MEMBER` ? "check" : "link"} />{t("Участника")}</button>
+            </span>
           </div>
           {fallback?.teamId === tm.id && <p className="hint invite-fallback"><a href={fallback.url}>{fallback.url}</a></p>}
           {tm.members.length === 0 ? <EmptyState inline icon="user" text={t("Пока никого: отправьте ссылку капитану.")} /> : (
@@ -167,8 +192,10 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
               })}
             </ul>
           )}
+          </>)}
         </div>
-      ))}
+        );
+      })}
       {moving && (
         <Sheet title={t("Перевести {nick}", { nick: moving.nick })} onClose={() => setMoving(null)} size="sm">
           <p className="hint">{t("В какую команду?")}</p>
@@ -209,4 +236,11 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
       )}
     </div>
   );
+}
+
+/** Команды в порядке положения (когда игра идёт), иначе по номеру; вместе со строкой положения и местом. */
+function ordered(teams: TeamDto[], standings: StandingsDto | null): Array<{ tm: TeamDto; st: StandingRow | null; rank: number }> {
+  if (!standings) return teams.map((tm, i) => ({ tm, st: null, rank: i + 1 }));
+  const byId = new Map(standings.standings.map((st, i) => [st.teamId, { st, rank: i + 1 }]));
+  return [...teams].sort((a, b) => (byId.get(a.id)?.rank ?? 99) - (byId.get(b.id)?.rank ?? 99)).map((tm) => ({ tm, st: byId.get(tm.id)?.st ?? null, rank: byId.get(tm.id)?.rank ?? 0 }));
 }

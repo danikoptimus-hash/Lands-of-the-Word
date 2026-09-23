@@ -128,7 +128,19 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .trial .list { margin-top: var(--sp-2); }
 
 /* Команды: блок команды и панель приглашения */
-.team-block { padding: var(--sp-3) 0; border-top: 1px solid var(--border); }
+.team-block { padding: var(--sp-2) 0; border-top: 1px solid var(--border); }
+/* Одна строка на команду (23.09): место, аватар, имя и цифры положения; нажатие раскрывает участников. */
+.team-head { display: flex; align-items: center; gap: var(--sp-2); cursor: pointer; padding: var(--sp-1) 0; border-radius: var(--r-md); }
+.team-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.team-head .rank { width: 20px; color: var(--muted); font-weight: 700; font-size: var(--fs-sm); text-align: center; flex: none; }
+.team-head .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.team-head .name { font-weight: 600; display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.team-head .nums { color: var(--muted); font-size: var(--fs-sm); }
+.team-head .chev { width: 18px; height: 18px; color: var(--muted); transform: rotate(90deg); transition: transform .2s; flex: none; }
+.team-block.open .team-head .chev { transform: rotate(-90deg); }
+.team-block.out .team-head .name, .team-block.out .team-head .nums { color: var(--muted); }
+.team-invites { margin: var(--sp-2) 0 0; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.team-head .name .small { font-weight: 400; }
 .team-block:first-of-type { border-top: 0; }
 .team-block .list { margin-top: var(--sp-2); }
 .team-block .list > li { padding: var(--sp-2) 0; }

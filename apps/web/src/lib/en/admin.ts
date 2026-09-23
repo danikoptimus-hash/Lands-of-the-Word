@@ -130,6 +130,7 @@ export const ADMIN: Record<string, string> = {
   "Обращения в поддержку": "Support requests", "Только открытые": "Open only", "Показать закрытые": "Show closed",
   "Игроки пишут из задания: город, задание и текущая пауза подставляются сами. Ответ уходит команде уведомлением и письмом.": "Players write from a task: the city, the task and the current pause are filled in automatically. The reply goes to the team as a notification and an email.",
   // Чек-лист старта (сервер отдаёт ключи readiness, клиент переводит)
+  "Нажмите на команду, чтобы увидеть участников. Испытания: выиграли · устояли · потеряли.": "Tap a team to see its members. Trials: won · held · lost.",
   "Команды без капитана: {names} — назначьте капитана в блоке «Команды»": "Teams without a captain: {names} — appoint a captain in the “Teams” block",
   "Участники без роли: {names} — капитан раздаёт роли в составе команды, без ролей старт закрыт": "Members without a role: {names} — the captain hands out roles in the team roster; the game cannot start without them",
   "В командах по одному участнику: {names} — нужно не меньше двух, пригласите ещё людей": "Teams with a single member: {names} — at least two are needed, invite more people",
