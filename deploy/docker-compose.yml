@@ -25,7 +25,8 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://lotw:${POSTGRES_PASSWORD}@db:5432/lotw?schema=public
+      # Имя контейнера, а не сервиса: псевдоним «db» в общей сети мог бы указать и на базу стенда.
+      DATABASE_URL: postgresql://lotw:${POSTGRES_PASSWORD}@lotw-db:5432/lotw?schema=public
       SESSION_SECRET: ${SESSION_SECRET}
       PORT: "3000"
       WEB_DIST: /app/apps/web/dist

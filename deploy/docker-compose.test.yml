@@ -1,8 +1,10 @@
 # Тестовый стенд (test.<домен>) на том же сервере: своя база и своё приложение, без Caddy.
 # Caddy продакшена проксирует test.<домен> на контейнер lotw-app-test по общей сети (PROD_NET — сеть прод-стека).
 # Запуск: deploy/deploy-test.sh (из GitHub Actions по пушу в ветку staging). Переменные — deploy/.env.test.
+# ВАЖНО: имена сервисов не должны совпадать с прод-стеком (app, db): сервис получает своё имя как DNS-псевдоним
+# в общей сети, и прод начал бы попадать в контейнеры стенда (случилось 23.09). Поэтому app-test / db-test.
 services:
-  db:
+  db-test:
     image: postgres:16-alpine
     container_name: lotw-db-test
     restart: unless-stopped
@@ -18,12 +20,12 @@ services:
       timeout: 3s
       retries: 20
 
-  app:
+  app-test:
     image: ghcr.io/danikoptimus-hash/lotw-app:${APP_TAG:-test}
     container_name: lotw-app-test
     restart: unless-stopped
     depends_on:
-      db:
+      db-test:
         condition: service_healthy
     environment:
       NODE_ENV: production

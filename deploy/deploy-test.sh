@@ -34,8 +34,8 @@ echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin >/dev
 $C pull --quiet
 
 echo "==> База и миграции"
-$C up -d db
-$C run --rm --no-deps app npm run db:migrate || echo "миграции не применились: смотри вывод выше"
+$C up -d db-test
+$C run --rm --no-deps app-test npm run db:migrate || echo "миграции не применились: смотри вывод выше"
 
 echo "==> Запуск"
 $C up -d --remove-orphans

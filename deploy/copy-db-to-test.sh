@@ -13,8 +13,8 @@ echo "==> Дамп прода"
 docker exec lotw-db pg_dump -U lotw -d lotw --no-owner > "$DUMP"
 
 echo "==> Останавливаю приложение стенда, пересоздаю базу"
-$C stop app
-$C up -d db
+$C stop app-test
+$C up -d db-test
 docker exec lotw-db-test psql -U lotw -d postgres -q -c "DROP DATABASE IF EXISTS lotw;" -c "CREATE DATABASE lotw OWNER lotw;"
 docker exec -i lotw-db-test psql -U lotw -d lotw -q < "$DUMP"
 
@@ -24,8 +24,8 @@ docker exec lotw-db-test psql -U lotw -d lotw -q \
   -c "DELETE FROM \"AppSetting\" WHERE key LIKE 'vapid.%';"
 
 echo "==> Миграции стенда (образ стенда может быть новее прода) и запуск"
-$C run --rm --no-deps app npm run db:migrate
-$C up -d app
+$C run --rm --no-deps app-test npm run db:migrate
+$C up -d app-test
 sleep 5
-docker exec lotw-app-test wget -qO- http://127.0.0.1:3000/api/health || $C logs --tail 30 app
+docker exec lotw-app-test wget -qO- http://127.0.0.1:3000/api/health || $C logs --tail 30 app-test
 echo "==> Готово: на стенде копия прода от $(date +%F\ %H:%M)"
