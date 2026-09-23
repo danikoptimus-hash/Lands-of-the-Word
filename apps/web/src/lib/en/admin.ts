@@ -131,6 +131,7 @@ export const ADMIN: Record<string, string> = {
   "Игроки пишут из задания: город, задание и текущая пауза подставляются сами. Ответ уходит команде уведомлением и письмом.": "Players write from a task: the city, the task and the current pause are filled in automatically. The reply goes to the team as a notification and an email.",
   // Чек-лист старта (сервер отдаёт ключи readiness, клиент переводит)
   "Команды без капитана: {names} — назначьте капитана в блоке «Команды»": "Teams without a captain: {names} — appoint a captain in the “Teams” block",
+  "Участники без роли: {names} — капитан раздаёт роли в составе команды, без ролей старт закрыт": "Members without a role: {names} — the captain hands out roles in the team roster; the game cannot start without them",
   "В командах по одному участнику: {names} — нужно не меньше двух, пригласите ещё людей": "Teams with a single member: {names} — at least two are needed, invite more people",
   "Городов без адресата конверта: {n} — добавьте семьи в блоке «Конверты»: без адресата шифр некому назвать": "Cities without an envelope recipient: {n} — add families in the “Envelopes” block: without a recipient there is no one to tell the cipher to",
   "Ярлыки конвертов ещё не скачаны — откройте «Ярлыки» и нажмите «Скачать PDF», чтобы раздать конверты адресатам": "The envelope labels have not been downloaded yet — open “Labels” and press “Download PDF” to hand the envelopes to the recipients",

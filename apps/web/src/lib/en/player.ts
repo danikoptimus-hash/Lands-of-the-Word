@@ -5,7 +5,7 @@ export const PLAYER: Record<string, string> = {
   "Не удалось открыть команду": "Could not open the team", "Загружаем карту…": "Loading the map…", "К странице игры": "To the game page",
   "Вы администратор этой игры, а не участник команды. Карта команды с туманом видна только её участникам; вся карта и ход всех команд — на странице игры.": "You are an administrator of this game, not a team member. A team's fogged map is visible only to its members; the whole map and every team's progress are on the game page.",
   "Игра ещё не началась. Когда администратор начнёт её, здесь появится карта.": "The game has not started yet. When the administrator starts it, the map will appear here.",
-  "Пока можно назначить роли участникам: они дают команде разведку, подсказки и переговоры.": "Meanwhile you can assign roles: they give the team scouting, hints and negotiations.",
+  "Раздайте роли всем участникам: они дают команде разведку, подсказки и переговоры. Пока у кого-то нет роли, администратор не сможет начать игру.": "Hand out roles to every member: they give the team scouting, hints and negotiations. While someone has no role, the administrator cannot start the game.",
   "Как играть": "How to play", "Назад": "Back",
   // HUD и меню
   "Меню": "Menu", "Меню · требует внимания: {n}": "Menu · needs attention: {n}", "Меню команды": "Team menu", "Навигация": "Navigation",

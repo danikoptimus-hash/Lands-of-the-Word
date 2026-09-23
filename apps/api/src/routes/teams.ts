@@ -150,10 +150,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     if (isChange && !isAdmin && membership.team.lastRoleChangeAt && rules.roleChangeDays > 0 && Date.now() - membership.team.lastRoleChangeAt.getTime() < days(rules.roleChangeDays)) {
       return reply.code(429).send({ error: "cooldown", message: err(request, "Роли меняются не чаще раза в {n} дн.; следующая смена — {date}", { n: rules.roleChangeDays, date: new Date(membership.team.lastRoleChangeAt.getTime() + days(rules.roleChangeDays)).toLocaleDateString("ru-RU") }) });
     }
-    if (body.gameRole && body.gameRole !== "NONE") {
-      // Одна игровая роль — один участник.
-      await prisma.membership.updateMany({ where: { teamId, gameRole: body.gameRole }, data: { gameRole: "NONE" } });
-    }
+    // Одну роль могут носить несколько участников (решение владельца 23.09: все игроки с ролями, команды бывают больше набора ролей).
     const updated = await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { ...body, ...(body.gameRole !== undefined ? { pendingRole: null } : {}) }, select: memberSelect });
     if (body.gameRole !== undefined) {
       if (started) await prisma.team.update({ where: { id: teamId }, data: { lastRoleChangeAt: new Date() } });

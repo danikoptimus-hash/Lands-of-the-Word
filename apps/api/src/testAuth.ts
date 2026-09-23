@@ -31,6 +31,8 @@ export async function readyForStart(app: FastifyInstance, gameId: string, adminC
     const user = await prisma.user.create({ data: { nickname, email: `${nickname}@example.com`, passwordHash: "fixture", emailVerified: true } });
     await prisma.membership.create({ data: { teamId: team.id, userId: user.id, role: "MEMBER" } });
   }
+  // Старт закрыт, пока у участников нет ролей (23.09): рядовым без роли — разведчик.
+  await prisma.membership.updateMany({ where: { team: { gameId }, role: "MEMBER", gameRole: "NONE" }, data: { gameRole: "SCOUT" } });
   if ((await prisma.recipient.count({ where: { gameId } })) === 0) {
     const r = await app.inject({ method: "POST", url: `/api/games/${gameId}/recipients`, headers: { cookie: adminCookie }, payload: { label: "семья у реки", kind: "FAMILY" } });
     if (r.statusCode !== 201) throw new Error(`fixture recipient not created: ${r.body}`);

@@ -99,7 +99,7 @@ describe("команды и приглашения", () => {
     expect(none.statusCode).toBe(403);
   });
 
-  it("капитан раздаёт игровые роли, одна роль — один человек", async () => {
+  it("капитан раздаёт игровые роли; одну роль могут носить несколько человек", async () => {
     await app.inject({ method: "POST", url: `/api/invites/${token}/accept`, headers: { cookie: otherCookie } });
     const other = await prisma.user.findUniqueOrThrow({ where: { nickname: otherNick } });
     const player = await prisma.user.findUniqueOrThrow({ where: { nickname: playerNick } });
@@ -126,7 +126,7 @@ describe("команды и приглашения", () => {
     const fresh = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${thirdUser.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "PROPHET" } });
     expect(fresh.statusCode).toBe(200);
     expect(fresh.json().member.gameRole).toBe("PROPHET");
-    // Администратор ставит роль без ожидания; одна роль — один человек. «Воин» — тоже роль.
+    // Администратор ставит роль без ожидания; одну роль могут носить двое. «Воин» — тоже роль.
     const warrior = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "WARRIOR" } });
     expect(warrior.json().member.gameRole).toBe("WARRIOR");
     const r3 = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "PROPHET" } });
@@ -134,7 +134,7 @@ describe("команды и приглашения", () => {
     const teams = await app.inject({ method: "GET", url: `/api/games/${gameId}/teams`, headers: { cookie: adminCookie } });
     const members = teams.json().teams[0].members as Array<{ user: { nickname: string }; gameRole: string }>;
     expect(members.filter((m) => m.gameRole === "SCOUT")).toHaveLength(0);
-    expect(members.filter((m) => m.gameRole === "PROPHET")).toHaveLength(1);
+    expect(members.filter((m) => m.gameRole === "PROPHET")).toHaveLength(2);
     // Капитан назначает заместителя.
     const dep = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { role: "DEPUTY" } });
     expect(dep.json().member.role).toBe("DEPUTY");
@@ -203,6 +203,11 @@ describe("дела и старт игры", () => {
     expect(stillNotReady.json().canStart).toBe(false);
     expect(stillNotReady.json().problems.join(" ")).toContain("по одному участнику");
     expect(stillNotReady.json().problems.join(" ")).toContain("без адресата");
+    // Участник без роли закрывает старт (23.09).
+    const other = await prisma.user.findUniqueOrThrow({ where: { nickname: otherNick } });
+    await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: adminCookie }, payload: { role: "MEMBER", gameRole: "NONE" } });
+    const noRole = await app.inject({ method: "GET", url: `/api/games/${gameId}/readiness`, headers: { cookie: adminCookie } });
+    expect(noRole.json().problems.join(" ")).toContain("без роли");
     await readyForStart(app, gameId, adminCookie);
     const ready = await app.inject({ method: "GET", url: `/api/games/${gameId}/readiness`, headers: { cookie: adminCookie } });
     expect(ready.json().canStart).toBe(true);

@@ -238,7 +238,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (!game) return;
     const [starts, teams, deeds, recipients] = await Promise.all([
       prisma.mapNode.count({ where: { gameId: id, kind: "START" } }),
-      prisma.team.findMany({ where: { gameId: id }, include: { _count: { select: { members: true } }, members: { select: { role: true } } } }),
+      prisma.team.findMany({ where: { gameId: id }, include: { _count: { select: { members: true } }, members: { select: { role: true, gameRole: true } } } }),
       prisma.deed.count({ where: { gameId: id } }),
       prisma.recipient.count({ where: { gameId: id } }),
     ]);
@@ -259,6 +259,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     // ещё не скачанные ярлыки — предупреждение.
     const noCaptain = teams.filter((t) => t._count.members > 0 && !t.members.some((m) => m.role === "CAPTAIN")).map((t) => t.name);
     if (noCaptain.length) problemItems.push({ key: "Команды без капитана: {names} — назначьте капитана в блоке «Команды»", vars: { names: noCaptain.join(", ") } });
+    // Все игроки с ролями (решение владельца 23.09): капитан и заместитель — уже роли, остальным капитан раздаёт игровые роли в составе.
+    const noRole = teams.map((t) => ({ name: t.name, n: t.members.filter((m) => m.role === "MEMBER" && m.gameRole === "NONE").length })).filter((t) => t.n > 0);
+    if (noRole.length) problemItems.push({ key: "Участники без роли: {names} — капитан раздаёт роли в составе команды, без ролей старт закрыт", vars: { names: noRole.map((t) => `${t.name} (${t.n})`).join(", ") } });
     const small = teams.filter((t) => t._count.members === 1).map((t) => t.name);
     if (small.length) problemItems.push({ key: "В командах по одному участнику: {names} — нужно не меньше двух, пригласите ещё людей", vars: { names: small.join(", ") } });
     if (noRecipient > 0) problemItems.push({ key: "Городов без адресата конверта: {n} — добавьте семьи в блоке «Конверты»: без адресата шифр некому назвать", vars: { n: noRecipient } });
