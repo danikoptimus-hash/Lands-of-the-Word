@@ -36,3 +36,17 @@
 www.{$DOMAIN} {
 	redir https://{$DOMAIN}{uri} permanent
 }
+
+# Тестовый стенд (ветка staging, deploy/docker-compose.test.yml): контейнер lotw-app-test в общей сети.
+# Поисковикам не индексировать. Если стенд не запущен — 502 только на этом адресе, прод не задет.
+test.{$DOMAIN} {
+	encode gzip zstd
+	header {
+		X-Robots-Tag "noindex, nofollow"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+	}
+	reverse_proxy lotw-app-test:3000 {
+		flush_interval -1
+	}
+}

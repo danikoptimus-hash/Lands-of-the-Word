@@ -1,0 +1,48 @@
+# Тестовый стенд (test.<домен>) на том же сервере: своя база и своё приложение, без Caddy.
+# Caddy продакшена проксирует test.<домен> на контейнер lotw-app-test по общей сети (PROD_NET — сеть прод-стека).
+# Запуск: deploy/deploy-test.sh (из GitHub Actions по пушу в ветку staging). Переменные — deploy/.env.test.
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: lotw-db-test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: lotw
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: lotw
+    volumes:
+      - db_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lotw -d lotw"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  app:
+    image: ghcr.io/danikoptimus-hash/lotw-app:${APP_TAG:-test}
+    container_name: lotw-app-test
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://lotw:${POSTGRES_PASSWORD}@lotw-db-test:5432/lotw?schema=public
+      SESSION_SECRET: ${SESSION_SECRET}
+      PORT: "3000"
+      WEB_DIST: /app/apps/web/dist
+      PUBLIC_URL: https://test.${DOMAIN}
+      # Почта и вход через Google на стенде выключены: письма реальным людям с теста не уходят.
+      SMTP_HOST: ""
+      GOOGLE_CLIENT_ID: ""
+      GOOGLE_CLIENT_SECRET: ""
+    expose:
+      - "3000"
+
+networks:
+  default:
+    name: ${PROD_NET:-deploy_default}
+    external: true
+
+volumes:
+  db_test_data:

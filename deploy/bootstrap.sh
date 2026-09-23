@@ -7,7 +7,7 @@ set -euo pipefail
 
 DOMAIN="${1:-}"
 REPO_URL="https://github.com/danikoptimus-hash/Lands-of-the-Word.git"
-BRANCH="claude/lands-word-city-conquest-6xtei9"
+BRANCH="main"
 APP_DIR="/opt/lotw"
 
 if [[ -z "$DOMAIN" ]]; then echo "Использование: bash bootstrap.sh <домен>"; exit 1; fi

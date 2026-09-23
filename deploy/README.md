@@ -5,11 +5,19 @@
 На сервере от root:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/danikoptimus-hash/Lands-of-the-Word/claude/lands-word-city-conquest-6xtei9/deploy/bootstrap.sh -o bootstrap.sh
+curl -fsSL https://raw.githubusercontent.com/danikoptimus-hash/Lands-of-the-Word/main/deploy/bootstrap.sh -o bootstrap.sh
 bash bootstrap.sh landsoftheword.com
 ```
 
 Скрипт идемпотентный: повторный запуск безопасен. Что он делает — в шапке `bootstrap.sh`.
+
+## Ветки и тестовый стенд
+
+- `staging` → тестовый стенд `test.<домен>` (workflow `deploy-test`, скрипт `deploy/deploy-test.sh`, стек `deploy/docker-compose.test.yml`, проект `lotw-test`, каталог `/opt/lotw-test`, переменные `deploy/.env.test` создаются сами). Почта и вход через Google на стенде выключены.
+- `main` → продакшен (workflow `deploy`, `deploy/deploy.sh`); перед миграциями делается дамп в `/opt/lotw-backups`.
+- Копия боевой базы на стенд: workflow `copy-db-to-test` (Run workflow) или `bash /opt/lotw-test/deploy/copy-db-to-test.sh` на сервере.
+- DNS: для стенда нужна A-запись `test` на тот же адрес сервера; сертификат Caddy получит сам.
+- Логи стенда: `docker logs --tail 100 lotw-app-test`.
 
 ## Ограничение запросов (Caddy)
 

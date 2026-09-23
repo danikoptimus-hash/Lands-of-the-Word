@@ -2,7 +2,7 @@
 # Обновление продакшена. Вызывается GitHub Actions по SSH от пользователя deploy.
 # Переменные окружения: GHCR_USER, GHCR_TOKEN (для скачивания образа), HAS_APP.
 set -euo pipefail
-BRANCH="claude/lands-word-city-conquest-6xtei9"
+BRANCH="main"
 cd /opt/lotw
 
 echo "==> Код: $BRANCH"
@@ -28,11 +28,15 @@ fi
 if [[ "${HAS_APP:-false}" == "true" ]] && grep -q '^  app:' deploy/docker-compose.yml; then
   echo "==> База и миграции"
   (cd deploy && docker compose up -d db)
+  # Копия базы перед каждым обновлением прода: откат — deploy/restore.sh <файл>.
+  if docker exec lotw-db pg_isready -U lotw -d lotw -q 2>/dev/null; then bash deploy/backup.sh && echo "бэкап перед обновлением: $(ls -1t /opt/lotw-backups/lotw-*.sql.gz | head -1)"; fi
   (cd deploy && docker compose run --rm --no-deps app npm run db:migrate) || echo "миграции не применились: смотри вывод выше"
 fi
 
 echo "==> Запуск"
 (cd deploy && docker compose up -d --remove-orphans)
+# Caddyfile смонтирован с диска: изменения подхватываются перезагрузкой конфига, без перезапуска.
+(cd deploy && docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null) || echo "caddy reload не удался (при первом запуске это нормально)"
 
 echo "==> Ежедневный бэкап базы (cron 03:30)"
 mkdir -p /opt/lotw-backups
