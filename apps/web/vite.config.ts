@@ -3,6 +3,8 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  // Метка сборки для картинок инструкции: имена файлов не меняются, а браузер кэширует их на 30 дней — параметр ?v= сбрасывает кэш при каждой выкладке.
+  define: { __BUILD_ID__: JSON.stringify(Date.now().toString(36)) },
   plugins: [
     react(),
     // Сервис-воркер: сборка предкешируется, картинки карты берутся из кеша устройства (месяц), API не кешируется.

@@ -15,7 +15,7 @@ type Section = { icon: string; title: string; paras: string[]; figs?: Fig[]; ste
 function Figure({ f }: { f: Fig }) {
   return (
     <figure className={"guide-fig" + (f.wide ? " wide" : "")}>
-      <img src={`/img/guide/${f.src}.webp`} alt="" loading="lazy" decoding="async" />
+      <img src={`/img/guide/${f.src}.webp?v=${__BUILD_ID__}`} alt="" loading="lazy" decoding="async" />
       <figcaption>{f.caption}</figcaption>
     </figure>
   );
