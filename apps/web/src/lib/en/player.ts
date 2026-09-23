@@ -262,7 +262,6 @@ export const PLAYER: Record<string, string> = {
   "Пока тихо. Первые события — после первого дела.": "Quiet so far. The first events come after the first deed.",
   "Испытания {a} · {b} · {c}": "Trials {a} · {b} · {c}", "выиграли · устояли · потеряли": "won · held · lost",
   
-  "Роли раздаёт капитан; сменить уже выданную роль можно раз в неделю.": "The captain hands out roles; an already given role can be changed once a week.",
   "Сменить уже выданную роль можно с {d}; участникам без роли — сразу.": "An already given role can be changed from {d}; members without a role get one at once.",
   "{role} · ждёт одобрения": "{role} · awaiting approval",
   "корабль": "ship", "Сдачу видят только вы и проверяющий.": "Only you and the reviewer see the submission.",
