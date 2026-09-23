@@ -685,9 +685,9 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
     <>
       {embedded
         ? <div className="meta roster-head"><Icon name="users" />{t("Состав")} · {team.members.length}{invite}</div>
-        : <h2><Icon name="users" />{t("Состав")}<span className="count">{team.members.length}</span>{isCaptain && <Help>{t("Роли назначает капитан; менять — не чаще раза в неделю.")}</Help>}{invite}</h2>}
+        : <h2><Icon name="users" />{t("Состав")}<span className="count">{team.members.length}</span>{isCaptain && <Help>{t("Роли раздаёт капитан; сменить уже выданную роль можно раз в неделю.")}</Help>}{invite}</h2>}
       {inviteUrl && <p className="hint invite-fallback"><a href={inviteUrl}>{inviteUrl}</a></p>}
-      {isCaptain && nextChange && <p className="hint">{t("Следующая смена ролей — {d}.", { d: fmtDate(nextChange, { time: false }) })}</p>}
+      {isCaptain && nextChange && <p className="hint">{t("Сменить уже выданную роль можно с {d}; участникам без роли — сразу.", { d: fmtDate(nextChange, { time: false }) })}</p>}
       <ul className="list roster">
         {team.members.map((m) => {
           const name = m.user.displayName ?? m.user.nickname;

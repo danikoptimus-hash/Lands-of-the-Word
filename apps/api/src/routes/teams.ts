@@ -143,8 +143,9 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     }
     if (body.role === "CAPTAIN") body.gameRole = "NONE";
     if (body.role === "DEPUTY") await prisma.membership.updateMany({ where: { teamId, role: "DEPUTY" }, data: { role: "MEMBER" } }); // один заместитель
-    // Смена игровой роли капитаном — не чаще раза в неделю (по правилам игры).
-    if (body.gameRole !== undefined && !isAdmin && membership.team.lastRoleChangeAt && rules.roleChangeDays > 0 && Date.now() - membership.team.lastRoleChangeAt.getTime() < days(rules.roleChangeDays)) {
+    // Недельный лимит — только на смену уже выданной роли (решение владельца 23.09): раздать роли участникам без роли капитан может в любой момент.
+    const isChange = body.gameRole !== undefined && membership.gameRole !== "NONE" && body.gameRole !== membership.gameRole;
+    if (isChange && !isAdmin && membership.team.lastRoleChangeAt && rules.roleChangeDays > 0 && Date.now() - membership.team.lastRoleChangeAt.getTime() < days(rules.roleChangeDays)) {
       return reply.code(429).send({ error: "cooldown", message: err(request, "Роли меняются не чаще раза в {n} дн.; следующая смена — {date}", { n: rules.roleChangeDays, date: new Date(membership.team.lastRoleChangeAt.getTime() + days(rules.roleChangeDays)).toLocaleDateString("ru-RU") }) });
     }
     if (body.gameRole && body.gameRole !== "NONE") {

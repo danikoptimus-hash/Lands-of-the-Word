@@ -24,7 +24,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await prisma.game.deleteMany({ where: { id: gameId } });
-  await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, playerNick, otherNick] } } });
+  await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, playerNick, otherNick, otherNick + "_3"] } } });
   await cleanupFixtures(gameId);
   await app.close();
   await prisma.$disconnect();
@@ -115,9 +115,16 @@ describe("команды и приглашения", () => {
     expect(r2.json()).toMatchObject({ member: { gameRole: "SCOUT", pendingRole: null } });
     expect(r2.json().pending).toBeUndefined();
     expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}/role-decide`, headers: { cookie: adminCookie }, payload: { approve: true } })).statusCode).toBe(404);
-    // Следующая смена капитаном — не раньше чем через неделю.
+    // Сменить уже выданную роль капитан может не раньше чем через неделю; снять роль и выдать новому участнику — можно сразу.
     const soon = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "PROPHET" } });
     expect(soon.statusCode).toBe(429);
+    const third = await register(otherNick + "_3");
+    const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${teamId}/invites`, headers: { cookie: playerCookie }, payload: { role: "MEMBER" } });
+    await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: third } });
+    const thirdUser = await prisma.user.findUniqueOrThrow({ where: { nickname: otherNick + "_3" } });
+    const fresh = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${thirdUser.id}`, headers: { cookie: playerCookie }, payload: { gameRole: "PROPHET" } });
+    expect(fresh.statusCode).toBe(200);
+    expect(fresh.json().member.gameRole).toBe("PROPHET");
     // Администратор ставит роль без ожидания; одна роль — один человек. «Воин» — тоже роль.
     const warrior = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${teamId}/members/${other.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "WARRIOR" } });
     expect(warrior.json().member.gameRole).toBe("WARRIOR");
