@@ -304,8 +304,10 @@ model Invite {
   id        String   @id
   gameId    String
   game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  teamId    String
-  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /** Без команды — приглашение администратора игры (решение владельца 23.09): ссылка вместо поля с почтой. */
+  teamId    String?
+  team      Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  admin     Boolean  @default(false)
   role      TeamRole @default(MEMBER)
   usesLeft  Int      @default(20)
   expiresAt DateTime

@@ -1,5 +1,6 @@
 /** EN-строки области «guest» (вход, восстановление, новый пароль, приглашение, главная, аккаунт, новая игра). Ключ — русская строка как в коде. Добавлять только сюда; legacy.ts не трогать. */
 export const GUEST: Record<string, string> = {
+  "Приглашение администратора": "Administrator invitation", "Администратор проверяет сдачи, ведёт команды и настройки игры.": "An administrator reviews submissions and manages teams and game settings.", "Вы уже администратор этой игры.": "You are already an administrator of this game.", "Открыть игру": "Open the game", "Стать администратором": "Become an administrator",
   // Вход и регистрация
   "Вход или регистрация": "Sign in or sign up",
   "Почта": "Email",

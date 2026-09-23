@@ -9,7 +9,7 @@ import { LoadingState } from "../components/State";
 import { GuestShell, errorText } from "./LoginPage";
 import { VerifyPendingPage } from "./VerifyPage";
 
-interface InviteInfo { invite: { role: "CAPTAIN" | "MEMBER"; team: { id: string; name: string; color: string }; game: { id: string; name: string; org: { name: string } } }; alreadyIn: { id: string; name: string } | null }
+interface InviteInfo { invite: { admin: boolean; role: "CAPTAIN" | "MEMBER"; team: { id: string; name: string; color: string } | null; game: { id: string; name: string; org: { name: string } } }; alreadyIn: { id: string; name: string } | null; alreadyAdmin?: boolean }
 
 /** Приглашение в команду по ссылке от капитана или администратора. Гостя сначала отправляем на вход. */
 export function JoinPage() {
@@ -32,15 +32,16 @@ export function JoinPage() {
   async function accept() {
     setBusy(true); setError(null);
     try {
-      const r = await api<{ team: { gameId: string } }>(`/api/invites/${token}/accept`, { method: "POST" });
-      navigate(`/games/${r.team.gameId}/team`);
+      const r = await api<{ admin: boolean; gameId?: string; team?: { gameId: string } }>(`/api/invites/${token}/accept`, { method: "POST" });
+      navigate(r.admin ? `/games/${r.gameId}` : `/games/${r.team!.gameId}/team`);
     } catch (e) { setError(errorText(e)); }
     finally { setBusy(false); }
   }
 
-  const mapUrl = info ? `/games/${info.invite.game.id}/team` : "/";
+  const isAdminInvite = Boolean(info?.invite.admin);
+  const mapUrl = info ? (isAdminInvite ? `/games/${info.invite.game.id}` : `/games/${info.invite.game.id}/team`) : "/";
   return (
-    <GuestShell title={t("Приглашение в команду")}>
+    <GuestShell title={isAdminInvite ? t("Приглашение администратора") : t("Приглашение в команду")}>
       {!info && !error && <LoadingState rows={3} />}
       {!info && error && (
         <>
@@ -52,12 +53,24 @@ export function JoinPage() {
       {info && (
         <div className="stack">
           <p><span className="muted">{t("Игра")}</span> <strong>{info.invite.game.name}</strong></p>
-          <div className="invite-team">
-            <TeamAvatar name={info.invite.team.name} color={info.invite.team.color} withName />
-            {info.invite.role === "CAPTAIN" && <Chip icon="star">{t("капитан")}</Chip>}
-          </div>
+          {info.invite.team && (
+            <div className="invite-team">
+              <TeamAvatar name={info.invite.team.name} color={info.invite.team.color} withName />
+              {info.invite.role === "CAPTAIN" && <Chip icon="star">{t("капитан")}</Chip>}
+            </div>
+          )}
+          {isAdminInvite && <p className="muted">{t("Администратор проверяет сдачи, ведёт команды и настройки игры.")}</p>}
           {error && <p className="error" role="alert">{error}</p>}
-          {info.alreadyIn ? (
+          {isAdminInvite ? (
+            info.alreadyAdmin ? (
+              <>
+                <p className="muted">{t("Вы уже администратор этой игры.")}</p>
+                <div className="actions"><Link to={mapUrl} className="btn block">{t("Открыть игру")}</Link></div>
+              </>
+            ) : (
+              <div className="actions"><button type="button" className="block" onClick={() => void accept()} disabled={busy}>{t("Стать администратором")}</button></div>
+            )
+          ) : info.alreadyIn ? (
             <>
               <p className="muted">{t("Вы уже в команде «{name}» этой игры.", { name: info.alreadyIn.name })}</p>
               <div className="actions"><Link to={mapUrl} className="btn block">{t("Открыть карту")}</Link></div>

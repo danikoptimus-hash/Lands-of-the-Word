@@ -67,6 +67,8 @@ export function RecipientsBlock({ gameId, status, version = 0 }: { gameId: strin
       {loadError ? <ErrorState onRetry={() => void load()} /> : !rows ? <LoadingState rows={2} /> : rows.length === 0 ? (
         <EmptyState inline icon="mail" text={finished ? t("Игра завершена: список адресатов стёрт.") : t("Адресатов пока нет.")} />
       ) : (
+        <details className="fold">
+          <summary><Icon name="list" />{t("Список адресатов")} <span className="count">{rows.length}</span><Icon name="chevron-down" className="chev" /></summary>
         <ul className="list">
           {rows.map((r) => (
             <li key={r.id}>
@@ -78,6 +80,7 @@ export function RecipientsBlock({ gameId, status, version = 0 }: { gameId: strin
             </li>
           ))}
         </ul>
+        </details>
       )}
       {open && (
         <Sheet title={t("Новый адресат")} onClose={close} size="sm"

@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { generateMap, MapGenError } from "@lotw/domain";
@@ -220,6 +221,15 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     await prisma.gameAdmin.create({ data: { gameId: id, userId: user.id } });
     publish(id, { type: "game" });
     return reply.code(201).send({ ok: true, nickname: user.nickname });
+  });
+
+  /** Ссылка-приглашение администратора (решение владельца 23.09): 14 дней, до 5 человек; принимается на /join/:token. */
+  app.post("/api/games/:id/admin-invites", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const game = await loadGameForAdmin(request, reply, id);
+    if (!game) return;
+    const invite = await prisma.invite.create({ data: { id: randomBytes(18).toString("base64url"), gameId: id, admin: true, usesLeft: 5, expiresAt: new Date(Date.now() + 14 * 86400_000) } });
+    return reply.code(201).send({ invite: { token: invite.id, usesLeft: invite.usesLeft, expiresAt: invite.expiresAt, path: `/join/${invite.id}` } });
   });
 
   app.delete("/api/games/:id/admins/:userId", async (request, reply) => {

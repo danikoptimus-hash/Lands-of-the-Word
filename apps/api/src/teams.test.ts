@@ -313,6 +313,24 @@ describe("карта команды и дела", () => {
 });
 
 describe("администраторы игры", () => {
+  it("ссылка-приглашение администратора: принял — стал администратором; повторно — 409", async () => {
+    const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/admin-invites`, headers: { cookie: adminCookie } });
+    expect(inv.statusCode).toBe(201);
+    const token = inv.json().invite.token as string;
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/admin-invites`, headers: { cookie: playerCookie } })).statusCode).toBe(403);
+    const third = await registerVerified(app, { nickname: "adm3_" + stamp, password: "secret123" });
+    const cookie = third.headers["set-cookie"] as string;
+    const info = await app.inject({ method: "GET", url: `/api/invites/${token}`, headers: { cookie } });
+    expect(info.json().invite.admin).toBe(true);
+    expect(info.json().invite.game.id).toBe(gameId);
+    const acc = await app.inject({ method: "POST", url: `/api/invites/${token}/accept`, headers: { cookie } });
+    expect(acc.statusCode).toBe(201);
+    expect(acc.json()).toMatchObject({ admin: true, gameId });
+    expect((await app.inject({ method: "GET", url: `/api/games/${gameId}/teams`, headers: { cookie } })).json().isAdmin).toBe(true);
+    expect((await app.inject({ method: "POST", url: `/api/invites/${token}/accept`, headers: { cookie } })).statusCode).toBe(409);
+    await prisma.user.deleteMany({ where: { nickname: "adm3_" + stamp } });
+  });
+
   it("добавить по никнейму или почте, второй админ видит команды, создателя убрать нельзя", async () => {
     const list0 = await app.inject({ method: "GET", url: `/api/games/${gameId}/admins`, headers: { cookie: adminCookie } });
     expect(list0.json().admins).toHaveLength(1);

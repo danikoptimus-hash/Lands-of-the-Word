@@ -221,8 +221,12 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const { token } = request.params as { token: string };
     const invite = await prisma.invite.findUnique({ where: { id: token }, include: { team: { select: { id: true, name: true, color: true } }, game: { select: { id: true, name: true, status: true, org: { select: { name: true } } } } } });
     if (!invite || invite.expiresAt < new Date() || invite.usesLeft <= 0) return reply.code(404).send({ error: "not_found", message: err(request, "Приглашение не найдено или истекло") });
+    if (invite.admin) {
+      const isAdmin = await prisma.gameAdmin.findUnique({ where: { gameId_userId: { gameId: invite.gameId, userId: request.user!.id } } });
+      return { invite: { admin: true, role: invite.role, team: null, game: invite.game }, alreadyIn: null, alreadyAdmin: Boolean(isAdmin) };
+    }
     const already = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: invite.gameId } }, include: { team: { select: { id: true, name: true } } } });
-    return { invite: { role: invite.role, team: invite.team, game: invite.game }, alreadyIn: already ? already.team : null };
+    return { invite: { admin: false, role: invite.role, team: invite.team, game: invite.game }, alreadyIn: already ? already.team : null };
   });
 
   /** Принять приглашение: вступить в команду. Одна игра — одна команда на человека. */
@@ -230,6 +234,17 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const { token } = request.params as { token: string };
     const invite = await prisma.invite.findUnique({ where: { id: token } });
     if (!invite || invite.expiresAt < new Date() || invite.usesLeft <= 0) return reply.code(404).send({ error: "not_found", message: err(request, "Приглашение не найдено или истекло") });
+    if (invite.admin) {
+      const isAdmin = await prisma.gameAdmin.findUnique({ where: { gameId_userId: { gameId: invite.gameId, userId: request.user!.id } } });
+      if (isAdmin) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже администратор этой игры") });
+      await prisma.$transaction([
+        prisma.gameAdmin.create({ data: { gameId: invite.gameId, userId: request.user!.id } }),
+        prisma.invite.update({ where: { id: token }, data: { usesLeft: { decrement: 1 } } }),
+      ]);
+      publish(invite.gameId, { type: "game" });
+      return reply.code(201).send({ admin: true, gameId: invite.gameId });
+    }
+    if (!invite.teamId) return reply.code(404).send({ error: "not_found", message: err(request, "Приглашение не найдено или истекло") });
     const already = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: invite.gameId } } });
     if (already) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже состоите в команде этой игры") });
     const [membership] = await prisma.$transaction([
@@ -237,7 +252,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
       prisma.invite.update({ where: { id: token }, data: { usesLeft: { decrement: 1 } } }),
     ]);
     publish(invite.gameId, { type: "teams", teamId: invite.teamId });
-    return reply.code(201).send({ team: membership.team, role: membership.role });
+    return reply.code(201).send({ admin: false, team: membership.team, role: membership.role });
   });
 
   /** Мои команды по всем играм (для главной страницы участника). */
