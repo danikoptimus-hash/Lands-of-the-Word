@@ -136,7 +136,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
               <ActionMenu label={t("Ещё")} align="left" items={[
                 { label: t("Переименовать"), icon: "edit", onSelect: () => { setRenameError(null); setRenaming({ id: tm.id, name: tm.name }); } },
                 ...(status === "DRAFT" ? [{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }] : []),
-                ...(status === "ACTIVE" && tm.status !== "defeated" ? [{ label: t("Оштрафовать: аннулировать участок пути"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }] : []),
+                ...(status === "ACTIVE" && tm.status !== "defeated" ? [{ label: t("Оштрафовать"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }] : []),
               ]} />
                 </span>
               </div>

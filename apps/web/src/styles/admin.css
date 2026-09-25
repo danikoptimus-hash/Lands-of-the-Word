@@ -142,6 +142,8 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .team-invites { margin: var(--sp-2) 0 0; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
 .team-head .team-menu { flex: none; display: inline-flex; margin-left: 2px; }
 .team-head .team-menu > button { min-height: 32px; width: 32px; padding: 0; }
+.team-head .team-menu .menu { max-width: min(300px, calc(100vw - 120px)); min-width: 180px; }
+.team-head .team-menu .menu button { white-space: normal; text-align: left; }
 .team-block:first-of-type { border-top: 0; }
 .team-block .list { margin-top: var(--sp-2); }
 .team-block .list > li { padding: var(--sp-2) 0; }
