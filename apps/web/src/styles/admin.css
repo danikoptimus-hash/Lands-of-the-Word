@@ -140,7 +140,7 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .team-block.open .team-head .chev { transform: rotate(-90deg); }
 .team-block.out .team-head .name, .team-block.out .team-head .nums { color: var(--muted); }
 .team-invites { margin: var(--sp-2) 0 0; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-.team-invites .menu, .team-invites > :last-child { margin-left: auto; }
+.team-head .team-menu { flex: none; display: inline-flex; }
 .team-block:first-of-type { border-top: 0; }
 .team-block .list { margin-top: var(--sp-2); }
 .team-block .list > li { padding: var(--sp-2) 0; }

@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Блок «Команды» у администратора: меню команды (переименовать, оштрафовать, удалить) стоит в строке команды рядом со стрелкой, раскрывать строку не нужно.": "Administrator’s “Teams” block: the team menu (rename, penalize, delete) sits in the team row next to the arrow; no need to open the row.",
   "«Как играть»: обновлены текст и снимки: метки на карте, задание района, состав с ролями, блок «Команды», настройки и ярлыки у администратора, установка на телефон.": "“How to play”: text and screenshots updated: map marks, a district task, the roster with roles, the “Teams” block, the administrator’s settings and labels, installing on a phone.",
   "Администраторы: кнопка «Пригласить» сразу копирует ссылку-приглашение (14 дней, до 5 человек), поле с почтой убрано. По ссылке человек входит в игру администратором.": "Administrators: the “Invite” button copies an invite link at once (14 days, up to 5 people); the e-mail field is gone. Following the link makes the person an administrator of the game.",
   "Настройки: список адресатов конвертов свёрнут по умолчанию, раскрывается нажатием.": "Settings: the envelope recipients list is collapsed by default and opens with a tap.",
