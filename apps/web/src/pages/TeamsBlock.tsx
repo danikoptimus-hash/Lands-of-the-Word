@@ -133,7 +133,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
               <div className="name">{tm.name}
                 {st?.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : standings?.leaderTeamId === tm.id ? <Chip tone="accent">{t("лидер")}</Chip> : null}
                 <span className="team-menu" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-              <ActionMenu label={t("Ещё")} align="left" items={[
+              <ActionMenu label={t("Ещё")} items={[
                 { label: t("Переименовать"), icon: "edit", onSelect: () => { setRenameError(null); setRenaming({ id: tm.id, name: tm.name }); } },
                 ...(status === "DRAFT" ? [{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }] : []),
                 ...(status === "ACTIVE" && tm.status !== "defeated" ? [{ label: t("Оштрафовать"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }] : []),
