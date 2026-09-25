@@ -132,17 +132,17 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
             <div className="body">
               <div className="name">{tm.name}
                 {st?.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : standings?.leaderTeamId === tm.id ? <Chip tone="accent">{t("лидер")}</Chip> : null}
-              </div>
-              <div className="nums">{plural(tm.members.length, ["участник", "участника", "участников"])}{st && <> · {plural(st.cities, ["город", "города", "городов"])} · {plural(st.capitals, ["столица", "столицы", "столиц"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])}</>}</div>
-              {st && <div className="nums">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}</div>}
-            </div>
-            <span className="team-menu" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-              <ActionMenu label={t("Ещё")} items={[
+                <span className="team-menu" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+              <ActionMenu label={t("Ещё")} align="left" items={[
                 { label: t("Переименовать"), icon: "edit", onSelect: () => { setRenameError(null); setRenaming({ id: tm.id, name: tm.name }); } },
                 ...(status === "DRAFT" ? [{ label: t("Удалить команду"), icon: "trash", danger: true, onSelect: () => void remove(tm) }] : []),
                 ...(status === "ACTIVE" && tm.status !== "defeated" ? [{ label: t("Оштрафовать: аннулировать участок пути"), icon: "alert", danger: true, onSelect: () => void penalize(tm) }] : []),
               ]} />
-            </span>
+                </span>
+              </div>
+              <div className="nums">{plural(tm.members.length, ["участник", "участника", "участников"])}{st && <> · {plural(st.cities, ["город", "города", "городов"])} · {plural(st.capitals, ["столица", "столицы", "столиц"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])}</>}</div>
+              {st && <div className="nums">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}</div>}
+            </div>
             <Icon name="chevron" className="chev" />
           </div>
           {isOpen && (<>
