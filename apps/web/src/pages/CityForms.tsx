@@ -201,6 +201,16 @@ export function WaxEnvelope(p: EnvelopeProps) {
         <>
           <div className="cipher-line"><span className="small muted">{t("Шифр для адресата")}{p.codeRule && <Help>{p.codeRule}</Help>}</span><b className="cipher-text">{p.cipher}</b></div>
           <p className="small"><Icon name="mail" /> {p.recipientText}</p>
+          {!p.ruined && (
+            <div className="visit-note" role="note">
+              <div className="strong"><Icon name="home" />{t("Поездка к адресату")}</div>
+              <ul>
+                <li>{t("Заранее договоритесь с семьёй о времени: когда им удобно принять вас.")}</li>
+                <li>{t("Приезд — не «забрать конверт и уехать». Помолитесь вместе и благословите этот дом, привезите гостинец или помогите по дому — хотя бы одно из этого.")}</li>
+                <li>{t("И только потом назовите шифр и возьмите конверт.")}</li>
+              </ul>
+            </div>
+          )}
           {p.ruined ? (
             <div className="actions"><button type="button" disabled={p.busy} onClick={p.onBreak}><Icon name="city" />{t("Занять руины")}</button></div>
           ) : (

@@ -382,6 +382,12 @@
 
 /* Конверт с сургучом. */
 .envelope { position: relative; margin-top: var(--sp-3); padding: var(--sp-3); border-radius: var(--r-md); background: linear-gradient(rgba(255,255,255,.35), rgba(255,255,255,.35)), url("/img/props/parchment.webp") center / 512px repeat #F7F1E4; border: 1px solid #E0D3B8; box-shadow: var(--shadow-1); overflow: hidden; }
+/* Памятка о поездке к адресату (решение владельца 27.09): не «забрать конверт», а молитва, гостинец или помощь; время согласовать. */
+.envelope .visit-note { margin: var(--sp-2) 0 var(--sp-3); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: color-mix(in srgb, var(--paper-light, #FFF6E3) 70%, transparent); border: 1px dashed var(--accent); font-size: var(--fs-sm); }
+.envelope .visit-note .strong { display: flex; align-items: center; gap: var(--sp-1); color: var(--accent-ink, var(--bronze-ink)); margin-bottom: 4px; }
+.envelope .visit-note .strong .i { width: 16px; height: 16px; }
+.envelope .visit-note ul { margin: 0; padding-left: 18px; }
+.envelope .visit-note li { margin: 2px 0; }
 .envelope .paper { position: relative; height: 96px; margin: 0 auto var(--sp-2); max-width: 300px; background: url("/img/props/parchment.webp") center / 512px repeat #EFE4CC; border: 1px solid #D6C6A4; border-radius: var(--r-sm); overflow: visible; }
 .envelope .flap { position: absolute; inset: 0 0 auto 0; height: 52px; background: linear-gradient(180deg, rgba(0,0,0,.06), rgba(0,0,0,.16)), url("/img/props/parchment.webp") center / 512px repeat #D6C6A4; clip-path: polygon(0 0, 100% 0, 50% 100%); transform-origin: 50% 0; transition: transform .6s var(--spring); }
 .envelope .wax { position: absolute; left: 50%; top: 14px; width: 86px; height: 86px; transform: translateX(-50%); transition: transform .5s var(--spring), filter .4s; filter: drop-shadow(0 3px 4px rgba(0,0,0,.3)); }
@@ -390,7 +396,8 @@
 .envelope.scratched .wax { animation: lockJam .5s var(--ease-out); }
 .envelope.dry .wax { filter: grayscale(.8) drop-shadow(0 3px 4px rgba(0,0,0,.3)); }
 .envelope .cipher-line { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: var(--sp-2) 0; }
-.envelope .cipher-text { font-family: var(--font-mono); font-size: var(--fs-xl); letter-spacing: .25em; padding-left: .25em; color: var(--accent-ink); }
+.envelope .cipher-text { font-family: var(--font-mono); font-size: var(--fs-xl); letter-spacing: .25em; padding-left: .25em; color: var(--accent-ink); overflow-wrap: anywhere; word-break: break-all; max-width: 100%; line-height: 1.3; }
+@media (max-width: 420px) { .envelope .cipher-text { font-size: var(--fs-lg); letter-spacing: .16em; } }
 .envelope p .i { vertical-align: -.2em; color: var(--accent); }
 .key-cells { position: relative; display: flex; gap: 6px; justify-content: center; margin: var(--sp-1) 0 var(--sp-2); cursor: text; }
 .key-cells .cell { width: 40px; height: 48px; border-radius: var(--r-xs); border: 1px solid var(--border-strong); background: var(--surface); display: inline-flex; align-items: center; justify-content: center; font-family: var(--font-mono); font-size: var(--fs-xl); font-weight: 700; color: var(--text); }
