@@ -5,8 +5,6 @@ import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { LoadingState } from "../components/State";
-import { useAuth } from "../lib/auth";
-import { useUi } from "../lib/ui";
 
 interface Row { nodeKey: string; bookCode: string; number: number; name: string; cityKey: string; cityCode: string; recipient: { label: string; kind: "FAMILY" | "WIDOW" | "ELDER" | "OTHER" } | null }
 
@@ -19,20 +17,7 @@ export function LabelsPage() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [game, setGame] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const superadmin = useAuth().user?.platformRole === "SUPERADMIN";
-  const { notify } = useUi();
-  const [restoreText, setRestoreText] = useState("");
-  const [busy, setBusy] = useState(false);
   const load = () => api<{ game: { name: string }; labels: Row[] }>(`/api/games/${id}/labels`).then((r) => { setRows(r.labels); setGame(r.game.name); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети")));
-  /** Возврат шифров и ключей из напечатанных ярлыков (инцидент 29.09): только администратор платформы. */
-  async function restore() {
-    setBusy(true);
-    try {
-      const r = await api<{ updated: number; total: number }>(`/api/games/${id}/labels/restore`, { method: "POST", body: JSON.stringify({ text: restoreText }) });
-      notify(t("Возвращено: {n} из {total} городов", { n: r.updated, total: r.total }), "info"); setRestoreText(""); await load();
-    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-    finally { setBusy(false); }
-  }
   useEffect(() => {
     void load();
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -45,14 +30,6 @@ export function LabelsPage() {
           {rows && <a href={`/api/games/${id}/labels.pdf`} download className="btn"><Icon name="printer" />{t("Скачать PDF")}</a>}
         </div>
         {rows && <p className="muted small">{t("Наружный ярлык — на конверт, вкладыш — внутрь; разрежьте по пунктиру.")}</p>}
-        {rows && superadmin && (
-          <details className="fold">
-            <summary><Icon name="alert" />{t("Вернуть шифры и ключи из напечатанных ярлыков")}<Icon name="chevron-down" className="chev" /></summary>
-            <p className="muted small">{t("Если ярлыки напечатали, а шифры и ключи в игре потом изменились: вставьте строки «книга, шифр, ключ» (через табуляцию или «|»), по строке на город. Применится всё сразу или ничего.")}</p>
-            <textarea rows={8} value={restoreText} onChange={(e) => setRestoreText(e.target.value)} spellCheck={false} placeholder={t("Руфь | ШИФР | КЛЮЧ")} />
-            <div className="actions"><button type="button" disabled={busy || !restoreText.trim()} onClick={() => void restore()}><Icon name="check" />{t("Вернуть")}</button></div>
-          </details>
-        )}
         {error && <p className="note warn"><Icon name="alert" /><span>{error} · <Link to={`/games/${id}`}>{t("Добавить адресатов")}</Link></span></p>}
         {!rows && !error && <LoadingState />}
       </div>

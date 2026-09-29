@@ -1,8 +1,5 @@
 /** EN-строки области «admin». Ключ — русская строка как в коде. Добавлять только сюда; legacy.ts не трогать. */
 export const ADMIN: Record<string, string> = {
-  "Вернуть шифры и ключи из напечатанных ярлыков": "Restore ciphers and keys from the printed labels",
-  "Если ярлыки напечатали, а шифры и ключи в игре потом изменились: вставьте строки «книга, шифр, ключ» (через табуляцию или «|»), по строке на город. Применится всё сразу или ничего.": "If the labels were printed and the ciphers and keys in the game changed afterwards: paste lines “book, cipher, key” (separated by tabs or “|”), one line per city. Everything is applied at once or nothing at all.",
-  "Вернуть": "Restore", "Возвращено: {n} из {total} городов": "Restored: {n} of {total} cities", "Руфь | ШИФР | КЛЮЧ": "Ruth | CIPHER | KEY",
   // Тестовые аккаунты (суперадмин)
   "Тестовые аккаунты": "Test accounts", "Для тестовой партии с ботами: подтвердить почту аккаунтов с адресом на example.com (письмо туда не доходит). Никнеймы через пробел или запятую.": "For a test game with bots: confirm the e-mail of accounts with an example.com address (mail cannot reach it). Nicknames separated by spaces or commas.", "Никнеймы": "Nicknames", "Подтвердить": "Confirm", "Подтверждено аккаунтов: {n}": "Accounts confirmed: {n}",
   // Пакетная проверка и дайджест (этап 4 решений 18.09)

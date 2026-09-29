@@ -301,17 +301,21 @@ describe("ключи и шифры городов", () => {
     expect(after).toEqual(codesBeforeStart);
   });
 
-  it("суперадмин возвращает шифры и ключи из напечатанных ярлыков; остальным — 403; кривые строки — 400 и ничего не меняется", async () => {
-    const node = await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "rut" } });
-    const code = "Ж".repeat(node.cityCode!.length), text = `Руфь\t${code}\tab2cd3`;
-    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/labels/restore`, headers: { cookie: p1Cookie }, payload: { text } })).statusCode).toBe(403);
-    const bad = await app.inject({ method: "POST", url: `/api/games/${gameId}/labels/restore`, headers: { cookie: adminCookie }, payload: { text: `${text}\nРуфь\t${code}Ж\tAB2CD3` } });
-    expect(bad.statusCode).toBe(400);
-    expect((await prisma.mapNode.findUniqueOrThrow({ where: { id: node.id } })).cityKey).toBe(node.cityKey);
-    const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/labels/restore`, headers: { cookie: adminCookie }, payload: { text } });
+  it("временный одноразовый возврат шифров: чужой токен — 404, все города разом — 200, повтор — 410", async () => {
+    const { createHash } = await import("node:crypto");
+    process.env.RESTORE_TOKEN_SHA256 = createHash("sha256").update("test-token").digest("hex");
+    await prisma.appSetting.deleteMany({ where: { key: "ops.restoreCodes.done" } });
+    const nodes = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY" }, select: { bookCode: true, cityCode: true } });
+    const items = nodes.map((n) => ({ book: n.bookCode!, code: "Ж".repeat(n.cityCode!.length), key: "AB2CD3" }));
+    const call = (token: string, payload: object) => app.inject({ method: "POST", url: "/api/ops/restore-codes", headers: { "x-restore-token": token }, payload });
+    expect((await call("wrong", { game: "Города", items })).statusCode).toBe(404);
+    expect((await call("test-token", { game: "Города", items: items.slice(1) })).statusCode).toBe(400);
+    const ok = await call("test-token", { game: "Города", items });
     expect(ok.statusCode).toBe(200);
-    expect(ok.json()).toMatchObject({ updated: 1 });
-    const after = await prisma.mapNode.findUniqueOrThrow({ where: { id: node.id } });
-    expect(after.cityKey).toBe("AB2CD3"); expect(after.cityCode).toBe(code);
+    expect(ok.json()).toMatchObject({ updated: nodes.length });
+    expect((await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "rut" } })).cityKey).toBe("AB2CD3");
+    expect((await call("test-token", { game: "Города", items })).statusCode).toBe(410);
+    await prisma.appSetting.deleteMany({ where: { key: "ops.restoreCodes.done" } });
+    delete process.env.RESTORE_TOKEN_SHA256;
   });
 });

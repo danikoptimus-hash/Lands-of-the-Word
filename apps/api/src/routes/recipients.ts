@@ -97,42 +97,6 @@ export async function recipientRoutes(app: FastifyInstance): Promise<void> {
     return { game: { name: r.game.name }, labels: r.rows };
   });
 
-  /**
-   * Возврат шифров и ключей из напечатанных ярлыков (инцидент 29.09: старт игры перегенерировал их после печати).
-   * Только администратор платформы. Текст — строки «книга, шифр, ключ» через табуляцию, «|» или два пробела; книга —
-   * названием (RU/EN) или кодом. Проверки: книга есть в игре, шифр той же длины, что нынешний (по числу заданий), ключ —
-   * 6 знаков A–Z и 2–9. Применяется целиком или никак.
-   */
-  app.post("/api/games/:id/labels/restore", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const game = await requireGameAdmin(request, reply, id);
-    if (!game) return;
-    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Только администратор платформы") });
-    const body = z.object({ text: z.string().max(40_000) }).parse(request.body);
-    const nodes = await prisma.mapNode.findMany({ where: { gameId: id, kind: "CITY" }, select: { id: true, bookCode: true, cityCode: true } });
-    const byBook = new Map(nodes.map((n) => [n.bookCode ?? "", n]));
-    const bookByName = new Map<string, string>();
-    for (const b of BOOKS) { bookByName.set(b.code, b.code); bookByName.set(b.nameRu.toLowerCase(), b.code); bookByName.set(b.nameEn.toLowerCase(), b.code); }
-    const errors: string[] = []; const updates: Array<{ id: string; key: string; code: string }> = []; const seen = new Set<string>();
-    body.text.split(/\r?\n/).forEach((raw, i) => {
-      const line = raw.trim(); if (!line) return;
-      const parts = line.split(/\t|\s{2,}|\s*\|\s*|\s*[;,]\s*/).map((x) => x.trim()).filter(Boolean);
-      if (parts.length < 3) { errors.push(`${i + 1}: нужно «книга, шифр, ключ»`); return; }
-      const key = parts[parts.length - 1]!.toUpperCase(), code = parts[parts.length - 2]!.toUpperCase(), name = parts.slice(0, -2).join(" ").toLowerCase();
-      const book = bookByName.get(name), node = book ? byBook.get(book) : undefined;
-      if (!node) { errors.push(`${i + 1}: книга «${parts.slice(0, -2).join(" ")}» не найдена`); return; }
-      if (seen.has(node.id)) { errors.push(`${i + 1}: книга повторяется`); return; }
-      if (!/^[A-Z2-9]{6}$/.test(key)) { errors.push(`${i + 1}: ключ — 6 знаков A–Z и 2–9`); return; }
-      if (!/^[А-ЯЁ2-9]+$/.test(code) || (node.cityCode && code.length !== node.cityCode.length)) { errors.push(`${i + 1}: шифр должен быть из ${node.cityCode?.length ?? "?"} знаков (буквы и цифры 2–9)`); return; }
-      seen.add(node.id); updates.push({ id: node.id, key, code });
-    });
-    if (errors.length) return reply.code(400).send({ error: "bad_request", message: err(request, "Ошибки в строках: {list}", { list: errors.slice(0, 6).join("; ") }) });
-    if (updates.length === 0) return reply.code(400).send({ error: "bad_request", message: err(request, "Нет ни одной строки") });
-    await prisma.$transaction(updates.map((u) => prisma.mapNode.update({ where: { id: u.id }, data: { cityKey: u.key, cityCode: u.code } })));
-    publish(id, { type: "cities" });
-    return { ok: true, updated: updates.length, total: nodes.length };
-  });
-
   /** Готовый PDF со всеми ярлыками одним файлом (скачивание). */
   app.get("/api/games/:id/labels.pdf", async (request, reply) => {
     const { id } = request.params as { id: string };
