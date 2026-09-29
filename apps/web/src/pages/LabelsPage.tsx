@@ -49,7 +49,7 @@ export function LabelsPage() {
           <details className="fold">
             <summary><Icon name="alert" />{t("Вернуть шифры и ключи из напечатанных ярлыков")}<Icon name="chevron-down" className="chev" /></summary>
             <p className="muted small">{t("Если ярлыки напечатали, а шифры и ключи в игре потом изменились: вставьте строки «книга, шифр, ключ» (через табуляцию или «|»), по строке на город. Применится всё сразу или ничего.")}</p>
-            <textarea rows={8} value={restoreText} onChange={(e) => setRestoreText(e.target.value)} spellCheck={false} placeholder={"gen\tШИФР\tКЛЮЧ"} />
+            <textarea rows={8} value={restoreText} onChange={(e) => setRestoreText(e.target.value)} spellCheck={false} placeholder={t("Руфь | ШИФР | КЛЮЧ")} />
             <div className="actions"><button type="button" disabled={busy || !restoreText.trim()} onClick={() => void restore()}><Icon name="check" />{t("Вернуть")}</button></div>
           </details>
         )}
