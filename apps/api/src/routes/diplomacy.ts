@@ -143,7 +143,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /**
-   * Метка команды на карте (решение владельца 22.09): любой участник ставит, видят все в команде, убрать может любой из команды.
+   * Метка команды на карте (решение владельца 22.09): любой участник ставит, видят все в команде; убрать может только автор (решение владельца 29.09).
    * Не больше 30. Решение владельца 29.09: метка стоит точно в месте нажатия (qf, rf — дробные координаты внутри гекса q, r),
    * на одном гексе может быть несколько меток; у метки виден автор.
    */
@@ -171,6 +171,8 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     const mark = await prisma.teamMark.findFirst({ where: { id: markId, teamId: m.team.id } });
     if (!mark) return reply.code(404).send({ error: "not_found", message: err(request, "Метка не найдена") });
+    // Убрать метку может только её автор (решение владельца 29.09).
+    if (mark.createdById !== request.user!.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Убрать метку может только тот, кто её поставил") });
     await prisma.teamMark.delete({ where: { id: mark.id } });
     publish(id, { type: "map", teamId: m.team.id });
     return { ok: true };

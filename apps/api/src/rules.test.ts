@@ -341,7 +341,7 @@ describe("осада делами и дела этапа 2", () => {
     const ids = (tasks: Array<{ id: string; deed: { id: string } }>) => tasks.map((x) => `${x.id}:${x.deed.id}`).sort();
     expect(ids(map2.json().tasks)).toEqual(ids(map.json().tasks));
   });
-  it("метки команды на карте: ставит любой участник, видит вся команда, чужие не видят; удаляет команда", async () => {
+  it("метки команды на карте: ставит любой участник, видит вся команда, чужие не видят; убирает только автор", async () => {
     const hex = (await get(`/api/games/${gameId}/my-map`, p3Cookie)).json().hexes[0] as { q: number; r: number };
     const bad = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: 150, r: 150, note: "" });
     expect(bad.statusCode).toBe(404);
@@ -365,7 +365,9 @@ describe("осада делами и дела этапа 2", () => {
     expect(again.statusCode).toBe(201);
     expect((await get(`/api/games/${gameId}/my-map`, p2Cookie)).json().marks).toHaveLength(1);
     expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${markId}`, headers: { cookie: p1Cookie } })).statusCode).toBe(404);
-    expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${markId}`, headers: { cookie: p2Cookie } })).statusCode).toBe(200);
+    // Убрать метку может только автор (решение владельца 29.09): участник своей команды получает 403.
+    expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${markId}`, headers: { cookie: p2Cookie } })).statusCode).toBe(403);
+    expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${markId}`, headers: { cookie: p3Cookie } })).statusCode).toBe(200);
     expect((await get(`/api/games/${gameId}/my-map`, p3Cookie)).json().marks).toHaveLength(0);
   });
 });

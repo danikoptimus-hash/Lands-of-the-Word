@@ -311,6 +311,8 @@ export function TeamPage() {
   }
   async function removeMark(mk: MapMarkDto) {
     const by = mk.by?.name ?? "";
+    // Убрать метку может только автор (решение владельца 29.09): чужая метка по нажатию лишь подсказывает, чья она.
+    if (mk.by && user && mk.by.id !== user.id) { notify(mk.note ? t("Метка «{note}» — её поставил {name}, убрать может только он.", { note: mk.note, name: by }) : t("Метку поставил {name}, убрать может только он.", { name: by }), "info"); return; }
     const text = mk.note
       ? (by ? t("Метка «{note}» (автор {name}) исчезнет у всей команды.", { note: mk.note, name: by }) : t("Метка «{note}» исчезнет у всей команды.", { note: mk.note }))
       : (by ? t("Метка (автор {name}) исчезнет у всей команды.", { name: by }) : t("Метка исчезнет у всей команды."));
@@ -568,7 +570,7 @@ export function TeamPage() {
 
         {markAt && (
           <Sheet size="sm" container={mapEl} title={t("Метка на карте")} onClose={() => setMarkAt(null)} foot={<><button type="button" className="ghost" onClick={() => setMarkAt(null)}>{t("Отмена")}</button><button type="button" disabled={busy} onClick={() => void putMark()}><Icon name="pin" />{t("Поставить")}</button></>}>
-            <p className="muted">{t("Метку увидят все в команде, с вашим именем. Убрать её можно нажатием на флажок.")}</p>
+            <p className="muted">{t("Метку увидят все в команде, с вашим именем. Убрать её сможете только вы, нажатием на флажок.")}</p>
             <div className="field"><label htmlFor="mark-note">{t("Подпись")} <span className="opt">{t("необязательно")}</span></label><input id="mark-note" maxLength={40} value={markNote} onChange={(e) => setMarkNote(e.target.value)} placeholder={t("птицы сели здесь")} /></div>
           </Sheet>
         )}
