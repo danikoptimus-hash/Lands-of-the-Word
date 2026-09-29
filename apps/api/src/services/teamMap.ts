@@ -90,6 +90,9 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
   const blocked = await blockedCities(gameId, teamId);
   const owned = await ownedCities(gameId, teamId);
   const ownedBooks = new Map([...owned].map(([k, v]) => [k, v.bookCode]));
+  // Тематика по книге города задаётся в момент появления стороны — из любого города, не только взятого (решение владельца 29.09:
+  // дело, которое уже видно на карте, не подменяется; раньше стороны из взятого города пересчитывались при взятии).
+  const cityBooks = new Map((await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", bookCode: { not: null } }, select: { key: true, bookCode: true } })).map((n) => [n.key, n.bookCode!]));
   // Из одного порта — один рейс за взятие: после высадки toKey становится узлом высадки, но дело остаётся.
   // Рейс, начатый до нынешнего взятия порта (порт теряли и вернули), не мешает новому (решение владельца 18.09).
   const sailed = new Set(existingTasks.filter((t) => t.sea && (owned.get(t.fromKey)?.capturedAt.getTime() ?? 0) - 5_000 <= t.createdAt.getTime()).map((t) => t.fromKey));
@@ -101,12 +104,13 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
       if (revealed.has(from) && !revealed.has(to) && !existing.has(`${from}>${to}`) && !blocked.has(from)) wanted.push({ fromKey: from, toKey: to });
     }
   }
+  const created: string[] = [];
   for (const w of wanted) {
-    const deedId = await pickDeed(gameId, teamId, ownedBooks.get(w.fromKey) ?? null);
+    const deedId = await pickDeed(gameId, teamId, cityBooks.get(w.fromKey) ?? null);
     if (!deedId) return;
-    await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: w.fromKey, toKey: w.toKey, deedId } });
+    created.push((await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: w.fromKey, toKey: w.toKey, deedId }, select: { id: true } })).id);
   }
-  await ensureRemoteDeed(gameId, teamId);
+  await ensureRemoteDeed(gameId, teamId, created);
   // Морская сторона: из каждого взятого командой порта (береговой город) — одно дело; после его одобрения
   // капитан выбирает пустой береговой узел другого острова и высаживается там (2.3a).
   const ports = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", coastal: true, key: { in: [...ownedBooks.keys()] } }, select: { key: true, island: true, bookCode: true } });
@@ -158,19 +162,13 @@ async function ownedCities(gameId: string, teamId: string): Promise<Map<string, 
 
 /**
  * Город получил владельца: другим командам без разрешения дальше через него не пройти — их свободные дела из города
- * убираются; свободные стороны владельца из этого города получают дела по книге города (2.7; решение владельца 18.09).
+ * убираются. Дела владельца на сторонах из этого города не трогаются (решение владельца 29.09: дело, которое уже
+ * видно на карте, остаётся; тематика по книге задаётся при появлении стороны — см. ensureFrontier).
  */
 export async function onCityOwned(gameId: string, nodeKey: string, ownerTeamId: string): Promise<void> {
   const grants = await prisma.passageRequest.findMany({ where: { gameId, nodeKey, status: "APPROVED" }, select: { requesterId: true } });
-  await prisma.teamEdgeTask.deleteMany({ where: { gameId, fromKey: nodeKey, status: "OPEN", NOT: { teamId: { in: [ownerTeamId, ...grants.map((g) => g.requesterId)] } } } });
-  const book = await bookOfNodeKey(gameId, nodeKey);
-  if (!book) return;
-  const open = await prisma.teamEdgeTask.findMany({ where: { teamId: ownerTeamId, fromKey: nodeKey, status: "OPEN" }, select: { id: true, deedId: true } });
-  for (const t of open) {
-    const deedId = await pickDeed(gameId, ownerTeamId, book, t.deedId);
-    if (deedId && deedId !== t.deedId) await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId } });
-  }
-  if (open.length) publish(gameId, { type: "tasks", teamId: ownerTeamId });
+  const gone = await prisma.teamEdgeTask.deleteMany({ where: { gameId, fromKey: nodeKey, status: "OPEN", NOT: { teamId: { in: [ownerTeamId, ...grants.map((g) => g.requesterId)] } } } });
+  if (gone.count) publish(gameId, { type: "tasks" });
 }
 
 /** Взятое и не сданное за N дней дело возвращается в общий список само (решение владельца 18.09). */
@@ -184,15 +182,19 @@ export async function returnStaleTasks(gameId: string, rules: Rules, now = new D
 }
 
 /**
- * Среди свободных сторон команды всегда есть хотя бы одно дело «издалека» (решение владельца 18.09): если таких нет,
- * одна свободная сторона получает дело с пометкой remote. Замена дела по просьбе — нет.
+ * Среди свободных сторон команды должно быть дело «издалека» (решение владельца 18.09). Решение владельца 29.09: дело,
+ * которое уже видно на карте, не подменяется, поэтому пометка ставится только на одну из сторон, созданных в этом же
+ * вызове (candidates); если новых сторон нет, ничего не меняется. Замена дела по просьбе — нет.
  */
-export async function ensureRemoteDeed(gameId: string, teamId: string): Promise<void> {
-  const open = await prisma.teamEdgeTask.findMany({ where: { teamId, status: "OPEN", sea: false }, select: { id: true, deedId: true, deed: { select: { remote: true } } }, orderBy: { createdAt: "asc" } });
-  if (open.length === 0 || open.some((t) => t.deed.remote)) return;
+export async function ensureRemoteDeed(gameId: string, teamId: string, candidates: string[]): Promise<void> {
+  if (candidates.length === 0) return;
+  const open = await prisma.teamEdgeTask.findMany({ where: { teamId, status: "OPEN", sea: false }, select: { id: true, deed: { select: { remote: true } } } });
+  if (open.some((t) => t.deed.remote)) return;
+  const target = open.find((t) => t.id === candidates[candidates.length - 1]);
+  if (!target) return;
   const remoteId = await pickDeed(gameId, teamId, null, undefined, true);
   if (!remoteId) return;
-  await prisma.teamEdgeTask.update({ where: { id: open[open.length - 1]!.id }, data: { deedId: remoteId } });
+  await prisma.teamEdgeTask.update({ where: { id: target.id }, data: { deedId: remoteId } });
 }
 
 /**

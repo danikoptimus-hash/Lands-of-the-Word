@@ -336,9 +336,10 @@ describe("осада делами и дела этапа 2", () => {
     const created = await post(`/api/games/${gameId}/deeds`, adminCookie, { title: "Дело издалека", direction: "Посещение", proofType: "CONFIRMATION", remote: true, siegePoints: 3 });
     expect(created.statusCode).toBe(201);
     expect(created.json().deed).toMatchObject({ proofType: "REPORT", remote: true, siegePoints: 3 });
-    // Среди свободных сторон всегда есть дело «издалека».
+    // Дела, которые уже видны на карте, не подменяются (решение владельца 29.09): новое дело «издалека» появится только на новой стороне.
     const map2 = await get(`/api/games/${gameId}/my-map`, p2Cookie);
-    expect((map2.json().tasks as Array<{ status: string; deed: { remote?: boolean } }>).some((x) => x.status === "OPEN" && x.deed.remote)).toBe(true);
+    const ids = (tasks: Array<{ id: string; deed: { id: string } }>) => tasks.map((x) => `${x.id}:${x.deed.id}`).sort();
+    expect(ids(map2.json().tasks)).toEqual(ids(map.json().tasks));
   });
   it("метки команды на карте: ставит любой участник, видит вся команда, чужие не видят; удаляет команда", async () => {
     const hex = (await get(`/api/games/${gameId}/my-map`, p3Cookie)).json().hexes[0] as { q: number; r: number };
