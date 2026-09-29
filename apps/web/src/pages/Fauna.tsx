@@ -68,6 +68,12 @@ function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 }
+/**
+ * Отдельный поток случайностей для сущности: берётся из текущего генератора при создании. Каждый зверь, стая, чайка,
+ * корабль и клин шагают своим потоком, поэтому подсказки, разные у команд (клин к своему городу, дельфины у своего
+ * корабля), не сбивают случайности остальных — киты, косатки, чайки и корабли одинаковы у всех команд и у администратора.
+ */
+const spawnRng = () => mulberry32((rand() * 4294967296) >>> 0);
 /** FNV-1a: строка → 32-битное семя. */
 export function hashSeed(s: string): number {
   let h = 0x811c9dc5;
@@ -308,9 +314,11 @@ interface Cet {
   car: Carrot | null; surf: Surf | null; trail: Trail;
   /** Дельфины: место в стае относительно поводка, начало прыжка и его прошедшая доля. */
   fdx: number; fdy: number; jumpAt: number; ju: number;
+  /** Свой поток случайностей (одиночные звери; дельфины шагают потоком стаи). */
+  rng: () => number;
 }
 function makeCet(spec: CetSpec, car: Carrot | null, x: number, y: number, h: number): Cet {
-  return { spec, x, y, h, v: spec.speed, om: 0, turn: 0, phase: rnd(0, TAU), depth: 0.3, seed: rnd(0, 100), car, surf: spec.kind === "dolphin" ? null : makeSurf(spec.kind), trail: makeTrail(), fdx: 0, fdy: 0, jumpAt: -1e9, ju: 0 };
+  return { spec, x, y, h, v: spec.speed, om: 0, turn: 0, phase: rnd(0, TAU), depth: 0.3, seed: rnd(0, 100), car, surf: spec.kind === "dolphin" ? null : makeSurf(spec.kind), trail: makeTrail(), fdx: 0, fdy: 0, jumpAt: -1e9, ju: 0, rng: spawnRng() };
 }
 /**
  * Плывёт к цели как тело, а не как точка: движется только вдоль своего курса, курс меняется через угловую
@@ -392,6 +400,7 @@ function keepInWater(c: Mover, p: Profile, clearance: number, dt: number, omMax:
 
 /** Кит и косатка: поводок вдоль берега; цикл всплытия с фонтаном и кругами на воде. */
 function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: number): void {
+  rand = c.rng;
   const car = c.car!, s = c.surf!, sp = c.spec;
   // Поводок притормаживает, если зверь отстал (иначе он «срежет» и пойдёт по берегу).
   const behind = Math.hypot(car.x - c.x, car.y - c.y);
@@ -838,14 +847,15 @@ function drawBirdShadow(ctx: CanvasRenderingContext2D, b: BirdSpec, S: number, p
 }
 
 /** Чайка: кружит у берега вокруг медленно плывущего вдоль побережья «якоря», с кренами, парением и покачиванием по высоте. */
-interface Gull { part: Part; x: number; y: number; h: number; v: number; om: number; roll: number; alt: number; anchorA: number; off: number; dir: 1 | -1; R: number; phase: number; amp: number; modeT: number; glide: boolean; seed: number; S: number }
+interface Gull { rng: () => number; part: Part; x: number; y: number; h: number; v: number; om: number; roll: number; alt: number; anchorA: number; off: number; dir: 1 | -1; R: number; phase: number; amp: number; modeT: number; glide: boolean; seed: number; S: number }
 function makeGull(p: Profile, size: number): Gull {
   const part = p.parts[Math.floor(rand() * p.parts.length)]!;
   const anchorA = rnd(-Math.PI, Math.PI), off = size * rnd(-0.3, 0.9), R = size * rnd(1.2, 2.0);
   const r = radiusAt(part, anchorA) + off;
-  return { part, x: part.cx + Math.cos(anchorA) * r + R, y: part.cy + Math.sin(anchorA) * r, h: rnd(-Math.PI, Math.PI), v: size * rnd(0.75, 0.95), om: 0, roll: 0, alt: 0.7, anchorA, off, dir: rand() < 0.5 ? 1 : -1, R, phase: rnd(0, TAU), amp: 1, modeT: rnd(2, 5), glide: false, seed: rnd(0, 100), S: size * rnd(0.19, 0.23) };
+  return { rng: spawnRng(), part, x: part.cx + Math.cos(anchorA) * r + R, y: part.cy + Math.sin(anchorA) * r, h: rnd(-Math.PI, Math.PI), v: size * rnd(0.75, 0.95), om: 0, roll: 0, alt: 0.7, anchorA, off, dir: rand() < 0.5 ? 1 : -1, R, phase: rnd(0, TAU), amp: 1, modeT: rnd(2, 5), glide: false, seed: rnd(0, 100), S: size * rnd(0.19, 0.23) };
 }
 function stepGull(g: Gull, p: Profile, size: number, dt: number, T: number): void {
+  rand = g.rng;
   g.anchorA += g.dir * 0.03 * dt;
   const ar = radiusAt(g.part, g.anchorA) + g.off, ax = g.part.cx + Math.cos(g.anchorA) * ar, ay = g.part.cy + Math.sin(g.anchorA) * ar;
   const dx = ax - g.x, dy = ay - g.y, dist = Math.hypot(dx, dy);
@@ -867,7 +877,7 @@ function stepGull(g: Gull, p: Profile, size: number, dt: number, T: number): voi
 /** Стая над сушей: перелёт по дуге с одного края острова на другой клином, потом пауза и новый маршрут. */
 interface FlockBird { dx: number; dy: number; phase: number; seed: number; amp: number; glide: boolean; modeT: number }
 /** hint — маршрут подсказки: в конце клин не улетает, а кружит над городом (hover), потом уходит за край своим ходом. */
-interface Flock { x0: number; y0: number; cx: number; cy: number; x1: number; y1: number; t0: number; dur: number; n: number; x: number; y: number; h: number; roll: number; birds: FlockBird[]; S: number; hint: boolean; hover: { cx: number; cy: number; r: number; a: number; until: number } | null }
+interface Flock { rng: () => number; x0: number; y0: number; cx: number; cy: number; x1: number; y1: number; t0: number; dur: number; n: number; x: number; y: number; h: number; roll: number; birds: FlockBird[]; S: number; hint: boolean; hover: { cx: number; cy: number; r: number; a: number; until: number } | null }
 function newRoute(f: Flock, p: Profile, size: number, T: number, first: boolean): void {
   const a = rnd(-Math.PI, Math.PI), R = farR(p, size), b = a + Math.PI + rnd(-0.6, 0.6);
   f.x0 = p.cx + Math.cos(a) * R; f.y0 = p.cy + Math.sin(a) * R; f.x1 = p.cx + Math.cos(b) * R; f.y1 = p.cy + Math.sin(b) * R;
@@ -885,7 +895,7 @@ function newRoute(f: Flock, p: Profile, size: number, T: number, first: boolean)
   }
 }
 function makeFlock(p: Profile, size: number, T: number): Flock {
-  const f: Flock = { x0: 0, y0: 0, cx: 0, cy: 0, x1: 0, y1: 0, t0: 0, dur: 1, n: 0, x: 0, y: 0, h: 0, roll: 0, S: size * 0.15, hint: false, hover: null, birds: Array.from({ length: 8 }, () => ({ dx: 0, dy: 0, phase: 0, seed: rnd(0, 100), amp: 1, glide: false, modeT: 5 })) };
+  const f: Flock = { rng: spawnRng(), x0: 0, y0: 0, cx: 0, cy: 0, x1: 0, y1: 0, t0: 0, dur: 1, n: 0, x: 0, y: 0, h: 0, roll: 0, S: size * 0.15, hint: false, hover: null, birds: Array.from({ length: 8 }, () => ({ dx: 0, dy: 0, phase: 0, seed: rnd(0, 100), amp: 1, glide: false, modeT: 5 })) };
   newRoute(f, p, size, T, true);
   return f;
 }
@@ -899,6 +909,7 @@ function leaveRoute(f: Flock, p: Profile, size: number, T: number): void {
   f.hint = false; f.hover = null;
 }
 function stepFlock(f: Flock, p: Profile, size: number, dt: number, T: number): void {
+  rand = f.rng;
   if (T < f.t0) return;
   let x: number, y: number;
   if (f.hover) {
@@ -930,7 +941,7 @@ function stepFlock(f: Flock, p: Profile, size: number, dt: number, T: number): v
 
 // ───────────────────────────── Мир ─────────────────────────────
 /** Стая дельфинов: звери, поводок и время следующей серии прыжков. */
-interface Pod { dolphins: Cet[]; car: Carrot; next: number }
+interface Pod { rng: () => number; dolphins: Cet[]; car: Carrot; next: number }
 /**
  * Живность-подсказка (решение владельца 18.09, M-13; чайки над портами убраны 22.09): клин птиц раз в день от
  * старта к ближайшему неоткрытому городу, дельфины сопровождают корабль команды. Координаты — в единицах карты.
@@ -966,7 +977,7 @@ function makePod(p: Profile, size: number, n: number): Pod {
     d.fdx = fdx; d.fdy = fdy;
     return d;
   });
-  return { dolphins, car, next: rnd(3, 8) };
+  return { rng: spawnRng(), dolphins, car, next: rnd(3, 8) };
 }
 function createWorld(p: Profile, size: number, hint: () => FaunaHints | null, seed = 1): World {
   const rng = mulberry32(seed); rand = rng;
@@ -985,10 +996,11 @@ function stepWorld(w: World, dt: number): void {
   // (решение владельца 29.09; раньше — раз в день на браузер, у каждого в своё время).
   if (!w.birdShown && T >= HINT_AT) {
     w.birdShown = true;
-    if (hs?.bird) hintRoute(w.flock, w.size, T, hs.bird.from, hs.bird.to);
+    if (hs?.bird) { rand = w.flock.rng; hintRoute(w.flock, w.size, T, hs.bird.from, hs.bird.to); }
   }
   for (const c of w.solos) stepSolo(c, w.p, w.size, w.fx, dt, T);
   for (const pd of w.pods) {
+    rand = pd.rng;
     if (T >= pd.next) { // серия прыжков: по одному, с запаздыванием
       const rev = rand() < 0.5;
       pd.dolphins.forEach((d, i) => { d.jumpAt = T + (rev ? pd.dolphins.length - 1 - i : i) * rnd(0.4, 0.6); });
@@ -1051,7 +1063,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis,
  */
 type ShipKind = "sloop" | "cog" | "ship";
 interface ShipSpec { kind: ShipKind; L: number; W: number; speed: number; maxTurn: number; /** Минимальный радиус циркуляции в длинах корпуса. */ turnR: number; masts: number[]; square: boolean; hull: string; deck: string; sail: string; sailShade: string }
-interface Ship { spec: ShipSpec; car: Carrot; x: number; y: number; h: number; v: number; om: number; seed: number; trail: Trail }
+interface Ship { rng: () => number; spec: ShipSpec; car: Carrot; x: number; y: number; h: number; v: number; om: number; seed: number; trail: Trail }
 function shipSpec(kind: ShipKind, size: number): ShipSpec {
   switch (kind) {
     case "sloop": return { kind, L: size * 0.95, W: 0.34, speed: size * 0.24, maxTurn: 0.3, turnR: 1.6, masts: [0.18], square: false, hull: "rgb(78,50,32)", deck: "rgb(176,136,92)", sail: "rgb(243,236,220)", sailShade: "rgb(210,198,174)" };
@@ -1061,7 +1073,7 @@ function shipSpec(kind: ShipKind, size: number): ShipSpec {
 }
 function makeShip(kind: ShipKind, p: Profile, size: number): Ship {
   const car = makeCarrot(p, size, size * rnd(2.8, 4.2), size * 0.3);
-  const spec = shipSpec(kind, size); return { spec, car, x: car.x, y: car.y, h: car.h, v: spec.speed, om: 0, seed: rnd(0, 100), trail: makeTrail() };
+  const spec = shipSpec(kind, size); return { rng: spawnRng(), spec, car, x: car.x, y: car.y, h: car.h, v: spec.speed, om: 0, seed: rnd(0, 100), trail: makeTrail() };
 }
 /**
  * Расхождение кораблей (решение владельца 21.09: корабли не проезжают друг сквозь друга). Смотрим на суда впереди
@@ -1086,6 +1098,7 @@ function shipsAhead(sh: Ship, others: readonly Ship[]): { dh: number; slow: numb
   return { dh: clamp(dh, -Math.PI / 2, Math.PI / 2), slow };
 }
 function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number, others: readonly Ship[] = []): void {
+  rand = sh.rng;
   const sp = sh.spec, car = sh.car;
   // Поводок идёт впереди на 1–2 корпуса; отстал корабль — поводок ждёт, догнал — уходит вперёд.
   const behind = Math.hypot(car.x - sh.x, car.y - sh.y);
@@ -1263,7 +1276,7 @@ export function drawShipsPreview(ctx: CanvasRenderingContext2D, size: number, T:
   kinds.forEach((kind, i) => {
     const spec = shipSpec(kind, size);
     const car: Carrot = { off: 0, wob: 0, seed: 1, x: 0, y: 0, h: heading, x0: 0, y0: 0, x1: 1, y1: 0, len: 1, t: 0, wait: 0 };
-    const sh: Ship = { spec, car, x: size * (2 + i * 3.2), y: size * 2, h: heading, v: spec.speed, om: 0, seed: i * 7, trail: makeTrail() };
+    const sh: Ship = { rng: Math.random, spec, car, x: size * (2 + i * 3.2), y: size * 2, h: heading, v: spec.speed, om: 0, seed: i * 7, trail: makeTrail() };
     drawShip(ctx, sh, T, 1 / 4, true);
   });
 }
