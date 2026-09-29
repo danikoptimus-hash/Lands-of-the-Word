@@ -70,13 +70,13 @@ export const ADMIN: Record<string, string> = {
   "Обозначения": "Legend", "пройденная сторона": "passed side", "открытый перекрёсток": "opened crossroad", "город с владельцем": "city with an owner", "идёт испытание": "trial in progress",
   "Ключ (в конверте)": "Key (in the envelope)", "Испытание: «{a}» бросает вызов «{d}», ставка {n}": "Trial: “{a}” challenges “{d}”, bid {n}", "Открыть в Проверке": "Open in Review", "Команд пока нет.": "No teams yet.",
   "столица здесь": "capital is here", "взяла город": "took the city", "задания {a} из {b}": "tasks {a} of {b}", "собирает порядок районов · попыток {n}": "arranging the districts · attempts {n}",
-  "Задания и ответы": "Tasks and answers", "знак шифра": "cipher sign", "Тестовые действия": "Test actions", "Старт команды «{name}»": "Start of team “{name}”", "Перекрёсток ещё никто не открыл.": "Nobody has opened this crossroad yet.",
-  "Открыли": "Opened by", "Действия за команду, минуя игру. Для проверки, не для боевой игры.": "Actions on behalf of a team, bypassing the game. For testing, not for a real game.",
-  "Сторона к этому перекрёстку будет считаться пройденной командой «{name}».": "The side to this crossroad will count as passed by team “{name}”.", "Открыть перекрёсток?": "Open the crossroad?",
-  "Перекрёсток открыт команде «{name}»": "Crossroad opened for team “{name}”", "Открыть перекрёсток": "Open crossroad",
-  "Районы собраны, задания решены, город не взят: команда «{name}» сможет сразу ввести ключ или бросить вызов.": "Districts arranged, tasks solved, city not taken: team “{name}” can enter the key or challenge right away.",
-  "Зачесть задания?": "Credit the tasks?", "Зачесть задания": "Credit tasks", "Все районы будут считаться решёнными, город займёт команда «{name}», прежний владелец его потеряет.": "All districts will count as solved, team “{name}” takes the city, the previous owner loses it.",
-  "Отдать город?": "Give the city?", "Отдать": "Give", "Город отдан команде «{name}»": "City given to team “{name}”", "Отдать город": "Give city",
+  "Задания и ответы": "Tasks and answers", "знак шифра": "cipher sign", "Старт команды «{name}»": "Start of team “{name}”", "Перекрёсток ещё никто не открыл.": "Nobody has opened this crossroad yet.",
+  "Открыли": "Opened by",
+ 
+ 
+ 
+ 
+  "Отдать": "Give",
   // История ходов
   "История ходов": "Move history", "открыл перекрёсток": "opened a crossroad", "прошёл сторону": "passed a side", "взял город": "took a city", "взял город (столица)": "took a city (capital)",
   // Ярлыки

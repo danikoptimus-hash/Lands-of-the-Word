@@ -11,7 +11,6 @@ import { Chip } from "../components/Chip";
 import { fmtDate } from "../lib/format";
 import { TeamMap } from "./TeamMap";
 import { useUi } from "../lib/ui";
-import { useAuth } from "../lib/auth";
 import { t, getLocale } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
@@ -247,7 +246,6 @@ function TeamTaskSheet({ task, members, container, onClose, onReview }: { task: 
 }
 
 function CitySheet({ gameId, node, version, container, revealed, battle, teamById, onClose, onReview }: { gameId: string; node: MapNodeDto; version: number; container: HTMLElement; revealed: TeamLite[]; battle: BattleProgress | null; teamById: Map<string, TeamLite>; onClose: () => void; onReview?: () => void }) {
-  const superadmin = useAuth().user?.platformRole === "SUPERADMIN";
   const [city, setCity] = useState<AdminCityDto | null>(null);
   const [loadError, setLoadError] = useState(false);
   const load = useCallback(() => api<AdminCityDto>(`/api/games/${gameId}/cities/${encodeURIComponent(node.key)}`).then((c) => { setCity(c); setLoadError(false); }).catch(() => setLoadError(true)), [gameId, node.key]);
@@ -312,21 +310,14 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
               </ol>
             </details>
           )}
-          {city.teams.length > 0 && superadmin && (
-            <details className="fold test">
-              <summary><Icon name="alert" />{t("Тестовые действия")}<Icon name="chevron-down" className="chev" /></summary>
-              <TestActions gameId={gameId} nodeKey={node.key} teams={city.teams} revealedIds={revealedIds} hasContent={Boolean(city.content)} onDone={() => void load()} />
-            </details>
-          )}
         </div>
       )}
     </Sheet>
   );
 }
 
-/** Панель старта или развилки: кто открыл, тестовое открытие. */
+/** Панель старта или развилки: кто открыл. */
 function NodeSheet({ gameId, node, container, teams, revealed, onClose }: { gameId: string; node: MapNodeDto; container: HTMLElement; teams: TeamProgress[]; revealed: TeamLite[]; onClose: () => void }) {
-  const superadmin = useAuth().user?.platformRole === "SUPERADMIN";
   const startTeam = node.kind === "START" ? teams.find((tm) => tm.startNodeKey === node.key) : undefined;
   const title = node.kind === "START" ? `${startName(node.teamIndex ?? 0, getLocale())} · ${t("старт команды «{name}»", { name: startTeam?.name ?? String((node.teamIndex ?? 0) + 1) })}` : t("Развилка");
   return (
@@ -338,41 +329,8 @@ function NodeSheet({ gameId, node, container, teams, revealed, onClose }: { game
             <div className="row mt-1">{revealed.map((tm) => <TeamAvatar key={tm.id} name={tm.name} color={tm.color} size="sm" withName />)}</div>
           </div>
         )}
-        {teams.length > 0 && superadmin && (
-          <details className="fold test">
-            <summary><Icon name="alert" />{t("Тестовые действия")}<Icon name="chevron-down" className="chev" /></summary>
-            <TestActions gameId={gameId} nodeKey={node.key} teams={teams} revealedIds={new Set(revealed.map((tm) => tm.id))} hasContent={false} onDone={onClose} />
-          </details>
-        )}
       </div>
     </Sheet>
   );
 }
 
-/** Тестовые действия администратора: один выбор команды и три кнопки. Для развилки — только «Открыть перекрёсток». */
-function TestActions({ gameId, nodeKey, teams, revealedIds, hasContent, onDone }: { gameId: string; nodeKey: string; teams: Array<TeamLite & { capturedAt?: string | null }>; revealedIds: Set<string>; hasContent: boolean; onDone: () => void }) {
-  const { confirm, notify } = useUi();
-  const [teamId, setTeamId] = useState(teams[0]?.id ?? "");
-  const [busy, setBusy] = useState(false);
-  const tm = teams.find((x) => x.id === teamId);
-  const isCity = "capturedAt" in (tm ?? {});
-  async function run(question: string, title: string, okLabel: string, call: () => Promise<string>) {
-    if (!tm || !(await confirm(question, { title, okLabel }))) return;
-    setBusy(true);
-    try { notify(await call()); onDone(); }
-    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-    finally { setBusy(false); }
-  }
-  const name = tm?.name ?? "";
-  return (
-    <div className="test-actions">
-      <p className="hint">{t("Действия за команду, минуя игру. Для проверки, не для боевой игры.")}</p>
-      <select value={teamId} onChange={(e) => setTeamId(e.target.value)} aria-label={t("Команда")}>{teams.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
-      <div className="row">
-        <button type="button" className="secondary sm" disabled={busy || !tm || revealedIds.has(teamId)} onClick={() => void run(t("Сторона к этому перекрёстку будет считаться пройденной командой «{name}».", { name }), t("Открыть перекрёсток?"), t("Открыть"), async () => { await api(`/api/games/${gameId}/teams/${teamId}/reveal`, { method: "POST", body: JSON.stringify({ nodeKey }) }); return t("Перекрёсток открыт команде «{name}»", { name }); })}>{t("Открыть перекрёсток")}</button>
-        {isCity && <button type="button" className="secondary sm" disabled={busy || !tm || !hasContent || Boolean(tm?.capturedAt)} onClick={() => void run(t("Районы собраны, задания решены, город не взят: команда «{name}» сможет сразу ввести ключ или бросить вызов.", { name }), t("Зачесть задания?"), t("Зачесть"), async () => { await api(`/api/games/${gameId}/cities/${encodeURIComponent(nodeKey)}/study`, { method: "POST", body: JSON.stringify({ teamId }) }); return t("Задания зачтены команде «{name}»", { name }); })}>{t("Зачесть задания")}</button>}
-        {isCity && <button type="button" className="secondary sm" disabled={busy || !tm || Boolean(tm?.capturedAt)} onClick={() => void run(t("Все районы будут считаться решёнными, город займёт команда «{name}», прежний владелец его потеряет.", { name }), t("Отдать город?"), t("Отдать"), async () => { const r = await api<{ isCapital: boolean }>(`/api/games/${gameId}/cities/${encodeURIComponent(nodeKey)}/assign`, { method: "POST", body: JSON.stringify({ teamId }) }); return t("Город отдан команде «{name}»", { name }) + (r.isCapital ? t(" — это её столица") : ""); })}>{t("Отдать город")}</button>}
-      </div>
-    </div>
-  );
-}

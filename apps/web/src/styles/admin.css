@@ -86,12 +86,8 @@ details.fold > summary::-webkit-details-marker { display: none; }
 details.fold > summary .chev { margin-left: auto; color: var(--muted); transition: transform var(--dur-fast); }
 details.fold[open] > summary .chev { transform: rotate(180deg); }
 details.fold > summary .count { color: var(--muted); font-weight: 400; }
-details.fold.test > summary { color: var(--muted); font-weight: 500; }
-details.fold.test > summary .i:first-child { color: var(--warn); }
 .admin-districts { margin: 0 0 var(--sp-3); padding-left: 1.4rem; display: flex; flex-direction: column; gap: var(--sp-3); }
 .admin-districts .note { margin: var(--sp-1) 0 0; }
-.test-actions { display: flex; flex-direction: column; gap: var(--sp-2); padding-bottom: var(--sp-3); }
-.test-actions .row button { flex: 1 1 auto; }
 
 /* Легенда карты по слоям: одна свёрнутая строка */
 details.legend { margin-top: var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
