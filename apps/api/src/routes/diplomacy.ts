@@ -142,21 +142,25 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     return { passages: rows.map((r) => view(r, books)) };
   });
 
-  /** Метка команды на карте (решение владельца 22.09): любой участник ставит на гекс, видят все в команде, убрать может любой из команды. Не больше 30. */
+  /**
+   * Метка команды на карте (решение владельца 22.09): любой участник ставит, видят все в команде, убрать может любой из команды.
+   * Не больше 30. Решение владельца 29.09: метка стоит точно в месте нажатия (qf, rf — дробные координаты внутри гекса q, r),
+   * на одном гексе может быть несколько меток; у метки виден автор.
+   */
   app.post("/api/games/:id/my-map/marks", async (request, reply) => {
     const { id } = request.params as { id: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
-    const body = z.object({ q: z.number().int().min(-200).max(200), r: z.number().int().min(-200).max(200), note: z.string().trim().max(40).optional() }).parse(request.body);
+    const body = z.object({ q: z.number().int().min(-200).max(200), r: z.number().int().min(-200).max(200), qf: z.number().finite().optional(), rf: z.number().finite().optional(), note: z.string().trim().max(40).optional() }).parse(request.body);
+    const qf = body.qf ?? body.q, rf = body.rf ?? body.r;
+    if (Math.abs(qf - body.q) > 1 || Math.abs(rf - body.r) > 1) return reply.code(400).send({ error: "bad_request", message: err(request, "Точка метки не на своём гексе") });
     const hex = await prisma.mapHex.findFirst({ where: { gameId: id, q: body.q, r: body.r }, select: { id: true } });
     if (!hex) return reply.code(404).send({ error: "not_found", message: err(request, "Такого гекса на карте нет") });
     const count = await prisma.teamMark.count({ where: { teamId: m.team.id } });
     if (count >= 30) return reply.code(409).send({ error: "conflict", message: err(request, "У команды уже 30 меток: уберите ненужные") });
-    const mark = await prisma.teamMark.upsert({
-      where: { teamId_q_r: { teamId: m.team.id, q: body.q, r: body.r } },
-      update: { note: body.note ?? "" },
-      create: { gameId: id, teamId: m.team.id, q: body.q, r: body.r, note: body.note ?? "", createdById: request.user!.id },
-      select: { id: true, q: true, r: true, note: true },
+    const mark = await prisma.teamMark.create({
+      data: { gameId: id, teamId: m.team.id, q: body.q, r: body.r, qf, rf, note: body.note ?? "", createdById: request.user!.id },
+      select: { id: true, q: true, r: true, qf: true, rf: true, note: true },
     });
     publish(id, { type: "map", teamId: m.team.id });
     return reply.code(201).send({ mark });

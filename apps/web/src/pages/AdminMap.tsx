@@ -207,7 +207,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               {screenBody}
             </g>
           </WorldSvg>
-          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} />
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} />
         </div>
         <div className="map-controls">
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>

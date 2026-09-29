@@ -272,7 +272,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const [blocked, peeks, marks, passages] = await Promise.all([
     blockedCities(gameId, teamId),
     prisma.teamPeek.findMany({ where: { teamId }, select: { nodeKey: true } }),
-    prisma.teamMark.findMany({ where: { teamId }, orderBy: { createdAt: "asc" }, select: { id: true, q: true, r: true, note: true } }),
+    prisma.teamMark.findMany({ where: { teamId }, orderBy: { createdAt: "asc" }, select: { id: true, q: true, r: true, qf: true, rf: true, note: true, createdById: true } }),
     prisma.passageRequest.findMany({ where: { gameId, requesterId: teamId, status: { in: ["PENDING", "APPROVED", "DECLINED", "EXPIRED", "REVOKED"] } }, orderBy: { createdAt: "desc" }, select: { nodeKey: true, status: true } }),
   ]);
   const passageByKey = new Map<string, string>();
@@ -316,6 +316,8 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const foreign = foreignRows.filter((f) => revealed.has(f.fromKey) || revealed.has(f.toKey)).map((f) => ({ aKey: f.fromKey, bKey: f.toKey, teamIndex: f.team.index, color: f.team.color }));
   // Живность-подсказка (решение владельца 18.09, M-13): клин птиц раз в день летит от старта к ближайшему
   // не открытому командой городу; клиенту отдаётся только этот узел.
+  const authorRows = marks.length ? await prisma.user.findMany({ where: { id: { in: [...new Set(marks.map((mk) => mk.createdById))] } }, select: { id: true, nickname: true, displayName: true } }) : [];
+  const authors = new Map(authorRows.map((u) => [u.id, u.displayName || u.nickname] as const));
   const birdTarget = (() => {
     const start = teamRow?.startNodeKey;
     if (!start) return null;
@@ -347,8 +349,11 @@ export async function getTeamMap(gameId: string, teamId: string) {
     tasks: withLanding,
     cities,
     peeked,
-    // Метки команды (решение владельца 22.09): видны всем участникам команды.
-    marks,
+    // Метки команды (решение владельца 22.09): видны всем участникам команды; с автором (решение владельца 29.09).
+    marks: marks.map(({ createdById, ...mk }) => ({ ...mk, by: { id: createdById, name: authors.get(createdById) ?? "" } })),
+    // Для живности: у всех игроков одной игры звери одни и те же и идут по часам сервера (решение владельца 29.09).
+    gameId,
+    now: Date.now(),
     foreign,
     birdTarget,
   };

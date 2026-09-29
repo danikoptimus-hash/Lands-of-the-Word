@@ -71,7 +71,8 @@
 /* ---------- Карточка дела: лист, заголовок гарнитурой, направление капителью, кодекс — лист с кромкой ---------- */
 .sheet-title h2 { font: 700 24px/1.1 var(--font-display); }
 .deed-sheet .direction { font: 400 13px/1.3 var(--font-ui); letter-spacing: .06em; text-transform: uppercase; color: var(--bronze-ink); }
-.deed-sheet .deed-desc { font: 400 var(--fs-md)/var(--lh-text) var(--font-book); color: var(--ink); }
+/* admin.css задаёт .deed-desc обрезку в две строки для списков администратора; в листе дела текст полный, обрезка — только с .clamp («Подробнее»). */
+.deed-sheet .deed-desc { display: block; -webkit-line-clamp: unset; overflow: visible; font: 400 var(--fs-md)/var(--lh-text) var(--font-book); color: var(--ink); }
 .deed-sheet .deed-desc.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .deed-sheet .desc-more { margin: var(--sp-1) 0 0 calc(-1 * var(--sp-3)); }
 .meta-line { font-family: var(--font-ui); color: var(--ink-2); row-gap: var(--sp-1); }

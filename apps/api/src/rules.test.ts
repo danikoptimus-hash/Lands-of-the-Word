@@ -347,12 +347,20 @@ describe("осада делами и дела этапа 2", () => {
     const put = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: hex.q, r: hex.r, note: "птицы сели здесь" });
     expect(put.statusCode).toBe(201);
     const markId = put.json().mark.id as string;
-    const mates = (await get(`/api/games/${gameId}/my-map`, p2Cookie)).json().marks as Array<{ id: string; q: number; r: number; note: string }>;
-    expect(mates).toEqual([{ id: markId, q: hex.q, r: hex.r, note: "птицы сели здесь" }]);
+    const mates = (await get(`/api/games/${gameId}/my-map`, p2Cookie)).json().marks as Array<{ id: string; q: number; r: number; qf: number; rf: number; note: string; by: { id: string; name: string } }>;
+    expect(mates).toMatchObject([{ id: markId, q: hex.q, r: hex.r, note: "птицы сели здесь" }]);
     const others = (await get(`/api/games/${gameId}/my-map`, p1Cookie)).json().marks as unknown[];
     expect(others.some((m) => (m as { id: string }).id === markId)).toBe(false);
-    // Та же клетка — метка обновляется, не дублируется.
-    const again = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: hex.q, r: hex.r, note: "" });
+    // Автор метки виден команде; точка — там, куда нажали (дробные координаты внутри гекса), на одном гексе может быть несколько меток.
+    expect(mates[0]!.by.name).toBeTruthy();
+    expect(mates[0]!.qf).toBe(hex.q); expect(mates[0]!.rf).toBe(hex.r);
+    const far = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: hex.q, r: hex.r, qf: hex.q + 2, rf: hex.r, note: "" });
+    expect(far.statusCode).toBe(400);
+    const again = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: hex.q, r: hex.r, qf: hex.q + 0.3, rf: hex.r - 0.2, note: "" });
+    expect(again.statusCode).toBe(201);
+    expect(again.json().mark.qf).toBeCloseTo(hex.q + 0.3);
+    expect((await get(`/api/games/${gameId}/my-map`, p2Cookie)).json().marks).toHaveLength(2);
+    expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${again.json().mark.id}`, headers: { cookie: p3Cookie } })).statusCode).toBe(200);
     expect(again.statusCode).toBe(201);
     expect((await get(`/api/games/${gameId}/my-map`, p2Cookie)).json().marks).toHaveLength(1);
     expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${markId}`, headers: { cookie: p1Cookie } })).statusCode).toBe(404);

@@ -57,7 +57,23 @@ function radiusAt(p: Part, angle: number): number {
 
 // ───────────────────────────── Математика ─────────────────────────────
 const TAU = Math.PI * 2;
-const rnd = (a: number, b: number) => a + Math.random() * (b - a);
+/**
+ * Случайность мира — детерминированная (решение владельца 29.09: живность у всех игроков одинаковая и идёт по времени
+ * сервера). Генератор задаётся семенем игры и эпохи; rand переключается на генератор мира на время его создания и шага.
+ */
+let rand: () => number = Math.random;
+const rnd = (a: number, b: number) => a + rand() * (b - a);
+/** mulberry32 — маленький быстрый генератор с воспроизводимой последовательностью по 32-битному семени. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+/** FNV-1a: строка → 32-битное семя. */
+export function hashSeed(s: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return h >>> 0;
+}
 const clamp = (v: number, a: number, b: number) => (v < a ? a : v > b ? b : v);
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const smooth = (t: number) => { const u = clamp(t, 0, 1); return u * u * (3 - 2 * u); };
@@ -824,10 +840,10 @@ function drawBirdShadow(ctx: CanvasRenderingContext2D, b: BirdSpec, S: number, p
 /** Чайка: кружит у берега вокруг медленно плывущего вдоль побережья «якоря», с кренами, парением и покачиванием по высоте. */
 interface Gull { part: Part; x: number; y: number; h: number; v: number; om: number; roll: number; alt: number; anchorA: number; off: number; dir: 1 | -1; R: number; phase: number; amp: number; modeT: number; glide: boolean; seed: number; S: number }
 function makeGull(p: Profile, size: number): Gull {
-  const part = p.parts[Math.floor(Math.random() * p.parts.length)]!;
+  const part = p.parts[Math.floor(rand() * p.parts.length)]!;
   const anchorA = rnd(-Math.PI, Math.PI), off = size * rnd(-0.3, 0.9), R = size * rnd(1.2, 2.0);
   const r = radiusAt(part, anchorA) + off;
-  return { part, x: part.cx + Math.cos(anchorA) * r + R, y: part.cy + Math.sin(anchorA) * r, h: rnd(-Math.PI, Math.PI), v: size * rnd(0.75, 0.95), om: 0, roll: 0, alt: 0.7, anchorA, off, dir: Math.random() < 0.5 ? 1 : -1, R, phase: rnd(0, TAU), amp: 1, modeT: rnd(2, 5), glide: false, seed: rnd(0, 100), S: size * rnd(0.19, 0.23) };
+  return { part, x: part.cx + Math.cos(anchorA) * r + R, y: part.cy + Math.sin(anchorA) * r, h: rnd(-Math.PI, Math.PI), v: size * rnd(0.75, 0.95), om: 0, roll: 0, alt: 0.7, anchorA, off, dir: rand() < 0.5 ? 1 : -1, R, phase: rnd(0, TAU), amp: 1, modeT: rnd(2, 5), glide: false, seed: rnd(0, 100), S: size * rnd(0.19, 0.23) };
 }
 function stepGull(g: Gull, p: Profile, size: number, dt: number, T: number): void {
   g.anchorA += g.dir * 0.03 * dt;
@@ -919,8 +935,15 @@ interface Pod { dolphins: Cet[]; car: Carrot; next: number }
  * Живность-подсказка (решение владельца 18.09, M-13; чайки над портами убраны 22.09): клин птиц раз в день от
  * старта к ближайшему неоткрытому городу, дельфины сопровождают корабль команды. Координаты — в единицах карты.
  */
-export interface FaunaHints { bird: { from: { x: number; y: number }; to: { x: number; y: number }; key: string } | null; ship: { x: number; y: number } | null }
-interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[]; hint: () => FaunaHints | null;   birdShown: boolean }
+export interface FaunaHints { bird: { from: { x: number; y: number }; to: { x: number; y: number } } | null; ship: { x: number; y: number } | null }
+interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[]; hint: () => FaunaHints | null; birdShown: boolean; /** Генератор случайностей этого мира (семя игры и эпохи). */ rng: () => number }
+/**
+ * Ход мира по времени сервера (решение владельца 29.09): время делится на эпохи по EPOCH секунд; в начале эпохи мир
+ * создаётся заново с семенем «игра + номер эпохи» и идёт фиксированным шагом STEP. Любой игрок, открыв карту, догоняет
+ * текущую секунду эпохи теми же шагами — и видит тех же зверей в тех же местах, что и остальные. На стыке эпох старый
+ * мир FADE секунд растворяется, новый проявляется.
+ */
+export const EPOCH = 900, STEP = 0.05, FADE = 4, HINT_AT = 3;
 /** Маршрут клина по подсказке: от старта команды к ближайшему неоткрытому городу, плавной дугой. */
 function hintRoute(f: Flock, size: number, T: number, from: { x: number; y: number }, to: { x: number; y: number }): void {
   f.x0 = from.x; f.y0 = from.y; f.x1 = to.x; f.y1 = to.y;
@@ -945,29 +968,29 @@ function makePod(p: Profile, size: number, n: number): Pod {
   });
   return { dolphins, car, next: rnd(3, 8) };
 }
-function createWorld(p: Profile, size: number, hint: () => FaunaHints | null): World {
+function createWorld(p: Profile, size: number, hint: () => FaunaHints | null, seed = 1): World {
+  const rng = mulberry32(seed); rand = rng;
   // Отступы от берега: под профилем ещё ~1.6 гекса отмели и песка, дельфинам с их строем нужен запас побольше.
   // Населённость (решение владельца: живности должно быть заметно): два кита, две косатки, две стаи дельфинов, пять чаек.
   const solo = (kind: CetKind, L: number, off: [number, number], wob: number) => { const car = makeCarrot(p, size, size * rnd(off[0], off[1]), size * wob); return makeCet(cetSpec(kind, L, size), car, car.x, car.y, car.h); };
   const solos = [solo("whale", size * 1.8, [2.8, 4], 0.7), solo("whale", size * 1.6, [3, 4.4], 0.7), solo("orca", size * 1.1, [2.4, 3.4], 0.6), solo("orca", size * 1.0, [2.6, 3.6], 0.6)];
   const pods = [makePod(p, size, 3), makePod(p, size, 4)];
-  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), hint, birdShown: false, ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size), makeShip("cog", p, size)] };
+  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), hint, birdShown: false, rng, ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size), makeShip("cog", p, size)] };
 }
 function stepWorld(w: World, dt: number): void {
+  rand = w.rng;
   w.T += dt; const T = w.T;
   const hs = w.hint();
-  // Клин птиц к ближайшему неоткрытому городу — раз в день на цель (день запоминается в браузере).
-  if (!w.birdShown && hs?.bird) {
+  // Клин птиц к ближайшему неоткрытому городу: один раз за эпоху мира, на её третьей секунде — у всей команды одновременно
+  // (решение владельца 29.09; раньше — раз в день на браузер, у каждого в своё время).
+  if (!w.birdShown && T >= HINT_AT) {
     w.birdShown = true;
-    const day = new Date().toISOString().slice(0, 10), k = "lotw.bird." + hs.bird.key;
-    let seen = "";
-    try { seen = localStorage.getItem(k) ?? ""; } catch { /* приватный режим */ }
-    if (seen !== day) { hintRoute(w.flock, w.size, T, hs.bird.from, hs.bird.to); try { localStorage.setItem(k, day); } catch { /* нет хранилища */ } }
+    if (hs?.bird) hintRoute(w.flock, w.size, T, hs.bird.from, hs.bird.to);
   }
   for (const c of w.solos) stepSolo(c, w.p, w.size, w.fx, dt, T);
   for (const pd of w.pods) {
     if (T >= pd.next) { // серия прыжков: по одному, с запаздыванием
-      const rev = Math.random() < 0.5;
+      const rev = rand() < 0.5;
       pd.dolphins.forEach((d, i) => { d.jumpAt = T + (rev ? pd.dolphins.length - 1 - i : i) * rnd(0.4, 0.6); });
       pd.next = T + rnd(7, 13);
     }
@@ -981,7 +1004,8 @@ function stepWorld(w: World, dt: number): void {
   const cs = w.cets;
   for (let i = 1; i < cs.length; i++) { const c = cs[i]!; let j = i - 1; while (j >= 0 && cs[j]!.depth < c.depth) { cs[j + 1] = cs[j]!; j--; } cs[j + 1] = c; }
 }
-function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis): void {
+function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis, alpha = 1): void {
+  ctx.globalAlpha = alpha;
   const T = w.T, px = 1 / k, lod = k >= 1.1, size = w.size, p = w.p;
   // Следы по пройденному пути — под телами; у зверей только у поверхности, у кораблей всегда и с крыльями.
   for (const c of w.cets) drawTrail(ctx, c.trail, T, c.spec.L, c.spec.kind === "dolphin" ? 3 : 6, px, vis, false);
@@ -1263,9 +1287,10 @@ export function renderWorldSnapshot(ctx: CanvasRenderingContext2D, hexes: MapHex
 
 // ───────────────────────────── Слой ─────────────────────────────
 const NO_ISLETS: Islet[] = [];
-export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, hints = null }: { vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; hints?: FaunaHints | null }) {
+export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, hints = null, seed = "", clock = Date.now }: { vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; hints?: FaunaHints | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const hintsRef = useRef(hints); hintsRef.current = hints;
+  const clockRef = useRef(clock); clockRef.current = clock;
   const key = hexes.length ? `${hexes.length}:${hexes[0]!.q},${hexes[0]!.r}` : "";
   const profile = useMemo(() => islandProfile(hexes, size, islets), [key, size, islets]); // eslint-disable-line react-hooks/exhaustive-deps
   const profileRef = useRef(profile); profileRef.current = profile;
@@ -1274,8 +1299,8 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, hin
   const vpRef = useRef(vp); vpRef.current = vp;
 
   useEffect(() => {
-    const canvas = ref.current, host = canvas?.parentElement;
-    if (!canvas || !host || !profileRef.current) return;
+    const canvas = ref.current, host = canvas?.parentElement, profile = profileRef.current;
+    if (!canvas || !host || !profile) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -1284,31 +1309,62 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, hin
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } };
     resize();
     const ro = new ResizeObserver(resize); ro.observe(host);
-    const world = createWorld(profileRef.current, size, () => hintsRef.current);
+    // Миры по эпохам: текущий и, на время растворения, предыдущий.
+    interface Live { w: World; epoch: number }
+    const make = (epoch: number): Live => ({ w: createWorld(profile, size, () => hintsRef.current, hashSeed(`${seed}:${epoch}`)), epoch });
+    let cur: Live | null = null, prev: Live | null = null;
+    /** Догоняет секунду эпохи по часам сервера фиксированными шагами; не дольше budget мс за раз. Возвращает true, когда мир в текущем времени. */
+    const sync = (budget: number): boolean => {
+      const now = clockRef.current() / 1000, epoch = Math.floor(now / EPOCH), target = now - epoch * EPOCH;
+      if (!cur || cur.epoch !== epoch) {
+        // Соседняя эпоха, и старый мир дошёл до её начала — растворяем его; иначе (открыли заново, долгая пауза) просто новый мир.
+        prev = cur && cur.epoch === epoch - 1 && target < FADE ? cur : null;
+        cur = make(epoch);
+      }
+      const t0 = performance.now();
+      while (cur.w.T + STEP <= target) {
+        stepWorld(cur.w, STEP); if (prev) stepWorld(prev.w, STEP);
+        if (performance.now() - t0 > budget) return false;
+      }
+      if (prev && cur.w.T >= FADE) prev = null;
+      return true;
+    };
     const vis: Vis = { x0: 0, y0: 0, x1: 0, y1: 0 };
-    let last = performance.now(), lastDraw = 0, raf = 0, dirty = false;
+    let lastDraw = 0, raf = 0, dirty = false;
     // При движении карты перерисовываем сразу (иначе звери «примерзают» к экрану до следующего кадра по таймеру).
     const unsub = vpRef.current.subscribe(() => { dirty = true; });
 
-    const draw = (now: number) => {
-      const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    const clear = () => { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H); };
+    const draw = () => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
-      stepWorld(world, dt);
-      ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
+      clear();
+      if (!cur) return;
       ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
       // Видимая область с запасом в три гекса: звери чуть за краем ещё видны хвостом или следом.
       vis.x0 = -tx / k - size * 3; vis.y0 = -ty / k - size * 3; vis.x1 = (W / dpr - tx) / k + size * 3; vis.y1 = (H / dpr - ty) / k + size * 3;
-      drawWorld(ctx, world, k, vis);
+      const a = prev ? Math.min(1, cur.w.T / FADE) : 1;
+      if (prev) drawWorld(ctx, prev.w, k, vis, 1 - a);
+      drawWorld(ctx, cur.w, k, vis, a);
+      ctx.globalAlpha = 1;
+    };
+    // Догон (открыли карту, вернулись во вкладку): кусками по 30 мс через setTimeout, не завися от частоты кадров;
+    // до конца догона слой пуст — звери «всплывают», когда мир дошёл до текущей секунды.
+    let catching = false, timer = 0;
+    const catchUp = () => {
+      timer = 0;
+      if (document.hidden || sync(30)) { catching = false; dirty = true; return; }
+      timer = window.setTimeout(catchUp, 0);
     };
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
-      if (document.hidden) { last = t; return; }
+      if (document.hidden || catching) return;
+      if (!sync(8)) { catching = true; clear(); catchUp(); return; }
       if (!dirty && t - lastDraw < 1000 / 24) return;
-      dirty = false; lastDraw = t; draw(t);
+      dirty = false; lastDraw = t; draw();
     };
     raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); ro.disconnect(); unsub(); };
-  }, [size, key]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { cancelAnimationFrame(raf); clearTimeout(timer); ro.disconnect(); unsub(); };
+  }, [size, key, seed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!profile) return null;
   return <canvas ref={ref} className="fx-layer fauna" aria-hidden />;

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useState, type MouseEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { reportPage } from "../lib/perf";
 import { BOOKS, startName } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
@@ -23,7 +23,9 @@ const textWidth = (s: string, fs: number) => Math.ceil(s.length * fs * 0.62);
  * Карта команды на весь экран. Гексы и стороны — в масштабируемом слое,
  * значки (старт, город, метки дел, подписи) — в экранном слое постоянного размера.
  */
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт ближайший гекс; нажатие на флажок — убрать. */ onMark?: (q: number, r: number) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+/** Точка метки: гекс и точное место нажатия дробными осевыми координатами. */
+export interface MarkPoint { q: number; r: number; qf: number; rf: number }
+export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -48,7 +50,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const [ripple, setRipple] = useState<{ x: number; y: number; n: number } | null>(null);
   const [marking, setMarking] = useState(false);
   useEffect(() => { if (!onMark) setMarking(false); }, [onMark]);
-  /** Режим метки: точка экрана → точка карты (w·k + t = px) → ближайший гекс, не дальше радиуса гекса. Кнопки внутри карты не считаются. */
+  /**
+   * Режим метки: точка экрана → точка карты (w·k + t = px) → ближайший гекс, не дальше радиуса гекса (место должно быть на карте).
+   * Метка ставится точно в место нажатия (решение владельца 29.09): точка переводится в дробные осевые координаты. Кнопки внутри карты не считаются.
+   */
   const placeMark = (e: MouseEvent<HTMLDivElement>) => {
     if (!marking || vp.wasDrag() || (e.target as HTMLElement).closest("button")) return;
     const rect = e.currentTarget.getBoundingClientRect(), v = vp.viewRef.current;
@@ -56,8 +61,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     let best: { q: number; r: number } | null = null, bd = Infinity;
     for (const h of map.hexes) { const c = hexCenter(h, size); const d = (c.x - x) ** 2 + (c.y - y) ** 2; if (d < bd) { bd = d; best = h; } }
     if (!best || bd > (size * 1.1) ** 2) return;
-    setMarking(false); onMark?.(best.q, best.r);
+    const rf = y / (1.5 * size), qf = x / (Math.sqrt(3) * size) - rf / 2;
+    setMarking(false); onMark?.({ q: best.q, r: best.r, qf, rf });
   };
+  // Часы сервера для живности: смещение от местных часов по времени из ответа карты.
+  const clockOff = useRef(0);
+  useEffect(() => { if (map.now) clockOff.current = map.now - Date.now(); }, [map.now]);
+  const serverClock = useCallback(() => Date.now() + clockOff.current, []);
   useEffect(() => { reportPage("map"); }, []);
   const coast = useCoast(map.hexes, size);
   const islets = useIslets(map.hexes, size, bounds);
@@ -76,9 +86,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   }), [map.tasks, islandCenters, nodeByKey, size]);
 
 
-  // Живность-подсказка (M-13): клин к ближайшему неоткрытому городу, дельфины у корабля (чайки над портами убраны 22.09).
+  // Живность-подсказка (M-13): клин к ближайшему неоткрытому городу (раз в эпоху мира, у всей команды разом), дельфины у корабля (чайки над портами убраны 22.09).
   const faunaHints = useMemo<FaunaHints>(() => ({
-    bird: map.birdTarget && start ? { from: start, to: nodePos(map.birdTarget.key, size), key: `${map.team.id}.${map.birdTarget.key}` } : null,
+    bird: map.birdTarget && start ? { from: start, to: nodePos(map.birdTarget.key, size) } : null,
     ship: ships[0] ? { x: ships[0].x, y: ships[0].y } : null,
   }), [map.birdTarget, map.team.id, start, ships, size]);
   const { k } = vp.view;
@@ -248,13 +258,22 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           ))}
           {ripple && <g style={sc(ripple.x, ripple.y)}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
           {showMarkers && (map.marks ?? []).map((mk) => {
-            const c = hexCenter(mk, size);
-            const w = mk.note ? textWidth(mk.note, 11) + 14 : 0;
+            // Точное место нажатия: дробные координаты переводятся той же формулой, что и центр гекса.
+            const c = hexCenter({ q: mk.qf ?? mk.q, r: mk.rf ?? mk.r }, size);
+            const by = mk.by?.name ?? "";
+            const w = Math.max(mk.note ? textWidth(mk.note, 11) : 0, by ? textWidth(by, 9) : 0) + 14, two = Boolean(mk.note && by), h = two ? 30 : 18;
+            const label = mk.note ? (by ? t("Метка команды: {note} — {name}", { note: mk.note, name: by }) : t("Метка команды: {note}", { note: mk.note })) : by ? t("Метка команды — {name}", { name: by }) : t("Метка команды");
             return (
-              <g key={"mk" + mk.id} className="m-mark" style={sc(c.x, c.y, "translate(0, -12px)")} role="button" aria-label={mk.note ? t("Метка команды: {note}", { note: mk.note }) : t("Метка команды")} onClick={() => { if (!vp.wasDrag()) onMarkTap?.(mk); }}>
+              <g key={"mk" + mk.id} className="m-mark" style={sc(c.x, c.y, "translate(0, -12px)")} role="button" aria-label={label} onClick={() => { if (!vp.wasDrag()) onMarkTap?.(mk); }}>
                 <circle r={11} style={{ fill: map.team.color }} />
                 <use href="#m-pin" x={-7} y={-7} width={14} height={14} />
-                {mk.note && <g transform="translate(0, 21)"><rect x={-w / 2} y={-9} width={w} height={18} rx={9} /><text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={600}>{mk.note}</text></g>}
+                {(mk.note || by) && (
+                  <g transform="translate(0, 21)">
+                    <rect x={-w / 2} y={-9} width={w} height={h} rx={9} />
+                    {mk.note && <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={600}>{mk.note}</text>}
+                    {by && <text className="by" textAnchor="middle" y={two ? 12 : 0} dy="0.35em" fontSize={9}>{by}</text>}
+                  </g>
+                )}
               </g>
             );
           })}
@@ -274,7 +293,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         {worldBody}
       </WorldSvg>
       {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} hints={faunaHints} />
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} hints={faunaHints} seed={map.gameId ?? map.team.id} clock={serverClock} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
           {screenBody}

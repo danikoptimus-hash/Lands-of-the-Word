@@ -56,8 +56,9 @@ if (myTeam && !myTeam.members.some((m) => m.user.nickname === MEMBER)) {
 const mem = myTeam?.members.find((m) => m.user.nickname === MEMBER);
 if (mem && mem.gameRole === "NONE") await api(`/api/games/${GAME}/teams/${myTeam.id}/members/${mem.user.id}`, { method: "PATCH", body: JSON.stringify({ gameRole: "SCOUT" }) }, capCookie);
 const myMap = (await api(`/api/games/${GAME}/my-map`, {}, capCookie)).body;
-const markHex = myMap.hexes.find((h) => h.q === -3 && h.r === 0) ?? myMap.hexes.find((h) => h.lit !== false) ?? myMap.hexes[0];
-const mark = await api(`/api/games/${GAME}/my-map/marks`, { method: "POST", body: JSON.stringify({ q: markHex.q, r: markHex.r, note: "птицы сели здесь" }) }, capCookie);
+// Метка — в видимой части карты, чуть в стороне от центра гекса (метка стоит точно в месте нажатия).
+const markHex = myMap.hexes.find((h) => h.q === -1 && h.r === 0) ?? myMap.hexes.find((h) => h.lit !== false) ?? myMap.hexes[0];
+const mark = await api(`/api/games/${GAME}/my-map/marks`, { method: "POST", body: JSON.stringify({ q: markHex.q, r: markHex.r, qf: markHex.q + 0.15, rf: markHex.r + 0.5, note: "птицы сели здесь" }) }, capCookie);
 
 ctx = await browser.newContext({ baseURL: BASE, ...phone }); page = await ctx.newPage();
 await login(ctx, CAPTAIN);
@@ -91,7 +92,7 @@ if (await teamsTile.count()) {
   await shot(page, "roster");
 }
 await ctx.close();
-if (mark.body?.mark?.id) await api(`/api/games/${GAME}/my-map/marks/${mark.body.mark.id}`, { method: "DELETE" }, capCookie);
+if (mark.body?.mark?.id) await api(`/api/games/${GAME}/my-map/marks/${mark.body.mark.id}`, { method: "DELETE", body: "{}" }, capCookie); // тело нужно: с content-type json пустой запрос сервер отклоняет
 
 ctx = await browser.newContext({ baseURL: BASE, viewport: { width: 1200, height: 800 }, deviceScaleFactor: 1.5 }); page = await ctx.newPage();
 await login(ctx, ADMIN);

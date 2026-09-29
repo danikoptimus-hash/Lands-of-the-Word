@@ -4,7 +4,7 @@ import { BOOKS } from "@lotw/domain";
 import { api, ApiError, type BattleDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useGameEvents } from "../lib/useGameEvents";
-import { TeamMap } from "./TeamMap";
+import { TeamMap, type MarkPoint } from "./TeamMap";
 import { CityPopup } from "./CityPopup";
 import { BATTLE_STATUS, battleTone, isMyTurn, leftText } from "./BattlePanel";
 import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
@@ -158,7 +158,7 @@ export function TeamPage() {
   const [donationCfg, setDonationCfg] = useState<{ min: number; currency: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
-  const [markAt, setMarkAt] = useState<{ q: number; r: number } | null>(null);
+  const [markAt, setMarkAt] = useState<MarkPoint | null>(null);
   const [markNote, setMarkNote] = useState("");
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteDone, setInviteDone] = useState(false);
@@ -304,13 +304,17 @@ export function TeamPage() {
     if (!markAt) return;
     setBusy(true);
     try {
-      await api(`/api/games/${id}/my-map/marks`, { method: "POST", body: JSON.stringify({ q: markAt.q, r: markAt.r, note: markNote.trim() }) });
+      await api(`/api/games/${id}/my-map/marks`, { method: "POST", body: JSON.stringify({ q: markAt.q, r: markAt.r, qf: markAt.qf, rf: markAt.rf, note: markNote.trim() }) });
       setMarkAt(null); setMarkNote(""); notify(t("Метка поставлена: её видит вся команда"), "info"); await loadMap();
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
   async function removeMark(mk: MapMarkDto) {
-    if (!(await confirm(mk.note ? t("Метка «{note}» исчезнет у всей команды.", { note: mk.note }) : t("Метка исчезнет у всей команды."), { title: t("Убрать метку?"), okLabel: t("Убрать") }))) return;
+    const by = mk.by?.name ?? "";
+    const text = mk.note
+      ? (by ? t("Метка «{note}» (автор {name}) исчезнет у всей команды.", { note: mk.note, name: by }) : t("Метка «{note}» исчезнет у всей команды.", { note: mk.note }))
+      : (by ? t("Метка (автор {name}) исчезнет у всей команды.", { name: by }) : t("Метка исчезнет у всей команды."));
+    if (!(await confirm(text, { title: t("Убрать метку?"), okLabel: t("Убрать") }))) return;
     try { await api(`/api/games/${id}/my-map/marks/${mk.id}`, { method: "DELETE" }); await loadMap(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
   }
@@ -541,7 +545,7 @@ export function TeamPage() {
       <div className="map-area" ref={setMapEl}>
         <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
-          onMark={(q, r) => { setMarkAt({ q, r }); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)} />
+          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)} />
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">
             <Icon name="ship" /><span>{isLeader ? t("Выберите на другом острове место высадки") : t("Капитан или кормчий выбирает место высадки")}</span>
@@ -564,7 +568,7 @@ export function TeamPage() {
 
         {markAt && (
           <Sheet size="sm" container={mapEl} title={t("Метка на карте")} onClose={() => setMarkAt(null)} foot={<><button type="button" className="ghost" onClick={() => setMarkAt(null)}>{t("Отмена")}</button><button type="button" disabled={busy} onClick={() => void putMark()}><Icon name="pin" />{t("Поставить")}</button></>}>
-            <p className="muted">{t("Метку увидят все в команде. Убрать её можно нажатием на флажок.")}</p>
+            <p className="muted">{t("Метку увидят все в команде, с вашим именем. Убрать её можно нажатием на флажок.")}</p>
             <div className="field"><label htmlFor="mark-note">{t("Подпись")} <span className="opt">{t("необязательно")}</span></label><input id="mark-note" maxLength={40} value={markNote} onChange={(e) => setMarkNote(e.target.value)} placeholder={t("птицы сели здесь")} /></div>
           </Sheet>
         )}

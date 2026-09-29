@@ -631,13 +631,16 @@ model TeamMark {
   gameId      String
   teamId      String
   team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  /** Гекс, на который попала точка (проверка, что место на карте). */
   q           Int
   r           Int
+  /** Точное место нажатия дробными осевыми координатами гекса (решение владельца 29.09: метка стоит там, куда ткнули, а не в центре гекса). */
+  qf          Float
+  rf          Float
   note        String   @default("")
   createdById String
   createdAt   DateTime @default(now())
 
-  @@unique([teamId, q, r])
   @@index([gameId, teamId])
 }
 
