@@ -86,7 +86,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   }), [map.tasks, islandCenters, nodeByKey, size]);
 
 
-  // Суточный полёт клина к городу: время и узел от сервера, одни для всех.
+  // Суточный полёт клина к ближайшему неоткрытому городу команды: время и узел от сервера, одни для всей команды.
   const daily = useMemo(() => (map.dailyBird ? { at: map.dailyBird.at, to: nodePos(map.dailyBird.key, size) } : null), [map.dailyBird, size]);
   const { k } = vp.view;
   // Элементы постоянного экранного размера (подписи, метки, развилки) стоят в координатах карты со scale(1/k):
