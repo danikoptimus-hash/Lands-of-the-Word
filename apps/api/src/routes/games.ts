@@ -9,7 +9,7 @@ import { err } from "../services/i18n.js";
 import { effectiveNodeCount, recommendedDeedCount } from "./deeds.js";
 import { loadCityContent, makeCityCode, makeCityKey } from "../services/cities.js";
 import { finishGame, leader, standings } from "../services/game.js";
-import { ensureFrontier } from "../services/teamMap.js";
+import { ensureFrontier, dailyBird } from "../services/teamMap.js";
 import { assignRecipients } from "../services/recipients.js";
 import { rulesOf, rulesPatchSchema } from "../services/rules.js";
 
@@ -131,7 +131,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.mapEdge.findMany({ where: { gameId: id }, select: { aKey: true, bKey: true } }),
     ]);
     const { admins: _admins, ...rest } = game;
-    return { game: { ...rest, settings: { ...(rest.settings as Record<string, unknown>), rules: rulesOf(rest.settings) } }, hexes, nodes, edges };
+    return { game: { ...rest, settings: { ...(rest.settings as Record<string, unknown>), rules: rulesOf(rest.settings) } }, hexes, nodes, edges, dailyBird: dailyBird(id, nodes) };
   });
 
   /** Генерация (или перегенерация) карты. Пока игра в статусе DRAFT — можно сколько угодно раз. */

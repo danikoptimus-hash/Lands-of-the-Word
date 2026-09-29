@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { api, ApiError, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
+import { api, ApiError, type DailyBirdDto, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { AdminMap, type BattleProgress, type CityProgress, type TeamProgress } from "./AdminMap";
 import { collectMoves, progressAt, TimelineDock } from "./Timeline";
 import { useGameEvents } from "../lib/useGameEvents";
@@ -49,6 +49,7 @@ export function GamePage() {
   const [game, setGame] = useState<GameDto | null>(null);
   const [hexes, setHexes] = useState<MapHexDto[]>([]);
   const [nodes, setNodes] = useState<MapNodeDto[]>([]);
+  const [dailyBird, setDailyBird] = useState<DailyBirdDto | null>(null);
   const [edges, setEdges] = useState<MapEdgeDto[]>([]);
   const [stats, setStats] = useState<MapStats | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,8 +68,8 @@ export function GamePage() {
   useGameEvents(id, (e) => { if (e.type === "game" || e.type === "map") void load(); if (e.type !== "deeds") void loadProgress(); bump(); });
 
   const load = useCallback(async () => {
-    const r = await api<{ game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[] }>(`/api/games/${id}`);
-    setGame(r.game); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges); setStats((s) => s ?? r.game.settings.mapStats ?? null);
+    const r = await api<{ game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; dailyBird?: DailyBirdDto | null }>(`/api/games/${id}`);
+    setGame(r.game); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges); setDailyBird(r.dailyBird ?? null); setStats((s) => s ?? r.game.settings.mapStats ?? null);
     setError(null);
   }, [id]);
 
@@ -140,7 +141,7 @@ export function GamePage() {
     <div className="admin-screen" ref={setScreenEl}>
       <div className="admin-map-area">
         {hasMap ? (
-          <AdminMap fullscreen gameId={game.id} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} />
+          <AdminMap fullscreen gameId={game.id} dailyBird={dailyBird} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} />
         ) : (
           <div className="admin-empty">
             <div className="card">

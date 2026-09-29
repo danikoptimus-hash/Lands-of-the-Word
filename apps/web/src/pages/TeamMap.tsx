@@ -7,7 +7,7 @@ import { perfMark } from "../lib/perfHud";
 import type { EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
 import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
-import { FaunaLayer, type FaunaHints } from "./Fauna";
+import { FaunaLayer } from "./Fauna";
 import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
@@ -86,11 +86,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   }), [map.tasks, islandCenters, nodeByKey, size]);
 
 
-  // Живность-подсказка (M-13): клин к ближайшему неоткрытому городу (раз в эпоху мира, у всей команды разом), дельфины у корабля (чайки над портами убраны 22.09).
-  const faunaHints = useMemo<FaunaHints>(() => ({
-    bird: map.birdTarget && start ? { from: start, to: nodePos(map.birdTarget.key, size) } : null,
-    ship: ships[0] ? { x: ships[0].x, y: ships[0].y } : null,
-  }), [map.birdTarget, map.team.id, start, ships, size]);
+  // Суточный полёт клина к городу: время и узел от сервера, одни для всех.
+  const daily = useMemo(() => (map.dailyBird ? { at: map.dailyBird.at, to: nodePos(map.dailyBird.key, size) } : null), [map.dailyBird, size]);
   const { k } = vp.view;
   // Элементы постоянного экранного размера (подписи, метки, развилки) стоят в координатах карты со scale(1/k):
   // при перетаскивании их двигает композитор, при смене масштаба React пересчитывает 1/k.
@@ -293,7 +290,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         {worldBody}
       </WorldSvg>
       {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} hints={faunaHints} seed={map.gameId ?? map.team.id} clock={serverClock} />
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
           {screenBody}

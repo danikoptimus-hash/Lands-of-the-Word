@@ -5,7 +5,7 @@ import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, Sea
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import { reportPage } from "../lib/perf";
-import { api, ApiError, PROOF_LABEL, type AdminCityDto, type EdgeTaskDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
+import { api, ApiError, PROOF_LABEL, type AdminCityDto, type DailyBirdDto, type EdgeTaskDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
 import { deedStatus } from "./TeamPage";
 import { Chip } from "../components/Chip";
 import { fmtDate } from "../lib/format";
@@ -32,7 +32,7 @@ type TeamLite = { id: string; name: string; color: string };
  * Карта администратора: вся карта без тумана, города на перекрёстках, пройденные стороны цветами команд (половинками, если прошли двое).
  * Панель перекрёстка — Sheet поверх карты; тестовые действия свёрнуты внутри неё.
  */
-export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false }: { /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, dailyBird = null }: { /** Суточный полёт клина: узел и момент от сервера. */ dailyBird?: DailyBirdDto | null; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
   const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -206,7 +206,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               {screenBody}
             </g>
           </WorldSvg>
-          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} />
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} daily={dailyBird ? { at: dailyBird.at, to: nodePos(dailyBird.key, size) } : null} />
         </div>
         <div className="map-controls">
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>

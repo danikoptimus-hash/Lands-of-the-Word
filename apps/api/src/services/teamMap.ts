@@ -125,6 +125,34 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
   }
 }
 
+/** mulberry32 и FNV-1a — те же, что в клиенте (pages/Fauna.tsx): воспроизводимая случайность по семени. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+function hashSeed(str: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+  return h >>> 0;
+}
+/** Эпоха мира живности на клиенте (секунды) и запас до её конца, чтобы полёт с кружением уместился в эпоху. */
+const FAUNA_EPOCH = 900, FAUNA_TAIL = 150;
+/**
+ * Суточный полёт клина птиц (решение владельца 29.09): раз в реальные сутки (по UTC), в случайное время, клин летит к
+ * случайному городу карты и кружит над ним; время и город считаются от семени «игра + номер суток», поэтому одинаковы у
+ * всех команд и у администратора, а сервер ничего не хранит. Возвращает узел города и момент (мс сервера).
+ */
+export function dailyBird(gameId: string, nodes: Array<{ key: string; kind: string }>, now = Date.now()): { key: string; at: number } | null {
+  const cities = nodes.filter((n) => n.kind === "CITY").map((n) => n.key).sort();
+  if (cities.length === 0) return null;
+  const day = Math.floor(now / 86_400_000);
+  const rng = mulberry32(hashSeed(`${gameId}:bird:${day}`));
+  let at = day * 86_400_000 + Math.floor(rng() * 86_400_000);
+  const phase = (at / 1000) % FAUNA_EPOCH;
+  if (phase > FAUNA_EPOCH - FAUNA_TAIL) at -= Math.round((phase - (FAUNA_EPOCH - FAUNA_TAIL)) * 1000);
+  return { key: cities[Math.floor(rng() * cities.length)]!, at };
+}
+
 /** Заглушка toKey морского дела до высадки. */
 export const seaKey = (portKey: string) => `sea:${portKey}`;
 export const isSeaKey = (key: string) => key.startsWith("sea:");
@@ -316,27 +344,8 @@ export async function getTeamMap(gameId: string, teamId: string) {
   // (решение владельца 18.09: дело делают, оно засчитывается); свободное к открытому перекрёстку не показывается.
   const visibleTasks = tasks.filter((t) => t.status !== "OPEN" || !revealed.has(t.toKey));
   const foreign = foreignRows.filter((f) => revealed.has(f.fromKey) || revealed.has(f.toKey)).map((f) => ({ aKey: f.fromKey, bKey: f.toKey, teamIndex: f.team.index, color: f.team.color }));
-  // Живность-подсказка (решение владельца 18.09, M-13): клин птиц раз в день летит от старта к ближайшему
-  // не открытому командой городу; клиенту отдаётся только этот узел.
   const authorRows = marks.length ? await prisma.user.findMany({ where: { id: { in: [...new Set(marks.map((mk) => mk.createdById))] } }, select: { id: true, nickname: true, displayName: true } }) : [];
   const authors = new Map(authorRows.map((u) => [u.id, u.displayName || u.nickname] as const));
-  const birdTarget = (() => {
-    const start = teamRow?.startNodeKey;
-    if (!start) return null;
-    const adj = new Map<string, string[]>();
-    for (const e of edges) { adj.set(e.aKey, [...(adj.get(e.aKey) ?? []), e.bKey]); adj.set(e.bKey, [...(adj.get(e.bKey) ?? []), e.aKey]); }
-    const isCity = new Set(nodes.filter((n) => n.kind === "CITY" && !revealed.has(n.key)).map((n) => n.key));
-    const seen = new Set([start]);
-    let frontier = [start];
-    for (let depth = 0; depth < 40 && frontier.length; depth++) {
-      const found = frontier.filter((k) => isCity.has(k)).sort();
-      if (found.length) { const n = nodes.find((x) => x.key === found[0])!; return { key: n.key, corner: n.corner, q: n.q, r: n.r }; }
-      const next: string[] = [];
-      for (const k of frontier) for (const nb of adj.get(k) ?? []) if (!seen.has(nb)) { seen.add(nb); next.push(nb); }
-      frontier = next;
-    }
-    return null;
-  })();
   const withLanding = await Promise.all(visibleTasks.map(async (t) => {
     if (!t.sea) return t;
     const landing = t.status === "APPROVED" && isSeaKey(t.toKey);
@@ -356,7 +365,8 @@ export async function getTeamMap(gameId: string, teamId: string) {
     // Для живности: у всех игроков одной игры звери одни и те же и идут по часам сервера (решение владельца 29.09).
     gameId,
     now: Date.now(),
+    // Суточный полёт клина к городу (решение владельца 29.09): время и город одни для всех команд и администратора.
+    dailyBird: dailyBird(gameId, nodes),
     foreign,
-    birdTarget,
   };
 }
