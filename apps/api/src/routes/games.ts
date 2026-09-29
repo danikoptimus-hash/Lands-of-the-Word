@@ -7,10 +7,9 @@ import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { effectiveNodeCount, recommendedDeedCount } from "./deeds.js";
-import { loadCityContent, makeCityCode, makeCityKey } from "../services/cities.js";
 import { finishGame, leader, standings } from "../services/game.js";
 import { ensureFrontier } from "../services/teamMap.js";
-import { assignRecipients } from "../services/recipients.js";
+import { assignRecipients, ensureCityCodes } from "../services/recipients.js";
 import { rulesOf, rulesPatchSchema } from "../services/rules.js";
 
 const createBody = z.object({
@@ -296,12 +295,11 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.mapNode.findMany({ where: { gameId: id, kind: "START" }, orderBy: { teamIndex: "asc" } }),
       prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" } }),
     ]);
-    // Ключи конвертов городов: генерируются при старте, видны только админу (для подготовки конвертов).
-    const cityNodes = await prisma.mapNode.findMany({ where: { gameId: id, kind: "CITY" }, select: { id: true, bookCode: true } });
-    const codeLengths = await Promise.all(cityNodes.map(async (n) => (await loadCityContent(n.bookCode ?? ""))?.tasks.length ?? 12));
+    // Ключи конвертов и шифры городов: только дописываются там, где их ещё нет. До 29.09 старт генерировал их заново
+    // и обесценивал ярлыки, напечатанные до старта (инцидент в игре владельца 29.09): напечатанное меняться не должно.
+    await ensureCityCodes(id);
     await prisma.$transaction([
       ...teams.map((t, i) => prisma.team.update({ where: { id: t.id }, data: { startNodeKey: starts[i]?.key ?? null } })),
-      ...cityNodes.map((n, i) => prisma.mapNode.update({ where: { id: n.id }, data: { cityKey: makeCityKey(), cityCode: makeCityCode(codeLengths[i]!) } })),
       prisma.game.update({ where: { id }, data: { status: "ACTIVE", startedAt: new Date() } }),
     ]);
     for (const t of teams) await ensureFrontier(id, t.id);

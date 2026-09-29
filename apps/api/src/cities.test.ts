@@ -2,12 +2,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { ensureCityCodes } from "./services/recipients.js";
 import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
 const adminNick = `cadm_${stamp}`, p1Nick = `cp1_${stamp}`, p2Nick = `cp2_${stamp}`;
 let adminCookie = "", p1Cookie = "", p2Cookie = "", gameId = "", rutKey = "", team1 = "", team2 = "";
+let codesBeforeStart: Array<{ key: string; cityKey: string | null; cityCode: string | null }> = [];
 
 async function register(nickname: string) {
   const res = await registerVerified(app, { nickname, password: "secret123" });
@@ -38,6 +40,9 @@ beforeAll(async () => {
   team2 = await joinTeam("Орлы", p2Cookie);
   await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/import-default`, headers: { cookie: adminCookie } });
   await readyForStart(app, gameId, adminCookie);
+  // Ярлыки печатают до старта: ключи и шифры уже есть, и старт их не меняет (инцидент 29.09).
+  await ensureCityCodes(gameId);
+  codesBeforeStart = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY" }, select: { key: true, cityKey: true, cityCode: true }, orderBy: { key: "asc" } });
   const start = await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } });
   expect(start.statusCode).toBe(200);
   const rut = await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "rut" } });
@@ -285,5 +290,28 @@ describe("дипломатия, роли, столица, руины, пожер
     expect(take.statusCode).toBe(200);
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     expect(node.ruined).toBe(false);
+  });
+});
+
+describe("ключи и шифры городов", () => {
+  it("старт игры не меняет ключи и шифры, назначенные до старта (ярлыки напечатаны заранее)", async () => {
+    expect(codesBeforeStart.length).toBeGreaterThan(0);
+    expect(codesBeforeStart.every((n) => n.cityKey && n.cityCode)).toBe(true);
+    const after = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY" }, select: { key: true, cityKey: true, cityCode: true }, orderBy: { key: "asc" } });
+    expect(after).toEqual(codesBeforeStart);
+  });
+
+  it("суперадмин возвращает шифры и ключи из напечатанных ярлыков; остальным — 403; кривые строки — 400 и ничего не меняется", async () => {
+    const node = await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "rut" } });
+    const code = "Ж".repeat(node.cityCode!.length), text = `Руфь\t${code}\tab2cd3`;
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/labels/restore`, headers: { cookie: p1Cookie }, payload: { text } })).statusCode).toBe(403);
+    const bad = await app.inject({ method: "POST", url: `/api/games/${gameId}/labels/restore`, headers: { cookie: adminCookie }, payload: { text: `${text}\nРуфь\t${code}Ж\tAB2CD3` } });
+    expect(bad.statusCode).toBe(400);
+    expect((await prisma.mapNode.findUniqueOrThrow({ where: { id: node.id } })).cityKey).toBe(node.cityKey);
+    const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/labels/restore`, headers: { cookie: adminCookie }, payload: { text } });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json()).toMatchObject({ updated: 1 });
+    const after = await prisma.mapNode.findUniqueOrThrow({ where: { id: node.id } });
+    expect(after.cityKey).toBe("AB2CD3"); expect(after.cityCode).toBe(code);
   });
 });
