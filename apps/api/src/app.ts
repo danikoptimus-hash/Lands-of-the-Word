@@ -9,7 +9,6 @@ import { attachUser } from "./auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { googleRoutes } from "./routes/google.js";
 import { gameRoutes } from "./routes/games.js";
-import { opsRoutes } from "./routes/ops.js";
 import { teamRoutes } from "./routes/teams.js";
 import { deedRoutes } from "./routes/deeds.js";
 import { teamMapRoutes } from "./routes/teamMap.js";
@@ -71,7 +70,6 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(uiMetricRoutes);
   await app.register(supportRoutes);
   await app.register(gameRoutes);
-  await app.register(opsRoutes); // временно, инцидент 29.09
   await app.register(teamRoutes);
   await app.register(deedRoutes);
   await app.register(teamMapRoutes);
