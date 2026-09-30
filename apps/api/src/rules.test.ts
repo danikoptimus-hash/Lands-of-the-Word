@@ -344,8 +344,14 @@ describe("осада делами и дела этапа 2", () => {
     expect(onEdge.statusCode).toBe(200);
     expect((onEdge.json().tasks as Array<{ id: string }>).some((x) => x.id === task.id)).toBe(true);
     expect((await get(`/api/games/${gameId}/edge-tasks/${task.id}`, p2Cookie)).statusCode).toBe(403);
-    const journalItems = (await get(`/api/games/${gameId}/journal`, adminCookie)).json().items as Array<{ kind: string; taskId: string | null }>;
-    expect(journalItems.some((it) => it.kind === "deed_submitted" && it.taskId === task.id)).toBe(true);
+    // Запись в журнал пишется асинхронно после ответа — ждём её недолго.
+    let found = false;
+    for (let i = 0; i < 20 && !found; i++) {
+      const journalItems = (await get(`/api/games/${gameId}/journal`, adminCookie)).json().items as Array<{ kind: string; taskId: string | null }>;
+      found = journalItems.some((it) => it.kind === "deed_submitted" && it.taskId === task.id);
+      if (!found) await new Promise((r) => setTimeout(r, 100));
+    }
+    expect(found).toBe(true);
     const created = await post(`/api/games/${gameId}/deeds`, adminCookie, { title: "Дело издалека", direction: "Посещение", proofType: "CONFIRMATION", remote: true, siegePoints: 3 });
     expect(created.statusCode).toBe(201);
     expect(created.json().deed).toMatchObject({ proofType: "REPORT", remote: true, siegePoints: 3 });
