@@ -157,10 +157,45 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       include: taskInclude,
     }).then((u) => bookIn(id, u));
     publish(id, { type: "submissions", teamId: m.team.id });
-    journal(id, "deed_submitted", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: task.deed.title } });
+    journal(id, "deed_submitted", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: task.deed.title, taskId: task.id } });
     // Письмо администраторам — сразу или дайджестом по расписанию (решение владельца 18.09, A-13).
     if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "новая сдача дела", (locale) => msg(locale, "Команда «{team}» сдала дело «{deed}»{donation}. Нужно проверить и одобрить или вернуть.", { team: m.team.name, deed: task.deed.title, donation: body.donation ? msg(locale, " (пожертвование {amount})", { amount: body.donationAmount ?? "" }) : "" }));
     return { task: hideSecret(updated, request.user!.id) };
+  });
+
+  /**
+   * Отчёты по делам для администратора (решение владельца 30.09): к старому отчёту нужно возвращаться. Полный вид сдачи —
+   * кто взял и участвовал, ссылки, текст, решение — отдаётся по id дела (из летописи) или по стороне (нажатие на дорогу).
+   */
+  async function adminTaskViews(gameId: string, rows: Array<{ id: string; fromKey: string; toKey: string; status: string; sea: boolean; takenById: string | null; participants: string[]; links: string[]; note: string; adminComment: string; donation: boolean; donationAmount: number | null; submittedAt: Date | null; decidedAt: Date | null; decidedById: string | null; createdAt: Date; team: { id: string; name: string; color: string }; deed: { id: string; title: string; description: string; direction: string; proofType: string; secret: boolean; remote: boolean } }>) {
+    const ids = new Set<string>();
+    for (const r of rows) { if (r.takenById) ids.add(r.takenById); if (r.decidedById) ids.add(r.decidedById); for (const p of r.participants) ids.add(p); }
+    const users = await prisma.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, nickname: true, displayName: true } });
+    const name = new Map(users.map((u) => [u.id, u.displayName || u.nickname]));
+    const withBooks = await bookInAll(gameId, rows);
+    return withBooks.map((r) => ({
+      id: r.id, fromKey: r.fromKey, toKey: r.toKey, status: r.status, sea: r.sea, team: r.team, deed: r.deed,
+      takenBy: r.takenById ? { id: r.takenById, name: name.get(r.takenById) ?? "" } : null,
+      participants: r.participants.map((pid) => ({ id: pid, name: name.get(pid) ?? "" })),
+      links: r.links, note: r.note, donation: r.donation, donationAmount: r.donationAmount,
+      submittedAt: r.submittedAt, decidedAt: r.decidedAt, decidedBy: r.decidedById ? name.get(r.decidedById) ?? "" : null, adminComment: r.adminComment, createdAt: r.createdAt,
+    }));
+  }
+  /** Одно дело со всей сдачей (из летописи). */
+  app.get("/api/games/:id/edge-tasks/:taskId", async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const row = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, gameId: id }, include: taskInclude });
+    if (!row) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
+    return { task: (await adminTaskViews(id, [row]))[0] };
+  });
+  /** Все дела на стороне (в обе стороны) у всех команд, кроме ещё не взятых: нажатие на дорогу на карте администратора. */
+  app.get("/api/games/:id/edge-tasks", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const q = z.object({ a: z.string().min(1), b: z.string().min(1) }).parse(request.query);
+    const rows = await prisma.teamEdgeTask.findMany({ where: { gameId: id, status: { not: "OPEN" }, OR: [{ fromKey: q.a, toKey: q.b }, { fromKey: q.b, toKey: q.a }] }, include: taskInclude, orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }] });
+    return { tasks: await adminTaskViews(id, rows) };
   });
 
   /** Очередь сдач для админа. */
@@ -185,8 +220,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       data: { status: body.approve ? "APPROVED" : "REJECTED", decidedAt: new Date(), decidedById: request.user!.id, adminComment: body.comment },
       include: taskInclude,
     }).then((u) => bookIn(id, u));
-    if (body.approve) journal(id, "deed_approved", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, who: "" } });
-    else journal(id, "deed_returned", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title } });
+    if (body.approve) journal(id, "deed_approved", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, who: "", taskId: task.id } });
+    else journal(id, "deed_returned", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, taskId: task.id } });
     // Морское дело: узел не открывается — капитан (или кормчий) сам выбирает место высадки на другом острове.
     if (body.approve && task.sea) notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан или кормчий может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title }));
     else if (body.approve) {

@@ -333,6 +333,19 @@ describe("осада делами и дела этапа 2", () => {
     const row = await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: task.id } });
     expect(row.participants).toHaveLength(2);
     expect(row.participants).toContain(p3.id);
+    // Отчёт по делу для администратора (решение владельца 30.09): по id, по стороне и из летописи; участникам — 403.
+    const one = await get(`/api/games/${gameId}/edge-tasks/${task.id}`, adminCookie);
+    expect(one.statusCode).toBe(200);
+    expect(one.json().task).toMatchObject({ id: task.id, status: "SUBMITTED", note: "Что сделал: помогли", links: ["https://example.com/x"] });
+    expect(one.json().task.takenBy.name).toBeTruthy();
+    expect(one.json().task.participants.map((x: { id: string }) => x.id)).toContain(p3.id);
+    const full = (await get(`/api/games/${gameId}/my-map`, p2Cookie)).json().tasks.find((x: { id: string }) => x.id === task.id) as { fromKey: string; toKey: string };
+    const onEdge = await get(`/api/games/${gameId}/edge-tasks?a=${encodeURIComponent(full.toKey)}&b=${encodeURIComponent(full.fromKey)}`, adminCookie);
+    expect(onEdge.statusCode).toBe(200);
+    expect((onEdge.json().tasks as Array<{ id: string }>).some((x) => x.id === task.id)).toBe(true);
+    expect((await get(`/api/games/${gameId}/edge-tasks/${task.id}`, p2Cookie)).statusCode).toBe(403);
+    const journalItems = (await get(`/api/games/${gameId}/journal`, adminCookie)).json().items as Array<{ kind: string; taskId: string | null }>;
+    expect(journalItems.some((it) => it.kind === "deed_submitted" && it.taskId === task.id)).toBe(true);
     const created = await post(`/api/games/${gameId}/deeds`, adminCookie, { title: "Дело издалека", direction: "Посещение", proofType: "CONFIRMATION", remote: true, siegePoints: 3 });
     expect(created.statusCode).toBe(201);
     expect(created.json().deed).toMatchObject({ proofType: "REPORT", remote: true, siegePoints: 3 });

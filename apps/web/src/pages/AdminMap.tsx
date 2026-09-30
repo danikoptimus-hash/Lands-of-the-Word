@@ -19,6 +19,7 @@ import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
 import { Sheet } from "../components/Sheet";
+import { EdgeTasksSheet, TaskReportSheet } from "./TaskReport";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 
@@ -41,6 +42,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   useEffect(() => { perfMark("карта админа: до кадра", performance.now() - renderStart); });
   const vp = useViewport(bounds);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
+  /** Нажатие на дорогу: дела всех команд на этой стороне; нажатие на дело — отчёт (решение владельца 30.09). */
+  const [edgeSel, setEdgeSel] = useState<{ aKey: string; bKey: string } | null>(null);
+  const [reportId, setReportId] = useState<string | null>(null);
   /** «Глазами команды»: выбранное дело (свиток) этой команды. */
   const [teamTaskId, setTeamTaskId] = useState<string | null>(null);
   const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
@@ -108,15 +112,17 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               const a = positions.get(e.aKey), b = positions.get(e.bKey);
               if (!a || !b) return null;
               const teams = traversedBy.get([e.aKey, e.bKey].sort().join("|")) ?? [];
-              if (teams.length === 0) return <line key={e.aKey + e.bKey} className="adm-edge" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
-              if (teams.length === 1) return <line key={e.aKey + e.bKey} className="adm-path" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={teams[0]!.color} />;
+              // Широкая прозрачная линия поверх — чтобы в дорогу можно было попасть пальцем: открывает дела на этой стороне.
+              const hit = <line className="edge-hit" data-a={e.aKey} data-b={e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.aKey, bKey: e.bKey }); }} />;
+              if (teams.length === 0) return <g key={e.aKey + e.bKey}><line className="adm-edge" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />{hit}</g>;
+              if (teams.length === 1) return <g key={e.aKey + e.bKey}><line className="adm-path" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={teams[0]!.color} />{hit}</g>;
               const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-              return <g key={e.aKey + e.bKey}><line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} /></g>;
+              return <g key={e.aKey + e.bKey}><line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} />{hit}</g>;
             })}
             {/* Морские переправы: пройденные «стороны» между островами, которых нет среди рёбер, — пунктир цветом команды. */}
             {(progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
               const a = positions.get(e.fromKey)!, b = positions.get(e.toKey)!;
-              return <line key={"sea" + tm.id + e.fromKey + e.toKey} className="adm-sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={tm.color} />;
+              return <g key={"sea" + tm.id + e.fromKey + e.toKey}><line className="adm-sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={tm.color} /><line className="edge-hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.fromKey, bKey: e.toKey }); }} /></g>;
             }))}
   </>), [nodes, edges, positions, ownerOf, traversedBy, progress, edgeSet, battleAt, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const screenBody = useMemo(() => (<>
@@ -214,6 +220,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         </>)}
         {viewedTeam && fullscreen && <div className="view-as-name" aria-live="polite"><TeamAvatar name={viewedTeam.name} color={viewedTeam.color} size="sm" />{t("Глазами команды «{name}»", { name: viewedTeam.name })}</div>}
         {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.", { name: viewedTeam.name })}</p>}
+        {edgeSel && wrapEl && !reportId && <EdgeTasksSheet gameId={gameId} aKey={edgeSel.aKey} bKey={edgeSel.bKey} container={wrapEl} onClose={() => setEdgeSel(null)} onOpenTask={setReportId} />}
+        {reportId && wrapEl && <TaskReportSheet gameId={gameId} taskId={reportId} container={wrapEl} onClose={() => setReportId(null)} onReview={onReview} />}
         {selected && wrapEl && (selected.kind === "CITY"
           ? <CitySheet gameId={gameId} node={selected} version={version} container={wrapEl} revealed={revealedBy.get(selected.key) ?? []} battle={battleAt.get(selected.key) ?? null} teamById={teamById} onClose={close} onReview={onReview} />
           : <NodeSheet gameId={gameId} node={selected} container={wrapEl} teams={progress ?? []} revealed={revealedBy.get(selected.key) ?? []} onClose={close} />)}

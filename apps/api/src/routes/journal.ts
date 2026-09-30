@@ -40,7 +40,21 @@ export async function journalRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     const rows = await prisma.journal.findMany({ where: { gameId: id }, orderBy: { createdAt: "desc" }, take: 200 });
     const teams = await prisma.team.findMany({ where: { gameId: id }, select: { id: true, name: true, color: true } });
-    return { items: rows.map((r) => ({ id: r.id, kind: r.kind, vars: r.vars, text: r.text, everyone: r.everyone, teamId: r.teamId, at: r.createdAt.getTime() })), teams };
+    // Отчёт по делу из летописи (решение владельца 30.09): у новых записей id дела лежит в vars.taskId; у старых — ищем
+    // последнюю сдачу этой команды с таким названием дела.
+    const deedKinds = new Set(["deed_submitted", "deed_approved", "deed_returned"]);
+    const need = rows.filter((r) => deedKinds.has(r.kind) && !(r.vars as Record<string, unknown>).taskId && r.teamId);
+    const byTeamTitle = new Map<string, string>();
+    if (need.length) {
+      const tasks = await prisma.teamEdgeTask.findMany({ where: { gameId: id, teamId: { in: [...new Set(need.map((r) => r.teamId!))] }, status: { not: "OPEN" } }, select: { id: true, teamId: true, submittedAt: true, deed: { select: { title: true } } }, orderBy: [{ submittedAt: "desc" }, { createdAt: "desc" }] });
+      for (const tk of tasks) { const k = `${tk.teamId}|${tk.deed.title}`; if (!byTeamTitle.has(k)) byTeamTitle.set(k, tk.id); }
+    }
+    const taskIdOf = (r: (typeof rows)[number]) => {
+      if (!deedKinds.has(r.kind)) return null;
+      const v = r.vars as Record<string, unknown>;
+      return typeof v.taskId === "string" ? v.taskId : byTeamTitle.get(`${r.teamId}|${String(v.deed ?? "")}`) ?? null;
+    };
+    return { items: rows.map((r) => ({ id: r.id, kind: r.kind, vars: r.vars, text: r.text, everyone: r.everyone, teamId: r.teamId, at: r.createdAt.getTime(), taskId: taskIdOf(r) })), teams };
   });
 
   /** Администратор: разослать летопись за последние 7 дней сейчас. */

@@ -10,6 +10,7 @@ import { TeamAvatar } from "../components/TeamAvatar";
 import { Back } from "../components/Back";
 import { Help } from "../components/Help";
 import { EmptyState, LoadingState } from "../components/State";
+import { TaskReportSheet } from "./TaskReport";
 
 /**
  * Журнал событий у игроков и администратора (решения владельца 18.09, глава 4): лента команды «Что случилось» (E-04),
@@ -156,8 +157,11 @@ export function JournalAdmin({ gameId, version, active }: { gameId: string; vers
     finally { setBusy(false); }
   }
   const teamOf = (id: string | null) => teams.find((tm) => tm.id === id);
+  /** Отчёт по делу из летописи (решение владельца 30.09): запись о сдаче, одобрении или возврате нажимается. */
+  const [reportId, setReportId] = useState<string | null>(null);
   return (
     <div className="card">
+      {reportId && <TaskReportSheet gameId={gameId} taskId={reportId} onClose={() => setReportId(null)} />}
       <div className="card-head">
         <h2><span className="ico"><Icon name="scroll" /></span>{t("Журнал событий")}<Help>{t("Летопись уходит сама раз в неделю (день и час — в продвинутых настройках): дела, города, испытания без ставок, положение команд.")}</Help></h2>
         {active && <button type="button" className="secondary sm" disabled={busy} onClick={() => void chronicle()}><Icon name="send" />{t("Отправить летопись сейчас")}</button>}
@@ -168,7 +172,9 @@ export function JournalAdmin({ gameId, version, active }: { gameId: string; vers
             <li key={it.id} className={it.everyone ? "news" : ""}>
               <span className="ico"><Icon name={ICON[it.kind] ?? "info"} /></span>
               <div className="body">
-                <span>{it.kind === "chronicle" ? it.text.split("\n")[0] : journalLine(it.kind, it.vars)}</span>
+                {it.taskId
+                  ? <button type="button" className="linkish" onClick={() => setReportId(it.taskId!)} title={t("Открыть отчёт")}>{journalLine(it.kind, it.vars)} <Icon name="chevron-down" className="chev right" /></button>
+                  : <span>{it.kind === "chronicle" ? it.text.split("\n")[0] : journalLine(it.kind, it.vars)}</span>}
                 <span className="meta">{fmtDate(it.at)}{tm ? ` · ${tm.name}` : ""}{it.everyone ? ` · ${t("всем командам")}` : ""}</span>
               </div>
             </li>
