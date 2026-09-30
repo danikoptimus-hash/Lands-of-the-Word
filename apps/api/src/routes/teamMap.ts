@@ -204,9 +204,12 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     const status = ((request.query as { status?: string }).status ?? "SUBMITTED") as "SUBMITTED" | "APPROVED" | "REJECTED";
     const tasks = await bookInAll(id, await prisma.teamEdgeTask.findMany({ where: { gameId: id, status }, include: taskInclude, orderBy: { submittedAt: "asc" }, take: 200 }));
-    const users = await prisma.user.findMany({ where: { id: { in: tasks.map((t) => t.takenById).filter((x): x is string => !!x) } }, select: { id: true, nickname: true, displayName: true } });
+    // Кто взял и кто участвовал (дела группой): администратору нужны имена, а не id (замечание владельца 30.09).
+    const ids = new Set<string>();
+    for (const t of tasks) { if (t.takenById) ids.add(t.takenById); for (const pid of t.participants) ids.add(pid); }
+    const users = await prisma.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, nickname: true, displayName: true } });
     const byId = new Map(users.map((u) => [u.id, u]));
-    return { tasks: tasks.map((t) => ({ ...t, takenBy: t.takenById ? byId.get(t.takenById) ?? null : null })) };
+    return { tasks: tasks.map((t) => ({ ...t, takenBy: t.takenById ? byId.get(t.takenById) ?? null : null, participantNames: t.participants.filter((pid) => pid !== t.takenById).map((pid) => { const u = byId.get(pid); return u ? u.displayName || u.nickname : ""; }).filter(Boolean) })) };
   });
 
   /** Решение по сдаче: одобрить (узел за ребром открывается) или вернуть на доработку. Общее для одиночного и пакетного решения. */

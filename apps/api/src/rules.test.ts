@@ -333,6 +333,11 @@ describe("осада делами и дела этапа 2", () => {
     const row = await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: task.id } });
     expect(row.participants).toHaveLength(2);
     expect(row.participants).toContain(p3.id);
+    // В очереди проверки видны имена участников дела группой (замечание владельца 30.09), без взявшего.
+    const queue = (await get(`/api/games/${gameId}/submissions`, adminCookie)).json().tasks as Array<{ id: string; participantNames: string[] }>;
+    const queued = queue.find((x) => x.id === task.id)!;
+    expect(queued.participantNames).toHaveLength(1);
+    expect(queued.participantNames[0]).toBe(p3Nick);
     // Отчёт по делу для администратора (решение владельца 30.09): по id, по стороне и из летописи; участникам — 403.
     const one = await get(`/api/games/${gameId}/edge-tasks/${task.id}`, adminCookie);
     expect(one.statusCode).toBe(200);

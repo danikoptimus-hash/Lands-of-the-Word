@@ -1,5 +1,6 @@
 /** EN-строки области «admin». Ключ — русская строка как в коде. Добавлять только сюда; legacy.ts не трогать. */
 export const ADMIN: Record<string, string> = {
+  "с участниками: {names}": "with participants: {names}",
   "Отчёт по делу": "Deed report", "Участвовали: {names}": "Participants: {names}", "Сдано": "Submitted", "Одобрено": "Approved", "Возвращено": "Returned",
   "Морской путь: корабль из порта.": "Sea route: a ship from the port.", "Тайное дело: команда сдачу не видит, только вы.": "Secret deed: the team does not see the submission, only you.",
   "Текста отчёта нет.": "There is no report text.", "Дела на этой стороне": "Deeds on this side", "На этой стороне ещё никто не брал дело.": "Nobody has taken a deed on this side yet.", "Открыть отчёт": "Open the report",

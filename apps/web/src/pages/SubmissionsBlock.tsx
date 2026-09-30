@@ -8,7 +8,7 @@ import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { ErrorState, LoadingState } from "../components/State";
 
-type Row = EdgeTaskDto & { team: { id: string; name: string; color: string }; takenBy: { nickname: string; displayName: string | null } | null };
+type Row = EdgeTaskDto & { team: { id: string; name: string; color: string }; takenBy: { nickname: string; displayName: string | null } | null; /** Имена участников дела группой, без взявшего. */ participantNames?: string[] };
 
 /** Одинаковое обновление для всех блоков «Проверки»: при событиях (version), по фокусу окна и раз в 15 секунд. */
 export function useAutoRefresh(load: () => Promise<unknown>, version: number): void {
@@ -116,7 +116,7 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
                 <span className="title">{r.deed.title}</span>
                 {r.deed.description && <button type="button" className="ghost sm desc-toggle" aria-expanded={descOpen.has(r.id)} onClick={() => toggleDesc(r.id)}><Icon name="scroll" />{t("Описание")}</button>}
                 {r.deed.description && descOpen.has(r.id) && <span className="deed-desc open small muted">{r.deed.description}</span>}
-                <span className="meta"><span>{PROOF_LABEL[r.deed.proofType]}</span>{r.takenBy && <span>· {r.takenBy.displayName ?? r.takenBy.nickname}</span>}{r.submittedAt && <span>· {fmtDate(r.submittedAt)} · {ageOf(r.submittedAt)}</span>}</span>
+                <span className="meta"><span>{PROOF_LABEL[r.deed.proofType]}</span>{r.takenBy && <span>· {r.takenBy.displayName ?? r.takenBy.nickname}</span>}{r.participantNames && r.participantNames.length > 0 && <span className="participants">· <Icon name="users" />{t("с участниками: {names}", { names: r.participantNames.join(", ") })}</span>}{r.submittedAt && <span>· {fmtDate(r.submittedAt)} · {ageOf(r.submittedAt)}</span>}</span>
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
                 <LinkList links={r.links} kind={linkKind(r.deed.proofType)} />
               </div>
