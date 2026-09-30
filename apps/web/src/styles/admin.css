@@ -60,14 +60,17 @@
 /* Дорога нажимается: прозрачная широкая линия поверх (решение владельца 30.09 — отчёты по делам на стороне). */
 .edge-hit { stroke: transparent; stroke-width: calc(18px / var(--k, 1)); stroke-linecap: round; cursor: pointer; pointer-events: stroke; }
 .edge-hit:hover { stroke: rgba(255,255,255,.18); }
-.edge-tasks .row-btn { display: flex; align-items: center; gap: var(--sp-2); width: 100%; text-align: left; background: none; border: 0; padding: var(--sp-2) 0; font: inherit; color: inherit; cursor: pointer; }
-.edge-tasks .row-btn .body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
-.edge-tasks .row-btn .title { font-weight: 600; }
-.edge-tasks .row-btn .meta { font-size: var(--fs-sm); color: var(--muted); }
-.edge-tasks .row-btn .chev { color: var(--muted); flex: none; }
+.edge-tasks button.row-btn { display: flex; align-items: center; justify-content: flex-start; gap: var(--sp-2); width: 100%; min-height: 0; text-align: left; background: none; border: 0; border-radius: 0; box-shadow: none; padding: var(--sp-2) 0; font: inherit; line-height: inherit; color: inherit; white-space: normal; cursor: pointer; transform: none; }
+.edge-tasks button.row-btn:hover, .edge-tasks button.row-btn:active { background: none; transform: none; }
+.edge-tasks button.row-btn .body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.edge-tasks button.row-btn .title { font-weight: 600; }
+.edge-tasks button.row-btn .meta { font-size: var(--fs-sm); color: var(--muted); }
+.edge-tasks button.row-btn .chev { color: var(--muted); flex: none; }
 .chev.right { transform: rotate(-90deg); }
-.feed .linkish { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
-.feed .linkish .chev { vertical-align: middle; color: var(--muted); }
+/* Запись журнала как ссылка: перебиваем общий стиль кнопки (рамка, высота, nowrap), текст переносится как обычный. */
+.feed button.linkish { display: block; width: 100%; min-height: 0; background: none; border: 0; border-radius: 0; box-shadow: none; padding: 0; margin: 0; font: inherit; line-height: inherit; color: inherit; text-align: left; white-space: normal; overflow-wrap: anywhere; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; transform: none; }
+.feed button.linkish:hover, .feed button.linkish:active { background: none; color: var(--accent-ink); transform: none; }
+.feed button.linkish .chev { vertical-align: middle; color: var(--muted); width: 14px; height: 14px; }
 .task-report .report-text { white-space: pre-wrap; }
 .adm-sea { fill: none; stroke-width: calc(3px / max(1.6, var(--k, 1))); stroke-dasharray: calc(6px / var(--k, 1)) calc(5px / var(--k, 1)); stroke-linecap: round; opacity: .9; }
 /* На телефоне карта во всю ширину экрана и почти во всю высоту: пальцам при щипке некуда «выпасть», а страница
