@@ -9,7 +9,7 @@ import { api, ApiError, PROOF_LABEL, type AdminCityDto, type EdgeTaskDto, type M
 import { deedStatus } from "./TeamPage";
 import { Chip } from "../components/Chip";
 import { fmtDate } from "../lib/format";
-import { TeamMap } from "./TeamMap";
+import { TeamMap, routeColor } from "./TeamMap";
 import { useUi } from "../lib/ui";
 import { t, getLocale } from "../lib/i18n";
 import { plural } from "../lib/format";
@@ -115,14 +115,16 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               // Широкая прозрачная линия поверх — чтобы в дорогу можно было попасть пальцем: открывает дела на этой стороне.
               const hit = <line className="edge-hit" data-a={e.aKey} data-b={e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.aKey, bKey: e.bKey }); }} />;
               if (teams.length === 0) return <g key={e.aKey + e.bKey}><line className="adm-edge" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />{hit}</g>;
-              if (teams.length === 1) return <g key={e.aKey + e.bKey}><line className="adm-path" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={teams[0]!.color} />{hit}</g>;
+              // Маршруты: светлая подложка и осветлённый цвет команды, чтобы не сливались с местностью (решение владельца 30.09).
+              const halo = <line className="adm-halo" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
+              if (teams.length === 1) return <g key={e.aKey + e.bKey}>{halo}<line className="adm-path" x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={{ stroke: routeColor(teams[0]!.color) }} />{hit}</g>;
               const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-              return <g key={e.aKey + e.bKey}><line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} stroke={teams[0]!.color} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} stroke={teams[1]!.color} />{hit}</g>;
+              return <g key={e.aKey + e.bKey}>{halo}<line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} style={{ stroke: routeColor(teams[0]!.color) }} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} style={{ stroke: routeColor(teams[1]!.color) }} />{hit}</g>;
             })}
             {/* Морские переправы: пройденные «стороны» между островами, которых нет среди рёбер, — пунктир цветом команды. */}
             {(progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
               const a = positions.get(e.fromKey)!, b = positions.get(e.toKey)!;
-              return <g key={"sea" + tm.id + e.fromKey + e.toKey}><line className="adm-sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={tm.color} /><line className="edge-hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.fromKey, bKey: e.toKey }); }} /></g>;
+              return <g key={"sea" + tm.id + e.fromKey + e.toKey}><line className="adm-halo sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} /><line className="adm-sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={{ stroke: routeColor(tm.color) }} /><line className="edge-hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.fromKey, bKey: e.toKey }); }} /></g>;
             }))}
   </>), [nodes, edges, positions, ownerOf, traversedBy, progress, edgeSet, battleAt, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const screenBody = useMemo(() => (<>

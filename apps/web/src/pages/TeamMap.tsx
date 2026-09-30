@@ -23,6 +23,8 @@ const textWidth = (s: string, fs: number) => Math.ceil(s.length * fs * 0.62);
  * Карта команды на весь экран. Гексы и стороны — в масштабируемом слое,
  * значки (старт, город, метки дел, подписи) — в экранном слое постоянного размера.
  */
+/** Цвет маршрута команды на карте: цвет команды, разбавленный белым, чтобы линия читалась на зелёном и песке (решение владельца 30.09). */
+export const routeColor = (color: string) => `color-mix(in srgb, ${color} 68%, white)`;
 /** Точка метки: гекс и точное место нажатия дробными осевыми координатами. */
 export interface MarkPoint { q: number; r: number; qf: number; rf: number }
 export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
@@ -133,8 +135,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           return (
             <g key={e.aKey + e.bKey} className={"m-edge " + cls} onClick={() => active && click(tk.id)}>
               {active && <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
-              <line className={active && !sel ? "dashed" : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={done ? map.team.color : undefined} />
-              {others.map((o, i) => { const p1 = pt(from + span * i), p2 = pt(from + span * (i + 1)); return <line key={o.color} className="foreign" x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke={o.color} />; })}
+              {/* Пройденные стороны: светлая подложка и осветлённый цвет команды, чтобы маршрут не сливался с местностью (решение владельца 30.09). */}
+              {(done || others.length > 0) && <line className="halo" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
+              <line className={active && !sel ? "dashed" : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={done ? { stroke: routeColor(map.team.color) } : undefined} />
+              {others.map((o, i) => { const p1 = pt(from + span * i), p2 = pt(from + span * (i + 1)); return <line key={o.color} className="foreign" x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} style={{ stroke: routeColor(o.color) }} />; })}
             </g>
           );
         })}
