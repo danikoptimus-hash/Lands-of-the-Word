@@ -167,7 +167,11 @@ describe("морской переход", () => {
     const all = (await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } })).json().deeds as Array<{ id: string; bookCodes: string[] }>;
     // Пустой список книг у дела — «любая книга» (решение владельца 18.09): такие дела тоже тематические.
     const themedIds = new Set(all.filter((d) => d.bookCodes.length === 0 || d.bookCodes.includes(port.bookCode!)).map((d) => d.id));
-    for (const t of fromPort) { expect(themedIds.has(t.deed.id)).toBe(true); expect(t.deed.title.includes("[")).toBe(false); }
+    // Решение владельца 29.09: уже выданные стороны не подменяются, поэтому по книге проверяем только сторону, созданную после
+    // взятия порта — морскую; у остальных лишь подстановка [Книга] в названии.
+    const seaTask = sea[0] as Task & { deed: { id: string; title: string } };
+    expect(themedIds.has(seaTask.deed.id)).toBe(true);
+    for (const t of fromPort) expect(t.deed.title.includes("[")).toBe(false);
     expect(withDeedBook({ title: "По книге [Книга]", description: "[книга]!" }, port.bookCode).title).toBe(`По книге ${name}`);
     expect(withDeedBook({ title: "По книге [Книга]", description: "[книга]!" }, port.bookCode).description).toBe(`${name}!`);
     expect(withDeedBook({ title: "По книге [Книга]", description: "" }, null).title).toBe("По книге на выбор");
