@@ -599,6 +599,18 @@ export function TeamPage() {
               {task.landing && (isLeader
                 ? <div className="actions"><button type="button" onClick={() => { setLandingId(task.id); setSelectedId(null); }}><Icon name="anchor" />{t("Выбрать место высадки")}</button></div>
                 : <div className="note info"><Icon name="anchor" /><span>{t("Дело одобрено: капитан выбирает место высадки.")}</span></div>)}
+              {/* Сдача дела: кто участвовал, ссылки, текст, даты — видно по нажатию на пройденную сторону (решение владельца 30.09). */}
+              {task.submittedAt && task.status !== "OPEN" && task.status !== "TAKEN" && (() => {
+                const names = (task.participants ?? []).filter((pid) => pid !== task.takenById).map(memberName).filter(Boolean);
+                return (
+                  <div className="report-block mt-2">
+                    {names.length > 0 && <p className="meta-line"><Icon name="users" />{t("Участвовали: {names}", { names: names.join(", ") })}</p>}
+                    <p className="meta-line small muted"><Icon name="clock" />{t("Сдано")}: {fmtDate(task.submittedAt)}{task.status === "APPROVED" && task.decidedAt && <> · {t("Одобрено")}: {fmtDate(task.decidedAt)}</>}</p>
+                    {task.links.length > 0 && <ul className="links">{task.links.map((l) => <li key={l}><a href={l} target="_blank" rel="noreferrer">{l}</a></li>)}</ul>}
+                    {task.note && <p className="report-text">{task.note}</p>}
+                  </div>
+                );
+              })()}
               {task.status === "REJECTED" && <div className="note bad"><Icon name="alert" /><span>{task.adminComment ? t("Администратор вернул дело: «{comment}». Исправьте и сдайте снова.", { comment: task.adminComment }) : t("Администратор вернул дело. Исправьте и сдайте снова.")}</span></div>}
               {task.status === "SUBMITTED" && <div className="note info"><Icon name="clock" /><span>{t("На проверке у администратора.")}</span></div>}
               {peeked && <div className="note info"><Icon name="telescope" /><span>{peeked === "CITY" ? t("Разведано: там город.") : t("Разведано: там развилка.")}</span></div>}

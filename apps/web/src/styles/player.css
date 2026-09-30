@@ -50,7 +50,8 @@
 .m-edge.done line { stroke-width: calc(6px / max(1.6, var(--k, 1))); }
 /* Светлая подложка под пройденной стороной и чужими проходами (решение владельца 30.09): маршрут не сливается с местностью. */
 .m-edge line.halo, .m-edge.done line.halo, .m-edge.idle line.halo, .m-edge.active line.halo { stroke: rgba(255, 250, 240, .85); stroke-width: calc(10px / max(1.6, var(--k, 1))); stroke-dasharray: none; opacity: 1; pointer-events: none; }
-.m-edge.active, .m-edge.sel, .m-city, .m-label, .m-deed { cursor: pointer; }
+.m-edge.active, .m-edge.sel, .m-edge.done, .m-city, .m-label, .m-deed { cursor: pointer; }
+.m-edge.done line.hit { stroke: transparent; stroke-width: calc(22px / var(--k, 1)); stroke-dasharray: none; }
 .m-start { stroke: var(--surface); stroke-width: 2; }
 .m-fork { fill: var(--surface); stroke: var(--text); stroke-width: 1.2; }
 .m-label rect { fill: var(--map-paper); stroke: var(--text); stroke-width: 1; }
@@ -472,6 +473,7 @@
 .service .svc-stat b { font-size: var(--fs-xl); line-height: 1.1; color: var(--accent-ink); }
 .service .svc-stat span { font-size: var(--fs-xs); color: var(--muted); }
 /* Общий топ участников в «Моём служении» */
+.report-text { white-space: pre-wrap; }
 .top-board { margin-top: var(--sp-4); }
 .top-board h3 { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-md); margin: 0 0 var(--sp-2); }
 .top-list { list-style: none; margin: 0; padding: 0; }

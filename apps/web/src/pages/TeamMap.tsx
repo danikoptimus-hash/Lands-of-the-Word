@@ -133,8 +133,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           const from = done ? 0.5 : 0, span = (1 - from) / Math.max(1, others.length);
           const pt = (tt: number) => ({ x: a.x + (b.x - a.x) * tt, y: a.y + (b.y - a.y) * tt });
           return (
-            <g key={e.aKey + e.bKey} className={"m-edge " + cls} onClick={() => active && click(tk.id)}>
-              {active && <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
+            <g key={e.aKey + e.bKey} className={"m-edge " + cls} onClick={() => (active || done) && click(tk.id)}>
+              {/* Пройденная сторона тоже нажимается: открывает дело и его отчёт (решение владельца 30.09). */}
+              {(active || done) && <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
               {/* Пройденные стороны: светлая подложка и осветлённый цвет команды, чтобы маршрут не сливался с местностью (решение владельца 30.09). */}
               {(done || others.length > 0) && <line className="halo" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
               <line className={active && !sel ? "dashed" : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={done ? { stroke: routeColor(map.team.color) } : undefined} />
