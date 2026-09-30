@@ -48,46 +48,59 @@ export async function uiMetrics(days = 30) {
   };
 }
 
+/**
+ * Тестовые учётки не считаются (решение владельца 30.09): боты симуляции и фикстуры инструкции — почта на example.com или
+ * ник с префиксом tg_, guide_, test_. Игры, созданные такими учётками, тоже не считаются вместе со всем содержимым.
+ */
+export const TEST_USER_WHERE = { OR: [{ email: { endsWith: "@example.com" } }, { nickname: { startsWith: "tg_" } }, { nickname: { startsWith: "guide_" } }, { nickname: { startsWith: "test_" } }] };
+async function testScope() {
+  const users = (await prisma.user.findMany({ where: TEST_USER_WHERE, select: { id: true } })).map((u) => u.id);
+  const games = users.length ? (await prisma.game.findMany({ where: { createdById: { in: users } }, select: { id: true } })).map((g) => g.id) : [];
+  return { users, games };
+}
+
 export async function platformMetrics(days = 30) {
   const now = Date.now();
   const since = new Date(now - days * DAY);
   const d1 = new Date(now - DAY), d7 = new Date(now - 7 * DAY), d30 = new Date(now - 30 * DAY);
+  const test = await testScope();
+  const U = { id: { notIn: test.users } }, G = { gameId: { notIn: test.games } }, TG = { team: { gameId: { notIn: test.games } } };
 
   const [usersTotal, usersNew, dau, wau, mau, cohort7, retained7, cohort30, retained30] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { createdAt: { gte: since } } }),
-    prisma.user.count({ where: { lastSeenAt: { gte: d1 } } }),
-    prisma.user.count({ where: { lastSeenAt: { gte: d7 } } }),
-    prisma.user.count({ where: { lastSeenAt: { gte: d30 } } }),
-    prisma.user.count({ where: { createdAt: { lte: d7 } } }),
-    prisma.user.findMany({ where: { createdAt: { lte: d7 }, lastSeenAt: { not: null } }, select: { createdAt: true, lastSeenAt: true } }),
-    prisma.user.count({ where: { createdAt: { lte: d30 } } }),
-    prisma.user.findMany({ where: { createdAt: { lte: d30 }, lastSeenAt: { not: null } }, select: { createdAt: true, lastSeenAt: true } }),
+    prisma.user.count({ where: U }),
+    prisma.user.count({ where: { ...U, createdAt: { gte: since } } }),
+    prisma.user.count({ where: { ...U, lastSeenAt: { gte: d1 } } }),
+    prisma.user.count({ where: { ...U, lastSeenAt: { gte: d7 } } }),
+    prisma.user.count({ where: { ...U, lastSeenAt: { gte: d30 } } }),
+    prisma.user.count({ where: { ...U, createdAt: { lte: d7 } } }),
+    prisma.user.findMany({ where: { ...U, createdAt: { lte: d7 }, lastSeenAt: { not: null } }, select: { createdAt: true, lastSeenAt: true } }),
+    prisma.user.count({ where: { ...U, createdAt: { lte: d30 } } }),
+    prisma.user.findMany({ where: { ...U, createdAt: { lte: d30 }, lastSeenAt: { not: null } }, select: { createdAt: true, lastSeenAt: true } }),
   ]);
   const ret7 = retained7.filter((u) => u.lastSeenAt!.getTime() - u.createdAt.getTime() >= 7 * DAY).length;
   const ret30 = retained30.filter((u) => u.lastSeenAt!.getTime() - u.createdAt.getTime() >= 30 * DAY).length;
 
   const [games, orgs, teams, memberships] = await Promise.all([
-    prisma.game.findMany({ select: { status: true, createdAt: true, startedAt: true, finishedAt: true, teamCount: true } }),
+    prisma.game.findMany({ where: { id: { notIn: test.games } }, select: { status: true, createdAt: true, startedAt: true, finishedAt: true, teamCount: true } }),
     prisma.organization.count(),
-    prisma.team.count(),
-    prisma.membership.count(),
+    prisma.team.count({ where: G }),
+    prisma.membership.count({ where: TG }),
   ]);
   const durations = games.filter((g) => g.startedAt && g.finishedAt).map((g) => g.finishedAt!.getTime() - g.startedAt!.getTime());
 
   const [tasksPeriod, tasksAll, decided, traversed, citiesCaptured, citiesPeriod] = await Promise.all([
-    prisma.teamEdgeTask.findMany({ where: { submittedAt: { gte: since } }, select: { status: true, submittedAt: true, decidedAt: true } }),
-    prisma.teamEdgeTask.count({ where: { submittedAt: { not: null } } }),
-    prisma.teamEdgeTask.findMany({ where: { decidedAt: { not: null }, submittedAt: { not: null } }, select: { submittedAt: true, decidedAt: true } }),
-    prisma.teamEdgeTask.count({ where: { status: "APPROVED" } }),
-    prisma.teamCityState.count({ where: { firstCapturedAt: { not: null } } }),
-    prisma.teamCityState.count({ where: { firstCapturedAt: { gte: since } } }),
+    prisma.teamEdgeTask.findMany({ where: { ...G, submittedAt: { gte: since } }, select: { status: true, submittedAt: true, decidedAt: true } }),
+    prisma.teamEdgeTask.count({ where: { ...G, submittedAt: { not: null } } }),
+    prisma.teamEdgeTask.findMany({ where: { ...G, decidedAt: { not: null }, submittedAt: { not: null } }, select: { submittedAt: true, decidedAt: true } }),
+    prisma.teamEdgeTask.count({ where: { ...G, status: "APPROVED" } }),
+    prisma.teamCityState.count({ where: { ...G, firstCapturedAt: { not: null } } }),
+    prisma.teamCityState.count({ where: { ...G, firstCapturedAt: { gte: since } } }),
   ]);
   const approvedPeriod = tasksPeriod.filter((t) => t.status === "APPROVED").length;
   const decidedPeriod = tasksPeriod.filter((t) => t.status === "APPROVED" || t.status === "REJECTED").length;
 
-  const battles = await prisma.battle.findMany({ select: { status: true, bid: true, sumMode: true, declaredAt: true, startedAt: true, attackDoneAt: true } });
-  const passages = await prisma.passageRequest.findMany({ select: { status: true, createdAt: true } });
+  const battles = await prisma.battle.findMany({ where: G, select: { status: true, bid: true, sumMode: true, declaredAt: true, startedAt: true, attackDoneAt: true } });
+  const passages = await prisma.passageRequest.findMany({ where: G, select: { status: true, createdAt: true } });
   const battlesPeriod = battles.filter((b) => b.declaredAt >= since);
   const attackTimes = battles.filter((b) => b.startedAt && b.attackDoneAt).map((b) => b.attackDoneAt!.getTime() - b.startedAt!.getTime());
 
@@ -97,20 +110,20 @@ export async function platformMetrics(days = 30) {
   const bucket = (stamps: Date[]) => { const m = new Map(dates.map((d) => [d, 0])); for (const t of stamps) { const k = dayKey(t); if (m.has(k)) m.set(k, m.get(k)! + 1); } return dates.map((d) => m.get(d)!); };
   const prevSince = new Date(now - 2 * days * DAY);
   const [newUsersS, submissionsS, approvalsS, battlesS, citiesS, gamesS, nodesS, prevUsers, prevSubs, prevBattles, prevCities, prevGames, prevNodes, usersBefore] = await Promise.all([
-    prisma.user.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }).then((r) => bucket(r.map((x) => x.createdAt))),
-    prisma.teamEdgeTask.findMany({ where: { submittedAt: { gte: since } }, select: { submittedAt: true } }).then((r) => bucket(r.map((x) => x.submittedAt!))),
-    prisma.teamEdgeTask.findMany({ where: { status: "APPROVED", decidedAt: { gte: since } }, select: { decidedAt: true } }).then((r) => bucket(r.map((x) => x.decidedAt!))),
-    prisma.battle.findMany({ where: { declaredAt: { gte: since } }, select: { declaredAt: true } }).then((r) => bucket(r.map((x) => x.declaredAt))),
-    prisma.teamCityState.findMany({ where: { firstCapturedAt: { gte: since } }, select: { firstCapturedAt: true } }).then((r) => bucket(r.map((x) => x.firstCapturedAt!))),
-    prisma.game.findMany({ where: { createdAt: { gte: since } }, select: { createdAt: true } }).then((r) => bucket(r.map((x) => x.createdAt))),
-    prisma.teamNodeState.findMany({ where: { revealedAt: { gte: since } }, select: { revealedAt: true } }).then((r) => bucket(r.map((x) => x.revealedAt))),
-    prisma.user.count({ where: { createdAt: { gte: prevSince, lt: since } } }),
-    prisma.teamEdgeTask.count({ where: { submittedAt: { gte: prevSince, lt: since } } }),
-    prisma.battle.count({ where: { declaredAt: { gte: prevSince, lt: since } } }),
-    prisma.teamCityState.count({ where: { firstCapturedAt: { gte: prevSince, lt: since } } }),
-    prisma.game.count({ where: { createdAt: { gte: prevSince, lt: since } } }),
-    prisma.teamNodeState.count({ where: { revealedAt: { gte: prevSince, lt: since } } }),
-    prisma.user.count({ where: { createdAt: { lt: since } } }),
+    prisma.user.findMany({ where: { ...U, createdAt: { gte: since } }, select: { createdAt: true } }).then((r) => bucket(r.map((x) => x.createdAt))),
+    prisma.teamEdgeTask.findMany({ where: { ...G, submittedAt: { gte: since } }, select: { submittedAt: true } }).then((r) => bucket(r.map((x) => x.submittedAt!))),
+    prisma.teamEdgeTask.findMany({ where: { ...G, status: "APPROVED", decidedAt: { gte: since } }, select: { decidedAt: true } }).then((r) => bucket(r.map((x) => x.decidedAt!))),
+    prisma.battle.findMany({ where: { ...G, declaredAt: { gte: since } }, select: { declaredAt: true } }).then((r) => bucket(r.map((x) => x.declaredAt))),
+    prisma.teamCityState.findMany({ where: { ...G, firstCapturedAt: { gte: since } }, select: { firstCapturedAt: true } }).then((r) => bucket(r.map((x) => x.firstCapturedAt!))),
+    prisma.game.findMany({ where: { id: { notIn: test.games }, createdAt: { gte: since } }, select: { createdAt: true } }).then((r) => bucket(r.map((x) => x.createdAt))),
+    prisma.teamNodeState.findMany({ where: { ...TG, revealedAt: { gte: since } }, select: { revealedAt: true } }).then((r) => bucket(r.map((x) => x.revealedAt))),
+    prisma.user.count({ where: { ...U, createdAt: { gte: prevSince, lt: since } } }),
+    prisma.teamEdgeTask.count({ where: { ...G, submittedAt: { gte: prevSince, lt: since } } }),
+    prisma.battle.count({ where: { ...G, declaredAt: { gte: prevSince, lt: since } } }),
+    prisma.teamCityState.count({ where: { ...G, firstCapturedAt: { gte: prevSince, lt: since } } }),
+    prisma.game.count({ where: { id: { notIn: test.games }, createdAt: { gte: prevSince, lt: since } } }),
+    prisma.teamNodeState.count({ where: { ...TG, revealedAt: { gte: prevSince, lt: since } } }),
+    prisma.user.count({ where: { ...U, createdAt: { lt: since } } }),
   ]);
   let running = usersBefore;
   const usersTotalS = newUsersS.map((n) => (running += n));

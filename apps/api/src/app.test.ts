@@ -182,10 +182,16 @@ describe("аналитика суперадмина", () => {
     const denied = await app.inject({ method: "GET", url: "/api/admin/metrics", headers: { cookie } });
     expect(denied.statusCode).toBe(403);
     await prisma.user.update({ where: { nickname: nick }, data: { platformRole: "SUPERADMIN" } });
+    // Тестовые учётки (почта example.com, ники tg_/guide_/test_) в аналитике не считаются (решение владельца 30.09):
+    // все фикстуры тестов такие, поэтому одну учётку делаем «настоящей» и проверяем, что считается только она.
+    const before = await app.inject({ method: "GET", url: "/api/admin/metrics?days=7", headers: { cookie } });
+    expect(before.statusCode).toBe(200);
+    expect(Object.keys(before.json())).toEqual(expect.arrayContaining(["users", "games", "activity", "battles", "diplomacy", "tech"]));
+    const testOnly = before.json().users.total as number;
+    await prisma.user.update({ where: { nickname: nick }, data: { email: `${nick}@lands.test` } });
     const res = await app.inject({ method: "GET", url: "/api/admin/metrics?days=7", headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(Object.keys(res.json())).toEqual(expect.arrayContaining(["users", "games", "activity", "battles", "diplomacy", "tech"]));
-    expect(res.json().users.total).toBeGreaterThan(0);
+    expect(res.json().users.total).toBe(testOnly + 1);
     expect(res.json().period.days).toBe(7);
     await prisma.user.deleteMany({ where: { nickname: nick } });
     expect(first === null || first.nickname !== nick).toBe(true);
