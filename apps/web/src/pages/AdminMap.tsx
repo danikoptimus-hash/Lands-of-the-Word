@@ -93,21 +93,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const sc = (x: number, y: number) => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))` });
   // Мир и экранные элементы — мемо по данным: фиксация масштаба не должна заново строить сотни SVG-элементов.
   const worldBody = useMemo(() => (<>
-            {nodes.map((n) => {
-              const p = positions.get(n.key)!;
-              const CITY = size * 0.77, START = size * 0.9; // решение владельца 16.09: знаки городов и стартов в полтора раза меньше прежних (1,15 и 1,35)
-              if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
-              if (n.kind === "CITY") {
-                const owner = ownerOf.get(n.key);
-                // Картинка города кликабельна сама (как у команды); владелец — обводка по контуру картинки цветом команды.
-                return (
-                  <g key={"c" + n.key} className="pick" onClick={() => { if (!vp.wasDrag()) setSelected(n); }}>
-                    <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : undefined} />
-                  </g>
-                );
-              }
-              return null;
-            })}
+            {/* Дороги и переправы — под значками городов и стартов, иначе светлая подложка маршрута перекрывает их (замечание владельца 30.09). */}
             {edges.map((e) => {
               const a = positions.get(e.aKey), b = positions.get(e.bKey);
               if (!a || !b) return null;
@@ -126,6 +112,21 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               const a = positions.get(e.fromKey)!, b = positions.get(e.toKey)!;
               return <g key={"sea" + tm.id + e.fromKey + e.toKey}><line className="adm-halo sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} /><line className="adm-sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={{ stroke: routeColor(tm.color) }} /><line className="edge-hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.fromKey, bKey: e.toKey }); }} /></g>;
             }))}
+            {nodes.map((n) => {
+              const p = positions.get(n.key)!;
+              const CITY = size * 0.77, START = size * 0.9; // решение владельца 16.09: знаки городов и стартов в полтора раза меньше прежних (1,15 и 1,35)
+              if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+              if (n.kind === "CITY") {
+                const owner = ownerOf.get(n.key);
+                // Картинка города кликабельна сама (как у команды); владелец — обводка по контуру картинки цветом команды.
+                return (
+                  <g key={"c" + n.key} className="pick" onClick={() => { if (!vp.wasDrag()) setSelected(n); }}>
+                    <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : undefined} />
+                  </g>
+                );
+              }
+              return null;
+            })}
   </>), [nodes, edges, positions, ownerOf, traversedBy, progress, edgeSet, battleAt, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const screenBody = useMemo(() => (<>
               {showIslands && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
