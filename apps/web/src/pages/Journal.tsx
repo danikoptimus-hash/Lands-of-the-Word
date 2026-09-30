@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type ActivityRowDto, type FeedItemDto, type JournalKind, type PeaceTeamDto, type SeasonBookDto, type ServiceStatsDto } from "../lib/api";
+import { api, ApiError, type ActivityRowDto, type FeedItemDto, type JournalKind, type PeaceTeamDto, type SeasonBookDto, type ServiceStatsDto, type TopDto } from "../lib/api";
 import { getLocale, t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
 import { useUi } from "../lib/ui";
@@ -97,7 +97,8 @@ export function FeedSection({ gameId, version }: { gameId: string; version: numb
 /** «Моё служение»: сводка участника. */
 export function MyServiceSection({ gameId, version }: { gameId: string; version: number }) {
   const [s, setS] = useState<ServiceStatsDto | null>(null);
-  useEffect(() => { api<ServiceStatsDto>(`/api/games/${gameId}/my-service`).then(setS).catch(() => {}); }, [gameId, version]);
+  const [top, setTop] = useState<TopDto | null>(null);
+  useEffect(() => { api<ServiceStatsDto>(`/api/games/${gameId}/my-service`).then(setS).catch(() => {}); api<TopDto>(`/api/games/${gameId}/top`).then(setTop).catch(() => {}); }, [gameId, version]);
   return (
     <section className="section">
       <h2><Icon name="user" />{t("Моё служение")}</h2>
@@ -111,6 +112,25 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
         </div>
       )}
       {s && s.deedsPending > 0 && <p className="hint">{t("В работе или на проверке: {n}", { n: s.deedsPending })}</p>}
+      {/* Общий топ участников всех команд (решение владельца 30.09): первые десять и своё место. */}
+      {top && top.rows.length > 0 && (
+        <div className="top-board">
+          <h3><Icon name="star" />{t("Самые активные")}<Help>{t("Все команды вместе. Дело — 3 очка, город — 2, район и переправа — по 1, каждые 5 стихов — 1. Дела считаются и участникам групповых дел.")}</Help></h3>
+          <ol className="top-list">
+            {[...top.rows, ...(top.me && top.me.rank > top.rows.length ? [top.me] : [])].map((r) => (
+              <li key={r.userId} className={top.me?.userId === r.userId ? "me" : ""}>
+                <span className="rank">{r.rank}</span>
+                <TeamAvatar name={r.team} color={r.color} size="sm" />
+                <span className="body">
+                  <span className="name">{r.name}{top.me?.userId === r.userId ? ` · ${t("это вы")}` : ""}</span>
+                  <span className="meta">{r.team} · {plural(r.deeds, ["дело", "дела", "дел"])} · {plural(r.tasks, ["район", "района", "районов"])} · {plural(r.cities, ["город", "города", "городов"])} · {plural(r.verses, ["стих", "стиха", "стихов"])}</span>
+                </span>
+              </li>
+            ))}
+          </ol>
+          {top.total > top.rows.length && <p className="muted small">{t("Всего участников: {n}", { n: top.total })}</p>}
+        </div>
+      )}
     </section>
   );
 }

@@ -86,6 +86,9 @@ export interface FeedItemDto { id: string; kind: JournalKind; vars: Record<strin
 /** Сдача дела для администратора: кто взял и участвовал, ссылки, текст, решение. */
 export interface AdminTaskDto { id: string; fromKey: string; toKey: string; status: EdgeTaskStatus; sea: boolean; team: { id: string; name: string; color: string }; deed: DeedLite; takenBy: { id: string; name: string } | null; participants: Array<{ id: string; name: string }>; links: string[]; note: string; donation: boolean; donationAmount: number | null; submittedAt: string | null; decidedAt: string | null; decidedBy: string | null; adminComment: string; createdAt: string }
 export interface ServiceStatsDto { deeds: number; deedsPending: number; tasks: number; orders: number; cities: number; verses: number; trips: number; lastActiveAt: number | null }
+/** Общий топ участников (всем игрокам): место, имя, команда и числа служения. */
+export interface TopRowDto { rank: number; userId: string; name: string; team: string; color: string; deeds: number; tasks: number; cities: number; verses: number; trips: number }
+export interface TopDto { rows: TopRowDto[]; me: TopRowDto | null; total: number }
 export interface ActivityRowDto extends ServiceStatsDto { userId: string; nickname: string; displayName: string | null; team: string; color: string; role: TeamRole; gameRole: GameRole }
 export interface PeaceTeamDto { team: { id: string; name: string; color: string; status: string }; state: "none" | "peace" | "offered" | "incoming"; peaceId: string | null; since: string | null }
 export interface SeasonBookDto {

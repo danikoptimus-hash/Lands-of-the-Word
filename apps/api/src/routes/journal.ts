@@ -28,6 +28,19 @@ export async function journalRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Администратор: доска активности участников. */
+  /**
+   * Общий топ участников для всех игроков (решение владельца 30.09): те же числа, что на доске активности администратора,
+   * но без роли и времени последней активности. Отдаются первые 10 и строка самого игрока с его местом.
+   */
+  app.get("/api/games/:id/top", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const m = await requireMember(request, reply, id);
+    if (!m) return;
+    const rows = (await activityBoard(id)).map((r, i) => ({ rank: i + 1, userId: r.userId, name: r.displayName || r.nickname, team: r.team, color: r.color, deeds: r.deeds, tasks: r.tasks + r.orders, cities: r.cities, verses: r.verses, trips: r.trips }));
+    const me = rows.find((r) => r.userId === request.user!.id) ?? null;
+    return { rows: rows.slice(0, 10), me, total: rows.length };
+  });
+
   app.get("/api/games/:id/activity", async (request, reply) => {
     const { id } = request.params as { id: string };
     if (!(await requireAdmin(request, reply, id))) return;

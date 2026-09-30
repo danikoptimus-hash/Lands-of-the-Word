@@ -469,6 +469,17 @@
 .service .svc-stat { flex: 1 1 70px; min-width: 70px; display: flex; flex-direction: column; align-items: center; padding: var(--sp-2); border-radius: var(--r-sm); background: var(--surface-2); }
 .service .svc-stat b { font-size: var(--fs-xl); line-height: 1.1; color: var(--accent-ink); }
 .service .svc-stat span { font-size: var(--fs-xs); color: var(--muted); }
+/* Общий топ участников в «Моём служении» */
+.top-board { margin-top: var(--sp-4); }
+.top-board h3 { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-md); margin: 0 0 var(--sp-2); }
+.top-list { list-style: none; margin: 0; padding: 0; }
+.top-list li { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 4px; border-bottom: 1px dashed var(--paper-edge, var(--border)); }
+.top-list li:last-child { border-bottom: 0; }
+.top-list li.me { background: var(--paper-2, var(--surface-2)); border-radius: var(--r-xs); }
+.top-list .rank { flex: none; width: 24px; text-align: center; font-weight: 700; color: var(--bronze-ink, var(--accent-ink)); }
+.top-list .body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
+.top-list .name { font-weight: 600; }
+.top-list .meta { font-size: var(--fs-xs); color: var(--muted); }
 /* Мир в строке таблицы команд: знак напротив чужой команды, ответ на предложение — кнопки под цифрами */
 .standing .peace-slot { margin-left: auto; display: inline-flex; }
 .standing .peace-btn { color: var(--accent); }

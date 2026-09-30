@@ -97,6 +97,11 @@ describe("журнал событий: лента, новости, служен�
     expect(board[0]?.userId).toBe(p1Id);
     expect(board[0]?.deeds).toBe(1);
     expect((await get(`/api/games/${gameId}/activity`, p1Cookie)).statusCode).toBe(403);
+    // Общий топ для всех участников (решение владельца 30.09): сдавший — первый, своё место отдаётся отдельно.
+    const top = (await get(`/api/games/${gameId}/top`, p2Cookie)).json() as { rows: Array<{ rank: number; userId: string; deeds: number }>; me: { rank: number; userId: string } | null; total: number };
+    expect(top.rows[0]).toMatchObject({ rank: 1, userId: p1Id, deeds: 1 });
+    expect(top.me?.userId).toBe((await prisma.user.findUniqueOrThrow({ where: { nickname: p2Nick } })).id);
+    expect(top.total).toBeGreaterThanOrEqual(2);
   });
 
   it("вызов городу — новость для всех команд без ставки; мир закрывает вызовы, расторжение — сразу", async () => {
