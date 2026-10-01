@@ -10,6 +10,8 @@ self.addEventListener("push", (event) => {
     badge: "/img/brand/logo-64.png",
     tag: data.tag || undefined,
     renotify: Boolean(data.tag),
+    // Время явно: без него iPhone показывал уведомлениям веб-приложений неверную давность («1 год назад»).
+    timestamp: Date.now(),
     data: { url: data.url || "/" },
   }));
 });

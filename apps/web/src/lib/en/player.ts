@@ -220,6 +220,7 @@ export const PLAYER: Record<string, string> = {
   "Что сделал": "What I did", "Кому и как": "For whom and how", "Что тронуло": "What touched me",
   "Что сделал?": "What did you do?", "Кому и как?": "For whom and how?", "без фамилий": "no surnames", "Что тебя тронуло?": "What touched you?",
   "Кто ещё участвовал": "Who else took part", "если делали группой": "if done as a group",
+  "если жертвовали вместе": "if you gave together",
   "{d} дней обе команды делают дела из списка игры; за каждое одобренное — баллы. У кого больше к сроку, тот владеет городом; при равенстве город остаётся у хранителей.": "For {d} days both teams do deeds from the game list; every approved deed scores points. Whoever has more at the deadline owns the city; a tie keeps it with the keepers.",
   "Объявить осаду делами?": "Declare a siege by deeds?", "Объявить осаду": "Declare siege", "Осада объявлена: считаются дела обеих команд": "Siege declared: deeds of both teams now count",
   "Объявить осаду делами": "Declare a siege by deeds", "Осада делами": "Siege by deeds", "Вы — хранители, осада от «{team}»": "You are the keepers, besieged by “{team}”", "до {d}": "until {d}",

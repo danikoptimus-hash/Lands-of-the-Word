@@ -677,9 +677,9 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
           <textarea id="deed-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
       )}
-      {!donation && members.length > 0 && (
+      {members.length > 0 && (
         <div className="field">
-          <span className="label">{t("Кто ещё участвовал")} <span className="opt">{t("если делали группой")}</span></span>
+          <span className="label">{t("Кто ещё участвовал")} <span className="opt">{donation ? t("если жертвовали вместе") : t("если делали группой")}</span></span>
           <div className="chips">
             {members.map((mm) => <label key={mm.id} className="check inline"><input type="checkbox" checked={participants.includes(mm.id)} onChange={(e) => setParticipants(e.target.checked ? [...participants, mm.id] : participants.filter((x) => x !== mm.id))} />{mm.name}</label>)}
           </div>
