@@ -4,8 +4,6 @@ export const ADMIN: Record<string, string> = {
   "Отчёт по делу": "Deed report", "Участвовали: {names}": "Participants: {names}", "Сдано": "Submitted", "Одобрено": "Approved", "Возвращено": "Returned",
   "Морской путь: корабль из порта.": "Sea route: a ship from the port.", "Тайное дело: команда сдачу не видит, только вы.": "Secret deed: the team does not see the submission, only you.",
   "Текста отчёта нет.": "There is no report text.", "Дела на этой стороне": "Deeds on this side", "На этой стороне ещё никто не брал дело.": "Nobody has taken a deed on this side yet.", "Открыть отчёт": "Open the report",
-  // Тестовые аккаунты (суперадмин)
-  "Тестовые аккаунты": "Test accounts", "Для тестовой партии с ботами: подтвердить почту аккаунтов с адресом на example.com (письмо туда не доходит). Никнеймы через пробел или запятую.": "For a test game with bots: confirm the e-mail of accounts with an example.com address (mail cannot reach it). Nicknames separated by spaces or commas.", "Никнеймы": "Nicknames", "Подтвердить": "Confirm", "Подтверждено аккаунтов: {n}": "Accounts confirmed: {n}",
   // Пакетная проверка и дайджест (этап 4 решений 18.09)
   "Принято сдач: {n}": "Submissions approved: {n}", "уже рассмотрено: {n}": "already reviewed: {n}", "только что": "just now", "{n} ч назад": "{n} h ago", "{n} дн назад": "{n} d ago",
   "Все команды": "All teams", "Вид сдачи": "Kind of proof", "Любой вид": "Any kind", "старые сверху": "oldest first", "новые сверху": "newest first", "Принять выбранные ({n})": "Approve selected ({n})", "Выбрать для пакетного принятия": "Select for batch approval",

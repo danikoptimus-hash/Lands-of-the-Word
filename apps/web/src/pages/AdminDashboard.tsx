@@ -151,33 +151,6 @@ function SupportBlock() {
 }
 
 /** Аналитика суперадмина: обобщённые метрики платформы по группам, с динамикой по дням; таблица по дням — внизу. */
-/** Тестовые аккаунты (боты тестовой партии): подтвердить почту вручную; только для адресов на example.com. */
-function TestAccountsBlock() {
-  const { notify } = useUi();
-  const [nick, setNick] = useState("");
-  const [busy, setBusy] = useState(false);
-  async function verify() {
-    setBusy(true);
-    try {
-      const names = nick.split(/[\s,;]+/).filter(Boolean);
-      let ok = 0;
-      for (const n of names) { await api("/api/auth/verify-user", { method: "POST", body: JSON.stringify({ nickname: n }) }); ok++; }
-      notify(t("Подтверждено аккаунтов: {n}", { n: ok })); setNick("");
-    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-    finally { setBusy(false); }
-  }
-  return (
-    <div className="card">
-      <h2><span className="ico"><Icon name="users" /></span>{t("Тестовые аккаунты")}</h2>
-      <p className="hint">{t("Для тестовой партии с ботами: подтвердить почту аккаунтов с адресом на example.com (письмо туда не доходит). Никнеймы через пробел или запятую.")}</p>
-      <div className="row nowrap">
-        <input value={nick} onChange={(e) => setNick(e.target.value)} placeholder="tg_m1 tg_m2 …" aria-label={t("Никнеймы")} />
-        <button type="button" disabled={busy || !nick.trim()} onClick={() => void verify()}><Icon name="check" />{t("Подтвердить")}</button>
-      </div>
-    </div>
-  );
-}
-
 export function AdminDashboard() {
   const { user } = useAuth();
   const [period, setPeriod] = useState<Period>("30");
@@ -202,7 +175,6 @@ export function AdminDashboard() {
       </div>
       <Tabs<Period> value={period} onChange={setPeriod} ariaLabel={t("Период")} items={[{ key: "7", label: forDays(7) }, { key: "30", label: forDays(30) }, { key: "90", label: forDays(90) }]} />
       <SupportBlock />
-      <TestAccountsBlock />
       {error && <div className="card"><ErrorState text={error} onRetry={load} /></div>}
       {!m && !error && <div className="card"><LoadingState /></div>}
       {m && (
