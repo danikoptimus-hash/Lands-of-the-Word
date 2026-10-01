@@ -76,7 +76,10 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   const subscribe = useCallback((fn: (v: View) => void) => { listeners.current.add(fn); fn(viewRef.current); return () => { listeners.current.delete(fn); }; }, []);
 
   const pointers = useRef(new Map<number, { x: number; y: number; at: number; type: string }>());
-  const gesture = useRef<{ moved: number; pinch: { dist: number; mid: { x: number; y: number } } | null } | null>(null);
+  /** Жест: откуда начался, стал ли перетаскиванием (палец ушёл дальше порога), щипок. */
+  const gesture = useRef<{ start: { x: number; y: number }; drag: boolean; pinch: { dist: number; mid: { x: number; y: number } } | null } | null>(null);
+  /** Порог перетаскивания: палец при нажатии дрожит на несколько пикселей, это ещё не перетаскивание (мышь точнее). */
+  const slop = (type: string) => (type === "mouse" ? 4 : 10);
   const [dragging, setDragging] = useState(false);
 
   /** Слева карту может закрывать стеклянная колонка меню (компьютер): её ширина приходит из CSS (`--map-pad-left`),
@@ -141,9 +144,10 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: Date.now(), type: e.pointerType });
       const pts = [...pointers.current.values()];
       if (pts.length === 1) {
+        // До порога карта не сдвигается: дрожание пальца при нажатии не превращает нажатие в перетаскивание.
+        if (!g.drag && Math.hypot(e.clientX - g.start.x, e.clientY - g.start.y) <= slop(e.pointerType)) return;
+        if (!g.drag) { g.drag = true; setDragging(true); }
         const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
-        g.moved += Math.abs(dx) + Math.abs(dy);
-        if (g.moved > 4) setDragging(true);
         setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }));
         commitIfFar();
         return;
@@ -160,7 +164,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       const ratio = g.pinch.dist > 0 ? dist / g.pinch.dist : 1;
       const pm = g.pinch.mid;
       g.pinch = { dist, mid };
-      g.moved += 10;
+      g.drag = true;
       setDragging(true);
       setView((v) => {
         const k = clampK(v.k * ratio);
@@ -214,11 +218,11 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     const pts = [...pointers.current.values()];
     const r = ref.current?.getBoundingClientRect();
     const pinch = pts.length === 2 && r ? { dist: Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y), mid: { x: (pts[0]!.x + pts[1]!.x) / 2 - r.left, y: (pts[0]!.y + pts[1]!.y) / 2 - r.top } } : null;
-    gesture.current = { moved: gesture.current?.moved ?? 0, pinch };
+    gesture.current = { start: { x: e.clientX, y: e.clientY }, drag: gesture.current?.drag ?? false, pinch };
   };
 
   /** true, если последний жест был перетаскиванием или щипком (значит клик по клетке игнорируем). */
-  const wasDrag = () => (gesture.current?.moved ?? 0) > 4 || dragging;
+  const wasDrag = () => (gesture.current?.drag ?? false) || dragging;
 
   return { ref: attach, view, viewRef, subscribe, fit, focusOn, zoomAt: (f: number) => zoomAt(f), wasDrag, handlers: { onPointerDown } };
 }
