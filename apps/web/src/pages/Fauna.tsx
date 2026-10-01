@@ -1306,7 +1306,9 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
   const ref = useRef<HTMLCanvasElement>(null);
   const dailyRef = useRef(daily); dailyRef.current = daily;
   const clockRef = useRef(clock); clockRef.current = clock;
-  const key = hexes.length ? `${hexes.length}:${hexes[0]!.q},${hexes[0]!.r}` : "";
+  // Ключ профиля — весь состав гексов: у разных карт одинаковое число гексов и часто совпадает первый, и при переходе
+  // между партиями внутри приложения живность продолжала обходить берег прежней карты, то есть плыла по суше новой (01.10).
+  const key = hexes.map((h) => `${h.q},${h.r},${h.island ?? ""}`).join(";");
   const profile = useMemo(() => islandProfile(hexes, size, islets), [key, size, islets]); // eslint-disable-line react-hooks/exhaustive-deps
   const profileRef = useRef(profile); profileRef.current = profile;
   // vp — новый объект при каждой перерисовке карты; мир живности от него зависеть не должен, иначе звери
@@ -1379,7 +1381,7 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
     };
     raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); clearTimeout(timer); ro.disconnect(); unsub(); };
-  }, [size, key, seed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile, size, seed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!profile) return null;
   return <canvas ref={ref} className="fx-layer fauna" aria-hidden />;

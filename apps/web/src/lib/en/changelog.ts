@@ -1,5 +1,7 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Сторона между двумя уже открытыми перекрёстками тоже получает дело: пустых сторон внутри открытой области больше нет.": "A side between two already opened crossroads also gets a deed: no more empty sides inside the opened area.",
+  "Живность: при переходе из одной партии в другую внутри приложения корабли и киты обходили берег прежней карты и могли оказаться на суше; теперь берег пересчитывается по новой карте.": "Wildlife: when switching from one game to another inside the app, ships and whales kept avoiding the previous map’s coast and could end up on land; the coast is now recomputed for the new map.",
   "При сдаче дела пожертвованием тоже можно отметить, кто из команды жертвовал вместе: участники попадут в проверку и в «Моё служение».": "When submitting a deed as a donation you can also mark who from the team gave together: the participants appear in review and in “My service”.",
   "Уведомления на телефоне показывают верное время (раньше iPhone писал «1 год назад»).": "Phone notifications show the correct time (iPhone used to say “1 year ago”).",
   "Нажатие на город или дорогу на телефоне срабатывает надёжнее: небольшое дрожание пальца больше не принимается за перетаскивание карты.": "Tapping a city or a road on the phone is more reliable: a slight finger tremor is no longer taken for dragging the map.",

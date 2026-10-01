@@ -103,6 +103,12 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
       // Через чужой город без разрешения на проход дальше не идём (2.14 А).
       if (revealed.has(from) && !revealed.has(to) && !existing.has(`${from}>${to}`) && !blocked.has(from)) wanted.push({ fromKey: from, toKey: to });
     }
+    // Сторона между двумя уже открытыми узлами тоже получает дело (решение владельца 01.10: пустых сторон между
+    // открытыми перекрёстками быть не должно). Одно дело на сторону, в любую сторону; через закрытый город — нет.
+    if (revealed.has(e.aKey) && revealed.has(e.bKey) && !existing.has(`${e.aKey}>${e.bKey}`) && !existing.has(`${e.bKey}>${e.aKey}`)) {
+      const from = !blocked.has(e.aKey) ? e.aKey : !blocked.has(e.bKey) ? e.bKey : null;
+      if (from) wanted.push({ fromKey: from, toKey: from === e.aKey ? e.bKey : e.aKey });
+    }
   }
   const created: string[] = [];
   for (const w of wanted) {
