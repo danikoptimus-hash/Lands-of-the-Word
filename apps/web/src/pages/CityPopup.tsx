@@ -61,7 +61,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   const load = useCallback(() => api<MyCityDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`).then((c) => { setCity(c); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [gameId, nodeKey]);
   useEffect(() => { void load(); }, [load, version]);
   useEffect(() => { const tm = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(tm); }, []);
-  useEffect(() => { if (city?.content && !city.state.orderSolved && !order) setOrder(city.content.districts.map((d) => d.id)); }, [city, order]);
+  // Начальная расстановка — черновик команды, если он содержит ровно эти районы; иначе порядок, в котором пришли районы.
+  useEffect(() => { if (city?.content && !city.state.orderSolved && !order) setOrder(validDraft(city.state.orderDraft, city.content.districts.map((d) => d.id))); }, [city, order]);
+  const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`);
 
   const book = city ? BOOK_BY_CODE.get(city.node.bookCode) : undefined;
   const districts = city?.content?.districts ?? [];
@@ -172,7 +174,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       {city?.content && step === 1 && order && (
         <section className="step-body">
           <h3>{t("Расставьте районы по порядку книги")}</h3>
-          <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { setOrder(ids); setOrderResult(null); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
+          <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
             hint={city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Стрелки двигают район вверх и вниз. Готово — проверните замок.")}
             help={t("Замок скажет, сколько штифтов не село, но не каких.")} />
           <div className="actions"><button type="button" disabled={busy || lockState === "open"} onClick={() => void checkOrder()}><Icon name="lock" />{t("Провернуть замок")}</button></div>
@@ -269,7 +271,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       )}
       {city?.content && task && (
         <TaskView task={task} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
-          hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey}
+          hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} draft={city.state.taskDrafts?.[String(task.index)]}
           lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} pauseSteps={city.state.pauseSteps} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />
       )}
       {letter && (
@@ -287,7 +289,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
 
 const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.some((l) => l.index === index && l.lockedUntil != null && l.lockedUntil > now);
 
-function TaskView({ task, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify }: { task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
+function TaskView({ task, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
   /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
   const cooldown = 0;
@@ -301,7 +303,8 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
   /** Стихи письма — из ответа сервера: для задания по группе районов это районы группы, а не район с номером задания. */
   const [text, setText] = useState("");
   const [choice, setChoice] = useState<number | null>(null);
-  const [order, setOrder] = useState<string[]>(task.type === "order" ? task.items.map((i) => i.id) : []);
+  const [order, setOrder] = useState<string[]>(task.type === "order" ? validDraft(draft, task.items.map((i) => i.id)) : []);
+  const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`);
   const [words, setWords] = useState<string[] | null>(null);
   /** Итог последней отправки — для сцены формы (весы выравниваются, замок заклинивает); сбрасывается при смене ответа. */
   const [result, setResult] = useState<"ok" | "bad" | null>(null);
@@ -360,7 +363,7 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
           {task.type === "text" && gap && <BurntScroll gap={gap} value={text} onChange={setText} disabled={locked} onPaste={noPaste} />}
           {task.type === "text" && !gap && <div className="field"><label htmlFor="answer-text">{t("Ответ")}</label><input id="answer-text" className="full" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" autoCorrect="off" spellCheck={false} onPaste={noPaste} onDrop={noPaste} /></div>}
           {task.type === "choice" && <LockChoice options={task.options} choice={choice} onPick={(i) => { setChoice(i); setResult(null); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} />}
-          {task.type === "order" && <LockRings ids={order} labels={itemText} onChange={(ids) => { setOrder(ids); setResult(null); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} pinsWrong={result === "bad" ? -1 : null} strips />}
+          {task.type === "order" && <LockRings ids={order} labels={itemText} onChange={(ids) => { setOrder(ids); setResult(null); saveDraft({ taskIndex: task.index, ids }); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} pinsWrong={result === "bad" ? -1 : null} strips />}
           {task.type === "crossword" && <Crossword rows={task.rows} cols={task.cols} words={task.words} onChange={setWords} disabled={locked || busy} onPaste={noPaste} />}
           {why && <p className="hint" aria-live="polite">{why}</p>}
           <div className="actions">
@@ -370,4 +373,23 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
       )}
     </div>
   );
+}
+
+/** Черновик годится, если это перестановка ровно тех же id; иначе исходный порядок. */
+function validDraft(draft: string[] | undefined, ids: string[]): string[] {
+  if (!draft || draft.length !== ids.length) return ids;
+  const set = new Set(ids);
+  return draft.every((x) => set.has(x)) && new Set(draft).size === ids.length ? draft : ids;
+}
+/** Отложенное сохранение черновика (400 мс после последнего перемещения; при закрытии листа — сразу). Ошибки сети молча: черновик — удобство, не прогресс. */
+function useDraftSaver(url: string): (body: { order?: string[]; taskIndex?: number; ids?: string[] }) => void {
+  const pending = useRef<{ order?: string[]; taskIndex?: number; ids?: string[] } | null>(null);
+  const timer = useRef(0);
+  const flush = useCallback(() => {
+    window.clearTimeout(timer.current); timer.current = 0;
+    const body = pending.current; pending.current = null;
+    if (body) api(url, { method: "PUT", body: JSON.stringify(body) }).catch(() => undefined);
+  }, [url]);
+  useEffect(() => flush, [flush]);
+  return useCallback((body) => { pending.current = { ...pending.current, ...body }; window.clearTimeout(timer.current); timer.current = window.setTimeout(flush, 400); }, [flush]);
 }

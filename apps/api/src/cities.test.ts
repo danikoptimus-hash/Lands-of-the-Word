@@ -96,11 +96,19 @@ describe("город на перекрёстке", () => {
     expect(wrong.json().correct).toBe(false);
     expect(wrong.json().wrong).toBeGreaterThan(0);
 
+    // Черновик расстановки: сохраняется для команды и отдаётся при следующем открытии; после неверной попытки хранит её.
+    const half = [...districts.map((d) => d.id)].reverse();
+    const draft = await app.inject({ method: "PUT", url: `/api/games/${gameId}/my-city/${rutKey}/draft`, headers: { cookie: p1Cookie }, payload: { order: half } });
+    expect(draft.statusCode).toBe(200);
+    const withDraft = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
+    expect(withDraft.json().state.orderDraft).toEqual(half);
+
     const byTitle = new Map(districts.map((d) => [d.title, d.id]));
     const right = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/order`, headers: { cookie: p1Cookie }, payload: { ids: content.districts.map((d) => byTitle.get(d.title)) } });
     expect(right.json()).toEqual({ correct: true, wrong: 0 });
     const solved = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
     expect(solved.json().state.orderSolved).toBe(true);
+    expect(solved.json().state.orderDraft).toEqual([]);
     expect(solved.json().content.districts.map((d: { title: string }) => d.title)).toEqual(content.districts.map((d) => d.title));
     expect(solved.json().content.tasks).toHaveLength(content.tasks.length);
     expect(JSON.stringify(solved.json().content.tasks)).not.toContain("\"answer\"");

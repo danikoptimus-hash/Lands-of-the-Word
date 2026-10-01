@@ -14,6 +14,7 @@ import { journal, nick } from "../services/journal.js";
 import { ruinsTreasure } from "../services/treasure.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
+const draftBody = z.object({ order: z.array(z.string().min(1).max(64)).max(60).optional(), taskIndex: z.number().int().min(0).max(200).optional(), ids: z.array(z.string().min(1).max(64)).max(60).optional() });
 const answerBody = z.object({ answer: z.union([z.string().max(500), z.number(), z.array(z.string().min(1).max(32)).max(64)]) });
 const captureBody = z.object({ key: z.string().trim().min(1).max(32) });
 
@@ -102,6 +103,9 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         hintTasks: m.gameRole === "PROPHET" ? state?.hintTasks ?? [] : [],
         // Свеча пророка (C-15): когда право на подсказку снова доступно; не пророку не отдаётся.
         hintAvailableAt: m.gameRole === "PROPHET" ? (m.team.lastHintAt ? m.team.lastHintAt.getTime() + days(rules.roleCooldownDays) : 0) : null,
+        // Черновики: расстановка районов до поворота замка и заданий «по порядку» — общие для команды (решение владельца 01.10).
+        orderDraft: solved ? [] : state?.orderDraft ?? [],
+        taskDrafts: Object.fromEntries(Object.entries((state?.taskDrafts as Record<string, string[]> | null) ?? {}).filter(([i]) => !done.includes(Number(i)))),
         keyLockedUntil: keyLockedUntil > Date.now() ? keyLockedUntil : null,
         keyWrong: state?.keyWrong ?? 0,
         pauseSteps: rules.pauseSteps,
@@ -130,6 +134,25 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     return { m, node, content, state, rules: rulesOf(game.settings), scopeKey: `${m.team.id}|${nodeKey}` };
   }
 
+  /** Черновик расстановки: районов (order) или задания «по порядку» (taskIndex + ids). Сохраняется на каждое перемещение,
+   *  виден всей команде, переживает закрытие приложения (решение владельца 01.10). Ошибок порядка не проверяет. */
+  app.put("/api/games/:id/my-city/:nodeKey/draft", async (request, reply) => {
+    const { id, nodeKey } = request.params as { id: string; nodeKey: string };
+    const c = await memberCity(request, reply, id, nodeKey);
+    if (!c) return;
+    const body = draftBody.parse(request.body);
+    if (body.order) {
+      if (c.state.orderSolved) return { ok: true };
+      await prisma.teamCityState.update({ where: { id: c.state.id }, data: { orderDraft: body.order } });
+    }
+    if (body.taskIndex !== undefined && body.ids) {
+      if (c.state.doneTasks.includes(body.taskIndex)) return { ok: true };
+      const drafts = { ...((c.state.taskDrafts as Record<string, string[]> | null) ?? {}), [String(body.taskIndex)]: body.ids };
+      await prisma.teamCityState.update({ where: { id: c.state.id }, data: { taskDrafts: drafts } });
+    }
+    return { ok: true };
+  });
+
   /** Расставить районы по порядку книги. Ответ — id районов в выбранном порядке. */
   app.post("/api/games/:id/my-city/:nodeKey/order", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
@@ -139,7 +162,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const body = orderBody.parse(request.body);
     const wrong = checkOrder(c.content, secret, c.scopeKey, body.ids);
     if (wrong === null) return reply.code(400).send({ error: "validation", message: err(request, "Расставьте все районы, каждый по одному разу") });
-    await prisma.teamCityState.update({ where: { id: c.state.id }, data: { orderAttempts: { increment: 1 }, orderSolved: wrong === 0 } });
+    // Черновик: при верном порядке больше не нужен, при неверном хранит последнюю расстановку.
+    await prisma.teamCityState.update({ where: { id: c.state.id }, data: { orderAttempts: { increment: 1 }, orderSolved: wrong === 0, orderDraft: wrong === 0 ? [] : body.ids } });
     if (wrong === 0) journal(id, "order_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), book: c.node.bookCode ?? "" } });
     publish(id, { type: "cities", teamId: c.m.team.id });
     return { correct: wrong === 0, wrong };

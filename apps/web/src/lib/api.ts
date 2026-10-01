@@ -63,7 +63,7 @@ export interface MyCityDto {
   owner: { id: string; index: number; name: string; color: string } | null;
   team: { capitalMovedAt: string | null; gameRole: GameRole; role: TeamRole };
   content: { title: string; translation: string; codeRule: string; districts: CityDistrictDto[]; tasks: CityTaskDto[]; fragments: Array<string | null> } | null;
-  state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; /** Свеча пророка: когда подсказка снова доступна (0 — сейчас); не пророку null. */ hintAvailableAt: number | null; keyLockedUntil: number | null; keyWrong: number; pauseSteps: number[]; locks: TaskLockDto[]; support: SupportItemDto[] };
+  state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; /** Свеча пророка: когда подсказка снова доступна (0 — сейчас); не пророку null. */ hintAvailableAt: number | null; keyLockedUntil: number | null; keyWrong: number; pauseSteps: number[]; locks: TaskLockDto[]; support: SupportItemDto[]; /** Черновики расстановки (общие для команды): районов и заданий «по порядку» по номеру задания. */ orderDraft: string[]; taskDrafts: Record<string, string[]> };
 }
 /** Город глазами админа: контент с ответами, ключ конверта, прогресс команд. */
 export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order" | "crossword"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[]; words?: Array<{ clue: string; answer?: string; len?: number }> }

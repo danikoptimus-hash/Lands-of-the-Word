@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Город: расстановка районов и заданий «по порядку» сохраняется на каждое перемещение и общая для команды. Закрыли приложение или вернулись завтра — районы стоят так, как вы их оставили.": "City: the arrangement of districts and of “put in order” tasks is saved on every move and shared by the team. Close the app or come back tomorrow and the districts stay as you left them.",
   "Обращения в поддержку у администратора платформы вынесены на отдельную страницу: пункт «Обращения» в меню под аватаром, ниже «Аналитики»; при открытых обращениях на аватаре и у пункта горит красный кружок с их числом.": "Support requests for the platform admin moved to a separate page: the “Support” item in the avatar menu below “Analytics”; with open requests a red counter shows on the avatar and next to the item.",
   "Дело «Помочь ребёнку из большой семьи с уроками»: уточнено, что можно заниматься и с младшими братьями и сёстрами из своей семьи.": "Deed “Help a child from a large family with homework”: clarified that younger siblings from your own family count too.",
   "Аналитика администратора платформы: блок «Тестовые аккаунты» убран.": "Platform admin analytics: the “Test accounts” block is removed.",
