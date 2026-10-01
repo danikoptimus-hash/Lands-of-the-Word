@@ -143,8 +143,14 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 if (n.kind === "CITY") {
                   const label = `${book?.order}. ${book?.nameRu ?? ""}`;
                   const lw = Math.ceil(label.length * 11 * 0.62) + 16;
+                  const CITY = size * 0.77;
                   return (
                   <Fragment key={n.key}>
+                    {/* Зона нажатия размером со значок в единицах карты (растёт вместе с масштабом): на некоторых телефонах нажатие
+                        по картинке города в слое мира не доходило, а подписи и экранные элементы работали (замечание владельца 01.10). */}
+                    <g className="pick" style={{ transform: `translate(${raw.x}px, ${raw.y - CITY * 0.1}px)` }} onClick={pick}>
+                      <circle className="hit" r={CITY * 0.52} fill="transparent" />
+                    </g>
                     <g className="pick" style={at} onClick={pick}>
                       <circle className="hit" r={20} cy={-4} fill="transparent" />
                       {!showLabels && <g className="quiet"><circle r={8} fill={sel ? "var(--accent)" : "var(--surface)"} stroke="var(--text)" strokeWidth={1} /><text textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}</text></g>}
