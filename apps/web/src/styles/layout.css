@@ -7,6 +7,10 @@
 .brand .mark { width: 32px; height: 32px; flex-shrink: 0; display: block; }
 .user-menu { display: flex; align-items: center; gap: var(--sp-2); background: transparent; color: var(--text); border: 0; padding: 0 var(--sp-1) 0 0; min-height: var(--touch); max-width: 220px; }
 .user-menu:hover { background: var(--surface-2); }
+.user-menu .avatar { position: relative; overflow: visible; }
+.user-badge, .menu-badge { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger, #b3402a); color: #fff; font: 700 11px/18px var(--font); text-align: center; white-space: nowrap; }
+.user-badge { position: absolute; top: -5px; right: -7px; }
+.menu button .menu-badge { margin-left: auto; }
 .user-menu .name { font-size: var(--fs-sm); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 479px) { .user-menu .name { display: none; } }
 .container { max-width: 1040px; margin: 0 auto; padding: var(--sp-4) max(var(--gutter), var(--safe-left)) var(--sp-8) max(var(--gutter), var(--safe-right)); }

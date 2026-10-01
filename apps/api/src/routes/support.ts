@@ -69,6 +69,12 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
     return reply.code(201).send({ ok: true, id: row.id });
   });
 
+  /** Суперадмин: число открытых обращений — для красного кружка в меню шапки. */
+  app.get("/api/admin/support/count", async (request, reply) => {
+    if (!requireSuperadmin(request, reply)) return;
+    return { open: await prisma.supportRequest.count({ where: { status: "OPEN" } }) };
+  });
+
   /** Суперадмин: обращения (открытые первыми). */
   app.get("/api/admin/support", async (request, reply) => {
     if (!requireSuperadmin(request, reply)) return;

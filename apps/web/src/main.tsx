@@ -17,6 +17,7 @@ import { ForgotPage } from "./pages/ForgotPage";
 import { ResetPage } from "./pages/ResetPage";
 import { VerifyPage, VerifyPendingPage } from "./pages/VerifyPage";
 import { AdminDashboard } from "./pages/AdminDashboard";
+import { SupportPage } from "./pages/SupportPage";
 import { NewGamePage } from "./pages/NewGamePage";
 import { HowToPlayPage } from "./pages/HowToPlayPage";
 import { WhatsNewPage } from "./pages/WhatsNewPage";
@@ -57,6 +58,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/join/:token" element={<JoinPage />} />
             <Route path="/account" element={<Private><AccountPage /></Private>} />
             <Route path="/admin" element={<Private><AdminDashboard /></Private>} />
+            <Route path="/admin/support" element={<Private><SupportPage /></Private>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import { t } from "../lib/i18n";
 
-export interface MenuItem { label: string; icon?: string; onSelect: () => void; danger?: boolean; sep?: boolean }
+export interface MenuItem { label: string; icon?: string; onSelect: () => void; danger?: boolean; sep?: boolean; /** Красный кружок со счётчиком (0 — не показывается). */ badge?: number }
 /** Меню «⋯»: одно видимое действие в строке, остальные здесь. trigger — своя кнопка (по умолчанию иконка more). */
 export function ActionMenu({ items, trigger, align = "right", label }: { items: MenuItem[]; trigger?: ReactNode; align?: "left" | "right"; label?: string }) {
   const [open, setOpen] = useState(false);
@@ -24,7 +24,7 @@ export function ActionMenu({ items, trigger, align = "right", label }: { items: 
           {items.map((it, i) => (
             <div key={i}>
               {it.sep && <div className="sep" />}
-              <button type="button" role="menuitem" className={it.danger ? "danger" : ""} onClick={() => { setOpen(false); it.onSelect(); }}>{it.icon && <Icon name={it.icon} />}{it.label}</button>
+              <button type="button" role="menuitem" className={it.danger ? "danger" : ""} onClick={() => { setOpen(false); it.onSelect(); }}>{it.icon && <Icon name={it.icon} />}{it.label}{it.badge ? <span className="menu-badge">{it.badge}</span> : null}</button>
             </div>
           ))}
         </div>

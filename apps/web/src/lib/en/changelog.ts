@@ -1,5 +1,7 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Обращения в поддержку у администратора платформы вынесены на отдельную страницу: пункт «Обращения» в меню под аватаром, ниже «Аналитики»; при открытых обращениях на аватаре и у пункта горит красный кружок с их числом.": "Support requests for the platform admin moved to a separate page: the “Support” item in the avatar menu below “Analytics”; with open requests a red counter shows on the avatar and next to the item.",
+  "Дело «Помочь ребёнку из большой семьи с уроками»: уточнено, что можно заниматься и с младшими братьями и сёстрами из своей семьи.": "Deed “Help a child from a large family with homework”: clarified that younger siblings from your own family count too.",
   "Аналитика администратора платформы: блок «Тестовые аккаунты» убран.": "Platform admin analytics: the “Test accounts” block is removed.",
   "Сторона между двумя уже открытыми перекрёстками тоже получает дело: пустых сторон внутри открытой области больше нет.": "A side between two already opened crossroads also gets a deed: no more empty sides inside the opened area.",
   "Живность: при переходе из одной партии в другую внутри приложения корабли и киты обходили берег прежней карты и могли оказаться на суше; теперь берег пересчитывается по новой карте.": "Wildlife: when switching from one game to another inside the app, ships and whales kept avoiding the previous map’s coast and could end up on land; the coast is now recomputed for the new map.",
