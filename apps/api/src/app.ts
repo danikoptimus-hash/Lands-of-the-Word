@@ -26,7 +26,6 @@ import { supportRoutes } from "./routes/support.js";
 import { recordResponse } from "./services/stats.js";
 import { eventRoutes } from "./routes/events.js";
 import { journalRoutes } from "./routes/journal.js";
-import { behaviorRoutes } from "./routes/behavior.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -75,7 +74,6 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(deedRoutes);
   await app.register(teamMapRoutes);
   await app.register(cityRoutes);
-  await app.register(behaviorRoutes);
   await app.register(battleRoutes);
   await app.register(diplomacyRoutes);
   await app.register(recipientRoutes);

@@ -174,17 +174,12 @@ describe("город на перекрёстке", () => {
     // Раздел «Поведение» (решение владельца 02.10): события ответов и выходов из приложения видит администратор, не игрок.
     expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/focus`, headers: { cookie: p1Cookie }, payload: { kind: "open" } })).statusCode).toBe(204);
     expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/order/focus`, headers: { cookie: p1Cookie }, payload: { kind: "away", awayMs: 12_000 } })).statusCode).toBe(204);
-    expect((await app.inject({ method: "GET", url: `/api/games/${gameId}/behavior`, headers: { cookie: p1Cookie } })).statusCode).toBe(403);
-    const beh = await app.inject({ method: "GET", url: `/api/games/${gameId}/behavior`, headers: { cookie: adminCookie } });
-    expect(beh.statusCode).toBe(200);
-    const me = (beh.json().users as Array<{ participant: number; solves: number[]; ok: number; wrong: number; opens: number; away: number[] }>).find((u) => u.solves.length > 0)!;
-    expect(Object.keys(me).sort()).toEqual(["away", "ok", "opens", "orders", "participant", "solves", "team", "wrong"]);
-    expect(me.ok).toBeGreaterThanOrEqual(tasks.length);
-    expect(me.wrong).toBeGreaterThanOrEqual(2);
-    expect(me.opens).toBe(1);
-    expect(me.away).toEqual([12_000]);
-    expect(me.solves.length).toBe(tasks.length);
-    expect((beh.json().teams as Array<{ name: string; done: number; wrong: number }>).find((x) => x.name === "Львы")).toMatchObject({ done: tasks.length });
+    // Выгрузок через игру нет (решение владельца 02.10): события лежат в базе.
+    const ev = await prisma.taskEvent.findMany({ where: { gameId, nodeKey: rutKey }, orderBy: { createdAt: "asc" } });
+    expect(ev.filter((e) => e.kind === "ok").length).toBeGreaterThanOrEqual(tasks.length);
+    expect(ev.filter((e) => e.kind === "wrong").length).toBeGreaterThanOrEqual(2);
+    expect(ev.filter((e) => e.kind === "open").length).toBe(1);
+    expect(ev.find((e) => e.kind === "away")?.awayMs).toBe(12_000);
   });
 
   it("админ открывает узел команде для теста: сторона к нему одобрена, узел открыт", async () => {
