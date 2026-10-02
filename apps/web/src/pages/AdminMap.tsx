@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { BOOKS, startName } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import { reportPage } from "../lib/perf";
@@ -146,7 +146,11 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 if (n.kind === "START") { const tm = progress?.find((x) => x.startNodeKey === n.key); const color = tm?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!; return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={14} fill="transparent" /><circle r={6} fill={color} stroke="var(--surface)" strokeWidth={2} /></g>; }
                 if (n.kind === "CITY") {
                   const label = `${book?.order}. ${book?.nameRu ?? ""}`;
-                  const lw = Math.ceil(label.length * 11 * 0.62) + 16;
+                  // Столица команды — с короной цвета команды, как на карте команды (замечание владельца 03.10: «где значки столиц?»).
+                  const capital = cities?.find((c) => c.nodeKey === n.key && c.capturedAt && c.isCapital);
+                  const crownColor = capital ? teamById.get(capital.teamId)?.color ?? "var(--text)" : null;
+                  const crownW = crownColor ? 14 : 0;
+                  const lw = Math.ceil(label.length * 11 * 0.62) + 16 + crownW;
                   return (
                   <Fragment key={n.key}>
                     {/* Нажатие по городу — по самой картинке в слое мира, как на карте команды (решение владельца 01.10: одно решение
@@ -154,7 +158,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                     {!showLabels ? (
                       <g className="pick" style={at} onClick={pick}>
                         <circle className="hit" r={20} cy={-4} fill="transparent" />
-                        <g className="quiet"><circle r={8} fill={sel ? "var(--accent)" : "var(--surface)"} stroke="var(--text)" strokeWidth={1} /><text textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}</text></g>
+                        <g className="quiet"><circle r={8} fill={sel ? "var(--accent)" : "var(--surface)"} stroke="var(--text)" strokeWidth={1} /><text textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}</text>
+                          {crownColor && <use href="#m-crown" x={8} y={-16} width={11} height={11} style={{ color: crownColor }} />}</g>
                         {seen.map((tm, i) => <circle key={tm.id} className="quiet" cx={(i - (seen.length - 1) / 2) * 10} cy={-14} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
                       </g>
                     ) : (
@@ -167,7 +172,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                       <g className="pick" style={sc(raw.x, raw.y + size * 0.77 * 0.48)} onClick={pick}>
                         <g className="quiet">
                           <rect x={-lw / 2} y={-10} width={lw} height={20} rx={10} fill={sel ? "var(--accent)" : "var(--map-paper)"} stroke="var(--text)" strokeWidth={1} />
-                          <text textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{label}</text>
+                          {crownColor && <use href="#m-crown" x={-lw / 2 + 6} y={-6} width={12} height={12} style={{ color: sel ? "var(--on-accent)" : crownColor }} />}
+                          <text x={crownW / 2} textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{label}</text>
                         </g>
                       </g>
                     )}
@@ -177,7 +183,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 if (!showDots) return null;
                 return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" />{seen.length === 0 && <circle r={3} fill="rgba(31,27,22,.4)" />}{seen.map((tm, i) => <circle key={tm.id} cx={(i - (seen.length - 1) / 2) * 8} cy={0} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
-  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   const viewedTeam = viewAs ? teamById.get(viewAs) : null;
   const legend = (
@@ -220,6 +226,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} daytime={dt} />
           {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
           <WorldSvg vp={vp} bounds={bounds}>
+            <MapSymbols />
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
             <CoastOver d={coast} size={size} light={dt.light} />

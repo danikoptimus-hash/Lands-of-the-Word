@@ -92,6 +92,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const [liveWater, setLiveWater] = useState(true);
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
+  // Перекрёстки края тумана укрыты облачком и там, где рядом нет гекса тумана (берег): команда их ещё не знает (03.10).
+  const fogPoints = useMemo(() => (map.frontier ?? []).map((k) => nodePos(k, size)), [map.frontier, size]);
   // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
   const islandCenters = useMemo(() => islandGeometry(map.hexes, size), [map.hexes, size]);
   const nodeByKey = useMemo(() => new Map(map.revealed.map((n) => [n.key, n])), [map.revealed]);
@@ -325,7 +327,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         <CoastOver d={coast} size={size} light={dt.light} />
         {worldBody}
       </WorldSvg>
-      {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} light={dt.light} />}
+      {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} light={dt.light} />}
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">

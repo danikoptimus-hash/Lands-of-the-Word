@@ -308,7 +308,14 @@ function carrotPoint(car: Carrot, p: Profile, t: number, T: number): [number, nu
 function carrotStep(car: Carrot, p: Profile, size: number, dist: number, T: number): void {
   if (car.wait > 0) { car.wait -= dist / Math.max(1, size); if (car.wait <= 0) carrotRoute(car, p, size); return; }
   car.t = Math.min(1, car.t + dist / Math.max(1, car.len));
-  const [x, y] = carrotPoint(car, p, car.t, T);
+  let [x, y] = carrotPoint(car, p, car.t, T);
+  // Поводок, спроецированный на берег, может почти замереть (хорда режет остров): тогда зверь или корабль кружит
+  // и дрожит на одном месте (замечание владельца 03.10). Если точка сдвинулась меньше трети шага — продвигаем
+  // поводок дальше по хорде, пока он не пойдёт вдоль берега или не выйдет за край.
+  for (let k = 0; k < 6 && dist > 0 && car.t < 1 && Math.hypot(x - car.x, y - car.y) < dist * 0.34; k++) {
+    car.t = Math.min(1, car.t + dist / Math.max(1, car.len));
+    [x, y] = carrotPoint(car, p, car.t, T);
+  }
   if (dist > 0 && (x !== car.x || y !== car.y)) car.h = Math.atan2(y - car.y, x - car.x);
   car.x = x; car.y = y;
   if (car.t >= 1) car.wait = rnd(6, 24); // пауза «за краем» в единицах пройденного пути (≈ секунды при обычной скорости)

@@ -226,6 +226,7 @@ export function CoastOver({ d, size = HEX_SIZE, scale = 1, light = DAY_LIGHT }: 
   );
 }
 
+const NO_POINTS: ReadonlyArray<{ x: number; y: number }> = [];
 interface FogMask { canvas: HTMLCanvasElement; x: number; y: number; w: number; h: number }
 let tiles: { key: string; s: HTMLCanvasElement; a: HTMLCanvasElement; b: HTMLCanvasElement } | null = null;
 const c255 = (c: [number, number, number]): [number, number, number] => [Math.round(c[0] * 255), Math.round(c[1] * 255), Math.round(c[2] * 255)];
@@ -237,10 +238,10 @@ const getTiles = (light: Light) => {
 };
 
 /** Маска тумана в координатах карты: гексы тумана с расширением и растушёвкой (уменьшение-увеличение вместо blur — работает везде). */
-function buildFogMask(hexes: MapHexDto[], size: number): FogMask | null {
-  if (hexes.length === 0) return null;
+function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ x: number; y: number }> = []): FogMask | null {
+  if (hexes.length === 0 && points.length === 0) return null;
   const pad = size * 3;
-  const cs = hexes.map((h) => hexCenter(h, size));
+  const cs = [...hexes.map((h) => hexCenter(h, size)), ...points];
   const x = Math.min(...cs.map((c) => c.x)) - size - pad, y = Math.min(...cs.map((c) => c.y)) - size - pad;
   const w = Math.max(...cs.map((c) => c.x)) + size + pad - x, h = Math.max(...cs.map((c) => c.y)) + size + pad - y;
   const ms = Math.min(1, Math.sqrt(2.5e6 / (w * h)));
@@ -253,6 +254,9 @@ function buildFogMask(hexes: MapHexDto[], size: number): FogMask | null {
     for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30); const px = c.x + Math.cos(a) * size, py = c.y + Math.sin(a) * size; if (i === 0) poly.moveTo(px, py); else poly.lineTo(px, py); }
     poly.closePath();
   }
+  // Точки края тумана без гекса тумана рядом (берег: за ними море) тоже укрыты — облачком радиусом в три четверти гекса
+  // (замечание владельца 03.10: неизвестный команде перекрёсток не должен стоять на открытом месте).
+  for (const pt of points) { poly.moveTo(pt.x + size * 0.75, pt.y); poly.arc(pt.x, pt.y, size * 0.75, 0, Math.PI * 2); }
   ctx.fillStyle = "#000"; ctx.strokeStyle = "#000"; ctx.lineJoin = "round"; ctx.lineWidth = size * 0.5;
   ctx.fill(poly); ctx.stroke(poly);
   // Растушёвка: два прохода через уменьшенную копию (радиус ≈ 8–10 единиц карты).
@@ -276,11 +280,11 @@ function buildFogMask(hexes: MapHexDto[], size: number): FogMask | null {
  * ~24 раза в секунду для дрейфа и сразу при каждом движении карты; только пока вкладка видна;
  * при «уменьшить движение» — без дрейфа. Вид читается из ref, без React.
  */
-export function FogLayer({ vp, size = HEX_SIZE, fogHexes, light = DAY_LIGHT }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; light?: Light }) {
+export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS, light = DAY_LIGHT }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; /** Точки (перекрёстки края тумана), которые должны быть под туманом и без гекса тумана рядом. */ fogPoints?: ReadonlyArray<{ x: number; y: number }>; light?: Light }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const lightRef = useRef(light); lightRef.current = light;
-  const fogKey = fogHexes.map((h) => `${h.q},${h.r}`).join(";");
-  const mask = useMemo(() => (fogHexes.length ? buildFogMask(fogHexes, size) : null), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fogKey = fogHexes.map((h) => `${h.q},${h.r}`).join(";") + "|" + fogPoints.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(";");
+  const mask = useMemo(() => (fogHexes.length || fogPoints.length ? buildFogMask(fogHexes, size, fogPoints) : null), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const maskRef = useRef(mask); maskRef.current = mask;
   const dirty = useRef(true); dirty.current = true;
   useEffect(() => { dirty.current = true; }, [light]);
