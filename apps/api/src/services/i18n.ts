@@ -216,7 +216,7 @@ const EN: Record<string, string> = {
   "Игра не найдена": "Game not found",
   "Вы не администратор этой игры": "You are not an administrator of this game",
   "Дело не найдено": "Deed not found",
-  "Место высадки выбирает капитан или кормчий": "Only the captain or the helmsman chooses where to land",
+  "Место высадки выбирает кормчий: капитан и команда ему советуют": "The helmsman chooses where to land; the captain and the team advise them",
   "Морское дело не найдено": "Sea deed not found",
   "Корабль ещё не готов или уже высадился": "The ship is not ready yet or has already landed",
   "Высадиться можно только на пустую береговую развилку другого острова": "You can only land on an empty coastal fork of the other island",

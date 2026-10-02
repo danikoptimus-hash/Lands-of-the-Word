@@ -115,12 +115,12 @@ const CODEX = () => [
 /** Роли: подпись, иконка и одно предложение из правил (2.15) — показывается по нажатию на пилюлю. */
 const ROLE: Record<GameRole | "CAPTAIN" | "DEPUTY", { icon: string; label: () => string; hint: () => string }> = {
   CAPTAIN: { icon: "crown", label: () => t("капитан"), hint: () => t("Бросает вызов и отвечает на испытания, переносит столицу, назначает заместителя и просит роли у администратора.") },
-  DEPUTY: { icon: "star", label: () => t("заместитель"), hint: () => t("Всё, что может капитан, кроме назначения ролей: вызов, ответ, столица, высадка.") },
+  DEPUTY: { icon: "star", label: () => t("заместитель"), hint: () => t("Всё, что может капитан, кроме назначения ролей: вызов, ответ, столица.") },
   SCOUT: { icon: "telescope", label: () => t("Разведчик"), hint: () => t("Раз в неделю может разведать, что за стороной: город или развилка.") },
   PROPHET: { icon: "sparkle", label: () => t("Пророк"), hint: () => t("Раз в неделю зажигает свечу к заданию города и один раз видит письмо с подсказкой.") },
   AMBASSADOR: { icon: "handshake", label: () => t("Посол"), hint: () => t("Просит проходы через чужие города, отвечает на чужие запросы, предлагает мир.") },
   CHRONICLER: { icon: "edit", label: () => t("Летописец"), hint: () => t("Сдаёт дела за команду и следит, чтобы ссылки и фото были приложены.") },
-  HELMSMAN: { icon: "ship", label: () => t("Кормчий"), hint: () => t("Ведёт корабль: выбирает место высадки на другом острове.") },
+  HELMSMAN: { icon: "ship", label: () => t("Кормчий"), hint: () => t("Ведёт корабль: выбирает место высадки на другом острове. Капитан и команда ему советуют.") },
   WARRIOR: { icon: "sword", label: () => t("Воин"), hint: () => t("Его выученные стихи в испытаниях считаются вдвое.") },
   NONE: { icon: "user", label: () => t("Без роли"), hint: () => "" },
 };
@@ -247,8 +247,11 @@ export function TeamPage() {
 
   const me = team?.members.find((m) => m.user.id === user?.id);
   const isCaptain = me?.role === "CAPTAIN";
-  /** Капитан или заместитель: вызов, ответ, столица, высадка. */
-  const isLeader = isCaptain || me?.role === "DEPUTY" || me?.gameRole === "HELMSMAN";
+  /** Капитан или заместитель: вызов, ответ, столица. */
+  const isLeader = isCaptain || me?.role === "DEPUTY";
+  // Место высадки выбирает кормчий, капитан и команда советуют (решение владельца 03.10); без кормчего в команде — капитан или заместитель.
+  const hasHelmsman = (team?.members ?? []).some((mm) => mm.gameRole === "HELMSMAN");
+  const canLand = me?.gameRole === "HELMSMAN" || (isLeader && !hasHelmsman);
   const task = useMemo(() => (map?.tasks ?? []).find((tk) => tk.id === selectedId) ?? null, [map, selectedId]);
   const memberName = (userId: string | null) => { const m = team?.members.find((mm) => mm.user.id === userId); return m ? m.user.displayName ?? m.user.nickname : ""; };
 
@@ -554,7 +557,7 @@ export function TeamPage() {
           onFrontierTap={(key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); }} />
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">
-            <Icon name="ship" /><span>{isLeader ? t("Выберите на другом острове место высадки") : t("Капитан или кормчий выбирает место высадки")}</span>
+            <Icon name="ship" /><span>{canLand ? t("Выберите на другом острове место высадки") : t("Кормчий выбирает место высадки")}</span>
             <button type="button" className="ghost sm" onClick={() => setLandingId(null)}>{t("Позже")}</button>
           </div>
         )}
@@ -616,13 +619,13 @@ export function TeamPage() {
                 {taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}
                 {task.deed.remote && <Chip icon="send">{t("можно издалека")}</Chip>}
                 {task.deed.secret && <><Chip icon="lock">{t("тайное")}</Chip><Help>{t("Сдачу видят только вы и проверяющий.")}</Help></>}
-                {task.sea && <><Chip icon="ship">{t("корабль")}</Chip><Help>{t("После одобрения капитан или кормчий выберет место высадки на другом острове.")}</Help></>}
+                {task.sea && <><Chip icon="ship">{t("корабль")}</Chip><Help>{t("После одобрения кормчий выберет место высадки на другом острове. Капитан и команда ему советуют.")}</Help></>}
               </p>
               {task.deed.description && <p className={"deed-desc mt-2" + (longDesc && !descOpen ? " clamp" : "")}>{task.deed.description}</p>}
               {longDesc && <button type="button" className="ghost sm desc-more" aria-expanded={descOpen} onClick={() => setDescOpen((v) => !v)}><Icon name={descOpen ? "chevron-up" : "chevron-down"} />{descOpen ? t("Свернуть") : t("Подробнее")}</button>}
-              {task.landing && (isLeader
+              {task.landing && (canLand
                 ? <div className="actions"><button type="button" onClick={() => { setLandingId(task.id); setSelectedId(null); }}><Icon name="anchor" />{t("Выбрать место высадки")}</button></div>
-                : <div className="note info"><Icon name="anchor" /><span>{t("Дело одобрено: капитан выбирает место высадки.")}</span></div>)}
+                : <div className="note info"><Icon name="anchor" /><span>{t("Дело одобрено: кормчий выбирает место высадки. Капитан и команда ему советуют.")}</span></div>)}
               {/* Сдача дела: кто участвовал, ссылки, текст, даты — видно по нажатию на пройденную сторону (решение владельца 30.09). */}
               {task.submittedAt && task.status !== "OPEN" && task.status !== "TAKEN" && (() => {
                 const names = (task.participants ?? []).filter((pid) => pid !== task.takenById).map(memberName).filter(Boolean);

@@ -252,7 +252,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     }).then((u) => bookIn(id, u));
     if (body.approve) journal(id, "deed_approved", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, who: "", taskId: task.id } });
     else journal(id, "deed_returned", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, taskId: task.id } });
-    // Морское дело: узел не открывается — капитан (или кормчий) сам выбирает место высадки на другом острове.
+    // Морское дело: узел не открывается — кормчий сам выбирает место высадки на другом острове.
     if (body.approve && task.sea) notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан или кормчий может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title }));
     else if (body.approve) {
       await revealNode(id, task.teamId, task.toKey);
@@ -287,7 +287,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
-    if (!isLeader(m) && m.gameRole !== "HELMSMAN") return reply.code(403).send({ error: "forbidden", message: err(request, "Место высадки выбирает капитан или кормчий") });
+    // Место высадки выбирает кормчий, капитан и команда ему советуют (решение владельца 03.10). Если кормчего в команде нет, выбирает капитан или заместитель.
+    const helmsmen = await prisma.membership.count({ where: { teamId: m.team.id, gameRole: "HELMSMAN" } });
+    if (m.gameRole !== "HELMSMAN" && (helmsmen > 0 || !isLeader(m))) return reply.code(403).send({ error: "forbidden", message: err(request, "Место высадки выбирает кормчий: капитан и команда ему советуют") });
     const body = z.object({ nodeKey: z.string().min(3).max(40) }).parse(request.body);
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task || !task.sea) return reply.code(404).send({ error: "not_found", message: err(request, "Морское дело не найдено") });

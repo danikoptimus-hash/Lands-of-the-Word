@@ -306,7 +306,7 @@ function TeamTaskSheet({ task, members, container, onClose, onReview }: { task: 
       <p className="muted small">{task.deed.direction}</p>
       {task.deed.description && <p className="mt-2">{task.deed.description}</p>}
       <p className="meta-line mt-2"><Icon name="scroll" />{t("Сдать")}: {PROOF_LABEL[task.deed.proofType]}{takerName && <> · <Icon name="user" />{t("Взял: {name}", { name: takerName })}</>}{task.submittedAt && <> · <Icon name="clock" />{fmtDate(task.submittedAt)}</>}</p>
-      {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта. Когда дело одобрят, капитан выберет на карте, куда высадиться на другом острове.")}</span></div>}
+      {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта. Когда дело одобрят, кормчий выберет на карте, куда высадиться на другом острове.")}</span></div>}
       {task.deed.secret && <div className="note info"><Icon name="lock" /><span>{t("Тайное дело: сдачу смотрите во вкладке «Проверка».")}</span></div>}
       {task.donation && <div className="note info"><Icon name="star" /><span>{t("Дело заменено пожертвованием{amount}.", { amount: task.donationAmount ? ` · ${task.donationAmount}` : "" })}</span></div>}
       {(() => { const names = (task.participants ?? []).filter((pid) => pid !== task.takenById).map((pid) => { const m = members.find((x) => x.id === pid); return m ? m.displayName ?? m.nickname : ""; }).filter(Boolean); return names.length > 0 ? <p className="meta-line"><Icon name="users" />{t("Участвовали: {names}", { names: names.join(", ") })}</p> : null; })()}

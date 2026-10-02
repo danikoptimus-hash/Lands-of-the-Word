@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Место высадки при морском переходе выбирает кормчий, капитан и команда ему советуют. Если кормчего в команде нет, выбирает капитан или заместитель.": "The landing spot on a sea crossing is chosen by the helmsman; the captain and the team advise them. If the team has no helmsman, the captain or deputy chooses.",
   "На карте администратора город под вызовом отмечен значком испытания, как на картах команд: и в подписи, и у номера при виде «вся карта».": "On the administrator's map a city under challenge is marked with the trial icon, as on the team maps: both in the label and next to the number in the whole-map view.",
   "Возврат записи в испытании приходит лично тому, кто её отметил и прикрепил, вместе с причиной администратора; команде целиком письмо больше не идёт. Причина видна под записью в карточке испытания.": "A returned trial recording is now reported personally to the person who marked and attached it, together with the administrator's reason; the whole team no longer gets the e-mail. The reason is shown under the recording in the trial card.",
   "Облачка тумана над береговыми перекрёстками края стали вдвое тоньше.": "The fog clouds over coastal fog-edge crossroads are now half as thick.",
