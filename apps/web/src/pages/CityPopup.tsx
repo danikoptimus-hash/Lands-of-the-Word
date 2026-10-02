@@ -155,8 +155,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
     </div>
   );
 
+  // Текст заданий города не выделяется и не копируется ни мышью, ни долгим нажатием (решение владельца 02.10): поля ввода — исключение.
   return (
-    <Sheet size="md" container={container} onClose={onClose} head={head} className="city-sheet">
+    <Sheet size="md" container={container} onClose={onClose} head={head} className="city-sheet no-copy">
       {error && <p className="error" role="alert">{error}</p>}
       {!city && !error && <LoadingState rows={4} />}
       {city && !city.content && <div className="note warn"><Icon name="alert" /><span>{t("Задания для книги «{book}» ещё готовятся. Город пока нельзя взять.", { book: book?.nameRu ?? "" })}</span></div>}
@@ -318,7 +319,7 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
   const title = task.scope === "district" && district ? [t("Район {n}", { n: task.index + 1 }), district.title, district.verses].filter(Boolean).join(" · ") : t("Задание {n}", { n: task.index + 1 });
   const why = locked ? t("Отмычка остывает") : null;
   return (
-    <div className="task-view" onContextMenu={(e) => e.preventDefault()}>
+    <div className="task-view" onContextMenu={(e) => e.preventDefault()} onCopy={(e) => e.preventDefault()} onCut={(e) => e.preventDefault()} onDragStart={(e) => e.preventDefault()}>
       <div className="row between nowrap">
         <button type="button" className="ghost back-btn" onClick={onBack}><Icon name="back" />{t("К районам")}</button>
         <CipherSeal fragments={fragments} size={44} className="corner" />
