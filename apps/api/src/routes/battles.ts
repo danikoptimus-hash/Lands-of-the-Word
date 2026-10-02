@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { attackWindow } from "../services/rules.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
@@ -87,7 +88,8 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const sieges = await prisma.siege.findMany({ where: { gameId: id, nodeKey, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }] }, orderBy: { startedAt: "desc" }, take: 5 });
     const teamsById = new Map((await prisma.team.findMany({ where: { gameId: id }, select: { id: true, name: true, color: true } })).map((t) => [t.id, t]));
     const siege = { available: so.available, canDeclare: so.canDeclare, reason: so.reason ? err(request, so.reason) : null, days: so.days, deedPoints: so.deedPoints, list: sieges.map((s) => ({ id: s.id, status: s.status, startedAt: s.startedAt, endsAt: s.endsAt, attackerPoints: s.attackerPoints, defenderPoints: s.defenderPoints, attacker: teamsById.get(s.attackerId) ?? null, defender: teamsById.get(s.defenderId) ?? null, mine: s.attackerId === m.team.id ? "ATTACK" : "DEFENSE" })) };
-    return { ...options, reason: options.reason ? err(request, options.reason) : null, queue, siege, battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id))) };
+    const w = attackWindow(await gameRules(id));
+    return { ...options, reason: options.reason ? err(request, options.reason) : null, queue, siege, battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id))), attackWindow: { from: w.from, to: w.to, timeZone: w.timeZone, always: w.always, open: w.open } };
   });
 
   /** Объявить осаду делами (капитан или заместитель): город с максимумом защиты после срока закрепления. */
@@ -125,7 +127,8 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     await sweep(id);
     const battles = await prisma.battle.findMany({ where: { gameId: id, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }] }, orderBy: { declaredAt: "desc" }, include, take: 30 });
     const users = await usersOf(battles);
-    return { battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id))) };
+    const w = attackWindow(await gameRules(id));
+    return { battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id))), attackWindow: { from: w.from, to: w.to, timeZone: w.timeZone, always: w.always, open: w.open } };
   });
 
   /** Текст всей книги (для выбора отрывка обороны капитаном). */
@@ -273,6 +276,11 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
     const side = b.attackerId === m.team.id ? "ATTACK" : b.defenderId === m.team.id ? "DEFENSE" : null;
     if (!side) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда не участвует в этом испытании") });
+    // Вызов отправляют только в окно по местному времени (решение владельца 02.10); на ответ хранителей это не распространяется.
+    if (side === "ATTACK") {
+      const w = attackWindow(await gameRules(id));
+      if (!w.open) return reply.code(409).send({ error: "window", message: err(request, "Вызов можно отправить на проверку с {from}:00 до {to}:00 по местному времени", { from: w.from, to: w.to }), window: { from: w.from, to: w.to, timeZone: w.timeZone } });
+    }
     const r = side === "ATTACK" ? await submitAttack(b) : await submitDefense(b);
     if (!r.ok) return reply.code(409).send({ error: "conflict", message: err(request, r.message, r.vars) });
     publish(id, { type: "battles", teamId: m.team.id });

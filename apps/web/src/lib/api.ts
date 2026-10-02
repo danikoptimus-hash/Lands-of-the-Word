@@ -111,7 +111,9 @@ export interface BattleDto {
   attackSum: number; attackApproved: number; defenseSum: number; defenseApproved: number; entries: BattleEntryDto[]; myVerses: number[]; bookTotal: number | null;
 }
 export interface BookTextDto { code: string; name: string; verseCounts: number[]; chapters: string[][] | null; total: number }
-export interface WarDto { defenseLevel: number; sumMode: boolean; locked: boolean; lockedUntil?: string | null; maxed?: boolean; siege?: SiegeInfoDto; bookVerses: number | null; penalty: number; minBid: number; attackDays?: number; burnPenalty?: number; canDeclare: boolean; reason: string | null; owner: { id: string; name: string; color: string } | null; queue: number; battles: BattleDto[] }
+/** Окно отправки вызова по местному времени игры (решение владельца 02.10); на ответ хранителей не распространяется. */
+export interface AttackWindowDto { from: number; to: number; timeZone: string; always: boolean; open: boolean }
+export interface WarDto { defenseLevel: number; sumMode: boolean; locked: boolean; lockedUntil?: string | null; maxed?: boolean; siege?: SiegeInfoDto; bookVerses: number | null; penalty: number; minBid: number; attackDays?: number; burnPenalty?: number; canDeclare: boolean; reason: string | null; owner: { id: string; name: string; color: string } | null; queue: number; battles: BattleDto[]; attackWindow?: AttackWindowDto }
 export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { get QUEUED() { return t("в очереди"); }, get ATTACK() { return t("вызов"); }, get DEFENSE() { return t("ответ"); }, get WON() { return t("город перешёл"); }, get REPELLED() { return t("город устоял"); }, get EXPIRED() { return t("вызов не завершён"); }, get CANCELLED() { return t("отменено"); } };
 
 /** Итоги игры: положение команд и победитель. */

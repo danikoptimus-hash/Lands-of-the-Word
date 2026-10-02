@@ -43,6 +43,11 @@ export const rulesSchema = z.object({
   /** Воскресная летопись: день недели (0 — воскресенье … 6 — суббота) и час по UTC, после которого она уходит. */
   chronicleWeekday: z.number().int().min(0).max(6).default(0),
   chronicleHourUtc: z.number().int().min(0).max(23).default(15),
+  /** Окно отправки вызова на проверку по местному времени (решение владельца 02.10): с часа from до часа to; from = to — без ограничения. На ответ хранителей не распространяется. */
+  attackSubmitFrom: z.number().int().min(0).max(24).default(8),
+  attackSubmitTo: z.number().int().min(0).max(24).default(14),
+  /** Часовой пояс игры (IANA) для окна отправки вызова. */
+  timeZone: z.string().trim().min(1).max(64).default("Asia/Tashkent"),
   /** Письма администраторам о сдачах: сразу, раз в 3 часа или раз в день одним письмом (решение владельца 18.09, A-13). */
   adminDigest: z.enum(["instant", "3h", "daily"]).default("instant"),
 });
@@ -65,4 +70,21 @@ export const days = (n: number) => n * DAY;
 export function pauseAfter(rules: Rules, wrong: number): number {
   const steps = rules.pauseSteps;
   return (steps[Math.min(Math.max(wrong, 1), steps.length) - 1] ?? steps[steps.length - 1]!) * 1000;
+}
+
+/** Час местного времени в поясе игры; при неизвестном поясе — UTC. */
+export function localHour(timeZone: string, now = new Date()): number {
+  try {
+    const h = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hour12: false }).formatToParts(now).find((p) => p.type === "hour")?.value;
+    return Number(h) % 24;
+  } catch { return now.getUTCHours(); }
+}
+
+/** Окно отправки вызова (решение владельца 02.10): открыто ли сейчас и его границы. from = to — ограничения нет. */
+export function attackWindow(rules: Pick<Rules, "attackSubmitFrom" | "attackSubmitTo" | "timeZone">, now = new Date()): { from: number; to: number; timeZone: string; always: boolean; open: boolean; hour: number } {
+  const { attackSubmitFrom: from, attackSubmitTo: to, timeZone } = rules;
+  const always = from === to;
+  const hour = localHour(timeZone, now);
+  const open = always || (from < to ? hour >= from && hour < to : hour >= from || hour < to);
+  return { from, to, timeZone, always, open, hour };
 }

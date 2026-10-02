@@ -31,6 +31,8 @@ beforeAll(async () => {
   p2Cookie = await register(p2Nick);
   const g = await post("/api/games", adminCookie, { name: "Битвы", teamCount: 2 });
   gameId = g.json().game.id;
+  // Окно отправки вызова по местному времени (решение владельца 02.10) в тестах выключено: равные часы «с» и «до».
+  await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { attackSubmitFrom: 0, attackSubmitTo: 0 } } } });
   await post(`/api/games/${gameId}/generate`, adminCookie);
   team1 = await joinTeam("Львы", p1Cookie);
   team2 = await joinTeam("Орлы", p2Cookie);

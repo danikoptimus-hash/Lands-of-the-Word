@@ -48,6 +48,8 @@ beforeAll(async () => {
   p1Id = (await prisma.user.findUniqueOrThrow({ where: { nickname: p1Nick } })).id;
   const g = await post("/api/games", adminCookie, { name: "Журнал 18.09", teamCount: 2 });
   gameId = g.json().game.id;
+  // Окно отправки вызова по местному времени (решение владельца 02.10) в тестах выключено: равные часы «с» и «до».
+  await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { attackSubmitFrom: 0, attackSubmitTo: 0 } } } });
   await post(`/api/games/${gameId}/generate`, adminCookie);
   team1 = await joinTeam("Моряки", p1Cookie);
   team2 = await joinTeam("Берег", p2Cookie);

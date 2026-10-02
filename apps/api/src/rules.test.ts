@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { attackWindow } from "./services/rules.js";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
@@ -40,6 +41,8 @@ beforeAll(async () => {
   p3Cookie = await register(p3Nick);
   const g = await post("/api/games", adminCookie, { name: "Правила 18.09", teamCount: 2 });
   gameId = g.json().game.id;
+  // Окно отправки вызова по местному времени (решение владельца 02.10) в тестах выключено: равные часы «с» и «до».
+  await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { attackSubmitFrom: 0, attackSubmitTo: 0 } } } });
   await post(`/api/games/${gameId}/generate`, adminCookie);
   team1 = await joinTeam("Моряки", p1Cookie);
   team2 = await joinTeam("Берег", p2Cookie);
@@ -414,5 +417,21 @@ describe("осада делами и дела этапа 2", () => {
     expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${markId}`, headers: { cookie: p2Cookie } })).statusCode).toBe(403);
     expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${markId}`, headers: { cookie: p3Cookie } })).statusCode).toBe(200);
     expect((await get(`/api/games/${gameId}/my-map`, p3Cookie)).json().marks).toHaveLength(0);
+  });
+});
+
+describe("окно отправки вызова по местному времени (решение владельца 02.10)", () => {
+  const r = { attackSubmitFrom: 8, attackSubmitTo: 14, timeZone: "Asia/Tashkent" };
+  it("открыто с 8:00 до 14:00 по поясу игры, закрыто ночью; равные часы — без ограничения", () => {
+    // 05:30 UTC = 10:30 в Ташкенте (UTC+5) — открыто; 10:00 UTC = 15:00 — закрыто; 02:00 UTC = 07:00 — закрыто; 03:00 UTC = 08:00 — открыто.
+    expect(attackWindow(r, new Date("2026-10-03T05:30:00Z")).open).toBe(true);
+    expect(attackWindow(r, new Date("2026-10-03T10:00:00Z")).open).toBe(false);
+    expect(attackWindow(r, new Date("2026-10-03T02:00:00Z")).open).toBe(false);
+    expect(attackWindow(r, new Date("2026-10-03T03:00:00Z")).open).toBe(true);
+    expect(attackWindow({ ...r, attackSubmitTo: 8 }, new Date("2026-10-03T20:00:00Z")).always).toBe(true);
+    // Окно через полночь: с 22 до 6.
+    expect(attackWindow({ ...r, attackSubmitFrom: 22, attackSubmitTo: 6 }, new Date("2026-10-03T20:00:00Z")).open).toBe(true);
+    // Неизвестный пояс — считаем по UTC, без падения.
+    expect(attackWindow({ ...r, timeZone: "Nowhere/Nope" }, new Date("2026-10-03T09:00:00Z")).open).toBe(true);
   });
 });

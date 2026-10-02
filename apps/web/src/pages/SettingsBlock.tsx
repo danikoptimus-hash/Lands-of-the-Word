@@ -6,13 +6,15 @@ import { Icon } from "../components/Icon";
 import { Help } from "../components/Help";
 import { Stepper } from "../components/Stepper";
 
-export interface RulesDto { minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
+export interface RulesDto { attackSubmitFrom: number; attackSubmitTo: number; timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string; rules?: RulesDto } }
-type NumKey = Exclude<keyof RulesDto, "pauseSteps" | "adminDigest">;
+type NumKey = Exclude<keyof RulesDto, "pauseSteps" | "adminDigest" | "timeZone">;
 /** Продвинутые настройки: правила, которые раньше были зашиты в код (решение владельца 18.09). Подписи короткие, единицы — суффиксом; поля сгруппированы. */
 const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: number; step?: number }> = {
   minBid: { label: () => t("Минимальная ставка · стихов"), min: 1, max: 1000 },
   attackDays: { label: () => t("Срок вызова · дней"), min: 1, max: 60 },
+  attackSubmitFrom: { label: () => t("Отправка вызова: с · час"), min: 0, max: 24 },
+  attackSubmitTo: { label: () => t("Отправка вызова: до · час"), min: 0, max: 24 },
   burnPenalty: { label: () => t("Штраф за сгоревший вызов · стихов"), min: 0, max: 100 },
   minAnswerSeconds: { label: () => t("Минимум на ответ · секунд"), min: 10, max: 86400 },
   lockWeeks: { label: () => t("Закрепление города · недель"), min: 0, max: 52 },
@@ -31,7 +33,7 @@ const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: numbe
 };
 const NUM_KEYS = Object.keys(RULE_FIELDS) as NumKey[];
 const RULE_GROUPS: Array<{ title: () => string; keys: Array<keyof RulesDto> }> = [
-  { title: () => t("Испытания"), keys: ["minBid", "attackDays", "burnPenalty", "minAnswerSeconds", "lockWeeks", "pauseSteps"] },
+  { title: () => t("Испытания"), keys: ["minBid", "attackDays", "attackSubmitFrom", "attackSubmitTo", "timeZone", "burnPenalty", "minAnswerSeconds", "lockWeeks", "pauseSteps"] },
   { title: () => t("Города"), keys: ["fatigueAfterDays", "fatigueStepDays", "fatigueStep"] },
   { title: () => t("Дела и роли"), keys: ["deedReturnDays", "maxDeedsPerDay", "roleChangeDays", "roleCooldownDays"] },
   { title: () => t("Проходы"), keys: ["passageDays"] },
@@ -52,7 +54,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   const [maxDiff, setMaxDiff] = useState(game.settings.maxStartDistanceDiff ?? 3);
   const [genealogies, setGenealogies] = useState(game.settings.includeGenealogies ?? false);
   const [currency, setCurrency] = useState(game.settings.donationCurrency ?? "");
-  const [rules, setRules] = useState<Record<string, number | string>>(() => { const r = (game.settings.rules ?? {}) as Partial<RulesDto>; const out: Record<string, number | string> = {}; for (const k of NUM_KEYS) out[k] = (r[k] as number | undefined) ?? 0; out.pauseSteps = (r.pauseSteps ?? [20, 60, 300, 900, 3600]).join(", "); out.adminDigest = r.adminDigest ?? "instant"; return out; });
+  const [rules, setRules] = useState<Record<string, number | string>>(() => { const r = (game.settings.rules ?? {}) as Partial<RulesDto>; const out: Record<string, number | string> = {}; for (const k of NUM_KEYS) out[k] = (r[k] as number | undefined) ?? 0; out.pauseSteps = (r.pauseSteps ?? [20, 60, 300, 900, 3600]).join(", "); out.adminDigest = r.adminDigest ?? "instant"; out.timeZone = r.timeZone ?? "Asia/Tashkent"; return out; });
   const [advanced, setAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,6 +70,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     for (const k of NUM_KEYS) rulesOut[k] = Number(rules[k]);
     rulesOut.pauseSteps = String(rules.pauseSteps).split(/[\s,;]+/).map(Number).filter((n) => Number.isInteger(n) && n > 0);
     rulesOut.adminDigest = rules.adminDigest || "instant";
+    rulesOut.timeZone = String(rules.timeZone).trim() || "Asia/Tashkent";
     try {
       await api(`/api/games/${game.id}`, { method: "PATCH", body: JSON.stringify({ ...(draft ? { name, teamCount } : {}), settings: draft ? { nodeCount, cityGap, equidistantStarts: equidistant, maxStartDistanceDiff: maxDiff, includeGenealogies: genealogies, ...donation, rules: rulesOut } : { ...donation, rules: rulesOut } }) });
       notify(t("Настройки сохранены"));
@@ -85,6 +88,12 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
       <div key={key} className="rule-row">
         <label htmlFor={id}>{t("Паузы после ошибок · секунды через запятую")}</label>
         <input id={id} value={rules.pauseSteps} onChange={(e) => setRule("pauseSteps", e.target.value)} />
+      </div>
+    );
+    if (key === "timeZone") return (
+      <div key={key} className="rule-row">
+        <label htmlFor={id}>{t("Часовой пояс игры")} <span className="opt">{t("(окно отправки вызова; равные часы «с» и «до» — без ограничения)")}</span></label>
+        <input id={id} value={String(rules.timeZone)} onChange={(e) => setRule("timeZone", e.target.value)} placeholder="Asia/Tashkent" />
       </div>
     );
     if (key === "adminDigest") return (
