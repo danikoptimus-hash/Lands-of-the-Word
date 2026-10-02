@@ -24,7 +24,17 @@ const textWidth = (s: string, fs: number) => Math.ceil(s.length * fs * 0.62);
  * значки (старт, город, метки дел, подписи) — в экранном слое постоянного размера.
  */
 /** Цвет маршрута команды на карте: цвет команды, разбавленный белым, чтобы линия читалась на зелёном и песке (решение владельца 30.09). */
-export const routeColor = (color: string) => `color-mix(in srgb, ${color} 68%, white)`;
+/**
+ * Осветлённый цвет команды для маршрута: 68 % цвета + 32 % белого. Считается в JS, а не через CSS color-mix(): старые
+ * браузеры (встроенный браузер MIUI, старый Android WebView) color-mix не понимают и рисовали дорогу белой (02.10).
+ */
+export const routeColor = (color: string) => {
+  const m = /^#([0-9a-f]{6})$/i.exec(color.trim());
+  if (!m) return color;
+  const hex = m[1]!;
+  const mix = (i: number) => Math.round(parseInt(hex.slice(i, i + 2), 16) * 0.68 + 255 * 0.32).toString(16).padStart(2, "0");
+  return `#${mix(0)}${mix(2)}${mix(4)}`;
+};
 /** Точка метки: гекс и точное место нажатия дробными осевыми координатами. */
 export interface MarkPoint { q: number; r: number; qf: number; rf: number }
 export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap }: { /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {

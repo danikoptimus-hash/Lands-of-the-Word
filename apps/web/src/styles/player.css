@@ -24,24 +24,24 @@
 
 /* HUD: слева «Меню» и команда, справа «Вся карта», «К старту», масштаб. Отступы учитывают safe-area. */
 .hud-left { position: absolute; left: calc(var(--sp-3) + var(--safe-left)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; gap: var(--sp-2); align-items: center; max-width: calc(100% - 92px); }
-.hud-btn { position: relative; box-shadow: var(--shadow-1); background: color-mix(in srgb, var(--surface) 94%, transparent); flex: none; }
+.hud-btn { position: relative; box-shadow: var(--shadow-1); background: rgba(250, 246, 238, .94); background: color-mix(in srgb, var(--surface) 94%, transparent); flex: none; }
 .hud-btn .count-chip { position: absolute; top: -6px; right: -6px; }
 .hud-team { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--touch); min-width: 0; padding: 0 var(--sp-3) 0 var(--sp-1); border-radius: var(--r-full); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--border); color: var(--text); box-shadow: var(--shadow-1); font-weight: 600; font-size: var(--fs-sm); }
 .hud-team:hover { background: var(--surface); }
 .hud-team .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (min-width: 1024px) { .hud-team { cursor: default; } }
 .map-area .map-controls { position: absolute; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; flex-direction: column; gap: var(--sp-2); }
-.map-area .map-controls button { box-shadow: var(--shadow-1); background: color-mix(in srgb, var(--surface) 94%, transparent); }
+.map-area .map-controls button { box-shadow: var(--shadow-1); background: rgba(250, 246, 238, .94); background: color-mix(in srgb, var(--surface) 94%, transparent); }
 .finish-banner { position: absolute; left: 50%; top: calc(var(--sp-3) + var(--safe-top) + 56px); transform: translateX(-50%); z-index: 5; display: flex; align-items: center; gap: var(--sp-2); max-width: calc(100% - 2 * var(--sp-4)); padding: var(--sp-2) var(--sp-4); border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--success); color: var(--success); font-weight: 600; font-size: var(--fs-sm); line-height: var(--lh-ui); box-shadow: var(--shadow-1); }
 .finish-banner .i { flex: none; }
 
 /* Слой карты: цвета только из токенов; цвета команд приходят из данных атрибутами. */
 .hex-fog { stroke: none; }
-.hex-tile { stroke: color-mix(in srgb, var(--text) 28%, transparent); stroke-width: calc(1px / var(--k, 1)); }
+.hex-tile { stroke: rgba(31, 27, 22, .28); stroke: color-mix(in srgb, var(--text) 28%, transparent); stroke-width: calc(1px / var(--k, 1)); }
 .m-edge line { stroke-width: calc(3px / max(1.6, var(--k, 1))); stroke-linecap: round; }
 /* Зона нажатия стороны: широкая и всегда прозрачная (селектор сильнее правил цвета ниже). */
 .m-edge line.hit, .m-edge.active line.hit, .m-edge.sel line.hit { stroke: transparent; stroke-width: calc(22px / var(--k, 1)); stroke-dasharray: none; }
-.m-edge.idle line { stroke: color-mix(in srgb, white 25%, transparent); }
+.m-edge.idle line { stroke: rgba(255, 255, 255, .25); stroke: color-mix(in srgb, white 25%, transparent); }
 .m-edge.active line { stroke: var(--map-paper); }
 /* Чужие проходы: половина стороны цветом другой команды (решение владельца 18.09). */
 .m-edge line.foreign { stroke-width: calc(3px / max(1.6, var(--k, 1))); stroke-dasharray: none; opacity: .85; pointer-events: none; }
@@ -69,7 +69,7 @@
 .m-deed.sea.landing use { color: var(--on-accent); }
 /* Место высадки: пульсирующее кольцо и якорь; нажатие — высадка (сервер пускает только капитана). */
 .m-land { cursor: pointer; pointer-events: auto; }
-.m-land .pulse { fill: color-mix(in srgb, var(--success) 25%, transparent); stroke: var(--success); stroke-width: 2; animation: land-pulse 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.m-land .pulse { fill: rgba(76, 140, 74, .25); fill: color-mix(in srgb, var(--success) 25%, transparent); stroke: var(--success); stroke-width: 2; animation: land-pulse 1.6s ease-out infinite; transform-box: fill-box; transform-origin: center; }
 .m-land .dot { fill: var(--surface); stroke: var(--success); stroke-width: 2; }
 .m-land use { color: var(--success); pointer-events: none; }
 @keyframes land-pulse { 0% { transform: scale(.6); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
