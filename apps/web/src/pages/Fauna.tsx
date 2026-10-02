@@ -432,7 +432,7 @@ function keepInWater(c: Mover, p: Profile, clearance: number, dt: number, omMax:
 }
 
 /** Кит и косатка: поводок вдоль берега; цикл всплытия с фонтаном и кругами на воде. */
-function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: number): void {
+function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: number, ships: readonly Ship[] = []): void {
   rand = c.rng;
   const car = c.car!, s = c.surf!, sp = c.spec;
   // Поводок притормаживает, если зверь отстал (иначе он «срежет» и пойдёт по берегу).
@@ -444,6 +444,19 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
   const clear = size * (sp.kind === "whale" ? 2.2 : 1.9);
   if (car.wait <= 0) steerCet(c, p, clear, car.x, car.y, dt, T, 1);
   keepInWater(c, p, clear, dt, sp.maxTurn);
+  // Кит и корабль не идут одним телом (замечание владельца 03.10: «сцепились и дрожат вместе»): у корабля зверь
+  // уходит поперёк его курса и ныряет, пока не разойдутся на полтора корпуса.
+  for (const sh of ships) {
+    if (sh.car.wait > 0) continue;
+    const dx = c.x - sh.x, dy = c.y - sh.y, d = Math.hypot(dx, dy) || 1e-6, R = (sp.L + sh.spec.L) * 0.75;
+    if (d >= R) continue;
+    const nx = -Math.sin(sh.h), ny = Math.cos(sh.h);
+    const side = dx * nx + dy * ny >= 0 ? 1 : -1;
+    const push = ((R - d) / R) * sp.speed * dt * 3;
+    c.x += nx * side * push; c.y += ny * side * push;
+    const tHoldStart = s.deep + s.rise;
+    if (s.t >= tHoldStart && s.t < tHoldStart + s.hold) s.t = tHoldStart + s.hold; // у поверхности — ныряет
+  }
   const prev = s.t; s.t += dt;
   const tHold = s.deep + s.rise, tEnd = tHold + s.hold + s.dive;
   const blowU = sp.L * (0.5 - sp.blowS);
@@ -1034,7 +1047,7 @@ function stepWorld(w: World, dt: number): void {
     const at = d.at / 1000 - w.epochStart;
     if (at >= 0 && at < EPOCH && T >= at) { w.dailyDone = true; rand = w.flock.rng; hintRoute(w.flock, w.size, T, { x: w.flock.x, y: w.flock.y }, d.to); }
   }
-  for (const c of w.solos) stepSolo(c, w.p, w.size, w.fx, dt, T);
+  for (const c of w.solos) stepSolo(c, w.p, w.size, w.fx, dt, T, w.ships);
   for (const pd of w.pods) {
     rand = pd.rng;
     if (T >= pd.next) { // серия прыжков: по одному, с запаздыванием
