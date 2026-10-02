@@ -178,15 +178,21 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  /** Разведчик: раз в неделю заглянуть за одно ребро фронтира — город там или развилка. */
+  /**
+   * Разведчик: раз в неделю заглянуть за одно ребро фронтира — город там или развилка. Разведать можно любой ещё не
+   * открытый перекрёсток, соседний с открытым, независимо от того, взято дело на сторону или нет (решение владельца 02.10).
+   */
   app.post("/api/games/:id/my-map/peek", async (request, reply) => {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
     if (m.gameRole !== "SCOUT") return reply.code(403).send({ error: "forbidden", message: err(request, "Разведать перекрёсток может только разведчик команды") });
     const body = z.object({ nodeKey: z.string().min(3).max(40) }).parse(request.body);
-    const frontier = await prisma.teamEdgeTask.findFirst({ where: { teamId: m.team.id, toKey: body.nodeKey, status: { not: "APPROVED" } } });
-    if (!frontier) return reply.code(400).send({ error: "validation", message: err(request, "Разведать можно только перекрёсток за стороной с делом") });
+    const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId: m.team.id }, select: { nodeKey: true } })).map((n) => n.nodeKey));
+    if (revealed.has(body.nodeKey)) return reply.code(409).send({ error: "conflict", message: err(request, "Этот перекрёсток уже открыт") });
+    const around = await prisma.mapEdge.findMany({ where: { gameId: id, OR: [{ aKey: body.nodeKey }, { bKey: body.nodeKey }] }, select: { aKey: true, bKey: true } });
+    const frontier = around.some((e) => revealed.has(e.aKey === body.nodeKey ? e.bKey : e.aKey));
+    if (!frontier) return reply.code(400).send({ error: "validation", message: err(request, "Разведать можно только перекрёсток на краю тумана") });
     const rules = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } })).settings);
     if (m.team.lastPeekAt && Date.now() - m.team.lastPeekAt.getTime() < days(rules.roleCooldownDays)) {
       const next = new Date(m.team.lastPeekAt.getTime() + days(rules.roleCooldownDays));

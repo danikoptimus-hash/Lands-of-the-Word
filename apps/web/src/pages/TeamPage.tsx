@@ -581,6 +581,9 @@ export function TeamPage() {
           const proof = PROOF[task.deed.proofType];
           const taker = task.takenById ? memberName(task.takenById) : "";
           const peeked = peekedKind(task.toKey);
+          // Разведчик открывает любую точку на краю тумана, взято дело на сторону или нет (решение владельца 02.10).
+          const canScout = me?.gameRole === "SCOUT" && !peeked && !(map?.revealed ?? []).some((n) => n.key === task.toKey);
+          const scoutBtn = canScout && <><button type="button" className="secondary" disabled={busy} onClick={() => void peek(task.toKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></>;
           // Порядок листа (решение владельца 18.09): суть → как сдать → состояние → действие → правила (кодекс).
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
@@ -619,9 +622,10 @@ export function TeamPage() {
                 <div className="actions">
                   <button type="button" disabled={busy || limitFull(map)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
                   {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}
-                  {me?.gameRole === "SCOUT" && !peeked && <><button type="button" className="secondary" disabled={busy} onClick={() => void peek(task.toKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></>}
+                  {scoutBtn}
                 </div>
               )}
+              {task.status !== "OPEN" && task.status !== "REJECTED" && scoutBtn && <div className="actions">{scoutBtn}</div>}
               {task.status === "TAKEN" && (
                 <DeedForm key={task.id} donationCfg={donationCfg} busy={busy} proofType={task.deed.proofType}
                   members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}

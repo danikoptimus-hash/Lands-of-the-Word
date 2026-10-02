@@ -241,9 +241,11 @@ describe("дипломатия, роли, столица, руины, пожер
 
   it("роли: разведчик заглядывает за ребро раз в неделю; не-разведчику нельзя", async () => {
     const map = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
-    const far = (map.json().tasks as Array<{ toKey: string; status: string }>).find((t) => t.status !== "APPROVED")!;
+    const far = (map.json().tasks as Array<{ id: string; toKey: string; status: string }>).find((t) => t.status === "OPEN")!;
     const denied = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: p2Cookie }, payload: { nodeKey: far.toKey } });
     expect(denied.statusCode).toBe(403);
+    // Дело на эту сторону взято — разведке это не мешает (решение владельца 02.10).
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${far.id}/take`, headers: { cookie: p2Cookie } })).statusCode).toBe(200);
     // Капитан не может иметь игровую роль: добавим участника-разведчика
     const scoutNick = `scout_${stamp}`;
     const scoutCookie = await register(scoutNick);
@@ -251,6 +253,9 @@ describe("дипломатия, роли, столица, руины, пожер
     await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: scoutCookie } });
     const scout = await prisma.user.findFirstOrThrow({ where: { nickname: scoutNick } });
     await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${scout.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "SCOUT" } });
+    // Уже открытый перекрёсток разведывать нечего.
+    const startKey = (map.json().revealed as Array<{ key: string }>)[0].key;
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: scoutCookie }, payload: { nodeKey: startKey } })).statusCode).toBe(409);
     const peek = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: scoutCookie }, payload: { nodeKey: far.toKey } });
     expect(peek.statusCode).toBe(200);
     expect(["CITY", "EMPTY", "START"]).toContain(peek.json().kind);
