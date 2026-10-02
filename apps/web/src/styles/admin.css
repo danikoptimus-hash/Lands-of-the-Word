@@ -62,7 +62,7 @@
 .adm-halo.sea { stroke: rgba(255, 250, 240, .6); stroke-width: calc(7px / max(1.6, var(--k, 1))); }
 /* Дорога нажимается: прозрачная широкая линия поверх (решение владельца 30.09 — отчёты по делам на стороне). */
 .edge-hit { stroke: transparent; stroke-width: calc(18px / var(--k, 1)); stroke-linecap: round; cursor: pointer; pointer-events: stroke; }
-.edge-hit:hover { stroke: rgba(255,255,255,.18); }
+@media (hover: hover) { .edge-hit:hover { stroke: rgba(255,255,255,.10); } }
 .edge-tasks button.row-btn { display: flex; align-items: center; justify-content: flex-start; gap: var(--sp-2); width: 100%; min-height: 0; text-align: left; background: none; border: 0; border-radius: 0; box-shadow: none; padding: var(--sp-2) 0; font: inherit; line-height: inherit; color: inherit; white-space: normal; cursor: pointer; transform: none; }
 .edge-tasks button.row-btn:hover, .edge-tasks button.row-btn:active { background: none; transform: none; }
 .edge-tasks button.row-btn .body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
@@ -86,7 +86,8 @@
   .map-card .mapwrap { border-top: 0; }
 }
 .mapwrap .pick { cursor: pointer; }
-.mapwrap .pick:hover > .hit { fill: rgba(255,255,255,.18); }
+/* Подсветка при наведении — только у мыши: на телефоне :hover «залипает» после нажатия, а ночью светлая зона нажатия бросается в глаза (замечание владельца 03.10). */
+@media (hover: hover) { .mapwrap .pick:hover > .hit { fill: rgba(255,255,255,.10); } }
 .mapwrap .quiet { pointer-events: none; }
 .admin-map .map-controls { position: absolute; right: var(--sp-3); top: var(--sp-3); z-index: 5; display: flex; flex-direction: column; gap: var(--sp-2); }
 .admin-map .map-controls button { width: var(--touch); box-shadow: var(--shadow-1); }

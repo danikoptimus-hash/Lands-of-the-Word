@@ -254,9 +254,9 @@ function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ 
     for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30); const px = c.x + Math.cos(a) * size, py = c.y + Math.sin(a) * size; if (i === 0) poly.moveTo(px, py); else poly.lineTo(px, py); }
     poly.closePath();
   }
-  // Точки края тумана без гекса тумана рядом (берег: за ними море) тоже укрыты — облачком радиусом в три четверти гекса
+  // Точки края тумана без гекса тумана рядом (берег: за ними море) тоже укрыты — облачком радиусом в полгекса
   // (замечание владельца 03.10: неизвестный команде перекрёсток не должен стоять на открытом месте).
-  for (const pt of points) { poly.moveTo(pt.x + size * 0.75, pt.y); poly.arc(pt.x, pt.y, size * 0.75, 0, Math.PI * 2); }
+  for (const pt of points) { poly.moveTo(pt.x + size * 0.45, pt.y); poly.arc(pt.x, pt.y, size * 0.45, 0, Math.PI * 2); }
   ctx.fillStyle = "#000"; ctx.strokeStyle = "#000"; ctx.lineJoin = "round"; ctx.lineWidth = size * 0.5;
   ctx.fill(poly); ctx.stroke(poly);
   // Растушёвка: два прохода через уменьшенную копию (радиус ≈ 8–10 единиц карты).

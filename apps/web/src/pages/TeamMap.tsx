@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { reportPage } from "../lib/perf";
-import { BOOKS, startName } from "@lotw/domain";
+import { BOOKS, startName, vertexHexes, parseVertexKey } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
@@ -93,7 +93,11 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
   // Перекрёстки края тумана укрыты облачком и там, где рядом нет гекса тумана (берег): команда их ещё не знает (03.10).
-  const fogPoints = useMemo(() => (map.frontier ?? []).map((k) => nodePos(k, size)), [map.frontier, size]);
+  const fogPoints = useMemo(() => {
+    const fog = new Set(map.hexes.filter((h) => h.lit === false).map((h) => `${h.q},${h.r}`));
+    // Только перекрёстки, у которых ни один из трёх гексов вокруг не в тумане (остальные туман уже укрывает).
+    return (map.frontier ?? []).filter((k) => !vertexHexes(parseVertexKey(k)).some((h) => fog.has(`${h.q},${h.r}`))).map((k) => nodePos(k, size));
+  }, [map.frontier, map.hexes, size]);
   // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
   const islandCenters = useMemo(() => islandGeometry(map.hexes, size), [map.hexes, size]);
   const nodeByKey = useMemo(() => new Map(map.revealed.map((n) => [n.key, n])), [map.revealed]);
