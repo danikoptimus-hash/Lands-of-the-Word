@@ -151,11 +151,12 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                       <g className="pick" style={at} onClick={pick}>
                         <circle className="hit" r={20} cy={-4} fill="transparent" />
                         <g className="quiet"><circle r={8} fill={sel ? "var(--accent)" : "var(--surface)"} stroke="var(--text)" strokeWidth={1} /><text textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}</text></g>
-                        {seen.map((tm, i) => <circle key={tm.id} className="quiet" cx={14 - i * 9} cy={-14} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
+                        {seen.map((tm, i) => <circle key={tm.id} className="quiet" cx={(i - (seen.length - 1) / 2) * 10} cy={-14} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
                       </g>
                     ) : (
                       <g className="quiet" style={at}>
-                        {seen.map((tm, i) => <circle key={tm.id} cx={14 - i * 9} cy={-14} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
+                        {/* Точки команд, открывших узел, — ровно на узле (решение владельца 02.10: смещённые точки читались как съехавшие). */}
+                        {seen.map((tm, i) => <circle key={tm.id} cx={(i - (seen.length - 1) / 2) * 10} cy={0} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
                       </g>
                     )}
                     {showLabels && (
@@ -170,7 +171,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                   );
                 }
                 if (!showDots) return null;
-                return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" /><circle r={3} fill="rgba(31,27,22,.4)" />{seen.map((tm, i) => <circle key={tm.id} cx={8 - i * 7} cy={-8} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
+                return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" />{seen.length === 0 && <circle r={3} fill="rgba(31,27,22,.4)" />}{seen.map((tm, i) => <circle key={tm.id} cx={(i - (seen.length - 1) / 2) * 8} cy={0} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
   </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
