@@ -197,6 +197,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                         <circle className="hit" r={20} cy={-4} fill="transparent" />
                         <g className="quiet"><circle r={8} fill={sel ? "var(--accent)" : "var(--surface)"} stroke="var(--text)" strokeWidth={1} /><text textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{book?.order}</text>
                           {crownColor && <use href="#m-crown" x={8} y={-16} width={11} height={11} style={{ color: crownColor }} />}</g>
+                        {/* Город под вызовом: значок испытания, как на карте команды (замечание владельца 03.10). */}
+                        {battleAt.has(n.key) && <g className="m-battle def" transform="translate(-16,-14)"><circle r={8} /><use href="#m-wave" x={-5.5} y={-5.5} width={11} height={11} /></g>}
                         {seen.map((tm, i) => <circle key={tm.id} className="quiet" cx={(i - (seen.length - 1) / 2) * 10} cy={-14} r={4.5} fill={tm.color} stroke="var(--surface)" strokeWidth={1} />)}
                       </g>
                     ) : (
@@ -211,6 +213,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                           <rect x={-lw / 2} y={-10} width={lw} height={20} rx={10} fill={sel ? "var(--accent)" : "var(--map-paper)"} stroke="var(--text)" strokeWidth={1} />
                           {crownColor && <use href="#m-crown" x={-lw / 2 + 6} y={-6} width={12} height={12} style={{ color: sel ? "var(--on-accent)" : crownColor }} />}
                           <text x={crownW / 2} textAnchor="middle" dy="0.35em" fontSize={11} fontWeight={700} fill={sel ? "var(--on-accent)" : "var(--text)"}>{label}</text>
+                          {battleAt.has(n.key) && <g className="m-battle def" transform={`translate(${lw / 2 + 2},-12)`}><circle r={10} /><use href="#m-wave" x={-7} y={-7} width={14} height={14} /></g>}
                         </g>
                       </g>
                     )}
@@ -220,7 +223,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 if (!showDots) return null;
                 return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" />{seen.length === 0 && <circle r={3} fill="rgba(31,27,22,.4)" />}{seen.map((tm, i) => <circle key={tm.id} cx={(i - (seen.length - 1) / 2) * 8} cy={0} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
-  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById, battleAt]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   const viewedTeam = viewAs ? teamById.get(viewAs) : null;
   const viewMap = useMemo(() => (teamView?.map && at && viewedTeam && progress ? { ...rewindTeamMap(teamView.map, viewedTeam, progress, cities, nodes), teamIndex: teamView.map.teamIndex } : teamView?.map ?? null), [teamView, at, viewedTeam, progress, cities, nodes]);

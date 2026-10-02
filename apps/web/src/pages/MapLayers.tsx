@@ -254,9 +254,6 @@ function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ 
     for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30); const px = c.x + Math.cos(a) * size, py = c.y + Math.sin(a) * size; if (i === 0) poly.moveTo(px, py); else poly.lineTo(px, py); }
     poly.closePath();
   }
-  // Точки края тумана без гекса тумана рядом (берег: за ними море) тоже укрыты — небольшим облачком (вдвое тоньше первого варианта, по просьбе владельца)
-  // (замечание владельца 03.10: неизвестный команде перекрёсток не должен стоять на открытом месте).
-  for (const pt of points) { poly.moveTo(pt.x + size * 0.12, pt.y); poly.arc(pt.x, pt.y, size * 0.12, 0, Math.PI * 2); }
   ctx.fillStyle = "#000"; ctx.strokeStyle = "#000"; ctx.lineJoin = "round"; ctx.lineWidth = size * 0.5;
   ctx.fill(poly); ctx.stroke(poly);
   // Растушёвка: два прохода через уменьшенную копию (радиус ≈ 8–10 единиц карты).
@@ -269,6 +266,16 @@ function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ 
     ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
     ctx.drawImage(tmp, 0, 0, canvas.width, canvas.height);
   }
+  // Точки края тумана без гекса тумана рядом (берег: за ними море) укрыты небольшим облачком с мягким краем:
+  // плотное ядро 0,15 гекса, растворяется к 0,42 гекса — вдвое меньше по площади, чем растушёванный гекс, и не
+  // цепляет соседние открытые города (замечание владельца 03.10). Рисуется после растушёвки, своим градиентом.
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.scale(ms, ms); ctx.translate(-x, -y);
+  for (const pt of points) {
+    const g = ctx.createRadialGradient(pt.x, pt.y, size * 0.15, pt.x, pt.y, size * 0.42);
+    g.addColorStop(0, "rgba(0,0,0,1)"); g.addColorStop(0.55, "rgba(0,0,0,0.7)"); g.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(pt.x, pt.y, size * 0.42, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
   // Кромка маски всегда прозрачна: иначе при растяжении маски по краю проступала бы рамка.
   ctx.clearRect(0, 0, canvas.width, 2); ctx.clearRect(0, canvas.height - 2, canvas.width, 2);
   ctx.clearRect(0, 0, 2, canvas.height); ctx.clearRect(canvas.width - 2, 0, 2, canvas.height);
