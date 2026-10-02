@@ -40,6 +40,31 @@ const RULE_GROUPS: Array<{ title: () => string; keys: Array<keyof RulesDto> }> =
   { title: () => t("Осада"), keys: ["siegeDays", "siegeDeedPoints"] },
   { title: () => t("Летопись и письма"), keys: ["chronicleWeekday", "chronicleHourUtc", "adminDigest"] },
 ];
+/** Пояснение к каждому правилу: зачем, когда применяется, на что влияет (решение владельца 02.10). */
+const RULE_HELP: Record<keyof RulesDto, () => string> = {
+  minBid: () => t("Сколько стихов претенденты обязуются выучить, объявляя вызов. Меньше поставить нельзя. К минимуму прибавляется штраф этой команды за сгоревшие вызовы на этот город."),
+  attackDays: () => t("Сколько дней с начала вызова у претендентов, чтобы отправить записи на проверку. Время, пока записи лежат у администратора, не считается. Не успели — вызов сгорает и ставится штраф."),
+  attackSubmitFrom: () => t("Час местного времени, с которого капитан претендентов может нажать «Отправить вызов на проверку». Раньше кнопка погашена, но стихи отмечать можно. На ответ хранителей не действует."),
+  attackSubmitTo: () => t("Час местного времени, до которого можно отправить вызов на проверку. Если «с» и «до» равны, ограничения нет. Срок вызова окно не продлевает."),
+  timeZone: () => t("Часовой пояс, по которому считается окно отправки вызова. Записывается именем из базы часовых поясов, например Asia/Tashkent или Europe/Moscow."),
+  burnPenalty: () => t("На сколько стихов растёт минимальная ставка этой команды на этот город за каждый сгоревший вызов. Другие команды и другие города штраф не затрагивает."),
+  minAnswerSeconds: () => t("Техническая защита хранителей. Их срок на ответ равен времени атаки претендентов, но не меньше этого числа секунд, даже если претенденты справились мгновенно."),
+  lockWeeks: () => t("Если хранители отбили вызов на город с максимальным уровнем защиты, город закрепляется на столько недель: новые вызовы ему не принимаются. 0 — не закреплять."),
+  pauseSteps: () => t("Паузы после неверного ответа на задание района и после неверного ключа конверта. Первая ошибка подряд — первая пауза, вторая — вторая, дальше последняя. Верный ответ сбрасывает счёт."),
+  fatigueAfterDays: () => t("Усталость города. Если после взятия города команда столько дней не сдаёт одобренных дел, уровень защиты города начинает убывать."),
+  fatigueStepDays: () => t("Раз во сколько дней уровень защиты уставшего города убывает ещё на шаг, пока команда не сдаст одобренное дело."),
+  fatigueStep: () => t("На сколько стихов уровень защиты убывает за один шаг усталости. 0 — защита не убывает."),
+  deedReturnDays: () => t("Взятое и не сданное дело через столько дней само возвращается в общий список команды, а взявшему приходит уведомление."),
+  maxDeedsPerDay: () => t("Сколько дел один участник может взять за сутки. Считаются дела, взятые за последние 24 часа с момента взятия. Сверх лимита взять дело нельзя, лист дела об этом скажет. 0 — без ограничения. Можно менять в идущей игре."),
+  roleChangeDays: () => t("Уже выданную игровую роль капитан может сменить не чаще раза в столько дней. Участникам без роли роль выдаётся сразу. 0 — без ограничения."),
+  roleCooldownDays: () => t("Раз во сколько дней разведчик может разведать точку на краю тумана, а пророк — открыть подсказку к заданию. Считается на команду."),
+  passageDays: () => t("Сколько дней у владельца города на ответ на запрос прохода. Нет ответа в срок — считается отказом."),
+  siegeDays: () => t("Сколько дней длится осада делами города с максимальным уровнем защиты. За это время обе команды набирают баллы одобренными делами."),
+  siegeDeedPoints: () => t("Сколько баллов в осаде даёт одобренное дело, если у самого дела своя цена не задана. Цену отдельного дела задают во вкладке «Дела»."),
+  chronicleWeekday: () => t("День недели, когда всем участникам уходит летопись недели: дела, города, испытания без ставок."),
+  chronicleHourUtc: () => t("Час по UTC, после которого в выбранный день уходит летопись недели. Для Ташкента местное время на 5 часов больше."),
+  adminDigest: () => t("Как администраторы узнают о сдачах: письмом сразу о каждой, одним письмом раз в 3 часа или одним письмом раз в день. Уведомления в приложении приходят всегда сразу."),
+};
 /** День летописи выбирается по названию; значение по-прежнему 0–6 (0 — воскресенье), как ждёт сервер. */
 const weekdays = () => [t("воскресенье"), t("понедельник"), t("вторник"), t("среда"), t("четверг"), t("пятница"), t("суббота")];
 
@@ -86,19 +111,19 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     const id = "rule-" + key;
     if (key === "pauseSteps") return (
       <div key={key} className="rule-row">
-        <label htmlFor={id}>{t("Паузы после ошибок · секунды через запятую")}</label>
+        <label htmlFor={id}>{t("Паузы после ошибок · секунды через запятую")}<Help>{RULE_HELP.pauseSteps()}</Help></label>
         <input id={id} value={rules.pauseSteps} onChange={(e) => setRule("pauseSteps", e.target.value)} />
       </div>
     );
     if (key === "timeZone") return (
       <div key={key} className="rule-row">
-        <label htmlFor={id}>{t("Часовой пояс игры")} <span className="opt">{t("(окно отправки вызова; равные часы «с» и «до» — без ограничения)")}</span></label>
+        <label htmlFor={id}>{t("Часовой пояс игры")}<Help>{RULE_HELP.timeZone()}</Help></label>
         <input id={id} value={String(rules.timeZone)} onChange={(e) => setRule("timeZone", e.target.value)} placeholder="Asia/Tashkent" />
       </div>
     );
     if (key === "adminDigest") return (
       <div key={key} className="rule-row">
-        <label htmlFor={id}>{t("Письма о сдачах")}</label>
+        <label htmlFor={id}>{t("Письма о сдачах")}<Help>{RULE_HELP.adminDigest()}</Help></label>
         <select id={id} value={String(rules.adminDigest)} onChange={(e) => setRule("adminDigest", e.target.value)}>
           <option value="instant">{t("сразу о каждой")}</option>
           <option value="3h">{t("одним письмом раз в 3 часа")}</option>
@@ -109,7 +134,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     const f = RULE_FIELDS[key];
     if (key === "chronicleWeekday") return (
       <div key={key} className="rule-row">
-        <label htmlFor={id}>{f.label()}</label>
+        <label htmlFor={id}>{f.label()}<Help>{RULE_HELP[key]()}</Help></label>
         <select id={id} value={String(rules.chronicleWeekday)} onChange={(e) => setRule("chronicleWeekday", Number(e.target.value))}>
           {weekdays().map((d, i) => <option key={d} value={i}>{d}</option>)}
         </select>
@@ -117,7 +142,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     );
     return (
       <div key={key} className="rule-row">
-        <label htmlFor={id}>{f.label()}</label>
+        <label htmlFor={id}>{f.label()}<Help>{RULE_HELP[key]()}</Help></label>
         <Stepper id={id} value={rules[key] === "" ? "" : Number(rules[key])} min={f.min} max={f.max} step={f.step ?? 1} onChange={(v) => setRule(key, v)} />
       </div>
     );
@@ -131,29 +156,29 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
           <>
             <div className="settings-group">
               <h3>{t("Игра")}</h3>
-              <label htmlFor="s-name">{t("Название")}</label>
+              <label htmlFor="s-name">{t("Название")}<Help>{t("Имя партии: его видят участники в заголовке игры, в письмах и уведомлениях. Меняется только до старта.")}</Help></label>
               <input id="s-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={80} />
-              <label htmlFor="s-teams">{t("Команд")}</label>
+              <label htmlFor="s-teams">{t("Команд")}<Help>{t("Сколько команд будет в партии: столько стартов разместит генератор карты. После изменения карту нужно сгенерировать заново. Только до старта.")}</Help></label>
               <Stepper id="s-teams" value={teamCount} min={2} max={12} onChange={(v) => setTeamCount(v === "" ? 2 : v)} />
             </div>
             <div className="settings-group">
               <h3>{t("Карта и старты")}</h3>
-              <label htmlFor="s-nodes">{t("Перекрёстков на карте")}</label>
+              <label htmlFor="s-nodes">{t("Перекрёстков на карте")}<Help>{t("Размер карты: число перекрёстков на двух островах. Больше перекрёстков — больше дел и дольше партия. После изменения карту нужно сгенерировать заново. Только до старта.")}</Help></label>
               <Stepper id="s-nodes" value={nodeCount} min={200} max={600} step={10} onChange={(v) => setNodeCount(v === "" ? 250 : v)} />
               <label htmlFor="s-gap">{t("Расстояние между городами · сторон")}<Help>{t("Сколько сторон гексов отделяет соседние города, не меньше. По умолчанию 2 (в среднем чуть больше двух). При 3 или 4 путь между городами длиннее, а карта больше: перекрёстков в (N/2)² раз больше, чем задано выше.")}</Help></label>
               <Stepper id="s-gap" value={cityGap} min={2} max={4} onChange={(v) => setCityGap(v === "" ? 2 : v)} />
               {mapChanged && <p className="note warn"><Icon name="alert" /><span>{t("После изменения числа команд, перекрёстков или расстояния между городами карту нужно сгенерировать заново.")}</span></p>}
-              <label className="check mt-3"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />{t("Выровнять расстояние от стартов до первого города")}</label>
+              <label className="check mt-3"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />{t("Выровнять расстояние от стартов до первого города")}<Help>{t("При генерации карты старты подбираются так, чтобы у всех команд путь до ближайшего города был одинаковой длины, с точностью до допустимой разницы. Иначе старты ставятся без этого условия.")}</Help></label>
               {equidistant && (
                 <div className="sub">
-                  <label htmlFor="s-diff">{t("Допустимая разница, ходов")}</label>
+                  <label htmlFor="s-diff">{t("Допустимая разница, ходов")}<Help>{t("На сколько сторон может отличаться путь до первого города у разных команд при выравнивании стартов. 0 — ровно одинаково; генератору может не хватить вариантов.")}</Help></label>
                   <Stepper id="s-diff" value={maxDiff} min={0} max={6} onChange={(v) => setMaxDiff(v === "" ? 3 : v)} />
                 </div>
               )}
             </div>
             <div className="settings-group">
               <h3>{t("Испытания")}</h3>
-              <label className="check"><input type="checkbox" checked={genealogies} onChange={(e) => setGenealogies(e.target.checked)} />{t("Отрывки могут содержать родословия и списки имён")}</label>
+              <label className="check"><input type="checkbox" checked={genealogies} onChange={(e) => setGenealogies(e.target.checked)} />{t("Отрывки могут содержать родословия и списки имён")}<Help>{t("Случайный отрывок для испытания выбирается из всей книги города. Если выключено, главы с родословиями и длинными списками имён пропускаются, чтобы не учить перечни. Только до старта.")}</Help></label>
             </div>
           </>
         )}
@@ -161,7 +186,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
           <h3>{t("Пожертвование вместо дела")}</h3>
           <div className="money">
             <div>
-              <label htmlFor="s-cur">{t("Валюта")}</label>
+              <label htmlFor="s-cur">{t("Валюта")}<Help>{t("Подпись к суммам пожертвований в листе дела и в проверке, например «сум» или «₽». Сама минимальная сумма задаётся у каждого дела во вкладке «Дела». Можно менять в идущей игре.")}</Help></label>
               <input id="s-cur" className="cur" value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={10} placeholder="₽" />
             </div>
           </div>
