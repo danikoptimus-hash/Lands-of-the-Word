@@ -91,6 +91,8 @@ const EN: Record<string, string> = {
   "Команда «{team}» отправила {side} за город {book} на проверку. Проверьте записи в блоке «Испытания».": "Team “{team}” submitted their {side} for the city of {book} for review. Review the recordings in the “Trials” block.",
   "запись в испытании возвращена": "a trial recording was returned",
   "Админ вернул запись ({side}){comment} Переснимите и прикрепите заново.": "The admin returned a recording ({side}){comment} Re-record it and attach it again.",
+  "Админ вернул вашу запись ({side}){comment} Переснимите и прикрепите заново.": "The admin returned your recording ({side}){comment} Re-record it and attach it again.",
+  "ваша запись в испытании возвращена": "your trial recording was returned",
   // дела
   "новая сдача дела": "a new deed submission",
   "Команда «{team}» сдала дело «{deed}»{donation}. Нужно проверить и одобрить или вернуть.": "Team “{team}” submitted the deed “{deed}”{donation}. It needs to be reviewed and approved or returned.",

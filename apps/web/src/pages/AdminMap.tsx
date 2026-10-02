@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { BOOKS, startName } from "@lotw/domain";
+import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
@@ -34,7 +34,44 @@ type TeamLite = { id: string; name: string; color: string };
  * Карта администратора: вся карта без тумана, города на перекрёстках, пройденные стороны цветами команд (половинками, если прошли двое).
  * Панель перекрёстка — Sheet поверх карты; тестовые действия свёрнуты внутри неё.
  */
-export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone }: { /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
+/**
+ * Карта команды на момент ползунка истории (замечание владельца 03.10: «ползунок у админа не работает при виде от лица
+ * других команд»). Текущая карта команды урезается по её ходам к этому моменту: открытые перекрёстки, освещённые гексы,
+ * пройденные стороны, города и чужие проходы — только те, что были к тому времени; взятые и свободные дела, разведка и
+ * птицы на прошлую минуту не показываются (их состояние на тот момент не хранится).
+ */
+function rewindTeamMap(map: MyMapDto, team: TeamProgress, teams: TeamProgress[], cities: CityProgress[] | null, nodes: MapNodeDto[]): MyMapDto {
+  const revealed = new Set(team.revealed);
+  const edgeKey = (a: string, b: string) => (a < b ? `${a}|${b}` : `${b}|${a}`);
+  const traversed = new Set(team.traversed.map((e) => edgeKey(e.fromKey, e.toKey)));
+  const lit = (h: { q: number; r: number }) => cornersOf(h).some((c) => revealed.has(keyOf(c)));
+  const nodeKeys = new Set(nodes.map((n) => n.key));
+  const frontier = new Set<string>();
+  for (const h of map.hexes) if (lit(h)) for (const c of cornersOf(h)) { const k = keyOf(c); if (!revealed.has(k) && nodeKeys.has(k)) frontier.add(k); }
+  const ownerAt = new Map<string, TeamProgress>();
+  for (const c of cities ?? []) if (c.capturedAt) { const tm = teams.find((x) => x.id === c.teamId); if (tm) ownerAt.set(c.nodeKey, tm); }
+  const index = (id: string) => Math.max(0, teams.findIndex((x) => x.id === id));
+  const otherTraversed = new Map<string, Set<string>>(teams.map((tm) => [tm.id, new Set(tm.traversed.map((e) => edgeKey(e.fromKey, e.toKey)))]));
+  return {
+    ...map,
+    hexes: map.hexes.map((h) => (lit(h) ? { ...h, lit: true } : { q: h.q, r: h.r, island: h.island, lit: false })),
+    revealed: map.revealed.filter((n) => revealed.has(n.key)),
+    edges: map.edges.filter((e) => revealed.has(e.aKey) || revealed.has(e.bKey)),
+    tasks: map.tasks.filter((tk) => tk.status === "APPROVED" && traversed.has(edgeKey(tk.fromKey, tk.toKey))),
+    cities: map.cities.filter((c) => revealed.has(c.nodeKey)).map((c) => {
+      const owner = ownerAt.get(c.nodeKey) ?? null;
+      const mine = owner?.id === team.id;
+      const cp = (cities ?? []).find((x) => x.nodeKey === c.nodeKey && x.teamId === team.id);
+      return { ...c, owner: owner ? { index: index(owner.id), name: owner.name, color: owner.color } : null, captured: mine, isCapital: Boolean(mine && cp?.isCapital), battle: null, orderSolved: mine ? c.orderSolved : false, done: mine ? c.done : 0 };
+    }),
+    peeked: [],
+    frontier: [...frontier],
+    foreign: (map.foreign ?? []).filter((f) => { const tm = teams[f.teamIndex]; return tm && tm.id !== team.id && otherTraversed.get(tm.id)?.has(edgeKey(f.aKey, f.bKey)); }),
+    dailyBird: null,
+  };
+}
+
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone, at = null }: { /** Момент ползунка истории: карта «глазами команды» урезается к нему. */ at?: Date | null; /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
   const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -186,6 +223,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   const viewedTeam = viewAs ? teamById.get(viewAs) : null;
+  const viewMap = useMemo(() => (teamView?.map && at && viewedTeam && progress ? { ...rewindTeamMap(teamView.map, viewedTeam, progress, cities, nodes), teamIndex: teamView.map.teamIndex } : teamView?.map ?? null), [teamView, at, viewedTeam, progress, cities, nodes]);
   const legend = (
         <details className="legend">
           <summary><Icon name="info" />{t("Обозначения")}<Icon name="chevron-down" /></summary>
@@ -216,7 +254,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <div className="mapwrap team-view" key={viewAs}>
             {teamView?.error ? <div className="map-state"><ErrorState text={teamView.error} onRetry={() => setViewAs((v) => v)} /></div>
               : !teamView?.map ? <div className="map-state"><LoadingState /></div>
-              : <TeamMap map={teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={teamTaskId} onSelect={(tid) => { setTeamTaskId(tid); if (tid) setSelected(null); }} onSelectCity={(key) => { const n = nodeByKey.get(key); if (n) { setSelected(n); setTeamTaskId(null); } }} />}
+              : <TeamMap map={viewMap ?? teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={teamTaskId} onSelect={(tid) => { setTeamTaskId(tid); if (tid) setSelected(null); }} onSelectCity={(key) => { const n = nodeByKey.get(key); if (n) { setSelected(n); setTeamTaskId(null); } }} />}
             {teamView?.map && teamTaskId && wrapEl && (() => { const task = teamView.map!.tasks.find((tk) => tk.id === teamTaskId); return task ? <TeamTaskSheet task={task} members={teamView.map!.members ?? []} container={wrapEl} onClose={() => setTeamTaskId(null)} onReview={onReview} /> : null; })()}
           </div>
         ) : (<>

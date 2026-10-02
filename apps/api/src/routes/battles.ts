@@ -8,7 +8,7 @@ import { err } from "../services/i18n.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { formatRange, loadBook, refToIndex, parseRef, verseText, type BibleBook } from "../services/bible.js";
 import { afterReject, gameRules, maybeRepel, maybeStartDefense, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
-import { notifyAdmins, notifyTeam } from "../services/notify.js";
+import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { declareSiege, siegeOptions } from "../services/siege.js";
 import { BOOKS } from "@lotw/domain";
 import { journal } from "../services/journal.js";
@@ -315,7 +315,8 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     else full = e.side === "ATTACK" ? await maybeStartDefense(full) : await maybeRepel(full);
     publish(id, { type: "battles", teamId: e.teamId });
     publish(id, { type: "submissions" });
-    if (!body.approve) notifyTeam(id, e.teamId, "запись в испытании возвращена", "Админ вернул запись ({side}){comment} Переснимите и прикрепите заново.", { side: e.side === "ATTACK" ? "вызов" : "ответ", comment: body.comment ? `: ${body.comment}` : "." });
+    // Возврат записи приходит тому, кто её отметил и прикрепил, вместе с причиной администратора (решение владельца 03.10); команде целиком письмо не идёт.
+    if (!body.approve) notifyUser(id, e.userId, "ваша запись в испытании возвращена", "Админ вернул вашу запись ({side}){comment} Переснимите и прикрепите заново.", { side: e.side === "ATTACK" ? "вызов" : "ответ", comment: body.comment ? `: ${body.comment}` : "." });
     return { ok: true, status: full.status };
   });
 }
