@@ -80,7 +80,7 @@
    под картой не ловит свои жесты (прокрутку, масштаб страницы). */
 @media (max-width: 639px) {
   .admin-map { touch-action: none; }
-  .admin-map .mapwrap { height: calc(100dvh - var(--topbar-h) - 140px); min-height: 420px; border-radius: 0; border-left: 0; border-right: 0; }
+  .admin-map .mapwrap { height: calc(100vh - var(--topbar-h) - 140px); height: calc(100dvh - var(--topbar-h) - 140px); min-height: 420px; border-radius: 0; border-left: 0; border-right: 0; }
   .map-card { margin-left: calc(-1 * var(--gutter)); margin-right: calc(-1 * var(--gutter)); padding: 0; border-left: 0; border-right: 0; border-radius: 0; }
   .map-card > :not(.admin-map) { padding: var(--sp-3) var(--gutter); }
   .map-card .mapwrap { border-top: 0; }

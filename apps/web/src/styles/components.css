@@ -135,7 +135,8 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 /* Оверлеи: лист снизу на телефоне, диалог по центру на широком экране. */
 .overlay-backdrop { position: fixed; inset: 0; z-index: var(--z-dialog); background: var(--overlay); display: flex; align-items: flex-end; justify-content: center; animation: fade var(--dur-base) var(--ease-out); }
 .overlay-backdrop.absolute { position: absolute; }
-.overlay { background: var(--surface); width: 100%; max-height: 92dvh; display: flex; flex-direction: column; border-radius: var(--r-lg) var(--r-lg) 0 0; box-shadow: var(--shadow-3); animation: rise var(--dur-slow) var(--ease-out); padding-bottom: var(--safe-bottom); }
+/* max-height дважды: vh — запасное для старых браузеров (без dvh шторка росла выше экрана и верх не листался, 02.10), dvh — для новых. */
+.overlay { background: var(--surface); width: 100%; max-height: 92vh; max-height: 92dvh; display: flex; flex-direction: column; border-radius: var(--r-lg) var(--r-lg) 0 0; box-shadow: var(--shadow-3); animation: rise var(--dur-slow) var(--ease-out); padding-bottom: var(--safe-bottom); }
 .overlay .overlay-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-3) var(--sp-2) var(--sp-4); border-bottom: 1px solid var(--border); flex: none; }
 .overlay .overlay-head h2 { flex: 1; min-width: 0; font-size: var(--fs-lg); }
 .overlay .overlay-body { overflow: auto; padding: var(--sp-4); flex: 1 1 auto; -webkit-overflow-scrolling: touch; }
