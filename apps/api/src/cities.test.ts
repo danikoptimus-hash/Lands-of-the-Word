@@ -242,6 +242,11 @@ describe("дипломатия, роли, столица, руины, пожер
   it("роли: разведчик заглядывает за ребро раз в неделю; не-разведчику нельзя", async () => {
     const map = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
     const far = (map.json().tasks as Array<{ id: string; toKey: string; status: string }>).find((t) => t.status === "OPEN")!;
+    // Край тумана отдаётся целиком: в нём и точки за делами, и углы освещённых гексов без стороны с делом.
+    const frontier = map.json().frontier as string[];
+    expect(frontier).toContain(far.toKey);
+    const taskKeys = new Set((map.json().tasks as Array<{ toKey: string }>).map((t) => t.toKey));
+    const bare = frontier.find((k) => !taskKeys.has(k));
     const denied = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: p2Cookie }, payload: { nodeKey: far.toKey } });
     expect(denied.statusCode).toBe(403);
     // Дело на эту сторону взято — разведке это не мешает (решение владельца 02.10).
@@ -256,13 +261,13 @@ describe("дипломатия, роли, столица, руины, пожер
     // Уже открытый перекрёсток разведывать нечего.
     const startKey = (map.json().revealed as Array<{ key: string }>)[0].key;
     expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: scoutCookie }, payload: { nodeKey: startKey } })).statusCode).toBe(409);
-    const peek = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: scoutCookie }, payload: { nodeKey: far.toKey } });
+    const peek = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: scoutCookie }, payload: { nodeKey: bare ?? far.toKey } });
     expect(peek.statusCode).toBe(200);
     expect(["CITY", "EMPTY", "START"]).toContain(peek.json().kind);
     const again = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: scoutCookie }, payload: { nodeKey: far.toKey } });
     expect(again.statusCode).toBe(429);
     const after = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
-    expect((after.json().peeked as Array<{ key: string }>).some((p) => p.key === far.toKey)).toBe(true);
+    expect((after.json().peeked as Array<{ key: string }>).some((p) => p.key === (bare ?? far.toKey))).toBe(true);
     await prisma.user.deleteMany({ where: { nickname: scoutNick } });
   });
 

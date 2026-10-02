@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { BOOKS, startName } from "@lotw/domain";
+import { BOOKS, hexCorners, startName, vertexKey, vertexToPixel, type Vertex } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
@@ -92,6 +92,28 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста). */
   const sc = (x: number, y: number) => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))` });
   // Мир и экранные элементы — мемо по данным: фиксация масштаба не должна заново строить сотни SVG-элементов.
+  /**
+   * Граница видимой области каждой команды (решение владельца 02.10): контур освещённых гексов — тех, у которых команда
+   * открыла хотя бы один угол, — цветом команды. Сторона гекса попадает в контур, если освещён только один из двух гексов.
+   */
+  const fogOutline = useMemo(() => {
+    if (!progress || !hexes) return null;
+    return progress.map((tm) => {
+      const rev = new Set(tm.revealed);
+      const sides = new Map<string, { a: Vertex; b: Vertex; n: number }>();
+      for (const h of hexes) {
+        const cs = hexCorners(h);
+        if (!cs.some((c) => rev.has(vertexKey(c)))) continue;
+        for (let i = 0; i < 6; i++) {
+          const a = cs[i]!, b = cs[(i + 1) % 6]!, ka = vertexKey(a), kb = vertexKey(b), k = ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
+          const cur = sides.get(k);
+          if (cur) cur.n++; else sides.set(k, { a, b, n: 1 });
+        }
+      }
+      const d = [...sides.values()].filter((s) => s.n === 1).map((s) => { const p = vertexToPixel(s.a, size), q = vertexToPixel(s.b, size); return `M${p.x.toFixed(1)} ${p.y.toFixed(1)}L${q.x.toFixed(1)} ${q.y.toFixed(1)}`; }).join("");
+      return d ? <g key={"fog" + tm.id} className="adm-fog"><path className="halo" d={d} /><path d={d} style={{ stroke: tm.color }} /></g> : null;
+    });
+  }, [progress, hexes, size]);
   const worldBody = useMemo(() => (<>
             {/* Дороги и переправы — под значками городов и стартов, иначе светлая подложка маршрута перекрывает их (замечание владельца 30.09). */}
             {edges.map((e) => {
@@ -218,6 +240,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
             <CoastOver d={coast} size={size} />
+            {fogOutline}
             {worldBody}
             <g className="screen-items">
               {screenBody}

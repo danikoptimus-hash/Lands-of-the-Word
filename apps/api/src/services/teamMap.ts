@@ -362,6 +362,11 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const peeked = nodes.filter((n) => peekKeys.has(n.key) && !revealed.has(n.key)).map((n) => ({ key: n.key, kind: n.kind }));
   // Гекс освещён, если хотя бы один его угол открыт командой. Остальные видны только силуэтом в тумане.
   const lit = (h: { q: number; r: number }) => hexCorners(h).some((c) => revealed.has(vertexKey(c)));
+  // Край тумана (решение владельца 02.10): все ещё не открытые углы освещённых гексов, даже без стороны с делом к ним.
+  // Разведчик может разведать любой из них; на карте они показаны точками.
+  const nodeKeys = new Set(nodes.map((n) => n.key));
+  const frontier = new Set<string>();
+  for (const h of hexes) if (lit(h)) for (const c of hexCorners(h)) { const k = vertexKey(c); if (!revealed.has(k) && nodeKeys.has(k)) frontier.add(k); }
   // Взятое или сданное дело остаётся видимым, даже если перекрёсток за ним уже открыт с другой стороны
   // (решение владельца 18.09: дело делают, оно засчитывается); свободное к открытому перекрёстку не показывается.
   const visibleTasks = tasks.filter((t) => t.status !== "OPEN" || !revealed.has(t.toKey));
@@ -382,6 +387,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
     tasks: withLanding,
     cities,
     peeked,
+    frontier: [...frontier],
     // Метки команды (решение владельца 22.09): видны всем участникам команды; с автором (решение владельца 29.09).
     marks: marks.map(({ createdById, ...mk }) => ({ ...mk, by: { id: createdById, name: authors.get(createdById) ?? "" } })),
     // Для живности: у всех игроков одной игры звери одни и те же и идут по часам сервера (решение владельца 29.09).

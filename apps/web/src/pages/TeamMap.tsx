@@ -230,16 +230,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
-          {/* Узлы на краю тумана без дороги с делом (за закрытым городом, после потери стороны): серая точка, по нажатию — лист края тумана. */}
+          {/* Край тумана: все ещё не открытые углы освещённых гексов без дороги с делом (решение владельца 02.10) — серая точка, по нажатию лист края тумана. */}
           {showMarkers && onFrontierTap && (() => {
-            const seen = new Set<string>();
-            return map.edges.map((e) => {
-              const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
-              if (tk && tk.status !== "APPROVED") return null;
-              const farKey = revealed.has(e.aKey) ? (revealed.has(e.bKey) ? null : e.bKey) : revealed.has(e.bKey) ? e.aKey : null;
-              if (!farKey || seen.has(farKey)) return null;
-              seen.add(farKey);
-              const p = positions.get(farKey)!;
+            const covered = new Set(map.tasks.filter((tk) => tk.status !== "APPROVED").map((tk) => tk.toKey));
+            return (map.frontier ?? []).map((farKey) => {
+              if (covered.has(farKey) || revealed.has(farKey)) return null;
+              const p = positions.get(farKey) ?? nodePos(farKey, size);
               return (
                 <g key={"far" + farKey} className="m-far" style={sc(p.x, p.y)} role="button" aria-label={t("Край тумана")} onClick={() => { if (!vp.wasDrag()) onFrontierTap(farKey); }}>
                   <circle className="hit" r={14} />
@@ -297,7 +293,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
-  </>), [map.revealed, map.edges, map.peeked, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   return (
     <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "")} onClick={marking ? placeMark : undefined}>

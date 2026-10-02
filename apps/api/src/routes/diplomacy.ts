@@ -4,13 +4,13 @@ import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
-import { ensureFrontier } from "../services/teamMap.js";
+import { ensureFrontier, isSeaKey } from "../services/teamMap.js";
 import { days, rulesOf } from "../services/rules.js";
 import { notifyTeam } from "../services/notify.js";
 import { err, fmtDay, msg, toLocale } from "../services/i18n.js";
 import { loadBook, verseText, formatRange, parseDistrictRange } from "../services/bible.js";
 import { loadCityContent } from "../services/cities.js";
-import { BOOKS } from "@lotw/domain";
+import { BOOKS, hexCorners, parseVertexKey, vertexHexes, vertexKey } from "@lotw/domain";
 import { journal } from "../services/journal.js";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -179,8 +179,8 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /**
-   * Разведчик: раз в неделю заглянуть за одно ребро фронтира — город там или развилка. Разведать можно любой ещё не
-   * открытый перекрёсток, соседний с открытым, независимо от того, взято дело на сторону или нет (решение владельца 02.10).
+   * Разведчик: раз в неделю заглянуть в туман — город там или развилка. Разведать можно любой ещё не открытый
+   * перекрёсток на краю тумана — угол освещённого гекса, даже если стороны с делом к нему нет (решение владельца 02.10).
    */
   app.post("/api/games/:id/my-map/peek", async (request, reply) => {
     const { id } = request.params as { id: string };
@@ -190,15 +190,17 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const body = z.object({ nodeKey: z.string().min(3).max(40) }).parse(request.body);
     const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId: m.team.id }, select: { nodeKey: true } })).map((n) => n.nodeKey));
     if (revealed.has(body.nodeKey)) return reply.code(409).send({ error: "conflict", message: err(request, "Этот перекрёсток уже открыт") });
-    const around = await prisma.mapEdge.findMany({ where: { gameId: id, OR: [{ aKey: body.nodeKey }, { bKey: body.nodeKey }] }, select: { aKey: true, bKey: true } });
-    const frontier = around.some((e) => revealed.has(e.aKey === body.nodeKey ? e.bKey : e.aKey));
+    const node = isSeaKey(body.nodeKey) ? null : await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: body.nodeKey } } });
+    if (!node) return reply.code(404).send({ error: "not_found", message: err(request, "Перекрёсток не найден") });
+    // Угол освещённого гекса: хотя бы один из трёх гексов вокруг узла есть на карте и имеет открытый командой угол.
+    const around = await prisma.mapHex.findMany({ where: { gameId: id, OR: vertexHexes(parseVertexKey(body.nodeKey)).map((h) => ({ q: h.q, r: h.r })) }, select: { q: true, r: true } });
+    const frontier = around.some((h) => hexCorners(h).some((c) => revealed.has(vertexKey(c))));
     if (!frontier) return reply.code(400).send({ error: "validation", message: err(request, "Разведать можно только перекрёсток на краю тумана") });
     const rules = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } })).settings);
     if (m.team.lastPeekAt && Date.now() - m.team.lastPeekAt.getTime() < days(rules.roleCooldownDays)) {
       const next = new Date(m.team.lastPeekAt.getTime() + days(rules.roleCooldownDays));
       return reply.code(429).send({ error: "cooldown", message: err(request, "Разведка доступна раз в неделю: следующая — {date}", { date: fmtDay(next, toLocale(request.user?.locale)) }) });
     }
-    const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId: id, key: body.nodeKey } } });
     await prisma.$transaction([
       prisma.teamPeek.upsert({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey: body.nodeKey } }, create: { teamId: m.team.id, nodeKey: body.nodeKey }, update: {} }),
       prisma.team.update({ where: { id: m.team.id }, data: { lastPeekAt: new Date() } }),

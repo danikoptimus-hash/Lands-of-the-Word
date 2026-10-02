@@ -228,7 +228,7 @@ const EN: Record<string, string> = {
   "Запрос не найден": "Request not found",
   "Запрос уже рассмотрен": "The request has already been answered",
   "Разведать перекрёсток может только разведчик команды": "Only the team's scout can scout a crossing",
-  "Разведать можно только перекрёсток на краю тумана": "Only a crossroads on the edge of the fog can be scouted", "Этот перекрёсток уже открыт": "This crossroads is already open",
+  "Разведать можно только перекрёсток на краю тумана": "Only a crossroads on the edge of the fog can be scouted", "Этот перекрёсток уже открыт": "This crossroads is already open", "Перекрёсток не найден": "Crossroads not found",
   "Разведка доступна раз в неделю: следующая — {date}": "Scouting is available once a week: next on {date}",
   "Подсказку открывает только пророк команды": "Only the team's prophet can open a hint",
   "Подсказка к этому заданию уже открыта": "The hint for this task is already open",
