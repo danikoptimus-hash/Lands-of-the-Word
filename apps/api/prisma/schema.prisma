@@ -343,6 +343,8 @@ model Deed {
   remote      Boolean   @default(false)
   /** Баллы за это дело при осаде делами (пусто — значение по умолчанию из правил игры). */
   siegePoints Int?
+  /** Минимальное пожертвование вместо этого дела; пусто — пожертвованием это дело заменить нельзя (решение владельца 02.10: ценник у каждого дела свой). */
+  donationMin Int?
   createdAt   DateTime  @default(now())
   edgeTasks   TeamEdgeTask[]
 

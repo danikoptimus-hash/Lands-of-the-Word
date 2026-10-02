@@ -304,7 +304,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
     prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true, revealedAt: true } }),
     prisma.teamEdgeTask.findMany({
       where: { teamId },
-      include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true } } },
+      include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true, island: true } }),

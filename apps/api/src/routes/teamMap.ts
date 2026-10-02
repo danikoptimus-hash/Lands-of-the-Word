@@ -69,7 +69,7 @@ export function requireSuperadmin(request: FastifyRequest, reply: FastifyReply):
 }
 
 const taskInclude = {
-  deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true } },
+  deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true } },
   team: { select: { id: true, name: true, color: true } },
 } as const;
 type TaskWithDeed = { fromKey: string; deed: { title: string; description: string } };
@@ -97,8 +97,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true, settings: true } });
-    const st = game.settings as { donationMin?: number | null; donationCurrency?: string };
-    const donation = st.donationMin ? { min: st.donationMin, currency: st.donationCurrency ?? "" } : null;
+    // Ценник пожертвования у каждого дела свой (deed.donationMin); игра задаёт только валюту (решение владельца 02.10).
+    const donation = { currency: (game.settings as { donationCurrency?: string }).donationCurrency ?? "" };
     if (game.status === "DRAFT") return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
     const map = await getTeamMap(id, m.team.id);
     const deedLimit = await deedLimitFor(id, request.user!.id);
@@ -161,9 +161,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (task.takenById && task.takenById !== request.user!.id && !isLeader(m) && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: err(request, "Сдать чужое дело может только капитан или летописец") });
     if (body.donation) {
       const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } });
-      const st = game.settings as { donationMin?: number; donationCurrency?: string };
-      if (!st.donationMin) return reply.code(409).send({ error: "conflict", message: err(request, "В этой игре пожертвование вместо дела не предусмотрено") });
-      if (!body.donationAmount || body.donationAmount < st.donationMin) return reply.code(400).send({ error: "validation", message: err(request, "Минимальное пожертвование — {amount}", { amount: `${st.donationMin} ${st.donationCurrency ?? ""}`.trim() }) });
+      const st = game.settings as { donationCurrency?: string };
+      if (!task.deed.donationMin) return reply.code(409).send({ error: "conflict", message: err(request, "Это дело нельзя заменить пожертвованием") });
+      if (!body.donationAmount || body.donationAmount < task.deed.donationMin) return reply.code(400).send({ error: "validation", message: err(request, "Минимальное пожертвование — {amount}", { amount: `${task.deed.donationMin} ${st.donationCurrency ?? ""}`.trim() }) });
       if (body.links.length === 0) return reply.code(400).send({ error: "validation", message: err(request, "Приложите ссылку на чек или подтверждение перевода") });
     } else {
       const needsLink = task.deed.proofType === "PHOTO_LINK" || task.deed.proofType === "VIDEO_LINK";

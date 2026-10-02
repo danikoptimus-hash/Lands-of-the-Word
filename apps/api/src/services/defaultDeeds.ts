@@ -40,9 +40,11 @@ export const deedBody = z.object({
   secret: z.boolean().default(false),
   remote: z.boolean().default(false),
   siegePoints: z.number().int().min(0).max(100).nullable().default(null),
+  /** Минимальное пожертвование вместо дела; null — нельзя. В хеш набора не входит: ценник — настройка игры, набор задаёт его только там, где он в наборе прописан. */
+  donationMin: z.number().int().min(0).max(100_000_000).nullable().default(null),
 });
 export type DeedFields = z.infer<typeof deedBody>;
-const setItem = deedBody.extend({ replaces: z.array(z.string().trim().min(2)).default([]) });
+const setItem = deedBody.extend({ replaces: z.array(z.string().trim().min(2)).default([]), donationMin: z.number().int().min(0).max(100_000_000).nullable().optional() });
 export type DefaultDeed = z.infer<typeof setItem>;
 
 /**
@@ -65,7 +67,8 @@ export function deedHash(d: DeedLike): string {
   const canon = JSON.stringify(base);
   return createHash("sha1").update(canon).digest("base64url");
 }
-const fields = (d: DefaultDeed): DeedFields => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, frequency: d.frequency, secret: d.secret, remote: d.remote, siegePoints: d.siegePoints });
+/** Ценник (donationMin) набор переносит в игру, только если он в наборе задан; иначе остаётся тот, что выставил администратор игры. */
+const fields = (d: DefaultDeed): Omit<DeedFields, "donationMin"> & { donationMin?: number | null } => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, frequency: d.frequency, secret: d.secret, remote: d.remote, siegePoints: d.siegePoints, ...(d.donationMin !== undefined ? { donationMin: d.donationMin } : {}) });
 const lc = (s: string) => s.trim().toLowerCase();
 
 export interface SyncResult { added: number; updated: number; removed: number }

@@ -26,7 +26,8 @@ export const ADMIN: Record<string, string> = {
   "между городами в среднем {d} сторон": "{d} sides between cities on average",
   "Выровнять расстояние от стартов до первого города": "Equalize the distance from starts to the first city", "Допустимая разница, ходов": "Allowed difference, moves",
   "Отрывки могут содержать родословия и списки имён": "Passages may contain genealogies and name lists", "Пожертвование вместо дела": "Donation instead of a deed", "Минимум": "Minimum",
-  "Пусто — пожертвование выключено.": "Empty — donations are off.",
+  "Минимальная сумма у каждого дела своя — задаётся во вкладке «Дела». У дела без суммы замены пожертвованием нет.": "The minimum amount is set per deed in the “Deeds” tab. A deed without an amount cannot be replaced by a donation.",
+  "пожертвование от {n}": "donation from {n}", "Пожертвование вместо дела, от": "Donation instead of the deed, from", "(пусто — нельзя)": "(empty — not allowed)",
   // Команды
   "Команда добавлена": "Team added", "Команда «{name}» будет удалена вместе с участниками.": "Team “{name}” will be deleted with its members.", "Команда удалена": "Team deleted",
   "{nick} убран из команды": "{nick} removed from the team", "Команд пока нет: добавьте первую.": "No teams yet: add the first one.", "Пригласить": "Invite",

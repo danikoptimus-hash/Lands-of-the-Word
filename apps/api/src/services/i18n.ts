@@ -262,7 +262,7 @@ const EN: Record<string, string> = {
   "Отпустить дело может тот, кто взял, капитан или летописец": "A deed can be released by whoever took it, the captain or the chronicler",
   "Дело уже сдано": "The deed is already submitted",
   "Сдать чужое дело может только капитан или летописец": "Only the captain or the chronicler can submit someone else's deed",
-  "В этой игре пожертвование вместо дела не предусмотрено": "This game does not allow a donation instead of a deed",
+  "Это дело нельзя заменить пожертвованием": "This deed cannot be replaced by a donation",
   "Минимальное пожертвование — {amount}": "The minimum donation is {amount}",
   "В сутки можно взять не больше {n} дел. Следующее можно взять через {when}": "You can take at most {n} deeds per day. The next one opens in {when}",
   "{h} ч {m} мин": "{h} h {m} min", "{m} мин": "{m} min",

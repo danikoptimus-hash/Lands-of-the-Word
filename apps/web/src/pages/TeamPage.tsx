@@ -155,7 +155,8 @@ export function TeamPage() {
   const [passages, setPassages] = useState<PassagesDto | null>(null);
   const [now, setNow] = useState(Date.now());
   const [gameName, setGameName] = useState("");
-  const [donationCfg, setDonationCfg] = useState<{ min: number; currency: string } | null>(null);
+  /** Валюта пожертвований игры; минимум — у каждого дела свой (deed.donationMin). */
+  const [currency, setCurrency] = useState("");
   const [busy, setBusy] = useState(false);
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const [markAt, setMarkAt] = useState<MarkPoint | null>(null);
@@ -223,7 +224,7 @@ export function TeamPage() {
   }, [team?.id]);
 
   const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setError(null); setIsAdmin(r.isAdmin); setTeam(r.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, user?.id]);
-  const loadMap = useCallback(() => api<MyMapDto & { gameName?: string; donation?: { min: number; currency: string } | null }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); if (m.gameName) setGameName(m.gameName); setDonationCfg(m.donation ?? null); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
+  const loadMap = useCallback(() => api<MyMapDto & { gameName?: string; donation?: { currency: string } | null }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); if (m.gameName) setGameName(m.gameName); setCurrency(m.donation?.currency ?? ""); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   useEffect(() => { if (team) { void loadBattles(); void loadStandings(); void loadPassages(); void loadPeace(); } }, [team, loadBattles, loadStandings, loadPassages, loadPeace]);
   useGameEvents(id, (e) => {
@@ -627,7 +628,7 @@ export function TeamPage() {
               )}
               {task.status !== "OPEN" && task.status !== "REJECTED" && scoutBtn && <div className="actions">{scoutBtn}</div>}
               {task.status === "TAKEN" && (
-                <DeedForm key={task.id} donationCfg={donationCfg} busy={busy} proofType={task.deed.proofType}
+                <DeedForm key={task.id} donationCfg={task.deed.donationMin ? { min: task.deed.donationMin, currency } : null} busy={busy} proofType={task.deed.proofType}
                   members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
                   onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
                   onRelease={() => void release(task)} />

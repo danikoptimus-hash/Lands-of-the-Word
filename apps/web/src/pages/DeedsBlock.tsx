@@ -12,11 +12,11 @@ import { Help } from "../components/Help";
 import { plural } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK";
-interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; frequency: number; secret: boolean; remote: boolean; siegePoints: number | null }
-type Form = { title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; frequency: number; secret: boolean; remote: boolean; siegePoints: number | "" };
+interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; frequency: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null }
+type Form = { title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; frequency: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
 /** Частота появления дела: простой параметр в три ступени (решение владельца 15.09). */
 const FREQUENCY: Record<number, string> = { 1: "редко", 2: "обычно", 3: "часто" };
-const EMPTY: Form = { title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], frequency: 2, secret: false, remote: false, siegePoints: "" };
+const EMPTY: Form = { title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], frequency: 2, secret: false, remote: false, siegePoints: "", donationMin: "" };
 
 /** Вкладка «Дела»: список дел игры; добавление и изменение — в одной форме-шторке; стандартный набор — только пока список пуст. */
 /**
@@ -53,14 +53,14 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   useEffect(() => { void load(); }, [load, version]);
 
   const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, direction: directions[0] ?? "" } }); };
-  const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: { title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], frequency: d.frequency ?? 2, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "" } }); };
+  const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: { title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], frequency: d.frequency ?? 2, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" } }); };
   const close = () => setSheet(null);
 
   async function save(e: FormEvent) {
     e.preventDefault(); if (!sheet) return;
     setError(null); setBusy(true);
     try {
-      const body = JSON.stringify({ ...sheet.form, siegePoints: sheet.form.siegePoints === "" ? null : Number(sheet.form.siegePoints) });
+      const body = JSON.stringify({ ...sheet.form, siegePoints: sheet.form.siegePoints === "" ? null : Number(sheet.form.siegePoints), donationMin: sheet.form.donationMin === "" ? null : Number(sheet.form.donationMin) });
       if (sheet.id) { await api(`/api/games/${gameId}/deeds/${sheet.id}`, { method: "PUT", body }); notify(t("Дело сохранено")); }
       else { await api(`/api/games/${gameId}/deeds`, { method: "POST", body }); notify(t("Дело добавлено")); }
       close();
@@ -110,6 +110,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
                   {d.siegePoints != null && <span>· {t("осада: {n} б.", { n: d.siegePoints })}</span>}
+                  {d.donationMin != null && <span>· {t("пожертвование от {n}", { n: d.donationMin })}</span>}
                   {d.frequency !== 2 && <span>· {t(FREQUENCY[d.frequency] ?? "обычно")}</span>}
                   {d.bookCodes.length > 0 && <span>· <Chip icon="book" title={d.bookCodes.map(bookName).join(", ")}>{plural(d.bookCodes.length, [t("книга"), t("книги"), t("книг")])}</Chip></span>}
                   <span>· {d.direction}</span>
@@ -145,6 +146,10 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
               <div>
                 <label htmlFor="d-siege">{t("Баллы при осаде")} <span className="opt">{t("(пусто — по правилам)")}</span></label>
                 <input id="d-siege" type="number" min={0} max={100} value={form.siegePoints} onChange={(e) => setForm({ siegePoints: e.target.value === "" ? "" : Number(e.target.value) })} />
+              </div>
+              <div>
+                <label htmlFor="d-don">{t("Пожертвование вместо дела, от")} <span className="opt">{t("(пусто — нельзя)")}</span></label>
+                <input id="d-don" type="number" inputMode="numeric" min={0} value={form.donationMin} onChange={(e) => setForm({ donationMin: e.target.value === "" ? "" : Number(e.target.value) })} />
               </div>
               <div>
                 <label htmlFor="d-freq">{t("Как часто выпадает")}</label>

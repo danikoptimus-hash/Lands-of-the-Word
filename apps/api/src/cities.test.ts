@@ -266,14 +266,20 @@ describe("дипломатия, роли, столица, руины, пожер
     await prisma.user.deleteMany({ where: { nickname: scoutNick } });
   });
 
-  it("пожертвование вместо дела: только при настроенном минимуме и не меньше него", async () => {
+  it("пожертвование вместо дела: только при ценнике у самого дела и не меньше него", async () => {
     const map = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
-    const t = (map.json().tasks as Array<{ id: string; status: string }>).find((x) => x.status === "OPEN")!;
+    const t = (map.json().tasks as Array<{ id: string; deedId: string; status: string }>).find((x) => x.status === "OPEN")!;
     await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/take`, headers: { cookie: p2Cookie } });
     const off = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: { donation: true, donationAmount: 500, links: ["https://example.com/receipt"] } });
     expect(off.statusCode).toBe(409);
-    const set = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { donationMin: 1000, donationCurrency: "сум" } } });
+    // Ценник у каждого дела свой (решение владельца 02.10); игра задаёт только валюту.
+    const cur = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { donationCurrency: "сум" } } });
+    expect(cur.statusCode).toBe(200);
+    const set = await app.inject({ method: "PUT", url: `/api/games/${gameId}/deeds/${t.deedId}`, headers: { cookie: adminCookie }, payload: { donationMin: 1000 } });
     expect(set.statusCode).toBe(200);
+    expect(set.json().deed.donationMin).toBe(1000);
+    const map2 = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
+    expect((map2.json().tasks as Array<{ id: string; deed: { donationMin: number | null } }>).find((x) => x.id === t.id)!.deed.donationMin).toBe(1000);
     const low = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: { donation: true, donationAmount: 500, links: ["https://example.com/receipt"] } });
     expect(low.statusCode).toBe(400);
     const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: { donation: true, donationAmount: 1500, links: ["https://example.com/receipt"] } });

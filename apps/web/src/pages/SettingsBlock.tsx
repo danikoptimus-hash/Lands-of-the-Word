@@ -7,7 +7,7 @@ import { Help } from "../components/Help";
 import { Stepper } from "../components/Stepper";
 
 export interface RulesDto { minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
-interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string; rules?: RulesDto } }
+interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string; rules?: RulesDto } }
 type NumKey = Exclude<keyof RulesDto, "pauseSteps" | "adminDigest">;
 /** Продвинутые настройки: правила, которые раньше были зашиты в код (решение владельца 18.09). Подписи короткие, единицы — суффиксом; поля сгруппированы. */
 const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: number; step?: number }> = {
@@ -51,7 +51,6 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   const [equidistant, setEquidistant] = useState(game.settings.equidistantStarts ?? false);
   const [maxDiff, setMaxDiff] = useState(game.settings.maxStartDistanceDiff ?? 3);
   const [genealogies, setGenealogies] = useState(game.settings.includeGenealogies ?? false);
-  const [donationMin, setDonationMin] = useState<number | "">(game.settings.donationMin ?? "");
   const [currency, setCurrency] = useState(game.settings.donationCurrency ?? "");
   const [rules, setRules] = useState<Record<string, number | string>>(() => { const r = (game.settings.rules ?? {}) as Partial<RulesDto>; const out: Record<string, number | string> = {}; for (const k of NUM_KEYS) out[k] = (r[k] as number | undefined) ?? 0; out.pauseSteps = (r.pauseSteps ?? [20, 60, 300, 900, 3600]).join(", "); out.adminDigest = r.adminDigest ?? "instant"; return out; });
   const [advanced, setAdvanced] = useState(false);
@@ -64,7 +63,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
 
   async function save(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError(null);
-    const donation = { donationMin: donationMin === "" ? null : Number(donationMin), donationCurrency: currency };
+    const donation = { donationCurrency: currency };
     const rulesOut: Record<string, unknown> = {};
     for (const k of NUM_KEYS) rulesOut[k] = Number(rules[k]);
     rulesOut.pauseSteps = String(rules.pauseSteps).split(/[\s,;]+/).map(Number).filter((n) => Number.isInteger(n) && n > 0);
@@ -153,15 +152,11 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
           <h3>{t("Пожертвование вместо дела")}</h3>
           <div className="money">
             <div>
-              <label htmlFor="s-don">{t("Минимум")}</label>
-              <Stepper id="s-don" value={donationMin} min={0} step={50} onChange={setDonationMin} />
-            </div>
-            <div>
               <label htmlFor="s-cur">{t("Валюта")}</label>
               <input id="s-cur" className="cur" value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={10} placeholder="₽" />
             </div>
           </div>
-          <p className="hint">{draft ? t("Пусто — пожертвование выключено.") : t("В игре меняются только пожертвование и правила.")}</p>
+          <p className="hint">{t("Минимальная сумма у каждого дела своя — задаётся во вкладке «Дела». У дела без суммы замены пожертвованием нет.")}{!draft && <> {t("В игре меняются только пожертвование и правила.")}</>}</p>
         </div>
         <details className="settings-group disclose" open={advanced} onToggle={(e) => setAdvanced((e.target as HTMLDetailsElement).open)}>
           <summary><h3>{t("Продвинутые настройки")}</h3></summary>

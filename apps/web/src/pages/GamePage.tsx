@@ -26,7 +26,7 @@ import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 
-interface GameDto { id: string; name: string; createdById?: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; mapStats?: MapStats; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string } }
+interface GameDto { id: string; name: string; createdById?: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; mapStats?: MapStats; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string } }
 type Tab = "overview" | "map" | "teams" | "deeds" | "review" | "settings";
 const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "settings"];
 type Progress = { teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] };
