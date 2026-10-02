@@ -160,6 +160,8 @@ export function TeamPage() {
   const [busy, setBusy] = useState(false);
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const [markAt, setMarkAt] = useState<MarkPoint | null>(null);
+  /** Точка на краю тумана без дороги с делом: лист с разведкой (решение владельца 02.10). */
+  const [frontierKey, setFrontierKey] = useState<string | null>(null);
   const [markNote, setMarkNote] = useState("");
   const [inviteBusy, setInviteBusy] = useState(false);
   const [inviteDone, setInviteDone] = useState(false);
@@ -428,8 +430,8 @@ export function TeamPage() {
     if (!menu && st.edge && dx > 40) setMenu(true);
     if (menu && dx < -60) setMenu(false);
   };
-  const openCity = (key: string) => { setCityKey(key); setSelectedId(null); setMenu(false); };
-  const openTask = (tid: string | null) => { setSelectedId(tid); if (tid) setMenu(false); };
+  const openCity = (key: string) => { setCityKey(key); setSelectedId(null); setFrontierKey(null); setMenu(false); };
+  const openTask = (tid: string | null) => { setSelectedId(tid); if (tid) { setMenu(false); setFrontierKey(null); } };
   const menuOpen = wide || menu;
 
   return (
@@ -548,7 +550,8 @@ export function TeamPage() {
       <div className="map-area" ref={setMapEl}>
         <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
-          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)} />
+          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)}
+          onFrontierTap={(key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); }} />
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">
             <Icon name="ship" /><span>{isLeader ? t("Выберите на другом острове место высадки") : t("Капитан или кормчий выбирает место высадки")}</span>
@@ -575,6 +578,18 @@ export function TeamPage() {
             <div className="field"><label htmlFor="mark-note">{t("Подпись")} <span className="opt">{t("необязательно")}</span></label><input id="mark-note" maxLength={40} value={markNote} onChange={(e) => setMarkNote(e.target.value)} placeholder={t("птицы сели здесь")} /></div>
           </Sheet>
         )}
+        {frontierKey && (() => {
+          const pk = peekedKind(frontierKey);
+          return (
+            <Sheet size="sm" container={mapEl} title={t("Край тумана")} onClose={() => setFrontierKey(null)}>
+              <p className="muted">{t("Дороги с делом сюда пока нет.")}</p>
+              {pk && <div className="note info"><Icon name="telescope" /><span>{pk === "CITY" ? t("Разведано: там город.") : t("Разведано: там развилка.")}</span></div>}
+              {error && <p className="error" role="alert">{error}</p>}
+              {me?.gameRole === "SCOUT" && !pk && <div className="actions"><button type="button" className="secondary" disabled={busy} onClick={() => void peek(frontierKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></div>}
+              {me?.gameRole !== "SCOUT" && !pk && <p className="hint">{t("Разведать этот перекрёсток может разведчик команды.")}</p>}
+            </Sheet>
+          );
+        })()}
         {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} isCaptain={isCaptain || me?.role === "DEPUTY"} version={cityVersion} container={mapEl} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); void loadPassages(); }} />}
 
         {task && (() => {

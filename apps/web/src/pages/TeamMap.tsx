@@ -27,7 +27,7 @@ const textWidth = (s: string, fs: number) => Math.ceil(s.length * fs * 0.62);
 export const routeColor = (color: string) => `color-mix(in srgb, ${color} 68%, white)`;
 /** Точка метки: гекс и точное место нажатия дробными осевыми координатами. */
 export interface MarkPoint { q: number; r: number; qf: number; rf: number }
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap }: { map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap }: { /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -230,6 +230,24 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
+          {/* Узлы на краю тумана без дороги с делом (за закрытым городом, после потери стороны): серая точка, по нажатию — лист края тумана. */}
+          {showMarkers && onFrontierTap && (() => {
+            const seen = new Set<string>();
+            return map.edges.map((e) => {
+              const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
+              if (tk && tk.status !== "APPROVED") return null;
+              const farKey = revealed.has(e.aKey) ? (revealed.has(e.bKey) ? null : e.bKey) : revealed.has(e.bKey) ? e.aKey : null;
+              if (!farKey || seen.has(farKey)) return null;
+              seen.add(farKey);
+              const p = positions.get(farKey)!;
+              return (
+                <g key={"far" + farKey} className="m-far" style={sc(p.x, p.y)} role="button" aria-label={t("Край тумана")} onClick={() => { if (!vp.wasDrag()) onFrontierTap(farKey); }}>
+                  <circle className="hit" r={14} />
+                  <circle className="far" r={5} />
+                </g>
+              );
+            });
+          })()}
           {ships.map(({ tk, x, y, port }) => {
             const sel = tk.id === selectedTaskId, r = (sel ? R + 2 : R) + 2;
             return (
@@ -279,7 +297,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
-  </>), [map.revealed, map.edges, map.peeked, map.marks, onMarkTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.revealed, map.edges, map.peeked, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   return (
     <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "")} onClick={marking ? placeMark : undefined}>

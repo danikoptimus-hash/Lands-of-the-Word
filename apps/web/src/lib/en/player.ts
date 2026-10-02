@@ -301,6 +301,7 @@ export const PLAYER: Record<string, string> = {
   "Вся инструкция. Картинки — с настоящих экранов игры.": "The full guide. Pictures are taken from the real game screens.",
   "Изменения по датам. Подробности —": "Changes by date. Details —",
   // Метки команды на карте и приглашение от капитана (22.09).
+  "Край тумана": "Edge of the fog", "Дороги с делом сюда пока нет.": "There is no road with a deed here yet.", "Разведать этот перекрёсток может разведчик команды.": "The team's scout can scout this crossroads.",
   "Метка на карте": "Map mark", "Метка команды": "Team mark", "Метка команды: {note}": "Team mark: {note}",
   "Метка команды: {note} — {name}": "Team mark: {note} — {name}", "Метка команды — {name}": "Team mark — {name}",
   "Метка «{note}» (автор {name}) исчезнет у всей команды.": "The mark “{note}” (placed by {name}) will disappear for the whole team.",
