@@ -147,6 +147,7 @@ model Game {
   /** Почему завершена: last_team (осталась одна команда), time_limit (срок), manual (админ). */
   finishReason String?
   recipients  Recipient[]
+  taskEvents  TaskEvent[]
   supportRequests SupportRequest[]
   journal     Journal[]
   peaces      Peace[]
@@ -412,6 +413,29 @@ model TeamEdgeTask {
  * каждая ошибка подряд удлиняет паузу по ступеням правил игры (20 с, 1 мин, 5 мин, 15 мин, час…), верный ответ сбрасывает счёт.
  * Попыток не ограничено, блокировки на сутки и «снятия блокировки» поддержкой нет.
  */
+/**
+ * События в заданиях города для раздела «Поведение» у администратора (решение владельца 02.10): открытие задания,
+ * выход из приложения во время задания (и на сколько), верный и неверный ответ. Нужны, чтобы видеть, кто решает
+ * слишком быстро или постоянно уходит из приложения с открытым заданием. Хранится только факт и время, без текста ответов.
+ */
+model TaskEvent {
+  id        String   @id @default(cuid())
+  gameId    String
+  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  teamId    String
+  userId    String
+  nodeKey   String
+  /** Номер задания района; null — расстановка районов. */
+  taskIndex Int?
+  /** open — открыл задание; away — выходил из приложения (awayMs — на сколько); ok / wrong — ответ. */
+  kind      String
+  awayMs    Int?
+  createdAt DateTime @default(now())
+
+  @@index([gameId, userId])
+  @@index([gameId, createdAt])
+}
+
 model TeamTaskLock {
   id          String    @id @default(cuid())
   gameId      String

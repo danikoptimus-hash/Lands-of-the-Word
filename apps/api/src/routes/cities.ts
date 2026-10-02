@@ -11,6 +11,7 @@ import { notifyAdmins, notifyTeam } from "../services/notify.js";
 import type { CityContent } from "../services/cities.js";
 import { err, msg } from "../services/i18n.js";
 import { journal, nick } from "../services/journal.js";
+import { taskEvent } from "../services/behavior.js";
 import { ruinsTreasure } from "../services/treasure.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
@@ -164,6 +165,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (wrong === null) return reply.code(400).send({ error: "validation", message: err(request, "Расставьте все районы, каждый по одному разу") });
     // Черновик: при верном порядке больше не нужен, при неверном хранит последнюю расстановку.
     await prisma.teamCityState.update({ where: { id: c.state.id }, data: { orderAttempts: { increment: 1 }, orderSolved: wrong === 0, orderDraft: wrong === 0 ? [] : body.ids } });
+    void taskEvent(id, c.m.team.id, request.user!.id, nodeKey, null, wrong === 0 ? "ok" : "wrong");
     if (wrong === 0) journal(id, "order_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), book: c.node.bookCode ?? "" } });
     publish(id, { type: "cities", teamId: c.m.team.id });
     return { correct: wrong === 0, wrong };
@@ -188,6 +190,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(429).send({ error: "cooldown", message: err(request, "Отмычка остывает: подождите перед следующей попыткой"), retryAt: lock.lockedUntil.getTime() });
     }
     const correct = checkAnswer(task, index, secret, c.scopeKey, body.answer);
+    void taskEvent(id, c.m.team.id, request.user!.id, nodeKey, index, correct ? "ok" : "wrong");
     let retryAt: number | null = null;
     await prisma.teamCityState.update({
       where: { id: c.state.id },
@@ -208,6 +211,21 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       return { correct: true, fragment: c.node.cityCode?.[index] ?? null };
     }
     return { correct: false, retryAt, wrong: (lock?.wrong ?? 0) + 1 };
+  });
+
+  /**
+   * Счётчик выходов (решение владельца 02.10): клиент сообщает, что открыл задание (open) или вернулся в приложение
+   * после сворачивания с открытым заданием (away, awayMs — сколько отсутствовал). Индекс «order» — экран расстановки районов.
+   */
+  app.post("/api/games/:id/my-city/:nodeKey/tasks/:index/focus", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const { id, nodeKey, index: rawIndex } = request.params as { id: string; nodeKey: string; index: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    const body = z.object({ kind: z.enum(["open", "away"]), awayMs: z.number().int().min(0).max(86_400_000).optional() }).parse(request.body);
+    const index = rawIndex === "order" ? null : Number(rawIndex);
+    if (index !== null && !Number.isInteger(index)) return reply.code(400).send({ error: "validation", message: err(request, "Задание не найдено") });
+    await taskEvent(id, m.team.id, request.user!.id, nodeKey, index, body.kind, body.kind === "away" ? body.awayMs ?? 0 : null);
+    return reply.code(204).send();
   });
 
   /** Ввести ключ из конверта: город взят. Первый взятый город команды — её столица. */

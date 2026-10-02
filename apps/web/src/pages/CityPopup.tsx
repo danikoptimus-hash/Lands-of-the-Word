@@ -24,11 +24,33 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
  * Шаги оформлены как замок с кольцами (и для порядка, и для выбора ответа), районы с печатью шифра и конверт с сургучом (решения 18.09).
  */
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+/**
+ * Счётчик выходов (решение владельца 02.10): пока задание открыто, сворачивание приложения и возврат в него сообщаются
+ * серверу (сколько отсутствовал); при открытии задания — одно событие «открыл». Ничего не блокирует, только считает.
+ */
+function useAwayCounter(url: string | null) {
+  useEffect(() => {
+    if (!url) return;
+    void api(url, { method: "POST", body: JSON.stringify({ kind: "open" }) }).catch(() => {});
+    let hiddenAt: number | null = null;
+    const onVis = () => {
+      if (document.visibilityState === "hidden") { hiddenAt = Date.now(); return; }
+      if (hiddenAt == null) return;
+      const awayMs = Date.now() - hiddenAt; hiddenAt = null;
+      void api(url, { method: "POST", body: JSON.stringify({ kind: "away", awayMs }) }).catch(() => {});
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, [url]);
+}
+
 export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, container, onClose, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
   const { notify, confirm } = useUi();
 
   const confirmMove = () => confirm(t("Это единственный перенос за игру."), { title: t("Перенести столицу в этот город?"), okLabel: t("Перенести") });
   const [city, setCity] = useState<MyCityDto | null>(null);
+  // Экран расстановки районов тоже считается заданием для счётчика выходов.
+  useAwayCounter(city?.content && !city.state.orderSolved ? `/api/games/${gameId}/my-city/${nodeKey}/tasks/order/focus` : null);
   const [error, setError] = useState<string | null>(null);
   const [order, setOrder] = useState<string[] | null>(null);
   const [orderResult, setOrderResult] = useState<number | null>(null);
@@ -293,6 +315,7 @@ const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.som
 function TaskView({ task, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
   /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
+  useAwayCounter(done ? null : `/api/games/${gameId}/my-city/${nodeKey}/tasks/${task.index}/focus`);
   const cooldown = 0;
   const nextPause = pauseSteps[Math.min(lock?.wrong ?? 0, pauseSteps.length - 1)] ?? 20;
   /** Вставка из буфера отключена (решение владельца): ответ набирается вручную. */
