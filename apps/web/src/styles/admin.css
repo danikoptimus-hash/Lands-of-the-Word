@@ -57,16 +57,6 @@
 .mapwrap svg { display: block; }
 .adm-edge { stroke: rgba(31,27,22,.25); stroke-width: calc(1.5px / var(--k, 1)); }
 .adm-path { stroke-width: calc(5px / max(1.6, var(--k, 1))); stroke-linecap: round; }
-/* Граница видимой области команды: пунктир цветом команды на светлой подложке, под дорогами. */
-.adm-fog { pointer-events: none; }
-.adm-fog path { fill: none; stroke-width: calc(3px / max(1.6, var(--k, 1))); stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: calc(9px / max(1.6, var(--k, 1))) calc(6px / max(1.6, var(--k, 1))); opacity: .95; }
-.adm-fog path.halo { stroke: rgba(255, 250, 240, .9); stroke-width: calc(7px / max(1.6, var(--k, 1))); stroke-dasharray: none; opacity: .8; }
-/* Легенда границ видимости (минимальная): плашка слева внизу, в ней по штриху цвета команды; штрих — выключатель контура. */
-.admin-map .fog-legend { position: absolute; left: calc(var(--sp-3) + var(--safe-left, 0px)); bottom: calc(var(--sp-3) + var(--safe-bottom, 0px)); z-index: 5; display: flex; align-items: center; gap: var(--sp-1); padding: var(--sp-1); border-radius: var(--r-full); background: color-mix(in srgb, var(--surface) 90%, transparent); box-shadow: var(--shadow-1); }
-.admin-map .fog-legend .legend-row { display: flex; align-items: center; justify-content: center; width: 36px; height: 28px; padding: 0; border: 0; border-radius: var(--r-full); background: transparent; cursor: pointer; box-shadow: none; }
-.admin-map .fog-legend .legend-row:hover { background: var(--surface-2); }
-.admin-map .fog-legend .swatch { width: 22px; height: 0; border-top: 3px dashed currentColor; border-color: inherit; }
-.admin-map .fog-legend .legend-row.off .swatch { border-top-style: solid; border-color: var(--border) !important; opacity: .7; }
 /* Светлая подложка под маршрутом команды (решение владельца 30.09): маршрут читается и на зелёном, и на песке. */
 .adm-halo { stroke: rgba(255, 250, 240, .85); stroke-width: calc(9px / max(1.6, var(--k, 1))); stroke-linecap: round; pointer-events: none; }
 .adm-halo.sea { stroke: rgba(255, 250, 240, .6); stroke-width: calc(7px / max(1.6, var(--k, 1))); }

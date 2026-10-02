@@ -27,7 +27,6 @@ export const ADMIN: Record<string, string> = {
   "Выровнять расстояние от стартов до первого города": "Equalize the distance from starts to the first city", "Допустимая разница, ходов": "Allowed difference, moves",
   "Отрывки могут содержать родословия и списки имён": "Passages may contain genealogies and name lists", "Пожертвование вместо дела": "Donation instead of a deed", "Минимум": "Minimum",
   "Минимальная сумма у каждого дела своя — задаётся во вкладке «Дела». У дела без суммы замены пожертвованием нет.": "The minimum amount is set per deed in the “Deeds” tab. A deed without an amount cannot be replaced by a donation.",
-  "Граница видимости": "Visibility border", "Скрыть контур команды «{name}»": "Hide the outline of team “{name}”", "Показать контур команды «{name}»": "Show the outline of team “{name}”",
   "пожертвование от {n}": "donation from {n}", "Пожертвование вместо дела, от": "Donation instead of the deed, from", "(пусто — нельзя)": "(empty — not allowed)",
   // Команды
   "Команда добавлена": "Team added", "Команда «{name}» будет удалена вместе с участниками.": "Team “{name}” will be deleted with its members.", "Команда удалена": "Team deleted",
