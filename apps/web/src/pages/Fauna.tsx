@@ -911,7 +911,7 @@ function stepFlock(f: Flock, p: Profile, size: number, dt: number, T: number): v
   if (T < f.t0) return;
   let x: number, y: number;
   if (f.hover) {
-    // Кружение над городом (решение владельца 22.09, вариант 1): круг радиусом ~1,2 гекса, 30–60 с, затем уход.
+    // Кружение над городом (решение владельца 22.09, вариант 1; с 02.10 — полторы минуты): круг радиусом ~1,2 гекса, 90 с, затем уход.
     const hv = f.hover;
     if (T >= hv.until) { leaveRoute(f, p, size, T); return; }
     hv.a += (dt * size * 0.7) / hv.r;
@@ -919,7 +919,7 @@ function stepFlock(f: Flock, p: Profile, size: number, dt: number, T: number): v
   } else {
     const u = (T - f.t0) / f.dur;
     if (u >= 1) {
-      if (f.hint) { f.hover = { cx: f.x1, cy: f.y1, r: size * 1.2, a: Math.atan2(f.y - f.y1, f.x - f.x1), until: T + rnd(30, 60) }; f.hint = false; return; }
+      if (f.hint) { f.hover = { cx: f.x1, cy: f.y1, r: size * 1.2, a: Math.atan2(f.y - f.y1, f.x - f.x1), until: T + 90 }; f.hint = false; return; }
       newRoute(f, p, size, T, false); return;
     }
     const w0 = (1 - u) * (1 - u), w1 = 2 * u * (1 - u), w2 = u * u;
