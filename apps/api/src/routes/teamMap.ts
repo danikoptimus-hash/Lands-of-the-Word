@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { assertAwake, gameDaytime } from "../services/daytime.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey } from "../services/teamMap.js";
@@ -102,7 +103,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (game.status === "DRAFT") return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
     const map = await getTeamMap(id, m.team.id);
     const deedLimit = await deedLimitFor(id, request.user!.id);
-    return { status: game.status, gameName: game.name, donation, deedLimit, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    // Время суток игры (решение владельца 03.10): карта красится по фазе и поясу, ночью действия закрыты.
+    const daytime = await gameDaytime(id);
+    return { status: game.status, gameName: game.name, donation, deedLimit, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
@@ -125,6 +128,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
+    if (!(await assertAwake(request, reply, id))) return;
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     if (task.status !== "OPEN" && task.status !== "REJECTED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже взято или сдано") });
@@ -153,6 +157,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
+    if (!(await assertAwake(request, reply, id))) return;
     const body = submitBody.parse(request.body);
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id }, include: { deed: true } });
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });

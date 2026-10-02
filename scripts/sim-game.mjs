@@ -176,7 +176,9 @@ async function reveal(T, key) {
 }
 
 /* ---------- Город ---------- */
-const rulesFast = { minBid: 10, attackDays: 0.006, burnPenalty: 5, minAnswerSeconds: 120, passageDays: 0.01, lockWeeks: 0.0008, fatigueAfterDays: 0.01, fatigueStepDays: 0.002, fatigueStep: 1, deedReturnDays: 0.004, roleChangeDays: 0, roleCooldownDays: 0.001, pauseSteps: [3, 5, 10], siegeDays: 0.004, siegeDeedPoints: 1, chronicleWeekday: 0, chronicleHourUtc: 0, adminDigest: "instant" };
+/** Пояс, в котором сейчас утро (7:00): дела, города и испытания открыты, вызов отправляется (времена суток, 03.10). Etc/GMT-5 = UTC+5. */
+const zoneForLocalHour = (hour) => { let n = ((hour - new Date().getUTCHours()) % 24 + 24) % 24; if (n > 14) n -= 24; return n === 0 ? "Etc/GMT" : n > 0 ? `Etc/GMT-${n}` : `Etc/GMT+${-n}`; };
+const rulesFast = { timeZone: zoneForLocalHour(7), minBid: 10, attackDays: 0.006, burnPenalty: 5, minAnswerSeconds: 120, passageDays: 0.01, lockWeeks: 0.0008, fatigueAfterDays: 0.01, fatigueStepDays: 0.002, fatigueStep: 1, deedReturnDays: 0.004, roleChangeDays: 0, roleCooldownDays: 0.001, pauseSteps: [3, 5, 10], siegeDays: 0.004, siegeDeedPoints: 1, chronicleWeekday: 0, chronicleHourUtc: 0, adminDigest: "instant" };
 async function cityView(nick, key) { return get(nick, `/api/games/${S.gameId}/my-city/${encodeURIComponent(key)}`); }
 function answerFor(src, pub) {
   if (src.type === "number") return String(src.answer);

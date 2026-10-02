@@ -165,6 +165,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   const task = taskIndex != null ? city?.content?.tasks.find((x) => x.index === taskIndex) ?? null : null;
   const foreign = Boolean(city?.owner && !city.state.capturedAt);
   const step = !city?.content ? 0 : !city.state.orderSolved ? 1 : !allDone ? 2 : 3;
+  // Ночью город спит (решение владельца 03.10): сервер не отдаёт задания, знаки шифра и адресата; показываем только сон.
+  const night = city?.daytime?.phase === "night";
   const statusLine = !city ? "" : city.state.capturedAt ? t("Ваш город") : city.owner ? t("Город команды «{team}»", { team: city.owner.name }) : city.node.ruined ? t("Город в руинах") : t("Свободный город");
 
   const head = (
@@ -183,8 +185,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       {error && <p className="error" role="alert">{error}</p>}
       {!city && !error && <LoadingState rows={4} />}
       {city && !city.content && <div className="note warn"><Icon name="alert" /><span>{t("Задания для книги «{book}» ещё готовятся. Город пока нельзя взять.", { book: book?.nameRu ?? "" })}</span></div>}
+      {city?.content && night && <div className="note info night-note"><Icon name="moon" /><span>{t("Город спит до 7:00 по местному времени. Ночью задания, знаки шифра и конверт закрыты; утром всё откроется.")}</span></div>}
 
-      {city?.content && !task && (
+      {!night && city?.content && !task && (
         <ol className="steps" aria-label={t("Шаги")}>
           {[t("Порядок"), t("Районы"), t("Конверт")].map((label, i) => {
             const n = i + 1;
@@ -194,7 +197,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
         </ol>
       )}
 
-      {city?.content && step === 1 && order && (
+      {!night && city?.content && step === 1 && order && (
         <section className="step-body">
           <h3>{t("Расставьте районы по порядку книги")}</h3>
           <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
@@ -204,7 +207,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
         </section>
       )}
 
-      {city?.content && step >= 2 && !task && (
+      {!night && city?.content && step >= 2 && !task && (
         <section className="step-body">
           {step === 2 && <div className="row between nowrap step-head"><h3>{t("Решите задание в каждом районе")}</h3></div>}
           {step === 2 && (
@@ -292,7 +295,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
           <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} version={version} onChanged={onChanged} />
         </details>
       )}
-      {city?.content && task && (
+      {!night && city?.content && task && (
         <TaskView task={task} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
           hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} draft={city.state.taskDrafts?.[String(task.index)]}
           lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} pauseSteps={city.state.pauseSteps} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />

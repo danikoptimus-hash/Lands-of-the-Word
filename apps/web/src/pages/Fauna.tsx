@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { DAY_LIGHT, type Light } from "../lib/daytime";
 import { HEX_SIZE, hexCenter } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
 import type { Viewport } from "./MapLayers";
@@ -100,6 +101,38 @@ function underwater(c: RGB, m: number): string {
 }
 /** Куда падают тени: свет сверху-слева. Ветер сносит фонтан (ед/с). */
 const SUN_X = 0.55, SUN_Y = 0.83, WIND_X = 2.6, WIND_Y = -1.5;
+/** Освещение времени суток (решение владельца 03.10): тени кораблей по светилу, фонари ночью, костры у городов. Ставится слоем перед кадром. */
+let LIGHT: Light = DAY_LIGHT;
+/** Огни у городов и стартов: центр и радиус картинки в единицах карты. */
+export interface FireSite { x: number; y: number; r: number }
+const fract = (v: number) => v - Math.floor(v);
+/**
+ * Костры у городов: два-три огня на окраине каждой картинки (места детерминированы), тёплое дрожащее свечение и яркое ядро.
+ * Сила по времени суток: ночью в полную, вечером слабее, утром тлеют угли.
+ */
+function drawFires(ctx: CanvasRenderingContext2D, sites: readonly FireSite[], T: number, px: number, vis: Vis, level: number): void {
+  if (level <= 0.01 || !sites.length) return;
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < sites.length; i++) {
+    const s = sites[i]!;
+    if (!inView(vis, s.x, s.y)) continue;
+    const n = 2 + Math.floor(fract(Math.sin(i * 12.9898) * 43758.5453) * 2);
+    for (let j = 0; j < n; j++) {
+      const h1 = fract(Math.sin(i * 78.233 + j * 37.719) * 43758.5453), h2 = fract(Math.sin(i * 39.425 + j * 91.17) * 24634.6345);
+      const a = h1 * TAU, d = s.r * (0.45 + 0.35 * h2);
+      const x = s.x + Math.cos(a) * d, y = s.y + Math.sin(a) * d * 0.8;
+      const fl = 0.78 + 0.22 * noise1(T * 5.3, i * 3.1 + j * 7.7);
+      const R = s.r * (0.55 + 0.1 * fl);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+      g.addColorStop(0, `rgba(255,170,70,${(0.55 * level * fl).toFixed(3)})`);
+      g.addColorStop(0.35, `rgba(255,120,40,${(0.22 * level * fl).toFixed(3)})`);
+      g.addColorStop(1, "rgba(255,90,30,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fill();
+      ctx.fillStyle = `rgba(255,236,170,${(0.9 * level * fl).toFixed(3)})`; ctx.beginPath(); ctx.arc(x, y, Math.max(px * 1.4, s.r * 0.05), 0, TAU); ctx.fill();
+    }
+  }
+  ctx.restore();
+}
 /** Видимая область карты (в единицах карты), обновляется каждый кадр без аллокаций. */
 interface Vis { x0: number; y0: number; x1: number; y1: number }
 const inView = (v: Vis, x: number, y: number) => x > v.x0 && x < v.x1 && y > v.y0 && y < v.y1;
@@ -1261,13 +1294,27 @@ function drawShip(ctx: CanvasRenderingContext2D, sh: Ship, T: number, px: number
   ctx.globalAlpha = 0.45; ctx.strokeStyle = "rgb(236,249,252)"; ctx.lineWidth = Math.max(px * 1.2, L * 0.02);
   ctx.beginPath(); ctx.moveTo(L * 0.5, 0); ctx.quadraticCurveTo(L * 0.3, -W * 0.7, -L * 0.1, -W * 0.95); ctx.moveTo(L * 0.5, 0); ctx.quadraticCurveTo(L * 0.3, W * 0.7, -L * 0.1, W * 0.95); ctx.stroke();
   ctx.restore();
-  // тень корпуса и парусов на воде — по солнцу
-  ctx.save(); ctx.rotate(sh.h); ctx.globalAlpha = 0.2; ctx.fillStyle = "rgb(10,24,40)";
-  ctx.save(); ctx.rotate(-sh.h); ctx.translate(-SUN_X * L * 0.09, SUN_Y * L * 0.09); ctx.rotate(sh.h); ctx.fill(hullPath(L * 1.02, W * 1.15)); ctx.restore();
-  ctx.restore();
+  // тень корпуса и парусов на воде — от светила: днём от солнца в зените, утром и вечером длинная от низкого солнца
+  // (утром солнце справа — тень влево, вечером слева — тень вправо), ночью слабая от луны (решение владельца 03.10).
+  const lt = LIGHT, lx = lt.sun > 0.01 ? -lt.sunX : -SUN_X, ly = lt.sun > 0.01 ? -lt.sunY : SUN_Y;
+  ctx.save(); ctx.globalAlpha = 0.2 * lt.shadow; ctx.fillStyle = "rgb(10,24,40)";
+  ctx.translate(lx * L * 0.09 * lt.shadowLen, ly * L * 0.09 * lt.shadowLen); ctx.rotate(sh.h); ctx.fill(hullPath(L * 1.02, W * 1.15)); ctx.restore();
   // сам корабль: по курсу, пузо парусов на подветренный борт, лёгкая качка
   ctx.rotate(sh.h + rock); ctx.scale(1, mirror);
   ctx.drawImage(spr.c, -spr.ox, -spr.oy, spr.w, spr.h);
+  // фонари: на носу, на корме и на мачтах — тёплые огоньки с дрожащим ореолом; по вечерам тусклее, ночью в полную
+  if (lt.lamp > 0.01) {
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const spots = [[L * 0.42, 0], [-L * 0.44, 0], ...sp.masts.map((m) => [m * L, 0])];
+    for (let i = 0; i < spots.length; i++) {
+      const [x, y] = spots[i]!, fl = 0.8 + 0.2 * noise1(T * 7.1, sh.seed + i * 2.3), R = L * (i < 2 ? 0.3 : 0.2);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+      g.addColorStop(0, `rgba(255,190,100,${(0.5 * lt.lamp * fl).toFixed(3)})`); g.addColorStop(1, "rgba(255,150,60,0)");
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fill();
+      ctx.fillStyle = `rgba(255,240,190,${(0.95 * lt.lamp).toFixed(3)})`; ctx.beginPath(); ctx.arc(x, y, Math.max(px * 1.2, L * 0.022), 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
   ctx.restore();
   void lod;
 }
@@ -1302,10 +1349,13 @@ export function renderWorldSnapshot(ctx: CanvasRenderingContext2D, hexes: MapHex
 
 // ───────────────────────────── Слой ─────────────────────────────
 const NO_ISLETS: Islet[] = [];
-export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now }: { vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
+const NO_FIRES: FireSite[] = [];
+export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES }: { vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const dailyRef = useRef(daily); dailyRef.current = daily;
   const clockRef = useRef(clock); clockRef.current = clock;
+  const lightRef = useRef(light); lightRef.current = light;
+  const firesRef = useRef(fires); firesRef.current = fires;
   // Ключ профиля — весь состав гексов: у разных карт одинаковое число гексов и часто совпадает первый, и при переходе
   // между партиями внутри приложения живность продолжала обходить берег прежней карты, то есть плыла по суше новой (01.10).
   const key = hexes.map((h) => `${h.q},${h.r},${h.island ?? ""}`).join(";");
@@ -1360,9 +1410,11 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
       // Видимая область с запасом в три гекса: звери чуть за краем ещё видны хвостом или следом.
       vis.x0 = -tx / k - size * 3; vis.y0 = -ty / k - size * 3; vis.x1 = (W / dpr - tx) / k + size * 3; vis.y1 = (H / dpr - ty) / k + size * 3;
       const a = prev ? Math.min(1, cur.w.T / FADE) : 1;
+      LIGHT = lightRef.current;
       if (prev) drawWorld(ctx, prev.w, k, vis, 1 - a);
       drawWorld(ctx, cur.w, k, vis, a);
       ctx.globalAlpha = 1;
+      drawFires(ctx, firesRef.current, cur.w.T, 1 / k, vis, LIGHT.fire);
     };
     // Догон (открыли карту, вернулись во вкладку): кусками по 30 мс через setTimeout, не завися от частоты кадров;
     // до конца догона слой пуст — звери «всплывают», когда мир дошёл до текущей секунды.

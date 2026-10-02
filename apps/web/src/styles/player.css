@@ -28,6 +28,11 @@
 .hud-btn .count-chip { position: absolute; top: -6px; right: -6px; }
 .hud-team { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--touch); min-width: 0; padding: 0 var(--sp-3) 0 var(--sp-1); border-radius: var(--r-full); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--border); color: var(--text); box-shadow: var(--shadow-1); font-weight: 600; font-size: var(--fs-sm); }
 .hud-team:hover { background: var(--surface); }
+/* Подсказка времени суток у названия команды: ночь и утро (решение владельца 03.10). */
+.hud-tod { display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 10px; border-radius: var(--r-full); background: rgba(22, 18, 30, .72); color: #F3EAD3; font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; backdrop-filter: blur(6px); }
+.hud-tod .i { width: 15px; height: 15px; }
+.hud-tod.morning { background: rgba(120, 86, 30, .78); color: #FFF4D6; }
+.note.night-note { background: rgba(24, 28, 52, .9); color: #DCE3F5; }
 .hud-team .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (min-width: 1024px) { .hud-team { cursor: default; } }
 .map-area .map-controls { position: absolute; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; flex-direction: column; gap: var(--sp-2); }

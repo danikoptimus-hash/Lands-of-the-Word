@@ -14,7 +14,8 @@ import { useUi } from "../lib/ui";
 import { t, getLocale } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
-import { FaunaLayer } from "./Fauna";
+import { FaunaLayer, type FireSite } from "./Fauna";
+import { css, useDaytime } from "../lib/daytime";
 import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
@@ -33,7 +34,7 @@ type TeamLite = { id: string; name: string; color: string };
  * Карта администратора: вся карта без тумана, города на перекрёстках, пройденные стороны цветами команд (половинками, если прошли двое).
  * Панель перекрёстка — Sheet поверх карты; тестовые действия свёрнуты внутри неё.
  */
-export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false }: { /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone }: { /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
   const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -73,6 +74,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const islets = useIslets(hexes, size, bounds);
   const bed = useSeabed(hexes, islets, size, bounds);
   const [liveWater, setLiveWater] = useState(true);
+  const dt = useDaytime(timeZone);
+  const imgPhase = dt.t >= 0.5 ? dt.to : dt.from;
+  const fires = useMemo<FireSite[]>(() => nodes.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [nodes, size]);
   const edgeSet = useMemo(() => new Set(edges.map((e) => [e.aKey, e.bKey].sort().join("|"))), [edges]);
   const islandCenters = useMemo(() => islandGeometry(hexes, size), [hexes, size]);
   // «Глазами команды»: карта, какой её видит выбранная команда; обновляется вместе с остальным по событиям игры.
@@ -115,19 +119,19 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             {nodes.map((n) => {
               const p = positions.get(n.key)!;
               const CITY = size * 0.77, START = size * 0.9; // решение владельца 16.09: знаки городов и стартов в полтора раза меньше прежних (1,15 и 1,35)
-              if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+              if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0, imgPhase)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
               if (n.kind === "CITY") {
                 const owner = ownerOf.get(n.key);
                 // Картинка города кликабельна сама (как у команды); владелец — обводка по контуру картинки цветом команды.
                 return (
                   <g key={"c" + n.key} className="m-city" onClick={() => { if (!vp.wasDrag()) setSelected(n); }}>
-                    <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : undefined} />
+                    <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : undefined} />
                   </g>
                 );
               }
               return null;
             })}
-  </>), [nodes, edges, positions, ownerOf, traversedBy, progress, edgeSet, battleAt, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [nodes, edges, positions, ownerOf, traversedBy, progress, edgeSet, battleAt, size, imgPhase]); // eslint-disable-line react-hooks/exhaustive-deps
   const screenBody = useMemo(() => (<>
               {showIslands && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
                 return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}><IslandLabel id={"isl-adm-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
@@ -210,21 +214,21 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             {teamView?.map && teamTaskId && wrapEl && (() => { const task = teamView.map!.tasks.find((tk) => tk.id === teamTaskId); return task ? <TeamTaskSheet task={task} members={teamView.map!.members ?? []} container={wrapEl} onClose={() => setTeamTaskId(null)} onReview={onReview} /> : null; })()}
           </div>
         ) : (<>
-        <div ref={vp.ref} {...vp.handlers} className="mapwrap">
-          <SeaLayer vp={vp} bed={bed} />
-          <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
-          <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} />
-          {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} />}
+        <div ref={vp.ref} {...vp.handlers} className="mapwrap" style={{ background: css(dt.light.bg) }}>
+          <SeaLayer vp={vp} bed={bed} light={dt.light} />
+          <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
+          <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} daytime={dt} />
+          {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
           <WorldSvg vp={vp} bounds={bounds}>
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
-            <CoastOver d={coast} size={size} />
+            <CoastOver d={coast} size={size} light={dt.light} />
             {worldBody}
             <g className="screen-items">
               {screenBody}
             </g>
           </WorldSvg>
-          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} />
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} />
         </div>
         <div className="map-controls">
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Viewport } from "./MapLayers";
 import { SEA_DEEP, SEA_MID, SEA_SHALLOW, type Seabed } from "./Seabed";
 import { perfMark } from "../lib/perfHud";
+import { DAY_LIGHT, type Light } from "../lib/daytime";
 
 /**
  * Море на WebGL: цвет каждого пикселя считается шейдером прямо в координатах карты, без плиток и узоров —
@@ -32,6 +33,8 @@ const FRAG = `
 precision highp float;
 uniform vec2 uRes; uniform float uT; uniform float uD; uniform float uK; uniform vec2 uTxy; uniform float uDpr;
 uniform sampler2D uBed; uniform vec4 uBedRect; uniform vec3 uShallow, uMid, uDeep;
+// Время суток (решение владельца 03.10): цвет бликов, светило (направление на экране и сила дорожки), его цвет, звёзды в воде.
+uniform vec3 uGlint; uniform vec3 uSun; uniform vec3 uSunColor; uniform float uStars;
 ${NOISE_GLSL}
 void main(){
   vec2 fc = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y) / uDpr;
@@ -61,9 +64,28 @@ void main(){
   float dz = clamp(depth + depth * (rel * 0.5 - ridge * 0.35), 0.0, 1.0);
   vec3 col = dz < 0.5 ? mix(uShallow, uMid, dz * 2.0) : mix(uMid, uDeep, (dz - 0.5) * 2.0);
   col *= 0.94 + 0.14 * swell;
-  // Блики каустики ярче на мели, в глубине почти гаснут.
+  // Светило: вода светлеет к его стороне экрана, по воде ложится дорожка (узкая у светила, шире к зрителю),
+  // в ней искрят гребни каустики цветом заката, зари или луны.
+  vec2 sc = (fc / (uRes / uDpr)) * 2.0 - 1.0;
+  float toward = dot(sc, uSun.xy);
+  float glow = smoothstep(-0.6, 1.2, toward) * uSun.z;
+  float across = abs(sc.x * uSun.y - sc.y * uSun.x);
+  float path = (1.0 - smoothstep(0.0, 0.35 + 0.55 * (1.0 - toward), across)) * smoothstep(-0.3, 1.0, toward) * uSun.z;
+  col = mix(col, uSunColor, glow * 0.28 + path * 0.20);
+  // Блики каустики ярче на мели, в глубине почти гаснут; в дорожке светила — цветом светила.
   float light = lod * cau * (0.25 + 0.75 * m1) * 0.36 * (0.45 + 0.55 * (1.0 - dz));
-  col += vec3(0.82, 0.94, 0.96) * light;
+  col += uGlint * light;
+  col += uSunColor * cau * lod * (0.42 * path + 0.14 * glow);
+  // Ночь: в воде дрожат отражения звёзд — редкие точки по клеткам, каждая мерцает со своей фазой и чуть плывёт по ветру.
+  if (uStars > 0.001) {
+    vec2 sw = wp - wind * uD * 0.6;
+    vec2 cell = floor(sw / 11.0); vec2 o = hash2(cell); vec2 pos = (cell + o) * 11.0;
+    float d = length(sw - pos);
+    float keep = step(0.74, hash2(cell + 31.0).x);
+    float tw = 0.5 + 0.5 * sin(uT * 1.7 + o.y * 50.0);
+    float star = (smoothstep(1.1, 0.0, d) + 0.18 * smoothstep(3.0, 0.0, d)) * keep * tw;
+    col += vec3(0.85, 0.90, 1.0) * star * uStars * (0.45 + 0.55 * lod);
+  }
   // Ветровые волны: пологие гребни бегут по ветру двумя чуть разными фронтами, фаза сломана шумом, а видны
   // они лишь пятнами (маска) — никакой правильной полосатости, только живое дыхание воды. Гаснут при отдалении.
   float ph = fbm(wp * 0.03 + vec2(4.2, 8.8)) * 9.0;
@@ -81,9 +103,10 @@ export function compile(gl: WebGLRenderingContext, type: number, src: string): W
 }
 
 /** Возвращает false, если WebGL недоступен: тогда вызывающий рисует запасной вариант. */
-export function SeaGL({ vp, bed, onUnsupported }: { vp: Viewport; bed: Seabed | null; onUnsupported: () => void }) {
+export function SeaGL({ vp, bed, light = DAY_LIGHT, onUnsupported }: { vp: Viewport; bed: Seabed | null; light?: Light; onUnsupported: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
+  const lightRef = useRef(light); lightRef.current = light;
   const [failed, setFailed] = useState(false);
   /** Живой контекст для загрузки поля дна без пересоздания (пересоздание теряло контекст и роняло море на запасной canvas). */
   const glRef = useRef<{ gl: WebGLRenderingContext; tex: WebGLTexture; uBedRect: WebGLUniformLocation | null; touch: () => void } | null>(null);
@@ -110,7 +133,9 @@ export function SeaGL({ vp, bed, onUnsupported }: { vp: Viewport; bed: Seabed | 
     gl.uniform1i(gl.getUniformLocation(prog, "uBed"), 0);
     const uBedRect = gl.getUniformLocation(prog, "uBedRect");
     gl.uniform4f(uBedRect, 0, 0, 1, 1);
-    gl.uniform3fv(gl.getUniformLocation(prog, "uShallow"), SEA_SHALLOW); gl.uniform3fv(gl.getUniformLocation(prog, "uMid"), SEA_MID); gl.uniform3fv(gl.getUniformLocation(prog, "uDeep"), SEA_DEEP);
+    const uShallow = gl.getUniformLocation(prog, "uShallow"), uMid = gl.getUniformLocation(prog, "uMid"), uDeep = gl.getUniformLocation(prog, "uDeep");
+    const uGlint = gl.getUniformLocation(prog, "uGlint"), uSun = gl.getUniformLocation(prog, "uSun"), uSunColor = gl.getUniformLocation(prog, "uSunColor"), uStars = gl.getUniformLocation(prog, "uStars");
+    gl.uniform3fv(uShallow, SEA_SHALLOW); gl.uniform3fv(uMid, SEA_MID); gl.uniform3fv(uDeep, SEA_DEEP);
     const uRes = gl.getUniformLocation(prog, "uRes"), uT = gl.getUniformLocation(prog, "uT"), uD = gl.getUniformLocation(prog, "uD"), uK = gl.getUniformLocation(prog, "uK"), uTxy = gl.getUniformLocation(prog, "uTxy"), uDpr = gl.getUniformLocation(prog, "uDpr");
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     // Разрешение ниже экрана: воде хватает, а шейдер считается на каждый пиксель — на большом экране это главная нагрузка.
@@ -123,6 +148,9 @@ export function SeaGL({ vp, bed, onUnsupported }: { vp: Viewport; bed: Seabed | 
       // uT — фаза дрожания и волн (все частоты кратны 0.05, период 40π с: заворачивается без скачка, sin получает малые
       // числа); uD — время дрейфа по ветру, не заворачивается (координаты решётки заворачивает сам хэш).
       gl.uniform2f(uRes, W, H); gl.uniform1f(uT, still ? 0 : (now / 1000) % (40 * Math.PI)); gl.uniform1f(uD, still ? 0 : now / 1000); gl.uniform1f(uK, k); gl.uniform2f(uTxy, tx, ty); gl.uniform1f(uDpr, dpr);
+      const lt = lightRef.current;
+      gl.uniform3fv(uShallow, lt.shallow); gl.uniform3fv(uMid, lt.mid); gl.uniform3fv(uDeep, lt.deep);
+      gl.uniform3fv(uGlint, lt.glint); gl.uniform3f(uSun, lt.sunX, lt.sunY, lt.sun); gl.uniform3fv(uSunColor, lt.sunColor); gl.uniform1f(uStars, lt.stars);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
     const loop = (now: number) => {
@@ -140,6 +168,8 @@ export function SeaGL({ vp, bed, onUnsupported }: { vp: Viewport; bed: Seabed | 
     setBedReady((n) => n + 1);
     return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); canvas.removeEventListener("webglcontextlost", onLost); glRef.current = null; gl.getExtension("WEBGL_lose_context")?.loseContext(); };
   }, [vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Смена освещения (время суток) — перерисовать кадр, даже если вид не менялся.
+  useEffect(() => { glRef.current?.touch(); }, [light]);
   // Поле дна загружается в живой контекст при появлении или смене (перезагрузка карты по событиям игры).
   const [bedReady, setBedReady] = useState(0);
   useEffect(() => {

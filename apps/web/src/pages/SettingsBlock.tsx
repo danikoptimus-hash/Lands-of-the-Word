@@ -6,7 +6,7 @@ import { Icon } from "../components/Icon";
 import { Help } from "../components/Help";
 import { Stepper } from "../components/Stepper";
 
-export interface RulesDto { attackSubmitFrom: number; attackSubmitTo: number; timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
+export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string; rules?: RulesDto } }
 /** Правила, зашитые глобально и убранные из настроек (решение владельца 03.10): минимальная ставка, штраф за сгоревший вызов, закрепление города, усталость, паузы после ошибок. Сервер хранит их значения по умолчанию. */
 type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "fatigueAfterDays" | "fatigueStepDays" | "fatigueStep" | "pauseSteps";
@@ -14,8 +14,6 @@ type NumKey = Exclude<keyof RulesDto, FixedKey | "adminDigest" | "timeZone">;
 /** Продвинутые настройки: правила, которые раньше были зашиты в код (решение владельца 18.09). Подписи короткие, единицы — суффиксом; поля сгруппированы. */
 const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: number; step?: number }> = {
   attackDays: { label: () => t("Срок вызова · дней"), min: 1, max: 60 },
-  attackSubmitFrom: { label: () => t("Отправка вызова: с · час"), min: 0, max: 24 },
-  attackSubmitTo: { label: () => t("Отправка вызова: до · час"), min: 0, max: 24 },
   minAnswerSeconds: { label: () => t("Минимум на ответ · секунд"), min: 10, max: 86400 },
   deedReturnDays: { label: () => t("Возврат взятого дела · дней"), min: 1, max: 365 },
   maxDeedsPerDay: { label: () => t("Дел в сутки на участника · 0 = без ограничения"), min: 0, max: 50 },
@@ -29,7 +27,7 @@ const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: numbe
 };
 const NUM_KEYS = Object.keys(RULE_FIELDS) as NumKey[];
 const RULE_GROUPS: Array<{ title: () => string; keys: Array<Exclude<keyof RulesDto, FixedKey>> }> = [
-  { title: () => t("Испытания"), keys: ["attackDays", "attackSubmitFrom", "attackSubmitTo", "timeZone", "minAnswerSeconds"] },
+  { title: () => t("Испытания"), keys: ["attackDays", "timeZone", "minAnswerSeconds"] },
   { title: () => t("Дела и роли"), keys: ["deedReturnDays", "maxDeedsPerDay", "roleChangeDays", "roleCooldownDays"] },
   { title: () => t("Проходы"), keys: ["passageDays"] },
   { title: () => t("Осада"), keys: ["siegeDays", "siegeDeedPoints"] },
@@ -38,9 +36,7 @@ const RULE_GROUPS: Array<{ title: () => string; keys: Array<Exclude<keyof RulesD
 /** Пояснение к каждому правилу: зачем, когда применяется, на что влияет (решение владельца 02.10). */
 const RULE_HELP: Record<Exclude<keyof RulesDto, FixedKey>, () => string> = {
   attackDays: () => t("Сколько дней с начала вызова у претендентов, чтобы отправить записи на проверку. Время, пока записи лежат у администратора, не считается. Не успели — вызов сгорает и ставится штраф."),
-  attackSubmitFrom: () => t("Час местного времени, с которого капитан претендентов может нажать «Отправить вызов на проверку». Раньше кнопка погашена, но стихи отмечать можно. На ответ хранителей не действует."),
-  attackSubmitTo: () => t("Час местного времени, до которого можно отправить вызов на проверку. Если «с» и «до» равны, ограничения нет. Срок вызова окно не продлевает."),
-  timeZone: () => t("Часовой пояс, по которому считается окно отправки вызова. Записывается именем из базы часовых поясов, например Asia/Tashkent или Europe/Moscow."),
+  timeZone: () => t("Часовой пояс, по которому считаются времена суток игры: утро 7:00–9:00, день 9:00–18:00, вечер 18:00–22:00, ночь 22:00–7:00. Ночью города спят и ничего делать нельзя, только смотреть карту; вызов на город отправляют на проверку только утром. Записывается именем из базы часовых поясов, например Asia/Tashkent или Europe/Moscow. Можно менять в идущей игре."),
   minAnswerSeconds: () => t("Техническая защита хранителей. Их срок на ответ равен времени атаки претендентов, но не меньше этого числа секунд, даже если претенденты справились мгновенно."),
   deedReturnDays: () => t("Взятое и не сданное дело через столько дней само возвращается в общий список команды, а взявшему приходит уведомление."),
   maxDeedsPerDay: () => t("Сколько дел один участник может взять за сутки. Считаются дела, взятые за последние 24 часа с момента взятия. Сверх лимита взять дело нельзя, лист дела об этом скажет. 0 — без ограничения. Можно менять в идущей игре."),

@@ -2,8 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { generateIslets, type Bounds, type Islet } from "@lotw/domain";
 import { HEX_SIZE } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
-import { IMG, SHALLOW_RINGS, type Viewport } from "./MapLayers";
+import { IMG, SHALLOW_RINGS, lightKey, shallowRings, type Viewport } from "./MapLayers";
 import { perfMark } from "../lib/perfHud";
+import { css, DAY_LIGHT, type Daytime } from "../lib/daytime";
+import type { DayPhase } from "@lotw/domain";
 
 /** Раскладка островов по гексам поля (детерминирована, считается один раз на карту). */
 export function useIslets(hexes: MapHexDto[], size: number, bounds: Bounds | null): Islet[] {
@@ -47,9 +49,11 @@ const RING_STEP = (SHALLOW_RINGS[0]!.width - SHALLOW_RINGS[SHALLOW_RINGS.length 
  * здесь же canvas всегда размером с экран, и стоимость не зависит от масштаба. Без поддержки фильтров canvas
  * (старый Safari) — те же кольца без размытия.
  */
-export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: Viewport; islets: Islet[]; size?: number; /** Линия берега поля (path SVG в координатах карты). */ coast?: string }) {
+export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "", daytime }: { vp: Viewport; islets: Islet[]; size?: number; /** Линия берега поля (path SVG в координатах карты). */ coast?: string; /** Время суток: песок и отмель по палитре, острова — картинки двух фаз перехода. */ daytime?: Daytime }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
+  const from = daytime?.from ?? "day", to = daytime?.to ?? "day", blend = daytime?.t ?? 0, light = daytime?.light ?? DAY_LIGHT;
+  const lkey = daytime ? lightKey(daytime) : "day";
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
     if (!canvas || !host || (!islets.length && !coast)) return;
@@ -64,10 +68,11 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: V
     const cs = Math.min(window.devicePixelRatio || 1, 1) * 0.5;
     let W = 0, H = 0, dirty = true, raf = 0;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } dirty = true; };
-    const images = new Map<number, HTMLImageElement>();
-    for (const n of new Set(islets.map((i) => i.img))) {
-      const im = new Image(); im.decoding = "async"; im.onload = () => { dirty = true; }; im.src = IMG.islet(n); images.set(n, im);
-    }
+    const images = new Map<string, HTMLImageElement>();
+    const load = (n: number, phase: DayPhase) => { const im = new Image(); im.decoding = "async"; im.onload = () => { dirty = true; }; im.src = IMG.islet(n, phase); images.set(`${n}:${phase}`, im); };
+    for (const n of new Set(islets.map((i) => i.img))) { load(n, from); if (to !== from) load(n, to); }
+    const ready = (im: HTMLImageElement | undefined): im is HTMLImageElement => Boolean(im && im.complete && im.naturalWidth);
+    const rings = daytime ? shallowRings(light) : SHALLOW_RINGS, sand = css(light.sand);
     const coastPath = coast ? new Path2D(coast) : null;
     const paths = islets.map((isl) => ({ isl, path: isletPath(isl), sc: Math.max(0.25, (isl.r / size) * 0.32) }));
     // Кэш берега: размытый растр считается один раз для вида (масштаб, сдвиг) с запасом PAD вокруг экрана; при
@@ -90,17 +95,17 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: V
       octx.setTransform(k * cs, 0, 0, k * cs, tx * cs + pad + M, ty * cs + pad + M);
       octx.lineJoin = "round"; octx.lineCap = "round";
       const x0 = (-pad / cs - tx) / k, y0 = (-pad / cs - ty) / k, x1 = ((CWs + pad) / cs - tx) / k, y1 = ((CHs + pad) / cs - ty) / k;
-      const rings = (c: CanvasRenderingContext2D, path: Path2D, sc: number) => {
-        for (const r of SHALLOW_RINGS) { c.globalAlpha = r.alpha; c.strokeStyle = r.color; c.lineWidth = r.width * size * sc; c.stroke(path); }
+      const drawRings = (c: CanvasRenderingContext2D, path: Path2D, sc: number) => {
+        for (const r of rings) { c.globalAlpha = r.alpha; c.strokeStyle = r.color; c.lineWidth = r.width * size * sc; c.stroke(path); }
         c.globalAlpha = 1;
       };
       if (coastPath) {
-        rings(octx, coastPath, 1);
-        octx.strokeStyle = SAND;
+        drawRings(octx, coastPath, 1);
+        octx.strokeStyle = sand;
         for (const f of SAND_FADE) { octx.globalAlpha = f.alpha; octx.lineWidth = f.width * size; octx.stroke(coastPath); }
         octx.globalAlpha = 1; octx.lineWidth = 0.95 * size; octx.stroke(coastPath);
       }
-      for (const { isl, path, sc } of paths) if (!(isl.x + isl.cover < x0 || isl.x - isl.cover > x1 || isl.y + isl.cover < y0 || isl.y - isl.cover > y1)) rings(octx, path, sc);
+      for (const { isl, path, sc } of paths) if (!(isl.x + isl.cover < x0 || isl.x - isl.cover > x1 || isl.y + isl.cover < y0 || isl.y - isl.cover > y1)) drawRings(octx, path, sc);
       const CW = CWs + 2 * pad, CH = CHs + 2 * pad;
       if (cache.canvas.width !== CW || cache.canvas.height !== CH) { cache.canvas.width = CW; cache.canvas.height = CH; }
       cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, CW, CH);
@@ -128,8 +133,10 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: V
       const x0 = -tx / k, y0 = -ty / k, x1 = (W / dpr - tx) / k, y1 = (H / dpr - ty) / k;
       for (const { isl } of paths) {
         if (isl.x + isl.cover < x0 || isl.x - isl.cover > x1 || isl.y + isl.cover < y0 || isl.y - isl.cover > y1) continue;
-        const im = images.get(isl.img);
-        if (im && im.complete && im.naturalWidth) ctx.drawImage(im, isl.x - isl.r, isl.y - isl.r, isl.r * 2, isl.r * 2);
+        // Переход времени суток: картинка первой фазы, поверх — второй с прозрачностью доли.
+        const a = images.get(`${isl.img}:${from}`), b = to !== from ? images.get(`${isl.img}:${to}`) : undefined;
+        if (ready(a) && (blend < 1 || !ready(b))) ctx.drawImage(a, isl.x - isl.r, isl.y - isl.r, isl.r * 2, isl.r * 2);
+        if (ready(b) && blend > 0) { ctx.globalAlpha = ready(a) ? blend : 1; ctx.drawImage(b, isl.x - isl.r, isl.y - isl.r, isl.r * 2, isl.r * 2); ctx.globalAlpha = 1; }
       }
     };
     const loop = () => { raf = requestAnimationFrame(loop); if (!dirty) return; dirty = false; draw(); };
@@ -142,6 +149,6 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "" }: { vp: V
     const ro = new ResizeObserver(() => { resize(); cache.valid = false; }); ro.observe(host);
     resize(); raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); window.clearTimeout(settle); };
-  }, [islets, size, coast, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [islets, size, coast, lkey, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={ref} className="fx-layer islets" aria-hidden="true" />;
 }

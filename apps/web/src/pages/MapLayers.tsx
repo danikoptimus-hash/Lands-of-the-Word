@@ -8,14 +8,28 @@ import { ISLET_IMAGES } from "@lotw/domain";
 import { SeaGL } from "./SeaGL";
 import { perfMark } from "../lib/perfHud";
 import { seabedColor, type Seabed } from "./Seabed";
+import type { DayPhase } from "@lotw/domain";
+import { css, DAY_LIGHT, type Daytime, type Light } from "../lib/daytime";
 
+/** Картинки по времени суток (решение владельца 03.10): дневные — как были, утро/вечер/ночь — те же, окрашенные (`scripts/tod-textures.py`). */
+const tod = (phase?: DayPhase) => (phase && phase !== "day" ? `-${phase}` : "");
 export const IMG = {
-  terrain: (t: string) => `/img/terrain/${t}.webp`,
+  terrain: (t: string, phase?: DayPhase) => `/img/terrain/${t}${tod(phase)}.webp`,
   /** Остров: в адресе хеш содержимого файла, чтобы после замены картинки браузер и PWA не показывали старую копию из кеша. */
-  islet: (n: number) => { const v = ISLET_IMAGES.find((s) => s.img === n)?.ver; return `/img/islet/islet-${n}.webp${v ? `?v=${v}` : ""}`; },
-  city: (type: string | null | undefined) => `/img/city/${type && type !== "" ? type : "village"}.webp`,
-  start: (i: number) => `/img/start/${["babylon", "egypt", "wilderness", "assyria", "zin", "shipwreck"][i % 6]}.webp`,
+  islet: (n: number, phase?: DayPhase) => { const v = ISLET_IMAGES.find((s) => s.img === n)?.ver; return `/img/islet/islet-${n}${tod(phase)}.webp${v ? `?v=${v}` : ""}`; },
+  city: (type: string | null | undefined, phase?: DayPhase) => `/img/city/${type && type !== "" ? type : "village"}${tod(phase)}.webp`,
+  start: (i: number, phase?: DayPhase) => `/img/start/${["babylon", "egypt", "wilderness", "assyria", "zin", "shipwreck"][i % 6]}${tod(phase)}.webp`,
 };
+/** Ключ перехода освещения: слои с готовыми растрами перерисовываются, когда он меняется. */
+export const lightKey = (dt: Daytime) => `${dt.from}:${dt.to}:${dt.t.toFixed(2)}`;
+/** Боковой свет на сушу: линейный градиент от стороны светила к противоположной, в пикселях растра размером w×h. */
+export function sideLight(ctx: CanvasRenderingContext2D, light: Light, w: number, h: number): void {
+  if (light.side <= 0.005 && light.far <= 0.005) return;
+  const cx = w / 2, cy = h / 2, r = Math.hypot(w, h) / 2;
+  const g = ctx.createLinearGradient(cx + light.sunX * r, cy + light.sunY * r, cx - light.sunX * r, cy - light.sunY * r);
+  g.addColorStop(0, css(light.sideColor, light.side)); g.addColorStop(0.5, css(light.sideColor, 0)); g.addColorStop(0.55, css(light.farColor, 0)); g.addColorStop(1, css(light.farColor, light.far));
+  ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalCompositeOperation = "source-atop"; ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); ctx.restore();
+}
 
 export type Viewport = { view: View; viewRef: { current: View }; subscribe: (fn: (v: View) => void) => () => void };
 // subscribe и viewRef у useViewport стабильны, поэтому эффекты зависят от них, а не от объекта vp (он новый при каждой перерисовке).
@@ -34,13 +48,14 @@ const SEA_LAYERS: ReadonlyArray<{ tile: keyof SeaTiles; scale: number; angle: nu
   { tile: "causticB", scale: 1.618, angle: 37, vx: -1.3, vy: 0.9, alpha: 0.17, breathe: 0.35, phase: 2.1 },
 ];
 /** Море: WebGL-шейдер (SeaGL) без плиток; если WebGL недоступен — узоры на canvas 2D (SeaCanvas). */
-export function SeaLayer({ vp, bed = null }: { vp: Viewport; bed?: Seabed | null }) {
+export function SeaLayer({ vp, bed = null, light = DAY_LIGHT }: { vp: Viewport; bed?: Seabed | null; light?: Light }) {
   const [gl, setGl] = useState(true);
-  return gl ? <SeaGL vp={vp} bed={bed} onUnsupported={() => setGl(false)} /> : <SeaCanvas vp={vp} bed={bed} />;
+  return gl ? <SeaGL vp={vp} bed={bed} light={light} onUnsupported={() => setGl(false)} /> : <SeaCanvas vp={vp} bed={bed} light={light} />;
 }
-function SeaCanvas({ vp, bed }: { vp: Viewport; bed: Seabed | null }) {
+function SeaCanvas({ vp, bed, light }: { vp: Viewport; bed: Seabed | null; light: Light }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
+  const lightRef = useRef(light); lightRef.current = light;
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
     if (!canvas || !host) return;
@@ -55,11 +70,14 @@ function SeaCanvas({ vp, bed }: { vp: Viewport; bed: Seabed | null }) {
     const draw = (now: number) => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
       const t = still ? 0 : now / 1000;
+      const lt = lightRef.current;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = "#3A82A4"; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = css(lt.mid); ctx.fillRect(0, 0, W, H);
       ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
       const x0 = -tx / k, y0 = -ty / k, w = W / dpr / k, h = H / dpr / k;
+      // Запасной canvas без шейдера: дневная раскраска дна, поверх — цвет воды времени суток (умножением), чтобы мель оставалась светлее глубины.
       if (bed) { ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high"; ctx.drawImage(seabedColor(bed), bed.x, bed.y, bed.w, bed.h); }
+      if (lt !== DAY_LIGHT) { ctx.globalCompositeOperation = "multiply"; ctx.fillStyle = css([lt.mid[0] / 0.2, lt.mid[1] / 0.52, lt.mid[2] / 0.66].map((v) => Math.min(1, v * 0.9)) as [number, number, number]); ctx.fillRect(x0, y0, w, h); ctx.globalCompositeOperation = "source-over"; }
       SEA_LAYERS.forEach((l, i) => {
         const s = (SEA_TILE_WORLD * l.scale) / CLOUD_TILE;
         patterns[i]!.setTransform(new DOMMatrix().translate(l.vx * t, l.vy * t).rotate(l.angle).scale(s));
@@ -80,7 +98,7 @@ function SeaCanvas({ vp, bed }: { vp: Viewport; bed: Seabed | null }) {
     const ro = new ResizeObserver(resize); ro.observe(host);
     resize(); raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); };
-  }, [vp.subscribe, vp.viewRef, bed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [vp.subscribe, vp.viewRef, bed, light]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={ref} className="fx-layer sea" aria-hidden="true" />;
 }
 
@@ -147,7 +165,7 @@ export function useCoast(hexes: Array<{ q: number; r: number }>, size = HEX_SIZE
  * кольца рисует слой берега на canvas (`Islets.tsx`) и размывает на шаг между ними — сплошной градиент (решение
  * владельца 15.09: без полос). Ширина — в радиусах гекса (полная ширина штриха, по обе стороны линии берега).
  */
-export const SHALLOW_RINGS: ReadonlyArray<{ color: string; width: number; alpha: number }> = (() => {
+export function shallowRings(light: Light = DAY_LIGHT): ReadonlyArray<{ color: string; width: number; alpha: number }> {
   const N = 28, outer = 3.4, inner = 1.05;
   const out: { color: string; width: number; alpha: number }[] = [];
   let prev = 0;
@@ -155,11 +173,12 @@ export const SHALLOW_RINGS: ReadonlyArray<{ color: string; width: number; alpha:
     const u = j / N, total = 0.7 * Math.pow(u, 1.6);
     const alpha = 1 - (1 - total) / (1 - prev); prev = total;
     const t = (j - 1) / (N - 1);
-    const mix = (a: number, b: number) => Math.round(a + (b - a) * t);
-    out.push({ color: `rgb(${mix(207, 226)}, ${mix(234, 243)}, ${mix(240, 246)})`, width: outer + (inner - outer) * t, alpha });
+    const mix = (i: number) => Math.round((light.shallowFar[i]! + (light.shallowNear[i]! - light.shallowFar[i]!) * t) * 255);
+    out.push({ color: `rgb(${mix(0)}, ${mix(1)}, ${mix(2)})`, width: outer + (inner - outer) * t, alpha });
   }
   return out;
-})();
+}
+export const SHALLOW_RINGS = shallowRings();
 
 /** Центр и радиус каждого острова (по центрам его гексов): для подписей и кораблей. */
 export function islandGeometry(hexes: ReadonlyArray<MapHexDto>, size: number): Map<string, { x: number; y: number; r: number }> {
@@ -193,24 +212,29 @@ export function IslandLabel({ name, r, id }: { name: string; r: number; id: stri
 }
 
 /** Берег над гексами: песок, плавно растворяющийся в местность (двенадцать узких колец), и тёмная линия влажного песка у воды. */
-export function CoastOver({ d, size = HEX_SIZE, scale = 1 }: { d: string; size?: number; scale?: number }) {
+export function CoastOver({ d, size = HEX_SIZE, scale = 1, light = DAY_LIGHT }: { d: string; size?: number; scale?: number; light?: Light }) {
   if (!d) return null;
   const s = size * scale;
   const N = 12;
+  const sand = css(light.sand), wet = css(light.wet);
   return (
     <g className="coast" fill="none" strokeLinejoin="round" strokeLinecap="round">
-      <path d={d} stroke="#E6D3A6" strokeWidth={s * 0.5} />
-      {Array.from({ length: N }, (_, i) => { const t = (i + 1) / N; return <path key={i} d={d} stroke="#E6D3A6" strokeOpacity={0.55 * (1 - t) * (1 - t) + 0.06} strokeWidth={s * (0.5 + 0.65 * t)} />; })}
-      <g opacity={0.35}><path className="coast-wet" d={d} stroke="#B8975E" /></g>
+      <path d={d} stroke={sand} strokeWidth={s * 0.5} />
+      {Array.from({ length: N }, (_, i) => { const t = (i + 1) / N; return <path key={i} d={d} stroke={sand} strokeOpacity={0.55 * (1 - t) * (1 - t) + 0.06} strokeWidth={s * (0.5 + 0.65 * t)} />; })}
+      <g opacity={0.35}><path className="coast-wet" d={d} stroke={wet} /></g>
     </g>
   );
 }
 
 interface FogMask { canvas: HTMLCanvasElement; x: number; y: number; w: number; h: number }
-const FOG_BASE = "#C9C0B0";
-let tiles: { s: HTMLCanvasElement; a: HTMLCanvasElement; b: HTMLCanvasElement } | null = null;
-/** Три плитки: тень в «долинах» облака, светлая масса, белые верхушки. */
-const getTiles = () => (tiles ??= { s: cloudTile([176, 166, 150], 0, 0.55, 1.5), a: cloudTile([240, 236, 228], 0.2, 1, 1.35), b: cloudTile([255, 255, 255], 0, 0.8, 2.3) });
+let tiles: { key: string; s: HTMLCanvasElement; a: HTMLCanvasElement; b: HTMLCanvasElement } | null = null;
+const c255 = (c: [number, number, number]): [number, number, number] => [Math.round(c[0] * 255), Math.round(c[1] * 255), Math.round(c[2] * 255)];
+/** Три плитки: тень в «долинах» облака, светлая масса, белые верхушки; цвета — по времени суток (ночью облака тёмно-синие). */
+const getTiles = (light: Light) => {
+  const key = [light.fogShade, light.fogMass, light.fogTop].map(c255).join("|");
+  if (tiles?.key !== key) tiles = { key, s: cloudTile(c255(light.fogShade), 0, 0.55, 1.5), a: cloudTile(c255(light.fogMass), 0.2, 1, 1.35), b: cloudTile(c255(light.fogTop), 0, 0.8, 2.3) };
+  return tiles;
+};
 
 /** Маска тумана в координатах карты: гексы тумана с расширением и растушёвкой (уменьшение-увеличение вместо blur — работает везде). */
 function buildFogMask(hexes: MapHexDto[], size: number): FogMask | null {
@@ -252,12 +276,14 @@ function buildFogMask(hexes: MapHexDto[], size: number): FogMask | null {
  * ~24 раза в секунду для дрейфа и сразу при каждом движении карты; только пока вкладка видна;
  * при «уменьшить движение» — без дрейфа. Вид читается из ref, без React.
  */
-export function FogLayer({ vp, size = HEX_SIZE, fogHexes }: { vp: Viewport; size?: number; fogHexes: MapHexDto[] }) {
+export function FogLayer({ vp, size = HEX_SIZE, fogHexes, light = DAY_LIGHT }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; light?: Light }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const lightRef = useRef(light); lightRef.current = light;
   const fogKey = fogHexes.map((h) => `${h.q},${h.r}`).join(";");
   const mask = useMemo(() => (fogHexes.length ? buildFogMask(fogHexes, size) : null), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const maskRef = useRef(mask); maskRef.current = mask;
   const dirty = useRef(true); dirty.current = true;
+  useEffect(() => { dirty.current = true; }, [light]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -273,7 +299,7 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes }: { vp: Viewport; size
     const ro = new ResizeObserver(resize); ro.observe(host);
     const unsub = vp.subscribe(() => { dirty.current = true; });
     const viewRef = vp.viewRef;
-    let pats: { s: CanvasPattern; a: CanvasPattern; b: CanvasPattern } | null = null;
+    let pats: { key: string; s: CanvasPattern; a: CanvasPattern; b: CanvasPattern } | null = null;
     const draw = (t: number) => {
       const { k, tx, ty } = viewRef.current;
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
@@ -284,11 +310,12 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes }: { vp: Viewport; size
       const vx0 = -tx / k, vy0 = -ty / k, vx1 = (W / dpr - tx) / k, vy1 = (H / dpr - ty) / k;
       const bx = Math.max(m.x, vx0), by = Math.max(m.y, vy0), bw = Math.min(m.x + m.w, vx1) - bx, bh = Math.min(m.y + m.h, vy1) - by;
       if (bw <= 0 || bh <= 0) return;
-      pats ??= (() => { const tl = getTiles(); return { s: ctx.createPattern(tl.s, "repeat")!, a: ctx.createPattern(tl.a, "repeat")!, b: ctx.createPattern(tl.b, "repeat")! }; })();
+      const tl = getTiles(lightRef.current);
+      if (!pats || pats.key !== tl.key) pats = { key: tl.key, s: ctx.createPattern(tl.s, "repeat")!, a: ctx.createPattern(tl.a, "repeat")!, b: ctx.createPattern(tl.b, "repeat")! };
       // Без clip(): сглаженный край области отсечения оставлял после destination-in тонкую линию по прямоугольнику маски
       // (тот самый «квадрат вокруг карты»). Заливки и так ограничены прямоугольником, а маска обнуляет всё вне тумана.
       ctx.save();
-      ctx.fillStyle = FOG_BASE; ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = css(lightRef.current.fogBase); ctx.fillRect(bx, by, bw, bh);
       const sec = reduced ? 0 : t / 1000;
       const layer = (pat: CanvasPattern, span: number, vx: number, vy: number, alpha: number) => {
         const sc = span / CLOUD_TILE, ox = sec * vx, oy = sec * vy;
@@ -377,10 +404,12 @@ export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false, fi
  * (резко, в разрешении экрана) рисуется через SETTLE_MS после того, как вид устоялся. Только открытые гексы;
  * озёра — если их не рисует WebGL. В SVG мира у гексов остаются только границы.
  */
-export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false }: { vp: Viewport; hexes: MapHexDto[]; size?: number; skipWater?: boolean }) {
+export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, daytime }: { vp: Viewport; hexes: MapHexDto[]; size?: number; skipWater?: boolean; /** Время суток: картинки двух фаз перехода смешиваются по доле, суша подсвечивается со стороны светила. */ daytime?: Daytime }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   const key = hexes.map((h) => `${h.q},${h.r}:${h.terrain}:${h.rotation ?? 0}:${h.lit === false ? 0 : 1}`).join(";");
+  const from = daytime?.from ?? "day", to = daytime?.to ?? "day", blend = daytime?.t ?? 0, light = daytime?.light ?? DAY_LIGHT;
+  const lkey = daytime ? lightKey(daytime) : "day";
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
     if (!canvas || !host) return;
@@ -390,7 +419,9 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false }: { 
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // картинкам местности хватает; 2× на ноутбуке — 30-мегапиксельный растр
     const images = new Map<string, HTMLImageElement>();
     let dirty = true, raf = 0, settle = 0, W = 0, H = 0;
-    for (const t of new Set(tiles.map((x) => x.t))) { const im = new Image(); im.decoding = "async"; im.onload = () => { cache.valid = false; dirty = true; }; im.src = IMG.terrain(t); images.set(t, im); }
+    const load = (t: string, phase: DayPhase) => { const im = new Image(); im.decoding = "async"; im.onload = () => { cache.valid = false; dirty = true; }; im.src = IMG.terrain(t, phase); images.set(`${t}:${phase}`, im); };
+    for (const t of new Set(tiles.map((x) => x.t))) { load(t, from); if (to !== from) load(t, to); }
+    const ready = (im: HTMLImageElement | undefined): im is HTMLImageElement => Boolean(im && im.complete && im.naturalWidth);
     const hex = new Path2D();
     for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30), x = Math.cos(a) * size * 0.995, y = Math.sin(a) * size * 0.995; if (i === 0) hex.moveTo(x, y); else hex.lineTo(x, y); }
     hex.closePath();
@@ -412,10 +443,14 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false }: { 
         if (tl.c.x < x0 || tl.c.x > x1 || tl.c.y < y0 || tl.c.y > y1) continue;
         cctx.save(); cctx.translate(tl.c.x, tl.c.y); cctx.clip(hex);
         cctx.fillStyle = TERRAIN_COLOR[tl.t] ?? TERRAIN_COLOR.desert!; cctx.fillRect(-bw, -bh, 2 * bw, 2 * bh);
-        const im = images.get(tl.t);
-        if (im && im.complete && im.naturalWidth) { cctx.rotate(tl.rot); cctx.drawImage(im, -0.7 * bw, -0.7 * bh, 1.4 * bw, 1.4 * bh); }
+        // Переход между временами суток: картинка первой фазы, поверх — второй с прозрачностью доли перехода.
+        const a = images.get(`${tl.t}:${from}`), b = to !== from ? images.get(`${tl.t}:${to}`) : undefined;
+        cctx.rotate(tl.rot);
+        if (ready(a) && (blend < 1 || !ready(b))) cctx.drawImage(a, -0.7 * bw, -0.7 * bh, 1.4 * bw, 1.4 * bh);
+        if (ready(b) && blend > 0) { cctx.globalAlpha = ready(a) ? blend : 1; cctx.drawImage(b, -0.7 * bw, -0.7 * bh, 1.4 * bw, 1.4 * bh); cctx.globalAlpha = 1; }
         cctx.restore();
       }
+      sideLight(cctx, light, CW, CH);
       Object.assign(cache, { k, tx, ty, pad, valid: true });
     };
     const draw = () => {
@@ -439,7 +474,7 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false }: { 
     const ro = new ResizeObserver(resize); ro.observe(host);
     resize(); raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); window.clearTimeout(settle); };
-  }, [key, size, skipWater, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [key, size, skipWater, lkey, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={ref} className="fx-layer tiles" aria-hidden="true" />;
 }
 
@@ -473,7 +508,7 @@ export function MapSymbols() {
 /** Прогрев кеша картинок карты: вызывается после входа, чтобы карта открывалась без ожидания. */
 export function warmMapImages(): void {
   if (typeof window === "undefined") return;
-  const urls = [...TERRAINS.map(IMG.terrain), ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i)), ...ISLET_IMAGES.map((s) => IMG.islet(s.img))];
+  const urls = [...TERRAINS.map((t) => IMG.terrain(t)), ...["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"].map((c) => IMG.city(c)), ...Array.from({ length: 6 }, (_, i) => IMG.start(i)), ...ISLET_IMAGES.map((s) => IMG.islet(s.img))];
   const go = () => urls.forEach((u) => { const im = new Image(); im.decoding = "async"; im.src = u; });
   if ("requestIdleCallback" in window) (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(go); else setTimeout(go, 300);
 }

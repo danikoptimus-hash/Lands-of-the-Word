@@ -7,7 +7,8 @@ import { perfMark } from "../lib/perfHud";
 import type { EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
 import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
 import { Icon } from "../components/Icon";
-import { FaunaLayer } from "./Fauna";
+import { FaunaLayer, type FireSite } from "./Fauna";
+import { css, useDaytime } from "../lib/daytime";
 import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
@@ -46,6 +47,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   useLayoutEffect(() => { perfMark("карта команды: React+DOM", performance.now() - renderStart); });
   useEffect(() => { perfMark("карта команды: до кадра", performance.now() - renderStart); });
   const vp = useViewport(bounds, start ? { x: start.x, y: start.y, k: 2.4 } : null);
+  // Время суток (решение владельца 03.10): по поясу игры и часам сервера; картинки городов — фазы, которой больше в переходе.
+  const dt = useDaytime(map.daytime?.timeZone, map.now);
+  const imgPhase = dt.t >= 0.5 ? dt.to : dt.from;
+  const fires = useMemo<FireSite[]>(() => map.revealed.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [map.revealed, size]);
   const revealed = useMemo(() => new Set(map.revealed.map((n) => n.key)), [map.revealed]);
   const cityByKey = useMemo(() => new Map((map.cities ?? []).map((c) => [c.nodeKey, c])), [map.cities]);
   const taskByEdge = useMemo(() => {
@@ -155,18 +160,18 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         })}
         {map.revealed.map((n) => {
           const p = positions.get(n.key)!;
-          if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+          if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex, imgPhase)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
           if (n.kind === "CITY") {
             const c = cityByKey.get(n.key);
             return (
               <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
-                <image className="city-hit" href={IMG.city(n.cityType)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : undefined} />
+                <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : undefined} />
               </g>
             );
           }
           return null;
         })}
-  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase]); // eslint-disable-line react-hooks/exhaustive-deps
   const screenBody = useMemo(() => (<>
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;
@@ -308,20 +313,20 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   </>), [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   return (
-    <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "")} onClick={marking ? placeMark : undefined}>
-      <SeaLayer vp={vp} bed={bed} />
-      <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} />
-      <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} />
-      {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} />}
+    <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "")} style={{ background: css(dt.light.bg) }} onClick={marking ? placeMark : undefined}>
+      <SeaLayer vp={vp} bed={bed} light={dt.light} />
+      <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
+      <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} daytime={dt} />
+      {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
         <OutlineDefs colors={owners} />
         <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
-        <CoastOver d={coast} size={size} />
+        <CoastOver d={coast} size={size} light={dt.light} />
         {worldBody}
       </WorldSvg>
-      {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} />}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} />
+      {fogHexes.length > 0 && <FogLayer vp={vp} size={size} fogHexes={fogHexes} light={dt.light} />}
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
           {screenBody}

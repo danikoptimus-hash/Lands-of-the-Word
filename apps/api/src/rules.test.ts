@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { attackWindow } from "./services/rules.js";
+import { dayLightAt, dayPhase, phaseAt } from "@lotw/domain";
+import { zoneForLocalHour } from "./testAuth.js";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
-import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
+import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
 import { orderQueue, sumVerses } from "./services/battles.js";
 import { pauseAfter, rulesOf } from "./services/rules.js";
 
@@ -41,8 +42,6 @@ beforeAll(async () => {
   p3Cookie = await register(p3Nick);
   const g = await post("/api/games", adminCookie, { name: "Правила 18.09", teamCount: 2 });
   gameId = g.json().game.id;
-  // Окно отправки вызова по местному времени (решение владельца 02.10) в тестах выключено: равные часы «с» и «до».
-  await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { attackSubmitFrom: 0, attackSubmitTo: 0 } } } });
   await post(`/api/games/${gameId}/generate`, adminCookie);
   team1 = await joinTeam("Моряки", p1Cookie);
   team2 = await joinTeam("Берег", p2Cookie);
@@ -51,6 +50,8 @@ beforeAll(async () => {
   await post(`/api/invites/${inv.json().invite.token}/accept`, p3Cookie);
   await post(`/api/games/${gameId}/deeds/import-default`, adminCookie);
   await readyForStart(app, gameId, adminCookie);
+  // Вызов отправляют на проверку только утром (решение владельца 03.10): в тестах у игры пояс, где сейчас утро.
+  await setGamePhase(app, gameId, adminCookie, "morning");
   await post(`/api/games/${gameId}/start`, adminCookie);
   rutKey = (await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "rut" } })).key;
   genKey = (await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "gen" } })).key;
@@ -420,18 +421,49 @@ describe("осада делами и дела этапа 2", () => {
   });
 });
 
-describe("окно отправки вызова по местному времени (решение владельца 02.10)", () => {
-  const r = { attackSubmitFrom: 8, attackSubmitTo: 14, timeZone: "Asia/Tashkent" };
-  it("открыто с 8:00 до 14:00 по поясу игры, закрыто ночью; равные часы — без ограничения", () => {
-    // 05:30 UTC = 10:30 в Ташкенте (UTC+5) — открыто; 10:00 UTC = 15:00 — закрыто; 02:00 UTC = 07:00 — закрыто; 03:00 UTC = 08:00 — открыто.
-    expect(attackWindow(r, new Date("2026-10-03T05:30:00Z")).open).toBe(true);
-    expect(attackWindow(r, new Date("2026-10-03T10:00:00Z")).open).toBe(false);
-    expect(attackWindow(r, new Date("2026-10-03T02:00:00Z")).open).toBe(false);
-    expect(attackWindow(r, new Date("2026-10-03T03:00:00Z")).open).toBe(true);
-    expect(attackWindow({ ...r, attackSubmitTo: 8 }, new Date("2026-10-03T20:00:00Z")).always).toBe(true);
-    // Окно через полночь: с 22 до 6.
-    expect(attackWindow({ ...r, attackSubmitFrom: 22, attackSubmitTo: 6 }, new Date("2026-10-03T20:00:00Z")).open).toBe(true);
-    // Неизвестный пояс — считаем по UTC, без падения.
-    expect(attackWindow({ ...r, timeZone: "Nowhere/Nope" }, new Date("2026-10-03T09:00:00Z")).open).toBe(true);
+describe("времена суток (решение владельца 03.10)", () => {
+  it("утро 7–9, день 9–18, вечер 18–22, ночь 22–7", () => {
+    expect(phaseAt(6 * 60 + 59)).toBe("night");
+    expect(phaseAt(7 * 60)).toBe("morning");
+    expect(phaseAt(8 * 60 + 59)).toBe("morning");
+    expect(phaseAt(9 * 60)).toBe("day");
+    expect(phaseAt(17 * 60 + 59)).toBe("day");
+    expect(phaseAt(18 * 60)).toBe("evening");
+    expect(phaseAt(21 * 60 + 59)).toBe("evening");
+    expect(phaseAt(22 * 60)).toBe("night");
+  });
+  it("плавный переход ±15 минут вокруг границы, правила переключаются ровно на границе", () => {
+    expect(dayLightAt(12 * 60)).toMatchObject({ phase: "day", from: "day", to: "day", t: 0 });
+    expect(dayLightAt(17 * 60 + 45)).toMatchObject({ phase: "day", from: "day", to: "evening", t: 0 });
+    expect(dayLightAt(18 * 60)).toMatchObject({ phase: "evening", from: "day", to: "evening", t: 0.5 });
+    expect(dayLightAt(18 * 60 + 15)).toMatchObject({ phase: "evening", from: "evening", to: "evening", t: 0 });
+    expect(dayLightAt(6 * 60 + 50).to).toBe("morning");
+    expect(dayLightAt(6 * 60 + 50).phase).toBe("night");
+  });
+  it("фаза по поясу игры; неизвестный пояс — по UTC", () => {
+    // 05:30 UTC = 10:30 в Ташкенте — день; 17:30 UTC = 22:30 — ночь; 02:00 UTC = 07:00 — утро.
+    expect(dayPhase("Asia/Tashkent", new Date("2026-10-03T05:30:00Z"))).toBe("day");
+    expect(dayPhase("Asia/Tashkent", new Date("2026-10-03T17:30:00Z"))).toBe("night");
+    expect(dayPhase("Asia/Tashkent", new Date("2026-10-03T02:00:00Z"))).toBe("morning");
+    expect(dayPhase("Nowhere/Nope", new Date("2026-10-03T12:00:00Z"))).toBe("day");
+    expect(dayPhase(zoneForLocalHour(23))).toBe("night");
+    expect(dayPhase(zoneForLocalHour(12))).toBe("day");
+  });
+});
+
+describe("ночью всё закрыто, вызов — только утром (решение владельца 03.10)", () => {
+  it("ночью дело не берётся (409 night), карта отдаёт фазу; утром снова можно", async () => {
+    await setGamePhase(app, gameId, adminCookie, "night");
+    const map = await get(`/api/games/${gameId}/my-map`, p1Cookie);
+    expect(map.json().daytime.phase).toBe("night");
+    const open = (map.json().tasks as Array<{ id: string; status: string }>).find((tk) => tk.status === "OPEN");
+    if (open) {
+      const r = await post(`/api/games/${gameId}/edge-tasks/${open.id}/take`, p1Cookie);
+      expect(r.statusCode).toBe(409);
+      expect(r.json().error).toBe("night");
+    }
+    await setGamePhase(app, gameId, adminCookie, "evening");
+    expect((await get(`/api/games/${gameId}/my-map`, p1Cookie)).json().daytime.phase).toBe("evening");
+    await setGamePhase(app, gameId, adminCookie, "morning");
   });
 });

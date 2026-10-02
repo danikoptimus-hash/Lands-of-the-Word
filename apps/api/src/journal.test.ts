@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
-import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
+import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
 import { chronicleLines, sendChronicle } from "./services/journal.js";
 import { ruinsTreasure } from "./services/treasure.js";
 
@@ -48,13 +48,13 @@ beforeAll(async () => {
   p1Id = (await prisma.user.findUniqueOrThrow({ where: { nickname: p1Nick } })).id;
   const g = await post("/api/games", adminCookie, { name: "Журнал 18.09", teamCount: 2 });
   gameId = g.json().game.id;
-  // Окно отправки вызова по местному времени (решение владельца 02.10) в тестах выключено: равные часы «с» и «до».
-  await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { attackSubmitFrom: 0, attackSubmitTo: 0 } } } });
   await post(`/api/games/${gameId}/generate`, adminCookie);
   team1 = await joinTeam("Моряки", p1Cookie);
   team2 = await joinTeam("Берег", p2Cookie);
   await post(`/api/games/${gameId}/deeds/import-default`, adminCookie);
   await readyForStart(app, gameId, adminCookie);
+  // Вызов отправляют на проверку только утром (решение владельца 03.10): в тестах у игры пояс, где сейчас утро.
+  await setGamePhase(app, gameId, adminCookie, "morning");
   await post(`/api/games/${gameId}/start`, adminCookie);
   rutKey = (await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "rut" } })).key;
   genKey = (await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "gen" } })).key;

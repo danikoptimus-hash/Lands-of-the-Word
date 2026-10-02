@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { assertAwake } from "../services/daytime.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
@@ -95,6 +96,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
+    if (!(await assertAwake(request, reply, id))) return;
     const rules = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } })).settings);
     const speak = await canSpeak(m.team.id, request.user!.id);
     if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: err(request, speak.why) });
@@ -186,6 +188,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
+    if (!(await assertAwake(request, reply, id))) return;
     if (m.gameRole !== "SCOUT") return reply.code(403).send({ error: "forbidden", message: err(request, "Разведать перекрёсток может только разведчик команды") });
     const body = z.object({ nodeKey: z.string().min(3).max(40) }).parse(request.body);
     const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId: m.team.id }, select: { nodeKey: true } })).map((n) => n.nodeKey));
@@ -214,6 +217,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
+    if (!(await assertAwake(request, reply, id))) return;
     if (m.gameRole !== "PROPHET") return reply.code(403).send({ error: "forbidden", message: err(request, "Подсказку открывает только пророк команды") });
     const body = z.object({ index: z.number().int().min(0) }).parse(request.body);
     const state = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });

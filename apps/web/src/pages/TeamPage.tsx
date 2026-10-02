@@ -567,6 +567,9 @@ export function TeamPage() {
           <button type="button" className="hud-team" onClick={() => { if (!wide) { setMenu(true); setSelectedId(null); } }} aria-label={team.name}>
             <TeamAvatar name={team.name} color={team.color} /><span className="name">{team.name}</span>
           </button>
+          {/* Время суток (решение владельца 03.10): ночью только карта, утром отправляют вызов — подсказка у названия команды. */}
+          {map?.daytime?.phase === "night" && <span className="hud-tod night" title={t("Ночь: города спят, дела и испытания ждут утра")}><Icon name="moon" />{t("Ночь до 7:00")}</span>}
+          {map?.daytime?.phase === "morning" && <span className="hud-tod morning" title={t("Утро: вызов на город отправляют на проверку до 9:00")}><Icon name="sun" />{t("Утро до 9:00")}</span>}
         </div>
         {standings?.status === "FINISHED" && (
           <div className="finish-banner" role="status"><Icon name="trophy" /><span>{winner ? t("Игра завершена: победила «{team}»", { team: winner }) : t("Игра завершена")}</span></div>
@@ -585,7 +588,8 @@ export function TeamPage() {
               <p className="muted">{t("Дороги с делом сюда пока нет.")}</p>
               {pk && <div className="note info"><Icon name="telescope" /><span>{pk === "CITY" ? t("Разведано: там город.") : t("Разведано: там развилка.")}</span></div>}
               {error && <p className="error" role="alert">{error}</p>}
-              {me?.gameRole === "SCOUT" && !pk && <div className="actions"><button type="button" className="secondary" disabled={busy} onClick={() => void peek(frontierKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></div>}
+              {map?.daytime?.phase === "night" && <div className="note info night-note"><Icon name="moon" /><span>{t("Ночь: разведка ждёт утра, с 7:00 по местному времени.")}</span></div>}
+              {me?.gameRole === "SCOUT" && !pk && map?.daytime?.phase !== "night" && <div className="actions"><button type="button" className="secondary" disabled={busy} onClick={() => void peek(frontierKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></div>}
               {me?.gameRole !== "SCOUT" && !pk && <p className="hint">{t("Разведать этот перекрёсток может разведчик команды.")}</p>}
             </Sheet>
           );
@@ -599,7 +603,8 @@ export function TeamPage() {
           const peeked = peekedKind(task.toKey);
           // Разведчик открывает любую точку на краю тумана, взято дело на сторону или нет (решение владельца 02.10).
           const canScout = me?.gameRole === "SCOUT" && !peeked && !(map?.revealed ?? []).some((n) => n.key === task.toKey);
-          const scoutBtn = canScout && <><button type="button" className="secondary" disabled={busy} onClick={() => void peek(task.toKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></>;
+          const night = map?.daytime?.phase === "night";
+          const scoutBtn = canScout && !night && <><button type="button" className="secondary" disabled={busy} onClick={() => void peek(task.toKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></>;
           // Порядок листа (решение владельца 18.09): суть → как сдать → состояние → действие → правила (кодекс).
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
@@ -634,7 +639,8 @@ export function TeamPage() {
               {task.status === "SUBMITTED" && <div className="note info"><Icon name="clock" /><span>{t("На проверке у администратора.")}</span></div>}
               {peeked && <div className="note info"><Icon name="telescope" /><span>{peeked === "CITY" ? t("Разведано: там город.") : t("Разведано: там развилка.")}</span></div>}
               {error && <p className="error" role="alert">{error}</p>}
-              {(task.status === "OPEN" || task.status === "REJECTED") && (
+              {night && task.status !== "APPROVED" && task.status !== "SUBMITTED" && <div className="note info night-note"><Icon name="moon" /><span>{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</span></div>}
+              {!night && (task.status === "OPEN" || task.status === "REJECTED") && (
                 <div className="actions">
                   <button type="button" disabled={busy || limitFull(map)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
                   {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}
@@ -642,7 +648,7 @@ export function TeamPage() {
                 </div>
               )}
               {task.status !== "OPEN" && task.status !== "REJECTED" && scoutBtn && <div className="actions">{scoutBtn}</div>}
-              {task.status === "TAKEN" && (
+              {!night && task.status === "TAKEN" && (
                 <DeedForm key={task.id} donationCfg={task.deed.donationMin ? { min: task.deed.donationMin, currency } : null} busy={busy} proofType={task.deed.proofType}
                   members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
                   onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}

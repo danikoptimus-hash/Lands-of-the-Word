@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, ApiError, type BattleDto, type BattleStatus, type BookTextDto, type PassageDto, type WarDto, type AttackWindowDto } from "../lib/api";
+import { api, ApiError, type BattleDto, type BattleStatus, type BookTextDto, type DaytimeDto, type PassageDto, type WarDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtLeft, plural } from "../lib/format";
@@ -112,7 +112,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
           <p className="muted small mt-2">{t("Баллы за одобренные дела: претенденты {a} · хранители {d}. Осталось {t}.", { a: activeSiege.attackerPoints, d: activeSiege.defenderPoints, t: leftText(activeSiege.endsAt, now) })}</p>
         </div>
       )}
-      {active.map((b) => <BattleCard key={b.id} gameId={gameId} b={b} teamId={teamId} isCaptain={isCaptain} now={now} window={war.attackWindow} onChanged={() => { void load(); onChanged(); }} />)}
+      {active.map((b) => <BattleCard key={b.id} gameId={gameId} b={b} teamId={teamId} isCaptain={isCaptain} now={now} daytime={war.daytime} onChanged={() => { void load(); onChanged(); }} />)}
       {past.length > 0 && (
         <ul className="list mt-3">
           {past.map((b) => <li key={b.id}><span className="muted small">{fmtDate(b.declaredAt, { time: false })} · {b.attacker.name} → {b.defender.name} · {verses(b.bid)}</span><Chip tone={battleTone(b.status, b.attacker.id === teamId)}>{BATTLE_STATUS[b.status]}</Chip></li>)}
@@ -123,7 +123,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
 }
 
 /** Карточка идущего испытания: отрывок с отметками по стихам, ссылки, суммы, отправка капитаном. */
-export function BattleCard({ gameId, b, teamId, isCaptain, now, window: win, onChanged }: { gameId: string; b: BattleDto; teamId: string; isCaptain: boolean; now: number; /** Окно отправки вызова по местному времени (решение владельца 02.10). */ window?: AttackWindowDto; onChanged: () => void }) {
+export function BattleCard({ gameId, b, teamId, isCaptain, now, daytime, onChanged }: { gameId: string; b: BattleDto; teamId: string; isCaptain: boolean; now: number; /** Время суток игры (решение владельца 03.10): ночью испытание ждёт утра, вызов отправляют только утром. */ daytime?: DaytimeDto; onChanged: () => void }) {
   const { confirm, notify } = useUi();
   const attacker = b.attacker.id === teamId;
   const myTurn = isMyTurn(b, teamId);
@@ -133,6 +133,9 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, window: win, onC
   const sum = attacker ? b.attackSum : b.defenseSum;
   const approved = attacker ? b.attackApproved : b.defenseApproved;
   const passage = attacker ? b.passage : b.defensePassage;
+  const night = daytime?.phase === "night", morning = daytime?.phase === "morning";
+  /** Отправить на проверку: ночью никому, вызов (атаку) — только утром. */
+  const canSend = !night && (!attacker || !daytime || morning);
 
   async function raise() {
     try { await api(`/api/games/${gameId}/battles/${b.id}/bid`, { method: "POST", body: JSON.stringify({ bid }) }); notify(t("Ставка обновлена")); onChanged(); }
@@ -179,16 +182,17 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, window: win, onC
           {!attacker && !passage && b.status === "DEFENSE" && !b.defenseDoneAt && (
             isCaptain ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Ждём: капитан выбирает отрывок ответа.")}</span></div>
           )}
-          {passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn} onChanged={onChanged} />}
+          {passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn || night} onChanged={onChanged} />}
           {isCaptain && myTurn && sum < need && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
-          {/* Вызов отправляют на проверку только в окно по местному времени; ответ хранителей — в любое время (решение владельца 02.10). */}
-          {attacker && myTurn && win && !win.always && (
-            win.open
-              ? <p className="hint"><Icon name="clock" /> {t("Отправить вызов можно с {from}:00 до {to}:00 по местному времени.", { from: win.from, to: win.to })}</p>
-              : <div className="note warn"><Icon name="clock" /><span>{t("Сейчас отправка закрыта: вызов отправляют на проверку с {from}:00 до {to}:00 по местному времени. Стихи отмечать можно.", { from: win.from, to: win.to })}</span></div>
+          {/* Времена суток (решение владельца 03.10): ночью испытание ждёт утра; вызов отправляют на проверку только утром, ответ хранителей — утром, днём и вечером. */}
+          {myTurn && night && <div className="note warn"><Icon name="moon" /><span>{t("Ночь: испытание ждёт утра. С 7:00 по местному времени можно отмечать стихи и отправлять на проверку.")}</span></div>}
+          {attacker && myTurn && !night && daytime && (
+            morning
+              ? <p className="hint"><Icon name="sun" /> {t("Вызов отправляют на проверку утром, с 7:00 до 9:00 по местному времени.")}</p>
+              : <div className="note warn"><Icon name="clock" /><span>{t("Сейчас вызов отправить нельзя: его отправляют на проверку утром, с 7:00 до 9:00 по местному времени. Стихи отмечать можно.")}</span></div>
           )}
           <div className="actions">
-            {isCaptain && myTurn && <button type="button" disabled={sum < need || (attacker && win != null && !win.open)} onClick={() => void submit()}><Icon name="send" />{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}</button>}
+            {isCaptain && myTurn && <button type="button" disabled={sum < need || !canSend} onClick={() => void submit()}><Icon name="send" />{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}</button>}
           </div>
         </>
       )}
