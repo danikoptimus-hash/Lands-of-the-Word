@@ -96,9 +96,14 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
    * Граница видимой области каждой команды (решение владельца 02.10): контур освещённых гексов — тех, у которых команда
    * открыла хотя бы один угол, — цветом команды. Сторона гекса попадает в контур, если освещён только один из двух гексов.
    */
+  /** Выключенные контуры (легенда): чтобы пересекающиеся границы не мешали смотреть; запоминается в браузере на игру. */
+  const fogOffKey = `lotw:fogOff:${gameId}`;
+  const [fogOff, setFogOff] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem(fogOffKey) ?? "[]") as string[]); } catch { return new Set(); } });
+  const toggleFog = (teamId: string) => setFogOff((prev) => { const n = new Set(prev); if (n.has(teamId)) n.delete(teamId); else n.add(teamId); try { localStorage.setItem(fogOffKey, JSON.stringify([...n])); } catch { /* приватный режим */ } return n; });
   const fogOutline = useMemo(() => {
     if (!progress || !hexes) return null;
     return progress.map((tm) => {
+      if (fogOff.has(tm.id)) return null;
       const rev = new Set(tm.revealed);
       const sides = new Map<string, { a: Vertex; b: Vertex; n: number }>();
       for (const h of hexes) {
@@ -113,7 +118,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
       const d = [...sides.values()].filter((s) => s.n === 1).map((s) => { const p = vertexToPixel(s.a, size), q = vertexToPixel(s.b, size); return `M${p.x.toFixed(1)} ${p.y.toFixed(1)}L${q.x.toFixed(1)} ${q.y.toFixed(1)}`; }).join("");
       return d ? <g key={"fog" + tm.id} className="adm-fog"><path className="halo" d={d} /><path d={d} style={{ stroke: tm.color }} /></g> : null;
     });
-  }, [progress, hexes, size]);
+  }, [progress, hexes, size, fogOff]);
   const worldBody = useMemo(() => (<>
             {/* Дороги и переправы — под значками городов и стартов, иначе светлая подложка маршрута перекрывает их (замечание владельца 30.09). */}
             {edges.map((e) => {
@@ -251,6 +256,18 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         <div className="map-controls">
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
         </div>
+        {/* Легенда границ видимости (решение владельца 02.10): нажатие на команду выключает её контур, чтобы пересечения не мешали. */}
+        {progress && progress.length > 0 && (
+          <div className="fog-legend" aria-label={t("Граница видимости")}>
+            <span className="legend-title">{t("Граница видимости")}</span>
+            {progress.map((tm) => (
+              <button key={tm.id} type="button" className={"legend-row" + (fogOff.has(tm.id) ? " off" : "")} aria-pressed={!fogOff.has(tm.id)} title={fogOff.has(tm.id) ? t("Показать контур команды «{name}»", { name: tm.name }) : t("Скрыть контур команды «{name}»", { name: tm.name })} onClick={() => toggleFog(tm.id)}>
+                <span className="swatch" style={{ borderColor: tm.color }} />
+                <span className="name">{tm.name}</span>
+              </button>
+            ))}
+          </div>
+        )}
         </>)}
         {viewedTeam && fullscreen && <div className="view-as-name" aria-live="polite"><TeamAvatar name={viewedTeam.name} color={viewedTeam.color} size="sm" />{t("Глазами команды «{name}»", { name: viewedTeam.name })}</div>}
         {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.", { name: viewedTeam.name })}</p>}
