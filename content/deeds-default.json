@@ -560,6 +560,20 @@
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
     "frequency": 2,
-    "bookCodes": []
+    "bookCodes": [
+      "job",
+      "luk",
+      "ecc",
+      "psa",
+      "hab",
+      "zep",
+      "lam",
+      "isa",
+      "1ki",
+      "exo",
+      "pro",
+      "jas",
+      "mrk"
+    ]
   }
 ]
