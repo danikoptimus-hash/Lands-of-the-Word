@@ -7,7 +7,8 @@ set -euo pipefail
 GAME="${1:-Осень}"
 OUT="${OUT_DIR:-/root}/lotw-research-$(date +%F-%H%M)"
 mkdir -p "$OUT"
-G="(SELECT id FROM \"Game\" WHERE name = '$GAME' ORDER BY \"createdAt\" DESC LIMIT 1)"
+# Одноимённых партий может быть несколько (черновики): берём идущую, иначе завершённую, иначе самую новую.
+G="(SELECT id FROM \"Game\" WHERE name = '$GAME' ORDER BY (status = 'ACTIVE') DESC, (status = 'FINISHED') DESC, \"createdAt\" DESC LIMIT 1)"
 # PSQL можно переопределить для проверки на локальной базе: PSQL="psql postgresql://..." bash deploy/research-export.sh "Имя"
 PSQL="${PSQL:-docker exec lotw-db psql -U lotw -d lotw}"
 Q() { $PSQL --csv -v ON_ERROR_STOP=1 -c "$2" > "$OUT/$1.csv"; echo "  $1.csv: $(($(wc -l < "$OUT/$1.csv") - 1)) строк"; }
