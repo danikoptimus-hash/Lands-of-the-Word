@@ -258,12 +258,10 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         </div>
         {/* Легенда границ видимости (решение владельца 02.10): нажатие на команду выключает её контур, чтобы пересечения не мешали. */}
         {progress && progress.length > 0 && (
-          <div className="fog-legend" aria-label={t("Граница видимости")}>
-            <span className="legend-title">{t("Граница видимости")}</span>
+          <div className="fog-legend" role="group" aria-label={t("Граница видимости")} title={t("Граница видимости")}>
             {progress.map((tm) => (
-              <button key={tm.id} type="button" className={"legend-row" + (fogOff.has(tm.id) ? " off" : "")} aria-pressed={!fogOff.has(tm.id)} title={fogOff.has(tm.id) ? t("Показать контур команды «{name}»", { name: tm.name }) : t("Скрыть контур команды «{name}»", { name: tm.name })} onClick={() => toggleFog(tm.id)}>
+              <button key={tm.id} type="button" className={"legend-row" + (fogOff.has(tm.id) ? " off" : "")} aria-pressed={!fogOff.has(tm.id)} aria-label={fogOff.has(tm.id) ? t("Показать контур команды «{name}»", { name: tm.name }) : t("Скрыть контур команды «{name}»", { name: tm.name })} title={tm.name} onClick={() => toggleFog(tm.id)}>
                 <span className="swatch" style={{ borderColor: tm.color }} />
-                <span className="name">{tm.name}</span>
               </button>
             ))}
           </div>
