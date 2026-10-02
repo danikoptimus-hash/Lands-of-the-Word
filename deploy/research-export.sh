@@ -5,13 +5,15 @@
 # Запуск на сервере от root:  bash /opt/lotw/deploy/research-export.sh "Осень"
 set -euo pipefail
 GAME="${1:-Осень}"
-OUT="/root/lotw-research-$(date +%F-%H%M)"
+OUT="${OUT_DIR:-/root}/lotw-research-$(date +%F-%H%M)"
 mkdir -p "$OUT"
 G="(SELECT id FROM \"Game\" WHERE name = '$GAME' ORDER BY \"createdAt\" DESC LIMIT 1)"
-Q() { docker exec lotw-db psql -U lotw -d lotw --csv -v ON_ERROR_STOP=1 -c "$2" > "$OUT/$1.csv"; echo "  $1.csv: $(($(wc -l < "$OUT/$1.csv") - 1)) строк"; }
+# PSQL можно переопределить для проверки на локальной базе: PSQL="psql postgresql://..." bash deploy/research-export.sh "Имя"
+PSQL="${PSQL:-docker exec lotw-db psql -U lotw -d lotw}"
+Q() { $PSQL --csv -v ON_ERROR_STOP=1 -c "$2" > "$OUT/$1.csv"; echo "  $1.csv: $(($(wc -l < "$OUT/$1.csv") - 1)) строк"; }
 
 echo "==> Партия «$GAME»"
-Q game          "SELECT id, name, status, \"startedAt\", \"endsAt\", \"createdAt\", settings::text FROM \"Game\" WHERE id = $G"
+Q game          "SELECT id, name, status, \"startedAt\", \"createdAt\", settings::text FROM \"Game\" WHERE id = $G"
 Q teams         "SELECT id, index, name, color, \"startNodeKey\", status FROM \"Team\" WHERE \"gameId\" = $G ORDER BY index"
 Q members       "SELECT m.\"teamId\", m.\"userId\", m.role, m.\"gameRole\", m.\"joinedAt\", u.nickname, u.\"displayName\", u.locale, u.\"createdAt\" AS \"userCreatedAt\", u.\"lastSeenAt\" FROM \"Membership\" m JOIN \"User\" u ON u.id = m.\"userId\" JOIN \"Team\" t ON t.id = m.\"teamId\" WHERE t.\"gameId\" = $G ORDER BY m.\"teamId\", m.\"joinedAt\""
 Q journal       "SELECT id, \"teamId\", \"userId\", kind, everyone, vars::text, \"createdAt\" FROM \"Journal\" WHERE \"gameId\" = $G ORDER BY \"createdAt\""
