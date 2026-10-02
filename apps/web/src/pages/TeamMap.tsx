@@ -226,13 +226,15 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             if (!tk || tk.status === "APPROVED") return null;
             const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
             // Метка дела стоит на двух третях стороны от известного перекрёстка, чтобы не наезжать на город.
-            const far = revealed.has(e.aKey) ? b : a, near = far === b ? a : b;
+            const farKey = revealed.has(e.aKey) ? e.bKey : e.aKey;
+            const far = farKey === e.bKey ? b : a, near = far === b ? a : b;
             const m = { x: near.x + (far.x - near.x) * 0.66, y: near.y + (far.y - near.y) * 0.66 };
             const sel = tk.id === selectedTaskId;
             const r = sel ? R + 2 : R;
             return (
               <g key={"m" + e.aKey + e.bKey} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "")} onClick={() => click(tk.id)}>
-                <g style={sc(far.x, far.y)}><circle className="far" r={5} /></g>
+                {/* Серая точка цели только пока перекрёсток не открыт: если команда дошла до него другой дорогой, белый перекрёсток не закрашивается (03.10). */}
+                {!revealed.has(farKey) && <g style={sc(far.x, far.y)}><circle className="far" r={5} /></g>}
                 <g style={sc(m.x, m.y)}>
                   <circle r={r} />
                   <use href={`#m-${DEED_SYMBOL[tk.status]}`} x={-r * 0.6} y={-r * 0.6} width={r * 1.2} height={r * 1.2} />

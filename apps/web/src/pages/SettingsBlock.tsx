@@ -111,19 +111,19 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     const id = "rule-" + key;
     if (key === "pauseSteps") return (
       <div key={key} className="rule-row">
-        <label htmlFor={id}>{t("Паузы после ошибок · секунды через запятую")}<Help>{RULE_HELP.pauseSteps()}</Help></label>
+        <label htmlFor={id}>{t("Паузы после ошибок · секунды через запятую")}<Help popup>{RULE_HELP.pauseSteps()}</Help></label>
         <input id={id} value={rules.pauseSteps} onChange={(e) => setRule("pauseSteps", e.target.value)} />
       </div>
     );
     if (key === "timeZone") return (
       <div key={key} className="rule-row">
-        <label htmlFor={id}>{t("Часовой пояс игры")}<Help>{RULE_HELP.timeZone()}</Help></label>
+        <label htmlFor={id}>{t("Часовой пояс игры")}<Help popup>{RULE_HELP.timeZone()}</Help></label>
         <input id={id} value={String(rules.timeZone)} onChange={(e) => setRule("timeZone", e.target.value)} placeholder="Asia/Tashkent" />
       </div>
     );
     if (key === "adminDigest") return (
       <div key={key} className="rule-row">
-        <label htmlFor={id}>{t("Письма о сдачах")}<Help>{RULE_HELP.adminDigest()}</Help></label>
+        <label htmlFor={id}>{t("Письма о сдачах")}<Help popup>{RULE_HELP.adminDigest()}</Help></label>
         <select id={id} value={String(rules.adminDigest)} onChange={(e) => setRule("adminDigest", e.target.value)}>
           <option value="instant">{t("сразу о каждой")}</option>
           <option value="3h">{t("одним письмом раз в 3 часа")}</option>
@@ -134,7 +134,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     const f = RULE_FIELDS[key];
     if (key === "chronicleWeekday") return (
       <div key={key} className="rule-row">
-        <label htmlFor={id}>{f.label()}<Help>{RULE_HELP[key]()}</Help></label>
+        <label htmlFor={id}>{f.label()}<Help popup>{RULE_HELP[key]()}</Help></label>
         <select id={id} value={String(rules.chronicleWeekday)} onChange={(e) => setRule("chronicleWeekday", Number(e.target.value))}>
           {weekdays().map((d, i) => <option key={d} value={i}>{d}</option>)}
         </select>
@@ -142,7 +142,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     );
     return (
       <div key={key} className="rule-row">
-        <label htmlFor={id}>{f.label()}<Help>{RULE_HELP[key]()}</Help></label>
+        <label htmlFor={id}>{f.label()}<Help popup>{RULE_HELP[key]()}</Help></label>
         <Stepper id={id} value={rules[key] === "" ? "" : Number(rules[key])} min={f.min} max={f.max} step={f.step ?? 1} onChange={(v) => setRule(key, v)} />
       </div>
     );
@@ -156,29 +156,29 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
           <>
             <div className="settings-group">
               <h3>{t("Игра")}</h3>
-              <label htmlFor="s-name">{t("Название")}<Help>{t("Имя партии: его видят участники в заголовке игры, в письмах и уведомлениях. Меняется только до старта.")}</Help></label>
+              <label htmlFor="s-name">{t("Название")}<Help popup>{t("Имя партии: его видят участники в заголовке игры, в письмах и уведомлениях. Меняется только до старта.")}</Help></label>
               <input id="s-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={80} />
-              <label htmlFor="s-teams">{t("Команд")}<Help>{t("Сколько команд будет в партии: столько стартов разместит генератор карты. После изменения карту нужно сгенерировать заново. Только до старта.")}</Help></label>
+              <label htmlFor="s-teams">{t("Команд")}<Help popup>{t("Сколько команд будет в партии: столько стартов разместит генератор карты. После изменения карту нужно сгенерировать заново. Только до старта.")}</Help></label>
               <Stepper id="s-teams" value={teamCount} min={2} max={12} onChange={(v) => setTeamCount(v === "" ? 2 : v)} />
             </div>
             <div className="settings-group">
               <h3>{t("Карта и старты")}</h3>
-              <label htmlFor="s-nodes">{t("Перекрёстков на карте")}<Help>{t("Размер карты: число перекрёстков на двух островах. Больше перекрёстков — больше дел и дольше партия. После изменения карту нужно сгенерировать заново. Только до старта.")}</Help></label>
+              <label htmlFor="s-nodes">{t("Перекрёстков на карте")}<Help popup>{t("Размер карты: число перекрёстков на двух островах. Больше перекрёстков — больше дел и дольше партия. После изменения карту нужно сгенерировать заново. Только до старта.")}</Help></label>
               <Stepper id="s-nodes" value={nodeCount} min={200} max={600} step={10} onChange={(v) => setNodeCount(v === "" ? 250 : v)} />
-              <label htmlFor="s-gap">{t("Расстояние между городами · сторон")}<Help>{t("Сколько сторон гексов отделяет соседние города, не меньше. По умолчанию 2 (в среднем чуть больше двух). При 3 или 4 путь между городами длиннее, а карта больше: перекрёстков в (N/2)² раз больше, чем задано выше.")}</Help></label>
+              <label htmlFor="s-gap">{t("Расстояние между городами · сторон")}<Help popup>{t("Сколько сторон гексов отделяет соседние города, не меньше. По умолчанию 2 (в среднем чуть больше двух). При 3 или 4 путь между городами длиннее, а карта больше: перекрёстков в (N/2)² раз больше, чем задано выше.")}</Help></label>
               <Stepper id="s-gap" value={cityGap} min={2} max={4} onChange={(v) => setCityGap(v === "" ? 2 : v)} />
               {mapChanged && <p className="note warn"><Icon name="alert" /><span>{t("После изменения числа команд, перекрёстков или расстояния между городами карту нужно сгенерировать заново.")}</span></p>}
-              <label className="check mt-3"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />{t("Выровнять расстояние от стартов до первого города")}<Help>{t("При генерации карты старты подбираются так, чтобы у всех команд путь до ближайшего города был одинаковой длины, с точностью до допустимой разницы. Иначе старты ставятся без этого условия.")}</Help></label>
+              <label className="check mt-3"><input type="checkbox" checked={equidistant} onChange={(e) => setEquidistant(e.target.checked)} />{t("Выровнять расстояние от стартов до первого города")}<Help popup>{t("При генерации карты старты подбираются так, чтобы у всех команд путь до ближайшего города был одинаковой длины, с точностью до допустимой разницы. Иначе старты ставятся без этого условия.")}</Help></label>
               {equidistant && (
                 <div className="sub">
-                  <label htmlFor="s-diff">{t("Допустимая разница, ходов")}<Help>{t("На сколько сторон может отличаться путь до первого города у разных команд при выравнивании стартов. 0 — ровно одинаково; генератору может не хватить вариантов.")}</Help></label>
+                  <label htmlFor="s-diff">{t("Допустимая разница, ходов")}<Help popup>{t("На сколько сторон может отличаться путь до первого города у разных команд при выравнивании стартов. 0 — ровно одинаково; генератору может не хватить вариантов.")}</Help></label>
                   <Stepper id="s-diff" value={maxDiff} min={0} max={6} onChange={(v) => setMaxDiff(v === "" ? 3 : v)} />
                 </div>
               )}
             </div>
             <div className="settings-group">
               <h3>{t("Испытания")}</h3>
-              <label className="check"><input type="checkbox" checked={genealogies} onChange={(e) => setGenealogies(e.target.checked)} />{t("Отрывки могут содержать родословия и списки имён")}<Help>{t("Случайный отрывок для испытания выбирается из всей книги города. Если выключено, главы с родословиями и длинными списками имён пропускаются, чтобы не учить перечни. Только до старта.")}</Help></label>
+              <label className="check"><input type="checkbox" checked={genealogies} onChange={(e) => setGenealogies(e.target.checked)} />{t("Отрывки могут содержать родословия и списки имён")}<Help popup>{t("Случайный отрывок для испытания выбирается из всей книги города. Если выключено, главы с родословиями и длинными списками имён пропускаются, чтобы не учить перечни. Только до старта.")}</Help></label>
             </div>
           </>
         )}
@@ -186,7 +186,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
           <h3>{t("Пожертвование вместо дела")}</h3>
           <div className="money">
             <div>
-              <label htmlFor="s-cur">{t("Валюта")}<Help>{t("Подпись к суммам пожертвований в листе дела и в проверке, например «сум» или «₽». Сама минимальная сумма задаётся у каждого дела во вкладке «Дела». Можно менять в идущей игре.")}</Help></label>
+              <label htmlFor="s-cur">{t("Валюта")}<Help popup>{t("Подпись к суммам пожертвований в листе дела и в проверке, например «сум» или «₽». Сама минимальная сумма задаётся у каждого дела во вкладке «Дела». Можно менять в идущей игре.")}</Help></label>
               <input id="s-cur" className="cur" value={currency} onChange={(e) => setCurrency(e.target.value)} maxLength={10} placeholder="₽" />
             </div>
           </div>
