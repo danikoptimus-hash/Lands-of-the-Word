@@ -177,7 +177,7 @@ export const ADMIN: Record<string, string> = {
   "Минимальная ставка · стихов": "Minimum stake · verses", "Срок вызова · дней": "Challenge term · days", "Штраф за сгоревший вызов · стихов": "Burnt-challenge penalty · verses",
   "Минимум на ответ · секунд": "Minimum answer time · seconds", "Закрепление города · недель": "City lock · weeks", "Паузы после ошибок · секунды через запятую": "Pauses after mistakes · seconds, comma-separated",
   "Усталость: дней без дел": "Fatigue: days without deeds", "Усталость: шаг · дней": "Fatigue: step · days", "Усталость: убыль · стихов": "Fatigue: loss · verses",
-  "Возврат взятого дела · дней": "Taken deed returns · days", "Смена ролей · раз в дней": "Role change · once per days", "Разведчик и пророк · раз в дней": "Scout and prophet · once per days",
+  "Дел в сутки на участника · 0 = без ограничения": "Deeds per day per member · 0 = no limit", "Возврат взятого дела · дней": "Taken deed returns · days", "Смена ролей · раз в дней": "Role change · once per days", "Разведчик и пророк · раз в дней": "Scout and prophet · once per days",
   "Ответ на запрос прохода · дней": "Passage answer term · days", "Осада делами · дней": "Deed siege · days", "Баллов за дело в осаде": "Points per deed in a siege",
   "Летопись: день недели": "Chronicle: weekday", "Летопись: час (UTC)": "Chronicle: hour (UTC)",
   "воскресенье": "Sunday", "понедельник": "Monday", "вторник": "Tuesday", "среда": "Wednesday", "четверг": "Thursday", "пятница": "Friday", "суббота": "Saturday",

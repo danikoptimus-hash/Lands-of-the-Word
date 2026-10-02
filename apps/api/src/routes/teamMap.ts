@@ -21,6 +21,24 @@ const submitBody = z.object({
 });
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
 
+
+const DAY_MS = 86_400_000;
+/** Лимит дел в сутки для участника: сколько взято за последние 24 часа и когда освободится место (момент выхода самого раннего взятия из окна). null — лимита нет. */
+async function deedLimitFor(gameId: string, userId: string): Promise<{ max: number; taken: number; nextAt: number | null } | null> {
+  const max = (await gameRules(gameId)).maxDeedsPerDay;
+  if (!max) return null;
+  const since = new Date(Date.now() - DAY_MS);
+  const rows = await prisma.teamEdgeTask.findMany({ where: { gameId, takenById: userId, takenAt: { gte: since } }, select: { takenAt: true }, orderBy: { takenAt: "asc" } });
+  const taken = rows.length;
+  const nextAt = taken >= max ? (rows[taken - max]!.takenAt!.getTime() + DAY_MS) : null;
+  return { max, taken, nextAt };
+}
+/** «через 3 ч 20 мин» / «через 15 мин» для сообщения о лимите. */
+function untilText(request: Parameters<typeof err>[0], at: number): string {
+  const mins = Math.max(1, Math.ceil((at - Date.now()) / 60_000)), h = Math.floor(mins / 60), m = mins % 60;
+  return h > 0 ? err(request, "{h} ч {m} мин", { h, m }) : err(request, "{m} мин", { m });
+}
+
 export async function requireMember(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const m = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId } }, include: { team: true } });
   if (!m) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не состоите в команде этой игры") }); return null; }
@@ -83,7 +101,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const donation = st.donationMin ? { min: st.donationMin, currency: st.donationCurrency ?? "" } : null;
     if (game.status === "DRAFT") return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
     const map = await getTeamMap(id, m.team.id);
-    return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    const deedLimit = await deedLimitFor(id, request.user!.id);
+    return { status: game.status, gameName: game.name, donation, deedLimit, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
@@ -109,6 +128,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     if (task.status !== "OPEN" && task.status !== "REJECTED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже взято или сдано") });
+    // Лимит дел в сутки на участника (решение владельца 02.10): превысил — взять (забронировать) нельзя, пусть берут другие.
+    const limit = await deedLimitFor(id, request.user!.id);
+    if (limit && limit.taken >= limit.max) return reply.code(409).send({ error: "conflict", message: err(request, "В сутки можно взять не больше {n} дел. Следующее можно взять через {when}", { n: limit.max, when: untilText(request, limit.nextAt ?? Date.now()) }) });
     const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id, takenAt: new Date() }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: hideSecret(updated, request.user!.id) };

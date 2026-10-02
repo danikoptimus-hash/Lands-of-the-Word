@@ -264,6 +264,8 @@ const EN: Record<string, string> = {
   "Сдать чужое дело может только капитан или летописец": "Only the captain or the chronicler can submit someone else's deed",
   "В этой игре пожертвование вместо дела не предусмотрено": "This game does not allow a donation instead of a deed",
   "Минимальное пожертвование — {amount}": "The minimum donation is {amount}",
+  "В сутки можно взять не больше {n} дел. Следующее можно взять через {when}": "You can take at most {n} deeds per day. The next one opens in {when}",
+  "{h} ч {m} мин": "{h} h {m} min", "{m} мин": "{m} min",
   "Приложите ссылку на чек или подтверждение перевода": "Attach a link to the receipt or transfer confirmation",
   "Для этого дела нужна хотя бы одна ссылка на фото или видео": "This deed needs at least one photo or video link",
   "Опишите, что сделано": "Describe what was done",

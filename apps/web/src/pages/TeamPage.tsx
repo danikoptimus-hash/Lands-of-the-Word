@@ -617,7 +617,8 @@ export function TeamPage() {
               {error && <p className="error" role="alert">{error}</p>}
               {(task.status === "OPEN" || task.status === "REJECTED") && (
                 <div className="actions">
-                  <button type="button" disabled={busy} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
+                  <button type="button" disabled={busy || limitFull(map)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
+                  {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}
                   {me?.gameRole === "SCOUT" && !peeked && <><button type="button" className="secondary" disabled={busy} onClick={() => void peek(task.toKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></>}
                 </div>
               )}
@@ -751,3 +752,11 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
     </>
   );
 }
+
+/** «3 ч 20 мин» / «15 мин» до освобождения места под дело. */
+function untilText(at: number): string {
+  const mins = Math.max(1, Math.ceil((at - Date.now()) / 60_000)), h = Math.floor(mins / 60), m = mins % 60;
+  return h > 0 ? t("{h} ч {m} мин", { h, m }) : t("{m} мин", { m });
+}
+/** Лимит дел в сутки исчерпан: кнопка «Взять дело» гаснет, подсказка говорит, когда можно снова. */
+const limitFull = (m: { deedLimit?: { max: number; taken: number } | null } | null): boolean => Boolean(m?.deedLimit && m.deedLimit.taken >= m.deedLimit.max);

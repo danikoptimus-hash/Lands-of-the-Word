@@ -6,7 +6,7 @@ import { Icon } from "../components/Icon";
 import { Help } from "../components/Help";
 import { Stepper } from "../components/Stepper";
 
-export interface RulesDto { minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
+export interface RulesDto { minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationMin?: number | null; donationCurrency?: string; rules?: RulesDto } }
 type NumKey = Exclude<keyof RulesDto, "pauseSteps" | "adminDigest">;
 /** Продвинутые настройки: правила, которые раньше были зашиты в код (решение владельца 18.09). Подписи короткие, единицы — суффиксом; поля сгруппированы. */
@@ -20,6 +20,7 @@ const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: numbe
   fatigueStepDays: { label: () => t("Усталость: шаг · дней"), min: 1, max: 365 },
   fatigueStep: { label: () => t("Усталость: убыль · стихов"), min: 0, max: 100 },
   deedReturnDays: { label: () => t("Возврат взятого дела · дней"), min: 1, max: 365 },
+  maxDeedsPerDay: { label: () => t("Дел в сутки на участника · 0 = без ограничения"), min: 0, max: 50 },
   roleChangeDays: { label: () => t("Смена ролей · раз в дней"), min: 0, max: 365 },
   roleCooldownDays: { label: () => t("Разведчик и пророк · раз в дней"), min: 1, max: 60 },
   passageDays: { label: () => t("Ответ на запрос прохода · дней"), min: 1, max: 30 },
@@ -32,7 +33,7 @@ const NUM_KEYS = Object.keys(RULE_FIELDS) as NumKey[];
 const RULE_GROUPS: Array<{ title: () => string; keys: Array<keyof RulesDto> }> = [
   { title: () => t("Испытания"), keys: ["minBid", "attackDays", "burnPenalty", "minAnswerSeconds", "lockWeeks", "pauseSteps"] },
   { title: () => t("Города"), keys: ["fatigueAfterDays", "fatigueStepDays", "fatigueStep"] },
-  { title: () => t("Дела и роли"), keys: ["deedReturnDays", "roleChangeDays", "roleCooldownDays"] },
+  { title: () => t("Дела и роли"), keys: ["deedReturnDays", "maxDeedsPerDay", "roleChangeDays", "roleCooldownDays"] },
   { title: () => t("Проходы"), keys: ["passageDays"] },
   { title: () => t("Осада"), keys: ["siegeDays", "siegeDeedPoints"] },
   { title: () => t("Летопись и письма"), keys: ["chronicleWeekday", "chronicleHourUtc", "adminDigest"] },

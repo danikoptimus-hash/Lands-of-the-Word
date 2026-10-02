@@ -96,6 +96,27 @@ describe("правила и настройки", () => {
     expect(later.map((x) => x.id)).toEqual(["c", "burn"]);
   });
 
+  it("лимит дел в сутки: сверх лимита дело взять нельзя, лист дела знает об этом", async () => {
+    const on = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { maxDeedsPerDay: 1 } } } });
+    expect(on.statusCode).toBe(200);
+    const map = (await get(`/api/games/${gameId}/my-map`, p1Cookie)).json();
+    const open = map.tasks.filter((t: { status: string; sea?: boolean }) => t.status === "OPEN" && !t.sea);
+    expect(open.length).toBeGreaterThanOrEqual(2);
+    expect(map.deedLimit).toEqual({ max: 1, taken: 0, nextAt: null });
+    const first = await post(`/api/games/${gameId}/edge-tasks/${open[0].id}/take`, p1Cookie);
+    expect(first.statusCode).toBe(200);
+    const second = await post(`/api/games/${gameId}/edge-tasks/${open[1].id}/take`, p1Cookie);
+    expect(second.statusCode).toBe(409);
+    expect(second.json().message).toContain("не больше 1 дел");
+    const after = (await get(`/api/games/${gameId}/my-map`, p1Cookie)).json();
+    expect(after.deedLimit.taken).toBe(1);
+    expect(after.deedLimit.nextAt).toBeGreaterThan(Date.now());
+    // Товарищ по команде лимитом первого не ограничен — пусть берут другие.
+    await post(`/api/games/${gameId}/edge-tasks/${open[0].id}/release`, p1Cookie);
+    const off = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { maxDeedsPerDay: 0 } } } });
+    expect(off.statusCode).toBe(200);
+  });
+
   it("администратор меняет правила в идущей игре через продвинутые настройки", async () => {
     const r = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { attackDays: 21 } } } });
     expect(r.statusCode).toBe(200);
