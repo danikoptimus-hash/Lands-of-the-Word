@@ -500,7 +500,8 @@ export function TeamPage() {
                 {ourTasks.map((tk) => { const st = deedStatus(tk.status); return (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
                     <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{tk.deed.direction}{tk.status === "REJECTED" && tk.adminComment ? ` · ${tk.adminComment}` : ""}</span></div>
-                    <Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>
+                    {/* Под состоянием — кто взял дело (просьба участников 03.10: видно, у кого дело в работе). */}
+                    <div className="side col"><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>{tk.takenById && tk.status !== "APPROVED" && <span className="muted small taker">{memberName(tk.takenById)}</span>}</div>
                   </li>
                 ); })}
               </ul>
