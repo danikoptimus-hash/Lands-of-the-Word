@@ -189,6 +189,10 @@ describe("битва за город", () => {
     const id = res.json().id as string;
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie);
     const { start, end } = w.json().battles[0].passage as { start: number; end: number };
+    // Стих сдаётся один раз (03.10): случайный отрывок может пересечься со стихами, которые этот участник уже сдал
+    // в прошлом бою, а других претендентов в тесте нет — прошлые записи убираем, чтобы весь отрывок был ему доступен.
+    const p2Id = (await prisma.user.findUniqueOrThrow({ where: { nickname: p2Nick } })).id;
+    await prisma.battleEntry.deleteMany({ where: { userId: p2Id, side: "ATTACK", battle: { gameId, NOT: { id } } } });
     await post(`/api/games/${gameId}/battles/${id}/entries`, p2Cookie, { verses: Array.from({ length: end - start + 1 }, (_, i) => start + i), links: ["https://example.com/all"] });
     await post(`/api/games/${gameId}/battles/${id}/submit`, p2Cookie);
     const list = await get(`/api/games/${gameId}/battles`, adminCookie);

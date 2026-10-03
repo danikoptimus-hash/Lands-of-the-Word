@@ -516,7 +516,19 @@ async function main() {
     const id = r.id;
     // Претенденты: один участник учит всю книгу; хранители: каждый участник учит всю книгу.
     const mine = (await get("tg_p1", `/api/games/${S.gameId}/my-battles`)).battles.find((b) => b.id === id);
-    await post("tg_p2", `/api/games/${S.gameId}/battles/${id}/entries`, { verses: Array.from({ length: total }, (_, i) => mine.passage.start + i), links: ["https://example.com/video/all"] });
+    // Стих сдаётся один раз (03.10): стихи, которые участник уже сдал в прошлом бою за эту книгу, он отметить не может —
+    // отрывок закрывают участники «Пустыни» по очереди, каждый своей свободной частью.
+    await refreshTeams();
+    const want = Array.from({ length: total }, (_, i) => mine.passage.start + i), covered = new Set();
+    for (const m of S.teams.P.members) {
+      const mb = (await get(m.user.nickname, `/api/games/${S.gameId}/my-battles`)).battles.find((b) => b.id === id);
+      const learned = new Set(mb?.learnedVerses ?? []);
+      const vs = want.filter((v) => !covered.has(v) && !learned.has(v));
+      if (!vs.length) continue;
+      await post(m.user.nickname, `/api/games/${S.gameId}/battles/${id}/entries`, { verses: vs, links: ["https://example.com/video/all-" + m.user.nickname] });
+      for (const v of vs) covered.add(v);
+      if (covered.size >= want.length) break;
+    }
     await post("tg_p1", `/api/games/${S.gameId}/battles/${id}/submit`); await approveEntries(id, "ATTACK");
     const bi = await get("tg_m1", `/api/games/${S.gameId}/battles/${id}/book`);
     await post("tg_m1", `/api/games/${S.gameId}/battles/${id}/defense-passage`, { from: await refOf(bi, 0), to: await refOf(bi, total - 1) });
