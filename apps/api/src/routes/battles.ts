@@ -49,6 +49,7 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
     .filter((e) => forTeamId === null || e.teamId === forTeamId)
     .map((e) => ({ id: e.id, side: e.side, userId: e.userId, nickname: users.get(e.userId) ?? "?", ref: range(e.startIdx, e.endIdx), start: e.startIdx, end: e.endIdx, verses: e.endIdx - e.startIdx + 1, weight: e.weight, links: e.links, note: e.note, status: e.status, adminComment: e.adminComment, carried: e.carried, createdAt: e.createdAt }));
   const my = mySide && userId ? [...userVerses(b.entries, mySide, userId)] : [];
+  const learned = mySide && userId && live ? [...(await learnedVerses(b.gameId, b.id, b.bookCode, userId))] : [];
   return {
     id: b.id, nodeKey: b.nodeKey, bookCode: b.bookCode, bookName: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode, status: b.status, sumMode: b.sumMode, bid: b.bid, defenseBid: hideDefense ? null : b.defenseBid,
     attacker: b.attacker, defender: b.defender, mySide, passage, defensePassage,
@@ -56,8 +57,16 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
     defenseDeadline: b.defenseDeadline, defenseDoneAt: b.defenseDoneAt, resolvedAt: b.resolvedAt,
     attackSum: sumVerses(b.entries, "ATTACK", false), attackApproved: sumVerses(b.entries, "ATTACK", true),
     defenseSum: hideDefense ? 0 : sumVerses(b.entries, "DEFENSE", false), defenseApproved: hideDefense ? 0 : sumVerses(b.entries, "DEFENSE", true),
-    entries, myVerses: my, bookTotal: book?.total ?? null,
+    entries, myVerses: my, learnedVerses: learned, bookTotal: book?.total ?? null,
   };
+}
+
+/** Стихи книги, уже принятые у участника в других испытаниях этой игры (на любой стороне): сдать их снова нельзя. */
+async function learnedVerses(gameId: string, battleId: string, bookCode: string, userId: string): Promise<Set<number>> {
+  const past = await prisma.battleEntry.findMany({ where: { userId, status: "APPROVED", battle: { gameId, bookCode, NOT: { id: battleId } } }, select: { startIdx: true, endIdx: true } });
+  const out = new Set<number>();
+  for (const e of past) for (let i = e.startIdx; i <= e.endIdx; i++) out.add(i);
+  return out;
 }
 
 async function nicknames(ids: string[]): Promise<Map<string, string>> {
@@ -239,8 +248,14 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const lo = side === "ATTACK" ? b.passageStart! : b.defenseStart!, hi = side === "ATTACK" ? b.passageEnd! : b.defenseEnd!;
     if (body.verses.some((v) => v < lo || v > hi)) return reply.code(400).send({ error: "validation", message: err(request, "Отмечать можно только стихи из отрывка {range}", { range: formatRange(book, lo, hi) }) });
     const mine = userVerses(b.entries, side, request.user!.id);
-    const fresh = body.verses.filter((v) => !mine.has(v));
-    if (fresh.length === 0) return reply.code(409).send({ error: "conflict", message: err(request, "Эти стихи вы уже отметили") });
+    // Стих сдаётся один раз (решение владельца 03.10): то, что участник уже сдал и что принято в прошлых испытаниях
+    // этой книги, второй раз не засчитывается ни в вызове, ни в ответе.
+    const learned = await learnedVerses(id, b.id, b.bookCode, request.user!.id);
+    const fresh = body.verses.filter((v) => !mine.has(v) && !learned.has(v));
+    if (fresh.length === 0) {
+      if (body.verses.some((v) => learned.has(v) && !mine.has(v))) return reply.code(409).send({ error: "conflict", message: err(request, "Эти стихи вы уже сдавали в прошлом испытании: второй раз они не засчитываются") });
+      return reply.code(409).send({ error: "conflict", message: err(request, "Эти стихи вы уже отметили") });
+    }
     const ranges = toRanges(fresh);
     // Воин (решение владельца 22.09): его стихи считаются вдвое — вес фиксируется на момент отметки.
     const weight = m.gameRole === "WARRIOR" ? 2 : 1;

@@ -113,7 +113,7 @@ export interface BattleDto {
   mySide: "ATTACK" | "DEFENSE" | null; passage: PassageDto | null; defensePassage: PassageDto | null;
   declaredAt: string; startedAt: string | null; attackDeadline: string | null; attackDoneAt: string | null; attackApprovedAt: string | null;
   defenseDeadline: string | null; defenseDoneAt: string | null; resolvedAt: string | null;
-  attackSum: number; attackApproved: number; defenseSum: number; defenseApproved: number; entries: BattleEntryDto[]; myVerses: number[]; bookTotal: number | null;
+  attackSum: number; attackApproved: number; defenseSum: number; defenseApproved: number; entries: BattleEntryDto[]; myVerses: number[]; /** Стихи, уже принятые у меня в прошлых испытаниях этой книги: второй раз не сдаются. */ learnedVerses?: number[]; bookTotal: number | null;
 }
 export interface BookTextDto { code: string; name: string; verseCounts: number[]; chapters: string[][] | null; total: number }
 /** Окно отправки вызова по местному времени игры (решение владельца 02.10); на ответ хранителей не распространяется. */

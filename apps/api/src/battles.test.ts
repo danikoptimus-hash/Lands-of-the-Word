@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
+import { addAwakeMs, awakeMsBetween } from "@lotw/domain";
+import { rulesOf } from "./services/rules.js";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
@@ -125,8 +127,10 @@ describe("битва за город", () => {
     }
     const b = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(b.status).toBe("DEFENSE");
-    const T = b.defenseDeadline!.getTime() - b.attackApprovedAt!.getTime();
-    expect(Math.abs(T - 3_000_000)).toBeLessThan(5_000);
+    // Ночью таймеры стоят (03.10): T — дневное время от старта до отправки, дедлайн — через T дневного времени.
+    const tz = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone;
+    const T = awakeMsBetween(tz, b.startedAt!, b.attackDoneAt!) - b.attackPausedMs;
+    expect(Math.abs(b.defenseDeadline!.getTime() - addAwakeMs(tz, b.attackApprovedAt!, T).getTime())).toBeLessThan(5_000);
   });
 
   it("оборона: капитан выбирает последовательный отрывок из книги, участники учат, сумма ≥ атаки → отражено", async () => {

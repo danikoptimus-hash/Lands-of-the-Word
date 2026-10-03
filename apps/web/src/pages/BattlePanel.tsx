@@ -204,12 +204,14 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, daytime, onChang
 function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: string; b: BattleDto; passage: PassageDto; locked: boolean; onChanged: () => void }) {
   const { notify } = useUi();
   const mine = useMemo(() => new Set(b.myVerses), [b.myVerses]);
+  // Стих сдаётся один раз (решение владельца 03.10): принятые в прошлых испытаниях этой книги отмечать нельзя.
+  const learned = useMemo(() => new Set((b.learnedVerses ?? []).filter((i) => !b.myVerses.includes(i))), [b.learnedVerses, b.myVerses]);
   const [sel, setSel] = useState<Set<number>>(new Set());
   const [links, setLinks] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const toggle = (idx: number) => { if (locked || mine.has(idx)) return; setSel((s) => { const n = new Set(s); if (n.has(idx)) n.delete(idx); else n.add(idx); return n; }); };
-  const selectAll = () => setSel(new Set((passage.verses ?? []).map((v) => v.idx).filter((i) => !mine.has(i))));
+  const toggle = (idx: number) => { if (locked || mine.has(idx) || learned.has(idx)) return; setSel((s) => { const n = new Set(s); if (n.has(idx)) n.delete(idx); else n.add(idx); return n; }); };
+  const selectAll = () => setSel(new Set((passage.verses ?? []).map((v) => v.idx).filter((i) => !mine.has(i) && !learned.has(i))));
   async function send() {
     setBusy(true); setError(null);
     try {
@@ -224,14 +226,15 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
       <div className="row between"><span className="strong">{t("Отрывок {ref}", { ref: passage.ref })}{!locked && mine.size > 0 && <Help>{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}</Help>}</span><span className="muted small">{t("вы выучили {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 })}</span></div>
       {!locked && mine.size === 0 && <p className="hint">{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}</p>}
       {!locked && <button type="button" className="ghost sm" onClick={selectAll}>{t("Выбрать все оставшиеся")}</button>}
+      {learned.size > 0 && <p className="hint">{t("Стихов, которые вы уже сдавали в прошлых испытаниях этой книги: {n}. Второй раз они не засчитываются, их учат другие.", { n: learned.size })}</p>}
       <ul className="verses">
         {(passage.verses ?? []).map((v) => {
-          const done = mine.has(v.idx), on = sel.has(v.idx);
+          const done = mine.has(v.idx), on = sel.has(v.idx), was = learned.has(v.idx);
           return (
-            <li key={v.idx} className={done ? "done" : on ? "on" : ""}>
-              <button type="button" role="checkbox" aria-checked={done || on} disabled={locked || done} onClick={() => toggle(v.idx)}>
+            <li key={v.idx} className={done ? "done" : was ? "was" : on ? "on" : ""}>
+              <button type="button" role="checkbox" aria-checked={done || on} disabled={locked || done || was} onClick={() => toggle(v.idx)} title={was ? t("Вы уже сдавали этот стих раньше") : undefined}>
                 <span className="box">{(done || on) && <Icon name="check" />}</span>
-                <span className="ref">{v.ref}</span>
+                <span className="ref">{v.ref}{was && <span className="muted small"> · {t("сдано раньше")}</span>}</span>
                 <span className="text">{v.text ?? ""}</span>
               </button>
             </li>

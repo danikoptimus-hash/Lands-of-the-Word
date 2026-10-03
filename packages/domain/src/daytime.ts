@@ -79,3 +79,42 @@ export function dayLight(timeZone: string, now: Date = new Date()): DayLight {
 export const PHASE_LABEL_RU: Record<DayPhase, string> = { morning: "Утро", day: "День", evening: "Вечер", night: "Ночь" };
 /** Границы фаз «ч:мм» для подсказок. */
 export const PHASE_HOURS: Record<DayPhase, { from: string; to: string }> = { morning: { from: "7:00", to: "9:00" }, day: { from: "9:00", to: "18:00" }, evening: { from: "18:00", to: "22:00" }, night: { from: "22:00", to: "7:00" } };
+
+/**
+ * Ночью таймеры испытаний стоят (решение владельца 03.10): ночью ничего не делается, значит и время не идёт.
+ * Ближайшая граница «ночь ↔ не ночь» после момента `from`: ночь ли сейчас и когда она кончится (или начнётся).
+ */
+export function nightBoundary(timeZone: string, from: Date): { night: boolean; at: Date } {
+  const m = localMinutes(timeZone, from);
+  const night = m >= PHASE_START.night || m < PHASE_START.morning;
+  const until = night ? ((PHASE_START.morning - m) % 1440 + 1440) % 1440 || 1440 : PHASE_START.night - m;
+  const inMinute = from.getUTCSeconds() * 1000 + from.getUTCMilliseconds();
+  return { night, at: new Date(from.getTime() + until * 60_000 - inMinute) };
+}
+
+/** Сколько «дневных» миллисекунд между двумя моментами: ночь (22:00–7:00 по поясу) не считается. */
+export function awakeMsBetween(timeZone: string, from: Date, to: Date): number {
+  let t = from.getTime(), total = 0;
+  const end = to.getTime();
+  for (let guard = 0; t < end && guard < 10_000; guard++) {
+    const b = nightBoundary(timeZone, new Date(t));
+    const stop = Math.min(b.at.getTime(), end);
+    if (!b.night) total += stop - t;
+    t = stop;
+  }
+  return total;
+}
+
+/** Момент через `ms` дневных миллисекунд после `from`: ночь пропускается; если `from` ночью — отсчёт с 7:00. */
+export function addAwakeMs(timeZone: string, from: Date, ms: number): Date {
+  let t = from.getTime(), left = Math.max(0, ms);
+  for (let guard = 0; guard < 10_000; guard++) {
+    const b = nightBoundary(timeZone, new Date(t));
+    if (b.night) { t = b.at.getTime(); continue; }
+    const seg = b.at.getTime() - t;
+    if (seg >= left) return new Date(t + left);
+    left -= seg;
+    t = b.at.getTime();
+  }
+  return new Date(t);
+}

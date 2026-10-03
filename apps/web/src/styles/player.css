@@ -288,6 +288,9 @@
 .verses .ref { color: var(--muted); flex: none; min-width: 40px; font-weight: 600; }
 .verses li.on button { background: var(--accent-soft); }
 .verses li.on .box { border-color: var(--accent); color: var(--accent); }
+/* Стих, уже сданный участником в прошлом испытании этой книги: отметить нельзя (решение владельца 03.10). */
+.verses li.was button { opacity: .55; cursor: not-allowed; }
+.verses li.was .box { border-style: dashed; }
 .verses li.done button { background: var(--success-soft); }
 .verses li.done .box { background: var(--success); border-color: var(--success); color: var(--on-accent); }
 .chapter-select { width: auto; min-width: 9ch; }

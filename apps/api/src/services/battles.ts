@@ -1,3 +1,4 @@
+import { addAwakeMs, awakeMsBetween } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { sweepChronicles } from "./journal.js";
 import { publish } from "./events.js";
@@ -217,8 +218,10 @@ export async function maybeStartDefense(b: BattleWithEntries): Promise<BattleWit
   if (b.status !== "ATTACK" || !b.attackDoneAt || !b.startedAt || !sideApproved(b, "ATTACK", b.bid)) return b;
   const rules = await gameRules(b.gameId);
   const now = new Date();
-  const T = Math.max(rules.minAnswerSeconds * 1000, b.attackDoneAt.getTime() - b.startedAt.getTime() - b.attackPausedMs);
-  let upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackApprovedAt: now, defenseDeadline: new Date(now.getTime() + T) }, include: { entries: true } });
+  // Ночью таймеры стоят (решение владельца 03.10): T — дневное время вызова (ночь 22:00–7:00 не считается) минус
+  // стоп-часы; дедлайн ответа отмеряется тоже дневным временем, а одобрение ночью запускает ответ с 7:00.
+  const T = Math.max(rules.minAnswerSeconds * 1000, awakeMsBetween(rules.timeZone, b.startedAt, b.attackDoneAt) - b.attackPausedMs);
+  let upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackApprovedAt: now, defenseDeadline: addAwakeMs(rules.timeZone, now, T) }, include: { entries: true } });
   upd = await carryLearnedVerses(upd);
   publish(b.gameId, { type: "battles", teamId: b.defenderId });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
@@ -263,14 +266,17 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
  * 18.09): время, пока сторона ждала проверки, не считается — дедлайн сдвигается на длительность проверки.
  */
 export async function afterReject(b: BattleWithEntries, side: "ATTACK" | "DEFENSE"): Promise<BattleWithEntries> {
-  const now = Date.now();
+  const now = new Date();
+  const { timeZone } = await gameRules(b.gameId);
   if (side === "ATTACK" && b.status === "ATTACK" && b.attackDoneAt) {
-    const paused = Math.max(0, now - b.attackDoneAt.getTime());
-    return prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: null, attackPausedMs: { increment: paused }, ...(b.attackDeadline ? { attackDeadline: new Date(b.attackDeadline.getTime() + paused) } : {}) }, include: { entries: true } });
+    // Стоп-часы — дневным временем (ночь и так не считается); срок вызова (календарные дни) сдвигается на всё время проверки.
+    const pausedAwake = awakeMsBetween(timeZone, b.attackDoneAt, now), pausedWall = Math.max(0, now.getTime() - b.attackDoneAt.getTime());
+    return prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: null, attackPausedMs: { increment: pausedAwake }, ...(b.attackDeadline ? { attackDeadline: new Date(b.attackDeadline.getTime() + pausedWall) } : {}) }, include: { entries: true } });
   }
   if (side === "DEFENSE" && b.status === "DEFENSE" && b.defenseDoneAt) {
-    const paused = Math.max(0, now - b.defenseDoneAt.getTime());
-    return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null, ...(b.defenseDeadline ? { defenseDeadline: new Date(b.defenseDeadline.getTime() + paused) } : {}) }, include: { entries: true } });
+    // Сколько дневного времени оставалось в момент отправки — столько же остаётся с момента возврата (с 7:00, если возврат ночью).
+    const left = b.defenseDeadline ? awakeMsBetween(timeZone, b.defenseDoneAt, b.defenseDeadline) : 0;
+    return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null, ...(b.defenseDeadline ? { defenseDeadline: addAwakeMs(timeZone, now, left) } : {}) }, include: { entries: true } });
   }
   return b;
 }

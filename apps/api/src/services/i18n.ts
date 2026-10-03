@@ -185,6 +185,7 @@ const EN: Record<string, string> = {
   "Сначала капитан должен выбрать отрывок ответа": "The captain must pick the answer passage first",
   "Отмечать можно только стихи из отрывка {range}": "Only verses from the passage {range} can be marked",
   "Эти стихи вы уже отметили": "You have already marked these verses",
+  "Эти стихи вы уже сдавали в прошлом испытании: второй раз они не засчитываются": "You already submitted these verses in a past trial: they do not count a second time",
   "Запись не найдена": "Recording not found",
   "Принятую запись убрать нельзя": "An accepted recording cannot be removed",
   "Вызов уже отправлен на проверку": "The challenge has already been submitted for review",

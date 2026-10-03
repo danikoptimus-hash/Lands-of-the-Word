@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { dayLightAt, dayPhase, phaseAt } from "@lotw/domain";
+import { addAwakeMs, awakeMsBetween, dayLightAt, dayPhase, phaseAt } from "@lotw/domain";
 import { zoneForLocalHour } from "./testAuth.js";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
@@ -131,6 +131,24 @@ describe("правила и настройки", () => {
   });
 });
 
+describe("ночью таймеры испытаний стоят (03.10)", () => {
+  const tz = "Asia/Tashkent"; // UTC+5, без летнего времени
+  it("дневное время между моментами не считает ночь", () => {
+    // 20:00 → 8:00 следующего дня: 2 часа вечера + 1 час утра.
+    expect(awakeMsBetween(tz, new Date("2026-10-03T15:00:00Z"), new Date("2026-10-04T03:00:00Z"))).toBe(3 * 3_600_000);
+    expect(awakeMsBetween(tz, new Date("2026-10-03T05:00:00Z"), new Date("2026-10-03T06:00:00Z"))).toBe(3_600_000);
+    expect(awakeMsBetween(tz, new Date("2026-10-03T18:00:00Z"), new Date("2026-10-03T20:00:00Z"))).toBe(0);
+  });
+  it("дедлайн через дневное время пропускает ночь, одобрение ночью запускает отсчёт с 7:00", () => {
+    // 21:30 + 1 час дневного → 7:30 следующего дня.
+    expect(addAwakeMs(tz, new Date("2026-10-03T16:30:00Z"), 3_600_000).toISOString()).toBe("2026-10-04T02:30:00.000Z");
+    // 3:00 ночи + 2 часа → 9:00 того же дня.
+    expect(addAwakeMs(tz, new Date("2026-10-02T22:00:00Z"), 7_200_000).toISOString()).toBe("2026-10-03T04:00:00.000Z");
+    // Днём без ночи между — обычное сложение.
+    expect(addAwakeMs(tz, new Date("2026-10-03T05:00:00Z"), 1_800_000).toISOString()).toBe("2026-10-03T05:30:00.000Z");
+  });
+});
+
 describe("испытание по решениям 18.09", () => {
   let battleId = "";
   it("вызов бросает только капитан; претенденты не видят счёт хранителей", async () => {
@@ -151,7 +169,19 @@ describe("испытание по решениям 18.09", () => {
     const verses = Array.from({ length: 10 }, (_, i) => start + i);
     // Два участника учат по 10: сумма 20 при ставке 10 — лишние стихи не считаются.
     await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { verses, links: ["https://example.com/a"] });
-    await post(`/api/games/${gameId}/battles/${battleId}/entries`, p3Cookie, { verses, links: ["https://example.com/b"] });
+    // Стих сдаётся один раз (03.10): два стиха отрывка у третьего участника уже приняты в прошлом испытании этой книги.
+    const p3 = await prisma.user.findUniqueOrThrow({ where: { nickname: p3Nick } });
+    const past = await prisma.battle.create({ data: { gameId, nodeKey: rutKey, bookCode: "rut", attackerId: team2, defenderId: team1, bid: 10, status: "EXPIRED", resolvedAt: new Date() } });
+    await prisma.battleEntry.create({ data: { battleId: past.id, side: "ATTACK", teamId: team2, userId: p3.id, startIdx: start, endIdx: start + 1, links: ["https://example.com/old"], status: "APPROVED", decidedAt: new Date() } });
+    const again = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p3Cookie, { verses: [start, start + 1], links: ["https://example.com/b0"] });
+    expect(again.statusCode).toBe(409);
+    expect(again.json().message).toContain("прошлом испытании");
+    const p3Post = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p3Cookie, { verses, links: ["https://example.com/b"] });
+    expect(p3Post.json()).toMatchObject({ added: 8 });
+    const listed = (await get(`/api/games/${gameId}/my-battles`, p3Cookie)).json().battles as Array<{ id: string; learnedVerses: number[] }>;
+    expect(listed.find((x) => x.id === battleId)!.learnedVerses).toEqual([start, start + 1]);
+    // Подставной прошлый бой убираем, чтобы не влиял на очередь и «после сгорания» дальше.
+    await prisma.battle.delete({ where: { id: past.id } });
     expect((await post(`/api/games/${gameId}/battles/${battleId}/submit`, p2Cookie)).statusCode).toBe(200);
     const before = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     // Отправка была «десять минут назад»: возврат записи вернёт эти десять минут.
@@ -161,7 +191,10 @@ describe("испытание по решениям 18.09", () => {
     expect(rej.statusCode).toBe(200);
     const after = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(after.attackDoneAt).toBeNull();
-    expect(after.attackPausedMs).toBeGreaterThan(590_000);
+    // Стоп-часы — дневным временем (ночь не считается, 03.10); срок вызова сдвигается на всё время проверки.
+    const tz = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone;
+    const pausedAwake = awakeMsBetween(tz, new Date(Date.now() - 600_000), new Date());
+    expect(Math.abs(after.attackPausedMs - pausedAwake)).toBeLessThan(5_000);
     expect(after.attackDeadline!.getTime() - before.attackDeadline!.getTime()).toBeGreaterThan(590_000);
     // Уступить город нельзя — такого действия нет.
     expect((await post(`/api/games/${gameId}/battles/${battleId}/surrender`, p1Cookie)).statusCode).toBe(404);
@@ -171,8 +204,10 @@ describe("испытание по решениям 18.09", () => {
     for (const e of await entriesOf(battleId)) await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
     const def = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(def.status).toBe("DEFENSE");
-    const T = def.defenseDeadline!.getTime() - def.attackApprovedAt!.getTime();
-    expect(Math.abs(T - 3_000_000)).toBeLessThan(10_000);
+    // T — дневное время от старта до отправки минус стоп-часы; дедлайн ответа — через T дневного времени.
+    const expectedT = awakeMsBetween(tz, def.startedAt!, def.attackDoneAt!) - def.attackPausedMs;
+    expect(Math.abs(def.defenseDeadline!.getTime() - addAwakeMs(tz, def.attackApprovedAt!, expectedT).getTime())).toBeLessThan(5_000);
+    expect(expectedT).toBeGreaterThan(0);
     // Претенденты не видят отрывок и суммы хранителей, хранителям нужно ровно 10.
     const mine = await get(`/api/games/${gameId}/my-battles`, p2Cookie);
     expect(mine.json().battles[0]).toMatchObject({ defensePassage: null, defenseSum: 0, defenseBid: null });
@@ -200,7 +235,7 @@ describe("испытание по решениям 18.09", () => {
   });
 
   it("выученные раньше стихи засчитываются хранителям сами; закрепления без максимума нет", async () => {
-    // «Моряки» бросают вызов «Берегу» на Руфь: ставка 11. У «Берега» уже принято 20 единиц этой книги (по 10 у двоих).
+    // «Моряки» бросают вызов «Берегу» на Руфь: ставка 11. У «Берега» уже принято 18 единиц этой книги (10 у одного и 8 у другого: два стиха он сдавал раньше).
     const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie, { bid: 11 });
     expect(res.statusCode).toBe(201);
     const id = res.json().id as string;
@@ -212,12 +247,12 @@ describe("испытание по решениям 18.09", () => {
     await post(`/api/games/${gameId}/battles/${id}/submit`, p1Cookie);
     for (const e of await entriesOf(id)) await post(`/api/games/${gameId}/battles/${id}/entries/${e.id}/decide`, adminCookie, { approve: true });
     const b = await prisma.battle.findUniqueOrThrow({ where: { id }, include: { entries: true } });
-    // Зачтённых стихов (20) хватило на ставку 11: ответ дан без единого нового стиха.
+    // Зачтённых стихов (18) хватило на ставку 11: ответ дан без единого нового стиха.
     expect(b.status).toBe("REPELLED");
-    expect(b.defenseBid).toBe(20);
+    expect(b.defenseBid).toBe(18);
     expect(b.entries.filter((e) => e.side === "DEFENSE" && e.carried)).toHaveLength(2);
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
-    expect(node.defenseLevel).toBe(20);
+    expect(node.defenseLevel).toBe(18);
     expect(node.lockedUntil).toBeNull(); // максимум — 2 участника × 85 стихов — не достигнут
   });
 
