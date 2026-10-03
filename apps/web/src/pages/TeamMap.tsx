@@ -5,7 +5,7 @@ import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import type { EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
-import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast } from "./MapLayers";
+import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear } from "./MapLayers";
 import { Icon } from "../components/Icon";
 import { FaunaLayer, type FireSite } from "./Fauna";
 import { css, useDaytime } from "../lib/daytime";
@@ -93,6 +93,20 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
   // Перекрёстки края тумана укрыты облачком и там, где рядом нет гекса тумана (берег): команда их ещё не знает (03.10).
+  // Туман не закрывает то, что команда знает (решение владельца 03.10): открытые перекрёстки, города со значками и дороги
+  // к ним. Дорога к ещё не открытому перекрёстку расчищается не до конца: сам перекрёсток остаётся под облачком.
+  const fogClear = useMemo<FogClear>(() => {
+    const nodes = map.revealed.map((n) => { const p = nodePos(n.key, size); return n.kind === "CITY" ? { x: p.x, y: p.y - size * 0.12, r: size * 0.72 } : n.kind === "START" ? { x: p.x, y: p.y - size * 0.1, r: size * 0.8 } : { x: p.x, y: p.y, r: size * 0.45 }; });
+    const edges = map.edges.map((e) => {
+      const a = nodePos(e.aKey, size), b = nodePos(e.bKey, size), ra = revealed.has(e.aKey), rb = revealed.has(e.bKey);
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1, k = Math.min(0.9, (len - size * 0.55) / len);
+      // От известного конца к неизвестному — на 0,55 гекса не доходя до него.
+      if (ra && !rb) return { x0: a.x, y0: a.y, x1: a.x + (b.x - a.x) * k, y1: a.y + (b.y - a.y) * k };
+      if (rb && !ra) return { x0: b.x, y0: b.y, x1: b.x + (a.x - b.x) * k, y1: b.y + (a.y - b.y) * k };
+      return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
+    });
+    return { nodes, edges };
+  }, [map.revealed, map.edges, revealed, size]);
   const fogPoints = useMemo(() => {
     const fog = new Set(map.hexes.filter((h) => h.lit === false).map((h) => `${h.q},${h.r}`));
     // Только перекрёстки, у которых ни один из трёх гексов вокруг не в тумане (остальные туман уже укрывает).
@@ -331,7 +345,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         <CoastOver d={coast} size={size} light={dt.light} />
         {worldBody}
       </WorldSvg>
-      {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} light={dt.light} />}
+      {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} light={dt.light} />}
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">

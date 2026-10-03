@@ -238,7 +238,10 @@ const getTiles = (light: Light) => {
 };
 
 /** Маска тумана в координатах карты: гексы тумана с расширением и растушёвкой (уменьшение-увеличение вместо blur — работает везде). */
-function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ x: number; y: number }> = []): FogMask | null {
+/** Что туман не смеет закрывать (решение владельца 03.10): известные перекрёстки и города (круги) и дороги к ним (отрезки). */
+export interface FogClear { nodes: ReadonlyArray<{ x: number; y: number; r: number }>; edges: ReadonlyArray<{ x0: number; y0: number; x1: number; y1: number }> }
+const NO_CLEAR: FogClear = { nodes: [], edges: [] };
+function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ x: number; y: number }> = [], clear: FogClear = NO_CLEAR): FogMask | null {
   if (hexes.length === 0 && points.length === 0) return null;
   const pad = size * 3;
   const cs = [...hexes.map((h) => hexCenter(h, size)), ...points];
@@ -276,6 +279,30 @@ function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ 
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(pt.x, pt.y, size * 0.42, 0, Math.PI * 2); ctx.fill();
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  // Простое правило (решение владельца 03.10): туман не закрывает ничего, что команда знает, — открытые перекрёстки,
+  // города со значками и дороги к ним. Эти места вырезаются из маски с мягким краем: рисуются во временный растр,
+  // растушёвываются тем же приёмом (уменьшение-увеличение) и вычитаются из тумана.
+  if (clear.nodes.length || clear.edges.length) {
+    const cut = document.createElement("canvas"); cut.width = canvas.width; cut.height = canvas.height;
+    const cc = cut.getContext("2d")!;
+    cc.scale(ms, ms); cc.translate(-x, -y);
+    cc.fillStyle = "#000"; cc.strokeStyle = "#000"; cc.lineCap = "round"; cc.lineJoin = "round";
+    for (const n of clear.nodes) { cc.beginPath(); cc.arc(n.x, n.y, n.r, 0, Math.PI * 2); cc.fill(); }
+    cc.lineWidth = size * 0.5;
+    for (const e of clear.edges) { cc.beginPath(); cc.moveTo(e.x0, e.y0); cc.lineTo(e.x1, e.y1); cc.stroke(); }
+    for (const f of [3, 6]) {
+      const tmp = document.createElement("canvas");
+      tmp.width = Math.max(1, Math.round(cut.width / f)); tmp.height = Math.max(1, Math.round(cut.height / f));
+      const tc = tmp.getContext("2d")!; tc.imageSmoothingEnabled = true; tc.imageSmoothingQuality = "high";
+      tc.drawImage(cut, 0, 0, tmp.width, tmp.height);
+      cc.setTransform(1, 0, 0, 1, 0, 0); cc.clearRect(0, 0, cut.width, cut.height);
+      cc.imageSmoothingEnabled = true; cc.imageSmoothingQuality = "high";
+      cc.drawImage(tmp, 0, 0, cut.width, cut.height);
+    }
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.drawImage(cut, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+  }
   // Кромка маски всегда прозрачна: иначе при растяжении маски по краю проступала бы рамка.
   ctx.clearRect(0, 0, canvas.width, 2); ctx.clearRect(0, canvas.height - 2, canvas.width, 2);
   ctx.clearRect(0, 0, 2, canvas.height); ctx.clearRect(canvas.width - 2, 0, 2, canvas.height);
@@ -287,11 +314,11 @@ function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ 
  * ~24 раза в секунду для дрейфа и сразу при каждом движении карты; только пока вкладка видна;
  * при «уменьшить движение» — без дрейфа. Вид читается из ref, без React.
  */
-export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS, light = DAY_LIGHT }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; /** Точки (перекрёстки края тумана), которые должны быть под туманом и без гекса тумана рядом. */ fogPoints?: ReadonlyArray<{ x: number; y: number }>; light?: Light }) {
+export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS, clear = NO_CLEAR, light = DAY_LIGHT }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; /** Точки (перекрёстки края тумана), которые должны быть под туманом и без гекса тумана рядом. */ fogPoints?: ReadonlyArray<{ x: number; y: number }>; /** Что туман не закрывает: известные перекрёстки, города и дороги к ним. */ clear?: FogClear; light?: Light }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const lightRef = useRef(light); lightRef.current = light;
-  const fogKey = fogHexes.map((h) => `${h.q},${h.r}`).join(";") + "|" + fogPoints.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(";");
-  const mask = useMemo(() => (fogHexes.length || fogPoints.length ? buildFogMask(fogHexes, size, fogPoints) : null), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fogKey = fogHexes.map((h) => `${h.q},${h.r}`).join(";") + "|" + fogPoints.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(";") + "|" + clear.nodes.length + ":" + clear.edges.length + ":" + clear.nodes.map((n) => n.x.toFixed(0)).join(",");
+  const mask = useMemo(() => (fogHexes.length || fogPoints.length ? buildFogMask(fogHexes, size, fogPoints, clear) : null), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const maskRef = useRef(mask); maskRef.current = mask;
   const dirty = useRef(true); dirty.current = true;
   useEffect(() => { dirty.current = true; }, [light]);
