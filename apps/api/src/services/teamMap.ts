@@ -28,7 +28,21 @@ function weightedPick<T extends { frequency: number }>(list: T[]): T {
   for (const d of list) { r -= FREQUENCY_WEIGHT[d.frequency] ?? 3; if (r < 0) return d; }
   return list[list.length - 1]!;
 }
-export async function pickDeed(gameId: string, teamId: string, bookCode: string | null, excludeId?: string, onlyRemote = false): Promise<string | null> {
+/**
+ * «Рядом» со стороной (решение владельца 03.10: одинаковые дела не должны стоять рядом, даже если дела повторяются —
+ * пусть повторяются в разных местах карты): оба её конца и все перекрёстки, соседние с ними, то есть любая сторона
+ * в двух шагах. Чистая функция — по рёбрам карты, касающимся концов стороны.
+ */
+export function nearZone(edges: ReadonlyArray<{ aKey: string; bKey: string }>, fromKey: string, toKey: string): Set<string> {
+  const zone = new Set([fromKey, toKey]);
+  for (const e of edges) {
+    if (e.aKey === fromKey || e.aKey === toKey) zone.add(e.bKey);
+    if (e.bKey === fromKey || e.bKey === toKey) zone.add(e.aKey);
+  }
+  return zone;
+}
+
+export async function pickDeed(gameId: string, teamId: string, bookCode: string | null, excludeId?: string, onlyRemote = false, near?: { fromKey: string; toKey: string }): Promise<string | null> {
   // «Встреченными» считаются только дела, которые команда брала или сдавала: свободные стороны не в счёт
   // (решение владельца 18.09: иначе набор кончался уже на фронтире и повторы шли сразу).
   const [deeds, used, open] = await Promise.all([
@@ -42,22 +56,34 @@ export async function pickDeed(gameId: string, teamId: string, bookCode: string 
   // Дела, которые уже лежат на свободных сторонах команды: не «встреченные» (набор от них не кончается), но одно и то же
   // дело на двух соседних сторонах — путаница, поэтому такие берём в последнюю очередь.
   const openIds = new Set(open.map((u) => u.deedId));
-  const choose = (list: typeof deeds) => {
+  // Дела на сторонах команды в двух шагах от новой стороны (любой статус: они видны на карте): такое дело для новой
+  // стороны не берётся, пока есть любое другое — хоть из общего пула вместо книжного (замечание владельца 03.10:
+  // два одинаковых дела из одного перекрёстка).
+  let nearIds = new Set<string>();
+  if (near) {
+    const keys = [near.fromKey, near.toKey];
+    const touching = await prisma.mapEdge.findMany({ where: { gameId, OR: [{ aKey: { in: keys } }, { bKey: { in: keys } }] }, select: { aKey: true, bKey: true } });
+    const zone = [...nearZone(touching, near.fromKey, near.toKey)];
+    const tasks = await prisma.teamEdgeTask.findMany({ where: { teamId, OR: [{ fromKey: { in: zone } }, { toKey: { in: zone } }] }, select: { deedId: true } });
+    nearIds = new Set(tasks.map((t) => t.deedId));
+  }
+  const choose = (list: typeof deeds, strict: boolean) => {
     // 1) ещё не встречавшиеся команде; 2) допускающие повтор и не встречавшиеся на 30 последних векторах;
     // 3) любое допускающее повтор. На каждом шаге сначала те, которых сейчас нет на открытых сторонах.
-    const fresh = list.filter((d) => !usedIds.has(d.id));
-    const repeatable = list.filter((d) => d.canRepeat);
+    const base = strict ? list.filter((d) => !nearIds.has(d.id)) : list;
+    const fresh = base.filter((d) => !usedIds.has(d.id));
+    const repeatable = base.filter((d) => d.canRepeat);
     const notRecent = repeatable.filter((d) => !recentIds.has(d.id));
     const notOpen = (l: typeof deeds) => l.filter((d) => !openIds.has(d.id));
     const pool = [notOpen(fresh), fresh, notOpen(notRecent), notRecent, notOpen(repeatable), repeatable].find((l) => l.length > 0) ?? [];
     return pool.length ? weightedPick(pool).id : null;
   };
-  if (bookCode) {
-    // Пустой список книг — дело подходит к любой книге (как в документе; решение владельца 18.09).
-    const themed = choose(deeds.filter((d) => d.bookCodes.length === 0 || d.bookCodes.includes(bookCode)));
-    if (themed) return themed;
-  }
-  return choose(deeds) ?? weightedPick(deeds).id;
+  // Пустой список книг — дело подходит к любой книге (как в документе; решение владельца 18.09).
+  const themed = bookCode ? deeds.filter((d) => d.bookCodes.length === 0 || d.bookCodes.includes(bookCode)) : null;
+  // Сначала без дел, стоящих рядом: по книге, потом из общего пула; лишь если иначе никак — рядом тоже можно.
+  const tries: Array<[typeof deeds, boolean]> = themed ? [[themed, true], [deeds, true], [themed, false], [deeds, false]] : [[deeds, true], [deeds, false]];
+  for (const [list, strict] of tries) { const id = choose(list, strict); if (id) return id; }
+  return weightedPick(deeds).id;
 }
 
 /**
@@ -112,7 +138,7 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
   }
   const created: string[] = [];
   for (const w of wanted) {
-    const deedId = await pickDeed(gameId, teamId, cityBooks.get(w.fromKey) ?? null);
+    const deedId = await pickDeed(gameId, teamId, cityBooks.get(w.fromKey) ?? null, undefined, false, w);
     if (!deedId) return;
     created.push((await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: w.fromKey, toKey: w.toKey, deedId }, select: { id: true } })).id);
   }
@@ -125,7 +151,7 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
     // Плыть есть куда, только если на другом острове ещё остались свободные береговые развилки.
     const free = await prisma.mapNode.count({ where: { gameId, kind: "EMPTY", coastal: true, island: { not: port.island } } });
     if (free === 0) continue;
-    const deedId = await pickDeed(gameId, teamId, port.bookCode);
+    const deedId = await pickDeed(gameId, teamId, port.bookCode, undefined, false, { fromKey: port.key, toKey: port.key });
     if (!deedId) return;
     await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: port.key, toKey: seaKey(port.key), deedId, sea: true } });
   }
@@ -240,11 +266,11 @@ export async function returnStaleTasks(gameId: string, rules: Rules, now = new D
  */
 export async function ensureRemoteDeed(gameId: string, teamId: string, candidates: string[]): Promise<void> {
   if (candidates.length === 0) return;
-  const open = await prisma.teamEdgeTask.findMany({ where: { teamId, status: "OPEN", sea: false }, select: { id: true, deed: { select: { remote: true } } } });
+  const open = await prisma.teamEdgeTask.findMany({ where: { teamId, status: "OPEN", sea: false }, select: { id: true, fromKey: true, toKey: true, deed: { select: { remote: true } } } });
   if (open.some((t) => t.deed.remote)) return;
   const target = open.find((t) => t.id === candidates[candidates.length - 1]);
   if (!target) return;
-  const remoteId = await pickDeed(gameId, teamId, null, undefined, true);
+  const remoteId = await pickDeed(gameId, teamId, null, target.id, true, { fromKey: target.fromKey, toKey: target.toKey });
   if (!remoteId) return;
   await prisma.teamEdgeTask.update({ where: { id: target.id }, data: { deedId: remoteId } });
 }

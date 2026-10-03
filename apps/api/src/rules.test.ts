@@ -6,6 +6,7 @@ import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
 import { orderQueue, sumVerses } from "./services/battles.js";
+import { nearZone } from "./services/teamMap.js";
 import { pauseAfter, rulesOf } from "./services/rules.js";
 
 /**
@@ -128,6 +129,15 @@ describe("правила и настройки", () => {
     const back = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { attackDays: 14 } } } });
     expect(back.json().game.settings.rules.attackDays).toBe(14);
     expect(back.json().game.settings.rules.minBid).toBe(10);
+  });
+});
+
+describe("одинаковые дела не рядом (03.10)", () => {
+  it("зона «рядом» — концы стороны и соседние с ними перекрёстки", () => {
+    const edges = [{ aKey: "A", bKey: "B" }, { aKey: "B", bKey: "C" }, { aKey: "C", bKey: "D" }, { aKey: "A", bKey: "E" }, { aKey: "E", bKey: "F" }];
+    expect([...nearZone(edges, "A", "B")].sort()).toEqual(["A", "B", "C", "E"]);
+    // Касающиеся рёбра ищутся отдельно: лишние рёбра зону не расширяют.
+    expect(nearZone(edges, "C", "D").has("A")).toBe(false);
   });
 });
 
