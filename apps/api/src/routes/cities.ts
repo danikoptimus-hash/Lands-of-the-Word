@@ -330,16 +330,19 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     const node = await loadCityNode(id, nodeKey);
     if (!node) return reply.code(404).send({ error: "not_found", message: err(request, "Город не найден") });
-    const [content, teams, states] = await Promise.all([
+    const [content, teams, states, recipient] = await Promise.all([
       loadCityContent(node.bookCode!),
       prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, index: true, name: true, color: true } }),
       prisma.teamCityState.findMany({ where: { gameId: id, nodeKey } }),
+      // Адресат конверта (семья, вдова, старица): админ видит в карточке города, у кого шифр.
+      node.recipientId ? prisma.recipient.findUnique({ where: { id: node.recipientId }, select: { label: true, kind: true } }) : null,
     ]);
     const byTeam = new Map(states.map((s) => [s.teamId, s]));
     // Ответы на задания видит только администратор платформы (решение владельца): администратор игры — задания без ответов.
     const superadmin = request.user!.platformRole === "SUPERADMIN";
     return {
       node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, cityKey: node.cityKey, cityCode: node.cityCode },
+      recipient,
       content: superadmin || !content ? content : stripAnswers(content),
       answersHidden: !superadmin,
       teams: teams.map((t) => {

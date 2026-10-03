@@ -72,6 +72,8 @@ export interface MyCityDto {
 export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order" | "crossword"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[]; words?: Array<{ clue: string; answer?: string; len?: number }> }
 export interface AdminCityDto {
   node: { key: string; bookCode: string; cityType: string | null; cityKey: string | null; cityCode: string | null };
+  /** Адресат конверта этого города (семья, вдова, старица) или null, если список адресатов не ведётся. */
+  recipient?: { label: string; kind: "FAMILY" | "WIDOW" | "ELDER" | "OTHER" } | null;
   content: { title: string; translation: string; codeRule: string; districts: Array<{ verses: string; title: string; summary: string }>; tasks: AdminCityTask[] } | null;
   teams: Array<{ id: string; index: number; name: string; color: string; orderSolved: boolean; orderAttempts: number; doneTasks: number[]; answerAttempts: number; capturedAt: string | null; isCapital: boolean }>;
   /** Ответы видит только администратор платформы; администратору игры приходят задания без ответов. */

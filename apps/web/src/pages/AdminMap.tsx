@@ -17,6 +17,7 @@ import { Icon } from "../components/Icon";
 import { FaunaLayer, type FireSite } from "./Fauna";
 import { css, useDaytime } from "../lib/daytime";
 import { LakesLayer } from "./Lakes";
+import { kindLabel } from "./RecipientsBlock";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
 import { Sheet } from "../components/Sheet";
@@ -335,6 +336,7 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
           <dl className="keys">
             <dt>{t("Ключ (в конверте)")}</dt><dd>{city.node.cityKey ? <code className="key">{city.node.cityKey}</code> : pending}</dd>
             <dt>{t("Шифр")}</dt><dd>{city.node.cityCode ? <code className="key">{city.node.cityCode}</code> : pending}</dd>
+            <dt>{t("Конверт у")}</dt><dd>{city.recipient ? <>{city.recipient.label} <span className="muted">({kindLabel(city.recipient.kind)})</span></> : <span className="muted">{t("адресат не назначен")}</span>}</dd>
           </dl>
           {!city.content && <p className="note warn"><Icon name="alert" /><span>{t("Задания для этой книги ещё готовятся: команды пока не могут взять этот город.")}</span></p>}
           {battle && (
