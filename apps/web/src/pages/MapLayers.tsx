@@ -241,7 +241,8 @@ const getTiles = (light: Light) => {
 /** Что туман не смеет закрывать (решение владельца 03.10): известные перекрёстки и города (круги) и дороги к ним (отрезки). */
 export interface FogClear { nodes: ReadonlyArray<{ x: number; y: number; r: number }>; edges: ReadonlyArray<{ x0: number; y0: number; x1: number; y1: number }> }
 const NO_CLEAR: FogClear = { nodes: [], edges: [] };
-function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ x: number; y: number }> = [], clear: FogClear = NO_CLEAR): FogMask | null {
+const NEIGHBORS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]] as const;
+function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ x: number; y: number }> = [], clear: FogClear = NO_CLEAR, land: ReadonlySet<string> = new Set()): FogMask | null {
   if (hexes.length === 0 && points.length === 0) return null;
   const pad = size * 3;
   const cs = [...hexes.map((h) => hexCenter(h, size)), ...points];
@@ -259,6 +260,28 @@ function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ 
   }
   ctx.fillStyle = "#000"; ctx.strokeStyle = "#000"; ctx.lineJoin = "round"; ctx.lineWidth = size * 0.5;
   ctx.fill(poly); ctx.stroke(poly);
+  // Пляж вдоль гексов тумана тоже под туманом (замечание владельца 03.10): иначе у края, куда команда ещё не дошла,
+  // песок и отмель видны, а у подхода их закрывает облачко. Со стороны моря (соседа-суши нет) туман выходит за ребро
+  // гекса на SEA_REACH радиуса — на всю полосу песка; растушёвка дальше растворяет его в отмели.
+  if (land.size) {
+    const SEA_REACH = 0.85;
+    ctx.beginPath();
+    for (const h of hexes) {
+      const c = hexCenter(h, size);
+      for (const [dq, dr] of NEIGHBORS) {
+        if (land.has(`${h.q + dq},${h.r + dr}`)) continue;
+        const n = hexCenter({ q: h.q + dq, r: h.r + dr }, size);
+        const nx = (n.x - c.x) / (size * Math.sqrt(3)), ny = (n.y - c.y) / (size * Math.sqrt(3));
+        // Два угла гекса, ближайшие к соседу, — общее ребро; за него выдвигается четырёхугольник.
+        const corners = Array.from({ length: 6 }, (_, i) => { const a = (Math.PI / 180) * (60 * i - 30); return { x: c.x + Math.cos(a) * size, y: c.y + Math.sin(a) * size }; })
+          .sort((p1, p2) => Math.hypot(p1.x - n.x, p1.y - n.y) - Math.hypot(p2.x - n.x, p2.y - n.y)).slice(0, 2);
+        const [a, b] = corners as [{ x: number; y: number }, { x: number; y: number }];
+        const ex = nx * size * SEA_REACH, ey = ny * size * SEA_REACH;
+        ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(b.x + ex, b.y + ey); ctx.lineTo(a.x + ex, a.y + ey); ctx.closePath();
+      }
+    }
+    ctx.fill(); ctx.stroke();
+  }
   // Растушёвка: два прохода через уменьшенную копию (радиус ≈ 8–10 единиц карты).
   for (const f of [4, 8]) {
     const tmp = document.createElement("canvas");
@@ -314,11 +337,11 @@ function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ 
  * ~24 раза в секунду для дрейфа и сразу при каждом движении карты; только пока вкладка видна;
  * при «уменьшить движение» — без дрейфа. Вид читается из ref, без React.
  */
-export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS, clear = NO_CLEAR, light = DAY_LIGHT }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; /** Точки (перекрёстки края тумана), которые должны быть под туманом и без гекса тумана рядом. */ fogPoints?: ReadonlyArray<{ x: number; y: number }>; /** Что туман не закрывает: известные перекрёстки, города и дороги к ним. */ clear?: FogClear; light?: Light }) {
+export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS, clear = NO_CLEAR, land, light = DAY_LIGHT }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; /** Точки (перекрёстки края тумана), которые должны быть под туманом и без гекса тумана рядом. */ fogPoints?: ReadonlyArray<{ x: number; y: number }>; /** Что туман не закрывает: известные перекрёстки, города и дороги к ним. */ clear?: FogClear; /** Все гексы суши «q,r»: со стороны моря туман накрывает и пляж. */ land?: ReadonlySet<string>; light?: Light }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const lightRef = useRef(light); lightRef.current = light;
   const fogKey = fogHexes.map((h) => `${h.q},${h.r}`).join(";") + "|" + fogPoints.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(";") + "|" + clear.nodes.length + ":" + clear.edges.length + ":" + clear.nodes.map((n) => n.x.toFixed(0)).join(",");
-  const mask = useMemo(() => (fogHexes.length || fogPoints.length ? buildFogMask(fogHexes, size, fogPoints, clear) : null), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mask = useMemo(() => (fogHexes.length || fogPoints.length ? buildFogMask(fogHexes, size, fogPoints, clear, land) : null), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const maskRef = useRef(mask); maskRef.current = mask;
   const dirty = useRef(true); dirty.current = true;
   useEffect(() => { dirty.current = true; }, [light]);

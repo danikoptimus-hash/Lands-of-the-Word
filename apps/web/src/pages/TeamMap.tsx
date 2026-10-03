@@ -92,6 +92,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const [liveWater, setLiveWater] = useState(true);
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
+  const landKeys = useMemo(() => new Set(map.hexes.map((h) => `${h.q},${h.r}`)), [map.hexes]);
   // Перекрёстки края тумана укрыты облачком и там, где рядом нет гекса тумана (берег): команда их ещё не знает (03.10).
   // Туман не закрывает то, что команда знает (решение владельца 03.10): открытые перекрёстки, города со значками и дороги
   // к ним. Дорога к ещё не открытому перекрёстку расчищается не до конца: сам перекрёсток остаётся под облачком.
@@ -345,7 +346,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         <CoastOver d={coast} size={size} light={dt.light} />
         {worldBody}
       </WorldSvg>
-      {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} light={dt.light} />}
+      {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={dt.light} />}
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
