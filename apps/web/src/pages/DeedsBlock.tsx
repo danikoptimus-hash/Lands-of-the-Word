@@ -53,7 +53,10 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   useEffect(() => { void load(); }, [load, version]);
 
   const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, direction: directions[0] ?? "" } }); };
-  const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: { title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 2, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" } }); };
+  const formOf = (d: DeedDto): Form => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 60, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" });
+  const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: formOf(d) }); };
+  /** Дубликат дела (решение владельца 04.10): форма нового дела, заполненная полями исходного; сохраняется как отдельное дело. */
+  const openDuplicate = (d: DeedDto) => { setError(null); setSheet({ id: null, form: { ...formOf(d), title: t("{title} (копия)", { title: d.title }) } }); };
   const close = () => setSheet(null);
 
   async function save(e: FormEvent) {
@@ -119,7 +122,10 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
               <div className="side">
                 {d.description && <button type="button" className="ghost sm icon deed-chev" onClick={() => toggle(d.id)} aria-expanded={open} aria-label={t("Описание")} title={t("Описание")}><Icon name="chevron-down" /></button>}
                 <button type="button" className="ghost sm icon" onClick={() => openEdit(d)} aria-label={t("Изменить дело")} title={t("Изменить")}><Icon name="edit" /></button>
-                <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить дело"), icon: "trash", danger: true, onSelect: () => void remove(d) }]} />
+                <ActionMenu label={t("Ещё")} items={[
+                  { label: t("Дублировать дело"), icon: "copy", onSelect: () => openDuplicate(d) },
+                  { label: t("Удалить дело"), icon: "trash", danger: true, onSelect: () => void remove(d) },
+                ]} />
               </div>
             </li>
           ); })}
