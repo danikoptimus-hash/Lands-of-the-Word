@@ -79,7 +79,7 @@ export const ADMIN: Record<string, string> = {
   "Запись принята": "Recording accepted", "Запись возвращена": "Recording returned", "Какие испытания показывать": "Which trials to show", "Идут": "Ongoing", "Все": "All",
   "Сейчас испытаний нет.": "No trials right now.", "ставка": "bid", "Вызов": "Challenge", "выучено {a} · принято {b}": "learned {a} · accepted {b}", "сдано на проверку": "sent for review",
   "выучено {a} · принято {b} · нужно {c}": "learned {a} · accepted {b} · needed {c}", "устояли на {n}": "held with {n}", "идёт вызов": "challenge in progress", "идёт ответ": "response in progress",
-  "город перешёл": "city changed hands", "город устоял": "city held", "вызов не завершён": "challenge not completed", "отменено": "cancelled", "возвращено": "returned",
+  "взято {d}": "taken {d}", "взято": "taken", "город перешёл": "city changed hands", "город устоял": "city held", "вызов не завершён": "challenge not completed", "отменено": "cancelled", "возвращено": "returned",
   "задание {n}": "task {n}", 
   // Администраторы
   "{nick} больше не сможет вести эту игру.": "{nick} will no longer be able to run this game.", "Убрать администратора?": "Remove administrator?", "{nick} убран из администраторов": "{nick} removed from administrators",

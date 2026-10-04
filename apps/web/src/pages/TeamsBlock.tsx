@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, GAME_ROLE_ICON, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type StandingRow, type StandingsDto, type TeamDto } from "../lib/api";
 import { Link } from "react-router-dom";
-import { plural } from "../lib/format";
+import { fmtDate, plural } from "../lib/format";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
@@ -166,6 +166,14 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                 return (
                   <li key={m.user.id} className="member-row">
                     <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span><DeedBadge limit={m.deedLimit} now={now} />{(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"}>{TEAM_ROLE_LABEL[m.role]}</Chip>}</span>
+                      {/* Дела на руках у участника (решение владельца 04.10): взятые — с датой, сданные — «на проверке», возвращённые — «возвращено». */}
+                      {(m.activeDeeds?.length ?? 0) > 0 && (
+                        <ul className="member-deeds">
+                          {m.activeDeeds!.map((d) => (
+                            <li key={d.id}><Icon name={d.status === "SUBMITTED" ? "clock" : d.status === "REJECTED" ? "alert" : "scroll"} /><span className="title">{d.title}</span><span className="muted">{d.status === "SUBMITTED" ? t("на проверке") : d.status === "REJECTED" ? t("возвращено") : d.takenAt ? t("взято {d}", { d: fmtDate(d.takenAt) }) : t("взято")}</span></li>
+                          ))}
+                        </ul>
+                      )}
                     </div>
                     <div className="side">
                       {m.role !== "CAPTAIN" && (

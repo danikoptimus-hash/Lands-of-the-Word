@@ -25,7 +25,7 @@ export interface MapEdgeDto { aKey: string; bKey: string }
 
 export type TeamRole = "CAPTAIN" | "DEPUTY" | "MEMBER";
 export type GameRole = "NONE" | "SCOUT" | "PROPHET" | "AMBASSADOR" | "CHRONICLER" | "HELMSMAN" | "WARRIOR";
-export interface MemberDto { role: TeamRole; gameRole: GameRole; pendingRole?: GameRole | null; joinedAt: string; user: { id: string; nickname: string; displayName: string | null }; /** Лимит дел в сутки этого участника (null — лимита нет): взято за сутки и когда можно взять следующее. Видит вся команда. */ deedLimit?: { max: number; taken: number; nextAt: number | null } | null }
+export interface MemberDto { role: TeamRole; gameRole: GameRole; pendingRole?: GameRole | null; joinedAt: string; user: { id: string; nickname: string; displayName: string | null }; /** Лимит дел в сутки этого участника (null — лимита нет): взято за сутки и когда можно взять следующее. Видит вся команда. */ deedLimit?: { max: number; taken: number; nextAt: number | null } | null; /** Только администратору: дела, которые участник сейчас держит (взятые, на проверке, возвращённые). */ activeDeeds?: Array<{ id: string; title: string; status: string; takenAt: string | null; submittedAt: string | null }> }
 export interface TeamDto { id: string; index: number; name: string; color: string; startNodeKey: string | null; status?: string; roleChangeAvailableAt?: string | null; members: MemberDto[] }
 export interface MyTeamDto { role: TeamRole; gameRole: GameRole; team: { id: string; name: string; color: string }; game: { id: string; name: string; status: string; org: { name: string } } }
 

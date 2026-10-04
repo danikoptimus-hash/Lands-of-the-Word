@@ -163,6 +163,11 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 /* Строка участника компактно (23.09): имя, роль и меню в одну строку; ряд ролей — под строкой. */
 .team-block .member-row { align-items: center; }
 .team-block .member-row .main { flex: 1 1 0; min-width: 0; }
+.team-block .member-deeds { list-style: none; margin: 4px 0 0 36px; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.team-block .member-deeds li { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.team-block .member-deeds .i { width: 13px; height: 13px; flex: none; color: var(--accent); }
+.team-block .member-deeds .title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.team-block .member-deeds .muted { flex: none; }
 .team-block .member-row .side { flex: none; flex-wrap: nowrap; }
 .team-block .member-row .role-pick .chip { max-width: 140px; overflow: hidden; }
 .role-tray.compact { flex-direction: row; flex-wrap: wrap; gap: var(--sp-1); padding-left: 40px; }
