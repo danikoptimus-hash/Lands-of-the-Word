@@ -265,8 +265,9 @@ describe("карта команды и дела", () => {
     expect(m.hexes.length).toBeGreaterThan(50);
     expect(m.hexes.find((h: { lit: boolean; terrain?: string }) => !h.lit)?.terrain).toBeUndefined();
     expect(m.tasks.every((t: { status: string }) => t.status === "OPEN")).toBe(true);
-    // Дела на рёбрах не повторяются, пока хватает уникальных.
-    expect(new Set(m.tasks.map((t: { deedId: string }) => t.deedId)).size).toBe(m.tasks.length);
+    // Дела до 60% не ставятся рядом с таким же (03.10/04.10); дела от 80% могут повторяться и на соседних сторонах.
+    const low = (m.tasks as Array<{ deedId: string; deed: { chance?: number } }>).filter((t) => (t.deed.chance ?? 60) < 80);
+    expect(new Set(low.map((t) => t.deedId)).size).toBe(low.length);
     taskId = m.tasks[0].id;
     // Чужой не видит.
     const other = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: adminCookie } });

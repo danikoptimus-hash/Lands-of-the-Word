@@ -70,7 +70,7 @@ export function requireSuperadmin(request: FastifyRequest, reply: FastifyReply):
 }
 
 const taskInclude = {
-  deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true } },
+  deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true, chance: true } },
   team: { select: { id: true, name: true, color: true } },
 } as const;
 type TaskWithDeed = { fromKey: string; deed: { title: string; description: string } };
