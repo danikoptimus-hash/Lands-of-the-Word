@@ -19,7 +19,7 @@ const taskSchema = z.discriminatedUnion("type", [
   z.object({ ...taskBase, type: z.literal("choice"), options: z.array(z.string().min(1)).min(2), correct: z.number().int().min(0) }),
   z.object({ ...taskBase, type: z.literal("order"), items: z.array(z.string().min(1)).min(2) }),
   // Кроссворд по району (решение владельца 18.09): 4–8 слов из текста района, подсказки — вопросы к ним.
-  z.object({ ...taskBase, type: z.literal("crossword"), words: z.array(z.object({ clue: z.string().min(1), answer: z.string().min(2) })).min(3).max(8) }),
+  z.object({ ...taskBase, type: z.literal("crossword"), words: z.array(z.object({ clue: z.string().min(1), answer: z.string().min(2), /** Допустимые написания той же длины (разные издания Синодального текста: «домы» / «дома»). */ alt: z.array(z.string().min(2)).optional() })).min(3).max(8) }),
 ]);
 const contentSchema = z.object({
   book: z.string().min(1),
@@ -133,7 +133,14 @@ export function checkAnswer(task: CityTask, index: number, secret: string, scope
       // Все слова разом: сравниваются буквы сетки (регистр, ё/е, пробелы и дефисы не важны).
       const l = layoutCrossword(task.words);
       if (!Array.isArray(answer) || answer.length !== l.words.length) return false;
-      return l.words.every((w, i) => typeof answer[i] === "string" && gridLetters(answer[i] as string).join("") === gridLetters(task.words[w.src]!.answer).join(""));
+      // Слово принимается и в допустимом альтернативном написании той же длины (alt): «домы» рядом с «дома».
+      return l.words.every((w, i) => {
+        if (typeof answer[i] !== "string") return false;
+        const given = gridLetters(answer[i] as string).join("");
+        const src = task.words[w.src]!;
+        const want = gridLetters(src.answer).join("");
+        return given === want || (src.alt ?? []).some((a) => { const x = gridLetters(a).join(""); return x.length === want.length && x === given; });
+      });
     }
   }
 }

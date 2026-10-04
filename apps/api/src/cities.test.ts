@@ -2,6 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { checkAnswer } from "./services/cities.js";
+import { layoutCrossword } from "./services/crossword.js";
 import { ensureCityCodes } from "./services/recipients.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase, zoneForLocalHour } from "./testAuth.js";
 
@@ -342,6 +344,18 @@ describe("дипломатия, роли, столица, руины, пожер
     expect(take.statusCode).toBe(200);
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     expect(node.ruined).toBe(false);
+  });
+});
+
+describe("кроссворд: альтернативные написания", () => {
+  it("слово принимается в написании другого издания той же длины (домы / дома), другое слово — нет", () => {
+    const words = [{ clue: "a", answer: "дома", alt: ["домы"] }, { clue: "b", answer: "день" }, { clue: "c", answer: "народ" }];
+    const task = { type: "crossword", prompt: "x", words } as never;
+    // Ответ идёт в порядке сетки (самое длинное слово первым), а не в порядке списка.
+    const ans = (f: (w: { answer: string; alt?: string[] }) => string) => layoutCrossword(words).words.map((w) => f(words[w.src]!));
+    expect(checkAnswer(task, 0, "s", "k", ans((w) => w.answer))).toBe(true);
+    expect(checkAnswer(task, 0, "s", "k", ans((w) => w.alt?.[0] ?? w.answer))).toBe(true);
+    expect(checkAnswer(task, 0, "s", "k", ans((w) => (w.answer === "день" ? "дни" : w.answer)))).toBe(false);
   });
 });
 

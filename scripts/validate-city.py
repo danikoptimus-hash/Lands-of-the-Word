@@ -123,6 +123,8 @@ def check(path):
             if len(set(grid_letters(a) for a in answers)) != len(answers): errs.append(f"задание {i}: повтор слов кроссворда")
             for w in words:
                 a = w.get("answer", ""); g = grid_letters(a)
+                for alt in w.get("alt") or []:
+                    if len(grid_letters(alt)) != len(g): errs.append(f"задание {i}: alt «{alt}» другой длины, чем «{a}»")
                 if not w.get("clue"): errs.append(f"задание {i}: слово «{a}» без вопроса")
                 if len(g) < 2 or not re.fullmatch(r"[А-Я]+", g): errs.append(f"задание {i}: слово «{a}» — только буквы, не короче двух")
                 if norm(a) not in scope_text: errs.append(f"задание {i}: слово «{a}» не найдено в стихах района")
