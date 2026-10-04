@@ -185,27 +185,29 @@ export function dailyBird(
   nodes: Array<{ key: string; kind: string }>, edges: Array<{ aKey: string; bKey: string }>, now = Date.now(),
 ): { key: string; at: number } | null {
   if (!start) return null;
+  // Решение владельца 04.10: раз в два часа клин летит к случайному не открытому командой городу (раньше — к ближайшему
+  // раз в час). Кандидаты — не открытые города, достижимые по дорогам от старта (тот же остров); если таких нет —
+  // любые не открытые. Семя — «id игры + id команды + номер двухчасового периода»: у всей команды один и тот же город
+  // и момент, у разных команд — свои.
   const adj = new Map<string, string[]>();
   for (const e of edges) { adj.set(e.aKey, [...(adj.get(e.aKey) ?? []), e.bKey]); adj.set(e.bKey, [...(adj.get(e.bKey) ?? []), e.aKey]); }
-  const isCity = new Set(nodes.filter((n) => n.kind === "CITY" && !revealed.has(n.key)).map((n) => n.key));
+  const hidden = nodes.filter((n) => n.kind === "CITY" && !revealed.has(n.key)).map((n) => n.key).sort();
+  if (hidden.length === 0) return null;
   const seen = new Set([start]);
-  let frontier = [start], key: string | null = null;
-  for (let depth = 0; depth < 40 && frontier.length && !key; depth++) {
-    const found = frontier.filter((k) => isCity.has(k)).sort();
-    if (found.length) { key = found[0]!; break; }
-    const next: string[] = [];
-    for (const k of frontier) for (const nb of adj.get(k) ?? []) if (!seen.has(nb)) { seen.add(nb); next.push(nb); }
-    frontier = next;
-  }
-  if (!key) return null;
-  // Раз в реальный час (решение владельца 02.10; раньше — раз в сутки): семя — номер часа, момент — случайный внутри часа.
-  const hour = Math.floor(now / 3_600_000);
-  const rng = mulberry32(hashSeed(`${gameId}:${teamId}:bird:${hour}`));
-  let at = hour * 3_600_000 + Math.floor(rng() * 3_600_000);
+  const queue = [start];
+  while (queue.length) { const k = queue.shift()!; for (const nb of adj.get(k) ?? []) if (!seen.has(nb)) { seen.add(nb); queue.push(nb); } }
+  const reachable = hidden.filter((k) => seen.has(k));
+  const pool = reachable.length ? reachable : hidden;
+  const period = Math.floor(now / BIRD_PERIOD_MS);
+  const rng = mulberry32(hashSeed(`${gameId}:${teamId}:bird:${period}`));
+  const key = pool[Math.floor(rng() * pool.length)]!;
+  let at = period * BIRD_PERIOD_MS + Math.floor(rng() * BIRD_PERIOD_MS);
   const phase = (at / 1000) % FAUNA_EPOCH;
   if (phase > FAUNA_EPOCH - FAUNA_TAIL) at -= Math.round((phase - (FAUNA_EPOCH - FAUNA_TAIL)) * 1000);
   return { key, at };
 }
+/** Период полёта клина к городу: два часа реального времени (решение владельца 04.10). */
+export const BIRD_PERIOD_MS = 2 * 3_600_000;
 
 /** Заглушка toKey морского дела до высадки. */
 export const seaKey = (portKey: string) => `sea:${portKey}`;
