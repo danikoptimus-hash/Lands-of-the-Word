@@ -173,20 +173,20 @@ describe("битва за город", () => {
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     expect(node.defenseLevel).toBe(12);
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie);
-    // Отбитый вызов (04.10): штраф претендентов +5 → max(10 + 5, 12 + 1) = 15.
-    expect(w.json().minBid).toBe(15);
+    // После отбитого вызова (04.10): уровень + 5 для всех → max(10, 12 + 5) = 17.
+    expect(w.json().minBid).toBe(17);
     expect(w.json().canDeclare).toBe(true);
     await prisma.user.deleteMany({ where: { nickname: `bp3_${stamp}` } });
   });
 
   it("сгоревшая атака (14 дней без ссылок) даёт штраф +5 к минимальной ставке", async () => {
-    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 15 });
+    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 17 });
     expect(res.statusCode).toBe(201);
     await prisma.battle.update({ where: { id: res.json().id }, data: { attackDeadline: new Date(Date.now() - 1000) } });
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie);
     expect(w.json().battles[0].status).toBe("EXPIRED");
-    expect(w.json().penalty).toBe(10);
-    expect(w.json().minBid).toBe(20);
+    expect(w.json().penalty).toBe(5);
+    expect(w.json().minBid).toBe(17); // max(10 + 5, 12 + 5)
   });
 
   it("просроченная оборона: город взят, столица потеряна — команда выбывает", async () => {

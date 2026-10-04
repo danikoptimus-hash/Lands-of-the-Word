@@ -257,19 +257,19 @@ describe("испытание по решениям 18.09", () => {
   });
 
   it("выученные раньше стихи засчитываются хранителям сами; закрепления без максимума нет", async () => {
-    // «Моряки» бросают вызов «Берегу» на Руфь: ставка 11. У «Берега» уже принято 18 единиц этой книги (10 у одного и 8 у другого: два стиха он сдавал раньше).
-    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie, { bid: 11 });
+    // «Моряки» бросают вызов «Берегу» на Руфь: ставка 15 (уровень 10 + 5). У «Берега» уже принято 18 единиц этой книги (10 у одного и 8 у другого: два стиха он сдавал раньше).
+    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie, { bid: 15 });
     expect(res.statusCode).toBe(201);
     const id = res.json().id as string;
     await prisma.mapNode.update({ where: { gameId_key: { gameId, key: rutKey } }, data: { sumMode: true } });
     await prisma.battle.update({ where: { id }, data: { sumMode: true } });
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie);
     const { start } = w.json().battles[0].passage as { start: number };
-    await post(`/api/games/${gameId}/battles/${id}/entries`, p1Cookie, { verses: Array.from({ length: 11 }, (_, i) => start + i), links: ["https://example.com/m"] });
+    await post(`/api/games/${gameId}/battles/${id}/entries`, p1Cookie, { verses: Array.from({ length: 15 }, (_, i) => start + i), links: ["https://example.com/m"] });
     await post(`/api/games/${gameId}/battles/${id}/submit`, p1Cookie);
     for (const e of await entriesOf(id)) await post(`/api/games/${gameId}/battles/${id}/entries/${e.id}/decide`, adminCookie, { approve: true });
     const b = await prisma.battle.findUniqueOrThrow({ where: { id }, include: { entries: true } });
-    // Зачтённых стихов (18) хватило на ставку 11: ответ дан без единого нового стиха.
+    // Зачтённых стихов (18) хватило на ставку 15: ответ дан без единого нового стиха.
     expect(b.status).toBe("REPELLED");
     expect(b.defenseBid).toBe(18);
     expect(b.entries.filter((e) => e.side === "DEFENSE" && e.carried)).toHaveLength(2);
@@ -279,13 +279,12 @@ describe("испытание по решениям 18.09", () => {
   });
 
   it("сгоревший вызов помечает следующий как «после сгорания»; письмо и штраф", async () => {
-    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie, { bid: 21 });
+    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie, { bid: 23 });
     expect(res.statusCode).toBe(201);
     await prisma.battle.update({ where: { id: res.json().id }, data: { attackDeadline: new Date(Date.now() - 1000) } });
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie);
     expect(w.json().battles[0].status).toBe("EXPIRED");
-    // 5 за отбитый вызов (04.10) + 5 за сгоревший.
-    expect(w.json().penalty).toBe(10);
+    expect(w.json().penalty).toBe(5);
     const again = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie, { bid: 26 });
     expect(again.statusCode).toBe(201);
     expect((await prisma.battle.findUniqueOrThrow({ where: { id: again.json().id } })).afterBurn).toBe(true);
