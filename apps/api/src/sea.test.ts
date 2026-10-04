@@ -52,6 +52,20 @@ afterAll(async () => {
 });
 
 describe("стандартный набор дел", () => {
+  it("развести одинаковые дела рядом: меняются только свободные стороны с двойником в двух шагах", async () => {
+    const tasks = await prisma.teamEdgeTask.findMany({ where: { teamId: team1, status: "OPEN", sea: false }, orderBy: { createdAt: "asc" }, take: 2 });
+    expect(tasks.length).toBe(2);
+    // Две свободные стороны из одного перекрёстка получают одно дело — как в играх, начатых до правила 03.10.
+    await prisma.teamEdgeTask.update({ where: { id: tasks[1]!.id }, data: { deedId: tasks[0]!.deedId } });
+    const r = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/reshuffle`, headers: { cookie: adminCookie } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().changed).toBeGreaterThanOrEqual(1);
+    const after = await prisma.teamEdgeTask.findMany({ where: { id: { in: tasks.map((t) => t.id) } } });
+    expect(after[0]!.deedId).not.toBe(after[1]!.deedId);
+    // Не администратору нельзя.
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/reshuffle`, headers: { cookie: capCookie } })).statusCode).toBe(403);
+  });
+
   it("синхронизация при старте сервера: нередактированные дела обновляются, правленные — нет, исчезнувшие из набора убираются", async () => {
     const deeds = (await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } })).json().deeds as Array<{ id: string; title: string; description: string }>;
     const a = deeds.find((d) => d.title === "Посетить больного")!, b = deeds.find((d) => d.title === "Помощь по хозяйству")!;

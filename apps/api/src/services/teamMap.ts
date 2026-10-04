@@ -276,6 +276,44 @@ export async function ensureRemoteDeed(gameId: string, teamId: string, candidate
 }
 
 /**
+ * Развести одинаковые дела, стоящие рядом (решение владельца 04.10): действие администратора для игр, начатых до
+ * правила «одинаковые дела не рядом». Меняются только свободные стороны (OPEN): взятые, сданные и принятые дела не
+ * трогаются. Для каждой свободной стороны, у которой то же дело есть на другой стороне команды в двух шагах,
+ * подбирается другое дело по обычным правилам (по книге города, иначе из общего пула); если другого нет — остаётся.
+ */
+export async function reshuffleNearDuplicates(gameId: string): Promise<{ checked: number; changed: number }> {
+  const [teams, edges, cities] = await Promise.all([
+    prisma.team.findMany({ where: { gameId }, select: { id: true } }),
+    prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
+    prisma.mapNode.findMany({ where: { gameId, kind: "CITY", bookCode: { not: null } }, select: { key: true, bookCode: true } }),
+  ]);
+  const cityBooks = new Map(cities.map((n) => [n.key, n.bookCode!]));
+  let checked = 0, changed = 0;
+  for (const team of teams) {
+    const tasks = await prisma.teamEdgeTask.findMany({ where: { teamId: team.id }, orderBy: { createdAt: "asc" }, select: { id: true, fromKey: true, toKey: true, deedId: true, status: true, deed: { select: { remote: true } } } });
+    const byDeed = new Map<string, Array<{ id: string; fromKey: string; toKey: string }>>();
+    for (const t of tasks) byDeed.set(t.deedId, [...(byDeed.get(t.deedId) ?? []), t]);
+    let teamChanged = 0;
+    for (const t of tasks) {
+      if (t.status !== "OPEN") continue;
+      checked++;
+      const touching = edges.filter((e) => e.aKey === t.fromKey || e.bKey === t.fromKey || e.aKey === t.toKey || e.bKey === t.toKey);
+      const zone = nearZone(touching, t.fromKey, t.toKey);
+      const twin = (byDeed.get(t.deedId) ?? []).some((o) => o.id !== t.id && (zone.has(o.fromKey) || zone.has(o.toKey)));
+      if (!twin) continue;
+      const next = await pickDeed(gameId, team.id, cityBooks.get(t.fromKey) ?? null, t.deedId, t.deed.remote, { fromKey: t.fromKey, toKey: t.toKey });
+      if (!next || next === t.deedId) continue;
+      await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: next } });
+      byDeed.set(t.deedId, (byDeed.get(t.deedId) ?? []).filter((o) => o.id !== t.id));
+      byDeed.set(next, [...(byDeed.get(next) ?? []), t]);
+      teamChanged++;
+    }
+    if (teamChanged) { changed += teamChanged; publish(gameId, { type: "tasks", teamId: team.id }); publish(gameId, { type: "map", teamId: team.id }); }
+  }
+  return { checked, changed };
+}
+
+/**
  * Штраф администратора (телефон на собрании; решение владельца 18.09): аннулируется случайный концевой участок пути —
  * пройденная сторона, за которой у команды нет других пройденных сторон; города команды и старт не трогаются.
  * Перекрёсток за стороной снова закрыт, дело на стороне нужно сделать заново.

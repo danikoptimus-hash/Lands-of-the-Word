@@ -117,6 +117,8 @@ describe("битва за город", () => {
   });
 
   it("одобрение всей атаки админом запускает оборону ровно на T", async () => {
+    // Арифметика таймеров — в поясе, где сейчас день: сдвинутые назад отметки не попадают в ночь (ночью таймеры стоят, 03.10).
+    await setGamePhase(app, gameId, adminCookie, "day");
     await prisma.battle.update({ where: { id: battleId }, data: { startedAt: new Date(Date.now() - 3_600_000), attackDoneAt: new Date(Date.now() - 600_000) } });
     const list = await get(`/api/games/${gameId}/battles`, adminCookie);
     const entries = list.json().battles.find((b: { id: string }) => b.id === battleId).entries as Array<{ id: string; side: string }>;
@@ -130,7 +132,9 @@ describe("битва за город", () => {
     // Ночью таймеры стоят (03.10): T — дневное время от старта до отправки, дедлайн — через T дневного времени.
     const tz = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone;
     const T = awakeMsBetween(tz, b.startedAt!, b.attackDoneAt!) - b.attackPausedMs;
+    expect(Math.abs(T - 3_000_000)).toBeLessThan(5_000);
     expect(Math.abs(b.defenseDeadline!.getTime() - addAwakeMs(tz, b.attackApprovedAt!, T).getTime())).toBeLessThan(5_000);
+    await setGamePhase(app, gameId, adminCookie, "morning");
   });
 
   it("оборона: капитан выбирает последовательный отрывок из книги, участники учат, сумма ≥ атаки → отражено", async () => {

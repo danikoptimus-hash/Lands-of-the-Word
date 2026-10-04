@@ -193,6 +193,8 @@ describe("испытание по решениям 18.09", () => {
     // Подставной прошлый бой убираем, чтобы не влиял на очередь и «после сгорания» дальше.
     await prisma.battle.delete({ where: { id: past.id } });
     expect((await post(`/api/games/${gameId}/battles/${battleId}/submit`, p2Cookie)).statusCode).toBe(200);
+    // Арифметика таймеров — в поясе, где сейчас день: сдвинутые назад отметки не попадают в ночь (ночью таймеры стоят, 03.10).
+    await setGamePhase(app, gameId, adminCookie, "day");
     const before = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     // Отправка была «десять минут назад»: возврат записи вернёт эти десять минут.
     await prisma.battle.update({ where: { id: battleId }, data: { attackDoneAt: new Date(Date.now() - 600_000), startedAt: new Date(Date.now() - 3_600_000) } });
@@ -208,9 +210,11 @@ describe("испытание по решениям 18.09", () => {
     expect(after.attackDeadline!.getTime() - before.attackDeadline!.getTime()).toBeGreaterThan(590_000);
     // Уступить город нельзя — такого действия нет.
     expect((await post(`/api/games/${gameId}/battles/${battleId}/surrender`, p1Cookie)).statusCode).toBe(404);
-    // Пересдача и отправка: T = (отправка − старт) − пауза ≈ 60 мин − 10 мин.
+    // Пересдача и отправка (утром): T = (отправка − старт) − пауза ≈ 60 мин − 10 мин; одобрение — снова днём.
     await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { verses, links: ["https://example.com/a2"] });
+    await setGamePhase(app, gameId, adminCookie, "morning");
     expect((await post(`/api/games/${gameId}/battles/${battleId}/submit`, p2Cookie)).statusCode).toBe(200);
+    await setGamePhase(app, gameId, adminCookie, "day");
     for (const e of await entriesOf(battleId)) await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
     const def = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(def.status).toBe("DEFENSE");
@@ -239,6 +243,8 @@ describe("испытание по решениям 18.09", () => {
     await prisma.battle.update({ where: { id: battleId }, data: { defenseDeadline: new Date(Date.now() - 1000) } });
     const after = await get(`/api/games/${gameId}/my-battles`, p1Cookie);
     expect(after.json().battles[0].status).toBe("WON");
+    // Дальше вызовы снова отправляются утром.
+    await setGamePhase(app, gameId, adminCookie, "morning");
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     expect(node.defenseLevel).toBe(10);
     expect((await prisma.team.findUniqueOrThrow({ where: { id: team1 } })).status).toBe("active");
