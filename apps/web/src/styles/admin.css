@@ -339,3 +339,7 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 .passage-text li { padding: 2px 6px; border-radius: var(--r-xs); }
 .passage-text li b { margin-right: 4px; color: var(--muted); font-weight: 600; }
 .passage-text li.covered { background: var(--success-soft); }
+
+/* Счётчики дела на картах (свободных · в работе): значки в строке метаданных. */
+.deed-row .meta .on-map { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.deed-row .meta .on-map .i { width: 13px; height: 13px; color: var(--accent); margin-left: 3px; }

@@ -48,8 +48,12 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return;
     const rows = await prisma.deed.findMany({ where: { gameId: id }, orderBy: { createdAt: "asc" } });
+    // Сколько таких дел сейчас на картах всех команд: свободных (OPEN) и в работе (взято, на проверке, возвращено) — решение владельца 04.10.
+    const grouped = await prisma.teamEdgeTask.groupBy({ by: ["deedId", "status"], where: { gameId: id, status: { in: ["OPEN", "TAKEN", "SUBMITTED", "REJECTED"] } }, _count: { _all: true } });
+    const onMap = new Map<string, { free: number; taken: number }>();
+    for (const g of grouped) { const c = onMap.get(g.deedId) ?? { free: 0, taken: 0 }; if (g.status === "OPEN") c.free += g._count._all; else c.taken += g._count._all; onMap.set(g.deedId, c); }
     // «Тяжесть» убрана (решение владельца 3.15): колонка difficulty живёт только ради хешей старых игр и наружу не отдаётся.
-    const deeds = rows.map(({ difficulty: _difficulty, ...d }) => d);
+    const deeds = rows.map(({ difficulty: _difficulty, ...d }) => ({ ...d, onMap: onMap.get(d.id) ?? { free: 0, taken: 0 } }));
     const settings = (game.settings ?? {}) as { nodeCount?: number; cityGap?: number };
     return { deeds, directions: DIRECTIONS, recommendedMin: recommendedDeedCount(effectiveNodeCount(settings)) };
   });

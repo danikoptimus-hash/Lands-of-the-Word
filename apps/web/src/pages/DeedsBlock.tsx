@@ -12,7 +12,7 @@ import { Help } from "../components/Help";
 import { plural } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK";
-interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null }
+interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number } }
 type Form = { title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
 /** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
 const CHANCES = [20, 40, 60, 80, 100];
@@ -115,6 +115,8 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
                   {d.siegePoints != null && <span>· {t("осада: {n} б.", { n: d.siegePoints })}</span>}
                   {d.donationMin != null && <span>· {t("пожертвование от {n}", { n: d.donationMin })}</span>}
                   <span title={t("Вероятность появления на новой дороге")}>· {d.chance}%</span>
+                  {/* Две цифры по делу (решение владельца 04.10): сколько таких дел сейчас свободно на картах команд и сколько взято в работу. */}
+                  {d.onMap && <span className="on-map" title={t("На картах команд: свободных {a}, в работе {b}", { a: d.onMap.free, b: d.onMap.taken })}>· <Icon name="scroll" />{d.onMap.free} <Icon name="user" />{d.onMap.taken}</span>}
                   {d.bookCodes.length > 0 && <span>· <Chip icon="book" title={d.bookCodes.map(bookName).join(", ")}>{plural(d.bookCodes.length, [t("книга"), t("книги"), t("книг")])}</Chip></span>}
                   <span>· {d.direction}</span>
                 </span>
