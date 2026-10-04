@@ -337,6 +337,13 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
             <dt>{t("Ключ (в конверте)")}</dt><dd>{city.node.cityKey ? <code className="key">{city.node.cityKey}</code> : pending}</dd>
             <dt>{t("Шифр")}</dt><dd>{city.node.cityCode ? <code className="key">{city.node.cityCode}</code> : pending}</dd>
             <dt>{t("Конверт у")}</dt><dd>{city.recipient ? <>{city.recipient.label} <span className="muted">({kindLabel(city.recipient.kind)})</span></> : <span className="muted">{t("адресат не назначен")}</span>}</dd>
+            {/* Защита взятого города (решение владельца 04.10): уровень, закрепление и когда уровень растает усталостью. */}
+            {city.defense && <><dt>{t("Защита")}</dt><dd>
+              <Chip icon="shield" title={t("Уровень защиты: столько стихов отбили хранители")}>{city.defense.level}</Chip>
+              {city.defense.sumMode && <Chip tone="neutral" title={t("Книга исчерпана: ставки считаются суммой стихов по участникам")}>Σ</Chip>}
+              {city.defense.lockedUntil && <Chip tone="accent" icon="lock" title={t("Закреплён: вызовы невозможны до этой даты")}>{fmtDate(city.defense.lockedUntil, { time: false })}</Chip>}
+              {city.defense.fatigueNextAt && !city.defense.lockedUntil && <Chip tone="neutral" icon="clock" title={t("Усталость: без дел из города уровень тает на {n} с этой даты", { n: city.defense.fatigueStep })}>−{city.defense.fatigueStep} · {fmtDate(city.defense.fatigueNextAt, { time: false })}</Chip>}
+            </dd></>}
           </dl>
           {!city.content && <p className="note warn"><Icon name="alert" /><span>{t("Задания для этой книги ещё готовятся: команды пока не могут взять этот город.")}</span></p>}
           {battle && (
@@ -354,6 +361,7 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
                 <li key={tm.id}>
                   <div className="main"><TeamAvatar name={tm.name} color={tm.color} size="sm" withName /></div>
                   <span className="side muted small">
+                    {tm.minBid != null && <Chip icon="sword" title={t("Минимальная ставка этой команды для вызова: {n} стихов", { n: tm.minBid })}>{tm.minBid}</Chip>}
                     {tm.capturedAt ? (tm.isCapital ? t("столица здесь") : t("взяла город"))
                       : tm.orderSolved ? t("задания {a} из {b}", { a: tm.doneTasks.length, b: total })
                       : tm.orderAttempts > 0 ? t("собирает порядок районов · попыток {n}", { n: tm.orderAttempts }) : t("не начинала")}

@@ -5,6 +5,7 @@ import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { requireActiveMember, requireAdmin, requireMember, requireSuperadmin } from "./teamMap.js";
 import { pauseAfter, rulesOf, days } from "../services/rules.js";
+import { isLocked, minBidFor, sweep } from "../services/battles.js";
 import { assertAwake, gameDaytime } from "../services/daytime.js";
 import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask, stripAnswers } from "../services/cities.js";
 import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
@@ -328,26 +329,47 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/games/:id/cities/:nodeKey", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     if (!(await requireAdmin(request, reply, id))) return;
+    // Перед чтением — метла: усталость и сроки применяются, чтобы уровень защиты и дата таяния были свежими.
+    await sweep(id);
     const node = await loadCityNode(id, nodeKey);
     if (!node) return reply.code(404).send({ error: "not_found", message: err(request, "Город не найден") });
-    const [content, teams, states, recipient] = await Promise.all([
+    const [content, teams, states, recipient, game] = await Promise.all([
       loadCityContent(node.bookCode!),
       prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, index: true, name: true, color: true } }),
       prisma.teamCityState.findMany({ where: { gameId: id, nodeKey } }),
       // Адресат конверта (семья, вдова, старица): админ видит в карточке города, у кого шифр.
       node.recipientId ? prisma.recipient.findUnique({ where: { id: node.recipientId }, select: { label: true, kind: true } }) : null,
+      prisma.game.findUnique({ where: { id }, select: { settings: true } }),
     ]);
     const byTeam = new Map(states.map((s) => [s.teamId, s]));
+    // Защита города и ставка для вызова по каждой команде (решение владельца 04.10): уровень тает усталостью, если
+    // хранители не делают дел из города, и администратору нужно видеть, сколько стихов сейчас нужно каждой команде.
+    const rules = rulesOf(game?.settings);
+    const owner = states.find((s) => s.capturedAt) ?? null;
+    let fatigueNextAt: Date | null = null;
+    if (owner && node.defenseLevel > 0 && rules.fatigueStep > 0) {
+      const [open, lastDeed] = await Promise.all([
+        prisma.teamEdgeTask.count({ where: { teamId: owner.teamId, fromKey: nodeKey, status: { in: ["OPEN", "TAKEN", "SUBMITTED", "REJECTED"] } } }),
+        prisma.teamEdgeTask.findFirst({ where: { teamId: owner.teamId, fromKey: nodeKey, status: "APPROVED" }, orderBy: { decidedAt: "desc" }, select: { decidedAt: true } }),
+      ]);
+      if (open > 0) {
+        const last = Math.max(owner.capturedAt!.getTime(), lastDeed?.decidedAt?.getTime() ?? 0);
+        fatigueNextAt = new Date(node.fatigueAt ? node.fatigueAt.getTime() + days(rules.fatigueStepDays) : last + days(rules.fatigueAfterDays));
+      }
+    }
+    const defense = owner ? { level: node.defenseLevel, sumMode: node.sumMode, lockedUntil: isLocked(node) ? node.lockedUntil : null, fatigueNextAt, fatigueStep: rules.fatigueStep } : null;
     // Ответы на задания видит только администратор платформы (решение владельца): администратор игры — задания без ответов.
     const superadmin = request.user!.platformRole === "SUPERADMIN";
     return {
       node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, cityKey: node.cityKey, cityCode: node.cityCode },
       recipient,
+      defense,
       content: superadmin || !content ? content : stripAnswers(content),
       answersHidden: !superadmin,
       teams: teams.map((t) => {
         const s = byTeam.get(t.id);
-        return { ...t, orderSolved: s?.orderSolved ?? false, orderAttempts: s?.orderAttempts ?? 0, doneTasks: s?.doneTasks ?? [], answerAttempts: s?.answerAttempts ?? 0, capturedAt: s?.capturedAt ?? null, isCapital: s?.isCapital ?? false };
+        const minBid = owner && owner.teamId !== t.id && !defense?.lockedUntil ? minBidFor(node.defenseLevel, s?.attackPenalty ?? 0, rules) : null;
+        return { ...t, orderSolved: s?.orderSolved ?? false, orderAttempts: s?.orderAttempts ?? 0, doneTasks: s?.doneTasks ?? [], answerAttempts: s?.answerAttempts ?? 0, capturedAt: s?.capturedAt ?? null, isCapital: s?.isCapital ?? false, minBid, penalty: s?.attackPenalty ?? 0 };
       }),
     };
   });
