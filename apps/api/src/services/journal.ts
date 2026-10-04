@@ -20,6 +20,7 @@ export type JournalKind =
   | "siege_declared" | "siege_won" | "siege_repelled"
   | "passage_granted" | "passage_denied" | "sea_landed"
   | "penalty" | "role_changed" | "capital_moved"
+  | "quarry_submitted" | "quarry_approved" | "quarry_returned" | "paved"
   | "peace_offered" | "peace_made" | "peace_declined" | "peace_broken"
   | "chronicle" | "game_finished";
 
@@ -51,6 +52,10 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   penalty: "Штраф администратора: участок пути аннулирован",
   role_changed: "{user}: роль {role}",
   capital_moved: "Столица перенесена",
+  quarry_submitted: "{user} сдал(а) общее дело «{deed}» в Каменоломне",
+  quarry_approved: "Каменоломня: дело «{deed}» принято, команда получила камней: {n}",
+  quarry_returned: "Каменоломня: дело «{deed}» возвращено на доработку",
+  paved: "{user} вымостил(а) дорогу камнем из Каменоломни",
   peace_offered: "Команда «{team}» предложила мир команде «{other}»",
   peace_made: "Команды «{team}» и «{other}» заключили мир",
   peace_declined: "Команда «{other}» отклонила предложение мира",
@@ -93,7 +98,7 @@ export async function feed(gameId: string, teamId: string, limit = 60) {
 export interface ServiceStats { deeds: number; deedsPending: number; tasks: number; orders: number; cities: number; verses: number; trips: number; lastActiveAt: number | null }
 export async function serviceStats(gameId: string, userId: string, teamId: string): Promise<ServiceStats> {
   const [deeds, deedsPending, entries, rows] = await Promise.all([
-    prisma.teamEdgeTask.count({ where: { gameId, teamId, status: "APPROVED", OR: [{ takenById: userId }, { participants: { has: userId } }] } }),
+    prisma.teamEdgeTask.count({ where: { gameId, teamId, status: "APPROVED", paved: false, OR: [{ takenById: userId }, { participants: { has: userId } }] } }),
     prisma.teamEdgeTask.count({ where: { gameId, teamId, status: { in: ["TAKEN", "SUBMITTED"] }, OR: [{ takenById: userId }, { participants: { has: userId } }] } }),
     prisma.battleEntry.findMany({ where: { userId, teamId, status: "APPROVED", battle: { gameId } }, select: { startIdx: true, endIdx: true } }),
     prisma.journal.findMany({ where: { gameId, userId }, select: { kind: true, createdAt: true } }),
@@ -164,7 +169,7 @@ export async function seasonBook(gameId: string) {
   const [table, teams, deeds, rows] = await Promise.all([
     standings(gameId),
     prisma.team.findMany({ where: { gameId }, include: { members: { include: { user: { select: { id: true, nickname: true, displayName: true } } } }, cityStates: { where: { capturedAt: { not: null } } } }, orderBy: { index: "asc" } }),
-    prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED" }, include: { deed: { select: { title: true, direction: true } } }, orderBy: { decidedAt: "asc" } }),
+    prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", paved: false }, include: { deed: { select: { title: true, direction: true } } }, orderBy: { decidedAt: "asc" } }),
     prisma.journal.findMany({ where: { gameId, OR: [{ everyone: true }, { kind: { in: ["trial_declared", "trial_repelled", "trial_won", "trial_burnt"] } }] }, orderBy: { createdAt: "asc" } }),
   ]);
   const nodes = await prisma.mapNode.findMany({ where: { gameId, bookCode: { not: null } }, select: { key: true, bookCode: true } });

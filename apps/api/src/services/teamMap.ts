@@ -51,7 +51,7 @@ export async function pickDeed(gameId: string, teamId: string, bookCode: string 
   // они раскладывали дела почти поровну и глушили проценты. Жёсткие правила остались: дело «одно на игру» не берётся,
   // если команда его уже брала или сдавала; дела до 60% не ставятся рядом с таким же (в двух шагах); по книге города — в первую очередь.
   const [deeds, used] = await Promise.all([
-    prisma.deed.findMany({ where: { gameId, ...(excludeId ? { id: { not: excludeId } } : {}), ...(onlyRemote ? { remote: true } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, chance: true } }),
+    prisma.deed.findMany({ where: { gameId, quarry: false, ...(excludeId ? { id: { not: excludeId } } : {}), ...(onlyRemote ? { remote: true } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, chance: true } }),
     prisma.teamEdgeTask.findMany({ where: { teamId, status: { not: "OPEN" } }, select: { deedId: true } }),
   ]);
   if (deeds.length === 0) return null;

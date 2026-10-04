@@ -144,7 +144,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
               ]} />
                 </span>
               </div>
-              <div className="nums">{plural(tm.members.length, ["участник", "участника", "участников"])}{st && <> · {plural(st.cities, ["город", "города", "городов"])} · {plural(st.capitals, ["столица", "столицы", "столиц"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])}</>}</div>
+              <div className="nums">{(tm.stones ?? 0) > 0 && <Chip tone="accent" icon="stone" title={t("Тёсаные камни Каменоломни")}>{tm.stones}</Chip>}{plural(tm.members.length, ["участник", "участника", "участников"])}{st && <> · {plural(st.cities, ["город", "города", "городов"])} · {plural(st.capitals, ["столица", "столицы", "столиц"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])}</>}</div>
               {st && <div className="nums">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}</div>}
             </div>
             <Icon name="chevron" className="chev" />

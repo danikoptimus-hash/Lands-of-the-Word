@@ -12,11 +12,11 @@ import { Help } from "../components/Help";
 import { plural } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "AUDIO_LINK";
-interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number } }
-type Form = { title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
+interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
+type Form = { quarry: boolean; stones: number; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
 /** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
 const CHANCES = [20, 40, 60, 80, 100];
-const EMPTY: Form = { title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: "", donationMin: "" };
+const EMPTY: Form = { quarry: false, stones: 1, title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: "", donationMin: "" };
 
 /** Вкладка «Дела»: список дел игры; добавление и изменение — в одной форме-шторке; стандартный набор — только пока список пуст. */
 /**
@@ -54,7 +54,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   useEffect(() => { void load(); }, [load, version]);
 
   const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, direction: directions[0] ?? "" } }); };
-  const formOf = (d: DeedDto): Form => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 60, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" });
+  const formOf = (d: DeedDto): Form => ({ quarry: d.quarry ?? false, stones: d.stones ?? 1, title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 60, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" });
   const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: formOf(d) }); };
   /** Дубликат дела (решение владельца 04.10): форма нового дела, заполненная полями исходного; сохраняется как отдельное дело. */
   const openDuplicate = (d: DeedDto) => { setError(null); setSheet({ id: null, form: { ...formOf(d), title: t("{title} (копия)", { title: d.title }) } }); };
@@ -109,7 +109,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
           {deeds.map((d) => { const open = expanded.has(d.id); return (
             <li key={d.id} className={"deed-row" + (open ? " open" : "")}>
               <div className="main" onClick={() => toggle(d.id)}>
-                <span className="title">{withBook(d.title)} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
+                <span className="title">{withBook(d.title)} {d.quarry && <Chip tone="accent" icon="stone" title={t("Общее дело Каменоломни")}>{t("Каменоломня")} · {d.stones ?? 1}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
                 {d.description && <span className={"deed-desc small" + (open ? " open" : "")}>{withBook(d.description)}</span>}
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
@@ -151,6 +151,10 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
               <div>
                 <label htmlFor="d-proof">{t("Что сдать")}</label>
                 <select id="d-proof" value={form.proofType} onChange={(e) => setForm({ proofType: e.target.value as ProofType })}>{(Object.keys(PROOF_LABEL) as ProofType[]).map((p) => <option key={p} value={p}>{PROOF_LABEL[p]}</option>)}</select>
+              </div>
+              <div className="full">
+                <label className="check"><input type="checkbox" checked={form.quarry} onChange={(e) => setForm({ quarry: e.target.checked })} />{t("Общее дело Каменоломни: вся команда вместе, сдаёт капитан или летописец, на дороги не ставится")}</label>
+                {form.quarry && <div className="row nowrap mt-1"><label htmlFor="d-stones">{t("Камней за дело")}</label><input id="d-stones" type="number" min={1} max={20} value={form.stones} onChange={(e) => setForm({ stones: Math.max(1, Number(e.target.value) || 1) })} /></div>}
               </div>
               <div>
                 <label htmlFor="d-siege">{t("Баллы при осаде")} <span className="opt">{t("(пусто — по правилам)")}</span></label>

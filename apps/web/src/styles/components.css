@@ -194,3 +194,11 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 /* Прогресс */
 .progress { height: 6px; background: var(--surface-2); border-radius: var(--r-full); overflow: hidden; }
 .progress span { display: block; height: 100%; background: var(--accent); transition: width var(--dur-slow) var(--ease-out); }
+
+/* Каменоломня на карте (решение владельца 04.10): подпись-кнопка на скалистом островке. */
+.m-quarry { cursor: pointer; pointer-events: auto; }
+.m-quarry rect { fill: var(--map-paper, #fff6e3); stroke: var(--text, #2b1d12); stroke-width: 1; }
+.m-quarry text { fill: var(--text, #2b1d12); pointer-events: none; }
+.m-quarry path { fill: none; stroke: var(--text, #2b1d12); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.quarry-sheet .quarry-deeds .title .chip { margin-left: var(--sp-2); }
+.quarry-sheet .list .meta .i { width: 14px; height: 14px; vertical-align: -2px; }

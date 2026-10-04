@@ -42,6 +42,7 @@ const P: Record<string, string> = {
   telescope: "m4 14 12-7 3 5-12 7-3-5Zm12-7 3-2 3 5-3 2M9 17l3 5m-6-2 3-3",
   lock: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
   hourglass: "M6 2h12M6 22h12M7 2v4l5 6-5 6v4M17 2v4l-5 6 5 6v4",
+  stone: "M8 4h7l5 5v6l-4 5H8l-5-4V9l5-5Zm0 0 4 5m0 0 8 0m-8 0v11",
   shield: "M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z",
   grip: "M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01",
   "arrow-up": "M12 19V5m-7 7 7-7 7 7",
@@ -64,6 +65,8 @@ const P: Record<string, string> = {
   "chevron-up": "m18 15-6-6-6 6",
   sparkle: "m12 3 1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3ZM5 19l.7 1.8L7.5 21.5l-1.8.7L5 24l-.7-1.8L2.5 21.5l1.8-.7L5 19Z",
 };
+/** Контур значка по имени (для SVG карты, где компонент Icon не подходит). */
+export const iconPath = (name: string): string => P[name] ?? "";
 export function Icon({ name, size, className, title }: { name: keyof typeof P | string; size?: number; className?: string; title?: string }) {
   const d = P[name] ?? P.list!;
   return (

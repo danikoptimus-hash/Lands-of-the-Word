@@ -13,7 +13,8 @@ import { TeamMap, routeColor } from "./TeamMap";
 import { useUi } from "../lib/ui";
 import { t, getLocale } from "../lib/i18n";
 import { plural } from "../lib/format";
-import { Icon } from "../components/Icon";
+import { AdminQuarrySheet } from "./QuarrySheet";
+import { Icon, iconPath } from "../components/Icon";
 import { FaunaLayer, type FireSite } from "./Fauna";
 import { css, useDaytime } from "../lib/daytime";
 import { LakesLayer } from "./Lakes";
@@ -81,6 +82,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   useEffect(() => { perfMark("карта админа: до кадра", performance.now() - renderStart); });
   const vp = useViewport(bounds);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
+  const [quarryOpen, setQuarryOpen] = useState(false);
   /** Нажатие на дорогу: дела всех команд на этой стороне; нажатие на дело — отчёт (решение владельца 30.09). */
   const [edgeSel, setEdgeSel] = useState<{ aKey: string; bKey: string } | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
@@ -170,7 +172,20 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               return null;
             })}
   </>), [nodes, edges, positions, ownerOf, traversedBy, progress, edgeSet, battleAt, size, imgPhase]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Каменоломня (решение владельца 04.10): подпись на скалистом островке; у администратора открывает камни команд.
+  const quarry = islets.find((i) => i.quarry) ?? null;
+  const quarryMarker = quarry && (() => {
+    const name = t("Каменоломня"), fs = 12, w = Math.ceil(name.length * fs * 0.62) + 34, h = fs + 12;
+    return (
+      <g className="m-quarry" style={{ transform: `translate(${quarry.x}px, ${quarry.y}px) scale(var(--inv, 1))` }} role="button" aria-label={name} onClick={() => { if (!vp.wasDrag()) setQuarryOpen(true); }}>
+        <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
+        <g transform={`translate(${-w / 2 + 8}, ${-(fs + 2) / 2}) scale(${(fs + 2) / 24})`}><path d={iconPath("stone")} /></g>
+        <text x={9} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{name}</text>
+      </g>
+    );
+  })();
   const screenBody = useMemo(() => (<>
+              {quarryMarker}
               {showIslands && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
                 return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}><IslandLabel id={"isl-adm-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
               })}
@@ -224,7 +239,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 if (!showDots) return null;
                 return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" />{seen.length === 0 && <circle r={3} fill="rgba(31,27,22,.4)" />}{seen.map((tm, i) => <circle key={tm.id} cx={(i - (seen.length - 1) / 2) * 8} cy={0} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
-  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById, battleAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById, battleAt]); //, quarryMarker]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   const viewedTeam = viewAs ? teamById.get(viewAs) : null;
   const viewMap = useMemo(() => (teamView?.map && at && viewedTeam && progress ? { ...rewindTeamMap(teamView.map, viewedTeam, progress, cities, nodes), teamIndex: teamView.map.teamIndex } : teamView?.map ?? null), [teamView, at, viewedTeam, progress, cities, nodes]);
@@ -287,6 +302,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.", { name: viewedTeam.name })}</p>}
         {edgeSel && wrapEl && !reportId && <EdgeTasksSheet gameId={gameId} aKey={edgeSel.aKey} bKey={edgeSel.bKey} container={wrapEl} onClose={() => setEdgeSel(null)} onOpenTask={setReportId} />}
         {reportId && wrapEl && <TaskReportSheet gameId={gameId} taskId={reportId} container={wrapEl} onClose={() => { setReportId(null); setEdgeSel(null); }} onReview={onReview} />}
+        {quarryOpen && wrapEl && <AdminQuarrySheet gameId={gameId} container={wrapEl} onClose={() => setQuarryOpen(false)} onReview={() => { setQuarryOpen(false); onReview?.(); }} />}
         {selected && wrapEl && (selected.kind === "CITY"
           ? <CitySheet gameId={gameId} node={selected} version={version} container={wrapEl} revealed={revealedBy.get(selected.key) ?? []} battle={battleAt.get(selected.key) ?? null} teamById={teamById} onClose={close} onReview={onReview} />
           : <NodeSheet gameId={gameId} node={selected} container={wrapEl} teams={progress ?? []} revealed={revealedBy.get(selected.key) ?? []} onClose={close} />)}

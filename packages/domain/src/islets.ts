@@ -18,6 +18,8 @@ export interface Islet {
   img: number;
   /** Радиус круга, накрывающего островок с отмелью (для живности и раскладки). */
   cover: number;
+  /** Каменоломня (решение владельца 04.10): скалистый островок (картинка 5) — один и тот же во всех партиях, нажимается. */
+  quarry?: boolean;
 }
 
 /** Запас моря вокруг поля (в долях большей стороны поля): в нём живут острова и до него можно листать карту. */
@@ -77,7 +79,7 @@ export function generateIslets(fieldHexes: ReadonlyArray<Hex>, size: number, bou
       // Не ближе к любому гексу поля, чем его отмель (size × 2.6 от центра гекса) плюс своя отмель.
       if (centers.some((c) => Math.hypot(c.x - x, c.y - y) < cover + size * 2.6)) continue;
       if (out.some((o) => Math.hypot(o.x - x, o.y - y) < cover + o.cover + size * 1.2)) continue;
-      out.push({ x, y, r, shape: spec.shape, img: item.img, cover });
+      out.push({ x, y, r, shape: spec.shape, img: item.img, cover, ...(item.img === 5 && !out.some((o) => o.quarry) ? { quarry: true } : {}) });
       break;
     }
   }

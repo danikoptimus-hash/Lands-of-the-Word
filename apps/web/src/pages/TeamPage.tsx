@@ -6,6 +6,7 @@ import { useAuth } from "../lib/auth";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamMap, type MarkPoint } from "./TeamMap";
 import { CityPopup } from "./CityPopup";
+import { QuarrySheet } from "./QuarrySheet";
 import { BATTLE_STATUS, battleTone, isMyTurn, leftText } from "./BattlePanel";
 import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
 import { useUi } from "../lib/ui";
@@ -148,6 +149,8 @@ export function TeamPage() {
   const [landingId, setLandingId] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
   const [cityKey, setCityKey] = useState<string | null>(null);
+  /** Каменоломня (решение владельца 04.10): лист общих дел и камней. */
+  const [quarryOpen, setQuarryOpen] = useState(false);
   const [cityVersion, setCityVersion] = useState(0);
   /** Лента, «Моё служение» и мир перезагружаются по событиям журнала, дел, городов и испытаний. */
   const [feedVersion, setFeedVersion] = useState(0);
@@ -232,7 +235,7 @@ export function TeamPage() {
   useEffect(() => { if (team) { void loadBattles(); void loadStandings(); void loadPassages(); void loadPeace(); } }, [team, loadBattles, loadStandings, loadPassages, loadPeace]);
   useGameEvents(id, (e) => {
     if (e.type === "teams" || e.type === "game" || e.type === "tasks") void loadTeam(); // tasks: таймеры дел у участников в составе
-    if (e.type !== "deeds") void loadMap();
+    if (e.type !== "deeds") void loadMap(); // quarry: камни команды в шапке карты
     if (e.type === "cities" || e.type === "game" || e.type === "battles") { setCityVersion((v) => v + 1); void loadPassages(); }
     if (e.type === "battles" || e.type === "game" || e.type === "submissions") void loadBattles();
     if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") void loadStandings();
@@ -434,6 +437,11 @@ export function TeamPage() {
     if (!menu && st.edge && dx > 40) setMenu(true);
     if (menu && dx < -60) setMenu(false);
   };
+  async function pave(taskId: string) {
+    const ok = await confirm(t("Потратить один тёсаный камень: сторона откроется как пройденная, дело делать не нужно. Камней у команды: {n}.", { n: map?.team.stones ?? 0 }), { title: t("Вымостить дорогу?"), okLabel: t("Вымостить") });
+    if (!ok) return;
+    if (await act(`/api/games/${id}/edge-tasks/${taskId}/pave`)) { notify(t("Дорога вымощена: перекрёсток открыт")); setSelectedId(null); }
+  }
   const openCity = (key: string) => { setCityKey(key); setSelectedId(null); setFrontierKey(null); setMenu(false); };
   const openTask = (tid: string | null) => { setSelectedId(tid); if (tid) { setMenu(false); setFrontierKey(null); } };
   const menuOpen = wide || menu;
@@ -446,6 +454,7 @@ export function TeamPage() {
           <div className="side-head" style={{ ["--team" as string]: team.color }}>
             <TeamAvatar name={team.name} color={team.color} size="lg" />
             <div className="grow"><div className="side-name">{team.name}</div><div className="muted small">{gameName || t("Игра")}{isCaptain ? ` · ${t("вы капитан")}` : ""}</div></div>
+            {(map?.team.stones ?? 0) > 0 && <button type="button" className="chip-btn" title={t("Тёсаные камни Каменоломни: один камень мостит одну дорогу")} aria-label={t("Камней: {n}", { n: map?.team.stones ?? 0 })} onClick={() => { setQuarryOpen(true); setMenu(false); }}><Chip tone="accent" icon="stone">{map?.team.stones}</Chip></button>}
             {!wide && <button type="button" className="ghost icon" onClick={() => setMenu(false)} aria-label={t("Закрыть")}><Icon name="x" /></button>}
           </div>
 
@@ -556,7 +565,9 @@ export function TeamPage() {
         <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)}
-          onFrontierTap={(key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); }} />
+          onFrontierTap={(key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); }}
+          onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} />
+        {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">
             <Icon name="ship" /><span>{canLand ? t("Выберите на другом острове место высадки") : t("Кормчий выбирает место высадки")}</span>
@@ -652,6 +663,10 @@ export function TeamPage() {
               {canTake && (task.status === "OPEN" || task.status === "REJECTED") && (
                 <div className="actions">
                   <button type="button" disabled={busy || limitFull(map)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
+                  {/* Каменоломня (решение владельца 04.10): камень мостит свободную сухопутную сторону — капитан, заместитель или летописец. */}
+                  {task.status === "OPEN" && !task.sea && (map?.team.stones ?? 0) > 0 && (isCaptain || me?.role === "DEPUTY" || me?.gameRole === "CHRONICLER") && (
+                    <button type="button" className="secondary" disabled={busy} onClick={() => void pave(task.id)}><Icon name="stone" />{t("Вымостить дорогу")}<span className="count-chip">{map?.team.stones}</span></button>
+                  )}
                   {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}
                   {scoutBtn}
                 </div>

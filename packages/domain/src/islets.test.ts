@@ -49,6 +49,15 @@ describe("islets", () => {
     }
   });
 
+  it("Каменоломня: ровно один скалистый островок (картинка 5) помечен в каждой раскладке", () => {
+    for (let seed = 1; seed <= 40; seed++) {
+      const q = generateIslets(hexes, SIZE, b, seed).filter((i) => i.quarry);
+      expect(q).toHaveLength(1);
+      expect(q[0]!.img).toBe(5);
+    }
+    expect(generateIslets(field(6), SIZE, bounds(field(6))).filter((i) => i.quarry)).toHaveLength(1);
+  });
+
   it("разные карты — разные раскладки", () => {
     const other = field(6);
     expect(JSON.stringify(generateIslets(other, SIZE, bounds(other)))).not.toBe(JSON.stringify(generateIslets(hexes, SIZE, b)));

@@ -10,7 +10,7 @@
 /* Верхний SVG подписей перекрывает весь мир: сам он нажатий не ловит (иначе картинки городов и стороны под ним недоступны),
    ловят только подписи, метки дел и значки. */
 .map-svg.world.passthrough, .map-svg.world .screen-items { pointer-events: none; }
-.map-svg.world .screen-items .m-label, .map-svg.world .screen-items .m-deed, .map-svg.world .screen-items .pick { pointer-events: auto; }
+.map-svg.world .screen-items .m-quarry, .map-svg.world .screen-items .m-label, .map-svg.world .screen-items .m-deed, .map-svg.world .screen-items .pick { pointer-events: auto; }
 .fx-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 /* Море — canvas (см. SeaLayer): цвет воды подложки на случай, пока первый кадр не нарисован. */
 .fx-layer.sea { background: #3F86A6; }

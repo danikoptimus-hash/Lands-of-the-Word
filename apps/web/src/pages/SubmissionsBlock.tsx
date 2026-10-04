@@ -134,3 +134,47 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
     </ReviewCard>
   );
 }
+
+
+/** Общие дела Каменоломни (решение владельца 04.10): фото всей команды; принято — команде камни по делу. */
+interface QuarryRow { id: string; team: { id: string; name: string; color: string; stones: number }; deed: { title: string; description: string; stones: number }; stones: number; by: string; links: string[]; note: string; submittedAt: string }
+export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
+  const { notify } = useUi();
+  const [rows, setRows] = useState<QuarryRow[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
+  const [returning, setReturning] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const load = useCallback(() => api<{ works: QuarryRow[] }>(`/api/games/${gameId}/quarry/submissions`).then((r) => { setRows(r.works); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
+  useAutoRefresh(load, version);
+  async function decide(id: string, approve: boolean, comment = "") {
+    setBusyId(id);
+    try { await api(`/api/games/${gameId}/quarry/works/${id}/decide`, { method: "POST", body: JSON.stringify({ approve, comment }) }); notify(approve ? t("Принято: команде начислены камни") : t("Сдача возвращена")); setReturning(null); await load(); onDecided(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusyId(null); }
+  }
+  if (rows && rows.length === 0) return null;
+  return (
+    <ReviewCard icon="stone" title={t("Каменоломня")} count={rows?.length ?? 0} loading={!rows} error={loadError} onRetry={() => void load()}>
+      {rows && rows.length > 0 && (
+        <ul className="list">
+          {rows.map((r) => (
+            <li key={r.id} className="review-item">
+              <div className="main">
+                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName /><Chip tone="accent" icon="stone" title={t("Камней за дело")}>{r.stones}</Chip><span className="muted small">· {t("у команды: {n}", { n: r.team.stones })}</span></span>
+                <span className="title">{r.deed.title}</span>
+                <span className="meta"><span>{t("фото")}</span><span>· {r.by}</span><span>· {fmtDate(r.submittedAt)}</span></span>
+                {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
+                <LinkList links={r.links} kind="photo" />
+              </div>
+              <div className="side">
+                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id}><Icon name="check" />{t("Принять")}</button>
+                {returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" />{t("Вернуть")}</button>}
+              </div>
+              {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
+            </li>
+          ))}
+        </ul>
+      )}
+    </ReviewCard>
+  );
+}

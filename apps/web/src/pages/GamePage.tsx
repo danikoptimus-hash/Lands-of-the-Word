@@ -8,7 +8,7 @@ import { TeamsBlock } from "./TeamsBlock";
 import { DeedsBlock } from "./DeedsBlock";
 import { StartBlock, type MapStats } from "./StartBlock";
 import { SettingsBlock } from "./SettingsBlock";
-import { SubmissionsBlock } from "./SubmissionsBlock";
+import { QuarryBlock, SubmissionsBlock } from "./SubmissionsBlock";
 import { BattlesBlock } from "./BattlesBlock";
 import { AdminsBlock } from "./AdminsBlock";
 import { FinishBlock } from "./FinishBlock";
@@ -195,6 +195,7 @@ export function GamePage() {
           {open === "review" && (active ? (
             <div key="review">
               <SubmissionsBlock gameId={game.id} version={version} currency={game.settings.donationCurrency} onDecided={() => { void loadProgress(); bump(); }} />
+              <QuarryBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <BattlesBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <PassagesBlock gameId={game.id} version={version} />
             </div>

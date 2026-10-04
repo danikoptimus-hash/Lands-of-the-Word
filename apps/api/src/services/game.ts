@@ -30,7 +30,7 @@ export async function standings(gameId: string): Promise<Standing[]> {
       select: {
         id: true, name: true, color: true, index: true, status: true,
         cityStates: { where: { firstCapturedAt: { not: null } }, select: { nodeKey: true, capturedAt: true, firstCapturedAt: true, isCapital: true } },
-        _count: { select: { nodeStates: true, edgeTasks: { where: { status: "APPROVED" } } } },
+        _count: { select: { nodeStates: true, edgeTasks: { where: { status: "APPROVED", paved: false } } } },
       },
     }),
     prisma.mapNode.findMany({ where: { gameId, kind: "CITY" }, select: { key: true, bookCode: true, defenseLevel: true } }),
