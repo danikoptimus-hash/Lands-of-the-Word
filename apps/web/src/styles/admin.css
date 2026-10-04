@@ -323,3 +323,11 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 .review-item .pick { display: flex; align-items: center; padding: 6px 4px 0 0; }
 .review-item .pick input { width: 20px; height: 20px; margin: 0; }
 .review-item.picked { background: var(--accent-soft); border-radius: var(--r-sm); }
+
+/* Отрывок испытания у администратора (решение владельца 04.10): текст целиком, отмеченные стихи подсвечены. */
+.passage-fold { margin-top: 6px; }
+.passage-fold .list.compact li { padding: 4px 0; }
+.passage-text { margin: 8px 0 0; padding-left: 0; list-style: none; font-size: 13px; line-height: 1.45; max-height: 320px; overflow: auto; }
+.passage-text li { padding: 2px 6px; border-radius: var(--r-xs); }
+.passage-text li b { margin-right: 4px; color: var(--muted); font-weight: 600; }
+.passage-text li.covered { background: var(--success-soft); }

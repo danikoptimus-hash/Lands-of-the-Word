@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type BattleDto, type BattleStatus } from "../lib/api";
+import { api, ApiError, type BattleDto, type BattleStatus, type PassageDto, type BattleEntryDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
@@ -68,6 +68,8 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
                     <strong>{t("Вызов")}</strong>{b.passage ? ` · ${b.passage.ref}` : ""}<br />
                     {t("выучено {a} · принято {b}", { a: b.attackSum, b: b.attackApproved })}
                     {b.attackDoneAt ? ` · ${t("сдано на проверку")}` : b.attackDeadline && b.status === "ATTACK" ? ` · ${t("до {d}", { d: fmtDate(b.attackDeadline) })}` : ""}
+                    {/* Администратор видит выданный отрывок целиком и кому какие стихи достались (решение владельца 04.10). */}
+                    <PassageDetails passage={b.passage} entries={b.entries.filter((e) => e.side === "ATTACK")} />
                   </div>
                   {(b.status === "DEFENSE" || b.defenseSum > 0 || b.defensePassage) && (
                     <div>
@@ -75,6 +77,7 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
                       {t("выучено {a} · принято {b} · нужно {c}", { a: b.defenseSum, b: b.defenseApproved, c: b.bid })}
                       {b.defenseDoneAt ? ` · ${t("сдано на проверку")}` : b.defenseDeadline && b.status === "DEFENSE" ? ` · ${t("до {d}", { d: fmtDate(b.defenseDeadline) })}` : ""}
                       {b.defenseBid != null && b.status === "REPELLED" ? ` · ${t("устояли на {n}", { n: verses(b.defenseBid) })}` : ""}
+                      <PassageDetails passage={b.defensePassage} entries={b.entries.filter((e) => e.side === "DEFENSE")} />
                     </div>
                   )}
                 </div>
@@ -107,5 +110,54 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
         </>
       )}
     </ReviewCard>
+  );
+}
+
+/** Непрерывные отрезки стихов → подписи «8:25–8:30» по ссылкам стихов отрывка. */
+function rangesOf(idxs: number[], refOf: (i: number) => string): string[] {
+  const sorted = [...new Set(idxs)].sort((a, b) => a - b);
+  const out: string[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    let j = i;
+    while (j + 1 < sorted.length && sorted[j + 1] === sorted[j]! + 1) j++;
+    out.push(i === j ? refOf(sorted[i]!) : `${refOf(sorted[i]!)}–${refOf(sorted[j]!)}`);
+    i = j;
+  }
+  return out;
+}
+
+/**
+ * Подробности отрывка для администратора (решение владельца 04.10): текст выданного отрывка целиком и раскладка —
+ * кому какие стихи достались, сколько у каждого принято, какие стихи ещё никто не отметил.
+ */
+function PassageDetails({ passage, entries }: { passage: PassageDto | null; entries: BattleEntryDto[] }) {
+  if (!passage) return null;
+  const refOf = (i: number) => passage.verses?.find((v) => v.idx === i)?.ref ?? String(i);
+  const byUser = new Map<string, { verses: Set<number>; approved: Set<number>; weight: number }>();
+  const covered = new Set<number>();
+  for (const e of entries) {
+    const u = byUser.get(e.nickname) ?? { verses: new Set<number>(), approved: new Set<number>(), weight: e.weight ?? 1 };
+    for (let i = e.start; i <= e.end; i++) { u.verses.add(i); covered.add(i); if (e.status === "APPROVED") u.approved.add(i); }
+    byUser.set(e.nickname, u);
+  }
+  const free: number[] = [];
+  for (let i = passage.start; i <= passage.end; i++) if (!covered.has(i)) free.push(i);
+  const total = passage.end - passage.start + 1;
+  return (
+    <details className="fold passage-fold">
+      <summary><Icon name="book" />{t("Отрывок и раскладка")} <span className="count">· {total}</span><Icon name="chevron-down" className="chev" /></summary>
+      <ul className="list compact">
+        {[...byUser.entries()].map(([nick, u]) => (
+          <li key={nick}><div className="main"><span className="title">{nick}{u.weight > 1 && <Chip tone="info" icon="sword">×{u.weight}</Chip>}</span><span className="meta"><span>{rangesOf([...u.verses], refOf).join(", ")}</span><span>· {verses(u.verses.size)}</span><span>· {t("принято {n}", { n: u.approved.size })}</span></span></div></li>
+        ))}
+        {byUser.size === 0 && <li><div className="main"><span className="muted small">{t("Стихи ещё никто не отметил.")}</span></div></li>}
+        {free.length > 0 && byUser.size > 0 && <li><div className="main"><span className="title muted">{t("Никем не отмечены")}</span><span className="meta"><span>{rangesOf(free, refOf).join(", ")}</span><span>· {verses(free.length)}</span></span></div></li>}
+      </ul>
+      {passage.verses ? (
+        <ol className="passage-text">
+          {passage.verses.map((v) => <li key={v.idx} className={covered.has(v.idx) ? "covered" : undefined}><b>{v.ref}</b> {v.text ?? ""}</li>)}
+        </ol>
+      ) : <p className="hint">{t("Текст отрывка недоступен.")}</p>}
+    </details>
   );
 }
