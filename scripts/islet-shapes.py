@@ -4,7 +4,7 @@ from PIL import Image
 import math, os, hashlib
 BINS = 72
 out = []
-for n in range(1, 7):
+for n in range(1, 8):
     p = f"apps/web/public/img/islet/islet-{n}.png"
     im = Image.open(p).convert("RGBA")
     W, H = im.size; cx, cy = W / 2, H / 2; half = max(W, H) / 2

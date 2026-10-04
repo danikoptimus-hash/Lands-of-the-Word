@@ -18,7 +18,7 @@ export interface Islet {
   img: number;
   /** Радиус круга, накрывающего островок с отмелью (для живности и раскладки). */
   cover: number;
-  /** Каменоломня (решение владельца 04.10): скалистый островок (картинка 5) — один и тот же во всех партиях, нажимается. */
+  /** Каменоломня (решение владельца 04.10): остров с карьером (картинка 7, сгенерирована 04.10 по образцу скалистого острова) — один и тот же во всех партиях, нажимается. */
   quarry?: boolean;
 }
 
@@ -55,7 +55,7 @@ export function isletRadiusAt(isl: { r: number; shape: number[] }, angle: number
  */
 const PLAN: ReadonlyArray<{ img: number; lo: number; hi: number }> = [
   { img: 1, lo: 3.4, hi: 3.8 }, { img: 6, lo: 3.0, hi: 3.4 },   // зелёные: луга с рощами, с ручьём и прудом
-  { img: 5, lo: 2.8, hi: 3.2 }, { img: 2, lo: 2.6, hi: 3.0 },   // скалистые: гряда и утёсы
+  { img: 7, lo: 2.8, hi: 3.2 }, { img: 2, lo: 2.6, hi: 3.0 },   // Каменоломня (картинка 7, карьер с воротом и причалом) и утёсы
   { img: 3, lo: 2.4, hi: 2.8 },                                 // полумесяц с лагуной
   { img: 4, lo: 1.4, hi: 1.7 },                                 // песчаная банка с рощицей
   { img: 5, lo: 2.0, hi: 2.4 }, { img: 1, lo: 1.8, hi: 2.2 },
@@ -79,7 +79,7 @@ export function generateIslets(fieldHexes: ReadonlyArray<Hex>, size: number, bou
       // Не ближе к любому гексу поля, чем его отмель (size × 2.6 от центра гекса) плюс своя отмель.
       if (centers.some((c) => Math.hypot(c.x - x, c.y - y) < cover + size * 2.6)) continue;
       if (out.some((o) => Math.hypot(o.x - x, o.y - y) < cover + o.cover + size * 1.2)) continue;
-      out.push({ x, y, r, shape: spec.shape, img: item.img, cover, ...(item.img === 5 && !out.some((o) => o.quarry) ? { quarry: true } : {}) });
+      out.push({ x, y, r, shape: spec.shape, img: item.img, cover, ...(item.img === 7 && !out.some((o) => o.quarry) ? { quarry: true } : {}) });
       break;
     }
   }

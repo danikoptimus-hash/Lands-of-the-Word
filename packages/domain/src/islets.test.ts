@@ -20,8 +20,8 @@ function bounds(hexes: { q: number; r: number }[]) {
 describe("islets", () => {
   const hexes = field(5), b = bounds(hexes);
 
-  it("контуры картинок сняты: шесть картинок по 72 отсчёта, край не дальше половины стороны", () => {
-    expect(ISLET_IMAGES).toHaveLength(6);
+  it("контуры картинок сняты: семь картинок по 72 отсчёта, край не дальше половины стороны", () => {
+    expect(ISLET_IMAGES).toHaveLength(7);
     for (const s of ISLET_IMAGES) { expect(s.shape).toHaveLength(ISLET_SHAPE_N); expect(s.maxR).toBeLessThanOrEqual(1); expect(Math.min(...s.shape)).toBeGreaterThan(0); }
   });
 
@@ -31,7 +31,7 @@ describe("islets", () => {
     expect(isletSeed(hexes)).toBe(isletSeed([...hexes].reverse()));
     expect(a.length).toBeGreaterThanOrEqual(6);
     expect(new Set(a.map((i) => i.img)).size).toBeGreaterThanOrEqual(4);
-    for (const i of a) { expect(i.img).toBeGreaterThanOrEqual(1); expect(i.img).toBeLessThanOrEqual(6); expect(i.cover).toBeGreaterThan(i.r * 0.5); }
+    for (const i of a) { expect(i.img).toBeGreaterThanOrEqual(1); expect(i.img).toBeLessThanOrEqual(7); expect(i.cover).toBeGreaterThan(i.r * 0.5); }
   });
 
   it("лежат в поясе моря, не касаются поля и друг друга", () => {
@@ -49,11 +49,11 @@ describe("islets", () => {
     }
   });
 
-  it("Каменоломня: ровно один скалистый островок (картинка 5) помечен в каждой раскладке", () => {
+  it("Каменоломня: ровно один остров с карьером (картинка 7) помечен в каждой раскладке", () => {
     for (let seed = 1; seed <= 40; seed++) {
       const q = generateIslets(hexes, SIZE, b, seed).filter((i) => i.quarry);
       expect(q).toHaveLength(1);
-      expect(q[0]!.img).toBe(5);
+      expect(q[0]!.img).toBe(7);
     }
     expect(generateIslets(field(6), SIZE, bounds(field(6))).filter((i) => i.quarry)).toHaveLength(1);
   });

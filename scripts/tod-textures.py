@@ -24,7 +24,7 @@ SETS = {
     "terrain": ["desert", "hills", "meadow", "mountains", "water", "oasis"],
     "city": ["village", "capital", "fortress", "hill_city", "port", "ruins", "temple_city", "tent_camp", "walled_city"],
     "start": ["assyria", "babylon", "egypt", "shipwreck", "wilderness", "zin"],
-    "islet": ["islet-1", "islet-2", "islet-3", "islet-4", "islet-5", "islet-6"],
+    "islet": ["islet-1", "islet-2", "islet-3", "islet-4", "islet-5", "islet-6", "islet-7"],
 }
 
 # Параметры цветокоррекции: множитель каналов, яркость, насыщенность, контраст, тон теней и светов (множители) и сила тонирования.
