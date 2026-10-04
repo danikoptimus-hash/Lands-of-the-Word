@@ -5,29 +5,20 @@ import { t } from "../lib/i18n";
 
 /**
  * Пояснение «за кнопкой» (решение владельца 18.09: инструкции прячутся, состояние остаётся на виду).
- * Круглая «?» рядом с заголовком или подписью; текст раскрывается на месте, в потоке: на телефоне нет наведения,
- * а внутри прокручиваемых шторок всплывающие окна ненадёжны. Нативный details: клавиатура и состояние даром.
+ * Решение владельца 04.10, везде одинаково: значок — только знак вопроса в кружке, без белой подложки; по нажатию
+ * пояснение всплывает окошком поверх экрана, а не раскрывается в потоке (раскрытие двигало интерфейс).
  * children — прежние строки t(): новых ключей перевода от компонента не появляется (кроме подписи кнопки).
- * block — не значок, а строка «Как это работает» с текстом под ней.
- * popup — значок без кружка, пояснение всплывает окошком над страницей, а не раскрывается в потоке
- * (решение владельца 03.10 для настроек игры: ряд полей не должен расползаться от пояснений).
+ * block — не значок, а кнопка-строка «Как это работает» с тем же всплывающим окошком.
+ * popup — оставлен для совместимости вызовов: теперь всплывают все.
  */
-export function Help({ children, label, block = false, popup = false, className }: { children: ReactNode; label?: string; block?: boolean; popup?: boolean; className?: string }) {
+export function Help({ children, label, block = false, className }: { children: ReactNode; label?: string; block?: boolean; popup?: boolean; className?: string }) {
   const name = label ?? (block ? t("Как это работает") : t("Что это?"));
-  if (popup) return <HelpPopup name={name} className={className}>{children}</HelpPopup>;
-  return (
-    <details className={"help" + (block ? " block" : "") + (className ? " " + className : "")}>
-      <summary aria-label={name} title={name}>
-        <Icon name="help" />{block && <span>{name}</span>}
-      </summary>
-      <div className="help-body">{children}</div>
-    </details>
-  );
+  return <HelpPopup name={name} block={block} className={className}>{children}</HelpPopup>;
 }
 
 const POP_W = 320, GAP = 6, EDGE = 8;
 
-function HelpPopup({ children, name, className }: { children: ReactNode; name: string; className?: string }) {
+function HelpPopup({ children, name, block = false, className }: { children: ReactNode; name: string; block?: boolean; className?: string }) {
   const btn = useRef<HTMLButtonElement>(null);
   const pop = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -64,10 +55,10 @@ function HelpPopup({ children, name, className }: { children: ReactNode; name: s
   }, [open]);
 
   return (
-    <span className={"help-pop-wrap" + (className ? " " + className : "")}>
-      <button ref={btn} type="button" className={"help-btn" + (open ? " open" : "")} aria-label={name} title={name} aria-expanded={open}
+    <span className={"help-pop-wrap" + (block ? " block" : "") + (className ? " " + className : "")}>
+      <button ref={btn} type="button" className={"help-btn" + (block ? " block" : "") + (open ? " open" : "")} aria-label={name} title={name} aria-expanded={open}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((v) => !v); }}>
-        <Icon name="help" />
+        <Icon name="help" />{block && <span>{name}</span>}
       </button>
       {open && createPortal(
         <div ref={pop} className="help-pop" role="tooltip" style={pos ? { left: pos.left, top: pos.top, width: pos.width } : { left: EDGE, top: EDGE, width: Math.min(POP_W, window.innerWidth - EDGE * 2), visibility: "hidden" }}>

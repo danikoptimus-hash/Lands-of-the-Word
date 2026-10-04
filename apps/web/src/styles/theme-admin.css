@@ -103,8 +103,7 @@ details.legend > summary { font-family: var(--font-ui); }
 .review-item .deed-desc.open { margin-top: 0; }
 
 /* ---------- Пояснение «?» рядом с заголовком или подписью: раскрытый текст уходит строкой ниже ---------- */
-.card-head > .help, .page-head > .help, .with-help > .help { margin-left: calc(-1 * var(--sp-1)); margin-right: auto; }
-.card-head > .help[open], .page-head > .help[open], .with-help > .help[open] { flex: 1 1 100%; order: 100; margin-left: 0; }
+.card-head > .help-pop-wrap, .page-head > .help-pop-wrap, .with-help > .help-pop-wrap { margin-left: calc(-1 * var(--sp-1)); margin-right: auto; }
 .with-help { display: flex; align-items: center; flex-wrap: wrap; gap: 0 var(--sp-1); margin-top: var(--sp-4); }
 .with-help > label { margin: 0; }
 .with-help > label.check { flex: 0 1 auto; }

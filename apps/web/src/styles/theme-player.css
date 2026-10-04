@@ -43,8 +43,7 @@
 .standing.expandable { cursor: pointer; }
 .standing .meta { font: 400 13px/1.4 var(--font-book); font-variant-numeric: tabular-nums; color: var(--ink-2); }
 .standing .meta + .meta { color: var(--ink-3); }
-.standing .meta .help { margin-left: 2px; }
-.standing .meta .help > summary { width: 20px; height: 20px; vertical-align: -5px; }
+.standing .meta .help-pop-wrap { margin-left: 2px; }
 /* Лента «Что случилось» — летопись: пунктирные чернильные разделители, значок в светлом кружке, дата капителью */
 .feed li { border-top: 1px dashed var(--paper-edge); }
 .feed .ico { width: 26px; height: 26px; background: var(--paper-light); border: 1px solid var(--paper-edge); color: var(--bronze-ink); filter: none; }
@@ -78,7 +77,7 @@
 .meta-line { font-family: var(--font-ui); color: var(--ink-2); row-gap: var(--sp-1); }
 .meta-line .i { color: var(--bronze); }
 .meta-line .chip .i { color: inherit; }
-.meta-line .help > summary { margin-left: 0; }
+.meta-line .help-btn { margin-left: 0; }
 .deed-sheet details.codex { margin-top: var(--sp-3); }
 .deed-sheet details.codex ol { background: var(--paper-light); border: 1px solid var(--paper-edge); border-radius: var(--r-xs); padding: var(--sp-3) var(--sp-3) var(--sp-3) 2em; font: italic 400 var(--fs-sm)/var(--lh-ui) var(--font-book); color: var(--ink); box-shadow: none; }
 .deed-sheet details.codex li::marker { color: var(--bronze-ink); font-weight: 700; }
@@ -178,9 +177,7 @@
 .lock-top .lock-tools { margin-left: auto; }
 .lock-top .strong { font-family: var(--font-ui); }
 .lock-body .hint { font-family: var(--font-ui); font-style: normal; }
-.lock-body .help > summary { background: rgba(0,0,0,.35); border-color: rgba(241,208,138,.6); color: var(--gold-hi); }
-.lock-body .help[open] > summary { background: var(--gold-hi); color: var(--ink); }
-.lock-body .help > .help-body { background: rgba(0,0,0,.35); color: #F4EEE4; border-left-color: var(--gold-hi); }
+.lock-body .help-btn { color: var(--gold-hi); opacity: 1; }
 .ring .cur { font-family: var(--font-ui); }
 .lock-body .sortable li { background: var(--paper-light); }
 .cw-cell input { background: var(--paper-light); border-color: var(--border-strong); font-family: var(--font-input); }
