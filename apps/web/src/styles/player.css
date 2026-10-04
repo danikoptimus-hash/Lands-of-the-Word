@@ -152,6 +152,15 @@
 .roster .main, .side-menu .list .roster .main { flex: 1 1 0; min-width: 0; flex-basis: 0; }
 .roster .side { flex: none; flex-wrap: nowrap; }
 .roster .role-pick .chip { max-width: 150px; }
+.roster .icon-only .chip { padding: 0 6px; gap: 2px; }
+.roster .icon-only .chip .i { width: 16px; height: 16px; }
+.roster .icon-only .chip .chev { width: 12px; height: 12px; }
+.roster .role-pick.icon-only.none .chip { border-style: dashed; }
+.roster li .side { gap: var(--sp-2); flex: none; }
+/* Имя слева, значки справа — в одну строку: длинное имя обрезается (решение владельца 04.10). */
+.roster > li { flex-wrap: nowrap; }
+.roster > li > .main { flex: 1 1 0; min-width: 0; }
+.roster .person .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .roster .role-pick .chip, .roster .chip-btn .chip { overflow: hidden; }
 .roster-title { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-2); }
 .roster-title h2 { display: flex; align-items: center; gap: var(--sp-2); margin: 0; min-width: 0; }

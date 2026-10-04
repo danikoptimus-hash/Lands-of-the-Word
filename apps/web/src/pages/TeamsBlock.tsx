@@ -11,7 +11,7 @@ import { ActionMenu } from "../components/ActionMenu";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { Sheet } from "../components/Sheet";
 import { ActivityBoard } from "./Journal";
-import { Help } from "../components/Help";
+import { Help, HelpPopup } from "../components/Help";
 import { DeedBadge } from "../components/DeedBadge";
 
 
@@ -165,17 +165,20 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                 const picking = pick === m.user.id;
                 return (
                   <li key={m.user.id} className="member-row">
-                    <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span><DeedBadge limit={m.deedLimit} now={now} />{(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"} title={TEAM_ROLE_LABEL[m.role]}><span className="sr-only">{TEAM_ROLE_LABEL[m.role]}</span></Chip>}</span>
-                      {/* Дела на руках у участника (решение владельца 04.10): взятые — с датой, сданные — «на проверке», возвращённые — «возвращено». */}
-                      {(m.activeDeeds?.length ?? 0) > 0 && (
-                        <ul className="member-deeds">
-                          {m.activeDeeds!.map((d) => (
-                            <li key={d.id}><Icon name={d.status === "SUBMITTED" ? "clock" : d.status === "REJECTED" ? "alert" : "scroll"} /><span className="title">{d.title}</span><span className="muted">{d.status === "SUBMITTED" ? t("на проверке") : d.status === "REJECTED" ? t("возвращено") : d.takenAt ? t("взято {d}", { d: fmtDate(d.takenAt) }) : t("взято")}</span></li>
-                          ))}
-                        </ul>
-                      )}
-                    </div>
+                    <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span></span></div>
                     <div className="side">
+                      {/* Значок лимита дел справа, у ролей (решение владельца 04.10); дела на руках спрятаны в значок: нажатие открывает окошко
+                          со списком — взятые с датой, сданные «на проверке», возвращённые. */}
+                      {m.deedLimit && ((m.activeDeeds?.length ?? 0) > 0
+                        ? <HelpPopup name={t("Дела на руках: {n}", { n: m.activeDeeds!.length })} trigger={<DeedBadge limit={m.deedLimit} now={now} />}>
+                            <ul className="member-deeds">
+                              {m.activeDeeds!.map((d) => (
+                                <li key={d.id}><Icon name={d.status === "SUBMITTED" ? "clock" : d.status === "REJECTED" ? "alert" : "scroll"} /><span className="title">{d.title}</span><span className="muted">{d.status === "SUBMITTED" ? t("на проверке") : d.status === "REJECTED" ? t("возвращено") : d.takenAt ? t("взято {d}", { d: fmtDate(d.takenAt) }) : t("взято")}</span></li>
+                              ))}
+                            </ul>
+                          </HelpPopup>
+                        : <DeedBadge limit={m.deedLimit} now={now} />)}
+                      {(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"} title={TEAM_ROLE_LABEL[m.role]}><span className="sr-only">{TEAM_ROLE_LABEL[m.role]}</span></Chip>}
                       {/* Только значок роли, без слова (решение владельца 04.10): название — в подсказке и для читалок; нажатие открывает ряд ролей. */}
                       {m.role !== "CAPTAIN" && (
                         <button type="button" className={"chip-btn role-pick icon-only" + (m.gameRole === "NONE" ? " none" : "")} aria-label={m.gameRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.gameRole]} title={m.gameRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.gameRole]} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>

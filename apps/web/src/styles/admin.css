@@ -163,11 +163,11 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 /* Строка участника компактно (23.09): имя, роль и меню в одну строку; ряд ролей — под строкой. */
 .team-block .member-row { align-items: center; }
 .team-block .member-row .main { flex: 1 1 0; min-width: 0; }
-.team-block .member-deeds { list-style: none; margin: 4px 0 0 36px; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
-.team-block .member-deeds li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; }
-.team-block .member-deeds .i { width: 13px; height: 13px; flex: none; color: var(--accent); }
-.team-block .member-deeds .title { flex: 1 1 auto; min-width: 0; }
-.team-block .member-deeds .muted { flex: none; }
+.member-deeds { list-style: none; margin: 0; min-width: 220px; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.member-deeds li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; min-width: 0; }
+.member-deeds .i { width: 13px; height: 13px; flex: none; color: var(--accent); }
+.member-deeds .title { flex: 1 1 auto; min-width: 0; }
+.member-deeds .muted { flex: none; }
 .team-block .member-row .side { flex: none; flex-wrap: nowrap; }
 .team-block .member-row .role-pick .chip { max-width: 140px; overflow: hidden; }
 .team-block .member-row .role-pick.icon-only .chip { padding: 0 6px; gap: 2px; }
@@ -347,3 +347,8 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 /* Счётчики дела на картах (свободных · в работе): значки в строке метаданных. */
 .deed-row .meta .on-map { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .deed-row .meta .on-map .i { width: 13px; height: 13px; color: var(--accent); margin-left: 3px; }
+
+/* Значок дел как кнопка окошка: без рамки и фона, только сам значок. */
+.help-pop-wrap > .pop-btn, .help-pop-wrap > .pop-btn.open, .member-row .side .help-pop-wrap > .pop-btn { appearance: none; border: 0; background: none; box-shadow: none; padding: 0; margin: 0; min-height: 0; height: auto; display: inline-flex; align-items: center; cursor: pointer; color: inherit; font: inherit; border-radius: var(--r-full); }
+.help-pop-wrap > .pop-btn.open .deed-badge { box-shadow: 0 0 0 2px var(--accent); }
+.team-block .member-row .side { gap: var(--sp-2); }

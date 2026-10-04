@@ -18,7 +18,11 @@ export function Help({ children, label, block = false, className }: { children: 
 
 const POP_W = 320, GAP = 6, EDGE = 8;
 
-function HelpPopup({ children, name, block = false, className }: { children: ReactNode; name: string; block?: boolean; className?: string }) {
+/**
+ * Всплывающее окошко (поповер) поверх экрана: по умолчанию кнопка — значок «?», а с trigger — любой свой значок
+ * (например, значок дел участника у администратора, решение владельца 04.10). Закрывается нажатием мимо, Esc и прокруткой.
+ */
+export function HelpPopup({ children, name, block = false, className, trigger }: { children: ReactNode; name: string; block?: boolean; className?: string; trigger?: ReactNode }) {
   const btn = useRef<HTMLButtonElement>(null);
   const pop = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -56,9 +60,9 @@ function HelpPopup({ children, name, block = false, className }: { children: Rea
 
   return (
     <span className={"help-pop-wrap" + (block ? " block" : "") + (className ? " " + className : "")}>
-      <button ref={btn} type="button" className={"help-btn" + (block ? " block" : "") + (open ? " open" : "")} aria-label={name} title={name} aria-expanded={open}
+      <button ref={btn} type="button" className={(trigger ? "pop-btn" : "help-btn") + (block ? " block" : "") + (open ? " open" : "")} aria-label={name} title={name} aria-expanded={open}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((v) => !v); }}>
-        <Icon name="help" />{block && <span>{name}</span>}
+        {trigger ?? <><Icon name="help" />{block && <span>{name}</span>}</>}
       </button>
       {open && createPortal(
         <div ref={pop} className="help-pop" role="tooltip" style={pos ? { left: pos.left, top: pos.top, width: pos.width } : { left: EDGE, top: EDGE, width: Math.min(POP_W, window.innerWidth - EDGE * 2), visibility: "hidden" }}>
