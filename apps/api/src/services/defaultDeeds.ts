@@ -92,6 +92,10 @@ export async function syncGameDeeds(gameId: string, mode: "auto" | "add" | "repl
   if (mode === "auto" && !usesSet) return res;
   if (mode === "replace") {
     res.removed = (await prisma.deed.deleteMany({ where: { gameId, edgeTasks: { none: {} } } })).count;
+    // Дело не из набора, которое лежит только на свободных сторонах, тоже убирается: стороны получают другое дело
+    // (свободные дела следуют за настройками, решение владельца 04.10). Взятые и сданные дела остаются.
+    const onlyOpen = await prisma.deed.findMany({ where: { gameId, edgeTasks: { none: { status: { not: "OPEN" } } } }, select: { id: true, title: true } });
+    for (const d of onlyOpen) if (!inSet(d.title) && (await removeDeed(gameId, d.id))) res.removed++;
     deeds = await prisma.deed.findMany({ where: { gameId }, include: { _count: { select: { edgeTasks: true } } } });
   }
   const seen = new Set<string>();
