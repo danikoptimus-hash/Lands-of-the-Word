@@ -24,21 +24,6 @@ export function localMinutes(timeZone: string, now: Date = new Date()): number {
   }
 }
 
-/**
- * Сутки игры (решение владельца 04.10): день считается по часовому поясу игры, а не устройства участника. Начало
- * текущих суток и следующая полночь по поясу в миллисекундах; при неизвестном поясе — по UTC.
- */
-export function dayBoundsInZone(timeZone: string, now: Date = new Date()): { start: number; next: number } {
-  let h = now.getUTCHours(), m = now.getUTCMinutes(), s = now.getUTCSeconds();
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", minute: "numeric", second: "numeric", hour12: false }).formatToParts(now);
-    const num = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-    h = num("hour") % 24; m = num("minute"); s = num("second");
-  } catch { /* пояс не распознан — по UTC */ }
-  const start = now.getTime() - ((h * 60 + m) * 60 + s) * 1000 - now.getUTCMilliseconds();
-  return { start, next: start + 86_400_000 };
-}
-
 /** Фаза по минутам от полуночи. */
 export function phaseAt(minutes: number): DayPhase {
   const m = ((minutes % 1440) + 1440) % 1440;

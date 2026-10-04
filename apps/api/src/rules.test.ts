@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { addAwakeMs, awakeMsBetween, dayLightAt, dayPhase, phaseAt, dayBoundsInZone } from "@lotw/domain";
+import { addAwakeMs, awakeMsBetween, dayLightAt, dayPhase, phaseAt } from "@lotw/domain";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
@@ -115,9 +115,6 @@ describe("правила и настройки", () => {
     const after = (await get(`/api/games/${gameId}/my-map`, p1Cookie)).json();
     expect(after.deedLimit.taken).toBe(1);
     expect(after.deedLimit.nextAt).toBeGreaterThan(Date.now());
-    // Сутки — по часовому поясу игры (решение владельца 04.10): место освободится в ближайшую полночь по поясу игры.
-    const tz = (await get(`/api/games/${gameId}`, adminCookie)).json().game.settings.rules.timeZone as string;
-    expect(after.deedLimit.nextAt).toBe(dayBoundsInZone(tz).next);
     // Вся команда видит таймер каждого участника в составе (решение владельца 04.10).
     const roster = (await get(`/api/games/${gameId}/teams`, p1Cookie)).json().teams[0].members as Array<{ user: { nickname: string }; deedLimit: { max: number; taken: number; nextAt: number | null } | null }>;
     const me = roster.find((x) => x.user.nickname === p1Nick)!;

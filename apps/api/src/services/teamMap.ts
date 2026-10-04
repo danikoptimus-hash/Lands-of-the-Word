@@ -1,6 +1,6 @@
 import { prisma } from "../db.js";
 import { bookName, msg } from "./i18n.js";
-import { hexCorners, vertexKey, BOOKS, dayBoundsInZone } from "@lotw/domain";
+import { hexCorners, vertexKey, BOOKS } from "@lotw/domain";
 import { loadCityContent } from "./cities.js";
 import { notifyTeam, notifyUser } from "./notify.js";
 import { publish } from "./events.js";
@@ -304,20 +304,21 @@ export async function ensureRemoteDeed(gameId: string, teamId: string, candidate
   await prisma.teamEdgeTask.update({ where: { id: target.id }, data: { deedId: remoteId } });
 }
 
+const DAY_MS = 86_400_000;
 export interface DeedLimit { max: number; taken: number; nextAt: number | null }
 /**
- * Лимит дел в сутки для нескольких участников одним запросом. Сутки — календарный день по часовому поясу игры
- * (решение владельца 04.10: не зависит от устройства участника): считаются дела, взятые с 0:00 по поясу игры;
- * когда лимит исчерпан, место освободится в следующую полночь по тому же поясу. Пустая карта — лимита нет.
- * Видят все в составе команды (решение владельца 04.10: таймер до следующего дела у каждого участника).
+ * Лимит дел в сутки для нескольких участников одним запросом: сколько взято за последние 24 часа и когда освободится
+ * место (момент выхода самого раннего взятия из окна). Пустая карта — лимита нет. Видят все в составе команды
+ * (решение владельца 04.10: таймер до следующего дела у каждого участника).
  */
-export async function deedLimitsFor(gameId: string, max: number, userIds: string[], timeZone: string): Promise<Map<string, DeedLimit>> {
+export async function deedLimitsFor(gameId: string, max: number, userIds: string[]): Promise<Map<string, DeedLimit>> {
   const out = new Map<string, DeedLimit>();
   if (!max || userIds.length === 0) return out;
-  const day = dayBoundsInZone(timeZone);
-  const rows = await prisma.teamEdgeTask.groupBy({ by: ["takenById"], where: { gameId, takenById: { in: userIds }, takenAt: { gte: new Date(day.start) } }, _count: { _all: true } });
-  const byUser = new Map(rows.map((r) => [r.takenById!, r._count._all]));
-  for (const id of userIds) { const taken = byUser.get(id) ?? 0; out.set(id, { max, taken, nextAt: taken >= max ? day.next : null }); }
+  const since = new Date(Date.now() - DAY_MS);
+  const rows = await prisma.teamEdgeTask.findMany({ where: { gameId, takenById: { in: userIds }, takenAt: { gte: since } }, select: { takenById: true, takenAt: true }, orderBy: { takenAt: "asc" } });
+  const byUser = new Map<string, number[]>();
+  for (const r of rows) if (r.takenById && r.takenAt) byUser.set(r.takenById, [...(byUser.get(r.takenById) ?? []), r.takenAt.getTime()]);
+  for (const id of userIds) { const t = byUser.get(id) ?? []; out.set(id, { max, taken: t.length, nextAt: t.length >= max ? t[t.length - max]! + DAY_MS : null }); }
   return out;
 }
 

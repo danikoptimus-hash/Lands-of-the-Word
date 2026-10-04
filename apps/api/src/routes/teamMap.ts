@@ -23,11 +23,11 @@ const submitBody = z.object({
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
 
 
-/** Лимит дел в сутки для участника (сутки — по часовому поясу игры). null — лимита нет. */
+/** Лимит дел в сутки для участника: сколько взято за последние 24 часа и когда освободится место. null — лимита нет. */
 async function deedLimitFor(gameId: string, userId: string): Promise<DeedLimit | null> {
-  const rules = await gameRules(gameId);
-  if (!rules.maxDeedsPerDay) return null;
-  return (await deedLimitsFor(gameId, rules.maxDeedsPerDay, [userId], rules.timeZone)).get(userId) ?? null;
+  const max = (await gameRules(gameId)).maxDeedsPerDay;
+  if (!max) return null;
+  return (await deedLimitsFor(gameId, max, [userId])).get(userId) ?? null;
 }
 /** «через 3 ч 20 мин» / «через 15 мин» для сообщения о лимите. */
 function untilText(request: Parameters<typeof err>[0], at: number): string {
