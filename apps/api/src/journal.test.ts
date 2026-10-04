@@ -112,7 +112,11 @@ describe("журнал событий: лента, новости, служен�
     const view1 = (await get(`/api/games/${gameId}/peace`, p1Cookie)).json();
     const incoming = view1.teams.find((x: { team: { id: string } }) => x.team.id === team2);
     expect(incoming.state).toBe("incoming");
+    // Идущее испытание между этими командами мир закрывает сразу (решение владельца 04.10).
+    const open = await prisma.battle.create({ data: { gameId, nodeKey: rutKey, bookCode: "rut", attackerId: team2, defenderId: team1, bid: 10, status: "ATTACK", startedAt: new Date() } });
     expect((await post(`/api/games/${gameId}/peace/${incoming.peaceId}/accept`, p1Cookie)).statusCode).toBe(200);
+    expect((await prisma.battle.findUniqueOrThrow({ where: { id: open.id } })).status).toBe("CANCELLED");
+    expect((await feedUntil<{ kind: string; everyone: boolean }>(gameId, p1Cookie, "trial_peace")).find((f) => f.kind === "trial_peace")?.everyone).toBe(true);
     const war = (await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie)).json();
     expect(war.canDeclare).toBe(false);
     expect(war.reason).toMatch(/мир/i);

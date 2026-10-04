@@ -508,3 +508,12 @@
 .standing .peace-slot { margin-left: auto; display: inline-flex; }
 .standing .peace-btn { color: var(--accent); }
 .standing .peace-row { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); }
+
+/* Обмен городами (решение владельца 04.10): две стороны сделки рядом, на телефоне — столбиком. */
+.trade-sides { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); margin-top: var(--sp-2); }
+.trade-sides .label { display: block; font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.trade-city { display: inline-flex; align-items: center; gap: 4px; }
+.trade-city .i { width: var(--icon-sm); height: var(--icon-sm); }
+.trade-new { margin-top: var(--sp-3); }
+.trade-new h3 { margin-bottom: var(--sp-1); }
+@media (max-width: 420px) { .trade-sides { grid-template-columns: 1fr; } }

@@ -9,6 +9,7 @@ import { CityPopup } from "./CityPopup";
 import { QuarrySheet } from "./QuarrySheet";
 import { BATTLE_STATUS, battleTone, isMyTurn, leftText } from "./BattlePanel";
 import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
+import { TradesSection } from "./Trades";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, plural, setDisplayTimeZone } from "../lib/format";
@@ -547,6 +548,7 @@ export function TeamPage() {
             </section>
           )}
           {menuView === "standings" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
+          {menuView === "standings" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} onChanged={() => { void loadMap(); void loadStandings(); }} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} />}
           {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} />}
           {menuView === "home" && (

@@ -53,6 +53,7 @@ export async function decidePeace(gameId: string, peaceId: string, teamId: strin
   await prisma.peace.update({ where: { id: p.id }, data: { status: accept ? "ACTIVE" : "DECLINED", decidedAt: new Date() } });
   if (accept) {
     journal(gameId, "peace_made", { everyone: true, teamId: p.fromId, vars: { team: p.from.name, other: p.to.name } });
+    await closeTrialsForPeace(gameId, p.fromId, p.toId, p.from.name, p.to.name);
     notifyTeam(gameId, p.fromId, "мир заключён", "Команда «{team}» приняла мир: города друг друга не вызываются, пока одна из сторон не расторгнет мир.", { team: p.to.name });
   } else {
     journal(gameId, "peace_declined", { teamId: p.fromId, vars: { team: p.from.name, other: p.to.name } });
@@ -74,4 +75,30 @@ export async function breakPeace(gameId: string, peaceId: string, teamId: string
   notifyTeam(gameId, otherId, "мир расторгнут", "Команда «{team}» расторгла мир: с этого момента вызовы снова возможны.", { team: me });
   publish(gameId, { type: "peace" });
   return { ok: true };
+}
+
+/**
+ * Мир закрывает идущие испытания между этими командами (решение владельца 04.10): вызовы в очереди, на этапе вызова
+ * и ответа и осады делами между ними прекращаются сразу, без победителя; город остаётся у хранителей, ставка не сгорает.
+ */
+export async function closeTrialsForPeace(gameId: string, aId: string, bId: string, aName: string, bName: string): Promise<void> {
+  const now = new Date();
+  const pair = { OR: [{ attackerId: aId, defenderId: bId }, { attackerId: bId, defenderId: aId }] };
+  const battles = await prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, ...pair }, select: { id: true, attackerId: true, bookCode: true } });
+  const sieges = await prisma.siege.findMany({ where: { gameId, status: "ACTIVE", ...pair }, select: { id: true, attackerId: true, nodeKey: true } });
+  if (!battles.length && !sieges.length) return;
+  const nameOf = (id: string) => (id === aId ? aName : bName), otherOf = (id: string) => (id === aId ? bName : aName);
+  await prisma.$transaction([
+    prisma.battle.updateMany({ where: { id: { in: battles.map((b) => b.id) } }, data: { status: "CANCELLED", resolvedAt: now } }),
+    prisma.siege.updateMany({ where: { id: { in: sieges.map((s) => s.id) } }, data: { status: "CANCELLED", resolvedAt: now } }),
+  ]);
+  for (const b of battles) journal(gameId, "trial_peace", { everyone: true, teamId: b.attackerId, vars: { team: nameOf(b.attackerId), other: otherOf(b.attackerId), book: b.bookCode } });
+  if (sieges.length) {
+    const nodes = await prisma.mapNode.findMany({ where: { gameId, key: { in: sieges.map((s) => s.nodeKey) } }, select: { key: true, bookCode: true } });
+    const book = new Map(nodes.map((n) => [n.key, n.bookCode ?? ""]));
+    for (const s of sieges) journal(gameId, "siege_peace", { everyone: true, teamId: s.attackerId, vars: { team: nameOf(s.attackerId), other: otherOf(s.attackerId), book: book.get(s.nodeKey) ?? "" } });
+  }
+  publish(gameId, { type: "battles" });
+  publish(gameId, { type: "map" });
+  publish(gameId, { type: "cities" });
 }

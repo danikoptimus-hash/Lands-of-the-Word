@@ -16,8 +16,9 @@ import { standings } from "./game.js";
 export type JournalKind =
   | "deed_submitted" | "deed_approved" | "deed_returned"
   | "order_solved" | "task_solved" | "city_captured" | "ruins_taken" | "treasure"
-  | "trial_declared" | "trial_queued" | "trial_started" | "trial_repelled" | "trial_won" | "trial_burnt" | "trial_cancelled"
-  | "siege_declared" | "siege_won" | "siege_repelled"
+  | "trial_declared" | "trial_queued" | "trial_started" | "trial_repelled" | "trial_won" | "trial_burnt" | "trial_cancelled" | "trial_peace"
+  | "siege_declared" | "siege_won" | "siege_repelled" | "siege_peace"
+  | "trade_proposed" | "trade_countered" | "trade_done" | "trade_cancelled"
   | "passage_granted" | "passage_denied" | "sea_landed"
   | "penalty" | "role_changed" | "capital_moved"
   | "quarry_submitted" | "quarry_approved" | "quarry_returned" | "paved"
@@ -43,6 +44,12 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   trial_won: "Команда «{team}» взяла город {book} у команды «{other}»",
   trial_burnt: "Вызов команды «{team}» городу {book} команды «{other}» сгорел",
   trial_cancelled: "Вызов команды «{team}» городу {book} отменён",
+  trial_peace: "Испытание за город {book} между командами «{team}» и «{other}» прекращено: заключён мир",
+  siege_peace: "Осада города {book} командой «{team}» снята: с командой «{other}» заключён мир",
+  trade_proposed: "Посол команды «{team}» предложил команде «{other}» обмен: город {book}",
+  trade_countered: "Команда «{other}» предложила взамен город {book}",
+  trade_done: "Команды «{team}» и «{other}» обменялись городами: {book} ушёл к «{other}», {book2} — к «{team}»",
+  trade_cancelled: "Обмен городами между командами «{team}» и «{other}» отменён",
   siege_declared: "Команда «{team}» объявила осаду делами городу {book} команды «{other}»",
   siege_won: "Осада удалась: город {book} перешёл команде «{team}» от команды «{other}»",
   siege_repelled: "Осада отбита: город {book} остаётся у команды «{other}»",

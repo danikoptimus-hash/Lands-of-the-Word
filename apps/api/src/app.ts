@@ -27,6 +27,7 @@ import { recordResponse } from "./services/stats.js";
 import { eventRoutes } from "./routes/events.js";
 import { journalRoutes } from "./routes/journal.js";
 import { quarryRoutes } from "./routes/quarry.js";
+import { tradeRoutes } from "./routes/trades.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -78,6 +79,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(battleRoutes);
   await app.register(diplomacyRoutes);
   await app.register(quarryRoutes);
+  await app.register(tradeRoutes);
   await app.register(recipientRoutes);
   await app.register(journalRoutes);
   // Таймеры битв: сгоревшие атаки и просроченные обороны проверяются раз в минуту.

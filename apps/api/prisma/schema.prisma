@@ -154,6 +154,7 @@ model Game {
   journal     Journal[]
   peaces      Peace[]
   quarryWorks  QuarryWork[]
+  trades      CityTrade[]
 }
 
 model GameAdmin {
@@ -311,6 +312,8 @@ model Team {
   @@unique([gameId, index])
   @@unique([gameId, name])
   supportRequests SupportRequest[]
+  tradeOut       CityTrade[] @relation("tradeFrom")
+  tradeIn        CityTrade[] @relation("tradeTo")
   peaceOut       Peace[] @relation("peaceFrom")
   peaceIn        Peace[] @relation("peaceTo")
 }
@@ -651,6 +654,42 @@ model TeamPenalty {
   createdAt DateTime @default(now())
 
   @@index([gameId, teamId])
+}
+
+enum TradeStatus {
+  OPEN
+  COUNTERED
+  DONE
+  CANCELLED
+}
+
+/**
+ * Обмен городами между послами (решение владельца 04.10): посол выставляет свой город (offerKey) другой команде,
+ * её посол предлагает взамен свой (counterKey); первый либо меняется (DONE), либо отклоняет встречный город
+ * (counterKey → declinedKeys, снова OPEN — ждём другое предложение); любая сторона может отменить сделку (CANCELLED).
+ */
+model CityTrade {
+  id           String      @id @default(cuid())
+  gameId       String
+  game         Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  fromId       String
+  from         Team        @relation("tradeFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId         String
+  to           Team        @relation("tradeTo", fields: [toId], references: [id], onDelete: Cascade)
+  offerKey     String
+  counterKey   String?
+  declinedKeys String[]    @default([])
+  message      String      @default("")
+  status       TradeStatus @default(OPEN)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @default(now())
+  closedAt     DateTime?
+  /** Кто закрыл сделку (команда): при обмене — принявший, при отмене — отменивший. */
+  closedById   String?
+
+  @@index([gameId, status])
+  @@index([fromId])
+  @@index([toId])
 }
 
 enum PassageStatus {

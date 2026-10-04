@@ -37,6 +37,12 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   trial_won: "Команда «{team}» взяла город {book} у команды «{other}»",
   trial_burnt: "Вызов команды «{team}» городу {book} команды «{other}» сгорел",
   trial_cancelled: "Вызов команды «{team}» городу {book} отменён",
+  trial_peace: "Испытание за город {book} между командами «{team}» и «{other}» прекращено: заключён мир",
+  siege_peace: "Осада города {book} командой «{team}» снята: с командой «{other}» заключён мир",
+  trade_proposed: "Посол команды «{team}» предложил команде «{other}» обмен: город {book}",
+  trade_countered: "Команда «{other}» предложила взамен город {book}",
+  trade_done: "Команды «{team}» и «{other}» обменялись городами: {book} ушёл к «{other}», {book2} — к «{team}»",
+  trade_cancelled: "Обмен городами между командами «{team}» и «{other}» отменён",
   siege_declared: "Команда «{team}» объявила осаду делами городу {book} команды «{other}»",
   siege_won: "Осада удалась: город {book} перешёл команде «{team}» от команды «{other}»",
   siege_repelled: "Осада отбита: город {book} остаётся у команды «{other}»",
@@ -53,12 +59,13 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   chronicle: "Летопись недели",
   game_finished: "Игра завершена{winner}",
 };
-const ICON: Partial<Record<JournalKind, string>> = { deed_submitted: "send", deed_approved: "check", deed_returned: "back", order_solved: "lock", task_solved: "book", city_captured: "city", ruins_taken: "city", treasure: "star", trial_declared: "wave", trial_queued: "list", trial_started: "wave", trial_repelled: "flag", trial_won: "trophy", trial_burnt: "clock", siege_declared: "scroll", siege_won: "trophy", siege_repelled: "flag", passage_granted: "handshake", passage_denied: "x", sea_landed: "ship", penalty: "alert", role_changed: "user", capital_moved: "crown", peace_offered: "handshake", peace_made: "handshake", peace_broken: "alert", chronicle: "scroll", game_finished: "trophy" };
+const ICON: Partial<Record<JournalKind, string>> = { trial_peace: "handshake", siege_peace: "handshake", trade_proposed: "handshake", trade_countered: "handshake", trade_done: "city", trade_cancelled: "x", deed_submitted: "send", deed_approved: "check", deed_returned: "back", order_solved: "lock", task_solved: "book", city_captured: "city", ruins_taken: "city", treasure: "star", trial_declared: "wave", trial_queued: "list", trial_started: "wave", trial_repelled: "flag", trial_won: "trophy", trial_burnt: "clock", siege_declared: "scroll", siege_won: "trophy", siege_repelled: "flag", passage_granted: "handshake", passage_denied: "x", sea_landed: "ship", penalty: "alert", role_changed: "user", capital_moved: "crown", peace_offered: "handshake", peace_made: "handshake", peace_broken: "alert", chronicle: "scroll", game_finished: "trophy" };
 
 /** Текст записи: шаблон вида через словарь, код книги подставляется названием, служебные подстановки переводятся. */
 export function journalLine(kind: JournalKind, vars: Record<string, string | number>): string {
   const v: Record<string, string | number> = { ...vars };
   if (typeof v.book === "string") v.book = bookName(v.book);
+  if (typeof v.book2 === "string") v.book2 = bookName(v.book2);
   if (typeof v.other === "string" && kind === "treasure") v.other = bookName(v.other);
   // Служебные подстановки — сами шаблоны (например {winner} = «: победила команда «{team}»»): переводятся и заполняются теми же переменными.
   for (const k of ["capital", "who", "winner", "role"]) if (typeof v[k] === "string" && v[k]) v[k] = t(v[k] as string, v);
