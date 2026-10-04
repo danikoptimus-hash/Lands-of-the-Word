@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { bookOfNodeKey, pickDeed, reshuffleNearDuplicates } from "../services/teamMap.js";
+import { bookOfNodeKey, pickDeed } from "../services/teamMap.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
@@ -101,13 +101,6 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireGameAdmin(request, reply, id))) return;
     const mode = z.object({ mode: z.enum(["add", "replace"]).default("add") }).parse(request.body ?? {}).mode;
     return syncGameDeeds(id, mode);
-  });
-
-  /** Развести одинаковые дела, стоящие рядом: меняются только свободные стороны (решение владельца 04.10). */
-  app.post("/api/games/:id/deeds/reshuffle", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    if (!(await requireGameAdmin(request, reply, id))) return;
-    return reshuffleNearDuplicates(id);
   });
 
 }

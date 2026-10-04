@@ -130,6 +130,8 @@ model Game {
   status      GameStatus   @default(DRAFT)
   teamCount   Int
   settings    Json         @default("{}")
+  /** Свободные дела перекомпонованы при запуске сервера по правилу «одинаковые дела не рядом» (разово, решение владельца 04.10). */
+  deedsReshuffledAt DateTime?
   mapSeed     Int?
   createdById String
   createdBy   User         @relation("GameCreator", fields: [createdById], references: [id])

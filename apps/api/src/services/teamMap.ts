@@ -276,41 +276,48 @@ export async function ensureRemoteDeed(gameId: string, teamId: string, candidate
 }
 
 /**
- * Развести одинаковые дела, стоящие рядом (решение владельца 04.10): действие администратора для игр, начатых до
- * правила «одинаковые дела не рядом». Меняются только свободные стороны (OPEN): взятые, сданные и принятые дела не
- * трогаются. Для каждой свободной стороны, у которой то же дело есть на другой стороне команды в двух шагах,
- * подбирается другое дело по обычным правилам (по книге города, иначе из общего пула); если другого нет — остаётся.
+ * Перекомпоновка свободных дел (решение владельца 04.10): игра делает это сама, без кнопки. Для каждой свободной
+ * стороны (OPEN) команды дело подбирается заново по обычным правилам — по книге города, иначе из общего пула,
+ * одинаковые дела не рядом; взятые, сданные и принятые дела не трогаются. Стороны идут по порядку появления,
+ * каждый следующий выбор уже видит предыдущие. Дело «издалека» среди свободных сторон сохраняется.
  */
-export async function reshuffleNearDuplicates(gameId: string): Promise<{ checked: number; changed: number }> {
-  const [teams, edges, cities] = await Promise.all([
+export async function reshuffleOpenDeeds(gameId: string): Promise<{ checked: number; changed: number }> {
+  const [teams, cities] = await Promise.all([
     prisma.team.findMany({ where: { gameId }, select: { id: true } }),
-    prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
     prisma.mapNode.findMany({ where: { gameId, kind: "CITY", bookCode: { not: null } }, select: { key: true, bookCode: true } }),
   ]);
   const cityBooks = new Map(cities.map((n) => [n.key, n.bookCode!]));
   let checked = 0, changed = 0;
   for (const team of teams) {
-    const tasks = await prisma.teamEdgeTask.findMany({ where: { teamId: team.id }, orderBy: { createdAt: "asc" }, select: { id: true, fromKey: true, toKey: true, deedId: true, status: true, deed: { select: { remote: true } } } });
-    const byDeed = new Map<string, Array<{ id: string; fromKey: string; toKey: string }>>();
-    for (const t of tasks) byDeed.set(t.deedId, [...(byDeed.get(t.deedId) ?? []), t]);
-    let teamChanged = 0;
+    const tasks = await prisma.teamEdgeTask.findMany({ where: { teamId: team.id, status: "OPEN" }, orderBy: { createdAt: "asc" }, select: { id: true, fromKey: true, toKey: true, deedId: true, sea: true, deed: { select: { remote: true } } } });
+    const touched: string[] = [];
     for (const t of tasks) {
-      if (t.status !== "OPEN") continue;
       checked++;
-      const touching = edges.filter((e) => e.aKey === t.fromKey || e.bKey === t.fromKey || e.aKey === t.toKey || e.bKey === t.toKey);
-      const zone = nearZone(touching, t.fromKey, t.toKey);
-      const twin = (byDeed.get(t.deedId) ?? []).some((o) => o.id !== t.id && (zone.has(o.fromKey) || zone.has(o.toKey)));
-      if (!twin) continue;
-      const next = await pickDeed(gameId, team.id, cityBooks.get(t.fromKey) ?? null, t.deedId, t.deed.remote, { fromKey: t.fromKey, toKey: t.toKey });
+      const next = await pickDeed(gameId, team.id, cityBooks.get(t.fromKey) ?? null, undefined, t.deed.remote, { fromKey: t.fromKey, toKey: t.sea ? t.fromKey : t.toKey });
       if (!next || next === t.deedId) continue;
       await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: next } });
-      byDeed.set(t.deedId, (byDeed.get(t.deedId) ?? []).filter((o) => o.id !== t.id));
-      byDeed.set(next, [...(byDeed.get(next) ?? []), t]);
-      teamChanged++;
+      if (!t.sea) touched.push(t.id);
+      changed++;
     }
-    if (teamChanged) { changed += teamChanged; publish(gameId, { type: "tasks", teamId: team.id }); publish(gameId, { type: "map", teamId: team.id }); }
+    if (touched.length) { await ensureRemoteDeed(gameId, team.id, touched); publish(gameId, { type: "tasks", teamId: team.id }); publish(gameId, { type: "map", teamId: team.id }); }
   }
   return { checked, changed };
+}
+
+/**
+ * Разово при запуске сервера: в идущих играх, начатых до правила «одинаковые дела не рядом», свободные дела
+ * перекомпоновываются один раз; отметка `deedsReshuffledAt` не даёт повторить. Игры, начатые позже, получают
+ * отметку при старте и не трогаются.
+ */
+export async function reshuffleStartedGamesOnce(log: { info: (o: object, msg: string) => void; error: (o: object, msg: string) => void }): Promise<void> {
+  const games = await prisma.game.findMany({ where: { status: "ACTIVE", deedsReshuffledAt: null }, select: { id: true } }).catch((e: unknown) => { log.error({ err: e }, "deeds reshuffle skipped: database unavailable"); return [] as Array<{ id: string }>; });
+  for (const g of games) {
+    try {
+      const r = await reshuffleOpenDeeds(g.id);
+      await prisma.game.update({ where: { id: g.id }, data: { deedsReshuffledAt: new Date() } });
+      log.info({ gameId: g.id, ...r }, "open deeds reshuffled");
+    } catch (e) { log.error({ err: e, gameId: g.id }, "open deeds reshuffle failed"); }
+  }
 }
 
 /**

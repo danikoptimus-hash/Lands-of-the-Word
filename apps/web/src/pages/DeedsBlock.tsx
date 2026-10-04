@@ -79,16 +79,6 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
-  async function reshuffle() {
-    if (!(await confirm(t("На свободных сторонах, где у команды то же дело стоит рядом (в двух шагах), дело будет заменено другим. Взятые и сданные дела не меняются."), { title: t("Развести одинаковые дела?"), okLabel: t("Развести") }))) return;
-    setBusy(true);
-    try {
-      const r = await api<{ checked: number; changed: number }>(`/api/games/${gameId}/deeds/reshuffle`, { method: "POST" });
-      notify(r.changed ? t("Заменено дел: {n} из {m} свободных", { n: r.changed, m: r.checked }) : t("Одинаковых дел рядом нет"));
-    }
-    catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
-    finally { setBusy(false); }
-  }
   async function remove(d: DeedDto) {
     if (!(await confirm(t("Дело «{title}» будет удалено из списка.", { title: d.title }), { title: t("Удалить дело?"), okLabel: t("Удалить"), danger: true }))) return;
     try { await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "DELETE" }); notify(t("Дело удалено")); await reload(); }
@@ -103,7 +93,6 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
           {deeds && deeds.length > 0 && <ActionMenu label={t("Стандартный набор")} items={[
             { label: t("Добавить недостающие из стандартного набора"), icon: "sparkle", onSelect: () => void importDefault("add") },
             { label: t("Заменить список стандартным набором"), icon: "refresh", danger: true, onSelect: () => void importDefault("replace") },
-            { label: t("Развести одинаковые дела рядом"), icon: "map", onSelect: () => void reshuffle() },
           ]} />}
           <button type="button" className="sm" onClick={openNew} disabled={!deeds}><Icon name="plus" />{t("Новое дело")}</button>
         </div>

@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { reshuffleStartedGamesOnce } from "./services/teamMap.js";
 import { BOOKS } from "@lotw/domain";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
@@ -52,20 +53,27 @@ afterAll(async () => {
 });
 
 describe("стандартный набор дел", () => {
-  it("развести одинаковые дела рядом: меняются только свободные стороны с двойником в двух шагах", async () => {
-    const tasks = await prisma.teamEdgeTask.findMany({ where: { teamId: team1, status: "OPEN", sea: false }, orderBy: { createdAt: "asc" }, take: 2 });
-    expect(tasks.length).toBe(2);
-    // Две свободные стороны из одного перекрёстка получают одно дело — как в играх, начатых до правила 03.10.
-    await prisma.teamEdgeTask.update({ where: { id: tasks[1]!.id }, data: { deedId: tasks[0]!.deedId } });
-    const r = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/reshuffle`, headers: { cookie: adminCookie } });
-    expect(r.statusCode).toBe(200);
-    expect(r.json().changed).toBeGreaterThanOrEqual(1);
-    const after = await prisma.teamEdgeTask.findMany({ where: { id: { in: tasks.map((t) => t.id) } } });
-    expect(after[0]!.deedId).not.toBe(after[1]!.deedId);
-    // Не администратору нельзя.
-    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds/reshuffle`, headers: { cookie: capCookie } })).statusCode).toBe(403);
+  it("перекомпоновка свободных дел при запуске: все свободные стороны получают дела заново, взятые не трогаются, второй раз не идёт", async () => {
+    const before = await prisma.teamEdgeTask.findMany({ where: { teamId: team1, status: "OPEN", sea: false }, orderBy: { createdAt: "asc" } });
+    expect(before.length).toBeGreaterThanOrEqual(2);
+    // Две свободные стороны из одного перекрёстка с одним делом — как в играх, начатых до правила 03.10; одна сторона взята.
+    await prisma.teamEdgeTask.update({ where: { id: before[1]!.id }, data: { deedId: before[0]!.deedId } });
+    const taken = before[before.length - 1]!;
+    await prisma.teamEdgeTask.update({ where: { id: taken.id }, data: { status: "TAKEN", takenAt: new Date() } });
+    const log = { info: () => {}, error: (o: object) => { throw new Error(JSON.stringify(o)); } };
+    await reshuffleStartedGamesOnce(log);
+    const after = await prisma.teamEdgeTask.findMany({ where: { id: { in: before.map((t) => t.id) } } });
+    const byId = new Map(after.map((t) => [t.id, t]));
+    expect(byId.get(before[0]!.id)!.deedId).not.toBe(byId.get(before[1]!.id)!.deedId);
+    expect(byId.get(taken.id)!.deedId).toBe(taken.deedId);
+    const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+    expect(game.deedsReshuffledAt).toBeTruthy();
+    // Повторный запуск сервера ничего не меняет: отметка стоит.
+    const snapshot = (await prisma.teamEdgeTask.findMany({ where: { teamId: team1 }, orderBy: { createdAt: "asc" } })).map((t) => t.deedId);
+    await reshuffleStartedGamesOnce(log);
+    expect((await prisma.teamEdgeTask.findMany({ where: { teamId: team1 }, orderBy: { createdAt: "asc" } })).map((t) => t.deedId)).toEqual(snapshot);
+    await prisma.teamEdgeTask.update({ where: { id: taken.id }, data: { status: "OPEN", takenAt: null } });
   });
-
   it("синхронизация при старте сервера: нередактированные дела обновляются, правленные — нет, исчезнувшие из набора убираются", async () => {
     const deeds = (await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } })).json().deeds as Array<{ id: string; title: string; description: string }>;
     const a = deeds.find((d) => d.title === "Посетить больного")!, b = deeds.find((d) => d.title === "Помощь по хозяйству")!;
