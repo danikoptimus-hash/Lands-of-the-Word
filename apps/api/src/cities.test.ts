@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { ensureCityCodes } from "./services/recipients.js";
-import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
+import { cleanupFixtures, readyForStart, registerVerified, setGamePhase, zoneForLocalHour } from "./testAuth.js";
 
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
 const stamp = Date.now();
@@ -112,6 +112,24 @@ describe("город на перекрёстке", () => {
     expect(solved.json().content.districts.map((d: { title: string }) => d.title)).toEqual(content.districts.map((d) => d.title));
     expect(solved.json().content.tasks).toHaveLength(content.tasks.length);
     expect(JSON.stringify(solved.json().content.tasks)).not.toContain("\"answer\"");
+  });
+  it("задания решаются до полуночи, знаки шифра и адресат ночью скрыты; с 0:00 до 7:00 город спит целиком", async () => {
+    await setGamePhase(app, gameId, adminCookie, "night"); // 23:00 по поясу игры
+    const late = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
+    expect(late.json().daytime).toMatchObject({ phase: "night", tasksOpen: true });
+    expect(late.json().content.tasks).toHaveLength(content.tasks.length);
+    expect(late.json().content.fragments.every((f: string | null) => f === null)).toBe(true);
+    expect(late.json().recipient).toBeNull();
+    const ids = late.json().content.districts.map((d: { id: string }) => d.id);
+    expect((await app.inject({ method: "PUT", url: `/api/games/${gameId}/my-city/${rutKey}/draft`, headers: { cookie: p1Cookie }, payload: { order: ids } })).statusCode).toBe(200);
+    // Глубокая ночь (3:00): задания закрыты, 409 night.
+    await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { timeZone: zoneForLocalHour(3) } } } });
+    const deep = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
+    expect(deep.json().daytime).toMatchObject({ phase: "night", tasksOpen: false });
+    expect(deep.json().content.tasks).toHaveLength(0);
+    const closed = await app.inject({ method: "PUT", url: `/api/games/${gameId}/my-city/${rutKey}/draft`, headers: { cookie: p1Cookie }, payload: { order: ids } });
+    expect(closed.statusCode).toBe(409); expect(closed.json().error).toBe("night");
+    await setGamePhase(app, gameId, adminCookie, "day");
   });
 
   it("неверный ответ даёт паузу, верные ответы открывают буквы шифра; ключ берёт город и делает его столицей", async () => {

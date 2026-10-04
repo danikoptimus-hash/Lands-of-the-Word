@@ -37,6 +37,18 @@ export function dayPhase(timeZone: string, now: Date = new Date()): DayPhase {
   return phaseAt(localMinutes(timeZone, now));
 }
 
+/**
+ * Задания города — порядок районов, ответы, подсказка пророка — решаются до полуночи (решение владельца 04.10):
+ * закрыты только с 0:00 до 7:00. Знаки шифра, адресат и конверт спят всю ночь, с 22:00 до 7:00, как раньше.
+ */
+export function cityTasksOpenAt(minutes: number): boolean {
+  const m = ((minutes % 1440) + 1440) % 1440;
+  return m >= PHASE_START.morning;
+}
+export function cityTasksOpen(timeZone: string, now: Date = new Date()): boolean {
+  return cityTasksOpenAt(localMinutes(timeZone, now));
+}
+
 export interface DayLight {
   /** Фаза правил (резкая граница). */
   phase: DayPhase;

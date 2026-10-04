@@ -6,7 +6,7 @@ import { requireUser } from "../auth.js";
 import { requireActiveMember, requireAdmin, requireMember, requireSuperadmin } from "./teamMap.js";
 import { pauseAfter, rulesOf, days } from "../services/rules.js";
 import { isLocked, minBidFor, sweep } from "../services/battles.js";
-import { assertAwake, gameDaytime } from "../services/daytime.js";
+import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
 import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask, stripAnswers } from "../services/cities.js";
 import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
@@ -79,9 +79,10 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const rules = rulesOf(game.settings);
     // Адресат конверта показывается только когда все задания решены: раньше он команде не нужен.
     const allDone = Boolean(content) && solved && done.length >= (content?.tasks.length ?? 0);
-    // Ночью (решение владельца 03.10) город спит: задания, знаки шифра и адресат конверта скрыты до утра; районы и состояние видны.
+    // Ночью (решение владельца 03.10) знаки шифра и адресат конверта скрыты до утра; задания открыты до полуночи (решение владельца 04.10).
     const daytime = await gameDaytime(id);
     const night = daytime.phase === "night";
+    const tasksOpen = daytime.tasksOpen;
     const recipient = allDone && !night && node.recipientId ? await prisma.recipient.findUnique({ where: { id: node.recipientId }, select: { label: true, kind: true } }) : null;
     return {
       daytime,
@@ -95,7 +96,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
             translation: content.translation,
             codeRule: content.codeRule,
             districts: publicDistricts(content, secret, scopeKey, solved),
-            tasks: solved && !night ? content.tasks.map((t, i) => publicTask(t, i, secret, scopeKey)) : [],
+            tasks: solved && tasksOpen ? content.tasks.map((t, i) => publicTask(t, i, secret, scopeKey)) : [],
             fragments: content.tasks.map((_, i) => (done.includes(i) && !night ? node.cityCode?.[i] ?? null : null)),
           }
         : null,
@@ -122,7 +123,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     };
   });
 
-  async function memberCity(request: Parameters<typeof requireMember>[0], reply: Parameters<typeof requireMember>[1], id: string, nodeKey: string) {
+  async function memberCity(request: Parameters<typeof requireMember>[0], reply: Parameters<typeof requireMember>[1], id: string, nodeKey: string, tasks = false) {
     const m = await requireActiveMember(request, reply, id);
     if (!m) return null;
     const game = await prisma.game.findUnique({ where: { id }, select: { status: true, settings: true } });
@@ -133,8 +134,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!reached) { await reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда ещё не дошла до этого города") }); return null; }
     const content = await loadCityContent(node.bookCode!);
     if (!content) { await reply.code(409).send({ error: "no_content", message: err(request, "Задания для этой книги ещё готовятся") }); return null; }
-    // Ночью город спит: районы не двигаются, задания не решаются, конверт не вскрывается (решение владельца 03.10).
-    if (!(await assertAwake(request, reply, id))) return null;
+    // Задания (порядок, ответы, подсказка) решаются до полуночи (решение владельца 04.10); конверт спит всю ночь (03.10).
+    if (!(await (tasks ? assertTasksOpen : assertAwake)(request, reply, id))) return null;
     const state = await prisma.teamCityState.upsert({
       where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } },
       create: { gameId: id, teamId: m.team.id, nodeKey },
@@ -147,7 +148,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
    *  виден всей команде, переживает закрытие приложения (решение владельца 01.10). Ошибок порядка не проверяет. */
   app.put("/api/games/:id/my-city/:nodeKey/draft", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
-    const c = await memberCity(request, reply, id, nodeKey);
+    const c = await memberCity(request, reply, id, nodeKey, true);
     if (!c) return;
     const body = draftBody.parse(request.body);
     if (body.order) {
@@ -165,7 +166,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
   /** Расставить районы по порядку книги. Ответ — id районов в выбранном порядке. */
   app.post("/api/games/:id/my-city/:nodeKey/order", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
-    const c = await memberCity(request, reply, id, nodeKey);
+    const c = await memberCity(request, reply, id, nodeKey, true);
     if (!c) return;
     if (c.state.orderSolved) return reply.code(409).send({ error: "conflict", message: err(request, "Порядок районов уже собран") });
     const body = orderBody.parse(request.body);
@@ -182,7 +183,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
   /** Ответ на задание района. Верный ответ открывает букву шифра. */
   app.post("/api/games/:id/my-city/:nodeKey/tasks/:index/answer", async (request, reply) => {
     const { id, nodeKey, index: rawIndex } = request.params as { id: string; nodeKey: string; index: string };
-    const c = await memberCity(request, reply, id, nodeKey);
+    const c = await memberCity(request, reply, id, nodeKey, true);
     if (!c) return;
     if (!c.state.orderSolved) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала расставьте районы по порядку") });
     const index = Number(rawIndex);

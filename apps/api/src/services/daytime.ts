@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { dayLight, type DayPhase } from "@lotw/domain";
+import { cityTasksOpen, dayLight, type DayPhase } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { rulesOf } from "./rules.js";
 import { err } from "./i18n.js";
@@ -10,12 +10,12 @@ import { err } from "./i18n.js";
  * испытания и осады не объявляются, стихи не отмечаются и не отправляются, разведка, подсказка пророка и запрос прохода ждут утра.
  * Вызов (атака) отправляется на проверку только утром; ответ хранителей — утром, днём и вечером.
  */
-export interface Daytime { phase: DayPhase; timeZone: string; now: number }
+export interface Daytime { phase: DayPhase; timeZone: string; now: number; /** Задания города открыты (с 7:00 до 0:00; решение владельца 04.10). */ tasksOpen: boolean }
 
 export async function gameDaytime(gameId: string, now = new Date()): Promise<Daytime> {
   const g = await prisma.game.findUnique({ where: { id: gameId }, select: { settings: true } });
   const { timeZone } = rulesOf(g?.settings);
-  return { phase: dayLight(timeZone, now).phase, timeZone, now: now.getTime() };
+  return { phase: dayLight(timeZone, now).phase, timeZone, now: now.getTime(), tasksOpen: cityTasksOpen(timeZone, now) };
 }
 
 export const NIGHT_MESSAGE = "Ночь: города спят, дела и испытания ждут утра. До 7:00 по местному времени можно только смотреть карту.";
@@ -25,5 +25,15 @@ export async function assertAwake(request: FastifyRequest, reply: FastifyReply, 
   const dt = await gameDaytime(gameId);
   if (dt.phase !== "night") return dt;
   await reply.code(409).send({ error: "night", message: err(request, NIGHT_MESSAGE), daytime: dt });
+  return null;
+}
+
+export const TASKS_CLOSED_MESSAGE = "Задания города закрыты с 0:00 до 7:00 по местному времени. Знаки шифра и конверт откроются утром.";
+
+/** Задания города (порядок, ответы, подсказка) решаются до полуночи (решение владельца 04.10); с 0:00 до 7:00 — 409 `night`. */
+export async function assertTasksOpen(request: FastifyRequest, reply: FastifyReply, gameId: string): Promise<Daytime | null> {
+  const dt = await gameDaytime(gameId);
+  if (dt.tasksOpen) return dt;
+  await reply.code(409).send({ error: "night", message: err(request, TASKS_CLOSED_MESSAGE), daytime: dt });
   return null;
 }
