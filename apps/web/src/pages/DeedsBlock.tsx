@@ -12,11 +12,11 @@ import { Help } from "../components/Help";
 import { plural } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK";
-interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; frequency: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null }
-type Form = { title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; frequency: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
-/** Частота появления дела: простой параметр в три ступени (решение владельца 15.09). */
-const FREQUENCY: Record<number, string> = { 1: "редко", 2: "обычно", 3: "часто" };
-const EMPTY: Form = { title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], frequency: 2, secret: false, remote: false, siegePoints: "", donationMin: "" };
+interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null }
+type Form = { title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
+/** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
+const CHANCES = [20, 40, 60, 80, 100];
+const EMPTY: Form = { title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: "", donationMin: "" };
 
 /** Вкладка «Дела»: список дел игры; добавление и изменение — в одной форме-шторке; стандартный набор — только пока список пуст. */
 /**
@@ -53,7 +53,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   useEffect(() => { void load(); }, [load, version]);
 
   const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, direction: directions[0] ?? "" } }); };
-  const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: { title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], frequency: d.frequency ?? 2, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" } }); };
+  const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: { title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 2, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" } }); };
   const close = () => setSheet(null);
 
   async function save(e: FormEvent) {
@@ -111,7 +111,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
                   <span>{PROOF_LABEL[d.proofType]}</span>
                   {d.siegePoints != null && <span>· {t("осада: {n} б.", { n: d.siegePoints })}</span>}
                   {d.donationMin != null && <span>· {t("пожертвование от {n}", { n: d.donationMin })}</span>}
-                  {d.frequency !== 2 && <span>· {t(FREQUENCY[d.frequency] ?? "обычно")}</span>}
+                  <span title={t("Вероятность появления на новой дороге")}>· {d.chance}%</span>
                   {d.bookCodes.length > 0 && <span>· <Chip icon="book" title={d.bookCodes.map(bookName).join(", ")}>{plural(d.bookCodes.length, [t("книга"), t("книги"), t("книг")])}</Chip></span>}
                   <span>· {d.direction}</span>
                 </span>
@@ -152,8 +152,9 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
                 <input id="d-don" type="number" inputMode="numeric" min={0} value={form.donationMin} onChange={(e) => setForm({ donationMin: e.target.value === "" ? "" : Number(e.target.value) })} />
               </div>
               <div>
-                <label htmlFor="d-freq">{t("Как часто выпадает")}</label>
-                <select id="d-freq" value={form.frequency} onChange={(e) => setForm({ frequency: Number(e.target.value) })}>{[1, 2, 3].map((n) => <option key={n} value={n}>{t(FREQUENCY[n]!)}</option>)}</select>
+                <label htmlFor="d-chance">{t("Вероятность появления на новой дороге")}</label>
+                <select id="d-chance" value={form.chance} onChange={(e) => setForm({ chance: Number(e.target.value) })}>{CHANCES.map((n) => <option key={n} value={n}>{n}%</option>)}</select>
+                <p className="hint">{t("Вес при розыгрыше: дело на 100% выпадает в пять раз чаще дела на 20%. Дела до 60% не ставятся рядом с таким же делом, от 80% — могут.")}</p>
               </div>
             </div>
             <div className="with-help">

@@ -5,7 +5,6 @@
     "direction": "Посещение",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 3,
     "bookCodes": [
       "deu",
       "rut",
@@ -18,7 +17,8 @@
     ],
     "replaces": [
       "Продукты одинокой вдове"
-    ]
+    ],
+    "chance": 100
   },
   {
     "title": "Посидеть с ребёнком в большой семье",
@@ -26,7 +26,6 @@
     "direction": "Помощь миссионерам и большим семьям",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "exo",
       "1sa",
@@ -36,7 +35,8 @@
       "mrk",
       "luk",
       "2ti"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Помочь на стройке дома",
@@ -44,7 +44,6 @@
     "direction": "Помощь миссионерам и большим семьям",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "exo",
       "1ki",
@@ -56,7 +55,8 @@
       "hag",
       "mat",
       "1co"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Привести друга на молодёжное богослужение",
@@ -64,7 +64,6 @@
     "direction": "Благовестие",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "2ki",
       "jon",
@@ -76,7 +75,8 @@
     ],
     "replaces": [
       "Привести друга на молодёжное общение"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Прийти на молитвенный час и поучаствовать молитвой",
@@ -84,7 +84,6 @@
     "direction": "Молитва",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 3,
     "bookCodes": [
       "1sa",
       "2ch",
@@ -100,7 +99,8 @@
     ],
     "replaces": [
       "Час молитвы за нужды братства"
-    ]
+    ],
+    "chance": 100
   },
   {
     "title": "Подготовить пение или музыкальное участие на богослужении",
@@ -108,7 +108,6 @@
     "direction": "Труд в лагерях и домах молитвы",
     "proofType": "VIDEO_LINK",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "exo",
       "jdg",
@@ -123,7 +122,8 @@
       "eph",
       "col",
       "rev"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Урок пения или музыки",
@@ -131,7 +131,6 @@
     "direction": "Педагогическое служение",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "1ch",
       "2ch",
@@ -141,7 +140,8 @@
     ],
     "replaces": [
       "Сольфеджио"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Посетить больного",
@@ -149,7 +149,6 @@
     "direction": "Посещение",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 3,
     "bookCodes": [
       "2ki",
       "job",
@@ -160,7 +159,8 @@
       "jhn",
       "php",
       "jas"
-    ]
+    ],
+    "chance": 100
   },
   {
     "title": "Уборка в доме молитвы",
@@ -168,7 +168,6 @@
     "direction": "Труд в лагерях и домах молитвы",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "num",
       "2ki",
@@ -179,7 +178,8 @@
       "mal",
       "mrk",
       "jhn"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Полдня на кухне в церкви",
@@ -187,7 +187,6 @@
     "direction": "Труд в лагерях и домах молитвы",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "gen",
       "rut",
@@ -203,7 +202,8 @@
       "rom",
       "heb",
       "1pe"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Помощь по хозяйству",
@@ -211,7 +211,6 @@
     "direction": "Помощь миссионерам и большим семьям",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 3,
     "bookCodes": [
       "gen",
       "rut",
@@ -229,7 +228,8 @@
     ],
     "replaces": [
       "Помощь на поле"
-    ]
+    ],
+    "chance": 100
   },
   {
     "title": "Угостить человека завтраком, обедом или ужином",
@@ -237,7 +237,6 @@
     "direction": "Посещение",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 3,
     "bookCodes": [
       "gen",
       "rut",
@@ -254,7 +253,8 @@
       "heb",
       "1pe",
       "3jn"
-    ]
+    ],
+    "chance": 100
   },
   {
     "title": "Сказать экспозиционную проповедь по книге [Книга]",
@@ -262,8 +262,8 @@
     "direction": "Благовестие",
     "proofType": "VIDEO_LINK",
     "canRepeat": true,
-    "frequency": 1,
-    "bookCodes": []
+    "bookCodes": [],
+    "chance": 20
   },
   {
     "title": "Выучить и рассказать стихотворение на собрании",
@@ -271,8 +271,8 @@
     "direction": "Труд в лагерях и домах молитвы",
     "proofType": "VIDEO_LINK",
     "canRepeat": true,
-    "frequency": 1,
-    "bookCodes": []
+    "bookCodes": [],
+    "chance": 20
   },
   {
     "title": "Провести мероприятие с детьми или подростками",
@@ -280,7 +280,6 @@
     "direction": "Педагогическое служение",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 1,
     "bookCodes": [
       "deu",
       "1sa",
@@ -291,7 +290,8 @@
       "luk",
       "eph",
       "2ti"
-    ]
+    ],
+    "chance": 20
   },
   {
     "title": "Рассказать командой отрывок из книги [Книга] в собрании",
@@ -299,8 +299,8 @@
     "direction": "Труд в лагерях и домах молитвы",
     "proofType": "VIDEO_LINK",
     "canRepeat": true,
-    "frequency": 1,
-    "bookCodes": []
+    "bookCodes": [],
+    "chance": 20
   },
   {
     "title": "Сделать доброе дело или сюрприз тайно",
@@ -308,7 +308,6 @@
     "direction": "Молодёжные нужды братства",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 2,
     "secret": true,
     "bookCodes": [
       "pro",
@@ -318,7 +317,8 @@
       "php",
       "heb",
       "1jn"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Предложить тему для молодёжного собрания",
@@ -326,7 +326,6 @@
     "direction": "Молодёжные нужды братства",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "pro",
       "ecc",
@@ -337,7 +336,8 @@
       "tit",
       "jas"
     ],
-    "remote": true
+    "remote": true,
+    "chance": 60
   },
   {
     "title": "Разложить сборники и книги в доме молитвы по полкам",
@@ -345,7 +345,6 @@
     "direction": "Труд в лагерях и домах молитвы",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "1ch",
       "2ch",
@@ -354,7 +353,8 @@
       "psa",
       "hag",
       "1co"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Посетить тружеников церкви в других городах",
@@ -362,7 +362,6 @@
     "direction": "Помощь миссионерам и большим семьям",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 1,
     "bookCodes": [
       "act",
       "rom",
@@ -374,7 +373,8 @@
       "2ti",
       "heb",
       "3jn"
-    ]
+    ],
+    "chance": 20
   },
   {
     "title": "Подготовить кабинет к молодёжному богослужению",
@@ -382,7 +382,6 @@
     "direction": "Труд в лагерях и домах молитвы",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "exo",
       "num",
@@ -392,7 +391,8 @@
       "luk",
       "mrk",
       "1co"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Пост за нужды семьи, молодёжи, церкви или братства",
@@ -400,7 +400,6 @@
     "direction": "Молитва",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "jdg",
       "1sa",
@@ -418,7 +417,8 @@
       "luk",
       "act"
     ],
-    "remote": true
+    "remote": true,
+    "chance": 60
   },
   {
     "title": "Письмо или открытка одинокому человеку",
@@ -426,7 +426,6 @@
     "direction": "Посещение",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 3,
     "remote": true,
     "bookCodes": [
       "psa",
@@ -439,7 +438,8 @@
       "phm",
       "2jn",
       "3jn"
-    ]
+    ],
+    "chance": 100
   },
   {
     "title": "Позвонить тому, кого давно не было в собрании",
@@ -447,7 +447,6 @@
     "direction": "Посещение",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 3,
     "remote": true,
     "bookCodes": [
       "ezk",
@@ -458,7 +457,8 @@
       "heb",
       "jas",
       "jud"
-    ]
+    ],
+    "chance": 100
   },
   {
     "title": "Помолиться с человеком лично",
@@ -466,7 +466,6 @@
     "direction": "Молитва",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 3,
     "bookCodes": [
       "1sa",
       "2ki",
@@ -474,7 +473,8 @@
       "act",
       "php",
       "jas"
-    ]
+    ],
+    "chance": 100
   },
   {
     "title": "Приготовить еду для семьи, где болеют или родился ребёнок",
@@ -482,7 +482,6 @@
     "direction": "Помощь миссионерам и большим семьям",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 3,
     "bookCodes": [
       "gen",
       "rut",
@@ -492,7 +491,8 @@
       "act",
       "1ti",
       "jas"
-    ]
+    ],
+    "chance": 100
   },
   {
     "title": "Помочь ребёнку из большой семьи с уроками",
@@ -500,7 +500,6 @@
     "direction": "Педагогическое служение",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "deu",
       "psa",
@@ -508,7 +507,8 @@
       "ecc",
       "dan",
       "2ti"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Починить что-то в доме молитвы или у одинокого человека",
@@ -516,7 +516,6 @@
     "direction": "Труд в лагерях и домах молитвы",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "2ki",
       "2ch",
@@ -525,7 +524,8 @@
       "hag",
       "jas",
       "1pe"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Семейное чтение книги [Книга]",
@@ -533,9 +533,9 @@
     "direction": "Педагогическое служение",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 2,
     "remote": true,
-    "bookCodes": []
+    "bookCodes": [],
+    "chance": 60
   },
   {
     "title": "Помочь пожилому с телефоном или компьютером",
@@ -543,7 +543,6 @@
     "direction": "Посещение",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "lev",
       "job",
@@ -551,7 +550,8 @@
       "pro",
       "1ti",
       "jas"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Полдня без телефона",
@@ -559,7 +559,6 @@
     "direction": "Молитва",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "job",
       "luk",
@@ -574,7 +573,8 @@
       "pro",
       "jas",
       "mrk"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Узнать, какая помощь нужна маме с детьми",
@@ -582,7 +582,6 @@
     "direction": "Помощь миссионерам и большим семьям",
     "proofType": "REPORT",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "rut",
       "pro",
@@ -594,7 +593,8 @@
       "1ti",
       "psa",
       "mrk"
-    ]
+    ],
+    "chance": 60
   },
   {
     "title": "Утренняя пробежка с молитвой",
@@ -602,7 +602,6 @@
     "direction": "Молитва",
     "proofType": "PHOTO_LINK",
     "canRepeat": true,
-    "frequency": 2,
     "bookCodes": [
       "1co",
       "1ti",
@@ -613,6 +612,7 @@
       "pro",
       "isa",
       "mrk"
-    ]
+    ],
+    "chance": 60
   }
 ]

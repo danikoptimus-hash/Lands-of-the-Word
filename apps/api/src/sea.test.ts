@@ -169,10 +169,10 @@ describe("морской переход", () => {
     const port = await prisma.mapNode.findFirstOrThrow({ where: { gameId, kind: "CITY", coastal: true, island: "OT" } });
     portKey = port.key;
     // Дело по книге порта с [Книга] в тексте: на сторонах из взятого порта выпадает первым, книга подставляется.
-    const themed = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie }, payload: { title: "Проповедь по книге [Книга]", description: "Текст из книги [книга].", direction: "Благовестие", bookCodes: [port.bookCode, "zzz"], frequency: 3, canRepeat: true } });
+    const themed = await app.inject({ method: "POST", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie }, payload: { title: "Проповедь по книге [Книга]", description: "Текст из книги [книга].", direction: "Благовестие", bookCodes: [port.bookCode, "zzz"], chance: 100, canRepeat: true } });
     expect(themed.statusCode).toBe(201);
     expect(themed.json().deed.bookCodes).toEqual([port.bookCode]);
-    expect(themed.json().deed.frequency).toBe(3);
+    expect(themed.json().deed.chance).toBe(100);
     const assign = await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${portKey}/assign`, headers: { cookie: adminCookie }, payload: { teamId: team1 } });
     expect(assign.statusCode).toBe(200);
     const tasks = (await myMap()).tasks as Task[];

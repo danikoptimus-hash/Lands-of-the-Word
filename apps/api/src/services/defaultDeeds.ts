@@ -36,7 +36,8 @@ export const deedBody = z.object({
   proofType: z.preprocess((v) => (v === "CONFIRMATION" ? "REPORT" : v), z.enum(["REPORT", "PHOTO_LINK", "VIDEO_LINK"]).default("PHOTO_LINK")),
   canRepeat: z.boolean().default(false),
   bookCodes: z.array(z.string().trim().min(3).max(3)).max(66).default([]).transform((a) => [...new Set(a)].filter((c) => BOOK_CODES.has(c))),
-  frequency: z.number().int().min(1).max(3).default(2),
+  /** Вероятность появления на новой дороге, % с шагом 20 (решение владельца 04.10). */
+  chance: z.number().int().min(20).max(100).refine((n) => n % 20 === 0, { message: "Вероятность — с шагом 20%" }).default(60),
   secret: z.boolean().default(false),
   remote: z.boolean().default(false),
   siegePoints: z.number().int().min(0).max(100).nullable().default(null),
@@ -60,15 +61,19 @@ export async function loadDefaultDeeds(): Promise<DefaultDeed[]> {
 }
 
 /** Хеш содержимого дела (только поля набора, книги — отсортированы). Новые поля входят в хеш, только если заданы, чтобы хеши старых игр не менялись. */
-export interface DeedLike { title: string; description: string; direction: string; proofType: string; canRepeat: boolean; bookCodes: string[]; difficulty?: number; frequency: number; secret: boolean; remote?: boolean; siegePoints?: number | null }
+export interface DeedLike { title: string; description: string; direction: string; proofType: string; canRepeat: boolean; bookCodes: string[]; difficulty?: number; chance: number; secret: boolean; remote?: boolean; siegePoints?: number | null }
 export function deedHash(d: DeedLike): string {
-  const base: unknown[] = [d.title, d.description, d.direction, d.proofType, d.canRepeat, [...d.bookCodes].sort(), d.difficulty ?? 1, d.frequency, d.secret];
+  // Вероятность (04.10) входит в хеш как прежняя ступень частоты (20 → 1, 60 → 2, 100 → 3), чтобы хеши старых игр не менялись;
+  // промежуточные 40 и 80 добавляются отдельно.
+  const bucket = d.chance <= 20 ? 1 : d.chance >= 100 ? 3 : 2;
+  const base: unknown[] = [d.title, d.description, d.direction, d.proofType, d.canRepeat, [...d.bookCodes].sort(), d.difficulty ?? 1, bucket, d.secret];
   if (d.remote || d.siegePoints != null) base.push(Boolean(d.remote), d.siegePoints ?? null);
+  if (![20, 60, 100].includes(d.chance)) base.push("chance", d.chance);
   const canon = JSON.stringify(base);
   return createHash("sha1").update(canon).digest("base64url");
 }
 /** Ценник (donationMin) набор переносит в игру, только если он в наборе задан; иначе остаётся тот, что выставил администратор игры. */
-const fields = (d: DefaultDeed): Omit<DeedFields, "donationMin"> & { donationMin?: number | null } => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, frequency: d.frequency, secret: d.secret, remote: d.remote, siegePoints: d.siegePoints, ...(d.donationMin !== undefined ? { donationMin: d.donationMin } : {}) });
+const fields = (d: DefaultDeed): Omit<DeedFields, "donationMin"> & { donationMin?: number | null } => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, chance: d.chance, secret: d.secret, remote: d.remote, siegePoints: d.siegePoints, ...(d.donationMin !== undefined ? { donationMin: d.donationMin } : {}) });
 const lc = (s: string) => s.trim().toLowerCase();
 
 export interface SyncResult { added: number; updated: number; removed: number }

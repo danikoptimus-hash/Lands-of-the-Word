@@ -20,12 +20,16 @@ const NO_REPEAT_WINDOW = 30;
  * Дело для стороны, выходящей из узла fromKey. Если это город, взятый командой, — сначала дела по книге
  * этого города (2.7: «выход из города — дела по книге»), затем общий пул.
  */
-/** Веса частоты появления дела: редко : обычно : часто = 1 : 3 : 6 (решение владельца 15.09: простой параметр в три ступени). */
-const FREQUENCY_WEIGHT: Record<number, number> = { 1: 1, 2: 3, 3: 6 };
-function weightedPick<T extends { frequency: number }>(list: T[]): T {
-  const total = list.reduce((a, d) => a + (FREQUENCY_WEIGHT[d.frequency] ?? 3), 0);
+/**
+ * Вероятность появления дела (решение владельца 04.10): проценты с шагом 20 вместо трёх ступеней. Вес дела при
+ * розыгрыше равен его проценту: дело на 100% выпадает в пять раз чаще дела на 20%. Дела до 60% включительно не
+ * ставятся рядом с таким же делом; от 80% — могут (это допустимо, а не обязательно).
+ */
+const NEAR_FREE_CHANCE = 80;
+function weightedPick<T extends { chance: number }>(list: T[]): T {
+  const total = list.reduce((a, d) => a + (d.chance || 60), 0);
   let r = Math.random() * total;
-  for (const d of list) { r -= FREQUENCY_WEIGHT[d.frequency] ?? 3; if (r < 0) return d; }
+  for (const d of list) { r -= d.chance || 60; if (r < 0) return d; }
   return list[list.length - 1]!;
 }
 /**
@@ -46,7 +50,7 @@ export async function pickDeed(gameId: string, teamId: string, bookCode: string 
   // «Встреченными» считаются только дела, которые команда брала или сдавала: свободные стороны не в счёт
   // (решение владельца 18.09: иначе набор кончался уже на фронтире и повторы шли сразу).
   const [deeds, used, open] = await Promise.all([
-    prisma.deed.findMany({ where: { gameId, ...(excludeId ? { id: { not: excludeId } } : {}), ...(onlyRemote ? { remote: true } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, frequency: true } }),
+    prisma.deed.findMany({ where: { gameId, ...(excludeId ? { id: { not: excludeId } } : {}), ...(onlyRemote ? { remote: true } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, chance: true } }),
     prisma.teamEdgeTask.findMany({ where: { teamId, status: { not: "OPEN" } }, select: { deedId: true }, orderBy: { createdAt: "desc" } }),
     prisma.teamEdgeTask.findMany({ where: { teamId, status: "OPEN" }, select: { deedId: true } }),
   ]);
@@ -58,7 +62,7 @@ export async function pickDeed(gameId: string, teamId: string, bookCode: string 
   const openIds = new Set(open.map((u) => u.deedId));
   // Дела на сторонах команды в двух шагах от новой стороны (любой статус: они видны на карте): такое дело для новой
   // стороны не берётся, пока есть любое другое — хоть из общего пула вместо книжного (замечание владельца 03.10:
-  // два одинаковых дела из одного перекрёстка).
+  // два одинаковых дела из одного перекрёстка). Делам с вероятностью от 80% стоять рядом можно (решение владельца 04.10).
   let nearIds = new Set<string>();
   if (near) {
     const keys = [near.fromKey, near.toKey];
@@ -70,7 +74,7 @@ export async function pickDeed(gameId: string, teamId: string, bookCode: string 
   const choose = (list: typeof deeds, strict: boolean) => {
     // 1) ещё не встречавшиеся команде; 2) допускающие повтор и не встречавшиеся на 30 последних векторах;
     // 3) любое допускающее повтор. На каждом шаге сначала те, которых сейчас нет на открытых сторонах.
-    const base = strict ? list.filter((d) => !nearIds.has(d.id)) : list;
+    const base = strict ? list.filter((d) => d.chance >= NEAR_FREE_CHANCE || !nearIds.has(d.id)) : list;
     const fresh = base.filter((d) => !usedIds.has(d.id));
     const repeatable = base.filter((d) => d.canRepeat);
     const notRecent = repeatable.filter((d) => !recentIds.has(d.id));
