@@ -12,6 +12,7 @@ import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { Sheet } from "../components/Sheet";
 import { ActivityBoard } from "./Journal";
 import { Help } from "../components/Help";
+import { DeedBadge } from "../components/DeedBadge";
 
 
 /** Вкладка «Команды»: список команд с участниками, приглашения по ссылке, строка добавления снизу. */
@@ -36,6 +37,9 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
+  /** Для значков лимита дел у участников (как в составе команды): отсчёт обновляется раз в полминуты. */
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i); }, []);
   const { confirm, notify } = useUi();
   const close = () => { setOpen(false); setError(null); };
   const fail = (err: unknown) => notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad");
@@ -161,7 +165,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                 const picking = pick === m.user.id;
                 return (
                   <li key={m.user.id} className="member-row">
-                    <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span>{(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"}>{TEAM_ROLE_LABEL[m.role]}</Chip>}</span>
+                    <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span><DeedBadge limit={m.deedLimit} now={now} />{(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"}>{TEAM_ROLE_LABEL[m.role]}</Chip>}</span>
                     </div>
                     <div className="side">
                       {m.role !== "CAPTAIN" && (

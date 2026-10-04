@@ -16,6 +16,7 @@ import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
+import { DeedBadge, untilText } from "../components/DeedBadge";
 import { FeedSection, MyServiceSection } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
@@ -755,13 +756,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
             <li key={m.user.id} className={picking ? "picking" : undefined}>
               <div className="main">
                 <div className="person"><span className="avatar">{name.slice(0, 1).toUpperCase()}</span><span className="name">{name}</span>
-                  {/* Лимит дел в сутки у каждого участника виден всей команде (решение владельца 04.10), значками как в играх:
-                      песочные часы и обратный отсчёт «ч:мм», пока лимит исчерпан; свиток и ячейки (точки) — сколько взято из лимита. */}
-                  {m.deedLimit && (m.deedLimit.nextAt && m.deedLimit.nextAt > now
-                    ? <span className="deed-badge wait" title={t("Следующее дело через {when}", { when: untilText(m.deedLimit.nextAt) })} aria-label={t("Следующее дело через {when}", { when: untilText(m.deedLimit.nextAt) })}><Icon name="hourglass" /><span className="num">{hmText(m.deedLimit.nextAt - now)}</span></span>
-                    : <span className="deed-badge free" title={t("Дел за сутки: {a} из {b}, можно взять", { a: m.deedLimit.taken, b: m.deedLimit.max })} aria-label={t("Дел за сутки: {a} из {b}, можно взять", { a: m.deedLimit.taken, b: m.deedLimit.max })}><Icon name="scroll" />{m.deedLimit.max <= 5
-                      ? <span className="pips">{Array.from({ length: m.deedLimit.max }, (_, i) => <i key={i} className={i < m.deedLimit!.taken ? "on" : undefined} />)}</span>
-                      : <span className="num">{m.deedLimit.taken}/{m.deedLimit.max}</span>}</span>)}
+                  <DeedBadge limit={m.deedLimit} now={now} />
                   {m.role === "DEPUTY" && m.gameRole !== "NONE" && <Chip tone="accent" icon="star">{t("заместитель")}</Chip>}</div>
                 {shown && r.hint() && <p className="hint">{r.hint()}</p>}
               </div>
@@ -794,15 +789,5 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
   );
 }
 
-/** Обратный отсчёт «ч:мм» для значка (решение владельца 04.10: значки, а не фразы). */
-function hmText(ms: number): string {
-  const mins = Math.max(1, Math.ceil(ms / 60_000)), h = Math.floor(mins / 60), m = mins % 60;
-  return `${h}:${String(m).padStart(2, "0")}`;
-}
-/** «3 ч 20 мин» / «15 мин» до освобождения места под дело. */
-function untilText(at: number): string {
-  const mins = Math.max(1, Math.ceil((at - Date.now()) / 60_000)), h = Math.floor(mins / 60), m = mins % 60;
-  return h > 0 ? t("{h} ч {m} мин", { h, m }) : t("{m} мин", { m });
-}
 /** Лимит дел в сутки исчерпан: кнопка «Взять дело» гаснет, подсказка говорит, когда можно снова. */
 const limitFull = (m: { deedLimit?: { max: number; taken: number } | null } | null): boolean => Boolean(m?.deedLimit && m.deedLimit.taken >= m.deedLimit.max);
