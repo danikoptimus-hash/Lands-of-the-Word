@@ -31,15 +31,15 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<"active" | "all">("active");
   const [returning, setReturning] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null); // гаснут кнопки только у решаемой записи (04.10)
   const load = useCallback(() => api<{ battles: BattleDto[] }>(`/api/games/${gameId}/battles`).then((r) => { setRows(r.battles); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useAutoRefresh(load, version);
 
   async function decide(battleId: string, entryId: string, approve: boolean, comment = "") {
-    setBusy(true);
+    setBusyId(entryId);
     try { await api(`/api/games/${gameId}/battles/${battleId}/entries/${entryId}/decide`, { method: "POST", body: JSON.stringify({ approve, comment }) }); notify(approve ? t("Запись принята") : t("Запись возвращена")); setReturning(null); await load(); onDecided(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-    finally { setBusy(false); }
+    finally { setBusyId(null); }
   }
   const all = rows ?? [];
   const active = all.filter((b) => b.status === "ATTACK" || b.status === "DEFENSE" || b.status === "QUEUED");
@@ -94,12 +94,12 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
                         <div className="side">
                           {e.status === "SUBMITTED" ? (
                             <>
-                              <button type="button" className="sm" onClick={() => void decide(b.id, e.id, true)} disabled={busy}><Icon name="check" />{t("Принять")}</button>
-                              {returning !== e.id && <button type="button" className="secondary sm" onClick={() => setReturning(e.id)} disabled={busy}><Icon name="x" />{t("Вернуть")}</button>}
+                              <button type="button" className="sm" onClick={() => void decide(b.id, e.id, true)} disabled={busyId === e.id}><Icon name="check" />{t("Принять")}</button>
+                              {returning !== e.id && <button type="button" className="secondary sm" onClick={() => setReturning(e.id)} disabled={busyId === e.id}><Icon name="x" />{t("Вернуть")}</button>}
                             </>
                           ) : <Chip tone={e.status === "APPROVED" ? "ok" : "bad"}>{e.status === "APPROVED" ? t("принято") : t("возвращено")}</Chip>}
                         </div>
-                        {returning === e.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busy} onOk={(text) => void decide(b.id, e.id, false, text)} onCancel={() => setReturning(null)} />}
+                        {returning === e.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === e.id} onOk={(text) => void decide(b.id, e.id, false, text)} onCancel={() => setReturning(null)} />}
                       </li>
                     ))}
                   </ul>

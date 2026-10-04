@@ -442,10 +442,13 @@ describe("осада делами и дела этапа 2", () => {
     const created = await post(`/api/games/${gameId}/deeds`, adminCookie, { title: "Дело издалека", direction: "Посещение", proofType: "CONFIRMATION", remote: true, siegePoints: 3 });
     expect(created.statusCode).toBe(201);
     expect(created.json().deed).toMatchObject({ proofType: "REPORT", remote: true, siegePoints: 3 });
-    // Дела, которые уже видны на карте, не подменяются (решение владельца 29.09): новое дело «издалека» появится только на новой стороне.
+    // Свободные дела следуют за настройками (решение владельца 04.10): после нового дела свободные стороны перераздаются,
+    // а взятые и сданные остаются с прежним делом; у каждой стороны по-прежнему есть дело.
     const map2 = await get(`/api/games/${gameId}/my-map`, p2Cookie);
-    const ids = (tasks: Array<{ id: string; deed: { id: string } }>) => tasks.map((x) => `${x.id}:${x.deed.id}`).sort();
+    const ids = (tasks: Array<{ id: string; status: string; deed: { id: string } }>) => tasks.filter((x) => x.status !== "OPEN").map((x) => `${x.id}:${x.deed.id}`).sort();
     expect(ids(map2.json().tasks)).toEqual(ids(map.json().tasks));
+    expect(map2.json().tasks.length).toBe(map.json().tasks.length);
+    expect((map2.json().tasks as Array<{ deed: { id: string } | null }>).every((x) => x.deed)).toBe(true);
   });
   it("метки команды на карте: ставит любой участник, видит вся команда, чужие не видят; убирает только автор", async () => {
     const hex = (await get(`/api/games/${gameId}/my-map`, p3Cookie)).json().hexes[0] as { q: number; r: number };

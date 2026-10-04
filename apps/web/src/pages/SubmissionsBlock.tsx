@@ -62,7 +62,9 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [returning, setReturning] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  /** Какая сдача сейчас решается (id) или «batch»: гаснут кнопки только у неё, а не у всех сдач (замечание владельца 04.10). */
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const busy = busyId !== null;
   /** Пакетная проверка (решение владельца 18.09, A-03): фильтры по команде, виду сдачи и возрасту; старые сверху; выбор нескольких однотипных. */
   const [teamFilter, setTeamFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
@@ -75,21 +77,21 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
   useAutoRefresh(load, version);
 
   async function decide(id: string, approve: boolean, comment = "") {
-    setBusy(true);
+    setBusyId(id);
     try { await api(`/api/games/${gameId}/edge-tasks/${id}/decide`, { method: "POST", body: JSON.stringify({ approve, comment }) }); notify(approve ? t("Сдача принята") : t("Сдача возвращена")); setReturning(null); await load(); onDecided(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-    finally { setBusy(false); }
+    finally { setBusyId(null); }
   }
   const linkKind = (p: EdgeTaskDto["deed"]["proofType"]) => (p === "PHOTO_LINK" ? "photo" : p === "VIDEO_LINK" ? "video" : "link");
   async function decideBatch() {
     if (picked.size === 0) return;
-    setBusy(true);
+    setBusyId("batch");
     try {
       const r = await api<{ done: number; skipped: number }>(`/api/games/${gameId}/edge-tasks/decide-batch`, { method: "POST", body: JSON.stringify({ ids: [...picked], approve: true }) });
       notify(t("Принято сдач: {n}", { n: r.done }) + (r.skipped ? ` · ${t("уже рассмотрено: {n}", { n: r.skipped })}` : ""));
       setPicked(new Set()); await load(); onDecided();
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-    finally { setBusy(false); }
+    finally { setBusyId(null); }
   }
   const teams = rows ? [...new Map(rows.map((r) => [r.team.id, r.team])).values()] : [];
   const shown = (rows ?? []).filter((r) => (!teamFilter || r.team.id === teamFilter) && (!kindFilter || r.deed.proofType === kindFilter)).sort((a, b) => { const d = Date.parse(a.submittedAt ?? "") - Date.parse(b.submittedAt ?? ""); return oldFirst ? d : -d; });
@@ -121,10 +123,10 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
                 <LinkList links={r.links} kind={linkKind(r.deed.proofType)} />
               </div>
               <div className="side">
-                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busy}><Icon name="check" />{t("Принять")}</button>
-                {returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busy}><Icon name="x" />{t("Вернуть")}</button>}
+                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id || busyId === "batch"}><Icon name="check" />{t("Принять")}</button>
+                {returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id || busyId === "batch"}><Icon name="x" />{t("Вернуть")}</button>}
               </div>
-              {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busy} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
+              {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
             </li>
           ))}
         </ul>
