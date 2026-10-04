@@ -445,10 +445,10 @@ describe("осада делами и дела этапа 2", () => {
     // Свободные дела следуют за настройками (решение владельца 04.10): после нового дела свободные стороны перераздаются,
     // а взятые и сданные остаются с прежним делом; у каждой стороны по-прежнему есть дело.
     const map2 = await get(`/api/games/${gameId}/my-map`, p2Cookie);
-    const ids = (tasks: Array<{ id: string; status: string; deed: { id: string } }>) => tasks.filter((x) => x.status !== "OPEN").map((x) => `${x.id}:${x.deed.id}`).sort();
-    expect(ids(map2.json().tasks)).toEqual(ids(map.json().tasks));
-    expect(map2.json().tasks.length).toBe(map.json().tasks.length);
-    expect((map2.json().tasks as Array<{ deed: { id: string } | null }>).every((x) => x.deed)).toBe(true);
+    type Tk = { id: string; status: string; deed: { id: string } | null };
+    const before = new Map((map.json().tasks as Tk[]).map((x) => [x.id, x.deed?.id]));
+    for (const x of map2.json().tasks as Tk[]) if (x.status !== "OPEN" && before.has(x.id)) expect(x.deed?.id).toBe(before.get(x.id));
+    expect((map2.json().tasks as Tk[]).every((x) => x.deed)).toBe(true);
   });
   it("метки команды на карте: ставит любой участник, видит вся команда, чужие не видят; убирает только автор", async () => {
     const hex = (await get(`/api/games/${gameId}/my-map`, p3Cookie)).json().hexes[0] as { q: number; r: number };
