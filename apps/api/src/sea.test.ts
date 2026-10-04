@@ -61,7 +61,7 @@ describe("стандартный набор дел", () => {
     const taken = before[before.length - 1]!;
     await prisma.teamEdgeTask.update({ where: { id: taken.id }, data: { status: "TAKEN", takenAt: new Date() } });
     const log = { info: () => {}, error: (o: object) => { throw new Error(JSON.stringify(o)); } };
-    await reshuffleStartedGamesOnce(log);
+    await reshuffleStartedGamesOnce(log, gameId); // только своя игра: другие тестовые игры идут параллельно
     const after = await prisma.teamEdgeTask.findMany({ where: { id: { in: before.map((t) => t.id) } } });
     const byId = new Map(after.map((t) => [t.id, t]));
     expect(byId.get(before[0]!.id)!.deedId).not.toBe(byId.get(before[1]!.id)!.deedId);
@@ -70,7 +70,7 @@ describe("стандартный набор дел", () => {
     expect(game.deedsReshuffledAt).toBeTruthy();
     // Повторный запуск сервера ничего не меняет: отметка стоит.
     const snapshot = (await prisma.teamEdgeTask.findMany({ where: { teamId: team1 }, orderBy: { createdAt: "asc" } })).map((t) => t.deedId);
-    await reshuffleStartedGamesOnce(log);
+    await reshuffleStartedGamesOnce(log, gameId); // только своя игра: другие тестовые игры идут параллельно
     expect((await prisma.teamEdgeTask.findMany({ where: { teamId: team1 }, orderBy: { createdAt: "asc" } })).map((t) => t.deedId)).toEqual(snapshot);
     await prisma.teamEdgeTask.update({ where: { id: taken.id }, data: { status: "OPEN", takenAt: null } });
   });

@@ -309,8 +309,8 @@ export async function reshuffleOpenDeeds(gameId: string): Promise<{ checked: num
  * перекомпоновываются один раз; отметка `deedsReshuffledAt` не даёт повторить. Игры, начатые позже, получают
  * отметку при старте и не трогаются.
  */
-export async function reshuffleStartedGamesOnce(log: { info: (o: object, msg: string) => void; error: (o: object, msg: string) => void }): Promise<void> {
-  const games = await prisma.game.findMany({ where: { status: "ACTIVE", deedsReshuffledAt: null }, select: { id: true } }).catch((e: unknown) => { log.error({ err: e }, "deeds reshuffle skipped: database unavailable"); return [] as Array<{ id: string }>; });
+export async function reshuffleStartedGamesOnce(log: { info: (o: object, msg: string) => void; error: (o: object, msg: string) => void }, onlyGameId?: string): Promise<void> {
+  const games = await prisma.game.findMany({ where: { status: "ACTIVE", deedsReshuffledAt: null, ...(onlyGameId ? { id: onlyGameId } : {}) }, select: { id: true } }).catch((e: unknown) => { log.error({ err: e }, "deeds reshuffle skipped: database unavailable"); return [] as Array<{ id: string }>; });
   for (const g of games) {
     try {
       const r = await reshuffleOpenDeeds(g.id);
