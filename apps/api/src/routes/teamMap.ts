@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { assertAwake, gameDaytime } from "../services/daytime.js";
+import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey } from "../services/teamMap.js";
@@ -128,7 +128,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
-    if (!(await assertAwake(request, reply, id))) return;
+    // Взять дело можно до полуночи, как и решать задания города (решение владельца 04.10); сдача и разведка ждут утра.
+    if (!(await assertTasksOpen(request, reply, id))) return;
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     if (task.status !== "OPEN" && task.status !== "REJECTED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже взято или сдано") });

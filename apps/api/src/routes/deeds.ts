@@ -53,7 +53,9 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const onMap = new Map<string, { free: number; taken: number }>();
     for (const g of grouped) { const c = onMap.get(g.deedId) ?? { free: 0, taken: 0 }; if (g.status === "OPEN") c.free += g._count._all; else c.taken += g._count._all; onMap.set(g.deedId, c); }
     // «Тяжесть» убрана (решение владельца 3.15): колонка difficulty живёт только ради хешей старых игр и наружу не отдаётся.
-    const deeds = rows.map(({ difficulty: _difficulty, ...d }) => ({ ...d, onMap: onMap.get(d.id) ?? { free: 0, taken: 0 } }));
+    // Порядок списка — по убыванию «свободных + в работе» (решение владельца 04.10), при равенстве — по дате создания.
+    const deeds = rows.map(({ difficulty: _difficulty, ...d }) => ({ ...d, onMap: onMap.get(d.id) ?? { free: 0, taken: 0 } }))
+      .sort((a, b) => (b.onMap.free + b.onMap.taken) - (a.onMap.free + a.onMap.taken) || a.createdAt.getTime() - b.createdAt.getTime());
     const settings = (game.settings ?? {}) as { nodeCount?: number; cityGap?: number };
     return { deeds, directions: DIRECTIONS, recommendedMin: recommendedDeedCount(effectiveNodeCount(settings)) };
   });

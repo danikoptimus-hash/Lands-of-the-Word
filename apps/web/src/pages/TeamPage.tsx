@@ -609,6 +609,8 @@ export function TeamPage() {
           // Разведчик открывает любую точку на краю тумана, взято дело на сторону или нет (решение владельца 02.10).
           const canScout = me?.gameRole === "SCOUT" && !peeked && !(map?.revealed ?? []).some((n) => n.key === task.toKey);
           const night = map?.daytime?.phase === "night";
+          // Взять дело можно до полуночи, как и решать задания города (решение владельца 04.10); сдача и разведка — с 7:00.
+          const canTake = !night || Boolean(map?.daytime?.tasksOpen);
           const scoutBtn = canScout && !night && <><button type="button" className="secondary" disabled={busy} onClick={() => void peek(task.toKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></>;
           // Порядок листа (решение владельца 18.09): суть → как сдать → состояние → действие → правила (кодекс).
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
@@ -644,8 +646,10 @@ export function TeamPage() {
               {task.status === "SUBMITTED" && <div className="note info"><Icon name="clock" /><span>{t("На проверке у администратора.")}</span></div>}
               {peeked && <div className="note info"><Icon name="telescope" /><span>{peeked === "CITY" ? t("Разведано: там город.") : t("Разведано: там развилка.")}</span></div>}
               {error && <p className="error" role="alert">{error}</p>}
-              {night && task.status !== "APPROVED" && task.status !== "SUBMITTED" && <div className="note info night-note"><Icon name="moon" /><span>{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</span></div>}
-              {!night && (task.status === "OPEN" || task.status === "REJECTED") && (
+              {night && !canTake && task.status !== "APPROVED" && task.status !== "SUBMITTED" && <div className="note info night-note"><Icon name="moon" /><span>{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</span></div>}
+              {night && canTake && (task.status === "OPEN" || task.status === "REJECTED") && <div className="note info night-note"><Icon name="moon" /><span>{t("До 0:00 дело можно взять; сдать и разведать — с 7:00 по местному времени.")}</span></div>}
+              {night && canTake && task.status === "TAKEN" && <div className="note info night-note"><Icon name="moon" /><span>{t("Ночь: сдать дело можно с 7:00 по местному времени.")}</span></div>}
+              {canTake && (task.status === "OPEN" || task.status === "REJECTED") && (
                 <div className="actions">
                   <button type="button" disabled={busy || limitFull(map)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
                   {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}

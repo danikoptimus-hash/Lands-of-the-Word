@@ -262,7 +262,7 @@ const EN: Record<string, string> = {
   "Вы не состоите в команде этой игры": "You are not in a team of this game",
   "Дело уже взято или сдано": "The deed is already taken or submitted",
   "Дело не взято: отпускать нечего": "The deed is not taken: there is nothing to release",
-  "Задания города закрыты с 0:00 до 7:00 по местному времени. Знаки шифра и конверт откроются утром.": "City tasks are closed from 0:00 to 7:00 local time. The cipher signs and the envelope open in the morning.",
+  "С 0:00 до 7:00 по местному времени игра спит: задания города и взятие дел откроются утром.": "From 0:00 to 7:00 local time the game sleeps: city tasks and taking deeds open in the morning.",
   "Ночь: города спят, дела и испытания ждут утра. До 7:00 по местному времени можно только смотреть карту.": "Night: the cities sleep, deeds and trials wait for morning. Until 7:00 local time you can only look at the map.",
   "Вызов отправляют на проверку утром, с 7:00 до 9:00 по местному времени. Стихи отмечать можно.": "A challenge is submitted for review in the morning, from 7:00 to 9:00 local time. Verses can still be marked.",
   "Отпустить дело может тот, кто взял, капитан или летописец": "A deed can be released by whoever took it, the captain or the chronicler",

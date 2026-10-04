@@ -124,13 +124,20 @@ describe("город на перекрёстке", () => {
     expect(late.json().recipient).toBeNull();
     const ids = late.json().content.districts.map((d: { id: string }) => d.id);
     expect((await app.inject({ method: "PUT", url: `/api/games/${gameId}/my-city/${rutKey}/draft`, headers: { cookie: p1Cookie }, payload: { order: ids } })).statusCode).toBe(200);
-    // Глубокая ночь (3:00): задания закрыты, 409 night.
+    // Взять дело в 23:00 тоже можно (решение владельца 04.10); отпускаем сразу.
+    const lateMap = (await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p1Cookie } })).json();
+    const openTask = lateMap.tasks.find((x: { status: string; sea: boolean }) => x.status === "OPEN" && !x.sea);
+    expect(openTask).toBeTruthy();
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${openTask.id}/take`, headers: { cookie: p1Cookie }, payload: {} })).statusCode).toBe(200);
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${openTask.id}/release`, headers: { cookie: p1Cookie }, payload: {} })).statusCode).toBe(200);
+    // Глубокая ночь (3:00): задания и взятие дел закрыты, 409 night.
     await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { timeZone: zoneForLocalHour(3) } } } });
     const deep = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
     expect(deep.json().daytime).toMatchObject({ phase: "night", tasksOpen: false });
     expect(deep.json().content.tasks).toHaveLength(0);
     const closed = await app.inject({ method: "PUT", url: `/api/games/${gameId}/my-city/${rutKey}/draft`, headers: { cookie: p1Cookie }, payload: { order: ids } });
     expect(closed.statusCode).toBe(409); expect(closed.json().error).toBe("night");
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${openTask.id}/take`, headers: { cookie: p1Cookie }, payload: {} })).statusCode).toBe(409);
     await setGamePhase(app, gameId, adminCookie, "day");
   });
 

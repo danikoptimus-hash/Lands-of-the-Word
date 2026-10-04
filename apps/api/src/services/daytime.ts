@@ -28,9 +28,9 @@ export async function assertAwake(request: FastifyRequest, reply: FastifyReply, 
   return null;
 }
 
-export const TASKS_CLOSED_MESSAGE = "Задания города закрыты с 0:00 до 7:00 по местному времени. Знаки шифра и конверт откроются утром.";
+export const TASKS_CLOSED_MESSAGE = "С 0:00 до 7:00 по местному времени игра спит: задания города и взятие дел откроются утром.";
 
-/** Задания города (порядок, ответы, подсказка) решаются до полуночи (решение владельца 04.10); с 0:00 до 7:00 — 409 `night`. */
+/** Задания города (порядок, ответы, подсказка) и взятие дела открыты до полуночи (решение владельца 04.10); с 0:00 до 7:00 — 409 `night`. */
 export async function assertTasksOpen(request: FastifyRequest, reply: FastifyReply, gameId: string): Promise<Daytime | null> {
   const dt = await gameDaytime(gameId);
   if (dt.tasksOpen) return dt;

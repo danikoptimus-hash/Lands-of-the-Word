@@ -1,10 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { addAwakeMs, awakeMsBetween, dayLightAt, dayPhase, phaseAt } from "@lotw/domain";
-import { zoneForLocalHour } from "./testAuth.js";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
-import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
+import { cleanupFixtures, readyForStart, registerVerified, setGamePhase, zoneForLocalHour } from "./testAuth.js";
 import { orderQueue, sumVerses } from "./services/battles.js";
 import { nearZone } from "./services/teamMap.js";
 import { pauseAfter, rulesOf } from "./services/rules.js";
@@ -512,12 +511,15 @@ describe("времена суток (решение владельца 03.10)", 
 });
 
 describe("ночью всё закрыто, вызов — только утром (решение владельца 03.10)", () => {
-  it("ночью дело не берётся (409 night), карта отдаёт фазу; утром снова можно", async () => {
-    await setGamePhase(app, gameId, adminCookie, "night");
+  it("глубокой ночью дело не берётся (409 night), в 23:00 — можно (решение владельца 04.10); карта отдаёт фазу", async () => {
+    await setGamePhase(app, gameId, adminCookie, "night"); // 23:00
     const map = await get(`/api/games/${gameId}/my-map`, p1Cookie);
-    expect(map.json().daytime.phase).toBe("night");
-    const open = (map.json().tasks as Array<{ id: string; status: string }>).find((tk) => tk.status === "OPEN");
+    expect(map.json().daytime).toMatchObject({ phase: "night", tasksOpen: true });
+    const open = (map.json().tasks as Array<{ id: string; status: string; sea: boolean }>).find((tk) => tk.status === "OPEN" && !tk.sea);
     if (open) {
+      expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/take`, p1Cookie)).statusCode).toBe(200);
+      expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/release`, p1Cookie)).statusCode).toBe(200);
+      await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { timeZone: zoneForLocalHour(3) } } } });
       const r = await post(`/api/games/${gameId}/edge-tasks/${open.id}/take`, p1Cookie);
       expect(r.statusCode).toBe(409);
       expect(r.json().error).toBe("night");
