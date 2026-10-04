@@ -41,6 +41,7 @@ const P: Record<string, string> = {
   send: "m22 2-7 20-4-9-9-4 20-7Z",
   telescope: "m4 14 12-7 3 5-12 7-3-5Zm12-7 3-2 3 5-3 2M9 17l3 5m-6-2 3-3",
   lock: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
+  hourglass: "M6 2h12M6 22h12M7 2v4l5 6-5 6v4M17 2v4l-5 6 5 6v4",
   grip: "M9 6h.01M9 12h.01M9 18h.01M15 6h.01M15 12h.01M15 18h.01",
   "arrow-up": "M12 19V5m-7 7 7-7 7 7",
   "arrow-down": "M12 5v14m7-7-7 7-7-7",

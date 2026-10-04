@@ -80,10 +80,14 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar.lg { width: 44px; height: 44px; font-size: var(--fs-lg); }
 .avatar.sm { width: 24px; height: 24px; font-size: var(--fs-xs); }
 .person { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
-/* Таймер до следующего дела у участника в составе (решение владельца 04.10). */
-.roster .deed-timer { display: flex; align-items: center; gap: 4px; margin: 2px 0 0 0; }
-.roster .deed-timer .i { width: 14px; height: 14px; flex: none; color: var(--warn, var(--accent)); }
-.roster .deed-timer.free { color: var(--muted); }
+/* Значок лимита дел у участника в составе (решение владельца 04.10): песочные часы с отсчётом или свиток с ячейками. */
+.roster .deed-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px 2px 5px; border-radius: 999px; font-size: 12px; line-height: 1; font-variant-numeric: tabular-nums; flex: none; }
+.roster .deed-badge .i { width: 13px; height: 13px; flex: none; }
+.roster .deed-badge.wait { background: var(--accent-soft); color: var(--accent); }
+.roster .deed-badge.free { background: var(--success-soft); color: var(--success); }
+.roster .deed-badge .pips { display: inline-flex; gap: 3px; }
+.roster .deed-badge .pips i { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; display: inline-block; opacity: .55; }
+.roster .deed-badge .pips i.on { background: currentColor; opacity: 1; }
 .person .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Заметки и ошибки */
