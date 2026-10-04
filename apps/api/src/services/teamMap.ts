@@ -453,9 +453,10 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const nodeKeys = new Set(nodes.map((n) => n.key));
   const frontier = new Set<string>();
   for (const h of hexes) if (lit(h)) for (const c of hexCorners(h)) { const k = vertexKey(c); if (!revealed.has(k) && nodeKeys.has(k)) frontier.add(k); }
-  // Взятое или сданное дело остаётся видимым, даже если перекрёсток за ним уже открыт с другой стороны
-  // (решение владельца 18.09: дело делают, оно засчитывается); свободное к открытому перекрёстку не показывается.
-  const visibleTasks = tasks.filter((t) => t.status !== "OPEN" || !revealed.has(t.toKey));
+  // Все дела команды видны на карте, в том числе свободные между двумя открытыми перекрёстками: пустых сторон между
+  // открытыми перекрёстками быть не должно (решение владельца 01.10; до 04.10 такие свободные дела скрывал старый фильтр,
+  // и сторона выглядела пустой — замечание владельца 04.10). Взятое или сданное дело видно всегда (18.09).
+  const visibleTasks = tasks;
   const foreign = foreignRows.filter((f) => revealed.has(f.fromKey) || revealed.has(f.toKey)).map((f) => ({ aKey: f.fromKey, bKey: f.toKey, teamIndex: f.team.index, color: f.team.color }));
   const authorRows = marks.length ? await prisma.user.findMany({ where: { id: { in: [...new Set(marks.map((mk) => mk.createdById))] } }, select: { id: true, nickname: true, displayName: true } }) : [];
   const authors = new Map(authorRows.map((u) => [u.id, u.displayName || u.nickname] as const));
