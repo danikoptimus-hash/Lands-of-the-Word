@@ -1,0 +1,676 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Земли Слова · полный путь игры</title>
+<style>
+@font-face { font-family: "Philosopher"; src: url("../../apps/web/public/fonts/philosopher-700-cyrillic.woff2") format("woff2"); font-weight: 700; }
+@font-face { font-family: "Philosopher"; src: url("../../apps/web/public/fonts/philosopher-700-latin.woff2") format("woff2"); font-weight: 700; unicode-range: U+0000-00FF; }
+@font-face { font-family: "Literata"; src: url("../../apps/web/public/fonts/literata-400-cyrillic.woff2") format("woff2"); font-weight: 400; }
+@font-face { font-family: "Literata"; src: url("../../apps/web/public/fonts/literata-400-latin.woff2") format("woff2"); font-weight: 400; unicode-range: U+0000-00FF; }
+@font-face { font-family: "Literata"; src: url("../../apps/web/public/fonts/literata-600-cyrillic.woff2") format("woff2"); font-weight: 600; }
+@font-face { font-family: "Literata"; src: url("../../apps/web/public/fonts/literata-400-italic-cyrillic.woff2") format("woff2"); font-weight: 400; font-style: italic; }
+:root { --paper: #F2E7CF; --paper-light: #FFF6E3; --paper-2: #E8D9B8; --edge: #C9B58C; --ink: #2B1D12; --ink-2: #5C4A36; --ink-3: #6E6558; --bronze: #A8722E; --bronze-ink: #7A4E17; --bronze-soft: #F3E4C0; --moss: #4E6B3A; }
+@page { size: 1920px 1080px; margin: 0; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: "Literata", Georgia, serif; }
+.s { position: relative; width: 1920px; height: 1080px; overflow: hidden; page-break-after: always; break-after: page; background: var(--paper); box-sizing: border-box; padding: 64px 96px 70px; }
+.s::before { content: ""; position: absolute; inset: 0; pointer-events: none; background:
+  radial-gradient(1200px 700px at 85% 110%, rgba(168,114,46,.16), transparent 60%),
+  radial-gradient(900px 600px at -10% -20%, rgba(79,124,153,.14), transparent 60%); }
+.s > * { position: relative; }
+h1, h2 { font-family: "Philosopher", "Literata", serif; font-weight: 700; margin: 0; color: var(--ink); }
+h1 { font-size: 112px; line-height: 1.05; }
+h2 { font-size: 56px; line-height: 1.1; }
+.kicker { font-family: "Philosopher", serif; font-weight: 700; font-size: 24px; color: var(--bronze-ink); letter-spacing: .14em; text-transform: uppercase; margin-bottom: 12px; }
+.lead { font-size: 34px; line-height: 1.35; color: var(--ink-2); margin: 18px 0 0; max-width: 1500px; }
+.head { display: flex; align-items: baseline; justify-content: space-between; gap: 40px; margin-bottom: 26px; }
+.head p { margin: 0; font-size: 30px; color: var(--ink-2); max-width: 1000px; text-align: right; line-height: 1.3; }
+ul { list-style: none; margin: 36px 0 0; padding: 0; }
+li { font-size: 36px; line-height: 1.3; margin: 0 0 22px; padding-left: 48px; position: relative; color: var(--ink); }
+li::before { content: ""; position: absolute; left: 0; top: 15px; width: 20px; height: 20px; border-radius: 50%; background: var(--bronze); box-shadow: 0 0 0 5px var(--bronze-soft); }
+li b { font-weight: 600; color: var(--bronze-ink); }
+.shot { display: block; border-radius: 22px; border: 1px solid var(--edge); box-shadow: 0 24px 50px rgba(43,29,18,.22), 0 4px 12px rgba(43,29,18,.12); background: #fff; }
+/* Ряд телефонов с подписями: 2–4 снимка в ряд, высота по числу снимков. */
+.phones { display: flex; gap: 44px; justify-content: center; align-items: flex-start; }
+.phones figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.phones .shot { height: 800px; width: auto; }
+.phones.n4 .shot { height: 760px; }
+.phones.n4 { gap: 28px; }
+.phones.crop figure { overflow: hidden; }
+figcaption { font-size: 26px; line-height: 1.3; color: var(--ink-2); text-align: center; max-width: 420px; }
+figcaption b { font-weight: 600; color: var(--bronze-ink); }
+/* Компьютер: один широкий снимок или два рядом. */
+.desk { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.desk .shot { max-width: 1480px; max-height: 820px; width: auto; height: auto; }
+.desk.tall .shot { height: 820px; width: 1480px; object-fit: cover; object-position: top; }
+.desks { display: flex; gap: 40px; justify-content: center; align-items: flex-start; }
+.desks figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.desks .shot { width: 860px; height: auto; }
+.desks.tall .shot { height: 760px; object-fit: cover; object-position: top; }
+.desks figcaption { max-width: 860px; }
+.desk figcaption { max-width: 1400px; }
+/* Телефон + текст сбоку. */
+.two { display: grid; grid-template-columns: 1fr 440px; gap: 60px; align-items: start; }
+.two .shot { height: 860px; width: auto; justify-self: end; }
+.two ul { margin-top: 20px; }
+.two li { font-size: 32px; margin-bottom: 18px; }
+.num { position: absolute; right: 60px; bottom: 36px; font-family: "Philosopher", serif; font-size: 22px; color: var(--ink-3); }
+.brand { position: absolute; left: 96px; bottom: 36px; font-family: "Philosopher", serif; font-size: 22px; color: var(--ink-3); }
+.cover { padding: 0; display: grid; grid-template-columns: 1fr 1fr; }
+.cover .txt { padding: 190px 0 0 120px; }
+.cover .img { position: relative; overflow: hidden; }
+.cover .img img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: cover; }
+.cover .img::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, var(--paper) 0, rgba(242,231,207,0) 28%); }
+.cover h1 { font-size: 140px; }
+.cover .lead { font-size: 42px; }
+.part { display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
+.part .kicker { font-size: 30px; }
+.part h1 { font-size: 120px; }
+.part .lead { font-size: 40px; max-width: 1300px; }
+.cycle { display: flex; align-items: center; gap: 24px; margin-top: 60px; flex-wrap: wrap; }
+.cycle .c { background: var(--paper-light); border: 1px solid var(--edge); border-radius: 999px; padding: 22px 40px; font-family: "Philosopher", serif; font-weight: 700; font-size: 36px; box-shadow: 0 6px 16px rgba(43,29,18,.1); }
+.cycle .a { font-size: 40px; color: var(--bronze); }
+.terms { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 60px; margin-top: 30px; }
+.term { display: flex; gap: 20px; align-items: baseline; font-size: 34px; line-height: 1.3; }
+.term b { font-family: "Philosopher", serif; font-weight: 700; color: var(--bronze-ink); min-width: 300px; font-size: 36px; }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 70px; }
+.cols ul { margin-top: 20px; }
+.cols li { font-size: 31px; margin-bottom: 16px; }
+.final { text-align: center; padding-top: 280px; }
+.final h1 { font-size: 120px; }
+.final .lead { margin: 30px auto 0; font-size: 44px; }
+.final .url { margin-top: 60px; font-family: "Philosopher", serif; font-size: 60px; color: var(--bronze-ink); }
+</style>
+</head>
+<body>
+
+<!-- 1 -->
+<section class="s cover">
+  <div class="txt">
+    <div class="kicker">Игра для молодёжи церкви</div>
+    <h1>Земли Слова</h1>
+    <p class="lead">Полный путь игры по шагам: экраны участника на телефоне и наставника на компьютере.</p>
+  </div>
+  <div class="img"><img src="img/g-04-admin-map-far.webp" alt=""></div>
+  <div class="brand">Земли Слова</div><div class="num">1</div>
+</section>
+
+<!-- 2 -->
+<section class="s">
+  <div class="two">
+    <div>
+      <div class="kicker">Что это</div>
+      <h2>Карта, команды и Библия</h2>
+      <ul>
+        <li><b>66 городов</b> — 66 книг Библии на двух островах: Ветхий и Новый Завет.</li>
+        <li>Команды идут по карте, открывая её из тумана. Шаг по дороге — <b>настоящее доброе дело</b>.</li>
+        <li>Город берётся, когда команда <b>изучила книгу</b> и принесла ключ из конверта.</li>
+        <li>Чужой город можно <b>испытать</b>: выучить стихи наизусть и бросить вызов.</li>
+        <li>Первый взятый город — <b>столица</b>. Потерял столицу — выбыл. Побеждает тот, у кого больше городов.</li>
+      </ul>
+    </div>
+    <img class="shot" src="img/b-02-map-far.webp" alt="">
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">2</div>
+</section>
+
+<!-- 3 -->
+<section class="s">
+  <div class="kicker">Как играют</div>
+  <h2>Один круг игры</h2>
+  <div class="cycle">
+    <span class="c">Дело в жизни</span><span class="a">→</span>
+    <span class="c">Дорога открыта</span><span class="a">→</span>
+    <span class="c">Город: книга</span><span class="a">→</span>
+    <span class="c">Шифр → конверт → ключ</span><span class="a">→</span>
+    <span class="c">Город наш</span>
+  </div>
+  <ul style="margin-top:60px">
+    <li>Всё, что внутри круга, делается <b>на телефоне</b>: карта, дела, задания, конверт.</li>
+    <li>Всё, что между кругами, делается <b>в жизни</b>: служение людям, чтение книги, стихи наизусть, поездка к семье.</li>
+    <li>Наставник видит всю карту с компьютера и <b>проверяет</b> сдачи.</li>
+  </ul>
+  <div class="brand">Земли Слова</div><div class="num">3</div>
+</section>
+
+<!-- 4 -->
+<section class="s part">
+  <div class="kicker">Часть 1</div>
+  <h1>Вход</h1>
+  <p class="lead">Браузер на телефоне или компьютере. Ничего устанавливать не нужно.</p>
+  <div class="brand">Земли Слова</div><div class="num">4</div>
+</section>
+
+<!-- 5 -->
+<section class="s">
+  <div class="head"><h2>Вход, игры, аккаунт</h2><p>Google или никнейм с паролем. На главной — свои команды и партии.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/a-01-login.webp" alt=""><figcaption><b>Вход.</b> «Войти через Google» или никнейм и пароль</figcaption></figure>
+    <figure><img class="shot" src="img/a-03-games.webp" alt=""><figcaption><b>Мои игры.</b> Команда, роль, партия</figcaption></figure>
+    <figure><img class="shot" src="img/a-05-account.webp" alt=""><figcaption><b>Аккаунт.</b> Имя для команды, почта, язык, уведомления</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">5</div>
+</section>
+
+<!-- 6 -->
+<section class="s">
+  <div class="head"><h2>Инструкция и «Что нового»</h2><p>Инструкция с картинками живёт в игре. Каждое изменение правил — в «Что нового» по датам.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/a-02-how-to-play.webp" alt=""><figcaption><b>Как играть?</b> Разделы по кнопкам сверху</figcaption></figure>
+    <figure><img class="shot" src="img/a-04-whats-new.webp" alt=""><figcaption><b>Что нового.</b> Изменения по датам</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">6</div>
+</section>
+
+<!-- 7 -->
+<section class="s part">
+  <div class="kicker">Часть 2 · Наставник</div>
+  <h1>Создание партии</h1>
+  <p class="lead">Новая игра → настройки → карта → набор дел → адресаты конвертов → команды → старт.</p>
+  <div class="brand">Земли Слова</div><div class="num">7</div>
+</section>
+
+<!-- 8 -->
+<section class="s">
+  <div class="head"><h2>Мои игры и новая игра</h2><p>Название, число команд — и партия создана. Дальше её настраивают во вкладках.</p></div>
+  <div class="desks">
+    <figure><img class="shot" src="img/g-01-admin-games.webp" alt=""><figcaption><b>Мои игры</b> на компьютере</figcaption></figure>
+    <figure><img class="shot" src="img/g-02-admin-new-game.webp" alt=""><figcaption><b>Новая игра</b></figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">8</div>
+</section>
+
+<!-- 9 -->
+<section class="s">
+  <div class="head"><h2>Карта администратора</h2><p>Вся карта, все города с номерами, пути всех команд. Разделы — кнопки слева.</p></div>
+  <div class="desk"><img class="shot" src="img/g-03-admin-map.webp" alt=""><figcaption>Генерировать карту можно сколько угодно раз до старта. После старта она фиксируется.</figcaption></div>
+  <div class="brand">Земли Слова</div><div class="num">9</div>
+</section>
+
+<!-- 10 -->
+<section class="s">
+  <div class="head"><h2>Два острова</h2><p>Ветхий Завет — 39 городов, Новый — 27. Старты всех команд на Ветхом. Города у берега — порты.</p></div>
+  <div class="desk"><img class="shot" src="img/g-04-admin-map-far.webp" alt=""></div>
+  <div class="brand">Земли Слова</div><div class="num">10</div>
+</section>
+
+<!-- 11 -->
+<section class="s">
+  <div class="head"><h2>Настройки</h2><p>Валюта пожертвований, срок окончания, адресаты конвертов, администраторы. Срок можно менять по ходу.</p></div>
+  <div class="desks tall">
+    <figure><img class="shot" src="img/e4-06-admin-settings.webp" alt=""><figcaption><b>Основные.</b> Срок, валюта, завершение</figcaption></figure>
+    <figure><img class="shot" src="img/e4-07-admin-settings-advanced.webp" alt=""><figcaption><b>Продвинутые.</b> Часовой пояс, окно отправки вызова, лимит дел в сутки, срок ответа на проход, смена ролей, письма о сдачах</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">11</div>
+</section>
+
+<!-- 12 -->
+<section class="s">
+  <div class="head"><h2>Набор дел</h2><p>Стандартный набор — около 30 дел. Правьте, дополняйте, дублируйте.</p></div>
+  <div class="desks tall">
+    <figure><img class="shot" src="img/g-11-admin-deeds.webp" alt=""><figcaption><b>Список дел.</b> Направление, что сдать, вероятность в процентах, книги по теме</figcaption></figure>
+    <figure><img class="shot" src="img/e4-08-admin-deed-form.webp" alt=""><figcaption><b>Форма дела.</b> Вероятность 20–100 %, «одно на игру», «тайное», «группой», пожертвование от суммы</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">12</div>
+</section>
+
+<!-- 13 -->
+<section class="s">
+  <div class="head"><h2>Адресаты и ярлыки для конвертов</h2><p>Игра раздаёт 66 городов по семьям поровну. Печатаете PDF и раскладываете конверты заранее.</p></div>
+  <div class="desk"><img class="shot" src="img/g-16-admin-labels.webp" alt=""><figcaption>Наружный ярлык — шифр, вкладыш — ключ города. Ключи после печати не меняются.</figcaption></div>
+  <div class="brand">Земли Слова</div><div class="num">13</div>
+</section>
+
+<!-- 14 -->
+<section class="s">
+  <div class="head"><h2>Команды и старт</h2><p>Наставник создаёт команды и даёт ссылку капитану. Капитан сам приглашает участников и раздаёт роли.</p></div>
+  <div class="desks tall">
+    <figure><img class="shot" src="img/g-10-admin-teams.webp" alt=""><figcaption><b>Команды.</b> Положение, участники, роли, приглашения, значок лимита дел</figcaption></figure>
+    <figure><img class="shot" src="img/g-09-admin-overview.webp" alt=""><figcaption><b>Летопись.</b> До старта — чек-лист; после — журнал событий</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">14</div>
+</section>
+
+<!-- 15 -->
+<section class="s part">
+  <div class="kicker">Часть 3 · Участник</div>
+  <h1>Карта команды</h1>
+  <p class="lead">Туман, перекрёстки, стороны с делами. Каждая команда видит только свою карту.</p>
+  <div class="brand">Земли Слова</div><div class="num">15</div>
+</section>
+
+<!-- 16 -->
+<section class="s">
+  <div class="head"><h2>Близко, далеко, оба острова</h2><p>Пройденные стороны окрашены в цвет команды. Что за стороной — не видно, пока дело не принято.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/b-01-map-near.webp" alt=""><figcaption><b>Перекрёстки и стороны.</b> Свиток — дело, подпись — город</figcaption></figure>
+    <figure><img class="shot" src="img/b-02-map-far.webp" alt=""><figcaption><b>Отдалить.</b> Туман над неоткрытым</figcaption></figure>
+    <figure><img class="shot" src="img/b-03-map-islands.webp" alt=""><figcaption><b>Два острова.</b> Между ними море</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">16</div>
+</section>
+
+<!-- 17 -->
+<section class="s">
+  <div class="head"><h2>Меню команды</h2><p>Кнопка слева сверху. Дела, испытания, команды, летопись, моё служение.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/b-04-menu-home.webp" alt=""><figcaption><b>Меню.</b> Разделы и «Требует внимания»</figcaption></figure>
+    <figure><img class="shot" src="img/b-08-menu-feed.webp" alt=""><figcaption><b>Летопись.</b> Свои события и новости всех команд</figcaption></figure>
+    <figure><img class="shot" src="img/b-09-menu-service.webp" alt=""><figcaption><b>Моё служение.</b> Дела, районы, стихи, города</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">17</div>
+</section>
+
+<!-- 18 -->
+<section class="s">
+  <div class="head"><h2>Команды и роли</h2><p>Капитан нажимает роль-пилюлю — она назначается сразу. Одну роль могут носить несколько человек.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/b-06-menu-standings.webp" alt=""><figcaption><b>Положение команд</b> и состав своей</figcaption></figure>
+    <figure><img class="shot" src="img/b-07-menu-roles.webp" alt=""><figcaption><b>Выбор роли.</b> Разведчик, пророк, посол, летописец, кормчий, воин</figcaption></figure>
+    <figure><img class="shot" src="img/c-14-roster-badges.webp" alt=""><figcaption><b>Значки лимита дел.</b> Свиток — можно брать, часы — ждёт</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">18</div>
+</section>
+
+<!-- 19 -->
+<section class="s">
+  <div class="head"><h2>Времена суток</h2><p>По поясу игры: утро 7–9, день 9–18, вечер 18–22, ночь 22–7. Карта меняется вместе с ними.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/f-05-morning-map.webp" alt=""><figcaption><b>Утро.</b> Вызов отправляют на проверку</figcaption></figure>
+    <figure><img class="shot" src="img/f-04-evening-map.webp" alt=""><figcaption><b>Вечер</b></figcaption></figure>
+    <figure><img class="shot" src="img/f-01-night-map.webp" alt=""><figcaption><b>Ночь.</b> Только карта, таймеры стоят</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">19</div>
+</section>
+
+<!-- 20 -->
+<section class="s">
+  <div class="head"><h2>Ночью игра спит</h2><p>Нельзя брать и сдавать дела, решать задания, бросать вызов, отмечать стихи. С 7:00 всё открывается.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/f-02-night-deed.webp" alt=""><figcaption><b>Дело ночью.</b> Кнопки нет, подсказка когда</figcaption></figure>
+    <figure><img class="shot" src="img/f-03-night-city.webp" alt=""><figcaption><b>Город ночью.</b> Задания и конверт закрыты</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">20</div>
+</section>
+
+<!-- 21 -->
+<section class="s part">
+  <div class="kicker">Часть 4 · Участник</div>
+  <h1>Дело</h1>
+  <p class="lead">Взять → сделать в жизни → сдать → наставник принял → дорога открыта.</p>
+  <div class="brand">Земли Слова</div><div class="num">21</div>
+</section>
+
+<!-- 22 -->
+<section class="s">
+  <div class="head"><h2>Нажать свиток на стороне</h2><p>Направление, описание, чем подтвердить. «Взять дело» — и оно ваше.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/c-01-deed-open.webp" alt=""><figcaption><b>Карточка дела.</b> Статус «свободно»</figcaption></figure>
+    <figure><img class="shot" src="img/c-02-deed-open-desc.webp" alt=""><figcaption><b>Подробнее.</b> Полное описание и как сдать</figcaption></figure>
+    <figure><img class="shot" src="img/c-16-deed-sea.webp" alt=""><figcaption><b>Корабль.</b> Морское дело у порта: после одобрения кормчий выбирает высадку</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">22</div>
+</section>
+
+<!-- 23 -->
+<section class="s">
+  <div class="head"><h2>Сдать дело</h2><p>Ссылки на фото или видео, отчёт из трёх вопросов, кто ещё участвовал. Имён посторонних в отчёте нет.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/c-03-deed-taken-form.webp" alt=""><figcaption><b>Взято.</b> Открылась форма сдачи</figcaption></figure>
+    <figure><img class="shot" src="img/c-04-deed-form-filled.webp" alt=""><figcaption><b>Заполнено.</b> Что сделал, кому и как, что тронуло</figcaption></figure>
+    <figure><img class="shot" src="img/c-05-deed-submitted.webp" alt=""><figcaption><b>На проверке.</b> Ждём наставника</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">23</div>
+</section>
+
+<!-- 24 -->
+<section class="s">
+  <div class="head"><h2>Наставник проверяет</h2><p>Раздел «Проверка»: сдачи дел, записи стихов, запросы прохода. Принять или вернуть с комментарием.</p></div>
+  <div class="desk"><img class="shot" src="img/c-07-admin-review-deed.webp" alt=""><figcaption>Кнопки гаснут только у той сдачи, которую решаете. Можно выбрать несколько и принять разом.</figcaption></div>
+  <div class="brand">Земли Слова</div><div class="num">24</div>
+</section>
+
+<!-- 25 -->
+<section class="s">
+  <div class="head"><h2>Вернули — исправили — приняли</h2><p>Возвращённое дело ждёт в «Требует внимания». Принятое открывает сторону и перекрёсток за ней.</p></div>
+  <div class="phones n4">
+    <figure><img class="shot" src="img/c-09-deed-returned-menu.webp" alt=""><figcaption><b>Требует внимания</b></figcaption></figure>
+    <figure><img class="shot" src="img/c-10-deed-returned.webp" alt=""><figcaption><b>Возвращено.</b> Комментарий наставника</figcaption></figure>
+    <figure><img class="shot" src="img/c-11-deed-approved-map.webp" alt=""><figcaption><b>Принято.</b> Сторона в цвете команды</figcaption></figure>
+    <figure><img class="shot" src="img/c-12-deed-approved-sheet.webp" alt=""><figcaption><b>Пройденная сторона.</b> Отчёт виден команде</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">25</div>
+</section>
+
+<!-- 26 -->
+<section class="s">
+  <div class="head"><h2>Лимит дел и пожертвование</h2><p>Если наставник задал лимит в сутки, кнопка гаснет. У части дел есть цена: сторону открывает пожертвование.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/c-13-deed-limit-full.webp" alt=""><figcaption><b>Лимит исчерпан.</b> Через сколько можно снова</figcaption></figure>
+    <figure><img class="shot" src="img/c-15-deed-donation.webp" alt=""><figcaption><b>Вместо дела — пожертвование.</b> Сумма и ссылка на чек, наставник подтверждает</figcaption></figure>
+    <figure><img class="shot" src="img/c-06-menu-deeds-submitted.webp" alt=""><figcaption><b>Раздел «Дела».</b> Все дела команды и их статусы</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">26</div>
+</section>
+
+<!-- 27 -->
+<section class="s part">
+  <div class="kicker">Часть 5 · Участник</div>
+  <h1>Город</h1>
+  <p class="lead">Три шага: Порядок → Районы → Конверт. Книгу придётся прочитать вдоль и поперёк.</p>
+  <div class="brand">Земли Слова</div><div class="num">27</div>
+</section>
+
+<!-- 28 -->
+<section class="s">
+  <div class="head"><h2>Шаг 1 · Порядок: замок с кольцами</h2><p>Районы книги перетасованы. Расставьте их по порядку и проверните замок.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/d-01-city-order.webp" alt=""><figcaption><b>Замок.</b> Стрелки двигают районы</figcaption></figure>
+    <figure><img class="shot" src="img/d-02-city-order-list.webp" alt=""><figcaption><b>Список.</b> Тот же порядок простым списком</figcaption></figure>
+    <figure><img class="shot" src="img/d-03-city-order-wrong.webp" alt=""><figcaption><b>Не село штифтов: 16.</b> Сколько — говорит, каких — нет</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">28</div>
+</section>
+
+<!-- 29 -->
+<section class="s">
+  <div class="head"><h2>Шаг 2 · Районы</h2><p>Верный порядок окрашивает районы. В каждом — одно задание, плюс задания по всей книге.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/d-04-city-districts.webp" alt=""><figcaption><b>Районы открыты.</b> Галочка — задание решено</figcaption></figure>
+    <figure><img class="shot" src="img/d-05-city-districts-bottom.webp" alt=""><figcaption><b>Ниже:</b> задания по всей книге и печать города</figcaption></figure>
+    <figure><img class="shot" src="img/d-06-city-task-number.webp" alt=""><figcaption><b>Задание района.</b> Текст района, ответ числом</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">29</div>
+</section>
+
+<!-- 30 -->
+<section class="s">
+  <div class="head"><h2>Формы заданий</h2><p>Выбор — замок с одним кольцом. Пропуск в цитате — обгоревший свиток. Порядок событий — кольца. Кроссворд — слова из текста.</p></div>
+  <div class="phones n4">
+    <figure><img class="shot" src="img/d-10-city-task-choice.webp" alt=""><figcaption><b>Выбор варианта</b></figcaption></figure>
+    <figure><img class="shot" src="img/d-08-city-task-text.webp" alt=""><figcaption><b>Слово или имя</b></figcaption></figure>
+    <figure><img class="shot" src="img/d-07-city-task-order.webp" alt=""><figcaption><b>Расставить по порядку</b></figcaption></figure>
+    <figure><img class="shot" src="img/d-09-city-task-crossword.webp" alt=""><figcaption><b>Кроссворд</b></figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">30</div>
+</section>
+
+<!-- 31 -->
+<section class="s">
+  <div class="head"><h2>Ошибка, подсказка, поддержка</h2><p>Неверный ответ — пауза: 20 с, минута, 5, 15, час. Пророк раз в неделю зажигает свечу. Спорный вопрос — в поддержку.</p></div>
+  <div class="phones n4">
+    <figure><img class="shot" src="img/d-11-city-task-cooldown.webp" alt=""><figcaption><b>Отмычка остывает.</b> Кольцо-таймер</figcaption></figure>
+    <figure><img class="shot" src="img/d-12-city-prophet-candle.webp" alt=""><figcaption><b>Свеча пророка.</b> Видит только пророк</figcaption></figure>
+    <figure><img class="shot" src="img/d-13-city-prophet-letter.webp" alt=""><figcaption><b>Письмо пророка.</b> Показывается один раз</figcaption></figure>
+    <figure><img class="shot" src="img/d-14-city-support.webp" alt=""><figcaption><b>Написать в поддержку.</b> Город и задание подставятся сами</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">31</div>
+</section>
+
+<!-- 32 -->
+<section class="s">
+  <div class="head"><h2>Шаг 3 · Конверт</h2><p>Все задания решены — виден шифр и адресат. Поездка к семье: молитва, помощь, и только потом шифр и конверт.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/d2-01-city-envelope.webp" alt=""><figcaption><b>Шифр и адресат.</b> Назовите шифр — получите конверт</figcaption></figure>
+    <figure><img class="shot" src="img/d2-02-city-envelope-bottom.webp" alt=""><figcaption><b>Памятка о поездке</b> и ячейки ключа</figcaption></figure>
+    <figure><img class="shot" src="img/d2-03-city-key-wrong.webp" alt=""><figcaption><b>Неверный ключ.</b> Печать остывает</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">32</div>
+</section>
+
+<!-- 33 -->
+<section class="s">
+  <div class="head"><h2>Город ваш</h2><p>Верный ключ ломает сургуч. Первый город команды — столица. Из города выходят дела по его книге.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/d2-04-city-captured.webp" alt=""><figcaption><b>Грамота «Город ваш»</b></figcaption></figure>
+    <figure><img class="shot" src="img/d2-05-city-own.webp" alt=""><figcaption><b>Свой город.</b> Капитан может раз за игру перенести столицу</figcaption></figure>
+    <figure><img class="shot" src="img/d2-06-map-after-city.webp" alt=""><figcaption><b>Карта.</b> Город обведён цветом команды</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">33</div>
+</section>
+
+<!-- 34 -->
+<section class="s part">
+  <div class="kicker">Часть 6 · Участник</div>
+  <h1>Чужой город и проход</h1>
+  <p class="lead">Дошли до занятого города: пройти мимо с разрешения владельца или бросить вызов.</p>
+  <div class="brand">Земли Слова</div><div class="num">34</div>
+</section>
+
+<!-- 35 -->
+<section class="s">
+  <div class="head"><h2>Запрос прохода</h2><p>Отправляет посол, без посла — капитан или заместитель. У владельца три дня, молчание — отказ.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/e-01-city-foreign.webp" alt=""><figcaption><b>Чужой город.</b> Печать уже сломана, владелец виден</figcaption></figure>
+    <figure><img class="shot" src="img/e-02-passage-request.webp" alt=""><figcaption><b>Проход.</b> Сообщение владельцу и «Запросить проход»</figcaption></figure>
+    <figure><img class="shot" src="img/e-03-passage-sent.webp" alt=""><figcaption><b>Отправлено.</b> Ждём ответа</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">35</div>
+</section>
+
+<!-- 36 -->
+<section class="s">
+  <div class="head"><h2>Ответ владельца</h2><p>Посол владельца видит запрос в «Командах» → «Проходы». Разрешение безотзывное, но сбрасывается при смене владельца.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/e6-01-passage-incoming.webp" alt=""><figcaption><b>Проходы.</b> Кто просит, через что, до какого срока</figcaption></figure>
+    <figure><img class="shot" src="img/e6-02-passage-approved.webp" alt=""><figcaption><b>Разрешить / Отказать.</b> С ответом или без</figcaption></figure>
+    <figure><img class="shot" src="img/e6-03-passage-open.webp" alt=""><figcaption><b>Проход открыт.</b> Стороны за городом доступны</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">36</div>
+</section>
+
+<!-- 37 -->
+<section class="s part">
+  <div class="kicker">Часть 7 · Участник</div>
+  <h1>Испытание города</h1>
+  <p class="lead">Претенденты бросают вызов, хранители отвечают. Выигрывает тот, кто знает книгу наизусть лучше.</p>
+  <div class="brand">Земли Слова</div><div class="num">37</div>
+</section>
+
+<!-- 38 -->
+<section class="s">
+  <div class="kicker">Слова</div>
+  <h2>Как это называется в игре</h2>
+  <div class="terms">
+    <div class="term"><b>Претенденты</b> команда, которая бросает вызов</div>
+    <div class="term"><b>Хранители</b> команда, которой принадлежит город</div>
+    <div class="term"><b>Вызов</b> претенденты учат стихи из выданного отрывка</div>
+    <div class="term"><b>Ответ</b> хранители учат не меньше стихов из своего отрывка</div>
+    <div class="term"><b>Ставка</b> сколько стихов команда выучит в сумме по участникам</div>
+    <div class="term"><b>Уровень испытания</b> сколько стихов «держит» город сейчас</div>
+    <div class="term"><b>Устоять</b> хранители набрали не меньше ставки</div>
+    <div class="term"><b>Переход города</b> хранители не успели или не набрали</div>
+  </div>
+  <ul style="margin-top:40px">
+    <li>Вызов бросает <b>капитан или заместитель</b>, только когда все задания города решены.</li>
+    <li>Стихи не выбирают: игра выдаёт <b>случайный отрывок подряд</b> из книги города.</li>
+  </ul>
+  <div class="brand">Земли Слова</div><div class="num">38</div>
+</section>
+
+<!-- 39 -->
+<section class="s">
+  <div class="head"><h2>Вызов: ставка</h2><p>Минимум 10 стихов. Если город уже устоял с уровнем M — минимум M + 5 для всех. Сгоревший вызов добавляет +5 вашей команде.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/e4-01-war-declare.webp" alt=""><figcaption><b>Испытание.</b> Уровень, поле ставки, минимум</figcaption></figure>
+    <figure><img class="shot" src="img/e4-02-war-declare-confirm.webp" alt=""><figcaption><b>Подтверждение.</b> Срок вызова 14 дней</figcaption></figure>
+    <figure><img class="shot" src="img/e-09-war-declared.webp" alt=""><figcaption><b>Вызов брошен.</b> Карточка испытания в городе</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">39</div>
+</section>
+
+<!-- 40 -->
+<section class="s">
+  <div class="head"><h2>Хранители узнают сразу</h2><p>Письмо и «Требует внимания». Ставку и отрывок претендентов хранители не видят.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/e-10-menu-battles.webp" alt=""><figcaption><b>Раздел «Испытания»</b> у претендентов</figcaption></figure>
+    <figure><img class="shot" src="img/e-11-war-keepers-alert.webp" alt=""><figcaption><b>У хранителей.</b> Испытание в «Требует внимания»</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">40</div>
+</section>
+
+<!-- 41 -->
+<section class="s">
+  <div class="head"><h2>Учим и отмечаем стихи</h2><p>Каждый отмечает выученные стихи и прикладывает ссылку на видео: стих наизусть, глаза закрыты. Считается сумма по участникам.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/e-12-war-checklist.webp" alt=""><figcaption><b>Чек-лист стихов.</b> Галочки, ссылка, «Засчитать»</figcaption></figure>
+    <figure><img class="shot" src="img/e2-01-war-ready.webp" alt=""><figcaption><b>Сумма набрана.</b> Выучено 10 из 10</figcaption></figure>
+    <figure><img class="shot" src="img/e2-02-war-submit-confirm.webp" alt=""><figcaption><b>Капитан отправляет.</b> После отправки стихи не добавить, время вызова останавливается</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">41</div>
+</section>
+
+<!-- 42 -->
+<section class="s">
+  <div class="head"><h2>Наставник проверяет вызов</h2><p>Отрывок целиком, кто какие стихи отметил, ссылки на видео. Пока записи у наставника, часы стоят.</p></div>
+  <div class="desks">
+    <figure><img class="shot" src="img/e2-04-admin-review-battle.webp" alt=""><figcaption><b>Проверка.</b> Записи стихов по участникам</figcaption></figure>
+    <figure><img class="shot" src="img/e2-05-admin-review-passage.webp" alt=""><figcaption><b>Отрывок и раскладка.</b> Отмеченные стихи подсвечены</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">42</div>
+</section>
+
+<!-- 43 -->
+<section class="s">
+  <div class="head"><h2>Ответ хранителей: отрывок</h2><p>С одобрения вызова у хранителей столько же дневного времени, сколько ушло у претендентов. Капитан выбирает отрывок подряд.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/e2-06-defense-alert.webp" alt=""><figcaption><b>Ваш ход.</b> Вызов одобрен, пошло время ответа</figcaption></figure>
+    <figure><img class="shot" src="img/e2-07-defense-picker.webp" alt=""><figcaption><b>Книга целиком.</b> Нажать первый и последний стих</figcaption></figure>
+    <figure><img class="shot" src="img/e2-08-defense-picker-chosen.webp" alt=""><figcaption><b>Отрывок выбран.</b> «Утвердить отрывок»</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">43</div>
+</section>
+
+<!-- 44 -->
+<section class="s">
+  <div class="head"><h2>Ответ хранителей: стихи</h2><p>Нужно не меньше стихов, чем ставка. Ничья — за хранителями. Ранее сданные стихи книги засчитаны автоматически.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/e2-09-defense-checklist.webp" alt=""><figcaption><b>Чек-лист ответа.</b> Осталось времени, нужная сумма</figcaption></figure>
+    <figure><img class="shot" src="img/e2-10-defense-ready.webp" alt=""><figcaption><b>Набрано.</b> «Отправить ответ на проверку»</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">44</div>
+</section>
+
+<!-- 45 -->
+<section class="s">
+  <div class="head"><h2>Итог испытания</h2><p>Устояли — уровень = ответ, следующий вызов всем не меньше уровня + 5. Не успели — город переходит, уровень = ставка.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/e2-12-war-result-keepers.webp" alt=""><figcaption><b>У хранителей.</b> «Город устоял»</figcaption></figure>
+    <figure><img class="shot" src="img/e2-13-war-result-claimants.webp" alt=""><figcaption><b>У претендентов.</b> Новый минимум ставки</figcaption></figure>
+    <figure><img class="shot" src="img/e2-14-feed-after-war.webp" alt=""><figcaption><b>Летопись.</b> Новость всем командам, без чисел</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">45</div>
+</section>
+
+<!-- 46 -->
+<section class="s">
+  <div class="kicker">Правила испытания</div>
+  <h2>Что ещё важно знать</h2>
+  <div class="cols">
+    <ul>
+      <li><b>Время вызова T</b> — от старта до отправки, дневное время: ночь не идёт, проверка наставника не считается.</li>
+      <li><b>Отправка вызова</b> — только в окно, заданное наставником (по умолчанию утром).</li>
+      <li><b>Срок вызова 14 дней.</b> Не отправили — вызов сгорел: +5 к ставке этой команды, в очередь последними.</li>
+      <li><b>Очередь.</b> Если город уже испытывают, вы встаёте в очередь со ставкой; стартует наибольшая.</li>
+      <li><b>Стих сдаётся один раз.</b> Сданные раньше стихи этой книги второй раз не отмечаются.</li>
+    </ul>
+    <ul>
+      <li><b>Воин</b> — его стихи считаются вдвое.</li>
+      <li><b>Короткая книга.</b> Когда ставка доходит до числа стихов в книге, считается сумма: каждый может рассказать всю книгу.</li>
+      <li><b>Закрепление.</b> Устояли с максимумом (каждый выучил всю книгу) — город закрыт 3 недели, потом только осада делами.</li>
+      <li><b>Усталость.</b> 28 дней без принятых дел из города — защита тает на стих каждые 14 дней.</li>
+      <li><b>Столица.</b> Проиграли ответ за столицу — команда выбыла, её города — руины.</li>
+    </ul>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">46</div>
+</section>
+
+<!-- 47 -->
+<section class="s">
+  <div class="kicker">Финал партии</div>
+  <h2>Столицы и победа</h2>
+  <ul>
+    <li><b>Первый взятый город — столица.</b> Один раз за партию капитан может тайно перенести её, но не пока на неё брошен вызов.</li>
+    <li><b>Чужая столица</b>, взятая в испытании, становится второй столицей. Её не переносят.</li>
+    <li><b>Руины.</b> Города выбывшей команды берутся всеми заданиями, без ключа и без испытания. Первому — находка: знак шифра соседнего города.</li>
+    <li><b>Победа:</b> одна команда держит все столицы — или вышел срок. По сроку побеждает команда с наибольшим числом городов; при равенстве — столицы, принятые дела, отражённые вызовы.</li>
+    <li><b>После финала</b> итоги видят все, открывается Книга сезона, всем уходит письмо.</li>
+  </ul>
+  <div class="brand">Земли Слова</div><div class="num">47</div>
+</section>
+
+<!-- 48 -->
+<section class="s part">
+  <div class="kicker">Часть 8 · Наставник</div>
+  <h1>По ходу партии</h1>
+  <p class="lead">Проверка, карта чьими-то глазами, отчёты по дорогам, карточка города, лента времени, Книга сезона.</p>
+  <div class="brand">Земли Слова</div><div class="num">48</div>
+</section>
+
+<!-- 49 -->
+<section class="s">
+  <div class="head"><h2>Проверка</h2><p>Сдачи дел, записи стихов вызова и ответа, запросы прохода. Письма о сдачах — по расписанию из настроек.</p></div>
+  <div class="desks">
+    <figure><img class="shot" src="img/e2-11-admin-review-defense.webp" alt=""><figcaption><b>Записи ответа</b> хранителей</figcaption></figure>
+    <figure><img class="shot" src="img/e4-11-admin-review-passages.webp" alt=""><figcaption><b>Проходы.</b> Кто у кого просил и что ответили</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">49</div>
+</section>
+
+<!-- 50 -->
+<section class="s">
+  <div class="head"><h2>Чьими глазами и карточка города</h2><p>Карта так, как видит её команда: туман, свитки, метки. Карточка города: ключ, шифр, адресат, защита и ставка каждой команды.</p></div>
+  <div class="desks">
+    <figure><img class="shot" src="img/g-05-admin-view-as.webp" alt=""><figcaption><b>Глазами команды.</b> Переключатель справа сверху</figcaption></figure>
+    <figure><img class="shot" src="img/e4-10-admin-city-war.webp" alt=""><figcaption><b>Город.</b> Ключ, шифр, «Конверт у», защита, кто сколько решил</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">50</div>
+</section>
+
+<!-- 51 -->
+<section class="s">
+  <div class="head"><h2>Дела на дороге и лента времени</h2><p>Нажатие на дорогу — все дела всех команд на этой стороне. Ползунок под картой отматывает партию по ходам.</p></div>
+  <div class="desks">
+    <figure><img class="shot" src="img/g-07-admin-edge-sheet.webp" alt=""><figcaption><b>Дела на этой стороне.</b> Нажмите дело — откроется отчёт</figcaption></figure>
+    <figure><img class="shot" src="img/g-08-admin-timeline.webp" alt=""><figcaption><b>Лента времени.</b> Карта на выбранный ход</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">51</div>
+</section>
+
+<!-- 52 -->
+<section class="s">
+  <div class="head"><h2>Книга сезона</h2><p>Положение команд, участники с числами, города с датами, принятые дела, испытания, летописи недель. Печатается.</p></div>
+  <div class="desk"><img class="shot" src="img/e4-09-admin-season-book.webp" alt=""></div>
+  <div class="brand">Земли Слова</div><div class="num">52</div>
+</section>
+
+<!-- 53 -->
+<section class="s">
+  <div class="head"><h2>Один интерфейс на телефоне и компьютере</h2><p>Участник может играть с компьютера, наставник — проверять с телефона. Меняется только раскладка.</p></div>
+  <div class="desks">
+    <figure><img class="shot" src="img/g-20-desk-player-map.webp" alt=""><figcaption><b>Участник на компьютере.</b> Меню всегда слева</figcaption></figure>
+    <figure><img class="shot" src="img/g-21-desk-player-city.webp" alt=""><figcaption><b>Город на компьютере</b></figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">53</div>
+</section>
+
+<!-- 54 -->
+<section class="s">
+  <div class="head"><h2>Наставник на телефоне</h2><p>Карта и проверка под рукой: принять сдачу можно по дороге.</p></div>
+  <div class="phones">
+    <figure><img class="shot" src="img/g-18-admin-phone-map.webp" alt=""><figcaption><b>Карта администратора</b> на телефоне</figcaption></figure>
+    <figure><img class="shot" src="img/g-19-admin-phone-review.webp" alt=""><figcaption><b>Проверка</b> на телефоне</figcaption></figure>
+  </div>
+  <div class="brand">Земли Слова</div><div class="num">54</div>
+</section>
+
+<!-- 55 -->
+<section class="s final">
+  <h1>Земли Слова</h1>
+  <p class="lead">Соберите команду, попросите наставника создать партию. Карта в тумане, книги ждут.</p>
+  <div class="url">landsoftheword.com</div>
+  <div class="brand">Земли Слова</div><div class="num">55</div>
+</section>
+
+</body>
+</html>

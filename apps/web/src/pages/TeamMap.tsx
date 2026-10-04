@@ -221,7 +221,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const w = textWidth(text, fs) + iconW + 14, h = fs + 9;
               // Подпись стоит под картинкой города (сдвиг в единицах карты), а масштабируется через --inv на каждый кадр.
               return (
-                <g key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))` }} onClick={() => clickCity(n.key)}>
+                <g key={n.key} data-key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))` }} onClick={() => clickCity(n.key)}>
                   {c?.battle && (
                     <g className={"m-battle " + (c.battle === "ATTACK" ? "att" : "def")} transform="translate(18,-30)">
                       <circle r={10} />
@@ -258,7 +258,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const sel = tk.id === selectedTaskId;
             const r = sel ? R + 2 : R;
             return (
-              <g key={"m" + e.aKey + e.bKey} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "")} onClick={() => click(tk.id)}>
+              <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "")} onClick={() => click(tk.id)}>
                 {/* Серая точка цели только пока перекрёсток не открыт: если команда дошла до него другой дорогой, белый перекрёсток не закрашивается (03.10). */}
                 {!revealed.has(farKey) && <g style={sc(far.x, far.y)}><circle className="far" r={5} /></g>}
                 <g style={sc(m.x, m.y)}>
@@ -285,7 +285,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           {ships.map(({ tk, x, y, port }) => {
             const sel = tk.id === selectedTaskId, r = (sel ? R + 2 : R) + 2;
             return (
-              <g key={"ship" + tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
+              <g key={"ship" + tk.id} data-id={tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
                 <line className="mooring" x1={port.x} y1={port.y} x2={x} y2={y} />
                 <g style={sc(x, y)}>
                   <circle r={r} />
