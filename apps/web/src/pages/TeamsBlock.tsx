@@ -165,7 +165,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                 const picking = pick === m.user.id;
                 return (
                   <li key={m.user.id} className="member-row">
-                    <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span><DeedBadge limit={m.deedLimit} now={now} />{(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"}>{TEAM_ROLE_LABEL[m.role]}</Chip>}</span>
+                    <div className="main"><span className="person"><span className="avatar">{nick.slice(0, 1).toUpperCase()}</span><span className="name">{nick}</span><DeedBadge limit={m.deedLimit} now={now} />{(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"} title={TEAM_ROLE_LABEL[m.role]}><span className="sr-only">{TEAM_ROLE_LABEL[m.role]}</span></Chip>}</span>
                       {/* Дела на руках у участника (решение владельца 04.10): взятые — с датой, сданные — «на проверке», возвращённые — «возвращено». */}
                       {(m.activeDeeds?.length ?? 0) > 0 && (
                         <ul className="member-deeds">
@@ -176,9 +176,10 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                       )}
                     </div>
                     <div className="side">
+                      {/* Только значок роли, без слова (решение владельца 04.10): название — в подсказке и для читалок; нажатие открывает ряд ролей. */}
                       {m.role !== "CAPTAIN" && (
-                        <button type="button" className={"chip-btn role-pick" + (m.gameRole === "NONE" ? " none" : "")} aria-label={t("Игровая роль")} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>
-                          <Chip tone={m.gameRole === "NONE" ? "neutral" : "info"} icon={m.gameRole === "NONE" ? undefined : GAME_ROLE_ICON[m.gameRole]}>{m.gameRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.gameRole]}<Icon name="chevron" className="chev" /></Chip>
+                        <button type="button" className={"chip-btn role-pick icon-only" + (m.gameRole === "NONE" ? " none" : "")} aria-label={m.gameRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.gameRole]} title={m.gameRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.gameRole]} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>
+                          <Chip tone={m.gameRole === "NONE" ? "neutral" : "info"} icon={m.gameRole === "NONE" ? "user" : GAME_ROLE_ICON[m.gameRole]}><Icon name="chevron" className="chev" /></Chip>
                         </button>
                       )}
                       <ActionMenu label={t("Ещё")} items={[
