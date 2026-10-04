@@ -33,7 +33,7 @@ export const deedBody = z.object({
   title: z.string().trim().min(2).max(120),
   description: z.string().trim().max(2000).default(""),
   direction: z.enum(DIRECTIONS),
-  proofType: z.preprocess((v) => (v === "CONFIRMATION" ? "REPORT" : v), z.enum(["REPORT", "PHOTO_LINK", "VIDEO_LINK"]).default("PHOTO_LINK")),
+  proofType: z.preprocess((v) => (v === "CONFIRMATION" ? "REPORT" : v), z.enum(["REPORT", "PHOTO_LINK", "VIDEO_LINK", "AUDIO_LINK"]).default("PHOTO_LINK")),
   canRepeat: z.boolean().default(false),
   bookCodes: z.array(z.string().trim().min(3).max(3)).max(66).default([]).transform((a) => [...new Set(a)].filter((c) => BOOK_CODES.has(c))),
   /** Вероятность появления на новой дороге, % с шагом 20 (решение владельца 04.10). */

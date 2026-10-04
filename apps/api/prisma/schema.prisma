@@ -321,6 +321,7 @@ enum ProofType {
   REPORT
   PHOTO_LINK
   VIDEO_LINK
+  AUDIO_LINK
   CONFIRMATION
 }
 

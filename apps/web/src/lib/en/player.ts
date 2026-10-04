@@ -211,6 +211,7 @@ export const PLAYER: Record<string, string> = {
   "До 0:00 можно расставлять районы и решать задания. Знаки шифра и конверт закрыты до 7:00 по местному времени.": "Until 0:00 you can arrange the districts and solve the tasks. The cipher signs and the envelope stay closed until 7:00 local time.",
   "До 0:00 дело можно взять; сдать и разведать — с 7:00 по местному времени.": "Until 0:00 a deed can be taken; submitting and scouting open at 7:00 local time.",
   "Ночь: сдать дело можно с 7:00 по местному времени.": "Night: a deed can be submitted from 7:00 local time.",
+  "Аудиозапись": "Audio recording", "Ссылка на аудиозапись чтения целиком": "Link to the full audio recording of the reading",
   "Город спит до 7:00 по местному времени. Ночью задания, знаки шифра и конверт закрыты; утром всё откроется.": "The city sleeps until 7:00 local time. At night the tasks, cipher signs and the envelope are closed; in the morning everything opens.",
   "Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.": "Night: deeds wait for morning. From 7:00 local time a deed can be taken, submitted or scouted.",
   "Ночь: разведка ждёт утра, с 7:00 по местному времени.": "Night: scouting waits for morning, from 7:00 local time.",

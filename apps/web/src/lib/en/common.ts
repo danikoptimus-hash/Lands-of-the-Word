@@ -9,6 +9,6 @@ export const COMMON: Record<string, string> = {
   "Не удалось загрузить": "Could not load", "Повторить": "Retry", "Закрыть": "Close",
   "Скопировано": "Copied", "Скопировать": "Copy", "Не удалось скопировать: выделите текст вручную": "Could not copy: select the text by hand",
   "Без роли": "No role", "отчёт": "report", "фото": "photo", "видео": "video", "подтверждение": "confirmation",
-  "принято": "accepted", "возвращено": "returned", "отменено": "cancelled", "отказано": "declined", "без ответа": "no answer",
+  "аудио": "audio", "принято": "accepted", "возвращено": "returned", "отменено": "cancelled", "отказано": "declined", "без ответа": "no answer",
   "сегодня": "today", "вчера": "yesterday", "{d} дн {h} ч": "{d} d {h} h",
 };

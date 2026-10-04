@@ -11,7 +11,7 @@ import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { Help } from "../components/Help";
 import { plural } from "../lib/format";
 
-type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK";
+type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "AUDIO_LINK";
 interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number } }
 type Form = { title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
 /** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
@@ -24,9 +24,10 @@ const EMPTY: Form = { title: "", description: "", direction: "", proofType: "PHO
  * сервер подставляет книгу города, из которого выходит сторона (withDeedBook).
  */
 function withBook(text: string) {
-  const parts = text.split(/(\[книга\])/i);
+  const parts = text.split(/(\[книга\]|\[главы\])/i);
   if (parts.length === 1) return text;
-  return parts.map((p, i) => (/^\[книга\]$/i.test(p) ? <Chip key={i} tone="accent" icon="book" title={t("Подставится книга города, из которого выходит сторона")}>{t("книга города")}</Chip> : p));
+  return parts.map((p, i) => (/^\[книга\]$/i.test(p) ? <Chip key={i} tone="accent" icon="book" title={t("Подставится книга города, из которого выходит сторона")}>{t("книга города")}</Chip>
+    : /^\[главы\]$/i.test(p) ? <Chip key={i} tone="accent" icon="book" title={t("Подставятся книга и пять глав подряд, которые выдаёт игра")}>{t("главы от игры")}</Chip> : p));
 }
 
 export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; version?: number; onChange?: () => void }) {

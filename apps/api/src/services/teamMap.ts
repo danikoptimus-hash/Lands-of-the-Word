@@ -1,6 +1,6 @@
 import { prisma } from "../db.js";
 import { bookName, msg } from "./i18n.js";
-import { hexCorners, vertexKey } from "@lotw/domain";
+import { hexCorners, vertexKey, BOOKS } from "@lotw/domain";
 import { loadCityContent } from "./cities.js";
 import { notifyTeam, notifyUser } from "./notify.js";
 import { publish } from "./events.js";
@@ -83,10 +83,44 @@ export async function pickDeed(gameId: string, teamId: string, bookCode: string 
  * Подстановка книги в текст дела: [Книга] (в любом регистре) → название книги города, из которого выходит сторона;
  * если стороны из города нет — «на выбор» («проповедь по книге на выбор»).
  */
-export function withDeedBook<T extends { title: string; description: string }>(deed: T, bookCode: string | null): T {
+export function withDeedBook<T extends { title: string; description: string }>(deed: T, bookCode: string | null, seed = ""): T {
   const name = bookCode ? bookName(bookCode, "ru") : "на выбор";
-  const sub = (text: string) => text.replace(/\[книга\]/gi, name);
+  const needsPlan = /\[главы\]/i.test(deed.title) || /\[главы\]/i.test(deed.description);
+  const plan = needsPlan ? readingPlan(bookCode, seed) : "";
+  const sub = (text: string) => text.replace(/\[книга\]/gi, name).replace(/\[главы\]/gi, plan);
   return { ...deed, title: sub(deed.title), description: sub(deed.description) };
+}
+
+/** Детерминированный хеш строки (FNV-1a), чтобы книга и главы у дела не менялись от запроса к запросу. */
+function fnv(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+  return h >>> 0;
+}
+
+export const READING_CHAPTERS = 5;
+
+/**
+ * Подстановка [Главы] (решение владельца 04.10): игра сама выдаёт книгу и пять глав подряд. Книга — города, из которого
+ * выходит сторона; если стороны из города нет — любая книга по хешу. Если в книге меньше пяти глав, главы идут дальше
+ * по порядку книг Библии («Авдий, глава 1; Иона, главы 1–4»). Хеш — от id задачи, поэтому у одной стороны главы постоянны.
+ */
+export function readingPlan(bookCode: string | null, seed: string): string {
+  const h = fnv(seed || "x");
+  let idx = bookCode ? BOOKS.findIndex((b) => b.code === bookCode) : h % BOOKS.length;
+  if (idx < 0) idx = h % BOOKS.length;
+  const parts: string[] = [];
+  let left = READING_CHAPTERS;
+  let first = true;
+  while (left > 0) {
+    const b = BOOKS[idx % BOOKS.length]!;
+    const total = b.chapters;
+    const from = first && total >= READING_CHAPTERS ? 1 + ((h >>> 8) % (total - READING_CHAPTERS + 1)) : 1;
+    const to = Math.min(total, from + left - 1);
+    parts.push(to === from ? `${b.nameRu}, глава ${from}` : `${b.nameRu}, главы ${from}–${to}`);
+    left -= to - from + 1; idx += 1; first = false;
+  }
+  return parts.join("; ");
 }
 
 /** Книга города по ключу узла (для подстановки [Книга] в текст дела). */
@@ -403,7 +437,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const foreignRows = await prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", sea: false, NOT: { teamId } }, select: { fromKey: true, toKey: true, team: { select: { index: true, color: true } } } });
   // В тексте дела [Книга] — книга города, из которого выходит сторона (или «на выбор», если это не город).
   const bookOfNode = new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, n.bookCode!]));
-  const tasks = rawTasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, bookOfNode.get(t.fromKey) ?? null) }));
+  const tasks = rawTasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, bookOfNode.get(t.fromKey) ?? null, t.id) }));
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
   // Города, до которых команда дошла: чей город, и мой прогресс в нём.
   const cityNodes = nodes.filter((n) => n.kind === "CITY" && revealed.has(n.key));

@@ -73,7 +73,7 @@ const taskInclude = {
   deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true, chance: true } },
   team: { select: { id: true, name: true, color: true } },
 } as const;
-type TaskWithDeed = { fromKey: string; deed: { title: string; description: string } };
+type TaskWithDeed = { id: string; fromKey: string; deed: { title: string; description: string } };
 type SecretTask = { takenById: string | null; links: string[]; note: string; deed: { secret: boolean } };
 /** Тайное дело: ссылки и описание сдачи видит только тот, кто его взял (и администратор в проверке). */
 function hideSecret<T extends SecretTask>(task: T, viewerId: string): T {
@@ -81,12 +81,12 @@ function hideSecret<T extends SecretTask>(task: T, viewerId: string): T {
 }
 /** В тексте дела [Книга] → книга города, из которого выходит сторона. */
 async function bookIn<T extends TaskWithDeed>(gameId: string, task: T): Promise<T> {
-  return { ...task, deed: withDeedBook(task.deed, await bookOfNodeKey(gameId, task.fromKey)) };
+  return { ...task, deed: withDeedBook(task.deed, await bookOfNodeKey(gameId, task.fromKey), task.id) };
 }
 async function bookInAll<T extends TaskWithDeed>(gameId: string, tasks: T[]): Promise<T[]> {
   const nodes = await prisma.mapNode.findMany({ where: { gameId, key: { in: [...new Set(tasks.map((t) => t.fromKey))] } }, select: { key: true, bookCode: true } });
   const book = new Map(nodes.map((n) => [n.key, n.bookCode ?? null]));
-  return tasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, book.get(t.fromKey) ?? null) }));
+  return tasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, book.get(t.fromKey) ?? null, t.id) }));
 }
 
 export async function teamMapRoutes(app: FastifyInstance): Promise<void> {

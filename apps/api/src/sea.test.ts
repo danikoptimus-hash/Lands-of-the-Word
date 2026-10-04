@@ -5,7 +5,7 @@ import { reshuffleStartedGamesOnce } from "./services/teamMap.js";
 import { BOOKS } from "@lotw/domain";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { withDeedBook } from "./services/teamMap.js";
+import { readingPlan, withDeedBook } from "./services/teamMap.js";
 import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 import { deedHash, syncGameDeeds } from "./services/defaultDeeds.js";
 
@@ -198,6 +198,15 @@ describe("морской переход", () => {
     expect(themedIds.has(seaTask.deed.id)).toBe(true);
     for (const t of fromPort) expect(t.deed.title.includes("[")).toBe(false);
     expect(withDeedBook({ title: "По книге [Книга]", description: "[книга]!" }, port.bookCode).title).toBe(`По книге ${name}`);
+    // [Главы] — книга и пять глав подряд от игры (решение владельца 04.10): постоянны для одного id, короткая книга продолжается следующей.
+    const plan = readingPlan("oba", "task-1");
+    expect(plan).toBe("Авдий, глава 1; Иона, главы 1–4");
+    expect(readingPlan("1ki", "task-1")).toBe(readingPlan("1ki", "task-1"));
+    expect(readingPlan("1ki", "task-1")).toMatch(/^3 Царств, главы (\d+)–(\d+)$/);
+    const [, a, b] = readingPlan("1ki", "task-1").match(/главы (\d+)–(\d+)/)!;
+    expect(Number(b) - Number(a)).toBe(4);
+    expect(readingPlan(null, "task-2")).toMatch(/глав/);
+    expect(withDeedBook({ title: "Чтение", description: "Главы: [Главы]" }, "oba", "task-1").description).toBe("Главы: Авдий, глава 1; Иона, главы 1–4");
     expect(withDeedBook({ title: "По книге [Книга]", description: "[книга]!" }, port.bookCode).description).toBe(`${name}!`);
     expect(withDeedBook({ title: "По книге [Книга]", description: "" }, null).title).toBe("По книге на выбор");
     // Внутренний город морского дела не даёт.

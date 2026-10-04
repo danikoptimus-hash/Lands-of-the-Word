@@ -102,7 +102,7 @@ export function deedStatus(s: EdgeTaskStatus): { label: string; tone: ChipTone; 
   }
 }
 const PROOF: Record<EdgeTaskDto["deed"]["proofType"], { icon: string; label: () => string }> = {
-  PHOTO_LINK: { icon: "camera", label: () => t("Фото") }, VIDEO_LINK: { icon: "video", label: () => t("Видео") },
+  PHOTO_LINK: { icon: "camera", label: () => t("Фото") }, VIDEO_LINK: { icon: "video", label: () => t("Видео") }, AUDIO_LINK: { icon: "play", label: () => t("Аудиозапись") },
   REPORT: { icon: "edit", label: () => t("Отчёт") },
 };
 /** Кодекс дела (решение владельца 18.09): пять правил, свёрнуты под значком, чтобы не занимать место. */
@@ -698,7 +698,7 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
         </div>
       )}
       <div className="field">
-        <label htmlFor="deed-links">{donation ? t("Ссылка на чек или подтверждение перевода") : t("Ссылки на фото или видео")}</label>
+        <label htmlFor="deed-links">{donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")}</label>
         <textarea id="deed-links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} />
       </div>
       {report ? (
