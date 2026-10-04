@@ -288,6 +288,7 @@ const EN: Record<string, string> = {
   "Приложите ссылку на чек или подтверждение перевода": "Attach a link to the receipt or transfer confirmation",
   "Для этого дела нужна хотя бы одна ссылка на фото или видео": "This deed needs at least one photo or video link",
   "Опишите, что сделано": "Describe what was done",
+  "Укажите, кто может подтвердить": "Name the person who can confirm this",
   "Сдача не найдена": "Submission not found",
   "Эта сдача уже рассмотрена": "This submission has already been reviewed",
   "Команда или перекрёсток не найдены": "Team or crossing not found",

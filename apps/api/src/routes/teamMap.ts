@@ -4,7 +4,7 @@ import { prisma } from "../db.js";
 import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
-import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey } from "../services/teamMap.js";
+import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey, deedLimitsFor, type DeedLimit } from "../services/teamMap.js";
 import { loadCityContent } from "../services/cities.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { err, msg } from "../services/i18n.js";
@@ -23,16 +23,11 @@ const submitBody = z.object({
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
 
 
-const DAY_MS = 86_400_000;
-/** Лимит дел в сутки для участника: сколько взято за последние 24 часа и когда освободится место (момент выхода самого раннего взятия из окна). null — лимита нет. */
-async function deedLimitFor(gameId: string, userId: string): Promise<{ max: number; taken: number; nextAt: number | null } | null> {
-  const max = (await gameRules(gameId)).maxDeedsPerDay;
-  if (!max) return null;
-  const since = new Date(Date.now() - DAY_MS);
-  const rows = await prisma.teamEdgeTask.findMany({ where: { gameId, takenById: userId, takenAt: { gte: since } }, select: { takenAt: true }, orderBy: { takenAt: "asc" } });
-  const taken = rows.length;
-  const nextAt = taken >= max ? (rows[taken - max]!.takenAt!.getTime() + DAY_MS) : null;
-  return { max, taken, nextAt };
+/** Лимит дел в сутки для участника (сутки — по часовому поясу игры). null — лимита нет. */
+async function deedLimitFor(gameId: string, userId: string): Promise<DeedLimit | null> {
+  const rules = await gameRules(gameId);
+  if (!rules.maxDeedsPerDay) return null;
+  return (await deedLimitsFor(gameId, rules.maxDeedsPerDay, [userId], rules.timeZone)).get(userId) ?? null;
 }
 /** «через 3 ч 20 мин» / «через 15 мин» для сообщения о лимите. */
 function untilText(request: Parameters<typeof err>[0], at: number): string {
@@ -174,6 +169,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     } else {
       const needsLink = task.deed.proofType === "PHOTO_LINK" || task.deed.proofType === "VIDEO_LINK";
       if (needsLink && body.links.length === 0) return reply.code(400).send({ error: "validation", message: err(request, "Для этого дела нужна хотя бы одна ссылка на фото или видео") });
+      // Свидетель (решение владельца 04.10): дело подтверждает человек, который это видел; его имя — в тексте сдачи.
+      if (task.deed.proofType === "WITNESS" && body.note.trim().length < 2) return reply.code(400).send({ error: "validation", message: err(request, "Укажите, кто может подтвердить") });
       if (!needsLink && body.links.length === 0 && body.note.length < 5) return reply.code(400).send({ error: "validation", message: err(request, "Опишите, что сделано") });
     }
     // Участники дела группой: только свои, всегда включая сдающего/взявшего.

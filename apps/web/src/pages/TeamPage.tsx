@@ -11,7 +11,7 @@ import { BATTLE_STATUS, battleTone, isMyTurn, leftText } from "./BattlePanel";
 import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
-import { fmtDate, plural } from "../lib/format";
+import { fmtDate, plural, setDisplayTimeZone } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
@@ -103,7 +103,7 @@ export function deedStatus(s: EdgeTaskStatus): { label: string; tone: ChipTone; 
   }
 }
 const PROOF: Record<EdgeTaskDto["deed"]["proofType"], { icon: string; label: () => string }> = {
-  PHOTO_LINK: { icon: "camera", label: () => t("Фото") }, VIDEO_LINK: { icon: "video", label: () => t("Видео") }, AUDIO_LINK: { icon: "play", label: () => t("Аудиозапись") },
+  PHOTO_LINK: { icon: "camera", label: () => t("Фото") }, VIDEO_LINK: { icon: "video", label: () => t("Видео") }, AUDIO_LINK: { icon: "play", label: () => t("Аудиозапись") }, WITNESS: { icon: "user", label: () => t("Свидетель") },
   REPORT: { icon: "edit", label: () => t("Отчёт") },
 };
 /** Кодекс дела (решение владельца 18.09): пять правил, свёрнуты под значком, чтобы не занимать место. */
@@ -230,7 +230,7 @@ export function TeamPage() {
   }, [team?.id]);
 
   const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setError(null); setIsAdmin(r.isAdmin); setTeam(r.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, user?.id]);
-  const loadMap = useCallback(() => api<MyMapDto & { gameName?: string; donation?: { currency: string } | null }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); if (m.gameName) setGameName(m.gameName); setCurrency(m.donation?.currency ?? ""); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
+  const loadMap = useCallback(() => api<MyMapDto & { gameName?: string; donation?: { currency: string } | null }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); setCurrency(m.donation?.currency ?? ""); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   useEffect(() => { if (team) { void loadBattles(); void loadStandings(); void loadPassages(); void loadPeace(); } }, [team, loadBattles, loadStandings, loadPassages, loadPeace]);
   useGameEvents(id, (e) => {
@@ -701,8 +701,12 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
   const [donation, setDonation] = useState(false);
   const [amount, setAmount] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
+  const [witness, setWitness] = useState("");
   const report = proofType === "REPORT" && !donation;
-  const noteOut = report ? [q.what && `${t("Что сделал")}: ${q.what}`, q.who && `${t("Кому и как")}: ${q.who}`, q.touched && `${t("Что тронуло")}: ${q.touched}`].filter(Boolean).join("\n") : note;
+  // Свидетель (решение владельца 04.10): дело подтверждает человек, который это видел; ссылки не нужны.
+  const byWitness = proofType === "WITNESS" && !donation;
+  const noteOut = report ? [q.what && `${t("Что сделал")}: ${q.what}`, q.who && `${t("Кому и как")}: ${q.who}`, q.touched && `${t("Что тронуло")}: ${q.touched}`].filter(Boolean).join("\n")
+    : byWitness ? [witness.trim() && `${t("Свидетель")}: ${witness.trim()}`, note.trim()].filter(Boolean).join("\n") : note;
   return (
     <>
       {donationCfg && <div className="row nowrap mt-2"><label className="check grow"><input type="checkbox" checked={donation} onChange={(e) => setDonation(e.target.checked)} />{t("Вместо дела — пожертвование (от {min} {cur})", { min: donationCfg.min, cur: donationCfg.currency })}</label><Help>{t("В кассу церкви. Сдаётся ссылка на чек или подтверждение перевода.")}</Help></div>}
@@ -712,10 +716,18 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
           <input id="deed-amount" type="number" inputMode="numeric" min={donationCfg.min} value={amount} onChange={(e) => setAmount(e.target.value)} />
         </div>
       )}
-      <div className="field">
-        <label htmlFor="deed-links">{donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")}</label>
-        <textarea id="deed-links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} />
-      </div>
+      {byWitness && (
+        <div className="field">
+          <label htmlFor="deed-witness">{t("Кто может подтвердить")} <span className="opt">{t("свидетель: кто это видел или слышал")}</span></label>
+          <input id="deed-witness" value={witness} onChange={(e) => setWitness(e.target.value)} maxLength={120} placeholder={t("имя и кто это, например служитель")} />
+        </div>
+      )}
+      {!byWitness && (
+        <div className="field">
+          <label htmlFor="deed-links">{donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")}</label>
+          <textarea id="deed-links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} />
+        </div>
+      )}
       {report ? (
         <>
           <div className="field"><label htmlFor="deed-q1">{t("Что сделал?")}</label><textarea id="deed-q1" rows={2} value={q.what} onChange={(e) => setQ({ ...q, what: e.target.value })} /></div>
@@ -737,7 +749,7 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
         </div>
       )}
       <div className="actions">
-        <button type="button" disabled={busy || (donation && !amount)} onClick={() => void onSubmit({ links: links.split(/\s+/).filter(Boolean), note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
+        <button type="button" disabled={busy || (donation && !amount) || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links: links.split(/\s+/).filter(Boolean), note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
         <button type="button" className="secondary" disabled={busy} onClick={onRelease}>{t("Отказаться от дела")}</button>
       </div>
     </>

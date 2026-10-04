@@ -11,7 +11,7 @@ import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { Help } from "../components/Help";
 import { plural } from "../lib/format";
 
-type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "AUDIO_LINK";
+type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "AUDIO_LINK" | "WITNESS";
 interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
 type Form = { quarry: boolean; stones: number; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
 /** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
@@ -40,6 +40,9 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   const { confirm, notify } = useUi();
   /** Открытая форма: null — закрыта; { id: null } — новое дело; { id } — изменение. */
   const [sheet, setSheet] = useState<{ id: string | null; form: Form } | null>(null);
+  /** Два раздела (решение владельца 04.10): обычные дела дорог и общие дела Каменоломни; переключатель вверху. */
+  const [section, setSection] = useState<"roads" | "quarry">("roads");
+  const inQuarry = section === "quarry";
   const form = sheet?.form ?? EMPTY;
   const setForm = (patch: Partial<Form>) => setSheet((s) => (s ? { ...s, form: { ...s.form, ...patch } } : s));
   /** Описание дела в списке свёрнуто в одну строку; полностью — по нажатию на строку (решение владельца 18.09). */
@@ -53,7 +56,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   const reload = async () => { await load(); onChange?.(); };
   useEffect(() => { void load(); }, [load, version]);
 
-  const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, direction: directions[0] ?? "" } }); };
+  const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, quarry: inQuarry, direction: directions[0] ?? "" } }); };
   const formOf = (d: DeedDto): Form => ({ quarry: d.quarry ?? false, stones: d.stones ?? 1, title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 60, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" });
   const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: formOf(d) }); };
   /** Дубликат дела (решение владельца 04.10): форма нового дела, заполненная полями исходного; сохраняется как отдельное дело. */
@@ -64,7 +67,8 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
     e.preventDefault(); if (!sheet) return;
     setError(null); setBusy(true);
     try {
-      const body = JSON.stringify({ ...sheet.form, siegePoints: sheet.form.siegePoints === "" ? null : Number(sheet.form.siegePoints), donationMin: sheet.form.donationMin === "" ? null : Number(sheet.form.donationMin) });
+      const f = sheet.form.quarry ? { ...sheet.form, canRepeat: true, bookCodes: [], secret: false, remote: false, siegePoints: "" as const, donationMin: "" as const } : sheet.form;
+      const body = JSON.stringify({ ...f, siegePoints: f.siegePoints === "" ? null : Number(f.siegePoints), donationMin: f.donationMin === "" ? null : Number(f.donationMin) });
       if (sheet.id) { await api(`/api/games/${gameId}/deeds/${sheet.id}`, { method: "PUT", body }); notify(t("Дело сохранено")); }
       else { await api(`/api/games/${gameId}/deeds`, { method: "POST", body }); notify(t("Дело добавлено")); }
       close();
@@ -89,10 +93,13 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
   }
 
+  const roads = deeds?.filter((d) => !d.quarry) ?? null;
+  const quarry = deeds?.filter((d) => d.quarry) ?? null;
+  const shown = inQuarry ? quarry : roads;
   return (
     <div className="card">
       <div className="card-head">
-        <h2><span className="ico"><Icon name="scroll" /></span>{t("Дела")} {deeds && <span className="count">{deeds.length}</span>}</h2>
+        <h2><span className="ico"><Icon name={inQuarry ? "stone" : "scroll"} /></span>{inQuarry ? t("Дела Каменоломни") : t("Дела")} {shown && <span className="count">{shown.length}</span>}</h2>
         <div className="row">
           {deeds && deeds.length > 0 && <ActionMenu label={t("Стандартный набор")} items={[
             { label: t("Добавить недостающие из стандартного набора"), icon: "sparkle", onSelect: () => void importDefault("add") },
@@ -101,23 +108,30 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
           <button type="button" className="sm" onClick={openNew} disabled={!deeds}><Icon name="plus" />{t("Новое дело")}</button>
         </div>
       </div>
-      {deeds && deeds.length > 0 && deeds.length < recommended && <p className="note warn"><Icon name="alert" /><span>{t("Рекомендуется не меньше {n} дел, иначе они начнут повторяться.", { n: recommended })}</span></p>}
-      {loadError ? <ErrorState onRetry={() => void load()} /> : !deeds ? <LoadingState /> : deeds.length === 0 ? (
-        <EmptyState icon="scroll" text={t("Дел пока нет. Возьмите стандартный набор как заготовку или добавьте свои.")} action={<button type="button" className="secondary" onClick={() => void importDefault()} disabled={busy}><Icon name="sparkle" />{t("Стандартный набор")}</button>} />
+      <div className="tabs deed-sections mt-2" role="tablist">
+        <button type="button" role="tab" aria-selected={!inQuarry} className={inQuarry ? undefined : "active"} onClick={() => setSection("roads")}><Icon name="scroll" /><span>{t("Обычные дела")}</span>{roads && <span className="count-chip">{roads.length}</span>}</button>
+        <button type="button" role="tab" aria-selected={inQuarry} className={inQuarry ? "active" : undefined} onClick={() => setSection("quarry")}><Icon name="stone" /><span>{t("Дела Каменоломни")}</span>{quarry && <span className="count-chip">{quarry.length}</span>}</button>
+      </div>
+      {inQuarry && <p className="hint mt-2">{t("Общие дела всей команды: сдаёт капитан, заместитель или летописец в Каменоломне на карте, всегда доступны. Принятое дело даёт камни, камень мостит одну свободную дорогу — куда, решает команда.")}</p>}
+      {!inQuarry && roads && roads.length > 0 && roads.length < recommended && <p className="note warn"><Icon name="alert" /><span>{t("Рекомендуется не меньше {n} дел, иначе они начнут повторяться.", { n: recommended })}</span></p>}
+      {loadError ? <ErrorState onRetry={() => void load()} /> : !shown ? <LoadingState /> : shown.length === 0 ? (
+        inQuarry
+          ? <EmptyState icon="stone" text={t("Общих дел пока нет. Они есть в стандартном наборе, или добавьте свои.")} action={<button type="button" className="secondary" onClick={() => void importDefault()} disabled={busy}><Icon name="sparkle" />{t("Стандартный набор")}</button>} />
+          : <EmptyState icon="scroll" text={t("Дел пока нет. Возьмите стандартный набор как заготовку или добавьте свои.")} action={<button type="button" className="secondary" onClick={() => void importDefault()} disabled={busy}><Icon name="sparkle" />{t("Стандартный набор")}</button>} />
       ) : (
         <ul className="list">
-          {deeds.map((d) => { const open = expanded.has(d.id); return (
+          {shown.map((d) => { const open = expanded.has(d.id); return (
             <li key={d.id} className={"deed-row" + (open ? " open" : "")}>
               <div className="main" onClick={() => toggle(d.id)}>
-                <span className="title">{withBook(d.title)} {d.quarry && <Chip tone="accent" icon="stone" title={t("Общее дело Каменоломни")}>{t("Каменоломня")} · {d.stones ?? 1}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
+                <span className="title">{withBook(d.title)} {d.quarry && <Chip tone="accent" icon="stone" title={t("Камней за дело")}>{d.stones ?? 1}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
                 {d.description && <span className={"deed-desc small" + (open ? " open" : "")}>{withBook(d.description)}</span>}
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
                   {d.siegePoints != null && <span>· {t("осада: {n} б.", { n: d.siegePoints })}</span>}
                   {d.donationMin != null && <span>· {t("пожертвование от {n}", { n: d.donationMin })}</span>}
-                  <span title={t("Вероятность появления на новой дороге")}>· {d.chance}%</span>
+                  {!d.quarry && <span title={t("Вероятность появления на новой дороге")}>· {d.chance}%</span>}
                   {/* Две цифры по делу (решение владельца 04.10): сколько таких дел сейчас свободно на картах команд и сколько взято в работу. */}
-                  {d.onMap && <span className="on-map" title={t("На картах команд: свободных {a}, в работе {b}", { a: d.onMap.free, b: d.onMap.taken })}>· <Icon name="scroll" />{d.onMap.free} <Icon name="user" />{d.onMap.taken}</span>}
+                  {!d.quarry && d.onMap && <span className="on-map" title={t("На картах команд: свободных {a}, в работе {b}", { a: d.onMap.free, b: d.onMap.taken })}>· <Icon name="scroll" />{d.onMap.free} <Icon name="user" />{d.onMap.taken}</span>}
                   {d.bookCodes.length > 0 && <span>· <Chip icon="book" title={d.bookCodes.map(bookName).join(", ")}>{plural(d.bookCodes.length, [t("книга"), t("книги"), t("книг")])}</Chip></span>}
                   <span>· {d.direction}</span>
                 </span>
@@ -135,7 +149,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
         </ul>
       )}
       {sheet && (
-        <Sheet title={sheet.id ? t("Изменить дело") : t("Новое дело")} onClose={close} size="md"
+        <Sheet title={form.quarry ? (sheet.id ? t("Изменить дело Каменоломни") : t("Новое дело Каменоломни")) : sheet.id ? t("Изменить дело") : t("Новое дело")} onClose={close} size="md"
           foot={<><button type="button" className="secondary" onClick={close}>{t("Отмена")}</button><button type="submit" form="deed-form" disabled={busy}>{sheet.id ? t("Сохранить") : t("Добавить дело")}</button></>}>
           <form id="deed-form" onSubmit={save}>
             {sheet.id && <p className="hint">{t("Изменения увидят команды, у которых дело ещё не сдано.")}</p>}
@@ -152,24 +166,28 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
                 <label htmlFor="d-proof">{t("Что сдать")}</label>
                 <select id="d-proof" value={form.proofType} onChange={(e) => setForm({ proofType: e.target.value as ProofType })}>{(Object.keys(PROOF_LABEL) as ProofType[]).map((p) => <option key={p} value={p}>{PROOF_LABEL[p]}</option>)}</select>
               </div>
-              <div className="full">
-                <label className="check"><input type="checkbox" checked={form.quarry} onChange={(e) => setForm({ quarry: e.target.checked })} />{t("Общее дело Каменоломни: вся команда вместе, сдаёт капитан или летописец, на дороги не ставится")}</label>
-                {form.quarry && <div className="row nowrap mt-1"><label htmlFor="d-stones">{t("Камней за дело")}</label><input id="d-stones" type="number" min={1} max={20} value={form.stones} onChange={(e) => setForm({ stones: Math.max(1, Number(e.target.value) || 1) })} /></div>}
-              </div>
-              <div>
+              {form.quarry && (
+                <div>
+                  <label htmlFor="d-stones">{t("Камней за дело")}</label>
+                  <input id="d-stones" type="number" min={1} max={20} value={form.stones} onChange={(e) => setForm({ stones: Math.max(1, Number(e.target.value) || 1) })} />
+                  <p className="hint">{t("Один камень мостит одну свободную дорогу. Вся команда вместе; сдаёт капитан, заместитель или летописец; на дороги такое дело не ставится.")}</p>
+                </div>
+              )}
+              {!form.quarry && <div>
                 <label htmlFor="d-siege">{t("Баллы при осаде")} <span className="opt">{t("(пусто — по правилам)")}</span></label>
                 <input id="d-siege" type="number" min={0} max={100} value={form.siegePoints} onChange={(e) => setForm({ siegePoints: e.target.value === "" ? "" : Number(e.target.value) })} />
-              </div>
-              <div>
+              </div>}
+              {!form.quarry && <div>
                 <label htmlFor="d-don">{t("Пожертвование вместо дела, от")} <span className="opt">{t("(пусто — нельзя)")}</span></label>
                 <input id="d-don" type="number" inputMode="numeric" min={0} value={form.donationMin} onChange={(e) => setForm({ donationMin: e.target.value === "" ? "" : Number(e.target.value) })} />
-              </div>
-              <div>
+              </div>}
+              {!form.quarry && <div>
                 <label htmlFor="d-chance">{t("Вероятность появления на новой дороге")}</label>
                 <select id="d-chance" value={form.chance} onChange={(e) => setForm({ chance: Number(e.target.value) })}>{CHANCES.map((n) => <option key={n} value={n}>{n}%</option>)}</select>
                 <p className="hint">{t("Вес при розыгрыше: дело на 100% выпадает в пять раз чаще дела на 20%. Дела до 60% не ставятся рядом с таким же делом, от 80% — могут.")}</p>
-              </div>
+              </div>}
             </div>
+            {!form.quarry && <>
             <div className="with-help">
               <label htmlFor="d-book">{t("Книги по теме")} <span className="opt">{t("(необязательно)")}</span></label>
               <Help>{t("Из взятого города сначала выпадают дела с его книгой. Напишите [Книга] в названии или описании — подставится книга города.")}</Help>
@@ -186,6 +204,7 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
             <div className="with-help mt-3"><label className="check"><input type="checkbox" checked={form.canRepeat} onChange={(e) => setForm({ canRepeat: e.target.checked })} />{t("Повторяемое")}</label><Help>{t("Можно выдавать нескольким командам.")}</Help></div>
             <div className="with-help mt-2"><label className="check"><input type="checkbox" checked={form.secret} onChange={(e) => setForm({ secret: e.target.checked })} />{t("Тайное")}</label><Help>{t("Сдачу видит только проверяющий — сюрприз без раскрытия адресата.")}</Help></div>
             <div className="with-help mt-2"><label className="check"><input type="checkbox" checked={form.remote} onChange={(e) => setForm({ remote: e.target.checked })} />{t("Можно издалека")}</label><Help>{t("Для уехавших и болеющих. Такое дело всегда есть среди свободных сторон.")}</Help></div>
+            </>}
             {error && <p className="error">{error}</p>}
           </form>
         </Sheet>

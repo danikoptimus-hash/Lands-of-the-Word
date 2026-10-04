@@ -23,6 +23,7 @@ import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { PushToggle } from "../components/PushToggle";
 import { ActionMenu } from "../components/ActionMenu";
 import { useAuth } from "../lib/auth";
+import { setDisplayTimeZone } from "../lib/format";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 
@@ -68,7 +69,7 @@ export function GamePage() {
 
   const load = useCallback(async () => {
     const r = await api<{ game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[] }>(`/api/games/${id}`);
-    setGame(r.game); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges); setStats((s) => s ?? r.game.settings.mapStats ?? null);
+    setGame(r.game); setDisplayTimeZone((r.game.settings as { rules?: { timeZone?: string } }).rules?.timeZone); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges); setStats((s) => s ?? r.game.settings.mapStats ?? null);
     setError(null);
   }, [id]);
 

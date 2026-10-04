@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { addAwakeMs, awakeMsBetween, dayLightAt, dayPhase, phaseAt } from "@lotw/domain";
+import { addAwakeMs, awakeMsBetween, dayLightAt, dayPhase, phaseAt, dayBoundsInZone } from "@lotw/domain";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
@@ -115,6 +115,9 @@ describe("правила и настройки", () => {
     const after = (await get(`/api/games/${gameId}/my-map`, p1Cookie)).json();
     expect(after.deedLimit.taken).toBe(1);
     expect(after.deedLimit.nextAt).toBeGreaterThan(Date.now());
+    // Сутки — по часовому поясу игры (решение владельца 04.10): место освободится в ближайшую полночь по поясу игры.
+    const tz = (await get(`/api/games/${gameId}`, adminCookie)).json().game.settings.rules.timeZone as string;
+    expect(after.deedLimit.nextAt).toBe(dayBoundsInZone(tz).next);
     // Вся команда видит таймер каждого участника в составе (решение владельца 04.10).
     const roster = (await get(`/api/games/${gameId}/teams`, p1Cookie)).json().teams[0].members as Array<{ user: { nickname: string }; deedLimit: { max: number; taken: number; nextAt: number | null } | null }>;
     const me = roster.find((x) => x.user.nickname === p1Nick)!;
@@ -125,6 +128,19 @@ describe("правила и настройки", () => {
     await post(`/api/games/${gameId}/edge-tasks/${open[0].id}/release`, p1Cookie);
     const off = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { maxDeedsPerDay: 0 } } } });
     expect(off.statusCode).toBe(200);
+  });
+
+  it("свидетель: дело без ссылок, в сдаче обязателен человек, который может подтвердить", async () => {
+    const created = await post(`/api/games/${gameId}/deeds`, adminCookie, { title: "Помолиться вслух в церкви (тест)", description: "Назвать свидетеля", direction: "Молитва", proofType: "WITNESS", canRepeat: true, bookCodes: [], chance: 60 });
+    expect(created.statusCode).toBe(201);
+    const map = (await get(`/api/games/${gameId}/my-map`, p1Cookie)).json();
+    const open = map.tasks.find((t: { status: string; sea?: boolean }) => t.status === "OPEN" && !t.sea);
+    await prisma.teamEdgeTask.update({ where: { id: open.id }, data: { deedId: created.json().deed.id } });
+    expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/take`, p1Cookie)).statusCode).toBe(200);
+    const empty = await post(`/api/games/${gameId}/edge-tasks/${open.id}/submit`, p1Cookie, { links: [], note: "", participants: [] });
+    expect(empty.statusCode).toBe(400); expect(empty.json().message).toContain("кто может подтвердить");
+    const ok = await post(`/api/games/${gameId}/edge-tasks/${open.id}/submit`, p1Cookie, { links: [], note: "Свидетель: служитель", participants: [] });
+    expect(ok.statusCode).toBe(200); expect(ok.json().task.status).toBe("SUBMITTED");
   });
 
   it("администратор меняет правила в идущей игре через продвинутые настройки", async () => {

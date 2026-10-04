@@ -49,7 +49,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const rules = rulesOf(game.settings);
     // Лимит дел в сутки у каждого участника виден всей команде: таймер до следующего дела (решение владельца 04.10).
     const userIds = teams.flatMap((t) => t.members.map((m) => m.user.id));
-    const limits = await deedLimitsFor(id, rules.maxDeedsPerDay, userIds);
+    const limits = await deedLimitsFor(id, rules.maxDeedsPerDay, userIds, rules.timeZone);
     // Администратору — дела, которые участник сейчас держит: взятые, сданные на проверку, возвращённые (решение владельца 04.10).
     const active = new Map<string, Array<{ id: string; title: string; status: string; takenAt: Date | null; submittedAt: Date | null }>>();
     if (isAdmin) {

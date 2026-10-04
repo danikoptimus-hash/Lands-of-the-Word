@@ -9,19 +9,34 @@ export function plural(n: number, forms: [string, string, string] | [string, str
   return `${n} ${f}`;
 }
 
-/** Дата и время по языку интерфейса: «сегодня 14:05», «вчера 18:30», «5 сент., 14:05». */
+/**
+ * Часовой пояс игры для показа времени (решение владельца 04.10): даты и часы в игре показываются по поясу игры,
+ * а не по настройкам устройства участника, чтобы «сегодня», «до 0:00» и время сдачи совпадали у всех. Страницы игры
+ * выставляют его, как только узнают правила; до этого — пояс устройства.
+ */
+let displayZone: string | undefined;
+export function setDisplayTimeZone(tz: string | undefined): void { displayZone = tz || undefined; }
+export function displayTimeZone(): string | undefined { return displayZone; }
+/** Календарный день «ГГГГ-ММ-ДД» по поясу игры (при неизвестном поясе — устройства). */
+function dayKey(d: Date): string {
+  try { return d.toLocaleDateString("en-CA", { timeZone: displayZone, year: "numeric", month: "2-digit", day: "2-digit" }); }
+  catch { return d.toLocaleDateString("en-CA", { year: "numeric", month: "2-digit", day: "2-digit" }); }
+}
+function zoned<T>(f: (tz: string | undefined) => T): T { try { return f(displayZone); } catch { return f(undefined); } }
+
+/** Дата и время по языку интерфейса и поясу игры: «сегодня 14:05», «вчера 18:30», «5 сент., 14:05». */
 export function fmtDate(iso: string | number | Date | null | undefined, opts: { time?: boolean } = { time: true }): string {
   if (!iso) return "";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";
   const loc = getLocale() === "en" ? "en-GB" : "ru-RU";
-  const time = d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit" });
+  const time = zoned((tz) => d.toLocaleTimeString(loc, { hour: "2-digit", minute: "2-digit", timeZone: tz }));
   const now = new Date();
-  const sameDay = (a: Date, b: Date) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-  if (sameDay(d, now)) return opts.time ? `${t("сегодня")} ${time}` : t("сегодня");
-  if (sameDay(d, yesterday)) return opts.time ? `${t("вчера")} ${time}` : t("вчера");
-  const date = d.toLocaleDateString(loc, { day: "numeric", month: "short", ...(d.getFullYear() !== now.getFullYear() ? { year: "numeric" } : {}) });
+  const yesterday = new Date(now.getTime() - 86_400_000);
+  if (dayKey(d) === dayKey(now)) return opts.time ? `${t("сегодня")} ${time}` : t("сегодня");
+  if (dayKey(d) === dayKey(yesterday)) return opts.time ? `${t("вчера")} ${time}` : t("вчера");
+  const sameYear = dayKey(d).slice(0, 4) === dayKey(now).slice(0, 4);
+  const date = zoned((tz) => d.toLocaleDateString(loc, { day: "numeric", month: "short", timeZone: tz, ...(sameYear ? {} : { year: "numeric" }) }));
   return opts.time ? `${date}, ${time}` : date;
 }
 
