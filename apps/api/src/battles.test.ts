@@ -173,23 +173,24 @@ describe("битва за город", () => {
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     expect(node.defenseLevel).toBe(12);
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie);
-    expect(w.json().minBid).toBe(13);
+    // Отбитый вызов (04.10): штраф претендентов +5 → max(10 + 5, 12 + 1) = 15.
+    expect(w.json().minBid).toBe(15);
     expect(w.json().canDeclare).toBe(true);
     await prisma.user.deleteMany({ where: { nickname: `bp3_${stamp}` } });
   });
 
   it("сгоревшая атака (14 дней без ссылок) даёт штраф +5 к минимальной ставке", async () => {
-    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 13 });
+    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 15 });
     expect(res.statusCode).toBe(201);
     await prisma.battle.update({ where: { id: res.json().id }, data: { attackDeadline: new Date(Date.now() - 1000) } });
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie);
     expect(w.json().battles[0].status).toBe("EXPIRED");
-    expect(w.json().penalty).toBe(5);
-    expect(w.json().minBid).toBe(15);
+    expect(w.json().penalty).toBe(10);
+    expect(w.json().minBid).toBe(20);
   });
 
   it("просроченная оборона: город взят, столица потеряна — команда выбывает", async () => {
-    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 15 });
+    const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 20 });
     const id = res.json().id as string;
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie);
     const { start, end } = w.json().battles[0].passage as { start: number; end: number };
@@ -213,7 +214,7 @@ describe("битва за город", () => {
     const defeated = await prisma.team.findUniqueOrThrow({ where: { id: team1 } });
     expect(defeated.status).toBe("defeated");
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
-    expect(node.defenseLevel).toBe(15);
+    expect(node.defenseLevel).toBe(20);
     // Из двух команд в строю осталась одна — игра завершена, победитель определён.
     const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
     expect(game.status).toBe("FINISHED");

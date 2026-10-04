@@ -284,7 +284,8 @@ describe("испытание по решениям 18.09", () => {
     await prisma.battle.update({ where: { id: res.json().id }, data: { attackDeadline: new Date(Date.now() - 1000) } });
     const w = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie);
     expect(w.json().battles[0].status).toBe("EXPIRED");
-    expect(w.json().penalty).toBe(5);
+    // 5 за отбитый вызов (04.10) + 5 за сгоревший.
+    expect(w.json().penalty).toBe(10);
     const again = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie, { bid: 26 });
     expect(again.statusCode).toBe(201);
     expect((await prisma.battle.findUniqueOrThrow({ where: { id: again.json().id } })).afterBurn).toBe(true);

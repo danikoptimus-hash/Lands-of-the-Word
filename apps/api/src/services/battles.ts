@@ -248,15 +248,23 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
   const [book, members, rules] = await Promise.all([loadBook(b.bookCode), prisma.membership.count({ where: { teamId: b.defenderId } }), gameRules(b.gameId)]);
   const max = book ? book.total * Math.max(1, members) : Infinity;
   const lockedUntil = b.sumMode && M >= max && rules.lockWeeks > 0 ? new Date(now.getTime() + days(7 * rules.lockWeeks)) : null;
+  // Отбитый вызов (решение владельца 04.10): следующий вызов этой команды этому городу дороже на 5 стихов — штраф
+  // копится, как и за сгоревший вызов. Минимальная ставка = max(10 + штраф, уровень + 1).
+  const prevPenalty = (await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } }, select: { attackPenalty: true } }))?.attackPenalty ?? 0;
   const [upd] = await prisma.$transaction([
     prisma.battle.update({ where: { id: b.id }, data: { status: "REPELLED", defenseBid: M, resolvedAt: now }, include: { entries: true } }),
     prisma.mapNode.update({ where: { gameId_key: { gameId: b.gameId, key: b.nodeKey } }, data: { defenseLevel: M, fatigueAt: null, ...(lockedUntil ? { lockedUntil, maxReachedAt: now } : {}) } }),
+    prisma.teamCityState.upsert({
+      where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } },
+      create: { gameId: b.gameId, teamId: b.attackerId, nodeKey: b.nodeKey, attackPenalty: rules.burnPenalty },
+      update: { attackPenalty: { increment: rules.burnPenalty } },
+    }),
   ]);
   publish(b.gameId, { type: "battles" });
   publish(b.gameId, { type: "map" });
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_repelled", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
   notifyTeam(b.gameId, b.defenderId, "город {book} устоял", (locale) => msg(locale, "Ответ одобрен: {m} стихов против {need}. Город остаётся вашим, уровень испытания теперь {m}.", { m: M, need }) + (lockedUntil ? msg(locale, " Каждый участник выучил всю книгу: город закреплён до {date}.", { date: fmtDay(lockedUntil, locale) }) : ""), { book: b.bookCode });
-  notifyTeam(b.gameId, b.attackerId, "город {book} устоял", "Хранители ответили {m} стихами против ваших {need}. Следующий вызов этому городу потребует не меньше {next}.", { book: b.bookCode, m: M, need, next: M + 1 });
+  notifyTeam(b.gameId, b.attackerId, "город {book} устоял", "Хранители ответили {m} стихами против ваших {need}. Следующий вызов этому городу потребует не меньше {next}.", { book: b.bookCode, m: M, need, next: minBidFor(M, prevPenalty + rules.burnPenalty, rules) });
   await startNextFromQueue(b.gameId, b.nodeKey);
   return upd;
 }
