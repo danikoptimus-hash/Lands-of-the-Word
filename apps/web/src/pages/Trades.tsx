@@ -6,6 +6,7 @@ import { fmtDate, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { Help } from "../components/Help";
+import { Sheet } from "../components/Sheet";
 import { useGameEvents } from "../lib/useGameEvents";
 
 /**
@@ -25,6 +26,8 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
   const [message, setMessage] = useState("");
   const [counter, setCounter] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  /** Форма предложения спрятана в кнопку (решение владельца 04.10): открывается листом поверх меню. */
+  const [formOpen, setFormOpen] = useState(false);
   const load = useCallback(() => api<TradesDto>(`/api/games/${gameId}/my-trades`).then(setData).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load]);
   useGameEvents(gameId, (e) => { if (e.type === "trades" || e.type === "cities" || e.type === "teams") void load(); });
@@ -43,7 +46,7 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
 
   async function propose() {
     if (!toTeamId || !offerKey) { notify(t("Выберите команду и город"), "bad"); return; }
-    if (await call("new", `/api/games/${gameId}/trades`, { toTeamId, offerKey, message }, t("Предложение отправлено"))) { setOfferKey(""); setMessage(""); }
+    if (await call("new", `/api/games/${gameId}/trades`, { toTeamId, offerKey, message }, t("Предложение отправлено"))) { setOfferKey(""); setMessage(""); setFormOpen(false); }
   }
   async function accept(x: TradeDto) {
     if (!x.counter) return;
@@ -96,25 +99,24 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
           </div>
         );
       })}
-      <div className="trade-new">
-        <h3>{t("Предложить обмен")}</h3>
-        {data.teams.length === 0 ? <p className="hint">{t("Других команд в игре нет.")}</p> : tradable.length === 0 ? <p className="hint">{t("Пока нечего предложить: нужен взятый город, кроме столицы.")}</p> : (
-          <>
-            <div className="grid cols-2">
-              <div>
-                <label htmlFor="trade-team">{t("Команда")}</label>
-                <select id="trade-team" value={toTeamId} onChange={(e) => setToTeamId(e.target.value)}><option value="">{t("Выберите команду…")}</option>{data.teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
-              </div>
-              <div>
-                <label htmlFor="trade-city">{t("Наш город")}</label>
-                <select id="trade-city" value={offerKey} onChange={(e) => setOfferKey(e.target.value)}><option value="">{t("Выберите город…")}</option>{tradable.map((c) => <option key={c.nodeKey} value={c.nodeKey}>{c.bookName} · {words(c.words)}</option>)}</select>
-              </div>
-            </div>
-            <div className="field"><label htmlFor="trade-msg">{t("Сообщение послу")} <span className="opt">{t("необязательно")}</span></label><input id="trade-msg" className="full" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} /></div>
-            <div className="actions"><button type="button" disabled={busy === "new"} onClick={() => void propose()}><Icon name="handshake" />{t("Предложить обмен")}</button></div>
-          </>
-        )}
+      <div className="actions trade-new">
+        <button type="button" onClick={() => setFormOpen(true)}><Icon name="handshake" />{t("Предложить обмен")}</button>
       </div>
+      {formOpen && (
+        <Sheet size="sm" title={t("Предложить обмен")} onClose={() => setFormOpen(false)} className="trade-form"
+          foot={<><button type="button" className="secondary" onClick={() => setFormOpen(false)}>{t("Отмена")}</button><button type="button" disabled={busy === "new" || !toTeamId || !offerKey} onClick={() => void propose()}><Icon name="handshake" />{t("Предложить обмен")}</button></>}>
+          {data.teams.length === 0 ? <p className="hint">{t("Других команд в игре нет.")}</p> : tradable.length === 0 ? <p className="hint">{t("Пока нечего предложить: нужен взятый город, кроме столицы.")}</p> : (
+            <>
+              <label htmlFor="trade-team">{t("Команда")}</label>
+              <select id="trade-team" value={toTeamId} onChange={(e) => setToTeamId(e.target.value)}><option value="">{t("Выберите команду…")}</option>{data.teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
+              <label htmlFor="trade-city" className="mt-2">{t("Наш город")}</label>
+              <select id="trade-city" value={offerKey} onChange={(e) => setOfferKey(e.target.value)}><option value="">{t("Выберите город…")}</option>{tradable.map((c) => <option key={c.nodeKey} value={c.nodeKey}>{c.bookName} · {words(c.words)}</option>)}</select>
+              <div className="field mt-2"><label htmlFor="trade-msg">{t("Сообщение послу")} <span className="opt">{t("необязательно")}</span></label><input id="trade-msg" className="full" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} /></div>
+              <p className="hint">{t("Посол другой команды увидит город и число слов в его книге и предложит свой город взамен.")}</p>
+            </>
+          )}
+        </Sheet>
+      )}
       {closed.length > 0 && (
         <ul className="list">
           {closed.map((x) => (

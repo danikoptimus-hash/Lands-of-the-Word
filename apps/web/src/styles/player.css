@@ -514,6 +514,5 @@
 .trade-sides .label { display: block; font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .trade-city { display: inline-flex; align-items: center; gap: 4px; }
 .trade-city .i { width: var(--icon-sm); height: var(--icon-sm); }
-.trade-new { margin-top: var(--sp-3); }
-.trade-new h3 { margin-bottom: var(--sp-1); }
+.trade-new { margin-top: var(--sp-2); }
 @media (max-width: 420px) { .trade-sides { grid-template-columns: 1fr; } }

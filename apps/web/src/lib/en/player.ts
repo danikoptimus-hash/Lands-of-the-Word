@@ -1,5 +1,6 @@
 /** EN-строки области «player»: карта, HUD, меню, дело, город, задание, испытание, проходы, «Как играть». Ключ — русская строка как в коде. */
 export const PLAYER: Record<string, string> = {
+  "Посол другой команды увидит город и число слов в его книге и предложит свой город взамен.": "The other team’s ambassador will see the city and the number of words in its book and offer their city in return.",
   "Обмен городами. Только посол. В меню «Команды» посол выставляет свой город другой команде: у города написано, сколько слов в его книге. Посол другой команды предлагает взамен свой город. Если он подходит, первый посол нажимает «Обменять», и города переходят друг другу; если нет — «Не подходит», и ждём другое предложение. Зашли в тупик — любая сторона отменяет сделку. Столицу обменять нельзя.": "City trade. Ambassadors only. In the “Teams” menu the ambassador offers their city to another team: the city shows how many words its book has. The other team’s ambassador offers a city in return. If it suits, the first ambassador taps “Trade” and the cities change hands; if not, “Not suitable”, and you wait for another offer. At a dead end either side cancels the trade. A capital cannot be traded.",
   "слово": "word",
   "слова": "words",
