@@ -64,7 +64,10 @@ describe("стандартный набор дел", () => {
     await reshuffleStartedGamesOnce(log, gameId); // только своя игра: другие тестовые игры идут параллельно
     const after = await prisma.teamEdgeTask.findMany({ where: { id: { in: before.map((t) => t.id) } } });
     const byId = new Map(after.map((t) => [t.id, t]));
-    expect(byId.get(before[0]!.id)!.deedId).not.toBe(byId.get(before[1]!.id)!.deedId);
+    // Дела с шансом ≥ 80% могут стоять рядом (правило 04.10), поэтому разные дела требуем только для редких.
+    const d0 = await prisma.deed.findUniqueOrThrow({ where: { id: byId.get(before[0]!.id)!.deedId } });
+    const d1 = await prisma.deed.findUniqueOrThrow({ where: { id: byId.get(before[1]!.id)!.deedId } });
+    if (d0.chance < 80 && d1.chance < 80) expect(d0.id).not.toBe(d1.id);
     expect(byId.get(taken.id)!.deedId).toBe(taken.deedId);
     const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
     expect(game.deedsReshuffledAt).toBeTruthy();
