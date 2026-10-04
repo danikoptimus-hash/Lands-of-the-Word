@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { deedLimitsFor } from "../services/teamMap.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err, msg } from "../services/i18n.js";
@@ -46,7 +47,9 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     });
     if (!isAdmin && teams.length === 0) return reply.code(403).send({ error: "forbidden", message: err(request, "Вы не состоите в этой игре") });
     const rules = rulesOf(game.settings);
-    return { isAdmin, roleChangeDays: rules.roleChangeDays, teams: teams.map((t) => ({ ...t, roleChangeAvailableAt: t.lastRoleChangeAt && rules.roleChangeDays > 0 ? new Date(t.lastRoleChangeAt.getTime() + days(rules.roleChangeDays)) : null })) };
+    // Лимит дел в сутки у каждого участника виден всей команде: таймер до следующего дела (решение владельца 04.10).
+    const limits = await deedLimitsFor(id, rules.maxDeedsPerDay, teams.flatMap((t) => t.members.map((m) => m.user.id)));
+    return { isAdmin, roleChangeDays: rules.roleChangeDays, teams: teams.map((t) => ({ ...t, members: t.members.map((m) => ({ ...m, deedLimit: limits.get(m.user.id) ?? null })), roleChangeAvailableAt: t.lastRoleChangeAt && rules.roleChangeDays > 0 ? new Date(t.lastRoleChangeAt.getTime() + days(rules.roleChangeDays)) : null })) };
   });
 
   app.post("/api/games/:id/teams", async (request, reply) => {

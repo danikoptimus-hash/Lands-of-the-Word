@@ -255,7 +255,7 @@ export const PLAYER: Record<string, string> = {
   "Подсказка пророка · текст района {verses} · видна только вам: расскажите команде": "Prophet's hint · text of district {verses} · visible only to you: tell the team",
   "Печать остывает после неверного ключа: подождите {t}": "The seal is cooling down after a wrong key: wait {t}",
   "Бросает вызов и отвечает на испытания, переносит столицу, назначает заместителя и просит роли у администратора.": "Declares challenges and answers trials, moves the capital, appoints a deputy and requests roles from the administrator.",
-  "заместитель": "deputy", "Всё, что может капитан, кроме назначения ролей: вызов, ответ, столица.": "Everything the captain can do except roles: challenge, answer, capital.",
+"Следующее дело через {when}": "Next deed in {when}", "Дел за сутки: {a} из {b}, можно взять": "Deeds today: {a} of {b}, can take one",   "заместитель": "deputy", "Всё, что может капитан, кроме назначения ролей: вызов, ответ, столица.": "Everything the captain can do except roles: challenge, answer, capital.",
   "Воин": "Warrior", "воин ×{k}": "warrior ×{k}", "Его выученные стихи в испытаниях считаются вдвое.": "The verses they learn count double in trials.",
   "Прочитал": "Read it", "Письмо показывается один раз и исчезает: перепишите нужное и расскажите команде.": "The letter is shown once and disappears: copy what you need and tell the team.",
   "Подсказка пророка к этому заданию уже показана: она видна один раз.": "The prophet’s hint for this task has already been shown: it is visible once.",

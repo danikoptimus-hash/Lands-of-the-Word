@@ -275,6 +275,24 @@ export async function ensureRemoteDeed(gameId: string, teamId: string, candidate
   await prisma.teamEdgeTask.update({ where: { id: target.id }, data: { deedId: remoteId } });
 }
 
+const DAY_MS = 86_400_000;
+export interface DeedLimit { max: number; taken: number; nextAt: number | null }
+/**
+ * Лимит дел в сутки для нескольких участников одним запросом: сколько взято за последние 24 часа и когда освободится
+ * место (момент выхода самого раннего взятия из окна). Пустая карта — лимита нет. Видят все в составе команды
+ * (решение владельца 04.10: таймер до следующего дела у каждого участника).
+ */
+export async function deedLimitsFor(gameId: string, max: number, userIds: string[]): Promise<Map<string, DeedLimit>> {
+  const out = new Map<string, DeedLimit>();
+  if (!max || userIds.length === 0) return out;
+  const since = new Date(Date.now() - DAY_MS);
+  const rows = await prisma.teamEdgeTask.findMany({ where: { gameId, takenById: { in: userIds }, takenAt: { gte: since } }, select: { takenById: true, takenAt: true }, orderBy: { takenAt: "asc" } });
+  const byUser = new Map<string, number[]>();
+  for (const r of rows) if (r.takenById && r.takenAt) byUser.set(r.takenById, [...(byUser.get(r.takenById) ?? []), r.takenAt.getTime()]);
+  for (const id of userIds) { const t = byUser.get(id) ?? []; out.set(id, { max, taken: t.length, nextAt: t.length >= max ? t[t.length - max]! + DAY_MS : null }); }
+  return out;
+}
+
 /**
  * Перекомпоновка свободных дел (решение владельца 04.10): игра делает это сама, без кнопки. Для каждой свободной
  * стороны (OPEN) команды дело подбирается заново по обычным правилам — по книге города, иначе из общего пула,

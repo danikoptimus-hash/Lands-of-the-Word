@@ -116,6 +116,12 @@ describe("правила и настройки", () => {
     const after = (await get(`/api/games/${gameId}/my-map`, p1Cookie)).json();
     expect(after.deedLimit.taken).toBe(1);
     expect(after.deedLimit.nextAt).toBeGreaterThan(Date.now());
+    // Вся команда видит таймер каждого участника в составе (решение владельца 04.10).
+    const roster = (await get(`/api/games/${gameId}/teams`, p1Cookie)).json().teams[0].members as Array<{ user: { nickname: string }; deedLimit: { max: number; taken: number; nextAt: number | null } | null }>;
+    const me = roster.find((x) => x.user.nickname === p1Nick)!;
+    expect(me.deedLimit).toMatchObject({ max: 1, taken: 1 });
+    expect(me.deedLimit!.nextAt).toBeGreaterThan(Date.now());
+    expect(roster.find((x) => x.user.nickname !== p1Nick)!.deedLimit).toEqual({ max: 1, taken: 0, nextAt: null });
     // Товарищ по команде лимитом первого не ограничен — пусть берут другие.
     await post(`/api/games/${gameId}/edge-tasks/${open[0].id}/release`, p1Cookie);
     const off = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { maxDeedsPerDay: 0 } } } });

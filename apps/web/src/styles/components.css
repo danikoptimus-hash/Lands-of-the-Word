@@ -80,6 +80,10 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar.lg { width: 44px; height: 44px; font-size: var(--fs-lg); }
 .avatar.sm { width: 24px; height: 24px; font-size: var(--fs-xs); }
 .person { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+/* Таймер до следующего дела у участника в составе (решение владельца 04.10). */
+.roster .deed-timer { display: flex; align-items: center; gap: 4px; margin: 2px 0 0 0; }
+.roster .deed-timer .i { width: 14px; height: 14px; flex: none; color: var(--warn, var(--accent)); }
+.roster .deed-timer.free { color: var(--muted); }
 .person .name { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Заметки и ошибки */

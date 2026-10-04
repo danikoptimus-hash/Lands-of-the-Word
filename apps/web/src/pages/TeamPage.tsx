@@ -230,7 +230,7 @@ export function TeamPage() {
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   useEffect(() => { if (team) { void loadBattles(); void loadStandings(); void loadPassages(); void loadPeace(); } }, [team, loadBattles, loadStandings, loadPassages, loadPeace]);
   useGameEvents(id, (e) => {
-    if (e.type === "teams" || e.type === "game") void loadTeam();
+    if (e.type === "teams" || e.type === "game" || e.type === "tasks") void loadTeam(); // tasks: таймеры дел у участников в составе
     if (e.type !== "deeds") void loadMap();
     if (e.type === "cities" || e.type === "game" || e.type === "battles") { setCityVersion((v) => v + 1); void loadPassages(); }
     if (e.type === "battles" || e.type === "game" || e.type === "submissions") void loadBattles();
@@ -727,6 +727,9 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
 /** Состав команды: роль — пилюля с объяснением по нажатию; капитан назначает роли выбором. */
 /** embedded — внутри строки таблицы команд: вместо заголовка раздела — строка «Состав · N». */
 function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
+  // Таймеры «следующее дело через…» тикают раз в полминуты.
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i); }, []);
   const [open, setOpen] = useState<string | null>(null);
   /** Кому раскрыт ряд ролей (вариант 1, решение владельца 23.09): выбор пилюлей назначает роль сразу, повторное нажатие снимает. */
   const [pick, setPick] = useState<string | null>(null);
@@ -752,6 +755,10 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
             <li key={m.user.id} className={picking ? "picking" : undefined}>
               <div className="main">
                 <div className="person"><span className="avatar">{name.slice(0, 1).toUpperCase()}</span><span className="name">{name}</span>{m.role === "DEPUTY" && m.gameRole !== "NONE" && <Chip tone="accent" icon="star">{t("заместитель")}</Chip>}</div>
+                {/* Лимит дел в сутки у каждого участника виден всей команде (решение владельца 04.10): таймер до следующего дела. */}
+                {m.deedLimit && (m.deedLimit.nextAt && m.deedLimit.nextAt > now
+                  ? <p className="hint deed-timer"><Icon name="clock" />{t("Следующее дело через {when}", { when: untilText(m.deedLimit.nextAt) })}</p>
+                  : <p className="hint deed-timer free">{t("Дел за сутки: {a} из {b}, можно взять", { a: m.deedLimit.taken, b: m.deedLimit.max })}</p>)}
                 {shown && r.hint() && <p className="hint">{r.hint()}</p>}
               </div>
               <div className="side">
