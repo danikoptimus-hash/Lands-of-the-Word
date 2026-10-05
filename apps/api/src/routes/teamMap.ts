@@ -100,7 +100,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true, settings: true } });
+    const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true, settings: true, startedAt: true } });
     // Ценник пожертвования у каждого дела свой (deed.donationMin); игра задаёт только валюту (решение владельца 02.10).
     const donation = { currency: (game.settings as { donationCurrency?: string }).donationCurrency ?? "" };
     if (game.status === "DRAFT") return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
@@ -108,7 +108,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const deedLimit = await deedLimitFor(id, request.user!.id);
     // Время суток игры (решение владельца 03.10): карта красится по фазе и поясу, ночью действия закрыты.
     const daytime = await gameDaytime(id);
-    return { status: game.status, gameName: game.name, donation, deedLimit, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey, stones: (await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } })).stones }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    return { status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey, stones: (await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } })).stones }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
@@ -249,7 +249,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
   async function decideTask(id: string, taskId: string, body: { approve: boolean; comment: string }, adminId: string): Promise<{ ok: true; task: unknown } | { ok: false; code: 404 | 409; message: string }> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, gameId: id } });
     if (!task) return { ok: false, code: 404, message: "Сдача не найдена" };
-    if (task.status !== "SUBMITTED") return { ok: false, code: 409, message: "Эта сдача уже рассмотрена" };
+    // Пересмотр (решение владельца 05.10): возвращённое по ошибке дело можно принять, пока команда его не пересдала.
+    const reconsider = body.approve && task.status === "REJECTED";
+    if (task.status !== "SUBMITTED" && !reconsider) return { ok: false, code: 409, message: "Эта сдача уже рассмотрена" };
     const request = { user: { id: adminId } };
     const updated = await prisma.teamEdgeTask.update({
       where: { id: taskId },

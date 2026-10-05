@@ -311,6 +311,28 @@ describe("карта команды и дела", () => {
     expect(progress.json().teams[0].traversed[0].at).toBeTruthy();
     expect(progress.json().startedAt).toBeTruthy();
   });
+
+  it("возвращённое по ошибке дело принимается после пересмотра (решение владельца 05.10)", async () => {
+    const before = (await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: playerCookie } })).json();
+    const open = before.tasks.find((t: { status: string; sea?: boolean }) => t.status === "OPEN" && !t.sea);
+    expect(open).toBeTruthy();
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${open.id}/take`, headers: { cookie: playerCookie } })).statusCode).toBe(200);
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${open.id}/submit`, headers: { cookie: playerCookie }, payload: { links: ["https://example.com/photo3"], note: "Сделали как надо" } })).statusCode).toBe(200);
+    const rej = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${open.id}/decide`, headers: { cookie: adminCookie }, payload: { approve: false, comment: "по ошибке" } });
+    expect(rej.json().task.status).toBe("REJECTED");
+    const list = await app.inject({ method: "GET", url: `/api/games/${gameId}/submissions?status=REJECTED`, headers: { cookie: adminCookie } });
+    expect(list.json().tasks.map((t: { id: string }) => t.id)).toContain(open.id);
+    // Вернуть ещё раз нельзя, принять после пересмотра — можно.
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${open.id}/decide`, headers: { cookie: adminCookie }, payload: { approve: false, comment: "ещё раз" } })).statusCode).toBe(409);
+    const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${open.id}/decide`, headers: { cookie: adminCookie }, payload: { approve: true } });
+    expect(ok.statusCode).toBe(200);
+    expect(ok.json().task.status).toBe("APPROVED");
+    const after = (await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: playerCookie } })).json();
+    expect(after.revealed.length).toBe(before.revealed.length + 1);
+    expect(after.revealed.every((n: { revealedAt?: string | null }) => n.revealedAt)).toBe(true);
+    expect(after.startedAt).toBeTruthy();
+    expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${open.id}/decide`, headers: { cookie: adminCookie }, payload: { approve: true } })).statusCode).toBe(409);
+  });
 });
 
 describe("администраторы игры", () => {

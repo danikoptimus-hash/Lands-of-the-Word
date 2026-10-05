@@ -73,12 +73,14 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
   /** Описание дела администратор знает: показываем по кнопке «Описание», отчёт и ссылки — всегда на виду. */
   const [descOpen, setDescOpen] = useState<Set<string>>(new Set());
   const toggleDesc = (id: string) => setDescOpen((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const load = useCallback(() => api<{ tasks: Row[] }>(`/api/games/${gameId}/submissions`).then((r) => { setRows(r.tasks); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
+  /** Возвращённые дела (решение владельца 05.10): возвращённое по ошибке можно найти здесь и принять после пересмотра. */
+  const [returned, setReturned] = useState(false);
+  const load = useCallback(() => api<{ tasks: Row[] }>(`/api/games/${gameId}/submissions${returned ? "?status=REJECTED" : ""}`).then((r) => { setRows(r.tasks); setLoadError(false); }).catch(() => setLoadError(true)), [gameId, returned]);
   useAutoRefresh(load, version);
 
   async function decide(id: string, approve: boolean, comment = "") {
     setBusyId(id);
-    try { await api(`/api/games/${gameId}/edge-tasks/${id}/decide`, { method: "POST", body: JSON.stringify({ approve, comment }) }); notify(approve ? t("Сдача принята") : t("Сдача возвращена")); setReturning(null); await load(); onDecided(); }
+    try { await api(`/api/games/${gameId}/edge-tasks/${id}/decide`, { method: "POST", body: JSON.stringify({ approve, comment }) }); notify(approve ? (returned ? t("Сдача принята после пересмотра") : t("Сдача принята")) : t("Сдача возвращена")); setReturning(null); await load(); onDecided(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusyId(null); }
   }
@@ -99,8 +101,9 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
   const ageOf = (iso: string | null) => { if (!iso) return ""; const h = Math.floor((Date.now() - Date.parse(iso)) / 3_600_000); return h < 1 ? t("только что") : h < 24 ? t("{n} ч назад", { n: h }) : t("{n} дн назад", { n: Math.floor(h / 24) }); };
 
   return (
-    <ReviewCard icon="scroll" title={t("Сдачи")} count={rows?.length ?? 0} loading={!rows} error={loadError} onRetry={() => void load()}>
-      {rows && rows.length > 1 && (
+    <ReviewCard icon="scroll" title={returned ? t("Возвращённые") : t("Сдачи")} count={rows?.length ?? 0} loading={!rows} error={loadError} onRetry={() => void load()}
+      aside={<button type="button" className="ghost sm" aria-pressed={returned} onClick={() => { setRows(null); setPicked(new Set()); setReturned((v) => !v); }}><Icon name={returned ? "clock" : "alert"} />{returned ? t("К сдачам") : t("Возвращённые")}</button>}>
+      {rows && rows.length > 1 && !returned && (
         <div className="review-filters">
           <select aria-label={t("Команда")} value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)}><option value="">{t("Все команды")}</option>{teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
           <select aria-label={t("Вид сдачи")} value={kindFilter} onChange={(e) => setKindFilter(e.target.value)}><option value="">{t("Любой вид")}</option>{(Object.keys(PROOF_LABEL) as Array<keyof typeof PROOF_LABEL>).map((k) => <option key={k} value={k}>{PROOF_LABEL[k]}</option>)}</select>
@@ -112,19 +115,20 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
         <ul className="list">
           {shown.map((r) => (
             <li key={r.id} className={"review-item" + (picked.has(r.id) ? " picked" : "")}>
-              {rows.length > 1 && <label className="pick"><input type="checkbox" checked={picked.has(r.id)} onChange={() => togglePick(r.id)} aria-label={t("Выбрать для пакетного принятия")} /></label>}
+              {rows.length > 1 && !returned && <label className="pick"><input type="checkbox" checked={picked.has(r.id)} onChange={() => togglePick(r.id)} aria-label={t("Выбрать для пакетного принятия")} /></label>}
               <div className="main">
                 <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName />{r.donation && <Chip tone="accent">{t("пожертвование {n}", { n: `${r.donationAmount ?? ""} ${currency ?? ""}`.trim() })}</Chip>}</span>
                 <span className="title">{r.deed.title}</span>
                 {r.deed.description && <button type="button" className="ghost sm desc-toggle" aria-expanded={descOpen.has(r.id)} onClick={() => toggleDesc(r.id)}><Icon name="scroll" />{t("Описание")}</button>}
                 {r.deed.description && descOpen.has(r.id) && <span className="deed-desc open small muted">{r.deed.description}</span>}
                 <span className="meta"><span>{PROOF_LABEL[r.deed.proofType]}</span>{r.takenBy && <span>· {r.takenBy.displayName ?? r.takenBy.nickname}</span>}{r.participantNames && r.participantNames.length > 0 && <span className="participants">· <Icon name="users" />{t("с участниками: {names}", { names: r.participantNames.join(", ") })}</span>}{r.submittedAt && <span>· {fmtDate(r.submittedAt)} · {ageOf(r.submittedAt)}</span>}</span>
+                {returned && <span className="meta"><Icon name="alert" />{t("Возвращено {when}", { when: fmtDate(r.decidedAt) })}{r.adminComment ? ` · ${r.adminComment}` : ""}</span>}
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
                 <LinkList links={r.links} kind={linkKind(r.deed.proofType)} />
               </div>
               <div className="side">
-                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id || busyId === "batch"}><Icon name="check" />{t("Принять")}</button>
-                {returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id || busyId === "batch"}><Icon name="x" />{t("Вернуть")}</button>}
+                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id || busyId === "batch"}><Icon name="check" />{returned ? t("Принять после пересмотра") : t("Принять")}</button>
+                {!returned && returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id || busyId === "batch"}><Icon name="x" />{t("Вернуть")}</button>}
               </div>
               {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
             </li>

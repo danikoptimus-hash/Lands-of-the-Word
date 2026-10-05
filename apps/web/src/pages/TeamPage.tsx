@@ -5,6 +5,8 @@ import { api, ApiError, type BattleDto, type DailyBirdDto, type EdgeTaskDto, typ
 import { useAuth } from "../lib/auth";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamMap, type MarkPoint } from "./TeamMap";
+import { TimelineDock } from "./Timeline";
+import { mapAt, teamMoves } from "./TeamHistory";
 import { CityPopup } from "./CityPopup";
 import { QuarrySheet } from "./QuarrySheet";
 import { BATTLE_STATUS, battleTone, isMyTurn, leftText } from "./BattlePanel";
@@ -143,6 +145,10 @@ export function TeamPage() {
   const [team, setTeam] = useState<TeamDto | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [map, setMap] = useState<MyMapDto | null>(null);
+  /** Ползунок истории (решение владельца 05.10): null — сейчас, иначе карта команды на момент выбранного хода. */
+  const [historyAt, setHistoryAt] = useState<Date | null>(null);
+  const moves = useMemo(() => (map ? teamMoves(map) : []), [map]);
+  const shownMap = useMemo(() => (map && historyAt ? mapAt(map, historyAt) : map), [map, historyAt]);
   const [error, setError] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -620,12 +626,13 @@ export function TeamPage() {
       )}
 
       <div className="map-area" ref={setMapEl}>
-        <TeamMap map={map} bird={bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
+        <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
           onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} />
         {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
+        {map.startedAt && <div className="team-timeline"><TimelineDock moves={moves} startedAt={map.startedAt} at={historyAt} onChange={(d) => { setHistoryAt(d); setSelectedId(null); }} /></div>}
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">
             <Icon name="ship" /><span>{canLand ? t("Выберите одну из десяти пристаней другого острова") : t("Кормчий выбирает место высадки")}</span>

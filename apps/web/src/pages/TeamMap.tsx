@@ -337,12 +337,6 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
-          {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); при отдалении уменьшаются не ниже 0.7. */}
-          {!fullLabels && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => (
-            <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}>
-              <IslandLabel id={"isl-team-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} />
-            </g>
-          ))}
           {ripple && <g style={sc(ripple.x, ripple.y)}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
           {showMarkers && (map.marks ?? []).map((mk) => {
             // Точное место нажатия: дробные координаты переводятся той же формулой, что и центр гекса.
@@ -381,6 +375,15 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         {worldBody}
       </WorldSvg>
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={dt.light} />}
+      {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); при отдалении уменьшаются не ниже 0.7.
+          Отдельный слой под живностью: корабли проплывают поверх букв, а не под ними (замечание владельца 05.10). */}
+      <WorldSvg vp={vp} bounds={bounds} overlay>
+        {!fullLabels && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => (
+          <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}>
+            <IslandLabel id={"isl-team-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} />
+          </g>
+        ))}
+      </WorldSvg>
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">

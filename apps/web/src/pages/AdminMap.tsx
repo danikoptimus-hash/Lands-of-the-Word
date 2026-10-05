@@ -189,9 +189,6 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     );
   })();
   const screenBody = useMemo(() => (<>
-              {showIslands && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
-                return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}><IslandLabel id={"isl-adm-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
-              })}
               {nodes.map((n) => {
                 const raw = positions.get(n.key)!;
                 const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
@@ -296,6 +293,12 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               {quarryMarker}
               {screenBody}
             </g>
+          </WorldSvg>
+          {/* Подписи островов под живностью: корабли поверх букв (замечание владельца 05.10). */}
+          <WorldSvg vp={vp} bounds={bounds} overlay>
+            {showIslands && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => (
+              <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}><IslandLabel id={"isl-adm-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>
+            ))}
           </WorldSvg>
           <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} />
         </div>

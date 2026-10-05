@@ -544,3 +544,7 @@
 /* Район решён командой, но не мной (решение владельца 05.10): полупрозрачная галочка, задание открыто для своего зачёта. */
 .district.team-done .check.half { opacity: .45; }
 .district.team-done .check.half .i { color: var(--ok, #2e7d32); }
+
+/* Ползунок истории ходов на карте команды (решение владельца 05.10): такой же, как у администратора, внизу по центру карты. */
+.team-timeline { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--sp-3) + var(--safe-bottom)); z-index: 5; max-width: calc(100% - 2 * var(--sp-3)); }
+@media (min-width: 1024px) { .team-timeline { left: calc(444px + (100% - 444px) / 2); max-width: calc(100% - 444px - 2 * var(--sp-3)); } }

@@ -78,7 +78,8 @@ export function GamePage() {
     const active = status === "ACTIVE";
     const [teams, deeds, submissions, battles, recipients] = await Promise.all([
       api<{ teams: unknown[] }>(`/api/games/${id}/teams`).then((r) => r.teams.length).catch(() => 0),
-      api<{ deeds: unknown[] }>(`/api/games/${id}/deeds`).then((r) => r.deeds.length).catch(() => 0),
+      // Счётчик раздела «Дела» — только дела на дорогах, без дел Каменоломни (замечание владельца 05.10).
+      api<{ deeds: Array<{ quarry?: boolean }> }>(`/api/games/${id}/deeds`).then((r) => r.deeds.filter((d) => !d.quarry).length).catch(() => 0),
       active ? api<{ tasks: unknown[] }>(`/api/games/${id}/submissions`).then((r) => r.tasks.length).catch(() => 0) : 0,
       active ? api<{ battles: Array<{ entries: Array<{ status: string }> }> }>(`/api/games/${id}/battles`).then((r) => r.battles.reduce((n, b) => n + b.entries.filter((e) => e.status === "SUBMITTED").length, 0)).catch(() => 0) : 0,
       status !== "FINISHED" ? api<{ recipients: unknown[] }>(`/api/games/${id}/recipients`).then((r) => r.recipients.length).catch(() => 0) : 0,

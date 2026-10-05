@@ -451,16 +451,13 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
   const clear = size * (sp.kind === "whale" ? 2.2 : 1.9);
   if (car.wait <= 0) steerCet(c, p, clear, car.x, car.y, dt, T, 1);
   keepInWater(c, p, clear, dt, sp.maxTurn);
-  // Кит и корабль не идут одним телом (замечание владельца 03.10: «сцепились и дрожат вместе»): у корабля зверь
-  // уходит поперёк его курса и ныряет, пока не разойдутся на полтора корпуса.
+  // Киты и корабли идут независимо (решение владельца 05.10): зверь не уворачивается от корабля и свободно проходит
+  // под ним — у поверхности рядом с кораблём он лишь ныряет (киты рисуются под кораблями). До 05.10 кита ещё и
+  // отталкивало поперёк курса корабля (замечание 03.10 «сцепились и дрожат» решалось так), теперь — только нырок.
   for (const sh of ships) {
     if (sh.car.wait > 0) continue;
-    const dx = c.x - sh.x, dy = c.y - sh.y, d = Math.hypot(dx, dy) || 1e-6, R = (sp.L + sh.spec.L) * 0.75;
+    const d = Math.hypot(c.x - sh.x, c.y - sh.y), R = (sp.L + sh.spec.L) * 0.75;
     if (d >= R) continue;
-    const nx = -Math.sin(sh.h), ny = Math.cos(sh.h);
-    const side = dx * nx + dy * ny >= 0 ? 1 : -1;
-    const push = ((R - d) / R) * sp.speed * dt * 3;
-    c.x += nx * side * push; c.y += ny * side * push;
     const tHoldStart = s.deep + s.rise;
     if (s.t >= tHoldStart && s.t < tHoldStart + s.hold) s.t = tHoldStart + s.hold; // у поверхности — ныряет
   }

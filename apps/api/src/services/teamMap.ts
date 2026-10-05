@@ -471,6 +471,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const bookOfNode = new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, n.bookCode!]));
   const tasks = rawTasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, bookOfNode.get(t.fromKey) ?? null, t.id) }));
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
+  const revealedAtOf = new Map(revealedRows.map((r) => [r.nodeKey, r.revealedAt.toISOString()] as const));
   // Города, до которых команда дошла: чей город, и мой прогресс в нём.
   const cityNodes = nodes.filter((n) => n.kind === "CITY" && revealed.has(n.key));
   const [blocked, peeks, marks, passages] = await Promise.all([
@@ -501,6 +502,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
       orderSolved: s?.orderSolved ?? false,
       done: s?.doneTasks.length ?? 0,
       captured: s?.capturedAt != null,
+      capturedAt: s?.capturedAt?.toISOString() ?? null,
       isCapital: s?.isCapital ?? false,
       battle: battleByKey.get(n.key) ?? null,
       ruined: n.ruined,
@@ -534,7 +536,8 @@ export async function getTeamMap(gameId: string, teamId: string) {
   return {
     // Остров известен и у гексов в тумане: по нему подписываются острова.
     hexes: hexes.map((h) => (lit(h) ? { ...h, lit: true } : { q: h.q, r: h.r, island: h.island, lit: false })),
-    revealed: nodes.filter((n) => revealed.has(n.key)).map(({ ruined: _r, ...n }) => n),
+    // Когда узел открыт — для ползунка истории на карте команды (решение владельца 05.10).
+    revealed: nodes.filter((n) => revealed.has(n.key)).map(({ ruined: _r, ...n }) => ({ ...n, revealedAt: revealedAtOf.get(n.key) ?? null })),
     // Рёбра, касающиеся открытых узлов: пройденные и фронтир (в туман).
     edges: edges.filter((e) => revealed.has(e.aKey) || revealed.has(e.bKey)),
     tasks: withLanding,
