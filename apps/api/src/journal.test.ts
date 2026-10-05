@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { closeTrialsForAllPeaces } from "./services/peace.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
 import { chronicleLines, sendChronicle } from "./services/journal.js";
 import { ruinsTreasure } from "./services/treasure.js";
@@ -124,6 +125,10 @@ describe("журнал событий: лента, новости, служен�
     expect(blocked.statusCode).toBe(409);
     const news = await feedUntil<{ kind: string; everyone: boolean }>(gameId, p2Cookie, "peace_made");
     expect(news.find((f) => f.kind === "peace_made")?.everyone).toBe(true);
+    // Страховка при запуске: вызов, оставшийся при действующем мире (мир заключили до правила), закрывается проходом по всем играм.
+    const stale = await prisma.battle.create({ data: { gameId, nodeKey: rutKey, bookCode: "rut", attackerId: team2, defenderId: team1, bid: 10, status: "QUEUED" } });
+    expect(await closeTrialsForAllPeaces({ info: () => {} })).toBeGreaterThanOrEqual(1);
+    expect((await prisma.battle.findUniqueOrThrow({ where: { id: stale.id } })).status).toBe("CANCELLED");
     // Расторжение — сразу, и вызов снова возможен.
     expect((await post(`/api/games/${gameId}/peace/${incoming.peaceId}/break`, p2Cookie)).statusCode).toBe(200);
     const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 10 });

@@ -102,3 +102,21 @@ export async function closeTrialsForPeace(gameId: string, aId: string, bId: stri
   publish(gameId, { type: "map" });
   publish(gameId, { type: "cities" });
 }
+
+/**
+ * Страховка при запуске сервера: если между командами действует мир, идущих испытаний между ними быть не должно.
+ * Закрывает такие вызовы и осады во всех играх (нужно для партий, где мир заключили до правила 04.10).
+ */
+export async function closeTrialsForAllPeaces(log: { info: (o: object, msg: string) => void }): Promise<number> {
+  const peaces = await prisma.peace.findMany({ where: { status: "ACTIVE" }, include: { from: { select: { name: true } }, to: { select: { name: true } } } });
+  let closed = 0;
+  for (const p of peaces) {
+    const pair = { OR: [{ attackerId: p.fromId, defenderId: p.toId }, { attackerId: p.toId, defenderId: p.fromId }] };
+    const n = await prisma.battle.count({ where: { gameId: p.gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, ...pair } }) + await prisma.siege.count({ where: { gameId: p.gameId, status: "ACTIVE", ...pair } });
+    if (!n) continue;
+    await closeTrialsForPeace(p.gameId, p.fromId, p.toId, p.from.name, p.to.name);
+    closed += n;
+  }
+  if (closed) log.info({ closed }, "испытания между командами в мире закрыты");
+  return closed;
+}
