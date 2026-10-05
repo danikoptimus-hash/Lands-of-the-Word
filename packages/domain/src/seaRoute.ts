@@ -22,13 +22,36 @@ export function seaRoute(land: ReadonlySet<string>, fromKey: string, toKey: stri
     return obstacles.some((o) => {
       const d = Math.hypot(o.x - c.x, o.y - c.y);
       const edge = o.shape?.length ? isletRadiusAt({ r: o.r, shape: o.shape }, Math.atan2(c.y - o.y, c.x - o.x)) : o.r;
-      return d < edge + size * 0.7;
+      return d < edge + size * 1.0;
     });
   };
   const isWater = (h: Hex) => !blocked(h);
   const starts = vertexHexes(from).filter((h) => !land.has(hexKey(h))), ends = vertexHexes(to).filter((h) => !land.has(hexKey(h)));
   if (!starts.length || !ends.length) return [start ?? a, b];
   const coastal = (h: Hex) => hexNeighbors(h).some((n) => land.has(hexKey(n)));
+  // Второе кольцо от берега тоже дороже, чем открытое море: где есть место, маршрут держится в двух гексах от суши.
+  const nearCoast = (h: Hex) => hexNeighbors(h).some((n) => coastal(n));
+  const stepCost = (h: Hex) => 1 + (coastal(h) ? 4 : nearCoast(h) ? 1.5 : 0);
+  /** Точка отхода/подхода: от вершины берега в сторону воды (к центрам её водных гексов) на 1.4 размера. */
+  const offshore = (v: Pt, water: Hex[]): Pt => {
+    const cx = water.reduce((t, h) => t + hexToPixel(h, size).x, 0) / water.length, cy = water.reduce((t, h) => t + hexToPixel(h, size).y, 0) / water.length;
+    const dx = cx - v.x, dy = cy - v.y, d = Math.hypot(dx, dy) || 1;
+    return { x: v.x + (dx / d) * size * 1.4, y: v.y + (dy / d) * size * 1.4 };
+  };
+  // Сначала одна плавная S-кривая (решение владельца 05.10 по рисунку): выход из порта и подход к высадке перпендикулярно
+  // берегу, между ними кубическая кривая Безье; берётся самый широкий изгиб, который целиком лежит на воде с запасом.
+  const depPt = start ?? offshore(a, starts), appPt = offshore(b, ends);
+  const outA = unit(depPt, a), outB = unit(appPt, b);
+  const dist = Math.hypot(appPt.x - depPt.x, appPt.y - depPt.y);
+  for (const k of [0.5, 0.4, 0.3, 0.2]) {
+    const c1 = { x: depPt.x + outA.x * dist * k, y: depPt.y + outA.y * dist * k }, c2 = { x: appPt.x + outB.x * dist * k, y: appPt.y + outB.y * dist * k };
+    const n = Math.max(8, Math.ceil((dist * (1 + k)) / (size * 0.5)));
+    const pts: Pt[] = [];
+    for (let i = 0; i <= n; i++) pts.push(bezier(depPt, c1, c2, appPt, i / n));
+    // У выхода из порта и у подхода к высадке (2.5 размера от вершины берега) запас в гекс невозможен: там достаточно не задеть сушу.
+    const nearEnd = (q: Pt) => Math.hypot(q.x - a.x, q.y - a.y) < size * 2.5 || Math.hypot(q.x - b.x, q.y - b.y) < size * 2.5;
+    if (pts.every((q) => (nearEnd(q) ? offLand(q, land, size, obstacles) : clearAt(q, land, size, obstacles)))) return [a, ...pts, b];
+  }
   const endSet = new Set(ends.map(hexKey));
   const span = Math.max(...starts.map((s) => Math.max(...ends.map((e) => hexDistance(s, e)))));
   const limit = span + 10;
@@ -50,7 +73,7 @@ export function seaRoute(land: ReadonlySet<string>, fromKey: string, toKey: stri
       const k = hexKey(n);
       if (closed.has(k) || !isWater(n)) continue;
       if (hexDistance(n, starts[0]!) > limit || nearest(n) > limit) continue;
-      const g = cur.g + 1 + (coastal(n) ? 2.5 : 0);
+      const g = cur.g + stepCost(n);
       if ((best.get(k) ?? Infinity) <= g) continue;
       best.set(k, g);
       open.push({ h: n, g, f: g + nearest(n), parent: cur });
@@ -59,8 +82,18 @@ export function seaRoute(land: ReadonlySet<string>, fromKey: string, toKey: stri
   if (!found) return [start ?? a, b];
   const cells: Hex[] = [];
   for (let n: Node | null = found; n; n = n.parent) cells.unshift(n.h);
-  return pullRoute([start ?? a, ...cells.map((h) => hexToPixel(h, size)), b], land, size, obstacles);
+  // Отход от порта и подход к высадке — короткие прямые в море (решение владельца 05.10: подходить с воды, а не вдоль
+  // берега); между ними ломаная по центрам гексов натягивается в прямые там, где вода позволяет.
+  const dep = start ?? offshore(a, starts), app = offshore(b, ends);
+  const middle = pullRoute([dep, ...cells.map((h) => hexToPixel(h, size)), app], land, size, obstacles);
+  return [a, ...middle, b];
 }
+
+const unit = (p: Pt, from: Pt): Pt => { const dx = p.x - from.x, dy = p.y - from.y, d = Math.hypot(dx, dy) || 1; return { x: dx / d, y: dy / d }; };
+const bezier = (p0: Pt, p1: Pt, p2: Pt, p3: Pt, t: number): Pt => {
+  const u = 1 - t, a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
+  return { x: a * p0.x + b * p1.x + c * p2.x + d * p3.x, y: a * p0.y + b * p1.y + c * p2.y + d * p3.y };
+};
 
 /** Гекс (pointy-top) по точке карты: осевые координаты с кубическим округлением. */
 export function pixelToHex(p: Pt, size: number): Hex {
@@ -73,19 +106,19 @@ export function pixelToHex(p: Pt, size: number): Hex {
   return { q, r };
 }
 
-/** Точка в воде с запасом от берега: её гекс не суша, до центра любого соседнего гекса суши не ближе 1.45 размера (≈0.6 размера от кромки). */
+/** Точка в воде с запасом от берега: её гекс не суша, до центра любого соседнего гекса суши не ближе 2 размеров (≈ гекс от кромки). */
 function clearAt(p: Pt, land: ReadonlySet<string>, size: number, obstacles: ReadonlyArray<SeaObstacle>): boolean {
   const h = pixelToHex(p, size);
   if (land.has(hexKey(h))) return false;
   for (const n of hexNeighbors(h)) {
     if (!land.has(hexKey(n))) continue;
     const c = hexToPixel(n, size);
-    if (Math.hypot(c.x - p.x, c.y - p.y) < size * 1.45) return false;
+    if (Math.hypot(c.x - p.x, c.y - p.y) < size * 2.0) return false;
   }
   return !obstacles.some((o) => {
     const d = Math.hypot(o.x - p.x, o.y - p.y);
     const edge = o.shape?.length ? isletRadiusAt({ r: o.r, shape: o.shape }, Math.atan2(p.y - o.y, p.x - o.x)) : o.r;
-    return d < edge + size * 0.7;
+    return d < edge + size * 1.0;
   });
 }
 
@@ -141,6 +174,30 @@ export function smoothRoute(pts: ReadonlyArray<Pt>, iterations = 3, step = 52): 
     cur = out;
   }
   return cur;
+}
+
+/** Точка не на суше (без запаса): её гекс — вода и она не внутри островка. */
+function offLand(p: Pt, land: ReadonlySet<string>, size: number, obstacles: ReadonlyArray<SeaObstacle>): boolean {
+  if (land.has(hexKey(pixelToHex(p, size)))) return false;
+  return !obstacles.some((o) => {
+    const d = Math.hypot(o.x - p.x, o.y - p.y);
+    const edge = o.shape?.length ? isletRadiusAt({ r: o.r, shape: o.shape }, Math.atan2(p.y - o.y, p.x - o.x)) : o.r;
+    return d < edge + size * 0.3;
+  });
+}
+
+/**
+ * Красивая кривая маршрута: широкие дуги (отрезки до 4 размеров гекса, 4 прохода Чайкина); если скругление задело
+ * сушу или островок, радиус уменьшается (2 размера, затем 1) — линия всегда остаётся на воде.
+ */
+export function routeCurve(pts: ReadonlyArray<Pt>, land: ReadonlySet<string>, size: number, obstacles: ReadonlyArray<SeaObstacle> = []): Pt[] {
+  // Кривая Безье уже гладкая (точки через полразмера гекса): её только слегка скругляем у концов.
+  if (pts.length > 8) return smoothRoute(pts, 1, size);
+  for (const step of [4, 2, 1]) {
+    const c = smoothRoute(pts, 4, size * step);
+    if (c.slice(1, -1).every((p) => offLand(p, land, size, obstacles))) return c;
+  }
+  return [...pts];
 }
 
 /** Атрибут `d` SVG-пути по точкам. */

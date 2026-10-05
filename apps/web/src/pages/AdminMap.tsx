@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, smoothRoute, routePathD, routeArrow } from "@lotw/domain";
+import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
@@ -155,7 +155,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             })}
             {/* Морские переправы (решение владельца 05.10): плавная линия строго по воде, в обход островков, со стрелкой к месту высадки. */}
             {(progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
-              const pts = smoothRoute(seaRoute(landKeys, e.fromKey, e.toKey, size, undefined, obstacles), 3, size * 2);
+              const pts = routeCurve(seaRoute(landKeys, e.fromKey, e.toKey, size, undefined, obstacles), landKeys, size, obstacles);
               const d = routePathD(pts), arrow = routeArrow(pts, size * 1.1), end = { x: arrow.x, y: arrow.y }, heading = arrow.heading;
               return <g key={"sea" + tm.id + e.fromKey + e.toKey} className="adm-sea-route"><path className="adm-halo sea" d={d} /><path className="adm-sea" d={d} style={{ stroke: routeColor(tm.color) }} /><g style={sc(end.x, end.y)}><g transform={`rotate(${heading})`}><polygon className="arrow" points="-10,-7 4,0 -10,7" style={{ fill: routeColor(tm.color) }} /></g></g><path className="edge-hit" d={d} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.fromKey, bKey: e.toKey }); }} /></g>;
             }))}

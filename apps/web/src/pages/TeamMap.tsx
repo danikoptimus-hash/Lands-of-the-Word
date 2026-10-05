@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { reportPage } from "../lib/perf";
-import { BOOKS, startName, vertexHexes, parseVertexKey, seaRoute, smoothRoute, routePathD, routeArrow } from "@lotw/domain";
+import { BOOKS, startName, vertexHexes, parseVertexKey, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
@@ -121,7 +121,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const seaRoutes = useMemo(() => {
     const obstacles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape }));
     return map.tasks.filter((tk) => tk.sea && tk.status === "APPROVED" && !tk.toKey.startsWith("sea:")).map((tk) => {
-      const pts = smoothRoute(seaRoute(landKeys, tk.fromKey, tk.toKey, size, undefined, obstacles), 3, size * 2);
+      const pts = routeCurve(seaRoute(landKeys, tk.fromKey, tk.toKey, size, undefined, obstacles), landKeys, size, obstacles);
       const arrow = routeArrow(pts, size * 1.1);
       return { tk, d: routePathD(pts), end: { x: arrow.x, y: arrow.y }, heading: arrow.heading };
     });

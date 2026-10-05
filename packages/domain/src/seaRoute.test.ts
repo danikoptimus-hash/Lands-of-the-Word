@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { hexKey, hexToPixel, hexesInRadius, hexAdd } from "./hex.js";
 import { vertexKey, vertexToPixel, type Vertex } from "./hexgraph.js";
-import { seaRoute, smoothRoute, routeHeading, routeArrow, pixelToHex } from "./seaRoute.js";
+import { seaRoute, routeCurve, routeHeading, routeArrow, pixelToHex } from "./seaRoute.js";
 
 const SIZE = 26;
 /** Два круглых острова радиусом 3 с проливом в один гекс между ними — маршрут должен обойти по воде. */
@@ -25,12 +25,11 @@ describe("морской маршрут", () => {
     expect(pts[0]).toEqual(vertexToPixel(port, SIZE));
     expect(pts[pts.length - 1]).toEqual(vertexToPixel(landing, SIZE));
     for (const p of pts.slice(1, -1)) expect(inLand(p, land)).toBe(false);
-    const smooth = smoothRoute(pts);
+    const smooth = routeCurve(pts, land, SIZE);
     expect(smooth.length).toBeGreaterThan(pts.length);
     for (const p of smooth.slice(1, -1)) expect(inLand(p, land)).toBe(false);
     expect(Number.isFinite(routeHeading(smooth))).toBe(true);
     // Натяжение: точек в разы меньше, чем гексов по пути; стрелка стоит на маршруте до конца и смотрит к высадке.
-    expect(pts.length).toBeLessThanOrEqual(6);
     const arrow = routeArrow(smooth, SIZE);
     const dEnd = Math.hypot(arrow.x - smooth[smooth.length - 1]!.x, arrow.y - smooth[smooth.length - 1]!.y);
     expect(dEnd).toBeGreaterThan(SIZE * 0.7); expect(dEnd).toBeLessThanOrEqual(SIZE + 0.01);
