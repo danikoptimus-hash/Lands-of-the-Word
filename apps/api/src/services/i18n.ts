@@ -206,7 +206,7 @@ const EN: Record<string, string> = {
   "Город свободен: его берут ключом из конверта, а не испытанием": "The city is free: it is taken with the key from the envelope, not by a trial",
   "Это ваш город": "This is your city",
   "Ваша команда выбыла из игры": "Your team is out of the game",
-  "Сначала решите задания всех районов": "Solve the tasks of all districts first", "Ключ можно ввести, когда задания города решат не меньше {pct}% команды: решали {a} из {b}, нужно {c}": "The key can be entered once at least {pct}% of the team have solved the city’s tasks: {a} of {b} solved, {c} needed",
+  "Сначала решите задания всех районов": "Solve the tasks of all districts first", "Ключ можно ввести, когда не меньше {pct}% команды решат каждый хотя бы {tasks} заданий города: таких {a} из {b}, нужно {c}": "The key can be entered once at least {pct}% of the team have each solved at least {tasks} of the city’s tasks: {a} of {b} so far, {c} needed", "Вы уже решили это задание": "You have already solved this task",
   "Текст этой книги ещё не загружен: бросить вызов нельзя": "The text of this book is not loaded yet: the city cannot be challenged",
   "Ваш вызов уже в очереди": "Your challenge is already in the queue",
   "Ваш вызов этому городу уже идёт": "Your challenge to this city is already in progress",

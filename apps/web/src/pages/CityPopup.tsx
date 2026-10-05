@@ -93,8 +93,10 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   const done = city?.state.doneTasks ?? [];
   const total = city?.content?.tasks.length ?? 0;
   const allDone = total > 0 && done.length >= total;
-  /** Ключ после половины команды (решение владельца 05.10): решавших не меньше нужного. */
-  const solvers = city?.state.solvers ?? 0, needSolvers = city?.state.needSolvers ?? 0, teamSize = city?.state.members ?? 0;
+  /** Ключ после половины команды (решение владельца 05.10): задания решает каждый сам; участник считается, решив свою долю
+   *  (needTasks); ключ — когда таких участников не меньше needSolvers. mine — что решил я. */
+  const solvers = city?.state.solvers ?? 0, needSolvers = city?.state.needSolvers ?? 0, teamSize = city?.state.members ?? 0, needTasks = city?.state.needTasks ?? 0;
+  const mine = city?.state.mySolved ?? [];
   const enoughSolvers = solvers >= needSolvers;
   /** Пауза на ключ конверта (растущая после каждого неверного ключа). */
   const cooldown = city?.state.keyLockedUntil && city.state.keyLockedUntil > now ? Math.ceil((city.state.keyLockedUntil - now) / 1000) : 0;
@@ -117,8 +119,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   async function answer(index: number, value: unknown): Promise<boolean> {
     setBusy(true); setError(null);
     try {
-      const r = await api<{ correct: boolean; fragment?: string; retryAt?: number | null; wrong?: number }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
-      if (r.correct) { setStruck(index); notify(t("Верно. Знак шифра: {f}", { f: r.fragment ?? "" })); await sleep(900); }
+      const r = await api<{ correct: boolean; fragment?: string; retryAt?: number | null; wrong?: number; personal?: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
+      if (r.correct && r.personal) notify(t("Верно: задание засчитано вам. Решено вами: {a} из {b}", { a: mine.length + 1, b: total }));
+      else if (r.correct) { setStruck(index); notify(t("Верно. Знак шифра: {f}", { f: r.fragment ?? "" })); await sleep(900); }
       else notify(t("Неверно. Отмычка остывает: следующая попытка через {t}", { t: r.retryAt ? fmtLeft(r.retryAt - Date.now()) : "" }), "bad");
       await load(); onChanged();
       return r.correct;
@@ -168,6 +171,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   const task = taskIndex != null ? city?.content?.tasks.find((x) => x.index === taskIndex) ?? null : null;
   const foreign = Boolean(city?.owner && !city.state.capturedAt);
   const step = !city?.content ? 0 : !city.state.orderSolved ? 1 : !allDone ? 2 : 3;
+  /** Список районов виден и после того, как команда решила всё: пока я не решил все задания сам, они открыты для моего зачёта. */
+  const showDistricts = step === 2 || (step === 3 && !city?.state.capturedAt && !city?.node.ruined && mine.length < total);
   // Ночью город спит (решение владельца 03.10): сервер не отдаёт задания, знаки шифра и адресата; показываем только сон.
   const night = city?.daytime?.phase === "night";
   // Задания решаются до полуночи (решение владельца 04.10): с 22:00 до 0:00 районы и задания открыты, а знаки шифра,
@@ -217,41 +222,42 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
 
       {!sleeping && city?.content && step >= 2 && !task && (
         <section className="step-body">
-          {step === 2 && <div className="row between nowrap step-head"><h3>{t("Решите задание в каждом районе")}</h3></div>}
-          {step === 2 && (
+          {showDistricts && <div className="row between nowrap step-head"><h3>{step === 2 ? t("Решите задание в каждом районе") : t("Решите задания сами: это ваш зачёт для ключа")}</h3></div>}
+          {showDistricts && (
             <ul className="districts">
               {districts.map((d) => {
                 const i = d.index ?? 0;
-                const ok = done.includes(i);
+                // Галочка — решено мной; полупрозрачная — командой, но не мной: можно решить для своего зачёта (решение владельца 05.10).
+                const ok = mine.includes(i), teamOk = done.includes(i) && !ok;
                 const locked = isLocked(city.state.locks, i, now);
                 const hue = Math.round(20 + (300 * i) / Math.max(districts.length, 1));
                 const lit = city.state.hintTasks.includes(i);
                 return (
                   <li key={d.id} data-task-index={i} className={justSolved ? "reveal" : ""} style={{ ["--d-hue" as string]: hue, animationDelay: justSolved ? `${i * 90}ms` : undefined }}>
-                    <button type="button" className={"district set" + (ok ? " done" : "") + (locked ? " locked" : "") + (lit ? " lit" : "")} onClick={() => setTaskIndex(i)} aria-label={`${i + 1}. ${d.title} · ${ok ? t("выполнено") : locked ? t("закрыто") : t("не выполнено")}`}>
+                    <button type="button" className={"district set" + (ok ? " done" : "") + (teamOk ? " team-done" : "") + (locked ? " locked" : "") + (lit ? " lit" : "")} onClick={() => setTaskIndex(i)} aria-label={`${i + 1}. ${d.title} · ${ok ? t("выполнено") : teamOk ? t("решено командой, вами ещё нет") : locked ? t("закрыто") : t("не выполнено")}`}>
                       <span className="num">{i + 1}</span>
                       <span className="body"><span className="d-title">{d.title} <span className="muted">{d.verses}</span></span><span className="d-sum muted">{d.summary}</span></span>
                       {lit && <span className="window" title={t("Подсказка пророка открыта")} aria-hidden="true" />}
-                      <span className={"check" + (ok ? " on" : "")}><Icon name={ok ? "check" : locked ? "lock" : "chevron"} /></span>
+                      <span className={"check" + (ok ? " on" : "") + (teamOk ? " half" : "")}><Icon name={ok || teamOk ? "check" : locked ? "lock" : "chevron"} /></span>
                     </button>
                   </li>
                 );
               })}
             </ul>
           )}
-          {step === 2 && city.content.tasks.some((x) => x.index >= districts.length) && (
+          {showDistricts && city.content.tasks.some((x) => x.index >= districts.length) && (
             <>
               <h3 className="mt-4">{t("Задания по всей книге")}</h3>
               <ul className="districts">
                 {city.content.tasks.filter((x) => x.index >= districts.length).map((x) => {
-                  const ok = done.includes(x.index);
+                  const ok = mine.includes(x.index), teamOk = done.includes(x.index) && !ok;
                   const locked = isLocked(city.state.locks, x.index, now);
                   return (
                     <li key={"x" + x.index} data-task-index={x.index}>
-                      <button type="button" className={"district extra" + (ok ? " done" : "") + (locked ? " locked" : "")} onClick={() => setTaskIndex(x.index)}>
+                      <button type="button" className={"district extra" + (ok ? " done" : "") + (teamOk ? " team-done" : "") + (locked ? " locked" : "")} onClick={() => setTaskIndex(x.index)}>
                         <span className="num">{x.index + 1}</span>
                         <span className="body"><span className="d-title">{x.scope === "book" ? t("По всей книге") : t("По нескольким районам")}</span><span className="d-sum muted one">{x.prompt.length > 90 ? x.prompt.slice(0, 90) + "…" : x.prompt}</span></span>
-                        <span className={"check" + (ok ? " on" : "")}><Icon name={ok ? "check" : locked ? "lock" : "chevron"} /></span>
+                        <span className={"check" + (ok ? " on" : "") + (teamOk ? " half" : "")}><Icon name={ok || teamOk ? "check" : locked ? "lock" : "chevron"} /></span>
                       </button>
                     </li>
                   );
@@ -264,8 +270,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
           {/* Ключ после половины команды (решение владельца 05.10): строка видна с первого задания, чтобы команда делила задания заранее. */}
           {needSolvers > 0 && !city.state.capturedAt && !city.node.ruined && (
             <p className={"meta-line solvers-line" + (allDone && !enoughSolvers ? " warn" : "")}>
-              <Icon name="users" />{t("Решали задания: {a} из {b}", { a: solvers, b: teamSize })} · {enoughSolvers ? t("для ключа хватает") : t("для ключа нужно {c}", { c: needSolvers })}
-              <Help>{t("Ключ конверта можно ввести, когда задания города решили не меньше половины команды. Считается каждый, кто решил хотя бы одно задание района.")}</Help>
+              <Icon name="users" />{t("Решили свою долю: {a} из {b}", { a: solvers, b: teamSize })} · {enoughSolvers ? t("для ключа хватает") : t("для ключа нужно {c}", { c: needSolvers })} · {t("вы: {x} из {y}", { x: mine.length, y: total })}
+              <Help>{t("Задания решает каждый сам: после первого верного ответа знак шифра открыт команде, но задание можно решить и после этого, для своего зачёта. Участник считается, когда решил не меньше {n} заданий города; ключ конверта можно ввести, когда таких участников не меньше половины команды.", { n: needTasks })}</Help>
             </p>
           )}
           {!allDone && (
@@ -279,7 +285,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
             </div>
           )}
           {allDone && !night && !enoughSolvers && !city.node.ruined && !city.state.capturedAt && (
-            <div className="note warn"><Icon name="users" /><span>{t("Все районы решены, но ключ ждёт: нужно, чтобы задания решили не меньше {c} участников, а решали {a}. Задания уже решены, поэтому этот город возьмёт только команда с таким составом. Напишите администратору, если команда стала меньше.", { c: needSolvers, a: solvers })}</span></div>
+            <div className="note warn"><Icon name="users" /><span>{t("Все знаки открыты, но ключ ждёт: не меньше {c} участников должны решить каждый хотя бы {n} заданий, пока таких {a}. Задания можно решать и после того, как команда открыла знак: откройте район с полупрозрачной галочкой.", { c: needSolvers, n: needTasks, a: solvers })}</span></div>
           )}
           {allDone && !night && (enoughSolvers || city.node.ruined || Boolean(city.state.capturedAt)) && (
             <div className="capture">
@@ -314,7 +320,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
         </details>
       )}
       {!sleeping && city?.content && task && (
-        <TaskView task={task} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={done.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
+        <TaskView task={task} teamDone={done.includes(task.index)} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={mine.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
           hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} draft={city.state.taskDrafts?.[String(task.index)]}
           lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} pauseSteps={city.state.pauseSteps} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />
       )}
@@ -333,7 +339,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
 
 const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.some((l) => l.index === index && l.lockedUntil != null && l.lockedUntil > now);
 
-function TaskView({ task, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
+function TaskView({ task, teamDone = false, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Команда уже открыла знак этого задания, а я ещё не решал: решаю для своего зачёта (решение владельца 05.10). */ teamDone?: boolean; /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
   /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
   useAwayCounter(done ? null : `/api/games/${gameId}/my-city/${nodeKey}/tasks/${task.index}/focus`);
@@ -404,6 +410,7 @@ function TaskView({ task, fragments, district, groupTitles, done, fragment, busy
         <div className="note ok"><Icon name="check" /><span>{t("Выполнено. Знак шифра: {f}", { f: fragment ?? "" })}</span></div>
       ) : (
         <div className="answer">
+          {teamDone && <div className="note info"><Icon name="users" /><span>{t("Команда уже открыла знак этого задания: {f}. Решите его сами, чтобы оно пошло в ваш зачёт для ключа.", { f: fragment ?? "" })}</span></div>}
           {task.type === "number" && <div className="field"><label htmlFor="answer-num">{t("Число")}</label><input id="answer-num" type="number" inputMode="numeric" value={text} onChange={(e) => setText(e.target.value)} onPaste={noPaste} onDrop={noPaste} autoComplete="off" /></div>}
           {task.type === "text" && gap && <BurntScroll gap={gap} value={text} onChange={setText} disabled={locked} onPaste={noPaste} />}
           {task.type === "text" && !gap && <div className="field"><label htmlFor="answer-text">{t("Ответ")}</label><input id="answer-text" className="full" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" autoCorrect="off" spellCheck={false} onPaste={noPaste} onDrop={noPaste} /></div>}

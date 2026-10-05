@@ -54,16 +54,26 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     return node;
   }
 
+  /** Какие задания этого города участник решил сам (по событиям «верный ответ»); задания решаются каждым лично (решение владельца 05.10). */
+  async function mySolved(gameId: string, teamId: string, userId: string, nodeKey: string): Promise<number[]> {
+    const rows = await prisma.taskEvent.findMany({ where: { gameId, teamId, userId, nodeKey, kind: "ok", taskIndex: { not: null } }, select: { taskIndex: true }, distinct: ["taskIndex"] });
+    return rows.map((r) => r.taskIndex!).sort((a, b) => a - b);
+  }
   /**
-   * Сколько участников команды решили хотя бы одно задание района этого города и сколько нужно для ключа
-   * (решение владельца 05.10): доля от состава команды по правилу keySolversPct, вверх до целого; расстановка районов не считается.
+   * Ключ после половины команды (решение владельца 05.10): участник считается решавшим город, когда сам решил не меньше
+   * keyTasksPct процентов его заданий (вверх до целого); ключ открывается, когда таких участников не меньше keySolversPct
+   * процентов состава (вверх до целого). Расстановка районов не считается.
    */
-  async function solversOf(gameId: string, teamId: string, nodeKey: string, pct: number): Promise<{ solvers: number; members: number; needSolvers: number }> {
+  async function solversOf(gameId: string, teamId: string, nodeKey: string, total: number, rules: { keySolversPct: number; keyTasksPct: number }): Promise<{ solvers: number; members: number; needSolvers: number; needTasks: number }> {
     const [rows, members] = await Promise.all([
-      prisma.taskEvent.findMany({ where: { gameId, teamId, nodeKey, kind: "ok", taskIndex: { not: null } }, select: { userId: true }, distinct: ["userId"] }),
+      prisma.taskEvent.findMany({ where: { gameId, teamId, nodeKey, kind: "ok", taskIndex: { not: null } }, select: { userId: true, taskIndex: true }, distinct: ["userId", "taskIndex"] }),
       prisma.membership.count({ where: { teamId } }),
     ]);
-    return { solvers: rows.length, members, needSolvers: Math.ceil(members * pct / 100) };
+    const needTasks = Math.max(1, Math.ceil(total * rules.keyTasksPct / 100));
+    const perUser = new Map<string, number>();
+    for (const r of rows) perUser.set(r.userId, (perUser.get(r.userId) ?? 0) + 1);
+    const solvers = [...perUser.values()].filter((n) => n >= needTasks).length;
+    return { solvers, members, needSolvers: Math.ceil(members * rules.keySolversPct / 100), needTasks };
   }
 
   /** Город глазами команды. Доступен только для открытого (достигнутого) города. */
@@ -89,7 +99,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const keyLockedUntil = state?.keyLockedUntil ? state.keyLockedUntil.getTime() : 0;
     const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } });
     const rules = rulesOf(game.settings);
-    const solvers = await solversOf(id, m.team.id, nodeKey, rules.keySolversPct);
+    const [solvers, mine] = await Promise.all([solversOf(id, m.team.id, nodeKey, content?.tasks.length ?? 0, rules), mySolved(id, m.team.id, request.user!.id, nodeKey)]);
     // Адресат конверта показывается только когда все задания решены: раньше он команде не нужен.
     const allDone = Boolean(content) && solved && done.length >= (content?.tasks.length ?? 0);
     // Ночью (решение владельца 03.10) знаки шифра и адресат конверта скрыты до утра; задания открыты до полуночи (решение владельца 04.10).
@@ -129,8 +139,9 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         taskDrafts: Object.fromEntries(Object.entries((state?.taskDrafts as Record<string, string[]> | null) ?? {}).filter(([i]) => !done.includes(Number(i)))),
         keyLockedUntil: keyLockedUntil > Date.now() ? keyLockedUntil : null,
         keyWrong: state?.keyWrong ?? 0,
-        // Ключ после половины команды (решение владельца 05.10): кто решал задания этого города и сколько нужно.
+        // Ключ после половины команды (решение владельца 05.10): сколько участников решили свою долю заданий, сколько нужно, и что решил я сам.
         ...solvers,
+        mySolved: mine,
         pauseSteps: rules.pauseSteps,
         locks: locks.map((l) => publicLock(l, Date.now())),
         support: support.map((r) => ({ id: r.id, taskIndex: r.taskIndex, createdAt: r.createdAt.getTime(), status: r.status, reply: r.reply })),
@@ -204,7 +215,10 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const index = Number(rawIndex);
     const task = Number.isInteger(index) ? c.content.tasks[index] : undefined;
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
-    if (c.state.doneTasks.includes(index)) return reply.code(409).send({ error: "conflict", message: err(request, "Задание уже решено") });
+    // Задание решает каждый сам (решение владельца 05.10): после первого верного ответа знак шифра открыт команде, но
+    // остальные участники могут решить то же задание для своего зачёта; повторно одному и тому же — нельзя.
+    const teamDone = c.state.doneTasks.includes(index);
+    if ((await mySolved(id, c.m.team.id, request.user!.id, nodeKey)).includes(index)) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже решили это задание") });
     const body = answerBody.parse(request.body);
     const now = Date.now();
     const lockWhere = { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: index } };
@@ -214,9 +228,10 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(429).send({ error: "cooldown", message: err(request, "Отмычка остывает: подождите перед следующей попыткой"), retryAt: lock.lockedUntil.getTime() });
     }
     const correct = checkAnswer(task, index, secret, c.scopeKey, body.answer);
-    void taskEvent(id, c.m.team.id, request.user!.id, nodeKey, index, correct ? "ok" : "wrong");
+    // Личный зачёт считается по этим событиям, поэтому запись ждём, а не отпускаем в фоне.
+    await taskEvent(id, c.m.team.id, request.user!.id, nodeKey, index, correct ? "ok" : "wrong");
     let retryAt: number | null = null;
-    await prisma.teamCityState.update({
+    if (!(correct && teamDone)) await prisma.teamCityState.update({
       where: { id: c.state.id },
       data: correct ? { doneTasks: { push: index } } : { answerAttempts: { increment: 1 }, lastWrongAt: new Date() },
     });
@@ -228,6 +243,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       await prisma.teamTaskLock.upsert({ where: lockWhere, create: { gameId: id, teamId: c.m.team.id, nodeKey, taskIndex: index, ...data }, update: data });
     }
     publish(id, { type: "cities", teamId: c.m.team.id });
+    // Личное решение уже открытого командой задания: знак известен, в летопись и к руинам не идёт.
+    if (correct && teamDone) return { correct: true, fragment: c.node.cityCode?.[index] ?? null, personal: true };
     if (correct) {
       journal(id, "task_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), n: index + 1, book: c.node.bookCode ?? "" } });
       // Руины с сокровищем (решение владельца 18.09): первая команда, решившая все задания руин, получает знак шифра соседнего города.
@@ -262,8 +279,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!allDone) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала решите задания всех районов") });
     // Ключ конверта — только когда задания решили не меньше доли состава (решение владельца 05.10); руины берутся без ключа и без этого.
     if (!c.node.ruined) {
-      const s = await solversOf(id, c.m.team.id, nodeKey, c.rules.keySolversPct);
-      if (s.solvers < s.needSolvers) return reply.code(409).send({ error: "conflict", message: err(request, "Ключ можно ввести, когда задания города решат не меньше {pct}% команды: решали {a} из {b}, нужно {c}", { pct: c.rules.keySolversPct, a: s.solvers, b: s.members, c: s.needSolvers }) });
+      const s = await solversOf(id, c.m.team.id, nodeKey, c.content.tasks.length, c.rules);
+      if (s.solvers < s.needSolvers) return reply.code(409).send({ error: "conflict", message: err(request, "Ключ можно ввести, когда не меньше {pct}% команды решат каждый хотя бы {tasks} заданий города: таких {a} из {b}, нужно {c}", { pct: c.rules.keySolversPct, tasks: s.needTasks, a: s.solvers, b: s.members, c: s.needSolvers }) });
     }
     const body = c.node.ruined ? { key: c.node.cityKey ?? "" } : captureBody.parse(request.body);
     // Неверный ключ конверта: растущая пауза на город (решение владельца 18.09).

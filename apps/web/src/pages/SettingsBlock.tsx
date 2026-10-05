@@ -6,7 +6,7 @@ import { Icon } from "../components/Icon";
 import { Help } from "../components/Help";
 import { Stepper } from "../components/Stepper";
 
-export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
+export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string; rules?: RulesDto } }
 /** Правила, зашитые глобально и убранные из настроек (решение владельца 03.10): минимальная ставка, штраф за сгоревший вызов, закрепление города, усталость, паузы после ошибок. Сервер хранит их значения по умолчанию. */
 type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "fatigueAfterDays" | "fatigueStepDays" | "fatigueStep" | "pauseSteps";
@@ -19,7 +19,8 @@ const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: numbe
   maxDeedsPerDay: { label: () => t("Дел в сутки на участника · 0 = без ограничения"), min: 0, max: 50 },
   roleChangeDays: { label: () => t("Смена ролей · раз в дней"), min: 0, max: 365 },
   roleCooldownDays: { label: () => t("Разведчик и пророк · раз в дней"), min: 1, max: 60 },
-  keySolversPct: { label: () => t("Ключ города · решавших не меньше, %"), min: 0, max: 100 },
+  keySolversPct: { label: () => t("Ключ города · решивших долю не меньше, % команды"), min: 0, max: 100 },
+  keyTasksPct: { label: () => t("Доля заданий города на участника, %"), min: 1, max: 100 },
   passageDays: { label: () => t("Ответ на запрос прохода · дней"), min: 1, max: 30 },
   siegeDays: { label: () => t("Осада делами · дней"), min: 1, max: 60 },
   siegeDeedPoints: { label: () => t("Баллов за дело в осаде"), min: 0, max: 100 },
@@ -30,7 +31,7 @@ const NUM_KEYS = Object.keys(RULE_FIELDS) as NumKey[];
 const RULE_GROUPS: Array<{ title: () => string; keys: Array<Exclude<keyof RulesDto, FixedKey>> }> = [
   { title: () => t("Испытания"), keys: ["attackDays", "timeZone", "minAnswerSeconds"] },
   { title: () => t("Дела и роли"), keys: ["deedReturnDays", "maxDeedsPerDay", "roleChangeDays", "roleCooldownDays"] },
-  { title: () => t("Города"), keys: ["keySolversPct"] },
+  { title: () => t("Города"), keys: ["keySolversPct", "keyTasksPct"] },
   { title: () => t("Проходы"), keys: ["passageDays"] },
   { title: () => t("Осада"), keys: ["siegeDays", "siegeDeedPoints"] },
   { title: () => t("Летопись и письма"), keys: ["chronicleWeekday", "chronicleHourUtc", "adminDigest"] },
@@ -44,7 +45,8 @@ const RULE_HELP: Record<Exclude<keyof RulesDto, FixedKey>, () => string> = {
   maxDeedsPerDay: () => t("Сколько дел один участник может взять за сутки. Считаются дела, взятые за последние 24 часа с момента взятия. Сверх лимита взять дело нельзя, лист дела об этом скажет. 0 — без ограничения. Можно менять в идущей игре."),
   roleChangeDays: () => t("Уже выданную игровую роль капитан может сменить не чаще раза в столько дней. Участникам без роли роль выдаётся сразу. 0 — без ограничения."),
   roleCooldownDays: () => t("Раз во сколько дней разведчик может разведать точку на краю тумана, а пророк — открыть подсказку к заданию. Считается на команду."),
-  keySolversPct: () => t("Ключ конверта можно ввести, только когда задания города решили не меньше такой доли состава команды (каждый, кто решил хотя бы одно задание района). 0 — без ограничения."),
+  keySolversPct: () => t("Ключ конверта можно ввести, только когда не меньше такой доли состава команды решили каждый свою долю заданий города (следующая настройка). 0 — без ограничения."),
+  keyTasksPct: () => t("Задания города решает каждый сам, и после того, как команда открыла знак. Участник считается решившим город, когда сам решил не меньше такой доли его заданий."),
   passageDays: () => t("Сколько дней у владельца города на ответ на запрос прохода. Нет ответа в срок — считается отказом."),
   siegeDays: () => t("Сколько дней длится осада делами города с максимальным уровнем защиты. За это время обе команды набирают баллы одобренными делами."),
   siegeDeedPoints: () => t("Сколько баллов в осаде даёт одобренное дело, если у самого дела своя цена не задана. Цену отдельного дела задают во вкладке «Дела»."),
