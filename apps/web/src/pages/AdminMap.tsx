@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf } from "@lotw/domain";
+import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, smoothRoute, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, IslandLabel, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
@@ -112,6 +112,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   useEffect(() => { reportPage("admin-map"); }, []);
   const coast = useCoast(hexes, size);
   const islets = useIslets(hexes, size, bounds);
+  const landKeys = useMemo(() => new Set(hexes.map((h) => `${h.q},${h.r}`)), [hexes]);
+  const obstacles = useMemo(() => islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape })), [islets]);
   const bed = useSeabed(hexes, islets, size, bounds);
   const [liveWater, setLiveWater] = useState(true);
   const dt = useDaytime(timeZone);
@@ -151,10 +153,11 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
               return <g key={e.aKey + e.bKey}>{halo}<line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} style={{ stroke: routeColor(teams[0]!.color) }} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} style={{ stroke: routeColor(teams[1]!.color) }} />{hit}</g>;
             })}
-            {/* Морские переправы: пройденные «стороны» между островами, которых нет среди рёбер, — пунктир цветом команды. */}
+            {/* Морские переправы (решение владельца 05.10): плавная линия строго по воде, в обход островков, со стрелкой к месту высадки. */}
             {(progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
-              const a = positions.get(e.fromKey)!, b = positions.get(e.toKey)!;
-              return <g key={"sea" + tm.id + e.fromKey + e.toKey}><line className="adm-halo sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} /><line className="adm-sea" x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={{ stroke: routeColor(tm.color) }} /><line className="edge-hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.fromKey, bKey: e.toKey }); }} /></g>;
+              const pts = smoothRoute(seaRoute(landKeys, e.fromKey, e.toKey, size, undefined, obstacles), 3, size * 2);
+              const d = routePathD(pts), arrow = routeArrow(pts, size * 1.1), end = { x: arrow.x, y: arrow.y }, heading = arrow.heading;
+              return <g key={"sea" + tm.id + e.fromKey + e.toKey} className="adm-sea-route"><path className="adm-halo sea" d={d} /><path className="adm-sea" d={d} style={{ stroke: routeColor(tm.color) }} /><g style={sc(end.x, end.y)}><g transform={`rotate(${heading})`}><polygon className="arrow" points="-10,-7 4,0 -10,7" style={{ fill: routeColor(tm.color) }} /></g></g><path className="edge-hit" d={d} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.fromKey, bKey: e.toKey }); }} /></g>;
             }))}
             {nodes.map((n) => {
               const p = positions.get(n.key)!;
@@ -238,7 +241,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 if (!showDots) return null;
                 return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" />{seen.length === 0 && <circle r={3} fill="rgba(31,27,22,.4)" />}{seen.map((tm, i) => <circle key={tm.id} cx={(i - (seen.length - 1) / 2) * 8} cy={0} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
-  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById, battleAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById, battleAt, landKeys, obstacles]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   const viewedTeam = viewAs ? teamById.get(viewAs) : null;
   const viewMap = useMemo(() => (teamView?.map && at && viewedTeam && progress ? { ...rewindTeamMap(teamView.map, viewedTeam, progress, cities, nodes), teamIndex: teamView.map.teamIndex } : teamView?.map ?? null), [teamView, at, viewedTeam, progress, cities, nodes]);

@@ -74,7 +74,8 @@
 .feed button.linkish:hover, .feed button.linkish:active { background: none; color: var(--accent-ink); transform: none; }
 .feed button.linkish .chev { vertical-align: middle; color: var(--muted); width: 14px; height: 14px; }
 .task-report .report-text { white-space: pre-wrap; }
-.adm-sea { fill: none; stroke-width: calc(3px / max(1.6, var(--k, 1))); stroke-dasharray: calc(6px / var(--k, 1)) calc(5px / var(--k, 1)); stroke-linecap: round; opacity: .9; }
+.adm-sea { fill: none; stroke-width: calc(5px / max(1.6, var(--k, 1))); stroke-linecap: round; stroke-linejoin: round; opacity: .95; }
+.adm-sea-route .adm-halo, .adm-sea-route .edge-hit { fill: none; stroke-linejoin: round; }
 /* На телефоне карта во всю ширину экрана и почти во всю высоту: пальцам при щипке некуда «выпасть», а страница
    под картой не ловит свои жесты (прокрутку, масштаб страницы). */
 @media (max-width: 639px) {

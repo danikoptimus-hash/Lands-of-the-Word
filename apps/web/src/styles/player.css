@@ -516,3 +516,11 @@
 .trade-city .i { width: var(--icon-sm); height: var(--icon-sm); }
 .trade-new { margin-top: var(--sp-2); }
 @media (max-width: 420px) { .trade-sides { grid-template-columns: 1fr; } }
+
+/* Морской маршрут команды (решение владельца 05.10): плавная линия по воде, подложка и стрелка к месту высадки. */
+.sea-route path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.sea-route path.way { stroke-width: calc(6px / max(1.6, var(--k, 1))); }
+.sea-route path.halo { stroke: rgba(255, 250, 240, .85); stroke-width: calc(10px / max(1.6, var(--k, 1))); pointer-events: none; }
+.sea-route path.hit { stroke: transparent; stroke-width: calc(22px / var(--k, 1)); }
+.sea-route.sel path.way { stroke-width: calc(8px / max(1.6, var(--k, 1))); }
+.sea-route .arrow, .adm-sea-route .arrow { stroke: rgba(255, 250, 240, .95); stroke-width: 1.5; stroke-linejoin: round; pointer-events: none; }

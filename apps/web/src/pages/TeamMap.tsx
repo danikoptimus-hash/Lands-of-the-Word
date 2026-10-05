@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { reportPage } from "../lib/perf";
-import { BOOKS, startName, vertexHexes, parseVertexKey } from "@lotw/domain";
+import { BOOKS, startName, vertexHexes, parseVertexKey, seaRoute, smoothRoute, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
@@ -116,6 +116,16 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
   const islandCenters = useMemo(() => islandGeometry(map.hexes, size), [map.hexes, size]);
   const nodeByKey = useMemo(() => new Map(map.revealed.map((n) => [n.key, n])), [map.revealed]);
+  // Морские маршруты (решение владельца 05.10): после высадки путь корабля виден команде — плавная линия строго по воде,
+  // в обход островков, со стрелкой в сторону высадки; нажимается, как пройденная сторона.
+  const seaRoutes = useMemo(() => {
+    const obstacles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape }));
+    return map.tasks.filter((tk) => tk.sea && tk.status === "APPROVED" && !tk.toKey.startsWith("sea:")).map((tk) => {
+      const pts = smoothRoute(seaRoute(landKeys, tk.fromKey, tk.toKey, size, undefined, obstacles), 3, size * 2);
+      const arrow = routeArrow(pts, size * 1.1);
+      return { tk, d: routePathD(pts), end: { x: arrow.x, y: arrow.y }, heading: arrow.heading };
+    });
+  }, [map.tasks, landKeys, islets, size]);
   // Корабли: морские дела, пока команда не высадилась (после высадки дело — обычная пройденная сторона).
   const ships = useMemo(() => map.tasks.filter((tk) => tk.sea && (tk.status !== "APPROVED" || tk.landing)).map((tk) => {
     const p = nodePos(tk.fromKey, size), c = islandCenters.get(nodeByKey.get(tk.fromKey)?.island ?? "OT") ?? { x: 0, y: 0 };
@@ -179,6 +189,14 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             </g>
           );
         })}
+        {seaRoutes.map(({ tk, d, end, heading }) => (
+          <g key={"sea" + tk.id} className={"m-edge done sea-route" + (tk.id === selectedTaskId ? " sel" : "")} onClick={() => click(tk.id)}>
+            <path className="hit" d={d} />
+            <path className="halo" d={d} />
+            <path className="way" d={d} style={{ stroke: routeColor(map.team.color) }} />
+            <g style={sc(end.x, end.y)}><g transform={`rotate(${heading})`}><polygon className="arrow" points="-10,-7 4,0 -10,7" style={{ fill: routeColor(map.team.color) }} /></g></g>
+          </g>
+        ))}
         {map.revealed.map((n) => {
           const p = positions.get(n.key)!;
           if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex, imgPhase)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
@@ -192,7 +210,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           }
           return null;
         })}
-  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
   // Каменоломня (решение владельца 04.10): скалистый островок с подписью, нажимается — открывает лист общих дел.
   const quarry = islets.find((i) => i.quarry) ?? null;
   const quarryMarker = quarry && (() => {
