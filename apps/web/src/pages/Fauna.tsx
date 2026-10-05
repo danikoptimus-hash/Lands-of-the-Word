@@ -1012,7 +1012,31 @@ export interface DailyBird { at: number; to: { x: number; y: number } }
  * Корабль идёт как ледокол: льдину на пути он раздвигает в сторону от своего курса, с брызгами ледяной крошки,
  * и льдина получает трещину; друг сквозь друга они не проходят.
  */
-interface Floe { rng: () => number; x: number; y: number; h: number; om: number; r: number; /** Радиусы вершин (доли r), 9 вершин. */ pts: number[]; vx: number; vy: number; seed: number; crack: number; crackA: number }
+interface Floe { rng: () => number; x: number; y: number; h: number; om: number; r: number; /** Номер спрайта льдины (img/ice/floe-N.webp). */ img: number; vx: number; vy: number; seed: number; crack: number; crackA: number }
+/** Спрайты льдин: фотореалистичные, с прозрачным фоном (переделка 05.10 — владелец отверг рисованные многоугольники). */
+const FLOE_SPRITES = 3;
+let floeImgs: HTMLImageElement[] | null = null;
+function floeImages(): HTMLImageElement[] {
+  if (!floeImgs) floeImgs = Array.from({ length: FLOE_SPRITES }, (_, i) => { const im = new Image(); im.decoding = "async"; im.src = `/img/ice/floe-${i + 1}.webp`; return im; });
+  return floeImgs;
+}
+/** Льдина, затемнённая под ночь: кэш по спрайту и ступени темноты (без ctx.filter — его нет в части браузеров). */
+const floeTinted = new Map<string, HTMLCanvasElement>();
+function floeSprite(i: number, night: number): HTMLImageElement | HTMLCanvasElement | null {
+  const im = floeImages()[i]!;
+  if (!im.complete || !im.naturalWidth) return null;
+  const step = Math.round(night * 8);
+  if (step === 0) return im;
+  const key = `${i}:${step}`;
+  let c = floeTinted.get(key);
+  if (!c) {
+    c = document.createElement("canvas"); c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const x = c.getContext("2d")!; x.drawImage(im, 0, 0);
+    x.globalCompositeOperation = "source-atop"; x.fillStyle = `rgba(14,26,52,${(step / 8) * 0.62})`; x.fillRect(0, 0, c.width, c.height);
+    floeTinted.set(key, c);
+  }
+  return c;
+}
 /** Случайная точка в открытой воде поля: в пределах полутора радиусов какой-нибудь части суши, но не ближе clearance к берегу. */
 function waterPoint(p: Profile, clearance: number): { x: number; y: number } {
   for (let i = 0; i < 40; i++) {
@@ -1024,8 +1048,7 @@ function waterPoint(p: Profile, clearance: number): { x: number; y: number } {
 }
 function makeFloe(p: Profile, size: number, r: number): Floe {
   const at = waterPoint(p, size * 1.6 + r);
-  const pts = Array.from({ length: 10 }, () => rnd(0.6, 1));
-  return { rng: spawnRng(), x: at.x, y: at.y, h: rnd(0, TAU), om: rnd(-0.03, 0.03), r, pts, vx: 0, vy: 0, seed: rnd(0, 100), crack: 0, crackA: rnd(0, TAU) };
+  return { rng: spawnRng(), x: at.x, y: at.y, h: rnd(0, TAU), om: rnd(-0.03, 0.03), r, img: Math.floor(rand() * FLOE_SPRITES), vx: 0, vy: 0, seed: rnd(0, 100), crack: 0, crackA: rnd(0, TAU) };
 }
 function stepFloes(w: World, dt: number, T: number): void {
   const p = w.p, size = w.size, floes = w.floes;
@@ -1061,30 +1084,25 @@ function stepFloes(w: World, dt: number, T: number): void {
   }
 }
 function drawFloe(ctx: CanvasRenderingContext2D, f: Floe, T: number, px: number): void {
-  const lt = LIGHT, n = f.pts.length;
-  const vx = (i: number) => Math.cos(f.h + (i / n) * TAU) * f.r * f.pts[i]!, vy = (i: number) => Math.sin(f.h + (i / n) * TAU) * f.r * f.pts[i]!;
-  const path = new Path2D();
-  for (let i = 0; i < n; i++) { if (i === 0) path.moveTo(vx(0), vy(0)); else path.lineTo(vx(i), vy(i)); }
-  path.closePath();
-  ctx.save(); ctx.translate(f.x, f.y);
-  // тень на воде от светила и подводная кромка (льдина сидит в воде)
-  const lx = lt.sun > 0.01 ? -lt.sunX : -SUN_X, ly = lt.sun > 0.01 ? -lt.sunY : SUN_Y;
-  ctx.save(); ctx.translate(lx * f.r * 0.12 * lt.shadowLen, ly * f.r * 0.12 * lt.shadowLen); ctx.globalAlpha = 0.18 * Math.max(0.3, lt.shadow); ctx.fillStyle = "rgb(8,30,52)"; ctx.fill(path); ctx.restore();
-  ctx.save(); ctx.scale(1.08, 1.08); ctx.globalAlpha = 0.35; ctx.fillStyle = "rgb(150,205,225)"; ctx.fill(path); ctx.restore();
-  // сама льдина: светлая с голубоватой тенью к одному краю, ночью серо-синяя
+  const lt = LIGHT;
   const night = 1 - Math.min(1, (lt.sand[0] + lt.sand[1] + lt.sand[2]) / 2.4);
-  const g = ctx.createLinearGradient(-f.r, -f.r, f.r, f.r);
-  g.addColorStop(0, `rgb(${Math.round(250 - 110 * night)},${Math.round(252 - 100 * night)},${Math.round(255 - 70 * night)})`);
-  g.addColorStop(1, `rgb(${Math.round(196 - 90 * night)},${Math.round(222 - 90 * night)},${Math.round(236 - 60 * night)})`);
-  ctx.fillStyle = g; ctx.fill(path);
-  ctx.strokeStyle = `rgba(120,170,200,${0.6 - 0.3 * night})`; ctx.lineWidth = Math.max(px, f.r * 0.03); ctx.stroke(path);
-  // лёгкие прожилки и трещина после ледокола
-  ctx.strokeStyle = `rgba(150,195,220,${0.5 - 0.2 * night})`; ctx.lineWidth = Math.max(px * 0.8, f.r * 0.02);
-  ctx.beginPath(); ctx.moveTo(-f.r * 0.5, f.r * 0.1 + 0.1 * f.r * Math.sin(f.seed)); ctx.lineTo(f.r * 0.1, -f.r * 0.2); ctx.lineTo(f.r * 0.55, f.r * 0.15); ctx.stroke();
+  const sp = floeSprite(f.img, night);
+  if (!sp) return;
+  const D = f.r * 2;
+  ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(f.h);
+  // тень на воде от светила
+  const lx = lt.sun > 0.01 ? -lt.sunX : -SUN_X, ly = lt.sun > 0.01 ? -lt.sunY : SUN_Y;
+  ctx.save(); ctx.rotate(-f.h); ctx.translate(lx * f.r * 0.14 * lt.shadowLen, ly * f.r * 0.14 * lt.shadowLen); ctx.rotate(f.h);
+  ctx.globalAlpha = 0.22 * Math.max(0.3, lt.shadow); ctx.globalCompositeOperation = "multiply"; ctx.drawImage(sp, -f.r, -f.r, D, D); ctx.restore();
+  // подводная часть: бледный увеличенный силуэт под кромкой
+  ctx.save(); ctx.globalAlpha = 0.28 - 0.12 * night; ctx.drawImage(sp, -f.r * 1.09, -f.r * 1.09, D * 1.09, D * 1.09); ctx.restore();
+  ctx.drawImage(sp, -f.r, -f.r, D, D);
+  // трещина после ледокола
   if (f.crack > 0) {
-    ctx.strokeStyle = `rgba(90,140,180,${0.8 - 0.3 * night})`; ctx.lineWidth = Math.max(px, f.r * 0.035); ctx.beginPath();
-    const ca = f.crackA, len = f.r * 0.95; let x = Math.cos(ca) * len * 0.5, y = Math.sin(ca) * len * 0.5; ctx.moveTo(x, y);
-    for (let i = 1; i <= 5; i++) { x -= Math.cos(ca) * len / 5 + Math.sin(ca) * f.r * 0.08 * (i % 2 ? 1 : -1); y -= Math.sin(ca) * len / 5 - Math.cos(ca) * f.r * 0.08 * (i % 2 ? 1 : -1); ctx.lineTo(x, y); }
+    ctx.rotate(-f.h);
+    ctx.strokeStyle = `rgba(70,120,165,${0.75 - 0.3 * night})`; ctx.lineWidth = Math.max(px, f.r * 0.03); ctx.lineCap = "round"; ctx.beginPath();
+    const ca = f.crackA, len = f.r * 0.85; let x = Math.cos(ca) * len * 0.5, y = Math.sin(ca) * len * 0.5; ctx.moveTo(x, y);
+    for (let i = 1; i <= 5; i++) { x -= Math.cos(ca) * len / 5 + Math.sin(ca) * f.r * 0.07 * (i % 2 ? 1 : -1); y -= Math.sin(ca) * len / 5 - Math.cos(ca) * f.r * 0.07 * (i % 2 ? 1 : -1); ctx.lineTo(x, y); }
     ctx.stroke();
   }
   ctx.restore();

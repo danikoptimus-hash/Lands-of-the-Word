@@ -2,9 +2,9 @@
 """
 Сезонные картинки карты (решение владельца 05.10): зима, весна, осень.
 
-Исходники местности для каждого сезона лежат в папке (по умолчанию assets/raw/season) как PNG 512×512 (сгенерированы через OpenAI images в 1024 и уменьшены) с именами
+Исходники местности для каждого сезона лежат в папке (по умолчанию assets/raw/season) как PNG 1024×1024 (фотореалистичные аэроснимки, сгенерированы через OpenAI images; края сводятся в бесшовные скриптом) с именами
 <сезон>-<вид>.png, где вид: steppe (desert), hills, meadow, mountains, forest (oasis), lake (water). Скрипт:
-  1. летние (summer-*) кладёт в apps/web/public/img/terrain/<имя>.webp (512 px) — это и есть «обычные» картинки;
+  1. летние (summer-*) кладёт в apps/web/public/img/terrain/<имя>.webp (1024 px) — это и есть «обычные» картинки;
   2. остальные сезоны — в apps/web/public/img/terrain/<сезон>/<имя>.webp;
   3. для городов, стартов и островков делает сезонные копии цветокоррекцией (зима — холоднее и светлее, как под снегом;
      весна — свежее; осень — теплее и чуть темнее) в apps/web/public/img/<набор>/<сезон>/…; если для островка есть
@@ -61,9 +61,28 @@ def tod_variants(day: Image.Image, dst_day: Path) -> None:
         save_webp(graded(day, g), dst_day.with_name(f"{dst_day.stem}-{ph}.webp"))
 
 
+def make_seamless(im: Image.Image, width: float = 0.22) -> Image.Image:
+    """Бесшовность (решение владельца 05.10: местность — одна сплошная карта): края картинки смешиваются с копией,
+    сдвинутой на полкадра, — у неё края сходятся без шва, а её собственный шов в середине накрывается оригиналом.
+    width — ширина переходной полосы от края, доля размера."""
+    a = np.asarray(im.convert("RGB")).astype(np.float32)
+    h, w = a.shape[:2]
+    off = np.roll(np.roll(a, h // 2, axis=0), w // 2, axis=1)
+    ys = np.minimum(np.arange(h), h - 1 - np.arange(h)) / (h * width)
+    xs = np.minimum(np.arange(w), w - 1 - np.arange(w)) / (w * width)
+    my, mx = np.clip(ys, 0, 1), np.clip(xs, 0, 1)
+    m = np.minimum(my[:, None], mx[None, :])
+    m = m * m * (3 - 2 * m)  # smoothstep: 0 у края (копия), 1 в середине (оригинал)
+    out = a * m[..., None] + off * (1 - m[..., None])
+    return Image.fromarray(np.clip(out + 0.5, 0, 255).astype(np.uint8), "RGB")
+
+
+TERRAIN_PX = 1024
+
+
 def terrain_from_png(src: Path, dst: Path) -> None:
-    im = Image.open(src).convert("RGB").resize((512, 512), Image.LANCZOS)
-    save_webp(im, dst)
+    im = make_seamless(Image.open(src).convert("RGB").resize((TERRAIN_PX, TERRAIN_PX), Image.LANCZOS))
+    save_webp(im, dst, 80)
     tod_variants(im, dst)
     print(dst.relative_to(ROOT))
 

@@ -467,52 +467,96 @@ export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false, fi
  * (резко, в разрешении экрана) рисуется через SETTLE_MS после того, как вид устоялся. Только открытые гексы;
  * озёра — если их не рисует WebGL. В SVG мира у гексов остаются только границы.
  */
+/**
+ * Местность как одна сплошная карта (решение владельца 05.10: не набор картинок по гексам, а единый материк). Текстуры —
+ * бесшовные фотореалистичные снимки сверху, повторяются в мировых координатах (без поворотов, одна ориентация у всех гексов),
+ * поэтому соседние гексы одного типа сливаются в один луг или лес. Границы между типами местности размыты: каждый тип рисуется
+ * через маску — объединение его гексов, размытое примерно на треть гекса, — и типы накладываются от низкого к высокому
+ * (луг → степь → лес → холмы → горы), так что ребро гекса не видно, а переходы получаются мягкие и неровные.
+ * Маски считаются в половинном разрешении: размытие дешёвое, разницы на глаз нет.
+ */
+const TERRAIN_ORDER = ["meadow", "desert", "oasis", "hills", "mountains"];
+/** Сколько гексов по ширине укладывается в один повтор текстуры. */
+const TEX_HEXES = 6;
 export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, daytime }: { vp: Viewport; hexes: MapHexDto[]; size?: number; skipWater?: boolean; /** Время суток: картинки двух фаз перехода смешиваются по доле, суша подсвечивается со стороны светила. */ daytime?: Daytime }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
-  const key = hexes.map((h) => `${h.q},${h.r}:${h.terrain}:${h.rotation ?? 0}:${h.lit === false ? 0 : 1}`).join(";");
+  const key = hexes.map((h) => `${h.q},${h.r}:${h.terrain}:${h.lit === false ? 0 : 1}`).join(";");
   const from = daytime?.from ?? "day", to = daytime?.to ?? "day", blend = daytime?.t ?? 0, light = daytime?.light ?? DAY_LIGHT, season = daytime?.season ?? "summer";
   const lkey = daytime ? lightKey(daytime) : "day";
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
     if (!canvas || !host) return;
     const ctx = canvas.getContext("2d"); if (!ctx) return;
-    const tiles = hexes.filter((h) => h.lit !== false && !(skipWater && h.terrain === "water")).map((h) => ({ c: hexCenter(h, size), t: TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert", rot: ((h.rotation ?? 0) % 6) * Math.PI / 3 }));
-    if (!tiles.length) { canvas.width = 1; canvas.height = 1; return; }
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // картинкам местности хватает; 2× на ноутбуке — 30-мегапиксельный растр
+    const land = hexes.filter((h) => h.lit !== false).map((h) => ({ c: hexCenter(h, size), t: TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "meadow" }));
+    if (!land.length) { canvas.width = 1; canvas.height = 1; return; }
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     const images = new Map<string, HTMLImageElement>();
     let dirty = true, raf = 0, settle = 0, W = 0, H = 0;
     const load = (t: string, phase: DayPhase) => { const im = new Image(); im.decoding = "async"; im.onload = () => { cache.valid = false; dirty = true; }; im.src = IMG.terrain(t, phase, season); images.set(`${t}:${phase}`, im); };
-    for (const t of new Set(tiles.map((x) => x.t))) { load(t, from); if (to !== from) load(t, to); }
+    const types = new Set(land.map((x) => x.t)); types.add("meadow");
+    for (const t of types) { load(t, from); if (to !== from) load(t, to); }
     const ready = (im: HTMLImageElement | undefined): im is HTMLImageElement => Boolean(im && im.complete && im.naturalWidth);
-    const hex = new Path2D();
-    for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30), x = Math.cos(a) * size * 0.995, y = Math.sin(a) * size * 0.995; if (i === 0) hex.moveTo(x, y); else hex.lineTo(x, y); }
-    hex.closePath();
-    const bw = size * Math.sqrt(3), bh = size * 2; // рамка гекса; картинка — квадрат 1.4 рамки, повёрнутый, как в SVG-узоре
-    const PAD = 0.25, SETTLE_MS = 140, RERENDER_MS = 100;
+    const hexPath = (scale: number) => { const p = new Path2D(); for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30), x = Math.cos(a) * size * scale, y = Math.sin(a) * size * scale; if (i === 0) p.moveTo(x, y); else p.lineTo(x, y); } p.closePath(); return p; };
+    const hexTight = hexPath(0.995), hexWide = hexPath(1.12);
+    const texWorld = size * Math.sqrt(3) * TEX_HEXES;
+    const PAD = 0.25, SETTLE_MS = 140, RERENDER_MS = 100, MASK_SCALE = 0.5;
     let lastRender = 0;
     const cache = { canvas: document.createElement("canvas"), k: 0, tx: 0, ty: 0, pad: 0, valid: false };
     const cctx = cache.canvas.getContext("2d"); if (!cctx) return;
+    const layer = document.createElement("canvas"), lctx = layer.getContext("2d")!;
+    const mask = document.createElement("canvas"), mctx = mask.getContext("2d")!;
+    const soft = document.createElement("canvas"), sctx = soft.getContext("2d")!;
+    const hasFilter = typeof sctx.filter === "string";
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } cache.valid = false; dirty = true; };
-    const render = (k: number, tx: number, ty: number) => {
+    /** Узор текстуры в мировых координатах: повтор каждые texWorld единиц, привязан к началу координат карты. */
+    const pattern = (g: CanvasRenderingContext2D, im: HTMLImageElement) => { const p = g.createPattern(im, "repeat"); if (p) p.setTransform(new DOMMatrix().scale(texWorld / im.naturalWidth)); return p; };
+    const render = (k: number, tx: number, ty: number, quick: boolean) => {
       const pad = Math.ceil(Math.max(W, H) * PAD);
       const CW = W + 2 * pad, CH = H + 2 * pad;
-      if (cache.canvas.width !== CW || cache.canvas.height !== CH) { cache.canvas.width = CW; cache.canvas.height = CH; }
+      for (const c of [cache.canvas, layer]) if (c.width !== CW || c.height !== CH) { c.width = CW; c.height = CH; }
+      const MW = Math.ceil(CW * MASK_SCALE), MH = Math.ceil(CH * MASK_SCALE);
+      for (const c of [mask, soft]) if (c.width !== MW || c.height !== MH) { c.width = MW; c.height = MH; }
+      const world = (g: CanvasRenderingContext2D, s = 1) => g.setTransform(k * dpr * s, 0, 0, k * dpr * s, (tx * dpr + pad) * s, (ty * dpr + pad) * s);
       cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, CW, CH);
-      cctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr + pad, ty * dpr + pad);
-      cctx.imageSmoothingEnabled = true; cctx.imageSmoothingQuality = "high";
-      const x0 = (-pad / dpr - tx) / k - size, y0 = (-pad / dpr - ty) / k - size, x1 = ((W + pad) / dpr - tx) / k + size, y1 = ((H + pad) / dpr - ty) / k + size;
-      for (const tl of tiles) {
-        if (tl.c.x < x0 || tl.c.x > x1 || tl.c.y < y0 || tl.c.y > y1) continue;
-        cctx.save(); cctx.translate(tl.c.x, tl.c.y); cctx.clip(hex);
-        cctx.fillStyle = TERRAIN_COLOR[tl.t] ?? TERRAIN_COLOR.desert!; cctx.fillRect(-bw, -bh, 2 * bw, 2 * bh);
-        // Переход между временами суток: картинка первой фазы, поверх — второй с прозрачностью доли перехода.
-        const a = images.get(`${tl.t}:${from}`), b = to !== from ? images.get(`${tl.t}:${to}`) : undefined;
-        cctx.rotate(tl.rot);
-        if (ready(a) && (blend < 1 || !ready(b))) cctx.drawImage(a, -0.7 * bw, -0.7 * bh, 1.4 * bw, 1.4 * bh);
-        if (ready(b) && blend > 0) { cctx.globalAlpha = ready(a) ? blend : 1; cctx.drawImage(b, -0.7 * bw, -0.7 * bh, 1.4 * bw, 1.4 * bh); cctx.globalAlpha = 1; }
-        cctx.restore();
-      }
+      const x0 = (-pad / dpr - tx) / k - size * 2, y0 = (-pad / dpr - ty) / k - size * 2, x1 = ((W + pad) / dpr - tx) / k + size * 2, y1 = ((H + pad) / dpr - ty) / k + size * 2;
+      const seen = land.filter((tl) => tl.c.x >= x0 && tl.c.x <= x1 && tl.c.y >= y0 && tl.c.y <= y1);
+      if (!seen.length) { Object.assign(cache, { k, tx, ty, pad, valid: true }); return; }
+      // Маска суши: ровно по гексам — ею обрезается всё, чтобы размытые края типов не вылезали в море.
+      const landMask = (g: CanvasRenderingContext2D, scale: number) => { g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, g.canvas.width, g.canvas.height); world(g, scale); g.fillStyle = "#fff"; for (const tl of seen) { g.save(); g.translate(tl.c.x, tl.c.y); g.fill(hexTight); g.restore(); } };
+      /** Слой одного типа: текстура (две фазы по доле перехода) через размытую маску его гексов, затем обрезка по суше. */
+      const paintType = (t: string, maskScale: number, blurPx: number, useSoft: boolean) => {
+        const a = images.get(`${t}:${from}`), b = to !== from ? images.get(`${t}:${to}`) : undefined;
+        if (!ready(a) && !ready(b)) return false;
+        lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.clearRect(0, 0, CW, CH); lctx.globalCompositeOperation = "source-over";
+        world(lctx);
+        lctx.fillStyle = TERRAIN_COLOR[t] ?? TERRAIN_COLOR.meadow!; lctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+        if (ready(a) && (blend < 1 || !ready(b))) { const p = pattern(lctx, a); if (p) { lctx.fillStyle = p; lctx.fillRect(x0, y0, x1 - x0, y1 - y0); } }
+        if (ready(b) && blend > 0) { const p = pattern(lctx, b); if (p) { lctx.globalAlpha = ready(a) ? blend : 1; lctx.fillStyle = p; lctx.fillRect(x0, y0, x1 - x0, y1 - y0); lctx.globalAlpha = 1; } }
+        // маска типа: гексы с запасом, размытые; в половинном разрешении
+        mctx.setTransform(1, 0, 0, 1, 0, 0); mctx.clearRect(0, 0, MW, MH); world(mctx, maskScale); mctx.fillStyle = "#fff";
+        for (const tl of seen) if (tl.t === t) { mctx.save(); mctx.translate(tl.c.x, tl.c.y); mctx.fill(hexWide); mctx.restore(); }
+        sctx.setTransform(1, 0, 0, 1, 0, 0); sctx.clearRect(0, 0, MW, MH);
+        if (useSoft && hasFilter) { sctx.filter = `blur(${blurPx}px)`; sctx.drawImage(mask, 0, 0); sctx.filter = "none"; }
+        else if (useSoft) { // без ctx.filter (старый WebKit): маска накладывается кольцом сдвигов с малой прозрачностью
+          const n = 12; sctx.globalAlpha = 1 / 5;
+          for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2, r = blurPx * (i % 2 ? 1 : 0.5); sctx.drawImage(mask, Math.cos(a) * r, Math.sin(a) * r); }
+          sctx.globalAlpha = 1;
+        } else sctx.drawImage(mask, 0, 0);
+        lctx.setTransform(1, 0, 0, 1, 0, 0); lctx.globalCompositeOperation = "destination-in"; lctx.imageSmoothingEnabled = true;
+        lctx.drawImage(soft, 0, 0, MW, MH, 0, 0, CW, CH);
+        lctx.globalCompositeOperation = "source-over";
+        cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.drawImage(layer, 0, 0);
+        return true;
+      };
+      // Основа — луг под всей сушей (без размытия), сверху остальные типы с мягкими краями, от низких к высоким.
+      const blurPx = size * k * dpr * MASK_SCALE * 0.38;
+      paintType("meadow", MASK_SCALE, 0, false);
+      for (const t of TERRAIN_ORDER) if (t !== "meadow" && seen.some((tl) => tl.t === t)) paintType(t, MASK_SCALE, blurPx, !quick);
+      if (!skipWater && seen.some((tl) => tl.t === "water")) paintType("water", MASK_SCALE, blurPx * 0.4, !quick);
+      // Обрезка всего по гексам суши и боковой свет.
+      landMask(mctx, MASK_SCALE);
+      cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.globalCompositeOperation = "destination-in"; cctx.drawImage(mask, 0, 0, MW, MH, 0, 0, CW, CH); cctx.globalCompositeOperation = "source-over";
       sideLight(cctx, light, CW, CH);
       Object.assign(cache, { k, tx, ty, pad, valid: true });
     };
@@ -520,10 +564,9 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, dayt
       const { k, tx, ty } = vpRef.current.viewRef.current;
       const dx = (tx - cache.tx) * dpr, dy = (ty - cache.ty) * dpr;
       const fresh = cache.valid && cache.k === k && Math.abs(dx) <= cache.pad && Math.abs(dy) <= cache.pad;
-      // Пока идёт жест, растр всё же обновляется не чаще RERENDER_MS — иначе при щипке картинка размыта до отпускания
-      // пальцев (замечание владельца 15.09); окончательный пересчёт — когда вид устоится.
+      // Пока идёт жест, растр обновляется не чаще RERENDER_MS и без размытия масок; окончательный — когда вид устоится.
       const now = performance.now();
-      if (!cache.valid || (!fresh && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; perfMark("гексы растр", performance.now() - now); }
+      if (!cache.valid || (!fresh && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty, settle !== 0); lastRender = now; perfMark("гексы растр", performance.now() - now); }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
       if (cache.k === k) ctx.drawImage(cache.canvas, (tx - cache.tx) * dpr - cache.pad, (ty - cache.ty) * dpr - cache.pad);
       else { const f = k / cache.k; ctx.setTransform(f, 0, 0, f, tx * dpr - (cache.pad + cache.tx * dpr) * f, ty * dpr - (cache.pad + cache.ty * dpr) * f); ctx.drawImage(cache.canvas, 0, 0); }
