@@ -133,10 +133,8 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
                   {!d.quarry && <span title={t("Вероятность появления на новой дороге")}>· {d.chance}%</span>}
                   {/* Две цифры по делу (решение владельца 04.10): сколько таких дел сейчас свободно на картах команд и сколько взято в работу. */}
                   {!d.quarry && d.onMap && <span className="on-map" title={t("На картах команд: свободных {a}, в работе {b}", { a: d.onMap.free, b: d.onMap.taken }) + (d.onMap.sea ? ` · ${t("из них в море (корабль у порта): {n}", { n: d.onMap.sea })}` : "")}>· <Icon name="scroll" />{d.onMap.free} <Icon name="user" />{d.onMap.taken}{d.onMap.sea ? <> <Icon name="ship" />{d.onMap.sea}</> : null}</span>}
-                  {/* По командам (замечание владельца 05.10: сумма по всем командам не сходится с картой одной команды): буква команды — свободно/в работе. */}
-                  {!d.quarry && d.onMap?.teams && d.onMap.teams.length > 0 && <span className="on-map by-team" title={t("По командам: свободно / в работе")}>{d.onMap.teams.map((tm) => <span key={tm.index} className="tm" style={{ color: tm.color }} title={tm.name}>{tm.name.slice(0, 1).toUpperCase()} {tm.free}{tm.taken ? `/${tm.taken}` : ""}</span>)}</span>}
                   {d.bookCodes.length > 0 && <span>· <Chip icon="book" title={d.bookCodes.map(bookName).join(", ")}>{plural(d.bookCodes.length, [t("книга"), t("книги"), t("книг")])}</Chip></span>}
-                  <span>· {d.direction}</span>
+                  {/* Направление в списке не показывается (решение владельца 05.10): поле остаётся в форме и в данных. */}
                 </span>
               </div>
               <div className="side">
