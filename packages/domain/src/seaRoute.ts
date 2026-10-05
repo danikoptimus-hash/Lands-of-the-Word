@@ -32,37 +32,6 @@ export function seaRoute(land: ReadonlySet<string>, fromKey: string, toKey: stri
   // Второе кольцо от берега тоже дороже, чем открытое море: где есть место, маршрут держится в двух гексах от суши.
   const nearCoast = (h: Hex) => hexNeighbors(h).some((n) => coastal(n));
   const stepCost = (h: Hex) => 1 + (coastal(h) ? 4 : nearCoast(h) ? 1.5 : 0);
-  /** Точка отхода/подхода: от вершины берега в сторону воды (к центрам её водных гексов) на 1.4 размера. */
-  const offshore = (v: Pt, water: Hex[]): Pt => {
-    const cx = water.reduce((t, h) => t + hexToPixel(h, size).x, 0) / water.length, cy = water.reduce((t, h) => t + hexToPixel(h, size).y, 0) / water.length;
-    const dx = cx - v.x, dy = cy - v.y, d = Math.hypot(dx, dy) || 1;
-    return { x: v.x + (dx / d) * size * 1.4, y: v.y + (dy / d) * size * 1.4 };
-  };
-  // Сначала одна плавная S-кривая (решение владельца 05.10 по рисунку): выход из порта и подход к высадке перпендикулярно
-  // берегу, между ними кубическая кривая Безье; берётся самый широкий изгиб, который целиком лежит на воде с запасом.
-  // Направления выхода и подхода: нормаль к берегу, смешанная с направлением на другой конец, — иначе у высадки,
-  // лежащей «за углом», кривая делала петлю (замечание владельца 05.10). Если нормаль смотрит прочь от цели — чистая
-  // нормаль. Точки выхода и подхода (1.4 размера от берега) лежат на этих же направлениях, чтобы последний отрезок
-  // к берегу продолжал кривую без излома.
-  const dep0 = start ?? offshore(a, starts), app0 = offshore(b, ends);
-  const dir0 = unit(app0, dep0);
-  const blend = (n: Pt, d: Pt): Pt => { const v = { x: n.x + d.x, y: n.y + d.y }; const l = Math.hypot(v.x, v.y); return l < 0.3 ? n : { x: v.x / l, y: v.y / l }; };
-  const outA = blend(unit(dep0, a), dir0), outB = blend(unit(app0, b), { x: -dir0.x, y: -dir0.y });
-  const depPt = start ?? { x: a.x + outA.x * size * 1.4, y: a.y + outA.y * size * 1.4 }, appPt = { x: b.x + outB.x * size * 1.4, y: b.y + outB.y * size * 1.4 };
-  const dist = Math.hypot(appPt.x - depPt.x, appPt.y - depPt.y);
-  // У выхода из порта и у подхода к высадке (2.5 размера от вершины берега) запас в гекс невозможен: там достаточно не задеть сушу.
-  const nearEnd = (q: Pt) => Math.hypot(q.x - a.x, q.y - a.y) < size * 2.5 || Math.hypot(q.x - b.x, q.y - b.y) < size * 2.5;
-  const okAt = (q: Pt, margin: number) => (nearEnd(q) ? offLand(q, land, size, obstacles) : clearAt(q, land, size, obstacles, margin));
-  // Запас от берега: сначала гекс, в узком проливе — меньше; при каждом запасе — сначала естественный изгиб (треть расстояния), затем шире, затем положе.
-  for (const margin of [2.0, 1.6, 1.3]) {
-    for (const k of [0.33, 0.4, 0.5, 0.26, 0.2, 0.15]) {
-      const c1 = { x: depPt.x + outA.x * dist * k, y: depPt.y + outA.y * dist * k }, c2 = { x: appPt.x + outB.x * dist * k, y: appPt.y + outB.y * dist * k };
-      const n = Math.max(8, Math.ceil((dist * (1 + k)) / (size * 0.5)));
-      const pts: Pt[] = [];
-      for (let i = 0; i <= n; i++) pts.push(bezier(depPt, c1, c2, appPt, i / n));
-      if (pts.every((q) => okAt(q, margin))) return [a, ...pts, b];
-    }
-  }
   const endSet = new Set(ends.map(hexKey));
   const span = Math.max(...starts.map((s) => Math.max(...ends.map((e) => hexDistance(s, e)))));
   const limit = span + 10;
@@ -99,6 +68,29 @@ export function seaRoute(land: ReadonlySet<string>, fromKey: string, toKey: stri
   if (!cells) return [start ?? a, b];
   // Отход от порта и подход к высадке — короткие прямые в море (решение владельца 05.10: подходить с воды, а не вдоль
   // берега); между ними ломаная по центрам гексов натягивается в прямые там, где вода позволяет.
+  // Направления выхода и подхода — по реальному водному пути (замечание владельца 05.10: подход «от берега в море»
+  // давал петлю, когда берег высадки смотрит прочь от порта): куда ведут первые и последние гексы пути, туда и
+  // смотрят ручки кривой; точки выхода и подхода (1.4 размера от берега) лежат на тех же направлениях.
+  const centers = cells.map((h) => hexToPixel(h, size));
+  const mean = (ps: Pt[]): Pt => ({ x: ps.reduce((t, q) => t + q.x, 0) / ps.length, y: ps.reduce((t, q) => t + q.y, 0) / ps.length });
+  const outA = unit(mean(centers.slice(0, Math.min(3, centers.length))), a);
+  const outB = unit(mean(centers.slice(Math.max(0, centers.length - 3))), b);
+  const depPt = start ?? { x: a.x + outA.x * size * 1.4, y: a.y + outA.y * size * 1.4 }, appPt = { x: b.x + outB.x * size * 1.4, y: b.y + outB.y * size * 1.4 };
+  const dist = Math.hypot(appPt.x - depPt.x, appPt.y - depPt.y);
+  // У выхода из порта и у подхода к высадке (2.5 размера от вершины берега) запас в гекс невозможен: там достаточно не задеть сушу.
+  const nearEnd = (q: Pt) => Math.hypot(q.x - a.x, q.y - a.y) < size * 2.5 || Math.hypot(q.x - b.x, q.y - b.y) < size * 2.5;
+  const okAt = (q: Pt, margin: number) => (nearEnd(q) ? offLand(q, land, size, obstacles) : clearAt(q, land, size, obstacles, margin));
+  // Одна плавная S-кривая (решение владельца 05.10 по рисунку): кубическая Безье между точками выхода и подхода.
+  // Запас от берега: сначала гекс, в узком проливе — меньше; при каждом запасе — сначала естественный изгиб (треть расстояния), затем шире, затем положе.
+  for (const margin of [2.0, 1.6, 1.3]) {
+    for (const k of [0.33, 0.4, 0.5, 0.26, 0.2, 0.15]) {
+      const c1 = { x: depPt.x + outA.x * dist * k, y: depPt.y + outA.y * dist * k }, c2 = { x: appPt.x + outB.x * dist * k, y: appPt.y + outB.y * dist * k };
+      const n = Math.max(8, Math.ceil((dist * (1 + k)) / (size * 0.5)));
+      const pts: Pt[] = [];
+      for (let i = 0; i <= n; i++) pts.push(bezier(depPt, c1, c2, appPt, i / n));
+      if (pts.every((q) => okAt(q, margin))) return [a, ...pts, b];
+    }
+  }
   // Запасной путь без углов: ломаная по центрам гексов натягивается, как резинка, которой нельзя подходить к берегу
   // ближе запаса — получаются плавные дуги вокруг мысов и островков.
   const bandOk = (q: Pt) => okAt(q, 2.2) || (okAt(q, 1.6) && nearEndWide(q));
