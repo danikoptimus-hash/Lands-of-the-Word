@@ -80,7 +80,10 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   const gesture = useRef<{ start: { x: number; y: number }; drag: boolean; pinch: { dist: number; mid: { x: number; y: number } } | null } | null>(null);
   /** Порог перетаскивания: палец при нажатии дрожит на несколько пикселей, это ещё не перетаскивание (мышь точнее). */
   const slop = (type: string) => (type === "mouse" ? 4 : 10);
-  const [dragging, setDragging] = useState(false);
+  const [dragging, setDraggingState] = useState(false);
+  // Признак перетаскивания и в ref: обработчики нажатий на метки живут в memo-слоях и должны видеть свежее значение.
+  const draggingRef = useRef(false);
+  const setDragging = useCallback((v: boolean) => { draggingRef.current = v; setDraggingState(v); }, []);
 
   /** Слева карту может закрывать стеклянная колонка меню (компьютер): её ширина приходит из CSS (`--map-pad-left`),
    *  «вся карта» и центрирование считаются по свободной части окна. */
@@ -180,19 +183,29 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       else if (gesture.current) gesture.current.pinch = null;
     };
     const clear = (e: TouchEvent) => { if (e.touches.length === 0 && pointers.current.size) { pointers.current.clear(); gesture.current = null; commit(); setTimeout(() => setDragging(false), 0); } };
+    // Приложение свернули или ушли с вкладки во время касания: pointerup уже не придёт, жест сбрасывается целиком,
+    // иначе после возврата каждое нажатие считается перетаскиванием и на карте ничего не нажимается (ошибка 05.10).
+    const reset = () => { if (!pointers.current.size && !gesture.current && !draggingRef.current) return; pointers.current.clear(); gesture.current = null; commit(); setDragging(false); };
+    const onVisibility = () => { if (document.visibilityState === "hidden") reset(); };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", up);
     window.addEventListener("touchend", clear);
     window.addEventListener("touchcancel", clear);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("pagehide", reset);
+    window.addEventListener("blur", reset);
     return () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", up);
       window.removeEventListener("touchend", clear);
       window.removeEventListener("touchcancel", clear);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("pagehide", reset);
+      window.removeEventListener("blur", reset);
     };
-  }, [setView, commit, commitIfFar]);
+  }, [setView, commit, commitIfFar, setDragging]);
 
   useEffect(() => {
     if (!el) return;
@@ -212,17 +225,21 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     // Без setPointerCapture: иначе click уходит контейнеру, а не клетке карты.
     if (e.pointerType === "mouse" && e.button !== 0) return;
     const now = Date.now();
-    for (const [id, pt] of pointers.current) if (pt.type !== "touch" && now - pt.at > 1000) pointers.current.delete(id);
+    // Забытые указатели (мышь без отпускания дольше секунды, палец без отпускания дольше трёх — так бывает после
+    // сворачивания приложения) не считаются: новое касание начинает новый жест.
+    for (const [id, pt] of pointers.current) if (now - pt.at > (pt.type === "touch" ? 3000 : 1000)) pointers.current.delete(id);
     if (pointers.current.size >= 2) return; // третий палец не участвует
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: now, type: e.pointerType });
     const pts = [...pointers.current.values()];
     const r = ref.current?.getBoundingClientRect();
     const pinch = pts.length === 2 && r ? { dist: Math.hypot(pts[0]!.x - pts[1]!.x, pts[0]!.y - pts[1]!.y), mid: { x: (pts[0]!.x + pts[1]!.x) / 2 - r.left, y: (pts[0]!.y + pts[1]!.y) / 2 - r.top } } : null;
-    gesture.current = { start: { x: e.clientX, y: e.clientY }, drag: gesture.current?.drag ?? false, pinch };
+    // Один палец — новый жест, перетаскивание с нуля; второй палец продолжает жест первого.
+    gesture.current = { start: { x: e.clientX, y: e.clientY }, drag: pts.length > 1 ? (gesture.current?.drag ?? false) : false, pinch };
+    if (pts.length === 1 && draggingRef.current) setDragging(false);
   };
 
   /** true, если последний жест был перетаскиванием или щипком (значит клик по клетке игнорируем). */
-  const wasDrag = () => (gesture.current?.drag ?? false) || dragging;
+  const wasDrag = () => (gesture.current?.drag ?? false) || draggingRef.current;
 
   return { ref: attach, view, viewRef, subscribe, fit, focusOn, zoomAt: (f: number) => zoomAt(f), wasDrag, handlers: { onPointerDown } };
 }
