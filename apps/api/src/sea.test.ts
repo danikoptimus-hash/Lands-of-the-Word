@@ -237,7 +237,10 @@ describe("морской переход", () => {
     const m1 = await myMap();
     const approved = (m1.tasks as Task[]).find((t) => t.id === sea.id)!;
     expect(approved.landing).toBe(true);
-    expect(approved.candidates!.length).toBeGreaterThan(5);
+    // Десять случайных пристаней на рейс, одинаковых при повторном запросе (решение владельца 05.10).
+    expect(approved.candidates!.length).toBe(10);
+    const sameBerths = ((await myMap()).tasks as Task[]).find((t) => t.id === sea.id)!;
+    expect(sameBerths.candidates).toEqual(approved.candidates);
     const cand = await prisma.mapNode.findMany({ where: { gameId, key: { in: approved.candidates } } });
     for (const c of cand) { expect(c.island).toBe("NT"); expect(c.coastal).toBe(true); expect(c.kind).toBe("EMPTY"); }
     expect((m1.revealed as Array<{ key: string }>).some((n) => n.key === cand[0]!.key)).toBe(false);

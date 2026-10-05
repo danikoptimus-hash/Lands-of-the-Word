@@ -226,7 +226,7 @@ const EN: Record<string, string> = {
   "Место высадки выбирает кормчий: капитан и команда ему советуют": "The helmsman chooses where to land; the captain and the team advise them",
   "Морское дело не найдено": "Sea deed not found",
   "Корабль ещё не готов или уже высадился": "The ship is not ready yet or has already landed",
-  "Высадиться можно только на пустую береговую развилку другого острова": "You can only land on an empty coastal fork of the other island",
+  "Высадиться можно только на одну из предложенных пристаней другого острова": "You can only land at one of the offered berths on the other island",
   "Дело «{deed}» одобрено. Капитан или кормчий может выбрать на карте, куда высадиться на другом острове.": "The deed “{deed}” is approved. The captain or the helmsman can now choose on the map where to land on the other island.",
   "Вы не состоите в команде": "You are not in a team",
   "С другими командами говорит посол вашей команды": "Your team's ambassador speaks with other teams",

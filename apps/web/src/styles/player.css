@@ -171,6 +171,11 @@
 .roster li .side { gap: var(--sp-2); flex: none; }
 /* Имя слева, значки справа — в одну строку: длинное имя обрезается (решение владельца 04.10). */
 .roster > li { flex-wrap: nowrap; }
+/* Пока открыт ряд ролей, строке можно переноситься: ряд уходит под имя на всю ширину (замечание капитана 05.10: без этого
+   ряд ролей вжимался узкой колонкой справа от имени). */
+.roster > li.picking { flex-wrap: wrap; }
+/* Основа имени — 0, а не 160px из общего правила списка меню: иначе при переносе имя занимает всю строку, а значки падают ниже. */
+.side-menu .roster > li > .main, .roster > li.picking > .main { flex-basis: 0; }
 .roster > li > .main { flex: 1 1 0; min-width: 0; }
 .roster .person .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .roster .role-pick .chip, .roster .chip-btn .chip { overflow: hidden; }

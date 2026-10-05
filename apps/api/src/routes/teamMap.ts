@@ -300,8 +300,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task || !task.sea) return reply.code(404).send({ error: "not_found", message: err(request, "Морское дело не найдено") });
     if (task.status !== "APPROVED" || !isSeaKey(task.toKey)) return reply.code(409).send({ error: "conflict", message: err(request, "Корабль ещё не готов или уже высадился") });
-    const candidates = await landingCandidates(id, m.team.id, task.fromKey);
-    if (!candidates.includes(body.nodeKey)) return reply.code(409).send({ error: "conflict", message: err(request, "Высадиться можно только на пустую береговую развилку другого острова") });
+    const candidates = await landingCandidates(id, m.team.id, task.fromKey, task.id);
+    if (!candidates.includes(body.nodeKey)) return reply.code(409).send({ error: "conflict", message: err(request, "Высадиться можно только на одну из предложенных пристаней другого острова") });
     await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { toKey: body.nodeKey } });
     await revealNode(id, m.team.id, body.nodeKey);
     journal(id, "sea_landed", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id) } });
