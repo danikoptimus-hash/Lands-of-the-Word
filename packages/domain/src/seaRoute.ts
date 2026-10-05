@@ -43,14 +43,18 @@ export function seaRoute(land: ReadonlySet<string>, fromKey: string, toKey: stri
   const depPt = start ?? offshore(a, starts), appPt = offshore(b, ends);
   const outA = unit(depPt, a), outB = unit(appPt, b);
   const dist = Math.hypot(appPt.x - depPt.x, appPt.y - depPt.y);
-  for (const k of [0.5, 0.4, 0.3, 0.2]) {
-    const c1 = { x: depPt.x + outA.x * dist * k, y: depPt.y + outA.y * dist * k }, c2 = { x: appPt.x + outB.x * dist * k, y: appPt.y + outB.y * dist * k };
-    const n = Math.max(8, Math.ceil((dist * (1 + k)) / (size * 0.5)));
-    const pts: Pt[] = [];
-    for (let i = 0; i <= n; i++) pts.push(bezier(depPt, c1, c2, appPt, i / n));
-    // У выхода из порта и у подхода к высадке (2.5 размера от вершины берега) запас в гекс невозможен: там достаточно не задеть сушу.
-    const nearEnd = (q: Pt) => Math.hypot(q.x - a.x, q.y - a.y) < size * 2.5 || Math.hypot(q.x - b.x, q.y - b.y) < size * 2.5;
-    if (pts.every((q) => (nearEnd(q) ? offLand(q, land, size, obstacles) : clearAt(q, land, size, obstacles)))) return [a, ...pts, b];
+  // У выхода из порта и у подхода к высадке (2.5 размера от вершины берега) запас в гекс невозможен: там достаточно не задеть сушу.
+  const nearEnd = (q: Pt) => Math.hypot(q.x - a.x, q.y - a.y) < size * 2.5 || Math.hypot(q.x - b.x, q.y - b.y) < size * 2.5;
+  const okAt = (q: Pt, margin: number) => (nearEnd(q) ? offLand(q, land, size, obstacles) : clearAt(q, land, size, obstacles, margin));
+  // Запас от берега: сначала гекс, в узком проливе — меньше; при каждом запасе — сначала естественный изгиб (треть расстояния), затем шире, затем положе.
+  for (const margin of [2.0, 1.6, 1.3]) {
+    for (const k of [0.33, 0.4, 0.5, 0.26, 0.2, 0.15]) {
+      const c1 = { x: depPt.x + outA.x * dist * k, y: depPt.y + outA.y * dist * k }, c2 = { x: appPt.x + outB.x * dist * k, y: appPt.y + outB.y * dist * k };
+      const n = Math.max(8, Math.ceil((dist * (1 + k)) / (size * 0.5)));
+      const pts: Pt[] = [];
+      for (let i = 0; i <= n; i++) pts.push(bezier(depPt, c1, c2, appPt, i / n));
+      if (pts.every((q) => okAt(q, margin))) return [a, ...pts, b];
+    }
   }
   const endSet = new Set(ends.map(hexKey));
   const span = Math.max(...starts.map((s) => Math.max(...ends.map((e) => hexDistance(s, e)))));
@@ -84,9 +88,42 @@ export function seaRoute(land: ReadonlySet<string>, fromKey: string, toKey: stri
   for (let n: Node | null = found; n; n = n.parent) cells.unshift(n.h);
   // Отход от порта и подход к высадке — короткие прямые в море (решение владельца 05.10: подходить с воды, а не вдоль
   // берега); между ними ломаная по центрам гексов натягивается в прямые там, где вода позволяет.
-  const dep = start ?? offshore(a, starts), app = offshore(b, ends);
-  const middle = pullRoute([dep, ...cells.map((h) => hexToPixel(h, size)), app], land, size, obstacles);
-  return [a, ...middle, b];
+  // Запасной путь без углов: ломаная по центрам гексов натягивается, как резинка, которой нельзя подходить к берегу
+  // ближе запаса — получаются плавные дуги вокруг мысов и островков.
+  const band = elasticBand([depPt, ...cells.map((h) => hexToPixel(h, size)), appPt], size, (q) => okAt(q, 1.6));
+  return [a, ...band, b];
+}
+
+/** Перевыборка ломаной по длине дуги с шагом `step`, концы на месте. */
+function resample(pts: ReadonlyArray<Pt>, step: number): Pt[] {
+  const out: Pt[] = [pts[0]!];
+  let carry = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p = pts[i]!, q = pts[i + 1]!, len = Math.hypot(q.x - p.x, q.y - p.y);
+    let t = step - carry;
+    while (t <= len) { out.push({ x: p.x + ((q.x - p.x) * t) / len, y: p.y + ((q.y - p.y) * t) / len }); t += step; }
+    carry = len - (t - step);
+  }
+  out.push(pts[pts.length - 1]!);
+  return out;
+}
+
+/**
+ * «Резинка»: точки ломаной (кроме концов) раз за разом подтягиваются к середине между соседями, если новое место
+ * допустимо (`ok`); каждые 25 проходов — перевыборка, чтобы точки не сбивались в кучу. Итог — гладкая линия,
+ * прямая на открытой воде и огибающая сушу по дуге радиусом не меньше запаса.
+ */
+export function elasticBand(pts: ReadonlyArray<Pt>, size: number, ok: (q: Pt) => boolean, iterations = 200): Pt[] {
+  let p = resample(pts, size * 0.5);
+  for (let it = 0; it < iterations; it++) {
+    for (let i = 1; i < p.length - 1; i++) {
+      const a = p[i - 1]!, b = p[i + 1]!, c = p[i]!;
+      const cand = { x: c.x + ((a.x + b.x) / 2 - c.x) * 0.5, y: c.y + ((a.y + b.y) / 2 - c.y) * 0.5 };
+      if (ok(cand)) p[i] = cand;
+    }
+    if (it % 25 === 24) p = resample(p, size * 0.5);
+  }
+  return p;
 }
 
 const unit = (p: Pt, from: Pt): Pt => { const dx = p.x - from.x, dy = p.y - from.y, d = Math.hypot(dx, dy) || 1; return { x: dx / d, y: dy / d }; };
@@ -107,18 +144,18 @@ export function pixelToHex(p: Pt, size: number): Hex {
 }
 
 /** Точка в воде с запасом от берега: её гекс не суша, до центра любого соседнего гекса суши не ближе 2 размеров (≈ гекс от кромки). */
-function clearAt(p: Pt, land: ReadonlySet<string>, size: number, obstacles: ReadonlyArray<SeaObstacle>): boolean {
+function clearAt(p: Pt, land: ReadonlySet<string>, size: number, obstacles: ReadonlyArray<SeaObstacle>, margin = 2.0): boolean {
   const h = pixelToHex(p, size);
   if (land.has(hexKey(h))) return false;
   for (const n of hexNeighbors(h)) {
     if (!land.has(hexKey(n))) continue;
     const c = hexToPixel(n, size);
-    if (Math.hypot(c.x - p.x, c.y - p.y) < size * 2.0) return false;
+    if (Math.hypot(c.x - p.x, c.y - p.y) < size * margin) return false;
   }
   return !obstacles.some((o) => {
     const d = Math.hypot(o.x - p.x, o.y - p.y);
     const edge = o.shape?.length ? isletRadiusAt({ r: o.r, shape: o.shape }, Math.atan2(p.y - o.y, p.x - o.x)) : o.r;
-    return d < edge + size * 1.0;
+    return d < edge + size * (margin - 1.0);
   });
 }
 
