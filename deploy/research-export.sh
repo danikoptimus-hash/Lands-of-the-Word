@@ -29,7 +29,8 @@ Q battle_entries "SELECT be.\"battleId\", be.side, be.\"teamId\", be.\"userId\",
 Q sieges        "SELECT id, \"nodeKey\", \"attackerId\", \"defenderId\", status, \"startedAt\", \"endsAt\", \"attackerPoints\", \"defenderPoints\", \"resolvedAt\" FROM \"Siege\" WHERE \"gameId\" = $G ORDER BY \"startedAt\""
 Q peeks         "SELECT p.\"teamId\", p.\"nodeKey\", p.\"createdAt\" FROM \"TeamPeek\" p JOIN \"Team\" t ON t.id = p.\"teamId\" WHERE t.\"gameId\" = $G ORDER BY p.\"createdAt\""
 # Метки команд с точным временем и открытые узлы (с 05.10: проверка, не подсмотрены ли города в тумане по полёту клина).
-Q marks         "SELECT mk.id, mk.\"teamId\", mk.\"createdById\", u.nickname, mk.q, mk.r, mk.qf, mk.rf, mk.note, mk.\"createdAt\", to_char(mk.\"createdAt\" AT TIME ZONE 'Asia/Tashkent', 'YYYY-MM-DD HH24:MI:SS') AS \"createdAtTashkent\" FROM \"TeamMark\" mk JOIN \"User\" u ON u.id = mk.\"createdById\" WHERE mk.\"gameId\" = $G ORDER BY mk.\"createdAt\""
+# Время в базе — UTC без пояса, поэтому сначала AT TIME ZONE 'UTC', потом в пояс игры; без первого шага получается минус 5 часов.
+Q marks         "SELECT mk.id, mk.\"teamId\", mk.\"createdById\", u.nickname, mk.q, mk.r, mk.qf, mk.rf, mk.note, mk.\"createdAt\", to_char((mk.\"createdAt\" AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Tashkent', 'YYYY-MM-DD HH24:MI:SS') AS \"createdAtTashkent\" FROM \"TeamMark\" mk JOIN \"User\" u ON u.id = mk.\"createdById\" WHERE mk.\"gameId\" = $G ORDER BY mk.\"createdAt\""
 Q node_states   "SELECT ns.\"teamId\", ns.\"nodeKey\", ns.\"revealedAt\" FROM \"TeamNodeState\" ns JOIN \"Team\" t ON t.id = ns.\"teamId\" WHERE t.\"gameId\" = $G ORDER BY ns.\"revealedAt\""
 
 tar czf "$OUT.tgz" -C "$(dirname "$OUT")" "$(basename "$OUT")"
