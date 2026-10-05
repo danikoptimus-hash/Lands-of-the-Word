@@ -1,7 +1,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { bookOfNodeKey, pickDeed, reshuffleOpenDeeds } from "../services/teamMap.js";
+import { bookOfNodeKey, pickDeed } from "../services/teamMap.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
@@ -34,12 +34,6 @@ export function recommendedDeedCount(nodeCount: number): number {
   return Math.max(30, Math.round(nodeCount / 8));
 }
 
-/** Перераздача свободных дел, если игра идёт: взятые и сданные не трогаются (reshuffleOpenDeeds). */
-async function reshuffleIfActive(gameId: string): Promise<void> {
-  const g = await prisma.game.findUnique({ where: { id: gameId }, select: { status: true } });
-  if (g?.status === "ACTIVE") await reshuffleOpenDeeds(gameId);
-}
-
 export async function deedRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
 
@@ -66,9 +60,8 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const body = deedBody.parse(request.body);
     const deed = await prisma.deed.create({ data: { ...body, gameId: id } });
     publish(id, { type: "deeds" });
-    // Свободные дела на карте следуют за настройками сами (решение владельца 04.10): новое дело в идущей игре
-    // перераздаёт свободные стороны по вероятностям.
-    await reshuffleIfActive(id);
+    // Решение владельца 05.10: дело, которое уже появилось на стороне, не подменяется. Новое дело попадает
+    // только на новые стороны (до 05.10 добавление дела перераздавало свободные стороны всех команд).
     return reply.code(201).send({ deed });
   });
 
@@ -80,8 +73,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     if (!exists) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     const deed = await prisma.deed.update({ where: { id: deedId }, data: body });
     publish(id, { type: "deeds" });
-    // Изменилась вероятность или книги дела — свободные стороны перераздаются по новым настройкам (решение владельца 04.10).
-    if ((body.chance != null && body.chance !== exists.chance) || (body.bookCodes && body.bookCodes.join() !== exists.bookCodes.join())) await reshuffleIfActive(id);
+    // Новые вероятность и книги действуют только на новые стороны: дела, которые уже видны на карте, остаются (решение владельца 05.10).
     return { deed };
   });
 
