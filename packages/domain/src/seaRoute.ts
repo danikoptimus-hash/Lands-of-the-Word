@@ -40,8 +40,15 @@ export function seaRoute(land: ReadonlySet<string>, fromKey: string, toKey: stri
   };
   // Сначала одна плавная S-кривая (решение владельца 05.10 по рисунку): выход из порта и подход к высадке перпендикулярно
   // берегу, между ними кубическая кривая Безье; берётся самый широкий изгиб, который целиком лежит на воде с запасом.
-  const depPt = start ?? offshore(a, starts), appPt = offshore(b, ends);
-  const outA = unit(depPt, a), outB = unit(appPt, b);
+  // Направления выхода и подхода: нормаль к берегу, смешанная с направлением на другой конец, — иначе у высадки,
+  // лежащей «за углом», кривая делала петлю (замечание владельца 05.10). Если нормаль смотрит прочь от цели — чистая
+  // нормаль. Точки выхода и подхода (1.4 размера от берега) лежат на этих же направлениях, чтобы последний отрезок
+  // к берегу продолжал кривую без излома.
+  const dep0 = start ?? offshore(a, starts), app0 = offshore(b, ends);
+  const dir0 = unit(app0, dep0);
+  const blend = (n: Pt, d: Pt): Pt => { const v = { x: n.x + d.x, y: n.y + d.y }; const l = Math.hypot(v.x, v.y); return l < 0.3 ? n : { x: v.x / l, y: v.y / l }; };
+  const outA = blend(unit(dep0, a), dir0), outB = blend(unit(app0, b), { x: -dir0.x, y: -dir0.y });
+  const depPt = start ?? { x: a.x + outA.x * size * 1.4, y: a.y + outA.y * size * 1.4 }, appPt = { x: b.x + outB.x * size * 1.4, y: b.y + outB.y * size * 1.4 };
   const dist = Math.hypot(appPt.x - depPt.x, appPt.y - depPt.y);
   // У выхода из порта и у подхода к высадке (2.5 размера от вершины берега) запас в гекс невозможен: там достаточно не задеть сушу.
   const nearEnd = (q: Pt) => Math.hypot(q.x - a.x, q.y - a.y) < size * 2.5 || Math.hypot(q.x - b.x, q.y - b.y) < size * 2.5;
@@ -61,37 +68,67 @@ export function seaRoute(land: ReadonlySet<string>, fromKey: string, toKey: stri
   const limit = span + 10;
   const nearest = (h: Hex) => Math.min(...ends.map((e) => hexDistance(h, e)));
   interface Node { h: Hex; g: number; f: number; parent: Node | null }
-  const open: Node[] = starts.map((h) => ({ h, g: 0, f: nearest(h), parent: null }));
-  const best = new Map<string, number>(starts.map((h) => [hexKey(h), 0]));
-  const closed = new Set<string>();
-  let found: Node | null = null;
-  for (let guard = 0; open.length && guard < 40_000; guard++) {
-    let bi = 0;
-    for (let i = 1; i < open.length; i++) if (open[i]!.f < open[bi]!.f) bi = i;
-    const cur = open.splice(bi, 1)[0]!;
-    const ck = hexKey(cur.h);
-    if (closed.has(ck)) continue;
-    closed.add(ck);
-    if (endSet.has(ck)) { found = cur; break; }
-    for (const n of hexNeighbors(cur.h)) {
-      const k = hexKey(n);
-      if (closed.has(k) || !isWater(n)) continue;
-      if (hexDistance(n, starts[0]!) > limit || nearest(n) > limit) continue;
-      const g = cur.g + stepCost(n);
-      if ((best.get(k) ?? Infinity) <= g) continue;
-      best.set(k, g);
-      open.push({ h: n, g, f: g + nearest(n), parent: cur });
+  // Сначала ищем путь по воде не ближе двух гексов к суше (у самых концов берег неизбежен), иначе — по любой воде.
+  const search = (strict: boolean): Hex[] | null => {
+    const open: Node[] = starts.map((h) => ({ h, g: 0, f: nearest(h), parent: null }));
+    const best = new Map<string, number>(starts.map((h) => [hexKey(h), 0]));
+    const closed = new Set<string>();
+    for (let guard = 0; open.length && guard < 40_000; guard++) {
+      let bi = 0;
+      for (let i = 1; i < open.length; i++) if (open[i]!.f < open[bi]!.f) bi = i;
+      const cur = open.splice(bi, 1)[0]!;
+      const ck = hexKey(cur.h);
+      if (closed.has(ck)) continue;
+      closed.add(ck);
+      if (endSet.has(ck)) { const cells: Hex[] = []; for (let n: Node | null = cur; n; n = n.parent) cells.unshift(n.h); return cells; }
+      for (const n of hexNeighbors(cur.h)) {
+        const k = hexKey(n);
+        if (closed.has(k) || !isWater(n)) continue;
+        if (hexDistance(n, starts[0]!) > limit || nearest(n) > limit) continue;
+        const nearEnds = Math.min(hexDistance(n, starts[0]!), nearest(n)) <= 2;
+        if (strict && coastal(n) && !nearEnds && !endSet.has(k)) continue;
+        const g = cur.g + stepCost(n);
+        if ((best.get(k) ?? Infinity) <= g) continue;
+        best.set(k, g);
+        open.push({ h: n, g, f: g + nearest(n), parent: cur });
+      }
     }
-  }
-  if (!found) return [start ?? a, b];
-  const cells: Hex[] = [];
-  for (let n: Node | null = found; n; n = n.parent) cells.unshift(n.h);
+    return null;
+  };
+  const cells = search(true) ?? search(false);
+  if (!cells) return [start ?? a, b];
   // Отход от порта и подход к высадке — короткие прямые в море (решение владельца 05.10: подходить с воды, а не вдоль
   // берега); между ними ломаная по центрам гексов натягивается в прямые там, где вода позволяет.
   // Запасной путь без углов: ломаная по центрам гексов натягивается, как резинка, которой нельзя подходить к берегу
   // ближе запаса — получаются плавные дуги вокруг мысов и островков.
-  const band = elasticBand([depPt, ...cells.map((h) => hexToPixel(h, size)), appPt], size, (q) => okAt(q, 1.6));
-  return [a, ...band, b];
+  const bandOk = (q: Pt) => okAt(q, 2.2) || (okAt(q, 1.6) && nearEndWide(q));
+  const band = elasticBand([a, depPt, ...cells.map((h) => hexToPixel(h, size)), appPt, b], size, bandOk);
+  return bulge(band, size, bandOk);
+
+  function nearEndWide(q: Pt): boolean { return Math.hypot(q.x - a.x, q.y - a.y) < size * 4 || Math.hypot(q.x - b.x, q.y - b.y) < size * 4; }
+}
+
+/**
+ * Мягкий изгиб открытой воды (замечание владельца 05.10: прямых быть не должно): точки смещаются поперёк хорды
+ * по синусу — сильнее в середине, к концам до нуля; берётся самое большое смещение (до 2.5 размера гекса) в ту
+ * сторону, куда линия уже отклонена, при котором она остаётся на воде с запасом.
+ */
+function bulge(pts: Pt[], size: number, ok: (q: Pt) => boolean): Pt[] {
+  if (pts.length < 4) return pts;
+  const a = pts[0]!, b = pts[pts.length - 1]!;
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const nx = -(b.y - a.y) / len, ny = (b.x - a.x) / len;
+  const cum: number[] = [0];
+  for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1]! + Math.hypot(pts[i]!.x - pts[i - 1]!.x, pts[i]!.y - pts[i - 1]!.y));
+  const total = cum[cum.length - 1]! || 1;
+  const side = pts.reduce((t, p) => t + (p.x - a.x) * nx + (p.y - a.y) * ny, 0) >= 0 ? 1 : -1;
+  for (const sign of [side, -side]) {
+    for (const amp of [2.5, 1.8, 1.2, 0.7]) {
+      const out = pts.map((p, i) => { const w = Math.sin((Math.PI * cum[i]!) / total) * amp * size * sign; return { x: p.x + nx * w, y: p.y + ny * w }; });
+      if (out.slice(1, -1).every(ok)) return out;
+    }
+  }
+  return pts;
 }
 
 /** Перевыборка ломаной по длине дуги с шагом `step`, концы на месте. */
