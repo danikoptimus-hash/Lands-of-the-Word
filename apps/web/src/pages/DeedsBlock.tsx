@@ -30,7 +30,8 @@ function withBook(text: string) {
     : /^\[главы\]$/i.test(p) ? <Chip key={i} tone="accent" icon="book" title={t("Подставятся книга и пять глав подряд, которые выдаёт игра")}>{t("главы от игры")}</Chip> : p));
 }
 
-export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; version?: number; onChange?: () => void }) {
+/** mode — раздел без переключателя: «roads» в разделе «Дела», «quarry» в листе Каменоломни у администратора (решение владельца 05.10). */
+export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: string; version?: number; onChange?: () => void; mode?: "roads" | "quarry" }) {
   const [deeds, setDeeds] = useState<DeedDto[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [directions, setDirections] = useState<string[]>([]);
@@ -41,8 +42,8 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
   /** Открытая форма: null — закрыта; { id: null } — новое дело; { id } — изменение. */
   const [sheet, setSheet] = useState<{ id: string | null; form: Form } | null>(null);
   /** Два раздела (решение владельца 04.10): обычные дела дорог и общие дела Каменоломни; переключатель вверху. */
-  const [section, setSection] = useState<"roads" | "quarry">("roads");
-  const inQuarry = section === "quarry";
+  const [section, setSection] = useState<"roads" | "quarry">(mode ?? "roads");
+  const inQuarry = (mode ?? section) === "quarry";
   const form = sheet?.form ?? EMPTY;
   const setForm = (patch: Partial<Form>) => setSheet((s) => (s ? { ...s, form: { ...s.form, ...patch } } : s));
   /** Описание дела в списке свёрнуто в одну строку; полностью — по нажатию на строку (решение владельца 18.09). */
@@ -108,10 +109,10 @@ export function DeedsBlock({ gameId, version = 0, onChange }: { gameId: string; 
           <button type="button" className="sm" onClick={openNew} disabled={!deeds}><Icon name="plus" />{t("Новое дело")}</button>
         </div>
       </div>
-      <div className="tabs deed-sections mt-2" role="tablist">
+      {!mode && <div className="tabs deed-sections mt-2" role="tablist">
         <button type="button" role="tab" aria-selected={!inQuarry} className={inQuarry ? undefined : "active"} onClick={() => setSection("roads")}><Icon name="scroll" /><span>{t("Обычные дела")}</span>{roads && <span className="count-chip">{roads.length}</span>}</button>
         <button type="button" role="tab" aria-selected={inQuarry} className={inQuarry ? "active" : undefined} onClick={() => setSection("quarry")}><Icon name="stone" /><span>{t("Дела Каменоломни")}</span>{quarry && <span className="count-chip">{quarry.length}</span>}</button>
-      </div>
+      </div>}
       {inQuarry && <p className="hint mt-2">{t("Общие дела всей команды: сдаёт капитан, заместитель или летописец в Каменоломне на карте, всегда доступны. Принятое дело даёт камни, камень мостит одну свободную дорогу — куда, решает команда.")}</p>}
       {!inQuarry && roads && roads.length > 0 && roads.length < recommended && <p className="note warn"><Icon name="alert" /><span>{t("Рекомендуется не меньше {n} дел, иначе они начнут повторяться.", { n: recommended })}</span></p>}
       {loadError ? <ErrorState onRetry={() => void load()} /> : !shown ? <LoadingState /> : shown.length === 0 ? (

@@ -185,7 +185,6 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     );
   })();
   const screenBody = useMemo(() => (<>
-              {quarryMarker}
               {showIslands && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => {
                 return <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}><IslandLabel id={"isl-adm-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} /></g>;
               })}
@@ -239,7 +238,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 if (!showDots) return null;
                 return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" />{seen.length === 0 && <circle r={3} fill="rgba(31,27,22,.4)" />}{seen.map((tm, i) => <circle key={tm.id} cx={(i - (seen.length - 1) / 2) * 8} cy={0} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
-  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById, battleAt]); //, quarryMarker]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById, battleAt]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   const viewedTeam = viewAs ? teamById.get(viewAs) : null;
   const viewMap = useMemo(() => (teamView?.map && at && viewedTeam && progress ? { ...rewindTeamMap(teamView.map, viewedTeam, progress, cities, nodes), teamIndex: teamView.map.teamIndex } : teamView?.map ?? null), [teamView, at, viewedTeam, progress, cities, nodes]);
@@ -289,6 +288,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             <CoastOver d={coast} size={size} light={dt.light} />
             {worldBody}
             <g className="screen-items">
+              {quarryMarker}
               {screenBody}
             </g>
           </WorldSvg>

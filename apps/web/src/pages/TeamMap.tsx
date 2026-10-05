@@ -206,7 +206,6 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     );
   })();
   const screenBody = useMemo(() => (<>
-          {quarryMarker}
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;
             const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
@@ -344,7 +343,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
-  </>), [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); //, quarryMarker]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   return (
     <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "")} style={{ background: css(dt.light.bg) }} onClick={marking ? placeMark : undefined}>
@@ -363,6 +362,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
+          {/* Каменоломня вне memo: обработчик нажатия должен видеть свежее состояние перетаскивания (ошибка 05.10: после закрытия лист не открывался). */}
+          {quarryMarker}
           {screenBody}
         </g>
       </WorldSvg>

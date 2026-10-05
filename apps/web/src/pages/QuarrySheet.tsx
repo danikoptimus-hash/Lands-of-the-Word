@@ -9,6 +9,7 @@ import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { useGameEvents } from "../lib/useGameEvents";
+import { DeedsBlock } from "./DeedsBlock";
 
 /**
  * Каменоломня (решение владельца 04.10): скалистый островок в море, один и тот же во всех партиях. Команда «добывает»
@@ -108,7 +109,7 @@ export function AdminQuarrySheet({ gameId, container, onClose, onReview }: { gam
   useEffect(() => { void load(); }, [load]);
   useGameEvents(gameId, (e) => { if (e.type === "quarry" || e.type === "teams") void load(); });
   return (
-    <Sheet size="sm" container={container} onClose={onClose} className="quarry-sheet" head={<div className="sheet-title"><h2><Icon name="stone" />{t("Каменоломня")}</h2></div>}>
+    <Sheet size="md" container={container} onClose={onClose} className="quarry-sheet" head={<div className="sheet-title"><h2><Icon name="stone" />{t("Каменоломня")}</h2></div>}>
       <p className="muted small">{t("Общие дела команд: вся команда на спевке, собрании, стройке, молитвенной группе. Принятое дело даёт тёсаные камни, камень мостит свободную дорогу.")}</p>
       {!teams ? <LoadingState rows={3} /> : (
         <ul className="list">
@@ -116,6 +117,8 @@ export function AdminQuarrySheet({ gameId, container, onClose, onReview }: { gam
         </ul>
       )}
       {pending != null && pending > 0 && <div className="actions mt-2"><button type="button" className="secondary sm" onClick={onReview}><Icon name="check" />{t("На проверке: {n}", { n: pending })}</button></div>}
+      {/* Дела Каменоломни живут здесь, а не в разделе «Дела» (решение владельца 05.10). */}
+      <div className="mt-3"><DeedsBlock gameId={gameId} mode="quarry" /></div>
     </Sheet>
   );
 }
