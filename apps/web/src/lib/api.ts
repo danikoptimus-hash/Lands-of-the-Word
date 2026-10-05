@@ -44,7 +44,7 @@ export interface MyMapDto { status: string; daytime?: DaytimeDto; team: { id: st
 /** Полёт клина: момент всегда, узел города — только в окне полёта (сервер отдаёт его за минуту до старта и пять минут после). */
 export interface DailyBirdDto { key?: string; at: number }
 /** Время суток игры (решение владельца 03.10): фаза правил, пояс и часы сервера. */
-export interface DaytimeDto { phase: "morning" | "day" | "evening" | "night"; timeZone: string; now: number; /** Задания города открыты (до полуночи, решение владельца 04.10). */ tasksOpen?: boolean }
+export interface DaytimeDto { phase: "morning" | "day" | "evening" | "night"; timeZone: string; now: number; /** Время года на карте: картинки, море, погода (решение владельца 05.10). */ season?: "winter" | "spring" | "summer" | "autumn"; /** Задания города открыты (до полуночи, решение владельца 04.10). */ tasksOpen?: boolean }
 
 /** Город глазами команды: районы (сцены книги), задания без ответов, буквы шифра, состояние. */
 export interface CityDistrictDto { id: string; verses: string; title: string; summary: string; index: number | null }

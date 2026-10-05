@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { DAY_LIGHT, type Light } from "../lib/daytime";
 import { HEX_SIZE, hexCenter } from "../lib/hexmap";
+import type { Season } from "@lotw/domain";
 import type { MapHexDto } from "../lib/api";
 import type { Viewport } from "./MapLayers";
 import type { Islet } from "@lotw/domain";
@@ -1004,7 +1005,91 @@ interface Pod { rng: () => number; dolphins: Cet[]; car: Carrot; next: number }
  * to — точка города в координатах карты. Клин шагает своим потоком случайностей, поэтому остальные звери у команд совпадают.
  */
 export interface DailyBird { at: number; to: { x: number; y: number } }
-interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[]; /** Начало эпохи мира, секунды сервера. */ epochStart: number; daily: () => DailyBird | null; dailyDone: boolean; /** Генератор случайностей этого мира (семя игры и эпохи). */ rng: () => number }
+
+/**
+ * Льдины (решение владельца 05.10): зимой по морю дрейфуют крупные льдины, как айсберги, весной — редкие мелкие.
+ * Дрейф — по ветру с медленным вращением; льдина держится воды (как корабли), льдины мягко расталкиваются.
+ * Корабль идёт как ледокол: льдину на пути он раздвигает в сторону от своего курса, с брызгами ледяной крошки,
+ * и льдина получает трещину; друг сквозь друга они не проходят.
+ */
+interface Floe { rng: () => number; x: number; y: number; h: number; om: number; r: number; /** Радиусы вершин (доли r), 9 вершин. */ pts: number[]; vx: number; vy: number; seed: number; crack: number; crackA: number }
+/** Случайная точка в открытой воде поля: в пределах полутора радиусов какой-нибудь части суши, но не ближе clearance к берегу. */
+function waterPoint(p: Profile, clearance: number): { x: number; y: number } {
+  for (let i = 0; i < 40; i++) {
+    const part = p.parts[Math.floor(rand() * p.parts.length)]!;
+    const x = part.cx + rnd(-1.6, 1.6) * part.maxR, y = part.cy + rnd(-1.6, 1.6) * part.maxR;
+    if (coastPen(p, x, y, clearance) <= 0) return { x, y };
+  }
+  const part = p.parts[0]!; return { x: part.cx + part.maxR * 1.3, y: part.cy };
+}
+function makeFloe(p: Profile, size: number, r: number): Floe {
+  const at = waterPoint(p, size * 1.6 + r);
+  const pts = Array.from({ length: 10 }, () => rnd(0.6, 1));
+  return { rng: spawnRng(), x: at.x, y: at.y, h: rnd(0, TAU), om: rnd(-0.03, 0.03), r, pts, vx: 0, vy: 0, seed: rnd(0, 100), crack: 0, crackA: rnd(0, TAU) };
+}
+function stepFloes(w: World, dt: number, T: number): void {
+  const p = w.p, size = w.size, floes = w.floes;
+  for (const f of floes) {
+    rand = f.rng;
+    // Ветер и течение: медленно, с плавным дрожанием; крупная льдина тяжелее и инертнее.
+    const wl = Math.hypot(WIND_X, WIND_Y) || 1, mass = clamp(f.r / size, 0.5, 3);
+    const tx = (WIND_X / wl) * size * 0.05 / mass + size * 0.02 * noise1(T * 0.08, f.seed), ty = (WIND_Y / wl) * size * 0.05 / mass + size * 0.02 * noise1(T * 0.07, f.seed + 3);
+    f.vx = ease(f.vx, tx, dt, 3); f.vy = ease(f.vy, ty, dt, 3);
+    f.x += f.vx * dt; f.y += f.vy * dt; f.h += f.om * dt;
+    // Льдины не наползают друг на друга.
+    for (const o of floes) {
+      if (o === f) continue;
+      const dx = f.x - o.x, dy = f.y - o.y, d = Math.hypot(dx, dy) || 1e-6, R = (f.r + o.r) * 0.95;
+      if (d < R) { const push = (R - d) * 0.5; f.x += (dx / d) * push; f.y += (dy / d) * push; }
+    }
+    // Ледокол: корабль на пути раздвигает льдину поперёк своего курса, с крошкой и трещиной.
+    for (const sh of w.ships) {
+      if (sh.car.wait > 0) continue;
+      const dx = f.x - sh.x, dy = f.y - sh.y, d = Math.hypot(dx, dy) || 1e-6, R = f.r + sh.spec.L * 0.75;
+      if (d >= R) continue;
+      const nx = -Math.sin(sh.h), ny = Math.cos(sh.h), side = dx * nx + dy * ny >= 0 ? 1 : -1;
+      const push = ((R - d) / R) * sh.v * dt * 2.5 + (R - d) * 0.15;
+      f.x += nx * side * push + Math.cos(sh.h) * sh.v * dt * 0.3; f.y += ny * side * push + Math.sin(sh.h) * sh.v * dt * 0.3;
+      f.om += side * 0.02 * dt;
+      if (f.crack < 1) { f.crack = 1; f.crackA = Math.atan2(dy, dx) + rnd(-0.5, 0.5); }
+      if (rand() < dt * 6) emitDrops(w.fx, sh.x + Math.cos(sh.h) * sh.spec.L * 0.45, sh.y + Math.sin(sh.h) * sh.spec.L * 0.45, T, 3, sh.v * 0.6, sh.spec.L * 0.05);
+    }
+    const mv: Mover = { x: f.x, y: f.y, h: Math.atan2(f.vy, f.vx), om: 0 };
+    keepInWater(mv, p, size * 1.6 + f.r * 0.6, dt, 1);
+    f.x = mv.x; f.y = mv.y;
+    f.om = clamp(f.om * (1 - dt * 0.2), -0.08, 0.08);
+  }
+}
+function drawFloe(ctx: CanvasRenderingContext2D, f: Floe, T: number, px: number): void {
+  const lt = LIGHT, n = f.pts.length;
+  const vx = (i: number) => Math.cos(f.h + (i / n) * TAU) * f.r * f.pts[i]!, vy = (i: number) => Math.sin(f.h + (i / n) * TAU) * f.r * f.pts[i]!;
+  const path = new Path2D();
+  for (let i = 0; i < n; i++) { if (i === 0) path.moveTo(vx(0), vy(0)); else path.lineTo(vx(i), vy(i)); }
+  path.closePath();
+  ctx.save(); ctx.translate(f.x, f.y);
+  // тень на воде от светила и подводная кромка (льдина сидит в воде)
+  const lx = lt.sun > 0.01 ? -lt.sunX : -SUN_X, ly = lt.sun > 0.01 ? -lt.sunY : SUN_Y;
+  ctx.save(); ctx.translate(lx * f.r * 0.12 * lt.shadowLen, ly * f.r * 0.12 * lt.shadowLen); ctx.globalAlpha = 0.18 * Math.max(0.3, lt.shadow); ctx.fillStyle = "rgb(8,30,52)"; ctx.fill(path); ctx.restore();
+  ctx.save(); ctx.scale(1.08, 1.08); ctx.globalAlpha = 0.35; ctx.fillStyle = "rgb(150,205,225)"; ctx.fill(path); ctx.restore();
+  // сама льдина: светлая с голубоватой тенью к одному краю, ночью серо-синяя
+  const night = 1 - Math.min(1, (lt.sand[0] + lt.sand[1] + lt.sand[2]) / 2.4);
+  const g = ctx.createLinearGradient(-f.r, -f.r, f.r, f.r);
+  g.addColorStop(0, `rgb(${Math.round(250 - 110 * night)},${Math.round(252 - 100 * night)},${Math.round(255 - 70 * night)})`);
+  g.addColorStop(1, `rgb(${Math.round(196 - 90 * night)},${Math.round(222 - 90 * night)},${Math.round(236 - 60 * night)})`);
+  ctx.fillStyle = g; ctx.fill(path);
+  ctx.strokeStyle = `rgba(120,170,200,${0.6 - 0.3 * night})`; ctx.lineWidth = Math.max(px, f.r * 0.03); ctx.stroke(path);
+  // лёгкие прожилки и трещина после ледокола
+  ctx.strokeStyle = `rgba(150,195,220,${0.5 - 0.2 * night})`; ctx.lineWidth = Math.max(px * 0.8, f.r * 0.02);
+  ctx.beginPath(); ctx.moveTo(-f.r * 0.5, f.r * 0.1 + 0.1 * f.r * Math.sin(f.seed)); ctx.lineTo(f.r * 0.1, -f.r * 0.2); ctx.lineTo(f.r * 0.55, f.r * 0.15); ctx.stroke();
+  if (f.crack > 0) {
+    ctx.strokeStyle = `rgba(90,140,180,${0.8 - 0.3 * night})`; ctx.lineWidth = Math.max(px, f.r * 0.035); ctx.beginPath();
+    const ca = f.crackA, len = f.r * 0.95; let x = Math.cos(ca) * len * 0.5, y = Math.sin(ca) * len * 0.5; ctx.moveTo(x, y);
+    for (let i = 1; i <= 5; i++) { x -= Math.cos(ca) * len / 5 + Math.sin(ca) * f.r * 0.08 * (i % 2 ? 1 : -1); y -= Math.sin(ca) * len / 5 - Math.cos(ca) * f.r * 0.08 * (i % 2 ? 1 : -1); ctx.lineTo(x, y); }
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+interface World { p: Profile; size: number; T: number; /** Льдины (зимой крупные и частые, весной редкие и мелкие; решение владельца 05.10). */ floes: Floe[]; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[]; /** Начало эпохи мира, секунды сервера. */ epochStart: number; daily: () => DailyBird | null; dailyDone: boolean; /** Генератор случайностей этого мира (семя игры и эпохи). */ rng: () => number }
 /**
  * Ход мира по времени сервера (решение владельца 29.09): время делится на эпохи по EPOCH секунд; в начале эпохи мир
  * создаётся заново с семенем «игра + номер эпохи» и идёт фиксированным шагом STEP. Любой игрок, открыв карту, догоняет
@@ -1036,14 +1121,15 @@ function makePod(p: Profile, size: number, n: number): Pod {
   });
   return { rng: spawnRng(), dolphins, car, next: rnd(3, 8) };
 }
-function createWorld(p: Profile, size: number, seed = 1, epochStart = 0, daily: () => DailyBird | null = () => null): World {
+function createWorld(p: Profile, size: number, seed = 1, epochStart = 0, daily: () => DailyBird | null = () => null, season: Season = "summer"): World {
   const rng = mulberry32(seed); rand = rng;
   // Отступы от берега: под профилем ещё ~1.6 гекса отмели и песка, дельфинам с их строем нужен запас побольше.
   // Населённость (решение владельца: живности должно быть заметно): два кита, две косатки, две стаи дельфинов, пять чаек.
   const solo = (kind: CetKind, L: number, off: [number, number], wob: number) => { const car = makeCarrot(p, size, size * rnd(off[0], off[1]), size * wob); return makeCet(cetSpec(kind, L, size), car, car.x, car.y, car.h); };
   const solos = [solo("whale", size * 1.8, [2.8, 4], 0.7), solo("whale", size * 1.6, [3, 4.4], 0.7), solo("orca", size * 1.1, [2.4, 3.4], 0.6), solo("orca", size * 1.0, [2.6, 3.6], 0.6)];
   const pods = [makePod(p, size, 3), makePod(p, size, 4)];
-  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), epochStart, daily, dailyDone: false, rng, ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size), makeShip("cog", p, size)] };
+  const floes = season === "winter" ? Array.from({ length: 16 }, () => makeFloe(p, size, size * rnd(0.5, 1.5))) : season === "spring" ? Array.from({ length: 5 }, () => makeFloe(p, size, size * rnd(0.35, 0.7))) : [];
+  return { p, size, T: 0, floes, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), epochStart, daily, dailyDone: false, rng, ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size), makeShip("cog", p, size)] };
 }
 function stepWorld(w: World, dt: number): void {
   rand = w.rng;
@@ -1066,6 +1152,7 @@ function stepWorld(w: World, dt: number): void {
   }
   for (const g of w.gulls) stepGull(g, w.p, w.size, dt, T);
   for (const sh of w.ships) stepShip(sh, w.p, w.size, dt, T, w.ships);
+  stepFloes(w, dt, T);
   stepFlock(w.flock, w.p, w.size, dt, T);
   // Порядок рисования — от глубоких к мелким (вставками, массив короткий).
   const cs = w.cets;
@@ -1079,6 +1166,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis,
   for (const sh of w.ships) drawTrail(ctx, sh.trail, T, sh.spec.L, 9, px, vis, true);
   for (const c of w.cets) if (inView(vis, c.x, c.y)) drawCet(ctx, c, T, px, lod);
   drawFx(ctx, w.fx, T, px, vis);
+  for (const f of w.floes) if (inView(vis, f.x, f.y)) drawFloe(ctx, f, T, px);
   for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
   for (const g of w.gulls) {
     if (!inView(vis, g.x, g.y)) continue;
@@ -1370,7 +1458,7 @@ export function renderWorldSnapshot(ctx: CanvasRenderingContext2D, hexes: MapHex
 // ───────────────────────────── Слой ─────────────────────────────
 const NO_ISLETS: Islet[] = [];
 const NO_FIRES: FireSite[] = [];
-export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES }: { vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
+export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, season = "summer" }: { /** Время года: зимой льдины и ледоколы, весной редкие льдины (решение владельца 05.10). */ season?: Season; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const dailyRef = useRef(daily); dailyRef.current = daily;
   const clockRef = useRef(clock); clockRef.current = clock;
@@ -1398,7 +1486,7 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
     const ro = new ResizeObserver(resize); ro.observe(host);
     // Миры по эпохам: текущий и, на время растворения, предыдущий.
     interface Live { w: World; epoch: number }
-    const make = (epoch: number): Live => ({ w: createWorld(profile, size, hashSeed(`${seed}:${epoch}`), epoch * EPOCH, () => dailyRef.current), epoch });
+    const make = (epoch: number): Live => ({ w: createWorld(profile, size, hashSeed(`${seed}:${epoch}`), epoch * EPOCH, () => dailyRef.current, season), epoch });
     let cur: Live | null = null, prev: Live | null = null;
     /** Догоняет секунду эпохи по часам сервера фиксированными шагами; не дольше budget мс за раз. Возвращает true, когда мир в текущем времени. */
     const sync = (budget: number): boolean => {
@@ -1453,7 +1541,7 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
     };
     raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); clearTimeout(timer); ro.disconnect(); unsub(); };
-  }, [profile, size, seed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [profile, size, seed, season]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!profile) return null;
   return <canvas ref={ref} className="fx-layer fauna" aria-hidden />;

@@ -9,6 +9,7 @@ import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSym
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
 import { FaunaLayer, type FireSite } from "./Fauna";
+import { WeatherLayer } from "./Weather";
 import { css, useDaytime } from "../lib/daytime";
 import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
@@ -49,7 +50,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   useEffect(() => { perfMark("карта команды: до кадра", performance.now() - renderStart); });
   const vp = useViewport(bounds, start ? { x: start.x, y: start.y, k: 2.4 } : null);
   // Время суток (решение владельца 03.10): по поясу игры и часам сервера; картинки городов — фазы, которой больше в переходе.
-  const dt = useDaytime(map.daytime?.timeZone, map.now);
+  const dt = useDaytime(map.daytime?.timeZone, map.now, map.daytime?.season);
   const imgPhase = dt.t >= 0.5 ? dt.to : dt.from;
   const fires = useMemo<FireSite[]>(() => map.revealed.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [map.revealed, size]);
   const revealed = useMemo(() => new Set(map.revealed.map((n) => n.key)), [map.revealed]);
@@ -202,18 +203,18 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         ))}
         {map.revealed.map((n) => {
           const p = positions.get(n.key)!;
-          if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex, imgPhase)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+          if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex, imgPhase, dt.season)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
           if (n.kind === "CITY") {
             const c = cityByKey.get(n.key);
             return (
               <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
-                <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : undefined} />
+                <image className="city-hit" href={IMG.city(n.cityType, imgPhase, dt.season)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : undefined} />
               </g>
             );
           }
           return null;
         })}
-  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase, dt.season, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
   // Каменоломня (решение владельца 04.10): скалистый островок с подписью, нажимается — открывает лист общих дел.
   const quarry = islets.find((i) => i.quarry) ?? null;
   const quarryMarker = quarry && (() => {
@@ -381,7 +382,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         {worldBody}
       </WorldSvg>
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={dt.light} />}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} />
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} season={dt.season} />
+      <WeatherLayer vp={vp} bounds={bounds} season={dt.season} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} size={size} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
           {/* Каменоломня вне memo: обработчик нажатия должен видеть свежее состояние перетаскивания (ошибка 05.10: после закрытия лист не открывался). */}

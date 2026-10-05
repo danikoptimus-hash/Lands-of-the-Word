@@ -16,6 +16,7 @@ import { plural } from "../lib/format";
 import { AdminQuarrySheet } from "./QuarrySheet";
 import { Icon, iconPath } from "../components/Icon";
 import { FaunaLayer, type FireSite } from "./Fauna";
+import { WeatherLayer } from "./Weather";
 import { css, useDaytime } from "../lib/daytime";
 import { LakesLayer } from "./Lakes";
 import { kindLabel } from "./RecipientsBlock";
@@ -73,7 +74,7 @@ function rewindTeamMap(map: MyMapDto, team: TeamProgress, teams: TeamProgress[],
   };
 }
 
-export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone, at = null }: { /** Момент ползунка истории: карта «глазами команды» урезается к нему. */ at?: Date | null; /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone, season, at = null }: { /** Правило сезона игры (auto или закреплённый): картинки карты администратора по нему. */ season?: string; /** Момент ползунка истории: карта «глазами команды» урезается к нему. */ at?: Date | null; /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
   const { notify } = useUi();
   const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
@@ -117,7 +118,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const obstacles = useMemo(() => islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape })), [islets]);
   const bed = useSeabed(hexes, islets, size, bounds);
   const [liveWater, setLiveWater] = useState(true);
-  const dt = useDaytime(timeZone);
+  const dt = useDaytime(timeZone, undefined, season);
   const imgPhase = dt.t >= 0.5 ? dt.to : dt.from;
   const fires = useMemo<FireSite[]>(() => nodes.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [nodes, size]);
   const edgeSet = useMemo(() => new Set(edges.map((e) => [e.aKey, e.bKey].sort().join("|"))), [edges]);
@@ -163,19 +164,19 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             {nodes.map((n) => {
               const p = positions.get(n.key)!;
               const CITY = size * 0.77, START = size * 0.9; // решение владельца 16.09: знаки городов и стартов в полтора раза меньше прежних (1,15 и 1,35)
-              if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0, imgPhase)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+              if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0, imgPhase, dt.season)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
               if (n.kind === "CITY") {
                 const owner = ownerOf.get(n.key);
                 // Картинка города кликабельна сама (как у команды); владелец — обводка по контуру картинки цветом команды.
                 return (
                   <g key={"c" + n.key} data-key={n.key} className="m-city" onClick={() => { if (!vp.wasDrag()) setSelected(n); }}>
-                    <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : undefined} />
+                    <image className="city-hit" href={IMG.city(n.cityType, imgPhase, dt.season)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : undefined} />
                   </g>
                 );
               }
               return null;
             })}
-  </>), [nodes, edges, positions, ownerOf, traversedBy, progress, edgeSet, battleAt, size, imgPhase]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [nodes, edges, positions, ownerOf, traversedBy, progress, edgeSet, battleAt, size, imgPhase, dt.season]); // eslint-disable-line react-hooks/exhaustive-deps
   // Каменоломня (решение владельца 04.10): подпись на скалистом островке; у администратора открывает камни команд.
   const quarry = islets.find((i) => i.quarry) ?? null;
   const quarryMarker = quarry && (() => {
@@ -297,7 +298,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               {screenBody}
             </g>
           </WorldSvg>
-          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} />
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} season={dt.season} />
+          <WeatherLayer vp={vp} bounds={bounds} season={dt.season} seed={gameId} light={dt.light} size={size} />
         </div>
         <div className="map-controls">
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>

@@ -69,7 +69,7 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "", daytime }
     let W = 0, H = 0, dirty = true, raf = 0;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } dirty = true; };
     const images = new Map<string, HTMLImageElement>();
-    const load = (n: number, phase: DayPhase) => { const im = new Image(); im.decoding = "async"; im.onload = () => { dirty = true; }; im.src = IMG.islet(n, phase); images.set(`${n}:${phase}`, im); };
+    const load = (n: number, phase: DayPhase) => { const im = new Image(); im.decoding = "async"; im.onload = () => { dirty = true; }; im.src = IMG.islet(n, phase, daytime?.season); images.set(`${n}:${phase}`, im); };
     for (const n of new Set(islets.map((i) => i.img))) { load(n, from); if (to !== from) load(n, to); }
     const ready = (im: HTMLImageElement | undefined): im is HTMLImageElement => Boolean(im && im.complete && im.naturalWidth);
     const rings = daytime ? shallowRings(light) : SHALLOW_RINGS, sand = css(light.sand);

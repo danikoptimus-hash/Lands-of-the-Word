@@ -105,16 +105,18 @@ function terrainFor(rng: Rng, f: TerrainField, h: Hex, center: Hex, radius: numb
   const along = (a: number) => x * Math.cos(a) + y * Math.sin(a);
   // Хребет: узкая полоса гор с холмами по бокам; второй, более частый хребет добавляет отроги.
   const ridge = Math.cos(along(f.ridgeA) * f.ridgeK + f.ridgeP) * 0.7 + Math.cos(along(f.ridgeA + 0.9) * f.ridge2K + f.ridge2P) * 0.3;
-  // Пустыня — полосы поперёк хребта, сильнее к окраине острова.
+  // Сухая степь («desert», решение владельца 05.10: пустыни по минимуму, в основном леса, луга и степи) — редкие полосы
+  // поперёк хребта, чуть чаще к окраине острова.
   const sand = Math.cos(along(f.sandA) * f.sandK + f.sandP) + (d - 0.5) * 0.9;
   // Луга — пятна ближе к середине.
   const blob = Math.cos(x * f.blobK + f.blobP) * Math.cos(y * f.blobK + f.blobQ);
   const jitter = (roll - 0.5) * 0.25; // лёгкая рябь на границах областей, чтобы края не были линейками
   if (ridge + jitter > 0.72) return "mountains";
   if (ridge + jitter > 0.42) return "hills";
-  if (sand + jitter > 0.55) return roll > 0.92 ? "oasis" : "desert";
-  if (blob + jitter > 0.25 || d < 0.3) return roll > 0.9 ? "hills" : "meadow";
-  return d > 0.7 ? (roll > 0.5 ? "hills" : "desert") : roll > 0.55 ? "meadow" : "hills";
+  if (sand + jitter > 0.95) return roll > 0.75 ? "oasis" : "desert";
+  // Лес («oasis» — густой лес с речкой) — пятна, где не степь и не хребет.
+  if (blob + jitter > 0.25 || d < 0.3) return roll > 0.9 ? "hills" : roll > 0.55 ? "oasis" : "meadow";
+  return d > 0.7 ? (roll > 0.6 ? "hills" : roll > 0.3 ? "meadow" : "desert") : roll > 0.55 ? "meadow" : roll > 0.25 ? "hills" : "oasis";
 }
 
 export class MapGenError extends Error {}

@@ -141,7 +141,7 @@ export function GamePage() {
     <div className="admin-screen" ref={setScreenEl}>
       <div className="admin-map-area">
         {hasMap ? (
-          <AdminMap fullscreen at={at} gameId={game.id} timeZone={(game.settings as { rules?: { timeZone?: string } }).rules?.timeZone} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} />
+          <AdminMap fullscreen at={at} gameId={game.id} timeZone={(game.settings as { rules?: { timeZone?: string } }).rules?.timeZone} season={(game.settings as { rules?: { season?: string } }).rules?.season} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} />
         ) : (
           <div className="admin-empty">
             <div className="card">

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { dayLight, dayLightAt, type DayLight, type DayPhase } from "@lotw/domain";
+import { resolveSeason, SEASONS, type Season, dayLight, dayLightAt, type DayLight, type DayPhase } from "@lotw/domain";
 
 /**
  * Освещение карты по времени суток (решение владельца 03.10): утро 7–9, день 9–18, вечер 18–22, ночь 22–7 по поясу игры.
@@ -93,7 +93,46 @@ export const css = (c: RGB, alpha = 1) => `rgba(${Math.round(c[0] * 255)}, ${Mat
 /** Освещение в момент `dl`: две фазы перехода и доля второй. */
 export function lightOf(dl: Pick<DayLight, "from" | "to" | "t">): Light { return mixLight(LIGHTS[dl.from], LIGHTS[dl.to], dl.t); }
 
-export interface Daytime extends DayLight { light: Light; /** Предпросмотр через ?tod= — правила не трогает, только картинку. */ preview: boolean }
+export interface Daytime extends DayLight { light: Light; /** Предпросмотр через ?tod= — правила не трогает, только картинку. */ preview: boolean; /** Время года (решение владельца 05.10): картинки, море, погода. */ season: Season }
+
+/**
+ * Сезонные поправки к палитре (решение владельца 05.10): зимой вода стальная и холодная, берег и туман белее, боковой свет холоднее;
+ * весной вода чуть прозрачнее и зеленее; осенью — серее и темнее, тёплый боковой свет. Лето — палитра как есть.
+ */
+const SEASON_TINT: Record<Season, { mul?: Partial<Record<keyof Light, RGB>>; set?: Partial<Record<keyof Light, RGB>> }> = {
+  summer: {},
+  // Зима: вода стальная, серо-синяя и темнее; песок и отмели — снег; туман белее.
+  winter: {
+    mul: { shallow: [0.56, 0.70, 0.88], mid: [0.54, 0.66, 0.88], deep: [0.58, 0.66, 0.88], glint: [0.92, 0.96, 1.0], fogBase: [1.06, 1.07, 1.1], fogShade: [1.04, 1.06, 1.1], fogMass: [1.02, 1.02, 1.03], sideColor: [0.9, 0.95, 1.0] },
+    set: { sand: [0.93, 0.95, 0.98], wet: [0.78, 0.84, 0.92], shallowFar: [0.86, 0.91, 0.96], shallowNear: [0.93, 0.96, 0.99] },
+  },
+  spring: { mul: { shallow: [0.94, 1.02, 1.0], mid: [0.92, 1.0, 1.0], deep: [0.94, 1.0, 1.0], sand: [0.98, 0.98, 0.96] } },
+  // Осень: вода серее и темнее, песок и туман чуть теплее.
+  autumn: { mul: { shallow: [0.82, 0.88, 0.92], mid: [0.80, 0.86, 0.92], deep: [0.84, 0.88, 0.94], glint: [0.96, 0.96, 0.96], sand: [1.0, 0.95, 0.88], wet: [1.0, 0.94, 0.86], fogBase: [1.0, 0.98, 0.96] } },
+};
+export function seasonLight(light: Light, season: Season): Light {
+  const { mul, set } = SEASON_TINT[season];
+  if (!mul && !set) return light;
+  const out = { ...light } as Record<string, number | RGB>;
+  for (const [k, m] of Object.entries(mul ?? {}) as Array<[keyof Light, RGB]>) {
+    const v = light[k] as RGB;
+    out[k] = [Math.min(1, v[0] * m[0]), Math.min(1, v[1] * m[1]), Math.min(1, v[2] * m[2])];
+  }
+  // Заданные цвета (снег вместо песка) — с учётом освещения: ночью темнее, вечером теплее, по яркости исходного.
+  for (const [k, c] of Object.entries(set ?? {}) as Array<[keyof Light, RGB]>) {
+    const v = light[k] as RGB, dayV = LIGHTS.day[k] as RGB;
+    const f = [v[0] / Math.max(0.05, dayV[0]), v[1] / Math.max(0.05, dayV[1]), v[2] / Math.max(0.05, dayV[2])];
+    out[k] = [Math.min(1, c[0] * f[0]), Math.min(1, c[1] * f[1]), Math.min(1, c[2] * f[2])];
+  }
+  return out as unknown as Light;
+}
+
+/** Предпросмотр сезона: `?season=winter|spring|summer|autumn`. Только картинка. */
+function previewSeason(): Season | null {
+  if (typeof location === "undefined") return null;
+  const m = /[?&]season=([a-z]+)/.exec(location.search);
+  return m && (SEASONS as readonly string[]).includes(m[1]!) ? (m[1] as Season) : null;
+}
 
 /**
  * Предпросмотр времени суток: `?tod=evening`, `?tod=night`, `?tod=morning`, `?tod=day` или `?tod=18:05` (минуты
@@ -114,7 +153,7 @@ function previewMinutes(): number | null {
  * Время суток игры на клиенте: по поясу игры и часам сервера (`serverNow` — отметка сервера на момент ответа).
  * Пересчитывается раз в 30 секунд и ровно на границе фазы; `phase` — фаза правил, `light` — смешанное освещение.
  */
-export function useDaytime(timeZone: string | undefined, serverNow?: number): Daytime {
+export function useDaytime(timeZone: string | undefined, serverNow?: number, season?: Season | string): Daytime {
   const [tick, setTick] = useState(0);
   const offset = useMemo(() => (serverNow ? serverNow - Date.now() : 0), [serverNow]);
   const preview = useMemo(previewMinutes, []);
@@ -127,7 +166,9 @@ export function useDaytime(timeZone: string | undefined, serverNow?: number): Da
     const tm = setTimeout(() => setTick((n) => n + 1), Math.min(30_000, dl.nextChangeMs + 500));
     return () => clearTimeout(tm);
   }, [dl, preview]);
-  return useMemo(() => ({ ...dl, light: lightOf(dl), preview: preview !== null }), [dl, preview]);
+  const pvSeason = useMemo(previewSeason, []);
+  const sn: Season = pvSeason ?? (season && (SEASONS as readonly string[]).includes(season) ? (season as Season) : resolveSeason("auto", timeZone || "Asia/Tashkent", new Date(Date.now() + offset)));
+  return useMemo(() => ({ ...dl, light: seasonLight(lightOf(dl), sn), preview: preview !== null || pvSeason !== null, season: sn }), [dl, preview, pvSeason, sn]);
 }
 
 /** Освещение, одинаковое для обеих фаз без перехода: удобно слоям, которым нужен один набор картинок. */

@@ -60,7 +60,7 @@ void main(){
 export function LakesLayer({ vp, hexes, size = HEX_SIZE, onUnsupported, daytime }: { vp: Viewport; hexes: MapHexDto[]; size?: number; onUnsupported: () => void; /** Время суток: картинка воды той фазы, которой больше в переходе; блики по палитре. */ daytime?: Daytime }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
-  const phase = daytime ? (daytime.t >= 0.5 ? daytime.to : daytime.from) : "day";
+  const phase = daytime ? (daytime.t >= 0.5 ? daytime.to : daytime.from) : "day", season = daytime?.season ?? "summer";
   const light = daytime?.light ?? DAY_LIGHT;
   const lightRef = useRef(light); lightRef.current = light;
   const [failed, setFailed] = useState(false);
@@ -97,7 +97,7 @@ export function LakesLayer({ vp, hexes, size = HEX_SIZE, onUnsupported, daytime 
       gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.generateMipmap(gl.TEXTURE_2D);
       ready = true; dirty = true;
     };
-    im.src = IMG.terrain("water", phase);
+    im.src = IMG.terrain("water", phase, daytime?.season);
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const dpr = Math.min(window.devicePixelRatio || 1, 1.25);
@@ -129,7 +129,7 @@ export function LakesLayer({ vp, hexes, size = HEX_SIZE, onUnsupported, daytime 
     canvas.addEventListener("webglcontextlost", onLost);
     resize(); raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); canvas.removeEventListener("webglcontextlost", onLost); gl.getExtension("WEBGL_lose_context")?.loseContext(); };
-  }, [lakesKey, size, phase, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lakesKey, size, phase, season, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
   if (failed) return null;
   return <canvas ref={ref} className="fx-layer lakes" aria-hidden="true" />;
 }

@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { cityTasksOpen, dayLight, type DayPhase } from "@lotw/domain";
+import { cityTasksOpen, dayLight, resolveSeason, type DayPhase, type Season } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { rulesOf } from "./rules.js";
 import { err } from "./i18n.js";
@@ -10,12 +10,12 @@ import { err } from "./i18n.js";
  * испытания и осады не объявляются, стихи не отмечаются и не отправляются, разведка, подсказка пророка и запрос прохода ждут утра.
  * Вызов (атака) отправляется на проверку только утром; ответ хранителей — утром, днём и вечером.
  */
-export interface Daytime { phase: DayPhase; timeZone: string; now: number; /** Задания города открыты (с 7:00 до 0:00; решение владельца 04.10). */ tasksOpen: boolean }
+export interface Daytime { phase: DayPhase; timeZone: string; now: number; /** Время года на карте (решение владельца 05.10): по календарю в поясе игры или закреплённое правилом. */ season: Season; /** Задания города открыты (с 7:00 до 0:00; решение владельца 04.10). */ tasksOpen: boolean }
 
 export async function gameDaytime(gameId: string, now = new Date()): Promise<Daytime> {
   const g = await prisma.game.findUnique({ where: { id: gameId }, select: { settings: true } });
-  const { timeZone } = rulesOf(g?.settings);
-  return { phase: dayLight(timeZone, now).phase, timeZone, now: now.getTime(), tasksOpen: cityTasksOpen(timeZone, now) };
+  const { timeZone, season } = rulesOf(g?.settings);
+  return { phase: dayLight(timeZone, now).phase, timeZone, now: now.getTime(), season: resolveSeason(season, timeZone, now), tasksOpen: cityTasksOpen(timeZone, now) };
 }
 
 export const NIGHT_MESSAGE = "Ночь: города спят, дела и испытания ждут утра. До 7:00 по местному времени можно только смотреть карту.";

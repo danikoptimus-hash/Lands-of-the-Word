@@ -8,20 +8,22 @@ import { ISLET_IMAGES } from "@lotw/domain";
 import { SeaGL } from "./SeaGL";
 import { perfMark } from "../lib/perfHud";
 import { seabedColor, type Seabed } from "./Seabed";
-import type { DayPhase } from "@lotw/domain";
+import type { DayPhase, Season } from "@lotw/domain";
 import { css, DAY_LIGHT, type Daytime, type Light } from "../lib/daytime";
 
+/** Папка сезона (решение владельца 05.10): лето — корень набора, остальные — подпапка `<сезон>/`. */
+const sdir = (season?: Season) => (season && season !== "summer" ? `${season}/` : "");
 /** Картинки по времени суток (решение владельца 03.10): дневные — как были, утро/вечер/ночь — те же, окрашенные (`scripts/tod-textures.py`). */
 const tod = (phase?: DayPhase) => (phase && phase !== "day" ? `-${phase}` : "");
 export const IMG = {
-  terrain: (t: string, phase?: DayPhase) => `/img/terrain/${t}${tod(phase)}.webp`,
+  terrain: (t: string, phase?: DayPhase, season?: Season) => `/img/terrain/${sdir(season)}${t}${tod(phase)}.webp`,
   /** Остров: в адресе хеш содержимого файла, чтобы после замены картинки браузер и PWA не показывали старую копию из кеша. */
-  islet: (n: number, phase?: DayPhase) => { const v = ISLET_IMAGES.find((s) => s.img === n)?.ver; return `/img/islet/islet-${n}${tod(phase)}.webp${v ? `?v=${v}` : ""}`; },
-  city: (type: string | null | undefined, phase?: DayPhase) => `/img/city/${type && type !== "" ? type : "village"}${tod(phase)}.webp`,
-  start: (i: number, phase?: DayPhase) => `/img/start/${["babylon", "egypt", "wilderness", "assyria", "zin", "shipwreck"][i % 6]}${tod(phase)}.webp`,
+  islet: (n: number, phase?: DayPhase, season?: Season) => { const v = ISLET_IMAGES.find((s) => s.img === n)?.ver; return `/img/islet/${sdir(season)}islet-${n}${tod(phase)}.webp${v ? `?v=${v}` : ""}`; },
+  city: (type: string | null | undefined, phase?: DayPhase, season?: Season) => `/img/city/${sdir(season)}${type && type !== "" ? type : "village"}${tod(phase)}.webp`,
+  start: (i: number, phase?: DayPhase, season?: Season) => `/img/start/${sdir(season)}${["babylon", "egypt", "wilderness", "assyria", "zin", "shipwreck"][i % 6]}${tod(phase)}.webp`,
 };
 /** Ключ перехода освещения: слои с готовыми растрами перерисовываются, когда он меняется. */
-export const lightKey = (dt: Daytime) => `${dt.from}:${dt.to}:${dt.t.toFixed(2)}`;
+export const lightKey = (dt: Daytime) => `${dt.season}:${dt.from}:${dt.to}:${dt.t.toFixed(2)}`;
 /** Боковой свет на сушу: линейный градиент от стороны светила к противоположной, в пикселях растра размером w×h. */
 export function sideLight(ctx: CanvasRenderingContext2D, light: Light, w: number, h: number): void {
   if (light.side <= 0.005 && light.far <= 0.005) return;
@@ -469,7 +471,7 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, dayt
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   const key = hexes.map((h) => `${h.q},${h.r}:${h.terrain}:${h.rotation ?? 0}:${h.lit === false ? 0 : 1}`).join(";");
-  const from = daytime?.from ?? "day", to = daytime?.to ?? "day", blend = daytime?.t ?? 0, light = daytime?.light ?? DAY_LIGHT;
+  const from = daytime?.from ?? "day", to = daytime?.to ?? "day", blend = daytime?.t ?? 0, light = daytime?.light ?? DAY_LIGHT, season = daytime?.season ?? "summer";
   const lkey = daytime ? lightKey(daytime) : "day";
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
@@ -480,7 +482,7 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, dayt
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // картинкам местности хватает; 2× на ноутбуке — 30-мегапиксельный растр
     const images = new Map<string, HTMLImageElement>();
     let dirty = true, raf = 0, settle = 0, W = 0, H = 0;
-    const load = (t: string, phase: DayPhase) => { const im = new Image(); im.decoding = "async"; im.onload = () => { cache.valid = false; dirty = true; }; im.src = IMG.terrain(t, phase); images.set(`${t}:${phase}`, im); };
+    const load = (t: string, phase: DayPhase) => { const im = new Image(); im.decoding = "async"; im.onload = () => { cache.valid = false; dirty = true; }; im.src = IMG.terrain(t, phase, season); images.set(`${t}:${phase}`, im); };
     for (const t of new Set(tiles.map((x) => x.t))) { load(t, from); if (to !== from) load(t, to); }
     const ready = (im: HTMLImageElement | undefined): im is HTMLImageElement => Boolean(im && im.complete && im.naturalWidth);
     const hex = new Path2D();
