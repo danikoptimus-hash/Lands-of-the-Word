@@ -116,9 +116,11 @@ describe("правила и настройки", () => {
     expect(after.deedLimit.taken).toBe(1);
     expect(after.deedLimit.nextAt).toBeGreaterThan(Date.now());
     // Вся команда видит таймер каждого участника в составе (решение владельца 04.10).
-    const roster = (await get(`/api/games/${gameId}/teams`, p1Cookie)).json().teams[0].members as Array<{ user: { nickname: string }; deedLimit: { max: number; taken: number; nextAt: number | null } | null }>;
+    const roster = (await get(`/api/games/${gameId}/teams`, p1Cookie)).json().teams[0].members as Array<{ user: { nickname: string }; deedLimit: { max: number; taken: number; nextAt: number | null } | null; activeDeeds: Array<{ id: string; status: string }> }>;
     const me = roster.find((x) => x.user.nickname === p1Nick)!;
     expect(me.deedLimit).toMatchObject({ max: 1, taken: 1 });
+    // И дела на руках каждого участника видит вся команда, не только администратор (решение владельца 05.10).
+    expect(me.activeDeeds).toEqual([expect.objectContaining({ id: open[0].id, status: "TAKEN" })]);
     expect(me.deedLimit!.nextAt).toBeGreaterThan(Date.now());
     expect(roster.find((x) => x.user.nickname !== p1Nick)!.deedLimit).toEqual({ max: 1, taken: 0, nextAt: null });
     // Товарищ по команде лимитом первого не ограничен — пусть берут другие.

@@ -1,5 +1,6 @@
 /** EN-строки области «player»: карта, HUD, меню, дело, город, задание, испытание, проходы, «Как играть». Ключ — русская строка как в коде. */
 export const PLAYER: Record<string, string> = {
+  "Свободные на карте": "Free on the map", "Взять": "Take", "Дело взято": "Deed taken", "пожертвование от {min} {cur}": "donation from {min} {cur}", "Вместо дела можно пожертвовать в кассу церкви не меньше этой суммы: чек — ссылкой.": "Instead of the deed you may donate to the church treasury at least this amount; submit the receipt as a link.",
   "Добавить аккаунт": "Add account",
   "Выйти из этого аккаунта": "Sign out of this account",
   "Выйти из всех": "Sign out of all accounts",

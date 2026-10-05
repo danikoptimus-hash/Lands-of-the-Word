@@ -134,6 +134,9 @@
 .side-menu .section h2 { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-md); margin-bottom: var(--sp-2); }
 .side-menu .section h2 .i { color: var(--accent); width: var(--icon-md); height: var(--icon-md); }
 .side-menu .section h2 .count { color: var(--muted); font-weight: 400; }
+.side-menu .section .list-title { display: flex; align-items: center; gap: var(--sp-1); margin: var(--sp-3) 0 var(--sp-1); font-size: var(--fs-md); font-weight: 600; }
+.side-menu .section .list-title .i { width: var(--icon-sm); height: var(--icon-sm); color: var(--accent); }
+.side-menu .section .list-title .count { color: var(--muted); font-weight: 400; }
 .side-menu .list > li { padding: var(--sp-2) 0; }
 .side-menu .list .main { flex-basis: 160px; }
 .side-menu .state { padding: var(--sp-2) 0; }

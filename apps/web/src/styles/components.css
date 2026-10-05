@@ -202,3 +202,10 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .m-quarry path { fill: none; stroke: var(--text, #2b1d12); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 .quarry-sheet .quarry-deeds .title .chip { margin-left: var(--sp-2); }
 .quarry-sheet .list .meta .i { width: 14px; height: 14px; vertical-align: -2px; }
+
+/* Окошко «дела на руках» у значка лимита: в составе команды и у администратора в «Командах». */
+.member-deeds { list-style: none; margin: 0; min-width: 220px; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.member-deeds li { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
+.member-deeds .i { width: 13px; height: 13px; flex: none; margin-top: 3px; color: var(--accent); }
+.member-deeds .title { flex: 1 1 auto; min-width: 0; }
+.member-deeds .muted { flex: none; margin-top: 1px; white-space: nowrap; }

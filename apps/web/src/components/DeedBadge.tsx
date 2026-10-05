@@ -1,5 +1,7 @@
 import { Icon } from "./Icon";
+import { HelpPopup } from "./Help";
 import { t } from "../lib/i18n";
+import { fmtDate } from "../lib/format";
 
 export interface DeedLimitDto { max: number; taken: number; nextAt: number | null }
 
@@ -19,6 +21,26 @@ export function DeedBadge({ limit, now }: { limit: DeedLimitDto | null | undefin
     <span className="deed-badge free" title={text} aria-label={text}><Icon name="scroll" />{limit.max <= 5
       ? <span className="pips">{Array.from({ length: limit.max }, (_, i) => <i key={i} className={i < limit.taken ? "on" : undefined} />)}</span>
       : <span className="num">{limit.taken}/{limit.max}</span>}</span>
+  );
+}
+
+export interface ActiveDeedDto { id: string; title: string; status: string; takenAt: string | null; submittedAt: string | null }
+
+/**
+ * Значок лимита, а по нажатию — окошко с делами на руках: взятые с датой, «на проверке», возвращённые. Видит администратор
+ * в блоке «Команды» и вся команда в составе (решение владельца 05.10). Без дел на руках — просто значок.
+ */
+export function DeedBadgePopup({ limit, now, deeds }: { limit: DeedLimitDto | null | undefined; now: number; deeds: ActiveDeedDto[] | undefined }) {
+  if (!limit) return null;
+  if (!deeds || deeds.length === 0) return <DeedBadge limit={limit} now={now} />;
+  return (
+    <HelpPopup name={t("Дела на руках: {n}", { n: deeds.length })} trigger={<DeedBadge limit={limit} now={now} />}>
+      <ul className="member-deeds">
+        {deeds.map((d) => (
+          <li key={d.id}><Icon name={d.status === "SUBMITTED" ? "clock" : d.status === "REJECTED" ? "alert" : "scroll"} /><span className="title">{d.title}</span><span className="muted">{d.status === "SUBMITTED" ? t("на проверке") : d.status === "REJECTED" ? t("возвращено") : d.takenAt ? t("взято {d}", { d: fmtDate(d.takenAt) }) : t("взято")}</span></li>
+        ))}
+      </ul>
+    </HelpPopup>
   );
 }
 

@@ -18,7 +18,7 @@ import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
-import { DeedBadge, untilText } from "../components/DeedBadge";
+import { DeedBadgePopup, untilText } from "../components/DeedBadge";
 import { FeedSection, MyServiceSection } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
@@ -415,6 +415,10 @@ export function TeamPage() {
 
   const activeBattles = battles.filter((b) => b.status === "QUEUED" || b.status === "ATTACK" || b.status === "DEFENSE");
   const ourTasks = map.tasks.filter((tk) => tk.status === "TAKEN" || tk.status === "SUBMITTED" || tk.status === "REJECTED");
+  // Свободные дела на карте — в разделе «Дела» с кнопкой «Взять» у каждого, чтобы не искать метку на карте (решение владельца 05.10).
+  const freeTasks = map.tasks.filter((tk) => tk.status === "OPEN");
+  const canTakeNow = map.daytime?.phase !== "night" || Boolean(map.daytime?.tasksOpen);
+  const donationText = (dm: number | null | undefined) => dm ? `${t("пожертвование от {min} {cur}", { min: dm, cur: currency })}`.trim() : "";
   const landingTask = landingId ? map.tasks.find((tk) => tk.id === landingId && tk.landing) ?? null : null;
   const incoming = passages?.incoming.filter((r) => r.status === "PENDING") ?? [];
   // Бейдж на кнопке меню — только то, что требует действия: возвращённое дело, входящий запрос прохода, наш ход в испытании.
@@ -506,7 +510,7 @@ export function TeamPage() {
           )}
           {menuView === "deeds" && (
             <section className="section">
-            {ourTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Возьмите дело: нажмите метку на карте.")} /> : (
+            {ourTasks.length === 0 && freeTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Возьмите дело: нажмите метку на карте.")} /> : (
               <ul className="list interactive">
                 {ourTasks.map((tk) => { const st = deedStatus(tk.status); return (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
@@ -517,7 +521,20 @@ export function TeamPage() {
                 ); })}
               </ul>
             )}
-          
+            {freeTasks.length > 0 && (<>
+              <h3 className="list-title mt-2"><Icon name="scroll" />{t("Свободные на карте")}<span className="count">{freeTasks.length}</span></h3>
+              {error && <p className="error" role="alert">{error}</p>}
+              {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map.deedLimit?.max ?? 0, when: untilText(map.deedLimit?.nextAt ?? Date.now()) })}</p>}
+              {!canTakeNow && <p className="hint"><Icon name="moon" />{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p>}
+              <ul className="list interactive">
+                {freeTasks.map((tk) => (
+                  <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
+                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{tk.deed.direction}{tk.deed.donationMin ? ` · ${donationText(tk.deed.donationMin)}` : ""}{tk.sea ? ` · ${t("корабль")}` : ""}</span></div>
+                    <div className="side"><button type="button" className="sm" disabled={busy || limitFull(map) || !canTakeNow} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button></div>
+                  </li>
+                ))}
+              </ul>
+            </>)}
             </section>
           )}
           {menuView === "battles" && (
@@ -635,6 +652,8 @@ export function TeamPage() {
                 <Icon name={proof.icon} />{t("Сдать")}: {proof.label()}
                 {taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}
                 {task.deed.remote && <Chip icon="send">{t("можно издалека")}</Chip>}
+                {/* Ценник пожертвования виден до взятия дела (решение владельца 05.10); в форме сдачи он повторяется галочкой. */}
+                {task.deed.donationMin && !(task.status === "TAKEN" && !night) ? <><Chip icon="star">{donationText(task.deed.donationMin)}</Chip><Help>{t("Вместо дела можно пожертвовать в кассу церкви не меньше этой суммы: чек — ссылкой.")}</Help></> : null}
                 {task.deed.secret && <><Chip icon="lock">{t("тайное")}</Chip><Help>{t("Сдачу видят только вы и проверяющий.")}</Help></>}
                 {task.sea && <><Chip icon="ship">{t("корабль")}</Chip><Help>{t("После одобрения кормчий выберет место высадки на другом острове. Капитан и команда ему советуют.")}</Help></>}
               </p>
@@ -794,7 +813,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
               <div className="side">
                 {/* Слева только имя; значок лимита дел и роли — справа, только значками (решение владельца 04.10). Название роли — в подсказке
                     и для читалок; нажатие на роль у капитана открывает ряд ролей, у остальных — пояснение роли. */}
-                <DeedBadge limit={m.deedLimit} now={now} />
+                <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} />
                 {m.role === "DEPUTY" && m.gameRole !== "NONE" && <Chip tone="accent" icon="star" title={t("заместитель")}><span className="sr-only">{t("заместитель")}</span></Chip>}
                 {canEdit ? (
                   <button type="button" className={"chip-btn role-pick icon-only" + (m.gameRole === "NONE" ? " none" : "")} aria-label={m.gameRole === "NONE" ? t("без роли") : ROLE[m.gameRole].label()} title={m.gameRole === "NONE" ? t("без роли") : ROLE[m.gameRole].label()} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>

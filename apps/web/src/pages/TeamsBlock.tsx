@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { api, ApiError, GAME_ROLE_ICON, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type StandingRow, type StandingsDto, type TeamDto } from "../lib/api";
 import { Link } from "react-router-dom";
-import { fmtDate, plural } from "../lib/format";
+import { plural } from "../lib/format";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
@@ -11,8 +11,8 @@ import { ActionMenu } from "../components/ActionMenu";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { Sheet } from "../components/Sheet";
 import { ActivityBoard } from "./Journal";
-import { Help, HelpPopup } from "../components/Help";
-import { DeedBadge } from "../components/DeedBadge";
+import { Help } from "../components/Help";
+import { DeedBadgePopup } from "../components/DeedBadge";
 
 
 /** Вкладка «Команды»: список команд с участниками, приглашения по ссылке, строка добавления снизу. */
@@ -169,15 +169,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                     <div className="side">
                       {/* Значок лимита дел справа, у ролей (решение владельца 04.10); дела на руках спрятаны в значок: нажатие открывает окошко
                           со списком — взятые с датой, сданные «на проверке», возвращённые. */}
-                      {m.deedLimit && ((m.activeDeeds?.length ?? 0) > 0
-                        ? <HelpPopup name={t("Дела на руках: {n}", { n: m.activeDeeds!.length })} trigger={<DeedBadge limit={m.deedLimit} now={now} />}>
-                            <ul className="member-deeds">
-                              {m.activeDeeds!.map((d) => (
-                                <li key={d.id}><Icon name={d.status === "SUBMITTED" ? "clock" : d.status === "REJECTED" ? "alert" : "scroll"} /><span className="title">{d.title}</span><span className="muted">{d.status === "SUBMITTED" ? t("на проверке") : d.status === "REJECTED" ? t("возвращено") : d.takenAt ? t("взято {d}", { d: fmtDate(d.takenAt) }) : t("взято")}</span></li>
-                              ))}
-                            </ul>
-                          </HelpPopup>
-                        : <DeedBadge limit={m.deedLimit} now={now} />)}
+                      <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} />
                       {(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"} title={TEAM_ROLE_LABEL[m.role]}><span className="sr-only">{TEAM_ROLE_LABEL[m.role]}</span></Chip>}
                       {/* Только значок роли, без слова (решение владельца 04.10): название — в подсказке и для читалок; нажатие открывает ряд ролей. */}
                       {m.role !== "CAPTAIN" && (
