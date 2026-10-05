@@ -82,6 +82,7 @@ export const ADMIN: Record<string, string> = {
   "Адресатов пока нет.": "No recipients yet.", "Как назвать адресата, например «семья у рынка»": "How to call the recipient, e.g. “family by the market”", "Кто это": "Who is it",
   "Спросите согласие человека заранее.": "Ask the person for consent in advance.", "пожилой человек": "elderly person",
   // Проверка
+  "из них в море (корабль у порта): {n}": "of them at sea (a ship by the port): {n}", "По командам: свободно / в работе": "By team: free / in progress",
   "Возвращённые": "Returned", "К сдачам": "Back to submissions", "Принять после пересмотра": "Accept on review", "Возвращено {when}": "Returned {when}", "Сдача принята после пересмотра": "Submission accepted on review",
   "Фото": "Photo", "Видео": "Video", "Ссылка": "Link", "Сдача принята": "Submission accepted", "Сдача возвращена": "Submission returned", "Сдачи": "Submissions",
   "Отчёт команды": "Team report", "Принять": "Accept", "Причина возврата: команда её увидит": "Reason for return: the team will see it",

@@ -352,3 +352,6 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 /* Два раздела дел (решение владельца 04.10): подписи вкладок переносятся, счётчик рядом, ничего не наезжает. */
 .deed-sections > button { white-space: normal; text-align: center; line-height: 1.15; min-height: 44px; padding: 4px 6px; }
 .deed-sections > button > .count-chip { flex: none; }
+/* Разбивка «на карте» по командам в списке дел (05.10): буква команды её цветом, свободно/в работе. */
+.on-map.by-team { display: inline-flex; gap: var(--sp-2); margin-left: var(--sp-1); }
+.on-map.by-team .tm { font-weight: 600; font-variant-numeric: tabular-nums; }

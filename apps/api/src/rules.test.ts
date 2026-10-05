@@ -123,8 +123,15 @@ describe("правила и настройки", () => {
     expect(me.activeDeeds).toEqual([expect.objectContaining({ id: open[0].id, status: "TAKEN" })]);
     expect(me.deedLimit!.nextAt).toBeGreaterThan(Date.now());
     expect(roster.find((x) => x.user.nickname !== p1Nick)!.deedLimit).toEqual({ max: 1, taken: 0, nextAt: null });
+    // Возвращённое администратором дело места в лимите не занимает (решение владельца 05.10): таймер сбрасывается, второе дело берётся.
+    const sub = await post(`/api/games/${gameId}/edge-tasks/${open[0].id}/submit`, p1Cookie, { links: ["https://example.com/p1"], note: "Сделали. Свидетель: служитель", participants: [] });
+    expect(sub.statusCode).toBe(200);
+    const rej = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${open[0].id}/decide`, headers: { cookie: adminCookie }, payload: { approve: false, comment: "по ошибке" } });
+    expect(rej.json().task.status).toBe("REJECTED");
+    expect((await get(`/api/games/${gameId}/my-map`, p1Cookie)).json().deedLimit).toEqual({ max: 1, taken: 0, nextAt: null });
+    expect((await post(`/api/games/${gameId}/edge-tasks/${open[1].id}/take`, p1Cookie)).statusCode).toBe(200);
     // Товарищ по команде лимитом первого не ограничен — пусть берут другие.
-    await post(`/api/games/${gameId}/edge-tasks/${open[0].id}/release`, p1Cookie);
+    await post(`/api/games/${gameId}/edge-tasks/${open[1].id}/release`, p1Cookie);
     const off = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { maxDeedsPerDay: 0 } } } });
     expect(off.statusCode).toBe(200);
   });

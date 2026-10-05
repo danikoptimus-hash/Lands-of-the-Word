@@ -12,7 +12,7 @@ import { Help } from "../components/Help";
 import { plural } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "AUDIO_LINK" | "WITNESS";
-interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
+interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number; /** Сколько из свободных — морские рейсы (на карте корабль, а не свиток). */ sea?: number; /** Разбивка по командам: сверять с картой «глазами команды». */ teams?: Array<{ index: number; name: string; color: string; free: number; taken: number }> }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
 type Form = { quarry: boolean; stones: number; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
 /** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
 const CHANCES = [20, 40, 60, 80, 100];
@@ -132,7 +132,9 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
                   {d.donationMin != null && <span>· {t("пожертвование от {n}", { n: d.donationMin })}</span>}
                   {!d.quarry && <span title={t("Вероятность появления на новой дороге")}>· {d.chance}%</span>}
                   {/* Две цифры по делу (решение владельца 04.10): сколько таких дел сейчас свободно на картах команд и сколько взято в работу. */}
-                  {!d.quarry && d.onMap && <span className="on-map" title={t("На картах команд: свободных {a}, в работе {b}", { a: d.onMap.free, b: d.onMap.taken })}>· <Icon name="scroll" />{d.onMap.free} <Icon name="user" />{d.onMap.taken}</span>}
+                  {!d.quarry && d.onMap && <span className="on-map" title={t("На картах команд: свободных {a}, в работе {b}", { a: d.onMap.free, b: d.onMap.taken }) + (d.onMap.sea ? ` · ${t("из них в море (корабль у порта): {n}", { n: d.onMap.sea })}` : "")}>· <Icon name="scroll" />{d.onMap.free} <Icon name="user" />{d.onMap.taken}{d.onMap.sea ? <> <Icon name="ship" />{d.onMap.sea}</> : null}</span>}
+                  {/* По командам (замечание владельца 05.10: сумма по всем командам не сходится с картой одной команды): буква команды — свободно/в работе. */}
+                  {!d.quarry && d.onMap?.teams && d.onMap.teams.length > 0 && <span className="on-map by-team" title={t("По командам: свободно / в работе")}>{d.onMap.teams.map((tm) => <span key={tm.index} className="tm" style={{ color: tm.color }} title={tm.name}>{tm.name.slice(0, 1).toUpperCase()} {tm.free}{tm.taken ? `/${tm.taken}` : ""}</span>)}</span>}
                   {d.bookCodes.length > 0 && <span>· <Chip icon="book" title={d.bookCodes.map(bookName).join(", ")}>{plural(d.bookCodes.length, [t("книга"), t("книги"), t("книг")])}</Chip></span>}
                   <span>· {d.direction}</span>
                 </span>

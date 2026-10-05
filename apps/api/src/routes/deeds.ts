@@ -43,12 +43,25 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     if (!game) return;
     const rows = await prisma.deed.findMany({ where: { gameId: id }, orderBy: { createdAt: "asc" } });
     // Сколько таких дел сейчас на картах всех команд: свободных (OPEN) и в работе (взято, на проверке, возвращено) — решение владельца 04.10.
-    const grouped = await prisma.teamEdgeTask.groupBy({ by: ["deedId", "status"], where: { gameId: id, status: { in: ["OPEN", "TAKEN", "SUBMITTED", "REJECTED"] } }, _count: { _all: true } });
-    const onMap = new Map<string, { free: number; taken: number }>();
-    for (const g of grouped) { const c = onMap.get(g.deedId) ?? { free: 0, taken: 0 }; if (g.status === "OPEN") c.free += g._count._all; else c.taken += g._count._all; onMap.set(g.deedId, c); }
+    // Цифры «на карте» — по всем командам сразу; чтобы сверять с картой «глазами команды», отдаётся и разбивка по командам,
+    // и сколько из свободных — морские рейсы (на карте это корабль у порта, а не свиток) (замечание владельца 05.10).
+    const grouped = await prisma.teamEdgeTask.groupBy({ by: ["deedId", "status", "teamId", "sea"], where: { gameId: id, status: { in: ["OPEN", "TAKEN", "SUBMITTED", "REJECTED"] } }, _count: { _all: true } });
+    const teams = await prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, index: true, name: true, color: true } });
+    type OnMap = { free: number; taken: number; sea: number; teams: Array<{ index: number; name: string; color: string; free: number; taken: number }> };
+    const onMap = new Map<string, OnMap>();
+    for (const g of grouped) {
+      const c = onMap.get(g.deedId) ?? { free: 0, taken: 0, sea: 0, teams: [] };
+      const tm = teams.find((x) => x.id === g.teamId);
+      let row = c.teams.find((x) => tm && x.index === tm.index);
+      if (!row && tm) { row = { index: tm.index, name: tm.name, color: tm.color, free: 0, taken: 0 }; c.teams.push(row); }
+      if (g.status === "OPEN") { c.free += g._count._all; if (row) row.free += g._count._all; if (g.sea) c.sea += g._count._all; }
+      else { c.taken += g._count._all; if (row) row.taken += g._count._all; }
+      c.teams.sort((a, b) => a.index - b.index);
+      onMap.set(g.deedId, c);
+    }
     // «Тяжесть» убрана (решение владельца 3.15): колонка difficulty живёт только ради хешей старых игр и наружу не отдаётся.
     // Порядок списка — по убыванию «свободных + в работе» (решение владельца 04.10), при равенстве — по дате создания.
-    const deeds = rows.map(({ difficulty: _difficulty, ...d }) => ({ ...d, onMap: onMap.get(d.id) ?? { free: 0, taken: 0 } }))
+    const deeds = rows.map(({ difficulty: _difficulty, ...d }) => ({ ...d, onMap: onMap.get(d.id) ?? { free: 0, taken: 0, sea: 0, teams: [] } }))
       .sort((a, b) => (b.onMap.free + b.onMap.taken) - (a.onMap.free + a.onMap.taken) || a.createdAt.getTime() - b.createdAt.getTime());
     const settings = (game.settings ?? {}) as { nodeCount?: number; cityGap?: number };
     return { deeds, directions: DIRECTIONS, recommendedMin: recommendedDeedCount(effectiveNodeCount(settings)) };
