@@ -454,8 +454,9 @@ export function TeamPage() {
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
   const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length };
-  /** На компьютере «домашнего» экрана нет: колонка кнопок слева, по умолчанию открыт раздел «Внимание». */
-  const view: MenuView = wide && menuView === "home" ? "attention" : menuView;
+  /** На компьютере (решение владельца 05.10, вечер): плитки разделов висят над картой, панель открыта только пока выбран раздел; «home» — панель закрыта. */
+  const view: MenuView = menuView;
+  const toggleView = (key: MenuView) => setMenuView((v) => (wide && v === key ? "home" : key));
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (wide) return;
@@ -478,35 +479,37 @@ export function TeamPage() {
   }
   const openCity = (key: string) => { setCityKey(key); setSelectedId(null); setFrontierKey(null); setMenu(false); };
   const openTask = (tid: string | null) => { setSelectedId(tid); if (tid) { setMenu(false); setFrontierKey(null); } };
-  const menuOpen = wide || menu;
+  const menuOpen = wide ? menuView !== "home" : menu;
+  const closeMenu = () => { if (wide) setMenuView("home"); else setMenu(false); };
 
   return (
     <div className="map-screen" ref={screenRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       {menuOpen && !wide && <div className="side-backdrop" onClick={() => setMenu(false)} />}
+      {/* На компьютере (решение владельца 05.10, вечер): колонка плиток висит полупрозрачно над картой; нажатие открывает панель
+          раздела рядом, повторное нажатие на ту же плитку или нажатие на карту закрывает её. */}
+      {wide && (
+        <nav className="menu-rail floating" aria-label={t("Разделы")}>
+          {MENU_ITEMS.map((m) => { const n = menuCounts[m.key] ?? 0; return (
+            <button key={m.key} type="button" className={view === m.key ? "on" : undefined} aria-pressed={view === m.key} onClick={() => toggleView(m.key)}>
+              <Icon name={m.icon} />{m.label()}{n > 0 && <span className={"count-chip" + (m.hot ? " hot" : "")}>{n}</span>}
+            </button>
+          ); })}
+          <span className="rail-gap" />
+          <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
+          <Link to="/account"><Icon name="user" />{t("Аккаунт")}</Link>
+          <Link to="/how-to-play"><Icon name="help" />{t("Как играть")}</Link>
+          <Link to="/whats-new"><Icon name="sparkle" />{t("Что нового")}</Link>
+          <button type="button" onClick={() => void logout()}><Icon name="logout" />{t("Выйти")}</button>
+        </nav>
+      )}
       {menuOpen && (
         <aside className={"side-menu" + (wide ? " with-rail" : "")} role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")}>
-          {/* На компьютере (решение владельца 05.10): вместо плиток разделов и плиток навигации — одна колонка кнопок слева, разделы открываются рядом. */}
-          {wide && (
-            <nav className="menu-rail" aria-label={t("Разделы")}>
-              {MENU_ITEMS.map((m) => { const n = menuCounts[m.key] ?? 0; return (
-                <button key={m.key} type="button" className={view === m.key ? "on" : undefined} aria-current={view === m.key ? "page" : undefined} onClick={() => setMenuView(m.key)}>
-                  <Icon name={m.icon} />{m.label()}{n > 0 && <span className={"count-chip" + (m.hot ? " hot" : "")}>{n}</span>}
-                </button>
-              ); })}
-              <span className="rail-gap" />
-              <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
-              <Link to="/account"><Icon name="user" />{t("Аккаунт")}</Link>
-              <Link to="/how-to-play"><Icon name="help" />{t("Как играть")}</Link>
-              <Link to="/whats-new"><Icon name="sparkle" />{t("Что нового")}</Link>
-              <button type="button" onClick={() => void logout()}><Icon name="logout" />{t("Выйти")}</button>
-            </nav>
-          )}
           <div className="side-body">
           <div className="side-head" style={{ ["--team" as string]: team.color }}>
             <TeamAvatar name={team.name} color={team.color} size="lg" />
             <div className="grow"><div className="side-name">{team.name}</div><div className="muted small">{gameName || t("Игра")}{isCaptain ? ` · ${t("вы капитан")}` : ""}</div></div>
             {(map?.team.stones ?? 0) > 0 && <button type="button" className="chip-btn" title={t("Тёсаные камни Каменоломни: один камень мостит одну дорогу")} aria-label={t("Камней: {n}", { n: map?.team.stones ?? 0 })} onClick={() => { setQuarryOpen(true); setMenu(false); }}><Chip tone="accent" icon="stone">{map?.team.stones}</Chip></button>}
-            {!wide && <button type="button" className="ghost icon" onClick={() => setMenu(false)} aria-label={t("Закрыть")}><Icon name="x" /></button>}
+            <button type="button" className="ghost icon" onClick={closeMenu} aria-label={t("Закрыть")}><Icon name="x" /></button>
           </div>
 
           {view !== "home" && (
@@ -628,7 +631,7 @@ export function TeamPage() {
         </aside>
       )}
 
-      <div className="map-area" ref={setMapEl}>
+      <div className="map-area" ref={setMapEl} onPointerDownCapture={() => { if (wide && menuView !== "home") setMenuView("home"); }}>
         <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)}
