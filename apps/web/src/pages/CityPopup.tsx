@@ -93,6 +93,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   const done = city?.state.doneTasks ?? [];
   const total = city?.content?.tasks.length ?? 0;
   const allDone = total > 0 && done.length >= total;
+  /** Ключ после половины команды (решение владельца 05.10): решавших не меньше нужного. */
+  const solvers = city?.state.solvers ?? 0, needSolvers = city?.state.needSolvers ?? 0, teamSize = city?.state.members ?? 0;
+  const enoughSolvers = solvers >= needSolvers;
   /** Пауза на ключ конверта (растущая после каждого неверного ключа). */
   const cooldown = city?.state.keyLockedUntil && city.state.keyLockedUntil > now ? Math.ceil((city.state.keyLockedUntil - now) / 1000) : 0;
 
@@ -257,7 +260,14 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
             </>
           )}
 
-          {step === 3 && !city.state.capturedAt && !night && <h3>{t("Получите конверт с ключом")}</h3>}
+          {step === 3 && !city.state.capturedAt && !night && enoughSolvers && <h3>{t("Получите конверт с ключом")}</h3>}
+          {/* Ключ после половины команды (решение владельца 05.10): строка видна с первого задания, чтобы команда делила задания заранее. */}
+          {needSolvers > 0 && !city.state.capturedAt && !city.node.ruined && (
+            <p className={"meta-line solvers-line" + (allDone && !enoughSolvers ? " warn" : "")}>
+              <Icon name="users" />{t("Решали задания: {a} из {b}", { a: solvers, b: teamSize })} · {enoughSolvers ? t("для ключа хватает") : t("для ключа нужно {c}", { c: needSolvers })}
+              <Help>{t("Ключ конверта можно ввести, когда задания города решили не меньше половины команды. Считается каждый, кто решил хотя бы одно задание района.")}</Help>
+            </p>
+          )}
           {!allDone && (
             <div className="cipher">
               <CipherSeal fragments={city.content.fragments} struck={struck} />
@@ -268,7 +278,10 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
               </div>
             </div>
           )}
-          {allDone && !night && (
+          {allDone && !night && !enoughSolvers && !city.node.ruined && !city.state.capturedAt && (
+            <div className="note warn"><Icon name="users" /><span>{t("Все районы решены, но ключ ждёт: нужно, чтобы задания решили не меньше {c} участников, а решали {a}. Задания уже решены, поэтому этот город возьмёт только команда с таким составом. Напишите администратору, если команда стала меньше.", { c: needSolvers, a: solvers })}</span></div>
+          )}
+          {allDone && !night && (enoughSolvers || city.node.ruined || Boolean(city.state.capturedAt)) && (
             <div className="capture">
               {city.node.ruined && !city.owner && !city.state.capturedAt && <div className="note warn"><Icon name="info" /><span>{t("Город в руинах: его можно занять без конверта.")}</span></div>}
               <WaxEnvelope fragments={city.content.fragments} cipher={city.content.fragments.map((f) => f ?? "·").join("")}

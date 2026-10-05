@@ -342,6 +342,30 @@ describe("дипломатия, роли, столица, руины, пожер
     expect(twice.statusCode).toBe(409);
   });
 
+  it("ключ конверта — только когда задания решили не меньше доли команды (решение владельца 05.10)", async () => {
+    // В команде p1 появляется второй участник, который ничего не решал; при 100% ключ закрыт, при 50% — открыт.
+    const p3Cookie = await register(`${p1Nick}_b`);
+    const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team1}/invites`, headers: { cookie: adminCookie }, payload: { role: "MEMBER" } });
+    expect((await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: p3Cookie } })).statusCode).toBe(201);
+    await prisma.teamCityState.updateMany({ where: { nodeKey: rutKey, gameId }, data: { capturedAt: null, isCapital: false, keyLockedUntil: null } });
+    await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { keySolversPct: 100 } } } });
+    const info = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
+    // Состав команды к этому моменту накопили предыдущие тесты: решал задания только p1, нужны все при 100%.
+    const st = info.json().state as { solvers: number; members: number; needSolvers: number };
+    const members = await prisma.membership.count({ where: { teamId: team1 } });
+    expect(members).toBeGreaterThanOrEqual(2);
+    expect(st).toMatchObject({ solvers: 1, members, needSolvers: members });
+    const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
+    const closed = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/capture`, headers: { cookie: p1Cookie }, payload: { key: node.cityKey! } });
+    expect(closed.statusCode).toBe(409);
+    expect(closed.json().message).toContain(`решали 1 из ${members}`);
+    // Доля, при которой одного решавшего хватает: ceil(members × pct / 100) = 1.
+    await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { keySolversPct: Math.floor(100 / members) } } } });
+    expect((await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } })).json().state.needSolvers).toBe(1);
+    const open = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/capture`, headers: { cookie: p1Cookie }, payload: { key: node.cityKey! } });
+    expect(open.statusCode).toBe(200);
+  });
+
   it("руины берутся без ключа после решённых заданий", async () => {
     await prisma.mapNode.update({ where: { gameId_key: { gameId, key: rutKey } }, data: { ruined: true } });
     await prisma.teamCityState.updateMany({ where: { nodeKey: rutKey, gameId }, data: { capturedAt: null, isCapital: false } });
