@@ -66,6 +66,8 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const next = params.get("next") ?? "/";
+  // Добавление аккаунта (решение владельца 05.10): открыто из меню пользователя, текущий аккаунт остаётся на устройстве.
+  const add = params.get("add") === "1";
   const [mode, setMode] = useState<Mode>("login");
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
@@ -75,25 +77,26 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const providers = useProviders();
 
-  if (user) return <Navigate to={next} replace />;
+  if (user && !add) return <Navigate to={next} replace />;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      if (mode === "login") await login(nickname, password);
+      if (mode === "login") await login(nickname, password, add);
       else await register(nickname, password, email);
-      navigate(next);
+      if (add) window.location.assign("/"); else navigate(next);
     } catch (err) { setError(errorText(err)); }
     finally { setBusy(false); }
   }
 
   return (
     <GuestShell title={t("Земли Слова")}>
+      {add && user && <p className="note info"><Icon name="user" /><span>{t("Добавление аккаунта: «{name}» останется на этом устройстве, переключаться можно в меню пользователя.", { name: user.displayName || user.nickname })}</span></p>}
       <Tabs<Mode> ariaLabel={t("Вход или регистрация")} items={[{ key: "login", label: t("Вход") }, { key: "register", label: t("Регистрация") }]} value={mode} onChange={(m) => { setMode(m); setError(null); }} />
       {providers?.google && (
         <>
-          <a className="btn secondary block google-btn" href={"/api/auth/google?next=" + encodeURIComponent(next)}><GoogleMark />{t("Войти через Google")}</a>
+          <a className="btn secondary block google-btn" href={"/api/auth/google?next=" + encodeURIComponent(next) + (add ? "&add=1" : "")}><GoogleMark />{t("Войти через Google")}</a>
           <div className="or-divider" role="separator"><span>{t("или")}</span></div>
         </>
       )}

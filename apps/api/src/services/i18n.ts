@@ -294,6 +294,7 @@ const EN: Record<string, string> = {
   "Приложите ссылку на чек или подтверждение перевода": "Attach a link to the receipt or transfer confirmation",
   "Для этого дела нужна хотя бы одна ссылка на фото или видео": "This deed needs at least one photo or video link",
   "Опишите, что сделано": "Describe what was done",
+  "Этот аккаунт на устройстве не найден: войдите в него заново": "This account is not on this device: sign in to it again",
   "Этот город не принадлежит команде": "This city does not belong to the team",
   "Столицу обменять нельзя": "A capital cannot be traded",
   "Руины обменять нельзя": "Ruins cannot be traded",

@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import type { User } from "@prisma/client";
 import { prisma } from "../db.js";
-import { createSession, destroySession, publicUser, requireUser } from "../auth.js";
+import { activeSessionId, createSession, destroyAllSessions, destroySession, publicUser, readParked, requireUser, setActiveCookie, writeParked, MAX_ACCOUNTS } from "../auth.js";
 import { createHash, randomBytes } from "node:crypto";
 import { describeMailError, mailEnabled, sendMail, verifyMail } from "../services/mail.js";
 import { err, msg, toLocale } from "../services/i18n.js";
@@ -20,7 +20,7 @@ const registerBody = z.object({
   locale: z.enum(["ru", "en"]).optional(),
 });
 
-const loginBody = z.object({ nickname: z.string().trim(), password: z.string() });
+const loginBody = z.object({ nickname: z.string().trim(), password: z.string(), add: z.boolean().optional() });
 const profileBody = z.object({
   displayName: z.string().trim().max(60).nullable().optional(),
   email: z.string().trim().email().nullable().optional().or(z.literal("").transform(() => null)),
@@ -169,13 +169,46 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(401).send({ error: "unauthorized", message: err(request, "Неверный никнейм, почта или пароль") });
     }
     if (user.failedLogins > 0 || user.lockedUntil) await prisma.user.update({ where: { id: user.id }, data: { failedLogins: 0, lockedUntil: null } });
-    await createSession(reply, user.id, secure);
+    // Добавление аккаунта (решение владельца 05.10): текущий остаётся в списке, новый становится активным.
+    await createSession(reply, user.id, secure, body.add ? { request } : undefined);
     return { user: publicUser(user) };
   });
 
+  /** Выход из активного аккаунта: если на устройстве есть другие, следующий становится активным и возвращается. */
   app.post("/api/auth/logout", async (request, reply) => {
-    await destroySession(request, reply);
+    const next = await destroySession(request, reply, secure);
+    if (!next) return { ok: true, user: null };
+    const user = await prisma.user.findUnique({ where: { id: next.userId } });
+    return { ok: true, user: user ? publicUser(user) : null };
+  });
+  app.post("/api/auth/logout-all", async (request, reply) => {
+    await destroyAllSessions(request, reply);
     return { ok: true };
+  });
+
+  /** Аккаунты на этом устройстве: активный и припаркованные (живые сессии); мёртвые ссылки вычищаются из cookie. */
+  app.get("/api/auth/accounts", { preHandler: requireUser }, async (request, reply) => {
+    const parked = readParked(request);
+    const rows = parked.length ? await prisma.session.findMany({ where: { id: { in: parked }, expiresAt: { gt: new Date() } }, include: { user: true } }) : [];
+    const alive = parked.map((id) => rows.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => Boolean(r) && r!.userId !== request.user!.id);
+    if (alive.length !== parked.length) writeParked(reply, alive.map((r) => r.id), secure);
+    const seen = new Set<string>([request.user!.id]);
+    const others = alive.filter((r) => (seen.has(r.userId) ? false : (seen.add(r.userId), true)));
+    return { max: MAX_ACCOUNTS, accounts: [{ id: request.user!.id, nickname: request.user!.nickname, displayName: request.user!.displayName, active: true }, ...others.map((r) => ({ id: r.userId, nickname: r.user.nickname, displayName: r.user.displayName, active: false }))] };
+  });
+
+  /** Переключение на другой аккаунт этого устройства: его сессия становится активной, прежняя паркуется. */
+  app.post("/api/auth/switch", { preHandler: requireUser }, async (request, reply) => {
+    const body = z.object({ userId: z.string().min(1) }).parse(request.body ?? {});
+    if (body.userId === request.user!.id) return { user: publicUser(request.user!) };
+    const parked = readParked(request);
+    const rows = parked.length ? await prisma.session.findMany({ where: { id: { in: parked }, userId: body.userId, expiresAt: { gt: new Date() } }, include: { user: true } }) : [];
+    const target = parked.map((id) => rows.find((r) => r.id === id)).find((r): r is NonNullable<typeof r> => Boolean(r));
+    if (!target) return reply.code(404).send({ error: "not_found", message: err(request, "Этот аккаунт на устройстве не найден: войдите в него заново") });
+    const current = activeSessionId(request);
+    writeParked(reply, [...(current ? [current] : []), ...parked.filter((x) => x !== target.id && x !== current)], secure);
+    setActiveCookie(reply, target.id, secure, target.expiresAt);
+    return { user: publicUser(target.user) };
   });
 
   app.get("/api/auth/me", { preHandler: requireUser }, async (request) => ({ user: publicUser(request.user!) }));

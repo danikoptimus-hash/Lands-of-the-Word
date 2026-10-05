@@ -8,7 +8,8 @@ import { Icon } from "../components/Icon";
 
 /** Шапка: логотип и один элемент пользователя с меню (Аккаунт · Аналитика · Обращения · Выйти). На экранах карты (команда, игра администратора) шапки нет. */
 export function Layout() {
-  const { user, logout } = useAuth();
+  const { user, logout, logoutAll, accounts, switchAccount } = useAuth();
+  const others = accounts.filter((a) => !a.active);
   const navigate = useNavigate();
   const name = user?.displayName ?? user?.nickname ?? "";
   const path = useLocation().pathname;
@@ -37,9 +38,13 @@ export function Layout() {
               label={t("Меню пользователя")}
               trigger={<button type="button" className="user-menu"><span className="avatar">{name.slice(0, 1).toUpperCase()}{openSupport > 0 && <span className="user-badge" aria-label={t("Открытых обращений: {n}", { n: openSupport })}>{openSupport}</span>}</span><span className="name">{name}</span><Icon name="chevron-down" className="i-sm" /></button>}
               items={[
-                { label: t("Аккаунт"), icon: "user", onSelect: () => navigate("/account") },
+                { label: others.length ? `${t("Аккаунт")} · ${name}` : t("Аккаунт"), icon: "user", onSelect: () => navigate("/account") },
                 ...(superadmin ? [{ label: t("Аналитика"), icon: "eye", onSelect: () => navigate("/admin") }, { label: t("Обращения"), icon: "send", badge: openSupport, onSelect: () => navigate("/admin/support") }] : []),
-                { label: t("Выйти"), icon: "logout", onSelect: () => void logout(), sep: true },
+                // Смена аккаунта (решение владельца 05.10): другие аккаунты устройства одним нажатием, «Добавить аккаунт» — вход без выхода из текущего.
+                ...others.map((a, i) => ({ label: a.displayName || a.nickname, icon: "user", onSelect: () => void switchAccount(a.id), sep: i === 0 })),
+                { label: t("Добавить аккаунт"), icon: "plus", onSelect: () => navigate("/login?add=1"), sep: others.length === 0 },
+                { label: others.length ? t("Выйти из этого аккаунта") : t("Выйти"), icon: "logout", onSelect: () => void logout(), sep: true },
+                ...(others.length ? [{ label: t("Выйти из всех"), icon: "logout", danger: true, onSelect: () => void logoutAll() }] : []),
               ]}
             />
           )}

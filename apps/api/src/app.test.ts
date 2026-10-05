@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import bcrypt from "bcryptjs";
 import { outbox } from "./services/mail.js";
 import { registerVerified } from "./testAuth.js";
 
@@ -125,6 +126,41 @@ describe("auth + games", () => {
     const forbidden = await app.inject({ method: "GET", url: `/api/games/${id}`, headers: { cookie: other.headers["set-cookie"] as string } });
     expect(forbidden.statusCode).toBe(403);
     await prisma.user.deleteMany({ where: { nickname: "o_" + nick } });
+  });
+});
+
+describe("несколько аккаунтов на устройстве", () => {
+  it("добавить второй, переключиться, выйти по одному; выход из всех закрывает обе сессии", async () => {
+    // Учётки прямо в базе: регистрация ограничена десятью в минуту, а этот файл уже регистрирует нескольких.
+    const a = `multi_a_${nick}`, b = `multi_b_${nick}`;
+    const hash = await bcrypt.hash("secret123", 4);
+    await prisma.user.createMany({ data: [a, b].map((n) => ({ nickname: n, passwordHash: hash, email: `${n}@example.com`, emailVerified: true })) });
+    const ra = await app.inject({ method: "POST", url: "/api/auth/login", payload: { nickname: a, password: "secret123" } });
+    expect(ra.statusCode).toBe(200);
+    const cookieA = ra.headers["set-cookie"] as string;
+    // Вход во второй аккаунт с add: cookie активной сессии — B, первая сессия припаркована.
+    const add = await app.inject({ method: "POST", url: "/api/auth/login", headers: { cookie: cookieA }, payload: { nickname: b, password: "secret123", add: true } });
+    expect(add.statusCode).toBe(200);
+    const jar = (res: { headers: Record<string, unknown> }) => ([] as string[]).concat(res.headers["set-cookie"] as string | string[]).map((c) => c.split(";")[0]!).join("; ");
+    let cookie = jar(add);
+    const list = (await app.inject({ method: "GET", url: "/api/auth/accounts", headers: { cookie } })).json();
+    expect(list.accounts.map((x: { nickname: string; active: boolean }) => [x.nickname, x.active])).toEqual([[b, true], [a, false]]);
+    // Переключение на A: me — A, в списке A активный.
+    const idA = list.accounts[1].id as string;
+    const sw = await app.inject({ method: "POST", url: "/api/auth/switch", headers: { cookie }, payload: { userId: idA } });
+    expect(sw.statusCode).toBe(200);
+    cookie = jar(sw);
+    expect((await app.inject({ method: "GET", url: "/api/auth/me", headers: { cookie } })).json().user.nickname).toBe(a);
+    // Выход из A: активным становится B.
+    const out = await app.inject({ method: "POST", url: "/api/auth/logout", headers: { cookie } });
+    expect(out.json().user.nickname).toBe(b);
+    cookie = jar(out);
+    expect((await app.inject({ method: "GET", url: "/api/auth/me", headers: { cookie } })).json().user.nickname).toBe(b);
+    expect((await app.inject({ method: "GET", url: "/api/auth/accounts", headers: { cookie } })).json().accounts).toHaveLength(1);
+    // Выход из всех: cookie пустые, me — 401.
+    const all = await app.inject({ method: "POST", url: "/api/auth/logout-all", headers: { cookie } });
+    expect((await app.inject({ method: "GET", url: "/api/auth/me", headers: { cookie: jar(all) } })).statusCode).toBe(401);
+    await prisma.user.deleteMany({ where: { nickname: { in: [a, b] } } });
   });
 });
 

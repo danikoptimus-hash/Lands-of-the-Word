@@ -23,11 +23,11 @@ const ISSUERS = new Set(["accounts.google.com", "https://accounts.google.com"]);
 
 const nickname = z.string().trim().min(3).max(24).regex(/^[\p{L}\p{N}_-]+$/u, "Только буквы, цифры, _ и -");
 const completeBody = z.object({ nickname, locale: z.enum(["ru", "en"]).optional() });
-const stateQuery = z.object({ next: z.string().max(500).optional() });
+const stateQuery = z.object({ next: z.string().max(500).optional(), add: z.string().optional() });
 const callbackQuery = z.object({ code: z.string().optional(), state: z.string().optional(), error: z.string().optional() });
 
-interface StateData { s: string; next: string }
-interface PendingData { sub: string; email: string; exp: number }
+interface StateData { s: string; next: string; add?: boolean }
+interface PendingData { sub: string; email: string; exp: number; add?: boolean }
 
 /** Только путь на нашем сайте: начинается с «/», но не «//» (иначе это адрес другого сайта). */
 export function safeNext(next: string | undefined): string {
@@ -72,7 +72,7 @@ export async function googleRoutes(app: FastifyInstance): Promise<void> {
     if (!enabled) return reply.code(404).send({ error: "not_configured", message: err(request, "Вход через Google не настроен") });
     const q = stateQuery.parse(request.query ?? {});
     const state = randomBytes(32).toString("base64url");
-    const data: StateData = { s: state, next: safeNext(q.next) };
+    const data: StateData = { s: state, next: safeNext(q.next), ...(q.add === "1" ? { add: true } : {}) };
     reply.setCookie(STATE_COOKIE, JSON.stringify(data), { ...cookieBase, signed: true, maxAge: STATE_TTL_MS / 1000 });
     const url = new URL(GOOGLE_AUTH_URL);
     url.searchParams.set("client_id", cfg.GOOGLE_CLIENT_ID!);
@@ -118,12 +118,12 @@ export async function googleRoutes(app: FastifyInstance): Promise<void> {
       if (byEmail) user = await prisma.user.update({ where: { id: byEmail.id }, data: { googleId: sub, emailVerified: true } });
     }
     if (user) {
-      await createSession(reply, user.id, secure);
+      await createSession(reply, user.id, secure, st.add ? { request } : undefined);
       return reply.redirect(st.next, 302);
     }
 
     // б) Учётки нет: осталось выбрать никнейм.
-    const pending: PendingData = { sub, email, exp: Date.now() + PENDING_TTL_MS };
+    const pending: PendingData = { sub, email, exp: Date.now() + PENDING_TTL_MS, ...(st.add ? { add: true } : {}) };
     reply.setCookie(PENDING_COOKIE, sign(cfg.SESSION_SECRET, pending), { ...cookieBase, maxAge: PENDING_TTL_MS / 1000 });
     return reply.redirect("/google/nickname", 302);
   });
@@ -158,7 +158,7 @@ export async function googleRoutes(app: FastifyInstance): Promise<void> {
       },
     });
     clearPending(reply);
-    await createSession(reply, user.id, secure);
+    await createSession(reply, user.id, secure, p.add ? { request } : undefined);
     return reply.code(201).send({ user: publicUser(user) });
   });
 }
