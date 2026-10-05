@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type BattleDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
+import { api, ApiError, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamMap, type MarkPoint } from "./TeamMap";
@@ -174,6 +174,24 @@ export function TeamPage() {
   const seenBattles = useRef<Map<string, string> | null>(null);
   /** Описание дела свёрнуто до двух строк («Подробнее»), пока дело не взято мной; при смене дела сворачивается снова. */
   const [descOpen, setDescOpen] = useState(false);
+  // Полёт клина (решение владельца 05.10): карта отдаёт только момент, узел города приходит отдельным запросом к назначенной
+  // минуте, а после окна полёта — момент следующего полёта. Так в ответе карты нет координат города в тумане.
+  const [bird, setBird] = useState<DailyBirdDto | null>(null);
+  const birdOf = map?.dailyBird;
+  useEffect(() => {
+    setBird(birdOf ?? null);
+    if (!birdOf || !id) return;
+    const offset = map?.now ? map.now - Date.now() : 0;
+    const serverNow = () => Date.now() + offset;
+    const PERIOD = 2 * 3_600_000, AFTER = 300_000;
+    const fetchBird = () => api<{ bird: DailyBirdDto | null }>(`/api/games/${id}/my-map/bird`).then((r) => setBird(r.bird)).catch(() => undefined);
+    let delay: number;
+    if (!birdOf.key && birdOf.at > serverNow()) delay = Math.max(0, birdOf.at - serverNow() - 10_000);
+    else if (birdOf.at + AFTER < serverNow() || (!birdOf.key && birdOf.at <= serverNow())) delay = (Math.floor(serverNow() / PERIOD) + 1) * PERIOD - serverNow() + 3_000;
+    else delay = birdOf.at + AFTER - serverNow() + 3_000;
+    const timer = window.setTimeout(() => void fetchBird(), Math.min(delay, 2_147_000_000));
+    return () => window.clearTimeout(timer);
+  }, [birdOf, id, map?.now]);
   useEffect(() => { setDescOpen(false); }, [selectedId]);
   /** Положение команд: подробности (испытания, города) раскрыты у одной команды; по умолчанию — у нашей. */
   const [openStanding, setOpenStanding] = useState<string | null>(null);
@@ -323,10 +341,11 @@ export function TeamPage() {
   async function removeMark(mk: MapMarkDto) {
     const by = mk.by?.name ?? "";
     // Убрать метку может только автор (решение владельца 29.09): чужая метка по нажатию лишь подсказывает, чья она.
-    if (mk.by && user && mk.by.id !== user.id) { notify(mk.note ? t("Метка «{note}» — её поставил {name}, убрать может только он.", { note: mk.note, name: by }) : t("Метку поставил {name}, убрать может только он.", { name: by }), "info"); return; }
+    const when = mk.createdAt ? fmtDate(mk.createdAt) : "";
+    if (mk.by && user && mk.by.id !== user.id) { notify(mk.note ? t("Метка «{note}» — её поставил {name} ({when}), убрать может только он.", { note: mk.note, name: by, when }) : t("Метку поставил {name} ({when}), убрать может только он.", { name: by, when }), "info"); return; }
     const text = mk.note
-      ? (by ? t("Метка «{note}» (автор {name}) исчезнет у всей команды.", { note: mk.note, name: by }) : t("Метка «{note}» исчезнет у всей команды.", { note: mk.note }))
-      : (by ? t("Метка (автор {name}) исчезнет у всей команды.", { name: by }) : t("Метка исчезнет у всей команды."));
+      ? (by ? t("Метка «{note}» (автор {name}, {when}) исчезнет у всей команды.", { note: mk.note, name: by, when }) : t("Метка «{note}» исчезнет у всей команды.", { note: mk.note }))
+      : (by ? t("Метка (автор {name}, {when}) исчезнет у всей команды.", { name: by, when }) : t("Метка исчезнет у всей команды."));
     if (!(await confirm(text, { title: t("Убрать метку?"), okLabel: t("Убрать") }))) return;
     try { await api(`/api/games/${id}/my-map/marks/${mk.id}`, { method: "DELETE" }); await loadMap(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
@@ -455,7 +474,25 @@ export function TeamPage() {
     <div className="map-screen" ref={screenRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       {menuOpen && !wide && <div className="side-backdrop" onClick={() => setMenu(false)} />}
       {menuOpen && (
-        <aside className="side-menu" role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")}>
+        <aside className={"side-menu" + (wide ? " with-rail" : "")} role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")}>
+          {/* На компьютере (решение владельца 05.10): вместо плиток разделов и плиток навигации — одна колонка кнопок слева, разделы открываются рядом. */}
+          {wide && (
+            <nav className="menu-rail" aria-label={t("Разделы")}>
+              <button type="button" className={menuView === "home" ? "on" : undefined} aria-current={menuView === "home" ? "page" : undefined} onClick={() => setMenuView("home")}><Icon name="bell" />{t("Внимание")}{attention > 0 && <span className="count-chip hot">{attention}</span>}</button>
+              {MENU_ITEMS.map((m) => { const n = menuCounts[m.key] ?? 0; return (
+                <button key={m.key} type="button" className={menuView === m.key ? "on" : undefined} aria-current={menuView === m.key ? "page" : undefined} onClick={() => setMenuView(m.key)}>
+                  <Icon name={m.icon} />{m.label()}{n > 0 && <span className={"count-chip" + (m.hot ? " hot" : "")}>{n}</span>}
+                </button>
+              ); })}
+              <span className="rail-gap" />
+              <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
+              <Link to="/account"><Icon name="user" />{t("Аккаунт")}</Link>
+              <Link to="/how-to-play"><Icon name="help" />{t("Как играть")}</Link>
+              <Link to="/whats-new"><Icon name="sparkle" />{t("Что нового")}</Link>
+              <button type="button" onClick={() => void logout()}><Icon name="logout" />{t("Выйти")}</button>
+            </nav>
+          )}
+          <div className="side-body">
           <div className="side-head" style={{ ["--team" as string]: team.color }}>
             <TeamAvatar name={team.name} color={team.color} size="lg" />
             <div className="grow"><div className="side-name">{team.name}</div><div className="muted small">{gameName || t("Игра")}{isCaptain ? ` · ${t("вы капитан")}` : ""}</div></div>
@@ -465,7 +502,7 @@ export function TeamPage() {
 
           {menuView !== "home" && (
             <div className="menu-sub">
-              <button type="button" className="ghost sm" onClick={() => setMenuView("home")}><Icon name="back" />{t("Меню")}</button>
+              {!wide && <button type="button" className="ghost sm" onClick={() => setMenuView("home")}><Icon name="back" />{t("Меню")}</button>}
               <h2>{MENU_ITEMS.find((m) => m.key === menuView)?.label()}</h2>
             </div>
           )}
@@ -498,13 +535,14 @@ export function TeamPage() {
                   </ul>
                 </section>
               )}
-              <nav className="menu-grid" aria-label={t("Разделы")}>
+              {wide && rejectedTasks.length === 0 && incoming.length === 0 && peaceOffers.length === 0 && myTurnBattles.length === 0 && <section className="section"><EmptyState inline icon="bell" text={t("Ничего не требует внимания. Разделы — в колонке слева.")} /></section>}
+              {!wide && <nav className="menu-grid" aria-label={t("Разделы")}>
                 {MENU_ITEMS.map((m) => { const n = menuCounts[m.key] ?? 0; return (
                   <button key={m.key} type="button" onClick={() => setMenuView(m.key)}>
                     <Icon name={m.icon} />{m.label()}{n > 0 && <span className={"count-chip" + (m.hot && n > 0 ? " hot" : "")}>{n}</span>}
                   </button>
                 ); })}
-              </nav>
+              </nav>}
               {standings?.status === "ACTIVE" && standings.endsAt && <p className="hint menu-hint">{t("Игра идёт до {d}", { d: fmtDate(standings.endsAt) })}</p>}
             </>
           )}
@@ -568,7 +606,7 @@ export function TeamPage() {
           {menuView === "standings" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} onChanged={() => { void loadMap(); void loadStandings(); }} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} />}
           {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} />}
-          {menuView === "home" && (
+          {menuView === "home" && !wide && (
             <nav className="menu-tiles" aria-label={t("Навигация")}>
             <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
             <Link to="/account"><Icon name="user" />{t("Аккаунт")}</Link>
@@ -577,11 +615,12 @@ export function TeamPage() {
             <button type="button" onClick={() => void logout()}><Icon name="logout" />{t("Выйти")}</button>
           </nav>
           )}
+          </div>
         </aside>
       )}
 
       <div className="map-area" ref={setMapEl}>
-        <TeamMap map={map} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
+        <TeamMap map={map} bird={bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)}
           onFrontierTap={(key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); }}

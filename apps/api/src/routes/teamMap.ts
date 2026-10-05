@@ -4,7 +4,7 @@ import { prisma } from "../db.js";
 import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
-import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey, deedLimitsFor, type DeedLimit } from "../services/teamMap.js";
+import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey, deedLimitsFor, birdFor, type DeedLimit } from "../services/teamMap.js";
 import { loadCityContent } from "../services/cities.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { err, msg } from "../services/i18n.js";
@@ -86,6 +86,14 @@ async function bookInAll<T extends TaskWithDeed>(gameId: string, tasks: T[]): Pr
 
 export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
+
+  /** Полёт клина птиц: момент всегда, узел города — только в окне полёта (см. birdView). Клиент спрашивает к назначенной минуте. */
+  app.get("/api/games/:id/my-map/bird", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const m = await requireMember(request, reply, id);
+    if (!m) return;
+    return { bird: await birdFor(id, m.team.id) };
+  });
 
   /** Карта моей команды: открытые узлы, туман, рёбра, дела. */
   app.get("/api/games/:id/my-map", async (request, reply) => {

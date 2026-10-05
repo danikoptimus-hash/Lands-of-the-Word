@@ -231,6 +231,28 @@ export function dailyBird(
 }
 /** Период полёта клина к городу: два часа реального времени (решение владельца 04.10). */
 export const BIRD_PERIOD_MS = 2 * 3_600_000;
+/** Окно, в котором клиенту отдаётся цель полёта: минута до старта и пять минут после (перелёт до ~2 мин и полторы минуты кружения). */
+export const BIRD_WINDOW_BEFORE_MS = 60_000, BIRD_WINDOW_AFTER_MS = 300_000;
+/**
+ * Что уходит клиенту о полёте (решение владельца 05.10, после расследования меток в «Осени»): момент — всегда, а узел города —
+ * только в окне самого полёта. Раньше ключ узла (а это его координаты) лежал в ответе карты все два часа, и любой участник,
+ * открыв адрес /api/games/:id/my-map в браузере, узнавал город в тумане, не дожидаясь птиц и не глядя на карту.
+ */
+export function birdView(bird: { key: string; at: number } | null, now = Date.now()): { at: number; key?: string } | null {
+  if (!bird) return null;
+  const inWindow = now >= bird.at - BIRD_WINDOW_BEFORE_MS && now <= bird.at + BIRD_WINDOW_AFTER_MS;
+  return inWindow ? { at: bird.at, key: bird.key } : { at: bird.at };
+}
+/** Полёт клина для команды по текущим данным карты: для отдельного запроса клиента в момент полёта. */
+export async function birdFor(gameId: string, teamId: string): Promise<{ at: number; key?: string } | null> {
+  const [teamRow, revealedRows, nodes, edges] = await Promise.all([
+    prisma.team.findUnique({ where: { id: teamId }, select: { startNodeKey: true } }),
+    prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true } }),
+    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, kind: true } }),
+    prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
+  ]);
+  return birdView(dailyBird(gameId, teamId, teamRow?.startNodeKey, new Set(revealedRows.map((r) => r.nodeKey)), nodes, edges));
+}
 
 /** Заглушка toKey морского дела до высадки. */
 export const seaKey = (portKey: string) => `sea:${portKey}`;
@@ -444,7 +466,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
   const [blocked, peeks, marks, passages] = await Promise.all([
     blockedCities(gameId, teamId),
     prisma.teamPeek.findMany({ where: { teamId }, select: { nodeKey: true } }),
-    prisma.teamMark.findMany({ where: { teamId }, orderBy: { createdAt: "asc" }, select: { id: true, q: true, r: true, qf: true, rf: true, note: true, createdById: true } }),
+    prisma.teamMark.findMany({ where: { teamId }, orderBy: { createdAt: "asc" }, select: { id: true, q: true, r: true, qf: true, rf: true, note: true, createdById: true, createdAt: true } }),
     prisma.passageRequest.findMany({ where: { gameId, requesterId: teamId, status: { in: ["PENDING", "APPROVED", "DECLINED", "EXPIRED", "REVOKED"] } }, orderBy: { createdAt: "desc" }, select: { nodeKey: true, status: true } }),
   ]);
   const passageByKey = new Map<string, string>();
@@ -515,7 +537,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
     gameId,
     now: Date.now(),
     // Часовой полёт клина к ближайшему неоткрытому городу команды (решение владельца 29.09, с 02.10 раз в час): раз в сутки, в своё случайное время.
-    dailyBird: dailyBird(gameId, teamId, teamRow?.startNodeKey, revealed, nodes, edges),
+    dailyBird: birdView(dailyBird(gameId, teamId, teamRow?.startNodeKey, revealed, nodes, edges)),
     foreign,
   };
 }

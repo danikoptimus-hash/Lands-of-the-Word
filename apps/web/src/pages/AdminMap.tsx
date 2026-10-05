@@ -75,6 +75,7 @@ function rewindTeamMap(map: MyMapDto, team: TeamProgress, teams: TeamProgress[],
 
 export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone, at = null }: { /** Момент ползунка истории: карта «глазами команды» урезается к нему. */ at?: Date | null; /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
+  const { notify } = useUi();
   const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (hexes.length ? fieldBounds(hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const renderStart = performance.now();
@@ -275,7 +276,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <div className="mapwrap team-view" key={viewAs}>
             {teamView?.error ? <div className="map-state"><ErrorState text={teamView.error} onRetry={() => setViewAs((v) => v)} /></div>
               : !teamView?.map ? <div className="map-state"><LoadingState /></div>
-              : <TeamMap map={viewMap ?? teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={teamTaskId} onSelect={(tid) => { setTeamTaskId(tid); if (tid) setSelected(null); }} onSelectCity={(key) => { const n = nodeByKey.get(key); if (n) { setSelected(n); setTeamTaskId(null); } }} />}
+              : <TeamMap map={viewMap ?? teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={teamTaskId} onSelect={(tid) => { setTeamTaskId(tid); if (tid) setSelected(null); }} onSelectCity={(key) => { const n = nodeByKey.get(key); if (n) { setSelected(n); setTeamTaskId(null); } }}
+                  onMarkTap={(mk) => notify((mk.note ? t("Метка «{note}»", { note: mk.note }) : t("Метка")) + (mk.by?.name ? ` · ${mk.by.name}` : "") + (mk.createdAt ? ` · ${fmtDate(mk.createdAt)}` : ""), "info")} />}
             {teamView?.map && teamTaskId && wrapEl && (() => { const task = teamView.map!.tasks.find((tk) => tk.id === teamTaskId); return task ? <TeamTaskSheet task={task} members={teamView.map!.members ?? []} container={wrapEl} onClose={() => setTeamTaskId(null)} onReview={onReview} /> : null; })()}
           </div>
         ) : (<>

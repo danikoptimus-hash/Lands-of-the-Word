@@ -28,6 +28,9 @@ Q battles       "SELECT id, \"nodeKey\", \"bookCode\", \"attackerId\", \"defende
 Q battle_entries "SELECT be.\"battleId\", be.side, be.\"teamId\", be.\"userId\", be.\"startIdx\", be.\"endIdx\", be.status, be.weight, be.carried, coalesce(array_length(be.links, 1), 0) AS links, be.\"createdAt\", be.\"decidedAt\" FROM \"BattleEntry\" be JOIN \"Battle\" b ON b.id = be.\"battleId\" WHERE b.\"gameId\" = $G ORDER BY be.\"createdAt\""
 Q sieges        "SELECT id, \"nodeKey\", \"attackerId\", \"defenderId\", status, \"startedAt\", \"endsAt\", \"attackerPoints\", \"defenderPoints\", \"resolvedAt\" FROM \"Siege\" WHERE \"gameId\" = $G ORDER BY \"startedAt\""
 Q peeks         "SELECT p.\"teamId\", p.\"nodeKey\", p.\"createdAt\" FROM \"TeamPeek\" p JOIN \"Team\" t ON t.id = p.\"teamId\" WHERE t.\"gameId\" = $G ORDER BY p.\"createdAt\""
+# Метки команд с точным временем и открытые узлы (с 05.10: проверка, не подсмотрены ли города в тумане по полёту клина).
+Q marks         "SELECT mk.id, mk.\"teamId\", mk.\"createdById\", u.nickname, mk.q, mk.r, mk.qf, mk.rf, mk.note, mk.\"createdAt\", to_char(mk.\"createdAt\" AT TIME ZONE 'Asia/Tashkent', 'YYYY-MM-DD HH24:MI:SS') AS \"createdAtTashkent\" FROM \"TeamMark\" mk JOIN \"User\" u ON u.id = mk.\"createdById\" WHERE mk.\"gameId\" = $G ORDER BY mk.\"createdAt\""
+Q node_states   "SELECT ns.\"teamId\", ns.\"nodeKey\", ns.\"revealedAt\" FROM \"TeamNodeState\" ns JOIN \"Team\" t ON t.id = ns.\"teamId\" WHERE t.\"gameId\" = $G ORDER BY ns.\"revealedAt\""
 
 tar czf "$OUT.tgz" -C "$(dirname "$OUT")" "$(basename "$OUT")"
 rm -rf "$OUT"

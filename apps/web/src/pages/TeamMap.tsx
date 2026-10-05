@@ -4,9 +4,10 @@ import { BOOKS, startName, vertexHexes, parseVertexKey, seaRoute, routeCurve, ro
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
-import type { EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
+import type { DailyBirdDto, EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
 import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
+import { fmtDate } from "../lib/format";
 import { FaunaLayer, type FireSite } from "./Fauna";
 import { css, useDaytime } from "../lib/daytime";
 import { LakesLayer } from "./Lakes";
@@ -38,7 +39,7 @@ export const routeColor = (color: string) => {
 };
 /** Точка метки: гекс и точное место нажатия дробными осевыми координатами. */
 export interface MarkPoint { q: number; r: number; qf: number; rf: number }
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry }: { /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, bird }: { /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -135,7 +136,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
 
 
   // Полёт клина к ближайшему неоткрытому городу команды (раз в час): время и узел от сервера, одни для всей команды.
-  const daily = useMemo(() => (map.dailyBird ? { at: map.dailyBird.at, to: nodePos(map.dailyBird.key, size) } : null), [map.dailyBird, size]);
+  // Цель полёта известна только в окне полёта (решение владельца 05.10): без ключа узла клин не летит.
+  const birdSrc = bird !== undefined ? bird : map.dailyBird;
+  const daily = useMemo(() => (birdSrc?.key ? { at: birdSrc.at, to: nodePos(birdSrc.key, size) } : null), [birdSrc, size]);
   const { k } = vp.view;
   // Элементы постоянного экранного размера (подписи, метки, развилки) стоят в координатах карты со scale(1/k):
   // при перетаскивании их двигает композитор, при смене масштаба React пересчитывает 1/k.
@@ -346,7 +349,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const c = hexCenter({ q: mk.qf ?? mk.q, r: mk.rf ?? mk.r }, size);
             const by = mk.by?.name ?? "";
             const w = Math.max(mk.note ? textWidth(mk.note, 11) : 0, by ? textWidth(by, 9) : 0) + 14, two = Boolean(mk.note && by), h = two ? 30 : 18;
-            const label = mk.note ? (by ? t("Метка команды: {note} — {name}", { note: mk.note, name: by }) : t("Метка команды: {note}", { note: mk.note })) : by ? t("Метка команды — {name}", { name: by }) : t("Метка команды");
+            const when = mk.createdAt ? ` · ${fmtDate(mk.createdAt)}` : "";
+            const label = (mk.note ? (by ? t("Метка команды: {note} — {name}", { note: mk.note, name: by }) : t("Метка команды: {note}", { note: mk.note })) : by ? t("Метка команды — {name}", { name: by }) : t("Метка команды")) + when;
             return (
               <g key={"mk" + mk.id} className="m-mark" style={sc(c.x, c.y, "translate(0, -12px)")} role="button" aria-label={label} onClick={() => { if (!vp.wasDrag()) onMarkTap?.(mk); }}>
                 <circle r={11} style={{ fill: map.team.color }} />
