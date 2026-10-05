@@ -412,7 +412,7 @@ export const PLAYER: Record<string, string> = {
   "Метка (автор {name}, {when}) исчезнет у всей команды.": "The mark (placed by {name}, {when}) will disappear for the whole team.",
   "Метку увидят все в команде, с вашим именем. Убрать её сможете только вы, нажатием на флажок.": "Everyone on the team will see the mark, with your name. Only you can remove it, by tapping the flag.",
   "Метка «{note}» — её поставил {name} ({when}), убрать может только он.": "Mark “{note}” was placed by {name} ({when}); only they can remove it.",
-  "Метку поставил {name} ({when}), убрать может только он.": "This mark was placed by {name} ({when}); only they can remove it.", "Внимание": "Attention", "Ничего не требует внимания. Разделы — в колонке слева.": "Nothing needs attention. The sections are in the column on the left.",
+  "Метку поставил {name} ({when}), убрать может только он.": "This mark was placed by {name} ({when}); only they can remove it.", "Внимание": "Attention", "Ничего не требует внимания.": "Nothing needs attention.",
   "Нажмите на карту там, где поставить метку": "Tap the map where the mark should go",
   "Поставить": "Place",
   "птицы сели здесь": "the birds landed here", "Метка поставлена: её видит вся команда": "Mark placed: the whole team can see it",

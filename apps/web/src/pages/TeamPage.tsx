@@ -83,8 +83,10 @@ export function finishReasonLabel(reason: string | null): string {
 }
 
 /** Разделы меню команды (решение владельца 21.09): на главном экране меню — только то, что требует внимания, и значки разделов. Состав, проходы и мир — внутри «Команд»; лента событий называется «Летопись». */
-type MenuView = "home" | "deeds" | "battles" | "standings" | "feed" | "service";
+type MenuView = "home" | "attention" | "deeds" | "battles" | "standings" | "feed" | "service";
+/** Колокольчик — такая же плитка, как остальные (просьба участника 05.10): внутри всё, что требует внимания. */
 const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: () => string; hot?: boolean }> = [
+  { key: "attention", icon: "bell", label: () => t("Внимание"), hot: true },
   { key: "deeds", icon: "scroll", label: () => t("Дела") },
   { key: "battles", icon: "wave", label: () => t("Испытания"), hot: true },
   { key: "standings", icon: "crown", label: () => t("Команды"), hot: true },
@@ -451,7 +453,9 @@ export function TeamPage() {
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length;
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
-  const menuCounts: Partial<Record<MenuView, number>> = { deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length };
+  const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length };
+  /** На компьютере «домашнего» экрана нет: колонка кнопок слева, по умолчанию открыт раздел «Внимание». */
+  const view: MenuView = wide && menuView === "home" ? "attention" : menuView;
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (wide) return;
@@ -484,9 +488,8 @@ export function TeamPage() {
           {/* На компьютере (решение владельца 05.10): вместо плиток разделов и плиток навигации — одна колонка кнопок слева, разделы открываются рядом. */}
           {wide && (
             <nav className="menu-rail" aria-label={t("Разделы")}>
-              <button type="button" className={menuView === "home" ? "on" : undefined} aria-current={menuView === "home" ? "page" : undefined} onClick={() => setMenuView("home")}><Icon name="bell" />{t("Внимание")}{attention > 0 && <span className="count-chip hot">{attention}</span>}</button>
               {MENU_ITEMS.map((m) => { const n = menuCounts[m.key] ?? 0; return (
-                <button key={m.key} type="button" className={menuView === m.key ? "on" : undefined} aria-current={menuView === m.key ? "page" : undefined} onClick={() => setMenuView(m.key)}>
+                <button key={m.key} type="button" className={view === m.key ? "on" : undefined} aria-current={view === m.key ? "page" : undefined} onClick={() => setMenuView(m.key)}>
                   <Icon name={m.icon} />{m.label()}{n > 0 && <span className={"count-chip" + (m.hot ? " hot" : "")}>{n}</span>}
                 </button>
               ); })}
@@ -506,17 +509,15 @@ export function TeamPage() {
             {!wide && <button type="button" className="ghost icon" onClick={() => setMenu(false)} aria-label={t("Закрыть")}><Icon name="x" /></button>}
           </div>
 
-          {menuView !== "home" && (
+          {view !== "home" && (
             <div className="menu-sub">
               {!wide && <button type="button" className="ghost sm" onClick={() => setMenuView("home")}><Icon name="back" />{t("Меню")}</button>}
-              <h2>{MENU_ITEMS.find((m) => m.key === menuView)?.label()}</h2>
+              <h2>{MENU_ITEMS.find((m) => m.key === view)?.label()}</h2>
             </div>
           )}
-          {menuView === "home" && (
-            <>
-              {(rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0) && (
+          {view === "attention" && (
+            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 ? (
                 <section className="section attention">
-                  <h2><Icon name="bell" />{t("Требует внимания")}</h2>
                   <ul className="list interactive">
                     {rejectedTasks.map((tk) => (
                       <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
@@ -540,8 +541,10 @@ export function TeamPage() {
                     ))}
                   </ul>
                 </section>
-              )}
-              {wide && rejectedTasks.length === 0 && incoming.length === 0 && peaceOffers.length === 0 && myTurnBattles.length === 0 && <section className="section"><EmptyState inline icon="bell" text={t("Ничего не требует внимания. Разделы — в колонке слева.")} /></section>}
+            ) : <section className="section"><EmptyState inline icon="bell" text={t("Ничего не требует внимания.")} /></section>
+          )}
+          {view === "home" && (
+            <>
               {!wide && <nav className="menu-grid" aria-label={t("Разделы")}>
                 {MENU_ITEMS.map((m) => { const n = menuCounts[m.key] ?? 0; return (
                   <button key={m.key} type="button" onClick={() => setMenuView(m.key)}>
