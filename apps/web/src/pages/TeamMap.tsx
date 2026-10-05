@@ -5,7 +5,7 @@ import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import type { DailyBirdDto, EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
-import { CoastOver, IslandLabel, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear } from "./MapLayers";
+import { CoastOver, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
 import { FaunaLayer, type FireSite } from "./Fauna";
@@ -117,6 +117,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
   const islandCenters = useMemo(() => islandGeometry(map.hexes, size), [map.hexes, size]);
   const nodeByKey = useMemo(() => new Map(map.revealed.map((n) => [n.key, n])), [map.revealed]);
+  const fullLabelsNow = vp.view.k >= 1.6;
+  const islandLabels = useMemo(() => (!fullLabelsNow && islandCenters.has("NT") ? [...islandCenters].map(([isl, c]) => ({ x: c.x, y: c.y, r: c.r + size * 4, name: isl === "OT" ? t("Ветхий Завет") : t("Новый Завет") })) : []), [fullLabelsNow, islandCenters, size]);
   // Морские маршруты (решение владельца 05.10): после высадки путь корабля виден команде — плавная линия строго по воде,
   // в обход островков, со стрелкой в сторону высадки; нажимается, как пройденная сторона.
   const seaRoutes = useMemo(() => {
@@ -375,16 +377,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         {worldBody}
       </WorldSvg>
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={dt.light} />}
-      {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); при отдалении уменьшаются не ниже 0.7.
-          Отдельный слой под живностью: корабли проплывают поверх букв, а не под ними (замечание владельца 05.10). */}
-      <WorldSvg vp={vp} bounds={bounds} overlay>
-        {!fullLabels && islandCenters.has("NT") && [...islandCenters].map(([isl, c]) => (
-          <g key={"isl" + isl} className="m-island" transform={`translate(${c.x},${c.y})`}>
-            <IslandLabel id={"isl-team-" + isl} r={c.r + size * 4} name={isl === "OT" ? t("Ветхий Завет") : t("Новый Завет")} />
-          </g>
-        ))}
-      </WorldSvg>
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} />
+      {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); рисует слой живности: киты под буквами,
+          корабли над ними (решение владельца 05.10). */}
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} labels={islandLabels} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
           {/* Каменоломня вне memo: обработчик нажатия должен видеть свежее состояние перетаскивания (ошибка 05.10: после закрытия лист не открывался). */}

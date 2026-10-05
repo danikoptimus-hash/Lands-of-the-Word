@@ -1068,6 +1068,42 @@ function stepWorld(w: World, dt: number): void {
   const cs = w.cets;
   for (let i = 1; i < cs.length; i++) { const c = cs[i]!; let j = i - 1; while (j >= 0 && cs[j]!.depth < c.depth) { cs[j + 1] = cs[j]!; j--; } cs[j + 1] = c; }
 }
+/** Подпись острова по дуге под ним: центр, радиус дуги, текст. Рисуется в слое живности между зверями и кораблями. */
+export interface IslandLabelSpec { x: number; y: number; r: number; name: string }
+let LABELS: readonly IslandLabelSpec[] = [];
+/**
+ * Названия островов (решение владельца 05.10): киты проплывают под буквами, корабли — над. Поэтому подписи рисуются
+ * на холсте живности между зверями и кораблями, тем же начертанием, что раньше в SVG: Philosopher капителью с разрядкой,
+ * светлые буквы с тонкой тёмной обводкой и мягкой тенью; размер на экране постоянный (16px при масштабе ≥1.6, не меньше 0.7).
+ */
+function drawIslandLabels(ctx: CanvasRenderingContext2D, k: number): void {
+  if (!LABELS.length) return;
+  const ui = Math.max(0.7, Math.min(1, Math.max(0.5, k / 1.6)));
+  const fs = (16 * ui) / k, ls = fs * 0.2;
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.font = `400 ${fs.toFixed(2)}px Philosopher, "Trebuchet MS", sans-serif`;
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  ctx.lineJoin = "round"; ctx.lineWidth = (1.6 * ui) / k;
+  ctx.strokeStyle = "rgba(8,40,60,0.45)"; ctx.fillStyle = "#fff6e4";
+  ctx.shadowColor = "rgba(6,40,58,0.7)"; ctx.shadowBlur = (1.1 * ui) / k; ctx.shadowOffsetY = (0.6 * ui) / k;
+  for (const l of LABELS) {
+    const chars = [...l.name.toUpperCase()];
+    const widths = chars.map((c) => ctx.measureText(c).width);
+    const total = widths.reduce((a, b) => a + b, 0) + ls * (chars.length - 1);
+    // Дуга по нижнему берегу: читается слева направо, середина текста — в самой нижней точке (угол 90°).
+    let a = Math.PI / 2 + total / 2 / l.r;
+    chars.forEach((c, i) => {
+      const half = widths[i]! / 2;
+      a -= half / l.r;
+      ctx.save(); ctx.translate(l.x + Math.cos(a) * l.r, l.y + Math.sin(a) * l.r); ctx.rotate(a - Math.PI / 2);
+      ctx.strokeText(c, 0, 0); ctx.fillText(c, 0, 0);
+      ctx.restore();
+      a -= (half + ls) / l.r;
+    });
+  }
+  ctx.restore();
+}
 function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis, alpha = 1): void {
   ctx.globalAlpha = alpha;
   const T = w.T, px = 1 / k, lod = k >= 1.1, size = w.size, p = w.p;
@@ -1076,6 +1112,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis,
   for (const sh of w.ships) drawTrail(ctx, sh.trail, T, sh.spec.L, 9, px, vis, true);
   for (const c of w.cets) if (inView(vis, c.x, c.y)) drawCet(ctx, c, T, px, lod);
   drawFx(ctx, w.fx, T, px, vis);
+  drawIslandLabels(ctx, k); ctx.globalAlpha = alpha; // буквы между китами и кораблями
   for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
   for (const g of w.gulls) {
     if (!inView(vis, g.x, g.y)) continue;
@@ -1367,12 +1404,14 @@ export function renderWorldSnapshot(ctx: CanvasRenderingContext2D, hexes: MapHex
 // ───────────────────────────── Слой ─────────────────────────────
 const NO_ISLETS: Islet[] = [];
 const NO_FIRES: FireSite[] = [];
-export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES }: { vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
+const NO_LABELS: IslandLabelSpec[] = [];
+export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, labels = NO_LABELS }: { /** Подписи островов: рисуются между зверями и кораблями (решение владельца 05.10). */ labels?: IslandLabelSpec[]; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const dailyRef = useRef(daily); dailyRef.current = daily;
   const clockRef = useRef(clock); clockRef.current = clock;
   const lightRef = useRef(light); lightRef.current = light;
   const firesRef = useRef(fires); firesRef.current = fires;
+  const labelsRef = useRef(labels); labelsRef.current = labels;
   // Ключ профиля — весь состав гексов: у разных карт одинаковое число гексов и часто совпадает первый, и при переходе
   // между партиями внутри приложения живность продолжала обходить берег прежней карты, то есть плыла по суше новой (01.10).
   const key = hexes.map((h) => `${h.q},${h.r},${h.island ?? ""}`).join(";");
@@ -1427,7 +1466,7 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
       // Видимая область с запасом в три гекса: звери чуть за краем ещё видны хвостом или следом.
       vis.x0 = -tx / k - size * 3; vis.y0 = -ty / k - size * 3; vis.x1 = (W / dpr - tx) / k + size * 3; vis.y1 = (H / dpr - ty) / k + size * 3;
       const a = prev ? Math.min(1, cur.w.T / FADE) : 1;
-      LIGHT = lightRef.current;
+      LIGHT = lightRef.current; LABELS = labelsRef.current;
       if (prev) drawWorld(ctx, prev.w, k, vis, 1 - a);
       drawWorld(ctx, cur.w, k, vis, a);
       ctx.globalAlpha = 1;
