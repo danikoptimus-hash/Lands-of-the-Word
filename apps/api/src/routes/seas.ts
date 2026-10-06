@@ -6,18 +6,23 @@ import { requireUser } from "../auth.js";
 import { requireActiveMember, requireAdmin, requireMember, requireSuperadmin } from "./teamMap.js";
 import { pauseAfter, rulesOf } from "../services/rules.js";
 import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
-import { checkSeaAnswer, gameSeas, loadSeaContent, oppositeShore, publicSeaTask, seaKeyOf, stripSeaAnswers, type SeaGeo } from "../services/seas.js";
+import { assignScreens, checkSeaAnswer, gameSeas, isTeamTask, loadSeaContent, oppositeShore, publicSeaTask, seaKeyOf, stripSeaAnswers, type SeaGeo, type TaskCtx } from "../services/seas.js";
 import { revealNode } from "../services/teamMap.js";
 import { err } from "../services/i18n.js";
 import { journal, nick } from "../services/journal.js";
 import { taskEvent } from "../services/behavior.js";
 
-const answerBody = z.object({ answer: z.union([z.string().max(500), z.number(), z.array(z.string().min(1).max(32)).max(64)]) });
-const draftBody = z.object({ taskIndex: z.number().int().min(0).max(20), ids: z.array(z.string().min(1).max(64)).max(64) });
+const answerBody = z.object({ answer: z.unknown() });
+const holdBody = z.object({ taskIndex: z.number().int().min(0).max(20) });
+/** Сколько держится отметка «держу экран»: зачёт получают те, кто отмечался не раньше, чем за столько мс до верного ответа. */
+const HOLD_MS = 10 * 60 * 1000;
+type Progress = Record<string, string[]>;
+type Holds = Record<string, Record<string, number>>;
 
 /**
  * Моря Библии (решение владельца 06.10): лист моря у команды (вахты, открытие, переправа) и просмотр у администратора.
  * Паузы после неверного ответа, личный зачёт и доля состава — те же, что у городов (nodeKey = «sea:<код>»).
+ * Командные вахты: экраны раздаются по ролям, ответ вводит держатель экрана ввода, зачёт — всем, кто держал экран.
  */
 export async function seaRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
@@ -42,11 +47,18 @@ export async function seaRoutes(app: FastifyInstance): Promise<void> {
   async function seaOf(gameId: string, code: string): Promise<SeaGeo | null> {
     return (await gameSeas(gameId)).find((s) => s.code === code) ?? null;
   }
+  async function membersOf(teamId: string): Promise<TaskCtx["members"]> {
+    const rows = await prisma.membership.findMany({ where: { teamId }, orderBy: { joinedAt: "asc" }, select: { userId: true, role: true, gameRole: true, user: { select: { nickname: true, displayName: true } } } });
+    return rows.map((m) => ({ userId: m.userId, nickname: m.user.displayName || m.user.nickname, role: m.role, gameRole: m.gameRole }));
+  }
   /** Кто ведёт переправу: кормчий; без кормчего — капитан или заместитель (как при высадке с корабля). */
   async function canCross(teamId: string, m: { gameRole: string; role: string }): Promise<boolean> {
     const helmsmen = await prisma.membership.count({ where: { teamId, gameRole: "HELMSMAN" } });
     return m.gameRole === "HELMSMAN" || (helmsmen === 0 && (m.role === "CAPTAIN" || m.role === "DEPUTY"));
   }
+  const progressOf = (state: { taskDrafts: unknown } | null, index: number): string[] => ((state?.taskDrafts as Progress | null) ?? {})[String(index)] ?? [];
+  /** Кто держал экран вахты за последние HOLD_MS (для зачёта и для списка «на вахте»). */
+  const holdersOf = (state: { holds: unknown } | null, index: number, now: number): string[] => Object.entries(((state?.holds as Holds | null) ?? {})[String(index)] ?? {}).filter(([, ts]) => now - ts <= HOLD_MS).map(([u]) => u);
 
   /** Море глазами команды: вахты, зачёт, переправа. Доступно, когда команда дошла до берега этого моря. */
   app.get("/api/games/:id/my-sea/:code", async (request, reply) => {
@@ -59,10 +71,11 @@ export async function seaRoutes(app: FastifyInstance): Promise<void> {
     const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId: m.team.id, nodeKey: { in: sea.shore } }, select: { nodeKey: true } })).map((r) => r.nodeKey));
     const mine = sea.shore.filter((k) => revealed.has(k));
     const nodeKey = seaKeyOf(code);
-    const [state, locks, game] = await Promise.all([
+    const [state, locks, game, members] = await Promise.all([
       prisma.teamSeaState.findUnique({ where: { teamId_seaCode: { teamId: m.team.id, seaCode: code } } }),
       prisma.teamTaskLock.findMany({ where: { teamId: m.team.id, nodeKey } }),
       prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } }),
+      membersOf(m.team.id),
     ]);
     const rules = rulesOf(game.settings);
     const total = content?.tasks.length ?? 0;
@@ -72,15 +85,23 @@ export async function seaRoutes(app: FastifyInstance): Promise<void> {
     const reached = mine.length > 0;
     const done = state?.doneTasks ?? [];
     const opened = Boolean(state?.openedAt);
+    const now = Date.now();
     // Кандидаты переправы — по каждому своему берегу: противоположный берег, ещё не открытый команде.
     const allRevealed = opened && !state?.crossedAt ? new Set((await prisma.teamNodeState.findMany({ where: { teamId: m.team.id }, select: { nodeKey: true } })).map((r) => r.nodeKey)) : new Set<string>();
     const candidates: Record<string, string[]> = {};
     for (const from of mine) candidates[from] = oppositeShore(sea, from).filter((k) => !allRevealed.has(k));
+    const tasks = content && reached && daytime.tasksOpen
+      ? await Promise.all(content.tasks.map(async (t, i) => {
+        const pub = await publicSeaTask(t, i, secret, scopeKey, content.chart, { userId: request.user!.id, members, progress: progressOf(state, i) });
+        const holders = isTeamTask(t) ? holdersOf(state, i, now).map((u) => members.find((x) => x.userId === u)?.nickname ?? "").filter(Boolean) : [];
+        return { ...pub, holders };
+      }))
+      : null;
     return {
       daytime,
-      sea: { code: sea.code, name: content?.name ?? sea.name, nameEn: content?.nameEn ?? sea.nameEn, names: content?.names ?? [], intro: content?.intro ?? "", introEn: content?.introEn ?? "" },
+      sea: { code: sea.code, name: content?.name ?? sea.name, nameEn: content?.nameEn ?? sea.nameEn, names: content?.names ?? [], intro: content?.intro ?? "", introEn: content?.introEn ?? "", chart: content?.chart ?? null },
       reached,
-      content: content && reached && daytime.tasksOpen ? { tasks: await Promise.all(content.tasks.map((t, i) => publicSeaTask(t, i, secret, scopeKey))) } : null,
+      content: tasks ? { tasks } : null,
       hasContent: content !== null,
       state: {
         doneTasks: done,
@@ -90,9 +111,8 @@ export async function seaRoutes(app: FastifyInstance): Promise<void> {
         crossTo: state?.crossTo ?? null,
         mySolved: my,
         ...solvers,
-        taskDrafts: Object.fromEntries(Object.entries((state?.taskDrafts as Record<string, string[]> | null) ?? {}).filter(([i]) => !done.includes(Number(i)))),
         pauseSteps: rules.pauseSteps,
-        locks: locks.map((l) => ({ index: l.taskIndex, wrong: l.wrong, lockedUntil: l.lockedUntil && l.lockedUntil.getTime() > Date.now() ? l.lockedUntil.getTime() : null })),
+        locks: locks.map((l) => ({ index: l.taskIndex, wrong: l.wrong, lockedUntil: l.lockedUntil && l.lockedUntil.getTime() > now ? l.lockedUntil.getTime() : null })),
       },
       crossing: { canCross: await canCross(m.team.id, m), from: mine, candidates },
     };
@@ -114,19 +134,23 @@ export async function seaRoutes(app: FastifyInstance): Promise<void> {
     return { m, sea, content, state, rules: rulesOf(game.settings), nodeKey: seaKeyOf(code), scopeKey: `${m.team.id}|${seaKeyOf(code)}` };
   }
 
-  /** Черновик расстановки для вахт «по порядку» и шторма: общий для команды. */
-  app.put("/api/games/:id/my-sea/:code/draft", async (request, reply) => {
+  /** «Держу экран»: участник на командной вахте отмечается раз в полминуты; отметка живёт HOLD_MS. */
+  app.put("/api/games/:id/my-sea/:code/hold", async (request, reply) => {
     const { id, code } = request.params as { id: string; code: string };
     const c = await memberSea(request, reply, id, code, true);
     if (!c) return;
-    const body = draftBody.parse(request.body);
-    if (c.state.doneTasks.includes(body.taskIndex)) return { ok: true };
-    const drafts = { ...((c.state.taskDrafts as Record<string, string[]> | null) ?? {}), [String(body.taskIndex)]: body.ids };
-    await prisma.teamSeaState.update({ where: { id: c.state.id }, data: { taskDrafts: drafts } });
-    return { ok: true };
+    const body = holdBody.parse(request.body);
+    const task = c.content.tasks[body.taskIndex];
+    if (!task || !isTeamTask(task)) return { ok: true };
+    const holds = (c.state.holds as Holds | null) ?? {};
+    const now = Date.now();
+    const mine = Object.fromEntries(Object.entries(holds[String(body.taskIndex)] ?? {}).filter(([, ts]) => now - ts <= HOLD_MS));
+    mine[request.user!.id] = now;
+    await prisma.teamSeaState.update({ where: { id: c.state.id }, data: { holds: { ...holds, [String(body.taskIndex)]: mine } } });
+    return { ok: true, holders: Object.keys(mine).length };
   });
 
-  /** Ответ на вахту. Каждый решает сам (как в городе); первый верный ответ засчитывает вахту команде. */
+  /** Ответ на вахту. Одиночные решает каждый сам (как в городе); командные зачитываются всем, кто держал экран. */
   app.post("/api/games/:id/my-sea/:code/tasks/:index/answer", async (request, reply) => {
     const { id, code, index: rawIndex } = request.params as { id: string; code: string; index: string };
     const c = await memberSea(request, reply, id, code, true);
@@ -135,7 +159,15 @@ export async function seaRoutes(app: FastifyInstance): Promise<void> {
     const task = Number.isInteger(index) ? c.content.tasks[index] : undefined;
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
     const teamDone = c.state.doneTasks.includes(index);
-    if ((await mySolved(id, c.m.team.id, request.user!.id, c.nodeKey)).includes(index)) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже решили это задание") });
+    const userId = request.user!.id;
+    if ((await mySolved(id, c.m.team.id, userId, c.nodeKey)).includes(index)) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже решили это задание") });
+    const team = isTeamTask(task);
+    const members = team ? await membersOf(c.m.team.id) : [];
+    if (team) {
+      if (teamDone) return reply.code(409).send({ error: "conflict", message: err(request, "Командная вахта уже отстояна: её зачли всем, кто держал экран") });
+      const screens = assignScreens(task, members, `${secret.slice(0, 16)}|${c.scopeKey}|team|${index}`);
+      if (!(screens.get(userId) ?? []).includes("input")) return reply.code(403).send({ error: "forbidden", message: err(request, "Ответ вводит держатель экрана ввода (капитан)") });
+    }
     const body = answerBody.parse(request.body);
     const now = Date.now();
     const lockWhere = { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey: c.nodeKey, taskIndex: index } };
@@ -143,19 +175,27 @@ export async function seaRoutes(app: FastifyInstance): Promise<void> {
     if (lock?.lockedUntil && lock.lockedUntil.getTime() > now) {
       return reply.code(429).send({ error: "cooldown", message: err(request, "Отмычка остывает: подождите перед следующей попыткой"), retryAt: lock.lockedUntil.getTime() });
     }
-    const correct = await checkSeaAnswer(task, index, secret, c.scopeKey, body.answer);
-    await taskEvent(id, c.m.team.id, request.user!.id, c.nodeKey, index, correct ? "ok" : "wrong");
+    const progress = progressOf(c.state, index);
+    const r = await checkSeaAnswer(task, index, secret, c.scopeKey, c.content.chart, body.answer, progress);
+    // Кому зачёт: одиночная — отвечавшему; командная — всем, кто держал экран, и отвечавшему.
+    const credited = team ? [...new Set([userId, ...holdersOf(c.state, index, now)])] : [userId];
+    if (r.done) for (const u of credited) await taskEvent(id, c.m.team.id, u, c.nodeKey, index, "ok");
+    else if (!r.ok) await taskEvent(id, c.m.team.id, userId, c.nodeKey, index, "wrong");
     let retryAt: number | null = null;
-    if (correct && !teamDone) await prisma.teamSeaState.update({ where: { id: c.state.id }, data: { doneTasks: { push: index } } });
-    if (correct) { if (lock) await prisma.teamTaskLock.update({ where: { id: lock.id }, data: { wrong: 0, lockedUntil: null } }); }
-    else {
+    if (r.ok) {
+      if (lock) await prisma.teamTaskLock.update({ where: { id: lock.id }, data: { wrong: 0, lockedUntil: null } });
+      const data: { doneTasks?: { push: number }; taskDrafts?: Progress } = {};
+      if (r.done && !teamDone) data.doneTasks = { push: index };
+      if (r.progress) data.taskDrafts = { ...((c.state.taskDrafts as Progress | null) ?? {}), [String(index)]: r.progress };
+      if (Object.keys(data).length) await prisma.teamSeaState.update({ where: { id: c.state.id }, data });
+    } else {
       const wrong = (lock?.wrong ?? 0) + 1;
       retryAt = now + pauseAfter(c.rules, wrong);
       const data = { wrong, lockedUntil: new Date(retryAt) };
       await prisma.teamTaskLock.upsert({ where: lockWhere, create: { gameId: id, teamId: c.m.team.id, nodeKey: c.nodeKey, taskIndex: index, ...data }, update: data });
     }
     let opened = false;
-    if (correct && !c.state.openedAt) {
+    if (r.done && !c.state.openedAt) {
       // Море открывается, когда все вахты решены командой и не меньше доли состава решили свою долю.
       const done = new Set([...c.state.doneTasks, index]);
       if (c.content.tasks.every((_, i) => done.has(i))) {
@@ -163,14 +203,16 @@ export async function seaRoutes(app: FastifyInstance): Promise<void> {
         if (s.solvers >= s.needSolvers) {
           await prisma.teamSeaState.update({ where: { id: c.state.id }, data: { openedAt: new Date() } });
           opened = true;
-          journal(id, "sea_opened", { everyone: true, teamId: c.m.team.id, userId: request.user!.id, vars: { team: c.m.team.name, sea: c.content.name } });
+          journal(id, "sea_opened", { everyone: true, teamId: c.m.team.id, userId, vars: { team: c.m.team.name, sea: c.content.name } });
           publish(id, { type: "map", teamId: c.m.team.id });
         }
       }
     }
     publish(id, { type: "cities", teamId: c.m.team.id });
-    if (correct && !teamDone) journal(id, "watch_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), n: index + 1, sea: c.content.name } });
-    return correct ? { correct: true, personal: teamDone, opened } : { correct: false, retryAt, wrong: (lock?.wrong ?? 0) + 1 };
+    if (r.done && !teamDone) journal(id, "watch_solved", { teamId: c.m.team.id, userId, vars: { user: team ? members.filter((x) => credited.includes(x.userId)).map((x) => x.nickname).join(", ") : await nick(userId), n: index + 1, sea: c.content.name } });
+    if (r.done) return { correct: true, personal: teamDone, opened, credited: credited.length };
+    if (r.ok) return { correct: false, accepted: true, ...r.info };
+    return { correct: false, retryAt, wrong: (lock?.wrong ?? 0) + 1 };
   });
 
   /** Переправа через открытое море: со своего берега на противоположный, один раз. Ведёт кормчий (или капитан без кормчего). */

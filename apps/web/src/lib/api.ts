@@ -42,25 +42,34 @@ export interface MapCityDto { nodeKey: string; hasContent: boolean; total: numbe
 export interface MapMarkDto { id: string; q: number; r: number; qf: number; rf: number; note: string; by: { id: string; name: string }; /** Когда поставлена (видно по нажатию: команде и администратору «глазами команды»). */ createdAt?: string }
 /** Море на карте команды (решение владельца 06.10): название и штурвал; вахты открыты с берега. */
 export interface MapSeaDto { code: string; name: string; nameEn: string; hexes: Array<{ q: number; r: number }>; center: { x: number; y: number }; reached: boolean; done: number; total: number; opened: boolean; crossed: boolean }
-export type SeaTaskDto = { index: number; title: string; prompt: string; show: Array<{ ref: string; verses: Array<{ n: number; text: string }> }> } & (
-  | { type: "beacon"; book: string; chapter: number; word: "first" | "last" | number; signal: { long: number; short: number } }
-  | { type: "flags"; book: string; word: "first" | "last" | number; cribs: Array<{ label: string; flags: Array<string | null> }>; message: Array<string | null> }
-  | { type: "wordpath"; book: string; chapter: number; verse: number; count: number; rows: number; cols: number; cells: Array<{ id: string; text: string }> }
-  | { type: "storm"; book: string; chapter: number; verse: number; items: Array<{ id: string; text: string }> }
-  | { type: "count"; stem: string }
-  | { type: "number" } | { type: "text" } | { type: "choice"; options: string[] } | { type: "order"; items: Array<{ id: string; text: string }> });
+export interface SeaChartDto { land?: "all"; water?: Array<{ name?: string; points: Array<[number, number]> }>; coast?: Array<{ name?: string; points: Array<[number, number]> }>; places: Array<{ id: string; name: string; x: number; y: number; kind?: string }>; rose?: [number, number] }
+export type LightKind = "fl" | "lfl" | "oc" | "iso" | "fl2" | "fl3";
+export interface SpriteDto { x: number; y: number; w: number; sprite: string }
+export interface PanelStateDto { pennant: "red" | "white" | "blue" | "yellow"; flashes: number; symbol: "anchor" | "fish" | "star" | "wave"; needle: "N" | "E" | "S" | "W" }
+/** Вахты морей (решение владельца 06.10, вторая редакция): десять типов; командные приходят только со своими экранами. */
+export type SeaTaskDto = { index: number; title: string; prompt: string; team: boolean; /** Кто держит экран командной вахты сейчас. */ holders: string[] } & (
+  | { type: "lights"; book: string; chapter: number; word: "first" | "last" | number; target: string; list: Array<{ name: string; kind: LightKind; period: number }>; lights: Array<{ id: string; x: number; y: number; kind: LightKind; period: number; phase: number }> }
+  | { type: "disc"; outer: string; inner: string; cipher: Array<string | null> }
+  | { type: "fonts"; ref: string; page: Array<{ n: number; glyphs: Array<[string, 0 | 1]> }>; length: number }
+  | { type: "diff"; scene: string; count: number; before: SpriteDto[]; after: SpriteDto[] }
+  | { type: "torn"; cols: number; rows: number; seed: number; pieces: Array<{ id: string; col: number; row: number; rot: number; sx: number; sy: number }>; question: string }
+  | { type: "bearings"; screens: string[]; crew: Array<{ nickname: string; screens: string[] }>; grid: { cols: number; rows: number }; landmarks: string[]; bearings: Array<{ name: string; bearing: number }>; hint: string; letters: string }
+  | { type: "reckoning"; start: { id: string; name: string; x: number; y: number }; legs: Array<{ course: number; miles: number; label: string }>; mile: number; question: string; radius: number }
+  | { type: "unload"; kinds: Record<string, { name: string; sprite: string }>; map: string[]; order: string[] }
+  | { type: "panel"; screens: string[]; crew: Array<{ nickname: string; screens: string[] }>; rounds: number; round: number; state: PanelStateDto | null; manual: { intro: string; rules: string[] } | null }
+  | { type: "roster"; cards: Array<{ id: string; clue: string; figure: string; confirmed: { who: string; then: string } | null }>; whos: string[]; thens: string[] });
 export interface MySeaDto {
   daytime?: DaytimeDto;
-  sea: { code: string; name: string; nameEn: string; names: string[]; intro: string; introEn: string };
+  sea: { code: string; name: string; nameEn: string; names: string[]; intro: string; introEn: string; chart: SeaChartDto | null };
   reached: boolean;
   hasContent: boolean;
   content: { tasks: SeaTaskDto[] } | null;
-  state: { doneTasks: number[]; total: number; openedAt: string | null; crossedAt: string | null; crossTo: string | null; mySolved: number[]; solvers: number; members: number; needSolvers: number; needTasks: number; taskDrafts: Record<string, string[]>; pauseSteps: number[]; locks: TaskLockDto[] };
+  state: { doneTasks: number[]; total: number; openedAt: string | null; crossedAt: string | null; crossTo: string | null; mySolved: number[]; solvers: number; members: number; needSolvers: number; needTasks: number; pauseSteps: number[]; locks: TaskLockDto[] };
   crossing: { canCross: boolean; from: string[]; candidates: Record<string, string[]> };
 }
 export interface AdminSeaDto {
   sea: { code: string; name: string; nameEn: string; names: string[]; intro: string; shore: number };
-  content: { tasks: Array<{ type: string; title: string; prompt: string; book?: string; chapter?: number; verse?: number; verses?: number[]; word?: string | number; from?: number; to?: number; stem?: string; options?: string[]; correct?: number; items?: string[]; answer?: number; answers?: string[] }> } | null;
+  content: { tasks: Array<{ type: string; title: string; prompt: string; book?: string; chapter?: number; from?: number; to?: number; word?: string; text?: string; answers?: string[]; lights?: Array<string | { name: string; kind: string; period: number }>; question?: string; place?: string; landmarks?: string[]; legs?: Array<string | { label: string }>; kinds?: string[] | Record<string, { name: string }>; rounds?: number; rules?: Array<string | { text: string; word: string }>; whos?: string[]; cards?: Array<{ clue: string; who: string; then: string }> }> } | null;
   answersHidden: boolean;
   teams: Array<{ id: string; name: string; color: string; index: number; doneTasks: number[]; openedAt: string | null; crossedAt: string | null; crossFrom: string | null; crossTo: string | null }>;
 }

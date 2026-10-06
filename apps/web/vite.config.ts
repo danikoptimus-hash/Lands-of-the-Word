@@ -13,7 +13,7 @@ import { join } from "node:path";
 function imgVersion(): string {
   const h = createHash("md5");
   const walk = (dir: string) => { for (const f of readdirSync(dir).sort()) { const p = join(dir, f); if (statSync(p).isDirectory()) walk(p); else { h.update(p); h.update(readFileSync(p)); } } };
-  for (const d of ["terrain", "city", "start", "islet"]) { try { walk(join(__dirname, "public", "img", d)); } catch { /* каталога может не быть в тестах */ } }
+  for (const d of ["terrain", "city", "start", "islet", "sea"]) { try { walk(join(__dirname, "public", "img", d)); } catch { /* каталога может не быть в тестах */ } }
   return h.digest("hex").slice(0, 10);
 }
 
