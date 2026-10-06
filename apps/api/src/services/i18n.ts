@@ -271,6 +271,8 @@ const EN: Record<string, string> = {
   "С 0:00 до 7:00 по местному времени игра спит: задания города и взятие дел откроются утром.": "From 0:00 to 7:00 local time the game sleeps: city tasks and taking deeds open in the morning.",
   "Общее дело сдаёт капитан, заместитель или летописец": "A team deed is submitted by the captain, the deputy or the chronicler",
   "Общее дело не найдено": "Team deed not found",
+  "Отметьте, кто был: им дело пойдёт в зачёт": "Mark who was there: the deed will count for them",
+  "Для этого дела нужно не меньше {n} участников из {m}": "This deed needs at least {n} of {m} members",
   "Это общее дело уже на проверке: дождитесь решения администратора": "This team deed is already under review: wait for the administrator’s decision",
   "Команда «{team}» сдала общее дело «{deed}» в Каменоломне. Нужно проверить и принять или вернуть.": "Team “{team}” submitted the team deed “{deed}” at the Quarry. It needs to be reviewed and approved or returned.",
   "Общее дело «{deed}» принято: команда получила камней — {n}. Камень мостит любую свободную дорогу на карте.": "The team deed “{deed}” was approved: the team received {n} stone(s). A stone paves any free road on the map.",

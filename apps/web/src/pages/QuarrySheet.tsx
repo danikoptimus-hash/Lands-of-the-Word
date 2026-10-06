@@ -24,6 +24,7 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
   const [open, setOpen] = useState<string | null>(null);
   const [links, setLinks] = useState("");
   const [note, setNote] = useState("");
+  const [present, setPresent] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const load = useCallback(() => api<QuarryDto>(`/api/games/${gameId}/quarry`).then((d) => { setData(d); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useEffect(() => { void load(); }, [load]);
@@ -31,11 +32,12 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
 
   async function submit(deedId: string) {
     const ls = links.split(/\s+/).filter(Boolean);
-    if (ls.length === 0) { notify(t("Приложите ссылку на фото всей команды"), "bad"); return; }
+    if (ls.length === 0) { notify(t("Приложите ссылку на фото команды"), "bad"); return; }
+    if (present.length === 0) { notify(t("Отметьте, кто был: им дело пойдёт в зачёт"), "bad"); return; }
     setBusy(true);
     try {
-      await api(`/api/games/${gameId}/quarry/${deedId}/submit`, { method: "POST", body: JSON.stringify({ links: ls, note }) });
-      notify(t("Сдано на проверку")); setOpen(null); setLinks(""); setNote(""); await load();
+      await api(`/api/games/${gameId}/quarry/${deedId}/submit`, { method: "POST", body: JSON.stringify({ links: ls, note, participants: present }) });
+      notify(t("Сдано на проверку")); setOpen(null); setLinks(""); setNote(""); setPresent([]); await load();
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
@@ -60,8 +62,21 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
                       {pending && <span className="meta"><Icon name="clock" />{t("на проверке у администратора")}</span>}
                       {picking && (
                         <div className="stack-sm mt-2">
-                          <div className="field"><label htmlFor={"q-links-" + d.id}>{t("Ссылки на фото всей команды")}</label><textarea id={"q-links-" + d.id} rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} /></div>
-                          <div className="field"><label htmlFor={"q-note-" + d.id}>{t("Коротко")} <span className="opt">{t("необязательно")}</span></label><textarea id={"q-note-" + d.id} rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Кого не было и почему, что было на встрече")} /></div>
+                          {/* Кто был (решение владельца 07.10): отмечают при сдаче, принятое дело идёт им в зачёт «Моё служение». */}
+                          <fieldset className="field quarry-present">
+                            <legend>{t("Кто был")} · {t("{a} из {b}", { a: present.length, b: data.members.length })}{d.quorumPct != null && <span className="muted"> · {t("нужно не меньше {n}", { n: Math.ceil((data.members.length * d.quorumPct) / 100) })}</span>}</legend>
+                            <div className="row wrap gap-2">
+                              <button type="button" className="ghost sm" onClick={() => setPresent(data.members.map((x) => x.id))}>{t("Все")}</button>
+                              <button type="button" className="ghost sm" onClick={() => setPresent([])}>{t("Никого")}</button>
+                            </div>
+                            <ul className="present-list">
+                              {data.members.map((x) => (
+                                <li key={x.id}><label className="row nowrap"><input type="checkbox" checked={present.includes(x.id)} onChange={(e) => setPresent((p) => (e.target.checked ? [...p, x.id] : p.filter((id) => id !== x.id)))} /><span>{x.name}</span></label></li>
+                              ))}
+                            </ul>
+                          </fieldset>
+                          <div className="field"><label htmlFor={"q-links-" + d.id}>{t("Ссылки на фото команды")}</label><textarea id={"q-links-" + d.id} rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} /></div>
+                          <div className="field"><label htmlFor={"q-note-" + d.id}>{t("Коротко")} <span className="opt">{t("необязательно")}</span></label><textarea id={"q-note-" + d.id} rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Что было на встрече")} /></div>
                           <div className="actions row">
                             <button type="button" disabled={busy} onClick={() => void submit(d.id)}><Icon name="send" />{t("Сдать на проверку")}</button>
                             <button type="button" className="secondary" disabled={busy} onClick={() => setOpen(null)}>{t("Отмена")}</button>
@@ -69,7 +84,7 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
                         </div>
                       )}
                     </div>
-                    {data.canWork && !pending && !picking && <div className="side"><button type="button" className="sm" onClick={() => { setOpen(d.id); setLinks(""); setNote(""); }}><Icon name="camera" />{t("Сдать")}</button></div>}
+                    {data.canWork && !pending && !picking && <div className="side"><button type="button" className="sm" onClick={() => { setOpen(d.id); setLinks(""); setNote(""); setPresent(data.members.map((x) => x.id)); }}><Icon name="camera" />{t("Сдать")}</button></div>}
                   </li>
                 );
               })}
@@ -85,6 +100,7 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
                     <div className="main">
                       <span className="title">{w.title}</span>
                       <span className="meta">{statusChip(w)} · {w.by} · {fmtDate(w.submittedAt)}{w.status === "APPROVED" && <> · <Icon name="stone" />{w.stones}</>}</span>
+                      {w.participants.length > 0 && <span className="small muted">{t("Были")}: {w.participants.join(", ")}</span>}
                       {w.status === "REJECTED" && w.adminComment && <span className="small muted">{t("Администратор")}: {w.adminComment}</span>}
                     </div>
                   </li>

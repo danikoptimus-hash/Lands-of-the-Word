@@ -18,9 +18,14 @@ import { isLeader, requireActiveMember, requireAdmin } from "./teamMap.js";
  * частоте нет (решение владельца). Ночью, как и дела, Каменоломня ждёт утра.
  */
 const canWork = (m: { role: string; gameRole: string }) => isLeader(m) || m.gameRole === "CHRONICLER";
-const workBody = z.object({ links: z.array(z.string().trim().url().max(500)).min(1).max(10), note: z.string().trim().max(2000).default("") });
+const workBody = z.object({ links: z.array(z.string().trim().url().max(500)).min(1).max(10), note: z.string().trim().max(2000).default(""), /** Кто был (решение владельца 07.10): им принятое дело идёт в зачёт. */ participants: z.array(z.string().min(1)).max(60).default([]) });
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
-const quarryDeedSelect = { id: true, title: true, description: true, direction: true, proofType: true, stones: true } as const;
+const quarryDeedSelect = { id: true, title: true, description: true, direction: true, proofType: true, stones: true, quorumPct: true } as const;
+/** Состав команды для отметки «кто был». */
+async function teamMembers(teamId: string) {
+  const rows = await prisma.membership.findMany({ where: { teamId }, orderBy: { joinedAt: "asc" }, select: { userId: true, user: { select: { nickname: true, displayName: true } } } });
+  return rows.map((m) => ({ id: m.userId, name: m.user.displayName || m.user.nickname }));
+}
 
 export async function quarryRoutes(app: FastifyInstance): Promise<void> {
   /** Каменоломня глазами команды: камни, общие дела, свои сдачи. */
@@ -28,19 +33,21 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
-    const [deeds, works, team] = await Promise.all([
+    const [deeds, works, team, members] = await Promise.all([
       prisma.deed.findMany({ where: { gameId: id, quarry: true, disabled: false }, select: quarryDeedSelect, orderBy: { createdAt: "asc" } }),
       prisma.quarryWork.findMany({ where: { teamId: m.team.id }, orderBy: { submittedAt: "desc" }, take: 30, include: { deed: { select: { title: true } } } }),
       prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } }),
+      teamMembers(m.team.id),
     ]);
-    const userIds = [...new Set(works.map((w) => w.byId))];
+    const userIds = [...new Set([...works.map((w) => w.byId), ...works.flatMap((w) => w.participants)])];
     const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, nickname: true, displayName: true } });
     const nameOf = new Map(users.map((u) => [u.id, u.displayName ?? u.nickname]));
     return {
       stones: team.stones,
       canWork: canWork(m),
+      members,
       deeds,
-      works: works.map((w) => ({ id: w.id, deedId: w.deedId, title: w.deed.title, status: w.status, stones: w.stones, by: nameOf.get(w.byId) ?? "", links: w.links, note: w.note, submittedAt: w.submittedAt, decidedAt: w.decidedAt, adminComment: w.adminComment })),
+      works: works.map((w) => ({ id: w.id, deedId: w.deedId, title: w.deed.title, status: w.status, stones: w.stones, by: nameOf.get(w.byId) ?? "", participants: w.participants.map((u) => nameOf.get(u) ?? "").filter(Boolean), links: w.links, note: w.note, submittedAt: w.submittedAt, decidedAt: w.decidedAt, adminComment: w.adminComment })),
     };
   });
 
@@ -56,7 +63,14 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     const body = workBody.parse(request.body);
     const pending = await prisma.quarryWork.count({ where: { teamId: m.team.id, deedId, status: "SUBMITTED" } });
     if (pending > 0) return reply.code(409).send({ error: "conflict", message: err(request, "Это общее дело уже на проверке: дождитесь решения администратора") });
-    const work = await prisma.quarryWork.create({ data: { gameId: id, teamId: m.team.id, deedId, byId: request.user!.id, links: body.links, note: body.note, stones: deed.stones } });
+    // Кто был: только участники команды; при деле с долей состава — не меньше доли (решение владельца 07.10).
+    const members = await teamMembers(m.team.id);
+    const ids = new Set(members.map((x) => x.id));
+    const participants = [...new Set(body.participants.filter((u) => ids.has(u)))];
+    if (participants.length === 0) return reply.code(400).send({ error: "bad_request", message: err(request, "Отметьте, кто был: им дело пойдёт в зачёт") });
+    const need = deed.quorumPct != null ? Math.ceil((members.length * deed.quorumPct) / 100) : 0;
+    if (participants.length < need) return reply.code(409).send({ error: "conflict", message: err(request, "Для этого дела нужно не меньше {n} участников из {m}", { n: need, m: members.length }) });
+    const work = await prisma.quarryWork.create({ data: { gameId: id, teamId: m.team.id, deedId, byId: request.user!.id, participants, links: body.links, note: body.note, stones: deed.stones } });
     journal(id, "quarry_submitted", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: deed.title } });
     publish(id, { type: "submissions", teamId: m.team.id });
     publish(id, { type: "quarry", teamId: m.team.id });
@@ -69,10 +83,11 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     if (!(await requireAdmin(request, reply, id))) return;
     const status = ((request.query as { status?: string }).status ?? "SUBMITTED") as string;
-    const works = await prisma.quarryWork.findMany({ where: { gameId: id, status }, orderBy: { submittedAt: "asc" }, take: 200, include: { deed: { select: { title: true, description: true, stones: true } }, team: { select: { id: true, name: true, color: true, stones: true } } } });
-    const users = await prisma.user.findMany({ where: { id: { in: [...new Set(works.map((w) => w.byId))] } }, select: { id: true, nickname: true, displayName: true } });
+    const works = await prisma.quarryWork.findMany({ where: { gameId: id, status }, orderBy: { submittedAt: "asc" }, take: 200, include: { deed: { select: { title: true, description: true, stones: true, quorumPct: true } }, team: { select: { id: true, name: true, color: true, stones: true } } } });
+    const users = await prisma.user.findMany({ where: { id: { in: [...new Set([...works.map((w) => w.byId), ...works.flatMap((w) => w.participants)])] } }, select: { id: true, nickname: true, displayName: true } });
     const nameOf = new Map(users.map((u) => [u.id, u.displayName ?? u.nickname]));
-    return { works: works.map((w) => ({ id: w.id, team: w.team, deed: w.deed, stones: w.stones, by: nameOf.get(w.byId) ?? "", links: w.links, note: w.note, status: w.status, submittedAt: w.submittedAt, decidedAt: w.decidedAt, adminComment: w.adminComment })) };
+    const sizes = new Map((await prisma.membership.groupBy({ by: ["teamId"], where: { team: { gameId: id } }, _count: { _all: true } })).map((g) => [g.teamId, g._count._all]));
+    return { works: works.map((w) => ({ id: w.id, team: w.team, deed: w.deed, stones: w.stones, by: nameOf.get(w.byId) ?? "", participants: w.participants.map((u) => nameOf.get(u) ?? "").filter(Boolean), teamSize: sizes.get(w.teamId) ?? 0, links: w.links, note: w.note, status: w.status, submittedAt: w.submittedAt, decidedAt: w.decidedAt, adminComment: w.adminComment })) };
   });
 
   /** Решение администратора: принято — команде камни; возвращено — с комментарием. */
