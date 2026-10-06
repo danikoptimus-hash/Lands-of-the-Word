@@ -301,13 +301,16 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
             <CoastOver d={coast} size={size} light={dt.light} />
             {worldBody}
+          </WorldSvg>
+          {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
+          {/* Подписи городов и метки — отдельным слоем над живностью и маршрутами: название города выше линии корабля (решение владельца 06.10). */}
+          <WorldSvg vp={vp} bounds={bounds} overlay>
             <g className="screen-items">
               {quarryMarker}
               {screenBody}
             </g>
           </WorldSvg>
-          {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
-          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
         </div>
         <div className="map-controls">
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
