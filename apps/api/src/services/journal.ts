@@ -19,7 +19,7 @@ export type JournalKind =
   | "trial_declared" | "trial_queued" | "trial_started" | "trial_repelled" | "trial_won" | "trial_burnt" | "trial_cancelled" | "trial_peace"
   | "siege_declared" | "siege_won" | "siege_repelled" | "siege_peace"
   | "trade_proposed" | "trade_countered" | "trade_done" | "trade_cancelled"
-  | "passage_granted" | "passage_denied" | "sea_landed"
+  | "passage_granted" | "passage_denied" | "sea_landed" | "watch_solved" | "sea_opened" | "sea_crossed"
   | "penalty" | "role_changed" | "capital_moved"
   | "quarry_submitted" | "quarry_approved" | "quarry_returned" | "paved"
   | "peace_offered" | "peace_made" | "peace_declined" | "peace_broken"
@@ -56,6 +56,9 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   passage_granted: "Команда «{other}» разрешила проход через город {book}",
   passage_denied: "Команда «{other}» не разрешила проход через город {book}",
   sea_landed: "{user} привёл(а) корабль к другому острову",
+  watch_solved: "{user} отстоял(а) вахту {n}: {sea}",
+  sea_opened: "Команда «{team}» открыла море: {sea}",
+  sea_crossed: "{user} перевёл(а) команду через море: {sea}",
   penalty: "Штраф администратора: участок пути аннулирован",
   role_changed: "{user}: роль {role}",
   capital_moved: "Столица перенесена",

@@ -554,3 +554,65 @@
 /* Ползунок истории ходов на карте команды (решение владельца 05.10): такой же, как у администратора, внизу по центру карты. */
 .team-timeline { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--sp-3) + var(--safe-bottom)); z-index: 5; max-width: calc(100% - 2 * var(--sp-3)); }
 @media (min-width: 1024px) { .team-timeline { left: calc(110px + (100% - 110px) / 2); max-width: calc(100% - 110px - 2 * var(--sp-3)); } }
+
+/* ---------- Моря и вахты (решение владельца 06.10) ---------- */
+.m-land.from .pulse { stroke: var(--accent); fill: color-mix(in srgb, var(--accent) 25%, transparent); }
+.m-land.from .dot { stroke: var(--accent); }
+.m-land.from use { color: var(--accent); }
+.sea-head { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4) 56px var(--sp-4) var(--sp-4); color: #F3F7FA; background: linear-gradient(100deg, #173A57, #2C6E91 55%, #3F86A6); }
+.sea-head .sea-wave { width: 52px; height: 52px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.35); }
+.sea-head .sea-wave .i { width: 30px; height: 30px; }
+.sea-head .title { min-width: 0; }
+.sea-head h2 { margin: 0; font-size: var(--fs-xl); }
+.sea-head .status { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-size: var(--fs-sm); opacity: .92; }
+.sea-intro { font-size: var(--fs-md); line-height: var(--lh-text); margin: 0 0 var(--sp-2); }
+.district.watch .num { background: var(--surface-2); color: var(--accent-ink); border: 1px solid var(--border-strong); }
+.district.watch .num .i { width: 15px; height: 15px; }
+.district.watch.done .num { background: var(--success); color: var(--on-accent); border-color: transparent; }
+.sea-cross { margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+/* Маяк */
+.beacon { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); margin: var(--sp-3) 0; padding: var(--sp-3); border-radius: var(--r-md); background: radial-gradient(ellipse at 50% 80%, #16304a, #0b1a2b 70%); }
+.beacon svg { width: min(100%, 240px); height: auto; }
+.beacon .sea { fill: #1f4f6e; }
+.beacon .rock { fill: #3c3a36; }
+.beacon .tower { fill: #e9e2d2; }
+.beacon .band { fill: #b3382e; }
+.beacon .gallery { fill: #2b2b2b; }
+.beacon .lamp-room { fill: #1d2a36; stroke: #9aa7b2; stroke-width: 1.5; }
+.beacon .roof { fill: #8c2f26; }
+.beacon .lamp { fill: #3a3a3a; transition: fill .08s linear; }
+.beacon .glow, .beacon .beam { opacity: 0; transition: opacity .08s linear; }
+.beacon .beam { fill: rgba(255, 228, 140, .35); }
+.beacon.on .lamp { fill: #fff1b0; }
+.beacon.on .glow { opacity: 1; }
+.beacon.on .beam { opacity: 1; }
+.beacon.on.short .beam { opacity: .55; }
+.beacon-hint { display: flex; gap: var(--sp-2); align-items: flex-start; color: #cfd8e3; margin: 0; }
+.beacon-hint .i { flex: none; width: 18px; height: 18px; }
+/* Сигнальные флаги */
+.signal { margin: var(--sp-3) 0; }
+.signal-line { position: relative; display: flex; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-4) var(--sp-3) var(--sp-3); border-radius: var(--r-md); background: linear-gradient(180deg, #cfe6f2, #9cc9df); overflow-x: auto; }
+.signal-line .halyard { position: absolute; left: var(--sp-3); right: var(--sp-3); top: 12px; height: 2px; background: rgba(40, 40, 40, .6); }
+.signal-line .hoist { position: relative; padding-top: 6px; }
+.signal-line .hoist::before { content: ""; position: absolute; left: 50%; top: -6px; width: 2px; height: 12px; background: rgba(40,40,40,.6); }
+.signal-line .gap { align-self: center; font-weight: 700; font-size: var(--fs-xl); color: #27353f; padding: 0 var(--sp-1); }
+.signal-key { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-1); }
+.signal-key .key-item { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; padding: var(--sp-1); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
+.signal-key .key-item b { font-size: var(--fs-sm); }
+.flag { display: block; }
+/* Курс по словам */
+.wordpath { margin: var(--sp-3) 0; }
+.wp-grid { display: grid; gap: 4px; }
+.wp-cell { position: relative; min-height: 44px; padding: 4px 1px; border: 1px solid var(--border-strong); border-radius: var(--r-xs); background: var(--map-paper, #fff6e3); color: var(--text); font-size: 10px; letter-spacing: -.2px; font-weight: 600; line-height: 1.1; white-space: normal; overflow-wrap: break-word; hyphens: manual; display: flex; align-items: center; justify-content: center; }
+.wp-cell .w { max-width: 100%; }
+.wp-cell.can { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.wp-cell.on { background: var(--accent); color: var(--on-accent); border-color: transparent; }
+.wp-cell.last { box-shadow: 0 0 0 2px var(--accent-ink); }
+.wp-cell .n { position: absolute; right: 2px; top: 1px; font-size: 9px; font-weight: 700; opacity: .85; }
+.wp-cell:disabled { opacity: .7; }
+/* Показанный отрывок */
+.passages { margin: var(--sp-3) 0; display: flex; flex-direction: column; gap: var(--sp-3); }
+.passage { padding: var(--sp-3); border-radius: var(--r-sm); background: var(--surface-2); font-size: var(--fs-md); line-height: var(--lh-text); max-height: 46vh; overflow: auto; }
+.passage h4 { margin: 0 0 var(--sp-2); display: flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); color: var(--muted); }
+.passage p { margin: 0 0 var(--sp-1); }
+.passage sup { color: var(--accent-ink); font-weight: 700; }

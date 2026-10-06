@@ -27,6 +27,7 @@ import { recordResponse } from "./services/stats.js";
 import { eventRoutes } from "./routes/events.js";
 import { journalRoutes } from "./routes/journal.js";
 import { quarryRoutes } from "./routes/quarry.js";
+import { seaRoutes } from "./routes/seas.js";
 import { tradeRoutes } from "./routes/trades.js";
 
 declare module "fastify" {
@@ -79,6 +80,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(battleRoutes);
   await app.register(diplomacyRoutes);
   await app.register(quarryRoutes);
+  await app.register(seaRoutes);
   await app.register(tradeRoutes);
   await app.register(recipientRoutes);
   await app.register(journalRoutes);

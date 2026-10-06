@@ -49,6 +49,9 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   passage_granted: "Команда «{other}» разрешила проход через город {book}",
   passage_denied: "Команда «{other}» не разрешила проход через город {book}",
   sea_landed: "{user} привёл(а) корабль к другому острову",
+  watch_solved: "{user} отстоял(а) вахту {n}: {sea}",
+  sea_opened: "Команда «{team}» открыла море: {sea}",
+  sea_crossed: "{user} перевёл(а) команду через море: {sea}",
   penalty: "Штраф администратора: участок пути аннулирован",
   role_changed: "{user}: роль {role}",
   capital_moved: "Столица перенесена",
@@ -59,7 +62,7 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   chronicle: "Летопись недели",
   game_finished: "Игра завершена{winner}",
 };
-const ICON: Partial<Record<JournalKind, string>> = { trial_peace: "handshake", siege_peace: "handshake", trade_proposed: "handshake", trade_countered: "handshake", trade_done: "city", trade_cancelled: "x", deed_submitted: "send", deed_approved: "check", deed_returned: "back", order_solved: "lock", task_solved: "book", city_captured: "city", ruins_taken: "city", treasure: "star", trial_declared: "wave", trial_queued: "list", trial_started: "wave", trial_repelled: "flag", trial_won: "trophy", trial_burnt: "clock", siege_declared: "scroll", siege_won: "trophy", siege_repelled: "flag", passage_granted: "handshake", passage_denied: "x", sea_landed: "ship", penalty: "alert", role_changed: "user", capital_moved: "crown", peace_offered: "handshake", peace_made: "handshake", peace_broken: "alert", chronicle: "scroll", game_finished: "trophy" };
+const ICON: Partial<Record<JournalKind, string>> = { trial_peace: "handshake", siege_peace: "handshake", trade_proposed: "handshake", trade_countered: "handshake", trade_done: "city", trade_cancelled: "x", deed_submitted: "send", deed_approved: "check", deed_returned: "back", order_solved: "lock", task_solved: "book", city_captured: "city", ruins_taken: "city", treasure: "star", trial_declared: "wave", trial_queued: "list", trial_started: "wave", trial_repelled: "flag", trial_won: "trophy", trial_burnt: "clock", siege_declared: "scroll", siege_won: "trophy", siege_repelled: "flag", passage_granted: "handshake", passage_denied: "x", sea_landed: "ship", watch_solved: "wave", sea_opened: "wave", sea_crossed: "ship", penalty: "alert", role_changed: "user", capital_moved: "crown", peace_offered: "handshake", peace_made: "handshake", peace_broken: "alert", chronicle: "scroll", game_finished: "trophy" };
 
 /** Текст записи: шаблон вида через словарь, код книги подставляется названием, служебные подстановки переводятся. */
 export function journalLine(kind: JournalKind, vars: Record<string, string | number>): string {

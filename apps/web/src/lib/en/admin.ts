@@ -1,5 +1,16 @@
 /** EN-строки области «admin». Ключ — русская строка как в коде. Добавлять только сюда; legacy.ts не трогать. */
 export const ADMIN: Record<string, string> = {
+  // Моря (решение владельца 06.10)
+  "Море": "Sea",
+  "Береговых перекрёстков: {n}": "Shore crossings: {n}",
+  "в Писании также: {names}": "also called in Scripture: {names}",
+  "вахт: {a} из {b}": "watches: {a} of {b}",
+  "море открыто": "sea open",
+  "переправа {d}": "crossing {d}",
+  "Вахты": "Watches",
+  "ответы видит только администратор платформы": "answers are visible only to the platform administrator",
+  "Корень": "Stem",
+  "маяк": "lighthouse", "курс по словам": "word course", "сигнальные флаги": "signal flags", "шторм": "storm", "лот": "sounding lead", "по порядку": "in order", "выбор": "choice", "число": "number",
   "Обычные дела": "Regular deeds",
   "Дела Каменоломни": "Quarry deeds",
   "Общие дела всей команды: сдаёт капитан, заместитель или летописец в Каменоломне на карте, всегда доступны. Принятое дело даёт камни, камень мостит одну свободную дорогу — куда, решает команда.": "Team deeds for the whole team: the captain, the deputy or the chronicler submits them in the Quarry on the map, always available. An approved deed gives stones; a stone paves one free road — the team decides where.",

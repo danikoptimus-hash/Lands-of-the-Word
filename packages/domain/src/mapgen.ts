@@ -2,6 +2,7 @@ import { BOOKS, BOOK_COUNT } from "./books.js";
 import { hexDistance, hexKey, hexNeighbors, hexesInRadius, type Hex } from "./hex.js";
 import { buildHexGraph, graphDistances, vertexHexes, vertexToPixel, type HexGraph } from "./hexgraph.js";
 import { createRng, pick, randomInt, shuffle, type Rng } from "./random.js";
+import { INLAND_SEAS, carveSeas } from "./seas.js";
 
 export type NodeKind = "empty" | "city" | "start";
 export type Terrain = "desert" | "hills" | "meadow" | "mountains" | "water" | "oasis";
@@ -9,7 +10,7 @@ export type Terrain = "desert" | "hills" | "meadow" | "mountains" | "water" | "o
 export type Island = "OT" | "NT";
 
 /** Гекс — только местность (декорация и туман). */
-export interface MapHexTile { q: number; r: number; terrain: Terrain; rotation: number; island: Island }
+export interface MapHexTile { q: number; r: number; terrain: Terrain; rotation: number; island: Island; /** Код внутреннего моря, если гекс — вода этого моря (решение владельца 06.10). */ sea?: string }
 
 /** Узел — перекрёсток (вершина гекса): пустая развилка, город или старт. */
 export interface MapNode {
@@ -24,6 +25,8 @@ export interface MapNode {
   island: Island;
   /** Береговой узел: хотя бы один из трёх гексов вокруг — море. Береговой город — порт, из него ходят корабли. */
   coastal: boolean;
+  /** Берег внутреннего моря: код моря, один из гексов вокруг узла — его вода (решение владельца 06.10). */
+  sea?: string;
 }
 
 /** Ребро — сторона гекса между двумя перекрёстками; по ним ходят команды. */
@@ -34,7 +37,7 @@ export interface GeneratedMap {
   hexes: MapHexTile[];
   nodes: MapNode[];
   edges: MapEdge[];
-  stats: { hexCount: number; nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number; avgCityGap: number; islands: Record<Island, { hexes: number; cities: number; ports: number }> };
+  stats: { hexCount: number; nodeCount: number; cityCount: number; startDistances: number[]; minCityGap: number; avgCityGap: number; islands: Record<Island, { hexes: number; cities: number; ports: number }>; /** Внутренние моря: код → число гексов. */ seas: Record<string, number> };
 }
 
 export interface MapGenOptions {
@@ -99,7 +102,7 @@ function makeTerrainField(rng: Rng): TerrainField {
 function terrainFor(rng: Rng, f: TerrainField, h: Hex, center: Hex, radius: number): Terrain {
   const d = hexDistance(h, center) / radius;
   const roll = rng();
-  if (roll < 0.04) return "water"; // редкие озёра остаются россыпью: им и положено быть одиночными
+  // Случайных одиночных озёр больше нет (решение владельца 06.10): вода внутри островов — только именованные моря.
   // Координаты гекса в «плоских» осях (шаг ~1 гекс), от центра острова.
   const x = (h.q - center.q) + (h.r - center.r) / 2, y = (h.r - center.r) * 0.866;
   const along = (a: number) => x * Math.cos(a) + y * Math.sin(a);
@@ -155,11 +158,14 @@ export function generateMap(opts: MapGenOptions): GeneratedMap {
   const otField = buildField(rng, otHexCount), ntField = buildField(rng, ntHexCount, ntCenter);
   const field = [...otField, ...ntField];
   const islandByHex = new Map<string, Island>([...otField.map((h) => [hexKey(h), "OT"] as const), ...ntField.map((h) => [hexKey(h), "NT"] as const)]);
-  const graph = buildHexGraph(field);
+  // Внутренние моря (решение владельца 06.10): вырезаются в глубине островов; по их воде ходить нельзя.
+  const seaByHex = new Map<string, string>([...carveSeas(rng, otField, INLAND_SEAS.filter((s) => s.island === "OT")), ...carveSeas(rng, ntField, INLAND_SEAS.filter((s) => s.island === "NT"))]);
+  const graph = withoutSeaWays(buildHexGraph(field), seaByHex);
   const keys = [...graph.vertices.keys()];
   const fieldSet = new Set(field.map(hexKey));
   const islandOf = (k: string): Island => { for (const h of vertexHexes(graph.vertices.get(k)!)) { const i = islandByHex.get(hexKey(h)); if (i) return i; } return "OT"; };
   const coastal = (k: string) => vertexHexes(graph.vertices.get(k)!).some((h) => !fieldSet.has(hexKey(h)));
+  const shoreOf = (k: string): string | undefined => { for (const h of vertexHexes(graph.vertices.get(k)!)) { const s = seaByHex.get(hexKey(h)); if (s) return s; } return undefined; };
   const otKeys = keys.filter((k) => islandOf(k) === "OT"), ntKeys = keys.filter((k) => islandOf(k) === "NT");
   if (otKeys.length < otCities * 3 || ntKeys.length < ntCities * 3) throw new MapGenError("Поле слишком маленькое для такого числа городов");
 
@@ -255,11 +261,14 @@ export function generateMap(opts: MapGenOptions): GeneratedMap {
   const terrainField = makeTerrainField(rng);
   const hexes: MapHexTile[] = field.map((h) => {
     const island = islandByHex.get(hexKey(h))!;
-    return { q: h.q, r: h.r, terrain: terrainFor(rng, terrainField, h, island === "OT" ? { q: 0, r: 0 } : ntCenter, island === "OT" ? otRadius : ntRadius), rotation: randomInt(rng, 0, 5), island };
+    const sea = seaByHex.get(hexKey(h));
+    const terrain = sea ? "water" : terrainFor(rng, terrainField, h, island === "OT" ? { q: 0, r: 0 } : ntCenter, island === "OT" ? otRadius : ntRadius);
+    return { q: h.q, r: h.r, terrain, rotation: randomInt(rng, 0, 5), island, ...(sea ? { sea } : {}) };
   });
   const nodes: MapNode[] = keys.map((k) => {
     const v = graph.vertices.get(k)!;
-    const base = { id: k, corner: v.corner, q: v.q, r: v.r, island: islandOf(k), coastal: coastal(k) };
+    const shore = shoreOf(k);
+    const base = { id: k, corner: v.corner, q: v.q, r: v.r, island: islandOf(k), coastal: coastal(k), ...(shore ? { sea: shore } : {}) };
     if (bookByCity.has(k)) return { ...base, kind: "city" as const, bookCode: bookByCity.get(k)!, cityType: base.coastal ? "port" : pick(rng, INLAND_CITY_TYPES) };
     if (startIndex.has(k)) return { ...base, kind: "start" as const, teamIndex: startIndex.get(k)! };
     return { ...base, kind: "empty" as const };
@@ -276,7 +285,30 @@ export function generateMap(opts: MapGenOptions): GeneratedMap {
   const avgCityGap = gapCount ? Math.round((gapSum / gapCount) * 10) / 10 : 0;
   const islandStats = (isl: Island) => ({ hexes: hexes.filter((h) => h.island === isl).length, cities: nodes.filter((n) => n.island === isl && n.kind === "city").length, ports: nodes.filter((n) => n.island === isl && n.kind === "city" && n.coastal).length });
 
-  return { seed: opts.seed, hexes, nodes, edges: graph.edges, stats: { hexCount: hexes.length, nodeCount: nodes.length, cityCount: cities.length, startDistances, minCityGap: minGap, avgCityGap, islands: { OT: islandStats("OT"), NT: islandStats("NT") } } };
+  const seas: Record<string, number> = {};
+  for (const code of seaByHex.values()) seas[code] = (seas[code] ?? 0) + 1;
+  return { seed: opts.seed, hexes, nodes, edges: graph.edges, stats: { hexCount: hexes.length, nodeCount: nodes.length, cityCount: cities.length, startDistances, minCityGap: minGap, avgCityGap, islands: { OT: islandStats("OT"), NT: islandStats("NT") }, seas } };
+}
+
+/**
+ * По воде внутреннего моря не ходят: стороны между двумя гексами моря убираются, перекрёстки, все три гекса которых —
+ * море, исчезают. Узлы с одним-двумя гексами моря остаются берегом.
+ */
+function withoutSeaWays(graph: HexGraph, seaByHex: Map<string, string>): HexGraph {
+  if (seaByHex.size === 0) return graph;
+  const isSea = (h: Hex) => seaByHex.has(hexKey(h));
+  const vertices = new Map(graph.vertices);
+  const adjacency = new Map([...graph.adjacency].map(([k, s]) => [k, new Set(s)] as const));
+  for (const [a, nbrs] of adjacency) {
+    for (const b of [...nbrs]) {
+      const ha = vertexHexes(vertices.get(a)!).map(hexKey), shared = vertexHexes(vertices.get(b)!).filter((h) => ha.includes(hexKey(h)));
+      if (shared.length === 2 && shared.every(isSea)) { nbrs.delete(b); adjacency.get(b)?.delete(a); }
+    }
+  }
+  for (const [k, v] of vertices) if (vertexHexes(v).every(isSea) || (adjacency.get(k)?.size ?? 0) === 0) { vertices.delete(k); adjacency.delete(k); }
+  const edges: Array<{ a: string; b: string }> = [];
+  for (const [a, nbrs] of adjacency) for (const b of nbrs) if (a < b) edges.push({ a, b });
+  return { vertices, adjacency, edges };
 }
 
 export { TERRAINS, CITY_TYPES };

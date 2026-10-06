@@ -2,6 +2,7 @@ import { prisma } from "../db.js";
 import { bookName, msg } from "./i18n.js";
 import { hexCorners, vertexKey, BOOKS } from "@lotw/domain";
 import { loadCityContent } from "./cities.js";
+import { gameSeas, loadSeaContent } from "./seas.js";
 import { notifyTeam, notifyUser } from "./notify.js";
 import { publish } from "./events.js";
 import { days, type Rules } from "./rules.js";
@@ -459,8 +460,8 @@ export async function getTeamMap(gameId: string, teamId: string) {
       include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true } } },
       orderBy: { createdAt: "asc" },
     }),
-    prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true, island: true } }),
-    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, ruined: true, island: true, coastal: true } }),
+    prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true, island: true, sea: true } }),
+    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, ruined: true, island: true, coastal: true, sea: true } }),
     prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } }),
     prisma.team.findUnique({ where: { id: teamId }, select: { startNodeKey: true } }),
   ]);
@@ -533,7 +534,18 @@ export async function getTeamMap(gameId: string, teamId: string) {
     const landing = t.status === "APPROVED" && isSeaKey(t.toKey);
     return { ...t, landing, candidates: landing ? await landingCandidates(gameId, teamId, t.fromKey, t.id) : undefined };
   }));
+  // Моря (решение владельца 06.10): внутреннее море видно, когда команда вышла на его берег (его гексы освещены);
+  // Великое море (пролив) видно всегда, а его вахты открываются с берегового узла.
+  const seaGeo = await gameSeas(gameId);
+  const seaStates = await prisma.teamSeaState.findMany({ where: { teamId }, select: { seaCode: true, doneTasks: true, openedAt: true, crossedAt: true } });
+  const seas = await Promise.all(seaGeo.map(async (sg) => {
+    const reached = sg.shore.some((k) => revealed.has(k));
+    const st = seaStates.find((x) => x.seaCode === sg.code);
+    const content = await loadSeaContent(sg.code);
+    return { code: sg.code, name: content?.name ?? sg.name, nameEn: content?.nameEn ?? sg.nameEn, hexes: sg.hexes, center: sg.center, visible: sg.code === "great" || reached, reached, done: st?.doneTasks.length ?? 0, total: content?.tasks.length ?? 0, opened: Boolean(st?.openedAt), crossed: Boolean(st?.crossedAt) };
+  }));
   return {
+    seas: seas.filter((s) => s.visible).map(({ visible: _v, ...s }) => s),
     // Остров известен и у гексов в тумане: по нему подписываются острова.
     hexes: hexes.map((h) => (lit(h) ? { ...h, lit: true } : { q: h.q, r: h.r, island: h.island, lit: false })),
     // Когда узел открыт — для ползунка истории на карте команды (решение владельца 05.10).

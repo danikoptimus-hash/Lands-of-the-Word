@@ -9,6 +9,7 @@ import { TimelineDock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
 import { CityPopup } from "./CityPopup";
 import { QuarrySheet } from "./QuarrySheet";
+import { SeaSheet } from "./SeaSheet";
 import { BATTLE_STATUS, battleTone, isMyTurn, leftText } from "./BattlePanel";
 import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
 import { TradesSection } from "./Trades";
@@ -160,6 +161,9 @@ export function TeamPage() {
   const [cityKey, setCityKey] = useState<string | null>(null);
   /** Каменоломня (решение владельца 04.10): лист общих дел и камней. */
   const [quarryOpen, setQuarryOpen] = useState(false);
+  /** Море (решение владельца 06.10): открытый лист моря и режим переправы (свой берег → противоположный). */
+  const [seaCode, setSeaCode] = useState<string | null>(null);
+  const [crossing, setCrossing] = useState<{ code: string; from: string[]; candidates: Record<string, string[]>; pick: string | null } | null>(null);
   const [cityVersion, setCityVersion] = useState(0);
   /** Лента, «Моё служение» и мир перезагружаются по событиям журнала, дел, городов и испытаний. */
   const [feedVersion, setFeedVersion] = useState(0);
@@ -307,6 +311,13 @@ export function TeamPage() {
     if (!landingId) return;
     if (!(await confirm(t("Узел откроется, и с него пойдут дела по другому острову. Вернуться назад можно только с портом."), { title: t("Высадиться здесь?"), okLabel: t("Высадиться") }))) return;
     try { await api(`/api/games/${id}/edge-tasks/${landingId}/land`, { method: "POST", body: JSON.stringify({ nodeKey }) }); setLandingId(null); notify(t("Команда высадилась на другом острове")); await loadMap(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+  }
+  async function crossPick(nodeKey: string) {
+    if (!crossing) return;
+    if (!crossing.pick) { setCrossing({ ...crossing, pick: nodeKey }); return; }
+    if (!(await confirm(t("Перекрёсток откроется, и с него пойдут дела. Переправа через это море даётся один раз."), { title: t("Переправиться сюда?"), okLabel: t("Переправиться") }))) return;
+    try { await api(`/api/games/${id}/my-sea/${crossing.code}/cross`, { method: "POST", body: JSON.stringify({ from: crossing.pick, to: nodeKey }) }); setCrossing(null); notify(t("Команда переправилась через море")); await loadMap(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
   }
   async function setGameRole(userId: string, gameRole: GameRole) {
@@ -636,8 +647,18 @@ export function TeamPage() {
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
-          onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} />
+          onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }}
+          onSelectSea={(code) => { setSeaCode(code); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }}
+          crossing={crossing ? { step: crossing.pick ? "to" : "from", keys: crossing.pick ? crossing.candidates[crossing.pick] ?? [] : crossing.from } : null} onCrossPick={(key) => void crossPick(key)} />
         {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
+        {seaCode && <SeaSheet gameId={id} code={seaCode} container={mapEl} onClose={() => setSeaCode(null)} onChanged={() => void loadMap()} onCross={(from, candidates) => setCrossing({ code: seaCode, from, candidates, pick: null })} />}
+        {crossing && (
+          <div className="finish-banner landing-banner" role="status">
+            <Icon name="helm" /><span>{crossing.pick ? t("Выберите перекрёсток противоположного берега: где там город, заранее не видно") : t("Откуда отплываем? Выберите свой берег моря")}</span>
+            {crossing.pick && <button type="button" className="ghost sm" onClick={() => setCrossing({ ...crossing, pick: null })}>{t("Назад")}</button>}
+            <button type="button" className="ghost sm" onClick={() => setCrossing(null)}>{t("Позже")}</button>
+          </div>
+        )}
         {map.startedAt && <div className="team-timeline"><TimelineDock moves={moves} startedAt={map.startedAt} at={historyAt} onChange={(d) => { setHistoryAt(d); setSelectedId(null); }} /></div>}
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">

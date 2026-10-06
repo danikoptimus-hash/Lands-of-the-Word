@@ -177,6 +177,8 @@ model MapHex {
   rotation Int    @default(0)
   /** Остров: OT — Ветхий Завет, NT — Новый Завет (карты до сентября 2026 — один остров OT). */
   island   String @default("OT")
+  /** Внутреннее море (решение владельца 06.10): код моря, если гекс — его вода. */
+  sea      String?
 
   @@unique([gameId, q, r])
 }
@@ -197,6 +199,8 @@ model MapNode {
   island    String   @default("OT")
   /** Береговой узел: хотя бы один гекс вокруг — море. Береговой город — порт: из него команда может уплыть на другой остров. */
   coastal   Boolean  @default(false)
+  /** Берег внутреннего моря: код моря, один из гексов вокруг — его вода (решение владельца 06.10). */
+  sea       String?
   /** Ключ конверта города (генерируется при старте игры, виден только админу). */
   cityKey   String?
   /** Шифр города: случайные буквы и цифры, по знаку на район; команда собирает его заданиями. Свой в каждой игре. */
@@ -306,6 +310,7 @@ model Team {
   edgeTasks    TeamEdgeTask[]
   taskLocks    TeamTaskLock[]
   cityStates   TeamCityState[]
+  seaStates      TeamSeaState[]
   attacks      Battle[]  @relation("attacker")
   defenses     Battle[]  @relation("defender")
 
@@ -531,6 +536,30 @@ model TeamCityState {
 
   @@unique([teamId, nodeKey])
   @@index([gameId, nodeKey])
+}
+
+/** Море глазами команды (решение владельца 06.10): вахты (задания) решены, море открыто, переправа использована. */
+model TeamSeaState {
+  id         String    @id @default(cuid())
+  gameId     String
+  teamId     String
+  team       Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  seaCode    String
+  /** Решённые командой вахты (хотя бы одним участником). */
+  doneTasks  Int[]     @default([])
+  /** Черновики заданий «по порядку»: номер вахты → id в выбранном порядке. */
+  taskDrafts Json?
+  /** Море открыто: все вахты решены и не меньше доли состава решили свою долю (правила ключа города). */
+  openedAt   DateTime?
+  /** Переправа через открытое море: один раз за игру, с берега на противоположный берег. */
+  crossedAt  DateTime?
+  crossFrom  String?
+  crossTo    String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([teamId, seaCode])
+  @@index([gameId, seaCode])
 }
 
 enum BattleStatus {

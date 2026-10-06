@@ -209,3 +209,15 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .member-deeds .i { width: 13px; height: 13px; flex: none; margin-top: 3px; color: var(--accent); }
 .member-deeds .title { flex: 1 1 auto; min-width: 0; }
 .member-deeds .muted { flex: none; margin-top: 1px; white-space: nowrap; }
+
+/* Моря (решение владельца 06.10): штурвал и название посреди воды — на карте команды и администратора. */
+.m-sea { cursor: pointer; pointer-events: auto; }
+.m-sea .ring { fill: var(--map-paper, #fff6e3); stroke: var(--text, #2b1d12); stroke-width: 1.5; }
+.m-sea use { color: var(--text, #2b1d12); pointer-events: none; }
+.m-sea rect { fill: var(--map-paper, #fff6e3); stroke: var(--text, #2b1d12); stroke-width: 1; }
+.m-sea text { fill: var(--text, #2b1d12); pointer-events: none; }
+.m-sea:not(.reached):not(.opened):not(.crossed) .ring { opacity: .85; }
+.m-sea.reached .ring { stroke: var(--accent, #b7791f); stroke-width: 2.5; }
+.m-sea.opened .ring, .m-sea.crossed .ring { fill: var(--success, #4c8c4a); stroke: var(--on-accent, #fff); stroke-width: 2; }
+.m-sea.opened use, .m-sea.crossed use { color: var(--on-accent, #fff); }
+.m-sea .cnt { fill: var(--accent-ink, #6b4a0e); }

@@ -9,3 +9,4 @@ export * from "./isletShapes.js";
 export * from "./starts.js";
 export * from "./daytime.js";
 export * from "./seaRoute.js";
+export * from "./seas.js";

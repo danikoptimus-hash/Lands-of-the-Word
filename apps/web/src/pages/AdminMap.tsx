@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
+import { BOOKS, startName, seaName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { CoastOver, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
+import { CoastOver, islandGeometry, seaGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import { reportPage } from "../lib/perf";
@@ -14,6 +14,7 @@ import { useUi } from "../lib/ui";
 import { t, getLocale } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { AdminQuarrySheet } from "./QuarrySheet";
+import { AdminSeaSheet } from "./SeaSheet";
 import { Icon, iconPath } from "../components/Icon";
 import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
 import { css, useDaytime } from "../lib/daytime";
@@ -84,6 +85,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const vp = useViewport(bounds);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
   const [quarryOpen, setQuarryOpen] = useState(false);
+  /** Море (решение владельца 06.10): лист с вахтами и ходом команд. */
+  const [seaCode, setSeaCode] = useState<string | null>(null);
+  const seas = useMemo(() => seaGeometry(hexes, size), [hexes, size]);
   /** Нажатие на дорогу: дела всех команд на этой стороне; нажатие на дело — отчёт (решение владельца 30.09). */
   const [edgeSel, setEdgeSel] = useState<{ aKey: string; bKey: string } | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
@@ -201,6 +205,17 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     );
   })();
   const screenBody = useMemo(() => (<>
+              {/* Моря: название и штурвал; нажатие — лист моря (решение владельца 06.10). */}
+              {seas.map((sea) => {
+                const name = seaName(sea.code, getLocale() === "en" ? "en" : "ru"), fs = 11, w = Math.ceil(name.length * fs * 0.62) + 16, h = fs + 9;
+                return (
+                  <g key={"sea" + sea.code} className="pick m-sea" style={sc(sea.x, sea.y)} role="button" aria-label={name} onClick={() => { if (!vp.wasDrag()) setSeaCode(sea.code); }}>
+                    <circle className="ring" r={17} />
+                    <use href="#m-helm" x={-11} y={-11} width={22} height={22} />
+                    <g transform="translate(0, 30)"><rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} /><text textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{name}</text></g>
+                  </g>
+                );
+              })}
               {nodes.map((n) => {
                 const raw = positions.get(n.key)!;
                 const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
@@ -251,7 +266,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 if (!showDots) return null;
                 return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" />{seen.length === 0 && <circle r={3} fill="rgba(31,27,22,.4)" />}{seen.map((tm, i) => <circle key={tm.id} cx={(i - (seen.length - 1) / 2) * 8} cy={0} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
-  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById, battleAt, landKeys, obstacles]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById, battleAt, landKeys, obstacles, seas]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   const viewedTeam = viewAs ? teamById.get(viewAs) : null;
   const viewMap = useMemo(() => (teamView?.map && at && viewedTeam && progress ? { ...rewindTeamMap(teamView.map, viewedTeam, progress, cities, nodes), teamIndex: teamView.map.teamIndex } : teamView?.map ?? null), [teamView, at, viewedTeam, progress, cities, nodes]);
@@ -320,6 +335,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.", { name: viewedTeam.name })}</p>}
         {edgeSel && wrapEl && !reportId && <EdgeTasksSheet gameId={gameId} aKey={edgeSel.aKey} bKey={edgeSel.bKey} container={wrapEl} onClose={() => setEdgeSel(null)} onOpenTask={setReportId} />}
         {reportId && wrapEl && <TaskReportSheet gameId={gameId} taskId={reportId} container={wrapEl} onClose={() => { setReportId(null); setEdgeSel(null); }} onReview={onReview} />}
+        {seaCode && wrapEl && <AdminSeaSheet gameId={gameId} code={seaCode} container={wrapEl} onClose={() => setSeaCode(null)} />}
         {quarryOpen && wrapEl && <AdminQuarrySheet gameId={gameId} container={wrapEl} onClose={() => setQuarryOpen(false)} onReview={() => { setQuarryOpen(false); onReview?.(); }} />}
         {selected && wrapEl && (selected.kind === "CITY"
           ? <CitySheet gameId={gameId} node={selected} version={version} container={wrapEl} revealed={revealedBy.get(selected.key) ?? []} battle={battleAt.get(selected.key) ?? null} teamById={teamById} onClose={close} onReview={onReview} />

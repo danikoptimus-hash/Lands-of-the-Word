@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { generateMap, MapGenError, SEA_BOOKS } from "./mapgen.js";
 import { BOOKS } from "./books.js";
 import { buildHexGraph, graphDistances, hexCorners, vertexHexes, vertexKey } from "./hexgraph.js";
-import { hexKey } from "./hex.js";
+import { hexKey, hexNeighbors } from "./hex.js";
 import { hexesInRadius } from "./hex.js";
 import { BOOK_COUNT } from "./books.js";
 
@@ -57,7 +57,10 @@ describe("generateMap", () => {
     expect(a).toEqual(b);
     const ids = new Set(a.nodes.map((n) => n.id));
     for (const e of a.edges) { expect(ids.has(e.a)).toBe(true); expect(ids.has(e.b)).toBe(true); }
-    const g = buildHexGraph(a.hexes);
+    // Связность — по дорогам карты (внутри морей дорог нет, поэтому граф по всем гексам не годится).
+    const adjacency = new Map<string, Set<string>>();
+    for (const e of a.edges) { (adjacency.get(e.a) ?? adjacency.set(e.a, new Set()).get(e.a)!).add(e.b); (adjacency.get(e.b) ?? adjacency.set(e.b, new Set()).get(e.b)!).add(e.a); }
+    const g = { vertices: new Map(), adjacency, edges: a.edges };
     const islandOf = new Map(a.nodes.map((n) => [n.id, n.island]));
     for (const e of a.edges) expect(islandOf.get(e.a)).toBe(islandOf.get(e.b));
     for (const isl of ["OT", "NT"] as const) {
@@ -110,5 +113,41 @@ describe("generateMap", () => {
 
   it("ругается на одну команду", () => {
     expect(() => generateMap({ seed: 1, teamCount: 1 })).toThrow(MapGenError);
+  });
+});
+
+describe("моря на карте (решение владельца 06.10)", () => {
+  it("внутренние моря вырезаны в глубине островов, по их воде дорог нет, острова связны", () => {
+    for (const seed of [1, 7, 42, 99, 123]) {
+      const map = generateMap({ seed, teamCount: 3 });
+      const seaHexes = map.hexes.filter((h) => h.sea);
+      expect(seaHexes.length).toBeGreaterThanOrEqual(10);
+      expect(Object.keys(map.stats.seas).sort()).toEqual(["adria", "galilee", "merom", "red", "salt"]);
+      const fieldSet = new Set(map.hexes.map(hexKey));
+      const seaSet = new Set(seaHexes.map(hexKey));
+      // Все соседи морского гекса — на поле (море не выходит к проливу), а сам гекс — вода.
+      for (const h of seaHexes) { expect(h.terrain).toBe("water"); for (const n of hexNeighbors(h)) expect(fieldSet.has(hexKey(n))).toBe(true); }
+      // Ни одна сторона не лежит между двумя гексами моря, ни один узел не стоит посреди моря.
+      const ids = new Map(map.nodes.map((n) => [n.id, n]));
+      for (const e of map.edges) {
+        const ha = vertexHexes(ids.get(e.a)!).map(hexKey), shared = vertexHexes(ids.get(e.b)!).filter((h) => ha.includes(hexKey(h)));
+        expect(shared.every((h) => seaSet.has(hexKey(h)))).toBe(false);
+      }
+      for (const n of map.nodes) expect(vertexHexes(n).every((h) => seaSet.has(hexKey(h)))).toBe(false);
+      // Берег моря помечен на узлах; город может стоять на берегу, но порт — только у пролива.
+      const shore = map.nodes.filter((n) => n.sea);
+      expect(shore.length).toBeGreaterThan(10);
+      for (const n of shore) expect(vertexHexes(n).some((h) => seaSet.has(hexKey(h)))).toBe(true);
+      for (const n of map.nodes) if (n.kind === "city" && n.cityType === "port") expect(n.coastal).toBe(true);
+      // Каждый остров остаётся связным по оставшимся дорогам.
+      const adjacency = new Map<string, Set<string>>();
+      for (const e of map.edges) { (adjacency.get(e.a) ?? adjacency.set(e.a, new Set()).get(e.a)!).add(e.b); (adjacency.get(e.b) ?? adjacency.set(e.b, new Set()).get(e.b)!).add(e.a); }
+      for (const isl of ["OT", "NT"] as const) {
+        const mine = map.nodes.filter((n) => n.island === isl);
+        const seen = new Set([mine[0]!.id]); const queue = [mine[0]!.id];
+        while (queue.length) { const c = queue.pop()!; for (const n of adjacency.get(c) ?? []) if (!seen.has(n)) { seen.add(n); queue.push(n); } }
+        expect(seen.size).toBe(mine.length);
+      }
+    }
   });
 });

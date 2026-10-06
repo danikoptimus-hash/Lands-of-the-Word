@@ -181,6 +181,20 @@ export function shallowRings(light: Light = DAY_LIGHT): ReadonlyArray<{ color: s
 export const SHALLOW_RINGS = shallowRings();
 
 /** Центр и радиус каждого острова (по центрам его гексов): для подписей и кораблей. */
+/**
+ * Моря на карте (решение владельца 06.10): внутренние — центр гексов воды с кодом моря; Великое море — середина пролива
+ * между островами. Для карты администратора (у команды центры присылает сервер).
+ */
+export function seaGeometry(hexes: ReadonlyArray<MapHexDto>, size: number): Array<{ code: string; x: number; y: number }> {
+  const out: Array<{ code: string; x: number; y: number }> = [];
+  const acc = new Map<string, { x: number; y: number; n: number }>();
+  for (const h of hexes) if (h.sea) { const c = hexCenter(h, size); const a = acc.get(h.sea) ?? { x: 0, y: 0, n: 0 }; a.x += c.x; a.y += c.y; a.n++; acc.set(h.sea, a); }
+  const ot = hexes.filter((h) => (h.island ?? "OT") === "OT").map((h) => hexCenter(h, size)), nt = hexes.filter((h) => h.island === "NT").map((h) => hexCenter(h, size));
+  if (ot.length && nt.length) out.push({ code: "great", x: (Math.max(...ot.map((p) => p.x)) + Math.min(...nt.map((p) => p.x))) / 2, y: (ot.reduce((a, p) => a + p.y, 0) / ot.length + nt.reduce((a, p) => a + p.y, 0) / nt.length) / 2 });
+  for (const [code, a] of acc) out.push({ code, x: a.x / a.n, y: a.y / a.n });
+  return out;
+}
+
 export function islandGeometry(hexes: ReadonlyArray<MapHexDto>, size: number): Map<string, { x: number; y: number; r: number }> {
   const acc = new Map<string, { x: number; y: number; n: number }>();
   for (const h of hexes) { const c = hexCenter(h, size), key = h.island ?? "OT"; const a = acc.get(key) ?? { x: 0, y: 0, n: 0 }; a.x += c.x; a.y += c.y; a.n++; acc.set(key, a); }
@@ -547,6 +561,7 @@ const SYMBOLS: Record<string, string> = {
   wave: "M2 12c2-3 4-3 6 0s4 3 6 0 4-3 6 0M2 18c2-3 4-3 6 0s4 3 6 0 4-3 6 0",
   city: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 10h.01M15 10h.01M9 14h.01M15 14h.01",
   telescope: "m4 14 12-7 3 5-12 7-3-5Zm12-7 3-2 3 5-3 2M9 17l3 5m-6-2 3-3",
+  helm: "M12 2v4m0 12v4M2 12h4m12 0h4M4.9 4.9l2.9 2.9m8.4 8.4 2.9 2.9m0-14.2-2.9 2.9m-8.4 8.4-2.9 2.9M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Zm0-3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z",
   pin: "M12 21s-6-5.3-6-11a6 6 0 1 1 12 0c0 5.7-6 11-6 11ZM12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
   scroll: "M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4M8 21a2 2 0 0 1-2-2M6 5h12a2 2 0 0 1 2 2v10M10 9h6m-6 4h6",
   user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m12-14a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",

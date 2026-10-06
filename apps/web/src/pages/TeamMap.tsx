@@ -39,7 +39,7 @@ export const routeColor = (color: string) => {
 };
 /** Точка метки: гекс и точное место нажатия дробными осевыми координатами. */
 export interface MarkPoint { q: number; r: number; qf: number; rf: number }
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, bird }: { /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, bird, onSelectSea, crossing, onCrossPick }: { /** Нажатие на штурвал моря (решение владельца 06.10): лист моря с вахтами. */ onSelectSea?: (code: string) => void; /** Режим переправы: подсвечены узлы, которые можно выбрать (свой берег, затем противоположный). */ crossing?: { step: "from" | "to"; keys: string[] } | null; onCrossPick?: (nodeKey: string) => void; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -329,6 +329,32 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
+          {/* Моря (решение владельца 06.10): название и штурвал посреди воды; нажатие открывает вахты. */}
+          {showMarkers && (map.seas ?? []).map((sea) => {
+            const name = getLocale() === "en" ? sea.nameEn : sea.name, fs = fullLabels ? 12 : 10, w = textWidth(name, fs) + 16, h = fs + 9;
+            const cls = "m-sea" + (sea.crossed ? " crossed" : sea.opened ? " opened" : sea.reached ? " reached" : "");
+            return (
+              <g key={"sea" + sea.code} className={cls} style={sc(sea.center.x * size, sea.center.y * size)} role="button" aria-label={name} onClick={() => { if (!vp.wasDrag()) onSelectSea?.(sea.code); }}>
+                <circle className="ring" r={17} />
+                <use href="#m-helm" x={-11} y={-11} width={22} height={22} />
+                {sea.reached && !sea.opened && sea.done > 0 && <text className="cnt" x={17} y={-11} textAnchor="middle" dy="0.35em" fontSize={9} fontWeight={700}>{sea.done}</text>}
+                <g transform="translate(0, 30)">
+                  <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
+                  <text textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{name}</text>
+                </g>
+              </g>
+            );
+          })}
+          {crossing && crossing.keys.map((key) => {
+            const p = nodePos(key, size);
+            return (
+              <g key={"cross" + key} className={"m-land" + (crossing.step === "from" ? " from" : "")} style={sc(p.x, p.y)} onClick={() => { if (!vp.wasDrag()) onCrossPick?.(key); }}>
+                <circle className="pulse" r={14} />
+                <circle className="dot" r={6} />
+                <use href={crossing.step === "from" ? "#m-helm" : "#m-anchor"} x={-5} y={-5} width={10} height={10} />
+              </g>
+            );
+          })}
           {landing && landing.candidates.map((key) => {
             const p = nodePos(key, size);
             return (
@@ -361,7 +387,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
-  </>), [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, map.seas, crossing, onCrossPick, onSelectSea, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   return (
     <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "")} style={{ background: css(dt.light.bg) }} onClick={marking ? placeMark : undefined}>
