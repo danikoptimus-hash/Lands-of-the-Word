@@ -82,9 +82,11 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const { id, deedId } = request.params as { id: string; deedId: string };
     if (!(await requireGameAdmin(request, reply, id))) return;
     const body = deedBody.partial().parse(request.body);
+    // Выключить/включить дело (решение владельца 06.10): отдельное поле, в содержимое и хеш набора не входит.
+    const { disabled } = z.object({ disabled: z.boolean().optional() }).parse(request.body);
     const exists = await prisma.deed.findFirst({ where: { id: deedId, gameId: id } });
     if (!exists) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
-    const deed = await prisma.deed.update({ where: { id: deedId }, data: body });
+    const deed = await prisma.deed.update({ where: { id: deedId }, data: { ...body, ...(disabled === undefined ? {} : { disabled }) } });
     publish(id, { type: "deeds" });
     // Новые вероятность и книги действуют только на новые стороны: дела, которые уже видны на карте, остаются (решение владельца 05.10).
     return { deed };

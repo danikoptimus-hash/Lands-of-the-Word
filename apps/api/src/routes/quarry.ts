@@ -29,7 +29,7 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
     const [deeds, works, team] = await Promise.all([
-      prisma.deed.findMany({ where: { gameId: id, quarry: true }, select: quarryDeedSelect, orderBy: { createdAt: "asc" } }),
+      prisma.deed.findMany({ where: { gameId: id, quarry: true, disabled: false }, select: quarryDeedSelect, orderBy: { createdAt: "asc" } }),
       prisma.quarryWork.findMany({ where: { teamId: m.team.id }, orderBy: { submittedAt: "desc" }, take: 30, include: { deed: { select: { title: true } } } }),
       prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } }),
     ]);
@@ -51,7 +51,7 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     if (!canWork(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Общее дело сдаёт капитан, заместитель или летописец") });
     if (!(await assertAwake(request, reply, id))) return;
-    const deed = await prisma.deed.findFirst({ where: { id: deedId, gameId: id, quarry: true }, select: quarryDeedSelect });
+    const deed = await prisma.deed.findFirst({ where: { id: deedId, gameId: id, quarry: true, disabled: false }, select: quarryDeedSelect });
     if (!deed) return reply.code(404).send({ error: "not_found", message: err(request, "Общее дело не найдено") });
     const body = workBody.parse(request.body);
     const pending = await prisma.quarryWork.count({ where: { teamId: m.team.id, deedId, status: "SUBMITTED" } });

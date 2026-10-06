@@ -352,3 +352,5 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 /* Два раздела дел (решение владельца 04.10): подписи вкладок переносятся, счётчик рядом, ничего не наезжает. */
 .deed-sections > button { white-space: normal; text-align: center; line-height: 1.15; min-height: 44px; padding: 4px 6px; }
 .deed-sections > button > .count-chip { flex: none; }
+/* Выключенное дело (06.10): приглушено, остаётся в списке, чтобы включить обратно. */
+.deed-row.off > .main { opacity: .55; }

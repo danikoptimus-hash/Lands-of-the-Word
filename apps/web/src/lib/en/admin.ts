@@ -83,6 +83,7 @@ export const ADMIN: Record<string, string> = {
   "Спросите согласие человека заранее.": "Ask the person for consent in advance.", "пожилой человек": "elderly person",
   // Проверка
   "из них в море (корабль у порта): {n}": "of them at sea (a ship by the port): {n}",
+  "Выключить дело": "Disable deed", "Включить дело": "Enable deed", "выключено": "disabled", "Дело выключено: на новые дороги больше не попадёт": "Deed disabled: it will no longer appear on new roads", "Дело включено: снова может попасть на новые дороги": "Deed enabled: it can appear on new roads again",
   "Возвращённые": "Returned", "К сдачам": "Back to submissions", "Принять после пересмотра": "Accept on review", "Возвращено {when}": "Returned {when}", "Сдача принята после пересмотра": "Submission accepted on review",
   "Фото": "Photo", "Видео": "Video", "Ссылка": "Link", "Сдача принята": "Submission accepted", "Сдача возвращена": "Submission returned", "Сдачи": "Submissions",
   "Отчёт команды": "Team report", "Принять": "Accept", "Причина возврата: команда её увидит": "Reason for return: the team will see it",

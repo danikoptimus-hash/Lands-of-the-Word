@@ -12,7 +12,7 @@ import { Help } from "../components/Help";
 import { plural } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "AUDIO_LINK" | "WITNESS";
-interface DeedDto { id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number; /** Сколько из свободных — морские рейсы (на карте корабль, а не свиток). */ sea?: number; /** Разбивка по командам: сверять с картой «глазами команды». */ teams?: Array<{ index: number; name: string; color: string; free: number; taken: number }> }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
+interface DeedDto { /** Выключено администратором: на новые дороги не попадает (06.10). */ disabled?: boolean; id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number; /** Сколько из свободных — морские рейсы (на карте корабль, а не свиток). */ sea?: number; /** Разбивка по командам: сверять с картой «глазами команды». */ teams?: Array<{ index: number; name: string; color: string; free: number; taken: number }> }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
 type Form = { quarry: boolean; stones: number; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
 /** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
 const CHANCES = [20, 40, 60, 80, 100];
@@ -88,6 +88,11 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
+  /** Выключить/включить дело (решение владельца 06.10): выключенное на новые дороги не ставится, уже выданные стороны остаются. */
+  async function toggleDisabled(d: DeedDto) {
+    try { await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "PUT", body: JSON.stringify({ disabled: !d.disabled }) }); notify(d.disabled ? t("Дело включено: снова может попасть на новые дороги") : t("Дело выключено: на новые дороги больше не попадёт")); await reload(); }
+    catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
+  }
   async function remove(d: DeedDto) {
     if (!(await confirm(t("Дело «{title}» будет удалено из списка.", { title: d.title }), { title: t("Удалить дело?"), okLabel: t("Удалить"), danger: true }))) return;
     try { await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "DELETE" }); notify(t("Дело удалено")); await reload(); }
@@ -122,9 +127,9 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
       ) : (
         <ul className="list">
           {shown.map((d) => { const open = expanded.has(d.id); return (
-            <li key={d.id} className={"deed-row" + (open ? " open" : "")}>
+            <li key={d.id} className={"deed-row" + (open ? " open" : "") + (d.disabled ? " off" : "")}>
               <div className="main" onClick={() => toggle(d.id)}>
-                <span className="title">{withBook(d.title)} {d.quarry && <Chip tone="accent" icon="stone" title={t("Камней за дело")}>{d.stones ?? 1}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
+                <span className="title">{withBook(d.title)} {d.quarry && <Chip tone="accent" icon="stone" title={t("Камней за дело")}>{d.stones ?? 1}</Chip>} {d.disabled && <Chip tone="warn" icon="x">{t("выключено")}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
                 {d.description && <span className={"deed-desc small" + (open ? " open" : "")}>{withBook(d.description)}</span>}
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
@@ -142,6 +147,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
                 <button type="button" className="ghost sm icon" onClick={() => openEdit(d)} aria-label={t("Изменить дело")} title={t("Изменить")}><Icon name="edit" /></button>
                 <ActionMenu label={t("Ещё")} items={[
                   { label: t("Дублировать дело"), icon: "copy", onSelect: () => openDuplicate(d) },
+                  { label: d.disabled ? t("Включить дело") : t("Выключить дело"), icon: d.disabled ? "check" : "x", onSelect: () => void toggleDisabled(d) },
                   { label: t("Удалить дело"), icon: "trash", danger: true, onSelect: () => void remove(d) },
                 ]} />
               </div>

@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
+import { pickDeed } from "./services/teamMap.js";
 import { prisma } from "./db.js";
 import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 
@@ -332,6 +333,25 @@ describe("карта команды и дела", () => {
     expect(after.revealed.every((n: { revealedAt?: string | null }) => n.revealedAt)).toBe(true);
     expect(after.startedAt).toBeTruthy();
     expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${open.id}/decide`, headers: { cookie: adminCookie }, payload: { approve: true } })).statusCode).toBe(409);
+  });
+});
+
+describe("выключенное дело (06.10)", () => {
+  it("выключенное дело не попадает на новые дороги; включённое — снова в наборе", async () => {
+    const deeds = await prisma.deed.findMany({ where: { gameId, quarry: false }, select: { id: true } });
+    expect(deeds.length).toBeGreaterThan(1);
+    const keep = deeds[0]!.id;
+    const off = await app.inject({ method: "PUT", url: `/api/games/${gameId}/deeds/${deeds[1]!.id}`, headers: { cookie: adminCookie }, payload: { disabled: true } });
+    expect(off.statusCode).toBe(200); expect(off.json().deed.disabled).toBe(true);
+    const list = await app.inject({ method: "GET", url: `/api/games/${gameId}/deeds`, headers: { cookie: adminCookie } });
+    expect(list.json().deeds.find((d: { id: string }) => d.id === deeds[1]!.id).disabled).toBe(true);
+    // Все, кроме одного, выключены — подбор на новую сторону отдаёт только оставшееся.
+    await prisma.deed.updateMany({ where: { gameId, quarry: false, id: { not: keep } }, data: { disabled: true } });
+    const team = await prisma.team.findFirstOrThrow({ where: { gameId }, select: { id: true } });
+    for (let i = 0; i < 5; i++) expect(await pickDeed(gameId, team.id, null)).toBe(keep);
+    await prisma.deed.updateMany({ where: { gameId }, data: { disabled: false } });
+    const on = await app.inject({ method: "PUT", url: `/api/games/${gameId}/deeds/${deeds[1]!.id}`, headers: { cookie: adminCookie }, payload: { disabled: false } });
+    expect(on.json().deed.disabled).toBe(false);
   });
 });
 
