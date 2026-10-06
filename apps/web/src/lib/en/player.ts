@@ -448,4 +448,5 @@ export const PLAYER: Record<string, string> = {
   "Дел": "Deeds",
   "Районов": "Districts",
   "Стихов": "Verses",
+  "Открытых перекрёстков": "Crossroads revealed",
 };

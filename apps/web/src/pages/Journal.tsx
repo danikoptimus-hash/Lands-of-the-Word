@@ -113,9 +113,10 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
       {!s ? <LoadingState rows={1} /> : (
         <div className="service">
           <div className="svc-stat"><b>{s.deeds}</b><span>{plural(s.deeds, ["дело", "дела", "дел"]).replace(/^\d+\s*/, "")}</span></div>
+          {/* Порядок как у значков в списке ниже (решение владельца 07.10): дела, районы, города, стихи. */}
           <div className="svc-stat"><b>{s.tasks}</b><span>{t("районов")}</span></div>
-          <div className="svc-stat"><b>{s.verses}</b><span>{t("стихов")}</span></div>
           <div className="svc-stat"><b>{s.cities}</b><span>{t("городов")}</span></div>
+          <div className="svc-stat"><b>{s.verses}</b><span>{t("стихов")}</span></div>
           {s.trips > 0 && <div className="svc-stat"><b>{s.trips}</b><span>{t("переправ")}</span></div>}
         </div>
       )}
