@@ -121,8 +121,9 @@ describe("моря на карте (решение владельца 06.10)", (
     for (const seed of [1, 7, 42, 99, 123]) {
       const map = generateMap({ seed, teamCount: 3 });
       const seaHexes = map.hexes.filter((h) => h.sea);
-      expect(seaHexes.length).toBeGreaterThanOrEqual(10);
-      expect(Object.keys(map.stats.seas).sort()).toEqual(["adria", "galilee", "merom", "red", "salt"]);
+      // Каждое море — один гекс (решение владельца 06.10).
+      expect(seaHexes).toHaveLength(5);
+      expect(map.stats.seas).toEqual({ adria: 1, galilee: 1, merom: 1, red: 1, salt: 1 });
       const fieldSet = new Set(map.hexes.map(hexKey));
       const seaSet = new Set(seaHexes.map(hexKey));
       // Все соседи морского гекса — на поле (море не выходит к проливу), а сам гекс — вода.
@@ -136,7 +137,7 @@ describe("моря на карте (решение владельца 06.10)", (
       for (const n of map.nodes) expect(vertexHexes(n).every((h) => seaSet.has(hexKey(h)))).toBe(false);
       // Берег моря помечен на узлах; город может стоять на берегу, но порт — только у пролива.
       const shore = map.nodes.filter((n) => n.sea);
-      expect(shore.length).toBeGreaterThan(10);
+      expect(shore.length).toBe(30);
       for (const n of shore) expect(vertexHexes(n).some((h) => seaSet.has(hexKey(h)))).toBe(true);
       for (const n of map.nodes) if (n.kind === "city" && n.cityType === "port") expect(n.coastal).toBe(true);
       // Каждый остров остаётся связным по оставшимся дорогам.

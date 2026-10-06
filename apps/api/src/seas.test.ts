@@ -125,7 +125,7 @@ describe("моря на карте и переправа", () => {
   let seaCode = "", shoreKey = "";
   it("карта: Великое море видно сразу, внутреннее — после выхода на берег; вахты закрыты, пока берег не достигнут", async () => {
     const hexes = await prisma.mapHex.findMany({ where: { gameId, sea: { not: null } }, select: { sea: true } });
-    expect(hexes.length).toBeGreaterThanOrEqual(10);
+    expect(hexes).toHaveLength(5);
     const map = await myMap();
     // Великое море видно всегда; внутреннее — только если старт команды оказался на его берегу.
     const startShore = await prisma.mapNode.findFirst({ where: { gameId, key: map.team.startNodeKey }, select: { sea: true } });
