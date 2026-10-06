@@ -575,7 +575,7 @@ export function TeamPage() {
               <ul className="list interactive">
                 {ourTasks.map((tk) => { const st = deedStatus(tk.status); return (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
-                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{tk.deed.direction}{tk.status === "REJECTED" && tk.adminComment ? ` · ${tk.adminComment}` : ""}</span></div>
+                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{tk.status === "REJECTED" && tk.adminComment ? tk.adminComment : ""}</span></div>
                     {/* Под состоянием — кто взял дело (просьба участников 03.10: видно, у кого дело в работе). */}
                     <div className="side col"><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>{tk.takenById && tk.status !== "APPROVED" && <span className="muted small taker">{memberName(tk.takenById)}</span>}</div>
                   </li>
@@ -590,7 +590,7 @@ export function TeamPage() {
               <ul className="list interactive">
                 {freeTasks.map((tk) => (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
-                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{tk.deed.direction}{tk.deed.donationMin ? ` · ${donationText(tk.deed.donationMin)}` : ""}{tk.sea ? ` · ${t("корабль")}` : ""}</span></div>
+                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{[tk.deed.donationMin ? donationText(tk.deed.donationMin) : "", tk.sea ? t("корабль") : ""].filter(Boolean).join(" · ")}</span></div>
                     <div className="side"><button type="button" className="sm" disabled={busy || limitFull(map) || !canTakeNow} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button></div>
                   </li>
                 ))}
@@ -720,7 +720,6 @@ export function TeamPage() {
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
           return (
             <Sheet size="sm" container={mapEl} onClose={() => setSelectedId(null)} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip></div>}>
-              <p className="direction">{task.deed.direction}</p>
               <p className="meta-line mt-2">
                 <Icon name={proof.icon} />{t("Сдать")}: {proof.label()}
                 {taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}

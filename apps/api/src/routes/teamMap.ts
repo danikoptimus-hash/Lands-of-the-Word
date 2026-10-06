@@ -23,7 +23,7 @@ const submitBody = z.object({
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
 
 
-/** Лимит дел в сутки для участника: сколько взято за последние 24 часа и когда освободится место. null — лимита нет. */
+/** Лимит дел в сутки для участника: сколько взято с последних 7:00 по поясу игры и когда счёт обнулится. null — лимита нет. */
 async function deedLimitFor(gameId: string, userId: string): Promise<DeedLimit | null> {
   const max = (await gameRules(gameId)).maxDeedsPerDay;
   if (!max) return null;
@@ -138,7 +138,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (task.status !== "OPEN" && task.status !== "REJECTED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже взято или сдано") });
     // Лимит дел в сутки на участника (решение владельца 02.10): превысил — взять (забронировать) нельзя, пусть берут другие.
     const limit = await deedLimitFor(id, request.user!.id);
-    if (limit && limit.taken >= limit.max) return reply.code(409).send({ error: "conflict", message: err(request, "В сутки можно взять не больше {n} дел. Следующее можно взять через {when}", { n: limit.max, when: untilText(request, limit.nextAt ?? Date.now()) }) });
+    if (limit && limit.taken >= limit.max) return reply.code(409).send({ error: "conflict", message: err(request, "В сутки можно взять не больше {n} дел. Счёт обнулится в 7:00, через {when}", { n: limit.max, when: untilText(request, limit.nextAt ?? Date.now()) }) });
     const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id, takenAt: new Date() }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: hideSecret(updated, request.user!.id) };

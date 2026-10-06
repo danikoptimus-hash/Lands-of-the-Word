@@ -24,7 +24,7 @@ export function TaskReportSheet({ gameId, taskId, container, onClose, onReview }
       {error ? <ErrorState text={error} /> : !task ? <LoadingState rows={3} /> : (
         <>
           <p className="meta-line"><TeamAvatar name={task.team.name} color={task.team.color} size="sm" withName /></p>
-          <p className="muted small">{task.deed.direction} · {PROOF_LABEL[task.deed.proofType]}</p>
+          <p className="muted small">{PROOF_LABEL[task.deed.proofType]}</p>
           {task.deed.description && <p className="mt-2 small">{task.deed.description}</p>}
           <p className="meta-line mt-2">
             {task.takenBy && <><Icon name="user" />{t("Взял: {name}", { name: task.takenBy.name })}</>}
