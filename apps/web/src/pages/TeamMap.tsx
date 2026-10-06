@@ -8,7 +8,7 @@ import type { DailyBirdDto, EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/
 import { CoastOver, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
-import { FaunaLayer, type FireSite } from "./Fauna";
+import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
 import { css, useDaytime } from "../lib/daytime";
 import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
@@ -130,7 +130,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     });
   }, [map.tasks, landKeys, islets, size]);
   // Видимая линия переправы рисуется слоем живности между зверями и кораблями (решение владельца 06.10); в SVG остаётся только область нажатия.
-  const routeSpecs = useMemo(() => seaRoutes.map((r) => ({ pts: r.pts, color: routeColor(map.team.color), selected: r.tk.id === selectedTaskId, arrow: { x: r.end.x, y: r.end.y, heading: r.heading } })), [seaRoutes, map.team.color, selectedTaskId]);
+  // Концы линии укорочены, чтобы не заходить под знак порта и города (замечание владельца 06.10: города выше маршрута).
+  const routeSpecs = useMemo(() => seaRoutes.map((r) => ({ pts: trimRoute(r.pts, size * 0.5, nodeByKey.get(r.tk.toKey)?.kind === "CITY" ? size * 0.5 : size * 0.2), color: routeColor(map.team.color), selected: r.tk.id === selectedTaskId, arrow: { x: r.end.x, y: r.end.y, heading: r.heading } })), [seaRoutes, map.team.color, selectedTaskId, nodeByKey, size]);
   // Корабли: морские дела, пока команда не высадилась (после высадки дело — обычная пройденная сторона).
   const ships = useMemo(() => map.tasks.filter((tk) => tk.sea && (tk.status !== "APPROVED" || tk.landing)).map((tk) => {
     const p = nodePos(tk.fromKey, size), c = islandCenters.get(nodeByKey.get(tk.fromKey)?.island ?? "OT") ?? { x: 0, y: 0 };

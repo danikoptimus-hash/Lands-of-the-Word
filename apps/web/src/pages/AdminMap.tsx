@@ -15,7 +15,7 @@ import { t, getLocale } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { AdminQuarrySheet } from "./QuarrySheet";
 import { Icon, iconPath } from "../components/Icon";
-import { FaunaLayer, type FireSite } from "./Fauna";
+import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
 import { css, useDaytime } from "../lib/daytime";
 import { LakesLayer } from "./Lakes";
 import { kindLabel } from "./RecipientsBlock";
@@ -142,9 +142,10 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     return (progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
       const pts = routeCurve(seaRoute(landKeys, e.fromKey, e.toKey, size, undefined, obstacles), landKeys, size, obstacles);
       const arrow = routeArrow(pts, size * 1.1);
-      return { pts, color: routeColor(tm.color), arrow: { x: arrow.x, y: arrow.y, heading: arrow.heading } };
+      const toCity = nodes.find((n) => n.key === e.toKey)?.kind === "CITY";
+      return { pts: trimRoute(pts, size * 0.5, toCity ? size * 0.5 : size * 0.2), color: routeColor(tm.color), arrow: { x: arrow.x, y: arrow.y, heading: arrow.heading } };
     }));
-  }, [progress, edgeSet, positions, landKeys, islets, size]);
+  }, [progress, edgeSet, positions, landKeys, islets, size, nodes]);
   const islandLabels = useMemo(() => (showIslands && islandCenters.has("NT") ? [...islandCenters].map(([isl, c]) => ({ x: c.x, y: c.y, r: c.r + size * 4, name: isl === "OT" ? t("Ветхий Завет") : t("Новый Завет") })) : []), [showIslands, islandCenters, size]);
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста). */
   const sc = (x: number, y: number) => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))` });

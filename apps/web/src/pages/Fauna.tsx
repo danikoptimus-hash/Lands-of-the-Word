@@ -1071,6 +1071,20 @@ function stepWorld(w: World, dt: number): void {
 /** Морской маршрут (переправа): точки по воде, цвет команды, стрелка в конце; выбранный — толще. Рисуется между зверями и кораблями. */
 export interface RouteSpec { pts: ReadonlyArray<{ x: number; y: number }>; color: string; selected?: boolean; arrow: { x: number; y: number; heading: number } }
 let ROUTES: readonly RouteSpec[] = [];
+/** Укоротить ломаную с концов на заданные длины: линия переправы не заходит под знак порта и города (они в SVG под холстом, замечание владельца 06.10). */
+export function trimRoute(pts: ReadonlyArray<{ x: number; y: number }>, startLen: number, endLen: number): Array<{ x: number; y: number }> {
+  const cut = (arr: Array<{ x: number; y: number }>, len: number) => {
+    let rest = len;
+    while (arr.length > 1 && rest > 0) {
+      const a = arr[0]!, b = arr[1]!, d = Math.hypot(b.x - a.x, b.y - a.y);
+      if (d <= rest) { arr.shift(); rest -= d; }
+      else { const t = rest / d; arr[0] = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }; rest = 0; }
+    }
+    return arr;
+  };
+  const out = cut([...pts], startLen);
+  return cut(out.reverse(), endLen).reverse();
+}
 /**
  * Морские маршруты (решение владельца 06.10): водная живность плавает под линией переправы, корабли — над ней. Поэтому
  * линия рисуется на холсте живности между зверями и кораблями тем же видом, что раньше в SVG: светлый ореол, линия
