@@ -1,10 +1,10 @@
 import { prisma } from "../db.js";
 import { bookName, msg } from "./i18n.js";
-import { hexCorners, vertexKey, BOOKS } from "@lotw/domain";
+import { hexCorners, vertexKey, BOOKS, localMinutes, PHASE_START } from "@lotw/domain";
 import { loadCityContent } from "./cities.js";
 import { notifyTeam, notifyUser } from "./notify.js";
 import { publish } from "./events.js";
-import { days, type Rules } from "./rules.js";
+import { days, rulesOf, type Rules } from "./rules.js";
 
 /**
  * Карта глазами команды.
@@ -337,21 +337,29 @@ export async function ensureRemoteDeed(gameId: string, teamId: string, candidate
 const DAY_MS = 86_400_000;
 export interface DeedLimit { max: number; taken: number; nextAt: number | null }
 /**
- * Лимит дел в сутки для нескольких участников одним запросом: сколько взято за последние 24 часа и когда освободится
- * место (момент выхода самого раннего взятия из окна). Пустая карта — лимита нет. Видят все в составе команды
- * (решение владельца 04.10: таймер до следующего дела у каждого участника).
+ * Лимит дел в сутки для нескольких участников одним запросом: сколько взято с последних 7:00 по поясу игры (конец игровой
+ * ночи) и когда счёт обнулится — в ближайшие 7:00. Решение владельца 07.10: не скользящее окно в 24 часа, а сброс у всех
+ * разом утром. Пустая карта — лимита нет. Видят все в составе команды (решение владельца 04.10: таймер у каждого участника).
  */
 export async function deedLimitsFor(gameId: string, max: number, userIds: string[]): Promise<Map<string, DeedLimit>> {
   const out = new Map<string, DeedLimit>();
   if (!max || userIds.length === 0) return out;
-  const since = new Date(Date.now() - DAY_MS);
+  const game = await prisma.game.findUnique({ where: { id: gameId }, select: { settings: true } });
+  const { since, nextAt } = deedDayWindow(rulesOf(game?.settings).timeZone);
   // Возвращённое администратором дело места в лимите не занимает (решение владельца 05.10): таймер у участника сбрасывается,
   // пока он не пересдал это дело (после пересдачи оно снова в окне по времени взятия).
   const rows = await prisma.teamEdgeTask.findMany({ where: { gameId, takenById: { in: userIds }, takenAt: { gte: since }, status: { not: "REJECTED" } }, select: { takenById: true, takenAt: true }, orderBy: { takenAt: "asc" } });
   const byUser = new Map<string, number[]>();
   for (const r of rows) if (r.takenById && r.takenAt) byUser.set(r.takenById, [...(byUser.get(r.takenById) ?? []), r.takenAt.getTime()]);
-  for (const id of userIds) { const t = byUser.get(id) ?? []; out.set(id, { max, taken: t.length, nextAt: t.length >= max ? t[t.length - max]! + DAY_MS : null }); }
+  for (const id of userIds) { const t = byUser.get(id) ?? []; out.set(id, { max, taken: t.length, nextAt: t.length >= max ? nextAt : null }); }
   return out;
+}
+
+/** Игровые сутки для лимита дел: от последних 7:00 по поясу игры до следующих 7:00. */
+export function deedDayWindow(timeZone: string, now = Date.now()): { since: Date; nextAt: number } {
+  const sinceMorning = (((localMinutes(timeZone, new Date(now)) - PHASE_START.morning) % 1440) + 1440) % 1440; // минут с последних 7:00
+  const since = now - sinceMorning * 60_000 - (now % 60_000);
+  return { since: new Date(since), nextAt: since + DAY_MS };
 }
 
 /**

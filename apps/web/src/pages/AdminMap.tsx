@@ -338,7 +338,6 @@ function TeamTaskSheet({ task, members, container, onClose, onReview }: { task: 
   const takerName = taker ? taker.displayName ?? taker.nickname : task.takenById ? t("участник") : "";
   return (
     <Sheet size="sm" container={container} onClose={onClose} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip></div>}>
-      <p className="muted small">{task.deed.direction}</p>
       {task.deed.description && <p className="mt-2">{task.deed.description}</p>}
       <p className="meta-line mt-2"><Icon name="scroll" />{t("Сдать")}: {PROOF_LABEL[task.deed.proofType]}{takerName && <> · <Icon name="user" />{t("Взял: {name}", { name: takerName })}</>}{task.submittedAt && <> · <Icon name="clock" />{fmtDate(task.submittedAt)}</>}</p>
       {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта. Когда дело одобрят, кормчий выберет на карте, куда высадиться на другом острове.")}</span></div>}

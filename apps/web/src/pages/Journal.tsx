@@ -259,7 +259,7 @@ export function SeasonBookPage() {
             </div>
           </div>
           <h3>{t("Дела")} <span className="muted">({tm.deeds.length})</span></h3>
-          {tm.deeds.length === 0 ? <p className="muted">{t("Принятых дел нет.")}</p> : <ul className="plain deeds">{tm.deeds.map((d, i) => <li key={i}>{d.title} <span className="muted">· {d.direction} · {fmtDate(d.decidedAt, { time: false })}{d.by.length ? ` · ${d.by.join(", ")}` : ""}</span></li>)}</ul>}
+          {tm.deeds.length === 0 ? <p className="muted">{t("Принятых дел нет.")}</p> : <ul className="plain deeds">{tm.deeds.map((d, i) => <li key={i}>{d.title} <span className="muted">· {fmtDate(d.decidedAt, { time: false })}{d.by.length ? ` · ${d.by.join(", ")}` : ""}</span></li>)}</ul>}
         </section>
       ))}
       {events.length > 0 && (

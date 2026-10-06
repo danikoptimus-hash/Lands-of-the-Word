@@ -291,7 +291,7 @@ const EN: Record<string, string> = {
   "Сдать чужое дело может только капитан или летописец": "Only the captain or the chronicler can submit someone else's deed",
   "Это дело нельзя заменить пожертвованием": "This deed cannot be replaced by a donation",
   "Минимальное пожертвование — {amount}": "The minimum donation is {amount}",
-  "В сутки можно взять не больше {n} дел. Следующее можно взять через {when}": "You can take at most {n} deeds per day. The next one opens in {when}",
+  "В сутки можно взять не больше {n} дел. Счёт обнулится в 7:00, через {when}": "You can take at most {n} deeds per day. The next one opens in {when}",
   "{h} ч {m} мин": "{h} h {m} min", "{m} мин": "{m} min",
   "Приложите ссылку на чек или подтверждение перевода": "Attach a link to the receipt or transfer confirmation",
   "Для этого дела нужна хотя бы одна ссылка на фото или видео": "This deed needs at least one photo or video link",
