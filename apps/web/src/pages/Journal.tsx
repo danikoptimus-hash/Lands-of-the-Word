@@ -131,11 +131,11 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
             {[...top.rows, ...(top.me && top.me.rank > top.rows.length ? [top.me] : [])].map((r) => (
               <li key={r.userId} className={top.me?.userId === r.userId ? "me" : ""}>
                 <span className="rank">{r.rank}</span>
-                <TeamAvatar name={r.team} color={r.color} size="sm" />
+                <TeamAvatar name={r.team} color={r.color} size="sm" title={r.team} />
                 <span className="body">
                   <span className="name">{r.name}{top.me?.userId === r.userId ? ` · ${t("это вы")}` : ""}</span>
                   {/* Значки вместо слов (решение владельца 07.10): дела, районы, города, стихи. */}
-                  <span className="meta chips"><span className="team">{r.team}</span><Chip icon="scroll" title={t("Дел")}>{r.deeds}</Chip><Chip icon="map" title={t("Районов")}>{r.tasks}</Chip><Chip icon="city" title={t("Городов")}>{r.cities}</Chip><Chip icon="book" title={t("Стихов")}>{r.verses}</Chip></span>
+                  <span className="meta chips"><Chip icon="scroll" title={t("Дел")}>{r.deeds}</Chip><Chip icon="map" title={t("Районов")}>{r.tasks}</Chip><Chip icon="city" title={t("Городов")}>{r.cities}</Chip><Chip icon="book" title={t("Стихов")}>{r.verses}</Chip></span>
                 </span>
               </li>
             ))}
