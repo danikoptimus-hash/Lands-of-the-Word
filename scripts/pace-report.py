@@ -399,11 +399,11 @@ def page(D: Data, A: dict) -> str:
     scen_colors = {"Как сейчас": SLOTS[0], "Карта сопротивляется": SLOTS[1], "Запал гаснет": SLOTS[2]}
     for name, s in A["scen"].items():
         gx, gy = s["curve"]
-        c1.line(list(gx), list(gy), scen_colors[name], width=2, dash="5 4", label=name, label_at=horizon - 1)
+        c1.line(list(gx), list(gy), scen_colors[name], width=2, dash="5 4")
     # логистика по факту
     lx = np.arange(0, horizon, 0.25)
     ly = K / (1 + np.exp(-A["lr"] * (lx - A["lt0"])))
-    c1.line(list(lx), list(ly), "var(--ink-3)", width=1.5, dash="2 3", label="логистика по факту", label_at=min(horizon - 2, A["log_days"][K - 1] if A["log_days"][K - 1] < horizon else horizon - 2))
+    c1.line(list(lx), list(ly), "var(--ink-3)", width=1.5, dash="2 3")
     pts = [(0, 0)] + [(t, i + 1) for i, (t, _) in enumerate(A["caps"])] + [(T_end, n)]
     c1.step(pts, "var(--ink)", width=2.5, label=f"факт: {n}")
     c1.vline(T_end, "выгрузка")
@@ -414,10 +414,10 @@ def page(D: Data, A: dict) -> str:
         c = Chart(h=220, ml=40)
         nd = len(days)
         vals = [sum(len(v) if key == "active" else v for v in daily[d][key].values()) if key == "active" else sum(daily[d][key].values()) for d in days]
-        ymax = max(vals + [1])
-        ymax = math.ceil(ymax / 5) * 5 if ymax > 10 else math.ceil(ymax) + 1
+        top = max(vals + [1])
+        tick_step = next(st_ for st_ in (1, 2, 5, 10, 20, 25, 50, 100) if top / st_ <= 5)
+        ymax = math.ceil(top / tick_step) * tick_step
         c.scales(-0.5, nd - 0.5, 0, ymax)
-        tick_step = max(1, ymax // 5)
         c.grid_y(range(0, ymax + 1, tick_step))
         c.ticks_x([(i, f"{dshort(d)} {RU_WD[d.weekday()]}") for i, d in enumerate(days)])
         slot = c.pw / nd
