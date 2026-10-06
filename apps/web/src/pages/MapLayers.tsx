@@ -183,16 +183,11 @@ export function shallowRings(light: Light = DAY_LIGHT): ReadonlyArray<{ color: s
 export const SHALLOW_RINGS = shallowRings();
 
 /** Центр и радиус каждого острова (по центрам его гексов): для подписей и кораблей. */
-/**
- * Моря на карте (решение владельца 06.10): внутренние — центр гексов воды с кодом моря; Великое море — середина пролива
- * между островами. Для карты администратора (у команды центры присылает сервер).
- */
+/** Моря на карте (решение владельца 06.10): центр гексов воды с кодом моря. Для карты администратора (у команды центры присылает сервер). */
 export function seaGeometry(hexes: ReadonlyArray<MapHexDto>, size: number): Array<{ code: string; x: number; y: number }> {
   const out: Array<{ code: string; x: number; y: number }> = [];
   const acc = new Map<string, { x: number; y: number; n: number }>();
   for (const h of hexes) if (h.sea) { const c = hexCenter(h, size); const a = acc.get(h.sea) ?? { x: 0, y: 0, n: 0 }; a.x += c.x; a.y += c.y; a.n++; acc.set(h.sea, a); }
-  const ot = hexes.filter((h) => (h.island ?? "OT") === "OT").map((h) => hexCenter(h, size)), nt = hexes.filter((h) => h.island === "NT").map((h) => hexCenter(h, size));
-  if (ot.length && nt.length) out.push({ code: "great", x: (Math.max(...ot.map((p) => p.x)) + Math.min(...nt.map((p) => p.x))) / 2, y: (ot.reduce((a, p) => a + p.y, 0) / ot.length + nt.reduce((a, p) => a + p.y, 0) / nt.length) / 2 });
   for (const [code, a] of acc) out.push({ code, x: a.x / a.n, y: a.y / a.n });
   return out;
 }

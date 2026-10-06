@@ -73,11 +73,9 @@ export async function seaRoutes(app: FastifyInstance): Promise<void> {
     const done = state?.doneTasks ?? [];
     const opened = Boolean(state?.openedAt);
     // Кандидаты переправы — по каждому своему берегу: противоположный берег, ещё не открытый команде.
-    const nodes = opened && !state?.crossedAt ? await prisma.mapNode.findMany({ where: { gameId: id, key: { in: sea.shore } }, select: { key: true, island: true, kind: true } }) : [];
-    const islandOf = new Map(nodes.map((n) => [n.key, n.island]));
     const allRevealed = opened && !state?.crossedAt ? new Set((await prisma.teamNodeState.findMany({ where: { teamId: m.team.id }, select: { nodeKey: true } })).map((r) => r.nodeKey)) : new Set<string>();
     const candidates: Record<string, string[]> = {};
-    for (const from of mine) candidates[from] = oppositeShore(sea, from, (k) => islandOf.get(k)).filter((k) => !allRevealed.has(k));
+    for (const from of mine) candidates[from] = oppositeShore(sea, from).filter((k) => !allRevealed.has(k));
     return {
       daytime,
       sea: { code: sea.code, name: content?.name ?? sea.name, nameEn: content?.nameEn ?? sea.nameEn, names: content?.names ?? [], intro: content?.intro ?? "", introEn: content?.introEn ?? "" },
@@ -186,9 +184,7 @@ export async function seaRoutes(app: FastifyInstance): Promise<void> {
     const body = z.object({ from: z.string().min(3).max(40), to: z.string().min(3).max(40) }).parse(request.body);
     const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId: c.m.team.id }, select: { nodeKey: true } })).map((r) => r.nodeKey));
     if (!c.sea.shore.includes(body.from) || !revealed.has(body.from)) return reply.code(409).send({ error: "conflict", message: err(request, "Отплыть можно только со своего берега этого моря") });
-    const nodes = await prisma.mapNode.findMany({ where: { gameId: id, key: { in: c.sea.shore } }, select: { key: true, island: true } });
-    const islandOf = new Map(nodes.map((n) => [n.key, n.island]));
-    const candidates = oppositeShore(c.sea, body.from, (k) => islandOf.get(k)).filter((k) => !revealed.has(k));
+    const candidates = oppositeShore(c.sea, body.from).filter((k) => !revealed.has(k));
     if (!candidates.includes(body.to)) return reply.code(409).send({ error: "conflict", message: err(request, "Высадиться можно только на противоположный берег, ещё не открытый команде") });
     await prisma.teamSeaState.update({ where: { id: c.state.id }, data: { crossedAt: new Date(), crossFrom: body.from, crossTo: body.to } });
     await revealNode(id, c.m.team.id, body.to);

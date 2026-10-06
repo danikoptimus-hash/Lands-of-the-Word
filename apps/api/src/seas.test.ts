@@ -51,7 +51,7 @@ afterAll(async () => {
 
 describe("контент морей", () => {
   it("у всех шести морей по десять вахт, ответы считаются по Синодальному тексту", async () => {
-    for (const code of ["great", "red", "salt", "merom", "galilee", "adria"]) {
+    for (const code of ["red", "salt", "merom", "galilee", "adria"]) {
       const c = await loadSeaContent(code);
       expect(c, code).not.toBeNull();
       expect(c!.tasks).toHaveLength(10);
@@ -127,13 +127,13 @@ describe("контент морей", () => {
 
 describe("моря на карте и переправа", () => {
   let seaCode = "", shoreKey = "";
-  it("карта: Великое море видно сразу, внутреннее — после выхода на берег; вахты закрыты, пока берег не достигнут", async () => {
+  it("карта: море видно после выхода на берег; вахты закрыты, пока берег не достигнут", async () => {
     const hexes = await prisma.mapHex.findMany({ where: { gameId, sea: { not: null } }, select: { sea: true } });
     expect(hexes).toHaveLength(5);
     const map = await myMap();
-    // Великое море видно всегда; внутреннее — только если старт команды оказался на его берегу.
+    // Море видно только если команда вышла на его берег (старт может оказаться на берегу).
     const startShore = await prisma.mapNode.findFirst({ where: { gameId, key: map.team.startNodeKey }, select: { sea: true } });
-    expect(map.seas.map((s: { code: string }) => s.code).sort()).toEqual(["great", ...(startShore?.sea ? [startShore.sea] : [])].sort());
+    expect(map.seas.map((s: { code: string }) => s.code).sort()).toEqual((startShore?.sea ? [startShore.sea] : []).sort());
     // Берег внутреннего моря на острове Ветхого Завета, которого команда ещё не видела, — открываем узел администратором (тестовое действие).
     const shore = await prisma.mapNode.findFirst({ where: { gameId, island: "OT", sea: { not: null, ...(startShore?.sea ? { not: startShore.sea } : {}) }, kind: "EMPTY" } });
     expect(shore).not.toBeNull();
@@ -201,6 +201,15 @@ describe("моря на карте и переправа", () => {
     expect(adminView.statusCode).toBe(200);
     expect(adminView.json().teams.find((x: { id: string }) => x.id === team1).crossTo).toBe(candidates[0]);
     const list = await app.inject({ method: "GET", url: `/api/games/${gameId}/seas`, headers: { cookie: adminCookie } });
-    expect(list.json().seas.length).toBeGreaterThanOrEqual(6);
+    expect(list.json().seas.length).toBe(5);
+  });
+
+  it("старые карты: озёрные гексы без кода получают имена морей по острову, берег помечается", async () => {
+    await prisma.mapHex.updateMany({ where: { gameId }, data: { sea: null } });
+    await prisma.mapNode.updateMany({ where: { gameId }, data: { sea: null } });
+    const list = await app.inject({ method: "GET", url: `/api/games/${gameId}/seas`, headers: { cookie: adminCookie } });
+    const codes = list.json().seas.map((s: { code: string }) => s.code).sort();
+    expect(codes).toEqual(["adria", "galilee", "merom", "red", "salt"]);
+    for (const sea of list.json().seas) expect(sea.shore.length).toBe(6);
   });
 });

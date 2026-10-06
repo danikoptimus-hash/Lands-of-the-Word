@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { generateMap, MapGenError } from "@lotw/domain";
+import { ensureSeaCodes } from "../services/seas.js";
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
@@ -122,6 +123,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
+    // Старые карты: озёрные гексы получают имена морей при первом обращении (решение владельца 06.10).
+    await ensureSeaCodes(id);
     const [hexes, nodes, edges] = await Promise.all([
       prisma.mapHex.findMany({ where: { gameId: id }, select: { q: true, r: true, terrain: true, rotation: true, island: true, sea: true } }),
       prisma.mapNode.findMany({ where: { gameId: id }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, island: true, coastal: true, sea: true } }),

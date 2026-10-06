@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { BOOKS, GREAT_SEA, INLAND_SEAS, hexToPixel, parseVertexKey, vertexToPixel } from "@lotw/domain";
+import { BOOKS, INLAND_SEAS, hexCorners, hexToPixel, parseVertexKey, vertexKey, vertexToPixel } from "@lotw/domain";
 import { prisma } from "../db.js";
 import { loadBook, type BibleBook } from "./bible.js";
 import { checkAnswer, normalizeAnswer, opaqueId, publicTask, seededShuffle, type CityTask } from "./cities.js";
@@ -270,19 +270,34 @@ export function stripSeaAnswers(content: SeaContent) {
 // ───────────────────────────── География морей ─────────────────────────────
 export interface SeaGeo { code: string; name: string; nameEn: string; hexes: Array<{ q: number; r: number }>; /** Берег: ключи узлов. */ shore: string[]; /** Центр моря в единицах карты (размер гекса 1). */ center: { x: number; y: number } }
 
-/** Моря игры по карте: внутренние — по гексам воды, Великое — пролив, если на карте два острова. */
+/**
+ * Карты, созданные до морей (например, «Осень»): их одиночные озёрные гексы получают имена морей по острову — на Ветхом
+ * Завете Чермное, Солёное, воды Меромские, на Новом Галилейское и Адриатическое (по порядку обхода гексов); лишние
+ * озёра остаются безымянными. Берег (узлы вокруг гекса) помечается тут же. Делается один раз, при первом обращении.
+ */
+export async function ensureSeaCodes(gameId: string): Promise<void> {
+  const free = await prisma.mapHex.findMany({ where: { gameId, terrain: "water", sea: null }, select: { q: true, r: true, island: true }, orderBy: [{ r: "asc" }, { q: "asc" }] });
+  if (!free.length) return;
+  const taken = new Set((await prisma.mapHex.findMany({ where: { gameId, sea: { not: null } }, select: { sea: true } })).map((h) => h.sea!));
+  for (const island of ["OT", "NT"] as const) {
+    const names = INLAND_SEAS.filter((s) => s.island === island && !taken.has(s.code)).map((s) => s.code);
+    for (const h of free.filter((x) => x.island === island)) {
+      const code = names.shift();
+      if (!code) break;
+      await prisma.mapHex.update({ where: { gameId_q_r: { gameId, q: h.q, r: h.r } }, data: { sea: code } });
+      await prisma.mapNode.updateMany({ where: { gameId, key: { in: hexCorners(h).map(vertexKey) }, sea: null }, data: { sea: code } });
+    }
+  }
+}
+
+/** Моря игры по карте: гексы воды с кодом моря, их берег и центр. */
 export async function gameSeas(gameId: string): Promise<SeaGeo[]> {
+  await ensureSeaCodes(gameId);
   const [hexes, nodes] = await Promise.all([
-    prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, island: true, sea: true } }),
-    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, coastal: true, sea: true, island: true } }),
+    prisma.mapHex.findMany({ where: { gameId, sea: { not: null } }, select: { q: true, r: true, sea: true } }),
+    prisma.mapNode.findMany({ where: { gameId, sea: { not: null } }, select: { key: true, sea: true } }),
   ]);
   const out: SeaGeo[] = [];
-  if (hexes.some((h) => h.island === "NT")) {
-    const ot = hexes.filter((h) => h.island === "OT").map((h) => hexToPixel(h, 1)), nt = hexes.filter((h) => h.island === "NT").map((h) => hexToPixel(h, 1));
-    const x = (Math.max(...ot.map((p) => p.x)) + Math.min(...nt.map((p) => p.x))) / 2;
-    const y = (ot.reduce((a, p) => a + p.y, 0) / ot.length + nt.reduce((a, p) => a + p.y, 0) / nt.length) / 2;
-    out.push({ code: GREAT_SEA.code, name: GREAT_SEA.name, nameEn: GREAT_SEA.nameEn, hexes: [], shore: nodes.filter((n) => n.coastal).map((n) => n.key), center: { x, y } });
-  }
   for (const spec of INLAND_SEAS) {
     const mine = hexes.filter((h) => h.sea === spec.code);
     if (!mine.length) continue;
@@ -293,11 +308,10 @@ export async function gameSeas(gameId: string): Promise<SeaGeo[]> {
 }
 
 /**
- * Противоположный берег: для внутреннего моря — узлы берега, направление на которые от центра моря отличается от
- * направления на узел отплытия не меньше чем на 90°; для Великого моря — берег другого острова.
+ * Противоположный берег: узлы берега, направление на которые от центра моря отличается от направления на узел
+ * отплытия не меньше чем на 90°.
  */
-export function oppositeShore(sea: SeaGeo, fromKey: string, islandOf: (key: string) => string | undefined): string[] {
-  if (sea.code === GREAT_SEA.code) { const isl = islandOf(fromKey); return sea.shore.filter((k) => islandOf(k) !== isl); }
+export function oppositeShore(sea: SeaGeo, fromKey: string): string[] {
   const ang = (k: string) => { const p = vertexToPixel(parseVertexKey(k), 1); return Math.atan2(p.y - sea.center.y, p.x - sea.center.x); };
   const a0 = ang(fromKey);
   return sea.shore.filter((k) => { let d = Math.abs(ang(k) - a0); if (d > Math.PI) d = 2 * Math.PI - d; return d >= Math.PI / 2; });
