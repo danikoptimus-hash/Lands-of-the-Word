@@ -186,7 +186,7 @@ export const PLAYER: Record<string, string> = {
   "свидетель: кто это видел или слышал": "witness: who saw or heard it",
   "имя и кто это, например служитель": "name and who they are, e.g. a minister",
   "Участвовали: {names}": "Participants: {names}", "Сдано": "Submitted", "Одобрено": "Approved",
-  "Самые активные": "Most active", "Все команды вместе. Дело — 3 очка, город — 2, район и переправа — по 1, каждые 5 стихов — 1. Дела считаются и участникам групповых дел.": "All teams together. A deed is 3 points, a city 2, a district and a crossing 1 each, every 5 verses 1. Deeds also count for participants of group deeds.",
+  "Самые активные": "Most active", "Все команды вместе. Дело — 3 очка, город — 2, район и переправа — по 1, каждые 5 стихов — 1. Дела считаются и участникам групповых дел. Значки: свиток — дела, карта — районы, город — города, книга — стихи.": "All teams together. A deed is 3 points, a city 2, a district and a crossing 1 each, every 5 verses 1. Deeds also count for participants of group deeds. Badges: scroll — deeds, map — districts, city — cities, book — verses.",
   "это вы": "that's you", "Всего участников: {n}": "Participants in total: {n}", "район": "district", "района": "districts", "районов": "districts",
   "Требует внимания": "Needs attention", "Дело возвращено: {title}": "Deed returned: {title}", "Запрос прохода через {book}": "Passage request through {book}", "от команды «{team}»": "from team “{team}”", "Команды": "Teams", "Уведомления": "Notifications",
   // Служебные состояния страницы команды
@@ -567,4 +567,7 @@ export const PLAYER: Record<string, string> = {
   "Испытаний устояли": "Challenges repelled",
   "Испытаний потеряли": "Challenges lost",
   "Нажмите на команду, чтобы увидеть участников. Значки: участники, города, принятые дела, камни; испытания — выиграли, устояли, потеряли.": "Tap a team to see its members. Badges: members, cities, approved deeds, stones; challenges — won, repelled, lost.",
+  "Дел": "Deeds",
+  "Районов": "Districts",
+  "Стихов": "Verses",
 };

@@ -6,6 +6,7 @@ import { getLocale, t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
 import { useUi } from "../lib/ui";
 import { Icon } from "../components/Icon";
+import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { Back } from "../components/Back";
 import { Help } from "../components/Help";
@@ -125,7 +126,7 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
       {/* Общий топ участников всех команд (решение владельца 30.09): первые десять и своё место. */}
       {top && top.rows.length > 0 && (
         <div className="top-board">
-          <h3><Icon name="star" />{t("Самые активные")}<Help>{t("Все команды вместе. Дело — 3 очка, город — 2, район и переправа — по 1, каждые 5 стихов — 1. Дела считаются и участникам групповых дел.")}</Help></h3>
+          <h3><Icon name="star" />{t("Самые активные")}<Help>{t("Все команды вместе. Дело — 3 очка, город — 2, район и переправа — по 1, каждые 5 стихов — 1. Дела считаются и участникам групповых дел. Значки: свиток — дела, карта — районы, город — города, книга — стихи.")}</Help></h3>
           <ol className="top-list">
             {[...top.rows, ...(top.me && top.me.rank > top.rows.length ? [top.me] : [])].map((r) => (
               <li key={r.userId} className={top.me?.userId === r.userId ? "me" : ""}>
@@ -133,7 +134,8 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
                 <TeamAvatar name={r.team} color={r.color} size="sm" />
                 <span className="body">
                   <span className="name">{r.name}{top.me?.userId === r.userId ? ` · ${t("это вы")}` : ""}</span>
-                  <span className="meta">{r.team} · {plural(r.deeds, ["дело", "дела", "дел"])} · {plural(r.tasks, ["район", "района", "районов"])} · {plural(r.cities, ["город", "города", "городов"])} · {plural(r.verses, ["стих", "стиха", "стихов"])}</span>
+                  {/* Значки вместо слов (решение владельца 07.10): дела, районы, города, стихи. */}
+                  <span className="meta chips"><span className="team">{r.team}</span><Chip icon="scroll" title={t("Дел")}>{r.deeds}</Chip><Chip icon="map" title={t("Районов")}>{r.tasks}</Chip><Chip icon="city" title={t("Городов")}>{r.cities}</Chip><Chip icon="book" title={t("Стихов")}>{r.verses}</Chip></span>
                 </span>
               </li>
             ))}
