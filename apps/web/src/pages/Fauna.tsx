@@ -1144,22 +1144,27 @@ function drawIslandLabels(ctx: CanvasRenderingContext2D, k: number): void {
   }
   ctx.restore();
 }
-function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis, alpha = 1): void {
+/** Часть мира: «море» (звери, переправы, буквы, корабли, тени птиц на земле) рисуется под подписями карты, «небо» (сами птицы) — над ними (решение владельца 06.10). */
+type WorldPart = "all" | "sea" | "sky";
+function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis, alpha = 1, part: WorldPart = "all"): void {
   ctx.globalAlpha = alpha;
   const T = w.T, px = 1 / k, lod = k >= 1.1, size = w.size, p = w.p;
-  // Следы по пройденному пути — под телами; у зверей только у поверхности, у кораблей всегда и с крыльями.
-  for (const c of w.cets) drawTrail(ctx, c.trail, T, c.spec.L, c.spec.kind === "dolphin" ? 3 : 6, px, vis, false);
-  for (const sh of w.ships) drawTrail(ctx, sh.trail, T, sh.spec.L, 9, px, vis, true);
-  for (const c of w.cets) if (inView(vis, c.x, c.y)) drawCet(ctx, c, T, px, lod);
-  drawFx(ctx, w.fx, T, px, vis);
-  drawRoutes(ctx, k); drawIslandLabels(ctx, k); ctx.globalAlpha = alpha; // переправы и буквы между китами и кораблями
-  for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
+  const sea = part !== "sky", sky = part !== "sea";
+  if (sea) {
+    // Следы по пройденному пути — под телами; у зверей только у поверхности, у кораблей всегда и с крыльями.
+    for (const c of w.cets) drawTrail(ctx, c.trail, T, c.spec.L, c.spec.kind === "dolphin" ? 3 : 6, px, vis, false);
+    for (const sh of w.ships) drawTrail(ctx, sh.trail, T, sh.spec.L, 9, px, vis, true);
+    for (const c of w.cets) if (inView(vis, c.x, c.y)) drawCet(ctx, c, T, px, lod);
+    drawFx(ctx, w.fx, T, px, vis);
+    drawRoutes(ctx, k); drawIslandLabels(ctx, k); ctx.globalAlpha = alpha; // переправы и буквы между китами и кораблями
+    for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
+  }
+  // Птицы: тень лежит на земле (под подписями), тело летит над подписями городов.
   for (const g of w.gulls) {
     if (!inView(vis, g.x, g.y)) continue;
     ctx.save(); ctx.translate(g.x, g.y);
-    drawBirdShadow(ctx, GULL, g.S, g.phase, g.amp, g.roll, g.h, g.alt, 0.22 * (1 - 0.5 * g.alt));
-    ctx.rotate(g.h);
-    drawBird(ctx, GULL, g.S, g.phase, g.amp, g.roll, "rgb(208,214,218)", "rgb(252,253,254)", "rgb(40,44,48)", 1);
+    if (sea) drawBirdShadow(ctx, GULL, g.S, g.phase, g.amp, g.roll, g.h, g.alt, 0.22 * (1 - 0.5 * g.alt));
+    if (sky) { ctx.rotate(g.h); drawBird(ctx, GULL, g.S, g.phase, g.amp, g.roll, "rgb(208,214,218)", "rgb(252,253,254)", "rgb(40,44,48)", 1); }
     ctx.restore();
   }
   const f = w.flock;
@@ -1171,12 +1176,13 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis,
       const x = f.x + ch * dx - sh * dy, y = f.y + sh * dx + ch * dy;
       if (!inView(vis, x, y)) continue;
       const h = f.h + 0.06 * noise1(T * 0.8, b.seed + 2), roll = f.roll + 0.08 * noise1(T * 0.9, b.seed + 4);
-      // Тень только над сушей: по профилю острова с плавной кромкой.
-      const land = Math.max(...p.parts.map((part) => smooth((radiusAt(part, Math.atan2(y - part.cy, x - part.cx)) - size * 0.3 - Math.hypot(x - part.cx, y - part.cy)) / (size * 1.5))));
       ctx.save(); ctx.translate(x, y);
-      drawBirdShadow(ctx, LANDBIRD, f.S, b.phase, b.amp, roll, h, 0.55, 0.28 * land);
-      ctx.rotate(h);
-      drawBird(ctx, LANDBIRD, f.S, b.phase, b.amp, roll, "rgb(52,42,34)", null, null, 0.95);
+      if (sea) {
+        // Тень только над сушей: по профилю острова с плавной кромкой.
+        const land = Math.max(...p.parts.map((part) => smooth((radiusAt(part, Math.atan2(y - part.cy, x - part.cx)) - size * 0.3 - Math.hypot(x - part.cx, y - part.cy)) / (size * 1.5))));
+        drawBirdShadow(ctx, LANDBIRD, f.S, b.phase, b.amp, roll, h, 0.55, 0.28 * land);
+      }
+      if (sky) { ctx.rotate(h); drawBird(ctx, LANDBIRD, f.S, b.phase, b.amp, roll, "rgb(52,42,34)", null, null, 0.95); }
       ctx.restore();
     }
   }
@@ -1448,6 +1454,8 @@ const NO_LABELS: IslandLabelSpec[] = [];
 const NO_ROUTES: RouteSpec[] = [];
 export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, labels = NO_LABELS, routes = NO_ROUTES }: { /** Морские маршруты: рисуются между зверями и кораблями (решение владельца 06.10). */ routes?: RouteSpec[]; /** Подписи островов: рисуются между зверями и кораблями (решение владельца 05.10). */ labels?: IslandLabelSpec[]; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  // Второй холст — небо: птицы летят над подписями городов и метками карты (решение владельца 06.10).
+  const skyRef = useRef<HTMLCanvasElement>(null);
   const dailyRef = useRef(daily); dailyRef.current = daily;
   const clockRef = useRef(clock); clockRef.current = clock;
   const lightRef = useRef(light); lightRef.current = light;
@@ -1464,14 +1472,14 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
   const vpRef = useRef(vp); vpRef.current = vp;
 
   useEffect(() => {
-    const canvas = ref.current, host = canvas?.parentElement, profile = profileRef.current;
-    if (!canvas || !host || !profile) return;
+    const canvas = ref.current, sky = skyRef.current, host = canvas?.parentElement, profile = profileRef.current;
+    if (!canvas || !sky || !host || !profile) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const ctx = canvas.getContext("2d"), sctx = sky.getContext("2d");
+    if (!ctx || !sctx) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let W = 0, H = 0;
-    const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } };
+    const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); for (const c of [canvas, sky]) if (c.width !== W || c.height !== H) { c.width = W; c.height = H; } };
     resize();
     const ro = new ResizeObserver(resize); ro.observe(host);
     // Миры по эпохам: текущий и, на время растворения, предыдущий.
@@ -1499,20 +1507,23 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
     // При движении карты перерисовываем сразу (иначе звери «примерзают» к экрану до следующего кадра по таймеру).
     const unsub = vpRef.current.subscribe(() => { dirty = true; });
 
-    const clear = () => { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H); };
+    const clear = () => { for (const c of [ctx, sctx]) { c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); } };
     const draw = () => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
       clear();
       if (!cur) return;
       ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
+      sctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
       // Видимая область с запасом в три гекса: звери чуть за краем ещё видны хвостом или следом.
       vis.x0 = -tx / k - size * 3; vis.y0 = -ty / k - size * 3; vis.x1 = (W / dpr - tx) / k + size * 3; vis.y1 = (H / dpr - ty) / k + size * 3;
       const a = prev ? Math.min(1, cur.w.T / FADE) : 1;
       LIGHT = lightRef.current; LABELS = labelsRef.current; ROUTES = routesRef.current;
-      if (prev) drawWorld(ctx, prev.w, k, vis, 1 - a);
-      drawWorld(ctx, cur.w, k, vis, a);
+      if (prev) drawWorld(ctx, prev.w, k, vis, 1 - a, "sea");
+      drawWorld(ctx, cur.w, k, vis, a, "sea");
       ctx.globalAlpha = 1;
       drawFires(ctx, firesRef.current, cur.w.T, 1 / k, vis, LIGHT.fire);
+      if (prev) drawWorld(sctx, prev.w, k, vis, 1 - a, "sky");
+      drawWorld(sctx, cur.w, k, vis, a, "sky");
     };
     // Догон (открыли карту, вернулись во вкладку): кусками по 30 мс через setTimeout, не завися от частоты кадров;
     // до конца догона слой пуст — звери «всплывают», когда мир дошёл до текущей секунды.
@@ -1534,5 +1545,5 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
   }, [profile, size, seed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!profile) return null;
-  return <canvas ref={ref} className="fx-layer fauna" aria-hidden />;
+  return <><canvas ref={ref} className="fx-layer fauna" aria-hidden /><canvas ref={skyRef} className="fx-layer fauna sky" aria-hidden /></>;
 }
