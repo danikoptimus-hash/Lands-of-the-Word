@@ -437,4 +437,13 @@ export const PLAYER: Record<string, string> = {
   "Заранее договоритесь с семьёй о времени: когда им удобно принять вас.": "Agree the time with the family in advance: when it suits them to receive you.",
   "Приезд — не «забрать конверт и уехать». Помолитесь вместе и благословите этот дом, привезите гостинец или помогите по дому — хотя бы одно из этого.": "The visit is not “grab the envelope and leave”. Pray together and bless this home, bring a treat or help around the house — at least one of these.",
   "И только потом назовите шифр и возьмите конверт.": "Only then name the cipher and take the envelope.",
+  // Список команд у администратора: значки вместо слов (07.10)
+  "Участников": "Members",
+  "Городов": "Cities",
+  "Столиц": "Capitals",
+  "Принятых дел": "Approved deeds",
+  "Испытаний выиграли": "Challenges won",
+  "Испытаний устояли": "Challenges repelled",
+  "Испытаний потеряли": "Challenges lost",
+  "Нажмите на команду, чтобы увидеть участников. Значки: участники, города, столицы, принятые дела, камни; испытания — выиграли, устояли, потеряли.": "Tap a team to see its members. Badges: members, cities, capitals, approved deeds, stones; challenges — won, repelled, lost.",
 };
