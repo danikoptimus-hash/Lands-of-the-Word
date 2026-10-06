@@ -124,7 +124,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
         {!full && <button type="button" className="sm" onClick={() => setOpen(true)} disabled={!teams}><Icon name="plus" />{t("Добавить")}</button>}
       </div>
       {teams && full && <p className="hint">{limit[0]}{goToSettings && limit[1] && <> · <a href="#settings" onClick={(e) => { e.preventDefault(); goToSettings(); }}>{limit[1]}</a></>}</p>}
-      {standings && <p className="hint">{t("Нажмите на команду, чтобы увидеть участников. Испытания: выиграли · устояли · потеряли.")}</p>}
+      {standings && <p className="hint">{t("Нажмите на команду, чтобы увидеть участников. Значки: участники, города, столицы, принятые дела, камни; испытания — выиграли, устояли, потеряли.")}</p>}
       {loadError ? <ErrorState onRetry={() => void load()} /> : !teams ? <LoadingState /> : teams.length === 0 ? <EmptyState inline icon="users" text={t("Команд пока нет: добавьте первую.")} /> : ordered(teams, standings).map(({ tm, st, rank }) => {
         const isOpen = expanded === tm.id;
         const toggle = () => setExpanded(isOpen ? null : tm.id);
@@ -144,8 +144,13 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
               ]} />
                 </span>
               </div>
-              <div className="nums">{(tm.stones ?? 0) > 0 && <Chip tone="accent" icon="stone" title={t("Тёсаные камни Каменоломни")}>{tm.stones}</Chip>}{plural(tm.members.length, ["участник", "участника", "участников"])}{st && <> · {plural(st.cities, ["город", "города", "городов"])} · {plural(st.capitals, ["столица", "столицы", "столиц"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])}</>}</div>
-              {st && <div className="nums">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}</div>}
+              {/* Значки вместо слов (решение владельца 07.10): участники, города, столицы, дела, камни; испытания — выиграли, устояли, потеряли. */}
+              <div className="nums chips">
+                <Chip icon="users" title={t("Участников")}>{tm.members.length}</Chip>
+                {st && <><Chip icon="city" title={t("Городов")}>{st.cities}</Chip><Chip icon="crown" title={t("Столиц")}>{st.capitals}</Chip><Chip icon="scroll" title={t("Принятых дел")}>{st.deedsApproved}</Chip></>}
+                <Chip icon="stone" title={t("Тёсаные камни Каменоломни")}>{tm.stones ?? 0}</Chip>
+                {st && <><Chip icon="trophy" title={t("Испытаний выиграли")}>{st.battlesWon}</Chip><Chip icon="shield" title={t("Испытаний устояли")}>{st.battlesRepelled}</Chip><Chip icon="flag" title={t("Испытаний потеряли")}>{st.battlesLost}</Chip></>}
+              </div>
             </div>
             <Icon name="chevron" className="chev" />
           </div>
