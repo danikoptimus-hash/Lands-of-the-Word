@@ -102,12 +102,10 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
   const roads = deeds?.filter((d) => !d.quarry) ?? null;
   const quarry = deeds?.filter((d) => d.quarry) ?? null;
   const shown = inQuarry ? quarry : roads;
-  // Счётчики — только включённые дела, как в кружке раздела слева (замечание владельца 07.10: 37 против 40); выключенные остаются в списке.
-  const active = (xs: DeedDto[] | null) => xs?.filter((d) => !d.disabled).length ?? 0;
   return (
     <div className="card">
       <div className="card-head">
-        <h2><span className="ico"><Icon name={inQuarry ? "stone" : "scroll"} /></span>{inQuarry ? t("Дела Каменоломни") : t("Дела")} {shown && <span className="count">{active(shown)}</span>}</h2>
+        <h2><span className="ico"><Icon name={inQuarry ? "stone" : "scroll"} /></span>{inQuarry ? t("Дела Каменоломни") : t("Дела")} {shown && <span className="count">{shown.length}</span>}</h2>
         <div className="row">
           {deeds && deeds.length > 0 && <ActionMenu label={t("Стандартный набор")} items={[
             { label: t("Добавить недостающие из стандартного набора"), icon: "sparkle", onSelect: () => void importDefault("add") },
@@ -117,8 +115,8 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
         </div>
       </div>
       {!mode && <div className="tabs deed-sections mt-2" role="tablist">
-        <button type="button" role="tab" aria-selected={!inQuarry} className={inQuarry ? undefined : "active"} onClick={() => setSection("roads")}><Icon name="scroll" /><span>{t("Обычные дела")}</span>{roads && <span className="count-chip">{active(roads)}</span>}</button>
-        <button type="button" role="tab" aria-selected={inQuarry} className={inQuarry ? "active" : undefined} onClick={() => setSection("quarry")}><Icon name="stone" /><span>{t("Дела Каменоломни")}</span>{quarry && <span className="count-chip">{active(quarry)}</span>}</button>
+        <button type="button" role="tab" aria-selected={!inQuarry} className={inQuarry ? undefined : "active"} onClick={() => setSection("roads")}><Icon name="scroll" /><span>{t("Обычные дела")}</span>{roads && <span className="count-chip">{roads.length}</span>}</button>
+        <button type="button" role="tab" aria-selected={inQuarry} className={inQuarry ? "active" : undefined} onClick={() => setSection("quarry")}><Icon name="stone" /><span>{t("Дела Каменоломни")}</span>{quarry && <span className="count-chip">{quarry.length}</span>}</button>
       </div>}
       {inQuarry && <p className="hint mt-2">{t("Общие дела всей команды: сдаёт капитан, заместитель или летописец в Каменоломне на карте, всегда доступны. Принятое дело даёт камни, камень мостит одну свободную дорогу — куда, решает команда.")}</p>}
       {!inQuarry && roads && roads.length > 0 && roads.length < recommended && <p className="note warn"><Icon name="alert" /><span>{t("Рекомендуется не меньше {n} дел, иначе они начнут повторяться.", { n: recommended })}</span></p>}
