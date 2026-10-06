@@ -56,7 +56,7 @@ export function GamePage() {
   const [genError, setGenError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
-  const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, battles: 0, recipients: 0 });
+  const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, quarry: 0, battles: 0, recipients: 0 });
   const [progress, setProgress] = useState<Progress | null>(null);
   const loadProgress = useCallback(() => api<Progress>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
   /** Ползунок времени: null — «сейчас» (живое состояние), иначе момент, на который показываем карту. */
@@ -76,15 +76,17 @@ export function GamePage() {
   /** Счётчики для вкладок и чек-листа: что ждёт администратора. Лёгкие запросы, обновляются с каждым событием игры. */
   const loadCounts = useCallback(async (status: string) => {
     const active = status === "ACTIVE";
-    const [teams, deeds, submissions, battles, recipients] = await Promise.all([
+    const [teams, deeds, submissions, quarry, battles, recipients] = await Promise.all([
       api<{ teams: unknown[] }>(`/api/games/${id}/teams`).then((r) => r.teams.length).catch(() => 0),
       // Счётчик раздела «Дела» — только дела на дорогах, без дел Каменоломни (замечание владельца 05.10).
       api<{ deeds: Array<{ quarry?: boolean; disabled?: boolean }> }>(`/api/games/${id}/deeds`).then((r) => r.deeds.filter((d) => !d.quarry && !d.disabled).length).catch(() => 0),
       active ? api<{ tasks: unknown[] }>(`/api/games/${id}/submissions`).then((r) => r.tasks.length).catch(() => 0) : 0,
+      // Сдачи Каменоломни тоже ждут проверки — считаем их в кружке «Проверка» (замечание владельца 07.10).
+      active ? api<{ works: unknown[] }>(`/api/games/${id}/quarry/submissions`).then((r) => r.works.length).catch(() => 0) : 0,
       active ? api<{ battles: Array<{ entries: Array<{ status: string }> }> }>(`/api/games/${id}/battles`).then((r) => r.battles.reduce((n, b) => n + b.entries.filter((e) => e.status === "SUBMITTED").length, 0)).catch(() => 0) : 0,
       status !== "FINISHED" ? api<{ recipients: unknown[] }>(`/api/games/${id}/recipients`).then((r) => r.recipients.length).catch(() => 0) : 0,
     ]);
-    setCounts({ teams, deeds, submissions, battles, recipients });
+    setCounts({ teams, deeds, submissions, quarry, battles, recipients });
   }, [id]);
 
   const loadAll = useCallback(() => { load().catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); void loadProgress(); }, [load, loadProgress]);
@@ -123,7 +125,7 @@ export function GamePage() {
   if (!game) return <div className="admin-screen"><div className="admin-empty"><div className="admin-loading"><LoadingState rows={3} /></div></div></div>;
   const active = game.status === "ACTIVE";
   const draft = game.status === "DRAFT";
-  const reviewCount = counts.submissions + counts.battles;
+  const reviewCount = counts.submissions + counts.quarry + counts.battles;
   const hasMap = hexes.length > 0;
   const refresh = () => { void load(); void loadProgress(); };
 
