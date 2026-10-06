@@ -562,10 +562,9 @@ export const PLAYER: Record<string, string> = {
   // Список команд у администратора: значки вместо слов (07.10)
   "Участников": "Members",
   "Городов": "Cities",
-  "Столиц": "Capitals",
   "Принятых дел": "Approved deeds",
   "Испытаний выиграли": "Challenges won",
   "Испытаний устояли": "Challenges repelled",
   "Испытаний потеряли": "Challenges lost",
-  "Нажмите на команду, чтобы увидеть участников. Значки: участники, города, столицы, принятые дела, камни; испытания — выиграли, устояли, потеряли.": "Tap a team to see its members. Badges: members, cities, capitals, approved deeds, stones; challenges — won, repelled, lost.",
+  "Нажмите на команду, чтобы увидеть участников. Значки: участники, города, принятые дела, камни; испытания — выиграли, устояли, потеряли.": "Tap a team to see its members. Badges: members, cities, approved deeds, stones; challenges — won, repelled, lost.",
 };
