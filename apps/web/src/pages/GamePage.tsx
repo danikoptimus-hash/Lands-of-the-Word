@@ -78,8 +78,8 @@ export function GamePage() {
     const active = status === "ACTIVE";
     const [teams, deeds, submissions, quarry, battles, recipients] = await Promise.all([
       api<{ teams: unknown[] }>(`/api/games/${id}/teams`).then((r) => r.teams.length).catch(() => 0),
-      // Счётчик раздела «Дела» — только дела на дорогах, без дел Каменоломни (замечание владельца 05.10).
-      api<{ deeds: Array<{ quarry?: boolean; disabled?: boolean }> }>(`/api/games/${id}/deeds`).then((r) => r.deeds.filter((d) => !d.quarry && !d.disabled).length).catch(() => 0),
+      // Счётчик раздела «Дела» — все дела на дорогах, включённые и выключенные, без дел Каменоломни (решения владельца 05.10 и 07.10).
+      api<{ deeds: Array<{ quarry?: boolean }> }>(`/api/games/${id}/deeds`).then((r) => r.deeds.filter((d) => !d.quarry).length).catch(() => 0),
       active ? api<{ tasks: unknown[] }>(`/api/games/${id}/submissions`).then((r) => r.tasks.length).catch(() => 0) : 0,
       // Сдачи Каменоломни тоже ждут проверки — считаем их в кружке «Проверка» (замечание владельца 07.10).
       active ? api<{ works: unknown[] }>(`/api/games/${id}/quarry/submissions`).then((r) => r.works.length).catch(() => 0) : 0,
