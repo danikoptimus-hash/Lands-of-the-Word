@@ -13,12 +13,14 @@ import { css, DAY_LIGHT, type Daytime, type Light } from "../lib/daytime";
 
 /** Картинки по времени суток (решение владельца 03.10): дневные — как были, утро/вечер/ночь — те же, окрашенные (`scripts/tod-textures.py`). */
 const tod = (phase?: DayPhase) => (phase && phase !== "day" ? `-${phase}` : "");
+/** Версия картинок карты в адресе (хеш содержимого public/img): после замены файлов браузер и сервис-воркер не показывают старую копию из кеша (06.10). */
+const V = typeof __IMG_VERSION__ === "string" ? `?v=${__IMG_VERSION__}` : "";
 export const IMG = {
-  terrain: (t: string, phase?: DayPhase) => `/img/terrain/${t}${tod(phase)}.webp`,
+  terrain: (t: string, phase?: DayPhase) => `/img/terrain/${t}${tod(phase)}.webp${V}`,
   /** Остров: в адресе хеш содержимого файла, чтобы после замены картинки браузер и PWA не показывали старую копию из кеша. */
-  islet: (n: number, phase?: DayPhase) => { const v = ISLET_IMAGES.find((s) => s.img === n)?.ver; return `/img/islet/islet-${n}${tod(phase)}.webp${v ? `?v=${v}` : ""}`; },
-  city: (type: string | null | undefined, phase?: DayPhase) => `/img/city/${type && type !== "" ? type : "village"}${tod(phase)}.webp`,
-  start: (i: number, phase?: DayPhase) => `/img/start/${["babylon", "egypt", "wilderness", "assyria", "zin", "shipwreck"][i % 6]}${tod(phase)}.webp`,
+  islet: (n: number, phase?: DayPhase) => { const v = ISLET_IMAGES.find((s) => s.img === n)?.ver; return `/img/islet/islet-${n}${tod(phase)}.webp${v ? `?v=${v}` : V}`; },
+  city: (type: string | null | undefined, phase?: DayPhase) => `/img/city/${type && type !== "" ? type : "village"}${tod(phase)}.webp${V}`,
+  start: (i: number, phase?: DayPhase) => `/img/start/${["babylon", "egypt", "wilderness", "assyria", "zin", "shipwreck"][i % 6]}${tod(phase)}.webp${V}`,
 };
 /** Ключ перехода освещения: слои с готовыми растрами перерисовываются, когда он меняется. */
 export const lightKey = (dt: Daytime) => `${dt.from}:${dt.to}:${dt.t.toFixed(2)}`;
