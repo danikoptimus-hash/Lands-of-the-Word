@@ -44,7 +44,7 @@ export interface MapMarkDto { id: string; q: number; r: number; qf: number; rf: 
 export interface MapSeaDto { code: string; name: string; nameEn: string; hexes: Array<{ q: number; r: number }>; center: { x: number; y: number }; reached: boolean; done: number; total: number; opened: boolean; crossed: boolean }
 export type SeaTaskDto = { index: number; title: string; prompt: string; show: Array<{ ref: string; verses: Array<{ n: number; text: string }> }> } & (
   | { type: "beacon"; book: string; chapter: number; word: "first" | "last" | number; signal: { long: number; short: number } }
-  | { type: "flags"; book: string; word: "first" | "last" | number; key: Array<{ digit: number; pattern: string; colors: string[] }>; message: Array<{ pattern: string; colors: string[] } | null> }
+  | { type: "flags"; book: string; word: "first" | "last" | number; cribs: Array<{ label: string; flags: Array<string | null> }>; message: Array<string | null> }
   | { type: "wordpath"; book: string; chapter: number; verse: number; count: number; rows: number; cols: number; cells: Array<{ id: string; text: string }> }
   | { type: "storm"; book: string; chapter: number; verse: number; items: Array<{ id: string; text: string }> }
   | { type: "count"; stem: string }

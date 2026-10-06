@@ -26,7 +26,7 @@ const taskSchema = z.discriminatedUnion("type", [
   // Курс по словам: слова стиха разложены по сетке среди чужих слов; нажимать их по порядку стиха.
   z.object({ ...base, type: z.literal("wordpath"), ...ref.shape, words: z.number().int().min(5).max(14).optional() }),
   // Сигнальные флаги: у команды своя азбука флагов; флаги дают главу и стих; ответ — слово этого стиха.
-  z.object({ ...base, type: z.literal("flags"), book: z.string().min(2), chapter: z.number().int().min(1), verses: z.array(z.number().int().min(1)).min(2), word: z.union([z.literal("first"), z.literal("last"), z.number().int().min(1)]) }),
+  z.object({ ...base, type: z.literal("flags"), book: z.string().min(2), chapter: z.number().int().min(1), verses: z.array(z.number().int().min(1)).min(3), word: z.union([z.literal("first"), z.literal("last"), z.number().int().min(1)]) }),
   // Шторм: стих разбит на обломки-слова, их надо собрать по порядку.
   z.object({ ...base, type: z.literal("storm"), ...ref.shape, words: z.number().int().min(5).max(20).optional() }),
   // Лот: сколько раз слово с таким корнем встречается в показанном отрывке.
@@ -105,26 +105,35 @@ export async function shownPassages(task: SeaTask) {
 /** Семя команды для вахты: у каждой команды свои маяк, флаги и сетка, но постоянные между открытиями. */
 const seedOf = (secret: string, scopeKey: string, index: number, kind: string) => `${secret.slice(0, 16)}|${scopeKey}|${kind}|${index}`;
 
-/** Узоры сигнальных флагов (десять) и пары цветов; у команды — своя перестановка узоров под цифры и свои цвета. */
-export const FLAG_PATTERNS = ["halves-h", "halves-v", "cross", "diagonal", "circle", "checker", "triangle", "stripes", "border", "diamond"] as const;
-const FLAG_COLORS = ["#c0392b", "#1f5f8b", "#f1c40f", "#1e8449", "#f8f1e0", "#2c2c2c", "#e67e22", "#7d3c98"];
-
+/**
+ * Вымпелы сигнальщика (десять рисунков в духе морских цифровых вымпелов). Азбука «цифра → вымпел» у каждой команды
+ * своя и команде не выдаётся: её надо восстановить по подписанным сигналам — ссылкам на стихи той же книги
+ * (решение владельца 06.10: «не детская вещь, а головоломка»). Последний, неподписанный сигнал — глава и стих ответа.
+ */
+export const FLAG_PATTERNS = ["disc-red", "disc-white", "thirds-rwb", "cross-red", "halves-yb", "halves-bw", "halves-yr", "cross-white", "quarters", "thirds-yry"] as const;
 interface Beacon { long: number; short: number }
 function beaconFor(task: Extract<SeaTask, { type: "beacon" }>, secret: string, scopeKey: string, index: number): { verse: number; signal: Beacon } {
   const rng = rngFrom(seedOf(secret, scopeKey, index, "beacon"));
   const verse = task.verses[Math.floor(rng() * task.verses.length)]!;
   return { verse, signal: { long: Math.floor(verse / 10), short: verse % 10 } };
 }
-function flagsFor(task: Extract<SeaTask, { type: "flags" }>, secret: string, scopeKey: string, index: number) {
+async function flagsFor(task: Extract<SeaTask, { type: "flags" }>, secret: string, scopeKey: string, index: number) {
   const seed = seedOf(secret, scopeKey, index, "flags");
   const rng = rngFrom(seed);
   const verse = task.verses[Math.floor(rng() * task.verses.length)]!;
   const perm = seededShuffle(seed + "|perm", [...FLAG_PATTERNS]);
-  const colors = seededShuffle(seed + "|colors", FLAG_COLORS);
-  // Азбука: цифра → узор и два цвета; на экране азбука показана в перетасованном порядке, чтобы цифры не шли по порядку.
-  const key = Array.from({ length: 10 }, (_, d) => ({ digit: d, pattern: perm[d]!, colors: [colors[(d * 2) % colors.length]!, colors[(d * 2 + 1) % colors.length]!] }));
-  const message = `${task.chapter}:${verse}`.split("").map((ch) => (ch === ":" ? null : key[Number(ch)]!));
-  return { verse, key: seededShuffle(seed + "|show", key), message: message.map((f) => (f ? { pattern: f.pattern, colors: f.colors } : null)) };
+  const encode = (ref: string) => ref.split("").map((ch) => (ch === ":" ? null : perm[Number(ch)]!));
+  // Подписанные сигналы: другие стихи вахты; если в ответе есть цифра, которой в них нет, добавляем стих с такой цифрой.
+  const book = await loadBook(task.book);
+  const verseCount = book?.verseCounts[task.chapter - 1] ?? 30;
+  const cribs = task.verses.filter((v) => v !== verse).map((v) => `${task.chapter}:${v}`);
+  const covered = () => new Set(cribs.join("").replace(/:/g, "").split(""));
+  for (const d of `${task.chapter}:${verse}`.replace(":", "")) {
+    if (covered().has(d)) continue;
+    for (let v = 1; v <= verseCount; v++) if (String(v).includes(d) && v !== verse && !cribs.includes(`${task.chapter}:${v}`)) { cribs.push(`${task.chapter}:${v}`); break; }
+  }
+  const labelled = seededShuffle(seed + "|cribs", cribs).map((ref) => ({ label: `${bookNameRu(task.book)} ${ref}`, flags: encode(ref) }));
+  return { verse, cribs: labelled, message: encode(`${task.chapter}:${verse}`) };
 }
 interface WordGrid { rows: number; cols: number; cells: Array<{ id: string; text: string }>; path: number[] }
 function wordPathFor(words: string[], chapterWords: string[], secret: string, scopeKey: string, index: number): WordGrid {
@@ -168,8 +177,8 @@ export async function publicSeaTask(task: SeaTask, index: number, secret: string
       return { ...common, book: bookNameRu(task.book), chapter: task.chapter, word: task.word, signal: b.signal };
     }
     case "flags": {
-      const f = flagsFor(task, secret, scopeKey, index);
-      return { ...common, book: bookNameRu(task.book), word: task.word, key: f.key, message: f.message };
+      const f = await flagsFor(task, secret, scopeKey, index);
+      return { ...common, book: bookNameRu(task.book), word: task.word, cribs: f.cribs, message: f.message };
     }
     case "wordpath": {
       const book = await loadBook(task.book);
@@ -202,7 +211,7 @@ export async function checkSeaAnswer(task: SeaTask, index: number, secret: strin
     case "beacon":
     case "flags": {
       if (typeof answer !== "string") return false;
-      const verse = task.type === "beacon" ? beaconFor(task, secret, scopeKey, index).verse : flagsFor(task, secret, scopeKey, index).verse;
+      const verse = task.type === "beacon" ? beaconFor(task, secret, scopeKey, index).verse : (await flagsFor(task, secret, scopeKey, index)).verse;
       const book = await loadBook(task.book);
       const want = pickWord(verseWords((book ? verseOf(book, task.chapter, verse) : null) ?? ""), task.word);
       return want != null && normalizeAnswer(answer) === normalizeAnswer(want);

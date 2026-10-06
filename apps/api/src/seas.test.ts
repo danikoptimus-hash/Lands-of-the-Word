@@ -77,10 +77,14 @@ describe("контент морей", () => {
     expect(await checkSeaAnswer(beacon, beaconIdx, secret, scopeA, "нет")).toBe(false);
     // Флаги: сообщение и азбука у команды, ответ — слово стиха, на который они указывают.
     const flagsIdx = red.tasks.findIndex((t) => t.type === "flags"), flags = red.tasks[flagsIdx]!;
-    const pf = await publicSeaTask(flags, flagsIdx, secret, scopeA) as { key: Array<{ digit: number; pattern: string }>; message: Array<{ pattern: string } | null> };
-    expect(pf.key).toHaveLength(10);
-    expect(new Set(pf.key.map((k) => k.pattern)).size).toBe(10);
-    const digits = pf.message.map((m) => (m ? String(pf.key.find((k) => k.pattern === m.pattern)!.digit) : ":")).join("");
+    const pf = await publicSeaTask(flags, flagsIdx, secret, scopeA) as { cribs: Array<{ label: string; flags: Array<string | null> }>; message: Array<string | null> };
+    expect(pf.cribs.length).toBeGreaterThanOrEqual(3);
+    expect(JSON.stringify(pf)).not.toMatch(/"digit"|"key"/);
+    // Азбука восстанавливается по подписанным сигналам: подпись «Исход 15:4» и вымпелы дают цифру каждого вымпела.
+    const alphabet = new Map<string, string>();
+    for (const c of pf.cribs) { const digits = c.label.replace(/^\D+/, "").replace(":", ""); c.flags.filter((f) => f).forEach((f, i) => alphabet.set(f!, digits[i]!)); }
+    const digits = pf.message.map((f) => (f ? alphabet.get(f) ?? "?" : ":")).join("");
+    expect(digits).not.toContain("?");
     const [ch, v] = digits.split(":").map(Number);
     expect(ch).toBe(15);
     const fw = verseWords(book.chapters![ch! - 1]![v! - 1]!);

@@ -152,7 +152,7 @@ function WatchView({ task, teamDone, done, busy, onBack, onAnswer, lock, pauseSt
       <h3 className="mt-2">{t("Вахта {n}", { n: task.index + 1 })} · {task.title}</h3>
       {!(task.type === "text" && gap && !done) && <p className="prompt no-copy" onCopy={(e) => e.preventDefault()}>{task.prompt}</p>}
       {task.type === "beacon" && !done && <Beacon signal={task.signal} />}
-      {task.type === "flags" && !done && <SignalFlags message={task.message} keyChart={task.key} />}
+      {task.type === "flags" && !done && <SignalFlags cribs={task.cribs} message={task.message} />}
       <Passages items={task.show} />
       {!done && !locked && (lock?.wrong ?? 0) > 0 && <p className="muted small">{t("Ошибок подряд: {n} · следующая пауза {t}", { n: lock!.wrong, t: fmtLeft(nextPause * 1000) })}</p>}
       {locked && lock && (

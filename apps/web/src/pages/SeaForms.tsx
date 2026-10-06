@@ -56,37 +56,56 @@ export function Beacon({ signal }: { signal: { long: number; short: number } }) 
   );
 }
 
-/* ---------- Сигнальные флаги ---------- */
-export function Flag({ pattern, colors, size = 44 }: { pattern: string; colors: string[]; size?: number }) {
-  const [a, b] = [colors[0] ?? "#c0392b", colors[1] ?? "#f8f1e0"];
-  const w = size, h = Math.round(size * 0.78);
+/* ---------- Сигнальные вымпелы ---------- */
+/** Рисунки вымпелов: десять, в духе морских цифровых вымпелов; какой цифре какой — у каждой команды по-своему. */
+const RED = "#b8312f", BLUE = "#1f4e8c", YEL = "#e9b949", WHT = "#f6f1e4", BLK = "#2a2a2a";
+export function Flag({ pattern, size = 56 }: { pattern: string; size?: number }) {
+  const w = size * 1.5, h = size * 0.8;
+  // Вымпел: сужается к правому концу; рисунок обрезан по его контуру.
+  const shape = `M0 0H${w * 0.55}L${w} ${h / 2}L${w * 0.55} ${h}H0Z`;
+  const id = `pf-${pattern}-${size}`;
   let body: React.ReactNode;
+  const thirds = (a: string, b: string, c: string) => <><rect width={w / 3} height={h} fill={a} /><rect x={w / 3} width={w / 3} height={h} fill={b} /><rect x={(2 * w) / 3} width={w / 3} height={h} fill={c} /></>;
   switch (pattern) {
-    case "halves-h": body = <><rect width={w} height={h / 2} fill={a} /><rect y={h / 2} width={w} height={h / 2} fill={b} /></>; break;
-    case "halves-v": body = <><rect width={w / 2} height={h} fill={a} /><rect x={w / 2} width={w / 2} height={h} fill={b} /></>; break;
-    case "cross": body = <><rect width={w} height={h} fill={b} /><rect x={w * 0.4} width={w * 0.2} height={h} fill={a} /><rect y={h * 0.38} width={w} height={h * 0.24} fill={a} /></>; break;
-    case "diagonal": body = <><rect width={w} height={h} fill={b} /><path d={`M0 0H${w}V${h}Z`} fill={a} /></>; break;
-    case "circle": body = <><rect width={w} height={h} fill={b} /><circle cx={w / 2} cy={h / 2} r={h * 0.3} fill={a} /></>; break;
-    case "checker": body = <><rect width={w} height={h} fill={b} /><rect width={w / 2} height={h / 2} fill={a} /><rect x={w / 2} y={h / 2} width={w / 2} height={h / 2} fill={a} /></>; break;
-    case "triangle": body = <><rect width={w} height={h} fill={b} /><path d={`M0 0L${w * 0.62} ${h / 2}L0 ${h}Z`} fill={a} /></>; break;
-    case "stripes": body = <><rect width={w} height={h} fill={b} /><rect width={w} height={h / 3} fill={a} /><rect y={(h * 2) / 3} width={w} height={h / 3} fill={a} /></>; break;
-    case "border": body = <><rect width={w} height={h} fill={a} /><rect x={w * 0.2} y={h * 0.2} width={w * 0.6} height={h * 0.6} fill={b} /></>; break;
-    default: body = <><rect width={w} height={h} fill={b} /><path d={`M${w / 2} ${h * 0.12}L${w * 0.86} ${h / 2}L${w / 2} ${h * 0.88}L${w * 0.14} ${h / 2}Z`} fill={a} /></>;
+    case "disc-red": body = <><rect width={w} height={h} fill={WHT} /><circle cx={w * 0.3} cy={h / 2} r={h * 0.28} fill={RED} /></>; break;
+    case "disc-white": body = <><rect width={w} height={h} fill={BLUE} /><circle cx={w * 0.3} cy={h / 2} r={h * 0.28} fill={WHT} /></>; break;
+    case "thirds-rwb": body = thirds(RED, WHT, BLUE); break;
+    case "cross-red": body = <><rect width={w} height={h} fill={RED} /><rect x={w * 0.22} width={w * 0.14} height={h} fill={WHT} /><rect y={h * 0.4} width={w} height={h * 0.2} fill={WHT} /></>; break;
+    case "halves-yb": body = <><rect width={w / 2} height={h} fill={YEL} /><rect x={w / 2} width={w / 2} height={h} fill={BLUE} /></>; break;
+    case "halves-bw": body = <><rect width={w} height={h / 2} fill={BLK} /><rect y={h / 2} width={w} height={h / 2} fill={WHT} /></>; break;
+    case "halves-yr": body = <><rect width={w / 2} height={h} fill={YEL} /><rect x={w / 2} width={w / 2} height={h} fill={RED} /></>; break;
+    case "cross-white": body = <><rect width={w} height={h} fill={WHT} /><rect x={w * 0.22} width={w * 0.14} height={h} fill={RED} /><rect y={h * 0.4} width={w} height={h * 0.2} fill={RED} /></>; break;
+    case "quarters": body = <><rect width={w} height={h} fill={WHT} /><rect width={w / 2} height={h / 2} fill={BLK} /><rect x={w / 2} y={h / 2} width={w / 2} height={h / 2} fill={YEL} /><rect x={w / 2} width={w / 2} height={h / 2} fill={RED} /></>; break;
+    default: body = thirds(YEL, RED, YEL);
   }
-  return <svg className="flag" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">{body}<rect width={w} height={h} fill="none" stroke="rgba(0,0,0,.45)" /></svg>;
+  return (
+    <svg className="flag" width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true">
+      <defs><clipPath id={id}><path d={shape} /></clipPath></defs>
+      <g clipPath={`url(#${id})`}>{body}<rect width={w} height={h} fill="url(#flag-shade)" /></g>
+      <path d={shape} fill="none" stroke="rgba(30,25,20,.55)" strokeWidth={1.2} />
+      <rect x={0} y={-1} width={3} height={h + 2} fill="rgba(60,45,30,.8)" />
+    </svg>
+  );
 }
 
-/** Сообщение флагами и азбука команды: цифра → флаг. У каждой команды своя азбука и свои цвета. */
-export function SignalFlags({ message, keyChart }: { message: Array<{ pattern: string; colors: string[] } | null>; keyChart: Array<{ digit: number; pattern: string; colors: string[] }> }) {
+/**
+ * Сигналы на фалах: подписанные (известные ссылки) и последний без подписи. Азбуку команда восстанавливает сама.
+ */
+export function SignalFlags({ cribs, message }: { cribs: Array<{ label: string; flags: Array<string | null> }>; message: Array<string | null> }) {
+  const hoist = (flags: Array<string | null>, size: number) => flags.map((f, i) => (f ? <span key={i} className="hoist"><Flag pattern={f} size={size} /></span> : <span key={i} className="gap" aria-hidden="true">:</span>));
   return (
     <div className="signal">
-      <div className="signal-line" aria-label={t("Сообщение флагами")}>
+      <svg width="0" height="0" aria-hidden="true" style={{ position: "absolute" }}><defs><linearGradient id="flag-shade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".22" /><stop offset=".5" stopColor="#fff" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".22" /></linearGradient></defs></svg>
+      <p className="small muted">{t("Известные сигналы")}</p>
+      <ul className="signal-cribs">
+        {cribs.map((c) => (
+          <li key={c.label}><span className="crib-label">{c.label}</span><span className="signal-line small">{hoist(c.flags, 34)}</span></li>
+        ))}
+      </ul>
+      <p className="small muted">{t("Сигнал без подписи")}</p>
+      <div className="signal-line main" aria-label={t("Сообщение вымпелами")}>
         <span className="halyard" aria-hidden="true" />
-        {message.map((f, i) => (f ? <span key={i} className="hoist"><Flag pattern={f.pattern} colors={f.colors} size={52} /></span> : <span key={i} className="gap" aria-hidden="true">:</span>))}
-      </div>
-      <p className="small muted">{t("Азбука флагов вашей команды")}</p>
-      <div className="signal-key">
-        {keyChart.map((k) => <span key={k.digit} className="key-item"><Flag pattern={k.pattern} colors={k.colors} size={36} /><b>{k.digit}</b></span>)}
+        {hoist(message, 52)}
       </div>
     </div>
   );
