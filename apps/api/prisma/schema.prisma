@@ -265,6 +265,8 @@ model QuarryWork {
   deedId       String
   deed         Deed      @relation(fields: [deedId], references: [id], onDelete: Cascade)
   byId         String
+  /** Кто был (решение владельца 07.10): отмечают при сдаче, принятое дело идёт им в зачёт «Моё служение». */
+  participants String[]  @default([])
   links        String[]  @default([])
   note         String    @default("")
   status       String    @default("SUBMITTED")
@@ -379,6 +381,8 @@ model Deed {
   /** Общее дело Каменоломни (вся команда вместе): не ставится на дороги, за него команда получает камни. */
   quarry      Boolean   @default(false)
   stones      Int       @default(1)
+  /** Общее дело: сколько процентов состава должно присутствовать (отмечается при сдаче); null — не проверяется. */
+  quorumPct   Int?
   quarryWorks QuarryWork[]
   /** Хеш версии стандартного набора, из которой взято дело; пока администратор дело не правил, совпадает с хешем содержимого — такие дела сервер обновляет сам при выходе новой версии набора. */
   sourceHash  String?

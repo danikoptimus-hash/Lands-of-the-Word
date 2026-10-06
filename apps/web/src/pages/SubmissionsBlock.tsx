@@ -141,7 +141,7 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
 
 
 /** Общие дела Каменоломни (решение владельца 04.10): фото всей команды; принято — команде камни по делу. */
-interface QuarryRow { id: string; team: { id: string; name: string; color: string; stones: number }; deed: { title: string; description: string; stones: number }; stones: number; by: string; links: string[]; note: string; submittedAt: string }
+interface QuarryRow { id: string; team: { id: string; name: string; color: string; stones: number }; deed: { title: string; description: string; stones: number; quorumPct: number | null }; stones: number; by: string; participants: string[]; teamSize: number; links: string[]; note: string; submittedAt: string }
 export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
   const { notify } = useUi();
   const [rows, setRows] = useState<QuarryRow[] | null>(null);
@@ -167,6 +167,7 @@ export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string
                 <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName /><Chip tone="accent" icon="stone" title={t("Камней за дело")}>{r.stones}</Chip><span className="muted small">· {t("у команды: {n}", { n: r.team.stones })}</span></span>
                 <span className="title">{r.deed.title}</span>
                 <span className="meta"><span>{t("фото")}</span><span>· {r.by}</span><span>· {fmtDate(r.submittedAt)}</span></span>
+                <span className={"small" + (r.deed.quorumPct != null && r.participants.length < Math.ceil((r.teamSize * r.deed.quorumPct) / 100) ? " warn" : "")}>{t("Были")} ({t("{a} из {b}", { a: r.participants.length, b: r.teamSize })}): {r.participants.join(", ") || "—"}{r.deed.quorumPct != null && <span className="muted"> · {t("нужно не меньше {n}", { n: Math.ceil((r.teamSize * r.deed.quorumPct) / 100) })}</span>}</span>
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
                 <LinkList links={r.links} kind="photo" />
               </div>

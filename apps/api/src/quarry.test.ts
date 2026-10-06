@@ -62,7 +62,11 @@ describe("Каменоломня", () => {
     expect(build.stones).toBe(3);
     // Рядовой участник сдать не может, капитан — может; повторная сдача, пока первая на проверке, — 409.
     expect((await post(`/api/games/${gameId}/quarry/${build.id}/submit`, memCookie, { links: ["https://photos.example/team"] })).statusCode).toBe(403);
-    const sub = await post(`/api/games/${gameId}/quarry/${build.id}/submit`, capCookie, { links: ["https://photos.example/team"], note: "Все были" });
+    // Кто был — обязательно (решение владельца 07.10): без отметки сдача не принимается.
+    expect((await post(`/api/games/${gameId}/quarry/${build.id}/submit`, capCookie, { links: ["https://photos.example/team"] })).statusCode).toBe(400);
+    const members = (await get(`/api/games/${gameId}/quarry`, capCookie)).json().members as Array<{ id: string; name: string }>;
+    expect(members.length).toBeGreaterThanOrEqual(2);
+    const sub = await post(`/api/games/${gameId}/quarry/${build.id}/submit`, capCookie, { links: ["https://photos.example/team"], note: "Все были", participants: members.map((x) => x.id) });
     expect(sub.statusCode).toBe(201);
     expect((await post(`/api/games/${gameId}/quarry/${build.id}/submit`, capCookie, { links: ["https://photos.example/team2"] })).statusCode).toBe(409);
     // Пока камней нет — вымостить нельзя.
@@ -75,6 +79,8 @@ describe("Каменоломня", () => {
     const dec = await post(`/api/games/${gameId}/quarry/works/${sub.json().work.id}/decide`, adminCookie, { approve: true });
     expect(dec.statusCode).toBe(200); expect(dec.json().stones).toBe(3);
     expect((await get(`/api/games/${gameId}/quarry`, capCookie)).json().stones).toBe(3);
+    // Принятое общее дело идёт в зачёт тем, кого отметили: у рядового участника в «Моём служении» одно дело.
+    expect((await get(`/api/games/${gameId}/my-service`, memCookie)).json().deeds).toBe(1);
     expect((await get(`/api/games/${gameId}/my-map`, capCookie)).json().team.stones).toBe(3);
     // Вымостить: сторона принята как вымощенная, перекрёсток открыт, камней на один меньше; рядовому — нельзя.
     expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/pave`, memCookie)).statusCode).toBe(403);
@@ -91,5 +97,18 @@ describe("Каменоломня", () => {
     expect(mine?.deedsApproved ?? 0).toBe(0);
     // Повторно ту же сторону не вымостить.
     expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/pave`, capCookie)).statusCode).toBe(409);
+  });
+
+  it("богослужение без телефона: нужна не меньше чем половина команды, отмеченным — зачёт", async () => {
+    const deed = await prisma.deed.findFirstOrThrow({ where: { gameId, quarry: true, title: "Молодёжное богослужение без телефона" } });
+    expect(deed.quorumPct).toBe(50);
+    const members = (await get(`/api/games/${gameId}/quarry`, capCookie)).json().members as Array<{ id: string; name: string }>;
+    const need = Math.ceil(members.length / 2);
+    if (need > 1) expect((await post(`/api/games/${gameId}/quarry/${deed.id}/submit`, capCookie, { links: ["https://photos.example/service"], participants: members.slice(0, need - 1).map((x) => x.id) })).statusCode).toBe(409);
+    const sub = await post(`/api/games/${gameId}/quarry/${deed.id}/submit`, capCookie, { links: ["https://photos.example/service"], participants: [...members.slice(0, need).map((x) => x.id), "not-a-member"] });
+    expect(sub.statusCode).toBe(201);
+    const queue = (await get(`/api/games/${gameId}/quarry/submissions`, adminCookie)).json().works as Array<{ id: string; participants: string[]; teamSize: number }>;
+    const row = queue.find((w) => w.id === sub.json().work.id)!;
+    expect(row.participants.length).toBe(need); expect(row.teamSize).toBe(members.length);
   });
 });

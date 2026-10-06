@@ -107,15 +107,18 @@ export async function feed(gameId: string, teamId: string, limit = 60) {
 /** Сводка участника: дела, районы, стихи, переправы (E-03 «Моё служение»). */
 export interface ServiceStats { deeds: number; deedsPending: number; tasks: number; orders: number; cities: number; verses: number; trips: number; lastActiveAt: number | null }
 export async function serviceStats(gameId: string, userId: string, teamId: string): Promise<ServiceStats> {
-  const [deeds, deedsPending, entries, rows] = await Promise.all([
+  // Общие дела Каменоломни (решение владельца 07.10): принятое дело идёт в зачёт тем, кого отметили при сдаче.
+  const [deeds, deedsPending, quarryDone, quarryPending, entries, rows] = await Promise.all([
     prisma.teamEdgeTask.count({ where: { gameId, teamId, status: "APPROVED", paved: false, OR: [{ takenById: userId }, { participants: { has: userId } }] } }),
     prisma.teamEdgeTask.count({ where: { gameId, teamId, status: { in: ["TAKEN", "SUBMITTED"] }, OR: [{ takenById: userId }, { participants: { has: userId } }] } }),
+    prisma.quarryWork.count({ where: { gameId, teamId, status: "APPROVED", participants: { has: userId } } }),
+    prisma.quarryWork.count({ where: { gameId, teamId, status: "SUBMITTED", participants: { has: userId } } }),
     prisma.battleEntry.findMany({ where: { userId, teamId, status: "APPROVED", battle: { gameId } }, select: { startIdx: true, endIdx: true } }),
     prisma.journal.findMany({ where: { gameId, userId }, select: { kind: true, createdAt: true } }),
   ]);
   const count = (k: JournalKind) => rows.filter((r) => r.kind === k).length;
   const last = rows.reduce<number | null>((a, r) => (a === null || r.createdAt.getTime() > a ? r.createdAt.getTime() : a), null);
-  return { deeds, deedsPending, tasks: count("task_solved"), orders: count("order_solved"), cities: count("city_captured") + count("ruins_taken"), verses: entries.reduce((a, e) => a + (e.endIdx - e.startIdx + 1), 0), trips: count("sea_landed"), lastActiveAt: last };
+  return { deeds: deeds + quarryDone, deedsPending: deedsPending + quarryPending, tasks: count("task_solved"), orders: count("order_solved"), cities: count("city_captured") + count("ruins_taken"), verses: entries.reduce((a, e) => a + (e.endIdx - e.startIdx + 1), 0), trips: count("sea_landed"), lastActiveAt: last };
 }
 
 /** Доска активности для администратора: все участники игры с той же сводкой, самые активные сверху. */

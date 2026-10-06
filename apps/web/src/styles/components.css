@@ -221,3 +221,10 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .m-sea.opened .ring, .m-sea.crossed .ring { fill: var(--success, #4c8c4a); stroke: var(--on-accent, #fff); stroke-width: 2; }
 .m-sea.opened use, .m-sea.crossed use { color: var(--on-accent, #fff); }
 .m-sea .cnt { fill: var(--accent-ink, #6b4a0e); }
+/* Каменоломня: «кто был» при сдаче (решение владельца 07.10) */
+.quarry-present { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin: 0; }
+.quarry-present legend { font-size: var(--fs-sm); font-weight: 700; padding: 0 4px; }
+.quarry-present .present-list { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; }
+.quarry-present .present-list label { gap: 8px; align-items: center; min-height: 32px; }
+.quarry-present .present-list input { width: 20px; height: 20px; flex: none; }
+.review-item .warn { color: var(--warn); }
