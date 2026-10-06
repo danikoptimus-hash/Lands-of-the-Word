@@ -136,6 +136,15 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   }, [viewAs, gameId, version]);
   const kk = vp.view.k;
   const showLabels = kk >= 1.4, showDots = kk >= 0.8, showIslands = kk < 1.4;
+  // Морские переправы для слоя живности: под ними плавают киты, над ними идут корабли (решение владельца 06.10).
+  const routeSpecs = useMemo(() => {
+    const obstacles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape }));
+    return (progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
+      const pts = routeCurve(seaRoute(landKeys, e.fromKey, e.toKey, size, undefined, obstacles), landKeys, size, obstacles);
+      const arrow = routeArrow(pts, size * 1.1);
+      return { pts, color: routeColor(tm.color), arrow: { x: arrow.x, y: arrow.y, heading: arrow.heading } };
+    }));
+  }, [progress, edgeSet, positions, landKeys, islets, size]);
   const islandLabels = useMemo(() => (showIslands && islandCenters.has("NT") ? [...islandCenters].map(([isl, c]) => ({ x: c.x, y: c.y, r: c.r + size * 4, name: isl === "OT" ? t("Ветхий Завет") : t("Новый Завет") })) : []), [showIslands, islandCenters, size]);
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста). */
   const sc = (x: number, y: number) => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))` });
@@ -159,7 +168,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             {(progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
               const pts = routeCurve(seaRoute(landKeys, e.fromKey, e.toKey, size, undefined, obstacles), landKeys, size, obstacles);
               const d = routePathD(pts), arrow = routeArrow(pts, size * 1.1), end = { x: arrow.x, y: arrow.y }, heading = arrow.heading;
-              return <g key={"sea" + tm.id + e.fromKey + e.toKey} className="adm-sea-route"><path className="adm-halo sea" d={d} /><path className="adm-sea" d={d} style={{ stroke: routeColor(tm.color) }} /><g style={sc(end.x, end.y)}><g transform={`rotate(${heading})`}><polygon className="arrow" points="-10,-7 4,0 -10,7" style={{ fill: routeColor(tm.color) }} /></g></g><path className="edge-hit" d={d} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.fromKey, bKey: e.toKey }); }} /></g>;
+              void end; void heading; // линия и стрелка рисуются слоем живности (решение владельца 06.10); здесь только область нажатия
+              return <g key={"sea" + tm.id + e.fromKey + e.toKey} className="adm-sea-route"><path className="edge-hit" d={d} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.fromKey, bKey: e.toKey }); }} /></g>;
             }))}
             {nodes.map((n) => {
               const p = positions.get(n.key)!;
@@ -296,7 +306,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             </g>
           </WorldSvg>
           {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
-          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} />
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
         </div>
         <div className="map-controls">
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>

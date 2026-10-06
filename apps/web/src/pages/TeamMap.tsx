@@ -126,9 +126,11 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     return map.tasks.filter((tk) => tk.sea && tk.status === "APPROVED" && !tk.toKey.startsWith("sea:")).map((tk) => {
       const pts = routeCurve(seaRoute(landKeys, tk.fromKey, tk.toKey, size, undefined, obstacles), landKeys, size, obstacles);
       const arrow = routeArrow(pts, size * 1.1);
-      return { tk, d: routePathD(pts), end: { x: arrow.x, y: arrow.y }, heading: arrow.heading };
+      return { tk, pts, d: routePathD(pts), end: { x: arrow.x, y: arrow.y }, heading: arrow.heading };
     });
   }, [map.tasks, landKeys, islets, size]);
+  // Видимая линия переправы рисуется слоем живности между зверями и кораблями (решение владельца 06.10); в SVG остаётся только область нажатия.
+  const routeSpecs = useMemo(() => seaRoutes.map((r) => ({ pts: r.pts, color: routeColor(map.team.color), selected: r.tk.id === selectedTaskId, arrow: { x: r.end.x, y: r.end.y, heading: r.heading } })), [seaRoutes, map.team.color, selectedTaskId]);
   // Корабли: морские дела, пока команда не высадилась (после высадки дело — обычная пройденная сторона).
   const ships = useMemo(() => map.tasks.filter((tk) => tk.sea && (tk.status !== "APPROVED" || tk.landing)).map((tk) => {
     const p = nodePos(tk.fromKey, size), c = islandCenters.get(nodeByKey.get(tk.fromKey)?.island ?? "OT") ?? { x: 0, y: 0 };
@@ -194,12 +196,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             </g>
           );
         })}
-        {seaRoutes.map(({ tk, d, end, heading }) => (
+        {seaRoutes.map(({ tk, d }) => (
           <g key={"sea" + tk.id} className={"m-edge done sea-route" + (tk.id === selectedTaskId ? " sel" : "")} onClick={() => click(tk.id)}>
             <path className="hit" d={d} />
-            <path className="halo" d={d} />
-            <path className="way" d={d} style={{ stroke: routeColor(map.team.color) }} />
-            <g style={sc(end.x, end.y)}><g transform={`rotate(${heading})`}><polygon className="arrow" points="-10,-7 4,0 -10,7" style={{ fill: routeColor(map.team.color) }} /></g></g>
           </g>
         ))}
         {map.revealed.map((n) => {
@@ -379,7 +378,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={dt.light} />}
       {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); рисует слой живности: киты под буквами,
           корабли над ними (решение владельца 05.10). */}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} labels={islandLabels} />
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">
           {/* Каменоломня вне memo: обработчик нажатия должен видеть свежее состояние перетаскивания (ошибка 05.10: после закрытия лист не открывался). */}

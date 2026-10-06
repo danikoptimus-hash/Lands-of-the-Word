@@ -1068,6 +1068,32 @@ function stepWorld(w: World, dt: number): void {
   const cs = w.cets;
   for (let i = 1; i < cs.length; i++) { const c = cs[i]!; let j = i - 1; while (j >= 0 && cs[j]!.depth < c.depth) { cs[j + 1] = cs[j]!; j--; } cs[j + 1] = c; }
 }
+/** Морской маршрут (переправа): точки по воде, цвет команды, стрелка в конце; выбранный — толще. Рисуется между зверями и кораблями. */
+export interface RouteSpec { pts: ReadonlyArray<{ x: number; y: number }>; color: string; selected?: boolean; arrow: { x: number; y: number; heading: number } }
+let ROUTES: readonly RouteSpec[] = [];
+/**
+ * Морские маршруты (решение владельца 06.10): водная живность плавает под линией переправы, корабли — над ней. Поэтому
+ * линия рисуется на холсте живности между зверями и кораблями тем же видом, что раньше в SVG: светлый ореол, линия
+ * цвета команды, стрелка к месту высадки; толщина на экране постоянная при масштабе ≥1.6. Нажатие остаётся в SVG (невидимая широкая линия).
+ */
+function drawRoutes(ctx: CanvasRenderingContext2D, k: number): void {
+  if (!ROUTES.length) return;
+  const m = Math.max(1.6, k), ui = Math.min(1, Math.max(0.5, k / 1.6));
+  ctx.save(); ctx.globalAlpha = 1; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  for (const r of ROUTES) {
+    if (r.pts.length < 2) continue;
+    ctx.beginPath(); r.pts.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+    ctx.strokeStyle = "rgba(255,250,240,0.85)"; ctx.lineWidth = 10 / m; ctx.stroke();
+    ctx.strokeStyle = r.color; ctx.lineWidth = (r.selected ? 8 : 6) / m; ctx.stroke();
+    // стрелка: размер на экране 14px·ui, как у SVG-версии (scale(var(--inv)))
+    const sc = ui / k;
+    ctx.save(); ctx.translate(r.arrow.x, r.arrow.y); ctx.rotate((r.arrow.heading * Math.PI) / 180); ctx.scale(sc, sc);
+    ctx.beginPath(); ctx.moveTo(-10, -7); ctx.lineTo(4, 0); ctx.lineTo(-10, 7); ctx.closePath();
+    ctx.fillStyle = r.color; ctx.strokeStyle = "rgba(255,250,240,0.95)"; ctx.lineWidth = 1.5; ctx.fill(); ctx.stroke();
+    ctx.restore();
+  }
+  ctx.restore();
+}
 /** Подпись острова по дуге под ним: центр, радиус дуги, текст. Рисуется в слое живности между зверями и кораблями. */
 export interface IslandLabelSpec { x: number; y: number; r: number; name: string }
 let LABELS: readonly IslandLabelSpec[] = [];
@@ -1112,7 +1138,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis,
   for (const sh of w.ships) drawTrail(ctx, sh.trail, T, sh.spec.L, 9, px, vis, true);
   for (const c of w.cets) if (inView(vis, c.x, c.y)) drawCet(ctx, c, T, px, lod);
   drawFx(ctx, w.fx, T, px, vis);
-  drawIslandLabels(ctx, k); ctx.globalAlpha = alpha; // буквы между китами и кораблями
+  drawRoutes(ctx, k); drawIslandLabels(ctx, k); ctx.globalAlpha = alpha; // переправы и буквы между китами и кораблями
   for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
   for (const g of w.gulls) {
     if (!inView(vis, g.x, g.y)) continue;
@@ -1405,13 +1431,15 @@ export function renderWorldSnapshot(ctx: CanvasRenderingContext2D, hexes: MapHex
 const NO_ISLETS: Islet[] = [];
 const NO_FIRES: FireSite[] = [];
 const NO_LABELS: IslandLabelSpec[] = [];
-export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, labels = NO_LABELS }: { /** Подписи островов: рисуются между зверями и кораблями (решение владельца 05.10). */ labels?: IslandLabelSpec[]; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
+const NO_ROUTES: RouteSpec[] = [];
+export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, labels = NO_LABELS, routes = NO_ROUTES }: { /** Морские маршруты: рисуются между зверями и кораблями (решение владельца 06.10). */ routes?: RouteSpec[]; /** Подписи островов: рисуются между зверями и кораблями (решение владельца 05.10). */ labels?: IslandLabelSpec[]; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const dailyRef = useRef(daily); dailyRef.current = daily;
   const clockRef = useRef(clock); clockRef.current = clock;
   const lightRef = useRef(light); lightRef.current = light;
   const firesRef = useRef(fires); firesRef.current = fires;
   const labelsRef = useRef(labels); labelsRef.current = labels;
+  const routesRef = useRef(routes); routesRef.current = routes;
   // Ключ профиля — весь состав гексов: у разных карт одинаковое число гексов и часто совпадает первый, и при переходе
   // между партиями внутри приложения живность продолжала обходить берег прежней карты, то есть плыла по суше новой (01.10).
   const key = hexes.map((h) => `${h.q},${h.r},${h.island ?? ""}`).join(";");
@@ -1466,7 +1494,7 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
       // Видимая область с запасом в три гекса: звери чуть за краем ещё видны хвостом или следом.
       vis.x0 = -tx / k - size * 3; vis.y0 = -ty / k - size * 3; vis.x1 = (W / dpr - tx) / k + size * 3; vis.y1 = (H / dpr - ty) / k + size * 3;
       const a = prev ? Math.min(1, cur.w.T / FADE) : 1;
-      LIGHT = lightRef.current; LABELS = labelsRef.current;
+      LIGHT = lightRef.current; LABELS = labelsRef.current; ROUTES = routesRef.current;
       if (prev) drawWorld(ctx, prev.w, k, vis, 1 - a);
       drawWorld(ctx, cur.w, k, vis, a);
       ctx.globalAlpha = 1;
