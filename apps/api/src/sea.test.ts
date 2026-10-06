@@ -237,13 +237,16 @@ describe("морской переход", () => {
     const m1 = await myMap();
     const approved = (m1.tasks as Task[]).find((t) => t.id === sea.id)!;
     expect(approved.landing).toBe(true);
-    // Десять случайных пристаней на рейс, одинаковых при повторном запросе (решение владельца 05.10).
-    expect(approved.candidates!.length).toBe(10);
+    // Все береговые узлы другого острова, с городами, одинаковые при повторном запросе; какой из них город — не видно (решение владельца 06.10).
+    const coastNT = await prisma.mapNode.findMany({ where: { gameId, coastal: true, island: "NT", kind: { in: ["EMPTY", "CITY"] } }, select: { key: true, kind: true } });
+    expect([...approved.candidates!].sort()).toEqual(coastNT.map((n) => n.key).sort());
+    expect(coastNT.some((n) => n.kind === "CITY")).toBe(true);
     const sameBerths = ((await myMap()).tasks as Task[]).find((t) => t.id === sea.id)!;
     expect(sameBerths.candidates).toEqual(approved.candidates);
-    const cand = await prisma.mapNode.findMany({ where: { gameId, key: { in: approved.candidates } } });
-    for (const c of cand) { expect(c.island).toBe("NT"); expect(c.coastal).toBe(true); expect(c.kind).toBe("EMPTY"); }
-    expect((m1.revealed as Array<{ key: string }>).some((n) => n.key === cand[0]!.key)).toBe(false);
+    expect((m1.revealed as Array<{ key: string }>).some((n) => approved.candidates!.includes(n.key))).toBe(false);
+    // Высаживаемся на город: он открывается, как при подходе по дороге.
+    const city = coastNT.find((n) => n.kind === "CITY")!;
+    const cand = [await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: city.key } } }), ...(await prisma.mapNode.findMany({ where: { gameId, key: { in: approved.candidates!.filter((k) => k !== city.key) } }, take: 1 }))];
     // Не капитан не может; не кандидат (береговой узел своего острова) — нельзя.
     const member = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${sea.id}/land`, headers: { cookie: memCookie }, payload: { nodeKey: cand[0]!.key } });
     expect(member.statusCode).toBe(403);
@@ -254,6 +257,7 @@ describe("морской переход", () => {
     expect(land.statusCode).toBe(200);
     const m2 = await myMap();
     expect((m2.revealed as Array<{ key: string; island: string }>).find((n) => n.key === cand[0]!.key)?.island).toBe("NT");
+    expect((m2.cities as Array<{ nodeKey: string }>).some((c) => c.nodeKey === cand[0]!.key)).toBe(true);
     const landed = (m2.tasks as Task[]).find((t) => t.id === sea.id)!;
     expect(landed.toKey).toBe(cand[0]!.key);
     expect(landed.landing).toBe(false);

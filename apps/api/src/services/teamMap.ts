@@ -260,25 +260,22 @@ export const seaKey = (portKey: string) => `sea:${portKey}`;
 export const isSeaKey = (key: string) => key.startsWith("sea:");
 
 /** Сколько пристаней предлагается кормчему на один рейс (решение владельца 05.10). */
-export const LANDING_BERTHS = 10;
 /**
- * Куда команда может высадиться с этого порта: пустые береговые узлы другого острова, ещё не открытые ей, но не все, а
- * десять случайных пристаней (решение владельца 05.10, после расследования меток в «Осени»): когда якоря стояли на всех
- * пустых береговых углах, береговые углы без якоря выдавали города в тумане. Набор перемешивается по id рейса, поэтому
- * одинаков для всей команды и не меняется при перезагрузке; уже открытые узлы выпадают, остальные остаются на местах.
+ * Куда команда может высадиться с этого порта (решение владельца 06.10): все береговые узлы другого острова, ещё не
+ * открытые ей, — и пустые, и с городами. Какой из них город, команда не знает: якоря одинаковые, узел раскрывается
+ * только после высадки. Попали на город — хорошо, не попали — сами выбирали. До 06.10 города исключались (и береговые
+ * углы без якоря выдавали их), потом было десять случайных пристаней; теперь якоря стоят на всех береговых узлах.
+ * Параметр voyageId оставлен для совместимости вызовов.
  */
-export async function landingCandidates(gameId: string, teamId: string, portKey: string, voyageId: string): Promise<string[]> {
+export async function landingCandidates(gameId: string, teamId: string, portKey: string, _voyageId?: string): Promise<string[]> {
   const port = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId, key: portKey } }, select: { island: true } });
   if (!port) return [];
   const [nodes, revealed] = await Promise.all([
-    prisma.mapNode.findMany({ where: { gameId, kind: "EMPTY", coastal: true, island: { not: port.island } }, select: { key: true }, orderBy: { key: "asc" } }),
+    prisma.mapNode.findMany({ where: { gameId, kind: { in: ["EMPTY", "CITY"] }, coastal: true, island: { not: port.island } }, select: { key: true }, orderBy: { key: "asc" } }),
     prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true } }),
   ]);
   const seen = new Set(revealed.map((r) => r.nodeKey));
-  const rng = mulberry32(hashSeed(`${gameId}:${voyageId}:berths`));
-  const all = nodes.map((n) => n.key);
-  for (let i = all.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [all[i], all[j]] = [all[j]!, all[i]!]; }
-  return all.filter((k) => !seen.has(k)).slice(0, LANDING_BERTHS);
+  return nodes.map((n) => n.key).filter((k) => !seen.has(k));
 }
 
 /** Чужие города, через которые команде нельзя идти дальше: заняты другой командой и нет разрешения на проход. */

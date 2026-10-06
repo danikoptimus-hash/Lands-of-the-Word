@@ -127,7 +127,7 @@ const ROLE: Record<GameRole | "CAPTAIN" | "DEPUTY", { icon: string; label: () =>
   PROPHET: { icon: "sparkle", label: () => t("Пророк"), hint: () => t("Раз в неделю зажигает свечу к заданию города и один раз видит письмо с подсказкой.") },
   AMBASSADOR: { icon: "handshake", label: () => t("Посол"), hint: () => t("Просит проходы через чужие города, отвечает на чужие запросы, предлагает мир.") },
   CHRONICLER: { icon: "edit", label: () => t("Летописец"), hint: () => t("Сдаёт дела за команду и следит, чтобы ссылки и фото были приложены.") },
-  HELMSMAN: { icon: "ship", label: () => t("Кормчий"), hint: () => t("Ведёт корабль: выбирает место высадки из десяти пристаней другого острова. Капитан и команда ему советуют.") },
+  HELMSMAN: { icon: "ship", label: () => t("Кормчий"), hint: () => t("Ведёт корабль: выбирает место высадки на любом береговом узле другого острова. Где там город, заранее не видно. Капитан и команда ему советуют.") },
   WARRIOR: { icon: "sword", label: () => t("Воин"), hint: () => t("Его выученные стихи в испытаниях считаются вдвое.") },
   NONE: { icon: "user", label: () => t("Без роли"), hint: () => "" },
 };
@@ -641,7 +641,7 @@ export function TeamPage() {
         {map.startedAt && <div className="team-timeline"><TimelineDock moves={moves} startedAt={map.startedAt} at={historyAt} onChange={(d) => { setHistoryAt(d); setSelectedId(null); }} /></div>}
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">
-            <Icon name="ship" /><span>{canLand ? t("Выберите одну из десяти пристаней другого острова") : t("Кормчий выбирает место высадки")}</span>
+            <Icon name="ship" /><span>{canLand ? t("Выберите береговой узел другого острова: где там город, заранее не видно") : t("Кормчий выбирает место высадки")}</span>
             <button type="button" className="ghost sm" onClick={() => setLandingId(null)}>{t("Позже")}</button>
           </div>
         )}
@@ -707,7 +707,7 @@ export function TeamPage() {
                 {/* Ценник пожертвования виден до взятия дела (решение владельца 05.10); в форме сдачи он повторяется галочкой. */}
                 {task.deed.donationMin && !(task.status === "TAKEN" && !night) ? <><Chip icon="star">{donationText(task.deed.donationMin)}</Chip><Help>{t("Вместо дела можно пожертвовать в кассу церкви не меньше этой суммы: чек — ссылкой.")}</Help></> : null}
                 {task.deed.secret && <><Chip icon="lock">{t("тайное")}</Chip><Help>{t("Сдачу видят только вы и проверяющий.")}</Help></>}
-                {task.sea && <><Chip icon="ship">{t("корабль")}</Chip><Help>{t("После одобрения кормчий выберет место высадки из десяти пристаней другого острова. Капитан и команда ему советуют.")}</Help></>}
+                {task.sea && <><Chip icon="ship">{t("корабль")}</Chip><Help>{t("После одобрения кормчий выберет место высадки на любом береговом узле другого острова. Где там город, заранее не видно. Капитан и команда ему советуют.")}</Help></>}
               </p>
               {task.deed.description && <p className={"deed-desc mt-2" + (longDesc && !descOpen ? " clamp" : "")}>{task.deed.description}</p>}
               {longDesc && <button type="button" className="ghost sm desc-more" aria-expanded={descOpen} onClick={() => setDescOpen((v) => !v)}><Icon name={descOpen ? "chevron-up" : "chevron-down"} />{descOpen ? t("Свернуть") : t("Подробнее")}</button>}
