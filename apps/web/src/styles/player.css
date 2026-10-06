@@ -163,6 +163,7 @@
 .standing .body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .standing .name { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; font-weight: 600; }
 .standing .meta { color: var(--muted); font-size: var(--fs-sm); line-height: var(--lh-ui); }
+.standing .meta.chips { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 4px; }
 .passage-card { padding: var(--sp-3); margin-top: var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
 .passage-card .actions { margin-top: var(--sp-3); }
 /* Состав компактно (решение владельца 23.09): имя, роль и звезда в одну строку; ряд ролей — под строкой. */

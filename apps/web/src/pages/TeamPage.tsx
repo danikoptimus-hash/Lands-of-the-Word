@@ -59,7 +59,8 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
                 {canPeace && pc?.state === "none" && <span className="peace-slot" {...stop}><button type="button" className="ghost icon sm peace-btn" aria-label={t("Предложить мир команде «{team}»", { team: st.name })} title={t("Предложить мир команде «{team}»", { team: st.name })} onClick={() => onPeace!(pc!, "offer")}><Icon name="handshake" /></button></span>}
                 {details && <Icon name="chevron-down" className="chev" />}
               </div>
-              <div className="meta">{plural(st.cities, ["город", "города", "городов"])} · {plural(st.deedsApproved, ["дело", "дела", "дел"])} · {plural(st.nodesRevealed, ["перекрёсток", "перекрёстка", "перекрёстков"])}</div>
+              {/* Значки вместо слов (решение владельца 07.10): города, дела, перекрёстки. */}
+              <div className="meta chips"><Chip icon="city" title={t("Городов")}>{st.cities}</Chip><Chip icon="scroll" title={t("Принятых дел")}>{st.deedsApproved}</Chip><Chip icon="pin" title={t("Открытых перекрёстков")}>{st.nodesRevealed}</Chip></div>
               {canPeace && pc?.state === "incoming" && (
                 <div className="row peace-row" {...stop}>
                   <button type="button" className="sm" onClick={() => onPeace!(pc!, "accept")}><Icon name="check" />{t("Принять")}</button>
