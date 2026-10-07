@@ -80,6 +80,15 @@ export function deedHash(d: DeedLike): string {
   const canon = JSON.stringify(base);
   return createHash("sha1").update(canon).digest("base64url");
 }
+/**
+ * Хеш текста дела без настроек Каменоломни (камни, порог участников): с 07.10 они принадлежат администратору игры
+ * (решение владельца: «это делается настройкой»), и их правка не считается правкой дела — текст из набора обновляется,
+ * а камни и порог остаются такими, как выставил администратор. В старых играх sourceHash считался вместе с камнями,
+ * поэтому при сверке принимаются оба вида хеша.
+ */
+export function deedTextHash(d: DeedLike): string {
+  return deedHash({ ...d, stones: undefined, quorumPct: undefined, quarry: d.quarry });
+}
 /** Ценник (donationMin) набор переносит в игру, только если он в наборе задан; иначе остаётся тот, что выставил администратор игры. */
 const fields = (d: DefaultDeed): Omit<DeedFields, "donationMin"> & { donationMin?: number | null } => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, chance: d.chance, secret: d.secret, remote: d.remote, siegePoints: d.siegePoints, quarry: d.quarry, stones: d.stones, quorumPct: d.quorumPct, ...(d.donationMin !== undefined ? { donationMin: d.donationMin } : {}) });
 const lc = (s: string) => s.trim().toLowerCase();
@@ -108,14 +117,16 @@ export async function syncGameDeeds(gameId: string, mode: "auto" | "add" | "repl
   }
   const seen = new Set<string>();
   for (const it of items) {
-    const want = fields(it), hash = deedHash(want);
+    const want = fields(it), hash = deedTextHash(want);
     const match = deeds.find((d) => lc(d.title) === lc(it.title)) ?? deeds.find((d) => it.replaces.some((r) => lc(r) === lc(d.title)));
     if (match) {
       seen.add(match.id);
       if (match.sourceHash === hash) continue; // уже эта версия
       // Без хеша — дело набора из старых игр (до появления хеша): считаем нередактированным один раз.
-      const untouched = match.sourceHash === null || match.sourceHash === deedHash(match);
-      if (mode === "replace" || untouched) { await prisma.deed.update({ where: { id: match.id }, data: { ...want, sourceHash: hash } }); res.updated++; }
+      const untouched = match.sourceHash === null || match.sourceHash === deedTextHash(match) || match.sourceHash === deedHash(match);
+      // Камни и порог Каменоломни в идущей игре не перезаписываются (кроме «Заменить»): это настройки администратора.
+      const keep = mode === "replace" || !match.quarry ? {} : { stones: match.stones, quorumPct: match.quorumPct };
+      if (mode === "replace" || untouched) { await prisma.deed.update({ where: { id: match.id }, data: { ...want, ...keep, sourceHash: hash } }); res.updated++; }
     } else {
       await prisma.deed.create({ data: { ...want, gameId, sourceHash: hash } }); res.added++;
     }

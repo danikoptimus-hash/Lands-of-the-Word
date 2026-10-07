@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
+import { deedTextHash, syncGameDeeds } from "./services/defaultDeeds.js";
 
 /**
  * Каменоломня (решение владельца 04.10): общие дела команды сдаёт капитан, заместитель или летописец; администратор
@@ -97,6 +98,24 @@ describe("Каменоломня", () => {
     expect(mine?.deedsApproved ?? 0).toBe(0);
     // Повторно ту же сторону не вымостить.
     expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/pave`, capCookie)).statusCode).toBe(409);
+  });
+
+  it("камни — настройка администратора: текст дела из набора обновляется, число камней остаётся (решение владельца 07.10)", async () => {
+    const build = await prisma.deed.findFirstOrThrow({ where: { gameId, quarry: true, title: "Вся команда на стройке дома молитвы" } });
+    // Администратор поставил 7 камней, а описание в игре — старое, со ставкой (как было до 07.10).
+    const oldText = build.description + " Принятое дело даёт команде три тёсаных камня.";
+    await prisma.deed.update({ where: { id: build.id }, data: { stones: 7, description: oldText, sourceHash: deedTextHash({ ...build, description: oldText }) } });
+    const r = await syncGameDeeds(gameId, "auto");
+    expect(r.updated).toBeGreaterThanOrEqual(1);
+    const after = await prisma.deed.findUniqueOrThrow({ where: { id: build.id } });
+    expect(after.description).toBe(build.description);
+    expect(after.description).not.toContain("тёсан");
+    expect(after.stones).toBe(7);
+    // Старый хеш (с камнями) тоже считается нетронутым делом.
+    await prisma.deed.update({ where: { id: build.id }, data: { description: oldText, sourceHash: deedTextHash({ ...build, description: oldText, stones: 3 }) } });
+    await syncGameDeeds(gameId, "auto");
+    expect((await prisma.deed.findUniqueOrThrow({ where: { id: build.id } })).description).toBe(build.description);
+    await prisma.deed.update({ where: { id: build.id }, data: { stones: build.stones } });
   });
 
   it("богослужение без телефона: нужна не меньше чем половина команды, отмеченным — зачёт", async () => {
