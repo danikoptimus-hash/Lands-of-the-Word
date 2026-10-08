@@ -83,6 +83,12 @@ def check(path):
                 ch, v = map(int, ref.split(":"))
                 verse = norm(bible["chapters"][ch - 1][v - 1]) if 0 < ch <= len(bible["chapters"]) and 0 < v <= len(bible["chapters"][ch - 1]) else ""
                 if not q or norm(q.group(1)) not in verse: errs.append(f"задание {i}: цитата не найдена в стихе {ref}")
+                # Цитата может стоять в книге несколько раз (Суд. 17:6 и 21:25, замечание участника 07.10): каждый такой стих —
+                # верный ответ, иначе честно найденная ссылка отклоняется.
+                if q:
+                    qn = norm(q.group(1)); hits = [f"{c}:{v}" for c, chap in enumerate(bible["chapters"], 1) for v, text in enumerate(chap, 1) if qn in norm(text)]
+                    missing = [h for h in hits if h not in answers and (":" in ref)]
+                    if missing: errs.append(f"задание {i}: цитата встречается ещё в {', '.join(missing)} — добавьте в answers")
                 continue
             if not any(norm(a) and norm(a) in scope_text for a in answers):
                 if not any(norm(a) in whole for a in answers): errs.append(f"задание {i}: ни один ответ {answers} не найден в тексте книги")
