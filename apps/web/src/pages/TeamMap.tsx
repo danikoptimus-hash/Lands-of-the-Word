@@ -371,7 +371,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
-        <OutlineDefs colors={owners} />
+        <OutlineDefs colors={owners} k={vp.view.k} />
         <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
         <CoastOver d={coast} size={size} light={dt.light} />
         {worldBody}
