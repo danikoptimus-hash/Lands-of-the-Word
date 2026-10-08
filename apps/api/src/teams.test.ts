@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
-import { pickDeed } from "./services/teamMap.js";
+import { deedNeedsBook, pickDeed, repairBooklessDeeds } from "./services/teamMap.js";
 import { prisma } from "./db.js";
 import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 
@@ -275,6 +275,27 @@ describe("карта команды и дела", () => {
     // Чужой не видит.
     const other = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: adminCookie } });
     expect(other.statusCode).toBe(403);
+  });
+
+  it("дело с [Книга] — только на сторону из города; выданное не туда заменяется при починке (решение владельца 08.10)", async () => {
+    const bookDeed = await prisma.deed.findFirstOrThrow({ where: { gameId, title: { contains: "[Книга]" } }, select: { id: true, title: true, description: true } });
+    expect(deedNeedsBook(bookDeed)).toBe(true);
+    // Со старта (не город) такое дело не разыгрывается, сколько ни пробуй.
+    const start = await prisma.team.findUniqueOrThrow({ where: { id: teamId }, select: { startNodeKey: true } });
+    for (let i = 0; i < 30; i++) {
+      const id = await pickDeed(gameId, teamId, null);
+      const d = await prisma.deed.findUniqueOrThrow({ where: { id: id! }, select: { title: true, description: true } });
+      expect(deedNeedsBook(d)).toBe(false);
+    }
+    // Из города — можно.
+    expect(await pickDeed(gameId, teamId, "gen")).toBeTruthy();
+    // Уже выданное на сторону со старта дело с [Книга] (как было до 08.10) заменяется, взятое остаётся.
+    const open = await prisma.teamEdgeTask.findFirst({ where: { teamId, status: "OPEN", fromKey: start.startNodeKey! } });
+    await prisma.teamEdgeTask.update({ where: { id: open!.id }, data: { deedId: bookDeed.id } });
+    expect(await repairBooklessDeeds(gameId)).toBeGreaterThanOrEqual(1);
+    const after = await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: open!.id }, include: { deed: { select: { title: true, description: true } } } });
+    expect(deedNeedsBook(after.deed)).toBe(false);
+    expect(await repairBooklessDeeds(gameId)).toBe(0);
   });
 
   it("взять, сдать ссылкой, отклонить, пересдать, одобрить → узел открылся", async () => {

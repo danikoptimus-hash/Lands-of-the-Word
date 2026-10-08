@@ -46,16 +46,24 @@ export function nearZone(edges: ReadonlyArray<{ aKey: string; bKey: string }>, f
   return zone;
 }
 
+/** В тексте дела есть подстановка книги или глав: такому делу нужна сторона из города. */
+export function deedNeedsBook(d: { title: string; description: string }): boolean {
+  return /\[(книга|главы)\]/i.test(d.title + " " + d.description);
+}
+
 export async function pickDeed(gameId: string, teamId: string, bookCode: string | null, excludeId?: string, onlyRemote = false, near?: { fromKey: string; toKey: string }): Promise<string | null> {
   // Решение владельца 04.10: дело на новую сторону разыгрывается по вероятностям напрямую — вес дела равен его проценту.
   // Прежние ступени («сначала не встречавшиеся», «не из последних 30», «не те, что уже на свободных сторонах») убраны:
   // они раскладывали дела почти поровну и глушили проценты. Жёсткие правила остались: дело «одно на игру» не берётся,
   // если команда его уже брала или сдавала; дела до 60% не ставятся рядом с таким же (в двух шагах); по книге города — в первую очередь.
-  const [deeds, used] = await Promise.all([
+  const [allDeeds, used] = await Promise.all([
     // Выключенные администратором дела на новые дороги не ставятся (решение владельца 06.10).
-    prisma.deed.findMany({ where: { gameId, quarry: false, disabled: false, ...(excludeId ? { id: { not: excludeId } } : {}), ...(onlyRemote ? { remote: true } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, chance: true } }),
+    prisma.deed.findMany({ where: { gameId, quarry: false, disabled: false, ...(excludeId ? { id: { not: excludeId } } : {}), ...(onlyRemote ? { remote: true } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, chance: true, title: true, description: true } }),
     prisma.teamEdgeTask.findMany({ where: { teamId, status: { not: "OPEN" } }, select: { deedId: true } }),
   ]);
+  // Дело с [Книга] или [Главы] в тексте — только на сторону из города (решение владельца 08.10: «исключительно с книгой,
+  // откуда вышли из города, а не просто рандомную»); на обычной стороне книги нет, и такое дело не ставится.
+  const deeds = bookCode ? allDeeds : allDeeds.filter((d) => !deedNeedsBook(d));
   if (deeds.length === 0) return null;
   const usedIds = new Set(used.map((u) => u.deedId));
   // Дела на сторонах команды в двух шагах от новой стороны (любой статус: они видны на карте): дело до 60% туда не берётся,
@@ -390,6 +398,34 @@ export async function reshuffleOpenDeeds(gameId: string): Promise<{ checked: num
     if (touched.length) { await ensureRemoteDeed(gameId, team.id, touched); publish(gameId, { type: "tasks", teamId: team.id }); publish(gameId, { type: "map", teamId: team.id }); }
   }
   return { checked, changed };
+}
+
+/**
+ * При запуске сервера (решение владельца 08.10): свободные дела с [Книга]/[Главы], попавшие на стороны не из города
+ * (показывались как «по книге на выбор»), заменяются обычными. Взятые и сданные не трогаются. Возвращает число замен.
+ */
+export async function repairBooklessDeeds(gameId: string): Promise<number> {
+  const cities = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", bookCode: { not: null } }, select: { key: true } });
+  const cityKeys = new Set(cities.map((c) => c.key));
+  const tasks = await prisma.teamEdgeTask.findMany({ where: { gameId, status: "OPEN" }, select: { id: true, teamId: true, fromKey: true, toKey: true, sea: true, deed: { select: { title: true, description: true, remote: true } } } });
+  let changed = 0;
+  for (const t of tasks) {
+    if (cityKeys.has(t.fromKey) || !deedNeedsBook(t.deed)) continue;
+    const next = await pickDeed(gameId, t.teamId, null, undefined, t.deed.remote, { fromKey: t.fromKey, toKey: t.sea ? t.fromKey : t.toKey });
+    if (!next) continue;
+    await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: next } });
+    changed++;
+    publish(gameId, { type: "tasks", teamId: t.teamId }); publish(gameId, { type: "map", teamId: t.teamId });
+  }
+  return changed;
+}
+
+export async function repairBooklessDeedsAll(log: { info: (o: object, msg: string) => void; error: (o: object, msg: string) => void }): Promise<void> {
+  const games = await prisma.game.findMany({ where: { status: "ACTIVE" }, select: { id: true } }).catch(() => [] as Array<{ id: string }>);
+  for (const g of games) {
+    try { const n = await repairBooklessDeeds(g.id); if (n) log.info({ gameId: g.id, changed: n }, "bookless deeds replaced"); }
+    catch (e) { log.error({ err: e, gameId: g.id }, "bookless deeds repair failed"); }
+  }
 }
 
 /**
