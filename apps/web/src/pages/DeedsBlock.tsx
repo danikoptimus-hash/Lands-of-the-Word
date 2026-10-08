@@ -13,7 +13,7 @@ import { plural } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "AUDIO_LINK" | "WITNESS";
 interface DeedDto { /** Выключено администратором: на новые дороги не попадает (06.10). */ disabled?: boolean; id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number; /** Сколько из свободных — морские рейсы (на карте корабль, а не свиток). */ sea?: number; /** Разбивка по командам: сверять с картой «глазами команды». */ teams?: Array<{ index: number; name: string; color: string; free: number; taken: number }> }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
-type Form = { quarry: boolean; stones: number; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
+type Form = { quarry: boolean; /** Пусто, пока администратор стирает число (замечание владельца 08.10: единицу нельзя было удалить); при сохранении — не меньше 1. */ stones: number | ""; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
 /** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
 const CHANCES = [20, 40, 60, 80, 100];
 const EMPTY: Form = { quarry: false, stones: 1, title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: "", donationMin: "" };
@@ -69,7 +69,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
     setError(null); setBusy(true);
     try {
       const f = sheet.form.quarry ? { ...sheet.form, canRepeat: true, bookCodes: [], secret: false, remote: false, siegePoints: "" as const, donationMin: "" as const } : sheet.form;
-      const body = JSON.stringify({ ...f, siegePoints: f.siegePoints === "" ? null : Number(f.siegePoints), donationMin: f.donationMin === "" ? null : Number(f.donationMin) });
+      const body = JSON.stringify({ ...f, stones: f.stones === "" ? 1 : f.stones, siegePoints: f.siegePoints === "" ? null : Number(f.siegePoints), donationMin: f.donationMin === "" ? null : Number(f.donationMin) });
       if (sheet.id) { await api(`/api/games/${gameId}/deeds/${sheet.id}`, { method: "PUT", body }); notify(t("Дело сохранено")); }
       else { await api(`/api/games/${gameId}/deeds`, { method: "POST", body }); notify(t("Дело добавлено")); }
       close();
@@ -176,7 +176,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
               {form.quarry && (
                 <div>
                   <label htmlFor="d-stones">{t("Камней за дело")}</label>
-                  <input id="d-stones" type="number" min={1} max={20} value={form.stones} onChange={(e) => setForm({ stones: Math.max(1, Number(e.target.value) || 1) })} />
+                  <input id="d-stones" type="number" inputMode="numeric" min={1} max={20} value={form.stones} onChange={(e) => setForm({ stones: e.target.value === "" ? "" : Math.min(20, Math.max(1, Math.floor(Number(e.target.value)) || 1)) })} onBlur={() => { if (form.stones === "") setForm({ stones: 1 }); }} />
                   <p className="hint">{t("Один камень мостит одну свободную дорогу. Вся команда вместе; сдаёт капитан, заместитель или летописец; на дороги такое дело не ставится.")}</p>
                 </div>
               )}
