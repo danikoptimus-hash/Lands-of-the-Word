@@ -209,7 +209,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const c = cityByKey.get(n.key);
             return (
               <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
-                <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : undefined} />
+                <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : "url(#outline-free)"} />
               </g>
             );
           }

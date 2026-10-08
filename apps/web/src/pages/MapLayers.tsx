@@ -425,6 +425,13 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
 export function OutlineDefs({ colors, width = 1.6 }: { colors: string[]; width?: number }) {
   return (
     <defs>
+      {/* Незанятый город: тонкая белая обводка, чтобы картинка не сливалась с картой (решение владельца 08.10). */}
+      <filter id="outline-free" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+        <feMorphology in="SourceAlpha" operator="dilate" radius={width * 0.55} result="grow" />
+        <feFlood floodColor="#ffffff" floodOpacity="0.85" result="color" />
+        <feComposite in="color" in2="grow" operator="in" result="ring" />
+        <feMerge><feMergeNode in="ring" /><feMergeNode in="SourceGraphic" /></feMerge>
+      </filter>
       {colors.map((color) => (
         <filter key={color} id={`outline-${color.slice(1)}`} x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
           <feMorphology in="SourceAlpha" operator="dilate" radius={width} result="grow" />
