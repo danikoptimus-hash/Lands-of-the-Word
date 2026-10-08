@@ -296,11 +296,10 @@ describe("карта команды и дела", () => {
     const after = await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: open!.id }, include: { deed: { select: { title: true, description: true } } } });
     expect(deedNeedsBook(after.deed)).toBe(false);
     expect(await repairBooklessDeeds(gameId)).toBe(0);
-    // Книга стороны: от города на любом конце, если он открыт команде; город в тумане книгу не выдаёт (08.10).
+    // Книга стороны: только от города, из которого она выходит (08.10, окончательно); к городу — книги нет.
     const books = new Map([["city", "mrk"]]);
     expect(sideBook(books, new Set(["city", "x"]), "city", "x")).toBe("mrk");
-    expect(sideBook(books, new Set(["city", "x"]), "x", "city")).toBe("mrk");
-    expect(sideBook(books, new Set(["x"]), "x", "city")).toBeNull();
+    expect(sideBook(books, new Set(["city", "x"]), "x", "city")).toBeNull();
     expect(sideBook(books, new Set(["x", "y"]), "x", "y")).toBeNull();
   });
 
