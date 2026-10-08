@@ -181,7 +181,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 // Картинка города кликабельна сама (как у команды); владелец — обводка по контуру картинки цветом команды.
                 return (
                   <g key={"c" + n.key} data-key={n.key} className="m-city" onClick={() => { if (!vp.wasDrag()) setSelected(n); }}>
-                    <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : undefined} />
+                    <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : "url(#outline-free)"} />
                   </g>
                 );
               }
