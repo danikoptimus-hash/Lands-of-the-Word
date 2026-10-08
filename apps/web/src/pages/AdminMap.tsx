@@ -312,7 +312,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
           <WorldSvg vp={vp} bounds={bounds}>
             <MapSymbols />
-            <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} />
+            <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} k={vp.view.k} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
             <CoastOver d={coast} size={size} light={dt.light} />
             {worldBody}

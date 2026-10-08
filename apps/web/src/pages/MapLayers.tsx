@@ -422,12 +422,14 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
  * Обводка картинки города цветом команды: контур по прозрачности картинки (расширение альфа-канала),
  * а не круг вокруг. Один фильтр на команду; толщина в единицах карты, растёт вместе с картой.
  */
-export function OutlineDefs({ colors, width = 1.6 }: { colors: string[]; width?: number }) {
+export function OutlineDefs({ colors, width = 1.6, k = 1 }: { colors: string[]; width?: number; /** Масштаб карты (vp.view.k): белая обводка незанятого города держит толщину на экране, а не растёт с приближением. */ k?: number }) {
+  // Издалека — как у команд (в единицах карты), вблизи — не толще ~1 экранного пикселя (замечание владельца 08.10).
+  const free = Math.min(width * 0.55, 1 / Math.max(k, 0.01));
   return (
     <defs>
       {/* Незанятый город: тонкая белая обводка, чтобы картинка не сливалась с картой (решение владельца 08.10). */}
       <filter id="outline-free" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
-        <feMorphology in="SourceAlpha" operator="dilate" radius={width * 0.55} result="grow" />
+        <feMorphology in="SourceAlpha" operator="dilate" radius={free} result="grow" />
         <feFlood floodColor="#ffffff" floodOpacity="0.85" result="color" />
         <feComposite in="color" in2="grow" operator="in" result="ring" />
         <feMerge><feMergeNode in="ring" /><feMergeNode in="SourceGraphic" /></feMerge>
