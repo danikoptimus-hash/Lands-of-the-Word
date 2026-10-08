@@ -45,6 +45,15 @@ export function nearZone(edges: ReadonlyArray<{ aKey: string; bKey: string }>, f
   return zone;
 }
 
+/**
+ * Книга стороны (решение владельца 08.10: «исключительно с книгой, откуда вышли из города»): книга города на любом конце
+ * стороны, если этот город команде уже открыт — высадились рядом с городом и взяли его, сторона между ними тоже «из города».
+ * Город в тумане книгу не выдаёт: иначе дело подсказывало бы, какой город впереди.
+ */
+export function sideBook(books: Map<string, string>, revealed: Set<string>, fromKey: string, toKey: string): string | null {
+  return books.get(fromKey) ?? (revealed.has(toKey) ? books.get(toKey) : undefined) ?? null;
+}
+
 /** В тексте дела есть подстановка книги или глав: такому делу нужна сторона из города. */
 export function deedNeedsBook(d: { title: string; description: string }): boolean {
   return /\[(книга|главы)\]/i.test(d.title + " " + d.description);
@@ -174,7 +183,7 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
   }
   const created: string[] = [];
   for (const w of wanted) {
-    const deedId = await pickDeed(gameId, teamId, cityBooks.get(w.fromKey) ?? null, undefined, false, w);
+    const deedId = await pickDeed(gameId, teamId, sideBook(cityBooks, revealed, w.fromKey, w.toKey), undefined, false, w);
     if (!deedId) return;
     created.push((await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: w.fromKey, toKey: w.toKey, deedId }, select: { id: true } })).id);
   }
@@ -337,7 +346,12 @@ export async function ensureRemoteDeed(gameId: string, teamId: string, candidate
   if (open.some((t) => t.deed.remote)) return;
   const target = open.find((t) => t.id === candidates[candidates.length - 1]);
   if (!target) return;
-  const remoteId = await pickDeed(gameId, teamId, null, target.id, true, { fromKey: target.fromKey, toKey: target.toKey });
+  const [cities, revealedRows] = await Promise.all([
+    prisma.mapNode.findMany({ where: { gameId, kind: "CITY", bookCode: { not: null } }, select: { key: true, bookCode: true } }),
+    prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true } }),
+  ]);
+  const book = sideBook(new Map(cities.map((c) => [c.key, c.bookCode!])), new Set(revealedRows.map((r) => r.nodeKey)), target.fromKey, target.toKey);
+  const remoteId = await pickDeed(gameId, teamId, book, target.id, true, { fromKey: target.fromKey, toKey: target.toKey });
   if (!remoteId) return;
   await prisma.teamEdgeTask.update({ where: { id: target.id }, data: { deedId: remoteId } });
 }
@@ -386,9 +400,10 @@ export async function reshuffleOpenDeeds(gameId: string): Promise<{ checked: num
   for (const team of teams) {
     const tasks = await prisma.teamEdgeTask.findMany({ where: { teamId: team.id, status: "OPEN" }, orderBy: { createdAt: "asc" }, select: { id: true, fromKey: true, toKey: true, deedId: true, sea: true, deed: { select: { remote: true } } } });
     const touched: string[] = [];
+    const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId: team.id }, select: { nodeKey: true } })).map((n) => n.nodeKey));
     for (const t of tasks) {
       checked++;
-      const next = await pickDeed(gameId, team.id, cityBooks.get(t.fromKey) ?? null, undefined, t.deed.remote, { fromKey: t.fromKey, toKey: t.sea ? t.fromKey : t.toKey });
+      const next = await pickDeed(gameId, team.id, t.sea ? cityBooks.get(t.fromKey) ?? null : sideBook(cityBooks, revealed, t.fromKey, t.toKey), undefined, t.deed.remote, { fromKey: t.fromKey, toKey: t.sea ? t.fromKey : t.toKey });
       if (!next || next === t.deedId) continue;
       await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: next } });
       if (!t.sea) touched.push(t.id);
@@ -404,12 +419,18 @@ export async function reshuffleOpenDeeds(gameId: string): Promise<{ checked: num
  * (показывались как «по книге на выбор»), заменяются обычными. Взятые и сданные не трогаются. Возвращает число замен.
  */
 export async function repairBooklessDeeds(gameId: string): Promise<number> {
-  const cities = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", bookCode: { not: null } }, select: { key: true } });
-  const cityKeys = new Set(cities.map((c) => c.key));
+  const cities = await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", bookCode: { not: null } }, select: { key: true, bookCode: true } });
+  const books = new Map(cities.map((c) => [c.key, c.bookCode!]));
   const tasks = await prisma.teamEdgeTask.findMany({ where: { gameId, status: "OPEN" }, select: { id: true, teamId: true, fromKey: true, toKey: true, sea: true, deed: { select: { title: true, description: true, remote: true } } } });
+  const revealedByTeam = new Map<string, Set<string>>();
+  for (const r of await prisma.teamNodeState.findMany({ where: { team: { gameId } }, select: { teamId: true, nodeKey: true } })) {
+    if (!revealedByTeam.has(r.teamId)) revealedByTeam.set(r.teamId, new Set());
+    revealedByTeam.get(r.teamId)!.add(r.nodeKey);
+  }
   let changed = 0;
   for (const t of tasks) {
-    if (cityKeys.has(t.fromKey) || !deedNeedsBook(t.deed)) continue;
+    if (!deedNeedsBook(t.deed)) continue;
+    if (t.sea ? books.has(t.fromKey) : sideBook(books, revealedByTeam.get(t.teamId) ?? new Set(), t.fromKey, t.toKey)) continue;
     const next = await pickDeed(gameId, t.teamId, null, undefined, t.deed.remote, { fromKey: t.fromKey, toKey: t.sea ? t.fromKey : t.toKey });
     if (!next) continue;
     await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: next } });
@@ -511,10 +532,10 @@ export async function getTeamMap(gameId: string, teamId: string) {
   // Чужие проходы там, где у команды открыт туман: пройденные другими командами стороны, касающиеся открытых
   // перекрёстков (решение владельца 18.09: команда должна понимать, где противник).
   const foreignRows = await prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", sea: false, NOT: { teamId } }, select: { fromKey: true, toKey: true, team: { select: { index: true, color: true } } } });
-  // В тексте дела [Книга] — книга города, из которого выходит сторона (или «на выбор», если это не город).
+  // В тексте дела [Книга] — книга открытого города на любом конце стороны (решение владельца 08.10); у морской стороны — порт.
   const bookOfNode = new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, n.bookCode!]));
-  const tasks = rawTasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, bookOfNode.get(t.fromKey) ?? null, t.id) }));
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
+  const tasks = rawTasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, t.sea ? bookOfNode.get(t.fromKey) ?? null : sideBook(bookOfNode, revealed, t.fromKey, t.toKey), t.id) }));
   const revealedAtOf = new Map(revealedRows.map((r) => [r.nodeKey, r.revealedAt.toISOString()] as const));
   // Города, до которых команда дошла: чей город, и мой прогресс в нём.
   const cityNodes = nodes.filter((n) => n.kind === "CITY" && revealed.has(n.key));

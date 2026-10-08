@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
-import { deedNeedsBook, pickDeed, repairBooklessDeeds } from "./services/teamMap.js";
+import { deedNeedsBook, pickDeed, repairBooklessDeeds, sideBook } from "./services/teamMap.js";
 import { prisma } from "./db.js";
 import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 
@@ -296,6 +296,12 @@ describe("карта команды и дела", () => {
     const after = await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: open!.id }, include: { deed: { select: { title: true, description: true } } } });
     expect(deedNeedsBook(after.deed)).toBe(false);
     expect(await repairBooklessDeeds(gameId)).toBe(0);
+    // Книга стороны: от города на любом конце, если он открыт команде; город в тумане книгу не выдаёт (08.10).
+    const books = new Map([["city", "mrk"]]);
+    expect(sideBook(books, new Set(["city", "x"]), "city", "x")).toBe("mrk");
+    expect(sideBook(books, new Set(["city", "x"]), "x", "city")).toBe("mrk");
+    expect(sideBook(books, new Set(["x"]), "x", "city")).toBeNull();
+    expect(sideBook(books, new Set(["x", "y"]), "x", "y")).toBeNull();
   });
 
   it("взять, сдать ссылкой, отклонить, пересдать, одобрить → узел открылся", async () => {
