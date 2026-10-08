@@ -47,12 +47,12 @@ export function nearZone(edges: ReadonlyArray<{ aKey: string; bKey: string }>, f
 }
 
 /**
- * Книга стороны (решение владельца 08.10: «исключительно с книгой, откуда вышли из города»): книга города на любом конце
- * стороны, если этот город команде уже открыт — высадились рядом с городом и взяли его, сторона между ними тоже «из города».
- * Город в тумане книгу не выдаёт: иначе дело подсказывало бы, какой город впереди.
+ * Книга стороны (решение владельца 08.10, окончательное: «исключительно с книгой, откуда вышли из города»): только книга
+ * города, из которого сторона выходит. Высадились на пустой перекрёсток рядом с городом — из города ещё не выходили,
+ * книги у таких сторон нет, и дела с [Книга] на них не ставятся. Вариант «город на любом конце» владелец отменил в тот же день.
  */
-export function sideBook(books: Map<string, string>, revealed: Set<string>, fromKey: string, toKey: string): string | null {
-  return books.get(fromKey) ?? (revealed.has(toKey) ? books.get(toKey) : undefined) ?? null;
+export function sideBook(books: Map<string, string>, _revealed: Set<string>, fromKey: string, _toKey: string): string | null {
+  return books.get(fromKey) ?? null;
 }
 
 /** В тексте дела есть подстановка книги или глав: такому делу нужна сторона из города. */
@@ -533,7 +533,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
   // Чужие проходы там, где у команды открыт туман: пройденные другими командами стороны, касающиеся открытых
   // перекрёстков (решение владельца 18.09: команда должна понимать, где противник).
   const foreignRows = await prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", sea: false, NOT: { teamId } }, select: { fromKey: true, toKey: true, team: { select: { index: true, color: true } } } });
-  // В тексте дела [Книга] — книга открытого города на любом конце стороны (решение владельца 08.10); у морской стороны — порт.
+  // В тексте дела [Книга] — книга города, из которого выходит сторона (решение владельца 08.10); у морской стороны — порт.
   const bookOfNode = new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, n.bookCode!]));
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
   const tasks = rawTasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, t.sea ? bookOfNode.get(t.fromKey) ?? null : sideBook(bookOfNode, revealed, t.fromKey, t.toKey), t.id) }));
