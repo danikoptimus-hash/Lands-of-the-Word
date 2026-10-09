@@ -24,7 +24,7 @@ interface Isle { x: number; y: number; r: number }
 /** Профиль одного острова: центр и радиус берега по секторам угла. */
 interface Part { cx: number; cy: number; r: number[]; maxR: number }
 /** Мир живности: общий центр и охват (для маршрутов из-за края) плюс профили островов (их несколько: Ветхий и Новый Завет). */
-interface Profile extends Part { parts: Part[]; isles: Isle[] }
+interface Profile extends Part { parts: Part[]; isles: Isle[]; /** Гексы суши «q,r»: точная проверка берега вдобавок к радиальному профилю (08.10). */ land: Set<string>; hex: number }
 
 function partProfile(cs: Array<{ x: number; y: number }>, size: number): Part {
   const cx = cs.reduce((a, c) => a + c.x, 0) / cs.length, cy = cs.reduce((a, c) => a + c.y, 0) / cs.length;
@@ -47,7 +47,32 @@ function islandProfile(hexes: MapHexDto[], size: number, islets: Islet[]): Profi
   const parts = [...groups.values()].map((cs) => partProfile(cs, size));
   const all = partProfile(hexes.map((h) => hexCenter(h, size)), size);
   const isles = islets.map((i) => ({ x: i.x, y: i.y, r: i.cover }));
-  return { ...all, parts, isles };
+  return { ...all, parts, isles, land: new Set(hexes.map((h) => `${h.q},${h.r}`)), hex: size };
+}
+/**
+ * Точная проверка суши (замечание владельца 08.10: корабль прошёл по мысу у города). Радиальный профиль — это максимум
+ * по секторам от центра острова, и у острова с длинными выступами он может не накрыть мыс, когда центр смещён.
+ * Поэтому вдобавок каждый гекс суши считается кругом радиуса size: точка не должна подходить к нему ближе clearance.
+ * Возвращает глубину захода и нормаль наружу в LNX/LNY; 0 — точка в воде.
+ */
+let LNX = 0, LNY = 0;
+function landPen(p: Profile, x: number, y: number, clearance: number): number {
+  const size = p.hex;
+  if (!p.land.size || !size) return 0;
+  // Осевые координаты гекса под точкой (обратно hexToPixel: pointy-top), округление через кубические.
+  const qf = (Math.sqrt(3) / 3 * x - y / 3) / size, rf = (2 / 3 * y) / size;
+  let q = Math.round(qf), r = Math.round(rf); const sf = -qf - rf, sr = Math.round(sf);
+  const dq = Math.abs(q - qf), dr = Math.abs(r - rf), ds = Math.abs(sr - sf);
+  if (dq > dr && dq > ds) q = -r - sr; else if (dr > ds) r = -q - sr;
+  let best = 0;
+  for (const [a, b] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]] as const) {
+    const hq = q + a, hr = r + b;
+    if (!p.land.has(`${hq},${hr}`)) continue;
+    const cx = size * (Math.sqrt(3) * hq + (Math.sqrt(3) / 2) * hr), cy = size * 1.5 * hr;
+    const dx = x - cx, dy = y - cy, d = Math.hypot(dx, dy) || 1e-6, pen = size + clearance - d;
+    if (pen > best) { best = pen; LNX = dx / d; LNY = dy / d; }
+  }
+  return best;
 }
 /** Радиус профиля под любым углом (угол не обязан быть в −π…π). */
 function radiusAt(p: Part, angle: number): number {
@@ -303,6 +328,7 @@ function carrotPoint(car: Carrot, p: Profile, t: number, T: number): [number, nu
     const minR = radiusAt(part, ang) + car.off + noise1(T * 0.12, car.seed) * car.wob;
     if (d < minR) { x = part.cx + Math.cos(ang) * minR; y = part.cy + Math.sin(ang) * minR; }
   }
+  for (let k = 0; k < 3; k++) { const pen = landPen(p, x, y, car.off * 0.6); if (pen <= 0) break; x += LNX * pen; y += LNY * pen; }
   return [x, y];
 }
 function carrotStep(car: Carrot, p: Profile, size: number, dist: number, T: number): void {
@@ -402,6 +428,8 @@ function coastPen(p: Profile, x: number, y: number, clearance: number): number {
     const dx = x - i.x, dy = y - i.y, d = Math.hypot(dx, dy) || 1e-6, pen = i.r + clearance * 0.8 - d;
     if (pen > best) { best = pen; CNX = dx / d; CNY = dy / d; }
   }
+  const lp = landPen(p, x, y, clearance * 0.6);
+  if (lp > best) { best = lp; CNX = LNX; CNY = LNY; }
   return best;
 }
 /**
@@ -429,6 +457,13 @@ function keepInWater(c: Mover, p: Profile, clearance: number, dt: number, omMax:
     const dx = c.x - i.x, dy = c.y - i.y, d = Math.hypot(dx, dy) || 1e-6, ir = i.r + clearance * 0.8, pen = ir - d;
     if (pen > 0) { c.x = i.x + dx / d * ir; c.y = i.y + dy / d * ir; if (pen > deep) { deep = pen; nx = dx / d; ny = dy / d; } }
   }
+  // Гексы суши — точная граница: выталкиваем наружу по нормали, до трёх раз (выход из одного гекса может завести в соседний).
+  for (let k = 0; k < 3; k++) {
+    const pen = landPen(p, c.x, c.y, clearance * 0.6);
+    if (pen <= 0) break;
+    c.x += LNX * pen; c.y += LNY * pen;
+    if (pen > deep) { deep = pen; nx = LNX; ny = LNY; }
+  }
   if (deep <= 0) return;
   const hx = Math.cos(c.h), hy = Math.sin(c.h), dot = hx * nx + hy * ny;
   if (dot < 0) { // курс смотрит в берег: доворот к касательной, не резче полуторной обычной угловой скорости
@@ -447,7 +482,7 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
   const wasWaiting = car.wait > 0;
   carrotStep(car, p, size, sp.speed * dt * clamp(1.6 - behind / (sp.L * 2.5), 0.25, 1), T);
   if (wasWaiting && car.wait <= 0) { c.x = car.x; c.y = car.y; c.h = car.h; c.om = 0; c.turn = 0; } // новый маршрут начинается за краем: перенос незаметен
-  if (car.wait > 0) { c.x += Math.cos(c.h) * sp.speed * dt; c.y += Math.sin(c.h) * sp.speed * dt; c.phase += dt * sp.swayFreq; } // уплывает дальше за край
+  if (car.wait > 0) { c.x += Math.cos(c.h) * sp.speed * dt; c.y += Math.sin(c.h) * sp.speed * dt; c.phase += dt * sp.swayFreq; keepInWater(c, p, size * 2, dt, sp.maxTurn); } // уплывает дальше за край, но не через сушу
   const clear = size * (sp.kind === "whale" ? 2.2 : 1.9);
   if (car.wait <= 0) steerCet(c, p, clear, car.x, car.y, dt, T, 1);
   keepInWater(c, p, clear, dt, sp.maxTurn);
@@ -1240,7 +1275,9 @@ function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number, oth
   const wasWaiting = car.wait > 0;
   carrotStep(car, p, size, sp.speed * dt * clamp(2.2 - behind / (sp.L * 1.5), 0.2, 1.2), T);
   if (wasWaiting && car.wait <= 0) { sh.x = car.x; sh.y = car.y; sh.h = car.h; sh.om = 0; } // новый маршрут начинается за краем
-  if (car.wait > 0) { sh.x += Math.cos(sh.h) * sh.v * dt; sh.y += Math.sin(sh.h) * sh.v * dt; return; }
+  // Пауза между маршрутами: корабль уходит прямо, но берег держит и здесь — раньше проверки не было, и отставший от
+  // поводка корабль мог пройти прямым курсом через мыс (замечание владельца 08.10: корабль над городом у берега).
+  if (car.wait > 0) { sh.x += Math.cos(sh.h) * sh.v * dt; sh.y += Math.sin(sh.h) * sh.v * dt; keepInWater(sh, p, size * 2.4, dt, sp.maxTurn); return; }
   // Кинематика корпуса: ход только по курсу, курс — через угловую скорость, не круче радиуса циркуляции, руль с запаздыванием.
   const near = shipsAhead(sh, others);
   const want = sp.speed * clamp(behind / (sp.L * 1.5), 0.6, 1.3) * (1 + 0.08 * noise1(T * 0.2, sh.seed)) * (1 - 0.5 * near.slow);
