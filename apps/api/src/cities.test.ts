@@ -179,6 +179,13 @@ describe("город на перекрёстке", () => {
     const node0 = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     expect(node0.cityCode).toMatch(new RegExp(`^[А-Я2-9]{${content.tasks.length}}$`));
     expect((done.json().content.fragments as string[]).join("")).toBe(node0.cityCode);
+    // Личный зачёт в карточке города у администратора (10.10): решивший всё участник — все задания, его сокомандник — 0.
+    const admCity = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: adminCookie } });
+    const t1 = (admCity.json().teams as Array<{ id: string; members: Array<{ name: string; solved: number }> }>).find((t) => t.id === team1)!;
+    expect([...t1.members.map((m) => m.solved)].sort((a, b) => b - a)).toEqual([content.tasks.length, ...t1.members.slice(1).map(() => 0)]);
+    const t2 = (admCity.json().teams as Array<{ id: string; members: Array<{ solved: number }> }>).find((t) => t.id === team2)!;
+    expect(t2.members.length).toBeGreaterThan(0);
+    expect(t2.members.every((m) => m.solved === 0)).toBe(true);
 
     const wrongKey = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/capture`, headers: { cookie: p1Cookie }, payload: { key: "NOPE22" } });
     expect(wrongKey.statusCode).toBe(400);

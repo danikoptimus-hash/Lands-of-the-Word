@@ -111,7 +111,7 @@ export interface AdminCityDto {
   /** Защита города (только у взятого кем-то города): уровень, режим суммы, закрепление, когда уровень растает на fatigueStep. */
   defense?: { level: number; sumMode: boolean; lockedUntil: string | null; fatigueNextAt: string | null; fatigueStep: number } | null;
   content: { title: string; translation: string; codeRule: string; districts: Array<{ verses: string; title: string; summary: string }>; tasks: AdminCityTask[] } | null;
-  teams: Array<{ id: string; index: number; name: string; color: string; orderSolved: boolean; orderAttempts: number; doneTasks: number[]; answerAttempts: number; capturedAt: string | null; isCapital: boolean; /** Минимальная ставка этой команды для вызова (null — вызов невозможен: нет владельца, сама владеет или город закреплён). */ minBid?: number | null; penalty?: number }>;
+  teams: Array<{ id: string; index: number; name: string; color: string; orderSolved: boolean; orderAttempts: number; doneTasks: number[]; answerAttempts: number; capturedAt: string | null; isCapital: boolean; /** Минимальная ставка этой команды для вызова (null — вызов невозможен: нет владельца, сама владеет или город закреплён). */ minBid?: number | null; penalty?: number; /** Участники команды и сколько заданий этого города каждый решил сам. */ members: Array<{ id: string; name: string; solved: number }> }>;
   /** Ответы видит только администратор платформы; администратору игры приходят задания без ответов. */
   answersHidden?: boolean;
 }

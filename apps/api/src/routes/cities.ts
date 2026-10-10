@@ -371,15 +371,20 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     await sweep(id);
     const node = await loadCityNode(id, nodeKey);
     if (!node) return reply.code(404).send({ error: "not_found", message: err(request, "Город не найден") });
-    const [content, teams, states, recipient, game] = await Promise.all([
+    const [content, teams, states, recipient, game, memberships, solved] = await Promise.all([
       loadCityContent(node.bookCode!),
       prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, index: true, name: true, color: true } }),
       prisma.teamCityState.findMany({ where: { gameId: id, nodeKey } }),
       // Адресат конверта (семья, вдова, старица): админ видит в карточке города, у кого шифр.
       node.recipientId ? prisma.recipient.findUnique({ where: { id: node.recipientId }, select: { label: true, kind: true } }) : null,
       prisma.game.findUnique({ where: { id }, select: { settings: true } }),
+      // Личный зачёт по участникам (просьба владельца 10.10): кто из команды сколько заданий этого города решил сам.
+      prisma.membership.findMany({ where: { team: { gameId: id } }, select: { teamId: true, userId: true, joinedAt: true, user: { select: { nickname: true, displayName: true } } }, orderBy: { joinedAt: "asc" } }),
+      prisma.taskEvent.findMany({ where: { gameId: id, nodeKey, kind: "ok", taskIndex: { not: null } }, select: { teamId: true, userId: true, taskIndex: true }, distinct: ["teamId", "userId", "taskIndex"] }),
     ]);
     const byTeam = new Map(states.map((s) => [s.teamId, s]));
+    const solvedBy = new Map<string, number>();
+    for (const e of solved) { const k = `${e.teamId}:${e.userId}`; solvedBy.set(k, (solvedBy.get(k) ?? 0) + 1); }
     // Защита города и ставка для вызова по каждой команде (решение владельца 04.10): уровень тает усталостью, если
     // хранители не делают дел из города, и администратору нужно видеть, сколько стихов сейчас нужно каждой команде.
     const rules = rulesOf(game?.settings);
@@ -407,7 +412,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       teams: teams.map((t) => {
         const s = byTeam.get(t.id);
         const minBid = owner && owner.teamId !== t.id && !defense?.lockedUntil ? minBidFor(node.defenseLevel, s?.attackPenalty ?? 0, rules) : null;
-        return { ...t, orderSolved: s?.orderSolved ?? false, orderAttempts: s?.orderAttempts ?? 0, doneTasks: s?.doneTasks ?? [], answerAttempts: s?.answerAttempts ?? 0, capturedAt: s?.capturedAt ?? null, isCapital: s?.isCapital ?? false, minBid, penalty: s?.attackPenalty ?? 0 };
+        const members = memberships.filter((m) => m.teamId === t.id).map((m) => ({ id: m.userId, name: m.user.displayName ?? m.user.nickname, solved: solvedBy.get(`${t.id}:${m.userId}`) ?? 0 }));
+        return { ...t, orderSolved: s?.orderSolved ?? false, orderAttempts: s?.orderAttempts ?? 0, doneTasks: s?.doneTasks ?? [], answerAttempts: s?.answerAttempts ?? 0, capturedAt: s?.capturedAt ?? null, isCapital: s?.isCapital ?? false, minBid, penalty: s?.attackPenalty ?? 0, members };
       }),
     };
   });

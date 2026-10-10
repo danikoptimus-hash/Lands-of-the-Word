@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Карточка города у администратора: строка команды раскрывается, внутри — участники команды и сколько заданий этого города каждый решил сам.": "Admin city card: a team row expands to show the team’s members and how many of this city’s tasks each solved personally.",
   "Дело «Утренняя пробежка с молитвой» в идущих партиях тоже переименовано в «Пробежку с молитвой», и фраза про выход в 6:00 убрана из его описания; остальной текст и настройки администратора сохранены.": "The deed “Morning run with prayer” in running games is also renamed to “Run with prayer” and the 6:00 start phrase is removed from its description; the rest of the text and the administrator’s settings are kept.",
   "Корабли и киты живности больше не заходят на сушу: берег проверяется по самим гексам, а не только по общему контуру острова, и проверка работает и в паузе между маршрутами.": "Decorative ships and whales no longer cross land: the coast is checked against the actual hexes, not only the island’s overall outline, and the check also runs during the pause between routes.",
   "Цветная обводка взятых городов тоже не толстеет при приближении карты.": "The team-colour outline of captured cities no longer thickens when you zoom in either.",
