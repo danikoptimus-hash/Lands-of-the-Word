@@ -769,7 +769,11 @@ export function TeamPage() {
                 </div>
               )}
               {task.status !== "OPEN" && task.status !== "REJECTED" && scoutBtn && <div className="actions">{scoutBtn}</div>}
-              {!night && task.status === "TAKEN" && (
+              {/* Форма сдачи только у взявшего, капитана, заместителя и летописца (замечание владельца 10.10: остальные видели чужую сдачу). */}
+              {!night && task.status === "TAKEN" && !mine && !isLeader && me?.gameRole !== "CHRONICLER" && (
+                <p className="hint"><Icon name="user" />{t("Дело у другого участника: сдать или отказаться может тот, кто взял, капитан, заместитель или летописец.")}</p>
+              )}
+              {!night && task.status === "TAKEN" && (mine || isLeader || me?.gameRole === "CHRONICLER") && (
                 <DeedForm key={task.id} donationCfg={task.deed.donationMin ? { min: task.deed.donationMin, currency } : null} busy={busy} proofType={task.deed.proofType}
                   members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
                   onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
