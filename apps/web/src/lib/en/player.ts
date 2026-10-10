@@ -91,7 +91,7 @@ export const PLAYER: Record<string, string> = {
   "Просит проходы через чужие города, отвечает на чужие запросы, предлагает мир.": "Asks for passage through other teams’ cities, answers their requests, offers peace.",
   "Сдаёт дела за команду и следит, чтобы ссылки и фото были приложены.": "Submits deeds for the team and makes sure links and photos are attached.",
   // Карточка дела
-  "Фото": "Photo", "Видео": "Video", "Отчёт": "Report", "Сдать": "Submit", "Взял: {name}": "Taken by {name}",
+  "Фото": "Photo", "Видео": "Video", "Отчёт": "Report", "Сдать": "Submit", "Дело у другого участника: сдать или отказаться может тот, кто взял, капитан, заместитель или летописец.": "This deed is held by another member: only the one who took it, the captain, the deputy or the chronicler can submit or release it.", "Взял: {name}": "Taken by {name}",
   "Администратор вернул дело: «{comment}». Исправьте и сдайте снова.": "The administrator returned the deed: “{comment}”. Fix it and submit again.",
   "Администратор вернул дело. Исправьте и сдайте снова.": "The administrator returned the deed. Fix it and submit again.",
   "Разведка: за этой стороной город.": "Scouting: there is a city beyond this side.", "Разведка: за этой стороной развилка.": "Scouting: there is a crossroads beyond this side.",
