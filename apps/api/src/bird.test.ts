@@ -5,7 +5,7 @@ import { BIRD_PERIOD_MS, birdView, dailyBird } from "./services/teamMap.js";
 describe("клин птиц", () => {
   const nodes = [{ key: "N:0,0", kind: "EMPTY" }, { key: "N:1,0", kind: "CITY" }, { key: "N:2,0", kind: "CITY" }];
   const edges = [{ aKey: "N:0,0", bKey: "N:1,0" }, { aKey: "N:1,0", bKey: "N:2,0" }];
-  it("цель и момент одинаковы внутри двухчасового периода и лежат в нём", () => {
+  it("цель и момент одинаковы внутри периода полёта и лежат в нём", () => {
     const base = Math.floor(Date.now() / BIRD_PERIOD_MS) * BIRD_PERIOD_MS;
     const a = dailyBird("g", "t", "N:0,0", new Set(["N:0,0"]), nodes, edges, base + 1000)!;
     const b = dailyBird("g", "t", "N:0,0", new Set(["N:0,0"]), nodes, edges, base + BIRD_PERIOD_MS - 1000)!;
