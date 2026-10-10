@@ -155,6 +155,8 @@ export function TeamPage() {
   const [error, setError] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** «Посмотреть на карте» (просьба владельца 10.10): подвести карту к стороне дела вблизи. Из списков дел и состава команды. */
+  const [focusTask, setFocusTask] = useState<{ id: string; nonce: number } | null>(null);
   /** Режим высадки: id одобренного морского дела, для которого капитан выбирает узел на другом острове. */
   const [landingId, setLandingId] = useState<string | null>(null);
   const [menu, setMenu] = useState(false);
@@ -480,6 +482,7 @@ export function TeamPage() {
   }
   const openCity = (key: string) => { setCityKey(key); setSelectedId(null); setFrontierKey(null); setMenu(false); };
   const openTask = (tid: string | null) => { setSelectedId(tid); if (tid) { setMenu(false); setFrontierKey(null); } };
+  const showOnMap = (tid: string) => { openTask(tid); setFocusTask({ id: tid, nonce: Date.now() }); };
   const menuOpen = wide ? menuView !== "home" : menu;
   const closeMenu = () => { if (wide) setMenuView("home"); else setMenu(false); };
 
@@ -524,7 +527,7 @@ export function TeamPage() {
                 <section className="section attention">
                   <ul className="list interactive">
                     {rejectedTasks.map((tk) => (
-                      <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
+                      <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
                         <div className="main"><span className="title">{t("Дело возвращено: {title}", { title: tk.deed.title })}</span>{tk.adminComment && <span className="meta">{tk.adminComment}</span>}</div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
@@ -564,7 +567,7 @@ export function TeamPage() {
             {ourTasks.length === 0 && freeTasks.length === 0 ? <EmptyState inline icon="scroll" text={t("Возьмите дело: нажмите метку на карте.")} /> : (
               <ul className="list interactive">
                 {ourTasks.map((tk) => { const st = deedStatus(tk.status); return (
-                  <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
+                  <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
                     <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{tk.status === "REJECTED" && tk.adminComment ? tk.adminComment : ""}</span></div>
                     {/* Под состоянием — кто взял дело (просьба участников 03.10: видно, у кого дело в работе). */}
                     <div className="side col"><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>{tk.takenById && tk.status !== "APPROVED" && <span className="muted small taker">{memberName(tk.takenById)}</span>}</div>
@@ -579,7 +582,7 @@ export function TeamPage() {
               {!canTakeNow && <p className="hint"><Icon name="moon" />{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p>}
               <ul className="list interactive">
                 {freeTasks.map((tk) => (
-                  <li key={tk.id} role="button" tabIndex={0} onClick={() => openTask(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openTask(tk.id); } }}>
+                  <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
                     <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{[tk.deed.donationMin ? donationText(tk.deed.donationMin) : "", tk.sea ? t("корабль") : ""].filter(Boolean).join(" · ")}</span></div>
                     <div className="side"><button type="button" className="sm" disabled={busy || limitFull(map) || !canTakeNow} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button></div>
                   </li>
@@ -612,7 +615,7 @@ export function TeamPage() {
           )}
           {menuView === "standings" && (
             <section className="section">
-            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />
+            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />
             </section>
           )}
           {menuView === "standings" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
@@ -633,7 +636,7 @@ export function TeamPage() {
       )}
 
       <div className="map-area" ref={setMapEl} onPointerDownCapture={() => { if (wide && menuView !== "home") setMenuView("home"); }}>
-        <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity}
+        <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
@@ -831,7 +834,7 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
 
 /** Состав команды: роль — пилюля с объяснением по нажатию; капитан назначает роли выбором. */
 /** embedded — внутри строки таблицы команд: вместо заголовка раздела — строка «Состав · N». */
-function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl }: { team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
+function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl, onShowOnMap }: { /** «Посмотреть на карте» у дела на руках участника (просьба владельца 10.10). */ onShowOnMap?: (taskId: string) => void; team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
   // Таймеры «следующее дело через…» тикают раз в полминуты.
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i); }, []);
@@ -865,7 +868,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
               <div className="side">
                 {/* Слева только имя; значок лимита дел и роли — справа, только значками (решение владельца 04.10). Название роли — в подсказке
                     и для читалок; нажатие на роль у капитана открывает ряд ролей, у остальных — пояснение роли. */}
-                <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} />
+                <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} onShowOnMap={onShowOnMap ? (d) => onShowOnMap(d.id) : undefined} />
                 {m.role === "DEPUTY" && m.gameRole !== "NONE" && <Chip tone="accent" icon="star" title={t("заместитель")}><span className="sr-only">{t("заместитель")}</span></Chip>}
                 {canEdit ? (
                   <button type="button" className={"chip-btn role-pick icon-only" + (m.gameRole === "NONE" ? " none" : "")} aria-label={m.gameRole === "NONE" ? t("без роли") : ROLE[m.gameRole].label()} title={m.gameRole === "NONE" ? t("без роли") : ROLE[m.gameRole].label()} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>

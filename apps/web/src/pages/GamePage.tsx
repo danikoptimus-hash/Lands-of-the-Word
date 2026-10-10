@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
-import { AdminMap, type BattleProgress, type CityProgress, type TeamProgress } from "./AdminMap";
+import { AdminMap, type BattleProgress, type CityProgress, type MapFocus, type TeamProgress } from "./AdminMap";
 import { collectMoves, progressAt, TimelineDock } from "./Timeline";
 import { useGameEvents } from "../lib/useGameEvents";
 import { TeamsBlock } from "./TeamsBlock";
@@ -58,6 +58,9 @@ export function GamePage() {
   const [version, setVersion] = useState(0);
   const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, quarry: 0, battles: 0, recipients: 0 });
   const [progress, setProgress] = useState<Progress | null>(null);
+  /** «Посмотреть на карте» из «Проверки» и блока «Команды» (просьба владельца 10.10): закрыть раздел и показать сторону дела вблизи. */
+  const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
+  const showOnMap = (f: Omit<MapFocus, "nonce">) => { setMapFocus({ ...f, nonce: Date.now() }); setTab("map"); };
   const loadProgress = useCallback(() => api<Progress>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
   /** Ползунок времени: null — «сейчас» (живое состояние), иначе момент, на который показываем карту. */
   const [at, setAt] = useState<Date | null>(null);
@@ -144,7 +147,7 @@ export function GamePage() {
     <div className="admin-screen" ref={setScreenEl}>
       <div className="admin-map-area">
         {hasMap ? (
-          <AdminMap fullscreen at={at} gameId={game.id} timeZone={(game.settings as { rules?: { timeZone?: string } }).rules?.timeZone} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} />
+          <AdminMap fullscreen at={at} gameId={game.id} timeZone={(game.settings as { rules?: { timeZone?: string } }).rules?.timeZone} hexes={hexes} nodes={nodes} edges={edges} progress={shown} cities={shownCities} battles={at ? [] : progress?.battles ?? null} version={version} onReview={() => setTab("review")} focus={mapFocus} />
         ) : (
           <div className="admin-empty">
             <div className="card">
@@ -194,11 +197,11 @@ export function GamePage() {
               {game.status !== "DRAFT" && <JournalAdmin gameId={game.id} version={version} active={active} />}
             </div>
           )}
-          {open === "teams" && <div key="teams"><TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} goToSettings={() => setTab("settings")} /></div>}
+          {open === "teams" && <div key="teams"><TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} goToSettings={() => setTab("settings")} onShowOnMap={showOnMap} /></div>}
           {open === "deeds" && <div key="deeds"><DeedsBlock gameId={game.id} mode="roads" version={version} onChange={bump} /></div>}
           {open === "review" && (active ? (
             <div key="review">
-              <SubmissionsBlock gameId={game.id} version={version} currency={game.settings.donationCurrency} onDecided={() => { void loadProgress(); bump(); }} />
+              <SubmissionsBlock gameId={game.id} version={version} currency={game.settings.donationCurrency} onDecided={() => { void loadProgress(); bump(); }} onShowOnMap={showOnMap} />
               <QuarryBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <BattlesBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <PassagesBlock gameId={game.id} version={version} />

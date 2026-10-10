@@ -208,6 +208,8 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .member-deeds li { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
 .member-deeds .i { width: 13px; height: 13px; flex: none; margin-top: 3px; color: var(--accent); }
 .member-deeds .title { flex: 1 1 auto; min-width: 0; }
+.member-deeds .map-btn { flex: none; min-height: 0; height: 22px; width: 22px; padding: 0; margin: -2px 0; }
+.member-deeds .map-btn .i { margin: 0; color: var(--accent); }
 .member-deeds .muted { flex: none; margin-top: 1px; white-space: nowrap; }
 /* Каменоломня: «кто был» при сдаче (решение владельца 07.10) */
 .quarry-present { border: 1px solid var(--border); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); margin: 0; }

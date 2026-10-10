@@ -24,20 +24,20 @@ export function DeedBadge({ limit, now }: { limit: DeedLimitDto | null | undefin
   );
 }
 
-export interface ActiveDeedDto { id: string; title: string; status: string; takenAt: string | null; submittedAt: string | null }
+export interface ActiveDeedDto { id: string; title: string; status: string; takenAt: string | null; submittedAt: string | null; /** Сторона дела: откуда и куда (для кнопки «Посмотреть на карте»). */ fromKey?: string; toKey?: string }
 
 /**
  * Значок лимита, а по нажатию — окошко с делами на руках: взятые с датой, «на проверке», возвращённые. Видит администратор
  * в блоке «Команды» и вся команда в составе (решение владельца 05.10). Без дел на руках — просто значок.
  */
-export function DeedBadgePopup({ limit, now, deeds }: { limit: DeedLimitDto | null | undefined; now: number; deeds: ActiveDeedDto[] | undefined }) {
+export function DeedBadgePopup({ limit, now, deeds, onShowOnMap }: { limit: DeedLimitDto | null | undefined; now: number; deeds: ActiveDeedDto[] | undefined; /** «Посмотреть на карте» у каждого дела (просьба владельца 10.10): карта центрируется на стороне дела. */ onShowOnMap?: (deed: ActiveDeedDto) => void }) {
   if (!limit) return null;
   if (!deeds || deeds.length === 0) return <DeedBadge limit={limit} now={now} />;
   return (
     <HelpPopup name={t("Дела на руках: {n}", { n: deeds.length })} trigger={<DeedBadge limit={limit} now={now} />}>
       <ul className="member-deeds">
         {deeds.map((d) => (
-          <li key={d.id}><Icon name={d.status === "SUBMITTED" ? "clock" : d.status === "REJECTED" ? "alert" : "scroll"} /><span className="title">{d.title}</span><span className="muted">{d.status === "SUBMITTED" ? t("на проверке") : d.status === "REJECTED" ? t("возвращено") : d.takenAt ? t("взято {d}", { d: fmtDate(d.takenAt) }) : t("взято")}</span></li>
+          <li key={d.id}><Icon name={d.status === "SUBMITTED" ? "clock" : d.status === "REJECTED" ? "alert" : "scroll"} /><span className="title">{d.title}</span><span className="muted">{d.status === "SUBMITTED" ? t("на проверке") : d.status === "REJECTED" ? t("возвращено") : d.takenAt ? t("взято {d}", { d: fmtDate(d.takenAt) }) : t("взято")}</span>{onShowOnMap && d.fromKey && <button type="button" className="ghost sm icon map-btn" data-popup-close aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => onShowOnMap(d)}><Icon name="map" /></button>}</li>
         ))}
       </ul>
     </HelpPopup>

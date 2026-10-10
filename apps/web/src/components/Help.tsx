@@ -65,7 +65,8 @@ export function HelpPopup({ children, name, block = false, className, trigger }:
         {trigger ?? <><Icon name="help" />{block && <span>{name}</span>}</>}
       </button>
       {open && createPortal(
-        <div ref={pop} className="help-pop" role="tooltip" style={pos ? { left: pos.left, top: pos.top, width: pos.width } : { left: EDGE, top: EDGE, width: Math.min(POP_W, window.innerWidth - EDGE * 2), visibility: "hidden" }}>
+        <div ref={pop} className="help-pop" role="tooltip" style={pos ? { left: pos.left, top: pos.top, width: pos.width } : { left: EDGE, top: EDGE, width: Math.min(POP_W, window.innerWidth - EDGE * 2), visibility: "hidden" }}
+          onClick={(e) => { /* кнопка с data-popup-close (например «Посмотреть на карте») закрывает окошко после действия */ if ((e.target as HTMLElement).closest("[data-popup-close]")) setOpen(false); }}>
           {children}
         </div>,
         document.body,

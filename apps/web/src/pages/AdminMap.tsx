@@ -29,6 +29,9 @@ import { EmptyState, ErrorState, LoadingState } from "../components/State";
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 export interface CityProgress { teamId: string; nodeKey: string; orderSolved: boolean; done: number; capturedAt: string | null; isCapital: boolean }
 export interface BattleProgress { id: string; nodeKey: string; status: string; attackerId: string; defenderId: string; bid: number }
+/** Просьба «Посмотреть на карте» (владелец 10.10): сторона дела, на которой карта центрируется и приближается; nonce — чтобы повтор той же стороны снова сработал. */
+export interface MapFocus { teamId?: string | null; taskId?: string; fromKey: string; toKey: string; nonce: number }
+
 export interface TeamProgress { id: string; name: string; color: string; startNodeKey: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
 type TeamLite = { id: string; name: string; color: string };
 
@@ -73,7 +76,7 @@ function rewindTeamMap(map: MyMapDto, team: TeamProgress, teams: TeamProgress[],
   };
 }
 
-export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone, at = null }: { /** Момент ползунка истории: карта «глазами команды» урезается к нему. */ at?: Date | null; /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone, at = null, focus = null }: { /** «Посмотреть на карте»: при смене nonce карта администратора центрируется на стороне и подсвечивает её. */ focus?: MapFocus | null; /** Момент ползунка истории: карта «глазами команды» урезается к нему. */ at?: Date | null; /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
   const { notify } = useUi();
   const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
@@ -91,6 +94,20 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const [teamTaskId, setTeamTaskId] = useState<string | null>(null);
   const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
   const close = useCallback(() => setSelected(null), []);
+  /** Подсветка стороны после «Посмотреть на карте»: пульсирующее кольцо посередине дороги несколько секунд. */
+  const [flash, setFlash] = useState<{ x: number; y: number; aKey: string; bKey: string } | null>(null);
+  useEffect(() => {
+    if (!focus) return;
+    const a = nodePos(focus.fromKey, size);
+    const sea = focus.toKey.startsWith("sea:") || !nodes.some((n) => n.key === focus.toKey);
+    const b = sea ? a : nodePos(focus.toKey, size);
+    const x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+    setViewAs(null); setSelected(null); setEdgeSel(null); setReportId(null);
+    vp.focusOn(x, y, 3.5);
+    setFlash({ x, y, aKey: focus.fromKey, bKey: focus.toKey });
+    const timer = setTimeout(() => setFlash(null), 6000);
+    return () => clearTimeout(timer);
+  }, [focus?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   const nodeByKey = useMemo(() => new Map(nodes.map((n) => [n.key, n])), [nodes]);
   const positions = useMemo(() => new Map(nodes.map((n) => [n.key, nodePos(n.key, size)])), [nodes, size]);
   const traversedBy = useMemo(() => {
@@ -301,6 +318,13 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
             <CoastOver d={coast} size={size} light={dt.light} />
             {worldBody}
+            {flash && (() => { const a = positions.get(flash.aKey), b = positions.get(flash.bKey); return (
+              <g className="adm-flash" pointerEvents="none">
+                {a && b && <><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} /><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} /></>}
+                <circle className="pulse" cx={flash.x} cy={flash.y} r={size * 0.5} />
+                <circle className="dot" cx={flash.x} cy={flash.y} r={size * 0.12} />
+              </g>
+            ); })()}
           </WorldSvg>
           {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
           <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
