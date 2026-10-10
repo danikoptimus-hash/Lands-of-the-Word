@@ -77,6 +77,12 @@
 .task-report .report-text { white-space: pre-wrap; }
 .adm-sea { fill: none; stroke-width: calc(5px / max(1.6, var(--k, 1))); stroke-linecap: round; stroke-linejoin: round; opacity: .95; }
 .adm-sea-route .adm-halo, .adm-sea-route .edge-hit { fill: none; stroke-linejoin: round; }
+/* «Посмотреть на карте» (10.10): сторона дела подсвечена линией и пульсирующим кольцом несколько секунд. */
+.adm-flash line { stroke: #fff; stroke-width: calc(12px / max(1.6, var(--k, 1))); stroke-linecap: round; opacity: .9; }
+.adm-flash line + line { stroke: var(--accent); stroke-width: calc(6px / max(1.6, var(--k, 1))); }
+.adm-flash .pulse { fill: color-mix(in srgb, var(--accent) 25%, transparent); stroke: var(--accent); stroke-width: calc(2px / var(--k, 1)); animation: land-pulse 1.4s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+.adm-flash .dot { fill: var(--surface); stroke: var(--accent); stroke-width: calc(2px / var(--k, 1)); }
+@media (prefers-reduced-motion: reduce) { .adm-flash .pulse { animation: none; opacity: .6; } }
 /* На телефоне карта во всю ширину экрана и почти во всю высоту: пальцам при щипке некуда «выпасть», а страница
    под картой не ловит свои жесты (прокрутку, масштаб страницы). */
 @media (max-width: 639px) {

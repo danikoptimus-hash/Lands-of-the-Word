@@ -57,7 +57,7 @@ export function ReturnBox({ placeholder, okLabel, onOk, onCancel, busy }: { plac
 }
 
 /** Очередь сдач дел. */
-export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: { gameId: string; version?: number; currency?: string; onDecided: () => void }) {
+export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onShowOnMap }: { gameId: string; version?: number; currency?: string; onDecided: () => void; /** «Посмотреть на карте» у сдачи (просьба владельца 10.10): карта центрируется на стороне дела. */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   const { notify } = useUi();
   const [rows, setRows] = useState<Row[] | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -129,6 +129,7 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided }: {
               <div className="side">
                 <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id || busyId === "batch"}><Icon name="check" />{returned ? t("Принять после пересмотра") : t("Принять")}</button>
                 {!returned && returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id || busyId === "batch"}><Icon name="x" />{t("Вернуть")}</button>}
+                {onShowOnMap && <button type="button" className="ghost sm" onClick={() => onShowOnMap({ teamId: r.team.id, taskId: r.id, fromKey: r.fromKey, toKey: r.toKey })}><Icon name="map" />{t("Посмотреть на карте")}</button>}
               </div>
               {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
             </li>

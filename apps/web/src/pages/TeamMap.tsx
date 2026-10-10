@@ -39,7 +39,7 @@ export const routeColor = (color: string) => {
 };
 /** Точка метки: гекс и точное место нажатия дробными осевыми координатами. */
 export interface MarkPoint { q: number; r: number; qf: number; rf: number }
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, bird, onSelectSea, crossing, onCrossPick }: { /** Нажатие на штурвал моря (решение владельца 06.10): лист моря с вахтами. */ onSelectSea?: (code: string) => void; /** Режим переправы: подсвечены узлы, которые можно выбрать (свой берег, затем противоположный). */ crossing?: { step: "from" | "to"; keys: string[] } | null; onCrossPick?: (nodeKey: string) => void; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, bird, onSelectSea, crossing, onCrossPick, focusTask }: { /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Нажатие на штурвал моря (решение владельца 06.10): лист моря с вахтами. */ onSelectSea?: (code: string) => void; /** Режим переправы: подсвечены узлы, которые можно выбрать (свой берег, затем противоположный). */ crossing?: { step: "from" | "to"; keys: string[] } | null; onCrossPick?: (nodeKey: string) => void; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -48,6 +48,23 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   useLayoutEffect(() => { perfMark("карта команды: React+DOM", performance.now() - renderStart); });
   useEffect(() => { perfMark("карта команды: до кадра", performance.now() - renderStart); });
   const vp = useViewport(bounds, start ? { x: start.x, y: start.y, k: 2.4 } : null);
+  useEffect(() => {
+    if (!focusTask) return;
+    const tk = map.tasks.find((x) => x.id === focusTask.id);
+    if (!tk) return;
+    const a = nodePos(tk.fromKey, size);
+    const b = tk.toKey.startsWith("sea:") || !map.revealed.some((n) => n.key === tk.toKey) ? a : nodePos(tk.toKey, size);
+    const k = 3.5, x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
+    vp.focusOn(x, y, k);
+    // Карточка дела выезжает снизу и закрывает часть карты: когда она встала, точку переносим в середину свободной части.
+    const timer = setTimeout(() => {
+      const canvas = document.querySelector(".map-canvas"), sheet = document.querySelector(".deed-sheet");
+      if (!canvas || !sheet) return;
+      const c = canvas.getBoundingClientRect(), r = sheet.getBoundingClientRect();
+      if (r.top > c.top + c.height * 0.25 && r.top < c.bottom) vp.focusOn(x, y + (c.bottom - r.top) / 2 / k, k);
+    }, 700);
+    return () => clearTimeout(timer);
+  }, [focusTask?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   // Время суток (решение владельца 03.10): по поясу игры и часам сервера; картинки городов — фазы, которой больше в переходе.
   const dt = useDaytime(map.daytime?.timeZone, map.now);
   const imgPhase = dt.t >= 0.5 ? dt.to : dt.from;

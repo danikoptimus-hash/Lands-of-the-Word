@@ -16,7 +16,7 @@ import { DeedBadgePopup } from "../components/DeedBadge";
 
 
 /** Вкладка «Команды»: список команд с участниками, приглашения по ссылке, строка добавления снизу. */
-export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, goToSettings }: { gameId: string; teamCount: number; status: string; version?: number; onChange?: () => void; goToSettings?: () => void }) {
+export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, goToSettings, onShowOnMap }: { gameId: string; teamCount: number; status: string; version?: number; onChange?: () => void; goToSettings?: () => void; /** «Посмотреть на карте» у дела на руках участника (просьба владельца 10.10). */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   const [teams, setTeams] = useState<TeamDto[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [name, setName] = useState("");
@@ -174,7 +174,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                     <div className="side">
                       {/* Значок лимита дел справа, у ролей (решение владельца 04.10); дела на руках спрятаны в значок: нажатие открывает окошко
                           со списком — взятые с датой, сданные «на проверке», возвращённые. */}
-                      <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} />
+                      <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} onShowOnMap={onShowOnMap ? (d) => onShowOnMap({ teamId: tm.id, taskId: d.id, fromKey: d.fromKey!, toKey: d.toKey! }) : undefined} />
                       {(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"} title={TEAM_ROLE_LABEL[m.role]}><span className="sr-only">{TEAM_ROLE_LABEL[m.role]}</span></Chip>}
                       {/* Только значок роли, без слова (решение владельца 04.10): название — в подсказке и для читалок; нажатие открывает ряд ролей. */}
                       {m.role !== "CAPTAIN" && (

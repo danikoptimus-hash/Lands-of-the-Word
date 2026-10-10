@@ -52,9 +52,9 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const limits = await deedLimitsFor(id, rules.maxDeedsPerDay, userIds);
     // Дела, которые участник сейчас держит: взятые, сданные на проверку, возвращённые. Видит администратор и вся команда
     // по нажатию на значок лимита (решение владельца 05.10: раньше команда видела только таймер).
-    const active = new Map<string, Array<{ id: string; title: string; status: string; takenAt: Date | null; submittedAt: Date | null }>>();
-    const rows = await prisma.teamEdgeTask.findMany({ where: { gameId: id, takenById: { in: userIds }, status: { in: ["TAKEN", "SUBMITTED", "REJECTED"] } }, select: { id: true, takenById: true, status: true, takenAt: true, submittedAt: true, deed: { select: { title: true } } }, orderBy: { takenAt: "asc" } });
-    for (const r of rows) if (r.takenById) active.set(r.takenById, [...(active.get(r.takenById) ?? []), { id: r.id, title: r.deed.title, status: r.status, takenAt: r.takenAt, submittedAt: r.submittedAt }]);
+    const active = new Map<string, Array<{ id: string; title: string; status: string; takenAt: Date | null; submittedAt: Date | null; fromKey: string; toKey: string }>>();
+    const rows = await prisma.teamEdgeTask.findMany({ where: { gameId: id, takenById: { in: userIds }, status: { in: ["TAKEN", "SUBMITTED", "REJECTED"] } }, select: { id: true, takenById: true, status: true, takenAt: true, submittedAt: true, fromKey: true, toKey: true, deed: { select: { title: true } } }, orderBy: { takenAt: "asc" } });
+    for (const r of rows) if (r.takenById) active.set(r.takenById, [...(active.get(r.takenById) ?? []), { id: r.id, title: r.deed.title, status: r.status, takenAt: r.takenAt, submittedAt: r.submittedAt, fromKey: r.fromKey, toKey: r.toKey }]);
     return { isAdmin, roleChangeDays: rules.roleChangeDays, teams: teams.map((t) => ({ ...t, members: t.members.map((m) => ({ ...m, deedLimit: limits.get(m.user.id) ?? null, activeDeeds: active.get(m.user.id) ?? [] })), roleChangeAvailableAt: t.lastRoleChangeAt && rules.roleChangeDays > 0 ? new Date(t.lastRoleChangeAt.getTime() + days(rules.roleChangeDays)) : null })) };
   });
 
