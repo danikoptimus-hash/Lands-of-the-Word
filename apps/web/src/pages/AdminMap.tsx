@@ -391,14 +391,27 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
           {city.teams.length === 0 ? <EmptyState inline icon="users" text={t("Команд пока нет.")} /> : (
             <ul className="list">
               {city.teams.map((tm) => (
-                <li key={tm.id}>
-                  <div className="main"><TeamAvatar name={tm.name} color={tm.color} size="sm" withName /></div>
-                  <span className="side muted small">
-                    {tm.minBid != null && <Chip icon="sword" title={t("Минимальная ставка этой команды для вызова: {n} стихов", { n: tm.minBid })}>{tm.minBid}</Chip>}
-                    {tm.capturedAt ? (tm.isCapital ? t("столица здесь") : t("взяла город"))
-                      : tm.orderSolved ? t("задания {a} из {b}", { a: tm.doneTasks.length, b: total })
-                      : tm.orderAttempts > 0 ? t("собирает порядок районов · попыток {n}", { n: tm.orderAttempts }) : t("не начинала")}
-                  </span>
+                <li key={tm.id} className="city-team">
+                  {/* Раскрывашка команды (просьба владельца 10.10): участники и сколько заданий города каждый решил сам. */}
+                  <details className="city-team-fold">
+                    <summary>
+                      <div className="main"><TeamAvatar name={tm.name} color={tm.color} size="sm" withName /></div>
+                      <span className="side muted small">
+                        {tm.minBid != null && <Chip icon="sword" title={t("Минимальная ставка этой команды для вызова: {n} стихов", { n: tm.minBid })}>{tm.minBid}</Chip>}
+                        {tm.capturedAt ? (tm.isCapital ? t("столица здесь") : t("взяла город"))
+                          : tm.orderSolved ? t("задания {a} из {b}", { a: tm.doneTasks.length, b: total })
+                          : tm.orderAttempts > 0 ? t("собирает порядок районов · попыток {n}", { n: tm.orderAttempts }) : t("не начинала")}
+                        <Icon name="chevron-down" className="chev" />
+                      </span>
+                    </summary>
+                    {tm.members.length === 0 ? <p className="muted small">{t("В команде пока никого.")}</p> : (
+                      <ul className="city-members">
+                        {[...tm.members].sort((a, b) => b.solved - a.solved).map((m) => (
+                          <li key={m.id}><span>{m.name}</span><Chip tone={m.solved >= total && total > 0 ? "ok" : m.solved > 0 ? "accent" : "neutral"} icon="scroll" title={t("Решил(а) сам(а) заданий города: {a} из {b}", { a: m.solved, b: total })}>{m.solved}/{total}</Chip></li>
+                        ))}
+                      </ul>
+                    )}
+                  </details>
                 </li>
               ))}
             </ul>

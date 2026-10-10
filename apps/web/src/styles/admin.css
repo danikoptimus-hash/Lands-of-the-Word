@@ -105,6 +105,15 @@ details.fold > summary::-webkit-details-marker { display: none; }
 details.fold > summary .chev { margin-left: auto; color: var(--muted); transition: transform var(--dur-fast); }
 details.fold[open] > summary .chev { transform: rotate(180deg); }
 details.fold > summary .count { color: var(--muted); font-weight: 400; }
+/* Раскрывашка команды в карточке города (10.10): строка команды — summary, под ней участники с личным зачётом. */
+.list > li.city-team { display: block; }
+.city-team-fold > summary { list-style: none; display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-2) var(--sp-3); flex-wrap: wrap; cursor: pointer; }
+.city-team-fold > summary::-webkit-details-marker { display: none; }
+.city-team-fold > summary .chev { color: var(--muted); transition: transform var(--dur-fast); }
+.city-team-fold[open] > summary .chev { transform: rotate(180deg); }
+.city-members { list-style: none; margin: var(--sp-2) 0 0; padding: 0 0 0 calc(var(--sp-3) + 28px); display: flex; flex-direction: column; gap: var(--sp-1); }
+.city-members li { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); }
+.city-members li > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-districts { margin: 0 0 var(--sp-3); padding-left: 1.4rem; display: flex; flex-direction: column; gap: var(--sp-3); }
 .admin-districts .note { margin: var(--sp-1) 0 0; }
 
