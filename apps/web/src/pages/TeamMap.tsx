@@ -30,6 +30,18 @@ const textWidth = (s: string, fs: number) => Math.ceil(s.length * fs * 0.62);
  * Осветлённый цвет команды для маршрута: 68 % цвета + 32 % белого. Считается в JS, а не через CSS color-mix(): старые
  * браузеры (встроенный браузер MIUI, старый Android WebView) color-mix не понимают и рисовали дорогу белой (02.10).
  */
+/** Хвост ломаной: последние len единиц длины до конечной точки (для хвоста чужого маршрута у города). */
+function tailRoute(pts: ReadonlyArray<{ x: number; y: number }>, len: number): Array<{ x: number; y: number }> {
+  if (pts.length < 2) return [...pts];
+  const out: Array<{ x: number; y: number }> = [pts[pts.length - 1]!];
+  let rest = len;
+  for (let i = pts.length - 1; i > 0 && rest > 0; i--) {
+    const a = pts[i]!, b = pts[i - 1]!, d = Math.hypot(a.x - b.x, a.y - b.y);
+    if (d <= rest) { out.unshift(b); rest -= d; }
+    else { const t = rest / d; out.unshift({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }); rest = 0; }
+  }
+  return out;
+}
 export const routeColor = (color: string) => {
   const m = /^#([0-9a-f]{6})$/i.exec(color.trim());
   if (!m) return color;
@@ -148,7 +160,19 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   }, [map.tasks, landKeys, islets, size]);
   // Видимая линия переправы рисуется слоем живности между зверями и кораблями (решение владельца 06.10); в SVG остаётся только область нажатия.
   // Концы линии укорочены, чтобы не заходить под знак порта и города (замечание владельца 06.10: города выше маршрута).
-  const routeSpecs = useMemo(() => seaRoutes.map((r) => ({ pts: trimRoute(r.pts, size * 0.5, nodeByKey.get(r.tk.toKey)?.kind === "CITY" ? size * 0.5 : size * 0.2), color: routeColor(map.team.color), selected: r.tk.id === selectedTaskId, arrow: { x: r.end.x, y: r.end.y, heading: r.heading } })), [seaRoutes, map.team.color, selectedTaskId, nodeByKey, size]);
+  // Чужая высадка (решение владельца 12.10, вместо точек команд в подписи): у города виден только хвост маршрута
+  // корабля другой команды — последний отрезок длиной около гекса, в её цвете и со стрелкой к месту высадки.
+  const foreignStubs = useMemo(() => {
+    const obstacles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape }));
+    // Порт отправления чужого корабля команде обычно неизвестен — нужен только известный узел высадки.
+    return (map.foreign ?? []).filter((f) => f.sea && positions.has(f.bKey)).map((f) => {
+      const pts = routeCurve(seaRoute(landKeys, f.aKey, f.bKey, size, undefined, obstacles), landKeys, size, obstacles);
+      const arrow = routeArrow(pts, size * 1.1);
+      const tail = trimRoute(tailRoute(pts, size * 2.2), 0, nodeByKey.get(f.bKey)?.kind === "CITY" ? size * 0.5 : size * 0.2);
+      return { pts: tail, color: routeColor(f.color), arrow: { x: arrow.x, y: arrow.y, heading: arrow.heading } };
+    });
+  }, [map.foreign, positions, landKeys, islets, size, nodeByKey]);
+  const routeSpecs = useMemo(() => [...seaRoutes.map((r) => ({ pts: trimRoute(r.pts, size * 0.5, nodeByKey.get(r.tk.toKey)?.kind === "CITY" ? size * 0.5 : size * 0.2), color: routeColor(map.team.color), selected: r.tk.id === selectedTaskId, arrow: { x: r.end.x, y: r.end.y, heading: r.heading } })), ...foreignStubs], [seaRoutes, foreignStubs, map.team.color, selectedTaskId, nodeByKey, size]);
   // Корабли: морские дела, пока команда не высадилась (после высадки дело — обычная пройденная сторона).
   const ships = useMemo(() => map.tasks.filter((tk) => tk.sea && (tk.status !== "APPROVED" || tk.landing)).map((tk) => {
     const p = nodePos(tk.fromKey, size), c = islandCenters.get(nodeByKey.get(tk.fromKey)?.island ?? "OT") ?? { x: 0, y: 0 };
@@ -185,12 +209,6 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   // масштаб деталей идёт через CSS-переменные, пороги детализации — через флаги.
   // Чужие проходы (решение владельца 18.09): сторона, пройденная другой командой, красится её цветом; пройденная
   // двумя командами — пополам: своя половина от известного перекрёстка, чужая — дальше.
-  /** Точки команд в подписи города (решение владельца 12.10, вариант 3): чужие команды, чьи одобренные дела привели в этот узел. */
-  const arrivedByNode = useMemo(() => {
-    const m = new Map<string, Array<{ color: string; name?: string }>>();
-    for (const f of map.foreign ?? []) { const list = m.get(f.bKey) ?? []; if (!list.some((x) => x.color === f.color)) list.push({ color: f.color, name: f.name }); m.set(f.bKey, list); }
-    return m;
-  }, [map.foreign]);
   const foreignByEdge = useMemo(() => {
     const m = new Map<string, Array<{ color: string }>>();
     for (const f of map.foreign ?? []) { const k = [f.aKey, f.bKey].sort().join("|"); const list = m.get(k) ?? []; if (!list.some((x) => x.color === f.color)) list.push({ color: f.color }); m.set(k, list); }
@@ -276,9 +294,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const fs = fullLabels ? 11 : 9;
               const text = fullLabels ? [book?.nameRu ?? "", progress, status].filter(Boolean).join(" · ") : book?.nameRu ?? "";
               const iconW = c?.isCapital ? fs + 4 : 0;
-              const arrived = arrivedByNode.get(n.key) ?? [];
-              const dotR = fs * 0.42, dotsW = arrived.length ? arrived.length * (dotR * 2 + 2) + 4 : 0;
-              const w = textWidth(text, fs) + iconW + dotsW + 14, h = fs + 9;
+              const w = textWidth(text, fs) + iconW + 14, h = fs + 9;
               // Подпись стоит под картинкой города (сдвиг в единицах карты), а масштабируется через --inv на каждый кадр.
               return (
                 <g key={n.key} data-key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))` }} onClick={() => clickCity(n.key)}>
@@ -290,8 +306,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                   )}
                   <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
                   {c?.isCapital && <use href="#m-crown" x={-w / 2 + 6} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
-                  <text x={(iconW - dotsW) / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{text}</text>
-                  {arrived.map((a, i) => <circle key={a.color} className="m-arrived" cx={w / 2 - 7 - dotR - (arrived.length - 1 - i) * (dotR * 2 + 2)} cy={0} r={dotR} style={{ fill: a.color }}><title>{a.name ?? ""}</title></circle>)}
+                  <text x={iconW / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{text}</text>
                 </g>
               );
             }
