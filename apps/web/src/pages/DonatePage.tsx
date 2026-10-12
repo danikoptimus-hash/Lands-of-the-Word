@@ -24,7 +24,6 @@ export function DonatePage() {
           </a>
           <div className="stack">
             <p>{t("Нажмите кнопку или наведите камеру телефона на QR-код. На странице Boosty нажмите «Донат», укажите сумму и оплатите картой.")}</p>
-            <p className="muted small">{t("Принимаются карты в долларах, евро и рублях. Карта должна поддерживать подтверждение платежа (3-D Secure).")}</p>
             <div className="actions"><a className="btn" href={BOOSTY_URL} target="_blank" rel="noopener noreferrer"><Icon name="star" />{t("Пожертвовать через Boosty")}</a></div>
           </div>
         </div>
