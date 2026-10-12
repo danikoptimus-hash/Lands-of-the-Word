@@ -1,5 +1,13 @@
 /** EN-строки области «player»: карта, HUD, меню, дело, город, задание, испытание, проходы, «Как играть». Ключ — русская строка как в коде. */
 export const PLAYER: Record<string, string> = {
+  "Пожертвования": "Donations",
+  "«Земли Слова» — бесплатная игра. Пожертвования идут на сервер и домен, на развитие игры и на новые партии. Любая сумма — помощь, спасибо!": "Lands of the Word is a free game. Donations go to the server and domain, to developing the game and to new games. Any amount helps, thank you!",
+  "Из любой страны: Boosty": "From any country: Boosty",
+  "Открыть страницу пожертвований в Boosty": "Open the donation page on Boosty",
+  "Нажмите кнопку или наведите камеру телефона на QR-код. На странице Boosty нажмите «Донат», укажите сумму и оплатите картой.": "Press the button or point your phone camera at the QR code. On the Boosty page press “Donate”, enter an amount and pay by card.",
+  "Принимаются карты в долларах, евро и рублях. Карта должна поддерживать подтверждение платежа (3-D Secure).": "Cards in dollars, euros and roubles are accepted. The card must support payment confirmation (3-D Secure).",
+  "Пожертвовать через Boosty": "Donate via Boosty",
+  "Игра не принимает деньги сама и не хранит платёжных данных: оплата проходит на стороне Boosty.": "The game does not take money itself and stores no payment details: the payment happens on Boosty’s side.",
   // Каменоломня: кто был (решение владельца 07.10)
   "Были": "Present", "Кто был": "Who was there", "Никого": "Nobody",
   "Отметьте, кто был: им дело пойдёт в зачёт": "Mark who was there: the deed will count for them",
