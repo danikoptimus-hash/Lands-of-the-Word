@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Дело «Пробежка с молитвой» стало просто «Пробежкой»: фраза про молитву во время бега убрана, в идущих партиях тоже.": "The deed “Run with prayer” is now just “Run”: the line about praying while running is removed, in running games too.",
   "На главной появилась кнопка «Пожертвования»: страница со ссылкой и QR-кодом на сбор в Boosty. Игра деньги не принимает, оплата проходит в Boosty.": "A “Donations” button on the home page: a page with a link and a QR code to the Boosty fundraiser. The game takes no money itself; payment happens on Boosty.",
   "Клин птиц летит к городу в тумане раз в три часа, а не раз в два.": "The flock of birds flies to a city in the fog every three hours instead of every two.",
   "Карточка взятого дела: форму сдачи и кнопку «Отказаться» видят только взявший, капитан, заместитель и летописец; остальным показывается, у кого дело.": "Deed card: the submission form and the “Release” button are shown only to the one who took the deed, the captain, the deputy and the chronicler; others see who holds it.",
