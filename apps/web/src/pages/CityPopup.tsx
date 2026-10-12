@@ -187,6 +187,10 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       <div className="title">
         <h2 id="city-title">{book?.nameRu ?? t("Город")}</h2>
         <div className="status">{statusLine}{city?.state.isCapital && <Chip tone="solid" icon="crown">{t("Столица")}</Chip>}{city?.content && <ProphetCandle availableAt={city.state.hintAvailableAt} now={now} />}</div>
+        {/* Кто ещё дошёл до города (решение владельца 12.10): точки команд в подписи на карте, здесь — с названиями и датой. */}
+        {city?.visitors && city.visitors.length > 0 && (
+          <div className="status visitors">{city.visitors.map((v) => <Chip key={v.id} tone="team" color={v.color} icon={v.sea ? "ship" : "users"} title={v.at ? t("Пришла {d}", { d: fmtDate(v.at, { time: false }) }) : undefined}>{v.name}</Chip>)}</div>
+        )}
       </div>
     </div>
   );

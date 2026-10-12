@@ -107,8 +107,13 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const night = daytime.phase === "night";
     const tasksOpen = daytime.tasksOpen;
     const recipient = allDone && !night && node.recipientId ? await prisma.recipient.findUnique({ where: { id: node.recipientId }, select: { label: true, kind: true } }) : null;
+    // Кто ещё дошёл до этого города (решение владельца 12.10): чужие одобренные дела, ведущие в узел, с датой прихода.
+    const arrivals = await prisma.teamEdgeTask.findMany({ where: { gameId: id, toKey: nodeKey, status: "APPROVED", NOT: { teamId: m.team.id } }, select: { decidedAt: true, sea: true, team: { select: { id: true, index: true, name: true, color: true } } }, orderBy: { decidedAt: "asc" } });
+    const seen = new Set<string>();
+    const visitors = arrivals.filter((a) => !seen.has(a.team.id) && seen.add(a.team.id)).map((a) => ({ id: a.team.id, index: a.team.index, name: a.team.name, color: a.team.color, at: a.decidedAt, sea: a.sea }));
     return {
       daytime,
+      visitors,
       node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, ruined: node.ruined },
       recipient,
       owner: ownerState?.team ?? null,

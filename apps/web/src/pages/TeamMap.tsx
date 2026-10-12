@@ -185,6 +185,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   // масштаб деталей идёт через CSS-переменные, пороги детализации — через флаги.
   // Чужие проходы (решение владельца 18.09): сторона, пройденная другой командой, красится её цветом; пройденная
   // двумя командами — пополам: своя половина от известного перекрёстка, чужая — дальше.
+  /** Точки команд в подписи города (решение владельца 12.10, вариант 3): чужие команды, чьи одобренные дела привели в этот узел. */
+  const arrivedByNode = useMemo(() => {
+    const m = new Map<string, Array<{ color: string; name?: string }>>();
+    for (const f of map.foreign ?? []) { const list = m.get(f.bKey) ?? []; if (!list.some((x) => x.color === f.color)) list.push({ color: f.color, name: f.name }); m.set(f.bKey, list); }
+    return m;
+  }, [map.foreign]);
   const foreignByEdge = useMemo(() => {
     const m = new Map<string, Array<{ color: string }>>();
     for (const f of map.foreign ?? []) { const k = [f.aKey, f.bKey].sort().join("|"); const list = m.get(k) ?? []; if (!list.some((x) => x.color === f.color)) list.push({ color: f.color }); m.set(k, list); }
@@ -270,7 +276,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const fs = fullLabels ? 11 : 9;
               const text = fullLabels ? [book?.nameRu ?? "", progress, status].filter(Boolean).join(" · ") : book?.nameRu ?? "";
               const iconW = c?.isCapital ? fs + 4 : 0;
-              const w = textWidth(text, fs) + iconW + 14, h = fs + 9;
+              const arrived = arrivedByNode.get(n.key) ?? [];
+              const dotR = fs * 0.42, dotsW = arrived.length ? arrived.length * (dotR * 2 + 2) + 4 : 0;
+              const w = textWidth(text, fs) + iconW + dotsW + 14, h = fs + 9;
               // Подпись стоит под картинкой города (сдвиг в единицах карты), а масштабируется через --inv на каждый кадр.
               return (
                 <g key={n.key} data-key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))` }} onClick={() => clickCity(n.key)}>
@@ -282,7 +290,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                   )}
                   <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
                   {c?.isCapital && <use href="#m-crown" x={-w / 2 + 6} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
-                  <text x={iconW / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{text}</text>
+                  <text x={(iconW - dotsW) / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{text}</text>
+                  {arrived.map((a, i) => <circle key={a.color} className="m-arrived" cx={w / 2 - 7 - dotR - (arrived.length - 1 - i) * (dotR * 2 + 2)} cy={0} r={dotR} style={{ fill: a.color }}><title>{a.name ?? ""}</title></circle>)}
                 </g>
               );
             }

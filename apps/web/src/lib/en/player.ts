@@ -1,5 +1,6 @@
 /** EN-строки области «player»: карта, HUD, меню, дело, город, задание, испытание, проходы, «Как играть». Ключ — русская строка как в коде. */
 export const PLAYER: Record<string, string> = {
+  "Пришла {d}": "Arrived {d}",
   "Пожертвования": "Donations",
   "Пожертвования идут на сервер, домен и развитие игры. Спасибо!": "Donations go to the server, the domain and the development of the game. Thank you!",
   "Из любой страны: Boosty": "From any country: Boosty",

@@ -531,7 +531,9 @@ export async function getTeamMap(gameId: string, teamId: string) {
   ]);
   // Чужие проходы там, где у команды открыт туман: пройденные другими командами стороны, касающиеся открытых
   // перекрёстков (решение владельца 18.09: команда должна понимать, где противник).
-  const foreignRows = await prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", sea: false, NOT: { teamId } }, select: { fromKey: true, toKey: true, team: { select: { index: true, color: true } } } });
+  // Чужие пройденные стороны: сухопутные и морские с выбранной высадкой (toKey уже узел, а не «sea:…»). По ним на
+  // карте команды видно, кто ещё дошёл до открытого узла (решение владельца 12.10: точки команд в подписи города).
+  const foreignRows = (await prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", NOT: { teamId } }, select: { fromKey: true, toKey: true, sea: true, team: { select: { index: true, name: true, color: true } } } })).filter((f) => !isSeaKey(f.toKey));
   // В тексте дела [Книга] — книга города, из которого выходит сторона (решение владельца 08.10); у морской стороны — порт.
   const bookOfNode = new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, n.bookCode!]));
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
@@ -590,7 +592,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
   // открытыми перекрёстками быть не должно (решение владельца 01.10; до 04.10 такие свободные дела скрывал старый фильтр,
   // и сторона выглядела пустой — замечание владельца 04.10). Взятое или сданное дело видно всегда (18.09).
   const visibleTasks = tasks;
-  const foreign = foreignRows.filter((f) => revealed.has(f.fromKey) || revealed.has(f.toKey)).map((f) => ({ aKey: f.fromKey, bKey: f.toKey, teamIndex: f.team.index, color: f.team.color }));
+  const foreign = foreignRows.filter((f) => revealed.has(f.fromKey) || revealed.has(f.toKey)).map((f) => ({ aKey: f.fromKey, bKey: f.toKey, sea: f.sea, teamIndex: f.team.index, name: f.team.name, color: f.team.color }));
   const authorRows = marks.length ? await prisma.user.findMany({ where: { id: { in: [...new Set(marks.map((mk) => mk.createdById))] } }, select: { id: true, nickname: true, displayName: true } }) : [];
   const authors = new Map(authorRows.map((u) => [u.id, u.displayName || u.nickname] as const));
   const withLanding = await Promise.all(visibleTasks.map(async (t) => {
