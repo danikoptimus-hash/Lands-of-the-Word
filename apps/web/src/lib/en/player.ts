@@ -127,7 +127,6 @@ export const PLAYER: Record<string, string> = {
   "Из любой страны: Boosty": "From any country: Boosty",
   "Открыть страницу пожертвований в Boosty": "Open the donation page on Boosty",
   "Нажмите кнопку или наведите камеру телефона на QR-код. На странице Boosty нажмите «Донат», укажите сумму и оплатите картой.": "Press the button or point your phone camera at the QR code. On the Boosty page press “Donate”, enter an amount and pay by card.",
-  "Принимаются карты в долларах, евро и рублях. Карта должна поддерживать подтверждение платежа (3-D Secure).": "Cards in dollars, euros and roubles are accepted. The card must support payment confirmation (3-D Secure).",
   "Пожертвовать через Boosty": "Donate via Boosty",
   // Каменоломня: кто был (решение владельца 07.10)
   "Были": "Present", "Кто был": "Who was there", "Никого": "Nobody",
