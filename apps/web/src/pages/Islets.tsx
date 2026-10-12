@@ -78,7 +78,7 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "", daytime }
     // Кэш берега: размытый растр считается один раз для вида (масштаб, сдвиг) с запасом PAD вокруг экрана; при
     // перетаскивании он просто сдвигается, при щипке — масштабируется как картинка, а заново рисуется, когда вид
     // устоялся (SETTLE_MS без изменений). Иначе размытие полноэкранного canvas на каждый кадр съедало плавность.
-    const PAD = 0.25, RERENDER_MS = 180;
+    const PAD = 0.25, RERENDER_MS = 260, RERENDER_RATIO = 1.35;
     let lastRender = 0;
     const cache = { canvas: document.createElement("canvas"), k: 0, tx: 0, ty: 0, pad: 0, valid: false };
     const cctx = cache.canvas.getContext("2d");
@@ -117,11 +117,14 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "", daytime }
     const draw = () => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
       const dx = (tx - cache.tx) * cs, dy = (ty - cache.ty) * cs;
+      const ratio = cache.valid ? Math.max(k / cache.k, cache.k / k) : Infinity;
       const fresh = cache.valid && cache.k === k && Math.abs(dx) <= cache.pad && Math.abs(dy) <= cache.pad;
-      // Пока идёт жест, растр всё же обновляется не чаще RERENDER_MS — иначе при щипке картинка размыта до отпускания
-      // пальцев (замечание владельца 15.09); окончательный пересчёт — когда вид устоится.
+      // Пока идёт жест, растр обновляется не чаще RERENDER_MS и лишь когда сдвиг вышел за запас или масштаб ушёл дальше
+      // RERENDER_RATIO (иначе при щипке картинка размыта до отпускания — замечание владельца 15.09); окончательный
+      // пересчёт — когда вид устоится (плавность 12.10).
       const now = performance.now();
-      if (!cache.valid || (!fresh && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; perfMark("берег растр", performance.now() - now); }
+      const stale = !fresh && (cache.k === k || ratio > RERENDER_RATIO || Math.abs(dx) > cache.pad || Math.abs(dy) > cache.pad);
+      if (!cache.valid || (stale && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; perfMark("берег растр", performance.now() - now); }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
       // Растр построен под вид cache (масштаб k0, сдвиг t0) в пикселях cs: точка растра p → экран p·(f·dpr/cs) + t·dpr − (pad/cs + t0)·f·dpr.
       const f = k / cache.k, a = f * dpr / cs;

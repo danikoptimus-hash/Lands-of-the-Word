@@ -107,17 +107,18 @@ function SeaCanvas({ vp, bed, light }: { vp: Viewport; bed: Seabed | null; light
  * масштаб (vp.view). Между фиксациями композитор двигает и масштабирует готовый растр CSS-трансформацией; после
  * жеста viewBox пересчитывается и слой растрируется заново один раз — но растр всегда не больше экрана с запасом,
  * на любом масштабе (решение владельца 15.09: SVG размером со всю карту при приближении «фризил» зум).
- * CSS-переменные --k (толщины линий), --inv и --inv-isl (размер экранных элементов) обновляются по ходу жеста
- * не чаще VAR_MS — каждое обновление перерисовывает слой, и на каждый кадр это дорого.
+ * CSS-переменные --k (толщины линий), --inv и --inv-isl (размер экранных элементов) ставятся при фиксации;
+ * по ходу жеста — только если масштаб ушёл от последнего значения дальше VAR_RATIO (каждое обновление
+ * перерастрирует слой целиком, и раз в 120 мс это давало рывки при зуме — плавность 12.10).
  */
-const PAD = 0.4, VAR_MS = 120;
+const PAD = 0.4, VAR_RATIO = 1.7, VAR_MS = 250;
 export function WorldSvg({ vp, children, overlay }: { vp: Viewport; bounds?: { minX: number; minY: number; width: number; height: number }; children: React.ReactNode; /** Верхний слой подписей: сам SVG не ловит нажатия, только его интерактивные дети. */ overlay?: boolean }) {
   const ref = useRef<SVGSVGElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const base = vp.view;
   const baseRef = useRef(base); baseRef.current = base;
   const pad = Math.ceil(Math.max(box.w, box.h) * PAD);
-  const lastVars = useRef(0);
+  const lastVars = useRef({ at: 0, k: 0 });
   const setVars = (el: SVGSVGElement, k: number) => {
     const ui = Math.min(1, Math.max(0.5, k / 1.6));
     el.style.setProperty("--k", k.toFixed(4));
@@ -130,8 +131,9 @@ export function WorldSvg({ vp, children, overlay }: { vp: Viewport; bounds?: { m
     // Растр построен под вид b: точка карты w стоит в нём на w·k0 + t0 (в CSS-пикселях контейнера); нужен вид v: w·k + t.
     const dx = v.tx - f * b.tx + pad * (1 - f), dy = v.ty - f * b.ty + pad * (1 - f);
     el.style.transform = `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) scale(${f.toFixed(5)})`;
-    const now = performance.now();
-    if (force || now - lastVars.current >= VAR_MS) { lastVars.current = now; setVars(el, v.k); }
+    const now = performance.now(), lv = lastVars.current;
+    const drift = lv.k > 0 ? Math.max(v.k / lv.k, lv.k / v.k) : Infinity;
+    if (force || (drift > VAR_RATIO && now - lv.at >= VAR_MS)) { lastVars.current = { at: now, k: v.k }; setVars(el, v.k); }
   };
   useEffect(() => {
     const el = ref.current, host = el?.parentElement; if (!el || !host) return;
@@ -499,7 +501,9 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, dayt
     for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30), x = Math.cos(a) * size * 0.995, y = Math.sin(a) * size * 0.995; if (i === 0) hex.moveTo(x, y); else hex.lineTo(x, y); }
     hex.closePath();
     const bw = size * Math.sqrt(3), bh = size * 2; // рамка гекса; картинка — квадрат 1.4 рамки, повёрнутый, как в SVG-узоре
-    const PAD = 0.25, SETTLE_MS = 140, RERENDER_MS = 100;
+    // По ходу жеста растр обновляется редко и только когда масштаб ушёл от растра дальше RERENDER_RATIO (размытие
+    // становится заметным); каждый растр — десятки миллисекунд, и раз в 100 мс это давало рывки (плавность 12.10).
+    const PAD = 0.25, SETTLE_MS = 140, RERENDER_MS = 240, RERENDER_RATIO = 1.35;
     let lastRender = 0;
     const cache = { canvas: document.createElement("canvas"), k: 0, tx: 0, ty: 0, pad: 0, valid: false };
     const cctx = cache.canvas.getContext("2d"); if (!cctx) return;
@@ -529,11 +533,14 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, dayt
     const draw = () => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
       const dx = (tx - cache.tx) * dpr, dy = (ty - cache.ty) * dpr;
+      const ratio = cache.valid ? Math.max(k / cache.k, cache.k / k) : Infinity;
       const fresh = cache.valid && cache.k === k && Math.abs(dx) <= cache.pad && Math.abs(dy) <= cache.pad;
-      // Пока идёт жест, растр всё же обновляется не чаще RERENDER_MS — иначе при щипке картинка размыта до отпускания
-      // пальцев (замечание владельца 15.09); окончательный пересчёт — когда вид устоится.
+      // Пока идёт жест, растр обновляется не чаще RERENDER_MS и лишь когда сдвиг вышел за запас или масштаб ушёл дальше
+      // RERENDER_RATIO (иначе при щипке картинка размыта до отпускания пальцев — замечание владельца 15.09);
+      // окончательный пересчёт — когда вид устоится.
       const now = performance.now();
-      if (!cache.valid || (!fresh && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; perfMark("гексы растр", performance.now() - now); }
+      const stale = !fresh && (cache.k === k || ratio > RERENDER_RATIO || Math.abs(dx) > cache.pad || Math.abs(dy) > cache.pad);
+      if (!cache.valid || (stale && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; perfMark("гексы растр", performance.now() - now); }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
       if (cache.k === k) ctx.drawImage(cache.canvas, (tx - cache.tx) * dpr - cache.pad, (ty - cache.ty) * dpr - cache.pad);
       else { const f = k / cache.k; ctx.setTransform(f, 0, 0, f, tx * dpr - (cache.pad + cache.tx * dpr) * f, ty * dpr - (cache.pad + cache.ty * dpr) * f); ctx.drawImage(cache.canvas, 0, 0); }

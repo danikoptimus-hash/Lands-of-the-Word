@@ -52,25 +52,40 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     return { k, tx, ty };
   }, []);
 
-  /** Применить вид: сразу всем подписчикам; в React — только при commit. */
+  /**
+   * Применить вид. Подписчики получают его не чаще одного раза за кадр (rAF): мышь с частотой 1000 Гц и колесо
+   * присылают десятки событий между кадрами, а двигать слои больше одного раза за кадр бессмысленно (плавность 12.10).
+   * В React — только при commit.
+   */
+  const pending = useRef(false);
+  const raf = useRef(0);
+  const flush = useCallback(() => {
+    raf.current = 0;
+    if (!pending.current) return;
+    pending.current = false;
+    const v = viewRef.current;
+    for (const fn of listeners.current) fn(v);
+  }, []);
   const setView = useCallback((next: View | ((v: View) => View), commit = false) => {
     const v = clampView(typeof next === "function" ? next(viewRef.current) : next);
     viewRef.current = v;
-    for (const fn of listeners.current) fn(v);
-    if (commit) setViewState(v);
-  }, [clampView]);
+    if (commit) { pending.current = false; for (const fn of listeners.current) fn(v); setViewState(v); return; }
+    pending.current = true;
+    if (!raf.current) raf.current = requestAnimationFrame(flush);
+  }, [clampView, flush]);
   const lastCommit = useRef(0);
-  const commit = useCallback(() => { lastCommit.current = performance.now(); lastCommitView.current = viewRef.current; setViewState(viewRef.current); }, []);
+  const commit = useCallback(() => { lastCommit.current = performance.now(); lastCommitView.current = viewRef.current; if (pending.current) flush(); setViewState(viewRef.current); }, [flush]);
   const lastCommitView = useRef<View>({ k: 1, tx: 0, ty: 0 });
   /**
-   * По ходу жеста: растр мира построен с запасом вокруг экрана (WorldSvg: 0.4 экрана); если масштаб ушёл дальше ×1.5
-   * в любую сторону или сдвиг — дальше 0.3 экрана, фиксируем, чтобы края не оголялись до отпускания.
+   * По ходу жеста: растр мира построен с запасом вокруг экрана (WorldSvg: 0.4 экрана). Фиксируем раньше отпускания,
+   * только когда края растра оголились бы: при отдалении дальше ×0.6 или сдвиге дальше 0.3 экрана. При приближении
+   * растр покрывает экран всегда — фиксация посреди жеста лишь дёргала бы картинку (плавность 12.10).
    */
   const commitIfFar = useCallback(() => {
     const v = viewRef.current, b = lastCommitView.current, el = ref.current;
     const r = v.k / b.k;
     const far = el ? Math.abs(v.tx - b.tx) > el.clientWidth * 0.3 || Math.abs(v.ty - b.ty) > el.clientHeight * 0.3 : false;
-    if (r > 1.5 || r < 1 / 1.5 || far) commit();
+    if (r < 0.6 || far) commit();
   }, [commit]);
   /** Подписка на каждое изменение вида (вызывается сразу с текущим видом). Возвращает отписку. */
   const subscribe = useCallback((fn: (v: View) => void) => { listeners.current.add(fn); fn(viewRef.current); return () => { listeners.current.delete(fn); }; }, []);
@@ -85,6 +100,14 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   const draggingRef = useRef(false);
   const setDragging = useCallback((v: boolean) => { draggingRef.current = v; setDraggingState(v); }, []);
 
+  /**
+   * Плавный зум (12.10): колесо и кнопки не прыгают на шаг, а задают цель; каждый кадр масштаб подтягивается к цели
+   * экспоненциально (постоянная времени TAU мс), точка под курсором стоит на месте. Когда цель достигнута и колесо
+   * молчит, вид фиксируется один раз — без ступенек и без перерастрирования посреди зума.
+   */
+  const zoomAnim = useRef<{ target: number; ax: number; ay: number; wx: number; wy: number; tau: number; raf: number; last: number; settle: number } | null>(null);
+  const stopZoom = useCallback(() => { const z = zoomAnim.current; if (!z) return; cancelAnimationFrame(z.raf); window.clearTimeout(z.settle); zoomAnim.current = null; }, []);
+
   /** Слева карту может закрывать стеклянная колонка меню (компьютер): её ширина приходит из CSS (`--map-pad-left`),
    *  «вся карта» и центрирование считаются по свободной части окна. */
   const padLeft = (el: HTMLElement) => parseFloat(getComputedStyle(el).getPropertyValue("--map-pad-left")) || 0;
@@ -97,6 +120,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   const fit = useCallback(() => {
     const el = ref.current, b = boundsRef.current;
     if (!el || !b) return;
+    stopZoom();
     const k = measureFit(), pad = padLeft(el);
     setView({ k, tx: pad + (el.clientWidth - pad - b.width * k) / 2 - b.minX * k, ty: (el.clientHeight - b.height * k) / 2 - b.minY * k }, true);
   }, [measureFit, setView]);
@@ -105,6 +129,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   const focusOn = useCallback((x: number, y: number, k = 2.2) => {
     const el = ref.current;
     if (!el) return;
+    stopZoom();
     measureFit();
     const pad = padLeft(el);
     setView({ k, tx: pad + (el.clientWidth - pad) / 2 - x * k, ty: el.clientHeight / 2 - y * k }, true);
@@ -126,15 +151,32 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     return () => ro.disconnect();
   }, [el, measureFit, setView]);
 
-  const zoomAt = useCallback((factor: number, cx?: number, cy?: number, commitNow = true) => {
-    setView((v) => {
-      const el = ref.current;
-      const px = cx ?? (el ? el.clientWidth / 2 : 0), py = cy ?? (el ? el.clientHeight / 2 : 0);
-      const k = clampK(v.k * factor);
-      const f = k / v.k;
-      return { k, tx: px - (px - v.tx) * f, ty: py - (py - v.ty) * f };
-    }, commitNow);
-  }, [setView]);
+  const zoomStep = useCallback((now: number) => {
+    const z = zoomAnim.current; if (!z) return;
+    const v = viewRef.current;
+    const dt = Math.min(64, now - z.last); z.last = now;
+    const a = 1 - Math.exp(-dt / z.tau);
+    let k = v.k * Math.exp(Math.log(z.target / v.k) * a);
+    const done = Math.abs(Math.log(z.target / k)) < 0.002;
+    if (done) k = z.target;
+    setView({ k, tx: z.ax - z.wx * k, ty: z.ay - z.wy * k });
+    commitIfFar();
+    if (done) { zoomAnim.current = null; window.clearTimeout(z.settle); z.settle = window.setTimeout(commit, 60); }
+    else z.raf = requestAnimationFrame(zoomStep);
+  }, [setView, commitIfFar, commit]);
+  /** Сдвинуть цель зума на множитель вокруг точки экрана (cx, cy; по умолчанию — центр). tau — скорость подтягивания. */
+  const zoomTo = useCallback((factor: number, cx?: number, cy?: number, tau = 110) => {
+    const el = ref.current; if (!el) return;
+    const v = viewRef.current;
+    const px = cx ?? el.clientWidth / 2, py = cy ?? el.clientHeight / 2;
+    const z = zoomAnim.current;
+    const target = clampK((z?.target ?? v.k) * factor);
+    // Якорь: точка карты под курсором в текущем виде; при смене позиции курсора пересчитывается от текущего вида.
+    const wx = (px - v.tx) / v.k, wy = (py - v.ty) / v.k;
+    if (z) { window.clearTimeout(z.settle); Object.assign(z, { target, ax: px, ay: py, wx, wy, tau }); return; }
+    zoomAnim.current = { target, ax: px, ay: py, wx, wy, tau, raf: requestAnimationFrame(zoomStep), last: performance.now(), settle: 0 };
+  }, [zoomStep]);
+  const zoomAt = useCallback((factor: number, cx?: number, cy?: number) => zoomTo(factor, cx, cy), [zoomTo]);
 
   // Пальцы и мышь отслеживаются на window: жест продолжается, даже если палец вышел за край карты.
   // pointerdown ловится на контейнере, остальное — здесь.
@@ -209,17 +251,28 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
 
   useEffect(() => {
     if (!el) return;
-    let timer = 0;
+    let trackpadUntil = 0;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (e.ctrlKey && !e.deltaY) return;
       const r = el.getBoundingClientRect();
-      zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top, false);
-      commitIfFar();
-      window.clearTimeout(timer); timer = window.setTimeout(commit, 120);
+      // Нормализация (как в OpenLayers/MapLibre): строки → пиксели, страницы → пиксели; щипок на тачпаде приходит
+      // с ctrlKey и мелкими дельтами, его усиливаем. Один щелчок колеса мыши (100–120 px) — ×1.15.
+      let d = e.deltaY * (e.deltaMode === 1 ? 20 : e.deltaMode === 2 ? 400 : 1);
+      if (e.ctrlKey) d *= 4;
+      d = Math.max(-240, Math.min(240, d));
+      // Тачпад шлёт много мелких дробных дельт — ему быстрая постоянная времени (ощущение «палец ведёт»),
+      // колесу мыши — помедленнее, чтобы щелчки слились в одно плавное движение.
+      const now = performance.now();
+      const trackpad = Math.abs(e.deltaY) < 40 && !Number.isInteger(e.deltaY) || e.ctrlKey;
+      if (trackpad) trackpadUntil = now + 400;
+      const tau = now < trackpadUntil ? 45 : 110;
+      zoomTo(Math.exp(-d * (Math.log(1.15) / 100)), e.clientX - r.left, e.clientY - r.top, tau);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => { el.removeEventListener("wheel", onWheel); window.clearTimeout(timer); };
-  }, [el, zoomAt, commit, commitIfFar]);
+    return () => { el.removeEventListener("wheel", onWheel); };
+  }, [el, zoomTo]);
+  useEffect(() => () => { stopZoom(); if (raf.current) cancelAnimationFrame(raf.current); }, [stopZoom]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     // Без setPointerCapture: иначе click уходит контейнеру, а не клетке карты.
@@ -229,6 +282,8 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     // сворачивания приложения) не считаются: новое касание начинает новый жест.
     for (const [id, pt] of pointers.current) if (now - pt.at > (pt.type === "touch" ? 3000 : 1000)) pointers.current.delete(id);
     if (pointers.current.size >= 2) return; // третий палец не участвует
+    // Палец или кнопка мыши прерывают анимацию зума: дальше вид ведёт жест.
+    if (zoomAnim.current) { stopZoom(); commit(); }
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY, at: now, type: e.pointerType });
     const pts = [...pointers.current.values()];
     const r = ref.current?.getBoundingClientRect();
