@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { CoastOver, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
+import { islandGeometry, HexTiles, IMG, OutlineDefs, RoadsLayer, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols, type RoadSpec } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import { reportPage } from "../lib/perf";
@@ -167,6 +167,21 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста). */
   const sc = (x: number, y: number) => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))` });
   // Мир и экранные элементы — мемо по данным: фиксация масштаба не должна заново строить сотни SVG-элементов.
+  /** Дороги для холста (плавность 12.10): серые стороны, подложка и цвет команды у пройденных; две команды — по половине. */
+  const roads = useMemo<RoadSpec[]>(() => {
+    const base: RoadSpec[] = [], halos: RoadSpec[] = [], paths: RoadSpec[] = [];
+    for (const e of edges) {
+      const a = positions.get(e.aKey), b = positions.get(e.bKey);
+      if (!a || !b) continue;
+      const teams = traversedBy.get([e.aKey, e.bKey].sort().join("|")) ?? [];
+      if (teams.length === 0) { base.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, color: "rgba(31,27,22,0.25)", w: 1.5, fixed: true }); continue; }
+      halos.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, color: "rgba(255,250,240,0.85)", w: 9 });
+      if (teams.length === 1) { paths.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, color: routeColor(teams[0]!.color), w: 5 }); continue; }
+      const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
+      paths.push({ x1: a.x, y1: a.y, x2: mx, y2: my, color: routeColor(teams[0]!.color), w: 5 }, { x1: mx, y1: my, x2: b.x, y2: b.y, color: routeColor(teams[1]!.color), w: 5 });
+    }
+    return [...base, ...halos, ...paths];
+  }, [edges, positions, traversedBy]);
   const worldBody = useMemo(() => (<>
             {/* Дороги и переправы — под значками городов и стартов, иначе светлая подложка маршрута перекрывает их (замечание владельца 30.09). */}
             {edges.map((e) => {
@@ -174,13 +189,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               if (!a || !b) return null;
               const teams = traversedBy.get([e.aKey, e.bKey].sort().join("|")) ?? [];
               // Широкая прозрачная линия поверх — чтобы в дорогу можно было попасть пальцем: открывает дела на этой стороне.
-              const hit = <line className="edge-hit" data-a={e.aKey} data-b={e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.aKey, bKey: e.bKey }); }} />;
-              if (teams.length === 0) return <g key={e.aKey + e.bKey}><line className="adm-edge" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />{hit}</g>;
-              // Маршруты: светлая подложка и осветлённый цвет команды, чтобы не сливались с местностью (решение владельца 30.09).
-              const halo = <line className="adm-halo" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
-              if (teams.length === 1) return <g key={e.aKey + e.bKey}>{halo}<line className="adm-path" x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={{ stroke: routeColor(teams[0]!.color) }} />{hit}</g>;
-              const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-              return <g key={e.aKey + e.bKey}>{halo}<line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} style={{ stroke: routeColor(teams[0]!.color) }} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} style={{ stroke: routeColor(teams[1]!.color) }} />{hit}</g>;
+              // Сами линии рисует холст RoadsLayer (плавность 12.10); в SVG — только прозрачная зона нажатия.
+              void teams;
+              return <line key={e.aKey + e.bKey} className="edge-hit" data-a={e.aKey} data-b={e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.aKey, bKey: e.bKey }); }} />;
             })}
             {/* Морские переправы (решение владельца 05.10): плавная линия строго по воде, в обход островков, со стрелкой к месту высадки. */}
             {(progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
@@ -310,13 +321,14 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         <div ref={vp.ref} {...vp.handlers} className="mapwrap" style={{ background: css(dt.light.bg) }}>
           <SeaLayer vp={vp} bed={bed} light={dt.light} />
           <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
-          <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} daytime={dt} />
+          <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} daytime={dt} coast={coast} />
           {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
+          {/* Дороги — холст под городами (плавность 12.10). */}
+          <RoadsLayer vp={vp} roads={roads} />
           <WorldSvg vp={vp} bounds={bounds}>
             <MapSymbols />
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} k={vp.view.k} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
-            <CoastOver d={coast} size={size} light={dt.light} />
             {worldBody}
             {flash && (() => { const a = positions.get(flash.aKey), b = positions.get(flash.bKey); return (
               <g className="adm-flash" pointerEvents="none">

@@ -5,7 +5,7 @@ import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import type { DailyBirdDto, EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
-import { CoastOver, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear } from "./MapLayers";
+import { islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, RoadsLayer, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type RoadSpec } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
 import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
@@ -196,6 +196,29 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     for (const f of map.foreign ?? []) { const k = [f.aKey, f.bKey].sort().join("|"); const list = m.get(k) ?? []; if (!list.some((x) => x.color === f.color)) list.push({ color: f.color }); m.set(k, list); }
     return m;
   }, [map.foreign]);
+  /** Дороги для холста (плавность 12.10): подложки, своя линия (пройденная — цветом команды, взятая — пунктир), чужие проходы. */
+  const roads = useMemo<RoadSpec[]>(() => {
+    const halos: RoadSpec[] = [], lines: RoadSpec[] = [], foreign: RoadSpec[] = [];
+    const paper = "#F3EAD3", surface = typeof getComputedStyle === "function" ? (getComputedStyle(document.documentElement).getPropertyValue("--surface").trim() || "#FBF6EA") : "#FBF6EA";
+    for (const e of map.edges) {
+      const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
+      const key = [e.aKey, e.bKey].sort().join("|");
+      const tk = taskByEdge.get(key);
+      const done = tk?.status === "APPROVED";
+      const active = tk && !done;
+      const sel = tk?.id === selectedTaskId;
+      const others = foreignByEdge.get(key) ?? [];
+      const from = done ? 0.5 : 0, span = (1 - from) / Math.max(1, others.length);
+      const pt = (tt: number) => ({ x: a.x + (b.x - a.x) * tt, y: a.y + (b.y - a.y) * tt });
+      if (done || others.length > 0) halos.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, color: "rgba(255,250,240,0.85)", w: 10 });
+      if (done) lines.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, color: routeColor(map.team.color), w: 6 });
+      else if (sel) lines.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, color: surface, w: 5 });
+      else if (active) lines.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, color: paper, w: 3, dash: [7, 6] });
+      else lines.push({ x1: a.x, y1: a.y, x2: b.x, y2: b.y, color: "rgba(255,255,255,0.25)", w: 3 });
+      others.forEach((o, i) => { const p1 = pt(from + span * i), p2 = pt(from + span * (i + 1)); foreign.push({ x1: p1.x, y1: p1.y, x2: p2.x, y2: p2.y, color: routeColor(o.color), w: 3, alpha: 0.85 }); });
+    }
+    return [...halos, ...lines, ...foreign];
+  }, [map.edges, taskByEdge, selectedTaskId, positions, foreignByEdge, map.team.color]);
   const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -209,14 +232,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           // Чужие отрезки: если сторона пройдена и нами — вторая половина, иначе вся сторона, поделённая между командами.
           const from = done ? 0.5 : 0, span = (1 - from) / Math.max(1, others.length);
           const pt = (tt: number) => ({ x: a.x + (b.x - a.x) * tt, y: a.y + (b.y - a.y) * tt });
+          // Сами линии дорог рисует холст RoadsLayer (плавность 12.10); в SVG — только прозрачная зона нажатия.
+          void from; void span; void pt; void others;
+          if (!(active || done)) return null;
           return (
-            <g key={e.aKey + e.bKey} className={"m-edge " + cls} onClick={() => (active || done) && click(tk.id)}>
+            <g key={e.aKey + e.bKey} className={"m-edge " + cls} onClick={() => click(tk.id)}>
               {/* Пройденная сторона тоже нажимается: открывает дело и его отчёт (решение владельца 30.09). */}
-              {(active || done) && <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
-              {/* Пройденные стороны: светлая подложка и осветлённый цвет команды, чтобы маршрут не сливался с местностью (решение владельца 30.09). */}
-              {(done || others.length > 0) && <line className="halo" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
-              <line className={active && !sel ? "dashed" : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={done ? { stroke: routeColor(map.team.color) } : undefined} />
-              {others.map((o, i) => { const p1 = pt(from + span * i), p2 = pt(from + span * (i + 1)); return <line key={o.color} className="foreign" x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} style={{ stroke: routeColor(o.color) }} />; })}
+              <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
             </g>
           );
         })}
@@ -393,13 +415,14 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "")} style={{ background: css(dt.light.bg) }} onClick={marking ? placeMark : undefined}>
       <SeaLayer vp={vp} bed={bed} light={dt.light} />
       <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
-      <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} daytime={dt} />
+      <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} daytime={dt} coast={coast} />
       {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
+      {/* Дороги — холст под городами (плавность 12.10): резкие на любом масштабе по ходу жеста. */}
+      <RoadsLayer vp={vp} roads={roads} />
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
         <OutlineDefs colors={owners} k={vp.view.k} />
         <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
-        <CoastOver d={coast} size={size} light={dt.light} />
         {worldBody}
       </WorldSvg>
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={dt.light} />}

@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { seaField } from "@lotw/domain";
 
 export interface View { k: number; tx: number; ty: number }
+/** Как часто посреди приближения пересобирать растр SVG (мс). */
+const ZOOM_COMMIT_MS = 220;
 export interface Bounds { minX: number; minY: number; width: number; height: number }
 
 /**
@@ -85,7 +87,10 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     const v = viewRef.current, b = lastCommitView.current, el = ref.current;
     const r = v.k / b.k;
     const far = el ? Math.abs(v.tx - b.tx) > el.clientWidth * 0.3 || Math.abs(v.ty - b.ty) > el.clientHeight * 0.3 : false;
-    if (r < 0.6 || far) commit();
+    // При приближении растр SVG (города, подписи) плывёт размытым: пересобираем его не чаще раза в ZOOM_COMMIT_MS и лишь
+    // когда масштаб ушёл дальше ×1.3 — дороги и местность на холстах резкие всегда (замечание владельца 12.10).
+    const zoomed = r > 1.3 && performance.now() - lastCommit.current >= ZOOM_COMMIT_MS;
+    if (r < 0.6 || far || zoomed) commit();
   }, [commit]);
   /** Подписка на каждое изменение вида (вызывается сразу с текущим видом). Возвращает отписку. */
   const subscribe = useCallback((fn: (v: View) => void) => { listeners.current.add(fn); fn(viewRef.current); return () => { listeners.current.delete(fn); }; }, []);
