@@ -62,6 +62,9 @@
 .m-start { stroke: var(--surface); stroke-width: 2; }
 .m-fork { fill: var(--surface); stroke: var(--text); stroke-width: 1.2; }
 .m-label rect { fill: var(--map-paper); stroke: var(--text); stroke-width: 1; }
+/* Точки команд, дошедших до города (12.10): цвет команды с белой обводкой, как кружки в списке команд. */
+.m-label .m-arrived { stroke: #fff; stroke-width: 1.2; }
+.city-head .status.visitors { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .m-label text { fill: var(--text); pointer-events: none; }
 .m-label use { color: var(--text); pointer-events: none; }
 .m-label.owned rect { fill: var(--team); }

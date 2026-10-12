@@ -122,6 +122,7 @@ export const PLAYER: Record<string, string> = {
   "{user} отстоял(а) вахту {n}: {sea}": "{user} stood watch {n}: {sea}",
   "Команда «{team}» открыла море: {sea}": "Team “{team}” opened the sea: {sea}",
   "{user} перевёл(а) команду через море: {sea}": "{user} led the team across the sea: {sea}",
+  "Пришла {d}": "Arrived {d}",
   "Пожертвования": "Donations",
   "Пожертвования идут на сервер, домен и развитие игры. Спасибо!": "Donations go to the server, the domain and the development of the game. Thank you!",
   "Из любой страны: Boosty": "From any country: Boosty",

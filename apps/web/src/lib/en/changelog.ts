@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "В подписи города на карте появились цветные точки команд, которые тоже дошли до него (по суше или высадились с моря). В карточке города — их названия и дата прихода.": "City labels on the map now show coloured dots of the teams that have also reached the city (by land or by sea). The city card lists their names and arrival dates.",
   "Дело «Пробежка с молитвой» стало просто «Пробежкой»: фраза про молитву во время бега убрана, в идущих партиях тоже.": "The deed “Run with prayer” is now just “Run”: the line about praying while running is removed, in running games too.",
   "На главной появилась кнопка «Пожертвования»: страница со ссылкой и QR-кодом на сбор в Boosty. Игра деньги не принимает, оплата проходит в Boosty.": "A “Donations” button on the home page: a page with a link and a QR code to the Boosty fundraiser. The game takes no money itself; payment happens on Boosty.",
   "Клин птиц летит к городу в тумане раз в три часа, а не раз в два.": "The flock of birds flies to a city in the fog every three hours instead of every two.",
