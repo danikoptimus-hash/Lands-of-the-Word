@@ -15,7 +15,7 @@ export function DonatePage() {
     <div className="how-to">
       <Back to="-1" label={t("Назад")} />
       <h1 className="mt-2">{t("Пожертвования")}</h1>
-      <p className="muted mt-2">{t("«Земли Слова» — бесплатная игра. Пожертвования идут на сервер и домен, на развитие игры и на новые партии. Любая сумма — помощь, спасибо!")}</p>
+      <p className="muted mt-2">{t("Пожертвования идут на сервер, домен и развитие игры. Спасибо!")}</p>
       <section className="card mt-4 donate-card">
         <h2><span className="ico"><Icon name="star" /></span>{t("Из любой страны: Boosty")}</h2>
         <div className="donate-row mt-3">
@@ -29,7 +29,6 @@ export function DonatePage() {
           </div>
         </div>
       </section>
-      <p className="muted small mt-4">{t("Игра не принимает деньги сама и не хранит платёжных данных: оплата проходит на стороне Boosty.")}</p>
     </div>
   );
 }
