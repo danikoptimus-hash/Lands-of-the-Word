@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { islandGeometry, HexTiles, IMG, OutlineDefs, RoadsLayer, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols, type RoadSpec } from "./MapLayers";
+import { islandGeometry, HexTiles, IMG, RoadsLayer, SeaLayer, TilesLayer, WorldSvg, hexGridPath, useCoast, MapSymbols, type RoadSpec } from "./MapLayers";
+import { SceneLayer, readColors, type SceneItem } from "./Scene";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import { reportPage } from "../lib/perf";
@@ -203,13 +204,12 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             {nodes.map((n) => {
               const p = positions.get(n.key)!;
               const CITY = size * 0.77, START = size * 0.9; // решение владельца 16.09: знаки городов и стартов в полтора раза меньше прежних (1,15 и 1,35)
-              if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(n.teamIndex ?? 0, imgPhase)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+              void START;
+              // Картинки городов и стартов рисует холст сцены (12.10); здесь — только прозрачная зона нажатия города.
               if (n.kind === "CITY") {
-                const owner = ownerOf.get(n.key);
-                // Картинка города кликабельна сама (как у команды); владелец — обводка по контуру картинки цветом команды.
                 return (
                   <g key={"c" + n.key} data-key={n.key} className="m-city" onClick={() => { if (!vp.wasDrag()) setSelected(n); }}>
-                    <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : "url(#outline-free)"} />
+                    <rect className="city-hit" x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} fill="transparent" />
                   </g>
                 );
               }
@@ -228,6 +228,44 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
       </g>
     );
   })();
+  const C = useMemo(readColors, []);
+  const gridPath = useMemo(() => hexGridPath(hexes, size), [hexes, size]);
+  /** Картинки городов и стартов для холста сцены (12.10): обводка — цвет владельца или тонкая белая. */
+  const sprites = useMemo<SceneItem[]>(() => nodes.flatMap((n) => {
+    const p = positions.get(n.key)!;
+    const CITY = size * 0.77, START = size * 0.9;
+    if (n.kind === "START") return [{ t: "sprite" as const, x: p.x - START / 2, y: p.y - START * 0.58, w: START, h: START, src: IMG.start(n.teamIndex ?? 0, imgPhase) }];
+    if (n.kind !== "CITY") return [];
+    const owner = ownerOf.get(n.key);
+    return [{ t: "sprite" as const, x: p.x - CITY / 2, y: p.y - CITY * 0.6, w: CITY, h: CITY, src: IMG.city(n.cityType, imgPhase), outline: owner ? { color: owner.color, width: 1.6, cap: 2 } : { color: "#ffffff", width: 0.88, cap: 1, alpha: 0.85 } }];
+  }), [nodes, positions, ownerOf, size, imgPhase]);
+  /** Экранные элементы для холста сцены (12.10): старты, номера и подписи городов, точки команд на перекрёстках, Каменоломня. */
+  const items = useMemo<SceneItem[]>(() => {
+    const out: SceneItem[] = [];
+    for (const n of nodes) {
+      const p = positions.get(n.key)!;
+      const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
+      const seen = revealedBy.get(n.key) ?? [];
+      const sel = selected?.key === n.key;
+      if (n.kind === "START") { const tm = progress?.find((x) => x.startNodeKey === n.key); out.push({ t: "dot", x: p.x, y: p.y, r: 6, fill: tm?.color ?? TEAM_COLORS[(n.teamIndex ?? 0) % TEAM_COLORS.length]!, stroke: C.surface, sw: 2 }); continue; }
+      if (n.kind === "CITY") {
+        const capital = cities?.find((c) => c.nodeKey === n.key && c.capturedAt && c.isCapital);
+        const crownColor = capital ? teamById.get(capital.teamId)?.color ?? C.text : null;
+        // Вид «вся карта»: номер в кружке, корона, значок испытания, точки команд над ним.
+        out.push({ t: "badge", x: p.x, y: p.y, text: String(book?.order ?? ""), fill: sel ? C.accent : C.surface, color: sel ? C.onAccent : C.text, stroke: C.text, r: 8, crown: crownColor, battle: battleAt.has(n.key), maxK: 1.4 });
+        seen.forEach((tm, i) => out.push({ t: "dot", x: p.x, y: p.y, dx: (i - (seen.length - 1) / 2) * 10, dy: -14, r: 4.5, fill: tm.color, stroke: C.surface, sw: 1, maxK: 1.4 }));
+        // Вблизи: точки команд на узле и подпись «N. Книга» под картинкой.
+        seen.forEach((tm, i) => out.push({ t: "dot", x: p.x, y: p.y, dx: (i - (seen.length - 1) / 2) * 10, r: 4.5, fill: tm.color, stroke: C.surface, sw: 1, minK: 1.4 }));
+        out.push({ t: "label", x: p.x, y: p.y, dy: size * 0.77 * 0.48, text: `${book?.order}. ${book?.nameRu ?? ""}`, fs: 11, fsSm: 11, alphaSm: 1, fill: sel ? C.accent : C.paper, color: sel ? C.onAccent : C.text, stroke: C.text, crown: crownColor ? (sel ? C.onAccent : crownColor) : null, battle: battleAt.has(n.key) ? "def" : null, battleRight: true, minK: 1.4 });
+        continue;
+      }
+      if (seen.length === 0) out.push({ t: "dot", x: p.x, y: p.y, r: 3, fill: "rgba(31,27,22,0.4)", minK: 0.8 });
+      seen.forEach((tm, i) => out.push({ t: "dot", x: p.x, y: p.y, dx: (i - (seen.length - 1) / 2) * 8, r: 3.5, fill: tm.color, stroke: C.surface, sw: 1, minK: 0.8 }));
+    }
+    const quarry = islets.find((i) => i.quarry);
+    if (quarry) out.push({ t: "pill", x: quarry.x, y: quarry.y, text: t("Каменоломня"), icon: "stone", fs: 12, fill: C.paper, color: C.text, stroke: C.text });
+    return out;
+  }, [nodes, positions, revealedBy, selected, progress, size, cities, teamById, battleAt, islets, C]);
   const screenBody = useMemo(() => (<>
               {nodes.map((n) => {
                 const raw = positions.get(n.key)!;
@@ -323,12 +361,13 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
           <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} daytime={dt} coast={coast} />
           {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
-          {/* Дороги — холст под городами (плавность 12.10). */}
-          <RoadsLayer vp={vp} roads={roads} />
+          {/* Дороги и сетка гексов — холст под городами (плавность 12.10). */}
+          <RoadsLayer vp={vp} roads={roads} grid={gridPath} />
+          {/* Города и старты — холст сцены (12.10); в SVG мира — только зоны нажатия и вспышка «Посмотреть на карте». */}
+          <SceneLayer vp={vp} items={sprites} />
           <WorldSvg vp={vp} bounds={bounds}>
             <MapSymbols />
-            <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} k={vp.view.k} />
-            <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
+            <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} borders={false} />
             {worldBody}
             {flash && (() => { const a = positions.get(flash.aKey), b = positions.get(flash.bKey); return (
               <g className="adm-flash" pointerEvents="none">
@@ -341,8 +380,10 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
           <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
           {/* Подписи городов и метки — отдельным слоем над живностью и маршрутами: название города выше линии корабля (решение владельца 06.10). */}
+          {/* Подписи, номера, точки команд — холст сцены над живностью (12.10); в SVG ниже — только зоны нажатия. */}
+          <SceneLayer vp={vp} items={items} />
           <WorldSvg vp={vp} bounds={bounds} overlay>
-            <g className="screen-items">
+            <g className="screen-items hits">
               {quarryMarker}
               {screenBody}
             </g>

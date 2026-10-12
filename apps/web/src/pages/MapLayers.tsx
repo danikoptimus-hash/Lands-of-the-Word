@@ -224,10 +224,12 @@ const NO_ROADS: ReadonlyArray<RoadSpec> = [];
  * десятки миллисекунд на SVG против долей миллисекунды на несколько сотен отрезков. Порядок рисования — порядок списка
  * (подложки раньше линий). В SVG остаются только прозрачные зоны нажатия.
  */
-export function RoadsLayer({ vp, roads = NO_ROADS }: { vp: Viewport; roads?: ReadonlyArray<RoadSpec> }) {
+export function RoadsLayer({ vp, roads = NO_ROADS, grid = "" }: { vp: Viewport; roads?: ReadonlyArray<RoadSpec>; /** Границы гексов одним путём SVG (координаты карты): тонкая линия в 1 экранный пиксель. */ grid?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   const roadsRef = useRef(roads); roadsRef.current = roads;
+  const gridRef = useRef<Path2D | null>(null);
+  useEffect(() => { gridRef.current = grid ? new Path2D(grid) : null; dirty.current = true; }, [grid]);
   const dirty = useRef(true); dirty.current = true;
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
@@ -244,6 +246,7 @@ export function RoadsLayer({ vp, roads = NO_ROADS }: { vp: Viewport; roads?: Rea
       const m = Math.max(1.6, k), ui = Math.min(1, Math.max(0.5, k / 1.6)), inv = ui / k;
       const margin = 40 / k;
       const x0 = -tx / k - margin, y0 = -ty / k - margin, x1 = (W / dpr - tx) / k + margin, y1 = (H / dpr - ty) / k + margin;
+      if (gridRef.current) { ctx.strokeStyle = "rgba(31,27,22,0.28)"; ctx.lineWidth = 1 / k; ctx.setLineDash([]); ctx.stroke(gridRef.current); }
       for (const r of roadsRef.current) {
         if (Math.max(r.x1, r.x2) < x0 || Math.min(r.x1, r.x2) > x1 || Math.max(r.y1, r.y2) < y0 || Math.min(r.y1, r.y2) > y1) continue;
         ctx.globalAlpha = r.alpha ?? 1;
@@ -263,6 +266,17 @@ export function RoadsLayer({ vp, roads = NO_ROADS }: { vp: Viewport; roads?: Rea
   return <canvas ref={ref} className="fx-layer roads" aria-hidden="true" />;
 }
 
+/** Границы освещённых гексов одним путём SVG (координаты карты) — для холста дорог. */
+export function hexGridPath(hexes: ReadonlyArray<MapHexDto>, size = HEX_SIZE): string {
+  const out: string[] = [];
+  for (const h of hexes) {
+    if (!h.lit && h.lit !== undefined) continue;
+    const c = hexCenter(h, size);
+    const pts = Array.from({ length: 6 }, (_, i) => { const a = (Math.PI / 180) * (60 * i - 30); return `${(c.x + Math.cos(a) * size * 0.995).toFixed(2)} ${(c.y + Math.sin(a) * size * 0.995).toFixed(2)}`; });
+    out.push(`M${pts.join("L")}Z`);
+  }
+  return out.join("");
+}
 /** Берег над гексами: песок, плавно растворяющийся в местность (двенадцать узких колец), и тёмная линия влажного песка у воды. */
 export function CoastOver({ d, size = HEX_SIZE, scale = 1, light = DAY_LIGHT }: { d: string; size?: number; scale?: number; light?: Light }) {
   if (!d) return null;
@@ -497,7 +511,7 @@ const TERRAINS = ["desert", "hills", "meadow", "mountains", "water", "oasis"];
  * рисовать на телефоне), а задаются паттернами: по одному на местность и поворот (6 × 6). Под паттерном —
  * цвет местности, поэтому карта видна сразу, ещё до загрузки текстур. Туман — тёмные гексы.
  */
-export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false, fills = true }: { hexes: MapHexDto[]; size?: number; clipId: string; /** Озёра рисует WebGL-слой под миром: у гекса воды нет заливки, только граница. */ liveWater?: boolean; /** Картинки местности рисует TilesLayer (canvas под миром): у гексов только граница. */ fills?: boolean }) {
+export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false, fills = true, borders = true }: { hexes: MapHexDto[]; size?: number; clipId: string; /** Озёра рисует WebGL-слой под миром: у гекса воды нет заливки, только граница. */ liveWater?: boolean; /** Картинки местности рисует TilesLayer (canvas под миром): у гексов только граница. */ fills?: boolean; /** Границы гексов рисует холст дорог (RoadsLayer grid): в SVG остаются только гексы тумана. */ borders?: boolean }) {
   const poly = hexPoints(size, 0.995);
   const fogPoly = hexPoints(size, 1.03);
   return (
@@ -514,6 +528,7 @@ export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false, fi
       {hexes.map((h) => {
         const c = hexCenter(h, size);
         if (!h.lit && h.lit !== undefined) return <polygon key={`f${h.q},${h.r}`} className="hex-fog" points={fogPoly} transform={`translate(${c.x},${c.y})`} fill={FOG_COLOR} />;
+        if (!borders && !fills) return null;
         const t = TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert";
         const fill = (liveWater && t === "water") || !fills ? "none" : `url(#${clipId}-${t}-${(h.rotation ?? 0) % 6})`;
         return <polygon key={`t${h.q},${h.r}`} className="hex-tile" points={poly} transform={`translate(${c.x},${c.y})`} fill={fill} vectorEffect="non-scaling-stroke" />;
@@ -621,7 +636,7 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, dayt
  * Значки карты одним набором SVG-символов (контур 2px, как у Icon): испытание, разведка, метки дел, столица.
  * Определяются один раз в <defs>, на карте ставятся через <use href="#m-…">; цвет — через CSS (currentColor).
  */
-const SYMBOLS: Record<string, string> = {
+export const SYMBOLS: Record<string, string> = {
   wave: "M2 12c2-3 4-3 6 0s4 3 6 0 4-3 6 0M2 18c2-3 4-3 6 0s4 3 6 0 4-3 6 0",
   city: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 10h.01M15 10h.01M9 14h.01M15 14h.01",
   telescope: "m4 14 12-7 3 5-12 7-3-5Zm12-7 3-2 3 5-3 2M9 17l3 5m-6-2 3-3",

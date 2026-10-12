@@ -5,7 +5,8 @@ import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import type { DailyBirdDto, EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
-import { islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, RoadsLayer, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type RoadSpec } from "./MapLayers";
+import { islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, RoadsLayer, SeaLayer, TilesLayer, WorldSvg, hexGridPath, useCoast, type FogClear, type RoadSpec } from "./MapLayers";
+import { SceneLayer, readColors, type SceneItem } from "./Scene";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
 import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
@@ -82,7 +83,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     for (const e of map.edges) { if (!m.has(e.aKey)) m.set(e.aKey, nodePos(e.aKey, size)); if (!m.has(e.bKey)) m.set(e.bKey, nodePos(e.bKey, size)); }
     return m;
   }, [map, size]);
-  const [ripple, setRipple] = useState<{ x: number; y: number; n: number } | null>(null);
+  const [ripple, setRipple] = useState<{ x: number; y: number; n: number; born: number } | null>(null);
   const [marking, setMarking] = useState(false);
   useEffect(() => { if (!onMark) setMarking(false); }, [onMark]);
   /**
@@ -108,7 +109,6 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const islets = useIslets(map.hexes, size, bounds);
   const bed = useSeabed(map.hexes, islets, size, bounds);
   const [liveWater, setLiveWater] = useState(true);
-  const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
   const landKeys = useMemo(() => new Set(map.hexes.map((h) => `${h.q},${h.r}`)), [map.hexes]);
   // Перекрёстки края тумана укрыты облачком и там, где рядом нет гекса тумана (берег): команда их ещё не знает (03.10).
@@ -170,7 +170,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const click = (taskId: string) => { if (!vp.wasDrag()) onSelect(selectedTaskId === taskId ? null : taskId); };
   const clickCity = (key: string) => {
     if (vp.wasDrag()) return;
-    const p = positions.get(key); if (p) setRipple((r) => ({ x: p.x, y: p.y, n: (r?.n ?? 0) + 1 }));
+    const p = positions.get(key); if (p) setRipple((r) => ({ x: p.x, y: p.y, n: (r?.n ?? 0) + 1, born: performance.now() }));
     onSelectCity(key);
   };
   const R = k >= 1.6 ? 12 : 9;
@@ -219,6 +219,68 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     }
     return [...halos, ...lines, ...foreign];
   }, [map.edges, taskByEdge, selectedTaskId, positions, foreignByEdge, map.team.color]);
+  const C = useMemo(readColors, []);
+  const gridPath = useMemo(() => hexGridPath(map.hexes, size), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Картинки городов и стартов для холста сцены (12.10): обводка — цвет владельца или тонкая белая. */
+  const sprites = useMemo<SceneItem[]>(() => map.revealed.flatMap((n) => {
+    const p = positions.get(n.key)!;
+    if (n.kind === "START") return [{ t: "sprite" as const, x: p.x - START / 2, y: p.y - START * 0.58, w: START, h: START, src: IMG.start(teamIndex, imgPhase) }];
+    if (n.kind !== "CITY") return [];
+    const c = cityByKey.get(n.key);
+    return [{ t: "sprite" as const, x: p.x - CITY / 2, y: p.y - CITY * 0.6, w: CITY, h: CITY, src: IMG.city(n.cityType, imgPhase), outline: c?.owner ? { color: c.owner.color, width: 1.6, cap: 2 } : { color: "#ffffff", width: 0.88, cap: 1, alpha: 0.85 } }];
+  }), [map.revealed, positions, cityByKey, teamIndex, imgPhase, CITY, START]);
+  /** Экранные элементы для холста сцены (12.10): подписи, развилки, разведка, метки дел, край тумана, корабли, высадка, булавки. */
+  const items = useMemo<SceneItem[]>(() => {
+    const out: SceneItem[] = [];
+    const deedStyle = (st: EdgeTaskStatus) => st === "TAKEN" ? { fill: C.infoSoft, stroke: C.info, color: C.info } : st === "SUBMITTED" ? { fill: C.warnSoft, stroke: C.warn, color: C.warn } : st === "REJECTED" ? { fill: C.dangerSoft, stroke: C.danger, color: C.danger } : { fill: C.paper, stroke: C.text, color: C.text };
+    for (const n of map.revealed) {
+      const p = positions.get(n.key)!;
+      const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
+      if (n.kind === "START") {
+        const name = startName(n.teamIndex ?? teamIndex, getLocale());
+        out.push({ t: "dot", x: p.x, y: p.y, r: 6, fill: map.team.color, stroke: C.surface, sw: 2 });
+        out.push({ t: "label", x: p.x, y: p.y, dx: 12, left: true, text: name, fill: C.paper, color: C.text, stroke: C.text });
+        continue;
+      }
+      if (n.kind === "CITY") {
+        const c = cityByKey.get(n.key);
+        const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;
+        const status = c?.ruined ? t("руины") : c?.blocked ? (c.passage === "PENDING" ? t("ждём прохода") : t("проход закрыт")) : "";
+        const text = [book?.nameRu ?? "", progress, status].filter(Boolean).join(" · ");
+        const tinted = Boolean(c?.owner || c?.ruined);
+        out.push({ t: "label", x: p.x, y: p.y, dy: CITY * 0.48, text, textSm: book?.nameRu ?? "", fill: c?.owner ? c.owner.color : c?.ruined ? C.muted : C.paper, color: tinted ? C.onAccent : C.text, stroke: C.text, crown: c?.isCapital ? (tinted ? C.onAccent : C.text) : null, battle: c?.battle === "ATTACK" ? "att" : c?.battle === "DEFENSE" ? "def" : null, dots: (arrivedByNode.get(n.key) ?? []).map((a) => a.color) });
+        continue;
+      }
+      out.push({ t: "dot", x: p.x, y: p.y, r: 5, fill: C.surface, stroke: C.text, sw: 1.2, minK: 0.7 });
+    }
+    for (const pk of map.peeked ?? []) { const pos = positions.get(pk.key); if (pos) out.push({ t: "icon", x: pos.x, y: pos.y, dy: -16, r: 10, rSm: 10, fill: C.surface, stroke: C.text, sw: 1.2, icon: pk.kind === "CITY" ? "city" : "telescope", color: C.text, is: 1.4, minK: 0.9 }); }
+    for (const e of map.edges) {
+      const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
+      if (!tk || tk.status === "APPROVED") continue;
+      const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
+      const farKey = revealed.has(e.aKey) ? e.bKey : e.aKey;
+      const far = farKey === e.bKey ? b : a, near = far === b ? a : b;
+      const m = { x: near.x + (far.x - near.x) * 0.66, y: near.y + (far.y - near.y) * 0.66 };
+      const sel = tk.id === selectedTaskId, st = deedStyle(tk.status);
+      if (!revealed.has(farKey)) out.push({ t: "dot", x: far.x, y: far.y, r: 5, fill: C.far, minK: 0.9 });
+      out.push({ t: "icon", x: m.x, y: m.y, r: sel ? 14 : 12, rSm: sel ? 11 : 9, fill: st.fill, stroke: st.stroke, sw: sel ? 2.5 : 1.3, icon: DEED_SYMBOL[tk.status], color: st.color, minK: 0.9 });
+    }
+    if (onFrontierTap) {
+      const covered = new Set(map.tasks.filter((tk) => tk.status !== "APPROVED").map((tk) => tk.toKey));
+      for (const farKey of map.frontier ?? []) { if (covered.has(farKey) || revealed.has(farKey)) continue; const p = positions.get(farKey) ?? nodePos(farKey, size); out.push({ t: "dot", x: p.x, y: p.y, r: 5, fill: C.far, minK: 0.9 }); }
+    }
+    for (const { tk, x, y, port } of ships) {
+      const sel = tk.id === selectedTaskId, st = deedStyle(tk.status);
+      out.push({ t: "line", x1: port.x, y1: port.y, x2: x, y2: y, color: C.surface, w: 2, dash: 3, alpha: 0.8 });
+      out.push({ t: "icon", x, y, r: (sel ? 14 : 12) + 2, rSm: (sel ? 11 : 9) + 2, fill: tk.landing ? C.success : st.fill, stroke: tk.landing ? C.surface : st.stroke, sw: sel ? 2.5 : 1.3, icon: "ship", color: tk.landing ? C.onAccent : st.color, is: 1.24 });
+    }
+    if (landing) for (const key of landing.candidates) { const p = nodePos(key, size); out.push({ t: "pulse", x: p.x, y: p.y, color: C.success, fill: "rgba(76,140,74,0.25)", icon: "anchor" }); }
+    if (ripple) out.push({ t: "ripple", x: ripple.x, y: ripple.y, born: ripple.born, color: C.surface });
+    for (const mk of map.marks ?? []) { const c = hexCenter({ q: mk.qf ?? mk.q, r: mk.rf ?? mk.r }, size); out.push({ t: "mark", x: c.x, y: c.y, color: map.team.color, note: mk.note || undefined, by: mk.by?.name || undefined, fill: C.paper, textColor: C.text, byColor: C.muted, stroke: C.surface, minK: 0.9 }); }
+    const quarry = islets.find((i) => i.quarry);
+    if (quarry) out.push({ t: "pill", x: quarry.x, y: quarry.y, text: t("Каменоломня"), icon: "stone", fs: 12, fsSm: 10, fill: C.paper, color: C.text, stroke: C.text });
+    return out;
+  }, [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, ships, landing, ripple, revealed, map.team.color, size, teamIndex, arrivedByNode, islets, C, CITY]);
   const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -249,12 +311,11 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         ))}
         {map.revealed.map((n) => {
           const p = positions.get(n.key)!;
-          if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex, imgPhase)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
+          // Картинки городов и стартов рисует холст сцены (12.10); здесь — только прозрачная зона нажатия города.
           if (n.kind === "CITY") {
-            const c = cityByKey.get(n.key);
             return (
               <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
-                <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : "url(#outline-free)"} />
+                <rect className="city-hit" x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} fill="transparent" />
               </g>
             );
           }
@@ -417,20 +478,23 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
       <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} daytime={dt} coast={coast} />
       {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
-      {/* Дороги — холст под городами (плавность 12.10): резкие на любом масштабе по ходу жеста. */}
-      <RoadsLayer vp={vp} roads={roads} />
+      {/* Дороги и сетка гексов — холст под городами (плавность 12.10): резкие на любом масштабе по ходу жеста. */}
+      <RoadsLayer vp={vp} roads={roads} grid={gridPath} />
+      {/* Города и старты — холст сцены (12.10); в SVG мира остались гексы тумана и зоны нажатия. */}
+      <SceneLayer vp={vp} items={sprites} />
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
-        <OutlineDefs colors={owners} k={vp.view.k} />
-        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
+        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} borders={false} />
         {worldBody}
       </WorldSvg>
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={dt.light} />}
       {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); рисует слой живности: киты под буквами,
           корабли над ними (решение владельца 05.10). */}
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
+      {/* Подписи, метки, корабли, булавки — холст сцены над живностью (12.10); в SVG ниже — только зоны нажатия. */}
+      <SceneLayer vp={vp} items={items} />
       <WorldSvg vp={vp} bounds={bounds} overlay>
-        <g className="screen-items">
+        <g className="screen-items hits">
           {/* Каменоломня вне memo: обработчик нажатия должен видеть свежее состояние перетаскивания (ошибка 05.10: после закрытия лист не открывался). */}
           {quarryMarker}
           {screenBody}

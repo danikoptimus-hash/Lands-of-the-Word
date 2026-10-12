@@ -10,6 +10,9 @@
 /* Верхний SVG подписей перекрывает весь мир: сам он нажатий не ловит (иначе картинки городов и стороны под ним недоступны),
    ловят только подписи, метки дел и значки. */
 .map-svg.world.passthrough, .map-svg.world .screen-items { pointer-events: none; }
+/* Зоны нажатия (12.10): всё видимое рисует холст сцены; в SVG от элементов остаются только прозрачные фигуры для нажатий. */
+.screen-items.hits text, .screen-items.hits use, .screen-items.hits image, .screen-items.hits line, .screen-items.hits .quiet { display: none; }
+.screen-items.hits rect, .screen-items.hits circle, .screen-items.hits path { fill: transparent !important; stroke: transparent !important; animation: none !important; opacity: 1 !important; }
 .map-svg.world .screen-items .m-quarry, .map-svg.world .screen-items .m-label, .map-svg.world .screen-items .m-deed, .map-svg.world .screen-items .pick { pointer-events: auto; }
 .fx-layer { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 /* Небо живности (птицы) — над верхним SVG с подписями городов, но под кнопками карты (z 5+). */
