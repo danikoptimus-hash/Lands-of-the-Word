@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { generateIslets, type Bounds, type Islet } from "@lotw/domain";
-import { HEX_SIZE } from "../lib/hexmap";
+import { HEX_SIZE, hexCenter } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
 import { IMG, SHALLOW_RINGS, lightKey, shallowRings, type Viewport } from "./MapLayers";
 import { perfMark } from "../lib/perfHud";
@@ -37,6 +37,7 @@ function isletPath(isl: Islet): Path2D {
 /** Песок за краем полосы песка растворяется в отмель: кольца от 0.95 до 1.5 радиуса гекса, прозрачность падает. */
 const SAND_FADE: ReadonlyArray<{ width: number; alpha: number }> = Array.from({ length: 10 }, (_, i) => { const t = (i + 1) / 10; return { width: 0.95 + 0.55 * t, alpha: 0.5 * Math.pow(1 - t, 1.6) }; });
 const SAND = "#E6D3A6";
+const NO_HEXES: ReadonlyArray<MapHexDto> = [];
 /** Шаг между кольцами отмели в радиусах гекса — на него и размывается слой, чтобы колец не было видно. */
 const RING_STEP = (SHALLOW_RINGS[0]!.width - SHALLOW_RINGS[SHALLOW_RINGS.length - 1]!.width) / (SHALLOW_RINGS.length - 1);
 
@@ -49,23 +50,19 @@ const RING_STEP = (SHALLOW_RINGS[0]!.width - SHALLOW_RINGS[SHALLOW_RINGS.length 
  * здесь же canvas всегда размером с экран, и стоимость не зависит от масштаба. Без поддержки фильтров canvas
  * (старый Safari) — те же кольца без размытия.
  */
-export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "", daytime }: { vp: Viewport; islets: Islet[]; size?: number; /** Линия берега поля (path SVG в координатах карты). */ coast?: string; /** Время суток: песок и отмель по палитре, острова — картинки двух фаз перехода. */ daytime?: Daytime }) {
+export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "", daytime, hexes = NO_HEXES }: { vp: Viewport; islets: Islet[]; size?: number; /** Гексы поля: по ним и островкам считается охват растра берега. */ hexes?: ReadonlyArray<MapHexDto>; /** Линия берега поля (path SVG в координатах карты). */ coast?: string; /** Время суток: песок и отмель по палитре, острова — картинки двух фаз перехода. */ daytime?: Daytime }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   const from = daytime?.from ?? "day", to = daytime?.to ?? "day", blend = daytime?.t ?? 0, light = daytime?.light ?? DAY_LIGHT;
   const lkey = daytime ? lightKey(daytime) : "day";
+  const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
     if (!canvas || !host || (!islets.length && !coast)) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const off = document.createElement("canvas");
-    const octx = off.getContext("2d");
-    if (!octx) return;
     const canBlur = "filter" in ctx;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    // Растр берега — в половинном разрешении CSS-пикселя: он и так размыт, а размытие полноэкранного canvas в 2–3× плотности на ноутбуке «фризило» зум.
-    const cs = Math.min(window.devicePixelRatio || 1, 1) * 0.5;
     let W = 0, H = 0, dirty = true, raf = 0;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } dirty = true; };
     const images = new Map<string, HTMLImageElement>();
@@ -75,26 +72,24 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "", daytime }
     const rings = daytime ? shallowRings(light) : SHALLOW_RINGS, sand = css(light.sand);
     const coastPath = coast ? new Path2D(coast) : null;
     const paths = islets.map((isl) => ({ isl, path: isletPath(isl), sc: Math.max(0.25, (isl.r / size) * 0.32) }));
-    // Кэш берега: размытый растр считается один раз для вида (масштаб, сдвиг) с запасом PAD вокруг экрана; при
-    // перетаскивании он просто сдвигается, при щипке — масштабируется как картинка, а заново рисуется, когда вид
-    // устоялся (SETTLE_MS без изменений). Иначе размытие полноэкранного canvas на каждый кадр съедало плавность.
-    const PAD = 0.25, RERENDER_MS = 260, RERENDER_RATIO = 1.35;
-    let lastRender = 0;
-    const cache = { canvas: document.createElement("canvas"), k: 0, tx: 0, ty: 0, pad: 0, valid: false };
-    const cctx = cache.canvas.getContext("2d");
-    if (!cctx) return;
-    let settle = 0;
-    const render = (k: number, tx: number, ty: number) => {
-      const CWs = Math.ceil(W * cs / dpr), CHs = Math.ceil(H * cs / dpr); // экран в пикселях растра берега
-      const pad = Math.ceil(Math.max(CWs, CHs) * PAD);
-      const blur = canBlur ? Math.max(0.6, RING_STEP * size * k * cs * 0.75) : 0;
+    // Растр берега (плавность 12.10, третий круг): один на всё поле в координатах карты, строится один раз на освещение
+    // и дальше только переносится на экран с текущим масштабом. Раньше растр строился под вид и перестраивался по ходу
+    // жеста (десятки миллисекунд с размытием) — это и были рывки. Разрешение — до ~4 Мп; кольца размыты на свой шаг.
+    const SEA = Math.max(size * 4, ...islets.map((i) => i.cover));
+    const xs = [...hexes.map((h) => hexCenter(h, size).x), ...islets.map((i) => i.x)], ys = [...hexes.map((h) => hexCenter(h, size).y), ...islets.map((i) => i.y)];
+    const fx = Math.min(...xs) - SEA, fy = Math.min(...ys) - SEA, fw = Math.max(...xs) + SEA - fx, fh = Math.max(...ys) + SEA - fy;
+    const cs = Math.min(1.5, Math.sqrt(4e6 / (fw * fh)));
+    const cache = document.createElement("canvas");
+    const t0 = performance.now();
+    (() => {
+      const blur = canBlur ? Math.max(0.6, RING_STEP * size * cs * 0.75) : 0;
       const M = Math.ceil(blur * 3);
-      const OW = CWs + 2 * pad + 2 * M, OH = CHs + 2 * pad + 2 * M;
-      if (off.width !== OW || off.height !== OH) { off.width = OW; off.height = OH; }
-      octx.setTransform(1, 0, 0, 1, 0, 0); octx.clearRect(0, 0, OW, OH);
-      octx.setTransform(k * cs, 0, 0, k * cs, tx * cs + pad + M, ty * cs + pad + M);
+      const off = document.createElement("canvas");
+      const OW = Math.ceil(fw * cs) + 2 * M, OH = Math.ceil(fh * cs) + 2 * M;
+      off.width = OW; off.height = OH;
+      const octx = off.getContext("2d"); if (!octx) return;
+      octx.setTransform(cs, 0, 0, cs, -fx * cs + M, -fy * cs + M);
       octx.lineJoin = "round"; octx.lineCap = "round";
-      const x0 = (-pad / cs - tx) / k, y0 = (-pad / cs - ty) / k, x1 = ((CWs + pad) / cs - tx) / k, y1 = ((CHs + pad) / cs - ty) / k;
       const drawRings = (c: CanvasRenderingContext2D, path: Path2D, sc: number) => {
         for (const r of rings) { c.globalAlpha = r.alpha; c.strokeStyle = r.color; c.lineWidth = r.width * size * sc; c.stroke(path); }
         c.globalAlpha = 1;
@@ -105,33 +100,20 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "", daytime }
         for (const f of SAND_FADE) { octx.globalAlpha = f.alpha; octx.lineWidth = f.width * size; octx.stroke(coastPath); }
         octx.globalAlpha = 1; octx.lineWidth = 0.95 * size; octx.stroke(coastPath);
       }
-      for (const { isl, path, sc } of paths) if (!(isl.x + isl.cover < x0 || isl.x - isl.cover > x1 || isl.y + isl.cover < y0 || isl.y - isl.cover > y1)) drawRings(octx, path, sc);
-      const CW = CWs + 2 * pad, CH = CHs + 2 * pad;
-      if (cache.canvas.width !== CW || cache.canvas.height !== CH) { cache.canvas.width = CW; cache.canvas.height = CH; }
-      cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, CW, CH);
+      for (const { path, sc } of paths) drawRings(octx, path, sc);
+      cache.width = Math.ceil(fw * cs); cache.height = Math.ceil(fh * cs);
+      const cctx = cache.getContext("2d"); if (!cctx) return;
       if (canBlur) cctx.filter = `blur(${blur.toFixed(1)}px)`;
       cctx.drawImage(off, -M, -M);
       if (canBlur) cctx.filter = "none";
-      Object.assign(cache, { k, tx, ty, pad, valid: true });
-    };
+    })();
+    perfMark("берег растр", performance.now() - t0);
     const draw = () => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
-      const dx = (tx - cache.tx) * cs, dy = (ty - cache.ty) * cs;
-      const ratio = cache.valid ? Math.max(k / cache.k, cache.k / k) : Infinity;
-      const fresh = cache.valid && cache.k === k && Math.abs(dx) <= cache.pad && Math.abs(dy) <= cache.pad;
-      // Пока идёт жест, растр обновляется не чаще RERENDER_MS и лишь когда сдвиг вышел за запас или масштаб ушёл дальше
-      // RERENDER_RATIO (иначе при щипке картинка размыта до отпускания — замечание владельца 15.09); окончательный
-      // пересчёт — когда вид устоится (плавность 12.10).
-      const now = performance.now();
-      const stale = !fresh && (cache.k === k || ratio > RERENDER_RATIO || Math.abs(dx) > cache.pad || Math.abs(dy) > cache.pad);
-      if (!cache.valid || (stale && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; perfMark("берег растр", performance.now() - now); }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
-      // Растр построен под вид cache (масштаб k0, сдвиг t0) в пикселях cs: точка растра p → экран p·(f·dpr/cs) + t·dpr − (pad/cs + t0)·f·dpr.
-      const f = k / cache.k, a = f * dpr / cs;
-      ctx.setTransform(a, 0, 0, a, tx * dpr - (cache.pad / cs + cache.tx) * f * dpr, ty * dpr - (cache.pad / cs + cache.ty) * f * dpr);
-      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "medium";
-      ctx.drawImage(cache.canvas, 0, 0);
       ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "medium";
+      if (cache.width > 1) ctx.drawImage(cache, fx, fy, fw, fh);
       ctx.imageSmoothingQuality = "high";
       const x0 = -tx / k, y0 = -ty / k, x1 = (W / dpr - tx) / k, y1 = (H / dpr - ty) / k;
       for (const { isl } of paths) {
@@ -143,15 +125,10 @@ export function IsletsLayer({ vp, islets, size = HEX_SIZE, coast = "", daytime }
       }
     };
     const loop = () => { raf = requestAnimationFrame(loop); if (!dirty) return; dirty = false; draw(); };
-    const SETTLE_MS = 140;
-    const unsub = vpRef.current.subscribe(() => {
-      dirty = true;
-      window.clearTimeout(settle);
-      settle = window.setTimeout(() => { settle = 0; cache.valid = false; dirty = true; }, SETTLE_MS);
-    });
-    const ro = new ResizeObserver(() => { resize(); cache.valid = false; }); ro.observe(host);
+    const unsub = vpRef.current.subscribe(() => { dirty = true; });
+    const ro = new ResizeObserver(resize); ro.observe(host);
     resize(); raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); window.clearTimeout(settle); };
-  }, [islets, size, coast, lkey, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); };
+  }, [islets, size, coast, lkey, hexKey, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={ref} className="fx-layer islets" aria-hidden="true" />;
 }

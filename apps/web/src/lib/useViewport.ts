@@ -86,11 +86,12 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   const commitIfFar = useCallback(() => {
     const v = viewRef.current, b = lastCommitView.current, el = ref.current;
     const r = v.k / b.k;
-    const far = el ? Math.abs(v.tx - b.tx) > el.clientWidth * 0.3 || Math.abs(v.ty - b.ty) > el.clientHeight * 0.3 : false;
-    // При приближении растр SVG (города, подписи) плывёт размытым: пересобираем его не чаще раза в ZOOM_COMMIT_MS и лишь
-    // когда масштаб ушёл дальше ×1.3 — дороги и местность на холстах резкие всегда (замечание владельца 12.10).
-    const zoomed = r > 1.3 && performance.now() - lastCommit.current >= ZOOM_COMMIT_MS;
-    if (r < 0.6 || far || zoomed) commit();
+    const far = el ? Math.abs(v.tx - b.tx) > el.clientWidth * 0.9 || Math.abs(v.ty - b.ty) > el.clientHeight * 0.9 : false;
+    // Всё видимое рисуют холсты за каждый кадр; в SVG — только зоны нажатия, их растр нужен лишь в покое. Посреди
+    // жеста фиксируем только в крайнем случае (сдвиг дальше 0.9 экрана, отдаление дальше ×0.45): каждая фиксация —
+    // перерисовка React и раскладка SVG, и это были рывки по ходу зума и перетаскивания (владелец 12.10, третий круг).
+    void ZOOM_COMMIT_MS;
+    if (r < 0.45 || far) commit();
   }, [commit]);
   /** Подписка на каждое изменение вида (вызывается сразу с текущим видом). Возвращает отписку. */
   const subscribe = useCallback((fn: (v: View) => void) => { listeners.current.add(fn); fn(viewRef.current); return () => { listeners.current.delete(fn); }; }, []);
@@ -176,6 +177,8 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     const px = cx ?? el.clientWidth / 2, py = cy ?? el.clientHeight / 2;
     const z = zoomAnim.current;
     const target = clampK((z?.target ?? v.k) * factor);
+    // Упёрлись в предел масштаба: цель не меняется — ни анимации, ни фиксации (иначе каждый щелчок у предела давал рывок).
+    if (!z && Math.abs(Math.log(target / v.k)) < 1e-6) return;
     // Якорь: точка карты под курсором в текущем виде; при смене позиции курсора пересчитывается от текущего вида.
     const wx = (px - v.tx) / v.k, wy = (py - v.ty) / v.k;
     if (z) { window.clearTimeout(z.settle); Object.assign(z, { target, ax: px, ay: py, wx, wy, tau }); return; }

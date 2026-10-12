@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { iconPath } from "../components/Icon";
-import { SYMBOLS } from "./MapLayers";
+import { SYMBOLS, drawRoads, type RoadSpec } from "./MapLayers";
 
 /**
  * Сцена карты на холсте (плавность 12.10, второй пересмотр): города, старты, подписи, метки дел, корабли, булавки
@@ -90,10 +90,14 @@ function pill(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h:
 }
 const circle = (ctx: CanvasRenderingContext2D, x: number, y: number, r: number) => { ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); };
 
-export function SceneLayer({ vp, items = NO_ITEMS, className = "" }: { vp: Viewport; items?: ReadonlyArray<SceneItem>; className?: string }) {
+const NO_ROADS: ReadonlyArray<RoadSpec> = [];
+export function SceneLayer({ vp, items = NO_ITEMS, roads = NO_ROADS, grid = "", className = "" }: { vp: Viewport; items?: ReadonlyArray<SceneItem>; /** Дороги и сетка гексов рисуются на этом же холсте под элементами (на один полноэкранный холст меньше за кадр). */ roads?: ReadonlyArray<RoadSpec>; grid?: string; className?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   const itemsRef = useRef(items); itemsRef.current = items;
+  const roadsRef = useRef(roads); roadsRef.current = roads;
+  const gridRef = useRef<Path2D | null>(null);
+  useEffect(() => { gridRef.current = grid ? new Path2D(grid) : null; dirty.current = true; }, [grid]);
   const dirty = useRef(true); dirty.current = true;
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
@@ -108,6 +112,7 @@ export function SceneLayer({ vp, items = NO_ITEMS, className = "" }: { vp: Viewp
     const draw = (now: number): boolean => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+      if (roadsRef.current.length || gridRef.current) { drawRoads(ctx, roadsRef.current, gridRef.current, k, tx, ty, dpr, W, H); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); }
       ctx.lineJoin = "round"; ctx.lineCap = "round";
       const ui = Math.min(1, Math.max(0.5, k / 1.6)), full = k >= 1.6;
       const sw = W / dpr, sh = H / dpr, margin = 160;

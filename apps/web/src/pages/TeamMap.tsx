@@ -5,7 +5,7 @@ import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
 import type { DailyBirdDto, EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
-import { islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, RoadsLayer, SeaLayer, TilesLayer, WorldSvg, hexGridPath, useCoast, type FogClear, type RoadSpec } from "./MapLayers";
+import { islandGeometry, FogLayer, IMG, MapSymbols, SeaLayer, TilesLayer, WorldSvg, hexGridPath, useCoast, type FogClear, type RoadSpec } from "./MapLayers";
 import { SceneLayer, readColors, type SceneItem } from "./Scene";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
@@ -475,16 +475,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   return (
     <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "")} style={{ background: css(dt.light.bg) }} onClick={marking ? placeMark : undefined}>
       <SeaLayer vp={vp} bed={bed} light={dt.light} />
-      <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
+      <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} hexes={map.hexes} />
       <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} daytime={dt} coast={coast} />
       {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
-      {/* Дороги и сетка гексов — холст под городами (плавность 12.10): резкие на любом масштабе по ходу жеста. */}
-      <RoadsLayer vp={vp} roads={roads} grid={gridPath} />
       {/* Города и старты — холст сцены (12.10); в SVG мира остались гексы тумана и зоны нажатия. */}
-      <SceneLayer vp={vp} items={sprites} />
+      <SceneLayer vp={vp} items={sprites} roads={roads} grid={gridPath} />
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
-        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} borders={false} />
         {worldBody}
       </WorldSvg>
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={dt.light} />}

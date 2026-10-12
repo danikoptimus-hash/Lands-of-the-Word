@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
-import { islandGeometry, HexTiles, IMG, RoadsLayer, SeaLayer, TilesLayer, WorldSvg, hexGridPath, useCoast, MapSymbols, type RoadSpec } from "./MapLayers";
+import { islandGeometry, IMG, SeaLayer, TilesLayer, WorldSvg, hexGridPath, useCoast, MapSymbols, type RoadSpec } from "./MapLayers";
 import { SceneLayer, readColors, type SceneItem } from "./Scene";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
@@ -358,16 +358,13 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         ) : (<>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap" style={{ background: css(dt.light.bg) }}>
           <SeaLayer vp={vp} bed={bed} light={dt.light} />
-          <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
+          <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} hexes={hexes} />
           <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} daytime={dt} coast={coast} />
           {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
-          {/* Дороги и сетка гексов — холст под городами (плавность 12.10). */}
-          <RoadsLayer vp={vp} roads={roads} grid={gridPath} />
           {/* Города и старты — холст сцены (12.10); в SVG мира — только зоны нажатия и вспышка «Посмотреть на карте». */}
-          <SceneLayer vp={vp} items={sprites} />
+          <SceneLayer vp={vp} items={sprites} roads={roads} grid={gridPath} />
           <WorldSvg vp={vp} bounds={bounds}>
             <MapSymbols />
-            <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} borders={false} />
             {worldBody}
             {flash && (() => { const a = positions.get(flash.aKey), b = positions.get(flash.bKey); return (
               <g className="adm-flash" pointerEvents="none">

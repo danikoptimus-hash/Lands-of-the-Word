@@ -224,6 +224,25 @@ const NO_ROADS: ReadonlyArray<RoadSpec> = [];
  * десятки миллисекунд на SVG против долей миллисекунды на несколько сотен отрезков. Порядок рисования — порядок списка
  * (подложки раньше линий). В SVG остаются только прозрачные зоны нажатия.
  */
+/** Сетка гексов и дороги в координатах карты (k, tx, ty — вид; W, H — холст в пикселях dpr). Вызывается из слоёв за кадр. */
+export function drawRoads(ctx: CanvasRenderingContext2D, roads: ReadonlyArray<RoadSpec>, grid: Path2D | null, k: number, tx: number, ty: number, dpr: number, W: number, H: number): void {
+  ctx.save();
+  ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  const m = Math.max(1.6, k), ui = Math.min(1, Math.max(0.5, k / 1.6)), inv = ui / k;
+  const margin = 40 / k;
+  const x0 = -tx / k - margin, y0 = -ty / k - margin, x1 = (W / dpr - tx) / k + margin, y1 = (H / dpr - ty) / k + margin;
+  if (grid) { ctx.strokeStyle = "rgba(31,27,22,0.28)"; ctx.lineWidth = 1 / k; ctx.setLineDash([]); ctx.stroke(grid); }
+  for (const r of roads) {
+    if (Math.max(r.x1, r.x2) < x0 || Math.min(r.x1, r.x2) > x1 || Math.max(r.y1, r.y2) < y0 || Math.min(r.y1, r.y2) > y1) continue;
+    ctx.globalAlpha = r.alpha ?? 1;
+    ctx.strokeStyle = r.color;
+    ctx.lineWidth = r.w / (r.fixed ? k : m);
+    ctx.setLineDash(r.dash ? [r.dash[0] * inv, r.dash[1] * inv] : []);
+    ctx.beginPath(); ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2); ctx.stroke();
+  }
+  ctx.restore();
+}
 export function RoadsLayer({ vp, roads = NO_ROADS, grid = "" }: { vp: Viewport; roads?: ReadonlyArray<RoadSpec>; /** Границы гексов одним путём SVG (координаты карты): тонкая линия в 1 экранный пиксель. */ grid?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
@@ -241,21 +260,7 @@ export function RoadsLayer({ vp, roads = NO_ROADS, grid = "" }: { vp: Viewport; 
     const draw = () => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
-      ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
-      ctx.lineCap = "round"; ctx.lineJoin = "round";
-      const m = Math.max(1.6, k), ui = Math.min(1, Math.max(0.5, k / 1.6)), inv = ui / k;
-      const margin = 40 / k;
-      const x0 = -tx / k - margin, y0 = -ty / k - margin, x1 = (W / dpr - tx) / k + margin, y1 = (H / dpr - ty) / k + margin;
-      if (gridRef.current) { ctx.strokeStyle = "rgba(31,27,22,0.28)"; ctx.lineWidth = 1 / k; ctx.setLineDash([]); ctx.stroke(gridRef.current); }
-      for (const r of roadsRef.current) {
-        if (Math.max(r.x1, r.x2) < x0 || Math.min(r.x1, r.x2) > x1 || Math.max(r.y1, r.y2) < y0 || Math.min(r.y1, r.y2) > y1) continue;
-        ctx.globalAlpha = r.alpha ?? 1;
-        ctx.strokeStyle = r.color;
-        ctx.lineWidth = r.w / (r.fixed ? k : m);
-        ctx.setLineDash(r.dash ? [r.dash[0] * inv, r.dash[1] * inv] : []);
-        ctx.beginPath(); ctx.moveTo(r.x1, r.y1); ctx.lineTo(r.x2, r.y2); ctx.stroke();
-      }
-      ctx.globalAlpha = 1; ctx.setLineDash([]);
+      drawRoads(ctx, roadsRef.current, gridRef.current, k, tx, ty, dpr, W, H);
     };
     const loop = () => { raf = requestAnimationFrame(loop); if (!dirty.current) return; dirty.current = false; draw(); };
     const unsub = vpRef.current.subscribe(() => { dirty.current = true; });
@@ -544,7 +549,7 @@ export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false, fi
  * (резко, в разрешении экрана) рисуется через SETTLE_MS после того, как вид устоялся. Только открытые гексы;
  * озёра — если их не рисует WebGL. В SVG мира у гексов остаются только границы.
  */
-export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, daytime, coast = "" }: { vp: Viewport; hexes: MapHexDto[]; size?: number; skipWater?: boolean; /** Время суток: картинки двух фаз перехода смешиваются по доле, суша подсвечивается со стороны светила. */ daytime?: Daytime; /** Линия берега (path SVG в координатах карты): песок над гексами рисуется в тот же растр, что и местность (12.10: раньше — 13 штрихов в SVG, которые перерастрировались при каждой фиксации). */ coast?: string }) {
+export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, daytime, coast = "" }: { vp: Viewport; hexes: MapHexDto[]; size?: number; skipWater?: boolean; /** Время суток: картинки двух фаз перехода смешиваются по доле, суша подсвечивается со стороны светила. */ daytime?: Daytime; /** Линия берега (path SVG в координатах карты): песок над гексами — растр в координатах карты, строится один раз. */ coast?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   const key = hexes.map((h) => `${h.q},${h.r}:${h.terrain}:${h.rotation ?? 0}:${h.lit === false ? 0 : 1}`).join(";");
@@ -554,80 +559,81 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, dayt
     const canvas = ref.current, host = canvas?.parentElement;
     if (!canvas || !host) return;
     const ctx = canvas.getContext("2d"); if (!ctx) return;
-    const tiles = hexes.filter((h) => h.lit !== false && !(skipWater && h.terrain === "water")).map((h) => ({ c: hexCenter(h, size), t: TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert", rot: ((h.rotation ?? 0) % 6) * Math.PI / 3 }));
+    const tiles = hexes.filter((h) => h.lit !== false && !(skipWater && h.terrain === "water")).map((h) => ({ c: hexCenter(h, size), t: TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert", rot: (h.rotation ?? 0) % 6 }));
     if (!tiles.length) { canvas.width = 1; canvas.height = 1; return; }
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // картинкам местности хватает; 2× на ноутбуке — 30-мегапиксельный растр
+    let dirty = true, raf = 0, W = 0, H = 0;
     const images = new Map<string, HTMLImageElement>();
-    let dirty = true, raf = 0, settle = 0, W = 0, H = 0;
-    const load = (t: string, phase: DayPhase) => { const im = new Image(); im.decoding = "async"; im.onload = () => { cache.valid = false; dirty = true; }; im.src = IMG.terrain(t, phase); images.set(`${t}:${phase}`, im); };
+    const load = (t: string, phase: DayPhase) => { const im = new Image(); im.decoding = "async"; im.onload = () => { dirty = true; }; im.src = IMG.terrain(t, phase); images.set(`${t}:${phase}`, im); };
     for (const t of new Set(tiles.map((x) => x.t))) { load(t, from); if (to !== from) load(t, to); }
     const ready = (im: HTMLImageElement | undefined): im is HTMLImageElement => Boolean(im && im.complete && im.naturalWidth);
-    const hex = new Path2D();
-    for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30), x = Math.cos(a) * size * 0.995, y = Math.sin(a) * size * 0.995; if (i === 0) hex.moveTo(x, y); else hex.lineTo(x, y); }
-    hex.closePath();
-    const coastP = coast ? new Path2D(coast) : null;
-    const bw = size * Math.sqrt(3), bh = size * 2; // рамка гекса; картинка — квадрат 1.4 рамки, повёрнутый, как в SVG-узоре
-    // По ходу жеста растр обновляется редко и только когда масштаб ушёл от растра дальше RERENDER_RATIO (размытие
-    // становится заметным); каждый растр — десятки миллисекунд, и раз в 100 мс это давало рывки (плавность 12.10).
-    const PAD = 0.25, SETTLE_MS = 140, RERENDER_MS = 240, RERENDER_RATIO = 1.35;
-    let lastRender = 0;
-    const cache = { canvas: document.createElement("canvas"), k: 0, tx: 0, ty: 0, pad: 0, valid: false };
-    const cctx = cache.canvas.getContext("2d"); if (!cctx) return;
-    const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } cache.valid = false; dirty = true; };
-    const render = (k: number, tx: number, ty: number) => {
-      const pad = Math.ceil(Math.max(W, H) * PAD);
-      const CW = W + 2 * pad, CH = H + 2 * pad;
-      if (cache.canvas.width !== CW || cache.canvas.height !== CH) { cache.canvas.width = CW; cache.canvas.height = CH; }
-      cctx.setTransform(1, 0, 0, 1, 0, 0); cctx.clearRect(0, 0, CW, CH);
-      cctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr + pad, ty * dpr + pad);
-      cctx.imageSmoothingEnabled = true; cctx.imageSmoothingQuality = "high";
-      const x0 = (-pad / dpr - tx) / k - size, y0 = (-pad / dpr - ty) / k - size, x1 = ((W + pad) / dpr - tx) / k + size, y1 = ((H + pad) / dpr - ty) / k + size;
-      for (const tl of tiles) {
-        if (tl.c.x < x0 || tl.c.x > x1 || tl.c.y < y0 || tl.c.y > y1) continue;
-        cctx.save(); cctx.translate(tl.c.x, tl.c.y); cctx.clip(hex);
-        cctx.fillStyle = TERRAIN_COLOR[tl.t] ?? TERRAIN_COLOR.desert!; cctx.fillRect(-bw, -bh, 2 * bw, 2 * bh);
-        // Переход между временами суток: картинка первой фазы, поверх — второй с прозрачностью доли перехода.
-        const a = images.get(`${tl.t}:${from}`), b = to !== from ? images.get(`${tl.t}:${to}`) : undefined;
-        cctx.rotate(tl.rot);
-        if (ready(a) && (blend < 1 || !ready(b))) cctx.drawImage(a, -0.7 * bw, -0.7 * bh, 1.4 * bw, 1.4 * bh);
-        if (ready(b) && blend > 0) { cctx.globalAlpha = ready(a) ? blend : 1; cctx.drawImage(b, -0.7 * bw, -0.7 * bh, 1.4 * bw, 1.4 * bh); cctx.globalAlpha = 1; }
-        cctx.restore();
-      }
-      // Песок берега поверх гексов (бывший CoastOver): широкая полоса, 12 колец растворения, тёмная линия влажного песка.
-      if (coastP) {
-        cctx.lineJoin = "round"; cctx.lineCap = "round"; cctx.strokeStyle = css(light.sand);
-        cctx.lineWidth = size * 0.5; cctx.stroke(coastP);
-        for (let i = 0; i < 12; i++) { const t = (i + 1) / 12; cctx.globalAlpha = 0.55 * (1 - t) * (1 - t) + 0.06; cctx.lineWidth = size * (0.5 + 0.65 * t); cctx.stroke(coastP); }
-        cctx.globalAlpha = 0.35; cctx.strokeStyle = css(light.wet); cctx.lineWidth = 1.2 / k; cctx.stroke(coastP);
-        cctx.globalAlpha = 1;
-      }
-      sideLight(cctx, light, CW, CH);
-      Object.assign(cache, { k, tx, ty, pad, valid: true });
+    // Гексы местности (плавность 12.10, третий круг): каждый гекс — готовый спрайт (картинка, обрезанная по гексу и
+    // повёрнутая) размером SPR пикселей на 2·size единиц карты; рисуется за каждый кадр жеста в текущем масштабе —
+    // резко и без периодических перерисовок растра, которые давали рывки. Спрайт на (местность, поворот, фаза) один.
+    const SPR = 288;
+    const sprites = new Map<string, HTMLCanvasElement>();
+    const bw = size * Math.sqrt(3), bh = size * 2;
+    const sprite = (t: string, rot: number, phase: DayPhase): HTMLCanvasElement | null => {
+      const k = `${t}:${rot}:${phase}`;
+      const hit = sprites.get(k); if (hit) return hit;
+      const im = images.get(`${t}:${phase}`); if (!ready(im)) return null;
+      const c = document.createElement("canvas"); c.width = SPR; c.height = SPR;
+      const g = c.getContext("2d"); if (!g) return null;
+      const s = SPR / (2 * size);
+      g.setTransform(s, 0, 0, s, SPR / 2, SPR / 2);
+      const hex = new Path2D();
+      for (let i = 0; i < 6; i++) { const a = (Math.PI / 180) * (60 * i - 30), x = Math.cos(a) * size * 1.01, y = Math.sin(a) * size * 1.01; if (i === 0) hex.moveTo(x, y); else hex.lineTo(x, y); }
+      hex.closePath();
+      g.clip(hex);
+      g.fillStyle = TERRAIN_COLOR[t] ?? TERRAIN_COLOR.desert!; g.fillRect(-bw, -bh, 2 * bw, 2 * bh);
+      g.rotate((rot * Math.PI) / 3);
+      g.imageSmoothingEnabled = true; g.imageSmoothingQuality = "high";
+      // Квадрат текстуры повёрнут вокруг центра и увеличен, чтобы закрыть углы гекса при любом повороте (как в SVG-узоре).
+      g.drawImage(im, -0.7 * bw, -0.7 * bh, 1.4 * bw, 1.4 * bh);
+      sprites.set(k, c);
+      return c;
     };
+    // Песок берега (бывший CoastOver): растр в координатах карты, один на поле, строится один раз на освещение.
+    const coastP = coast ? new Path2D(coast) : null;
+    const xs = tiles.map((t) => t.c.x), ys = tiles.map((t) => t.c.y);
+    const fx = Math.min(...xs) - size * 3, fy = Math.min(...ys) - size * 3, fw = Math.max(...xs) + size * 3 - fx, fh = Math.max(...ys) + size * 3 - fy;
+    let sand: HTMLCanvasElement | null = null;
+    const sandScale = Math.min(2, Math.sqrt(4e6 / (fw * fh)));
+    const buildSand = () => {
+      if (!coastP) return;
+      const c = document.createElement("canvas"); c.width = Math.ceil(fw * sandScale); c.height = Math.ceil(fh * sandScale);
+      const g = c.getContext("2d"); if (!g) return;
+      g.setTransform(sandScale, 0, 0, sandScale, -fx * sandScale, -fy * sandScale);
+      g.lineJoin = "round"; g.lineCap = "round"; g.strokeStyle = css(light.sand);
+      g.lineWidth = size * 0.5; g.stroke(coastP);
+      for (let i = 0; i < 12; i++) { const t = (i + 1) / 12; g.globalAlpha = 0.55 * (1 - t) * (1 - t) + 0.06; g.lineWidth = size * (0.5 + 0.65 * t); g.stroke(coastP); }
+      sand = c;
+    };
+    buildSand();
+    const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; } dirty = true; };
     const draw = () => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
-      const dx = (tx - cache.tx) * dpr, dy = (ty - cache.ty) * dpr;
-      const ratio = cache.valid ? Math.max(k / cache.k, cache.k / k) : Infinity;
-      const fresh = cache.valid && cache.k === k && Math.abs(dx) <= cache.pad && Math.abs(dy) <= cache.pad;
-      // Пока идёт жест, растр обновляется не чаще RERENDER_MS и лишь когда сдвиг вышел за запас или масштаб ушёл дальше
-      // RERENDER_RATIO (иначе при щипке картинка размыта до отпускания пальцев — замечание владельца 15.09);
-      // окончательный пересчёт — когда вид устоится.
-      const now = performance.now();
-      const stale = !fresh && (cache.k === k || ratio > RERENDER_RATIO || Math.abs(dx) > cache.pad || Math.abs(dy) > cache.pad);
-      if (!cache.valid || (stale && (!settle || now - lastRender >= RERENDER_MS))) { render(k, tx, ty); lastRender = now; perfMark("гексы растр", performance.now() - now); }
       ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
-      if (cache.k === k) ctx.drawImage(cache.canvas, (tx - cache.tx) * dpr - cache.pad, (ty - cache.ty) * dpr - cache.pad);
-      else { const f = k / cache.k; ctx.setTransform(f, 0, 0, f, tx * dpr - (cache.pad + cache.tx * dpr) * f, ty * dpr - (cache.pad + cache.ty * dpr) * f); ctx.drawImage(cache.canvas, 0, 0); }
+      ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = k * dpr > 2 ? "high" : "medium";
+      const x0 = -tx / k - size, y0 = -ty / k - size, x1 = (W / dpr - tx) / k + size, y1 = (H / dpr - ty) / k + size;
+      for (const tl of tiles) {
+        if (tl.c.x < x0 || tl.c.x > x1 || tl.c.y < y0 || tl.c.y > y1) continue;
+        const a = sprite(tl.t, tl.rot, from), b = to !== from ? sprite(tl.t, tl.rot, to) : null;
+        // Пока картинка не загрузилась — ровный цвет местности, чтобы карта была видна сразу.
+        if (!a && !b) { ctx.fillStyle = TERRAIN_COLOR[tl.t] ?? TERRAIN_COLOR.desert!; ctx.beginPath(); for (let i = 0; i < 6; i++) { const an = (Math.PI / 180) * (60 * i - 30); const px = tl.c.x + Math.cos(an) * size, py = tl.c.y + Math.sin(an) * size; if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py); } ctx.closePath(); ctx.fill(); continue; }
+        if (a && (blend < 1 || !b)) ctx.drawImage(a, tl.c.x - size, tl.c.y - size, 2 * size, 2 * size);
+        if (b && blend > 0) { ctx.globalAlpha = a ? blend : 1; ctx.drawImage(b, tl.c.x - size, tl.c.y - size, 2 * size, 2 * size); ctx.globalAlpha = 1; }
+      }
+      if (sand) ctx.drawImage(sand, fx, fy, fw, fh);
+      if (coastP) { ctx.globalAlpha = 0.35; ctx.strokeStyle = css(light.wet); ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.lineWidth = 1.2 / k; ctx.stroke(coastP); ctx.globalAlpha = 1; }
+      sideLight(ctx, light, W, H);
     };
-    const loop = () => { raf = requestAnimationFrame(loop); if (!dirty) return; dirty = false; draw(); };
-    const unsub = vpRef.current.subscribe(() => {
-      dirty = true;
-      window.clearTimeout(settle);
-      settle = window.setTimeout(() => { settle = 0; cache.valid = false; dirty = true; }, SETTLE_MS);
-    });
+    const loop = () => { raf = requestAnimationFrame(loop); if (!dirty) return; dirty = false; const t0 = performance.now(); draw(); perfMark("гексы растр", performance.now() - t0); };
+    const unsub = vpRef.current.subscribe(() => { dirty = true; });
     const ro = new ResizeObserver(resize); ro.observe(host);
     resize(); raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); window.clearTimeout(settle); };
+    return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); };
   }, [key, size, skipWater, lkey, coast, vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
   return <canvas ref={ref} className="fx-layer tiles" aria-hidden="true" />;
 }
