@@ -16,6 +16,7 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, plural, setDisplayTimeZone } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { LinksField } from "../components/LinksField";
 import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
@@ -775,7 +776,7 @@ export function TeamPage() {
  * (решение владельца 18.09); участники дела группой отмечаются галочками, каждому засчитывается в личное служение.
  */
 function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }: { donationCfg: { min: number; currency: string } | null; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; donation: boolean; donationAmount?: number; participants: string[] }) => Promise<boolean>; onRelease: () => void }) {
-  const [links, setLinks] = useState("");
+  const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [q, setQ] = useState({ what: "", who: "" });
   const [donation, setDonation] = useState(false);
@@ -803,15 +804,12 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
         </div>
       )}
       {!byWitness && (
-        <div className="field">
-          <label htmlFor="deed-links">{donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")}</label>
-          <textarea id="deed-links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} />
-        </div>
+        <LinksField id="deed-links" label={donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />
       )}
       {report ? (
         <>
           <div className="field"><label htmlFor="deed-q1">{t("Что сделал?")}</label><textarea id="deed-q1" rows={2} value={q.what} onChange={(e) => setQ({ ...q, what: e.target.value })} /></div>
-          <div className="field"><label htmlFor="deed-q2">{t("Кому и как?")} <span className="opt">{t("без фамилий")}</span></label><textarea id="deed-q2" rows={2} value={q.who} onChange={(e) => setQ({ ...q, who: e.target.value })} /></div>
+          <div className="field"><label htmlFor="deed-q2">{t("Кому и как?")}</label><textarea id="deed-q2" rows={2} value={q.who} onChange={(e) => setQ({ ...q, who: e.target.value })} /></div>
         </>
       ) : (
         <div className="field">
@@ -828,7 +826,7 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
         </div>
       )}
       <div className="actions">
-        <button type="button" disabled={busy || (donation && !amount) || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links: links.split(/\s+/).filter(Boolean), note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
+        <button type="button" disabled={busy || (donation && !amount) || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links, note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
         <button type="button" className="secondary" disabled={busy} onClick={onRelease}>{t("Отказаться от дела")}</button>
       </div>
     </>

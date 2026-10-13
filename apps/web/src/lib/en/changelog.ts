@@ -1,5 +1,7 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "В форме сдачи дела вместо поля для ссылок — кнопка «Вставить ссылку»: скопированная ссылка подставляется из буфера обмена сама, каждая — отдельной строкой, лишнюю можно убрать.": "The deed form has a “Paste a link” button instead of the links box: a copied link is taken from the clipboard automatically, each link is its own row and can be removed.",
+  "Из вопроса «Кому и как?» убрана приписка «без фамилий».": "The “no surnames” note is gone from the “For whom and how?” question.",
   "Из отчёта о деле убран вопрос «Что тебя тронуло?»: остались два — что сделал, кому и как.": "The “What touched you?” question is removed from the deed report: two remain — what you did, for whom and how.",
   "Чужая высадка у города показывается хвостом маршрута корабля: короткий отрезок пути другой команды в её цвете со стрелкой к месту высадки. Точки команд из подписи города убраны.": "Another team’s landing at a city is shown as the tail of its ship route: a short piece of the path in the team’s colour with an arrow to the landing point. The team dots in the city label are gone.",
   "В подписи города на карте появились цветные точки команд, которые тоже дошли до него (по суше или высадились с моря). В карточке города — их названия и дата прихода.": "City labels on the map now show coloured dots of the teams that have also reached the city (by land or by sea). The city card lists their names and arrival dates.",
