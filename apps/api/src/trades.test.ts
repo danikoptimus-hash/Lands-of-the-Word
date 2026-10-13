@@ -95,7 +95,9 @@ describe("обмен городами", () => {
     expect(await owner(team1, cap1Key)).toBe(true); expect(await owner(team2, cap2Key)).toBe(true);
     const done = (await get(`/api/games/${gameId}/my-trades`, ck.amb2)).json().trades.find((t: { id: string }) => t.id === tradeId);
     expect(done.status).toBe("DONE");
-    const news = await prisma.journal.findFirst({ where: { gameId, kind: "trade_done" } });
+    // Запись в журнал пишется без ожидания (journal — fire-and-forget), поэтому ждём её до 3 с, а не читаем сразу (13.10: тест мигал на стенде).
+    let news = null;
+    for (let i = 0; i < 30 && !news; i++) { news = await prisma.journal.findFirst({ where: { gameId, kind: "trade_done" } }); if (!news) await new Promise((r) => setTimeout(r, 100)); }
     expect(news?.everyone).toBe(true);
   });
 
