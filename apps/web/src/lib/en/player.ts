@@ -337,7 +337,7 @@ export const PLAYER: Record<string, string> = {
   "можно издалека": "can be done from afar", "Кодекс дела": "Deed code",
   "Что сделал": "What I did", "Кому и как": "For whom and how",
   "Что сделал?": "What did you do?", "Кому и как?": "For whom and how?",
-  "Вставить ссылку": "Paste a link", "Убрать ссылку": "Remove link", "В буфере обмена нет ссылки: скопируйте её и нажмите ещё раз": "No link in the clipboard: copy it and press again", "Браузер не дал прочитать буфер обмена: разрешите доступ и нажмите ещё раз": "The browser did not allow reading the clipboard: allow access and press again",
+  "Вставить ссылку": "Paste a link", "Убрать ссылку": "Remove link", "Почему не вставилось": "Why it was not pasted", "В буфере обмена нет ссылки: скопируйте её и нажмите ещё раз": "No link in the clipboard: copy it and press again", "Браузер не дал прочитать буфер обмена: разрешите доступ и нажмите ещё раз": "The browser did not allow reading the clipboard: allow access and press again",
   "Кто ещё участвовал": "Who else took part", "если делали группой": "if done as a group",
   "если жертвовали вместе": "if you gave together",
   "В сутки можно взять не больше {n} дел. Следующее — через {when}.": "You can take at most {n} deeds per day. The next one opens in {when}.", "{h} ч {m} мин": "{h} h {m} min", "{m} мин": "{m} min",

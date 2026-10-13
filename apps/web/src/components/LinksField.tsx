@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { Icon } from "./Icon";
+import { HelpPopup } from "./Help";
 import { t } from "../lib/i18n";
 
 /**
  * Ссылки к делу (решение владельца 13.10): вместо поля ввода — список добавленных ссылок и кнопка «Вставить ссылку».
  * По нажатию ссылка берётся из буфера обмена; поля для ручного ввода нет (владелец: «убрать поле ввода ссылки вообще»).
- * Если в буфере не ссылка или браузер не дал его прочитать — короткая подсказка под кнопкой.
+ * Если в буфере не ссылка или браузер не дал его прочитать — рядом с кнопкой красный значок; текст всплывает
+ * по нажатию на него, как у знака вопроса (решение владельца 13.10).
  * Принимаются только адреса с http:// или https://.
  */
 export function LinksField({ label, links, onChange }: { label: string; links: string[]; onChange: (links: string[]) => void }) {
@@ -28,8 +30,10 @@ export function LinksField({ label, links, onChange }: { label: string; links: s
           ))}
         </ul>
       )}
-      <button type="button" className="secondary sm link-add-btn" onClick={() => void paste()}><Icon name="link" />{t("Вставить ссылку")}</button>
-      {error && <p className="error">{error}</p>}
+      <div className="link-add-row">
+        <button type="button" className="secondary sm link-add-btn" onClick={() => void paste()}><Icon name="link" />{t("Вставить ссылку")}</button>
+        {error && <HelpPopup name={t("Почему не вставилось")} className="link-warn" trigger={<Icon name="alert" />}>{error}</HelpPopup>}
+      </div>
     </div>
   );
 }

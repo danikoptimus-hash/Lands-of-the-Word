@@ -225,3 +225,9 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .link-list li { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h-sm); padding: 0 var(--sp-1) 0 var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); font-size: var(--fs-sm); }
 .link-list li .i { flex: none; color: var(--accent); }
 .link-list .link-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.link-add-row { display: flex; align-items: center; gap: var(--sp-2); }
+/* Красный значок рядом с кнопкой: почему ссылка не вставилась; текст всплывает по нажатию, как у знака вопроса. */
+.help-pop-wrap.link-warn > .pop-btn { appearance: none; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 50%; background: none; box-shadow: none; color: var(--wax-ink); cursor: pointer; position: relative; }
+.help-pop-wrap.link-warn > .pop-btn::before { content: ""; position: absolute; inset: -8px; }
+.help-pop-wrap.link-warn > .pop-btn .i { width: 20px; height: 20px; }
+.help-pop-wrap.link-warn > .pop-btn:hover, .help-pop-wrap.link-warn > .pop-btn.open { background: none; color: var(--wax); }
