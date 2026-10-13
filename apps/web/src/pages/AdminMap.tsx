@@ -22,7 +22,7 @@ import { kindLabel } from "./RecipientsBlock";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
 import { Sheet } from "../components/Sheet";
-import { EdgeTasksSheet, TaskReportSheet } from "./TaskReport";
+import { EdgeTasksSheet, ReconsiderButton, TaskReportSheet } from "./TaskReport";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 
@@ -304,7 +304,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               : !teamView?.map ? <div className="map-state"><LoadingState /></div>
               : <TeamMap map={viewMap ?? teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={teamTaskId} onSelect={(tid) => { setTeamTaskId(tid); if (tid) setSelected(null); }} onSelectCity={(key) => { const n = nodeByKey.get(key); if (n) { setSelected(n); setTeamTaskId(null); } }}
                   onMarkTap={(mk) => notify((mk.note ? t("Метка «{note}»", { note: mk.note }) : t("Метка")) + (mk.by?.name ? ` · ${mk.by.name}` : "") + (mk.createdAt ? ` · ${fmtDate(mk.createdAt)}` : ""), "info")} />}
-            {teamView?.map && teamTaskId && wrapEl && (() => { const task = teamView.map!.tasks.find((tk) => tk.id === teamTaskId); return task ? <TeamTaskSheet task={task} members={teamView.map!.members ?? []} container={wrapEl} onClose={() => setTeamTaskId(null)} onReview={onReview} /> : null; })()}
+            {teamView?.map && teamTaskId && wrapEl && (() => { const task = teamView.map!.tasks.find((tk) => tk.id === teamTaskId); return task ? <TeamTaskSheet gameId={gameId} task={task} members={teamView.map!.members ?? []} container={wrapEl} onClose={() => setTeamTaskId(null)} onReview={onReview} /> : null; })()}
           </div>
         ) : (<>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap" style={{ background: css(dt.light.bg) }}>
@@ -355,8 +355,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
 }
 
 /** Панель города: ключ и шифр, состояние команд, задания с ответами (аккордеон), тестовые действия (свёрнуты). */
-/** Дело на стороне «глазами команды»: что за дело, статус, кто взял, что сдано. Действий нет — проверка во вкладке «Проверка». */
-function TeamTaskSheet({ task, members, container, onClose, onReview }: { task: EdgeTaskDto; members: Array<{ id: string; nickname: string; displayName: string | null }>; container: HTMLElement; onClose: () => void; onReview?: () => void }) {
+/** Дело на стороне «глазами команды»: что за дело, статус, кто взял, что сдано. Проверка — во вкладке «Проверка»; возвращённое принимается здесь же (13.10). */
+function TeamTaskSheet({ gameId, task, members, container, onClose, onReview }: { gameId: string; task: EdgeTaskDto; members: Array<{ id: string; nickname: string; displayName: string | null }>; container: HTMLElement; onClose: () => void; onReview?: () => void }) {
   const st = deedStatus(task.status);
   const taker = task.takenById ? members.find((m) => m.id === task.takenById) : null;
   const takerName = taker ? taker.displayName ?? taker.nickname : task.takenById ? t("участник") : "";
@@ -372,6 +372,7 @@ function TeamTaskSheet({ task, members, container, onClose, onReview }: { task: 
       {task.links.length > 0 && <ul className="links">{task.links.map((l) => <li key={l}><a href={l} target="_blank" rel="noreferrer">{l}</a></li>)}</ul>}
       {task.note && <p className="mt-2 report-text">{task.note}</p>}
       {task.status === "REJECTED" && task.adminComment && <div className="note bad"><Icon name="alert" /><span>{t("Возвращено с комментарием: «{comment}»", { comment: task.adminComment })}</span></div>}
+      {task.status === "REJECTED" && <ReconsiderButton gameId={gameId} taskId={task.id} onDone={onClose} />}
       {task.status === "SUBMITTED" && onReview && <div className="actions"><button type="button" className="secondary" onClick={() => { onClose(); onReview(); }}><Icon name="check" />{t("Открыть в Проверке")}</button></div>}
     </Sheet>
   );

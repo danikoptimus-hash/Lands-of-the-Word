@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, PROOF_LABEL, type AdminTaskDto } from "../lib/api";
 import { t } from "../lib/i18n";
+import { useUi } from "../lib/ui";
 import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
@@ -14,10 +15,27 @@ import { deedStatus } from "./TeamPage";
  * TaskReportSheet — полная сдача одного дела (из летописи или из списка на стороне); EdgeTasksSheet — все дела на стороне
  * у всех команд (нажатие на дорогу на карте администратора), нажатие на дело открывает отчёт.
  */
+/**
+ * «Принять после пересмотра» (замечание владельца 13.10): возвращённое дело принимается прямо из карточки — с карты
+ * администратора и из летописи, а не только во вкладке «Проверка → Возвращённые». Тот же запрос, что и там.
+ */
+export function ReconsiderButton({ gameId, taskId, onDone }: { gameId: string; taskId: string; onDone?: () => void }) {
+  const { notify } = useUi();
+  const [busy, setBusy] = useState(false);
+  const accept = async () => {
+    setBusy(true);
+    try { await api(`/api/games/${gameId}/edge-tasks/${taskId}/decide`, { method: "POST", body: JSON.stringify({ approve: true, comment: "" }) }); notify(t("Сдача принята после пересмотра")); onDone?.(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  };
+  return <div className="actions"><button type="button" disabled={busy} onClick={() => void accept()}><Icon name="check" />{t("Принять после пересмотра")}</button></div>;
+}
+
 export function TaskReportSheet({ gameId, taskId, container, onClose, onReview }: { gameId: string; taskId: string; container?: HTMLElement | null; onClose: () => void; onReview?: () => void }) {
   const [task, setTask] = useState<AdminTaskDto | null>(null);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { setTask(null); setError(null); api<{ task: AdminTaskDto }>(`/api/games/${gameId}/edge-tasks/${taskId}`).then((r) => setTask(r.task)).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); }, [gameId, taskId]);
+  const [tick, setTick] = useState(0);
+  useEffect(() => { setTask(null); setError(null); api<{ task: AdminTaskDto }>(`/api/games/${gameId}/edge-tasks/${taskId}`).then((r) => setTask(r.task)).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); }, [gameId, taskId, tick]);
   const st = task ? deedStatus(task.status) : null;
   return (
     <Sheet size="sm" container={container} onClose={onClose} className="deed-sheet task-report" head={<div className="sheet-title"><h2>{task?.deed.title ?? t("Отчёт по делу")}</h2>{st && <Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>}</div>}>
@@ -40,6 +58,7 @@ export function TaskReportSheet({ gameId, taskId, container, onClose, onReview }
           {task.links.length > 0 && <ul className="links">{task.links.map((l) => <li key={l}><a href={l} target="_blank" rel="noreferrer">{l}</a></li>)}</ul>}
           {task.note ? <p className="mt-2 report-text">{task.note}</p> : task.status !== "TAKEN" && task.links.length === 0 && <p className="muted small mt-2">{t("Текста отчёта нет.")}</p>}
           {task.status === "REJECTED" && task.adminComment && <div className="note bad"><Icon name="alert" /><span>{t("Возвращено с комментарием: «{comment}»", { comment: task.adminComment })}</span></div>}
+          {task.status === "REJECTED" && <ReconsiderButton gameId={gameId} taskId={task.id} onDone={() => setTick((n) => n + 1)} />}
           {task.status === "SUBMITTED" && onReview && <div className="actions"><button type="button" className="secondary" onClick={() => { onClose(); onReview(); }}><Icon name="check" />{t("Открыть в Проверке")}</button></div>}
         </>
       )}
