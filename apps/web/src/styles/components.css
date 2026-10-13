@@ -225,6 +225,3 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .link-list li { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h-sm); padding: 0 var(--sp-1) 0 var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); font-size: var(--fs-sm); }
 .link-list li .i { flex: none; color: var(--accent); }
 .link-list .link-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.link-add { display: flex; align-items: center; gap: var(--sp-2); }
-.link-add input { flex: 1; min-width: 0; min-height: var(--control-h-sm); }
-.link-add button { flex: none; }

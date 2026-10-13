@@ -804,7 +804,7 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
         </div>
       )}
       {!byWitness && (
-        <LinksField id="deed-links" label={donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />
+        <LinksField label={donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />
       )}
       {report ? (
         <>
