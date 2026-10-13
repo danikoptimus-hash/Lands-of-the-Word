@@ -117,7 +117,7 @@ const CODEX = () => [
   t("Дело делается ради человека, а не ради стороны на карте: не для галочки."),
   t("Людей фотографировать только с их согласия; лучше снимать предмет, результат или записку."),
   t("Угощать, помогать и навещать — не участников этой игры."),
-  t("В отчёте честно: что сделал, кому и как, что тебя тронуло."),
+  t("В отчёте честно: что сделал, кому и как."),
   t("Чужое дело как своё не сдаётся; если делали группой — отметьте всех участников."),
 ];
 /** Роли: подпись, иконка и одно предложение из правил (2.15) — показывается по нажатию на пилюлю. */
@@ -777,7 +777,7 @@ export function TeamPage() {
 function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }: { donationCfg: { min: number; currency: string } | null; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; donation: boolean; donationAmount?: number; participants: string[] }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState("");
   const [note, setNote] = useState("");
-  const [q, setQ] = useState({ what: "", who: "", touched: "" });
+  const [q, setQ] = useState({ what: "", who: "" });
   const [donation, setDonation] = useState(false);
   const [amount, setAmount] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
@@ -785,7 +785,7 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
   const report = proofType === "REPORT" && !donation;
   // Свидетель (решение владельца 04.10): дело подтверждает человек, который это видел; ссылки не нужны.
   const byWitness = proofType === "WITNESS" && !donation;
-  const noteOut = report ? [q.what && `${t("Что сделал")}: ${q.what}`, q.who && `${t("Кому и как")}: ${q.who}`, q.touched && `${t("Что тронуло")}: ${q.touched}`].filter(Boolean).join("\n")
+  const noteOut = report ? [q.what && `${t("Что сделал")}: ${q.what}`, q.who && `${t("Кому и как")}: ${q.who}`].filter(Boolean).join("\n")
     : byWitness ? [witness.trim() && `${t("Свидетель")}: ${witness.trim()}`, note.trim()].filter(Boolean).join("\n") : note;
   return (
     <>
@@ -812,7 +812,6 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
         <>
           <div className="field"><label htmlFor="deed-q1">{t("Что сделал?")}</label><textarea id="deed-q1" rows={2} value={q.what} onChange={(e) => setQ({ ...q, what: e.target.value })} /></div>
           <div className="field"><label htmlFor="deed-q2">{t("Кому и как?")} <span className="opt">{t("без фамилий")}</span></label><textarea id="deed-q2" rows={2} value={q.who} onChange={(e) => setQ({ ...q, who: e.target.value })} /></div>
-          <div className="field"><label htmlFor="deed-q3">{t("Что тебя тронуло?")}</label><textarea id="deed-q3" rows={2} value={q.touched} onChange={(e) => setQ({ ...q, touched: e.target.value })} /></div>
         </>
       ) : (
         <div className="field">
