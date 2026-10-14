@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Для администратора платформы появилась страница «Все игры»: все игры с активностью за неделю, сверху самые живые; любая открывается глазами её администратора только для просмотра.": "The platform administrator has an “All games” page: every game with its weekly activity, liveliest on top; any of them opens through its administrator’s eyes, view only.",
   "Администратор может принять возвращённое дело после пересмотра прямо из карточки дела — с карты и из летописи, а не только во вкладке «Проверка → Возвращённые».": "An administrator can accept a returned deed on review right from the deed card — on the map and in the chronicle, not only in the “Review → Returned” tab.",
   "В форме сдачи дела вместо поля для ссылок — кнопка «Вставить ссылку»: скопированная ссылка подставляется из буфера обмена, каждая — отдельной строкой, лишнюю можно убрать. Поля для ввода ссылки вручную нет.": "The deed form has a “Paste a link” button instead of the links box: a copied link is taken from the clipboard, each link is its own row and can be removed. There is no field for typing a link.",
   "Из вопроса «Кому и как?» убрана приписка «без фамилий».": "The “no surnames” note is gone from the “For whom and how?” question.",

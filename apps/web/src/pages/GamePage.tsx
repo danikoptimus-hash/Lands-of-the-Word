@@ -60,6 +60,8 @@ export function GamePage() {
   const [progress, setProgress] = useState<Progress | null>(null);
   /** «Посмотреть на карте» из «Проверки» и блока «Команды» (просьба владельца 10.10): закрыть раздел и показать сторону дела вблизи. */
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
+  /** Наблюдатель (решение владельца 14.10): администратор платформы смотрит чужую игру, менять ничего не может. */
+  const [observer, setObserver] = useState(false);
   const showOnMap = (f: Omit<MapFocus, "nonce">) => { setMapFocus({ ...f, nonce: Date.now() }); setTab("map"); };
   const loadProgress = useCallback(() => api<Progress>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
   /** Ползунок времени: null — «сейчас» (живое состояние), иначе момент, на который показываем карту. */
@@ -71,8 +73,8 @@ export function GamePage() {
   useGameEvents(id, (e) => { if (e.type === "game" || e.type === "map") void load(); if (e.type !== "deeds") void loadProgress(); bump(); });
 
   const load = useCallback(async () => {
-    const r = await api<{ game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[] }>(`/api/games/${id}`);
-    setGame(r.game); setDisplayTimeZone((r.game.settings as { rules?: { timeZone?: string } }).rules?.timeZone); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges); setStats((s) => s ?? r.game.settings.mapStats ?? null);
+    const r = await api<{ game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; observer?: boolean }>(`/api/games/${id}`);
+    setObserver(Boolean(r.observer)); setGame(r.game); setDisplayTimeZone((r.game.settings as { rules?: { timeZone?: string } }).rules?.timeZone); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges); setStats((s) => s ?? r.game.settings.mapStats ?? null);
     setError(null);
   }, [id]);
 
@@ -160,10 +162,11 @@ export function GamePage() {
       </div>
 
       <div className="admin-top">
-        <Link to="/" className="btn secondary icon hud-btn" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>
+        <Link to={observer ? "/admin/games" : "/"} className="btn secondary icon hud-btn" aria-label={observer ? t("Все игры") : t("Мои игры")} title={observer ? t("Все игры") : t("Мои игры")}><Icon name="back" /></Link>
         <div className="admin-title" title={game.name}>
           <span className="name">{game.name}</span>
           <Chip tone={draft ? "warn" : active ? "ok" : "neutral"}>{draft ? t("черновик") : active ? t("идёт") : t("завершена")}</Chip>
+          {observer && <Chip tone="info" icon="eye" title={t("Вы смотрите эту игру как наблюдатель: изменить ничего нельзя, участники и администраторы вас не видят")}>{t("наблюдение")}</Chip>}
         </div>
         {canDelete && <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить игру"), icon: "trash", danger: true, onSelect: () => void removeGame() }]} />}
       </div>

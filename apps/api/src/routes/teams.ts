@@ -10,6 +10,7 @@ import { notifyTeam, notifyUser } from "../services/notify.js";
 import { ensureFrontier, penalizeTeam } from "../services/teamMap.js";
 import { days, rulesOf } from "../services/rules.js";
 import { journal, nick, ROLE_RU } from "../services/journal.js";
+import { adminOrObserver } from "../services/access.js";
 
 export const TEAM_COLORS = ["#A9553A", "#4F7C99", "#7D8B4E", "#8E5A9E", "#C48A3F", "#3B6E6E", "#B5473F", "#5C6E91", "#8A7A2E", "#6E4B8E", "#2F7F6F", "#9C5A2E"];
 
@@ -25,7 +26,7 @@ const memberPatch = z.object({ role: z.enum(["CAPTAIN", "DEPUTY", "MEMBER"]).opt
 async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: { select: { userId: true } } } });
   if (!game) { await reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") }); return null; }
-  if (!game.admins.some((a) => a.userId === request.user!.id)) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
+  if (!adminOrObserver(request, game.admins)) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
   return game;
 }
 
@@ -39,7 +40,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await prisma.game.findUnique({ where: { id }, include: { admins: { select: { userId: true } } } });
     if (!game) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
-    const isAdmin = game.admins.some((a) => a.userId === request.user!.id);
+    const isAdmin = adminOrObserver(request, game.admins);
     const teams = await prisma.team.findMany({
       where: isAdmin ? { gameId: id } : { gameId: id, members: { some: { userId: request.user!.id } } },
       orderBy: { index: "asc" },
@@ -114,7 +115,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const body = inviteBody.parse(request.body ?? {});
     const game = await prisma.game.findUnique({ where: { id }, include: { admins: { select: { userId: true } } } });
     if (!game) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
-    const isAdmin = game.admins.some((a) => a.userId === request.user!.id);
+    const isAdmin = adminOrObserver(request, game.admins);
     if (!isAdmin) {
       const me = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId: request.user!.id } } });
       if (me?.role !== "CAPTAIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Приглашать участников может администратор или капитан команды") });
@@ -139,7 +140,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const membership = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId } }, include: { team: true } });
     if (!membership || membership.team.gameId !== id) return reply.code(404).send({ error: "not_found", message: err(request, "Участник не найден") });
     const game = await prisma.game.findUnique({ where: { id }, include: { admins: { select: { userId: true } } } });
-    const isAdmin = game?.admins.some((a) => a.userId === request.user!.id) ?? false;
+    const isAdmin = game ? adminOrObserver(request, game.admins) : false;
     const me = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId: request.user!.id } } });
     const isCaptain = me?.role === "CAPTAIN";
     const rules = rulesOf(game?.settings);

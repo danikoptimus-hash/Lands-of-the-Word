@@ -10,6 +10,7 @@ import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { err, msg } from "../services/i18n.js";
 import { journal, nick } from "../services/journal.js";
 import { gameRules } from "../services/battles.js";
+import { adminOrObserver } from "../services/access.js";
 
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
@@ -53,7 +54,7 @@ export async function requireActiveMember(request: FastifyRequest, reply: Fastif
 export async function requireAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: { select: { userId: true } } } });
   if (!game) { await reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") }); return null; }
-  if (!game.admins.some((a) => a.userId === request.user!.id)) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
+  if (!adminOrObserver(request, game.admins)) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
   return game;
 }
 

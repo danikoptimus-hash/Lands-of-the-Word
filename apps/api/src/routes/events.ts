@@ -12,7 +12,8 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
       prisma.gameAdmin.findUnique({ where: { gameId_userId: { gameId: id, userId: request.user!.id } } }),
       prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: id } } }),
     ]);
-    if (!admin && !member) return reply.code(403).send({ error: "forbidden", message: err(request, "Нет доступа к игре") });
+    // Наблюдатель (администратор платформы) тоже слушает события: поток только читает.
+    if (!admin && !member && request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Нет доступа к игре") });
 
     reply.raw.writeHead(200, {
       "Content-Type": "text/event-stream; charset=utf-8",

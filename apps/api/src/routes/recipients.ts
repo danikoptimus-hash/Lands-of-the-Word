@@ -7,13 +7,14 @@ import { requireUser } from "../auth.js";
 import { assignRecipients, ensureCityCodes } from "../services/recipients.js";
 import { renderLabelsPdf } from "../services/labelsPdf.js";
 import { bookName, err, toLocale } from "../services/i18n.js";
+import { adminOrObserver } from "../services/access.js";
 
 const recipientBody = z.object({ label: z.string().trim().min(2).max(60), kind: z.enum(["FAMILY", "WIDOW", "ELDER", "OTHER"]).default("FAMILY") });
 
 async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: { select: { userId: true } } } });
   if (!game) { await reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") }); return null; }
-  if (!game.admins.some((a) => a.userId === request.user!.id)) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
+  if (!adminOrObserver(request, game.admins)) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
   return game;
 }
 

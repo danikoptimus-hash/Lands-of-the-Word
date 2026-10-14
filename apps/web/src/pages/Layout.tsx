@@ -39,7 +39,7 @@ export function Layout() {
               trigger={<button type="button" className="user-menu"><span className="avatar">{name.slice(0, 1).toUpperCase()}{openSupport > 0 && <span className="user-badge" aria-label={t("Открытых обращений: {n}", { n: openSupport })}>{openSupport}</span>}</span><span className="name">{name}</span><Icon name="chevron-down" className="i-sm" /></button>}
               items={[
                 { label: others.length ? `${t("Аккаунт")} · ${name}` : t("Аккаунт"), icon: "user", onSelect: () => navigate("/account") },
-                ...(superadmin ? [{ label: t("Аналитика"), icon: "eye", onSelect: () => navigate("/admin") }, { label: t("Обращения"), icon: "send", badge: openSupport, onSelect: () => navigate("/admin/support") }] : []),
+                ...(superadmin ? [{ label: t("Все игры"), icon: "map", onSelect: () => navigate("/admin/games") }, { label: t("Аналитика"), icon: "eye", onSelect: () => navigate("/admin") }, { label: t("Обращения"), icon: "send", badge: openSupport, onSelect: () => navigate("/admin/support") }] : []),
                 // Смена аккаунта (решение владельца 05.10): другие аккаунты устройства одним нажатием, «Добавить аккаунт» — вход без выхода из текущего.
                 ...others.map((a, i) => ({ label: a.displayName || a.nickname, icon: "user", onSelect: () => void switchAccount(a.id), sep: i === 0 })),
                 { label: t("Добавить аккаунт"), icon: "plus", onSelect: () => navigate("/login?add=1"), sep: others.length === 0 },

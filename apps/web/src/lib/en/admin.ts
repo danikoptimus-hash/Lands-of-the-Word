@@ -1,5 +1,11 @@
 /** EN-строки области «admin». Ключ — русская строка как в коде. Добавлять только сюда; legacy.ts не трогать. */
 export const ADMIN: Record<string, string> = {
+  "Все игры": "All games", "Состояние": "State", "Черновики": "Drafts", "Завершены": "Finished",
+  "Таких игр нет.": "No such games.", "Каждая игра открывается глазами её администратора, но только для просмотра: изменить ничего нельзя, участники и администраторы вашего присутствия не видят. Сверху самые живые игры: активность — записи летописи и сдачи дел за 7 дней.": "Each game opens through its administrator’s eyes, view only: nothing can be changed, and players and administrators do not see you. The liveliest games are on top: activity is chronicle entries and deed submissions over 7 days.",
+  "Событий за 7 дней": "Events in 7 days", "Сдач ждёт проверки": "Submissions awaiting review", "событий не было": "no events yet", "{n} мин назад": "{n} min ago",
+  "вчера": "yesterday", "за сутки {d}, за неделю {w}": "{d} in a day, {w} in a week", "последнее событие": "last event", "создана {date}": "created {date}",
+  "начата {date}": "started {date}", "завершена {date}": "finished {date}", "наблюдение": "observing", "Вы смотрите эту игру как наблюдатель: изменить ничего нельзя, участники и администраторы вас не видят": "You are viewing this game as an observer: nothing can be changed, and players and administrators do not see you",
+  "игрок": "player", "игроков": "players",
   "Обычные дела": "Regular deeds",
   "Дела Каменоломни": "Quarry deeds",
   "Общие дела всей команды: сдаёт капитан, заместитель или летописец в Каменоломне на карте, всегда доступны. Принятое дело даёт камни, камень мостит одну свободную дорогу — куда, решает команда.": "Team deeds for the whole team: the captain, the deputy or the chronicler submits them in the Quarry on the map, always available. An approved deed gives stones; a stone paves one free road — the team decides where.",

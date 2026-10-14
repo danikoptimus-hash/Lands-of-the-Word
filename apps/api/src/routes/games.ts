@@ -11,6 +11,7 @@ import { finishGame, leader, standings } from "../services/game.js";
 import { ensureFrontier } from "../services/teamMap.js";
 import { assignRecipients, ensureCityCodes } from "../services/recipients.js";
 import { rulesOf, rulesPatchSchema } from "../services/rules.js";
+import { adminOrObserver, isObserver } from "../services/access.js";
 
 const createBody = z.object({
   name: z.string().trim().min(2).max(80),
@@ -52,7 +53,7 @@ const patchBody = z.object({
 async function loadGameForAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: true } });
   if (!game) { await reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") }); return null; }
-  const isAdmin = game.admins.some((a) => a.userId === request.user!.id);
+  const isAdmin = adminOrObserver(request, game.admins);
   if (!isAdmin) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
   return game;
 }
@@ -67,6 +68,46 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, createdById: true, org: { select: { name: true } } },
     });
     return { games };
+  });
+
+  /**
+   * Все игры платформы для администратора платформы (решение владельца 14.10): список с активностью, чтобы
+   * заходить в любую игру наблюдателем. Активность — записи журнала и сдачи дел за 7 дней; сверху самые живые.
+   */
+  app.get("/api/admin/games", async (request, reply) => {
+    if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Только для администратора платформы") });
+    const week = new Date(Date.now() - 7 * 86_400_000), day = new Date(Date.now() - 86_400_000);
+    const [games, members, journalAll, journalWeek, pending, submittedWeek] = await Promise.all([
+      prisma.game.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, startedAt: true, finishedAt: true, org: { select: { name: true } }, _count: { select: { teams: true, admins: true } } } }),
+      prisma.membership.findMany({ select: { team: { select: { gameId: true } }, user: { select: { lastSeenAt: true } } } }),
+      prisma.journal.groupBy({ by: ["gameId"], _max: { createdAt: true } }),
+      prisma.journal.groupBy({ by: ["gameId"], where: { createdAt: { gte: week } }, _count: { _all: true } }),
+      prisma.teamEdgeTask.groupBy({ by: ["gameId"], where: { status: "SUBMITTED" }, _count: { _all: true } }),
+      prisma.teamEdgeTask.groupBy({ by: ["gameId"], where: { submittedAt: { gte: week } }, _count: { _all: true } }),
+    ]);
+    const byGame = <T,>(rows: Array<{ gameId: string } & T>) => new Map(rows.map((r) => [r.gameId, r]));
+    const lastAt = byGame(journalAll), weekN = byGame(journalWeek), pendingN = byGame(pending), subN = byGame(submittedWeek);
+    const players = new Map<string, { total: number; day: number; week: number }>();
+    for (const m of members) {
+      const p = players.get(m.team.gameId) ?? { total: 0, day: 0, week: 0 };
+      p.total++;
+      const seen = m.user.lastSeenAt?.getTime() ?? 0;
+      if (seen >= day.getTime()) p.day++;
+      if (seen >= week.getTime()) p.week++;
+      players.set(m.team.gameId, p);
+    }
+    const rows = games.map((g) => {
+      const p = players.get(g.id) ?? { total: 0, day: 0, week: 0 };
+      const activity = (weekN.get(g.id)?._count._all ?? 0) + (subN.get(g.id)?._count._all ?? 0);
+      return {
+        id: g.id, name: g.name, status: g.status, org: g.org.name, teamCount: g.teamCount, teams: g._count.teams, admins: g._count.admins, mapReady: g.mapSeed != null,
+        createdAt: g.createdAt, startedAt: g.startedAt, finishedAt: g.finishedAt,
+        players: p.total, playersDay: p.day, playersWeek: p.week,
+        activity, pending: pendingN.get(g.id)?._count._all ?? 0, lastActivityAt: lastAt.get(g.id)?._max.createdAt ?? null,
+      };
+    });
+    rows.sort((a, b) => b.activity - a.activity || (b.lastActivityAt?.getTime() ?? 0) - (a.lastActivityAt?.getTime() ?? 0) || b.createdAt.getTime() - a.createdAt.getTime());
+    return { games: rows };
   });
 
   app.post("/api/games", async (request, reply) => {
@@ -127,8 +168,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       prisma.mapNode.findMany({ where: { gameId: id }, select: { key: true, corner: true, q: true, r: true, kind: true, bookCode: true, cityType: true, teamIndex: true, island: true, coastal: true } }),
       prisma.mapEdge.findMany({ where: { gameId: id }, select: { aKey: true, bKey: true } }),
     ]);
-    const { admins: _admins, ...rest } = game;
-    return { game: { ...rest, settings: { ...(rest.settings as Record<string, unknown>), rules: rulesOf(rest.settings) } }, hexes, nodes, edges };
+    const { admins, ...rest } = game;
+    // observer — наблюдатель: администратор платформы, не администратор игры (только чтение).
+    return { game: { ...rest, settings: { ...(rest.settings as Record<string, unknown>), rules: rulesOf(rest.settings) } }, hexes, nodes, edges, observer: isObserver(request, admins) };
   });
 
   /** Генерация (или перегенерация) карты. Пока игра в статусе DRAFT — можно сколько угодно раз. */
@@ -177,9 +219,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const game = await prisma.game.findUnique({ where: { id }, select: { status: true, finishedAt: true, winnerTeamId: true, finishReason: true, settings: true, admins: { select: { userId: true } }, teams: { select: { members: { select: { userId: true } } } } } });
     if (!game) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
     const uid = request.user!.id;
-    const allowed = game.admins.some((a) => a.userId === uid) || game.teams.some((t) => t.members.some((m) => m.userId === uid));
+    const allowed = adminOrObserver(request, game.admins) || game.teams.some((t) => t.members.some((m) => m.userId === uid));
     if (!allowed) return reply.code(403).send({ error: "forbidden", message: err(request, "Нет доступа") });
-    const isAdmin = game.admins.some((a) => a.userId === uid);
+    const isAdmin = adminOrObserver(request, game.admins);
     // Во время игры команды видят только взятые города: «города на пути» — разведданные (решение владельца 18.09).
     const rows = (await standings(id)).map((r) => (isAdmin || game.status === "FINISHED" ? r : { ...r, citiesOnPath: [] }));
     return { status: game.status, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, finishReason: game.finishReason, endsAt: (game.settings as { endsAt?: string | null }).endsAt ?? null, standings: rows, leaderTeamId: game.status === "ACTIVE" ? (await leader(id))?.teamId ?? null : null };
