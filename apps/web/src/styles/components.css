@@ -231,3 +231,9 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .help-pop-wrap.link-warn > .pop-btn::before { content: ""; position: absolute; inset: -8px; }
 .help-pop-wrap.link-warn > .pop-btn .i { width: 20px; height: 20px; }
 .help-pop-wrap.link-warn > .pop-btn:hover, .help-pop-wrap.link-warn > .pop-btn.open { background: none; color: var(--wax); }
+/* Запасная строка для ссылки, когда браузер не даёт читать буфер (15.10). */
+.link-manual { margin-top: var(--sp-2); }
+.link-manual .hint { margin: 0 0 var(--sp-1); }
+.link-add { display: flex; align-items: center; gap: var(--sp-2); }
+.link-add input { flex: 1; min-width: 0; min-height: var(--control-h-sm); }
+.link-add button { flex: none; }
