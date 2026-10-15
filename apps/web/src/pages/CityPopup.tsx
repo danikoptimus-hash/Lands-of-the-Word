@@ -169,6 +169,11 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
   }
 
   const task = taskIndex != null ? city?.content?.tasks.find((x) => x.index === taskIndex) ?? null : null;
+  /** Соседние задания для кнопок «назад/вперёд» в задании (предложение игроков 15.10): районы и общие задания по порядку номеров. */
+  const taskOrder = useMemo(() => (city?.content?.tasks ?? []).map((x) => x.index).sort((a, b) => a - b), [city]);
+  const taskPos = taskIndex != null ? taskOrder.indexOf(taskIndex) : -1;
+  const prevTask = taskPos > 0 ? taskOrder[taskPos - 1]! : null;
+  const nextTask = taskPos >= 0 && taskPos < taskOrder.length - 1 ? taskOrder[taskPos + 1]! : null;
   const foreign = Boolean(city?.owner && !city.state.capturedAt);
   const step = !city?.content ? 0 : !city.state.orderSolved ? 1 : !allDone ? 2 : 3;
   /** Список районов виден и после того, как команда решила всё: пока я не решил все задания сам, они открыты для моего зачёта. */
@@ -324,7 +329,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
         </details>
       )}
       {!sleeping && city?.content && task && (
-        <TaskView task={task} teamDone={done.includes(task.index)} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={mine.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
+        <TaskView key={task.index} task={task} onPrev={prevTask != null ? () => setTaskIndex(prevTask) : null} onNext={nextTask != null ? () => setTaskIndex(nextTask) : null} teamDone={done.includes(task.index)} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={mine.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
           hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} draft={city.state.taskDrafts?.[String(task.index)]}
           lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} pauseSteps={city.state.pauseSteps} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />
       )}
@@ -343,7 +348,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
 
 const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.some((l) => l.index === index && l.lockedUntil != null && l.lockedUntil > now);
 
-function TaskView({ task, teamDone = false, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Команда уже открыла знак этого задания, а я ещё не решал: решаю для своего зачёта (решение владельца 05.10). */ teamDone?: boolean; /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
+function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Соседние задания: кнопки «назад/вперёд» в шапке задания (15.10); null — края списка. */ onPrev: (() => void) | null; onNext: (() => void) | null; /** Команда уже открыла знак этого задания, а я ещё не решал: решаю для своего зачёта (решение владельца 05.10). */ teamDone?: boolean; /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
   /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
   useAwayCounter(done ? null : `/api/games/${gameId}/my-city/${nodeKey}/tasks/${task.index}/focus`);
@@ -376,6 +381,10 @@ function TaskView({ task, teamDone = false, fragments, district, groupTitles, do
     <div className="task-view" onContextMenu={(e) => e.preventDefault()} onCopy={(e) => e.preventDefault()} onCut={(e) => e.preventDefault()} onDragStart={(e) => e.preventDefault()}>
       <div className="row between nowrap">
         <button type="button" className="ghost back-btn" onClick={onBack}><Icon name="back" />{t("К районам")}</button>
+        <div className="task-nav">
+          <button type="button" className="secondary sm icon" disabled={!onPrev} onClick={() => onPrev?.()} aria-label={t("Предыдущее задание")} title={t("Предыдущее задание")}><Icon name="chevron" className="flip" /></button>
+          <button type="button" className="secondary sm icon" disabled={!onNext} onClick={() => onNext?.()} aria-label={t("Следующее задание")} title={t("Следующее задание")}><Icon name="chevron" /></button>
+        </div>
         <CipherSeal fragments={fragments} size={44} className="corner" />
       </div>
       <h3 className="mt-2">{title}</h3>

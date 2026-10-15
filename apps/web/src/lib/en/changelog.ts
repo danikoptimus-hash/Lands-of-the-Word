@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "В задании района появились кнопки «назад» и «вперёд»: к соседнему району можно перейти, не возвращаясь к списку.": "A district task now has “back” and “forward” buttons: you can move to the neighbouring district without returning to the list.",
   "Если браузер не даёт прочитать буфер обмена (например, встроенный браузер Xiaomi), под кнопкой «Вставить ссылку» открывается строка, куда ссылку можно вставить с клавиатуры.": "If the browser does not allow reading the clipboard (for example, the built-in Xiaomi browser), a line opens under “Paste a link” where the link can be pasted from the keyboard.",
   "В деле «Помочь на стройке дома» уточнено: при работе группой каждый участник отрабатывает не меньше четырёх часов.": "The “Help build a house” deed now says that when done as a group, each participant works at least four hours.",
   "В кроссворде города «2 Паралипоменон» вопрос про письма Сеннахирима заменён вопросом про Ангела, истребившего войско Ассирии (2 Пар. 32:21).": "In the “2 Chronicles” city crossword the clue about Sennacherib’s letters is replaced by one about the Angel who destroyed the Assyrian army (2 Chr 32:21).",

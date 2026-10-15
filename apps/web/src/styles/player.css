@@ -558,3 +558,6 @@
 /* Ползунок истории ходов на карте команды (решение владельца 05.10): такой же, как у администратора, внизу по центру карты. */
 .team-timeline { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--sp-3) + var(--safe-bottom)); z-index: 5; max-width: calc(100% - 2 * var(--sp-3)); }
 @media (min-width: 1024px) { .team-timeline { left: calc(110px + (100% - 110px) / 2); max-width: calc(100% - 110px - 2 * var(--sp-3)); } }
+/* Кнопки «назад/вперёд» между заданиями районов (предложение игроков 15.10): в шапке задания, между «К районам» и печатью. */
+.task-view .task-nav { display: flex; gap: var(--sp-1); margin-left: auto; margin-right: var(--sp-2); flex: none; }
+.task-view .task-nav .i.flip { transform: scaleX(-1); }
