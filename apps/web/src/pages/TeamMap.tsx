@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { reportPage } from "../lib/perf";
-import { BOOKS, startName, vertexHexes, parseVertexKey, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
+import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
@@ -99,7 +99,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   useEffect(() => { if (!onMark) setMarking(false); }, [onMark]);
   /**
    * Режим метки: точка экрана → точка карты (w·k + t = px) → ближайший гекс, не дальше радиуса гекса (место должно быть на карте).
-   * Метка ставится точно в место нажатия (решение владельца 29.09): точка переводится в дробные осевые координаты. Кнопки внутри карты не считаются.
+   * Метка прилипает к ближайшему перекрёстку (решение владельца 15.10, вместо точки нажатия от 29.09): из шести углов
+   * ближайшего гекса берётся ближайший к нажатию, его положение переводится в дробные осевые координаты. Кнопки внутри карты не считаются.
    */
   const placeMark = (e: MouseEvent<HTMLDivElement>) => {
     if (!marking || vp.wasDrag() || (e.target as HTMLElement).closest("button")) return;
@@ -108,7 +109,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     let best: { q: number; r: number } | null = null, bd = Infinity;
     for (const h of map.hexes) { const c = hexCenter(h, size); const d = (c.x - x) ** 2 + (c.y - y) ** 2; if (d < bd) { bd = d; best = h; } }
     if (!best || bd > (size * 1.1) ** 2) return;
-    const rf = y / (1.5 * size), qf = x / (Math.sqrt(3) * size) - rf / 2;
+    let px = x, py = y, vd = Infinity;
+    for (const v of hexCorners(best)) { const p = vertexToPixel(v, size); const d = (p.x - x) ** 2 + (p.y - y) ** 2; if (d < vd) { vd = d; px = p.x; py = p.y; } }
+    const rf = py / (1.5 * size), qf = px / (Math.sqrt(3) * size) - rf / 2;
     setMarking(false); onMark?.({ q: best.q, r: best.r, qf, rf });
   };
   // Часы сервера для живности: смещение от местных часов по времени из ответа карты.
