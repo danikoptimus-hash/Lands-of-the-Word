@@ -249,3 +249,11 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .people-picker .pp-list { border: 1px solid var(--accent); border-top: 0; border-radius: 0 0 var(--r-sm) var(--r-sm); background: var(--surface); padding: var(--sp-1) var(--sp-3) var(--sp-2); max-height: 280px; overflow-y: auto; }
 .people-picker .pp-item { min-height: var(--touch); border-top: 1px solid var(--border); }
 .people-picker .pp-item:first-child { border-top: 0; }
+/* Одна кнопка для ссылок (16.10): с галочкой, когда ссылка вставлена; окошко со ссылками всплывает поверх, не двигая форму. */
+.links-field { position: relative; }
+.link-add-btn.has-links { border-color: var(--accent); color: var(--accent-ink, var(--accent)); }
+.link-add-btn.has-links .i { color: var(--accent); }
+.link-pop { position: absolute; left: 0; top: 100%; z-index: 30; margin-top: var(--sp-1); min-width: 100%; width: max-content; max-width: min(360px, calc(100vw - 32px)); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); box-shadow: var(--shadow-2); }
+.link-pop .link-list { margin: 0; }
+.link-pop .link-list a.link-text { color: var(--link); text-decoration: underline; }
+.link-pop-foot { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); }
