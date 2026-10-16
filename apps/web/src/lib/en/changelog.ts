@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Подпись своей метки на карте можно изменить: нажатие на флажок открывает подпись с кнопками «Сохранить» и «Убрать».": "You can change the caption of your own map mark: tapping the flag opens the caption with “Save” and “Remove” buttons.",
   "Метка на карте теперь прилипает к ближайшему перекрёстку, а не встаёт в точку нажатия.": "A map mark now snaps to the nearest crossroads instead of landing exactly where you tapped.",
   "В задании района появились кнопки «назад» и «вперёд»: к соседнему району можно перейти, не возвращаясь к списку.": "A district task now has “back” and “forward” buttons: you can move to the neighbouring district without returning to the list.",
   "Если браузер не даёт прочитать буфер обмена (например, встроенный браузер Xiaomi), под кнопкой «Вставить ссылку» открывается строка, куда ссылку можно вставить с клавиатуры.": "If the browser does not allow reading the clipboard (for example, the built-in Xiaomi browser), a line opens under “Paste a link” where the link can be pasted from the keyboard.",

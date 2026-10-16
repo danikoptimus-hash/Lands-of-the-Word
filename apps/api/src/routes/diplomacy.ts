@@ -180,6 +180,20 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
+  /** Подпись метки меняет только её автор (решение владельца 16.10). */
+  app.patch("/api/games/:id/my-map/marks/:markId", async (request, reply) => {
+    const { id, markId } = request.params as { id: string; markId: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    const body = z.object({ note: z.string().trim().max(40) }).parse(request.body);
+    const mark = await prisma.teamMark.findFirst({ where: { id: markId, teamId: m.team.id } });
+    if (!mark) return reply.code(404).send({ error: "not_found", message: err(request, "Метка не найдена") });
+    if (mark.createdById !== request.user!.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Изменить метку может только тот, кто её поставил") });
+    const updated = await prisma.teamMark.update({ where: { id: mark.id }, data: { note: body.note }, select: { id: true, q: true, r: true, qf: true, rf: true, note: true } });
+    publish(id, { type: "map", teamId: m.team.id });
+    return { mark: updated };
+  });
+
   /**
    * Разведчик: раз в неделю заглянуть в туман — город там или развилка. Разведать можно любой ещё не открытый
    * перекрёсток на краю тумана — угол освещённого гекса, даже если стороны с делом к нему нет (решение владельца 02.10).

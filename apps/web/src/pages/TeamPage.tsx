@@ -177,6 +177,9 @@ export function TeamPage() {
   const [busy, setBusy] = useState(false);
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const [markAt, setMarkAt] = useState<MarkPoint | null>(null);
+  /** Своя метка по нажатию (решение владельца 16.10): лист с подписью — изменить или убрать. */
+  const [editMark, setEditMark] = useState<MapMarkDto | null>(null);
+  const [editNote, setEditNote] = useState("");
   /** Точка на краю тумана без дороги с делом: лист с разведкой (решение владельца 02.10). */
   const [frontierKey, setFrontierKey] = useState<string | null>(null);
   const [markNote, setMarkNote] = useState("");
@@ -349,6 +352,17 @@ export function TeamPage() {
       setMarkAt(null); setMarkNote(""); notify(t("Метка поставлена: её видит вся команда"), "info"); await loadMap();
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
+  }
+  async function saveMark() {
+    if (!editMark) return;
+    setBusy(true);
+    try { await api(`/api/games/${id}/my-map/marks/${editMark.id}`, { method: "PATCH", body: JSON.stringify({ note: editNote.trim() }) }); setEditMark(null); notify(t("Подпись метки изменена"), "info"); await loadMap(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  }
+  function tapMark(mk: MapMarkDto) {
+    if (mk.by && user && mk.by.id === user.id) { setEditMark(mk); setEditNote(mk.note); return; }
+    void removeMark(mk);
   }
   async function removeMark(mk: MapMarkDto) {
     const by = mk.by?.name ?? "";
@@ -639,7 +653,7 @@ export function TeamPage() {
       <div className="map-area" ref={setMapEl} onPointerDownCapture={() => { if (wide && menuView !== "home") setMenuView("home"); }}>
         <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
-          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={(mk) => void removeMark(mk)}
+          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
           onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} />
         {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
@@ -669,8 +683,14 @@ export function TeamPage() {
 
         {markAt && (
           <Sheet size="sm" container={mapEl} title={t("Метка на карте")} onClose={() => setMarkAt(null)} foot={<><button type="button" className="ghost" onClick={() => setMarkAt(null)}>{t("Отмена")}</button><button type="button" disabled={busy} onClick={() => void putMark()}><Icon name="pin" />{t("Поставить")}</button></>}>
-            <p className="muted">{t("Метку увидят все в команде, с вашим именем. Убрать её сможете только вы, нажатием на флажок.")}</p>
+            <p className="muted">{t("Метку увидят все в команде, с вашим именем. Изменить подпись или убрать её сможете только вы, нажатием на флажок.")}</p>
             <div className="field"><label htmlFor="mark-note">{t("Подпись")} <span className="opt">{t("необязательно")}</span></label><input id="mark-note" maxLength={40} value={markNote} onChange={(e) => setMarkNote(e.target.value)} placeholder={t("птицы сели здесь")} /></div>
+          </Sheet>
+        )}
+        {editMark && (
+          <Sheet size="sm" container={mapEl} title={t("Метка на карте")} onClose={() => setEditMark(null)} foot={<><button type="button" className="secondary" disabled={busy} onClick={() => { const mk = editMark; setEditMark(null); void removeMark(mk); }}><Icon name="trash" />{t("Убрать")}</button><button type="button" disabled={busy} onClick={() => void saveMark()}><Icon name="check" />{t("Сохранить")}</button></>}>
+            <p className="muted">{editMark.createdAt ? t("Ваша метка, поставлена {when}.", { when: fmtDate(editMark.createdAt) }) : t("Ваша метка.")}</p>
+            <div className="field"><label htmlFor="mark-edit-note">{t("Подпись")} <span className="opt">{t("необязательно")}</span></label><input id="mark-edit-note" maxLength={40} value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder={t("птицы сели здесь")} /></div>
           </Sheet>
         )}
         {frontierKey && (() => {
