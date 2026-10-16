@@ -237,3 +237,16 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .link-add { display: flex; align-items: center; gap: var(--sp-2); }
 .link-add input { flex: 1; min-width: 0; min-height: var(--control-h-sm); }
 .link-add button { flex: none; }
+/* Раскрывающийся список участников (16.10): строка как поле ввода, список с галочками под ней. */
+.people-picker { position: relative; }
+.people-picker .pp-trigger { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--control-h); padding: 0 var(--sp-3); border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); color: var(--text); font: 400 var(--fs-md)/var(--lh-ui) var(--font); text-align: left; box-shadow: none; }
+.people-picker .pp-trigger:hover { background: var(--surface); border-color: var(--text); }
+.people-picker.open .pp-trigger { border-color: var(--accent); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.people-picker .pp-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.people-picker .pp-value.muted { color: var(--muted); }
+.people-picker .pp-trigger .chev { flex: none; color: var(--muted); transition: transform var(--dur-fast); }
+.people-picker.open .pp-trigger .chev { transform: rotate(180deg); }
+.people-picker .pp-list { border: 1px solid var(--accent); border-top: 0; border-radius: 0 0 var(--r-sm) var(--r-sm); background: var(--surface); padding: var(--sp-1) var(--sp-3) var(--sp-2); max-height: 280px; overflow-y: auto; }
+.people-picker .pp-item { min-height: var(--touch); border-top: 1px solid var(--border); }
+.people-picker .pp-item:first-child { border-top: 0; }
+.people-picker .pp-foot { display: flex; justify-content: flex-end; padding-top: var(--sp-2); }

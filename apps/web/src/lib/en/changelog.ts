@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "В форме сдачи дела участники группы отмечаются в раскрывающемся списке, а не рядом кнопок: место экономится, выбранные имена видны в строке.": "In the deed form, group participants are picked from a drop-down list instead of a row of buttons: it saves space, and the chosen names stay visible in the line.",
   "Подпись своей метки на карте можно изменить: нажатие на флажок открывает подпись с кнопками «Сохранить» и «Убрать».": "You can change the caption of your own map mark: tapping the flag opens the caption with “Save” and “Remove” buttons.",
   "Метка на карте теперь прилипает к ближайшему перекрёстку, а не встаёт в точку нажатия.": "A map mark now snaps to the nearest crossroads instead of landing exactly where you tapped.",
   "В задании района появились кнопки «назад» и «вперёд»: к соседнему району можно перейти, не возвращаясь к списку.": "A district task now has “back” and “forward” buttons: you can move to the neighbouring district without returning to the list.",

@@ -17,6 +17,7 @@ import { t } from "../lib/i18n";
 import { fmtDate, plural, setDisplayTimeZone } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { LinksField } from "../components/LinksField";
+import { PeoplePicker } from "../components/PeoplePicker";
 import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
@@ -839,10 +840,8 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
       )}
       {members.length > 0 && (
         <div className="field">
-          <span className="label">{t("Кто ещё участвовал")} <span className="opt">{donation ? t("если жертвовали вместе") : t("если делали группой")}</span></span>
-          <div className="chips">
-            {members.map((mm) => <label key={mm.id} className="check inline"><input type="checkbox" checked={participants.includes(mm.id)} onChange={(e) => setParticipants(e.target.checked ? [...participants, mm.id] : participants.filter((x) => x !== mm.id))} />{mm.name}</label>)}
-          </div>
+          <label className="label" htmlFor="deed-people">{t("Кто ещё участвовал")} <span className="opt">{donation ? t("если жертвовали вместе") : t("если делали группой")}</span></label>
+          <PeoplePicker id="deed-people" people={members} value={participants} onChange={setParticipants} empty={t("никого: делал один")} />
         </div>
       )}
       <div className="actions">
