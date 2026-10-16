@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
-import { t } from "../lib/i18n";
 
 /**
  * Выбор участников раскрывающимся списком (решение владельца 16.10: ряд кнопок-чипов занимал много места).
  * Снаружи — строка как у поля ввода: выбранные имена или «никого», стрелка. По нажатию под строкой раскрывается
- * список с галочками; закрывается кнопкой «Готово», нажатием мимо или Esc. Выбор сохраняется сразу.
+ * список с галочками; закрывается той же стрелкой, нажатием мимо или Esc (владелец: лишних кнопок не надо). Выбор сохраняется сразу.
  */
 export function PeoplePicker({ id, people, value, onChange, empty }: { id: string; people: Array<{ id: string; name: string }>; value: string[]; onChange: (ids: string[]) => void; /** Подпись, когда никто не выбран. */ empty: string }) {
   const [open, setOpen] = useState(false);
@@ -37,7 +36,6 @@ export function PeoplePicker({ id, people, value, onChange, empty }: { id: strin
               </label>
             );
           })}
-          <div className="pp-foot"><button type="button" className="sm" onClick={() => setOpen(false)}><Icon name="check" />{t("Готово")}</button></div>
         </div>
       )}
     </div>
