@@ -246,7 +246,8 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .people-picker .pp-value.muted { color: var(--muted); }
 .people-picker .pp-trigger .chev { flex: none; color: var(--muted); transition: transform var(--dur-fast); }
 .people-picker.open .pp-trigger .chev { transform: rotate(180deg); }
-.people-picker .pp-list { border: 1px solid var(--accent); border-top: 0; border-radius: 0 0 var(--r-sm) var(--r-sm); background: var(--surface); padding: var(--sp-1) var(--sp-3) var(--sp-2); max-height: 280px; overflow-y: auto; }
+/* Список всплывает поверх формы, не двигая её (16.10, как окошко ссылок). */
+.people-picker .pp-list { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; border: 1px solid var(--accent); border-top: 0; border-radius: 0 0 var(--r-sm) var(--r-sm); background: var(--surface); box-shadow: var(--shadow-2); padding: var(--sp-1) var(--sp-3) var(--sp-2); max-height: 280px; overflow-y: auto; }
 .people-picker .pp-item { min-height: var(--touch); border-top: 1px solid var(--border); }
 .people-picker .pp-item:first-child { border-top: 0; }
 /* Одна кнопка для ссылок (16.10): с галочкой, когда ссылка вставлена; окошко со ссылками всплывает поверх, не двигая форму. */
