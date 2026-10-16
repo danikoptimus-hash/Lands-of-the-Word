@@ -824,8 +824,19 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
           <input id="deed-witness" value={witness} onChange={(e) => setWitness(e.target.value)} maxLength={120} placeholder={t("имя и кто это, например служитель")} />
         </div>
       )}
-      {!byWitness && (
-        <LinksField label={donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />
+      {/* Ссылки слева, участники справа — в один ряд (решение владельца 16.10: «не этажерка»). */}
+      {(!byWitness || members.length > 0) && (
+        <div className={"deed-pair" + (!byWitness && members.length > 0 ? " two" : "")}>
+          {!byWitness && (
+            <LinksField label={donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />
+          )}
+          {members.length > 0 && (
+            <div className="field">
+              <label className="label" htmlFor="deed-people">{t("Кто ещё участвовал")} <span className="opt">{donation ? t("если жертвовали вместе") : t("если делали группой")}</span></label>
+              <PeoplePicker id="deed-people" people={members} value={participants} onChange={setParticipants} empty={t("никого: делал один")} />
+            </div>
+          )}
+        </div>
       )}
       {report ? (
         <>
@@ -838,15 +849,10 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
           <textarea id="deed-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
       )}
-      {members.length > 0 && (
-        <div className="field">
-          <label className="label" htmlFor="deed-people">{t("Кто ещё участвовал")} <span className="opt">{donation ? t("если жертвовали вместе") : t("если делали группой")}</span></label>
-          <PeoplePicker id="deed-people" people={members} value={participants} onChange={setParticipants} empty={t("никого: делал один")} />
-        </div>
-      )}
-      <div className="actions">
-        <button type="button" disabled={busy || (donation && !amount) || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links, note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
+      {/* «Отказаться» слева, «Сдать» справа, в один ряд (решение владельца 16.10). */}
+      <div className="actions deed-actions">
         <button type="button" className="secondary" disabled={busy} onClick={onRelease}>{t("Отказаться от дела")}</button>
+        <button type="button" disabled={busy || (donation && !amount) || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links, note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
       </div>
     </>
   );
