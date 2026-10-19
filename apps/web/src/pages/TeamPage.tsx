@@ -114,13 +114,18 @@ const PROOF: Record<EdgeTaskDto["deed"]["proofType"], { icon: string; label: () 
   PHOTO_LINK: { icon: "camera", label: () => t("Фото") }, VIDEO_LINK: { icon: "video", label: () => t("Видео") }, AUDIO_LINK: { icon: "play", label: () => t("Аудиозапись") }, WITNESS: { icon: "user", label: () => t("Свидетель") },
   REPORT: { icon: "edit", label: () => t("Отчёт") },
 };
-/** Кодекс дела (решение владельца 18.09): пять правил, свёрнуты под значком, чтобы не занимать место. */
-const CODEX = () => [
+/**
+ * Кодекс дела (решение владельца 18.09): пять правил, свёрнуты под значком, чтобы не занимать место.
+ * Для дел в доме молитвы — уборка, починка, труд (решение владельца 19.10) — шестое правило: согласовать с диаконом.
+ */
+const PRAYER_HOUSE = /дом[еа]? молитвы/i;
+const CODEX = (deed?: { title: string; description?: string | null }) => [
   t("Дело делается ради человека, а не ради стороны на карте: не для галочки."),
   t("Людей фотографировать только с их согласия; лучше снимать предмет, результат или записку."),
   t("Угощать, помогать и навещать — не участников этой игры."),
   t("В отчёте честно: что сделал, кому и как."),
   t("Чужое дело как своё не сдаётся; если делали группой — отметьте всех участников."),
+  ...(deed && PRAYER_HOUSE.test(`${deed.title} ${deed.description ?? ""}`) ? [t("Уборку, починку или любую работу в доме молитвы сначала согласуйте с диаконом: что, когда и как делать.")] : []),
 ];
 /** Роли: подпись, иконка и одно предложение из правил (2.15) — показывается по нажатию на пилюлю. */
 const ROLE: Record<GameRole | "CAPTAIN" | "DEPUTY", { icon: string; label: () => string; hint: () => string }> = {
@@ -782,7 +787,7 @@ export function TeamPage() {
               )}
               <details className="disclose sm codex">
                 <summary><Icon name="info" />{t("Кодекс дела")}<Icon name="chevron-down" className="chev" /></summary>
-                <ol className="small muted">{CODEX().map((c, i) => <li key={i}>{c}</li>)}</ol>
+                <ol className="small muted">{CODEX(task.deed).map((c, i) => <li key={i}>{c}</li>)}</ol>
               </details>
             </Sheet>
           );
