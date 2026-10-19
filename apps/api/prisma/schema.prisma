@@ -329,6 +329,8 @@ model Membership {
   gameRole GameRole @default(NONE)
   /** Роль, запрошенная капитаном и ждущая одобрения администратора. */
   pendingRole GameRole?
+  /** Когда капитан в идущей игре в последний раз менял роль этому участнику: недельный лимит — на каждого (решение владельца 19.10). */
+  roleChangedAt DateTime?
   joinedAt DateTime @default(now())
 
   @@id([teamId, userId])

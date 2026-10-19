@@ -364,6 +364,7 @@ const EN: Record<string, string> = {
   "Открыто администратором": "Opened by the administrator",
   "Заместителя назначает капитан": "Only the captain appoints the deputy",
   "Снять капитана может только администратор": "Only the administrator can remove the captain",
+  "Роль этого участника меняется не чаще раза в {n} дн.; следующая смена — {date}": "This member’s role can be changed at most once every {n} days; next change — {date}",
   "Роли меняются не чаще раза в {n} дн.; следующая смена — {date}": "Roles change at most once every {n} days; the next change is on {date}",
   "запрос смены роли в команде «{team}»": "a role change request in team “{team}”",
   "Капитан команды «{team}» просит назначить роль участнику. Одобрите или отклоните в блоке «Команды».": "The captain of team “{team}” asks to assign a role to a member. Approve or decline it in the “Teams” block.",

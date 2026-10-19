@@ -872,7 +872,8 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
   const [open, setOpen] = useState<string | null>(null);
   /** Кому раскрыт ряд ролей (вариант 1, решение владельца 23.09): выбор пилюлей назначает роль сразу, повторное нажатие снимает. */
   const [pick, setPick] = useState<string | null>(null);
-  const nextChange = team.roleChangeAvailableAt && Date.parse(team.roleChangeAvailableAt) > Date.now() ? team.roleChangeAvailableAt : null;
+  // Лимит смены роли — на каждого участника (решение владельца 19.10): в подсказке перечислены те, кому роль пока не сменить.
+  const waiting = team.members.filter((m) => m.gameRole !== "NONE" && m.roleChangeAvailableAt && Date.parse(m.roleChangeAvailableAt) > Date.now());
   const GAME_ROLES = (Object.keys(ROLE).filter((k) => k !== "CAPTAIN" && k !== "DEPUTY" && k !== "NONE") as GameRole[]);
   const invite = onInvite && <button type="button" className="secondary sm roster-invite" disabled={inviteBusy} title={t("Скопировать ссылку для участников")} onClick={onInvite}><Icon name={inviteDone ? "check" : "link"} />{t("Пригласить участника")}</button>;
   return (
@@ -881,7 +882,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
         ? <div className="meta roster-head"><Icon name="users" /><span>{t("Состав")} · {team.members.length}</span>{invite}</div>
         : <div className="roster-title"><h2><Icon name="users" />{team.name}<span className="count">{team.members.length}</span></h2>{invite}</div>}
       {inviteUrl && <p className="hint invite-fallback"><a href={inviteUrl}>{inviteUrl}</a></p>}
-      {isCaptain && nextChange && <p className="hint">{t("Сменить уже выданную роль можно с {d}; участникам без роли — сразу.", { d: fmtDate(nextChange, { time: false }) })}</p>}
+      {isCaptain && waiting.length > 0 && <p className="hint">{t("Роль недавно менялась, сменить снова: {list}. Участникам без роли — сразу.", { list: waiting.map((m) => `${m.user.displayName ?? m.user.nickname} — ${t("с {d}", { d: fmtDate(m.roleChangeAvailableAt!, { time: false }) })}`).join(", ") })}</p>}
       <ul className="list roster">
         {team.members.map((m) => {
           const name = m.user.displayName ?? m.user.nickname;
