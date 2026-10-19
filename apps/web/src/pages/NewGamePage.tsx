@@ -18,7 +18,7 @@ export function NewGamePage() {
     e.preventDefault();
     setBusy(true); setError(null);
     try {
-      const r = await api<{ game: { id: string } }>("/api/games", { method: "POST", body: JSON.stringify({ name, teamCount }) });
+      const r = await api<{ game: { id: string } }>("/api/games", { method: "POST", body: JSON.stringify({ name, teamCount, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }) });
       navigate(`/games/${r.game.id}`);
     } catch (err) { setError(errorText(err)); }
     finally { setBusy(false); }

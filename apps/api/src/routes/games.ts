@@ -17,6 +17,8 @@ const createBody = z.object({
   name: z.string().trim().min(2).max(80),
   orgName: z.string().trim().min(2).max(80).default("Моя церковь"),
   teamCount: z.number().int().min(2).max(12),
+  /** Часовой пояс устройства создателя (решение владельца 19.10): становится поясом игры вместо общего «Asia/Tashkent». */
+  timeZone: z.string().trim().min(1).max(64).optional(),
   settings: z
     .object({
       nodeCount: z.number().int().min(200).max(600).default(250),
@@ -49,6 +51,11 @@ const patchBody = z.object({
     })
     .optional(),
 });
+
+/** Настоящий часовой пояс IANA: такой, который умеет форматировать Intl. */
+function validTimeZone(tz: string): boolean {
+  try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return true; } catch { return false; }
+}
 
 async function loadGameForAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: true } });
@@ -116,7 +123,8 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       data: {
         name: body.name,
         teamCount: body.teamCount,
-        settings: body.settings,
+        // Пояс игры — пояс создателя, если браузер прислал настоящий (IANA) и его знает Node; иначе прежний по умолчанию.
+        settings: { ...body.settings, ...(body.timeZone && validTimeZone(body.timeZone) ? { rules: { timeZone: body.timeZone } } : {}) },
         org: { create: { name: body.orgName } },
         createdBy: { connect: { id: request.user!.id } },
         admins: { create: { userId: request.user!.id } },
