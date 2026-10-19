@@ -258,3 +258,4 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .link-pop .link-list { margin: 0; }
 .link-pop .link-list a.link-text { color: var(--link); text-decoration: underline; }
 .link-pop-foot { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); }
+.deed-badge .num.hand { opacity: .85; }

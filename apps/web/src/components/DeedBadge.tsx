@@ -10,11 +10,15 @@ export interface DeedLimitDto { max: number; taken: number; nextAt: number | nul
  * «ч:мм», пока лимит исчерпан; свиток и ячейки (точки) — сколько взято из лимита. Один и тот же в составе команды
  * и у администратора в блоке «Команды» (решение владельца 04.10). Без лимита в игре ничего не рисуется.
  */
-export function DeedBadge({ limit, now }: { limit: DeedLimitDto | null | undefined; now: number }) {
+export function DeedBadge({ limit, now, inHand = 0 }: { limit: DeedLimitDto | null | undefined; now: number; /** Дел на руках (взятые, на проверке, возвращённые): показываются числом вместо ячеек суточного лимита (замечание владельца 19.10: пустой кружок при делах на руках сбивал с толку). */ inHand?: number }) {
   if (!limit) return null;
   if (limit.nextAt && limit.nextAt > now) {
-    const text = t("Следующее дело через {when}", { when: untilText(limit.nextAt) });
-    return <span className="deed-badge wait" title={text} aria-label={text}><Icon name="hourglass" /><span className="num">{hmText(limit.nextAt - now)}</span></span>;
+    const text = (inHand > 0 ? t("Дел на руках: {n}", { n: inHand }) + " · " : "") + t("Следующее дело через {when}", { when: untilText(limit.nextAt) });
+    return <span className="deed-badge wait" title={text} aria-label={text}><Icon name="hourglass" /><span className="num">{hmText(limit.nextAt - now)}</span>{inHand > 0 && <span className="num hand">· {inHand}</span>}</span>;
+  }
+  if (inHand > 0) {
+    const text = t("Дел на руках: {n}", { n: inHand }) + " · " + t("Дел за сутки: {a} из {b}, можно взять", { a: limit.taken, b: limit.max });
+    return <span className="deed-badge free" title={text} aria-label={text}><Icon name="scroll" /><span className="num">{inHand}</span></span>;
   }
   const text = t("Дел за сутки: {a} из {b}, можно взять", { a: limit.taken, b: limit.max });
   return (
@@ -34,7 +38,7 @@ export function DeedBadgePopup({ limit, now, deeds, onShowOnMap }: { limit: Deed
   if (!limit) return null;
   if (!deeds || deeds.length === 0) return <DeedBadge limit={limit} now={now} />;
   return (
-    <HelpPopup name={t("Дела на руках: {n}", { n: deeds.length })} trigger={<DeedBadge limit={limit} now={now} />}>
+    <HelpPopup name={t("Дела на руках: {n}", { n: deeds.length })} trigger={<DeedBadge limit={limit} now={now} inHand={deeds.length} />}>
       <ul className="member-deeds">
         {deeds.map((d) => (
           <li key={d.id}><Icon name={d.status === "SUBMITTED" ? "clock" : d.status === "REJECTED" ? "alert" : "scroll"} /><span className="title">{d.title}</span><span className="muted">{d.status === "SUBMITTED" ? t("на проверке") : d.status === "REJECTED" ? t("возвращено") : d.takenAt ? t("взято {d}", { d: fmtDate(d.takenAt) }) : t("взято")}</span>{onShowOnMap && d.fromKey && <button type="button" className="ghost sm icon map-btn" data-popup-close aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => onShowOnMap(d)}><Icon name="map" /></button>}</li>
