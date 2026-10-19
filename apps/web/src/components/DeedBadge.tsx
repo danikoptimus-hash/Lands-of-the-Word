@@ -6,26 +6,19 @@ import { fmtDate } from "../lib/format";
 export interface DeedLimitDto { max: number; taken: number; nextAt: number | null }
 
 /**
- * Значок лимита дел в сутки у участника (решение владельца 04.10: значки, а не фразы): песочные часы и обратный отсчёт
- * «ч:мм», пока лимит исчерпан; свиток и ячейки (точки) — сколько взято из лимита. Один и тот же в составе команды
- * и у администратора в блоке «Команды» (решение владельца 04.10). Без лимита в игре ничего не рисуется.
+ * Значок дел у участника (решение владельца 19.10: «возле свитка — сколько дел взято, и если 0, значит 0»): свиток и
+ * число дел на руках (взятые, на проверке, возвращённые). Пока суточный лимит исчерпан — песочные часы и обратный
+ * отсчёт «ч:мм» (решение владельца 04.10). Один и тот же в составе команды и у администратора в блоке «Команды».
+ * Без лимита в игре ничего не рисуется.
  */
-export function DeedBadge({ limit, now, inHand = 0 }: { limit: DeedLimitDto | null | undefined; now: number; /** Дел на руках (взятые, на проверке, возвращённые): показываются числом вместо ячеек суточного лимита (замечание владельца 19.10: пустой кружок при делах на руках сбивал с толку). */ inHand?: number }) {
+export function DeedBadge({ limit, now, inHand = 0 }: { limit: DeedLimitDto | null | undefined; now: number; /** Дел на руках. */ inHand?: number }) {
   if (!limit) return null;
   if (limit.nextAt && limit.nextAt > now) {
-    const text = (inHand > 0 ? t("Дел на руках: {n}", { n: inHand }) + " · " : "") + t("Следующее дело через {when}", { when: untilText(limit.nextAt) });
-    return <span className="deed-badge wait" title={text} aria-label={text}><Icon name="hourglass" /><span className="num">{hmText(limit.nextAt - now)}</span>{inHand > 0 && <span className="num hand">· {inHand}</span>}</span>;
+    const text = t("Следующее дело через {when}", { when: untilText(limit.nextAt) });
+    return <span className="deed-badge wait" title={text} aria-label={text}><Icon name="hourglass" /><span className="num">{hmText(limit.nextAt - now)}</span></span>;
   }
-  if (inHand > 0) {
-    const text = t("Дел на руках: {n}", { n: inHand }) + " · " + t("Дел за сутки: {a} из {b}, можно взять", { a: limit.taken, b: limit.max });
-    return <span className="deed-badge free" title={text} aria-label={text}><Icon name="scroll" /><span className="num">{inHand}</span></span>;
-  }
-  const text = t("Дел за сутки: {a} из {b}, можно взять", { a: limit.taken, b: limit.max });
-  return (
-    <span className="deed-badge free" title={text} aria-label={text}><Icon name="scroll" />{limit.max <= 5
-      ? <span className="pips">{Array.from({ length: limit.max }, (_, i) => <i key={i} className={i < limit.taken ? "on" : undefined} />)}</span>
-      : <span className="num">{limit.taken}/{limit.max}</span>}</span>
-  );
+  const text = t("Дел на руках: {n}", { n: inHand }) + " · " + t("Дел за сутки: {a} из {b}, можно взять", { a: limit.taken, b: limit.max });
+  return <span className="deed-badge free" title={text} aria-label={text}><Icon name="scroll" /><span className="num">{inHand}</span></span>;
 }
 
 export interface ActiveDeedDto { id: string; title: string; status: string; takenAt: string | null; submittedAt: string | null; /** Сторона дела: откуда и куда (для кнопки «Посмотреть на карте»). */ fromKey?: string; toKey?: string }
