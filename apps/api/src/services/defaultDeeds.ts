@@ -126,7 +126,11 @@ export async function syncGameDeeds(gameId: string, mode: "auto" | "add" | "repl
       const untouched = match.sourceHash === null || match.sourceHash === deedTextHash(match) || match.sourceHash === deedHash(match);
       // Камни и порог Каменоломни в идущей игре не перезаписываются (кроме «Заменить»): это настройки администратора.
       const keep = mode === "replace" || !match.quarry ? {} : { stones: match.stones, quorumPct: match.quorumPct };
-      if (mode === "replace" || untouched) { await prisma.deed.update({ where: { id: match.id }, data: { ...want, ...keep, sourceHash: hash } }); res.updated++; }
+      if (mode === "replace" || untouched) {
+        await prisma.deed.update({ where: { id: match.id }, data: { ...want, ...keep, sourceHash: hash } }); res.updated++;
+        // Дело ушло в Каменоломню (решение владельца 20.10): свободные стороны с ним получают другие дела, взятые и сданные остаются.
+        if (want.quarry && !match.quarry) await reassignOpenSides(gameId, match.id);
+      }
     } else {
       await prisma.deed.create({ data: { ...want, gameId, sourceHash: hash } }); res.added++;
     }
@@ -141,6 +145,24 @@ export async function syncGameDeeds(gameId: string, mode: "auto" | "add" | "repl
   for (const d of deeds) if (RETIRED_TITLES.some((t) => lc(t) === lc(d.title)) && (await removeDeed(gameId, d.id))) res.removed++;
   if (res.added || res.updated || res.removed) publish(gameId, { type: "deeds" });
   return res;
+}
+
+/**
+ * Свободные (не взятые) стороны с этим делом получают другое дело, случайно по обычным правилам; взятые и сданные
+ * не трогаются. Нужно, когда дело перестало быть дорожным: ушло в Каменоломню (решение владельца 20.10).
+ * Возвращает число заменённых сторон.
+ */
+export async function reassignOpenSides(gameId: string, deedId: string): Promise<number> {
+  const open = await prisma.teamEdgeTask.findMany({ where: { gameId, deedId, status: "OPEN" }, select: { id: true, teamId: true, fromKey: true } });
+  let n = 0;
+  for (const t of open) {
+    const replacement = await pickDeed(gameId, t.teamId, await bookOfNodeKey(gameId, t.fromKey), deedId);
+    if (!replacement) break;
+    await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: replacement } });
+    n++;
+  }
+  if (n) publish(gameId, { type: "map" });
+  return n;
 }
 
 /**

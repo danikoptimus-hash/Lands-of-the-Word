@@ -5,7 +5,7 @@ import { bookOfNodeKey, pickDeed } from "../services/teamMap.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
-import { DIRECTIONS, deedBody, syncGameDeeds } from "../services/defaultDeeds.js";
+import { DIRECTIONS, deedBody, reassignOpenSides, syncGameDeeds } from "../services/defaultDeeds.js";
 import { adminOrObserver } from "../services/access.js";
 
 export { DIRECTIONS } from "../services/defaultDeeds.js";
@@ -88,6 +88,8 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const exists = await prisma.deed.findFirst({ where: { id: deedId, gameId: id } });
     if (!exists) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     const deed = await prisma.deed.update({ where: { id: deedId }, data: { ...body, ...(disabled === undefined ? {} : { disabled }) } });
+    // Дело перевели в Каменоломню (решение владельца 20.10): свободные стороны с ним получают другие дела.
+    if (body.quarry && !exists.quarry) await reassignOpenSides(id, deedId);
     publish(id, { type: "deeds" });
     // Новые вероятность и книги действуют только на новые стороны: дела, которые уже видны на карте, остаются (решение владельца 05.10).
     return { deed };

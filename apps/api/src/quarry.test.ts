@@ -118,6 +118,33 @@ describe("Каменоломня", () => {
     await prisma.deed.update({ where: { id: build.id }, data: { stones: build.stones } });
   });
 
+  it("дело уходит в Каменоломню: свободные стороны с ним получают другие дела, взятые остаются (решение владельца 20.10)", async () => {
+    // Через правку администратора: обычное дело со свободными сторонами переводим в общее.
+    const tasks = (await get(`/api/games/${gameId}/my-map`, capCookie)).json().tasks as Array<{ id: string; status: string; deed: { id: string; quarry?: boolean } }>;
+    const open = tasks.filter((t) => t.status === "OPEN");
+    expect(open.length).toBeGreaterThan(1);
+    const victim = open[0].deed.id;
+    const taken = open.find((t) => t.deed.id !== victim)!;
+    const before = await prisma.teamEdgeTask.count({ where: { gameId, deedId: victim, status: "OPEN" } });
+    expect(before).toBeGreaterThan(0);
+    const r = await app.inject({ method: "PUT", url: `/api/games/${gameId}/deeds/${victim}`, headers: { cookie: adminCookie }, payload: { quarry: true } });
+    expect(r.statusCode).toBe(200);
+    expect(await prisma.teamEdgeTask.count({ where: { gameId, deedId: victim, status: "OPEN" } })).toBe(0);
+    expect((await get(`/api/games/${gameId}/quarry`, capCookie)).json().deeds.some((d: { id: string }) => d.id === victim)).toBe(true);
+    // Через синхронизацию набора: дело «Рассказать командой отрывок…» в игре ещё дорожное и со старым названием, на свободной стороне.
+    const recite = await prisma.deed.findFirstOrThrow({ where: { gameId, title: "Рассказать командой отрывок из Писания в собрании" } });
+    const oldTitle = "Рассказать командой отрывок из книги [Книга] в собрании";
+    await prisma.deed.update({ where: { id: recite.id }, data: { title: oldTitle, quarry: false, stones: 1, sourceHash: deedTextHash({ ...recite, title: oldTitle, quarry: false }) } });
+    await prisma.teamEdgeTask.update({ where: { id: taken.id }, data: { deedId: recite.id } });
+    const res = await syncGameDeeds(gameId, "auto");
+    expect(res.updated).toBeGreaterThanOrEqual(1);
+    const after = await prisma.deed.findUniqueOrThrow({ where: { id: recite.id } });
+    expect(after.quarry).toBe(true);
+    expect(after.title).toBe("Рассказать командой отрывок из Писания в собрании");
+    expect((await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: taken.id } })).deedId).not.toBe(recite.id);
+    expect(await prisma.teamEdgeTask.count({ where: { gameId, deedId: recite.id } })).toBe(0);
+  });
+
   it("богослужение без телефона: нужна не меньше чем половина команды, отмеченным — зачёт", async () => {
     const deed = await prisma.deed.findFirstOrThrow({ where: { gameId, quarry: true, title: "Молодёжное богослужение без телефона" } });
     expect(deed.quorumPct).toBe(50);
