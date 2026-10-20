@@ -53,6 +53,10 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   penalty: "Штраф администратора: участок пути аннулирован",
   role_changed: "{user}: роль {role}",
   capital_moved: "Столица перенесена",
+  quarry_submitted: "{user} сдал(а) общее дело «{deed}» в Каменоломне",
+  quarry_approved: "Каменоломня: дело «{deed}» принято, команда получила камней: {n}",
+  quarry_returned: "Каменоломня: дело «{deed}» возвращено на доработку",
+  paved: "{user} вымостил(а) дорогу камнем из Каменоломни",
   peace_offered: "Команда «{team}» предложила мир команде «{other}»",
   peace_made: "Команды «{team}» и «{other}» заключили мир",
   peace_declined: "Команда «{other}» отклонила предложение мира",
@@ -172,7 +176,7 @@ export function ActivityBoard({ gameId, version }: { gameId: string; version: nu
 }
 
 /** Администратор: журнал событий и кнопка летописи. */
-export function JournalAdmin({ gameId, version, active }: { gameId: string; version: number; active: boolean }) {
+export function JournalAdmin({ gameId, version, active, onShowOnMap }: { gameId: string; version: number; active: boolean; /** Кнопка карты в отчёте по делу (просьба владельца 20.10): карта центрируется на стороне дела. */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   const { notify, confirm } = useUi();
   const [items, setItems] = useState<Array<FeedItemDto & { teamId: string | null }> | null>(null);
   const [teams, setTeams] = useState<Array<{ id: string; name: string; color: string }>>([]);
@@ -191,7 +195,7 @@ export function JournalAdmin({ gameId, version, active }: { gameId: string; vers
   const [reportId, setReportId] = useState<string | null>(null);
   return (
     <div className="card">
-      {reportId && <TaskReportSheet gameId={gameId} taskId={reportId} onClose={() => setReportId(null)} />}
+      {reportId && <TaskReportSheet gameId={gameId} taskId={reportId} onClose={() => setReportId(null)} onShowOnMap={onShowOnMap ? (f) => { setReportId(null); onShowOnMap(f); } : undefined} />}
       <div className="card-head">
         <h2><span className="ico"><Icon name="scroll" /></span>{t("Журнал событий")}<Help>{t("Летопись уходит сама раз в неделю (день и час — в продвинутых настройках): дела, города, испытания без ставок, положение команд.")}</Help></h2>
         {active && <button type="button" className="secondary sm" disabled={busy} onClick={() => void chronicle()}><Icon name="send" />{t("Отправить летопись сейчас")}</button>}

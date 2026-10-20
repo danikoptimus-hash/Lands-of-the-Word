@@ -31,14 +31,14 @@ export function ReconsiderButton({ gameId, taskId, onDone }: { gameId: string; t
   return <div className="actions"><button type="button" disabled={busy} onClick={() => void accept()}><Icon name="check" />{t("Принять после пересмотра")}</button></div>;
 }
 
-export function TaskReportSheet({ gameId, taskId, container, onClose, onReview }: { gameId: string; taskId: string; container?: HTMLElement | null; onClose: () => void; onReview?: () => void }) {
+export function TaskReportSheet({ gameId, taskId, container, onClose, onReview, onShowOnMap }: { gameId: string; taskId: string; container?: HTMLElement | null; onClose: () => void; onReview?: () => void; /** Кнопка карты (просьба владельца 20.10): показать сторону дела на карте администратора. */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   const [task, setTask] = useState<AdminTaskDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
   useEffect(() => { setTask(null); setError(null); api<{ task: AdminTaskDto }>(`/api/games/${gameId}/edge-tasks/${taskId}`).then((r) => setTask(r.task)).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); }, [gameId, taskId, tick]);
   const st = task ? deedStatus(task.status) : null;
   return (
-    <Sheet size="sm" container={container} onClose={onClose} className="deed-sheet task-report" head={<div className="sheet-title"><h2>{task?.deed.title ?? t("Отчёт по делу")}</h2>{st && <Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>}</div>}>
+    <Sheet size="sm" container={container} onClose={onClose} className="deed-sheet task-report" head={<div className="sheet-title"><h2>{task?.deed.title ?? t("Отчёт по делу")}</h2>{st && <Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>}{task && onShowOnMap && <button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => onShowOnMap({ teamId: task.team.id, taskId: task.id, fromKey: task.fromKey, toKey: task.toKey })}><Icon name="map" /></button>}</div>}>
       {error ? <ErrorState text={error} /> : !task ? <LoadingState rows={3} /> : (
         <>
           <p className="meta-line"><TeamAvatar name={task.team.name} color={task.team.color} size="sm" withName /></p>
@@ -49,8 +49,9 @@ export function TaskReportSheet({ gameId, taskId, container, onClose, onReview }
             {task.participants.some((p) => p.id !== task.takenBy?.id) && <> · <Icon name="users" />{t("Участвовали: {names}", { names: task.participants.filter((p) => p.id !== task.takenBy?.id).map((p) => p.name).join(", ") })}</>}
           </p>
           <p className="meta-line small muted">
-            {task.submittedAt && <><Icon name="clock" />{t("Сдано")}: {fmtDate(task.submittedAt)}</>}
-            {task.decidedAt && <> · {task.status === "APPROVED" ? t("Одобрено") : t("Возвращено")}: {fmtDate(task.decidedAt)}{task.decidedBy ? ` · ${task.decidedBy}` : ""}</>}
+            {task.takenAt && <span><Icon name="clock" />{t("Взято")}: {fmtDate(task.takenAt)}</span>}
+            {task.submittedAt && <span>{task.takenAt ? "· " : <Icon name="clock" />}{t("Сдано")}: {fmtDate(task.submittedAt)}</span>}
+            {task.decidedAt && <span>· {task.status === "APPROVED" ? t("Одобрено") : t("Возвращено")}: {fmtDate(task.decidedAt)}{task.decidedBy ? ` · ${task.decidedBy}` : ""}</span>}
           </p>
           {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта.")}</span></div>}
           {task.deed.secret && <div className="note info"><Icon name="lock" /><span>{t("Тайное дело: команда сдачу не видит, только вы.")}</span></div>}

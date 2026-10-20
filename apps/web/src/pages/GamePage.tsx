@@ -197,7 +197,7 @@ export function GamePage() {
                 </>
               )}
               {game.status === "FINISHED" && <FinishBlock gameId={game.id} status={game.status} version={version} onChanged={refresh} />}
-              {game.status !== "DRAFT" && <JournalAdmin gameId={game.id} version={version} active={active} />}
+              {game.status !== "DRAFT" && <JournalAdmin gameId={game.id} version={version} active={active} onShowOnMap={showOnMap} />}
             </div>
           )}
           {open === "teams" && <div key="teams"><TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} goToSettings={() => setTab("settings")} onShowOnMap={showOnMap} /></div>}

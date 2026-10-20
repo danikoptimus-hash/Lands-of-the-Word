@@ -201,7 +201,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
    * Отчёты по делам для администратора (решение владельца 30.09): к старому отчёту нужно возвращаться. Полный вид сдачи —
    * кто взял и участвовал, ссылки, текст, решение — отдаётся по id дела (из летописи) или по стороне (нажатие на дорогу).
    */
-  async function adminTaskViews(gameId: string, rows: Array<{ id: string; fromKey: string; toKey: string; status: string; sea: boolean; takenById: string | null; participants: string[]; links: string[]; note: string; adminComment: string; donation: boolean; donationAmount: number | null; submittedAt: Date | null; decidedAt: Date | null; decidedById: string | null; createdAt: Date; team: { id: string; name: string; color: string }; deed: { id: string; title: string; description: string; direction: string; proofType: string; secret: boolean; remote: boolean } }>) {
+  async function adminTaskViews(gameId: string, rows: Array<{ id: string; fromKey: string; toKey: string; status: string; sea: boolean; takenById: string | null; takenAt: Date | null; participants: string[]; links: string[]; note: string; adminComment: string; donation: boolean; donationAmount: number | null; submittedAt: Date | null; decidedAt: Date | null; decidedById: string | null; createdAt: Date; team: { id: string; name: string; color: string }; deed: { id: string; title: string; description: string; direction: string; proofType: string; secret: boolean; remote: boolean } }>) {
     const ids = new Set<string>();
     for (const r of rows) { if (r.takenById) ids.add(r.takenById); if (r.decidedById) ids.add(r.decidedById); for (const p of r.participants) ids.add(p); }
     const users = await prisma.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, nickname: true, displayName: true } });
@@ -212,7 +212,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       takenBy: r.takenById ? { id: r.takenById, name: name.get(r.takenById) ?? "" } : null,
       participants: r.participants.map((pid) => ({ id: pid, name: name.get(pid) ?? "" })),
       links: r.links, note: r.note, donation: r.donation, donationAmount: r.donationAmount,
-      submittedAt: r.submittedAt, decidedAt: r.decidedAt, decidedBy: r.decidedById ? name.get(r.decidedById) ?? "" : null, adminComment: r.adminComment, createdAt: r.createdAt,
+      takenAt: r.takenAt, submittedAt: r.submittedAt, decidedAt: r.decidedAt, decidedBy: r.decidedById ? name.get(r.decidedById) ?? "" : null, adminComment: r.adminComment, createdAt: r.createdAt,
     }));
   }
   /** Одно дело со всей сдачей (из летописи). */

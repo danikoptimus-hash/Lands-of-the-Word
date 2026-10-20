@@ -16,7 +16,7 @@ export const ADMIN: Record<string, string> = {
   "Один камень мостит одну свободную дорогу. Вся команда вместе; сдаёт капитан, заместитель или летописец; на дороги такое дело не ставится.": "One stone paves one free road. The whole team together; the captain, the deputy or the chronicler submits it; such a deed is never placed on roads.",
   "свидетель": "witness",
   "с участниками: {names}": "with participants: {names}",
-  "Отчёт по делу": "Deed report", "Участвовали: {names}": "Participants: {names}", "Сдано": "Submitted", "Одобрено": "Approved", "Возвращено": "Returned",
+  "Отчёт по делу": "Deed report", "Взято": "Taken", "Участвовали: {names}": "Participants: {names}", "Сдано": "Submitted", "Одобрено": "Approved", "Возвращено": "Returned",
   "Морской путь: корабль из порта.": "Sea route: a ship from the port.", "Тайное дело: команда сдачу не видит, только вы.": "Secret deed: the team does not see the submission, only you.",
   "Текста отчёта нет.": "There is no report text.", "Дела на этой стороне": "Deeds on this side", "На этой стороне ещё никто не брал дело.": "Nobody has taken a deed on this side yet.", "Открыть отчёт": "Open the report",
   // Пакетная проверка и дайджест (этап 4 решений 18.09)
