@@ -33,14 +33,18 @@ export interface ActiveDeedDto { id: string; title: string; status: string; take
  */
 export function DeedBadgePopup({ limit, now, deeds, onShowOnMap, frozenUntil, frozenReason }: { frozenUntil?: string | null; frozenReason?: string | null; limit: DeedLimitDto | null | undefined; now: number; deeds: ActiveDeedDto[] | undefined; /** «Посмотреть на карте» у каждого дела (просьба владельца 10.10): карта центрируется на стороне дела. */ onShowOnMap?: (deed: ActiveDeedDto) => void }) {
   if (!limit && !frozenUntil) return null;
-  if (!deeds || deeds.length === 0) return <DeedBadge limit={limit} now={now} frozenUntil={frozenUntil} frozenReason={frozenReason} />;
+  const frozen = Boolean(frozenUntil && Date.parse(frozenUntil) > now);
+  if (!frozen && (!deeds || deeds.length === 0)) return <DeedBadge limit={limit} now={now} />;
+  const n = deeds?.length ?? 0;
   return (
-    <HelpPopup name={t("Дела на руках: {n}", { n: deeds.length })} trigger={<DeedBadge limit={limit} now={now} inHand={deeds.length} frozenUntil={frozenUntil} frozenReason={frozenReason} />}>
-      <ul className="member-deeds">
+    <HelpPopup name={frozen ? t("Взятие дел закрыто") : t("Дела на руках: {n}", { n })} trigger={<DeedBadge limit={limit} now={now} inHand={n} frozenUntil={frozenUntil} frozenReason={frozenReason} />}>
+      {/* Заморозка (замечание владельца 21.10: «почему не написана причина?»): срок и причина — в самом окошке, а не только в подсказке при наведении. */}
+      {frozen && <p className="frozen-note"><Icon name="lock" />{t("Взятие дел закрыто администратором до {date}", { date: fmtDate(frozenUntil!, { time: false }) })}{frozenReason ? <><br />{t("Причина: {reason}", { reason: frozenReason })}</> : null}</p>}
+      {deeds && n > 0 && <ul className="member-deeds">
         {deeds.map((d) => (
           <li key={d.id}><Icon name={d.status === "SUBMITTED" ? "clock" : d.status === "REJECTED" ? "alert" : "scroll"} /><span className="title">{d.title}</span><span className="muted">{d.status === "SUBMITTED" ? t("на проверке") : d.status === "REJECTED" ? t("возвращено") : d.takenAt ? t("взято {d}", { d: fmtDate(d.takenAt) }) : t("взято")}</span>{onShowOnMap && d.fromKey && <button type="button" className="ghost sm icon map-btn" data-popup-close aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => onShowOnMap(d)}><Icon name="map" /></button>}</li>
         ))}
-      </ul>
+      </ul>}
     </HelpPopup>
   );
 }
