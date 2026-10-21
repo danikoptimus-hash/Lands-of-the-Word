@@ -82,7 +82,7 @@ export function EdgeTasksSheet({ gameId, aKey, bKey, container, onClose, onOpenT
                 <TeamAvatar name={tk.team.name} color={tk.team.color} size="sm" />
                 <span className="body">
                   <span className="title">{tk.deed.title}</span>
-                  <span className="meta">{tk.team.name}{tk.takenBy ? ` · ${tk.takenBy.name}` : ""}{tk.submittedAt ? ` · ${fmtDate(tk.submittedAt)}` : ""}</span>
+                  <span className="meta">{tk.team.name}{tk.person ? ` · ${t("кому: {name}", { name: tk.person.name })}` : ""}{tk.takenBy ? ` · ${tk.takenBy.name}` : ""}{tk.submittedAt ? ` · ${fmtDate(tk.submittedAt)}` : ""}</span>
                 </span>
                 <Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>
                 <Icon name="chevron-down" className="chev right" />
