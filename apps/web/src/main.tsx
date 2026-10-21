@@ -76,7 +76,17 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 // Когда новая версия взяла страницу под управление, открытая вкладка всё ещё выполняет старую сборку (владелец
 // видел «старое море» до перезагрузки) — перезагружаем её сами: сразу, если вкладка видна и ничего не печатают,
 // иначе — как только в неё вернутся.
-registerSW({ immediate: true });
+// Открытое приложение (особенно установленное на телефон) не узнаёт о новой сборке само: проверка идёт только при
+// регистрации. Поэтому спрашиваем сервер о новой версии при каждом возвращении в приложение и раз в 10 минут
+// (замечание владельца 21.10: после выкладки на телефоне ещё долго старая версия).
+registerSW({ immediate: true, onRegisteredSW(_url, r) {
+  if (!r) return;
+  let last = Date.now();
+  const check = () => { if (Date.now() - last < 30_000) return; last = Date.now(); void r.update().catch(() => {}); };
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") check(); });
+  window.addEventListener("focus", check);
+  window.setInterval(check, 10 * 60_000);
+} });
 if ("serviceWorker" in navigator) {
   let had = Boolean(navigator.serviceWorker.controller), done = false;
   const typing = () => { const el = document.activeElement; return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement; };
