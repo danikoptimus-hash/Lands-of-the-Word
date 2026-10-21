@@ -63,8 +63,6 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
   /** Дубликат дела (решение владельца 04.10): форма нового дела, заполненная полями исходного; сохраняется как отдельное дело. */
   const openDuplicate = (d: DeedDto) => { setError(null); setSheet({ id: null, form: { ...formOf(d), title: t("{title} (копия)", { title: d.title }) } }); };
   const close = () => setSheet(null);
-  /** Список людей у дела (решение владельца 21.10): отдельная шторка. */
-  const [peopleFor, setPeopleFor] = useState<DeedDto | null>(null);
 
   async function save(e: FormEvent) {
     e.preventDefault(); if (!sheet) return;
@@ -149,7 +147,6 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
                 <button type="button" className="ghost sm icon" onClick={() => openEdit(d)} aria-label={t("Изменить дело")} title={t("Изменить")}><Icon name="edit" /></button>
                 <ActionMenu label={t("Ещё")} items={[
                   { label: t("Дублировать дело"), icon: "copy", onSelect: () => openDuplicate(d) },
-                  ...(d.quarry ? [] : [{ label: t("Список людей…"), icon: "users", onSelect: () => setPeopleFor(d) }]),
                   { label: d.disabled ? t("Включить дело") : t("Выключить дело"), icon: d.disabled ? "check" : "x", onSelect: () => void toggleDisabled(d) },
                   { label: t("Удалить дело"), icon: "trash", danger: true, onSelect: () => void remove(d) },
                 ]} />
@@ -158,7 +155,6 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
           ); })}
         </ul>
       )}
-      {peopleFor && <PeopleSheet gameId={gameId} deed={peopleFor} onClose={() => { setPeopleFor(null); void load(); }} />}
       {sheet && (
         <Sheet title={form.quarry ? (sheet.id ? t("Изменить дело Каменоломни") : t("Новое дело Каменоломни")) : sheet.id ? t("Изменить дело") : t("Новое дело")} onClose={close} size="md"
           foot={<><button type="button" className="secondary" onClick={close}>{t("Отмена")}</button><button type="submit" form="deed-form" disabled={busy}>{sheet.id ? t("Сохранить") : t("Добавить дело")}</button></>}>
@@ -218,6 +214,9 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
             </>}
             {error && <p className="error">{error}</p>}
           </form>
+          {/* Список людей — в самой настройке дела (замечание владельца 21.10: «а не через три точки»); у нового дела появится после сохранения. */}
+          {!form.quarry && sheet.id && <PeopleSection gameId={gameId} deedId={sheet.id} onChange={() => void load()} />}
+          {!form.quarry && !sheet.id && <p className="hint mt-3"><Icon name="users" />{t("Список людей («кому звонить») можно заполнить после сохранения дела.")}</p>}
         </Sheet>
       )}
     </div>
@@ -230,31 +229,31 @@ interface PersonRow { id: string; name: string; onMap: number; inWork: number; d
  * равномерно; у каждого видно, сколько сторон свободно на карте, в работе и сколько уже принято (то есть сколько раз
  * позвонили). Имена живут до конца игры.
  */
-function PeopleSheet({ gameId, deed, onClose }: { gameId: string; deed: DeedDto; onClose: () => void }) {
+function PeopleSection({ gameId, deedId, onChange }: { gameId: string; deedId: string; onChange: () => void }) {
   const { notify, confirm } = useUi();
   const [people, setPeople] = useState<PersonRow[] | null>(null);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
-  const load = useCallback(() => api<{ people: PersonRow[] }>(`/api/games/${gameId}/deeds/${deed.id}/people`).then((r) => setPeople(r.people)).catch(() => setPeople([])), [gameId, deed.id]);
+  const load = useCallback(() => api<{ people: PersonRow[] }>(`/api/games/${gameId}/deeds/${deedId}/people`).then((r) => setPeople(r.people)).catch(() => setPeople([])), [gameId, deedId]);
   useEffect(() => { void load(); }, [load]);
   async function add(e: FormEvent) {
     e.preventDefault();
     if (name.trim().length < 2) return;
     setBusy(true);
-    try { const r = await api<{ people: PersonRow[] }>(`/api/games/${gameId}/deeds/${deed.id}/people`, { method: "POST", body: JSON.stringify({ name: name.trim() }) }); setPeople(r.people); setName(""); }
+    try { const r = await api<{ people: PersonRow[] }>(`/api/games/${gameId}/deeds/${deedId}/people`, { method: "POST", body: JSON.stringify({ name: name.trim() }) }); setPeople(r.people); setName(""); onChange(); }
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
   async function remove(p: PersonRow) {
     if (!(await confirm(t("Свободные и взятые стороны с этим именем получат другого человека из списка."), { title: t("Убрать {name}?", { name: p.name }), okLabel: t("Убрать") }))) return;
     setBusy(true);
-    try { const r = await api<{ people: PersonRow[] }>(`/api/games/${gameId}/deeds/${deed.id}/people/${p.id}`, { method: "DELETE" }); setPeople(r.people); }
+    try { const r = await api<{ people: PersonRow[] }>(`/api/games/${gameId}/deeds/${deedId}/people/${p.id}`, { method: "DELETE" }); setPeople(r.people); onChange(); }
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
   return (
-    <Sheet title={t("Список людей")} onClose={onClose} size="sm">
-      <p className="hint">{deed.title}</p>
+    <div className="people-section mt-3">
+      <h3 className="list-title"><Icon name="users" />{t("Список людей")}{people && people.length > 0 && <span className="count">{people.length}</span>}</h3>
       <p className="hint">{t("Имена подставляются на стороны карты с этим делом по очереди, поровну. Цифры: на карте · в работе · принято.")}</p>
       {!people ? <LoadingState rows={2} /> : people.length === 0 ? <EmptyState inline icon="users" text={t("Пока никого.")} /> : (
         <ul className="list people-list">
@@ -275,6 +274,6 @@ function PeopleSheet({ gameId, deed, onClose }: { gameId: string; deed: DeedDto;
         <input aria-label={t("Имя")} placeholder={t("Имя")} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
         <button type="submit" disabled={busy || name.trim().length < 2}><Icon name="plus" />{t("Добавить")}</button>
       </form>
-    </Sheet>
+    </div>
   );
 }

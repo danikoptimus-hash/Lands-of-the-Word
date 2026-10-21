@@ -379,3 +379,8 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 .all-games .tabs { flex-wrap: wrap; }
 .all-games .tabs > button { flex: 1 1 auto; }
 .all-games-card .side { display: flex; align-items: center; color: var(--muted); }
+/* Список людей у дела — раздел под формой настройки дела (решение владельца 21.10). */
+.people-section { border-top: 1px solid var(--border); padding-top: var(--sp-3); }
+.people-section h3 { display: flex; align-items: center; gap: var(--sp-1); margin: 0 0 var(--sp-1); font-size: var(--fs-md); font-weight: 600; }
+.people-section h3 .i { width: var(--icon-sm); height: var(--icon-sm); color: var(--accent); }
+.people-section h3 .count { color: var(--muted); font-weight: 400; }
