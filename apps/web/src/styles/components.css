@@ -85,6 +85,7 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .deed-badge .i { width: 13px; height: 13px; flex: none; }
 .deed-badge.wait { background: var(--accent-soft); color: var(--accent); }
 .deed-badge.free { background: var(--success-soft); color: var(--success); }
+.deed-badge.frozen { background: var(--danger-soft); color: var(--danger); }
 .deed-badge .pips { display: inline-flex; gap: 3px; }
 .deed-badge .pips i { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid currentColor; display: inline-block; opacity: .55; }
 .deed-badge .pips i.on { background: currentColor; opacity: 1; }

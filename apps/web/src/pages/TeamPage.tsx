@@ -600,12 +600,13 @@ export function TeamPage() {
               <h3 className="list-title mt-2"><Icon name="scroll" />{t("Свободные на карте")}<span className="count">{freeTasks.length}</span></h3>
               {error && <p className="error" role="alert">{error}</p>}
               {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map.deedLimit?.max ?? 0, when: untilText(map.deedLimit?.nextAt ?? Date.now()) })}</p>}
+              {map.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}</p>}
               {!canTakeNow && <p className="hint"><Icon name="moon" />{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p>}
               <ul className="list interactive">
                 {freeTasks.map((tk) => (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
                     <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{[tk.deed.donationMin ? donationText(tk.deed.donationMin) : "", tk.sea ? t("корабль") : ""].filter(Boolean).join(" · ")}</span></div>
-                    <div className="side"><button type="button" className="sm" disabled={busy || limitFull(map) || !canTakeNow} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button></div>
+                    <div className="side"><button type="button" className="sm" disabled={busy || limitFull(map) || !canTakeNow || Boolean(map.deedsFrozenUntil)} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button></div>
                   </li>
                 ))}
               </ul>
@@ -765,12 +766,13 @@ export function TeamPage() {
               {night && canTake && task.status === "TAKEN" && <div className="note info night-note"><Icon name="moon" /><span>{t("Ночь: сдать дело можно с 7:00 по местному времени.")}</span></div>}
               {canTake && (task.status === "OPEN" || task.status === "REJECTED") && (
                 <div className="actions">
-                  <button type="button" disabled={busy || limitFull(map)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
+                  <button type="button" disabled={busy || limitFull(map) || Boolean(map?.deedsFrozenUntil)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
                   {/* Каменоломня (решение владельца 04.10): камень мостит свободную сухопутную сторону — капитан, заместитель или летописец. */}
                   {task.status === "OPEN" && !task.sea && (map?.team.stones ?? 0) > 0 && (isCaptain || me?.role === "DEPUTY" || me?.gameRole === "CHRONICLER") && (
                     <button type="button" className="secondary" disabled={busy} onClick={() => void pave(task.id)}><Icon name="stone" />{t("Вымостить дорогу")}<span className="count-chip">{map?.team.stones}</span></button>
                   )}
                   {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}
+                  {map?.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}</p>}
                   {scoutBtn}
                 </div>
               )}
@@ -900,7 +902,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
               <div className="side">
                 {/* Слева только имя; значок лимита дел и роли — справа, только значками (решение владельца 04.10). Название роли — в подсказке
                     и для читалок; нажатие на роль у капитана открывает ряд ролей, у остальных — пояснение роли. */}
-                <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} onShowOnMap={onShowOnMap ? (d) => onShowOnMap(d.id) : undefined} />
+                <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} frozenUntil={m.deedsFrozenUntil} onShowOnMap={onShowOnMap ? (d) => onShowOnMap(d.id) : undefined} />
                 {m.role === "DEPUTY" && m.gameRole !== "NONE" && <Chip tone="accent" icon="star" title={t("заместитель")}><span className="sr-only">{t("заместитель")}</span></Chip>}
                 {canEdit ? (
                   <button type="button" className={"chip-btn role-pick icon-only" + (m.gameRole === "NONE" ? " none" : "")} aria-label={m.gameRole === "NONE" ? t("без роли") : ROLE[m.gameRole].label()} title={m.gameRole === "NONE" ? t("без роли") : ROLE[m.gameRole].label()} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>

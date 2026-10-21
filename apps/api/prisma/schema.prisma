@@ -322,6 +322,8 @@ model Membership {
   pendingRole GameRole?
   /** Когда капитан в идущей игре в последний раз менял роль этому участнику: недельный лимит — на каждого (решение владельца 19.10). */
   roleChangedAt DateTime?
+  /** До какого момента администратор закрыл участнику взятие дел (решение владельца 21.10); null — открыто. */
+  deedsFrozenUntil DateTime?
   joinedAt DateTime @default(now())
 
   @@id([teamId, userId])

@@ -5,7 +5,7 @@ import { prisma } from "../db.js";
 import { deedLimitsFor } from "../services/teamMap.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
-import { err, msg } from "../services/i18n.js";
+import { err, fmtDay, msg } from "../services/i18n.js";
 import { notifyTeam, notifyUser } from "../services/notify.js";
 import { ensureFrontier, penalizeTeam } from "../services/teamMap.js";
 import { days, rulesOf } from "../services/rules.js";
@@ -30,7 +30,7 @@ async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, ga
   return game;
 }
 
-const memberSelect = { role: true, gameRole: true, pendingRole: true, roleChangedAt: true, joinedAt: true, user: { select: { id: true, nickname: true, displayName: true } } } as const;
+const memberSelect = { role: true, gameRole: true, pendingRole: true, roleChangedAt: true, deedsFrozenUntil: true, joinedAt: true, user: { select: { id: true, nickname: true, displayName: true } } } as const;
 
 export async function teamRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
@@ -58,7 +58,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     for (const r of rows) if (r.takenById) active.set(r.takenById, [...(active.get(r.takenById) ?? []), { id: r.id, title: r.deed.title, status: r.status, takenAt: r.takenAt, submittedAt: r.submittedAt, fromKey: r.fromKey, toKey: r.toKey }]);
     // Лимит смены роли — на каждого участника (решение владельца 19.10): у каждого своя дата, когда его роль можно сменить снова.
     const availableAt = (at: Date | null) => (at && rules.roleChangeDays > 0 ? new Date(at.getTime() + days(rules.roleChangeDays)) : null);
-    return { isAdmin, roleChangeDays: rules.roleChangeDays, teams: teams.map((t) => ({ ...t, members: t.members.map((m) => ({ ...m, deedLimit: limits.get(m.user.id) ?? null, activeDeeds: active.get(m.user.id) ?? [], roleChangeAvailableAt: availableAt(m.roleChangedAt) })) })) };
+    return { isAdmin, roleChangeDays: rules.roleChangeDays, teams: teams.map((t) => ({ ...t, members: t.members.map((m) => ({ ...m, deedLimit: limits.get(m.user.id) ?? null, activeDeeds: active.get(m.user.id) ?? [], roleChangeAvailableAt: availableAt(m.roleChangedAt), deedsFrozenUntil: m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenUntil : null })) })) };
   });
 
   app.post("/api/games/:id/teams", async (request, reply) => {
@@ -173,6 +173,33 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Администратор переводит участника в другую команду (по спискам молодёжного совета; выбывшие команды — так же). */
+  /**
+   * Заморозка взятия дел участнику (решение владельца 21.10): администратор закрывает участнику взятие дел на столько
+   * дней, сколько сочтёт нужным, и может открыть раньше срока. Дела на руках не трогаются — их можно сдать или отпустить.
+   */
+  app.post("/api/games/:id/teams/:teamId/members/:userId/freeze", async (request, reply) => {
+    const { id, teamId, userId } = request.params as { id: string; teamId: string; userId: string };
+    if (!(await requireGameAdmin(request, reply, id))) return;
+    const body = z.object({ days: z.number().int().min(1).max(365) }).parse(request.body);
+    const membership = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId } }, include: { team: { select: { gameId: true } } } });
+    if (!membership || membership.team.gameId !== id) return reply.code(404).send({ error: "not_found", message: err(request, "Участник не найден") });
+    const until = new Date(Date.now() + days(body.days));
+    await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { deedsFrozenUntil: until } });
+    publish(id, { type: "teams" });
+    notifyUser(id, userId, "взятие дел закрыто", (locale) => msg(locale, "Администратор закрыл вам взятие новых дел до {date}. Дела на руках можно сдать или отпустить.", { date: fmtDay(until, locale) }));
+    return { until };
+  });
+  app.delete("/api/games/:id/teams/:teamId/members/:userId/freeze", async (request, reply) => {
+    const { id, teamId, userId } = request.params as { id: string; teamId: string; userId: string };
+    if (!(await requireGameAdmin(request, reply, id))) return;
+    const membership = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId } }, include: { team: { select: { gameId: true } } } });
+    if (!membership || membership.team.gameId !== id) return reply.code(404).send({ error: "not_found", message: err(request, "Участник не найден") });
+    await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { deedsFrozenUntil: null } });
+    publish(id, { type: "teams" });
+    if (membership.deedsFrozenUntil && membership.deedsFrozenUntil.getTime() > Date.now()) notifyUser(id, userId, "взятие дел открыто", (locale) => msg(locale, "Администратор снова открыл вам взятие дел."));
+    return { ok: true };
+  });
+
   app.post("/api/games/:id/teams/:teamId/members/:userId/move", async (request, reply) => {
     const { id, teamId, userId } = request.params as { id: string; teamId: string; userId: string };
     const game = await requireGameAdmin(request, reply, id);

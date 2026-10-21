@@ -7,7 +7,7 @@ import { requireUser } from "../auth.js";
 import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey, deedLimitsFor, birdFor, type DeedLimit } from "../services/teamMap.js";
 import { loadCityContent } from "../services/cities.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
-import { err, msg } from "../services/i18n.js";
+import { err, msg, fmtDay, toLocale } from "../services/i18n.js";
 import { journal, nick } from "../services/journal.js";
 import { gameRules } from "../services/battles.js";
 import { adminOrObserver } from "../services/access.js";
@@ -109,7 +109,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const deedLimit = await deedLimitFor(id, request.user!.id);
     // Время суток игры (решение владельца 03.10): карта красится по фазе и поясу, ночью действия закрыты.
     const daytime = await gameDaytime(id);
-    return { status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey, stones: (await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } })).stones }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    const deedsFrozenUntil = m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenUntil : null;
+    return { status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey, stones: (await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } })).stones }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
@@ -137,6 +138,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     if (task.status !== "OPEN" && task.status !== "REJECTED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже взято или сдано") });
+    // Заморозка администратором (решение владельца 21.10): взять новое дело нельзя до указанной даты.
+    if (m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now()) return reply.code(409).send({ error: "frozen", message: err(request, "Администратор закрыл вам взятие дел до {date}", { date: fmtDay(m.deedsFrozenUntil, toLocale(request.user?.locale)) }) });
     // Лимит дел в сутки на участника (решение владельца 02.10): превысил — взять (забронировать) нельзя, пусть берут другие.
     const limit = await deedLimitFor(id, request.user!.id);
     if (limit && limit.taken >= limit.max) return reply.code(409).send({ error: "conflict", message: err(request, "В сутки можно взять не больше {n} дел. Счёт обнулится в 7:00, через {when}", { n: limit.max, when: untilText(request, limit.nextAt ?? Date.now()) }) });
