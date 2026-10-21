@@ -32,21 +32,23 @@ describe("заморозка взятия дел", () => {
   it("капитан не может; администратор закрывает на 3 дня — взять нельзя, дата видна команде; открыл — можно", async () => {
     const url = `/api/games/${gameId}/teams/${teamId}/members/${uid.a}/freeze`;
     expect((await post(url, ck.cap, { days: 3 })).statusCode).toBe(403);
-    const fr = await post(url, ck.admin, { days: 3 });
+    const fr = await post(url, ck.admin, { days: 3, reason: "Пропустил собрание" });
     expect(fr.statusCode, fr.body).toBe(200);
     const until = Date.parse(fr.json().until);
     expect(until - Date.now()).toBeGreaterThan(2.9 * 86_400_000);
     // Участник видит причину в карте и не может взять дело.
-    const map = (await get(`/api/games/${gameId}/my-map`, ck.a)).json() as { deedsFrozenUntil: string | null; tasks: Array<{ id: string; status: string }> };
+    const map = (await get(`/api/games/${gameId}/my-map`, ck.a)).json() as { deedsFrozenUntil: string | null; deedsFrozenReason: string | null; tasks: Array<{ id: string; status: string }> };
     expect(map.deedsFrozenUntil && Date.parse(map.deedsFrozenUntil)).toBe(until);
+    expect(map.deedsFrozenReason).toBe("Пропустил собрание");
     const open = map.tasks.find((tk) => tk.status === "OPEN")!;
     const take = await post(`/api/games/${gameId}/edge-tasks/${open.id}/take`, ck.a);
     expect(take.statusCode).toBe(409);
     expect(take.json().error).toBe("frozen");
     // Команда видит дату на значке участника.
-    const teams = (await get(`/api/games/${gameId}/teams`, ck.cap)).json().teams as Array<{ id: string; members: Array<{ user: { id: string }; deedsFrozenUntil: string | null }> }>;
+    const teams = (await get(`/api/games/${gameId}/teams`, ck.cap)).json().teams as Array<{ id: string; members: Array<{ user: { id: string }; deedsFrozenUntil: string | null; deedsFrozenReason: string | null }> }>;
     const a = teams.find((tm) => tm.id === teamId)!.members.find((m) => m.user.id === uid.a)!;
     expect(a.deedsFrozenUntil && Date.parse(a.deedsFrozenUntil)).toBe(until);
+    expect(a.deedsFrozenReason).toBeNull(); // причину команда не видит, только администратор и сам участник
     // Разморозка раньше срока: капитан не может, администратор — да; после неё дело берётся.
     expect((await app.inject({ method: "DELETE", url, headers: { cookie: ck.cap } })).statusCode).toBe(403);
     expect((await app.inject({ method: "DELETE", url, headers: { cookie: ck.admin } })).statusCode).toBe(200);

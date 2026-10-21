@@ -96,13 +96,13 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   /** Перевод участника (по спискам молодёжного совета): выбор команды в собственном листе, без системных диалогов. */
   const [moving, setMoving] = useState<{ teamId: string; userId: string; nick: string } | null>(null);
   /** Заморозка взятия дел участнику (решение владельца 21.10): шторка с числом дней. */
-  const [freezing, setFreezing] = useState<{ teamId: string; userId: string; nick: string; days: number } | null>(null);
+  const [freezing, setFreezing] = useState<{ teamId: string; userId: string; nick: string; days: number; reason: string } | null>(null);
   async function freeze(e: FormEvent) {
     e.preventDefault();
     if (!freezing) return;
-    const { teamId, userId, nick, days } = freezing;
+    const { teamId, userId, nick, days, reason } = freezing;
     setBusy(true);
-    try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}/freeze`, { method: "POST", body: JSON.stringify({ days }) }); notify(t("{nick}: взятие дел закрыто на {n} дн.", { nick, n: days })); setFreezing(null); await reload(); }
+    try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}/freeze`, { method: "POST", body: JSON.stringify({ days, reason: reason.trim() }) }); notify(t("{nick}: взятие дел закрыто на {n} дн.", { nick, n: days })); setFreezing(null); await reload(); }
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
@@ -191,7 +191,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                     <div className="side">
                       {/* Значок лимита дел справа, у ролей (решение владельца 04.10); дела на руках спрятаны в значок: нажатие открывает окошко
                           со списком — взятые с датой, сданные «на проверке», возвращённые. */}
-                      <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} frozenUntil={m.deedsFrozenUntil} onShowOnMap={onShowOnMap ? (d) => onShowOnMap({ teamId: tm.id, taskId: d.id, fromKey: d.fromKey!, toKey: d.toKey! }) : undefined} />
+                      <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} frozenUntil={m.deedsFrozenUntil} frozenReason={m.deedsFrozenReason} onShowOnMap={onShowOnMap ? (d) => onShowOnMap({ teamId: tm.id, taskId: d.id, fromKey: d.fromKey!, toKey: d.toKey! }) : undefined} />
                       {(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"} title={TEAM_ROLE_LABEL[m.role]}><span className="sr-only">{TEAM_ROLE_LABEL[m.role]}</span></Chip>}
                       {/* Только значок роли, без слова (решение владельца 04.10): название — в подсказке и для читалок; нажатие открывает ряд ролей. */}
                       {m.role !== "CAPTAIN" && (
@@ -207,7 +207,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                         // Заморозка взятия дел (решение владельца 21.10): на столько дней, сколько укажет администратор; снять можно раньше срока.
                         m.deedsFrozenUntil
                           ? { label: t("Открыть взятие дел"), icon: "play", onSelect: () => void unfreeze(tm.id, m.user.id, nick) }
-                          : { label: t("Закрыть взятие дел…"), icon: "lock", onSelect: () => setFreezing({ teamId: tm.id, userId: m.user.id, nick, days: 7 }) },
+                          : { label: t("Закрыть взятие дел…"), icon: "lock", onSelect: () => setFreezing({ teamId: tm.id, userId: m.user.id, nick, days: 7, reason: "" }) },
                         { label: t("Убрать из команды"), icon: "trash", danger: true, sep: true, onSelect: () => void kick(tm.id, m.user.id, nick) },
                       ]} />
                     </div>
@@ -245,7 +245,9 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
           <form id="member-freeze" onSubmit={freeze}>
             <label htmlFor="freeze-days">{t("На сколько дней")}</label>
             <input id="freeze-days" type="number" inputMode="numeric" min={1} max={365} value={freezing.days} onChange={(e) => setFreezing({ ...freezing, days: Number(e.target.value) })} autoFocus />
-            <p className="hint">{t("Участник не сможет брать новые дела до этой даты; дела на руках можно сдать или отпустить. Открыть можно раньше срока.")}</p>
+            <label htmlFor="freeze-reason" className="mt-2">{t("Причина")}</label>
+            <textarea id="freeze-reason" rows={3} maxLength={300} value={freezing.reason} onChange={(e) => setFreezing({ ...freezing, reason: e.target.value })} placeholder={t("Участник увидит её в уведомлении о штрафе")} />
+            <p className="hint">{t("Участник получит уведомление: штраф на столько-то дней и причина. Дела на руках можно сдать или отпустить. Открыть можно раньше срока.")}</p>
           </form>
         </Sheet>
       )}

@@ -600,7 +600,7 @@ export function TeamPage() {
               <h3 className="list-title mt-2"><Icon name="scroll" />{t("Свободные на карте")}<span className="count">{freeTasks.length}</span></h3>
               {error && <p className="error" role="alert">{error}</p>}
               {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map.deedLimit?.max ?? 0, when: untilText(map.deedLimit?.nextAt ?? Date.now()) })}</p>}
-              {map.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}</p>}
+              {map.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
               {!canTakeNow && <p className="hint"><Icon name="moon" />{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p>}
               <ul className="list interactive">
                 {freeTasks.map((tk) => (
@@ -772,7 +772,7 @@ export function TeamPage() {
                     <button type="button" className="secondary" disabled={busy} onClick={() => void pave(task.id)}><Icon name="stone" />{t("Вымостить дорогу")}<span className="count-chip">{map?.team.stones}</span></button>
                   )}
                   {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}
-                  {map?.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}</p>}
+                  {map?.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
                   {scoutBtn}
                 </div>
               )}
