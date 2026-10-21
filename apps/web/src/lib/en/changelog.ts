@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Парусники на море больше не упираются друг в друга: сторону обхода судно выбирает один раз и держит до расхождения, попутного обгоняет по дуге, а новый маршрут прокладывает подальше от маршрутов других кораблей.": "Sailing ships at sea no longer run into each other: a ship picks its passing side once and keeps it until clear, overtakes a ship on the same course in an arc, and plots a new route away from the other ships' routes.",
   "Форма сдачи дела стала компактнее: «Вставить ссылку» и список участников стоят в один ряд, «Отказаться от дела» и «Сдать на проверку» тоже рядом.": "The deed form is more compact: “Paste a link” and the participants list sit side by side, and so do “Give up the deed” and “Submit for review”.",
   "В форме сдачи дела участники группы отмечаются в раскрывающемся списке, а не рядом кнопок: место экономится, выбранные имена видны в строке.": "In the deed form, group participants are picked from a drop-down list instead of a row of buttons: it saves space, and the chosen names stay visible in the line.",
   "В Каменоломне новое общее дело: «Спеть всей командой песню на богослужении», 2 камня.": "A new common deed in the Quarry: “Sing a song as a whole team at the service”, 2 stones.",

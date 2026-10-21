@@ -300,12 +300,26 @@ function segDist(x: number, y: number, x0: number, y0: number, x1: number, y1: n
   const t = clamp(((x - x0) * dx + (y - y0) * dy) / l2, 0, 1);
   return Math.hypot(x - (x0 + dx * t), y - (y0 + dy * t));
 }
+/** Расстояние между двумя отрезками; 0 — пересекаются. */
+function segSegDist(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): number {
+  const cross = (px: number, py: number, qx: number, qy: number) => px * qy - py * qx;
+  const d1 = cross(bx - ax, by - ay, cx - ax, cy - ay), d2 = cross(bx - ax, by - ay, dx - ax, dy - ay);
+  const d3 = cross(dx - cx, dy - cy, ax - cx, ay - cy), d4 = cross(dx - cx, dy - cy, bx - cx, by - cy);
+  if (d1 * d2 < 0 && d3 * d4 < 0) return 0;
+  return Math.min(segDist(ax, ay, cx, cy, dx, dy), segDist(bx, by, cx, cy, dx, dy), segDist(cx, cy, ax, ay, bx, by), segDist(dx, dy, ax, ay, bx, by));
+}
 /** Прямая маршрута не должна проходить сквозь островки (с запасом на отмель и меандр): иначе выбираем другую. */
 const crossesIsle = (p: Profile, x0: number, y0: number, x1: number, y1: number, off: number) => p.isles.some((i) => segDist(i.x, i.y, x0, y0, x1, y1) < i.r + off);
-function carrotRoute(car: Carrot, p: Profile, size: number): void {
+/**
+ * avoid/sep — чужие маршруты (поводки других кораблей, решение владельца 21.10: корабли упирались друг в друга):
+ * из кандидатов берётся хорда, самая далёкая от чужих, и перебор останавливается, как только зазор не меньше sep.
+ * Пересекающая чужой маршрут хорда берётся, только если ничего лучше не нашлось.
+ */
+function carrotRoute(car: Carrot, p: Profile, size: number, avoid: readonly Carrot[] = [], sep = 0): void {
   const R = farR(p, size);
-  let a = 0, b = 0;
-  for (let tries = 0; tries < 12; tries++) {
+  let a = 0, b = 0, bestA = 0, bestB = 0, bestGap = -1;
+  const tries = avoid.length ? 24 : 12;
+  for (let i = 0; i < tries; i++) {
     // Хорда из-за края в противоположный край: разброс ±0.75 рад держит её не дальше ~1 maxR от центра,
     // то есть маршрут обязательно проходит через видимое море, а не по дальней окраине.
     a = rnd(-Math.PI, Math.PI); b = a + Math.PI + rnd(-0.75, 0.75);
@@ -313,8 +327,14 @@ function carrotRoute(car: Carrot, p: Profile, size: number): void {
     // Прямая маршрута не должна резать остров по середине: иначе после проекции на берег поводок почти замирает,
     // и зверь кружит на месте. Допустимы проходы у края острова и через пролив между островами.
     const cuts = p.parts.some((part) => segDist(part.cx, part.cy, x0, y0, x1, y1) < part.maxR * 0.7 + car.off);
-    if (tries === 11 || (!cuts && !crossesIsle(p, x0, y0, x1, y1, car.off + car.wob + size))) break;
+    const ok = !cuts && !crossesIsle(p, x0, y0, x1, y1, car.off + car.wob + size);
+    if (!ok && i < tries - 1) continue;
+    const gap = avoid.length ? Math.min(...avoid.map((o) => segSegDist(x0, y0, x1, y1, o.x0, o.y0, o.x1, o.y1))) : Infinity;
+    if (!ok) { if (bestGap < 0) { bestA = a; bestB = b; } break; }
+    if (gap > bestGap) { bestGap = gap; bestA = a; bestB = b; }
+    if (gap >= sep) break;
   }
+  a = bestA; b = bestB;
   car.x0 = p.cx + Math.cos(a) * R; car.y0 = p.cy + Math.sin(a) * R;
   car.x1 = p.cx + Math.cos(b) * R; car.y1 = p.cy + Math.sin(b) * R;
   car.len = Math.hypot(car.x1 - car.x0, car.y1 - car.y0); car.t = 0; car.wait = 0;
@@ -331,8 +351,8 @@ function carrotPoint(car: Carrot, p: Profile, t: number, T: number): [number, nu
   for (let k = 0; k < 3; k++) { const pen = landPen(p, x, y, car.off * 0.6); if (pen <= 0) break; x += LNX * pen; y += LNY * pen; }
   return [x, y];
 }
-function carrotStep(car: Carrot, p: Profile, size: number, dist: number, T: number): void {
-  if (car.wait > 0) { car.wait -= dist / Math.max(1, size); if (car.wait <= 0) carrotRoute(car, p, size); return; }
+function carrotStep(car: Carrot, p: Profile, size: number, dist: number, T: number, avoid: readonly Carrot[] = [], sep = 0): void {
+  if (car.wait > 0) { car.wait -= dist / Math.max(1, size); if (car.wait <= 0) carrotRoute(car, p, size, avoid, sep); return; }
   car.t = Math.min(1, car.t + dist / Math.max(1, car.len));
   let [x, y] = carrotPoint(car, p, car.t, T);
   // Поводок, спроецированный на берег, может почти замереть (хорда режет остров): тогда зверь или корабль кружит
@@ -347,9 +367,9 @@ function carrotStep(car: Carrot, p: Profile, size: number, dist: number, T: numb
   if (car.t >= 1) car.wait = rnd(6, 24); // пауза «за краем» в единицах пройденного пути (≈ секунды при обычной скорости)
 }
 /** off — отступ от профиля берега, wob — размах меандра (оба в единицах карты). */
-const makeCarrot = (p: Profile, size: number, off: number, wob: number): Carrot => {
+const makeCarrot = (p: Profile, size: number, off: number, wob: number, avoid: readonly Carrot[] = [], sep = 0): Carrot => {
   const car: Carrot = { off, wob, seed: rnd(0, 100), x: 0, y: 0, h: 0, x0: 0, y0: 0, x1: 0, y1: 0, len: 1, t: 0, wait: 0 };
-  carrotRoute(car, p, size);
+  carrotRoute(car, p, size, avoid, sep);
   // Первый зверь пусть уже будет на подходе: стартуем с разной глубины маршрута.
   car.t = rnd(0, 0.5); const [x, y] = carrotPoint(car, p, car.t, 0); car.x = x; car.y = y;
   return car;
@@ -1075,7 +1095,7 @@ function createWorld(p: Profile, size: number, seed = 1, epochStart = 0, daily: 
   const solo = (kind: CetKind, L: number, off: [number, number], wob: number) => { const car = makeCarrot(p, size, size * rnd(off[0], off[1]), size * wob); return makeCet(cetSpec(kind, L, size), car, car.x, car.y, car.h); };
   const solos = [solo("whale", size * 1.8, [2.8, 4], 0.7), solo("whale", size * 1.6, [3, 4.4], 0.7), solo("orca", size * 1.1, [2.4, 3.4], 0.6), solo("orca", size * 1.0, [2.6, 3.6], 0.6)];
   const pods = [makePod(p, size, 3), makePod(p, size, 4)];
-  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), epochStart, daily, dailyDone: false, rng, ships: [makeShip("sloop", p, size), makeShip("cog", p, size), makeShip("ship", p, size), makeShip("sloop", p, size), makeShip("cog", p, size)] };
+  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), epochStart, daily, dailyDone: false, rng, ships: (["sloop", "cog", "ship", "sloop", "cog"] as const).reduce<Ship[]>((acc, kind) => [...acc, makeShip(kind, p, size, acc)], []) };
 }
 function stepWorld(w: World, dt: number): void {
   rand = w.rng;
@@ -1233,7 +1253,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis,
  */
 type ShipKind = "sloop" | "cog" | "ship";
 interface ShipSpec { kind: ShipKind; L: number; W: number; speed: number; maxTurn: number; /** Минимальный радиус циркуляции в длинах корпуса. */ turnR: number; masts: number[]; square: boolean; hull: string; deck: string; sail: string; sailShade: string }
-interface Ship { rng: () => number; spec: ShipSpec; car: Carrot; x: number; y: number; h: number; v: number; om: number; seed: number; trail: Trail }
+interface Ship { rng: () => number; spec: ShipSpec; car: Carrot; x: number; y: number; h: number; v: number; om: number; seed: number; trail: Trail; /** Сторона обхода по каждому встречному (+1 — отворот вправо, −1 — влево): выбирается при сближении и держится до расхождения. */ pass: Map<Ship, 1 | -1> }
 function shipSpec(kind: ShipKind, size: number): ShipSpec {
   switch (kind) {
     case "sloop": return { kind, L: size * 0.95, W: 0.34, speed: size * 0.24, maxTurn: 0.3, turnR: 1.6, masts: [0.18], square: false, hull: "rgb(78,50,32)", deck: "rgb(176,136,92)", sail: "rgb(243,236,220)", sailShade: "rgb(210,198,174)" };
@@ -1241,31 +1261,51 @@ function shipSpec(kind: ShipKind, size: number): ShipSpec {
     default: return { kind, L: size * 1.9, W: 0.3, speed: size * 0.16, maxTurn: 0.18, turnR: 2.6, masts: [0.3, 0, -0.28], square: true, hull: "rgb(64,42,28)", deck: "rgb(160,118,78)", sail: "rgb(240,231,212)", sailShade: "rgb(206,192,166)" };
   }
 }
-function makeShip(kind: ShipKind, p: Profile, size: number): Ship {
-  const car = makeCarrot(p, size, size * rnd(2.8, 4.2), size * 0.3);
-  const spec = shipSpec(kind, size); return { rng: spawnRng(), spec, car, x: car.x, y: car.y, h: car.h, v: spec.speed, om: 0, seed: rnd(0, 100), trail: makeTrail() };
+/** Зазор между маршрутами кораблей: с таким расстоянием между хордами суда расходятся, не сближаясь. */
+const routeSep = (size: number) => size * 4;
+function makeShip(kind: ShipKind, p: Profile, size: number, others: readonly Ship[] = []): Ship {
+  const car = makeCarrot(p, size, size * rnd(2.8, 4.2), size * 0.3, others.map((o) => o.car), routeSep(size));
+  const spec = shipSpec(kind, size); return { rng: spawnRng(), spec, car, x: car.x, y: car.y, h: car.h, v: spec.speed, om: 0, seed: rnd(0, 100), trail: makeTrail(), pass: new Map() };
 }
 /**
  * Расхождение кораблей (решение владельца 21.09: корабли не проезжают друг сквозь друга). Смотрим на суда впереди
  * в пределах трёх сумм длин: расходимся правыми бортами — встречный или судно слева по носу → отворот вправо,
  * судно справа → отворот влево и сбавить ход (уступаем тому, кто справа). Совсем близко — корпуса раздвигаются.
  */
+/**
+ * Переработка 21.10 (замечание владельца: «корабли упираются друг в друга и стоят»). Раньше сторона обхода решалась
+ * заново каждый кадр по порогу пеленга, и два сближающихся судна дёргались влево-вправо, не расходясь. Теперь
+ * сторона выбирается один раз при входе в зону (четыре суммы длин) и держится до выхода из неё; отворот растёт
+ * плавно с сближением и сильнее для судна прямо по носу. Ход сбавляется только перед встречным или пересекающим курс —
+ * попутное судно обгоняется по дуге без торможения, иначе быстрый корабль вечно висел бы у него на корме.
+ */
 function shipsAhead(sh: Ship, others: readonly Ship[]): { dh: number; slow: number } {
   let dh = 0, slow = 0;
   for (const o of others) {
-    if (o === sh || o.car.wait > 0) continue;
+    if (o === sh || o.car.wait > 0) { sh.pass.delete(o); continue; }
     const dx = o.x - sh.x, dy = o.y - sh.y, d = Math.hypot(dx, dy) || 1e-6;
-    const R = (sh.spec.L + o.spec.L) * 3;
-    if (d > R) continue;
+    const R = (sh.spec.L + o.spec.L) * 4;
+    if (d > R) { sh.pass.delete(o); continue; }
     const rel = wrapAngle(Math.atan2(dy, dx) - sh.h);
+    const behind = Math.abs(rel) > Math.PI * 0.6;
+    // Сторона обхода: судно справа по носу — отворот влево (уступаем ему дорогу), иначе — вправо (встречные расходятся правыми бортами).
+    let side = sh.pass.get(o);
+    if (side === undefined && !behind) { side = rel > 0.2 ? -1 : 1; sh.pass.set(o, side); }
     const contact = (sh.spec.L + o.spec.L) * 0.7;
-    if (d < contact) { const push = (contact - d) / 2; sh.x -= (dx / d) * push; sh.y -= (dy / d) * push; }
-    if (Math.abs(rel) > Math.PI * 0.6) continue; // позади — не наша забота
-    const w = 1 - d / R;
-    dh += (rel > 0.15 ? -1 : 1) * w * Math.PI * 0.8;
-    if (rel > -0.3 && Math.abs(rel) < Math.PI / 3) slow = Math.max(slow, w);
+    if (d < contact) {
+      // Корпуса сошлись: раздвигаем по линии центров и сдвигаем вбок на свою сторону обхода — иначе два судна,
+      // идущие друг на друга, висят на расстоянии касания и лишь медленно вращаются парой (симуляция 21.10).
+      const push = (contact - d) / 2, sd = side ?? 1;
+      sh.x -= (dx / d) * push + Math.sin(sh.h) * sd * push; sh.y -= (dy / d) * push - Math.cos(sh.h) * sd * push;
+    }
+    if (behind) { sh.pass.delete(o); continue; } // позади — не наша забота
+    const w = clamp(1 - (d - contact) / (R - contact), 0, 1) ** 1.5; // от зоны до касания: 0 → 1
+    const ahead = clamp(Math.cos(rel) + 0.35, 0, 1.35) / 1.35; // судно по носу важнее, чем на траверзе
+    dh += side! * w * ahead * Math.PI * 0.9;
+    const headOn = Math.abs(wrapAngle(o.h - sh.h)) > Math.PI / 3;
+    if (headOn && Math.abs(rel) < Math.PI / 3) slow = Math.max(slow, w);
   }
-  return { dh: clamp(dh, -Math.PI / 2, Math.PI / 2), slow };
+  return { dh: clamp(dh, -Math.PI / 2, Math.PI / 2), slow: Math.min(slow, 0.7) };
 }
 function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number, others: readonly Ship[] = []): void {
   rand = sh.rng;
@@ -1273,7 +1313,7 @@ function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number, oth
   // Поводок идёт впереди на 1–2 корпуса; отстал корабль — поводок ждёт, догнал — уходит вперёд.
   const behind = Math.hypot(car.x - sh.x, car.y - sh.y);
   const wasWaiting = car.wait > 0;
-  carrotStep(car, p, size, sp.speed * dt * clamp(2.2 - behind / (sp.L * 1.5), 0.2, 1.2), T);
+  carrotStep(car, p, size, sp.speed * dt * clamp(2.2 - behind / (sp.L * 1.5), 0.2, 1.2), T, others.filter((o) => o !== sh && o.car.wait <= 0).map((o) => o.car), routeSep(size));
   if (wasWaiting && car.wait <= 0) { sh.x = car.x; sh.y = car.y; sh.h = car.h; sh.om = 0; } // новый маршрут начинается за краем
   // Пауза между маршрутами: корабль уходит прямо, но берег держит и здесь — раньше проверки не было, и отставший от
   // поводка корабль мог пройти прямым курсом через мыс (замечание владельца 08.10: корабль над городом у берега).
@@ -1282,7 +1322,8 @@ function stepShip(sh: Ship, p: Profile, size: number, dt: number, T: number, oth
   const near = shipsAhead(sh, others);
   const want = sp.speed * clamp(behind / (sp.L * 1.5), 0.6, 1.3) * (1 + 0.08 * noise1(T * 0.2, sh.seed)) * (1 - 0.5 * near.slow);
   sh.v = ease(sh.v, want, dt, 2.5);
-  const omMax = Math.min(sp.maxTurn, Math.max(sh.v, sp.speed * 0.5) / (sp.L * sp.turnR));
+  // В манёвре расхождения руль кладётся круче (до двух радиусов циркуляции), и сбавленный ход его не ослабляет.
+  const omMax = Math.min(sp.maxTurn, Math.max(sh.v, sp.speed * 0.75) / (sp.L * sp.turnR)) * (1 + 1.2 * Math.abs(near.dh) / (Math.PI / 2));
   const aim = avoidHeading(p, sh.x, sh.y, sh.h, car.x, car.y, Math.max(sp.L * 3, sh.v * 6), size * 2.4) + near.dh;
   const omWant = clamp(wrapAngle(aim - sh.h) * 0.9, -omMax, omMax);
   sh.om = clamp(ease(sh.om, omWant, dt, 1.2), -omMax, omMax);
@@ -1462,14 +1503,14 @@ export function drawShipsPreview(ctx: CanvasRenderingContext2D, size: number, T:
   kinds.forEach((kind, i) => {
     const spec = shipSpec(kind, size);
     const car: Carrot = { off: 0, wob: 0, seed: 1, x: 0, y: 0, h: heading, x0: 0, y0: 0, x1: 1, y1: 0, len: 1, t: 0, wait: 0 };
-    const sh: Ship = { rng: Math.random, spec, car, x: size * (2 + i * 3.2), y: size * 2, h: heading, v: spec.speed, om: 0, seed: i * 7, trail: makeTrail() };
+    const sh: Ship = { rng: Math.random, spec, car, x: size * (2 + i * 3.2), y: size * 2, h: heading, v: spec.speed, om: 0, seed: i * 7, trail: makeTrail(), pass: new Map() };
     drawShip(ctx, sh, T, 1 / 4, true);
   });
 }
 /** Стенд (scripts): прогон мира живности без экрана — треки положений и курсов для проверки физики движения. */
-export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, step: number, daily: DailyBird | null = null): Array<{ kind: string; samples: Array<[number, number, number, number]> }> {
+export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, step: number, daily: DailyBird | null = null, seed = 1): Array<{ kind: string; samples: Array<[number, number, number, number]> }> {
   const p = islandProfile(hexes, size, []); if (!p) return [];
-  const w = createWorld(p, size, 1, 0, () => daily);
+  const w = createWorld(p, size, seed, 0, () => daily);
   const movers: Array<{ kind: string; m: { x: number; y: number; h: number }; car: Carrot | null }> = [...w.cets.map((c) => ({ kind: c.spec.kind, m: c, car: c.car })), ...w.ships.map((sh) => ({ kind: sh.spec.kind, m: sh, car: sh.car })), { kind: "flock", m: w.flock, car: null }];
   const out = movers.map((mv) => ({ kind: mv.kind, samples: [] as Array<[number, number, number, number]> }));
   for (let t = 0; t < seconds; t += step) { stepWorld(w, step); movers.forEach((mv, i) => out[i]!.samples.push([mv.m.x, mv.m.y, mv.m.h, mv.car ? mv.car.wait : -1])); }
