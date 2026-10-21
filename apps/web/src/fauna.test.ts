@@ -43,6 +43,10 @@ const twoIslands = (): MapHexDto[] => TWO_ISLANDS.map(([q, r, island]) => ({ q, 
 describe("корабли расходятся", () => {
   it("корабли не упираются друг в друга и не висят у кормы (замечание владельца 21.10)", { timeout: 300000 }, () => {
     const size = 26, step = 1 / 24, hexes = twoIslands();
+    const cs = hexes.map((h) => hexCenter(h, size));
+    const cx = cs.reduce((a, c) => a + c.x, 0) / cs.length, cy = cs.reduce((a, c) => a + c.y, 0) / cs.length;
+    const maxR = Math.max(...cs.map((c) => Math.hypot(c.x - cx, c.y - cy)));
+    const visible = (x: number, y: number) => Math.hypot(x - cx, y - cy) < maxR * 1.6;
     const L: Record<string, number> = { sloop: size * 0.95, cog: size * 1.35, ship: size * 1.9 };
     const speed: Record<string, number> = { sloop: size * 0.24, cog: size * 0.19, ship: size * 0.16 };
     const bad: string[] = [];
@@ -59,11 +63,14 @@ describe("корабли расходятся", () => {
       }
       for (let a = 0; a < traces.length; a++) for (let b = a + 1; b < traces.length; b++) {
         const ta = traces[a]!, tb = traces[b]!, sum = L[ta.kind]! + L[tb.kind]!;
-        let contact = 0, tail = 0;
+        let contact = 0, tail = 0, nearRun = 0;
         for (let i = 0; i < ta.samples.length; i++) {
           const sa = ta.samples[i]!, sb = tb.samples[i]!;
-          if (sa[3] > 0 || sb[3] > 0) { contact = 0; tail = 0; continue; }
+          if (sa[3] > 0 || sb[3] > 0) { contact = 0; tail = 0; nearRun = 0; continue; }
           const d = Math.hypot(sa[0] - sb[0], sa[1] - sb[1]);
+          // Маршруты не пересекаются (решение владельца 21.10): в видимом море два корабля не сходятся ближе полутора сумм длин.
+          nearRun = d < sum * 1.5 && visible(sa[0], sa[1]) && visible(sb[0], sb[1]) ? nearRun + 1 : 0;
+          if (nearRun * step > 5) { bad.push(`seed ${seed}: ${ta.kind}+${tb.kind} t=${(i * step).toFixed(0)} сблизились, d=${d.toFixed(0)}`); nearRun = -1e9; }
           // Наложение корпусов дольше 10 секунд подряд — корабли «сцепились».
           contact = d < sum * 0.5 ? contact + 1 : 0;
           if (contact * step > 10) { bad.push(`seed ${seed}: ${ta.kind}+${tb.kind} t=${(i * step).toFixed(0)} сцепились`); contact = -1e9; }
