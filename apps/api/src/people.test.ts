@@ -33,9 +33,14 @@ describe("кому звонить", () => {
   it("имена раздаются сторонам поровну, счётчики считают принятые, удалённый человек заменяется", async () => {
     const url = `/api/games/${gameId}/deeds/${deedId}/people`;
     expect((await post(url, ck.cap, { name: "Нельзя" })).statusCode).toBe(403);
+    // Четыре свободные стороны с этим делом уже на карте (искусственные ключи, чтобы не зависеть от карты), список заполняется после:
+    // свободные стороны перераздаются при каждом изменении списка, чтобы один человек не забрал всё.
+    for (let i = 0; i < 4; i++) await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: `T:${i}`, toKey: `T:${i + 1}`, deedId } });
     for (const name of ["Первый", "Второй", "Третий"]) expect((await post(url, ck.admin, { name })).statusCode).toBe(200);
-    // Семь сторон с этим делом у одной команды (искусственные ключи, чтобы не зависеть от карты).
-    for (let i = 0; i < 7; i++) await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: `T:${i}`, toKey: `T:${i + 1}`, deedId } });
+    const early = (await get(url, ck.admin)).json().people as Array<{ onMap: number }>;
+    expect(Math.max(...early.map((p) => p.onMap)) - Math.min(...early.map((p) => p.onMap))).toBeLessThanOrEqual(1);
+    // Ещё три стороны появились позже — раздаются с учётом уже назначенных.
+    for (let i = 4; i < 7; i++) await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: `T:${i}`, toKey: `T:${i + 1}`, deedId } });
     await assignPeople(gameId);
     const tasks = await prisma.teamEdgeTask.findMany({ where: { gameId, deedId }, select: { id: true, personId: true, status: true } });
     expect(tasks.every((t) => t.personId)).toBe(true);

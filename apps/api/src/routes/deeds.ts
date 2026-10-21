@@ -7,7 +7,7 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { DIRECTIONS, deedBody, reassignOpenSides, syncGameDeeds } from "../services/defaultDeeds.js";
 import { adminOrObserver } from "../services/access.js";
-import { assignPeople, peopleOf } from "../services/people.js";
+import { peopleOf, rebalancePeople } from "../services/people.js";
 
 export { DIRECTIONS } from "../services/defaultDeeds.js";
 
@@ -140,7 +140,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const deed = await prisma.deed.findFirst({ where: { id: deedId, gameId: id }, select: { id: true } });
     if (!deed) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     await prisma.deedPerson.create({ data: { gameId: id, deedId, name: body.name } });
-    await assignPeople(id);
+    await rebalancePeople(id, deedId);
     publish(id, { type: "deeds" }); publish(id, { type: "map" });
     return { people: await peopleOf(id, deedId) };
   });
@@ -151,7 +151,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     if (!person) return reply.code(404).send({ error: "not_found", message: err(request, "Человек не найден") });
     // Стороны этого человека: свободные и взятые получат другого из списка, сданные остаются без имени.
     await prisma.deedPerson.delete({ where: { id: pid } });
-    await assignPeople(id);
+    await rebalancePeople(id, deedId);
     publish(id, { type: "deeds" }); publish(id, { type: "map" });
     return { people: await peopleOf(id, deedId) };
   });

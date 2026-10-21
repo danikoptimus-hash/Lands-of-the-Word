@@ -8,6 +8,15 @@ import { prisma } from "../db.js";
  * игры: при завершении список стирается, как и адресаты конвертов.
  */
 
+/**
+ * Список изменился (добавили или убрали человека): свободные стороны этого дела раздаются заново, чтобы новый человек
+ * сразу получил свою долю, а не ждал новых сторон. Взятые и сданные стороны не трогаются: кому звонить, уже известно.
+ */
+export async function rebalancePeople(gameId: string, deedId: string): Promise<number> {
+  await prisma.teamEdgeTask.updateMany({ where: { gameId, deedId, status: "OPEN" }, data: { personId: null } });
+  return assignPeople(gameId);
+}
+
 /** Раздаёт людей сторонам без адресата (свободным и взятым) у всех дел со списком. Возвращает число назначений. */
 export async function assignPeople(gameId: string): Promise<number> {
   const people = await prisma.deedPerson.findMany({ where: { gameId }, select: { id: true, deedId: true } });
