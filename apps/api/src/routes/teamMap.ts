@@ -68,6 +68,7 @@ export function requireSuperadmin(request: FastifyRequest, reply: FastifyReply):
 const taskInclude = {
   deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true, chance: true } },
   team: { select: { id: true, name: true, color: true } },
+  person: { select: { id: true, name: true } },
 } as const;
 type TaskWithDeed = { id: string; fromKey: string; deed: { title: string; description: string } };
 type SecretTask = { takenById: string | null; links: string[]; note: string; deed: { secret: boolean } };
@@ -204,14 +205,14 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
    * Отчёты по делам для администратора (решение владельца 30.09): к старому отчёту нужно возвращаться. Полный вид сдачи —
    * кто взял и участвовал, ссылки, текст, решение — отдаётся по id дела (из летописи) или по стороне (нажатие на дорогу).
    */
-  async function adminTaskViews(gameId: string, rows: Array<{ id: string; fromKey: string; toKey: string; status: string; sea: boolean; takenById: string | null; takenAt: Date | null; participants: string[]; links: string[]; note: string; adminComment: string; donation: boolean; donationAmount: number | null; submittedAt: Date | null; decidedAt: Date | null; decidedById: string | null; createdAt: Date; team: { id: string; name: string; color: string }; deed: { id: string; title: string; description: string; direction: string; proofType: string; secret: boolean; remote: boolean } }>) {
+  async function adminTaskViews(gameId: string, rows: Array<{ id: string; fromKey: string; toKey: string; status: string; sea: boolean; takenById: string | null; takenAt: Date | null; participants: string[]; person: { id: string; name: string } | null; links: string[]; note: string; adminComment: string; donation: boolean; donationAmount: number | null; submittedAt: Date | null; decidedAt: Date | null; decidedById: string | null; createdAt: Date; team: { id: string; name: string; color: string }; deed: { id: string; title: string; description: string; direction: string; proofType: string; secret: boolean; remote: boolean } }>) {
     const ids = new Set<string>();
     for (const r of rows) { if (r.takenById) ids.add(r.takenById); if (r.decidedById) ids.add(r.decidedById); for (const p of r.participants) ids.add(p); }
     const users = await prisma.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, nickname: true, displayName: true } });
     const name = new Map(users.map((u) => [u.id, u.displayName || u.nickname]));
     const withBooks = await bookInAll(gameId, rows);
     return withBooks.map((r) => ({
-      id: r.id, fromKey: r.fromKey, toKey: r.toKey, status: r.status, sea: r.sea, team: r.team, deed: r.deed,
+      id: r.id, fromKey: r.fromKey, toKey: r.toKey, status: r.status, sea: r.sea, team: r.team, deed: r.deed, person: r.person,
       takenBy: r.takenById ? { id: r.takenById, name: name.get(r.takenById) ?? "" } : null,
       participants: r.participants.map((pid) => ({ id: pid, name: name.get(pid) ?? "" })),
       links: r.links, note: r.note, donation: r.donation, donationAmount: r.donationAmount,

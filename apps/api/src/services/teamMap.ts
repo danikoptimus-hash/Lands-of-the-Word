@@ -1,4 +1,5 @@
 import { prisma } from "../db.js";
+import { assignPeople } from "./people.js";
 import { bookName, msg } from "./i18n.js";
 import { hexCorners, vertexKey, BOOKS, localMinutes, PHASE_START } from "@lotw/domain";
 import { loadCityContent } from "./cities.js";
@@ -200,6 +201,8 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
     if (!deedId) return;
     await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: port.key, toKey: seaKey(port.key), deedId, sea: true } });
   }
+  // Люди у дел (решение владельца 21.10): новые стороны получают имя из списка равномерно.
+  await assignPeople(gameId);
 }
 
 /** mulberry32 и FNV-1a — те же, что в клиенте (pages/Fauna.tsx): воспроизводимая случайность по семени. */
@@ -353,7 +356,7 @@ export async function ensureRemoteDeed(gameId: string, teamId: string, candidate
   const book = sideBook(new Map(cities.map((c) => [c.key, c.bookCode!])), new Set(revealedRows.map((r) => r.nodeKey)), target.fromKey, target.toKey);
   const remoteId = await pickDeed(gameId, teamId, book, target.id, true, { fromKey: target.fromKey, toKey: target.toKey });
   if (!remoteId) return;
-  await prisma.teamEdgeTask.update({ where: { id: target.id }, data: { deedId: remoteId } });
+  await prisma.teamEdgeTask.update({ where: { id: target.id }, data: { deedId: remoteId, personId: null } });
 }
 
 const DAY_MS = 86_400_000;
@@ -405,7 +408,7 @@ export async function reshuffleOpenDeeds(gameId: string): Promise<{ checked: num
       checked++;
       const next = await pickDeed(gameId, team.id, t.sea ? cityBooks.get(t.fromKey) ?? null : sideBook(cityBooks, revealed, t.fromKey, t.toKey), undefined, t.deed.remote, { fromKey: t.fromKey, toKey: t.sea ? t.fromKey : t.toKey });
       if (!next || next === t.deedId) continue;
-      await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: next } });
+      await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: next, personId: null } });
       if (!t.sea) touched.push(t.id);
       changed++;
     }
@@ -433,7 +436,7 @@ export async function repairBooklessDeeds(gameId: string): Promise<number> {
     if (t.sea ? books.has(t.fromKey) : sideBook(books, revealedByTeam.get(t.teamId) ?? new Set(), t.fromKey, t.toKey)) continue;
     const next = await pickDeed(gameId, t.teamId, null, undefined, t.deed.remote, { fromKey: t.fromKey, toKey: t.sea ? t.fromKey : t.toKey });
     if (!next) continue;
-    await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: next } });
+    await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: next, personId: null } });
     changed++;
     publish(gameId, { type: "tasks", teamId: t.teamId }); publish(gameId, { type: "map", teamId: t.teamId });
   }
@@ -521,7 +524,7 @@ export async function getTeamMap(gameId: string, teamId: string) {
     prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true, revealedAt: true } }),
     prisma.teamEdgeTask.findMany({
       where: { teamId },
-      include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true } } },
+      include: { deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true } }, person: { select: { id: true, name: true } } },
       orderBy: { createdAt: "asc" },
     }),
     prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true, terrain: true, rotation: true, island: true } }),

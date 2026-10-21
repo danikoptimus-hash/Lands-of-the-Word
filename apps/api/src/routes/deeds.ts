@@ -7,6 +7,7 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { DIRECTIONS, deedBody, reassignOpenSides, syncGameDeeds } from "../services/defaultDeeds.js";
 import { adminOrObserver } from "../services/access.js";
+import { assignPeople, peopleOf } from "../services/people.js";
 
 export { DIRECTIONS } from "../services/defaultDeeds.js";
 
@@ -42,7 +43,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return;
-    const rows = await prisma.deed.findMany({ where: { gameId: id }, orderBy: { createdAt: "asc" } });
+    const rows = await prisma.deed.findMany({ where: { gameId: id }, orderBy: { createdAt: "asc" }, include: { _count: { select: { people: true } } } });
     // Сколько таких дел сейчас на картах всех команд: свободных (OPEN) и в работе (взято, на проверке, возвращено) — решение владельца 04.10.
     // Цифры «на карте» — по всем командам сразу; чтобы сверять с картой «глазами команды», отдаётся и разбивка по командам,
     // и сколько из свободных — морские рейсы (на карте это корабль у порта, а не свиток) (замечание владельца 05.10).
@@ -62,7 +63,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     }
     // «Тяжесть» убрана (решение владельца 3.15): колонка difficulty живёт только ради хешей старых игр и наружу не отдаётся.
     // Порядок списка — по убыванию «свободных + в работе» (решение владельца 04.10), при равенстве — по дате создания.
-    const deeds = rows.map(({ difficulty: _difficulty, ...d }) => ({ ...d, onMap: onMap.get(d.id) ?? { free: 0, taken: 0, sea: 0, teams: [] } }))
+    const deeds = rows.map(({ difficulty: _difficulty, _count, ...d }) => ({ ...d, peopleCount: _count.people, onMap: onMap.get(d.id) ?? { free: 0, taken: 0, sea: 0, teams: [] } }))
       .sort((a, b) => (b.onMap.free + b.onMap.taken) - (a.onMap.free + a.onMap.taken) || a.createdAt.getTime() - b.createdAt.getTime());
     const settings = (game.settings ?? {}) as { nodeCount?: number; cityGap?: number };
     return { deeds, directions: DIRECTIONS, recommendedMin: recommendedDeedCount(effectiveNodeCount(settings)) };
@@ -110,7 +111,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     for (const t of deed.edgeTasks) {
       const replacement = await pickDeed(id, t.teamId, await bookOfNodeKey(id, t.fromKey), deedId);
       if (!replacement) return reply.code(409).send({ error: "conflict", message: err(request, "Не удалось подобрать замену на стороны с этим делом") });
-      await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: replacement } });
+      await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: replacement, personId: null } });
     }
     await prisma.deed.delete({ where: { id: deedId } });
     publish(id, { type: "deeds" });
@@ -123,6 +124,38 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
    * mode=replace: заменить список стандартным — дела, которые ни одна команда ещё не получала, удаляются; дела с делами
    * команд остаются (по совпадению названия — обновляются текстом и настройками из набора); недостающие добавляются.
    */
+  /**
+   * Список людей у дела (решение владельца 21.10): кому звонить. Администратор добавляет и убирает имена; стороны карты
+   * с этим делом получают имя равномерно, у каждого видно, сколько сторон на карте, в работе и принято.
+   */
+  app.get("/api/games/:id/deeds/:deedId/people", async (request, reply) => {
+    const { id, deedId } = request.params as { id: string; deedId: string };
+    if (!(await requireGameAdmin(request, reply, id))) return;
+    return { people: await peopleOf(id, deedId) };
+  });
+  app.post("/api/games/:id/deeds/:deedId/people", async (request, reply) => {
+    const { id, deedId } = request.params as { id: string; deedId: string };
+    if (!(await requireGameAdmin(request, reply, id))) return;
+    const body = z.object({ name: z.string().trim().min(2).max(80) }).parse(request.body);
+    const deed = await prisma.deed.findFirst({ where: { id: deedId, gameId: id }, select: { id: true } });
+    if (!deed) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
+    await prisma.deedPerson.create({ data: { gameId: id, deedId, name: body.name } });
+    await assignPeople(id);
+    publish(id, { type: "deeds" }); publish(id, { type: "map" });
+    return { people: await peopleOf(id, deedId) };
+  });
+  app.delete("/api/games/:id/deeds/:deedId/people/:pid", async (request, reply) => {
+    const { id, deedId, pid } = request.params as { id: string; deedId: string; pid: string };
+    if (!(await requireGameAdmin(request, reply, id))) return;
+    const person = await prisma.deedPerson.findFirst({ where: { id: pid, gameId: id, deedId } });
+    if (!person) return reply.code(404).send({ error: "not_found", message: err(request, "Человек не найден") });
+    // Стороны этого человека: свободные и взятые получат другого из списка, сданные остаются без имени.
+    await prisma.deedPerson.delete({ where: { id: pid } });
+    await assignPeople(id);
+    publish(id, { type: "deeds" }); publish(id, { type: "map" });
+    return { people: await peopleOf(id, deedId) };
+  });
+
   app.post("/api/games/:id/deeds/import-default", async (request, reply) => {
     const { id } = request.params as { id: string };
     if (!(await requireGameAdmin(request, reply, id))) return;

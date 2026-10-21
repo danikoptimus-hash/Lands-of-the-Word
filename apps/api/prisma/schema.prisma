@@ -376,6 +376,8 @@ model Deed {
   /** Общее дело: сколько процентов состава должно присутствовать (отмечается при сдаче); null — не проверяется. */
   quorumPct   Int?
   quarryWorks QuarryWork[]
+  /** Список людей у дела (решение владельца 21.10): кому звонить; стороны с этим делом получают имя равномерно. */
+  people      DeedPerson[]
   /** Хеш версии стандартного набора, из которой взято дело; пока администратор дело не правил, совпадает с хешем содержимого — такие дела сервер обновляет сам при выходе новой версии набора. */
   sourceHash  String?
   /** Тайное дело: ссылки и описание сдачи видит только проверяющий администратор, не команда (сюрприз без раскрытия адресата). */
@@ -440,6 +442,9 @@ model TeamEdgeTask {
   paved         Boolean        @default(false)
   /** Кто участвовал в деле (группой): id пользователей; каждому засчитывается в личное служение, сторона одна. */
   participants  String[]       @default([])
+  /** Человек из списка дела (кому звонить), назначен стороне равномерно по списку (решение владельца 21.10). */
+  personId      String?
+  person        DeedPerson?    @relation(fields: [personId], references: [id], onDelete: SetNull)
   decidedById   String?
   adminComment  String         @default("")
   createdAt     DateTime       @default(now())
@@ -758,6 +763,19 @@ model TeamMark {
  * Адресат конверта: кому команда несёт шифр. Только короткая подпись и тип — без адресов и телефонов.
  * Список живёт в базе игры и стирается при её завершении.
  */
+/** Человек из списка дела (решение владельца 21.10): имя, которое подставляется на стороны с этим делом. Стирается при завершении игры. */
+model DeedPerson {
+  id        String   @id @default(cuid())
+  gameId    String
+  deedId    String
+  deed      Deed     @relation(fields: [deedId], references: [id], onDelete: Cascade)
+  name      String
+  createdAt DateTime @default(now())
+  tasks     TeamEdgeTask[]
+
+  @@index([gameId, deedId])
+}
+
 model Recipient {
   id        String        @id @default(cuid())
   gameId    String

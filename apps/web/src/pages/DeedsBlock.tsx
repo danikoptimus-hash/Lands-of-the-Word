@@ -12,7 +12,7 @@ import { Help } from "../components/Help";
 import { plural } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "AUDIO_LINK" | "WITNESS";
-interface DeedDto { /** Выключено администратором: на новые дороги не попадает (06.10). */ disabled?: boolean; id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number; /** Сколько из свободных — морские рейсы (на карте корабль, а не свиток). */ sea?: number; /** Разбивка по командам: сверять с картой «глазами команды». */ teams?: Array<{ index: number; name: string; color: string; free: number; taken: number }> }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
+interface DeedDto { /** Выключено администратором: на новые дороги не попадает (06.10). */ disabled?: boolean; /** Сколько людей в списке «кому звонить» (решение владельца 21.10). */ peopleCount?: number; id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number; /** Сколько из свободных — морские рейсы (на карте корабль, а не свиток). */ sea?: number; /** Разбивка по командам: сверять с картой «глазами команды». */ teams?: Array<{ index: number; name: string; color: string; free: number; taken: number }> }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
 type Form = { quarry: boolean; /** Пусто, пока администратор стирает число (замечание владельца 08.10: единицу нельзя было удалить); при сохранении — не меньше 1. */ stones: number | ""; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
 /** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
 const CHANCES = [20, 40, 60, 80, 100];
@@ -63,6 +63,8 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
   /** Дубликат дела (решение владельца 04.10): форма нового дела, заполненная полями исходного; сохраняется как отдельное дело. */
   const openDuplicate = (d: DeedDto) => { setError(null); setSheet({ id: null, form: { ...formOf(d), title: t("{title} (копия)", { title: d.title }) } }); };
   const close = () => setSheet(null);
+  /** Список людей у дела (решение владельца 21.10): отдельная шторка. */
+  const [peopleFor, setPeopleFor] = useState<DeedDto | null>(null);
 
   async function save(e: FormEvent) {
     e.preventDefault(); if (!sheet) return;
@@ -129,7 +131,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
           {shown.map((d) => { const open = expanded.has(d.id); return (
             <li key={d.id} className={"deed-row" + (open ? " open" : "") + (d.disabled ? " off" : "")}>
               <div className="main" onClick={() => toggle(d.id)}>
-                <span className="title">{withBook(d.title)} {d.quarry && <Chip tone="accent" icon="stone" title={t("Камней за дело")}>{d.stones ?? 1}</Chip>} {d.disabled && <Chip tone="warn" icon="x">{t("выключено")}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
+                <span className="title">{withBook(d.title)} {d.quarry && <Chip tone="accent" icon="stone" title={t("Камней за дело")}>{d.stones ?? 1}</Chip>} {d.disabled && <Chip tone="warn" icon="x">{t("выключено")}</Chip>} {(d.peopleCount ?? 0) > 0 && <Chip icon="users" title={t("Людей в списке «кому звонить»")}>{d.peopleCount}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
                 {d.description && <span className={"deed-desc small" + (open ? " open" : "")}>{withBook(d.description)}</span>}
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
@@ -147,6 +149,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
                 <button type="button" className="ghost sm icon" onClick={() => openEdit(d)} aria-label={t("Изменить дело")} title={t("Изменить")}><Icon name="edit" /></button>
                 <ActionMenu label={t("Ещё")} items={[
                   { label: t("Дублировать дело"), icon: "copy", onSelect: () => openDuplicate(d) },
+                  ...(d.quarry ? [] : [{ label: t("Список людей…"), icon: "users", onSelect: () => setPeopleFor(d) }]),
                   { label: d.disabled ? t("Включить дело") : t("Выключить дело"), icon: d.disabled ? "check" : "x", onSelect: () => void toggleDisabled(d) },
                   { label: t("Удалить дело"), icon: "trash", danger: true, onSelect: () => void remove(d) },
                 ]} />
@@ -155,6 +158,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
           ); })}
         </ul>
       )}
+      {peopleFor && <PeopleSheet gameId={gameId} deed={peopleFor} onClose={() => { setPeopleFor(null); void load(); }} />}
       {sheet && (
         <Sheet title={form.quarry ? (sheet.id ? t("Изменить дело Каменоломни") : t("Новое дело Каменоломни")) : sheet.id ? t("Изменить дело") : t("Новое дело")} onClose={close} size="md"
           foot={<><button type="button" className="secondary" onClick={close}>{t("Отмена")}</button><button type="submit" form="deed-form" disabled={busy}>{sheet.id ? t("Сохранить") : t("Добавить дело")}</button></>}>
@@ -217,5 +221,60 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
         </Sheet>
       )}
     </div>
+  );
+}
+
+interface PersonRow { id: string; name: string; onMap: number; inWork: number; done: number }
+/**
+ * Список людей у дела — «кому звонить» (решение владельца 21.10). Имена подставляются на стороны карты с этим делом
+ * равномерно; у каждого видно, сколько сторон свободно на карте, в работе и сколько уже принято (то есть сколько раз
+ * позвонили). Имена живут до конца игры.
+ */
+function PeopleSheet({ gameId, deed, onClose }: { gameId: string; deed: DeedDto; onClose: () => void }) {
+  const { notify, confirm } = useUi();
+  const [people, setPeople] = useState<PersonRow[] | null>(null);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => api<{ people: PersonRow[] }>(`/api/games/${gameId}/deeds/${deed.id}/people`).then((r) => setPeople(r.people)).catch(() => setPeople([])), [gameId, deed.id]);
+  useEffect(() => { void load(); }, [load]);
+  async function add(e: FormEvent) {
+    e.preventDefault();
+    if (name.trim().length < 2) return;
+    setBusy(true);
+    try { const r = await api<{ people: PersonRow[] }>(`/api/games/${gameId}/deeds/${deed.id}/people`, { method: "POST", body: JSON.stringify({ name: name.trim() }) }); setPeople(r.people); setName(""); }
+    catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  }
+  async function remove(p: PersonRow) {
+    if (!(await confirm(t("Свободные и взятые стороны с этим именем получат другого человека из списка."), { title: t("Убрать {name}?", { name: p.name }), okLabel: t("Убрать") }))) return;
+    setBusy(true);
+    try { const r = await api<{ people: PersonRow[] }>(`/api/games/${gameId}/deeds/${deed.id}/people/${p.id}`, { method: "DELETE" }); setPeople(r.people); }
+    catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  }
+  return (
+    <Sheet title={t("Список людей")} onClose={onClose} size="sm">
+      <p className="hint">{deed.title}</p>
+      <p className="hint">{t("Имена подставляются на стороны карты с этим делом по очереди, поровну. Цифры: на карте · в работе · принято.")}</p>
+      {!people ? <LoadingState rows={2} /> : people.length === 0 ? <EmptyState inline icon="users" text={t("Пока никого.")} /> : (
+        <ul className="list people-list">
+          {people.map((p) => (
+            <li key={p.id}>
+              <div className="main"><span className="title">{p.name}</span></div>
+              <div className="side">
+                <Chip icon="map" title={t("Свободных на карте")}>{p.onMap}</Chip>
+                <Chip icon="hourglass" title={t("В работе")}>{p.inWork}</Chip>
+                <Chip tone="ok" icon="check" title={t("Принято")}>{p.done}</Chip>
+                <button type="button" className="ghost sm icon" disabled={busy} aria-label={t("Убрать")} title={t("Убрать")} onClick={() => void remove(p)}><Icon name="x" /></button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form className="row mt-3" onSubmit={add}>
+        <input aria-label={t("Имя")} placeholder={t("Имя")} value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+        <button type="submit" disabled={busy || name.trim().length < 2}><Icon name="plus" />{t("Добавить")}</button>
+      </form>
+    </Sheet>
   );
 }

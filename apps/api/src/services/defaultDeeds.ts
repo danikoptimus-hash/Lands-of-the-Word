@@ -158,7 +158,7 @@ export async function reassignOpenSides(gameId: string, deedId: string): Promise
   for (const t of open) {
     const replacement = await pickDeed(gameId, t.teamId, await bookOfNodeKey(gameId, t.fromKey), deedId);
     if (!replacement) break;
-    await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: replacement } });
+    await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: replacement, personId: null } });
     n++;
   }
   if (n) publish(gameId, { type: "map" });
@@ -177,7 +177,7 @@ export async function removeDeed(gameId: string, deedId: string): Promise<boolea
   for (const t of deed.edgeTasks) {
     const replacement = await pickDeed(gameId, t.teamId, await bookOfNodeKey(gameId, t.fromKey), deedId);
     if (!replacement) return false;
-    await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: replacement } });
+    await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { deedId: replacement, personId: null } });
   }
   await prisma.deed.delete({ where: { id: deedId } });
   if (deed.edgeTasks.length > 0) publish(gameId, { type: "map" });

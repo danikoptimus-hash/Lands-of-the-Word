@@ -119,6 +119,7 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onS
               <div className="main">
                 <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName />{r.donation && <Chip tone="accent">{t("пожертвование {n}", { n: `${r.donationAmount ?? ""} ${currency ?? ""}`.trim() })}</Chip>}</span>
                 <span className="title">{r.deed.title}</span>
+                {r.person && <span className="meta person-line"><Icon name="user" />{t("Кому: {name}", { name: r.person.name })}</span>}
                 {r.deed.description && <button type="button" className="ghost sm desc-toggle" aria-expanded={descOpen.has(r.id)} onClick={() => toggleDesc(r.id)}><Icon name="scroll" />{t("Описание")}</button>}
                 {r.deed.description && descOpen.has(r.id) && <span className="deed-desc open small muted">{r.deed.description}</span>}
                 <span className="meta"><span>{PROOF_LABEL[r.deed.proofType]}</span>{r.takenBy && <span>· {r.takenBy.displayName ?? r.takenBy.nickname}</span>}{r.takenAt && <span>· {t("взято {date}", { date: fmtDate(r.takenAt) })}</span>}{r.participantNames && r.participantNames.length > 0 && <span className="participants">· <Icon name="users" />{t("с участниками: {names}", { names: r.participantNames.join(", ") })}</span>}{r.submittedAt && <span>· {t("сдано {date}", { date: fmtDate(r.submittedAt) })} · {ageOf(r.submittedAt)}</span>}</span>

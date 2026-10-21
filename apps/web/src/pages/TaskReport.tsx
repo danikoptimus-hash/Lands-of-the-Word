@@ -44,6 +44,7 @@ export function TaskReportSheet({ gameId, taskId, container, onClose, onReview, 
           <p className="meta-line"><TeamAvatar name={task.team.name} color={task.team.color} size="sm" withName /></p>
           <p className="muted small">{PROOF_LABEL[task.deed.proofType]}</p>
           {task.deed.description && <p className="mt-2 small">{task.deed.description}</p>}
+          {task.person && <p className="meta-line mt-2"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
           <p className="meta-line mt-2">
             {task.takenBy && <><Icon name="user" />{t("Взял: {name}", { name: task.takenBy.name })}</>}
             {task.participants.some((p) => p.id !== task.takenBy?.id) && <> · <Icon name="users" />{t("Участвовали: {names}", { names: task.participants.filter((p) => p.id !== task.takenBy?.id).map((p) => p.name).join(", ") })}</>}
