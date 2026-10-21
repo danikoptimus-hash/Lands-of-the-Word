@@ -77,7 +77,7 @@ export function AllGamesPage() {
                 <div className="meta">
                   <span title={t("Часовой пояс игры и время в нём сейчас")}><Icon name="clock" />{g.timeZone} · {zoneNow(g.timeZone)}</span>
                   <span title={t("Команд")}><Icon name="shield" />{g.teams}</span>
-                  <span title={t("Игроков · заходили за сутки · за неделю")}><Icon name="users" />{g.players}{g.players > 0 && <> · <Icon name="sun" />{g.playersDay} · <Icon name="calendar" />{g.playersWeek}</>}</span>
+                  <span title={t("Игроков")}><Icon name="users" />{g.players}</span>
                   <span title={t("Последнее событие")}><Icon name="sparkle" />{g.lastActivityAt ? ago(g.lastActivityAt) : "—"}</span>
                   <span title={g.status === "DRAFT" ? t("Создана") : g.status === "ACTIVE" ? t("Начата") : t("Завершена")}><Icon name={g.status === "DRAFT" ? "edit" : g.status === "ACTIVE" ? "play" : "trophy"} />{fmtDate(g.status === "DRAFT" ? g.createdAt : g.status === "ACTIVE" ? g.startedAt ?? g.createdAt : g.finishedAt ?? g.createdAt, { time: false })}</span>
                   {g.status === "DRAFT" && !g.mapReady && <span className="warn" title={t("Карта не создана")}><Icon name="map" /><Icon name="x" /></span>}
