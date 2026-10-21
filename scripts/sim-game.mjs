@@ -266,7 +266,7 @@ async function main() {
   // 1. Подготовка игры администратором
   const e1 = entry("Подготовка", "Администратор создаёт игру, карту и команды", "Игра «Тестовая партия», три команды по шесть участников, адресаты конвертов, стандартный набор дел, ускоренные сроки в продвинутых настройках.");
   await step("Игра и карта", async () => {
-    const g = await post(ADMIN, "/api/games", { name: "Тестовая партия 18.09", orgName: "Церковь (тестовая партия)", teamCount: 3, settings: { equidistantStarts: true, maxStartDistanceDiff: 2 } });
+    const g = await post(ADMIN, "/api/games", { name: "Тестовая партия 18.09", teamCount: 3, settings: { equidistantStarts: true, maxStartDistanceDiff: 2 } });
     S.gameId = g.game.id;
     await post(ADMIN, `/api/games/${S.gameId}/generate`, { seed: 20260918 });
     for (const [k, t] of Object.entries(TEAMS)) {

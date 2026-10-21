@@ -17,7 +17,7 @@ const requestBody = z.object({
 });
 const resolveBody = z.object({ reply: z.string().trim().max(1000).optional() });
 
-interface Context { game: string; org: string; team: string | null; user: string; book: string | null; city: string | null; task: number | null; taskType: string | null; prompt: string | null; lockedUntil: string | null; readMin: number | null; doneTasks: number | null; totalTasks: number | null }
+interface Context { game: string; team: string | null; user: string; book: string | null; city: string | null; task: number | null; taskType: string | null; prompt: string | null; lockedUntil: string | null; readMin: number | null; doneTasks: number | null; totalTasks: number | null }
 
 /**
  * Обращения в поддержку. Игрок пишет только текст; игра, команда, город, задание и текущая пауза
@@ -32,8 +32,8 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const body = requestBody.parse(request.body);
-    const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { name: true, org: { select: { name: true } } } });
-    const ctx: Context = { game: game.name, org: game.org.name, team: m.team.name, user: request.user!.nickname, book: null, city: null, task: null, taskType: null, prompt: null, lockedUntil: null, readMin: null, doneTasks: null, totalTasks: null };
+    const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { name: true } });
+    const ctx: Context = { game: game.name, team: m.team.name, user: request.user!.nickname, book: null, city: null, task: null, taskType: null, prompt: null, lockedUntil: null, readMin: null, doneTasks: null, totalTasks: null };
     let bookCode: string | null = null;
     if (body.nodeKey) {
       const node = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: body.nodeKey } }, select: { bookCode: true, kind: true } });
@@ -56,7 +56,7 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
     const to = await supportEmail();
     if (to) {
       const lines = [
-        `Игра: ${ctx.game} (${ctx.org})`, `Команда: ${ctx.team ?? "—"}`, `Написал: ${ctx.user}`,
+        `Игра: ${ctx.game}`, `Команда: ${ctx.team ?? "—"}`, `Написал: ${ctx.user}`,
         ctx.city ? `Город: ${ctx.city} (${ctx.book})` : null,
         ctx.task ? `Задание ${ctx.task} (${ctx.taskType}): ${ctx.prompt}` : null,
         ctx.task ? `Состояние: решено ${ctx.doneTasks}/${ctx.totalTasks}, ${ctx.lockedUntil ? "пауза до " + new Date(ctx.lockedUntil).toLocaleString("ru-RU") : "без паузы"}` : null,

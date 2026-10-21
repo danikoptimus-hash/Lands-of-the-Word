@@ -17,13 +17,17 @@ import { EmptyState, ErrorState, LoadingState } from "../components/State";
  * Сверху самые живые: сортировка по активности за 7 дней (записи журнала и сдачи дел), потом по последнему событию.
  */
 interface Row {
-  id: string; name: string; status: "DRAFT" | "ACTIVE" | "FINISHED"; org: string; teamCount: number; teams: number; admins: number; mapReady: boolean;
+  id: string; name: string; status: "DRAFT" | "ACTIVE" | "FINISHED"; timeZone: string; teamCount: number; teams: number; admins: number; mapReady: boolean;
   createdAt: string; startedAt: string | null; finishedAt: string | null;
   players: number; playersDay: number; playersWeek: number; activity: number; pending: number; lastActivityAt: string | null;
 }
 type Filter = "all" | "ACTIVE" | "DRAFT" | "FINISHED";
 
 /** «5 мин назад», «3 ч назад», «вчера», дальше — дата. */
+/** Текущее время в поясе игры («14:32»); незнакомый пояс — прочерк. */
+function zoneNow(zone: string): string {
+  try { return new Intl.DateTimeFormat(undefined, { timeZone: zone, hour: "2-digit", minute: "2-digit" }).format(new Date()); } catch { return "—"; }
+}
 function ago(iso: string | null): string {
   if (!iso) return t("событий не было");
   const d = Date.now() - Date.parse(iso);
@@ -71,7 +75,7 @@ export function AllGamesPage() {
                   {g.pending > 0 && <Chip tone="info" icon="clock" title={t("Сдач ждёт проверки")}>{g.pending}</Chip>}
                 </div>
                 <div className="meta">
-                  <span><Icon name="home" />{g.org}</span>
+                  <span><Icon name="clock" />{t("часовой пояс {zone}, сейчас {time}", { zone: g.timeZone, time: zoneNow(g.timeZone) })}</span>
                   <span><Icon name="users" />{plural(g.teams, ["команда", "команды", "команд"])} · {plural(g.players, ["игрок", "игрока", "игроков"])}{g.players > 0 && <> · {t("за сутки {d}, за неделю {w}", { d: g.playersDay, w: g.playersWeek })}</>}</span>
                   <span><Icon name="clock" />{t("последнее событие")}: {ago(g.lastActivityAt)}</span>
                   <span><Icon name="calendar" />{g.status === "DRAFT" ? t("создана {date}", { date: fmtDate(g.createdAt, { time: false }) }) : g.status === "ACTIVE" ? t("начата {date}", { date: fmtDate(g.startedAt ?? g.createdAt, { time: false }) }) : t("завершена {date}", { date: fmtDate(g.finishedAt ?? g.createdAt, { time: false }) })}</span>

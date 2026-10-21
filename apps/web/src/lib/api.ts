@@ -18,7 +18,7 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
 export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean }
 /** Какие способы входа включены на сервере (GET /api/auth/providers). */
 export interface ProvidersDto { google: boolean }
-export interface GameSummary { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; createdAt: string; createdById?: string; org: { name: string } }
+export interface GameSummary { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; createdAt: string; createdById?: string }
 export interface MapHexDto { q: number; r: number; terrain?: string; rotation?: number; lit?: boolean; island?: "OT" | "NT" }
 export interface MapNodeDto { key: string; corner: "N" | "S"; q: number; r: number; kind: "EMPTY" | "CITY" | "START"; bookCode: string | null; cityType: string | null; teamIndex: number | null; island?: "OT" | "NT"; coastal?: boolean; /** Когда команда открыла узел (только в карте команды; для ползунка истории). */ revealedAt?: string | null }
 export interface MapEdgeDto { aKey: string; bKey: string }
@@ -27,7 +27,7 @@ export type TeamRole = "CAPTAIN" | "DEPUTY" | "MEMBER";
 export type GameRole = "NONE" | "SCOUT" | "PROPHET" | "AMBASSADOR" | "CHRONICLER" | "HELMSMAN" | "WARRIOR";
 export interface MemberDto { role: TeamRole; gameRole: GameRole; pendingRole?: GameRole | null; /** Когда капитан сможет снова сменить роль этому участнику (null — хоть сейчас). */ roleChangeAvailableAt?: string | null; joinedAt: string; user: { id: string; nickname: string; displayName: string | null }; /** Лимит дел в сутки этого участника (null — лимита нет): взято за сутки и когда можно взять следующее. Видит вся команда. */ deedLimit?: { max: number; taken: number; nextAt: number | null } | null; /** Дела, которые участник сейчас держит (взятые, на проверке, возвращённые); видят администратор и вся команда. */ activeDeeds?: Array<{ id: string; title: string; status: string; takenAt: string | null; submittedAt: string | null }> }
 export interface TeamDto { id: string; index: number; name: string; color: string; startNodeKey: string | null; status?: string; members: MemberDto[]; /** Тёсаные камни Каменоломни. */ stones?: number }
-export interface MyTeamDto { role: TeamRole; gameRole: GameRole; team: { id: string; name: string; color: string }; game: { id: string; name: string; status: string; org: { name: string } } }
+export interface MyTeamDto { role: TeamRole; gameRole: GameRole; team: { id: string; name: string; color: string }; game: { id: string; name: string; status: string } }
 
 /** Значок роли (общий для состава команды и блока «Команды» администратора). */
 export const GAME_ROLE_ICON: Record<GameRole, string> = { NONE: "user", SCOUT: "telescope", PROPHET: "sparkle", AMBASSADOR: "handshake", CHRONICLER: "edit", HELMSMAN: "ship", WARRIOR: "sword" };
@@ -102,7 +102,7 @@ export interface TopDto { rows: TopRowDto[]; me: TopRowDto | null; total: number
 export interface ActivityRowDto extends ServiceStatsDto { userId: string; nickname: string; displayName: string | null; team: string; color: string; role: TeamRole; gameRole: GameRole }
 export interface PeaceTeamDto { team: { id: string; name: string; color: string; status: string }; state: "none" | "peace" | "offered" | "incoming"; peaceId: string | null; since: string | null }
 export interface SeasonBookDto {
-  game: { name: string; org: string; startedAt: string | null; finishedAt: string | null; winnerTeamId: string | null; status: string };
+  game: { name: string; startedAt: string | null; finishedAt: string | null; winnerTeamId: string | null; status: string };
   standings: StandingRow[];
   teams: Array<{ id: string; name: string; color: string; status: string; members: Array<ServiceStatsDto & { userId: string; name: string; role: TeamRole; gameRole: GameRole }>; cities: Array<{ nodeKey: string; book: string; capturedAt: string | null; firstCapturedAt: string | null; isCapital: boolean }>; deeds: Array<{ title: string; direction: string; decidedAt: string | null; by: string[] }> }>;
   events: Array<{ id: string; kind: JournalKind; vars: Record<string, string | number>; text: string; at: string }>;

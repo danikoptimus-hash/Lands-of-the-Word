@@ -17,7 +17,7 @@ interface Metrics {
   previous: Record<"newUsers" | "submissions" | "battles" | "cities" | "games" | "nodes", number>;
   nodesInPeriod: number;
   users: { total: number; newInPeriod: number; dau: number; wau: number; mau: number; retention7: number | null; retention30: number | null };
-  games: { total: number; draft: number; active: number; finished: number; createdInPeriod: number; avgDurationDays: number | null; teams: number; avgTeamSize: number | null; organizations: number };
+  games: { total: number; draft: number; active: number; finished: number; createdInPeriod: number; avgDurationDays: number | null; teams: number; avgTeamSize: number | null };
   activity: { submissionsInPeriod: number; submissionsTotal: number; approvedShare: number | null; avgDecisionHours: number | null; edgesTraversed: number; citiesCaptured: number; citiesCapturedInPeriod: number };
   battles: { declared: number; declaredInPeriod: number; expired: number; won: number; repelled: number; active: number; avgBid: number | null; avgAttackHours: number | null; sumMode: number };
   diplomacy: { implemented: boolean; passRequests: number; passApprovedShare: number | null; embassies: number };
@@ -113,7 +113,7 @@ export function AdminDashboard() {
             <Tile label={t("игр всего")} value={fmt(m.games.total)} hint={t("черновиков {n}", { n: m.games.draft })} /><Tile label={t("идут")} value={fmt(m.games.active)} /><Tile label={t("завершены")} value={fmt(m.games.finished)} />
             <Tile label={t("создано за {n} дн", { n: days })} value={fmt(m.games.createdInPeriod)} trend={m.series.games} dates={d} delta={{ now: m.games.createdInPeriod, prev: m.previous.games, days }} />
             <Tile label={t("длительность")} value={fmt(m.games.avgDurationDays, " " + t("дн"))} hint={t("среднее по завершённым")} />
-            <Tile label={t("команд")} value={fmt(m.games.teams)} /><Tile label={t("размер команды")} value={fmt(m.games.avgTeamSize)} hint={t("в среднем")} /><Tile label={t("церквей")} value={fmt(m.games.organizations)} />
+            <Tile label={t("команд")} value={fmt(m.games.teams)} /><Tile label={t("размер команды")} value={fmt(m.games.avgTeamSize)} hint={t("в среднем")} />
           </div></div>
           <div className="card"><h2>{t("Активность")}</h2><div className="tiles mt-3">
             <Tile label={t("сдач дел за {n} дн", { n: days })} value={fmt(m.activity.submissionsInPeriod)} hint={t("всего {n}", { n: m.activity.submissionsTotal })} trend={m.series.submissions} dates={d} delta={{ now: m.activity.submissionsInPeriod, prev: m.previous.submissions, days }} />

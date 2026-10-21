@@ -64,7 +64,6 @@ export const LEGACY: Record<string, string> = {
   "Комментарий": "Comment",
   "Мои игры": "My games",
   "Мои команды": "My teams",
-  "Моя церковь": "My church",
   "Название игры": "Game name",
   "Назовите шифр семье, к которой вас направили, и получите конверт. Введите ключ из конверта:": "Tell the cipher to the family you were sent to and receive the envelope. Enter the key from the envelope:",
   "Например: Земли Слова — осень": "For example: Lands of the Word — autumn",

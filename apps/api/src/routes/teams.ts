@@ -231,7 +231,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   /** Информация о приглашении (для страницы /join/:token). */
   app.get("/api/invites/:token", async (request, reply) => {
     const { token } = request.params as { token: string };
-    const invite = await prisma.invite.findUnique({ where: { id: token }, include: { team: { select: { id: true, name: true, color: true } }, game: { select: { id: true, name: true, status: true, org: { select: { name: true } } } } } });
+    const invite = await prisma.invite.findUnique({ where: { id: token }, include: { team: { select: { id: true, name: true, color: true } }, game: { select: { id: true, name: true, status: true } } } });
     if (!invite || invite.expiresAt < new Date() || invite.usesLeft <= 0) return reply.code(404).send({ error: "not_found", message: err(request, "Приглашение не найдено или истекло") });
     if (invite.admin) {
       const isAdmin = await prisma.gameAdmin.findUnique({ where: { gameId_userId: { gameId: invite.gameId, userId: request.user!.id } } });
@@ -271,7 +271,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/me/teams", async (request) => {
     const memberships = await prisma.membership.findMany({
       where: { userId: request.user!.id },
-      include: { team: { select: { id: true, name: true, color: true, game: { select: { id: true, name: true, status: true, org: { select: { name: true } } } } } } },
+      include: { team: { select: { id: true, name: true, color: true, game: { select: { id: true, name: true, status: true } } } } },
       orderBy: { joinedAt: "desc" },
     });
     return { teams: memberships.map((m) => ({ role: m.role, gameRole: m.gameRole, team: { id: m.team.id, name: m.team.name, color: m.team.color }, game: m.team.game })) };

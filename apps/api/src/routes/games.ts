@@ -15,7 +15,6 @@ import { adminOrObserver, isObserver } from "../services/access.js";
 
 const createBody = z.object({
   name: z.string().trim().min(2).max(80),
-  orgName: z.string().trim().min(2).max(80).default("Моя церковь"),
   teamCount: z.number().int().min(2).max(12),
   /** Часовой пояс устройства создателя (решение владельца 19.10): становится поясом игры вместо общего «Asia/Tashkent». */
   timeZone: z.string().trim().min(1).max(64).optional(),
@@ -72,7 +71,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const games = await prisma.game.findMany({
       where: { admins: { some: { userId: request.user!.id } } },
       orderBy: { createdAt: "desc" },
-      select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, createdById: true, org: { select: { name: true } } },
+      select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, createdById: true },
     });
     return { games };
   });
@@ -85,7 +84,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Только для администратора платформы") });
     const week = new Date(Date.now() - 7 * 86_400_000), day = new Date(Date.now() - 86_400_000);
     const [games, members, journalAll, journalWeek, pending, submittedWeek] = await Promise.all([
-      prisma.game.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, startedAt: true, finishedAt: true, org: { select: { name: true } }, _count: { select: { teams: true, admins: true } } } }),
+      prisma.game.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, startedAt: true, finishedAt: true, settings: true, _count: { select: { teams: true, admins: true } } } }),
       prisma.membership.findMany({ select: { team: { select: { gameId: true } }, user: { select: { lastSeenAt: true } } } }),
       prisma.journal.groupBy({ by: ["gameId"], _max: { createdAt: true } }),
       prisma.journal.groupBy({ by: ["gameId"], where: { createdAt: { gte: week } }, _count: { _all: true } }),
@@ -107,7 +106,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
       const p = players.get(g.id) ?? { total: 0, day: 0, week: 0 };
       const activity = (weekN.get(g.id)?._count._all ?? 0) + (subN.get(g.id)?._count._all ?? 0);
       return {
-        id: g.id, name: g.name, status: g.status, org: g.org.name, teamCount: g.teamCount, teams: g._count.teams, admins: g._count.admins, mapReady: g.mapSeed != null,
+        id: g.id, name: g.name, status: g.status, timeZone: rulesOf(g.settings).timeZone, teamCount: g.teamCount, teams: g._count.teams, admins: g._count.admins, mapReady: g.mapSeed != null,
         createdAt: g.createdAt, startedAt: g.startedAt, finishedAt: g.finishedAt,
         players: p.total, playersDay: p.day, playersWeek: p.week,
         activity, pending: pendingN.get(g.id)?._count._all ?? 0, lastActivityAt: lastAt.get(g.id)?._max.createdAt ?? null,
@@ -125,7 +124,6 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
         teamCount: body.teamCount,
         // Пояс игры — пояс создателя, если браузер прислал настоящий (IANA) и его знает Node; иначе прежний по умолчанию.
         settings: { ...body.settings, ...(body.timeZone && validTimeZone(body.timeZone) ? { rules: { timeZone: body.timeZone } } : {}) },
-        org: { create: { name: body.orgName } },
         createdBy: { connect: { id: request.user!.id } },
         admins: { create: { userId: request.user!.id } },
       },

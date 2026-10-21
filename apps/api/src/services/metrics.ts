@@ -80,9 +80,8 @@ export async function platformMetrics(days = 30) {
   const ret7 = retained7.filter((u) => u.lastSeenAt!.getTime() - u.createdAt.getTime() >= 7 * DAY).length;
   const ret30 = retained30.filter((u) => u.lastSeenAt!.getTime() - u.createdAt.getTime() >= 30 * DAY).length;
 
-  const [games, orgs, teams, memberships] = await Promise.all([
+  const [games, teams, memberships] = await Promise.all([
     prisma.game.findMany({ where: { id: { notIn: test.games } }, select: { status: true, createdAt: true, startedAt: true, finishedAt: true, teamCount: true } }),
-    prisma.organization.count(),
     prisma.team.count({ where: G }),
     prisma.membership.count({ where: TG }),
   ]);
@@ -138,7 +137,7 @@ export async function platformMetrics(days = 30) {
     games: {
       total: games.length, draft: games.filter((g) => g.status === "DRAFT").length, active: games.filter((g) => g.status === "ACTIVE").length, finished: games.filter((g) => g.status === "FINISHED").length,
       createdInPeriod: games.filter((g) => g.createdAt >= since).length, avgDurationDays: durations.length ? Math.round((avg(durations)! / DAY) * 10) / 10 : null,
-      teams, avgTeamSize: teams ? Math.round((memberships / teams) * 10) / 10 : null, organizations: orgs,
+      teams, avgTeamSize: teams ? Math.round((memberships / teams) * 10) / 10 : null,
     },
     activity: {
       submissionsInPeriod: tasksPeriod.length, submissionsTotal: tasksAll, approvedShare: share(approvedPeriod, decidedPeriod),

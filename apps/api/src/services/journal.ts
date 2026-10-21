@@ -175,7 +175,7 @@ export async function sendChronicle(gameId: string, now = new Date()): Promise<s
 
 /** «Книга сезона»: итоги, города, дела по командам и участникам, испытания и летописи — для показа на собрании. */
 export async function seasonBook(gameId: string) {
-  const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId }, include: { org: { select: { name: true } } } });
+  const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
   const [table, teams, deeds, rows] = await Promise.all([
     standings(gameId),
     prisma.team.findMany({ where: { gameId }, include: { members: { include: { user: { select: { id: true, nickname: true, displayName: true } } } }, cityStates: { where: { capturedAt: { not: null } } } }, orderBy: { index: "asc" } }),
@@ -186,7 +186,7 @@ export async function seasonBook(gameId: string) {
   const bookOf = new Map(nodes.map((n) => [n.key, n.bookCode!]));
   const users = new Map(teams.flatMap((t) => t.members.map((m) => [m.user.id, m.user.displayName || m.user.nickname] as const)));
   return {
-    game: { name: game.name, org: game.org.name, startedAt: game.startedAt, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, status: game.status },
+    game: { name: game.name, startedAt: game.startedAt, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, status: game.status },
     standings: table,
     teams: await Promise.all(teams.map(async (t) => ({
       id: t.id, name: t.name, color: t.color, status: t.status,

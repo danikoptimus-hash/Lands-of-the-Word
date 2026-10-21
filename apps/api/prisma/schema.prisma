@@ -115,17 +115,8 @@ model Session {
   @@index([userId])
 }
 
-model Organization {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
-  games     Game[]
-}
-
 model Game {
   id          String       @id @default(cuid())
-  orgId       String
-  org         Organization @relation(fields: [orgId], references: [id])
   name        String
   status      GameStatus   @default(DRAFT)
   teamCount   Int
