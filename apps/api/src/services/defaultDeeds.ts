@@ -122,6 +122,9 @@ export async function syncGameDeeds(gameId: string, mode: "auto" | "add" | "repl
     if (match) {
       seen.add(match.id);
       if (match.sourceHash === hash) continue; // уже эта версия
+      // Текст уже совпадает с набором (например, его обновила миграция напрямую), а хеш отстал: просто записываем хеш,
+      // иначе дело навсегда считалось бы правленным и следующие версии набора его бы не трогали (случай 21.10).
+      if (deedTextHash(match) === hash) { await prisma.deed.update({ where: { id: match.id }, data: { sourceHash: hash } }); continue; }
       // Без хеша — дело набора из старых игр (до появления хеша): считаем нередактированным один раз.
       const untouched = match.sourceHash === null || match.sourceHash === deedTextHash(match) || match.sourceHash === deedHash(match);
       // Камни и порог Каменоломни в идущей игре не перезаписываются (кроме «Заменить»): это настройки администратора.
