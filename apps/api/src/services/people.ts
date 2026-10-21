@@ -41,14 +41,17 @@ export async function assignPeople(gameId: string): Promise<number> {
 }
 
 /** Список людей у дела с цифрами: сколько сторон свободно на карте, в работе (взято, на проверке, возвращено) и сколько принято. */
-export async function peopleOf(gameId: string, deedId: string): Promise<Array<{ id: string; name: string; onMap: number; inWork: number; done: number }>> {
+export interface PersonSide { taskId: string; teamId: string; teamName: string; fromKey: string; toKey: string; status: string }
+export async function peopleOf(gameId: string, deedId: string): Promise<Array<{ id: string; name: string; onMap: number; inWork: number; done: number; sides: PersonSide[] }>> {
   const people = await prisma.deedPerson.findMany({ where: { gameId, deedId }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } });
   if (people.length === 0) return [];
   const rows = await prisma.teamEdgeTask.groupBy({ by: ["personId", "status"], where: { gameId, personId: { in: people.map((p) => p.id) } }, _count: { _all: true } });
+  // Стороны на карте и в работе — чтобы показать их на карте администратора (просьба владельца 21.10: «при нажатии на знак карты»).
+  const sides = await prisma.teamEdgeTask.findMany({ where: { gameId, personId: { in: people.map((p) => p.id) }, status: { not: "APPROVED" } }, select: { id: true, personId: true, teamId: true, fromKey: true, toKey: true, status: true, team: { select: { name: true } } }, orderBy: { createdAt: "asc" } });
   return people.map((p) => {
     const c = { onMap: 0, inWork: 0, done: 0 };
     for (const r of rows) if (r.personId === p.id) { if (r.status === "OPEN") c.onMap += r._count._all; else if (r.status === "APPROVED") c.done += r._count._all; else c.inWork += r._count._all; }
-    return { ...p, ...c };
+    return { ...p, ...c, sides: sides.filter((s) => s.personId === p.id).map((s) => ({ taskId: s.id, teamId: s.teamId, teamName: s.team.name, fromKey: s.fromKey, toKey: s.toKey, status: s.status })) };
   });
 }
 

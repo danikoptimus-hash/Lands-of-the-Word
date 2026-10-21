@@ -201,7 +201,7 @@ export function GamePage() {
             </div>
           )}
           {open === "teams" && <div key="teams"><TeamsBlock gameId={game.id} teamCount={game.teamCount} status={game.status} version={version} onChange={bump} goToSettings={() => setTab("settings")} onShowOnMap={showOnMap} /></div>}
-          {open === "deeds" && <div key="deeds"><DeedsBlock gameId={game.id} mode="roads" version={version} onChange={bump} /></div>}
+          {open === "deeds" && <div key="deeds"><DeedsBlock gameId={game.id} mode="roads" version={version} onChange={bump} onShowOnMap={showOnMap} /></div>}
           {open === "review" && (active ? (
             <div key="review">
               <SubmissionsBlock gameId={game.id} version={version} currency={game.settings.donationCurrency} onDecided={() => { void loadProgress(); bump(); }} onShowOnMap={showOnMap} />

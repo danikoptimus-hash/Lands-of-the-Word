@@ -6,6 +6,7 @@ import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
+import { HelpPopup } from "../components/Help";
 import { ActionMenu } from "../components/ActionMenu";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 import { Help } from "../components/Help";
@@ -31,7 +32,7 @@ function withBook(text: string) {
 }
 
 /** mode — раздел без переключателя: «roads» в разделе «Дела», «quarry» в листе Каменоломни у администратора (решение владельца 05.10). */
-export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: string; version?: number; onChange?: () => void; mode?: "roads" | "quarry" }) {
+export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }: { gameId: string; version?: number; onChange?: () => void; mode?: "roads" | "quarry"; /** «Посмотреть на карте» у стороны человека из списка (просьба владельца 21.10). */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   const [deeds, setDeeds] = useState<DeedDto[] | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [directions, setDirections] = useState<string[]>([]);
@@ -215,7 +216,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
             {error && <p className="error">{error}</p>}
           </form>
           {/* Список людей — в самой настройке дела (замечание владельца 21.10: «а не через три точки»); у нового дела появится после сохранения. */}
-          {!form.quarry && sheet.id && <PeopleSection gameId={gameId} deedId={sheet.id} onChange={() => void load()} />}
+          {!form.quarry && sheet.id && <PeopleSection gameId={gameId} deedId={sheet.id} onChange={() => void load()} onShowOnMap={onShowOnMap ? (f) => { close(); onShowOnMap(f); } : undefined} />}
           {!form.quarry && !sheet.id && <p className="hint mt-3"><Icon name="users" />{t("Список людей («кому звонить») можно заполнить после сохранения дела.")}</p>}
         </Sheet>
       )}
@@ -223,13 +224,14 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode }: { gameId: st
   );
 }
 
-interface PersonRow { id: string; name: string; onMap: number; inWork: number; done: number }
+interface PersonSide { taskId: string; teamId: string; teamName: string; fromKey: string; toKey: string; status: string }
+interface PersonRow { id: string; name: string; onMap: number; inWork: number; done: number; sides: PersonSide[] }
 /**
  * Список людей у дела — «кому звонить» (решение владельца 21.10). Имена подставляются на стороны карты с этим делом
  * равномерно; у каждого видно, сколько сторон свободно на карте, в работе и сколько уже принято (то есть сколько раз
  * позвонили). Имена живут до конца игры.
  */
-function PeopleSection({ gameId, deedId, onChange }: { gameId: string; deedId: string; onChange: () => void }) {
+function PeopleSection({ gameId, deedId, onChange, onShowOnMap }: { gameId: string; deedId: string; onChange: () => void; onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   const { notify, confirm } = useUi();
   const [people, setPeople] = useState<PersonRow[] | null>(null);
   const [name, setName] = useState("");
@@ -261,7 +263,15 @@ function PeopleSection({ gameId, deedId, onChange }: { gameId: string; deedId: s
             <li key={p.id}>
               <div className="main"><span className="title">{p.name}</span></div>
               <div className="side">
-                <Chip icon="map" title={t("Свободных на карте")}>{p.onMap}</Chip>
+                {onShowOnMap && p.sides.length > 0 ? (
+                  <HelpPopup name={t("Где на карте")} trigger={<Chip icon="map" title={t("Свободных на карте · нажмите, чтобы увидеть на карте")}>{p.onMap}</Chip>}>
+                    <ul className="member-deeds">
+                      {p.sides.map((sd) => (
+                        <li key={sd.taskId}><Icon name={sd.status === "OPEN" ? "scroll" : sd.status === "SUBMITTED" ? "clock" : sd.status === "REJECTED" ? "alert" : "hourglass"} /><span className="title">{sd.teamName}</span><span className="muted">{sd.status === "OPEN" ? t("свободно") : sd.status === "SUBMITTED" ? t("на проверке") : sd.status === "REJECTED" ? t("возвращено") : t("в работе")}</span><button type="button" className="ghost sm icon map-btn" data-popup-close aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => onShowOnMap({ teamId: sd.teamId, taskId: sd.taskId, fromKey: sd.fromKey, toKey: sd.toKey })}><Icon name="map" /></button></li>
+                      ))}
+                    </ul>
+                  </HelpPopup>
+                ) : <Chip icon="map" title={t("Свободных на карте")}>{p.onMap}</Chip>}
                 <Chip icon="hourglass" title={t("В работе")}>{p.inWork}</Chip>
                 <Chip tone="ok" icon="check" title={t("Принято")}>{p.done}</Chip>
                 <button type="button" className="ghost sm icon" disabled={busy} aria-label={t("Убрать")} title={t("Убрать")} onClick={() => void remove(p)}><Icon name="x" /></button>
