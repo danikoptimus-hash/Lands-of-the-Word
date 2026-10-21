@@ -373,5 +373,9 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 /* «Все игры» администратора платформы (14.10): карточки как на главной, строки сведений переносятся. */
 .all-games .cards { display: grid; gap: var(--sp-3); }
 .all-games-card .meta { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); font-size: var(--fs-sm); color: var(--muted); }
-.all-games-card .meta > span { display: inline-flex; align-items: center; gap: 4px; }
+.all-games-card .meta > span { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.all-games-card .meta > span.warn, .all-games-card .meta > span.warn .i { color: var(--danger); }
+/* Четыре вкладки с числами на телефон не влезают в ряд: переносятся. */
+.all-games .tabs { flex-wrap: wrap; }
+.all-games .tabs > button { flex: 1 1 auto; }
 .all-games-card .side { display: flex; align-items: center; color: var(--muted); }

@@ -26,7 +26,7 @@ type Filter = "all" | "ACTIVE" | "DRAFT" | "FINISHED";
 /** «5 мин назад», «3 ч назад», «вчера», дальше — дата. */
 /** Текущее время в поясе игры («14:32»); незнакомый пояс — прочерк. */
 function zoneNow(zone: string): string {
-  try { return new Intl.DateTimeFormat(undefined, { timeZone: zone, hour: "2-digit", minute: "2-digit" }).format(new Date()); } catch { return "—"; }
+  try { return new Intl.DateTimeFormat(undefined, { timeZone: zone, hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date()); } catch { return "—"; }
 }
 function ago(iso: string | null): string {
   if (!iso) return t("событий не было");
@@ -75,11 +75,12 @@ export function AllGamesPage() {
                   {g.pending > 0 && <Chip tone="info" icon="clock" title={t("Сдач ждёт проверки")}>{g.pending}</Chip>}
                 </div>
                 <div className="meta">
-                  <span><Icon name="clock" />{t("часовой пояс {zone}, сейчас {time}", { zone: g.timeZone, time: zoneNow(g.timeZone) })}</span>
-                  <span><Icon name="users" />{plural(g.teams, ["команда", "команды", "команд"])} · {plural(g.players, ["игрок", "игрока", "игроков"])}{g.players > 0 && <> · {t("за сутки {d}, за неделю {w}", { d: g.playersDay, w: g.playersWeek })}</>}</span>
-                  <span><Icon name="clock" />{t("последнее событие")}: {ago(g.lastActivityAt)}</span>
-                  <span><Icon name="calendar" />{g.status === "DRAFT" ? t("создана {date}", { date: fmtDate(g.createdAt, { time: false }) }) : g.status === "ACTIVE" ? t("начата {date}", { date: fmtDate(g.startedAt ?? g.createdAt, { time: false }) }) : t("завершена {date}", { date: fmtDate(g.finishedAt ?? g.createdAt, { time: false }) })}</span>
-                  {g.status === "DRAFT" && !g.mapReady && <span><Icon name="map" />{t("карта не создана")}</span>}
+                  <span title={t("Часовой пояс игры и время в нём сейчас")}><Icon name="clock" />{g.timeZone} · {zoneNow(g.timeZone)}</span>
+                  <span title={t("Команд")}><Icon name="shield" />{g.teams}</span>
+                  <span title={t("Игроков · заходили за сутки · за неделю")}><Icon name="users" />{g.players}{g.players > 0 && <> · <Icon name="sun" />{g.playersDay} · <Icon name="calendar" />{g.playersWeek}</>}</span>
+                  <span title={t("Последнее событие")}><Icon name="sparkle" />{g.lastActivityAt ? ago(g.lastActivityAt) : "—"}</span>
+                  <span title={g.status === "DRAFT" ? t("Создана") : g.status === "ACTIVE" ? t("Начата") : t("Завершена")}><Icon name={g.status === "DRAFT" ? "edit" : g.status === "ACTIVE" ? "play" : "trophy"} />{fmtDate(g.status === "DRAFT" ? g.createdAt : g.status === "ACTIVE" ? g.startedAt ?? g.createdAt : g.finishedAt ?? g.createdAt, { time: false })}</span>
+                  {g.status === "DRAFT" && !g.mapReady && <span className="warn" title={t("Карта не создана")}><Icon name="map" /><Icon name="x" /></span>}
                 </div>
               </div>
               <div className="side"><Icon name="chevron" /></div>
