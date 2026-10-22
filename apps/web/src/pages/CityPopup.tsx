@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type CityTaskDto, type MyCityDto, type SupportItemDto, type TaskLockDto } from "../lib/api";
+import { api, ApiError, type CityTaskDto, type MyCityDto, type SupportItemDto, type TaskLockDto, type VisitDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
 import { BurntScroll, CipherSeal, Crossword, LockChoice, LockRings, PickCooling, ProphetCandle, WaxEnvelope, findGap } from "./CityForms";
@@ -14,6 +14,8 @@ import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
 import { LoadingState } from "../components/State";
 import { kindLabel } from "./RecipientsBlock";
+import { PeoplePicker } from "../components/PeoplePicker";
+import { LinksField } from "../components/LinksField";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 /** Пересказы районов (в списке и на кольцах замка) — личное удобство читателя, запоминается в браузере. */
@@ -300,12 +302,13 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
             <div className="capture">
               {city.node.ruined && !city.owner && !city.state.capturedAt && <div className="note warn"><Icon name="info" /><span>{t("Город в руинах: его можно занять без конверта.")}</span></div>}
               <WaxEnvelope fragments={city.content.fragments} cipher={city.content.fragments.map((f) => f ?? "·").join("")}
-                recipientText={city.recipient ? t("Кому: «{label}» ({kind}). Назовите шифр — получите конверт.", { label: city.recipient.label, kind: kindLabel(city.recipient.kind) }) : t("Назовите шифр тому, к кому вас направили, — получите конверт.")}
+                recipientText={(city.recipient ? t("Кому: «{label}» ({kind}). Назовите шифр — получите конверт.", { label: city.recipient.label, kind: kindLabel(city.recipient.kind) }) : t("Назовите шифр тому, к кому вас направили, — получите конверт.")) + (city.state.capturedAt ? "" : " " + t("К адресату приезжает не меньше половины команды. После визита капитан в тот же день сдаёт отчёт: кто ездил, что сделали, фото."))}
                 codeRule={city.content.codeRule} keyValue={key} onKey={setKey} onBreak={() => void capture()} busy={busy} cooldown={cooldown} ruined={city.node.ruined && !city.owner} result={capResult}
                 captured={city.state.capturedAt ? { isCapital: city.state.isCapital, secondCapital: city.state.secondCapital } : null}
                 ownedBy={city.owner && !city.state.capturedAt ? { name: city.owner.name, color: city.owner.color } : null} />
             </div>
           )}
+          {city.visit && <VisitSection gameId={gameId} visit={city.visit} captured={Boolean(city.state.capturedAt)} isCaptain={isCaptain} onChanged={() => { void load(); onChanged(); }} />}
           {city.state.capturedAt && !city.state.isCapital && isCaptain && (
             <div className="row mt-2">
               <button type="button" className="secondary" disabled={busy || Boolean(city.team.capitalMovedAt)} onClick={() => void makeCapital()}><Icon name="crown" />{t("Перенести столицу сюда")}</button>
@@ -457,4 +460,74 @@ function useDraftSaver(url: string): (body: { order?: string[]; taskIndex?: numb
   }, [url]);
   useEffect(() => flush, [flush]);
   return useCallback((body) => { pending.current = { ...pending.current, ...body }; window.clearTimeout(timer.current); timer.current = window.setTimeout(flush, 400); }, [flush]);
+}
+
+/**
+ * Отчёт о визите к адресату (решение владельца 22.10): кто ездил (не меньше половины команды), что сделали, ссылки на фото.
+ * Сдаётся в тот же день до полуночи, и ночью тоже; не сдан или не принят — город свободен.
+ */
+function VisitSection({ gameId, visit, captured, isCaptain, onChanged }: { gameId: string; visit: VisitDto; captured: boolean; isCaptain: boolean; onChanged: () => void }) {
+  const { notify } = useUi();
+  const [editing, setEditing] = useState(false);
+  const [went, setWent] = useState<string[]>(visit.members);
+  const [text, setText] = useState(visit.text);
+  const [links, setLinks] = useState<string[]>(visit.links);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const nameOf = (id: string) => visit.people.find((m) => m.id === id)?.name ?? "?";
+  async function send() {
+    setBusy(true); setError(null);
+    try {
+      await api(`/api/games/${gameId}/visits/${visit.id}/report`, { method: "POST", body: JSON.stringify({ members: went, text, links }) });
+      notify(t("Отчёт о визите сдан: ждёт проверки администратора")); setEditing(false); onChanged();
+    } catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : t("Ошибка сети")); }
+    finally { setBusy(false); }
+  }
+  if (!captured) {
+    if (visit.status === "REJECTED") return <div className="note bad"><Icon name="alert" /><span>{t("Отчёт о визите не принят: город свободен. Съездите к адресату ещё раз, введите ключ и сдайте новый отчёт.")}{visit.adminComment ? ` ${t("Причина: {c}", { c: visit.adminComment })}` : ""}</span></div>;
+    if (visit.status === "EXPIRED") return <div className="note bad"><Icon name="clock" /><span>{t("Отчёт о визите не сдан в тот же день: город свободен. Съездите к адресату ещё раз, введите ключ и сдайте отчёт.")}</span></div>;
+    return null;
+  }
+  if (visit.status === "APPROVED") return <p className="meta-line"><Icon name="check" />{t("Отчёт о визите принят")}{visit.adminComment ? ` · ${visit.adminComment}` : ""}</p>;
+  if (visit.status !== "PENDING" && visit.status !== "SUBMITTED") return null;
+  const form = visit.status === "PENDING" || editing;
+  return (
+    <div className="visit mt-3">
+      <div className="row between nowrap">
+        <span className="strong"><Icon name="users" /> {t("Отчёт о визите")}<Help>{t("К адресату приезжает не меньше половины команды. Отчёт сдаётся в тот же день до полуночи по местному времени: кто ездил, что сделали, ссылки на фото команды и дела. Не сдан вовремя или не принят администратором — город становится свободным.")}</Help></span>
+        {visit.status === "SUBMITTED" ? <Chip tone="warn" icon="clock">{t("на проверке")}</Chip> : <Chip tone="bad" icon="clock">{t("сдать до {time}", { time: fmtDate(visit.dueAt) })}</Chip>}
+      </div>
+      {visit.status === "PENDING" && <p className="muted small mt-1">{t("Не сдан до полуночи — город станет свободным.")}</p>}
+      {!form && (
+        <div className="stack-sm mt-2">
+          <p className="small"><span className="muted">{t("Ездили {n} из {m}", { n: visit.members.length, m: visit.people.length })}: </span>{visit.members.map(nameOf).join(", ")}</p>
+          <p className="small">{visit.text}</p>
+          <p className="small">{visit.links.map((l, i) => <a key={l + i} href={l} target="_blank" rel="noopener noreferrer"><Icon name="camera" />{t("Фото")}{visit.links.length > 1 ? ` ${i + 1}` : ""} </a>)}</p>
+          {isCaptain && <div className="actions"><button type="button" className="ghost sm" onClick={() => setEditing(true)}><Icon name="edit" />{t("Изменить")}</button></div>}
+        </div>
+      )}
+      {form && !isCaptain && <p className="hint">{t("Отчёт сдаёт капитан или заместитель.")}</p>}
+      {form && isCaptain && (
+        <div className="mt-1">
+          {/* Как в форме дела: ссылки слева, участники справа, в один ряд. */}
+          <div className="deed-pair two">
+            <LinksField label={t("Ссылки на фото")} links={links} onChange={setLinks} />
+            <div className="field">
+              <label className="label" htmlFor={"visit-people-" + visit.id}>{t("Кто ездил")} <span className="opt">{t("не меньше {c} из {m}", { c: visit.need, m: visit.people.length })}</span></label>
+              <PeoplePicker id={"visit-people-" + visit.id} people={visit.people} value={went} onChange={setWent} empty={t("никто не отмечен")} />
+            </div>
+          </div>
+          <div className="field">
+            <label htmlFor={"visit-text-" + visit.id}>{t("Что сделали")}</label>
+            <textarea id={"visit-text-" + visit.id} rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder={t("Что сделали у адресата: помощь по дому, молитва, общение, угощение. Сколько были.")} maxLength={4000} />
+          </div>
+          {error && <p className="error" role="alert">{error}</p>}
+          <div className="actions">
+            <button type="button" disabled={busy || went.length < visit.need || !text.trim() || links.length === 0} onClick={() => void send()}><Icon name="send" />{visit.status === "SUBMITTED" ? t("Сдать заново") : t("Сдать отчёт")}</button>
+            {editing && <button type="button" className="ghost" onClick={() => setEditing(false)}>{t("Отмена")}</button>}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }

@@ -15,6 +15,7 @@ import { err, msg } from "../services/i18n.js";
 import { journal, nick } from "../services/journal.js";
 import { taskEvent } from "../services/behavior.js";
 import { ruinsTreasure } from "../services/treasure.js";
+import { expireVisits, openVisit, visitView } from "../services/visits.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
 const draftBody = z.object({ order: z.array(z.string().min(1).max(64)).max(60).optional(), taskIndex: z.number().int().min(0).max(200).optional(), ids: z.array(z.string().min(1).max(64)).max(60).optional() });
@@ -94,6 +95,10 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       prisma.supportRequest.findMany({ where: { teamId: m.team.id, nodeKey, OR: [{ status: "OPEN" }, { resolvedAt: { gte: new Date(Date.now() - 14 * 86_400_000) } }] }, orderBy: { createdAt: "desc" }, take: 20 }),
     ]);
     const scopeKey = `${m.team.id}|${nodeKey}`;
+    // Отчёт о визите (решение владельца 22.10): открытый — на сдачу, решённый за последние сутки — чтобы показать итог.
+    await expireVisits(id);
+    const visitRow = await prisma.cityVisit.findFirst({ where: { teamId: m.team.id, nodeKey, OR: [{ status: { in: ["PENDING", "SUBMITTED"] } }, { decidedAt: { gte: new Date(Date.now() - 86_400_000) } }] }, orderBy: { createdAt: "desc" } });
+    const visit = visitRow ? await visitView(visitRow) : null;
     const solved = state?.orderSolved ?? false;
     const done = state?.doneTasks ?? [];
     const keyLockedUntil = state?.keyLockedUntil ? state.keyLockedUntil.getTime() : 0;
@@ -116,6 +121,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       visitors,
       node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, ruined: node.ruined },
       recipient,
+      visit,
       owner: ownerState?.team ?? null,
       team: { capitalMovedAt: m.team.capitalMovedAt, gameRole: m.gameRole, role: m.role },
       content: content
@@ -306,9 +312,11 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (c.node.ruined) await prisma.mapNode.update({ where: { id: c.node.id }, data: { ruined: false, maxReachedAt: null, lockedUntil: null, sumMode: false } });
     await onCityOwned(id, nodeKey, c.m.team.id);
     journal(id, c.node.ruined ? "ruins_taken" : "city_captured", { everyone: true, teamId: c.m.team.id, userId: request.user!.id, vars: { team: c.m.team.name, book: c.node.bookCode ?? "", capital: updated.isCapital ? " (столица)" : "" } });
+    // Город взят ключом от адресата: в тот же день нужен отчёт о визите (решение владельца 22.10). Руины берутся без адресата.
+    const visit = c.node.ruined ? null : await openVisit(id, c.m.team.id, nodeKey, c.node.bookCode ?? "");
     publish(id, { type: "cities", teamId: c.m.team.id });
     publish(id, { type: "map", teamId: c.m.team.id });
-    return { ok: true, isCapital: updated.isCapital };
+    return { ok: true, isCapital: updated.isCapital, visitDueAt: visit?.dueAt ?? null };
   });
 
   /** Админ (для тестов): присвоить город команде — все районы решены, город занят ею; прежний владелец теряет город. */

@@ -564,12 +564,16 @@
 .task-view .task-nav { display: flex; gap: var(--sp-1); margin-left: auto; margin-right: var(--sp-2); flex: none; }
 .task-view .task-nav .i.flip { transform: scaleX(-1); }
 /* Форма сдачи дела в два столбца (решение владельца 16.10): ссылки слева, участники справа; «Отказаться» слева, «Сдать» справа. */
-.deed-sheet .deed-pair { display: grid; grid-template-columns: 1fr; gap: 0 var(--sp-3); align-items: start; }
-.deed-sheet .deed-pair.two { grid-template-columns: 1fr 1fr; }
-.deed-sheet .deed-pair .field { margin-top: 0; }
-.deed-sheet .deed-pair .label, .deed-sheet .deed-pair .links-field .label { display: block; margin: var(--sp-4) 0 var(--sp-1); min-height: calc(2 * var(--lh-ui) * var(--fs-sm)); }
-.deed-sheet .deed-pair .link-add-btn { width: 100%; min-height: var(--control-h); justify-content: center; }
+.deed-pair { display: grid; grid-template-columns: 1fr; gap: 0 var(--sp-3); align-items: start; }
+.deed-pair.two { grid-template-columns: 1fr 1fr; }
+.deed-pair .field { margin-top: 0; }
+.deed-pair .label, .deed-pair .links-field .label { display: block; margin: var(--sp-4) 0 var(--sp-1); min-height: calc(2 * var(--lh-ui) * var(--fs-sm)); }
+.deed-pair .link-add-btn { width: 100%; min-height: var(--control-h); justify-content: center; }
 .deed-sheet .deed-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
 .deed-sheet .deed-actions > button { width: 100%; min-height: 52px; white-space: normal; line-height: 1.2; padding-inline: var(--sp-2); }
-.deed-sheet .deed-pair > * { min-width: 0; }
-.deed-sheet .deed-pair .link-list li { min-width: 0; overflow: hidden; }
+.deed-pair > * { min-width: 0; }
+.deed-pair .link-list li { min-width: 0; overflow: hidden; }
+/* Отчёт о визите к адресату (22.10). */
+.visit { padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
+.visit .strong .i { color: var(--accent); vertical-align: -.2em; }
+.visit a .i { vertical-align: -.2em; margin-right: 2px; }

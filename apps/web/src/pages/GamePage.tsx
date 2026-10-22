@@ -10,6 +10,7 @@ import { StartBlock, type MapStats } from "./StartBlock";
 import { SettingsBlock } from "./SettingsBlock";
 import { QuarryBlock, SubmissionsBlock } from "./SubmissionsBlock";
 import { BattlesBlock } from "./BattlesBlock";
+import { VisitsBlock } from "./VisitsBlock";
 import { AdminsBlock } from "./AdminsBlock";
 import { FinishBlock } from "./FinishBlock";
 import { JournalAdmin } from "./Journal";
@@ -207,6 +208,7 @@ export function GamePage() {
               <SubmissionsBlock gameId={game.id} version={version} currency={game.settings.donationCurrency} onDecided={() => { void loadProgress(); bump(); }} onShowOnMap={showOnMap} />
               <QuarryBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <BattlesBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
+              <VisitsBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <PassagesBlock gameId={game.id} version={version} />
             </div>
           ) : (

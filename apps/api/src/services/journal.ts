@@ -24,6 +24,7 @@ export type JournalKind =
   | "quarry_submitted" | "quarry_approved" | "quarry_returned" | "paved"
   | "peace_offered" | "peace_made" | "peace_declined" | "peace_broken" | "peace_ended" | "peace_violated"
   | "ally_requested" | "ally_joined" | "ally_declined"
+  | "visit_submitted" | "visit_approved" | "visit_rejected" | "visit_expired"
   | "chronicle" | "game_finished";
 
 export type JournalVars = Record<string, string | number>;
@@ -73,6 +74,10 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   ally_requested: "Команда «{team}» просит команду «{other}» о защитном союзе против команды «{third}» за город {book}",
   ally_joined: "Команда «{team}» встала на защиту города {book} команды «{other}» против команды «{third}»",
   ally_declined: "Команда «{other}» отказала команде «{team}» в защитном союзе за город {book}",
+  visit_submitted: "{user} сдал(а) отчёт о визите к адресату города {book}",
+  visit_approved: "Отчёт команды «{team}» о визите к адресату города {book} принят",
+  visit_rejected: "Отчёт команды «{team}» о визите к адресату города {book} не принят: город свободен",
+  visit_expired: "Команда «{team}» не сдала отчёт о визите к адресату города {book} в тот же день: город свободен",
   chronicle: "Летопись недели",
   game_finished: "Игра завершена{winner}",
 };
@@ -143,7 +148,7 @@ export async function chronicleLines(gameId: string, from: Date, to: Date, local
   const lines: string[] = [];
   const deeds = teams.map((t) => ({ name: t.name, n: rows.filter((r) => r.kind === "deed_approved" && r.teamId === t.id).length })).filter((d) => d.n > 0);
   lines.push(deeds.length ? msg(locale, "Дела за неделю: {list}.", { list: deeds.map((d) => `«${d.name}» — ${d.n}`).join(", ") }) : msg(locale, "Дел за неделю не принято."));
-  const cities = rows.filter((r) => r.kind === "city_captured" || r.kind === "ruins_taken" || r.kind === "trial_won" || r.kind === "siege_won");
+  const cities = rows.filter((r) => r.kind === "city_captured" || r.kind === "ruins_taken" || r.kind === "trial_won" || r.kind === "siege_won" || r.kind === "visit_rejected" || r.kind === "visit_expired");
   if (cities.length) lines.push(msg(locale, "Города: {list}.", { list: cities.map((r) => journalText(locale, r.kind as JournalKind, r.vars as JournalVars)).join("; ") }));
   const trials = rows.filter((r) => ["trial_declared", "trial_repelled", "trial_won", "trial_burnt", "siege_declared", "siege_won", "siege_repelled"].includes(r.kind));
   if (trials.length) lines.push(msg(locale, "Испытания: {list}.", { list: trials.map((r) => journalText(locale, r.kind as JournalKind, r.vars as JournalVars)).join("; ") }));

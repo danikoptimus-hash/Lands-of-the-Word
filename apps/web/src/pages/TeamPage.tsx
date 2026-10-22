@@ -493,7 +493,9 @@ export function TeamPage() {
   const peaceOffers = peace?.canSpeak ? peace.teams.filter((p) => p.state === "incoming") : [];
   // Просьба о защитном союзе (решение владельца 22.10) ждёт ответа капитана, заместителя или посла.
   const allyAsks = activeBattles.filter((b) => b.myAlliance?.status === "PROPOSED").length;
-  const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks;
+  // Отчёт о визите (решение владельца 22.10) ждёт капитана или заместителя до полуночи.
+  const visitsDue = (map.visits ?? []).filter((v) => v.status === "PENDING");
+  const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0);
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
   const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length };
@@ -563,7 +565,7 @@ export function TeamPage() {
             </div>
           )}
           {view === "attention" && (
-            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 ? (
+            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 ? (
                 <section className="section attention">
                   <ul className="list interactive">
                     {rejectedTasks.map((tk) => (
@@ -584,6 +586,11 @@ export function TeamPage() {
                     {myTurnBattles.map((b) => (
                       <li key={b.id} role="button" tabIndex={0} onClick={() => openCity(b.nodeKey)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCity(b.nodeKey); } }}>
                         <div className="main"><span className="title">{t("Испытание · {city}", { city: bookName(b.bookCode) })}</span><span className="meta">{t("ваш ход")}</span></div><Icon name="chevron" className="chev" />
+                      </li>
+                    ))}
+                    {visitsDue.map((v) => (
+                      <li key={v.id} role="button" tabIndex={0} onClick={() => openCity(v.nodeKey)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCity(v.nodeKey); } }}>
+                        <div className="main"><span className="title">{t("Отчёт о визите · {city}", { city: bookName(v.bookCode) })}</span><span className="meta">{t("сдать до {time}", { time: fmtDate(v.dueAt) })}</span></div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
                   </ul>

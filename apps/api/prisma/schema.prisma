@@ -144,6 +144,7 @@ model Game {
   supportRequests SupportRequest[]
   journal     Journal[]
   peaces      Peace[]
+  visits      CityVisit[]
   quarryWorks  QuarryWork[]
   trades      CityTrade[]
 }
@@ -309,6 +310,7 @@ model Team {
   tradeIn        CityTrade[] @relation("tradeTo")
   peaceOut       Peace[] @relation("peaceFrom")
   peaceIn        Peace[] @relation("peaceTo")
+  visits         CityVisit[]
 }
 
 model Membership {
@@ -940,4 +942,42 @@ model Peace {
   violated   Boolean     @default(false)
 
   @@index([gameId, status])
+}
+
+/**
+ * Отчёт о визите к адресату конверта (решение владельца 22.10): город взят ключом, в тот же день капитан сдаёт отчёт —
+ * кто ездил (не меньше половины команды), что сделали, ссылки на фото. Не сдан до полуночи по поясу игры или не принят
+ * администратором — город становится свободным. Города, взятые до появления правила, отчёта не требуют (строки нет).
+ */
+model CityVisit {
+  id           String      @id @default(cuid())
+  gameId       String
+  game         Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  teamId       String
+  team         Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  nodeKey      String
+  bookCode     String
+  status       VisitStatus @default(PENDING)
+  /** До какого момента нужно сдать отчёт: полночь того же дня по поясу игры. */
+  dueAt        DateTime
+  /** Кто ездил: id участников. */
+  members      String[]    @default([])
+  text         String      @default("")
+  links        String[]    @default([])
+  adminComment String      @default("")
+  submittedById String?
+  submittedAt  DateTime?
+  decidedAt    DateTime?
+  createdAt    DateTime    @default(now())
+
+  @@index([gameId, status])
+  @@index([teamId, nodeKey, status])
+}
+
+enum VisitStatus {
+  PENDING
+  SUBMITTED
+  APPROVED
+  REJECTED
+  EXPIRED
 }
