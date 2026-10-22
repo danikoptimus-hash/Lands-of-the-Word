@@ -16,7 +16,6 @@ import { BOOKS } from "@lotw/domain";
 const bookName = (code: string) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
 import type { Battle, BattleEntry, Prisma } from "@prisma/client";
 import { journal, teamNames } from "./journal.js";
-import { peaceBetween } from "./peace.js";
 import { sweepDigests } from "./digest.js";
 
 /**
