@@ -5,7 +5,7 @@ import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "
 import { endOfLocalDay, expireVisits, openVisit } from "./services/visits.js";
 
 /**
- * Отчёт о визите к адресату (решение владельца 22.10): в тот же день, не меньше половины команды, фото ссылкой;
+ * Отчёт о визите к адресату (решение владельца 22.10): в тот же день, хотя бы один ездивший, фото ссылкой;
  * не сдан до полуночи или не принят — город свободен, столица тоже.
  */
 const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
@@ -47,20 +47,20 @@ describe("отчёт о визите", () => {
     expect(d.toISOString()).toBe("2026-10-22T19:00:00.000Z"); // полночь 23.10 по UTC+5
     expect(endOfLocalDay("Europe/Moscow", new Date("2026-10-22T22:30:00Z")).toISOString()).toBe("2026-10-23T21:00:00.000Z");
   });
-  it("половина команды обязательна, участник сдать не может, принятый отчёт оставляет город", async () => {
+  it("нужен хотя бы один ездивший, участник сдать не может, принятый отчёт оставляет город", async () => {
     const v = await capture();
     expect(v.dueAt.getTime()).toBeGreaterThan(Date.now());
     const city = await cityOf(ck.cap);
-    expect(city.visit).toMatchObject({ id: v.id, status: "PENDING", need: 2 });
+    expect(city.visit).toMatchObject({ id: v.id, status: "PENDING", need: 1 });
     expect(city.visit!.people.length).toBe(3);
     const url = `/api/games/${gameId}/visits/${v.id}/report`;
     expect((await post(url, ck.a, { members: [uid.cap, uid.a], text: "Молились", links: ["https://example.com/p"] })).statusCode).toBe(403);
-    const few = await post(url, ck.cap, { members: [uid.cap], text: "Молились", links: ["https://example.com/p"] });
+    const few = await post(url, ck.cap, { members: [], text: "Молились", links: ["https://example.com/p"] });
     expect(few.statusCode).toBe(409); expect(few.json().error).toBe("few");
     expect((await post(url, ck.cap, { members: [uid.cap, uid.a], text: "", links: ["https://example.com/p"] })).json().error).toBe("empty");
     expect((await post(url, ck.cap, { members: [uid.cap, uid.a], text: "Молились", links: [] })).json().error).toBe("nolink");
     // Чужой id в списке не считается.
-    expect((await post(url, ck.cap, { members: [uid.cap, uid.cap2], text: "Молились", links: ["https://example.com/p"] })).json().error).toBe("few");
+    expect((await post(url, ck.cap, { members: [uid.cap2], text: "Молились", links: ["https://example.com/p"] })).json().error).toBe("few");
     const ok = await post(url, ck.cap, { members: [uid.cap, uid.a, uid.a], text: "Помогли по дому, помолились", links: ["https://example.com/p"] });
     expect(ok.statusCode, ok.body).toBe(200);
     expect((await cityOf(ck.a)).visit?.status).toBe("SUBMITTED");

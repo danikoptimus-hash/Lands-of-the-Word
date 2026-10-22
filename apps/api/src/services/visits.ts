@@ -8,7 +8,7 @@ import type { Prisma } from "@prisma/client";
 
 /**
  * Отчёт о визите к адресату конверта (решение владельца 22.10). Команда вводит ключ — город её, но в тот же день
- * (до полуночи по поясу игры) капитан или заместитель сдаёт отчёт: кто ездил (не меньше половины команды), что сделали,
+ * (до полуночи по поясу игры) капитан или заместитель сдаёт отчёт: кто ездил (хотя бы один), что сделали,
  * ссылки на фото. Отчёт не сдан вовремя или не принят администратором — город становится свободным, команда едет заново.
  * Столица — как любой город. Города, взятые до появления правила, отчёта не требуют: у них нет строки визита.
  */
@@ -26,8 +26,8 @@ export function endOfLocalDay(timeZone: string, now = new Date()): Date {
   }
 }
 
-/** Сколько участников должны поехать: половина действующего состава, вверх. */
-export const needVisitors = (members: number) => Math.max(1, Math.ceil(members / 2));
+/** Сколько участников должны поехать: хотя бы один (решение владельца 22.10, вечер: «пусть даже один человек»; требование половины снято). */
+export const needVisitors = (_members: number) => 1;
 
 /** Город взят ключом: открывается визит, отчёт ждём до полуночи. */
 export async function openVisit(gameId: string, teamId: string, nodeKey: string, bookCode: string): Promise<{ id: string; dueAt: Date }> {
@@ -87,7 +87,7 @@ export async function submitVisit(visitId: string, teamId: string, r: VisitRepor
   const ids = new Set(team.map((m) => m.userId));
   const went = [...new Set(r.members)].filter((id) => ids.has(id));
   const need = needVisitors(ids.size);
-  if (went.length < need) return { ok: false, code: "few", message: "К адресату приезжает не меньше половины команды: нужно {need}, отмечено {n}", vars: { need, n: went.length } };
+  if (went.length < need) return { ok: false, code: "few", message: "Отметьте, кто ездил к адресату: хотя бы одного", vars: { need, n: went.length } };
   if (!r.text.trim()) return { ok: false, code: "empty", message: "Напишите, что сделали у адресата" };
   if (r.links.length === 0) return { ok: false, code: "nolink", message: "Приложите хотя бы одну ссылку на фото" };
   await prisma.cityVisit.update({ where: { id: v.id }, data: { status: "SUBMITTED", members: went, text: r.text.trim(), links: r.links, submittedAt: new Date(), submittedById: r.userId } });

@@ -302,7 +302,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
             <div className="capture">
               {city.node.ruined && !city.owner && !city.state.capturedAt && <div className="note warn"><Icon name="info" /><span>{t("Город в руинах: его можно занять без конверта.")}</span></div>}
               <WaxEnvelope fragments={city.content.fragments} cipher={city.content.fragments.map((f) => f ?? "·").join("")}
-                recipientText={(city.recipient ? t("Кому: «{label}» ({kind}). Назовите шифр — получите конверт.", { label: city.recipient.label, kind: kindLabel(city.recipient.kind) }) : t("Назовите шифр тому, к кому вас направили, — получите конверт.")) + (city.state.capturedAt ? "" : " " + t("К адресату приезжает не меньше половины команды. После визита капитан в тот же день сдаёт отчёт: кто ездил, что сделали, фото."))}
+                recipientText={(city.recipient ? t("Кому: «{label}» ({kind}). Назовите шифр — получите конверт.", { label: city.recipient.label, kind: kindLabel(city.recipient.kind) }) : t("Назовите шифр тому, к кому вас направили, — получите конверт.")) + (city.state.capturedAt ? "" : " " + t("После визита капитан в тот же день сдаёт отчёт: кто ездил, что сделали, фото."))}
                 codeRule={city.content.codeRule} keyValue={key} onKey={setKey} onBreak={() => void capture()} busy={busy} cooldown={cooldown} ruined={city.node.ruined && !city.owner} result={capResult}
                 captured={city.state.capturedAt ? { isCapital: city.state.isCapital, secondCapital: city.state.secondCapital } : null}
                 ownedBy={city.owner && !city.state.capturedAt ? { name: city.owner.name, color: city.owner.color } : null} />
@@ -463,7 +463,7 @@ function useDraftSaver(url: string): (body: { order?: string[]; taskIndex?: numb
 }
 
 /**
- * Отчёт о визите к адресату (решение владельца 22.10): кто ездил (не меньше половины команды), что сделали, ссылки на фото.
+ * Отчёт о визите к адресату (решение владельца 22.10): кто ездил (хотя бы один), что сделали, ссылки на фото.
  * Сдаётся в тот же день до полуночи, и ночью тоже; не сдан или не принят — город свободен.
  */
 function VisitSection({ gameId, visit, captured, isCaptain, onChanged }: { gameId: string; visit: VisitDto; captured: boolean; isCaptain: boolean; onChanged: () => void }) {
@@ -494,7 +494,7 @@ function VisitSection({ gameId, visit, captured, isCaptain, onChanged }: { gameI
   return (
     <div className="visit mt-3">
       <div className="row between nowrap">
-        <span className="strong"><Icon name="users" /> {t("Отчёт о визите")}<Help>{t("К адресату приезжает не меньше половины команды. Отчёт сдаётся в тот же день до полуночи по местному времени: кто ездил, что сделали, ссылки на фото команды и дела. Не сдан вовремя или не принят администратором — город становится свободным.")}</Help></span>
+        <span className="strong"><Icon name="users" /> {t("Отчёт о визите")}<Help>{t("Отчёт сдаётся в тот же день до полуночи по местному времени: кто ездил, что сделали, ссылки на фото команды и дела. Не сдан вовремя или не принят администратором — город становится свободным.")}</Help></span>
         {visit.status === "SUBMITTED" ? <Chip tone="warn" icon="clock">{t("на проверке")}</Chip> : <Chip tone="bad" icon="clock">{t("сдать до {time}", { time: fmtDate(visit.dueAt) })}</Chip>}
       </div>
       {visit.status === "PENDING" && <p className="muted small mt-1">{t("Не сдан до полуночи — город станет свободным.")}</p>}
@@ -513,7 +513,7 @@ function VisitSection({ gameId, visit, captured, isCaptain, onChanged }: { gameI
           <div className="deed-pair two">
             <LinksField label={t("Ссылки на фото")} links={links} onChange={setLinks} />
             <div className="field">
-              <label className="label" htmlFor={"visit-people-" + visit.id}>{t("Кто ездил")} <span className="opt">{t("не меньше {c} из {m}", { c: visit.need, m: visit.people.length })}</span></label>
+              <label className="label" htmlFor={"visit-people-" + visit.id}>{t("Кто ездил")} <span className="opt">{t("из {m}", { m: visit.people.length })}</span></label>
               <PeoplePicker id={"visit-people-" + visit.id} people={visit.people} value={went} onChange={setWent} empty={t("никто не отмечен")} />
             </div>
           </div>
