@@ -326,6 +326,9 @@ model Membership {
   deedsFrozenUntil DateTime?
   /** Причина заморозки, которую написал администратор (видят администратор и сам участник). */
   deedsFrozenReason String?
+  /** Когда этот разведчик в последний раз разведывал и когда этот пророк открывал подсказку: недельный лимит — на каждого, не на команду (решение владельца 22.10). */
+  peekedAt DateTime?
+  hintedAt DateTime?
   joinedAt DateTime @default(now())
 
   @@id([teamId, userId])

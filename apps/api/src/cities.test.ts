@@ -310,6 +310,17 @@ describe("дипломатия, роли, столица, руины, пожер
     expect(["CITY", "EMPTY", "START"]).toContain(peek.json().kind);
     const again = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: scoutCookie }, payload: { nodeKey: far.toKey } });
     expect(again.statusCode).toBe(429);
+    // Лимит — на каждого разведчика (решение владельца 22.10): второй разведчик команды разведывает в ту же неделю.
+    const scout2Nick = `scout2_${stamp}`;
+    const scout2Cookie = await register(scout2Nick);
+    const inv2 = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team2}/invites`, headers: { cookie: adminCookie }, payload: { role: "MEMBER" } });
+    await app.inject({ method: "POST", url: `/api/invites/${inv2.json().invite.token}/accept`, headers: { cookie: scout2Cookie } });
+    const scout2 = await prisma.user.findFirstOrThrow({ where: { nickname: scout2Nick } });
+    await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${scout2.id}`, headers: { cookie: adminCookie }, payload: { gameRole: "SCOUT" } });
+    const other = frontier.find((k) => k !== (bare ?? far.toKey)) ?? far.toKey;
+    const peek2 = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-map/peek`, headers: { cookie: scout2Cookie }, payload: { nodeKey: other } });
+    expect(peek2.statusCode, peek2.body).toBe(200);
+    await prisma.user.deleteMany({ where: { nickname: scout2Nick } });
     const after = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
     expect((after.json().peeked as Array<{ key: string }>).some((p) => p.key === (bare ?? far.toKey))).toBe(true);
     await prisma.user.deleteMany({ where: { nickname: scoutNick } });

@@ -214,13 +214,15 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const frontier = around.some((h) => hexCorners(h).some((c) => revealed.has(vertexKey(c))));
     if (!frontier) return reply.code(400).send({ error: "validation", message: err(request, "Разведать можно только перекрёсток на краю тумана") });
     const rules = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } })).settings);
-    if (m.team.lastPeekAt && Date.now() - m.team.lastPeekAt.getTime() < days(rules.roleCooldownDays)) {
-      const next = new Date(m.team.lastPeekAt.getTime() + days(rules.roleCooldownDays));
+    // Лимит — на каждого разведчика, не на команду (решение владельца 22.10: капитан назначил нескольких разведчиков,
+    // один разведал — остальным разведка закрылась).
+    if (m.peekedAt && Date.now() - m.peekedAt.getTime() < days(rules.roleCooldownDays)) {
+      const next = new Date(m.peekedAt.getTime() + days(rules.roleCooldownDays));
       return reply.code(429).send({ error: "cooldown", message: err(request, "Разведка доступна раз в неделю: следующая — {date}", { date: fmtDay(next, toLocale(request.user?.locale)) }) });
     }
     await prisma.$transaction([
       prisma.teamPeek.upsert({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey: body.nodeKey } }, create: { teamId: m.team.id, nodeKey: body.nodeKey }, update: {} }),
-      prisma.team.update({ where: { id: m.team.id }, data: { lastPeekAt: new Date() } }),
+      prisma.membership.update({ where: { teamId_userId: { teamId: m.team.id, userId: request.user!.id } }, data: { peekedAt: new Date() } }),
     ]);
     publish(id, { type: "map", teamId: m.team.id });
     return { kind: node.kind };
@@ -241,8 +243,9 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const content0 = await loadCityContent(node0.bookCode ?? "");
     if (!content0 || !content0.tasks[body.index]) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
     const rules = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } })).settings);
-    if (m.team.lastHintAt && Date.now() - m.team.lastHintAt.getTime() < days(rules.roleCooldownDays)) {
-      const next = new Date(m.team.lastHintAt.getTime() + days(rules.roleCooldownDays));
+    // Лимит — на каждого пророка, не на команду (решение владельца 22.10, как у разведчиков).
+    if (m.hintedAt && Date.now() - m.hintedAt.getTime() < days(rules.roleCooldownDays)) {
+      const next = new Date(m.hintedAt.getTime() + days(rules.roleCooldownDays));
       return reply.code(429).send({ error: "cooldown", message: err(request, "Подсказка доступна раз в неделю: следующая — {date}", { date: fmtDay(next, toLocale(request.user?.locale)) }) });
     }
     // Подсказка показывается один раз (решение владельца 22.09): текст уходит в ответе и нигде больше не отдаётся.
@@ -250,7 +253,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     if (!hint) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
     await prisma.$transaction([
       prisma.teamCityState.update({ where: { id: state.id }, data: { hintTasks: { push: body.index } } }),
-      prisma.team.update({ where: { id: m.team.id }, data: { lastHintAt: new Date() } }),
+      prisma.membership.update({ where: { teamId_userId: { teamId: m.team.id, userId: request.user!.id } }, data: { hintedAt: new Date() } }),
     ]);
     publish(id, { type: "cities", teamId: m.team.id });
     return { ok: true, verses: hint.verses, text: hint.text };
