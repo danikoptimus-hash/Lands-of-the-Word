@@ -38,10 +38,7 @@ function peaceTerm(p: PeaceTeamDto): string {
   if (p.state === "peace" && p.until) return t("до {d}", { d: fmtDate(p.until, { time: false }) });
   return t("на {n} дн.", { n: p.days });
 }
-/** Варианты срока мира: 7, 14, 30 дней или до конца игры. */
-const PEACE_TERMS: Array<{ days: number; label: () => string }> = [
-  { days: 7, label: () => t("На 7 дней") }, { days: 14, label: () => t("На 14 дней") }, { days: 30, label: () => t("На 30 дней") }, { days: 0, label: () => t("До конца игры") },
-];
+
 function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeace }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void; roster?: React.ReactNode; /** Мир: знак напротив каждой чужой команды (решение владельца 21.09) */ peace?: PeaceData | null; onPeace?: (p: PeaceTeamDto, action: PeaceAction) => void }) {
   const stop = { onClick: (e: React.SyntheticEvent) => e.stopPropagation(), onKeyDown: (e: React.SyntheticEvent) => e.stopPropagation() };
   if (!standings) return <LoadingState rows={2} />;
@@ -237,6 +234,8 @@ export function TeamPage() {
   /** Мир из строки команды: предложение — только после подтверждения «Да / Нет» (решение владельца 21.09). */
   /** Предложение мира — с выбором срока (решение владельца 22.10): шторка с вариантами вместо «Да / Нет». */
   const [peaceOffer, setPeaceOffer] = useState<PeaceTeamDto | null>(null);
+  /** Срок в днях выбирает сама команда (уточнение владельца 22.10), не из готовых кнопок. */
+  const [peaceDays, setPeaceDays] = useState(7);
   const offerPeace = useCallback(async (p: PeaceTeamDto, days: number) => {
     setPeaceOffer(null);
     try { await api(`/api/games/${id}/peace`, { method: "POST", body: JSON.stringify({ teamId: p.team.id, days }) }); notify(t("Мир предложен")); await loadPeace(); }
@@ -660,9 +659,12 @@ export function TeamPage() {
             {peaceOffer && (
               <Sheet size="sm" title={t("Предложить мир команде «{team}»", { team: peaceOffer.team.name })} onClose={() => setPeaceOffer(null)}>
                 <p className="hint">{t("Пока мир действует, команды не бросают вызов городам друг друга и не объявляют осад. Расторгнуть мир раньше срока нельзя.")}</p>
-                <div className="peace-terms">
-                  {PEACE_TERMS.map((o) => <button key={o.days} type="button" className="secondary" onClick={() => void offerPeace(peaceOffer, o.days)}><Icon name="handshake" />{o.label()}</button>)}
-                </div>
+                <form className="peace-terms" onSubmit={(e) => { e.preventDefault(); if (peaceDays >= 1 && peaceDays <= 365) void offerPeace(peaceOffer, peaceDays); }}>
+                <label htmlFor="peace-days">{t("На сколько дней")}</label>
+                <input id="peace-days" type="number" inputMode="numeric" min={1} max={365} value={peaceDays} onChange={(e) => setPeaceDays(Number(e.target.value))} autoFocus />
+                <button type="submit" disabled={!(peaceDays >= 1 && peaceDays <= 365)}><Icon name="handshake" />{t("Предложить мир на {n} дн.", { n: peaceDays })}</button>
+                <button type="button" className="secondary" onClick={() => void offerPeace(peaceOffer, 0)}><Icon name="handshake" />{t("До конца игры")}</button>
+              </form>
               </Sheet>
             )}
             </section>
