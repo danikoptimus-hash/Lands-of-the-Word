@@ -487,4 +487,5 @@ export const PLAYER: Record<string, string> = {
   "Отчёт о визите · {city}": "Visit report · {city}",
   "{user} сдал(а) отчёт о визите к адресату города {book}": "{user} submitted the visit report for the recipient of {book}", "Отчёт команды «{team}» о визите к адресату города {book} принят": "Team “{team}”’s visit report for the recipient of {book} was accepted", "Отчёт команды «{team}» о визите к адресату города {book} не принят: город свободен": "Team “{team}”’s visit report for the recipient of {book} was not accepted: the city is free", "Команда «{team}» не сдала отчёт о визите к адресату города {book} в тот же день: город свободен": "Team “{team}” did not submit the visit report for the recipient of {book} the same day: the city is free",
   "На кого записать дело": "Record the deed to", "кто делал: идёт в его лимит": "who did it: counts toward their limit",
+  "Телеграм": "Telegram",
 };
