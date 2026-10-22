@@ -366,17 +366,22 @@ export interface DeedLimit { max: number; taken: number; nextAt: number | null }
  * ночи) и когда счёт обнулится — в ближайшие 7:00. Решение владельца 07.10: не скользящее окно в 24 часа, а сброс у всех
  * разом утром. Пустая карта — лимита нет. Видят все в составе команды (решение владельца 04.10: таймер у каждого участника).
  */
-export async function deedLimitsFor(gameId: string, max: number, userIds: string[]): Promise<Map<string, DeedLimit>> {
+export async function deedLimitsFor(gameId: string, max: number, userIds: string[], excludeTaskId?: string): Promise<Map<string, DeedLimit>> {
   const out = new Map<string, DeedLimit>();
   if (!max || userIds.length === 0) return out;
   const game = await prisma.game.findUnique({ where: { id: gameId }, select: { settings: true } });
   const { since, nextAt } = deedDayWindow(rulesOf(game?.settings).timeZone);
   // Возвращённое администратором дело места в лимите не занимает (решение владельца 05.10): таймер у участника сбрасывается,
   // пока он не пересдал это дело (после пересдачи оно снова в окне по времени взятия).
-  const rows = await prisma.teamEdgeTask.findMany({ where: { gameId, takenById: { in: userIds }, takenAt: { gte: since }, status: { not: "REJECTED" } }, select: { takenById: true, takenAt: true }, orderBy: { takenAt: "asc" } });
-  const byUser = new Map<string, number[]>();
-  for (const r of rows) if (r.takenById && r.takenAt) byUser.set(r.takenById, [...(byUser.get(r.takenById) ?? []), r.takenAt.getTime()]);
-  for (const id of userIds) { const t = byUser.get(id) ?? []; out.set(id, { max, taken: t.length, nextAt: t.length >= max ? nextAt : null }); }
+  // Дело, сданное сразу без взятия, тоже в счёт — по времени сдачи (решение владельца 22.10: летописец сдавал такие дела
+  // без ограничения). Участие в групповом деле (галочки) в лимит не идёт: помочь другим после своего дела можно.
+  const rows = await prisma.teamEdgeTask.findMany({
+    where: { gameId, status: { not: "REJECTED" }, takenById: { in: userIds }, ...(excludeTaskId ? { NOT: { id: excludeTaskId } } : {}), OR: [{ takenAt: { gte: since } }, { takenAt: null, submittedAt: { gte: since } }] },
+    select: { takenById: true },
+  });
+  const count = new Map<string, number>();
+  for (const r of rows) if (r.takenById) count.set(r.takenById, (count.get(r.takenById) ?? 0) + 1);
+  for (const id of userIds) { const n = count.get(id) ?? 0; out.set(id, { max, taken: n, nextAt: n >= max ? nextAt : null }); }
   return out;
 }
 

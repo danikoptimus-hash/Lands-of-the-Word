@@ -191,9 +191,15 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     // Участники дела группой: только свои, всегда включая сдающего/взявшего.
     const members = new Set((await prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true } })).map((x) => x.userId));
     const participants = [...new Set([task.takenById ?? request.user!.id, ...body.participants.filter((u) => members.has(u))])];
+    // Дело, сданное без взятия, записывается на сдающего и идёт в его лимит (решение владельца 22.10): летописец сдавал
+    // свободные дела подряд, лимит их не видел. Сверх лимита так сдать нельзя. Участники группы в лимит не идут.
+    if (!task.takenById) {
+      const limit = await deedLimitFor(id, request.user!.id);
+      if (limit && limit.taken >= limit.max) return reply.code(409).send({ error: "limit", message: err(request, "В сутки можно взять не больше {n} дел. Счёт обнулится в 7:00, через {when}", { n: limit.max, when: untilText(request, limit.nextAt ?? Date.now()) }) });
+    }
     const updated = await prisma.teamEdgeTask.update({
       where: { id: taskId },
-      data: { status: "SUBMITTED", takenById: task.takenById ?? request.user!.id, links: body.links, note: body.note, participants, submittedAt: new Date(), adminComment: "", donation: body.donation, donationAmount: body.donation ? body.donationAmount ?? null : null },
+      data: { status: "SUBMITTED", takenById: task.takenById ?? request.user!.id, takenAt: task.takenAt ?? new Date(), links: body.links, note: body.note, participants, submittedAt: new Date(), adminComment: "", donation: body.donation, donationAmount: body.donation ? body.donationAmount ?? null : null },
       include: taskInclude,
     }).then((u) => bookIn(id, u));
     publish(id, { type: "submissions", teamId: m.team.id });
