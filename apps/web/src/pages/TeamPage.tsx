@@ -824,6 +824,7 @@ export function TeamPage() {
               {!night && task.status === "TAKEN" && (mine || isLeader || me?.gameRole === "CHRONICLER") && (
                 <DeedForm key={task.id} donationCfg={task.deed.donationMin ? { min: task.deed.donationMin, currency } : null} busy={busy} proofType={task.deed.proofType}
                   members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
+                  main={isLeader || me?.gameRole === "CHRONICLER" ? { options: (team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname })), initial: task.takenById ?? user?.id ?? "" } : undefined}
                   onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
                   onRelease={() => void release(task)} />
               )}
@@ -843,13 +844,15 @@ export function TeamPage() {
  * Форма сдачи дела. Живёт под key=task.id: у каждого дела свой набранный текст. Отчёт — три вопроса вместо «сделано»
  * (решение владельца 18.09); участники дела группой отмечаются галочками, каждому засчитывается в личное служение.
  */
-function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }: { donationCfg: { min: number; currency: string } | null; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; donation: boolean; donationAmount?: number; participants: string[] }) => Promise<boolean>; onRelease: () => void }) {
+function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRelease }: { /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; donationCfg: { min: number; currency: string } | null; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; donation: boolean; donationAmount?: number; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [q, setQ] = useState({ what: "", who: "" });
   const [donation, setDonation] = useState(false);
   const [amount, setAmount] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
+  const [mainId, setMainId] = useState(main?.initial ?? "");
+  const others = main ? main.options.filter((m) => m.id !== mainId) : members;
   const [witness, setWitness] = useState("");
   const report = proofType === "REPORT" && !donation;
   // Свидетель (решение владельца 04.10): дело подтверждает человек, который это видел; ссылки не нужны.
@@ -871,16 +874,24 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
           <input id="deed-witness" value={witness} onChange={(e) => setWitness(e.target.value)} maxLength={120} placeholder={t("имя и кто это, например служитель")} />
         </div>
       )}
+      {main && (
+        <div className="field">
+          <label htmlFor="deed-main">{t("На кого записать дело")} <span className="opt">{t("кто делал: идёт в его лимит")}</span></label>
+          <select id="deed-main" value={mainId} onChange={(e) => { setMainId(e.target.value); setParticipants((p) => p.filter((x) => x !== e.target.value)); }}>
+            {main.options.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+          </select>
+        </div>
+      )}
       {/* Ссылки слева, участники справа — в один ряд (решение владельца 16.10: «не этажерка»). */}
-      {(!byWitness || members.length > 0) && (
-        <div className={"deed-pair" + (!byWitness && members.length > 0 ? " two" : "")}>
+      {(!byWitness || others.length > 0) && (
+        <div className={"deed-pair" + (!byWitness && others.length > 0 ? " two" : "")}>
           {!byWitness && (
             <LinksField label={donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />
           )}
-          {members.length > 0 && (
+          {others.length > 0 && (
             <div className="field">
               <label className="label" htmlFor="deed-people">{t("Кто ещё участвовал")} <span className="opt">{donation ? t("если жертвовали вместе") : t("если делали группой")}</span></label>
-              <PeoplePicker id="deed-people" people={members} value={participants} onChange={setParticipants} empty={t("никого: делал один")} />
+              <PeoplePicker id="deed-people" people={others} value={participants} onChange={setParticipants} empty={t("никого: делал один")} />
             </div>
           )}
         </div>
@@ -899,7 +910,7 @@ function DeedForm({ donationCfg, busy, proofType, members, onSubmit, onRelease }
       {/* «Отказаться» слева, «Сдать» справа, в один ряд (решение владельца 16.10). */}
       <div className="actions deed-actions">
         <button type="button" className="secondary" disabled={busy} onClick={onRelease}>{t("Отказаться от дела")}</button>
-        <button type="button" disabled={busy || (donation && !amount) || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links, note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
+        <button type="button" disabled={busy || (donation && !amount) || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links, note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants, mainId: main ? mainId : undefined })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
       </div>
     </>
   );

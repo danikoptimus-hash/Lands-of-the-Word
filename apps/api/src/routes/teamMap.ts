@@ -17,6 +17,8 @@ const submitBody = z.object({
   note: z.string().trim().max(2000).default(""),
   /** Кто участвовал в деле группой (id участников команды): каждому засчитывается в личное служение, сторона одна. */
   participants: z.array(z.string().min(1)).max(50).default([]),
+  /** На кого записать дело (решение владельца 22.10): капитан, заместитель или летописец сдают групповое дело и выбирают основного; дело идёт в его лимит. */
+  mainId: z.string().min(1).optional(),
   /** Дело заменено пожертвованием: сумма не меньше минимума из настроек, чек — ссылкой. */
   donation: z.boolean().default(false),
   donationAmount: z.number().int().min(1).optional(),
@@ -190,16 +192,19 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     }
     // Участники дела группой: только свои, всегда включая сдающего/взявшего.
     const members = new Set((await prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true } })).map((x) => x.userId));
-    const participants = [...new Set([task.takenById ?? request.user!.id, ...body.participants.filter((u) => members.has(u))])];
-    // Дело, сданное без взятия, записывается на сдающего и идёт в его лимит (решение владельца 22.10): летописец сдавал
-    // свободные дела подряд, лимит их не видел. Сверх лимита так сдать нельзя. Участники группы в лимит не идут.
-    if (!task.takenById) {
-      const limit = await deedLimitFor(id, request.user!.id);
-      if (limit && limit.taken >= limit.max) return reply.code(409).send({ error: "limit", message: err(request, "В сутки можно взять не больше {n} дел. Счёт обнулится в 7:00, через {when}", { n: limit.max, when: untilText(request, limit.nextAt ?? Date.now()) }) });
+    // На кого записать дело (решение владельца 22.10): капитан, заместитель или летописец, сдавая групповое дело, выбирают
+    // основного — дело записывается на него и идёт в его лимит; остальные — участники, их лимит не тратится.
+    // Дело без взятия записывается на сдающего. Сверх лимита основного сдать нельзя: «запишите на другого».
+    const canAssign = isLeader(m) || m.gameRole === "CHRONICLER";
+    const mainId = canAssign && body.mainId && members.has(body.mainId) ? body.mainId : task.takenById ?? request.user!.id;
+    if (mainId !== task.takenById) {
+      const limit = await deedLimitFor(id, mainId);
+      if (limit && limit.taken >= limit.max) return reply.code(409).send({ error: "limit", message: mainId === request.user!.id ? err(request, "В сутки можно взять не больше {n} дел. Счёт обнулится в 7:00, через {when}", { n: limit.max, when: untilText(request, limit.nextAt ?? Date.now()) }) : err(request, "У участника {name} за сутки уже {n} дел, лимит {max}: запишите дело на другого", { name: await nick(mainId), n: limit.taken, max: limit.max }) });
     }
+    const participants = [...new Set([mainId, ...body.participants.filter((u) => members.has(u))])];
     const updated = await prisma.teamEdgeTask.update({
       where: { id: taskId },
-      data: { status: "SUBMITTED", takenById: task.takenById ?? request.user!.id, takenAt: task.takenAt ?? new Date(), links: body.links, note: body.note, participants, submittedAt: new Date(), adminComment: "", donation: body.donation, donationAmount: body.donation ? body.donationAmount ?? null : null },
+      data: { status: "SUBMITTED", takenById: mainId, takenAt: task.takenAt ?? new Date(), links: body.links, note: body.note, participants, submittedAt: new Date(), adminComment: "", donation: body.donation, donationAmount: body.donation ? body.donationAmount ?? null : null },
       include: taskInclude,
     }).then((u) => bookIn(id, u));
     publish(id, { type: "submissions", teamId: m.team.id });

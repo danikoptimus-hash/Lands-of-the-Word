@@ -63,4 +63,27 @@ describe("лимит дел без обхода", () => {
     expect((await post(`/api/games/${gameId}/edge-tasks/${d1!.id}/submit`, ck.chron, { links: ["https://example.com/4"], note: "За b", participants: [] })).statusCode).toBe(200);
     expect((await limitOf(ck.cap, uid.b))?.taken).toBe(1);
   });
+  it("летописец записывает дело на основного: оно идёт в его лимит, на выбравшего лимит — нельзя", async () => {
+    const deed = await prisma.deed.findFirstOrThrow({ where: { gameId, proofType: "PHOTO_LINK", quarry: false } });
+    const d5 = await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: "T:5", toKey: "T:6", deedId: deed.id } });
+    const d6 = await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: "T:6", toKey: "T:7", deedId: deed.id } });
+    // Новый участник без дел; летописец с выбранным лимитом (прошлый тест).
+    const r = await registerVerified(app, { nickname: `dl_d_${stamp}`, password: "secret123" }); const dCookie = r.headers["set-cookie"] as string; const dId = r.json().user.id as string;
+    const inv = await post(`/api/games/${gameId}/teams/${teamId}/invites`, ck.cap, { role: "MEMBER" }); await post(`/api/invites/${inv.json().invite.token}/accept`, dCookie);
+    // Летописец взять не может (лимит), но капитан берёт и записывает дело на d: считается d, не капитану.
+    expect((await post(`/api/games/${gameId}/edge-tasks/${d5.id}/take`, ck.chron)).statusCode).toBe(409);
+    await prisma.teamEdgeTask.update({ where: { id: d5.id }, data: { status: "TAKEN", takenById: uid.chron, takenAt: new Date() } });
+    // На b записать нельзя: у него лимит выбран. На d — можно; у летописца взятие освобождается.
+    const onB = await post(`/api/games/${gameId}/edge-tasks/${d5.id}/submit`, ck.chron, { links: ["https://example.com/5"], note: "Делал b", participants: [uid.b], mainId: uid.b });
+    expect(onB.statusCode).toBe(409); expect(onB.json().message).toContain("запишите дело на другого");
+    expect((await post(`/api/games/${gameId}/edge-tasks/${d5.id}/submit`, ck.chron, { links: ["https://example.com/5"], note: "Делал d, помогал b", participants: [uid.b, dId], mainId: dId })).statusCode).toBe(200);
+    const row = await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: d5.id } });
+    expect(row.takenById).toBe(dId); expect(row.participants).toEqual([dId, uid.b]);
+    expect((await limitOf(ck.cap, dId))?.taken).toBe(1);
+    // Обычный участник записать дело на другого не может: поле игнорируется, дело остаётся его.
+    await prisma.teamEdgeTask.update({ where: { id: d6.id }, data: { status: "TAKEN", takenById: uid.c, takenAt: new Date() } });
+    expect((await post(`/api/games/${gameId}/edge-tasks/${d6.id}/submit`, ck.c, { links: ["https://example.com/6"], note: "Сам", participants: [], mainId: dId })).statusCode).toBe(200);
+    expect((await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: d6.id } })).takenById).toBe(uid.c);
+    await prisma.user.deleteMany({ where: { id: dId } });
+  });
 });
