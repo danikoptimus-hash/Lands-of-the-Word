@@ -7,11 +7,12 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { formatRange, loadBook, refToIndex, parseRef, verseText, type BibleBook } from "../services/bible.js";
-import { afterReject, gameRules, maybeRepel, maybeStartDefense, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
+import { afterReject, defenseNeed, gameRules, maybeRepel, maybeStartDefense, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { declareSiege, siegeOptions } from "../services/siege.js";
 import { BOOKS } from "@lotw/domain";
 import { journal } from "../services/journal.js";
+import { violatePeace } from "../services/peace.js";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const declareBody = z.object({ bid: z.number().int().min(1).max(100000) });
@@ -24,8 +25,15 @@ const passageBody = z.object({ from: z.string().trim().min(3).max(12), to: z.str
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
 
 const teamSelect = { select: { id: true, index: true, name: true, color: true } } as const;
-const include = { entries: { orderBy: { createdAt: "asc" as const } }, attacker: teamSelect, defender: teamSelect } as const;
-type Full = BattleWithEntries & { attacker: { id: string; name: string; color: string; index: number }; defender: { id: string; name: string; color: string; index: number } };
+const include = { entries: { orderBy: { createdAt: "asc" as const } }, attacker: teamSelect, defender: teamSelect, allies: true } as const;
+type TeamLite = { id: string; name: string; color: string; index: number };
+type AllianceRow = { id: string; victimId: string; allyId: string; status: "PROPOSED" | "ACTIVE" | "DECLINED" };
+type Full = BattleWithEntries & { attacker: TeamLite; defender: TeamLite; allies: AllianceRow[] };
+/** Живые команды игры (не выбывшие). */
+const aliveTeams = (gameId: string) => prisma.team.findMany({ where: { gameId, NOT: { status: "defeated" } }, select: { id: true, index: true, name: true, color: true }, orderBy: { index: "asc" } });
+/** Сторона команды в испытании: претендент, хранитель или действующий союзник хранителей (учит стихи ответа). */
+const sideOf = (b: { attackerId: string; defenderId: string; allies: AllianceRow[] }, teamId: string): "ATTACK" | "DEFENSE" | null =>
+  b.attackerId === teamId ? "ATTACK" : b.defenderId === teamId || b.allies.some((a) => a.allyId === teamId && a.status === "ACTIVE") ? "DEFENSE" : null;
 
 function versesOf(book: BibleBook, start: number, end: number) {
   return Array.from({ length: end - start + 1 }, (_, i) => ({ idx: start + i, ref: formatRange(book, start + i, start + i), text: verseText(book, start + i) }));
@@ -38,7 +46,8 @@ function versesOf(book: BibleBook, start: number, end: number) {
 async function view(b: Full, users: Map<string, string>, forTeamId: string | null, userId: string | null) {
   const book = await loadBook(b.bookCode);
   const range = (s: number, e: number) => (book ? formatRange(book, s, e) : `${s}–${e}`);
-  const mySide = forTeamId === null ? null : b.attackerId === forTeamId ? "ATTACK" : b.defenderId === forTeamId ? "DEFENSE" : null;
+  const mySide = forTeamId === null ? null : sideOf(b, forTeamId);
+  const myAlliance = forTeamId ? b.allies.find((a) => a.allyId === forTeamId && a.status !== "DECLINED") ?? null : null;
   const showAttackText = forTeamId === null || mySide === "ATTACK";
   const showDefenseText = forTeamId === null || mySide === "DEFENSE";
   const live = b.status === "QUEUED" || b.status === "ATTACK" || b.status === "DEFENSE";
@@ -50,8 +59,14 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
     .map((e) => ({ id: e.id, side: e.side, userId: e.userId, nickname: users.get(e.userId) ?? "?", ref: range(e.startIdx, e.endIdx), start: e.startIdx, end: e.endIdx, verses: e.endIdx - e.startIdx + 1, weight: e.weight, links: e.links, note: e.note, status: e.status, adminComment: e.adminComment, carried: e.carried, createdAt: e.createdAt }));
   const my = mySide && userId ? [...userVerses(b.entries, mySide, userId)] : [];
   const learned = mySide && userId && live ? [...(await learnedVerses(b.gameId, b.id, b.bookCode, userId))] : [];
+  // Защитный союз (решение владельца 22.10): список союзников всем; хранителям нарушенного мира — кого ещё можно позвать.
+  const shown = b.allies.filter((a) => a.status !== "DECLINED");
+  const teams = shown.length || (b.violation && live && forTeamId === b.defenderId) ? await aliveTeams(b.gameId) : [];
+  const allies = shown.map((a) => ({ id: a.id, status: a.status, team: teams.find((t) => t.id === a.allyId) ?? { id: a.allyId, index: 0, name: "?", color: "#888" } }));
+  const allyCandidates = b.violation && live && forTeamId === b.defenderId && teams.length >= 3 ? teams.filter((t) => t.id !== b.attackerId && t.id !== b.defenderId && !shown.some((a) => a.allyId === t.id)) : [];
   return {
     id: b.id, nodeKey: b.nodeKey, bookCode: b.bookCode, bookName: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode, status: b.status, sumMode: b.sumMode, bid: b.bid, defenseBid: hideDefense ? null : b.defenseBid,
+    violation: b.violation, defenseFactor: b.defenseFactor, defenseNeed: defenseNeed(b), allies, allyCandidates, myAlliance: myAlliance ? { id: myAlliance.id, status: myAlliance.status } : null,
     attacker: b.attacker, defender: b.defender, mySide, passage, defensePassage,
     declaredAt: b.declaredAt, startedAt: b.startedAt, attackDeadline: b.attackDeadline, attackDoneAt: b.attackDoneAt, attackApprovedAt: b.attackApprovedAt,
     defenseDeadline: b.defenseDeadline, defenseDoneAt: b.defenseDoneAt, resolvedAt: b.resolvedAt,
@@ -134,7 +149,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     await sweep(id);
-    const battles = await prisma.battle.findMany({ where: { gameId: id, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }] }, orderBy: { declaredAt: "desc" }, include, take: 30 });
+    const battles = await prisma.battle.findMany({ where: { gameId: id, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }, { allies: { some: { allyId: m.team.id, status: { in: ["PROPOSED", "ACTIVE"] } } } }] }, orderBy: { declaredAt: "desc" }, include, take: 30 });
     const users = await usersOf(battles);
     return { battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id))), daytime: await gameDaytime(id) };
   });
@@ -144,7 +159,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const { id, battleId } = request.params as { id: string; battleId: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }] } });
+    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }, { allies: { some: { allyId: m.team.id, status: "ACTIVE" } } }] } });
     if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
     const book = await loadBook(b.bookCode);
     if (!book) return reply.code(409).send({ error: "conflict", message: err(request, "Текст этой книги ещё не загружен") });
@@ -174,6 +189,19 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     // Сгоревший раньше вызов этой команды этому городу: в очереди — после всех, кто встал раньше.
     const last = await prisma.battle.findFirst({ where: { gameId: id, nodeKey, attackerId: m.team.id, status: { in: ["EXPIRED", "WON", "REPELLED"] } }, orderBy: { resolvedAt: "desc" }, select: { status: true } });
     const created = await prisma.battle.create({ data: { gameId: id, nodeKey, bookCode: node.bookCode!, attackerId: m.team.id, defenderId: o.owner.id, bid: body.bid, sumMode, status: "QUEUED", afterBurn: last?.status === "EXPIRED" } });
+    // Вызов при действующем мире нарушает его (решение владельца 22.10). Две команды в игре — защита города вдвое;
+    // три и больше — хранители могут просить третью команду о защитном союзе.
+    if (await violatePeace(id, m.team.id, o.owner.id, node.bookCode ?? "")) {
+      const alive = await prisma.team.count({ where: { gameId: id, NOT: { status: "defeated" } } });
+      if (alive <= 2) {
+        await prisma.battle.update({ where: { id: created.id }, data: { defenseFactor: 2 } });
+        notifyTeam(id, o.owner.id, "защита города {book} удвоена", "Мир нарушен, а в игре только две команды: для ответа вашему городу {book} нужно вдвое больше стихов, чем ставка претендентов — {need}.", { book: node.bookCode ?? "", need: body.bid * 2 });
+        notifyTeam(id, m.team.id, "защита города {book} удвоена", "Вы нарушили мир: хранителям города {book} хватит вдвое больше стихов, чем ваша ставка — {need}.", { book: node.bookCode ?? "", need: body.bid * 2 });
+      } else {
+        await prisma.battle.update({ where: { id: created.id }, data: { violation: true } });
+        notifyTeam(id, o.owner.id, "мир нарушен: можно позвать союзника", "Команда «{team}» нарушила мир вызовом вашему городу {book}. Вы можете попросить другую команду о защитном союзе: её участники будут учить стихи ответа вместе с вами. Кнопка — в карточке испытания.", { team: m.team.name, book: node.bookCode ?? "" });
+      }
+    }
     if (active === 0) await startAttack(created.id);
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "battles", teamId: o.owner.id });
@@ -232,9 +260,9 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     if (!(await assertAwake(request, reply, id))) return;
     await sweep(id);
-    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true } });
+    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true, allies: true } });
     if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
-    const side = b.attackerId === m.team.id ? "ATTACK" : b.defenderId === m.team.id ? "DEFENSE" : null;
+    const side = sideOf(b, m.team.id);
     if (!side) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда не участвует в этом испытании") });
     if (side === "ATTACK" && b.status !== "ATTACK") return reply.code(409).send({ error: "conflict", message: err(request, b.status === "QUEUED" ? "Вызов ещё в очереди" : "Вызов уже завершён") });
     if (side === "ATTACK" && b.attackDoneAt) return reply.code(409).send({ error: "conflict", message: err(request, "Вызов отправлен на проверку: добавлять стихи нельзя") });
@@ -308,6 +336,60 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Админ: все битвы игры с записями обеих сторон. */
+  /**
+   * Защитный союз (решение владельца 22.10): после нарушения мира (в игре от трёх команд) капитан, заместитель или посол
+   * хранителей просит третью команду о помощи; та принимает или отказывает. Союзник учит стихи ответа вместе с хранителями.
+   */
+  app.post("/api/games/:id/battles/:battleId/allies", async (request, reply) => {
+    const { id, battleId } = request.params as { id: string; battleId: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    if (!isLeader(m) && m.gameRole !== "AMBASSADOR") return reply.code(403).send({ error: "forbidden", message: err(request, "О союзе просит капитан, заместитель или посол") });
+    const body = z.object({ teamId: z.string().min(1) }).parse(request.body);
+    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id, defenderId: m.team.id }, include });
+    if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
+    if (!b.violation) return reply.code(409).send({ error: "conflict", message: err(request, "Союз возможен только в испытании, которым нарушен мир") });
+    if (!["QUEUED", "ATTACK", "DEFENSE"].includes(b.status)) return reply.code(409).send({ error: "conflict", message: err(request, "Испытание уже завершено") });
+    const alive = await aliveTeams(id);
+    if (alive.length < 3) return reply.code(409).send({ error: "conflict", message: err(request, "В игре нет третьей команды") });
+    const ally = alive.find((t) => t.id === body.teamId);
+    if (!ally || ally.id === b.attackerId || ally.id === b.defenderId) return reply.code(409).send({ error: "conflict", message: err(request, "Эту команду позвать нельзя") });
+    if (b.allies.some((a) => a.allyId === ally.id && a.status !== "DECLINED")) return reply.code(409).send({ error: "conflict", message: err(request, "Эта команда уже приглашена") });
+    await prisma.defenseAlliance.upsert({ where: { battleId_allyId: { battleId: b.id, allyId: ally.id } }, create: { gameId: id, battleId: b.id, victimId: m.team.id, allyId: ally.id }, update: { status: "PROPOSED", decidedAt: null, createdAt: new Date() } });
+    const vars = { team: m.team.name, other: ally.name, third: b.attacker.name, book: b.bookCode };
+    journal(id, "ally_requested", { teamId: m.team.id, vars });
+    journal(id, "ally_requested", { teamId: ally.id, vars });
+    notifyTeam(id, ally.id, "просьба о защитном союзе от «{team}»", "Команда «{team}» просит вас о защитном союзе: команда «{third}» нарушила мир вызовом её городу {book}. Если вы согласитесь, ваши участники смогут учить стихи ответа вместе с хранителями. Принять или отклонить может капитан, заместитель или посол — в испытаниях.", vars);
+    publish(id, { type: "battles", teamId: m.team.id });
+    publish(id, { type: "battles", teamId: ally.id });
+    return reply.code(201).send({ ok: true });
+  });
+  app.post("/api/games/:id/battles/:battleId/allies/:allianceId/:action", async (request, reply) => {
+    const { id, battleId, allianceId, action } = request.params as { id: string; battleId: string; allianceId: string; action: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    if (!isLeader(m) && m.gameRole !== "AMBASSADOR") return reply.code(403).send({ error: "forbidden", message: err(request, "Решение о союзе принимает капитан, заместитель или посол") });
+    if (action !== "accept" && action !== "decline") return reply.code(404).send({ error: "not_found", message: err(request, "Действие не найдено") });
+    const a = await prisma.defenseAlliance.findFirst({ where: { id: allianceId, battleId, gameId: id, allyId: m.team.id } });
+    if (!a) return reply.code(404).send({ error: "not_found", message: err(request, "Просьба о союзе не найдена") });
+    if (a.status !== "PROPOSED") return reply.code(409).send({ error: "conflict", message: err(request, "Просьба уже рассмотрена") });
+    const b = await prisma.battle.findUniqueOrThrow({ where: { id: battleId }, include });
+    if (!["QUEUED", "ATTACK", "DEFENSE"].includes(b.status)) return reply.code(409).send({ error: "conflict", message: err(request, "Испытание уже завершено") });
+    await prisma.defenseAlliance.update({ where: { id: a.id }, data: { status: action === "accept" ? "ACTIVE" : "DECLINED", decidedAt: new Date() } });
+    const vars = { team: m.team.name, other: b.defender.name, third: b.attacker.name, book: b.bookCode };
+    if (action === "accept") {
+      journal(id, "ally_joined", { everyone: true, teamId: m.team.id, vars });
+      notifyTeam(id, b.defenderId, "союзник встал на защиту города {book}", "Команда «{team}» приняла защитный союз: её участники учат стихи ответа вместе с вами.", vars);
+    } else {
+      journal(id, "ally_declined", { teamId: b.defenderId, vars: { team: b.defender.name, other: m.team.name, book: b.bookCode } });
+      notifyTeam(id, b.defenderId, "в защитном союзе отказано", "Команда «{team}» отказала в защитном союзе за город {book}.", vars);
+    }
+    publish(id, { type: "battles", teamId: m.team.id });
+    publish(id, { type: "battles", teamId: b.defenderId });
+    publish(id, { type: "battles", teamId: b.attackerId });
+    return { ok: true };
+  });
+
   app.get("/api/games/:id/battles", async (request, reply) => {
     const { id } = request.params as { id: string };
     if (!(await requireAdmin(request, reply, id))) return;

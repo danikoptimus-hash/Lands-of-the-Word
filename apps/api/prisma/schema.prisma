@@ -597,10 +597,37 @@ model Battle {
   attackPausedMs    Int          @default(0)
   /** Вызов объявлен после того, как предыдущий вызов этой команды этому городу сгорел: в очереди — после всех, кто встал раньше. */
   afterBurn         Boolean      @default(false)
+  /** Вызов нарушил мир (решение владельца 22.10): хранители могут просить третью команду о защитном союзе. */
+  violation         Boolean      @default(false)
+  /** Множитель защиты: 2, если мир нарушен в игре из двух команд — хранителям нужно вдвое больше стихов. */
+  defenseFactor     Int          @default(1)
   entries           BattleEntry[]
+  allies            DefenseAlliance[]
 
   @@index([gameId, nodeKey, status])
   @@index([gameId, status])
+}
+
+/** Защитный союз (решение владельца 22.10): после нарушения мира хранители просят третью команду помочь стихами в ответе. */
+model DefenseAlliance {
+  id        String         @id @default(cuid())
+  gameId    String
+  battleId  String
+  battle    Battle         @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  victimId  String
+  allyId    String
+  status    AllianceStatus @default(PROPOSED)
+  createdAt DateTime       @default(now())
+  decidedAt DateTime?
+
+  @@unique([battleId, allyId])
+  @@index([gameId, allyId, status])
+}
+
+enum AllianceStatus {
+  PROPOSED
+  ACTIVE
+  DECLINED
 }
 
 model BattleEntry {
@@ -909,6 +936,8 @@ model Peace {
   endedAt    DateTime?
   /** Кто расторг (команда). */
   endedById  String?
+  /** Мир нарушен вызовом городу (решение владельца 22.10): endedById — нарушитель. */
+  violated   Boolean     @default(false)
 
   @@index([gameId, status])
 }

@@ -32,7 +32,7 @@ const verses = (n: number) => plural(n, ["стих", "стиха", "стихов
  * Испытание города в попапе: уровень испытания, вызов (ставка — сколько стихов команда выучит
  * в сумме по участникам), карточки идущих испытаний, прошлые.
  */
-export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; version: number; onChanged: () => void }) {
+export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCaptain, version, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Кто просит о защитном союзе и отвечает на просьбу: капитан, заместитель, посол. */ canAlly?: boolean; version: number; onChanged: () => void }) {
   const { confirm, notify } = useUi();
   const [war, setWar] = useState<WarDto | null>(null);
   const [bid, setBid] = useState<number | "">("");
@@ -47,7 +47,9 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
 
   async function declare() {
     if (!war || bid === "") return;
-    const ok = await confirm(t("Команда обязуется выучить ровно {n} в сумме по участникам: лишние стихи не считаются. Игра выдаст случайный отрывок; с этого момента идёт время вызова, не больше {d} дней.", { n: verses(bid), d: war.attackDays ?? 14 }), { title: t("Испытать город со ставкой {n}?", { n: verses(bid) }), okLabel: t("Испытать город"), danger: true });
+    // Вызов при мире нарушает его (решение владельца 22.10): предупреждение в подтверждении.
+    const peaceWarn = war.peace ? t("Это нарушит мир с хранителями{until}: мир кончится, все команды узнают об этом, а хранители смогут позвать на защиту другую команду или получат двойную защиту, если команд в игре две.", { until: war.peace.until ? t(" до {date}", { date: fmtDate(war.peace.until, { time: false }) }) : "" }) + " " : "";
+    const ok = await confirm(peaceWarn + t("Команда обязуется выучить ровно {n} в сумме по участникам: лишние стихи не считаются. Игра выдаст случайный отрывок; с этого момента идёт время вызова, не больше {d} дней.", { n: verses(bid), d: war.attackDays ?? 14 }), { title: war.peace ? t("Нарушить мир и испытать город со ставкой {n}?", { n: verses(bid) }) : t("Испытать город со ставкой {n}?", { n: verses(bid) }), okLabel: war.peace ? t("Нарушить мир") : t("Испытать город"), danger: true });
     if (!ok) return;
     setBusy(true); setError(null);
     try {
@@ -79,6 +81,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
       {error && <p className="error" role="alert">{error}</p>}
       {war.canDeclare && (
         <div className="declare">
+          {war.peace && <div className="note warn"><Icon name="alert" /><span>{t("У вас мир с хранителями этого города{until}: вызов нарушит его.", { until: war.peace.until ? t(" до {date}", { date: fmtDate(war.peace.until, { time: false }) }) : "" })}</span></div>}
           <div className="field">
             <label htmlFor="war-bid">{t("Ставка, стихов")}</label>
             <div className="row nowrap">
@@ -112,7 +115,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
           <p className="muted small mt-2">{t("Баллы за одобренные дела: претенденты {a} · хранители {d}. Осталось {t}.", { a: activeSiege.attackerPoints, d: activeSiege.defenderPoints, t: leftText(activeSiege.endsAt, now) })}</p>
         </div>
       )}
-      {active.map((b) => <BattleCard key={b.id} gameId={gameId} b={b} teamId={teamId} isCaptain={isCaptain} now={now} daytime={war.daytime} onChanged={() => { void load(); onChanged(); }} />)}
+      {active.map((b) => <BattleCard key={b.id} gameId={gameId} b={b} teamId={teamId} isCaptain={isCaptain} canAlly={canAlly} now={now} daytime={war.daytime} onChanged={() => { void load(); onChanged(); }} />)}
       {past.length > 0 && (
         <ul className="list mt-3">
           {past.map((b) => <li key={b.id}><span className="muted small">{fmtDate(b.declaredAt, { time: false })} · {b.attacker.name} → {b.defender.name} · {verses(b.bid)}</span><Chip tone={battleTone(b.status, b.attacker.id === teamId)}>{BATTLE_STATUS[b.status]}</Chip></li>)}
@@ -123,13 +126,18 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, version, onChan
 }
 
 /** Карточка идущего испытания: отрывок с отметками по стихам, ссылки, суммы, отправка капитаном. */
-export function BattleCard({ gameId, b, teamId, isCaptain, now, daytime, onChanged }: { gameId: string; b: BattleDto; teamId: string; isCaptain: boolean; now: number; /** Время суток игры (решение владельца 03.10): ночью испытание ждёт утра, вызов отправляют только утром. */ daytime?: DaytimeDto; onChanged: () => void }) {
+export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, now, daytime, onChanged }: { gameId: string; b: BattleDto; teamId: string; isCaptain: boolean; /** Капитан, заместитель или посол: просит о защитном союзе и отвечает на просьбу. */ canAlly?: boolean; now: number; /** Время суток игры (решение владельца 03.10): ночью испытание ждёт утра, вызов отправляют только утром. */ daytime?: DaytimeDto; onChanged: () => void }) {
   const { confirm, notify } = useUi();
   const attacker = b.attacker.id === teamId;
-  const myTurn = isMyTurn(b, teamId);
+  // Союзник хранителей (решение владельца 22.10): третья команда, которую позвали после нарушения мира. Учит стихи ответа, но не отправляет его.
+  const ally = !attacker && b.defender.id !== teamId && Boolean(b.myAlliance);
+  const allyActive = ally && b.myAlliance?.status === "ACTIVE";
+  const myTurn = isMyTurn(b, teamId) || (allyActive && b.status === "DEFENSE" && !b.defenseDoneAt);
   const [error, setError] = useState<string | null>(null);
   const [bid, setBid] = useState(b.bid);
-  const need = b.bid;
+  const [asking, setAsking] = useState(false);
+  const live = b.status === "QUEUED" || b.status === "ATTACK" || b.status === "DEFENSE";
+  const need = attacker ? b.bid : b.defenseNeed ?? b.bid;
   const sum = attacker ? b.attackSum : b.defenseSum;
   const approved = attacker ? b.attackApproved : b.defenseApproved;
   const passage = attacker ? b.passage : b.defensePassage;
@@ -148,16 +156,40 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, daytime, onChang
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
 
+  async function askAlly(team: { id: string; name: string }) {
+    const ok = await confirm(t("Команда «{team}» узнает, что мир нарушен, и сможет принять союз: её участники будут учить стихи ответа вместе с вами.", { team: team.name }), { title: t("Попросить «{team}» о защитном союзе?", { team: team.name }), okLabel: t("Попросить") });
+    if (!ok) return;
+    try { await api(`/api/games/${gameId}/battles/${b.id}/allies`, { method: "POST", body: JSON.stringify({ teamId: team.id }) }); notify(t("Просьба отправлена команде «{team}»", { team: team.name })); setAsking(false); onChanged(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
+  }
+  async function decideAlly(accept: boolean) {
+    if (!b.myAlliance) return;
+    const ok = await confirm(accept ? t("Ваши участники смогут учить стихи ответа вместе с хранителями «{team}». Все команды узнают о союзе.", { team: b.defender.name }) : t("Хранители «{team}» узнают об отказе.", { team: b.defender.name }), { title: accept ? t("Встать на защиту города {city}?", { city: b.bookName }) : t("Отказать в союзе?"), okLabel: accept ? t("Принять союз") : t("Отказать"), danger: !accept });
+    if (!ok) return;
+    try { await api(`/api/games/${gameId}/battles/${b.id}/allies/${b.myAlliance.id}/${accept ? "accept" : "decline"}`, { method: "POST" }); notify(accept ? t("Вы в защитном союзе") : t("Отказано")); onChanged(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
+  }
+
   const deadline = b.status === "ATTACK" ? b.attackDeadline : b.status === "DEFENSE" ? b.defenseDeadline : null;
   const attackTime = b.startedAt && b.attackDoneAt ? fmtLeft(Date.parse(b.attackDoneAt) - Date.parse(b.startedAt)) : "";
+  const allies = b.allies ?? [];
+  const candidates = b.allyCandidates ?? [];
   return (
     <div className={"battle " + b.status.toLowerCase()}>
       <div className="row between nowrap">
-        <div className="grow"><div className="strong"><Icon name="wave" /> {t("Испытание · {city}", { city: b.bookName })}</div><div className="muted small">{attacker ? t("Вы — претенденты, против «{team}»", { team: b.defender.name }) : t("Вы — хранители, вызов от «{team}»", { team: b.attacker.name })}</div></div>
+        <div className="grow"><div className="strong"><Icon name="wave" /> {t("Испытание · {city}", { city: b.bookName })}</div><div className="muted small">{attacker ? t("Вы — претенденты, против «{team}»", { team: b.defender.name }) : ally ? t("Вы — союзники хранителей «{team}», вызов от «{other}»", { team: b.defender.name, other: b.attacker.name }) : t("Вы — хранители, вызов от «{team}»", { team: b.attacker.name })}</div></div>
         <Chip tone={myTurn ? "accent" : battleTone(b.status, attacker)}>{BATTLE_STATUS[b.status]}</Chip>
       </div>
+      {(b.violation || (b.defenseFactor ?? 1) > 1) && (
+        <div className="row mt-2">
+          <Chip tone="bad" icon="alert">{t("мир нарушен")}</Chip>
+          {(b.defenseFactor ?? 1) > 1 && <Chip tone="warn" icon="shield">{t("защита ×{k}", { k: b.defenseFactor ?? 2 })}</Chip>}
+          {allies.map((a) => <Chip key={a.id} tone={a.status === "ACTIVE" ? "ok" : "neutral"} icon={a.status === "ACTIVE" ? "shield" : "clock"} color={a.team.color}>{a.status === "ACTIVE" ? t("союзник: {team}", { team: a.team.name }) : t("ждём ответа: {team}", { team: a.team.name })}</Chip>)}
+        </div>
+      )}
       <p className="muted small mt-2">
         {t("Ставка: {n}", { n: verses(b.bid) })}
+        {!attacker && need !== b.bid && ` · ${t("хранителям нужно {n}", { n: verses(need) })}`}
         {b.status === "DEFENSE" && ` · ${t("вызов: {n} за {time}", { n: verses(b.bid), time: attackTime })}`}
         {deadline && ` · ${t("осталось {t}", { t: leftText(deadline, now) })}`}
         {b.status === "ATTACK" && b.attackDoneAt && ` · ${t("вызов на проверке")}`}
@@ -173,17 +205,38 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, daytime, onChang
           </div>
         </div>
       )}
-      {!attacker && b.status === "ATTACK" && <p className="muted small mt-2">{t("Претенденты учат. После проверки их записей у вас будет столько же времени на ответ.")}</p>}
+      {b.violation && live && b.defender.id === teamId && candidates.length > 0 && (
+        <div className="mt-2">
+          {!asking
+            ? <div className="actions">{canAlly ? <button type="button" className="secondary" onClick={() => setAsking(true)}><Icon name="shield" />{t("Попросить помощь")}</button> : <p className="hint">{t("Попросить другую команду о защитном союзе может капитан, заместитель или посол.")}</p>}</div>
+            : (
+              <div className="stack-sm">
+                <p className="muted small">{t("Кого позвать на защиту? Участники союзника будут учить стихи ответа вместе с вами.")}</p>
+                <div className="row">{candidates.map((c) => <button key={c.id} type="button" className="secondary" onClick={() => void askAlly(c)}><Icon name="shield" />{c.name}</button>)}<button type="button" className="ghost" onClick={() => setAsking(false)}>{t("Отмена")}</button></div>
+              </div>
+            )}
+        </div>
+      )}
+      {ally && b.myAlliance?.status === "PROPOSED" && (
+        <div className="mt-2">
+          <div className="note warn"><Icon name="shield" /><span>{t("Команда «{team}» просит о защитном союзе: «{other}» нарушила мир вызовом её городу. Если принять, ваши участники будут учить стихи ответа вместе с хранителями.", { team: b.defender.name, other: b.attacker.name })}</span></div>
+          {canAlly
+            ? <div className="actions"><button type="button" onClick={() => void decideAlly(true)}><Icon name="shield" />{t("Принять союз")}</button><button type="button" className="ghost" onClick={() => void decideAlly(false)}>{t("Отказать")}</button></div>
+            : <p className="hint">{t("Принять или отказать может капитан, заместитель или посол.")}</p>}
+        </div>
+      )}
+      {allyActive && b.status !== "DEFENSE" && <p className="muted small mt-2">{b.status === "QUEUED" ? t("Вызов ещё в очереди. Когда дойдёт до ответа, вы будете учить стихи вместе с хранителями.") : t("Претенденты учат. Когда начнётся ответ, вы будете учить стихи вместе с хранителями.")}</p>}
+      {!attacker && !ally && b.status === "ATTACK" && <p className="muted small mt-2">{t("Претенденты учат. После проверки их записей у вас будет столько же времени на ответ.")}</p>}
       {attacker && b.status === "DEFENSE" && <p className="muted small mt-2">{t("Хранители отвечают. Их счёт откроется в конце испытания.")}</p>}
-      {(b.status === "ATTACK" || b.status === "DEFENSE") && (attacker || b.status === "DEFENSE") && (
+      {(b.status === "ATTACK" || b.status === "DEFENSE") && (attacker || b.status === "DEFENSE") && (!ally || allyActive) && (
         <>
           <div className="progress mt-2"><span style={{ width: `${Math.min(100, need ? (sum / need) * 100 : 0)}%` }} /></div>
           <div className="muted small mt-1">{t("Выучено {a} из {b} · принято {c}", { a: sum, b: need, c: approved })}{!attacker && b.entries.some((e) => e.carried) ? ` · ${t("зачтено из прошлых испытаний: {n}", { n: b.entries.filter((e) => e.carried).reduce((s, e) => s + e.verses, 0) })}` : ""}</div>
           {!attacker && !passage && b.status === "DEFENSE" && !b.defenseDoneAt && (
-            isCaptain ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Ждём: капитан выбирает отрывок ответа.")}</span></div>
+            isCaptain && !ally ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Ждём: капитан выбирает отрывок ответа.")}</span></div>
           )}
           {passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn || night} onChanged={onChanged} />}
-          {isCaptain && myTurn && sum < need && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
+          {isCaptain && myTurn && !ally && sum < need && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
           {/* Времена суток (решение владельца 03.10): ночью испытание ждёт утра; вызов отправляют на проверку только утром, ответ хранителей — утром, днём и вечером. */}
           {myTurn && night && <div className="note warn"><Icon name="moon" /><span>{t("Ночь: испытание ждёт утра. С 7:00 по местному времени можно отмечать стихи и отправлять на проверку.")}</span></div>}
           {attacker && myTurn && !night && daytime && (
@@ -192,7 +245,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, now, daytime, onChang
               : <div className="note warn"><Icon name="clock" /><span>{t("Сейчас вызов отправить нельзя: его отправляют на проверку утром, с 7:00 до 9:00 по местному времени. Стихи отмечать можно.")}</span></div>
           )}
           <div className="actions">
-            {isCaptain && myTurn && <button type="button" disabled={sum < need || !canSend} onClick={() => void submit()}><Icon name="send" />{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}</button>}
+            {isCaptain && myTurn && !ally && <button type="button" disabled={sum < need || !canSend} onClick={() => void submit()}><Icon name="send" />{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}</button>}
           </div>
         </>
       )}

@@ -107,7 +107,7 @@ describe("журнал событий: лента, новости, служен�
     expect(top.total).toBeGreaterThanOrEqual(2);
   });
 
-  it("вызов городу — новость для всех команд без ставки; мир закрывает вызовы, расторжение — сразу", async () => {
+  it("вызов городу — новость для всех команд без ставки; мир закрывает идущие вызовы, расторжение — сразу", async () => {
     // Мир: «Берег» предлагает, «Моряки» принимают → вызов невозможен.
     expect((await post(`/api/games/${gameId}/peace`, p2Cookie, { teamId: team1, days: 7 })).statusCode).toBe(200);
     const view1 = (await get(`/api/games/${gameId}/peace`, p1Cookie)).json();
@@ -118,11 +118,10 @@ describe("журнал событий: лента, новости, служен�
     expect((await post(`/api/games/${gameId}/peace/${incoming.peaceId}/accept`, p1Cookie)).statusCode).toBe(200);
     expect((await prisma.battle.findUniqueOrThrow({ where: { id: open.id } })).status).toBe("CANCELLED");
     expect((await feedUntil<{ kind: string; everyone: boolean }>(gameId, p1Cookie, "trial_peace")).find((f) => f.kind === "trial_peace")?.everyone).toBe(true);
+    // Мир не запрещает вызов, но вызов его нарушит (решение владельца 22.10): сводка войны показывает мир.
     const war = (await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie)).json();
-    expect(war.canDeclare).toBe(false);
-    expect(war.reason).toMatch(/мир/i);
-    const blocked = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 10 });
-    expect(blocked.statusCode).toBe(409);
+    expect(war.canDeclare).toBe(true);
+    expect(war.peace?.until).toBeTruthy();
     const news = await feedUntil<{ kind: string; everyone: boolean }>(gameId, p2Cookie, "peace_made");
     expect(news.find((f) => f.kind === "peace_made")?.everyone).toBe(true);
     // Страховка при запуске: вызов, оставшийся при действующем мире (мир заключили до правила), закрывается проходом по всем играм.

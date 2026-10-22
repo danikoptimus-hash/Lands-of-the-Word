@@ -62,10 +62,14 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   peace_declined: "Команда «{other}» отклонила предложение мира",
   peace_broken: "Команда «{team}» расторгла мир с командой «{other}»",
   peace_ended: "Срок мира между командами «{team}» и «{other}» вышел",
+  peace_violated: "Команда «{team}» нарушила мир с командой «{other}» вызовом городу {book}",
+  ally_requested: "Команда «{team}» просит команду «{other}» о защитном союзе против команды «{third}» за город {book}",
+  ally_joined: "Команда «{team}» встала на защиту города {book} команды «{other}» против команды «{third}»",
+  ally_declined: "Команда «{other}» отказала команде «{team}» в защитном союзе за город {book}",
   chronicle: "Летопись недели",
   game_finished: "Игра завершена{winner}",
 };
-const ICON: Partial<Record<JournalKind, string>> = { trial_peace: "handshake", siege_peace: "handshake", peace_ended: "handshake", trade_proposed: "handshake", trade_countered: "handshake", trade_done: "city", trade_cancelled: "x", deed_submitted: "send", deed_approved: "check", deed_returned: "back", order_solved: "lock", task_solved: "book", city_captured: "city", ruins_taken: "city", treasure: "star", trial_declared: "wave", trial_queued: "list", trial_started: "wave", trial_repelled: "flag", trial_won: "trophy", trial_burnt: "clock", siege_declared: "scroll", siege_won: "trophy", siege_repelled: "flag", passage_granted: "handshake", passage_denied: "x", sea_landed: "ship", penalty: "alert", role_changed: "user", capital_moved: "crown", peace_offered: "handshake", peace_made: "handshake", peace_broken: "alert", chronicle: "scroll", game_finished: "trophy" };
+const ICON: Partial<Record<JournalKind, string>> = { trial_peace: "handshake", siege_peace: "handshake", peace_ended: "handshake", trade_proposed: "handshake", trade_countered: "handshake", trade_done: "city", trade_cancelled: "x", deed_submitted: "send", deed_approved: "check", deed_returned: "back", order_solved: "lock", task_solved: "book", city_captured: "city", ruins_taken: "city", treasure: "star", trial_declared: "wave", trial_queued: "list", trial_started: "wave", trial_repelled: "flag", trial_won: "trophy", trial_burnt: "clock", siege_declared: "scroll", siege_won: "trophy", siege_repelled: "flag", passage_granted: "handshake", passage_denied: "x", sea_landed: "ship", penalty: "alert", role_changed: "user", capital_moved: "crown", peace_offered: "handshake", peace_made: "handshake", peace_broken: "alert", peace_violated: "alert", ally_requested: "shield", ally_joined: "shield", ally_declined: "x", chronicle: "scroll", game_finished: "trophy" };
 
 /** Текст записи: шаблон вида через словарь, код книги подставляется названием, служебные подстановки переводятся. */
 export function journalLine(kind: JournalKind, vars: Record<string, string | number>): string {
@@ -229,7 +233,7 @@ export function SeasonBookPage() {
   if (error) return <div className="season-book"><Back to={`/games/${id}`} label={t("К игре")} /><p className="error">{error}</p></div>;
   if (!book) return <div className="season-book"><LoadingState rows={4} /></div>;
   const winner = book.standings.find((s) => s.teamId === book.game.winnerTeamId);
-  const kinds: JournalKind[] = ["trial_declared", "trial_repelled", "trial_won", "trial_burnt", "siege_declared", "siege_won", "siege_repelled", "peace_made", "peace_broken", "city_captured", "ruins_taken"];
+  const kinds: JournalKind[] = ["trial_declared", "trial_repelled", "trial_won", "trial_burnt", "siege_declared", "siege_won", "siege_repelled", "peace_made", "peace_broken", "peace_violated", "ally_joined", "city_captured", "ruins_taken"];
   const events = book.events.filter((e) => kinds.includes(e.kind));
   const chronicles = book.events.filter((e) => e.kind === "chronicle");
   return (

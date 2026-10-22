@@ -50,6 +50,9 @@ export function minBidFor(defenseLevel: number, penalty: number, rules: Rules): 
 }
 
 /** Сумма выученных стихов по участникам стороны (внутри участника стих считается один раз; у воина — с весом 2, решение владельца 22.09). */
+/** Сколько стихов нужно хранителям: ставка вызова, при нарушении мира в игре из двух команд — вдвое (решение владельца 22.10). */
+export const defenseNeed = (b: { bid: number; defenseFactor: number }) => b.bid * Math.max(1, b.defenseFactor);
+
 export function sumVerses(entries: BattleEntry[], side: "ATTACK" | "DEFENSE", onlyApproved: boolean): number {
   const byUser = new Map<string, { set: Set<number>; weight: number }>();
   for (const e of entries) {
@@ -174,7 +177,7 @@ export async function submitDefense(b: BattleWithEntries): Promise<{ ok: true; b
   if (b.status !== "DEFENSE") return { ok: false, message: "Ответ сейчас не идёт" };
   if (b.defenseDoneAt) return { ok: false, message: "Ответ уже отправлен на проверку" };
   if (b.defenseDeadline && b.defenseDeadline.getTime() < Date.now()) return { ok: false, message: "Время ответа вышло" };
-  const need = b.bid;
+  const need = defenseNeed(b);
   const sum = sumVerses(b.entries, "DEFENSE", false);
   if (sum < need) return { ok: false, message: "Выучено {sum} из {need} стихов: не хватает {missing}", vars: { sum, need, missing: need - sum } };
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: new Date(), defenseBid: sum }, include: { entries: true } });
@@ -231,7 +234,7 @@ export async function maybeStartDefense(b: BattleWithEntries): Promise<BattleWit
   const carried = sumVerses(upd.entries, "DEFENSE", true);
   notifyTeam(b.gameId, b.defenderId, "пошло время ответа города {book}", (locale) => msg(locale, "Вызов одобрен: {verses} стихов. У вас {hours} ч (до {deadline}), чтобы выучить не меньше.{carried} Капитан выбирает отрывок из книги, участники отмечают выученные стихи и прикрепляют видео.", { verses: b.bid, hours, deadline: fmtDate(upd.defenseDeadline!, locale), carried: carried ? msg(locale, " Уже зачтено из прошлых испытаний: {n}.", { n: carried }) : "" }), { book: b.bookCode });
   // Если зачтённых стихов уже хватает — ответ дан без единого нового стиха.
-  if (carried >= b.bid) {
+  if (carried >= defenseNeed(b)) {
     upd = await prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: now, defenseBid: carried }, include: { entries: true } });
     upd = await maybeRepel(upd);
   }
@@ -242,7 +245,7 @@ export async function maybeStartDefense(b: BattleWithEntries): Promise<BattleWit
 export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntries> {
   if (b.status !== "DEFENSE" || !b.defenseDoneAt || !b.defenseDeadline) return b;
   if (b.defenseDoneAt.getTime() > b.defenseDeadline.getTime()) return b;
-  const need = b.bid;
+  const need = defenseNeed(b);
   if (!sideApproved(b, "DEFENSE", need)) return b;
   const M = sumVerses(b.entries, "DEFENSE", true);
   const now = new Date();
@@ -412,13 +415,14 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   else if (!owner) reason = "Город свободен: его берут ключом из конверта, а не испытанием";
   else if (owner.teamId === teamId) reason = "Это ваш город";
   else if (team.status === "defeated") reason = "Ваша команда выбыла из игры";
-  else if (await peaceBetween(gameId, teamId, owner.teamId)) reason = "Между вашими командами мир: вызов невозможен, пока мир не расторгнут";
   else if (locked) reason = "Город закреплён: хранители выучили всю книгу каждым участником. После срока закрепления город берётся осадой делами";
   else if (node.maxReachedAt) reason = "Хранители выучили всю книгу каждым участником: город берётся не стихами, а осадой делами";
   else if (!studied) reason = "Сначала решите задания всех районов";
   else if (!book) reason = "Текст этой книги ещё не загружен: бросить вызов нельзя";
   else if (mine) reason = mine.status === "QUEUED" ? "Ваш вызов уже в очереди" : "Ваш вызов этому городу уже идёт";
-  return { defenseLevel: node.defenseLevel, sumMode: node.sumMode, locked, lockedUntil: locked ? node.lockedUntil : null, maxed: node.maxReachedAt !== null, bookVerses: book?.total ?? null, penalty, minBid, attackDays: rules.attackDays, burnPenalty: rules.burnPenalty, canDeclare: reason === null, reason, owner: owner?.team ?? null };
+  // Мир не запрещает вызов (решение владельца 22.10), но нарушает его: интерфейс предупреждает.
+  const peace = owner ? await prisma.peace.findFirst({ where: { gameId, status: "ACTIVE", OR: [{ fromId: teamId, toId: owner.teamId }, { fromId: owner.teamId, toId: teamId }], AND: [{ OR: [{ until: null }, { until: { gt: new Date() } }] }] }, select: { until: true } }) : null;
+  return { peace: peace ? { until: peace.until } : null, defenseLevel: node.defenseLevel, sumMode: node.sumMode, locked, lockedUntil: locked ? node.lockedUntil : null, maxed: node.maxReachedAt !== null, bookVerses: book?.total ?? null, penalty, minBid, attackDays: rules.attackDays, burnPenalty: rules.burnPenalty, canDeclare: reason === null, reason, owner: owner?.team ?? null };
 }
 
 void bookName;

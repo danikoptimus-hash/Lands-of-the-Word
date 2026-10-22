@@ -44,7 +44,7 @@ function useAwayCounter(url: string | null) {
   }, [url]);
 }
 
-export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, container, onClose, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
+export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version, container, onClose, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Капитан, заместитель или посол: защитный союз. */ canAlly?: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
   const { notify, confirm } = useUi();
 
   const confirmMove = () => confirm(t("Это единственный перенос за игру."), { title: t("Перенести столицу в этот город?"), okLabel: t("Перенести") });
@@ -325,7 +325,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, version, contain
       {city?.content && !task && (city.owner || city.state.capturedAt) && (
         <details className="disclose">
           <summary><Icon name="wave" />{t("Испытание")}<Icon name="chevron-down" className="chev" /></summary>
-          <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} version={version} onChanged={onChanged} />
+          <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} canAlly={canAlly} version={version} onChanged={onChanged} />
         </details>
       )}
       {!sleeping && city?.content && task && (

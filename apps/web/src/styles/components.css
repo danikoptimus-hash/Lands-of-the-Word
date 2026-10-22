@@ -262,3 +262,7 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .link-pop .link-list a.link-text { color: var(--link); text-decoration: underline; }
 .link-pop-foot { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); }
 .deed-badge .num.hand { opacity: .85; }
+/* Карточка испытания союзника в списке испытаний (22.10): не строка-кнопка, а блок. */
+.list.interactive > li.plain { cursor: default; display: block; padding: 0; }
+.list.interactive > li.plain:hover { background: transparent; }
+.list.interactive > li.plain > .battle { margin-top: 0; }

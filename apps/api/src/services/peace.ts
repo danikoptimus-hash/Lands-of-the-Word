@@ -149,3 +149,18 @@ export async function closeTrialsForAllPeaces(log: { info: (o: object, msg: stri
   if (closed) log.info({ closed }, "испытания между командами в мире закрыты");
   return closed;
 }
+
+/**
+ * Нарушение мира вызовом (решение владельца 22.10): вызов при действующем мире разрешён, но мир кончается сразу,
+ * нарушитель записывается, всем командам — новость, пострадавшим — уведомление. Возвращает true, если мир был.
+ */
+export async function violatePeace(gameId: string, attackerId: string, defenderId: string, bookCode: string): Promise<boolean> {
+  const p = await prisma.peace.findFirst({ where: { gameId, status: "ACTIVE", OR: [{ fromId: attackerId, toId: defenderId }, { fromId: defenderId, toId: attackerId }], AND: [{ OR: [{ until: null }, { until: { gt: new Date() } }] }] }, include: { from: { select: { name: true } }, to: { select: { name: true } } } });
+  if (!p) return false;
+  await prisma.peace.update({ where: { id: p.id }, data: { status: "ENDED", endedAt: new Date(), endedById: attackerId, violated: true } });
+  const me = p.fromId === attackerId ? p.from.name : p.to.name, other = p.fromId === attackerId ? p.to.name : p.from.name;
+  journal(gameId, "peace_violated", { everyone: true, teamId: attackerId, vars: { team: me, other, book: bookCode } });
+  notifyTeam(gameId, defenderId, "мир нарушен", "Команда «{team}» нарушила мир вызовом вашему городу {book}. Мир кончился.", { team: me, book: bookCode });
+  publish(gameId, { type: "peace" });
+  return true;
+}
