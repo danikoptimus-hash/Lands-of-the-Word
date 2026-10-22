@@ -900,6 +900,10 @@ model Peace {
   toId       String
   to         Team        @relation("peaceTo", fields: [toId], references: [id], onDelete: Cascade)
   status     PeaceStatus @default(PROPOSED)
+  /** Срок мира в днях (решение владельца 22.10): 0 — до конца игры; null — мир без срока из старых партий, его можно расторгнуть. */
+  days       Int?
+  /** Когда срочный мир кончается сам; до этого расторгнуть нельзя. */
+  until      DateTime?
   createdAt  DateTime    @default(now())
   decidedAt  DateTime?
   endedAt    DateTime?

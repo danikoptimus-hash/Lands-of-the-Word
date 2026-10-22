@@ -22,7 +22,7 @@ export type JournalKind =
   | "passage_granted" | "passage_denied" | "sea_landed"
   | "penalty" | "role_changed" | "capital_moved"
   | "quarry_submitted" | "quarry_approved" | "quarry_returned" | "paved"
-  | "peace_offered" | "peace_made" | "peace_declined" | "peace_broken"
+  | "peace_offered" | "peace_made" | "peace_declined" | "peace_broken" | "peace_ended"
   | "chronicle" | "game_finished";
 
 export type JournalVars = Record<string, string | number>;
@@ -63,10 +63,11 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   quarry_approved: "Каменоломня: дело «{deed}» принято, команда получила камней: {n}",
   quarry_returned: "Каменоломня: дело «{deed}» возвращено на доработку",
   paved: "{user} вымостил(а) дорогу камнем из Каменоломни",
-  peace_offered: "Команда «{team}» предложила мир команде «{other}»",
-  peace_made: "Команды «{team}» и «{other}» заключили мир",
+  peace_offered: "Команда «{team}» предложила мир команде «{other}»{term}",
+  peace_made: "Команды «{team}» и «{other}» заключили мир{term}",
   peace_declined: "Команда «{other}» отклонила предложение мира",
   peace_broken: "Команда «{team}» расторгла мир с командой «{other}»",
+  peace_ended: "Срок мира между командами «{team}» и «{other}» вышел",
   chronicle: "Летопись недели",
   game_finished: "Игра завершена{winner}",
 };
@@ -141,7 +142,7 @@ export async function chronicleLines(gameId: string, from: Date, to: Date, local
   if (cities.length) lines.push(msg(locale, "Города: {list}.", { list: cities.map((r) => journalText(locale, r.kind as JournalKind, r.vars as JournalVars)).join("; ") }));
   const trials = rows.filter((r) => ["trial_declared", "trial_repelled", "trial_won", "trial_burnt", "siege_declared", "siege_won", "siege_repelled"].includes(r.kind));
   if (trials.length) lines.push(msg(locale, "Испытания: {list}.", { list: trials.map((r) => journalText(locale, r.kind as JournalKind, r.vars as JournalVars)).join("; ") }));
-  const peace = rows.filter((r) => r.kind === "peace_made" || r.kind === "peace_broken");
+  const peace = rows.filter((r) => r.kind === "peace_made" || r.kind === "peace_broken" || r.kind === "peace_ended");
   if (peace.length) lines.push(msg(locale, "Мир: {list}.", { list: peace.map((r) => journalText(locale, r.kind as JournalKind, r.vars as JournalVars)).join("; ") }));
   lines.push(msg(locale, "Положение: {list}.", { list: table.map((s, i) => `${i + 1}. «${name.get(s.teamId) ?? s.name}» — ${msg(locale, "{n} гор.", { n: s.cities })}, ${msg(locale, "{n} дел", { n: s.deedsApproved })}`).join("; ") }));
   return lines;

@@ -31,6 +31,17 @@ import { EmptyState, ErrorState, LoadingState } from "../components/State";
 /** Таблица команд; у своей команды в раскрытой строке — состав (решение владельца 21.09: один раздел, а не два). */
 type PeaceData = { canSpeak: boolean; teams: PeaceTeamDto[] };
 type PeaceAction = "offer" | "accept" | "decline" | "break";
+/** Срок мира словами (решение владельца 22.10): «до 29 окт.», «до конца игры»; у предложения — «на 7 дней». */
+function peaceTerm(p: PeaceTeamDto): string {
+  if (p.days === null || p.days === undefined) return "";
+  if (p.days === 0) return t("до конца игры");
+  if (p.state === "peace" && p.until) return t("до {d}", { d: fmtDate(p.until, { time: false }) });
+  return t("на {n} дн.", { n: p.days });
+}
+/** Варианты срока мира: 7, 14, 30 дней или до конца игры. */
+const PEACE_TERMS: Array<{ days: number; label: () => string }> = [
+  { days: 7, label: () => t("На 7 дней") }, { days: 14, label: () => t("На 14 дней") }, { days: 30, label: () => t("На 30 дней") }, { days: 0, label: () => t("До конца игры") },
+];
 function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeace }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void; roster?: React.ReactNode; /** Мир: знак напротив каждой чужой команды (решение владельца 21.09) */ peace?: PeaceData | null; onPeace?: (p: PeaceTeamDto, action: PeaceAction) => void }) {
   const stop = { onClick: (e: React.SyntheticEvent) => e.stopPropagation(), onKeyDown: (e: React.SyntheticEvent) => e.stopPropagation() };
   if (!standings) return <LoadingState rows={2} />;
@@ -54,9 +65,9 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
               <div className="name">
                 <TeamAvatar name={st.name} color={st.color} size="sm" withName />
                 {st.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : st.teamId === standings.winnerTeamId ? <Chip tone="ok" icon="trophy">{t("победитель")}</Chip> : st.teamId === teamId ? <Chip tone="accent">{t("мы")}</Chip> : null}
-                {pc?.state === "peace" && <Chip tone="ok" icon="handshake">{t("мир")}</Chip>}
-                {pc?.state === "offered" && <Chip tone="info" icon="handshake">{t("мир предложен")}</Chip>}
-                {pc?.state === "incoming" && <Chip tone="warn" icon="handshake">{t("предлагает мир")}</Chip>}
+                {pc?.state === "peace" && <Chip tone="ok" icon="handshake">{peaceTerm(pc) ? `${t("мир")} ${peaceTerm(pc)}` : t("мир")}</Chip>}
+                {pc?.state === "offered" && <Chip tone="info" icon="handshake">{peaceTerm(pc) ? `${t("мир предложен")} ${peaceTerm(pc)}` : t("мир предложен")}</Chip>}
+                {pc?.state === "incoming" && <Chip tone="warn" icon="handshake">{peaceTerm(pc) ? `${t("предлагает мир")} ${peaceTerm(pc)}` : t("предлагает мир")}</Chip>}
                 {canPeace && pc?.state === "none" && <span className="peace-slot" {...stop}><button type="button" className="ghost icon sm peace-btn" aria-label={t("Предложить мир команде «{team}»", { team: st.name })} title={t("Предложить мир команде «{team}»", { team: st.name })} onClick={() => onPeace!(pc!, "offer")}><Icon name="handshake" /></button></span>}
                 {details && <Icon name="chevron-down" className="chev" />}
               </div>
@@ -70,7 +81,8 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
               )}
               {shown && trials > 0 && <div className="meta">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}<span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><Help>{t("выиграли · устояли · потеряли")}</Help></span></div>}
               {shown && st.citiesOnPath.length > 0 && <div className="meta">{t("Города")}: {st.citiesOnPath.map((c) => c.name + (c.current ? "" : ` (${t("потерян")})`)).join(", ")}</div>}
-              {shown && canPeace && pc?.state === "peace" && <div className="row peace-row" {...stop}><span className="meta">{pc.since ? t("мир с {d}", { d: fmtDate(pc.since, { time: false }) }) : ""}</span><button type="button" className="secondary sm" onClick={() => onPeace!(pc!, "break")}>{t("Расторгнуть")}</button></div>}
+              {/* Мир на срок расторгнуть нельзя (решение владельца 22.10): кнопка «Расторгнуть» только у старого мира без срока. */}
+              {shown && canPeace && pc?.state === "peace" && <div className="row peace-row" {...stop}><span className="meta">{pc.since ? t("мир с {d}", { d: fmtDate(pc.since, { time: false }) }) : ""}{peaceTerm(pc) ? ` · ${peaceTerm(pc)}` : ""}</span>{pc.breakable && <button type="button" className="secondary sm" onClick={() => onPeace!(pc!, "break")}>{t("Расторгнуть")}</button>}</div>}
               {shown && mine && roster && <div className="standing-roster" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>{roster}</div>}
             </div>
           </li>
@@ -223,12 +235,18 @@ export function TeamPage() {
   const [peace, setPeace] = useState<PeaceData | null>(null);
   const loadPeace = useCallback(() => api<PeaceData>(`/api/games/${id}/peace`).then(setPeace).catch(() => {}), [id]);
   /** Мир из строки команды: предложение — только после подтверждения «Да / Нет» (решение владельца 21.09). */
+  /** Предложение мира — с выбором срока (решение владельца 22.10): шторка с вариантами вместо «Да / Нет». */
+  const [peaceOffer, setPeaceOffer] = useState<PeaceTeamDto | null>(null);
+  const offerPeace = useCallback(async (p: PeaceTeamDto, days: number) => {
+    setPeaceOffer(null);
+    try { await api(`/api/games/${id}/peace`, { method: "POST", body: JSON.stringify({ teamId: p.team.id, days }) }); notify(t("Мир предложен")); await loadPeace(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+  }, [id, notify, loadPeace]);
   const onPeace = useCallback(async (p: PeaceTeamDto, action: PeaceAction) => {
     const name = p.team.name;
     let path = `/api/games/${id}/peace`, body: unknown = { teamId: p.team.id }, ok = t("Мир предложен");
-    if (action === "offer") {
-      if (!(await confirm(t("Вы действительно хотите предложить мир команде «{team}»?", { team: name }), { title: t("Предложить мир"), okLabel: t("Да"), cancelLabel: t("Нет") }))) return;
-    } else if (action === "accept") { path = `/api/games/${id}/peace/${p.peaceId}/accept`; body = {}; ok = t("Мир заключён"); }
+    if (action === "offer") { setPeaceOffer(p); return; }
+    else if (action === "accept") { path = `/api/games/${id}/peace/${p.peaceId}/accept`; body = {}; ok = t("Мир заключён"); }
     else if (action === "decline") { path = `/api/games/${id}/peace/${p.peaceId}/decline`; body = {}; ok = t("Предложение отклонено"); }
     else {
       if (!(await confirm(t("Расторжение вступает в силу сразу, об этом узнают все команды."), { title: t("Расторгнуть мир с «{team}»?", { team: name }), okLabel: t("Расторгнуть") }))) return;
@@ -638,6 +656,15 @@ export function TeamPage() {
           {menuView === "standings" && (
             <section className="section">
             <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />
+
+            {peaceOffer && (
+              <Sheet size="sm" title={t("Предложить мир команде «{team}»", { team: peaceOffer.team.name })} onClose={() => setPeaceOffer(null)}>
+                <p className="hint">{t("Пока мир действует, команды не бросают вызов городам друг друга и не объявляют осад. Расторгнуть мир раньше срока нельзя.")}</p>
+                <div className="peace-terms">
+                  {PEACE_TERMS.map((o) => <button key={o.days} type="button" className="secondary" onClick={() => void offerPeace(peaceOffer, o.days)}><Icon name="handshake" />{o.label()}</button>)}
+                </div>
+              </Sheet>
+            )}
             </section>
           )}
           {menuView === "standings" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}

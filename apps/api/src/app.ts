@@ -17,6 +17,7 @@ import { battleRoutes } from "./routes/battles.js";
 import { recipientRoutes } from "./routes/recipients.js";
 import { diplomacyRoutes } from "./routes/diplomacy.js";
 import { sweep } from "./services/battles.js";
+import { expirePeaces } from "./services/peace.js";
 import { initMail } from "./services/mail.js";
 import { initNotify } from "./services/notify.js";
 import { initPush } from "./services/push.js";
@@ -86,7 +87,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   if (config.NODE_ENV !== "test") {
     // Таймеры не должны зависеть от перезапуска сервера: первый проход — сразу после старта.
     setTimeout(() => { sweep().catch((e) => app.log.error(e, "battle sweep failed")); }, 5_000);
-    const timer = setInterval(() => { sweep().catch((e) => app.log.error(e, "battle sweep failed")); }, 60_000);
+    const timer = setInterval(() => { sweep().catch((e) => app.log.error(e, "battle sweep failed")); expirePeaces().catch((e) => app.log.error(e, "peace expiry failed")); }, 60_000);
     app.addHook("onClose", async () => clearInterval(timer));
   }
   await app.register(eventRoutes);

@@ -533,6 +533,9 @@
 .top-list .meta { font-size: var(--fs-xs); color: var(--muted); }
 /* Мир в строке таблицы команд: знак напротив чужой команды, ответ на предложение — кнопки под цифрами */
 .standing .peace-slot { margin-left: auto; display: inline-flex; }
+/* Выбор срока мира (решение владельца 22.10): четыре кнопки столбиком. */
+.peace-terms { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); }
+.peace-terms button { justify-content: flex-start; }
 .standing .peace-btn { color: var(--accent); }
 .standing .peace-row { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); }
 

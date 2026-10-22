@@ -104,8 +104,9 @@ export async function journalRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
     if (!isLeader(m) && m.gameRole !== "AMBASSADOR") return reply.code(403).send({ error: "forbidden", message: err(request, "Мир предлагает капитан, заместитель или посол") });
-    const body = z.object({ teamId: z.string().min(1) }).parse(request.body);
-    const r = await proposePeace(id, m.team.id, body.teamId);
+    // Срок мира (решение владельца 22.10): 7, 14, 30 дней или 0 — до конца игры.
+    const body = z.object({ teamId: z.string().min(1), days: z.number().int().min(0).max(365) }).parse(request.body);
+    const r = await proposePeace(id, m.team.id, body.teamId, body.days);
     if (!r.ok) return reply.code(409).send({ error: "conflict", message: err(request, r.message, r.vars) });
     return { ok: true };
   });

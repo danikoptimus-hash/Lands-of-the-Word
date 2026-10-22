@@ -109,7 +109,7 @@ describe("журнал событий: лента, новости, служен�
 
   it("вызов городу — новость для всех команд без ставки; мир закрывает вызовы, расторжение — сразу", async () => {
     // Мир: «Берег» предлагает, «Моряки» принимают → вызов невозможен.
-    expect((await post(`/api/games/${gameId}/peace`, p2Cookie, { teamId: team1 })).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/peace`, p2Cookie, { teamId: team1, days: 7 })).statusCode).toBe(200);
     const view1 = (await get(`/api/games/${gameId}/peace`, p1Cookie)).json();
     const incoming = view1.teams.find((x: { team: { id: string } }) => x.team.id === team2);
     expect(incoming.state).toBe("incoming");
@@ -129,7 +129,9 @@ describe("журнал событий: лента, новости, служен�
     const stale = await prisma.battle.create({ data: { gameId, nodeKey: rutKey, bookCode: "rut", attackerId: team2, defenderId: team1, bid: 10, status: "QUEUED" } });
     expect(await closeTrialsForAllPeaces({ info: () => {} })).toBeGreaterThanOrEqual(1);
     expect((await prisma.battle.findUniqueOrThrow({ where: { id: stale.id } })).status).toBe("CANCELLED");
-    // Расторжение — сразу, и вызов снова возможен.
+    // Мир на срок расторгнуть нельзя (решение владельца 22.10); старый мир без срока — сразу, и вызов снова возможен.
+    expect((await post(`/api/games/${gameId}/peace/${incoming.peaceId}/break`, p2Cookie)).statusCode).toBe(409);
+    await prisma.peace.update({ where: { id: incoming.peaceId }, data: { days: null, until: null } });
     expect((await post(`/api/games/${gameId}/peace/${incoming.peaceId}/break`, p2Cookie)).statusCode).toBe(200);
     const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 10 });
     expect(declared.statusCode).toBe(201);
