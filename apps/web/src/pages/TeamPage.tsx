@@ -663,7 +663,6 @@ export function TeamPage() {
                 <label htmlFor="peace-days">{t("На сколько дней")}</label>
                 <input id="peace-days" type="number" inputMode="numeric" min={1} max={365} value={peaceDays} onChange={(e) => setPeaceDays(Number(e.target.value))} autoFocus />
                 <button type="submit" disabled={!(peaceDays >= 1 && peaceDays <= 365)}><Icon name="handshake" />{t("Предложить мир на {n} дн.", { n: peaceDays })}</button>
-                <button type="button" className="secondary" onClick={() => void offerPeace(peaceOffer, 0)}><Icon name="handshake" />{t("До конца игры")}</button>
               </form>
               </Sheet>
             )}

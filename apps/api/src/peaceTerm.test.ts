@@ -55,15 +55,16 @@ describe("мир на срок", () => {
     const items = (await get(`/api/games/${gameId}/journal`, ck.admin)).json().items as Array<{ kind: string; everyone: boolean }>;
     expect(items.find((it) => it.kind === "peace_ended")?.everyone).toBe(true);
   });
-  it("«до конца игры» — без даты и без расторжения; старый мир без срока расторгается", async () => {
-    expect((await post(`/api/games/${gameId}/peace`, ck.cap1, { teamId: t3, days: 0 })).statusCode).toBe(200);
+  it("«до конца игры» предложить нельзя; старый мир без срока расторгается", async () => {
+    expect((await post(`/api/games/${gameId}/peace`, ck.cap1, { teamId: t3, days: 0 })).statusCode).toBe(400);
+    expect((await post(`/api/games/${gameId}/peace`, ck.cap1, { teamId: t3, days: 30 })).statusCode).toBe(200);
     const inc = await viewOf(ck.cap3, t1);
     expect((await post(`/api/games/${gameId}/peace/${inc.peaceId}/accept`, ck.cap3)).statusCode).toBe(200);
     const forever = await viewOf(ck.cap1, t3);
-    expect(forever.state).toBe("peace"); expect(forever.days).toBe(0); expect(forever.until).toBeNull(); expect(forever.breakable).toBe(false);
+    expect(forever.state).toBe("peace"); expect(forever.days).toBe(30); expect(forever.breakable).toBe(false);
     expect((await post(`/api/games/${gameId}/peace/${forever.peaceId}/break`, ck.cap3)).statusCode).toBe(409);
     // Старый мир (days = null) расторгается, как раньше.
-    await prisma.peace.update({ where: { id: forever.peaceId! }, data: { days: null } });
+    await prisma.peace.update({ where: { id: forever.peaceId! }, data: { days: null, until: null } });
     expect((await viewOf(ck.cap1, t3)).breakable).toBe(true);
     expect((await post(`/api/games/${gameId}/peace/${forever.peaceId}/break`, ck.cap3)).statusCode).toBe(200);
     expect((await viewOf(ck.cap1, t3)).state).toBe("none");
