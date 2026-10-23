@@ -47,11 +47,11 @@ export function GameAnalytics({ gameId }: { gameId: string }) {
     const horizon = Math.min(Math.max(touch ?? p.T + 30, p.T + 7), p.T + 120);
     const fact: Array<[number, number]> = [[0, 0], ...p.fact.map((f) => [f.day, f.value] as [number, number]), [p.T, p.n]];
     return baseOption(c, {
-      legend: { top: 0, textStyle: { color: c.muted }, data: [t("факт"), t("логистическая кривая")] },
+      legend: { show: false },
       tooltip: { trigger: "axis", backgroundColor: c.surface, borderColor: c.border, textStyle: { color: c.text, fontFamily: c.font }, formatter: (ps: Array<{ seriesName: string; value: [number, number]; marker: string }>) => { const d = ps[0]?.value[0] ?? 0; return `${dateOf(d)}<br/>${ps.map((x) => `${x.marker} ${x.seriesName}: <b>${Math.round(x.value[1])}</b>`).join("<br/>")}`; } },
       xAxis: { type: "value", min: 0, max: horizon, interval: horizon > 90 ? 14 : 7, axisLabel: { color: c.muted, formatter: (v: number) => dateOf(v) }, axisLine: { lineStyle: { color: c.border } }, splitLine: { show: false } },
       yAxis: { type: "value", min: 0, max: p.K, minInterval: 1, axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.border, opacity: 0.6 } } },
-      grid: { left: 12, right: 12, top: 36, bottom: 8, containLabel: true },
+      grid: { left: 12, right: 12, top: 12, bottom: 8, containLabel: true },
       dataZoom: [],
       series: [
         { name: t("факт"), type: "line", step: "end", data: fact, itemStyle: { color: c.text }, lineStyle: { width: 2.5, color: c.text }, showSymbol: false, z: 5 },
