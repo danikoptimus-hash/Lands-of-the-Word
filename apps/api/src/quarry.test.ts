@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
-import { deedTextHash, syncGameDeeds } from "./services/defaultDeeds.js";
+import { deedTextHash, FORCE_TEXT_TITLES, syncGameDeeds } from "./services/defaultDeeds.js";
 
 /**
  * Каменоломня (решение владельца 04.10): общие дела команды сдаёт капитан, заместитель или летописец; администратор
@@ -116,6 +116,20 @@ describe("Каменоломня", () => {
     await syncGameDeeds(gameId, "auto");
     expect((await prisma.deed.findUniqueOrThrow({ where: { id: build.id } })).description).toBe(build.description);
     await prisma.deed.update({ where: { id: build.id }, data: { stones: build.stones } });
+  });
+
+  it("текст дела из FORCE_TEXT_TITLES обновляется и в правленном деле, вероятность остаётся (решение владельца 23.10)", async () => {
+    const title = FORCE_TEXT_TITLES[0]!;
+    const deed = await prisma.deed.findFirstOrThrow({ where: { gameId, title } });
+    // Администратор изменил вероятность и у дела старый текст: обычная синхронизация такое дело не трогает.
+    await prisma.deed.update({ where: { id: deed.id }, data: { chance: 20, description: "старый текст" } });
+    const r = await syncGameDeeds(gameId, "auto");
+    expect(r.updated).toBeGreaterThanOrEqual(1);
+    const after = await prisma.deed.findUniqueOrThrow({ where: { id: deed.id } });
+    expect(after.description).toBe(deed.description);
+    expect(after.description).toContain("своей команды");
+    expect(after.chance).toBe(20);
+    await prisma.deed.update({ where: { id: deed.id }, data: { chance: deed.chance } });
   });
 
   it("дело уходит в Каменоломню: свободные стороны с ним получают другие дела, взятые остаются (решение владельца 20.10)", async () => {

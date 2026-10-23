@@ -60,6 +60,12 @@ export type DefaultDeed = z.infer<typeof setItem>;
  * взято или сдано командой, оно остаётся до конца игры (сдачу ломать нельзя).
  */
 export const RETIRED_TITLES = ["Помочь с подготовкой проповеди"];
+/**
+ * Дела, чьё описание из набора переписывается в незавершённых играх даже там, где дело считается правленным
+ * (другие поля — вероятность, ценник — не трогаются). Решение владельца 23.10: «я не правил вручную, обновить!» —
+ * в партии у дела стояла другая вероятность, и обычная синхронизация текст не обновляла.
+ */
+export const FORCE_TEXT_TITLES = ["Сделать доброе дело или сюрприз тайно"];
 
 const FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../content/deeds-default.json");
 export async function loadDefaultDeeds(): Promise<DefaultDeed[]> {
@@ -121,6 +127,11 @@ export async function syncGameDeeds(gameId: string, mode: "auto" | "add" | "repl
     const match = deeds.find((d) => lc(d.title) === lc(it.title)) ?? deeds.find((d) => it.replaces.some((r) => lc(r) === lc(d.title)));
     if (match) {
       seen.add(match.id);
+      // Дела с принудительным текстом: описание из набора ставится всегда, даже в правленном деле; остальные поля — ниже по общим правилам.
+      if (FORCE_TEXT_TITLES.some((t) => lc(t) === lc(it.title)) && match.description !== want.description) {
+        await prisma.deed.update({ where: { id: match.id }, data: { description: want.description } }); res.updated++;
+        match.description = want.description;
+      }
       if (match.sourceHash === hash) continue; // уже эта версия
       // Текст уже совпадает с набором (например, его обновила миграция напрямую), а хеш отстал: просто записываем хеш,
       // иначе дело навсегда считалось бы правленным и следующие версии набора его бы не трогали (случай 21.10).
