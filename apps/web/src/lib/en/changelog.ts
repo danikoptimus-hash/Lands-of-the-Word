@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Исправлена ошибка, когда несколько участников команды открывали карту одновременно сразу после открытия нового перекрёстка: часть из них получала «Внутренняя ошибка».": "Fixed an error when several team members opened the map at the same moment right after a new crossroads was revealed: some of them got “Internal error”.",
   "В деле «Сделать доброе дело или сюрприз тайно» уточнено: нельзя делать для участника своей команды, к сдаче нужно фото сюрприза.": "The deed “Do a good deed or a surprise in secret” now says: not for a member of your own team, and a photo of the surprise is required.",
   "У администратора игры новый раздел «Аналитика»: города накопительно — факт и логистическая кривая, когда карта будет занята; дела в день по командам с линией тренда. Под графиками ползунок масштаба.": "Game administrators have a new “Analytics” section: cities cumulative — actual and a logistic curve of when the map will be full; deeds per day by team with a trend line. Zoom sliders under the charts.",
   "На главной появилась кнопка Telegram: канал игры.": "The home page has a Telegram button: the game’s channel.",

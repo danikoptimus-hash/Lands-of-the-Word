@@ -149,6 +149,9 @@ export async function bookOfNodeKey(gameId: string, key: string): Promise<string
 }
 
 /** Создаёт недостающие задачи на рёбрах фронтира. Идемпотентно. */
+/** Нарушение уникальности в Prisma (P2002): запись уже создал параллельный запрос. */
+const isUniqueViolation = (e: unknown): boolean => typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
+
 export async function ensureFrontier(gameId: string, teamId: string): Promise<void> {
   const team = await prisma.team.findUniqueOrThrow({ where: { id: teamId } });
   if (!team.startNodeKey) return;
@@ -186,7 +189,10 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
   for (const w of wanted) {
     const deedId = await pickDeed(gameId, teamId, sideBook(cityBooks, revealed, w.fromKey, w.toKey), undefined, false, w);
     if (!deedId) return;
-    created.push((await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: w.fromKey, toKey: w.toKey, deedId }, select: { id: true } })).id);
+    // Несколько участников одной команды открывают карту одновременно: сторону успевает создать параллельный запрос
+    // (уникальность teamId+fromKey+toKey) — тогда просто пропускаем её. Нашлось нагрузочным прогоном 23.10.
+    const row = await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: w.fromKey, toKey: w.toKey, deedId }, select: { id: true } }).catch((e: unknown) => { if (isUniqueViolation(e)) return null; throw e; });
+    if (row) created.push(row.id);
   }
   await ensureRemoteDeed(gameId, teamId, created);
   // Морская сторона: из каждого взятого командой порта (береговой город) — одно дело; после его одобрения
@@ -199,7 +205,7 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
     if (free === 0) continue;
     const deedId = await pickDeed(gameId, teamId, port.bookCode, undefined, false, { fromKey: port.key, toKey: port.key });
     if (!deedId) return;
-    await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: port.key, toKey: seaKey(port.key), deedId, sea: true } });
+    await prisma.teamEdgeTask.create({ data: { teamId, gameId, fromKey: port.key, toKey: seaKey(port.key), deedId, sea: true } }).catch((e: unknown) => { if (!isUniqueViolation(e)) throw e; });
   }
   // Люди у дел (решение владельца 21.10): новые стороны получают имя из списка равномерно.
   await assignPeople(gameId);

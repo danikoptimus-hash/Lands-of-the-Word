@@ -1,0 +1,102 @@
+# Нагрузочный прогон стенда (кнопка Run workflow). Прод не трогается: нагрузка идёт на test.<домен>, но сервер один,
+# поэтому запускать ночью по поясу игры. На стенде создаются тестовые учётки test_lt_* и партия «Нагрузочный тест»,
+# генератор нагрузки (scripts/loadtest.mjs) работает с машины GitHub Actions, в конце всё созданное удаляется.
+# Пароли и сессии тестовых учёток в журнал не попадают: файл сессий забирается по scp и удаляется.
+name: loadtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      users:
+        description: "Участников (виртуальных)"
+        default: "300"
+      teams:
+        description: "Команд (2–12)"
+        default: "6"
+      duration:
+        description: "Секунд под нагрузкой после разгона"
+        default: "300"
+      ramp:
+        description: "Секунд разгона (подключение участников)"
+        default: "120"
+      approve_per_min:
+        description: "Решений администратора по сдачам в минуту"
+        default: "6"
+      take_per_min:
+        description: "Сдач дел участниками в минуту"
+        default: "10"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-test
+  cancel-in-progress: false
+
+jobs:
+  loadtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      LT_USERS: ${{ inputs.users }}
+      LT_TEAMS: ${{ inputs.teams }}
+      LT_DURATION: ${{ inputs.duration }}
+      LT_RAMP: ${{ inputs.ramp }}
+      LT_APPROVE_PER_MIN: ${{ inputs.approve_per_min }}
+      LT_TAKE_PER_MIN: ${{ inputs.take_per_min }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Ключ SSH
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          HOST: ${{ secrets.DEPLOY_HOST }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/lt_key && chmod 600 ~/.ssh/lt_key
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+      - name: Подготовка стенда (учётки, сессии, партия)
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          set -e
+          SSH="ssh -i ~/.ssh/lt_key $USER@$HOST"
+          $SSH "docker exec -e LT_USERS=$LT_USERS -e LT_TEAMS=$LT_TEAMS -e LT_OUT=/tmp/lt-sessions.txt lotw-app-test node apps/api/dist/scripts/loadtest.js seed 2>&1 | grep -v '^{' || true"
+          $SSH "docker cp lotw-app-test:/tmp/lt-sessions.txt /tmp/lt-sessions.txt && docker exec lotw-app-test rm -f /tmp/lt-sessions.txt"
+          scp -q -i ~/.ssh/lt_key "$USER@$HOST:/tmp/lt-sessions.txt" ./lt-sessions.txt
+          $SSH "rm -f /tmp/lt-sessions.txt"
+          test "$(wc -l < lt-sessions.txt)" -gt 2
+      - name: Железо и нагрузка сервера во время прогона
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          SSH="ssh -i ~/.ssh/lt_key $USER@$HOST"
+          echo "== сервер =="; $SSH "nproc; free -m; uptime; docker stats --no-stream --format '{{.Name}} cpu={{.CPUPerc}} mem={{.MemUsage}}'"
+          TICKS=$(( (LT_DURATION + LT_RAMP) / 15 + 4 ))
+          nohup $SSH "for i in \$(seq 1 $TICKS); do date +%T; docker stats --no-stream --format '{{.Name}} cpu={{.CPUPerc}} mem={{.MemUsage}}' lotw-app-test lotw-db-test lotw-app lotw-db; uptime; sleep 15; done" > stats.log 2>&1 &
+          echo $! > stats.pid
+      - name: Нагрузка
+        env:
+          LT_BASE: https://test.landsoftheword.com
+          LT_SESSIONS: ./lt-sessions.txt
+        run: node scripts/loadtest.mjs
+      - name: Сервер во время прогона
+        if: always()
+        run: |
+          kill "$(cat stats.pid)" 2>/dev/null || true
+          sleep 2
+          echo "== docker stats каждые 15 с =="; cat stats.log || true
+          { echo; echo "### Сервер во время прогона"; echo '```'; cat stats.log 2>/dev/null | tail -n 200; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - name: Уборка на стенде
+        if: always()
+        env:
+          HOST: ${{ secrets.DEPLOY_HOST }}
+          USER: ${{ secrets.DEPLOY_USER }}
+        run: |
+          rm -f lt-sessions.txt
+          ssh -i ~/.ssh/lt_key "$USER@$HOST" "docker exec lotw-app-test node apps/api/dist/scripts/loadtest.js clean 2>&1 | grep -v '^{' || true; rm -f /tmp/lt-sessions.txt"
+          rm -f ~/.ssh/lt_key
