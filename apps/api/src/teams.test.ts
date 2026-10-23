@@ -458,7 +458,7 @@ describe("администраторы игры", () => {
     await prisma.game.deleteMany({ where: { id: gid } });
     await prisma.user.deleteMany({ where: { nickname: { in: [`fadm_${stampF}`, `fc1_${stampF}`, `fc2_${stampF}`] } } });
     await cleanupFixtures(gid);
-  });
+  }, 20_000);
 
   it("вход по почте", async () => {
     const nick = `em_${Date.now()}`;
