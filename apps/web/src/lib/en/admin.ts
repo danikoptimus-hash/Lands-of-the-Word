@@ -233,4 +233,5 @@ export const ADMIN: Record<string, string> = {
   "Удержание по когортам": "Retention by cohort", "Строка — неделя регистрации и размер когорты. Столбец — сколько недель прошло: 0 — сама неделя регистрации, +1 — следующая и так далее. В ячейке — доля когорты, открывавшая приложение на той неделе.": "Row: sign-up week and cohort size. Column: weeks elapsed, 0 is the sign-up week itself, +1 the next one and so on. Cell: share of the cohort that opened the app that week.",
   "Вернулись через неделю": "Came back the next week", "Доля когорты, активная на следующей неделе после регистрации. Когорты без следующей недели ещё не показаны.": "Share of the cohort active in the week after sign-up. Cohorts without a next week yet are not shown.",
   "Только обобщённые числа: без содержимого игр и без привязки к людям. Под каждым графиком ползунок: двигайте его края, чтобы приблизить период.": "Aggregate numbers only: no game content and no link to people. Under each chart there is a slider: drag its edges to zoom into a period.",
+  "Раздел аналитики": "Analytics section",
 };

@@ -387,3 +387,13 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 /* Графики аналитики (23.10): холст ECharts на всю ширину карточки. */
 .chart { width: 100%; margin-top: var(--sp-2); }
 .card-head .tabs { margin: 0; }
+/* Графики по два в ряд на широком экране, по одному на телефоне (23.10). */
+.chart-grid { display: grid; grid-template-columns: 1fr; gap: var(--sp-4); margin-bottom: var(--sp-4); }
+.chart-grid > .card { margin-bottom: 0; min-width: 0; }
+@media (min-width: 900px) { .chart-grid { grid-template-columns: 1fr 1fr; } .chart-grid > .card.wide { grid-column: 1 / -1; } }
+/* Вкладки аналитики на узком экране прокручиваются по горизонтали, не сжимаясь (23.10). */
+@media (max-width: 899px) {
+  .analytics-tabs .tabs { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .analytics-tabs .tabs::-webkit-scrollbar { display: none; }
+  .analytics-tabs .tabs > button { flex: 0 0 auto; padding: 0 var(--sp-3); }
+}

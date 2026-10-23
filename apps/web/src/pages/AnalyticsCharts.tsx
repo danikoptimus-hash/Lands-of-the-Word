@@ -86,7 +86,7 @@ export function AnalyticsCharts() {
   if (!a || !dau || !wau || !mau || !fresh || !total || !heat || !week1) return <div className="card"><LoadingState /></div>;
   const head = (title: string, help: string) => <div className="card-head"><h2>{title}<Help>{help}</Help></h2></div>;
   return (
-    <>
+    <div className="chart-grid">
       <div className="card">{head(t("Активные за день (DAU)"), t("Сколько разных людей открывали приложение в этот день. Любое открытие считается: посмотреть карту тоже. Сутки — по поясу {tz}. Тестовые аккаунты не считаются. Администратор — администратор хоть одной игры или платформы, участники — остальные. До 23 октября дни восстановлены из действий: кто только смотрел, в прошлом не учтён.", { tz: a.tz }))}<Chart option={dau} /></div>
       <div className="card">{head(t("Активные за неделю (WAU)"), t("Разные люди за календарную неделю с понедельника по воскресенье. Текущая неделя неполная."))}<Chart option={wau} /></div>
       <div className="card">{head(t("Активные за месяц (MAU)"), t("Разные люди за календарный месяц. Текущий месяц неполный."))}<Chart option={mau} /></div>
@@ -95,8 +95,8 @@ export function AnalyticsCharts() {
         <Chart option={fresh} />
       </div>
       <div className="card">{head(t("Всего пользователей"), t("Накопительно по дате регистрации."))}<Chart option={total} /></div>
-      <div className="card">{head(t("Удержание по когортам"), t("Строка — неделя регистрации и размер когорты. Столбец — сколько недель прошло: 0 — сама неделя регистрации, +1 — следующая и так далее. В ячейке — доля когорты, открывавшая приложение на той неделе."))}<Chart option={heat} height={Math.max(220, 40 + cohortRows.length * 34)} /></div>
+      <div className="card wide">{head(t("Удержание по когортам"), t("Строка — неделя регистрации и размер когорты. Столбец — сколько недель прошло: 0 — сама неделя регистрации, +1 — следующая и так далее. В ячейке — доля когорты, открывавшая приложение на той неделе."))}<Chart option={heat} height={Math.max(220, 40 + cohortRows.length * 34)} /></div>
       <div className="card">{head(t("Вернулись через неделю"), t("Доля когорты, активная на следующей неделе после регистрации. Когорты без следующей недели ещё не показаны."))}<Chart option={week1} height={240} /></div>
-    </>
+    </div>
   );
 }

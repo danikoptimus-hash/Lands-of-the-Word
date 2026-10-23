@@ -10,6 +10,9 @@ import { ScrollTop } from "../components/ScrollTop";
 import { ErrorState, LoadingState } from "../components/State";
 import { Help } from "../components/Help";
 import { AnalyticsCharts } from "./AnalyticsCharts";
+import { Tabs } from "../components/Tabs";
+
+type Section = "users" | "games" | "activity" | "battles" | "passages" | "ui" | "tech";
 
 interface Metrics {
   period: { days: number; since: string; dates: string[] };
@@ -82,6 +85,8 @@ export function AdminDashboard() {
   const [m, setM] = useState<Metrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [table, setTable] = useState(false);
+  // Разделы вкладками (решение владельца 23.10): липкая полоса сверху, графики по два в ряд на широком экране.
+  const [tab, setTab] = useState<Section>("users");
   const load = () => { setM(null); setError(null); api<Metrics>(`/api/admin/metrics?days=${days}`).then(setM).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); };
   useEffect(() => { if (user?.platformRole === "SUPERADMIN") load(); }, [days, user]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!user) return null;
@@ -96,17 +101,21 @@ export function AdminDashboard() {
         <h1><span className="ico"><Icon name="check" /></span>{t("Аналитика")}</h1>
         <Help>{t("Только обобщённые числа: без содержимого игр и без привязки к людям. Под каждым графиком ползунок: двигайте его края, чтобы приблизить период.")}</Help>
       </div>
-      <AnalyticsCharts />
-      {error && <div className="card"><ErrorState text={error} onRetry={load} /></div>}
-      {!m && !error && <div className="card"><LoadingState /></div>}
-      {m && (
+      <div className="analytics-tabs"><Tabs<Section> sticky value={tab} onChange={setTab} ariaLabel={t("Раздел аналитики")} items={[{ key: "users", label: t("Пользователи") }, { key: "games", label: t("Игры") }, { key: "activity", label: t("Активность") }, { key: "battles", label: t("Испытания") }, { key: "passages", label: t("Проходы") }, { key: "ui", label: t("Интерфейс") }, { key: "tech", label: t("Сервер") }]} /></div>
+      {tab === "users" && <AnalyticsCharts />}
+      {tab !== "users" && error && <div className="card"><ErrorState text={error} onRetry={load} /></div>}
+      {tab !== "users" && !m && !error && <div className="card"><LoadingState /></div>}
+      {tab !== "users" && m && (
         <>
+          {tab === "games" && (<>
           <div className="card"><h2>{t("Игры")}</h2><div className="tiles mt-3">
             <Tile label={t("игр всего")} value={fmt(m.games.total)} hint={t("черновиков {n}", { n: m.games.draft })} /><Tile label={t("идут")} value={fmt(m.games.active)} /><Tile label={t("завершены")} value={fmt(m.games.finished)} />
             <Tile label={t("создано за {n} дн", { n: days })} value={fmt(m.games.createdInPeriod)} trend={m.series.games} dates={d} delta={{ now: m.games.createdInPeriod, prev: m.previous.games, days }} />
             <Tile label={t("длительность")} value={fmt(m.games.avgDurationDays, " " + t("дн"))} hint={t("среднее по завершённым")} />
             <Tile label={t("команд")} value={fmt(m.games.teams)} /><Tile label={t("размер команды")} value={fmt(m.games.avgTeamSize)} hint={t("в среднем")} />
           </div></div>
+          </>)}
+          {tab === "activity" && (<>
           <div className="card"><h2>{t("Активность")}</h2><div className="tiles mt-3">
             <Tile label={t("сдач дел за {n} дн", { n: days })} value={fmt(m.activity.submissionsInPeriod)} hint={t("всего {n}", { n: m.activity.submissionsTotal })} trend={m.series.submissions} dates={d} delta={{ now: m.activity.submissionsInPeriod, prev: m.previous.submissions, days }} />
             <Tile label={t("принято за {n} дн", { n: days })} value={fmt(sum(m.series.approvals))} hint={t("доля принятых {p}", { p: fmt(m.activity.approvedShare, "%") })} trend={m.series.approvals} dates={d} />
@@ -114,13 +123,19 @@ export function AdminDashboard() {
             <Tile label={t("открыто перекрёстков за {n} дн", { n: days })} value={fmt(m.nodesInPeriod)} hint={t("пройдено сторон всего {n}", { n: m.activity.edgesTraversed })} trend={m.series.nodes} dates={d} delta={{ now: m.nodesInPeriod, prev: m.previous.nodes, days }} />
             <Tile label={t("взято городов за {n} дн", { n: days })} value={fmt(m.activity.citiesCapturedInPeriod)} hint={t("всего {n}", { n: m.activity.citiesCaptured })} trend={m.series.cities} dates={d} delta={{ now: m.activity.citiesCapturedInPeriod, prev: m.previous.cities, days }} />
           </div></div>
+          </>)}
+          {tab === "battles" && (<>
           <div className="card"><h2>{t("Испытания")}</h2><div className="tiles mt-3">
             <Tile label={t("объявлено за {n} дн", { n: days })} value={fmt(m.battles.declaredInPeriod)} hint={t("всего {n}", { n: m.battles.declared })} trend={m.series.battles} dates={d} delta={{ now: m.battles.declaredInPeriod, prev: m.previous.battles, days }} />
             <Tile label={t("идут")} value={fmt(m.battles.active)} /><Tile label={t("город перешёл")} value={fmt(m.battles.won)} />
             <Tile label={t("город устоял")} value={fmt(m.battles.repelled)} /><Tile label={t("вызов не завершён")} value={fmt(m.battles.expired)} /><Tile label={t("средняя ставка")} value={fmt(m.battles.avgBid, " " + t("стихов"))} />
             <Tile label={t("время вызова")} value={fmt(m.battles.avgAttackHours, " " + t("ч"))} hint={t("в среднем")} /><Tile label={t("суммарный режим")} value={fmt(m.battles.sumMode)} hint={t("исчерпанные книги")} />
           </div></div>
+          </>)}
+          {tab === "passages" && (<>
           <div className="card"><h2>{t("Проходы")}</h2>{m.diplomacy.implemented ? <div className="tiles mt-3"><Tile label={t("запросов прохода")} value={fmt(m.diplomacy.passRequests)} /><Tile label={t("разрешено")} value={fmt(m.diplomacy.passApprovedShare, "%")} /><Tile label={t("посольств")} value={fmt(m.diplomacy.embassies)} /></div> : <p className="muted small mt-2">{t("Метрики проходов появятся позже.")}</p>}</div>
+          </>)}
+          {tab === "ui" && (<>
           <div className="card"><h2>{t("Интерфейс")}</h2>
             <p className="muted small mt-2">{t("Замеры с устройств игроков за период: скорость открытия страницы и плавность карты за первые 6 секунд. Без привязки к людям.")}</p>
             {m.ui.samples === 0 ? <p className="muted small mt-2">{t("Замеров пока нет: они появляются после открытия карты на устройствах.")}</p> : (
@@ -147,6 +162,8 @@ export function AdminDashboard() {
               </>
             )}
           </div>
+          </>)}
+          {tab === "tech" && (<>
           <div className="card"><h2>{t("Сервер")}</h2><div className="tiles mt-3">
             <Tile label={t("работает без перезапуска")} value={fmt(m.tech.uptimeHours, " " + t("ч"))} /><Tile label={t("почта")} value={m.tech.mailEnabled ? t("настроена") : t("выключена")} />
             <Tile label={t("писем отправлено")} value={fmt(m.tech.mailSent)} hint={t("с момента запуска")} /><Tile label={t("не доставлено")} value={fmt(m.tech.mailFailed)} /><Tile label={t("память")} value={fmt(m.tech.memoryMb, " " + t("МБ"))} hint={m.tech.node} />
@@ -155,6 +172,8 @@ export function AdminDashboard() {
             <Tile label={t("отказов клиенту (4xx)")} value={fmt(m.tech.errors4xx)} hint={t("неверные данные, нет прав")} />
             <Tile label={t("время ответа")} value={fmt(m.tech.avgMs, " " + t("мс"))} hint={t("p95 {p} · по {n} запросам", { p: fmt(m.tech.p95Ms, " " + t("мс")), n: m.tech.sample })} />
           </div><p className="hint">{t("Подробности ошибок — в логах сервера.")}</p></div>
+          </>)}
+          {tab === "activity" && (<>
           <div className="card">
             <div className="card-head">
               <h2>{t("По дням")}</h2>
@@ -169,6 +188,7 @@ export function AdminDashboard() {
               </div>
             )}
           </div>
+          </>)}
         </>
       )}
     </>
