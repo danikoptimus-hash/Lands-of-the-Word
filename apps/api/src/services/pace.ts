@@ -5,15 +5,13 @@ import { dayKey } from "./activity.js";
 /**
  * Темп партии (решение владельца 23.10: «тот чарт — в аналитику игры»; уточнение: «оставить логистическую кривую,
  * факт и прогноз», плюс «график с количеством дел в день»): города накопительно, факт и прогноз, когда вся карта будет
- * занята. Перенос отчёта pace-report: темп после разгона, логистическая кривая с потолком K и прогноз методом
- * Монте-Карло при текущем темпе. Дела в день — принятые дела на сторонах и общие дела Каменоломни по командам.
+ * занята. Перенос отчёта pace-report: темп после разгона и логистическая кривая с потолком K (прогноз Монте-Карло убран
+ * по решению владельца 23.10: «оставим только логистическую кривую»). Дела в день — принятые дела на сторонах и общие
+ * дела Каменоломни по командам.
  * Время — сутки от старта.
  */
 const DAY = 86_400_000;
 interface Pt { day: number; value: number }
-/** Простой детерминированный генератор: прогноз не меняется от перезагрузки страницы. */
-function rng(seed: number) { let s = seed >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; }
-const pct = (xs: number[], q: number) => { const a = [...xs].sort((x, y) => x - y); if (!a.length) return Infinity; const i = Math.min(a.length - 1, Math.max(0, Math.round((q / 100) * (a.length - 1)))); return a[i]!; };
 
 export async function paceForecast(gameId: string) {
   const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId }, select: { startedAt: true, createdAt: true, settings: true, status: true, finishedAt: true } });
@@ -55,45 +53,26 @@ export async function paceForecast(gameId: string) {
   let best = { sse: Infinity, r: 0.3, t0: 10 };
   for (let r = 0.05; r <= 1.5; r += 0.01) for (let t0 = 0; t0 <= 60; t0 += 0.5) { let sse = 0; for (let i = 0; i < grid.length; i++) { const p = K / (1 + Math.exp(-r * (grid[i]! - t0))); sse += (p - cum[i]!) ** 2; } if (sse < best.sse) best = { sse, r, t0 }; }
   const logisticAt = (m: number) => { const f = Math.min(m / K, 0.999); return best.t0 - Math.log(1 / f - 1) / best.r; };
-  // Прогноз: каждый день каждая команда решает столько заданий, сколько в случайный полный день после разгона;
-  // город стоит случайное число заданий из взятых (не столиц). Сценарии «карта сопротивляется» и «запал гаснет»
-  // убраны по решению владельца 23.10 — остаётся один, при текущем темпе.
   const teamTasks = teams.map((t) => steady.map((d) => tasksByDay.get(d)?.get(t.id) ?? 0));
-  const costPool = states.filter((s) => !s.isCapital).map((s) => s.doneTasks.length).filter((x) => x > 0);
-  if (!costPool.length) costPool.push(17);
   const dailyTasksAvg = teamTasks.reduce((a, v) => a + (v.length ? v.reduce((x, y) => x + y, 0) / v.length : 0), 0);
   const horizon = 120;
-  const scenarios = [{ name: "Прогноз", gamma: 0, decay: 1 }].map((sc, si) => {
-    const rand = rng(7 + si);
-    const pick = (v: number[]) => v[Math.floor(rand() * v.length)]!;
-    const finish: Record<number, number[]> = Object.fromEntries(milestones.map((m) => [m, []]));
-    const paths: number[][] = [];
-    for (let run = 0; run < 400; run++) {
-      let c = n, t = T, pool = 0, next = pick(costPool); const path: number[] = [];
-      for (let step = 0; step < 365 && c < K; step++) {
-        const mult = Math.pow(sc.decay, (t - T) / 7);
-        let dayTasks = 0; for (const v of teamTasks) if (v.length) dayTasks += pick(v);
-        const eff = sc.gamma > 0 ? Math.pow((K - c) / K, sc.gamma) : 1;
-        pool += dayTasks * mult * eff; t += 1;
-        while (pool >= next && c < K) { pool -= next; c += 1; next = pick(costPool); for (const m of milestones) if (c === m) finish[m]!.push(t); }
-        if (step < horizon) path.push(c);
-      }
-      for (const m of milestones) if (finish[m]!.length < run + 1) finish[m]!.push(Infinity);
-      while (path.length < horizon) path.push(c);
-      paths.push(path);
-    }
-    const curve: Pt[] = [{ day: T, value: n }];
-    for (let i = 0; i < horizon; i++) { const vals = paths.map((p) => p[i]!); curve.push({ day: T + i + 1, value: pct(vals, 50) }); }
-    const fin = Object.fromEntries(milestones.map((m) => [m, [10, 50, 90].map((q) => { const v = pct(finish[m]!, q); return Number.isFinite(v) ? v : null; })]));
-    return { name: sc.name, curve, finish: fin };
-  });
+  // Тренд дел в день (просьба владельца 23.10): прямая по методу наименьших квадратов по полным дням — текущий
+  // неполный день в подбор не входит, но линия проведена и через него.
+  const totals = days.map((d) => { let sum = 0; for (const v of deedsByDay.get(d)?.values() ?? []) sum += v; return sum; });
+  const fitN = game.finishedAt ? totals.length : totals.length - 1;
+  let deedsTrend: number[] = [];
+  if (fitN >= 2) {
+    const xs = Array.from({ length: fitN }, (_, i) => i); const mx = (fitN - 1) / 2; const my = totals.slice(0, fitN).reduce((a, b) => a + b, 0) / fitN;
+    let sxy = 0, sxx = 0; for (const x of xs) { sxy += (x - mx) * (totals[x]! - my); sxx += (x - mx) ** 2; }
+    const slope = sxx ? sxy / sxx : 0;
+    deedsTrend = totals.map((_, i) => Math.max(0, my + slope * (i - mx)));
+  }
   const logistic: Pt[] = []; for (let d = 0; d <= T + horizon; d += 1) logistic.push({ day: d, value: K / (1 + Math.exp(-best.r * (d - best.t0))) });
   return {
     tz, startedAt: start, now: end, T, K, n, rate, rampDay, dailyTasksAvg, milestones,
     teams,
     fact: caps.map((c, i) => ({ day: c.day, value: i + 1, teamId: c.teamId })),
-    deeds: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => deedsByDay.get(d)?.get(t.id) ?? 0) })) },
+    deeds: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => deedsByDay.get(d)?.get(t.id) ?? 0) })), trend: deedsTrend },
     logistic: { r: best.r, t0: best.t0, curve: logistic, finish: Object.fromEntries(milestones.map((m) => [m, m <= n ? null : logisticAt(m)])) },
-    scenarios,
   };
 }
