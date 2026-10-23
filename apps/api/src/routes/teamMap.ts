@@ -11,6 +11,7 @@ import { err, msg, fmtDay, toLocale } from "../services/i18n.js";
 import { journal, nick } from "../services/journal.js";
 import { gameRules } from "../services/battles.js";
 import { adminOrObserver } from "../services/access.js";
+import { paceForecast } from "../services/pace.js";
 
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
@@ -352,6 +353,13 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "map", teamId });
     publish(id, { type: "tasks", teamId });
     return { ok: true, viaTask: Boolean(task) };
+  });
+
+  /** Администратор игры: темп партии — города накопительно, факт и прогноз (решение владельца 23.10). */
+  app.get("/api/games/:id/analytics/pace", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    return paceForecast(id);
   });
 
   app.get("/api/games/:id/progress", async (request, reply) => {

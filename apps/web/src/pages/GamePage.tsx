@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { AdminMap, type BattleProgress, type CityProgress, type MapFocus, type TeamProgress } from "./AdminMap";
@@ -29,8 +29,10 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 
 interface GameDto { id: string; name: string; createdById?: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; mapStats?: MapStats; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string } }
-type Tab = "overview" | "map" | "teams" | "deeds" | "review" | "settings";
-const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "settings"];
+type Tab = "overview" | "map" | "teams" | "deeds" | "review" | "analytics" | "settings";
+const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "analytics", "settings"];
+/** Аналитика игры грузится отдельным файлом: графики нужны только администратору (решение владельца 23.10). */
+const GameAnalytics = lazy(() => import("./GameAnalytics").then((m) => ({ default: m.GameAnalytics })));
 type Progress = { teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] };
 
 /**
@@ -140,6 +142,7 @@ export function GamePage() {
     { key: "teams", label: t("Команды"), icon: "users", count: counts.teams },
     { key: "deeds", label: t("Дела"), icon: "scroll", count: counts.deeds },
     { key: "review", label: t("Проверка"), icon: "check", count: reviewCount, hot: true },
+    { key: "analytics", label: t("Аналитика"), icon: "chart" },
     { key: "settings", label: t("Настройки"), icon: "settings" },
   ];
   const open = tab === "map" ? null : tab;
@@ -214,6 +217,7 @@ export function GamePage() {
           ) : (
             <div className="card"><EmptyState icon="check" text={draft ? t("Появится после старта игры.") : t("Игра завершена: проверять больше нечего.")} /></div>
           ))}
+          {open === "analytics" && <div key="analytics"><Suspense fallback={<div className="card"><LoadingState /></div>}><GameAnalytics gameId={game.id} /></Suspense></div>}
           {open === "settings" && (
             <div key="settings">
               <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />
