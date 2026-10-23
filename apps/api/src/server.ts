@@ -2,6 +2,7 @@ import { buildApp } from "./app.js";
 import { syncAllGames } from "./services/defaultDeeds.js";
 import { reshuffleStartedGamesOnce, repairBooklessDeedsAll } from "./services/teamMap.js";
 import { closeTrialsForAllPeaces } from "./services/peace.js";
+import { backfillUserDays } from "./services/activity.js";
 
 const app = await buildApp();
 // Новая версия стандартного набора дел попадает в идущие игры при каждом запуске (деплое).
@@ -12,6 +13,8 @@ await reshuffleStartedGamesOnce(app.log);
 await repairBooklessDeedsAll(app.log);
 // Мир закрывает испытания (решение владельца 04.10): при каждом запуске закрываются идущие испытания между командами, у которых действует мир.
 await closeTrialsForAllPeaces(app.log);
+// Разово: дни активности для аналитики восстанавливаются из действий (решение владельца 23.10).
+await backfillUserDays(app.log);
 try {
   await app.listen({ port: app.config.PORT, host: app.config.HOST });
 } catch (err) {

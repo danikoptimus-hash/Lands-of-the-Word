@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense, lazy } from "react";
 import { registerSW } from "virtual:pwa-register";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
@@ -16,7 +16,8 @@ import { AccountPage } from "./pages/AccountPage";
 import { ForgotPage } from "./pages/ForgotPage";
 import { ResetPage } from "./pages/ResetPage";
 import { VerifyPage, VerifyPendingPage } from "./pages/VerifyPage";
-import { AdminDashboard } from "./pages/AdminDashboard";
+/** Аналитика грузится отдельно: графики (ECharts) нужны только администратору платформы. */
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard").then((m) => ({ default: m.AdminDashboard })));
 import { SupportPage } from "./pages/SupportPage";
 import { AllGamesPage } from "./pages/AllGamesPage";
 import { NewGamePage } from "./pages/NewGamePage";
@@ -60,7 +61,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/games/:id/team" element={<Private><TeamPage /></Private>} />
             <Route path="/join/:token" element={<JoinPage />} />
             <Route path="/account" element={<Private><AccountPage /></Private>} />
-            <Route path="/admin" element={<Private><AdminDashboard /></Private>} />
+            <Route path="/admin" element={<Private><Suspense fallback={null}><AdminDashboard /></Suspense></Private>} />
             <Route path="/admin/support" element={<Private><SupportPage /></Private>} />
             <Route path="/admin/games" element={<Private><AllGamesPage /></Private>} />
             <Route path="*" element={<Navigate to="/" replace />} />

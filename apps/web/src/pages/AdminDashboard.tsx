@@ -7,9 +7,9 @@ import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { ScrollTop } from "../components/ScrollTop";
-import { Tabs } from "../components/Tabs";
 import { ErrorState, LoadingState } from "../components/State";
 import { Help } from "../components/Help";
+import { AnalyticsCharts } from "./AnalyticsCharts";
 
 interface Metrics {
   period: { days: number; since: string; dates: string[] };
@@ -28,7 +28,6 @@ interface Pct { p50: number | null; p75: number | null }
 type Groups = Record<string, { n: number; fps: number | null; jank: number | null; lcp: number | null; load: number | null }>;
 const fmt = (v: number | null | undefined, suffix = "") => (v === null || v === undefined ? "—" : `${v}${suffix}`);
 const dateLabel = (iso: string) => new Date(iso + "T00:00:00").toLocaleDateString(getLocale() === "en" ? "en-GB" : "ru-RU", { day: "numeric", month: "short" });
-type Period = "7" | "30" | "90";
 
 /** Мини-график в плитке: линия в приглушённом цвете, текущая точка — акцент, наведение показывает день и значение. */
 function Sparkline({ values, dates, cumulative }: { values: number[]; dates: string[]; cumulative?: boolean }) {
@@ -78,8 +77,8 @@ function Tile({ label, value, hint, trend, dates, cumulative, delta }: { label: 
 /** Аналитика суперадмина: обобщённые метрики платформы по группам, с динамикой по дням; таблица по дням — внизу. */
 export function AdminDashboard() {
   const { user } = useAuth();
-  const [period, setPeriod] = useState<Period>("30");
-  const days = Number(period);
+  // Один раздел без вкладок 7/30/90 (решение владельца 23.10): графики сверху, плитки ниже за 30 дней.
+  const days = 30;
   const [m, setM] = useState<Metrics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [table, setTable] = useState(false);
@@ -89,26 +88,19 @@ export function AdminDashboard() {
   if (user.platformRole !== "SUPERADMIN") return <Navigate to="/" replace />;
   const d = m?.period.dates ?? [];
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
-  const forDays = (n: number) => t("{n} дней", { n });
   return (
     <>
       <Back to="/" label={t("Мои игры")} />
       <ScrollTop />
       <div className="page-head">
         <h1><span className="ico"><Icon name="check" /></span>{t("Аналитика")}</h1>
-        <Help>{t("Только обобщённые числа: без содержимого игр и без привязки к людям. Наведите на график в плитке, чтобы увидеть день.")}</Help>
+        <Help>{t("Только обобщённые числа: без содержимого игр и без привязки к людям. Под каждым графиком ползунок: двигайте его края, чтобы приблизить период.")}</Help>
       </div>
-      <Tabs<Period> value={period} onChange={setPeriod} ariaLabel={t("Период")} items={[{ key: "7", label: forDays(7) }, { key: "30", label: forDays(30) }, { key: "90", label: forDays(90) }]} />
+      <AnalyticsCharts />
       {error && <div className="card"><ErrorState text={error} onRetry={load} /></div>}
       {!m && !error && <div className="card"><LoadingState /></div>}
       {m && (
         <>
-          <div className="card"><h2>{t("Пользователи")}</h2><div className="tiles mt-3">
-            <Tile label={t("всего")} value={fmt(m.users.total)} trend={m.series.usersTotal} dates={d} cumulative />
-            <Tile label={t("новых за {n} дн", { n: days })} value={fmt(m.users.newInPeriod)} trend={m.series.newUsers} dates={d} delta={{ now: m.users.newInPeriod, prev: m.previous.newUsers, days }} />
-            <Tile label={t("активны за день")} value={fmt(m.users.dau)} /><Tile label={t("активны за неделю")} value={fmt(m.users.wau)} /><Tile label={t("активны за месяц")} value={fmt(m.users.mau)} />
-            <Tile label={t("удержание 7 дн")} value={fmt(m.users.retention7, "%")} hint={t("вернулись через неделю")} /><Tile label={t("удержание 30 дн")} value={fmt(m.users.retention30, "%")} hint={t("вернулись через месяц")} />
-          </div></div>
           <div className="card"><h2>{t("Игры")}</h2><div className="tiles mt-3">
             <Tile label={t("игр всего")} value={fmt(m.games.total)} hint={t("черновиков {n}", { n: m.games.draft })} /><Tile label={t("идут")} value={fmt(m.games.active)} /><Tile label={t("завершены")} value={fmt(m.games.finished)} />
             <Tile label={t("создано за {n} дн", { n: days })} value={fmt(m.games.createdInPeriod)} trend={m.series.games} dates={d} delta={{ now: m.games.createdInPeriod, prev: m.previous.games, days }} />

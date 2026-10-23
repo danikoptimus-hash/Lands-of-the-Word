@@ -44,6 +44,7 @@ model User {
   /** Последняя активность (обновляется не чаще раза в 10 минут) — для DAU/WAU/MAU и удержания. */
   lastSeenAt   DateTime?
   sessions     Session[]
+  days         UserDay[]
   gameAdmins   GameAdmin[]
   createdGames Game[]       @relation("GameCreator")
   memberships  Membership[]
@@ -980,4 +981,18 @@ enum VisitStatus {
   APPROVED
   REJECTED
   EXPIRED
+}
+
+/**
+ * День активности пользователя (аналитика, решение владельца 23.10): одна строка на первый запрос за календарный день
+ * по поясу отчётности (Asia/Tashkent). Из неё считаются DAU по дням, WAU по неделям, MAU по месяцам и удержание по когортам.
+ * Прошлое до появления таблицы восстановлено из действий (входы, задания, дела, стихи) — с недосчётом.
+ */
+model UserDay {
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  day    DateTime @db.Date
+
+  @@id([userId, day])
+  @@index([day])
 }

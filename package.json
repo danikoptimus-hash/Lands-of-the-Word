@@ -19,5 +19,8 @@
   },
   "devDependencies": {
     "playwright": "^1.63.0"
+  },
+  "dependencies": {
+    "echarts": "^6.1.0"
   }
 }

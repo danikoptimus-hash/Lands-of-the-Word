@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { User } from "@prisma/client";
 import { prisma } from "./db.js";
+import { touchUserDay } from "./services/activity.js";
 
 export const SESSION_COOKIE = "lotw_session";
 const SESSION_DAYS = 30;
@@ -97,7 +98,7 @@ export async function attachUser(request: FastifyRequest): Promise<void> {
   request.user = session.user;
   // Последняя активность для аналитики (DAU/WAU/MAU), не чаще раза в 10 минут и в фоне.
   const seen = session.user.lastSeenAt?.getTime() ?? 0;
-  if (Date.now() - seen > 600_000) prisma.user.update({ where: { id: session.user.id }, data: { lastSeenAt: new Date() } }).catch(() => {});
+  if (Date.now() - seen > 600_000) { prisma.user.update({ where: { id: session.user.id }, data: { lastSeenAt: new Date() } }).catch(() => {}); touchUserDay(session.user.id); }
 }
 
 /** Маршруты, доступные с неподтверждённой почтой: аккаунт, выход, смена пароля и само подтверждение. */
