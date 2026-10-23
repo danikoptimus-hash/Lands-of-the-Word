@@ -391,7 +391,8 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 .chart-grid { display: grid; grid-template-columns: 1fr; gap: var(--sp-4); margin-bottom: var(--sp-4); }
 .chart-grid > .card { margin-bottom: 0; min-width: 0; }
 @media (min-width: 900px) { .chart-grid { grid-template-columns: 1fr 1fr; } .chart-grid > .card.wide { grid-column: 1 / -1; } }
-/* Вкладки аналитики на узком экране прокручиваются по горизонтали, не сжимаясь (23.10). */
+/* Полоса вкладок аналитики липнет под шапкой (липкая сама обёртка: липкий элемент внутри обёртки той же высоты не держится); на узком экране прокручивается по горизонтали (23.10). */
+.analytics-tabs { position: sticky; top: calc(var(--topbar-h) + var(--sp-2)); z-index: var(--z-sticky); margin-bottom: var(--sp-4); }
 @media (max-width: 899px) {
   .analytics-tabs .tabs { overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
   .analytics-tabs .tabs::-webkit-scrollbar { display: none; }

@@ -101,7 +101,7 @@ export function AdminDashboard() {
         <h1><span className="ico"><Icon name="check" /></span>{t("Аналитика")}</h1>
         <Help>{t("Только обобщённые числа: без содержимого игр и без привязки к людям. Под каждым графиком ползунок: двигайте его края, чтобы приблизить период.")}</Help>
       </div>
-      <div className="analytics-tabs"><Tabs<Section> sticky value={tab} onChange={setTab} ariaLabel={t("Раздел аналитики")} items={[{ key: "users", label: t("Пользователи") }, { key: "games", label: t("Игры") }, { key: "activity", label: t("Активность") }, { key: "battles", label: t("Испытания") }, { key: "passages", label: t("Проходы") }, { key: "ui", label: t("Интерфейс") }, { key: "tech", label: t("Сервер") }]} /></div>
+      <div className="analytics-tabs"><Tabs<Section> value={tab} onChange={setTab} ariaLabel={t("Раздел аналитики")} items={[{ key: "users", label: t("Пользователи") }, { key: "games", label: t("Игры") }, { key: "activity", label: t("Активность") }, { key: "battles", label: t("Испытания") }, { key: "passages", label: t("Проходы") }, { key: "ui", label: t("Интерфейс") }, { key: "tech", label: t("Сервер") }]} /></div>
       {tab === "users" && <AnalyticsCharts />}
       {tab !== "users" && error && <div className="card"><ErrorState text={error} onRetry={load} /></div>}
       {tab !== "users" && !m && !error && <div className="card"><LoadingState /></div>}
