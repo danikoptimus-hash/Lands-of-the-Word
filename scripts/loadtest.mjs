@@ -3,7 +3,8 @@
  * Генератор нагрузки для стенда (решение владельца 23.10: «давай замерим на стенде, потом сделаем выводы»).
  * Запускается из workflow `loadtest` на машине GitHub Actions, не на сервере. Каждый виртуальный участник ведёт себя
  * как страница команды: открывает карту и соседние ответы, держит поток событий (SSE) и на каждое событие перечитывает
- * то же, что перечитывает настоящая страница; раз в минуту перечитывает карту. Часть участников берёт и сдаёт дела,
+ * то же, что перечитывает настоящая страница (со склейкой: несколько событий за 2,5 с — одно перечитывание, как в клиенте
+ * с 23.10); раз в минуту перечитывает карту. Часть участников берёт и сдаёт дела,
  * администратор принимает сдачи — каждое решение рассылает событие всем, и это главная нагрузка.
  *
  * Переменные: LT_BASE (адрес стенда), LT_SESSIONS (файл сессий из scripts/loadtest.js seed), LT_USERS (сколько участников
@@ -68,11 +69,18 @@ function reloadsFor(type) {
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const COALESCE_MS = Number(process.env.LT_COALESCE_MS ?? 2500);
 async function runUser(u) {
   const g = (path) => req(u.cookie, "GET", `/api/games/${gameId}${path}`);
+  // Склейка как в клиенте: по каждому пути один таймер; событие внутри окна новых запросов не добавляет.
+  const timers = new Map();
+  const later = (path) => { if (timers.has(path)) return; timers.set(path, setTimeout(() => { timers.delete(path); void g(path); }, COALESCE_MS)); };
   await Promise.all(PAGE.map(g));
   // Поток событий: держим, пока идёт прогон; при обрыве переподключаемся через 3 с, как браузер.
   const sse = (async () => {
+    // id своей команды — из первого ответа /teams (в файле сессий только номер команды).
+    const teams = await req(u.cookie, "GET", `/api/games/${gameId}/teams`);
+    u.teamId = teams.json?.teams?.find((tm) => tm.members?.some((m) => m.user?.nickname === u.nick))?.id ?? null;
     while (running) {
       const ctrl = new AbortController();
       const stop = setTimeout(() => ctrl.abort(), Math.max(1000, DURATION + RAMP + 60_000));
@@ -91,9 +99,10 @@ async function runUser(u) {
             const ev = /^event: (\w+)/m.exec(chunk)?.[1]; const data = /^data: (.*)$/m.exec(chunk)?.[1];
             if (ev === "change" && data) {
               counters.events++;
-              let type = "game"; try { type = JSON.parse(data).type; } catch { /* как есть */ }
-              const paths = reloadsFor(type); counters.reloads += paths.length;
-              void Promise.all(paths.map(g));
+              let ev = { type: "game" }; try { ev = JSON.parse(data); } catch { /* как есть */ }
+              if (ev.teamId && (ev.type === "tasks" || ev.type === "submissions") && ev.teamId !== u.teamId) continue;
+              const paths = reloadsFor(ev.type); counters.reloads += paths.length;
+              for (const p of paths) later(p);
             }
           }
         }

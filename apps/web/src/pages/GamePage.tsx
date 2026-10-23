@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { api, ApiError, type MapEdgeDto, type MapHexDto, type MapNodeDto } from "../lib/api";
 import { AdminMap, type BattleProgress, type CityProgress, type MapFocus, type TeamProgress } from "./AdminMap";
 import { collectMoves, progressAt, TimelineDock } from "./Timeline";
-import { useGameEvents } from "../lib/useGameEvents";
+import { useCoalesced, useGameEvents } from "../lib/useGameEvents";
 import { TeamsBlock } from "./TeamsBlock";
 import { DeedsBlock } from "./DeedsBlock";
 import { StartBlock, type MapStats } from "./StartBlock";
@@ -73,13 +73,14 @@ export function GamePage() {
   const moves = useMemo(() => (progress?.startedAt ? collectMoves(progress.teams, progress.cities, progress.startedAt) : []), [progress]);
   const shownCities = useMemo(() => (progress && at ? progress.cities.filter((c) => !c.capturedAt || Date.parse(c.capturedAt) <= at.getTime()) : progress?.cities ?? null), [progress, at]);
   const bump = () => setVersion((v) => v + 1);
-  useGameEvents(id, (e) => { if (e.type === "game" || e.type === "map") void load(); if (e.type !== "deeds") void loadProgress(); bump(); });
-
   const load = useCallback(async () => {
     const r = await api<{ game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; observer?: boolean }>(`/api/games/${id}`);
     setObserver(Boolean(r.observer)); setGame(r.game); setDisplayTimeZone((r.game.settings as { rules?: { timeZone?: string } }).rules?.timeZone); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges); setStats((s) => s ?? r.game.settings.mapStats ?? null);
     setError(null);
   }, [id]);
+  // Перечитывания по событиям склеиваются (решение владельца 23.10): несколько событий за 2,5 с — одно перечитывание.
+  const loadLater = useCoalesced(load), progressLater = useCoalesced(loadProgress), bumpLater = useCoalesced(bump);
+  useGameEvents(id, (e) => { if (e.type === "game" || e.type === "map") loadLater(); if (e.type !== "deeds") progressLater(); bumpLater(); });
 
   /** Счётчики для вкладок и чек-листа: что ждёт администратора. Лёгкие запросы, обновляются с каждым событием игры. */
   const loadCounts = useCallback(async (status: string) => {

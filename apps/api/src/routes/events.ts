@@ -22,7 +22,7 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
       "X-Accel-Buffering": "no",
     });
     reply.raw.write(`retry: 3000\nevent: hello\ndata: {}\n\n`);
-    const unsubscribe = subscribe(id, reply);
+    const unsubscribe = subscribe(id, reply, admin || request.user!.platformRole === "SUPERADMIN" ? null : member?.teamId ?? null);
     const heartbeat = setInterval(() => { try { reply.raw.write(`: ping\n\n`); } catch { /* закрыто */ } }, 25000);
     request.raw.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
     // Ответ отдаём вручную, Fastify его не завершает.

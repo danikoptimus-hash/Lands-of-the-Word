@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { useGameEvents } from "../lib/useGameEvents";
+import { useCoalesced, useGameEvents } from "../lib/useGameEvents";
 import { TeamMap, type MarkPoint } from "./TeamMap";
 import { TimelineDock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
@@ -290,14 +290,19 @@ export function TeamPage() {
   const loadMap = useCallback(() => api<MyMapDto & { gameName?: string; donation?: { currency: string } | null }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); setCurrency(m.donation?.currency ?? ""); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   useEffect(() => { if (team) { void loadBattles(); void loadStandings(); void loadPassages(); void loadPeace(); } }, [team, loadBattles, loadStandings, loadPassages, loadPeace]);
+  // Перечитывания по событиям склеиваются (решение владельца 23.10): несколько событий за 2,5 с — одно перечитывание.
+  const teamLater = useCoalesced(loadTeam), mapLater = useCoalesced(loadMap), passagesLater = useCoalesced(loadPassages), battlesLater = useCoalesced(loadBattles), standingsLater = useCoalesced(loadStandings), peaceLater = useCoalesced(loadPeace);
+  const cityLater = useCoalesced(() => setCityVersion((v) => v + 1)), feedLater = useCoalesced(() => setFeedVersion((v) => v + 1));
   useGameEvents(id, (e) => {
-    if (e.type === "teams" || e.type === "game" || e.type === "tasks") void loadTeam(); // tasks: таймеры дел у участников в составе
-    if (e.type !== "deeds") void loadMap(); // quarry: камни команды в шапке карты
-    if (e.type === "cities" || e.type === "game" || e.type === "battles") { setCityVersion((v) => v + 1); void loadPassages(); }
-    if (e.type === "battles" || e.type === "game" || e.type === "submissions") void loadBattles();
-    if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") void loadStandings();
-    if (e.type === "peace" || e.type === "teams" || e.type === "game") void loadPeace();
-    if (e.type === "journal" || e.type === "peace" || e.type === "submissions" || e.type === "cities" || e.type === "battles" || e.type === "game") setFeedVersion((v) => v + 1);
+    // Дела другой команды на моей карте не видны: такие события пропускаем (сервер их и не шлёт, это страховка для старых клиентов).
+    if (e.teamId && team && e.teamId !== team.id && (e.type === "tasks" || e.type === "submissions")) return;
+    if (e.type === "teams" || e.type === "game" || e.type === "tasks") teamLater(); // tasks: таймеры дел у участников в составе
+    if (e.type !== "deeds") mapLater(); // quarry: камни команды в шапке карты
+    if (e.type === "cities" || e.type === "game" || e.type === "battles") { cityLater(); passagesLater(); }
+    if (e.type === "battles" || e.type === "game" || e.type === "submissions") battlesLater();
+    if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") standingsLater();
+    if (e.type === "peace" || e.type === "teams" || e.type === "game") peaceLater();
+    if (e.type === "journal" || e.type === "peace" || e.type === "submissions" || e.type === "cities" || e.type === "battles" || e.type === "game") feedLater();
   });
   useEffect(() => {
     const tm = setInterval(() => void loadMap(), 60000);
