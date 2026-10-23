@@ -62,7 +62,11 @@ async function seed(): Promise<void> {
     return r.json();
   };
   const gameId = (await post("/api/games", { name: GAME_NAME, teamCount })).game.id as string;
-  await post(`/api/games/${gameId}/generate`);
+  // Генерация карты случайна и иногда не находит места стартам (422): пробуем несколько зёрен.
+  let generated = false;
+  for (let seed = 1; seed <= 8 && !generated; seed++) {
+    try { await post(`/api/games/${gameId}/generate`, { seed }); generated = true; } catch (e) { if (seed === 8) throw e; console.error(`generate: попытка ${seed} не удалась, пробую дальше`); }
+  }
   const teamIds: string[] = [];
   for (let i = 0; i < teamCount; i++) teamIds.push((await post(`/api/games/${gameId}/teams`, { name: `Нагрузка ${i + 1}` })).team.id);
   const members = rows.filter((r) => r.nickname !== ADMIN);
