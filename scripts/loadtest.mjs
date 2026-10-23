@@ -59,7 +59,7 @@ const PAGE = ["/my-map", "/teams", "/standings", "/my-passages", "/peace", "/my-
 function reloadsFor(type) {
   const set = new Set();
   if (["teams", "game", "tasks"].includes(type)) set.add("/teams");
-  if (type !== "deeds") set.add("/my-map");
+  if (type !== "deeds" && type !== "journal") set.add("/my-map");
   if (["cities", "game", "battles"].includes(type)) set.add("/my-passages");
   if (["battles", "game", "submissions"].includes(type)) set.add("/my-battles");
   if (["game", "cities", "battles", "teams"].includes(type)) set.add("/standings");
@@ -100,7 +100,7 @@ async function runUser(u) {
             if (ev === "change" && data) {
               counters.events++;
               let ev = { type: "game" }; try { ev = JSON.parse(data); } catch { /* как есть */ }
-              if (ev.teamId && (ev.type === "tasks" || ev.type === "submissions") && ev.teamId !== u.teamId) continue;
+              if (ev.teamId && (ev.type === "tasks" || ev.type === "submissions" || ev.type === "journal") && ev.teamId !== u.teamId) continue;
               const paths = reloadsFor(ev.type); counters.reloads += paths.length;
               for (const p of paths) later(p);
             }

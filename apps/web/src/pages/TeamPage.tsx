@@ -295,9 +295,9 @@ export function TeamPage() {
   const cityLater = useCoalesced(() => setCityVersion((v) => v + 1)), feedLater = useCoalesced(() => setFeedVersion((v) => v + 1));
   useGameEvents(id, (e) => {
     // Дела другой команды на моей карте не видны: такие события пропускаем (сервер их и не шлёт, это страховка для старых клиентов).
-    if (e.teamId && team && e.teamId !== team.id && (e.type === "tasks" || e.type === "submissions")) return;
+    if (e.teamId && team && e.teamId !== team.id && (e.type === "tasks" || e.type === "submissions" || e.type === "journal")) return;
     if (e.type === "teams" || e.type === "game" || e.type === "tasks") teamLater(); // tasks: таймеры дел у участников в составе
-    if (e.type !== "deeds") mapLater(); // quarry: камни команды в шапке карты
+    if (e.type !== "deeds" && e.type !== "journal") mapLater(); // quarry: камни команды в шапке карты; запись летописи карту не меняет
     if (e.type === "cities" || e.type === "game" || e.type === "battles") { cityLater(); passagesLater(); }
     if (e.type === "battles" || e.type === "game" || e.type === "submissions") battlesLater();
     if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") standingsLater();

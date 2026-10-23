@@ -102,7 +102,8 @@ export const ROLE_RU: Record<string, string> = { NONE: "без роли", SCOUT:
 /** Записать событие. Не ломает запрос: ошибка только в консоль. */
 export function journal(gameId: string, kind: JournalKind, o: { teamId?: string | null; userId?: string | null; everyone?: boolean; vars?: JournalVars; text?: string } = {}): void {
   void prisma.journal.create({ data: { gameId, kind, teamId: o.teamId ?? null, userId: o.userId ?? null, everyone: o.everyone ?? false, vars: o.vars ?? {}, text: o.text ?? "" } })
-    .then(() => publish(gameId, { type: "journal", teamId: o.teamId ?? undefined }))
+    // Запись одной команды — событие только ей (новость для всех — всем): иначе каждая сдача дела будила всю игру (прогон 23.10).
+    .then(() => publish(gameId, { type: "journal", teamId: o.everyone ? undefined : o.teamId ?? undefined }))
     .catch((e) => console.error("journal failed", e));
 }
 

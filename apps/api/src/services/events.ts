@@ -11,7 +11,7 @@ export interface GameEvent { type: GameEventType; teamId?: string; at: number }
 interface Subscriber { reply: FastifyReply; teamId: string | null }
 const subscribers = new Map<string, Set<Subscriber>>();
 /** События только для своей команды: чужие взятия и сдачи дел на карте других команд не видны (нагрузочный прогон 23.10: веерная рассылка всем клала сервер). */
-const TEAM_ONLY: ReadonlySet<GameEventType> = new Set(["tasks", "submissions"]);
+const TEAM_ONLY: ReadonlySet<GameEventType> = new Set(["tasks", "submissions", "journal"]);
 
 export function subscribe(gameId: string, reply: FastifyReply, teamId: string | null = null): () => void {
   let set = subscribers.get(gameId);
