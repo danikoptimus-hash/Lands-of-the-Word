@@ -16,7 +16,8 @@ interface Analytics {
   tz: string; today: string;
   dau: Array<{ key: string } & Split>; wau: Array<{ key: string } & Split>; mau: Array<{ key: string } & Split>;
   newUsers: Array<{ key: string; total: Split } & Split>;
-  cohorts: Array<{ week: string; size: number; weeks: Array<{ n: number; active: number; pct: number }> }>;
+  cohorts: Array<{ week: string; size: number; d7: number | null; d30: number | null; d90: number | null }>;
+  retention: Array<{ day: number; pct: number | null; base: number }>;
   users: Split;
 }
 type Grain = "D" | "W" | "M";
@@ -30,6 +31,8 @@ export function AnalyticsCharts() {
   const [a, setA] = useState<Analytics | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [grain, setGrain] = useState<Grain>("D");
+  const [activeGrain, setActiveGrain] = useState<Grain>("D");
+  const grainTabs = (value: Grain, onChange: (g: Grain) => void) => <Tabs<Grain> value={value} onChange={onChange} ariaLabel={t("Шаг")} items={[{ key: "D", label: "D" }, { key: "W", label: "W" }, { key: "M", label: "M" }]} />;
   const load = () => { setA(null); setError(null); api<Analytics>("/api/admin/analytics").then(setA).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); };
   useEffect(load, []);
   const c = useMemo(chartColors, []);
@@ -44,9 +47,8 @@ export function AnalyticsCharts() {
     ],
     title: undefined, aria: { label: { description: title } },
   });
-  const dau = useMemo(() => (a ? splitSeries(a.dau, dayLabel, "DAU") : null), [a, c]); // eslint-disable-line react-hooks/exhaustive-deps
-  const wau = useMemo(() => (a ? splitSeries(a.wau, weekLabel, "WAU") : null), [a, c]); // eslint-disable-line react-hooks/exhaustive-deps
-  const mau = useMemo(() => (a ? splitSeries(a.mau, monthLabel, "MAU") : null), [a, c]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Активные одним графиком (решение владельца 23.10): D — по дням (DAU), W — по календарным неделям (WAU), M — по месяцам (MAU).
+  const active = useMemo(() => (a ? (activeGrain === "D" ? splitSeries(a.dau, dayLabel, "DAU") : activeGrain === "W" ? splitSeries(a.wau, weekLabel, "WAU") : splitSeries(a.mau, monthLabel, "MAU")) : null), [a, c, activeGrain]); // eslint-disable-line react-hooks/exhaustive-deps
   // Новые: по дням, неделям или месяцам — переключатель Д/Н/М.
   const fresh = useMemo(() => {
     if (!a) return null;
@@ -64,40 +66,31 @@ export function AnalyticsCharts() {
       { name: t("администраторы"), type: "line", data: a.newUsers.map((r) => r.total.admins), itemStyle: { color: c.success }, showSymbol: false },
     ],
   }), [a, c]);
-  // Удержание по когортам: тепловая карта «когорта × недели после регистрации» и линия «вернулись через неделю».
-  const cohortRows = useMemo(() => (a ? a.cohorts.filter((k) => k.size > 0) : []), [a]);
-  const maxN = cohortRows.reduce((m, k) => Math.max(m, k.weeks.length - 1), 0);
-  const heat = useMemo(() => a && baseOption(c, {
-    tooltip: { trigger: "item", backgroundColor: c.surface, borderColor: c.border, textStyle: { color: c.text, fontFamily: c.font }, formatter: (p: { value: [number, number, number] }) => { const k = cohortRows[p.value[1]]!; const w = k.weeks[p.value[0]]!; return `${weekLabel(k.week)} · ${t("когорта {n}", { n: k.size })}<br/>${t("через {n} нед.", { n: w.n })}: <b>${w.pct}%</b> (${w.active})`; } },
-    legend: undefined, dataZoom: [{ type: "slider", yAxisIndex: 0, right: 4, width: 16, borderColor: c.border, fillerColor: "rgba(168,114,46,0.18)", handleStyle: { color: c.accent } }],
-    grid: { left: 12, right: 40, top: 12, bottom: 64, containLabel: true },
-    xAxis: { type: "category", data: Array.from({ length: maxN + 1 }, (_, n) => (n === 0 ? t("нед. 0") : `+${n}`)), axisLabel: { color: c.muted }, splitArea: { show: true } },
-    yAxis: { type: "category", data: cohortRows.map((k) => `${dayLabel(k.week)} · ${k.size}`), axisLabel: { color: c.muted } },
-    visualMap: { min: 0, max: 100, calculable: false, orient: "horizontal", left: "center", bottom: 0, text: ["100%", "0%"], textStyle: { color: c.muted }, inRange: { color: [c.surface, c.accent] } },
-    series: [{ type: "heatmap", data: cohortRows.flatMap((k, y) => k.weeks.map((w) => [w.n, y, w.pct])), label: { show: true, color: c.text, formatter: (p: { value: [number, number, number] }) => `${p.value[2]}` }, itemStyle: { borderColor: c.surface, borderWidth: 2 } }],
-  }), [a, c, cohortRows, maxN]);
-  const week1 = useMemo(() => a && baseOption(c, {
-    xAxis: { type: "category", data: cohortRows.filter((k) => k.weeks.length > 1).map((k) => dayLabel(k.week)), axisLabel: { color: c.muted } },
+  // Удержание в среднем (уточнение владельца 23.10): по горизонтали дни после регистрации, по вертикали доля вернувшихся спустя столько дней или позже.
+  const retention = useMemo(() => a && baseOption(c, {
+    xAxis: { type: "category", data: a.retention.map((r) => String(r.day)), name: t("дней после регистрации"), nameLocation: "middle", nameGap: 28, nameTextStyle: { color: c.muted }, axisLabel: { color: c.muted, interval: 6 } },
     yAxis: { type: "value", min: 0, max: 100, axisLabel: { color: c.muted, formatter: "{value}%" }, splitLine: { lineStyle: { color: c.border, opacity: 0.6 } } },
     legend: undefined,
-    series: [{ name: t("вернулись через неделю"), type: "line", data: cohortRows.filter((k) => k.weeks.length > 1).map((k) => k.weeks[1]!.pct), itemStyle: { color: c.success }, lineStyle: { width: 2 }, label: { show: true, color: c.text, formatter: "{c}%" } }],
-  }), [a, c, cohortRows]);
+    tooltip: { trigger: "axis", backgroundColor: c.surface, borderColor: c.border, textStyle: { color: c.text, fontFamily: c.font }, formatter: (ps: Array<{ dataIndex: number }>) => { const r = a.retention[ps[0]?.dataIndex ?? 0]!; return `${t("через {n} дней", { n: r.day })}: <b>${r.pct == null ? "—" : r.pct + "%"}</b><br/>${t("из {n} чел.", { n: r.base })}`; } },
+    series: [{ name: t("вернулись"), type: "line", data: a.retention.map((r) => r.pct), itemStyle: { color: c.success }, lineStyle: { width: 2 }, showSymbol: false, areaStyle: { opacity: 0.12 }, connectNulls: false,
+      markPoint: { symbol: "circle", symbolSize: 12, itemStyle: { color: c.accent }, label: { show: true, color: c.text, fontWeight: "bold", position: "top", distance: 8, formatter: (p: { value: number | null }) => (p.value == null ? "" : `${p.value}%`) }, data: [7, 30, 90].map((d) => ({ coord: [String(d), a.retention[d - 1]?.pct ?? null], value: a.retention[d - 1]?.pct ?? null })).filter((m) => m.value != null) } }],
+  }), [a, c]);
 
   if (error) return <div className="card"><ErrorState text={error} onRetry={load} /></div>;
-  if (!a || !dau || !wau || !mau || !fresh || !total || !heat || !week1) return <div className="card"><LoadingState /></div>;
+  if (!a || !active || !fresh || !total || !retention) return <div className="card"><LoadingState /></div>;
   const head = (title: string, help: string) => <div className="card-head"><h2>{title}<Help>{help}</Help></h2></div>;
   return (
     <div className="chart-grid">
-      <div className="card">{head(t("Активные за день (DAU)"), t("Сколько разных людей открывали приложение в этот день. Любое открытие считается: посмотреть карту тоже. Сутки — по поясу {tz}. Тестовые аккаунты не считаются. Администратор — администратор хоть одной игры или платформы, участники — остальные. До 23 октября дни восстановлены из действий: кто только смотрел, в прошлом не учтён.", { tz: a.tz }))}<Chart option={dau} /></div>
-      <div className="card">{head(t("Активные за неделю (WAU)"), t("Разные люди за календарную неделю с понедельника по воскресенье. Текущая неделя неполная."))}<Chart option={wau} /></div>
-      <div className="card">{head(t("Активные за месяц (MAU)"), t("Разные люди за календарный месяц. Текущий месяц неполный."))}<Chart option={mau} /></div>
       <div className="card">
-        <div className="card-head"><h2>{t("Новые")}<Help>{t("Регистрации по дате создания аккаунта.")}</Help></h2><Tabs<Grain> value={grain} onChange={setGrain} ariaLabel={t("Шаг")} items={[{ key: "D", label: t("Д") }, { key: "W", label: t("Н") }, { key: "M", label: t("М") }]} /></div>
+        <div className="card-head"><h2>{t("Активные")}<Help>{t("Сколько разных людей открывали приложение. D — за день (DAU), W — за календарную неделю с понедельника по воскресенье (WAU), M — за календарный месяц (MAU); текущие неделя и месяц неполные. Любое открытие считается: посмотреть карту тоже. Сутки — по поясу {tz}. Тестовые аккаунты не считаются. Администратор — администратор хоть одной игры или платформы, участники — остальные. До 23 октября дни восстановлены из действий: кто только смотрел, в прошлом не учтён.", { tz: a.tz })}</Help></h2>{grainTabs(activeGrain, setActiveGrain)}</div>
+        <Chart option={active} />
+      </div>
+      <div className="card">
+        <div className="card-head"><h2>{t("Новые")}<Help>{t("Регистрации по дате создания аккаунта.")}</Help></h2>{grainTabs(grain, setGrain)}</div>
         <Chart option={fresh} />
       </div>
       <div className="card">{head(t("Всего пользователей"), t("Накопительно по дате регистрации."))}<Chart option={total} /></div>
-      <div className="card">{head(t("Вернулись через неделю"), t("Доля когорты, активная на следующей неделе после регистрации. Когорты без следующей недели ещё не показаны."))}<Chart option={week1} height={240} /></div>
-      <div className="card wide">{head(t("Удержание по когортам"), t("Строка — неделя регистрации и размер когорты. Столбец — сколько недель прошло: 0 — сама неделя регистрации, +1 — следующая и так далее. В ячейке — доля когорты, открывавшая приложение на той неделе."))}<Chart option={heat} height={Math.max(220, 40 + cohortRows.length * 34)} /></div>
+      <div className="card">{head(t("Удержание"), t("Как читать: точка «7» — из всех, кто зарегистрировался не меньше 7 дней назад, столько процентов открывали приложение спустя 7 дней или позже. Точка «30» — то же про 30 дней. Чем правее, тем меньше людей успели дожить до этого срока: в подсказке показано, из скольких человек считается; меньше пяти — точки нет."))}<Chart option={retention} /></div>
     </div>
   );
 }

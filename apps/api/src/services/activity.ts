@@ -18,7 +18,6 @@ export function dayKey(d: Date, tz = REPORT_TZ): string {
   return `${n("year")}-${n("month")}-${n("day")}`;
 }
 const toDate = (key: string) => new Date(key + "T00:00:00Z");
-const addDays = (key: string, n: number) => toDate(key).getTime() + n * DAY;
 const keyOf = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 /** Понедельник недели, в которую входит день. */
 export function weekStart(key: string): string {
@@ -102,19 +101,31 @@ export async function analytics() {
   let total: Split = { all: 0, admins: 0, players: 0 };
   const newUsers = days.map((d) => { const s = split(newByDay.get(d) ?? []); total = { all: total.all + s.all, admins: total.admins + s.admins, players: total.players + s.players }; return { key: d, ...s, total: { ...total } }; });
 
-  // Когорты по неделе регистрации: доля когорты, активная через n недель (n = 0 — неделя регистрации).
-  const thisWeek = weekStart(today);
+  // Удержание по когортам недели регистрации (решение владельца 23.10): доля когорты, открывавшая приложение через
+  // 7, 30 и 90 дней после регистрации — в окне недели от этого дня (дни N…N+6 от регистрации каждого). Показывается,
+  // когда окно закрылось у всей когорты; иначе null — линия обрывается.
   const cohortMap = new Map<string, string[]>();
   for (const u of users) { const w = weekStart(regDay.get(u.id)!); cohortMap.set(w, [...(cohortMap.get(w) ?? []), u.id]); }
-  const activeWeeks = new Map<string, Set<string>>(); // userId → недели активности
-  for (const r of rows) { const w = weekStart(r.day.toISOString().slice(0, 10)); if (!activeWeeks.has(r.userId)) activeWeeks.set(r.userId, new Set()); activeWeeks.get(r.userId)!.add(w); }
-  const cohorts = [...cohortMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([week, ids]) => {
-    const maxN = Math.floor((toDate(thisWeek).getTime() - toDate(week).getTime()) / (7 * DAY));
-    const weeks: Array<{ n: number; active: number; pct: number }> = [];
-    for (let n = 0; n <= maxN; n++) { const wk = keyOf(addDays(week, 7 * n)); const active = ids.filter((id) => activeWeeks.get(id)?.has(wk)).length; weeks.push({ n, active, pct: ids.length ? Math.round((active / ids.length) * 1000) / 10 : 0 }); }
-    return { week, size: ids.length, weeks };
-  });
+  const offsets = new Map<string, Set<number>>(); // userId → дни от регистрации, когда был активен
+  for (const r of rows) { const reg = regDay.get(r.userId); if (!reg) continue; const off = Math.round((r.day.getTime() - toDate(reg).getTime()) / DAY); if (!offsets.has(r.userId)) offsets.set(r.userId, new Set()); offsets.get(r.userId)!.add(off); }
+  const todayMs = toDate(today).getTime();
+  const returned = (ids: string[], n: number, week: string): number | null => {
+    if (toDate(week).getTime() + (6 + n + 6) * DAY >= todayMs) return null; // окно ещё не закрылось у всей когорты
+    const back = ids.filter((id) => { const o = offsets.get(id); return o ? [...o].some((d) => d >= n && d <= n + 6) : false; }).length;
+    return Math.round((back / ids.length) * 1000) / 10;
+  };
+  const cohorts = [...cohortMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([week, ids]) => ({ week, size: ids.length, d7: returned(ids, 7, week), d30: returned(ids, 30, week), d90: returned(ids, 90, week) }));
+  // Кривая удержания «в среднем» (уточнение владельца 23.10: «понимать возвращаемость в среднем»): для каждого n = 1…90
+  // берутся все, кто зарегистрировался не меньше n дней назад, и считается доля открывавших приложение спустя n дней
+  // или позже. Одна убывающая линия: «через 7 дней возвращаются X %, через 30 — Y %».
+  const retention: Array<{ day: number; pct: number | null; base: number }> = [];
+  for (let n = 1; n <= 90; n++) {
+    const base = users.filter((u) => toDate(regDay.get(u.id)!).getTime() + n * DAY <= todayMs);
+    const back = base.filter((u) => { const o = offsets.get(u.id); return o ? [...o].some((d) => d >= n) : false; }).length;
+    // Меньше пяти человек в расчёте — точки нет: по двум-трём людям кривая прыгает и вводит в заблуждение.
+    retention.push({ day: n, base: base.length, pct: base.length >= 5 ? Math.round((back / base.length) * 1000) / 10 : null });
+  }
 
-  return { tz: REPORT_TZ, today, dau: series(byDay), wau: series(byWeek), mau: series(byMonth), newUsers, cohorts, users: split(users.map((u) => u.id)) };
+  return { tz: REPORT_TZ, today, dau: series(byDay), wau: series(byWeek), mau: series(byMonth), newUsers, cohorts, retention, users: split(users.map((u) => u.id)) };
 }
 
