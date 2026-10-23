@@ -7,6 +7,11 @@ name: loadtest
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: "run — прогон; clean — только убрать тестовые данные со стенда"
+        default: "run"
+        type: choice
+        options: [run, clean]
       users:
         description: "Участников (виртуальных)"
         default: "300"
@@ -58,6 +63,7 @@ jobs:
           printf '%s\n' "$KEY" > ~/.ssh/lt_key && chmod 600 ~/.ssh/lt_key
           ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
       - name: Подготовка стенда (учётки, сессии, партия)
+        if: inputs.mode == 'run'
         env:
           HOST: ${{ secrets.DEPLOY_HOST }}
           USER: ${{ secrets.DEPLOY_USER }}
@@ -70,6 +76,7 @@ jobs:
           $SSH "rm -f /tmp/lt-sessions.txt"
           test "$(wc -l < lt-sessions.txt)" -gt 2
       - name: Железо и нагрузка сервера во время прогона
+        if: inputs.mode == 'run'
         env:
           HOST: ${{ secrets.DEPLOY_HOST }}
           USER: ${{ secrets.DEPLOY_USER }}
@@ -80,12 +87,13 @@ jobs:
           nohup $SSH "for i in \$(seq 1 $TICKS); do date +%T; docker stats --no-stream --format '{{.Name}} cpu={{.CPUPerc}} mem={{.MemUsage}}' lotw-app-test lotw-db-test lotw-app lotw-db; uptime; sleep 15; done" > stats.log 2>&1 &
           echo $! > stats.pid
       - name: Нагрузка
+        if: inputs.mode == 'run'
         env:
           LT_BASE: https://test.landsoftheword.com
           LT_SESSIONS: ./lt-sessions.txt
         run: node scripts/loadtest.mjs
       - name: Сервер во время прогона
-        if: always()
+        if: always() && inputs.mode == 'run' 
         run: |
           kill "$(cat stats.pid)" 2>/dev/null || true
           sleep 2

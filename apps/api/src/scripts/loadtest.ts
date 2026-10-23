@@ -22,7 +22,16 @@ const GAME_NAME = "Нагрузочный тест";
 
 async function clean(): Promise<void> {
   const admin = await prisma.user.findFirst({ where: { nickname: ADMIN }, select: { id: true } });
-  if (admin) { const g = await prisma.game.deleteMany({ where: { createdById: admin.id } }); console.error(`games removed: ${g.count}`); }
+  if (admin) {
+    const games = await prisma.game.findMany({ where: { createdById: admin.id }, select: { id: true } });
+    for (const g of games) {
+      // Стороны и общие дела ссылаются на дела без каскада в базе стенда: убираем их до удаления партии.
+      await prisma.teamEdgeTask.deleteMany({ where: { gameId: g.id } });
+      await prisma.quarryWork.deleteMany({ where: { gameId: g.id } });
+      await prisma.game.delete({ where: { id: g.id } });
+    }
+    console.error(`games removed: ${games.length}`);
+  }
   const u = await prisma.user.deleteMany({ where: { nickname: { startsWith: PREFIX } } });
   console.error(`users removed: ${u.count}`);
 }
