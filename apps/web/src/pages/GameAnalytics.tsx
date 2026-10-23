@@ -14,7 +14,7 @@ import { Help } from "../components/Help";
  */
 interface Pt { day: number; value: number }
 interface Pace {
-  tz: string; startedAt: string; now: string; T: number; K: number; n: number; rate: number; rampDay: number; dailyTasksAvg: number; milestones: number[];
+  tz: string; startedAt: string; now: string; T: number; K: number; n: number; rate: number; rampDay: number; dailyTasksAvg: number; dailyDeedsAvg: number; milestones: number[];
   teams: Array<{ id: string; name: string; color: string }>;
   fact: Array<Pt & { teamId: string | null }>;
   deeds: { days: string[]; teams: Array<{ id: string; name: string; color: string; values: number[] }>; fitDays: number };
@@ -86,7 +86,7 @@ export function GameAnalytics({ gameId }: { gameId: string }) {
         <div className="tiles mt-2">
           <div className="tile"><div className="value">{p.n} <span className="muted">{t("из {n}", { n: p.K })}</span></div><div className="cap">{t("городов взято")}</div></div>
           <div className="tile"><div className="value">{fmt1(p.rate)}</div><div className="cap">{t("городов в сутки")}</div><div className="hint">{t("после разгона, с {d}", { d: dateOf(p.rampDay) })}</div></div>
-          <div className="tile"><div className="value">{Math.round(p.dailyTasksAvg)}</div><div className="cap">{t("заданий в сутки, все команды")}</div></div>
+          <div className="tile"><div className="value">{fmt1(p.dailyDeedsAvg)}</div><div className="cap">{t("дел в сутки, все команды")}</div></div>
         </div>
         <Chart option={option} height={380} />
       </div>

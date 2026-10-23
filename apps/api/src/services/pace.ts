@@ -59,9 +59,12 @@ export async function paceForecast(gameId: string) {
   // Тренд дел в день считает клиент по выбранным в легенде командам; сервер сообщает число полных дней для подбора —
   // текущий неполный день в прямую не входит.
   const fitDays = game.finishedAt ? days.length : days.length - 1;
+  // Дел в сутки для плитки (владелец 23.10: «мне нужны здесь только дела»): среднее принятых дел по полным дням, все команды.
+  let deedsTotal = 0; for (let i = 0; i < fitDays; i++) for (const v of deedsByDay.get(days[i]!)?.values() ?? []) deedsTotal += v;
+  const dailyDeedsAvg = fitDays > 0 ? deedsTotal / fitDays : 0;
   const logistic: Pt[] = []; for (let d = 0; d <= T + horizon; d += 1) logistic.push({ day: d, value: K / (1 + Math.exp(-best.r * (d - best.t0))) });
   return {
-    tz, startedAt: start, now: end, T, K, n, rate, rampDay, dailyTasksAvg, milestones,
+    tz, startedAt: start, now: end, T, K, n, rate, rampDay, dailyTasksAvg, dailyDeedsAvg, milestones,
     teams,
     fact: caps.map((c, i) => ({ day: c.day, value: i + 1, teamId: c.teamId })),
     deeds: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => deedsByDay.get(d)?.get(t.id) ?? 0) })), fitDays },
