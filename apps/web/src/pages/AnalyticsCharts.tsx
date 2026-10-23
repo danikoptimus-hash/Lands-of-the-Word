@@ -72,8 +72,7 @@ export function AnalyticsCharts() {
     yAxis: { type: "value", min: 0, max: 100, axisLabel: { color: c.muted, formatter: "{value}%" }, splitLine: { lineStyle: { color: c.border, opacity: 0.6 } } },
     legend: undefined,
     tooltip: { trigger: "axis", backgroundColor: c.surface, borderColor: c.border, textStyle: { color: c.text, fontFamily: c.font }, formatter: (ps: Array<{ dataIndex: number }>) => { const r = a.retention[ps[0]?.dataIndex ?? 0]!; return `${t("через {n} дней", { n: r.day })}: <b>${r.pct == null ? "—" : r.pct + "%"}</b><br/>${t("из {n} чел.", { n: r.base })}`; } },
-    series: [{ name: t("вернулись"), type: "line", data: a.retention.map((r) => r.pct), itemStyle: { color: c.success }, lineStyle: { width: 2 }, showSymbol: false, areaStyle: { opacity: 0.12 }, connectNulls: false,
-      markPoint: { symbol: "circle", symbolSize: 12, itemStyle: { color: c.accent }, label: { show: true, color: c.text, fontWeight: "bold", position: "top", distance: 8, formatter: (p: { value: number | null }) => (p.value == null ? "" : `${p.value}%`) }, data: [7, 30, 90].map((d) => ({ coord: [String(d), a.retention[d - 1]?.pct ?? null], value: a.retention[d - 1]?.pct ?? null })).filter((m) => m.value != null) } }],
+    series: [{ name: t("вернулись"), type: "line", data: a.retention.map((r) => r.pct), itemStyle: { color: c.success }, lineStyle: { width: 2 }, showSymbol: false, areaStyle: { opacity: 0.12 }, connectNulls: false }],
   }), [a, c]);
 
   if (error) return <div className="card"><ErrorState text={error} onRetry={load} /></div>;
@@ -90,7 +89,11 @@ export function AnalyticsCharts() {
         <Chart option={fresh} />
       </div>
       <div className="card">{head(t("Всего пользователей"), t("Накопительно по дате регистрации."))}<Chart option={total} /></div>
-      <div className="card">{head(t("Удержание"), t("Как читать: точка «7» — из всех, кто зарегистрировался не меньше 7 дней назад, столько процентов открывали приложение спустя 7 дней или позже. Точка «30» — то же про 30 дней. Чем правее, тем меньше людей успели дожить до этого срока: в подсказке показано, из скольких человек считается; меньше пяти — точки нет."))}<Chart option={retention} /></div>
+      <div className="card">
+        {head(t("Удержание"), t("Как читать: точка «7» — из всех, кто зарегистрировался не меньше 7 дней назад, столько процентов открывали приложение спустя 7 дней или позже. Точка «30» — то же про 30 дней. Чем правее, тем меньше людей успели дожить до этого срока: в подсказке показано, из скольких человек считается; меньше пяти — точки нет."))}
+        <p className="muted small">{[7, 30, 90].map((d) => { const r = a.retention[d - 1]; return `${t("через {n} дней", { n: d })}: ${r?.pct == null ? "—" : r.pct + "%"}`; }).join(" · ")}</p>
+        <Chart option={retention} />
+      </div>
     </div>
   );
 }
