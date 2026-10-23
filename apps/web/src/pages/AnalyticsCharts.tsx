@@ -36,10 +36,11 @@ export function AnalyticsCharts() {
   const splitSeries = (rows: Array<{ key: string } & Split>, labelOf: (k: string) => string, title: string) => baseOption(c, {
     xAxis: { type: "category", data: rows.map((r) => labelOf(r.key)), axisLabel: { color: c.muted }, axisLine: { lineStyle: { color: c.border } } },
     yAxis: { type: "value", minInterval: 1, axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.border, opacity: 0.6 } } },
+    // Стеком (решение владельца 23.10): участники + администраторы, высота столбца — все; «все» в подсказке.
+    tooltip: { trigger: "axis", backgroundColor: c.surface, borderColor: c.border, textStyle: { color: c.text, fontFamily: c.font }, formatter: (ps: Array<{ axisValue: string; seriesName: string; value: number; marker: string }>) => { const total = ps.reduce((a, p) => a + (p.value || 0), 0); return `${ps[0]?.axisValue ?? ""}<br/>${ps.map((p) => `${p.marker} ${p.seriesName}: <b>${p.value}</b>`).join("<br/>")}<br/>${t("все")}: <b>${total}</b>`; } },
     series: [
-      { name: t("все"), type: "bar", data: rows.map((r) => r.all), itemStyle: { color: c.accent }, barMaxWidth: 28 },
-      { name: t("участники"), type: "bar", data: rows.map((r) => r.players), itemStyle: { color: c.info }, barMaxWidth: 28 },
-      { name: t("администраторы"), type: "bar", data: rows.map((r) => r.admins), itemStyle: { color: c.success }, barMaxWidth: 28 },
+      { name: t("участники"), type: "bar", stack: "users", data: rows.map((r) => r.players), itemStyle: { color: c.info }, barMaxWidth: 36 },
+      { name: t("администраторы"), type: "bar", stack: "users", data: rows.map((r) => r.admins), itemStyle: { color: c.success }, barMaxWidth: 36 },
     ],
     title: undefined, aria: { label: { description: title } },
   });
@@ -95,8 +96,8 @@ export function AnalyticsCharts() {
         <Chart option={fresh} />
       </div>
       <div className="card">{head(t("Всего пользователей"), t("Накопительно по дате регистрации."))}<Chart option={total} /></div>
-      <div className="card wide">{head(t("Удержание по когортам"), t("Строка — неделя регистрации и размер когорты. Столбец — сколько недель прошло: 0 — сама неделя регистрации, +1 — следующая и так далее. В ячейке — доля когорты, открывавшая приложение на той неделе."))}<Chart option={heat} height={Math.max(220, 40 + cohortRows.length * 34)} /></div>
       <div className="card">{head(t("Вернулись через неделю"), t("Доля когорты, активная на следующей неделе после регистрации. Когорты без следующей недели ещё не показаны."))}<Chart option={week1} height={240} /></div>
+      <div className="card wide">{head(t("Удержание по когортам"), t("Строка — неделя регистрации и размер когорты. Столбец — сколько недель прошло: 0 — сама неделя регистрации, +1 — следующая и так далее. В ячейке — доля когорты, открывавшая приложение на той неделе."))}<Chart option={heat} height={Math.max(220, 40 + cohortRows.length * 34)} /></div>
     </div>
   );
 }
