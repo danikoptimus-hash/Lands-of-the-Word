@@ -56,23 +56,15 @@ export async function paceForecast(gameId: string) {
   const teamTasks = teams.map((t) => steady.map((d) => tasksByDay.get(d)?.get(t.id) ?? 0));
   const dailyTasksAvg = teamTasks.reduce((a, v) => a + (v.length ? v.reduce((x, y) => x + y, 0) / v.length : 0), 0);
   const horizon = 120;
-  // Тренд дел в день (просьба владельца 23.10): прямая по методу наименьших квадратов по полным дням — текущий
-  // неполный день в подбор не входит, но линия проведена и через него.
-  const totals = days.map((d) => { let sum = 0; for (const v of deedsByDay.get(d)?.values() ?? []) sum += v; return sum; });
-  const fitN = game.finishedAt ? totals.length : totals.length - 1;
-  let deedsTrend: number[] = [];
-  if (fitN >= 2) {
-    const xs = Array.from({ length: fitN }, (_, i) => i); const mx = (fitN - 1) / 2; const my = totals.slice(0, fitN).reduce((a, b) => a + b, 0) / fitN;
-    let sxy = 0, sxx = 0; for (const x of xs) { sxy += (x - mx) * (totals[x]! - my); sxx += (x - mx) ** 2; }
-    const slope = sxx ? sxy / sxx : 0;
-    deedsTrend = totals.map((_, i) => Math.max(0, my + slope * (i - mx)));
-  }
+  // Тренд дел в день считает клиент по выбранным в легенде командам; сервер сообщает число полных дней для подбора —
+  // текущий неполный день в прямую не входит.
+  const fitDays = game.finishedAt ? days.length : days.length - 1;
   const logistic: Pt[] = []; for (let d = 0; d <= T + horizon; d += 1) logistic.push({ day: d, value: K / (1 + Math.exp(-best.r * (d - best.t0))) });
   return {
     tz, startedAt: start, now: end, T, K, n, rate, rampDay, dailyTasksAvg, milestones,
     teams,
     fact: caps.map((c, i) => ({ day: c.day, value: i + 1, teamId: c.teamId })),
-    deeds: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => deedsByDay.get(d)?.get(t.id) ?? 0) })), trend: deedsTrend },
+    deeds: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => deedsByDay.get(d)?.get(t.id) ?? 0) })), fitDays },
     logistic: { r: best.r, t0: best.t0, curve: logistic, finish: Object.fromEntries(milestones.map((m) => [m, m <= n ? null : logisticAt(m)])) },
   };
 }

@@ -25,13 +25,15 @@ export function baseOption(c: ReturnType<typeof chartColors>, extra: echarts.ECh
   };
 }
 
-/** Холст ECharts: сам подстраивается под ширину, пересоздаёт параметры при их смене. */
-export function Chart({ option, height = 300, className }: { option: echarts.EChartsCoreOption; height?: number; className?: string }) {
+/** Холст ECharts: сам подстраивается под ширину, пересоздаёт параметры при их смене. onLegend — переключили ряд в легенде (какие ряды видны). */
+export function Chart({ option, height = 300, className, onLegend }: { option: echarts.EChartsCoreOption; height?: number; className?: string; onLegend?: (selected: Record<string, boolean>) => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const inst = useRef<echarts.ECharts | null>(null);
+  const legendRef = useRef(onLegend); legendRef.current = onLegend;
   useEffect(() => {
     if (!ref.current) return;
     inst.current = echarts.init(ref.current, undefined, { renderer: "canvas" });
+    inst.current.on("legendselectchanged", (e) => legendRef.current?.((e as { selected: Record<string, boolean> }).selected));
     const ro = new ResizeObserver(() => inst.current?.resize());
     ro.observe(ref.current);
     return () => { ro.disconnect(); inst.current?.dispose(); inst.current = null; };
