@@ -1,15 +1,15 @@
 import { useState, type FormEvent } from "react";
-import { api, ApiError } from "../lib/api";
+import { api, ApiError, type StormSlot } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
 import { Help } from "../components/Help";
 import { Stepper } from "../components/Stepper";
 
-export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily" }
+export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily"; /** Штормы (решение владельца 24.10): интервалы недели по поясу игры. */ storms?: StormSlot[] }
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string; rules?: RulesDto } }
 /** Правила, зашитые глобально и убранные из настроек (решение владельца 03.10): минимальная ставка, штраф за сгоревший вызов, закрепление города, усталость, паузы после ошибок. Сервер хранит их значения по умолчанию. */
-type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "fatigueAfterDays" | "fatigueStepDays" | "fatigueStep" | "pauseSteps";
+type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "fatigueAfterDays" | "fatigueStepDays" | "fatigueStep" | "pauseSteps" | "storms";
 type NumKey = Exclude<keyof RulesDto, FixedKey | "adminDigest" | "timeZone">;
 /** Продвинутые настройки: правила, которые раньше были зашиты в код (решение владельца 18.09). Подписи короткие, единицы — суффиксом; поля сгруппированы. */
 const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: number; step?: number }> = {
@@ -69,6 +69,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   const [genealogies, setGenealogies] = useState(game.settings.includeGenealogies ?? false);
   const [currency, setCurrency] = useState(game.settings.donationCurrency ?? "");
   const [rules, setRules] = useState<Record<string, number | string>>(() => { const r = (game.settings.rules ?? {}) as Partial<RulesDto>; const out: Record<string, number | string> = {}; for (const k of NUM_KEYS) out[k] = (r[k] as number | undefined) ?? 0; out.adminDigest = r.adminDigest ?? "instant"; out.timeZone = r.timeZone ?? "Asia/Tashkent"; return out; });
+  const [storms, setStorms] = useState<StormSlot[]>(() => (game.settings.rules?.storms ?? []).map((x) => ({ ...x })));
   const [advanced, setAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -84,6 +85,8 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     for (const k of NUM_KEYS) rulesOut[k] = Number(rules[k]);
     rulesOut.adminDigest = rules.adminDigest || "instant";
     rulesOut.timeZone = String(rules.timeZone).trim() || "Asia/Tashkent";
+    // Интервалы без начала или конца не сохраняются.
+    rulesOut.storms = storms.filter((x) => /^\d{1,2}:\d{2}$/.test(x.from) && /^\d{1,2}:\d{2}$/.test(x.to));
     try {
       await api(`/api/games/${game.id}`, { method: "PATCH", body: JSON.stringify({ ...(draft ? { name, teamCount } : {}), settings: draft ? { nodeCount, cityGap, equidistantStarts: equidistant, maxStartDistanceDiff: maxDiff, includeGenealogies: genealogies, ...donation, rules: rulesOut } : { ...donation, rules: rulesOut } }) });
       notify(t("Настройки сохранены"));
@@ -173,6 +176,22 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
             </div>
           </div>
           <p className="hint">{t("Минимальная сумма у каждого дела своя — задаётся во вкладке «Дела». У дела без суммы замены пожертвованием нет.")}{!draft && <> {t("В игре меняются только пожертвование и правила.")}</>}</p>
+        </div>
+        <div className="settings-group">
+          <h3>{t("Шторм")}<Help popup>{t("Пока идёт шторм, участники видят только карту с бурей: кнопок нет, дела не берутся, города не открываются; сервер действия не принимает. Администраторов шторм не касается. Время по поясу игры; конец раньше начала — интервал через полночь. Можно менять в идущей игре.")}</Help></h3>
+          {storms.length === 0 && <p className="hint">{t("Интервалов нет: штормов не будет.")}</p>}
+          {storms.map((x, i) => (
+            <div key={i} className="storm-row">
+              <select aria-label={t("День недели")} value={x.weekday} onChange={(e) => setStorms(storms.map((y, j) => (j === i ? { ...y, weekday: Number(e.target.value) } : y)))}>
+                {weekdays().map((d, w) => <option key={d} value={w}>{d}</option>)}
+              </select>
+              <input type="time" aria-label={t("Начало")} value={x.from} onChange={(e) => setStorms(storms.map((y, j) => (j === i ? { ...y, from: e.target.value } : y)))} required />
+              <span className="dash" aria-hidden="true">–</span>
+              <input type="time" aria-label={t("Конец")} value={x.to} onChange={(e) => setStorms(storms.map((y, j) => (j === i ? { ...y, to: e.target.value } : y)))} required />
+              <button type="button" className="ghost icon sm" onClick={() => setStorms(storms.filter((_, j) => j !== i))} aria-label={t("Убрать интервал")} title={t("Убрать интервал")}><Icon name="trash" /></button>
+            </div>
+          ))}
+          {storms.length < 21 && <button type="button" className="secondary sm" onClick={() => setStorms([...storms, { weekday: 0, from: "10:00", to: "12:00" }])}><Icon name="plus" />{t("Добавить интервал")}</button>}
         </div>
         <details className="settings-group disclose" open={advanced} onToggle={(e) => setAdvanced((e.target as HTMLDetailsElement).open)}>
           <summary><h3>{t("Продвинутые настройки")}</h3></summary>

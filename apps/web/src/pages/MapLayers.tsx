@@ -48,9 +48,9 @@ const SEA_LAYERS: ReadonlyArray<{ tile: keyof SeaTiles; scale: number; angle: nu
   { tile: "causticB", scale: 1.618, angle: 37, vx: -1.3, vy: 0.9, alpha: 0.17, breathe: 0.35, phase: 2.1 },
 ];
 /** Море: WebGL-шейдер (SeaGL) без плиток; если WebGL недоступен — узоры на canvas 2D (SeaCanvas). */
-export function SeaLayer({ vp, bed = null, light = DAY_LIGHT }: { vp: Viewport; bed?: Seabed | null; light?: Light }) {
+export function SeaLayer({ vp, bed = null, light = DAY_LIGHT, storm = 0 }: { vp: Viewport; bed?: Seabed | null; light?: Light; /** Доля шторма 0..1 (решение владельца 24.10); запасной canvas без WebGL темнеет только цветом. */ storm?: number }) {
   const [gl, setGl] = useState(true);
-  return gl ? <SeaGL vp={vp} bed={bed} light={light} onUnsupported={() => setGl(false)} /> : <SeaCanvas vp={vp} bed={bed} light={light} />;
+  return gl ? <SeaGL vp={vp} bed={bed} light={light} storm={storm} onUnsupported={() => setGl(false)} /> : <SeaCanvas vp={vp} bed={bed} light={light} />;
 }
 function SeaCanvas({ vp, bed, light }: { vp: Viewport; bed: Seabed | null; light: Light }) {
   const ref = useRef<HTMLCanvasElement>(null);

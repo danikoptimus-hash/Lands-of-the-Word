@@ -35,6 +35,8 @@ uniform vec2 uRes; uniform float uT; uniform float uD; uniform float uK; uniform
 uniform sampler2D uBed; uniform vec4 uBedRect; uniform vec3 uShallow, uMid, uDeep;
 // Время суток (решение владельца 03.10): цвет бликов, светило (направление на экране и сила дорожки), его цвет, звёзды в воде.
 uniform vec3 uGlint; uniform vec3 uSun; uniform vec3 uSunColor; uniform float uStars;
+// Шторм (решение владельца 24.10): доля 0..1 — валы с пеной, тёмные ложбины, ветровые полосы.
+uniform float uStorm;
 ${NOISE_GLSL}
 void main(){
   vec2 fc = vec2(gl_FragCoord.x, uRes.y - gl_FragCoord.y) / uDpr;
@@ -92,6 +94,22 @@ void main(){
   float rip = sin(mod(dot(wp, wind) * 0.45 - uT * 2.2 + ph, 6.2832)) + 0.7 * sin(mod(dot(wp, vec2(0.62, 0.78)) * 0.31 - uT * 1.6 + ph * 0.6, 6.2832));
   float patch = smoothstep(0.35, 0.8, fbm(wp * 0.01 + vec2(2.0, 5.0) - wind * uD * 0.02));
   col += vec3(0.045, 0.06, 0.06) * rip * patch * (0.35 + 0.65 * lod) * smoothstep(0.2, 0.9, uK);
+  if (uStorm > 0.001) {
+    // Штормовые валы: длинные гребни поперёк ветра бегут быстро (uT и uD в шторм идут быстрее — см. CPU), фаза
+    // сломана шумом; на гребнях рвётся пена (шум по гребню), ложбины темнее, по ветру тянутся полосы пены.
+    float along = dot(wp, wind), across = dot(wp, vec2(-wind.y, wind.x));
+    float ph2 = fbm(wp * 0.02 + vec2(5.0, 2.0)) * 6.0;
+    float wave = 0.5 + 0.5 * sin(mod(along * 0.11 - uT * 1.4 + ph2, 6.2832));
+    float wave2 = 0.5 + 0.5 * sin(mod(along * 0.19 + across * 0.05 - uT * 2.1 + ph2 * 0.7, 6.2832));
+    float sea = fbm((wp - wind * uD * 14.0) * 0.025);
+    float crest = smoothstep(0.55, 0.95, wave * 0.6 + wave2 * 0.4 + (sea - 0.5) * 0.6);
+    float foamTex = fbm(wp * 0.12 - wind * uD * 3.0 + vec2(19.0, 7.0));
+    float foam = crest * smoothstep(0.35, 0.75, foamTex) * (0.45 + 0.55 * lod);
+    float streak = smoothstep(0.62, 0.9, fbm(vec2(along * 0.01 - uD * 0.25, across * 0.09)));
+    vec3 storm = col * (0.7 + 0.42 * wave);
+    storm = mix(storm, vec3(0.88, 0.91, 0.92), clamp(foam * 0.9 + streak * 0.2, 0.0, 1.0));
+    col = mix(col, storm, uStorm);
+  }
   gl_FragColor = vec4(col, 1.0);
 }`;
 
@@ -103,10 +121,11 @@ export function compile(gl: WebGLRenderingContext, type: number, src: string): W
 }
 
 /** Возвращает false, если WebGL недоступен: тогда вызывающий рисует запасной вариант. */
-export function SeaGL({ vp, bed, light = DAY_LIGHT, onUnsupported }: { vp: Viewport; bed: Seabed | null; light?: Light; onUnsupported: () => void }) {
+export function SeaGL({ vp, bed, light = DAY_LIGHT, storm = 0, onUnsupported }: { vp: Viewport; bed: Seabed | null; light?: Light; /** Доля шторма 0..1 (решение владельца 24.10). */ storm?: number; onUnsupported: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
   const lightRef = useRef(light); lightRef.current = light;
+  const stormRef = useRef(storm); stormRef.current = storm;
   const [failed, setFailed] = useState(false);
   /** Живой контекст для загрузки поля дна без пересоздания (пересоздание теряло контекст и роняло море на запасной canvas). */
   const glRef = useRef<{ gl: WebGLRenderingContext; tex: WebGLTexture; uBedRect: WebGLUniformLocation | null; touch: () => void } | null>(null);
@@ -134,7 +153,7 @@ export function SeaGL({ vp, bed, light = DAY_LIGHT, onUnsupported }: { vp: Viewp
     const uBedRect = gl.getUniformLocation(prog, "uBedRect");
     gl.uniform4f(uBedRect, 0, 0, 1, 1);
     const uShallow = gl.getUniformLocation(prog, "uShallow"), uMid = gl.getUniformLocation(prog, "uMid"), uDeep = gl.getUniformLocation(prog, "uDeep");
-    const uGlint = gl.getUniformLocation(prog, "uGlint"), uSun = gl.getUniformLocation(prog, "uSun"), uSunColor = gl.getUniformLocation(prog, "uSunColor"), uStars = gl.getUniformLocation(prog, "uStars");
+    const uGlint = gl.getUniformLocation(prog, "uGlint"), uSun = gl.getUniformLocation(prog, "uSun"), uSunColor = gl.getUniformLocation(prog, "uSunColor"), uStars = gl.getUniformLocation(prog, "uStars"), uStorm = gl.getUniformLocation(prog, "uStorm");
     gl.uniform3fv(uShallow, SEA_SHALLOW); gl.uniform3fv(uMid, SEA_MID); gl.uniform3fv(uDeep, SEA_DEEP);
     const uRes = gl.getUniformLocation(prog, "uRes"), uT = gl.getUniformLocation(prog, "uT"), uD = gl.getUniformLocation(prog, "uD"), uK = gl.getUniformLocation(prog, "uK"), uTxy = gl.getUniformLocation(prog, "uTxy"), uDpr = gl.getUniformLocation(prog, "uDpr");
     const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -142,21 +161,28 @@ export function SeaGL({ vp, bed, light = DAY_LIGHT, onUnsupported }: { vp: Viewp
     const area = host.clientWidth * host.clientHeight;
     const dpr = Math.min(window.devicePixelRatio || 1, 1) * (area > 1_000_000 ? 0.55 : 0.7);
     let W = 0, H = 0, dirty = true, raf = 0, last = 0;
+    // Время воды копится на CPU: в шторм оно идёт быстрее (волны чаще, дрейф скорее), а при входе и выходе из шторма
+    // скорость меняется плавно — без скачка картинки. phase — фаза волн (период 40π с, заворачивается без скачка),
+    // drift — дрейф по ветру, не заворачивается (координаты решётки заворачивает сам хэш).
+    let phase = 0, drift = 0, prevNow = 0, stormCur = 0;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); if (canvas.width !== W || canvas.height !== H) { canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H); } dirty = true; };
     const draw = (now: number) => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
-      // uT — фаза дрожания и волн (все частоты кратны 0.05, период 40π с: заворачивается без скачка, sin получает малые
-      // числа); uD — время дрейфа по ветру, не заворачивается (координаты решётки заворачивает сам хэш).
-      gl.uniform2f(uRes, W, H); gl.uniform1f(uT, still ? 0 : (now / 1000) % (40 * Math.PI)); gl.uniform1f(uD, still ? 0 : now / 1000); gl.uniform1f(uK, k); gl.uniform2f(uTxy, tx, ty); gl.uniform1f(uDpr, dpr);
+      const dts = prevNow ? Math.min(0.25, (now - prevNow) / 1000) : 0; prevNow = now;
+      stormCur += (stormRef.current - stormCur) * Math.min(1, dts * 2);
+      if (!still) { phase = (phase + dts * (1 + 1.6 * stormCur)) % (40 * Math.PI); drift += dts * (1 + 2.2 * stormCur); }
+      gl.uniform2f(uRes, W, H); gl.uniform1f(uT, phase); gl.uniform1f(uD, drift); gl.uniform1f(uK, k); gl.uniform2f(uTxy, tx, ty); gl.uniform1f(uDpr, dpr);
       const lt = lightRef.current;
       gl.uniform3fv(uShallow, lt.shallow); gl.uniform3fv(uMid, lt.mid); gl.uniform3fv(uDeep, lt.deep);
       gl.uniform3fv(uGlint, lt.glint); gl.uniform3f(uSun, lt.sunX, lt.sunY, lt.sun); gl.uniform3fv(uSunColor, lt.sunColor); gl.uniform1f(uStars, lt.stars);
+      gl.uniform1f(uStorm, stormCur);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     };
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
-      if (!dirty && (still || now - last < 33)) return;
+      // В покое (reduced motion) кадр рисуется по изменению вида; пока доля шторма ещё идёт к цели — тоже.
+      if (!dirty && (still ? Math.abs(stormRef.current - stormCur) < 0.002 : now - last < 33)) return;
       dirty = false; last = now; const t0 = performance.now(); draw(now); perfMark("море (cpu)", performance.now() - t0);
     };
     const unsub = vpRef.current.subscribe(() => { dirty = true; });
@@ -169,7 +195,7 @@ export function SeaGL({ vp, bed, light = DAY_LIGHT, onUnsupported }: { vp: Viewp
     return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); canvas.removeEventListener("webglcontextlost", onLost); glRef.current = null; gl.getExtension("WEBGL_lose_context")?.loseContext(); };
   }, [vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
   // Смена освещения (время суток) — перерисовать кадр, даже если вид не менялся.
-  useEffect(() => { glRef.current?.touch(); }, [light]);
+  useEffect(() => { glRef.current?.touch(); }, [light, storm]);
   // Поле дна загружается в живой контекст при появлении или смене (перезагрузка карты по событиям игры).
   const [bedReady, setBedReady] = useState(0);
   useEffect(() => {

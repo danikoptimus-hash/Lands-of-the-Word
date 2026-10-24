@@ -247,4 +247,8 @@ export const ADMIN: Record<string, string> = {
   "последние {n}": "latest {n}", "Аватарок пока нет.": "No avatars yet.", "без владельца": "no owner", "команда": "team", "поставил(а)": "set by",
   "проверка: чисто": "check: clean", "запрет": "banned", "Убрать и запретить": "Remove and ban", "Снять запрет": "Lift ban", "Запрет снят": "Ban lifted",
   "Убрать фото и запретить загрузившему ставить аватарки?": "Remove the photo and ban the uploader from setting avatars?", "Убрать фото?": "Remove the photo?",
+  // Шторм (24.10)
+  "Шторм": "Storm", "Интервалов нет: штормов не будет.": "No intervals: there will be no storms.", "День недели": "Weekday", "Начало": "Start", "Конец": "End",
+  "Убрать интервал": "Remove interval", "Добавить интервал": "Add interval",
+  "Пока идёт шторм, участники видят только карту с бурей: кнопок нет, дела не берутся, города не открываются; сервер действия не принимает. Администраторов шторм не касается. Время по поясу игры; конец раньше начала — интервал через полночь. Можно менять в идущей игре.": "During a storm members see only the map with the tempest: no buttons, deeds cannot be taken, cities do not open; the server refuses actions. Admins are not affected. Times follow the game’s time zone; an end earlier than the start means an interval past midnight. Can be changed in a running game.",
 };

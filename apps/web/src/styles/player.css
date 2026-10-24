@@ -582,3 +582,30 @@
 .roster .role-slot { position: relative; display: inline-flex; flex: none; }
 .roster .role-slot .deputy-star { position: absolute; top: calc(50% - 16px); right: -1px; width: 11px; height: 11px; border-radius: 50%; background: var(--surface); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 1px var(--border); z-index: 1; pointer-events: none; }
 .roster .role-slot .deputy-star svg { width: 7px; height: 7px; fill: var(--accent); }
+
+/* Шторм (решение владельца 24.10): тучи и мгла над картой; дождь и молнии — canvas над подписями, под HUD. */
+.fx-layer.storm-sky { z-index: 2; overflow: hidden; }
+.fx-layer.storm { z-index: 3; }
+.storm-sky .dim { position: absolute; inset: 0; background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(16, 20, 28, .62), rgba(12, 16, 22, .40) 55%, rgba(8, 10, 16, .50) 100%); }
+.storm-sky .clouds { position: absolute; left: -30%; top: -18%; width: 160%; height: 64%; will-change: transform; animation: storm-drift 70s ease-in-out infinite alternate;
+  background-image:
+    radial-gradient(ellipse 22% 42% at 18% 34%, rgba(44, 50, 62, .92), rgba(44, 50, 62, 0) 70%),
+    radial-gradient(ellipse 28% 38% at 44% 22%, rgba(36, 42, 54, .95), rgba(36, 42, 54, 0) 70%),
+    radial-gradient(ellipse 20% 44% at 66% 36%, rgba(52, 58, 70, .88), rgba(52, 58, 70, 0) 70%),
+    radial-gradient(ellipse 26% 40% at 88% 26%, rgba(40, 46, 58, .9), rgba(40, 46, 58, 0) 70%),
+    radial-gradient(ellipse 34% 30% at 32% 58%, rgba(30, 34, 44, .7), rgba(30, 34, 44, 0) 70%),
+    radial-gradient(ellipse 30% 32% at 76% 60%, rgba(30, 34, 44, .66), rgba(30, 34, 44, 0) 70%); }
+.storm-sky .clouds.b { top: -28%; height: 58%; opacity: .75; animation-duration: 105s; animation-direction: alternate-reverse;
+  background-image:
+    radial-gradient(ellipse 24% 40% at 10% 40%, rgba(58, 64, 76, .8), rgba(58, 64, 76, 0) 70%),
+    radial-gradient(ellipse 30% 36% at 38% 30%, rgba(48, 54, 66, .85), rgba(48, 54, 66, 0) 70%),
+    radial-gradient(ellipse 22% 42% at 60% 44%, rgba(64, 70, 82, .78), rgba(64, 70, 82, 0) 70%),
+    radial-gradient(ellipse 28% 38% at 86% 34%, rgba(50, 56, 68, .82), rgba(50, 56, 68, 0) 70%); }
+@keyframes storm-drift { from { transform: translate3d(-6%, 0, 0); } to { transform: translate3d(6%, 0, 0); } }
+@media (prefers-reduced-motion: reduce) { .storm-sky .clouds { animation: none; } }
+/* В шторм участник видит только карту: кнопок, свитков дел, меток и ползунка истории нет; города не нажимаются. */
+.map-area.storm .hud-left, .map-area.storm .map-controls, .map-area.storm .team-timeline, .map-area.storm .finish-banner { display: none; }
+.map-canvas.storm .screen-items, .map-canvas.storm .screen-items * { pointer-events: none !important; }
+.map-canvas.storm .screen-items .m-deed, .map-canvas.storm .screen-items .m-mark, .map-canvas.storm .screen-items .m-peek, .map-canvas.storm .screen-items .m-fork,
+.map-canvas.storm .screen-items .m-land, .map-canvas.storm .screen-items .m-quarry, .map-canvas.storm .screen-items .m-battle, .map-canvas.storm .map-ripple { display: none; }
+.map-canvas.storm .m-edge, .map-canvas.storm .m-city { pointer-events: none !important; }

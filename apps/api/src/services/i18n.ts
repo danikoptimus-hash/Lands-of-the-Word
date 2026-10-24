@@ -309,6 +309,7 @@ const EN: Record<string, string> = {
   "Каменоломня: дело «{deed}» принято, команда получила камней: {n}": "Quarry: the deed “{deed}” was approved, the team received stones: {n}",
   "Каменоломня: дело «{deed}» возвращено на доработку": "Quarry: the deed “{deed}” was returned for rework",
   "{user} вымостил(а) дорогу камнем из Каменоломни": "{user} paved a road with a stone from the Quarry",
+  "Шторм: пока идёт буря, можно только смотреть карту.": "Storm: while the tempest lasts you can only look at the map.",
   "Ночь: города спят, дела и испытания ждут утра. До 7:00 по местному времени можно только смотреть карту.": "Night: the cities sleep, deeds and trials wait for morning. Until 7:00 local time you can only look at the map.",
   "Вызов отправляют на проверку утром, с 7:00 до 9:00 по местному времени. Стихи отмечать можно.": "A challenge is submitted for review in the morning, from 7:00 to 9:00 local time. Verses can still be marked.",
   "Отпустить дело может тот, кто взял, капитан или летописец": "A deed can be released by whoever took it, the captain or the chronicler",

@@ -52,6 +52,13 @@ export const rulesSchema = z.object({
   timeZone: z.string().trim().min(1).max(64).default("Asia/Tashkent"),
   /** Письма администраторам о сдачах: сразу, раз в 3 часа или раз в день одним письмом (решение владельца 18.09, A-13). */
   adminDigest: z.enum(["instant", "3h", "daily"]).default("instant"),
+  /** Штормы (решение владельца 24.10): недельные интервалы по поясу игры, когда участники видят только карту с бурей
+   *  и ничего не могут делать (время богослужений). День недели 0 — воскресенье; конец раньше начала — через полночь. */
+  storms: z.array(z.object({
+    weekday: z.number().int().min(0).max(6),
+    from: z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/),
+    to: z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/),
+  })).max(21).default([]),
 });
 export type Rules = z.infer<typeof rulesSchema>;
 export const DEFAULT_RULES: Rules = rulesSchema.parse({});

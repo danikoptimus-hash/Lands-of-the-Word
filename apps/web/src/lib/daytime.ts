@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { dayLight, dayLightAt, type DayLight, type DayPhase } from "@lotw/domain";
+import { dayLight, dayLightAt, stormState, type DayLight, type DayPhase, type StormSlot } from "@lotw/domain";
 
 /**
  * Освещение карты по времени суток (решение владельца 03.10): утро 7–9, день 9–18, вечер 18–22, ночь 22–7 по поясу игры.
@@ -132,3 +132,65 @@ export function useDaytime(timeZone: string | undefined, serverNow?: number): Da
 
 /** Освещение, одинаковое для обеих фаз без перехода: удобно слоям, которым нужен один набор картинок. */
 export const DAY_LIGHT = LIGHTS.day;
+
+/**
+ * Шторм (решение владельца 24.10): свинцовая вода с пеной, серая мгла вместо тумана, без светила и звёзд, огни
+ * приглушены. Смешивается с освещением времени суток по доле `t` (плавный вход и выход за несколько секунд).
+ */
+export const STORM_LIGHT: Light = {
+  shallow: [0.34, 0.46, 0.48], mid: [0.16, 0.25, 0.30], deep: [0.05, 0.09, 0.13], glint: [0.66, 0.72, 0.74],
+  sunX: 0, sunY: -1, sun: 0, sunColor: [0.7, 0.72, 0.74], stars: 0,
+  fogBase: [0.36, 0.38, 0.42], fogShade: [0.24, 0.26, 0.30], fogMass: [0.50, 0.52, 0.56], fogTop: [0.62, 0.64, 0.68],
+  sand: [0.56, 0.54, 0.50], wet: [0.36, 0.35, 0.33], shallowFar: [0.42, 0.50, 0.54], shallowNear: [0.50, 0.56, 0.60],
+  bg: rgb("#0E1216"), sideColor: [0.6, 0.64, 0.7], side: 0, farColor: [0.2, 0.22, 0.28], far: 0.2, fire: 0.35, lamp: 0.6, shadowLen: 1, shadow: 0.25,
+};
+export const stormLight = (base: Light, t: number): Light => mixLight(base, STORM_LIGHT, t);
+
+export interface Storm { /** Правила: сейчас шторм (кнопок нет, действия закрыты). */ active: boolean; /** Доля картинки шторма 0..1: плавно растёт после начала и гаснет после конца. */ t: number }
+
+/** Предпросмотр шторма: `?storm=1` — только картинка и скрытые кнопки на клиенте; сервер правила не меняет. */
+function previewStorm(): boolean {
+  if (typeof location === "undefined") return false;
+  return /[?&]storm=1(&|$)/.test(location.search);
+}
+
+const STORM_RAMP_MS = 3000;
+
+/**
+ * Шторм на клиенте: по расписанию из ответа сервера и его часам, та же функция, что на сервере, — переключается ровно
+ * на границе без запроса. Картинка входит и выходит плавно (`t`), правила (`active`) — резко.
+ */
+export function useStorm(daytime: { timeZone: string; storms?: StormSlot[]; storm?: { active: boolean } } | undefined, serverNow?: number): Storm {
+  const [tick, setTick] = useState(0);
+  const offset = useMemo(() => (serverNow ? serverNow - Date.now() : 0), [serverNow]);
+  const preview = useMemo(previewStorm, []);
+  const slotsKey = JSON.stringify(daytime?.storms ?? []);
+  const st = useMemo(() => {
+    if (preview) return { active: true, nextChangeMs: null as number | null };
+    const slots = (daytime?.storms ?? []) as StormSlot[];
+    if (!slots.length) return { active: Boolean(daytime?.storm?.active), nextChangeMs: null as number | null };
+    return stormState(slots, daytime?.timeZone || "Asia/Tashkent", new Date(Date.now() + offset));
+  }, [slotsKey, daytime?.timeZone, daytime?.storm?.active, offset, preview, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (st.nextChangeMs === null) return;
+    const tm = setTimeout(() => setTick((n) => n + 1), Math.min(60_000, st.nextChangeMs + 300));
+    return () => clearTimeout(tm);
+  }, [st]);
+  // Плавный вход и выход картинки: доля идёт к цели кадрами.
+  const [t, setT] = useState(st.active ? 1 : 0);
+  useEffect(() => {
+    const target = st.active ? 1 : 0;
+    let raf = 0, last = performance.now();
+    const step = (now: number) => {
+      const dt = now - last; last = now;
+      setT((v) => {
+        const nv = v + Math.sign(target - v) * Math.min(Math.abs(target - v), dt / STORM_RAMP_MS);
+        if (Math.abs(nv - target) > 0.0005) raf = requestAnimationFrame(step);
+        return Math.abs(nv - target) <= 0.0005 ? target : nv;
+      });
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [st.active]);
+  return useMemo(() => ({ active: st.active, t }), [st.active, t]);
+}

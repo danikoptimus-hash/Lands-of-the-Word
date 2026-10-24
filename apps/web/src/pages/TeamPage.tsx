@@ -6,6 +6,7 @@ import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
 import { TeamMap, type MarkPoint } from "./TeamMap";
+import { useStorm } from "../lib/daytime";
 import { TimelineDock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
 import { CityPopup } from "./CityPopup";
@@ -171,6 +172,9 @@ export function TeamPage() {
   const [historyAt, setHistoryAt] = useState<Date | null>(null);
   const moves = useMemo(() => (map ? teamMoves(map) : []), [map]);
   const shownMap = useMemo(() => (map && historyAt ? mapAt(map, historyAt) : map), [map, historyAt]);
+  // Шторм (решение владельца 24.10): по расписанию из ответа сервера; в шторм — только карта с бурей, без кнопок и действий.
+  const storm = useStorm(map?.daytime, map?.now);
+  const stormWas = useRef(storm.active);
   const [error, setError] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -292,6 +296,13 @@ export function TeamPage() {
   const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setError(null); setIsAdmin(r.isAdmin); setTeam(r.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, user?.id]);
   const loadMap = useCallback(() => api<MyMapDto & { gameName?: string; donation?: { currency: string } | null }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); setCurrency(m.donation?.currency ?? ""); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
+  // Смена шторма: на входе закрываются меню и все листы, на выходе всё возвращается; карта перечитывается в обоих случаях.
+  useEffect(() => {
+    if (stormWas.current === storm.active) return;
+    stormWas.current = storm.active;
+    if (storm.active) { setMenu(false); setMenuView("home"); setSelectedId(null); setCityKey(null); setQuarryOpen(false); setFrontierKey(null); setMarkAt(null); setEditMark(null); setLandingId(null); setHistoryAt(null); }
+    void loadMap();
+  }, [storm.active, loadMap]);
   useEffect(() => { if (team) { void loadBattles(); void loadStandings(); void loadPassages(); void loadPeace(); } }, [team, loadBattles, loadStandings, loadPassages, loadPeace]);
   // Перечитывания по событиям склеиваются (решение владельца 23.10): несколько событий за 2,5 с — одно перечитывание.
   const teamLater = useCoalesced(loadTeam), mapLater = useCoalesced(loadMap), passagesLater = useCoalesced(loadPassages), battlesLater = useCoalesced(loadBattles), standingsLater = useCoalesced(loadStandings), peaceLater = useCoalesced(loadPeace);
@@ -551,7 +562,7 @@ export function TeamPage() {
   const openCity = (key: string) => { setCityKey(key); setSelectedId(null); setFrontierKey(null); setMenu(false); };
   const openTask = (tid: string | null) => { setSelectedId(tid); if (tid) { setMenu(false); setFrontierKey(null); } };
   const showOnMap = (tid: string) => { openTask(tid); setFocusTask({ id: tid, nonce: Date.now() }); };
-  const menuOpen = wide ? menuView !== "home" : menu;
+  const menuOpen = !storm.active && (wide ? menuView !== "home" : menu);
   const closeMenu = () => { if (wide) setMenuView("home"); else setMenu(false); };
 
   return (
@@ -559,7 +570,7 @@ export function TeamPage() {
       {menuOpen && !wide && <div className="side-backdrop" onClick={() => setMenu(false)} />}
       {/* На компьютере (решение владельца 05.10, вечер): колонка плиток висит полупрозрачно над картой; нажатие открывает панель
           раздела рядом, повторное нажатие на ту же плитку или нажатие на карту закрывает её. */}
-      {wide && (
+      {wide && !storm.active && (
         <nav className="menu-rail floating" aria-label={t("Разделы")}>
           {MENU_ITEMS.map((m) => { const n = menuCounts[m.key] ?? 0; return (
             <button key={m.key} type="button" className={view === m.key ? "on" : undefined} aria-pressed={view === m.key} onClick={() => toggleView(m.key)}>
@@ -722,12 +733,17 @@ export function TeamPage() {
         </aside>
       )}
 
-      <div className="map-area" ref={setMapEl} onPointerDownCapture={() => { if (wide && menuView !== "home") setMenuView("home"); }}>
-        <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask}
+      <div className={"map-area" + (storm.active ? " storm" : "")} ref={setMapEl} onPointerDownCapture={() => { if (wide && menuView !== "home") setMenuView("home"); }}>
+        {storm.active ? (
+          /* Шторм: карта без действий — ни дел, ни городов, ни меток, ни высадки (решение владельца 24.10). */
+          <TeamMap map={map} bird={bird} teamIndex={team.index} selectedTaskId={null} onSelect={() => {}} onSelectCity={() => {}} storm={storm} />
+        ) : (
+        <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask} storm={storm}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
           onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} />
+        )}
         {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
         {map.startedAt && <div className="team-timeline"><TimelineDock moves={moves} startedAt={map.startedAt} at={historyAt} onChange={(d) => { setHistoryAt(d); setSelectedId(null); }} /></div>}
         {landingTask && (

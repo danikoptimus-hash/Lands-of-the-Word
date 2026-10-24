@@ -57,7 +57,9 @@ export interface MyMapDto { status: string; /** Версия карты кома
 /** Полёт клина: момент всегда, узел города — только в окне полёта (сервер отдаёт его за минуту до старта и пять минут после). */
 export interface DailyBirdDto { key?: string; at: number }
 /** Время суток игры (решение владельца 03.10): фаза правил, пояс и часы сервера. */
-export interface DaytimeDto { phase: "morning" | "day" | "evening" | "night"; timeZone: string; now: number; /** Задания города открыты (до полуночи, решение владельца 04.10). */ tasksOpen?: boolean }
+export interface DaytimeDto { phase: "morning" | "day" | "evening" | "night"; timeZone: string; now: number; /** Задания города открыты (до полуночи, решение владельца 04.10). */ tasksOpen?: boolean; /** Шторм (решение владельца 24.10): идёт ли сейчас и расписание, по которому клиент переключается сам. */ storm?: { active: boolean; changesAt: number | null }; storms?: StormSlot[] }
+/** Интервал шторма: день недели (0 — воскресенье), начало и конец «ЧЧ:ММ» по поясу игры. */
+export interface StormSlot { weekday: number; from: string; to: string }
 
 /** Город глазами команды: районы (сцены книги), задания без ответов, буквы шифра, состояние. */
 export interface CityDistrictDto { id: string; verses: string; title: string; summary: string; index: number | null }
