@@ -1,5 +1,5 @@
 import { Fragment, createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
-import { api, type User } from "./api";
+import { api, type User, clearReady } from "./api";
 import { readGuestLocale, saveGuestLocale, setLocale, type Locale } from "./i18n";
 import { syncPush } from "./push";
 
@@ -44,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (nickname: string, password: string, add = false) => {
     const r = await api<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify({ nickname, password, add }) });
-    setUser(r.user);
+    clearReady(); setUser(r.user);
     void syncPush();
   }, []);
   const switchAccount = useCallback(async (userId: string) => {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const logoutAll = useCallback(async () => {
     await api("/api/auth/logout-all", { method: "POST" });
-    setUser(null);
+    clearReady(); setUser(null);
   }, []);
   // Язык, выбранный гостем на странице входа, становится языком новой учётки.
   const register = useCallback(async (nickname: string, password: string, email: string) => {
@@ -66,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
   const logout = useCallback(async () => {
     const r = await api<{ ok: boolean; user: User | null }>("/api/auth/logout", { method: "POST" });
+    clearReady();
     if (r.user) { window.location.assign("/"); return; }
     setUser(null);
   }, []);

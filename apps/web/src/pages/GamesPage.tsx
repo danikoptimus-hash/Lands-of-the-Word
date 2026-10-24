@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { reportPage } from "../lib/perf";
-import { api, ApiError, type GameSummary, type MyTeamDto } from "../lib/api";
+import { api, ApiError, prefetch, type GameSummary, type MyTeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
 import { ActionMenu } from "../components/ActionMenu";
@@ -66,7 +66,12 @@ export function GamesPage() {
     Promise.all([
       api<{ games: GameSummary[] }>("/api/games").then((r) => r.games),
       api<{ teams: MyTeamDto[] }>("/api/me/teams").then((r) => r.teams),
-    ]).then(([g, tm]) => { if (alive) { setGames(g); setTeams(tm); } }).catch(() => { if (alive) setFailed(true); });
+    ]).then(([g, tm]) => {
+      if (!alive) return;
+      setGames(g); setTeams(tm);
+      // Страница игры и карта команды открываются сразу (решение владельца 24.10): их данные запрашиваются заранее, пока человек на главной.
+      prefetch([...g.flatMap((x) => [`/api/games/${x.id}`, `/api/games/${x.id}/progress`]), ...tm.flatMap((x) => [`/api/games/${x.game.id}/my-map`, `/api/games/${x.game.id}/teams`])]);
+    }).catch(() => { if (alive) setFailed(true); });
     return () => { alive = false; };
   }, [attempt]);
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
@@ -165,9 +165,13 @@ export function TeamPage() {
   const { user, logout } = useAuth();
   const { notify, confirm } = useUi();
   const wide = useMediaQuery("(min-width: 1024px)");
-  const [team, setTeam] = useState<TeamDto | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [map, setMap] = useState<MyMapDto | null>(null);
+  // Готовые ответы с главной (решение владельца 24.10): состав и карта рисуются сразу, свежие придут следом.
+  type TeamsResp = { isAdmin: boolean; teams: TeamDto[] };
+  type MapResp = MyMapDto & { gameName?: string; donation?: { currency: string } | null };
+  const firstTeams = ready<TeamsResp>(`/api/games/${id}/teams`), firstMap = ready<MapResp>(`/api/games/${id}/my-map`);
+  const [team, setTeam] = useState<TeamDto | null>(() => firstTeams?.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? firstTeams?.teams[0] ?? null);
+  const [isAdmin, setIsAdmin] = useState(firstTeams?.isAdmin ?? false);
+  const [map, setMap] = useState<MyMapDto | null>(firstMap);
   /** Ползунок истории (решение владельца 05.10): null — сейчас, иначе карта команды на момент выбранного хода. */
   const [historyAt, setHistoryAt] = useState<Date | null>(null);
   const moves = useMemo(() => (map ? teamMoves(map) : []), [map]);
@@ -194,9 +198,9 @@ export function TeamPage() {
   const [standings, setStandings] = useState<StandingsDto | null>(null);
   const [passages, setPassages] = useState<PassagesDto | null>(null);
   const [now, setNow] = useState(Date.now());
-  const [gameName, setGameName] = useState("");
+  const [gameName, setGameName] = useState(firstMap?.gameName ?? "");
   /** Валюта пожертвований игры; минимум — у каждого дела свой (deed.donationMin). */
-  const [currency, setCurrency] = useState("");
+  const [currency, setCurrency] = useState(firstMap?.donation?.currency ?? "");
   const [busy, setBusy] = useState(false);
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const [markAt, setMarkAt] = useState<MarkPoint | null>(null);
@@ -294,8 +298,8 @@ export function TeamPage() {
     return () => el.removeEventListener("touchmove", onMove);
   }, [team?.id]);
 
-  const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setError(null); setIsAdmin(r.isAdmin); setTeam(r.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, user?.id]);
-  const loadMap = useCallback(() => api<MyMapDto & { gameName?: string; donation?: { currency: string } | null }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); setCurrency(m.donation?.currency ?? ""); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
+  const loadTeam = useCallback(() => apiReady<TeamsResp>(`/api/games/${id}/teams`).then((r) => { setError(null); setIsAdmin(r.isAdmin); setTeam(r.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, user?.id]);
+  const loadMap = useCallback(() => apiReady<MapResp>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); setCurrency(m.donation?.currency ?? ""); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   stormReload.current = () => { void loadMap(); };
   // Смена шторма: на входе закрываются меню и все листы, на выходе всё возвращается; карта перечитывается в обоих случаях.

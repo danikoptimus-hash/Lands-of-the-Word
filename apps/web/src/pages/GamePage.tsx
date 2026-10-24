@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { api, ApiError, prefetch, type MapEdgeDto, type MapHexDto, type MapNodeDto, type StormSlot } from "../lib/api";
+import { api, ApiError, apiReady, prefetch, ready, type MapEdgeDto, type MapHexDto, type MapNodeDto, type StormSlot } from "../lib/api";
 import { AdminMap, type BattleProgress, type CityProgress, type MapFocus, type TeamProgress } from "./AdminMap";
 import { collectMoves, progressAt, TimelineDock } from "./Timeline";
 import { useCoalesced, useGameEvents } from "../lib/useGameEvents";
@@ -49,25 +49,28 @@ export function GamePage() {
   const setTab = (next: Tab) => navigate({ hash: next === "map" ? "" : next }, { replace: true });
   const [screenEl, setScreenEl] = useState<HTMLDivElement | null>(null);
 
-  const [game, setGame] = useState<GameDto | null>(null);
+  // Готовый ответ с главной (решение владельца 24.10): игра и карта рисуются сразу, свежий ответ придёт следом.
+  type GameResp = { game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; observer?: boolean };
+  const first = ready<GameResp>(`/api/games/${id}`);
+  const [game, setGame] = useState<GameDto | null>(first?.game ?? null);
   /** Модуль аналитики (графики ECharts) докачивается заранее, в фоне; пока его нет — заглушка. Без React.lazy: тот даже с готовым модулем на миг показывает запасной вид. */
   const [Analytics, setAnalytics] = useState<ComponentType<{ gameId: string }> | null>(null);
-  const [hexes, setHexes] = useState<MapHexDto[]>([]);
-  const [nodes, setNodes] = useState<MapNodeDto[]>([]);
-  const [edges, setEdges] = useState<MapEdgeDto[]>([]);
-  const [stats, setStats] = useState<MapStats | null>(null);
+  const [hexes, setHexes] = useState<MapHexDto[]>(first?.hexes ?? []);
+  const [nodes, setNodes] = useState<MapNodeDto[]>(first?.nodes ?? []);
+  const [edges, setEdges] = useState<MapEdgeDto[]>(first?.edges ?? []);
+  const [stats, setStats] = useState<MapStats | null>(first?.game.settings.mapStats ?? null);
   const [error, setError] = useState<string | null>(null);
   const [genError, setGenError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
   const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, quarry: 0, battles: 0, recipients: 0 });
-  const [progress, setProgress] = useState<Progress | null>(null);
+  const [progress, setProgress] = useState<Progress | null>(() => ready<Progress>(`/api/games/${id}/progress`));
   /** «Посмотреть на карте» из «Проверки» и блока «Команды» (просьба владельца 10.10): закрыть раздел и показать сторону дела вблизи. */
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
   /** Наблюдатель (решение владельца 14.10): администратор платформы смотрит чужую игру, менять ничего не может. */
   const [observer, setObserver] = useState(false);
   const showOnMap = (f: Omit<MapFocus, "nonce">) => { setMapFocus({ ...f, nonce: Date.now() }); setTab("map"); };
-  const loadProgress = useCallback(() => api<Progress>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
+  const loadProgress = useCallback(() => apiReady<Progress>(`/api/games/${id}/progress`).then(setProgress).catch(() => setProgress(null)), [id]);
   /** Ползунок времени: null — «сейчас» (живое состояние), иначе момент, на который показываем карту. */
   const [at, setAt] = useState<Date | null>(null);
   const shown = useMemo(() => (progress && at ? progressAt(progress.teams, at) : progress?.teams ?? null), [progress, at]);
@@ -84,7 +87,7 @@ export function GamePage() {
     if (started && !Analytics) void import("./GameAnalytics").then((m) => setAnalytics(() => m.GameAnalytics)).catch(() => {});
   }, [id, game?.id, game?.status]); // eslint-disable-line react-hooks/exhaustive-deps
   const load = useCallback(async () => {
-    const r = await api<{ game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; observer?: boolean }>(`/api/games/${id}`);
+    const r = await apiReady<GameResp>(`/api/games/${id}`);
     setObserver(Boolean(r.observer)); setGame(r.game); setDisplayTimeZone((r.game.settings as { rules?: { timeZone?: string } }).rules?.timeZone); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges); setStats((s) => s ?? r.game.settings.mapStats ?? null);
     setError(null);
   }, [id]);

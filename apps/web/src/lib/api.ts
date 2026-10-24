@@ -35,6 +35,8 @@ export function ready<T>(url: string): T | null { return (READY.get(url) as T | 
 export async function apiReady<T>(url: string): Promise<T> { const r = await api<T>(url); READY.set(url, r); return r; }
 /** Запросить заранее то, чего ещё нет в памяти; ошибки молча (раздел запросит сам при открытии). */
 export function prefetch(urls: string[]): void { for (const u of urls) if (!READY.has(u)) void apiReady(u).catch(() => {}); }
+/** При входе и выходе память очищается: ответы принадлежат учётке. */
+export function clearReady(): void { READY.clear(); }
 
 export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean; /** Аватарка (решение владельца 24.10). */ avatarId?: string | null; /** Суперадмин запретил ставить аватарки. */ avatarBlocked?: boolean }
 /** Какие способы входа включены на сервере (GET /api/auth/providers). */
