@@ -29,7 +29,8 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgresql://lotw:${POSTGRES_PASSWORD}@lotw-db-test:5432/lotw?schema=public
+      # connection_limit=20: по умолчанию Prisma держит 2×ядра+1 соединения (три на одном ядре), и запросы вставали в очередь к базе (прогон 24.10).
+      DATABASE_URL: postgresql://lotw:${POSTGRES_PASSWORD}@lotw-db-test:5432/lotw?schema=public&connection_limit=20
       SESSION_SECRET: ${SESSION_SECRET}
       PORT: "3000"
       WEB_DIST: /app/apps/web/dist

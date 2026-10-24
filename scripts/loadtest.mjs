@@ -74,7 +74,7 @@ async function runUser(u) {
   const g = (path) => req(u.cookie, "GET", `/api/games/${gameId}${path}`);
   // Склейка как в клиенте: по каждому пути один таймер; событие внутри окна новых запросов не добавляет.
   const timers = new Map();
-  const later = (path) => { if (timers.has(path)) return; timers.set(path, setTimeout(() => { timers.delete(path); void g(path); }, COALESCE_MS)); };
+  const later = (path) => { if (timers.has(path)) return; timers.set(path, setTimeout(() => { timers.delete(path); void g(path); }, COALESCE_MS + Math.random() * 1500)); };
   await Promise.all(PAGE.map(g));
   // Поток событий: держим, пока идёт прогон; при обрыве переподключаемся через 3 с, как браузер.
   const sse = (async () => {

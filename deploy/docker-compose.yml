@@ -26,7 +26,8 @@ services:
     environment:
       NODE_ENV: production
       # Имя контейнера, а не сервиса: псевдоним «db» в общей сети мог бы указать и на базу стенда.
-      DATABASE_URL: postgresql://lotw:${POSTGRES_PASSWORD}@lotw-db:5432/lotw?schema=public
+      # connection_limit=20: по умолчанию Prisma держит 2×ядра+1 соединения (три на одном ядре), и запросы вставали в очередь к базе (прогон 24.10).
+      DATABASE_URL: postgresql://lotw:${POSTGRES_PASSWORD}@lotw-db:5432/lotw?schema=public&connection_limit=20
       SESSION_SECRET: ${SESSION_SECRET}
       PORT: "3000"
       WEB_DIST: /app/apps/web/dist

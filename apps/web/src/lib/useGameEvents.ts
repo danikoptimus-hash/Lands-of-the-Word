@@ -29,15 +29,16 @@ export function useGameEvents(gameId: string | null, handler: (e: GameEvent) => 
 
 /**
  * Склейка перечитываний (решение владельца 23.10 после нагрузочного прогона): несколько событий за окно дают одно
- * перечитывание, не позже чем через ms после первого. Задержка ограничена, отмены нет — данные свежие, запросов меньше.
+ * перечитывание, не позже чем через ms + jitter после первого. Задержка ограничена, отмены нет — данные свежие, запросов меньше.
  */
-export function useCoalesced(fn: () => unknown, ms = 2500): () => void {
+export function useCoalesced(fn: () => unknown, ms = 2500, jitter = 1500): () => void {
   const ref = useRef(fn);
   ref.current = fn;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   return useCallback(() => {
     if (timer.current) return;
-    timer.current = setTimeout(() => { timer.current = null; void ref.current(); }, ms);
-  }, [ms]);
+    // Случайная добавка размазывает волну: после события сотни клиентов перечитывают не в одну секунду (прогон 24.10).
+    timer.current = setTimeout(() => { timer.current = null; void ref.current(); }, ms + Math.random() * jitter);
+  }, [ms, jitter]);
 }
