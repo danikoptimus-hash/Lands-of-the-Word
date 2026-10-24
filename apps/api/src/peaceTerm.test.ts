@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { invalidateViews } from "./services/views.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
 import { expirePeaces, peaceBetween } from "./services/peace.js";
 
@@ -65,6 +66,7 @@ describe("мир на срок", () => {
     expect((await post(`/api/games/${gameId}/peace/${forever.peaceId}/break`, ck.cap3)).statusCode).toBe(409);
     // Старый мир (days = null) расторгается, как раньше.
     await prisma.peace.update({ where: { id: forever.peaceId! }, data: { days: null, until: null } });
+    invalidateViews(gameId); // правка прямо в базе, мимо событий: готовый ответ о мире надо сбросить вручную
     expect((await viewOf(ck.cap1, t3)).breakable).toBe(true);
     expect((await post(`/api/games/${gameId}/peace/${forever.peaceId}/break`, ck.cap3)).statusCode).toBe(200);
     expect((await viewOf(ck.cap1, t3)).state).toBe("none");

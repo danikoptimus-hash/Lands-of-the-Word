@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { assertAwake, assertTasksOpen } from "../services/daytime.js";
 import { publish } from "../services/events.js";
+import { defineView } from "../services/views.js";
 import { requireUser } from "../auth.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { ensureFrontier, isSeaKey } from "../services/teamMap.js";
@@ -71,24 +72,28 @@ async function buildHint(gameId: string, nodeKey: string, i: number): Promise<{ 
   return { verses, text };
 }
 
+async function bookOf(gameId: string, keys: string[]) {
+  const nodes = await prisma.mapNode.findMany({ where: { gameId, key: { in: keys } }, select: { key: true, bookCode: true } });
+  return new Map(nodes.map((n) => [n.key, n.bookCode ?? ""]));
+}
+/** Проходы команды — готовый ответ (services/views.ts); кто может говорить — отдельно, это зависит от участника. */
+const passagesView = defineView("passages", { scope: "team", events: ["map", "cities", "teams", "battles", "peace"], compute: async (gameId, teamId) => {
+  await expirePassages(gameId);
+  const rows = await prisma.passageRequest.findMany({ where: { gameId, OR: [{ requesterId: teamId }, { ownerId: teamId }] }, orderBy: { createdAt: "desc" }, include: { requester: teamSelect, owner: teamSelect }, take: 50 });
+  const books = await bookOf(gameId, rows.map((r) => r.nodeKey));
+  return { outgoing: rows.filter((r) => r.requesterId === teamId).map((r) => view(r, books)), incoming: rows.filter((r) => r.ownerId === teamId).map((r) => view(r, books)) };
+} });
+
 export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
-
-  async function bookOf(gameId: string, keys: string[]) {
-    const nodes = await prisma.mapNode.findMany({ where: { gameId, key: { in: keys } }, select: { key: true, bookCode: true } });
-    return new Map(nodes.map((n) => [n.key, n.bookCode ?? ""]));
-  }
 
   /** Запросы прохода моей команды: исходящие и входящие. */
   app.get("/api/games/:id/my-passages", async (request, reply) => {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    await expirePassages(id);
-    const rows = await prisma.passageRequest.findMany({ where: { gameId: id, OR: [{ requesterId: m.team.id }, { ownerId: m.team.id }] }, orderBy: { createdAt: "desc" }, include: { requester: teamSelect, owner: teamSelect }, take: 50 });
-    const books = await bookOf(id, rows.map((r) => r.nodeKey));
-    const speak = await canSpeak(m.team.id, request.user!.id);
-    return { canSpeak: speak.ok, outgoing: rows.filter((r) => r.requesterId === m.team.id).map((r) => view(r, books)), incoming: rows.filter((r) => r.ownerId === m.team.id).map((r) => view(r, books)) };
+    const [lists, speak] = await Promise.all([passagesView(id, m.team.id), canSpeak(m.team.id, request.user!.id)]);
+    return { canSpeak: speak.ok, ...lists };
   });
 
   /** Запросить проход через чужой город. */

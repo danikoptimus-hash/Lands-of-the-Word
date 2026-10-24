@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { generateMap, MapGenError } from "@lotw/domain";
 import { prisma } from "../db.js";
+import { defineView } from "../services/views.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
@@ -63,6 +64,9 @@ async function loadGameForAdmin(request: FastifyRequest, reply: FastifyReply, ga
   if (!isAdmin) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
   return game;
 }
+
+/** Положение команд — один готовый ответ на партию (services/views.ts), сбрасывается взятиями, испытаниями и составом. */
+const standingsView = defineView("standings", { scope: "game", events: ["cities", "battles", "teams", "map", "quarry"], compute: async (gameId) => ({ rows: await standings(gameId), leaderTeamId: (await leader(gameId))?.teamId ?? null }) });
 
 export async function gameRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
@@ -229,8 +233,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (!allowed) return reply.code(403).send({ error: "forbidden", message: err(request, "Нет доступа") });
     const isAdmin = adminOrObserver(request, game.admins);
     // Во время игры команды видят только взятые города: «города на пути» — разведданные (решение владельца 18.09).
-    const rows = (await standings(id)).map((r) => (isAdmin || game.status === "FINISHED" ? r : { ...r, citiesOnPath: [] }));
-    return { status: game.status, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, finishReason: game.finishReason, endsAt: (game.settings as { endsAt?: string | null }).endsAt ?? null, standings: rows, leaderTeamId: game.status === "ACTIVE" ? (await leader(id))?.teamId ?? null : null };
+    const table = await standingsView(id, "");
+    const rows = table.rows.map((r) => (isAdmin || game.status === "FINISHED" ? r : { ...r, citiesOnPath: [] }));
+    return { status: game.status, finishedAt: game.finishedAt, winnerTeamId: game.winnerTeamId, finishReason: game.finishReason, endsAt: (game.settings as { endsAt?: string | null }).endsAt ?? null, standings: rows, leaderTeamId: game.status === "ACTIVE" ? table.leaderTeamId : null };
   });
 
   /** Админ завершает игру вручную: победитель — команда с наибольшим числом городов, если не указан явно. */

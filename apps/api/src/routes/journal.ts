@@ -3,12 +3,17 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
+import { defineView } from "../services/views.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { activityBoard, feed, seasonBook, sendChronicle, serviceStats } from "../services/journal.js";
 import { breakPeace, decidePeace, peaceView, proposePeace } from "../services/peace.js";
 import { adminOrObserver } from "../services/access.js";
 
 /** Лента команды, «Моё служение», доска активности и журнал для администратора, «Книга сезона», летопись, мир. */
+// Готовые ответы (services/views.ts): лента — по записям летописи, мир — по событиям мира и команд.
+const feedView = defineView("feed", { scope: "team", events: ["journal"], compute: (gameId, teamId) => feed(gameId, teamId) });
+const peaceCached = defineView("peace", { scope: "team", events: ["peace", "teams"], compute: (gameId, teamId) => peaceView(gameId, teamId) });
+
 export async function journalRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
 
@@ -17,7 +22,7 @@ export async function journalRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    return { items: await feed(id, m.team.id) };
+    return { items: await feedView(id, m.team.id) };
   });
 
   /** «Моё служение»: сводка участника. */
@@ -97,7 +102,7 @@ export async function journalRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    return { canSpeak: isLeader(m) || m.gameRole === "AMBASSADOR", teams: await peaceView(id, m.team.id) };
+    return { canSpeak: isLeader(m) || m.gameRole === "AMBASSADOR", teams: await peaceCached(id, m.team.id) };
   });
   app.post("/api/games/:id/peace", async (request, reply) => {
     const { id } = request.params as { id: string };

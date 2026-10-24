@@ -11,6 +11,7 @@ import { ensureFrontier, penalizeTeam } from "../services/teamMap.js";
 import { days, rulesOf } from "../services/rules.js";
 import { journal, nick, ROLE_RU } from "../services/journal.js";
 import { adminOrObserver } from "../services/access.js";
+import { defineView } from "../services/views.js";
 
 export const TEAM_COLORS = ["#A9553A", "#4F7C99", "#7D8B4E", "#8E5A9E", "#C48A3F", "#3B6E6E", "#B5473F", "#5C6E91", "#8A7A2E", "#6E4B8E", "#2F7F6F", "#9C5A2E"];
 
@@ -32,33 +33,43 @@ async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, ga
 
 const memberSelect = { role: true, gameRole: true, pendingRole: true, roleChangedAt: true, deedsFrozenUntil: true, deedsFrozenReason: true, joinedAt: true, user: { select: { id: true, nickname: true, displayName: true } } } as const;
 
+/** Состав: команды с участниками, лимитами дел и держащимися делами. Администратору — все команды, участнику — своя. */
+async function teamsPayload(gameId: string, isAdmin: boolean, teamId: string | null) {
+  const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId }, select: { settings: true } });
+  const teams = await prisma.team.findMany({
+    where: isAdmin ? { gameId } : { id: teamId ?? "" },
+    orderBy: { index: "asc" },
+    include: { members: { select: memberSelect, orderBy: { joinedAt: "asc" } } },
+  });
+  const rules = rulesOf(game.settings);
+  // Лимит дел в сутки у каждого участника виден всей команде: таймер до следующего дела (решение владельца 04.10).
+  const userIds = teams.flatMap((t) => t.members.map((m) => m.user.id));
+  const limits = await deedLimitsFor(gameId, rules.maxDeedsPerDay, userIds);
+  // Дела, которые участник сейчас держит: взятые, сданные на проверку, возвращённые. Видит администратор и вся команда
+  // по нажатию на значок лимита (решение владельца 05.10: раньше команда видела только таймер).
+  const active = new Map<string, Array<{ id: string; title: string; status: string; takenAt: Date | null; submittedAt: Date | null; fromKey: string; toKey: string }>>();
+  const rows = await prisma.teamEdgeTask.findMany({ where: { gameId, takenById: { in: userIds }, status: { in: ["TAKEN", "SUBMITTED", "REJECTED"] } }, select: { id: true, takenById: true, status: true, takenAt: true, submittedAt: true, fromKey: true, toKey: true, deed: { select: { title: true } } }, orderBy: { takenAt: "asc" } });
+  for (const r of rows) if (r.takenById) active.set(r.takenById, [...(active.get(r.takenById) ?? []), { id: r.id, title: r.deed.title, status: r.status, takenAt: r.takenAt, submittedAt: r.submittedAt, fromKey: r.fromKey, toKey: r.toKey }]);
+  // Лимит смены роли — на каждого участника (решение владельца 19.10): у каждого своя дата, когда его роль можно сменить снова.
+  const availableAt = (at: Date | null) => (at && rules.roleChangeDays > 0 ? new Date(at.getTime() + days(rules.roleChangeDays)) : null);
+  return { isAdmin, roleChangeDays: rules.roleChangeDays, teams: teams.map((t) => ({ ...t, members: t.members.map((m) => ({ ...m, deedLimit: limits.get(m.user.id) ?? null, activeDeeds: active.get(m.user.id) ?? [], roleChangeAvailableAt: availableAt(m.roleChangedAt), deedsFrozenUntil: m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenUntil : null, deedsFrozenReason: isAdmin && m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenReason : null })) })) };
+}
+const teamsView = defineView("teams", { scope: "team", events: ["teams", "tasks", "submissions", "quarry", "map", "cities", "battles"], compute: (gameId, teamId) => teamsPayload(gameId, false, teamId) });
+
 export async function teamRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
 
   /** Команды игры. Админ видит все с участниками; участник — только свою. */
   app.get("/api/games/:id/teams", async (request, reply) => {
     const { id } = request.params as { id: string };
-    const game = await prisma.game.findUnique({ where: { id }, include: { admins: { select: { userId: true } } } });
+    const game = await prisma.game.findUnique({ where: { id }, select: { admins: { select: { userId: true } } } });
     if (!game) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
     const isAdmin = adminOrObserver(request, game.admins);
-    const teams = await prisma.team.findMany({
-      where: isAdmin ? { gameId: id } : { gameId: id, members: { some: { userId: request.user!.id } } },
-      orderBy: { index: "asc" },
-      include: { members: { select: memberSelect, orderBy: { joinedAt: "asc" } } },
-    });
-    if (!isAdmin && teams.length === 0) return reply.code(403).send({ error: "forbidden", message: err(request, "Вы не состоите в этой игре") });
-    const rules = rulesOf(game.settings);
-    // Лимит дел в сутки у каждого участника виден всей команде: таймер до следующего дела (решение владельца 04.10).
-    const userIds = teams.flatMap((t) => t.members.map((m) => m.user.id));
-    const limits = await deedLimitsFor(id, rules.maxDeedsPerDay, userIds);
-    // Дела, которые участник сейчас держит: взятые, сданные на проверку, возвращённые. Видит администратор и вся команда
-    // по нажатию на значок лимита (решение владельца 05.10: раньше команда видела только таймер).
-    const active = new Map<string, Array<{ id: string; title: string; status: string; takenAt: Date | null; submittedAt: Date | null; fromKey: string; toKey: string }>>();
-    const rows = await prisma.teamEdgeTask.findMany({ where: { gameId: id, takenById: { in: userIds }, status: { in: ["TAKEN", "SUBMITTED", "REJECTED"] } }, select: { id: true, takenById: true, status: true, takenAt: true, submittedAt: true, fromKey: true, toKey: true, deed: { select: { title: true } } }, orderBy: { takenAt: "asc" } });
-    for (const r of rows) if (r.takenById) active.set(r.takenById, [...(active.get(r.takenById) ?? []), { id: r.id, title: r.deed.title, status: r.status, takenAt: r.takenAt, submittedAt: r.submittedAt, fromKey: r.fromKey, toKey: r.toKey }]);
-    // Лимит смены роли — на каждого участника (решение владельца 19.10): у каждого своя дата, когда его роль можно сменить снова.
-    const availableAt = (at: Date | null) => (at && rules.roleChangeDays > 0 ? new Date(at.getTime() + days(rules.roleChangeDays)) : null);
-    return { isAdmin, roleChangeDays: rules.roleChangeDays, teams: teams.map((t) => ({ ...t, members: t.members.map((m) => ({ ...m, deedLimit: limits.get(m.user.id) ?? null, activeDeeds: active.get(m.user.id) ?? [], roleChangeAvailableAt: availableAt(m.roleChangedAt), deedsFrozenUntil: m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenUntil : null, deedsFrozenReason: isAdmin && m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenReason : null })) })) };
+    if (isAdmin) return teamsPayload(id, true, null);
+    // Участник видит только свою команду: ответ готовый, считается один раз после изменения (services/views.ts).
+    const m = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: id } }, select: { teamId: true } });
+    if (!m) return reply.code(403).send({ error: "forbidden", message: err(request, "Вы не состоите в этой игре") });
+    return teamsView(id, m.teamId);
   });
 
   app.post("/api/games/:id/teams", async (request, reply) => {

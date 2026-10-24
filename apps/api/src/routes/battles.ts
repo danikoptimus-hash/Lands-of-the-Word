@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../db.js";
 import { assertAwake, gameDaytime } from "../services/daytime.js";
 import { publish } from "../services/events.js";
+import { defineView } from "../services/views.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
@@ -90,6 +91,12 @@ async function nicknames(ids: string[]): Promise<Map<string, string>> {
 }
 const usersOf = (battles: Full[]) => nicknames([...new Set(battles.flatMap((b) => b.entries.map((e) => e.userId)))]);
 
+const battlesView = defineView("battles", { scope: "team", events: ["battles", "submissions", "teams", "cities"], compute: async (gameId, teamId) => {
+  await sweep(gameId);
+  const battles: Full[] = await prisma.battle.findMany({ where: { gameId, OR: [{ attackerId: teamId }, { defenderId: teamId }, { allies: { some: { allyId: teamId, status: { in: ["PROPOSED", "ACTIVE"] } } } }] }, orderBy: { declaredAt: "desc" }, include, take: 30 });
+  return { battles, users: await usersOf(battles) };
+} });
+
 export async function battleRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
 
@@ -148,9 +155,8 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    await sweep(id);
-    const battles = await prisma.battle.findMany({ where: { gameId: id, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }, { allies: { some: { allyId: m.team.id, status: { in: ["PROPOSED", "ACTIVE"] } } } }] }, orderBy: { declaredAt: "desc" }, include, take: 30 });
-    const users = await usersOf(battles);
+    // Испытания команды из базы — готовый ответ (services/views.ts); вид для участника (свои стихи, выученное) строится из него.
+    const { battles, users } = await battlesView(id, m.team.id);
     return { battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id))), daytime: await gameDaytime(id) };
   });
 
