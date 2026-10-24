@@ -3,7 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { useCoalesced, useGameEvents } from "../lib/useGameEvents";
+import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
+import { applyPatch } from "fast-json-patch";
 import { TeamMap, type MarkPoint } from "./TeamMap";
 import { TimelineDock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
@@ -293,17 +294,31 @@ export function TeamPage() {
   // Перечитывания по событиям склеиваются (решение владельца 23.10): несколько событий за 2,5 с — одно перечитывание.
   const teamLater = useCoalesced(loadTeam), mapLater = useCoalesced(loadMap), passagesLater = useCoalesced(loadPassages), battlesLater = useCoalesced(loadBattles), standingsLater = useCoalesced(loadStandings), peaceLater = useCoalesced(loadPeace);
   const cityLater = useCoalesced(() => setCityVersion((v) => v + 1)), feedLater = useCoalesced(() => setFeedVersion((v) => v + 1));
+  // Карта приходит разницей от сервера (решение владельца 24.10): применяем к своей версии; если версии разошлись — перечитываем.
+  const mapRef = useRef(map); mapRef.current = map;
+  const onMapPush = (m: MapPush) => {
+    const cur = mapRef.current;
+    if (m.kind === "stale" || !cur || cur.rev !== m.base) { mapLater(); return; }
+    try {
+      const next = applyPatch(structuredClone(cur), m.patch as Parameters<typeof applyPatch>[1], true, false).newDocument as MyMapDto;
+      // Тайные дела: сервер не шлёт ссылки и текст сдачи, свои оставляем как были.
+      next.tasks = next.tasks.map((t) => { const old = cur.tasks.find((o) => o.id === t.id); return t.deed.secret && old && !t.links.length && !t.note ? { ...t, links: old.links, note: old.note } : t; });
+      setMap({ ...next, rev: m.rev });
+    } catch { mapLater(); }
+  };
   useGameEvents(id, (e) => {
     // Дела другой команды на моей карте не видны: такие события пропускаем (сервер их и не шлёт, это страховка для старых клиентов).
     if (e.teamId && team && e.teamId !== team.id && (e.type === "tasks" || e.type === "submissions" || e.type === "journal")) return;
     if (e.type === "teams" || e.type === "game" || e.type === "tasks") teamLater(); // tasks: таймеры дел у участников в составе
-    if (e.type !== "deeds" && e.type !== "journal") mapLater(); // quarry: камни команды в шапке карты; запись летописи карту не меняет
+    // Сама карта приходит разницей (map-patch); здесь перечитываем только то, что к карте добавляет маршрут:
+    // статус игры, камни Каменоломни в шапке, визиты, заморозку дел.
+    if (e.type === "game" || e.type === "quarry" || e.type === "cities" || e.type === "teams") mapLater();
     if (e.type === "cities" || e.type === "game" || e.type === "battles") { cityLater(); passagesLater(); }
     if (e.type === "battles" || e.type === "game" || e.type === "submissions") battlesLater();
     if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") standingsLater();
     if (e.type === "peace" || e.type === "teams" || e.type === "game") peaceLater();
     if (e.type === "journal" || e.type === "peace" || e.type === "submissions" || e.type === "cities" || e.type === "battles" || e.type === "game") feedLater();
-  });
+  }, onMapPush);
   useEffect(() => {
     const tm = setInterval(() => void loadMap(), 60000);
     const onFocus = () => void loadMap();

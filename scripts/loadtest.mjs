@@ -29,7 +29,7 @@ if (!users.length) throw new Error("нет участников в файле с
 
 // ---- метрики ----
 const stats = new Map(); // ключ запроса → { n, err, lat[] }
-const counters = { sse: 0, sseOpened: 0, events: 0, reloads: 0, approved: 0, submitted: 0, expected409: 0 };
+const counters = { sse: 0, sseOpened: 0, events: 0, reloads: 0, approved: 0, submitted: 0, expected409: 0, patches: 0, patchBytes: 0, stale: 0 };
 const keyOf = (path) => path.replace(gameId, ":id").replace(/edge-tasks\/[^/]+/, "edge-tasks/:t").replace(/\?.*$/, "");
 function record(key, ms, ok) {
   let s = stats.get(key);
@@ -59,7 +59,7 @@ const PAGE = ["/my-map", "/teams", "/standings", "/my-passages", "/peace", "/my-
 function reloadsFor(type) {
   const set = new Set();
   if (["teams", "game", "tasks"].includes(type)) set.add("/teams");
-  if (type !== "deeds" && type !== "journal") set.add("/my-map");
+  if (type === "game" || type === "quarry" || type === "cities" || type === "teams") set.add("/my-map"); // карта приходит разницей (map-patch)
   if (["cities", "game", "battles"].includes(type)) set.add("/my-passages");
   if (["battles", "game", "submissions"].includes(type)) set.add("/my-battles");
   if (["game", "cities", "battles", "teams"].includes(type)) set.add("/standings");
@@ -96,7 +96,9 @@ async function runUser(u) {
           let i;
           while ((i = buf.indexOf("\n\n")) >= 0) {
             const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
-            const ev = /^event: (\w+)/m.exec(chunk)?.[1]; const data = /^data: (.*)$/m.exec(chunk)?.[1];
+            const ev = /^event: ([\w-]+)/m.exec(chunk)?.[1]; const data = /^data: (.*)$/m.exec(chunk)?.[1];
+            if (ev === "map-patch") { counters.patches++; counters.patchBytes += data?.length ?? 0; continue; }
+            if (ev === "map-stale") { counters.stale++; later("/my-map"); continue; }
             if (ev === "change" && data) {
               counters.events++;
               let ev = { type: "game" }; try { ev = JSON.parse(data); } catch { /* как есть */ }
@@ -166,7 +168,7 @@ const total = [...stats.values()].reduce((a, s) => a + s.n, 0), errs = [...stats
 const md = [
   `## Нагрузочный прогон: ${users.length} участников, ${DURATION / 1000} с`,
   "",
-  `Запросов ${total}, в среднем ${(total / ((RAMP + DURATION) / 1000)).toFixed(1)}/с, ошибок ${errs} (${total ? ((100 * errs) / total).toFixed(2) : 0} %). Событий получено ${counters.events}, перечитываний по событиям ${counters.reloads}. Потоков SSE открыто за прогон ${counters.sseOpened}. Сдач ${counters.submitted}, решений администратора ${counters.approved}, ответов 409 (ожидаемых) ${counters.expected409}.`,
+  `Запросов ${total}, в среднем ${(total / ((RAMP + DURATION) / 1000)).toFixed(1)}/с, ошибок ${errs} (${total ? ((100 * errs) / total).toFixed(2) : 0} %). Событий получено ${counters.events}, перечитываний по событиям ${counters.reloads}. Потоков SSE открыто за прогон ${counters.sseOpened}. Разниц карты получено ${counters.patches} (в среднем ${counters.patches ? Math.round(counters.patchBytes / counters.patches) : 0} байт), «перечитай карту» ${counters.stale}. Сдач ${counters.submitted}, решений администратора ${counters.approved}, ответов 409 (ожидаемых) ${counters.expected409}.`,
   "",
   "| Запрос | Всего | Ошибок | p50, мс | p95, мс | p99, мс | макс, мс |",
   "|---|---:|---:|---:|---:|---:|---:|",

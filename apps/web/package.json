@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@lotw/domain": "0.1.0",
+    "fast-json-patch": "^3.1.1",
     "react": "^19",
     "react-dom": "^19",
     "react-router-dom": "^7"

@@ -4,7 +4,9 @@ import { bookName, msg } from "./i18n.js";
 import { hexCorners, vertexKey, BOOKS, localMinutes, PHASE_START } from "@lotw/domain";
 import { loadCityContent } from "./cities.js";
 import { notifyTeam, notifyUser } from "./notify.js";
-import { publish } from "./events.js";
+import { publish, onPublish, TEAM_ONLY, hasTeamSubscribers, pushToTeam } from "./events.js";
+import jsonPatch from "fast-json-patch";
+const { compare } = jsonPatch;
 import { days, rulesOf, type Rules } from "./rules.js";
 
 /**
@@ -529,7 +531,63 @@ export async function revealNode(gameId: string, teamId: string, nodeKey: string
   await ensureFrontier(gameId, teamId);
 }
 
-export async function getTeamMap(gameId: string, teamId: string) {
+/**
+ * Карта команды хранится готовой (решение владельца 24.10: «пусть пересчитывается, когда администратор что-то меняет…
+ * пока ничего не меняется, не нужно пересчитывать»). Считается при первом запросе после изменения и сбрасывается
+ * любым событием игры (publish) — теми же сигналами, по которым обновляются экраны: событие своей команды сбрасывает
+ * её карту, общее событие — карты всех команд партии. Одновременные запросы одной команды ждут один расчёт.
+ * Страховка на случай изменения без события — пересчёт не реже раза в минуту (столько же живёт карта на экране).
+ */
+type TeamMap = Awaited<ReturnType<typeof computeTeamMap>> & { rev: number };
+const MAP_TTL_MS = 60_000;
+let mapRev = 0;
+const mapCache = new Map<string, { gameId: string; at: number; value: Promise<TeamMap>; last: TeamMap | null }>();
+/**
+ * Сброс карт по событию и рассылка изменений (решение владельца 24.10: «пункт 2 тоже делай»): после события карта
+ * команды пересчитывается, разница с прежней отправляется подписчикам команды как JSON Patch (`map-patch`, с номерами
+ * прежней и новой версии); если прежней карты в памяти нет — `map-stale`, и клиент перечитает карту один раз.
+ * События одного действия идут пачкой (сдача → tasks, submissions, journal), поэтому пересчёт откладывается на 300 мс.
+ */
+const pending = new Map<string, { timer: ReturnType<typeof setTimeout>; prev: TeamMap | null }>();
+export function invalidateTeamMaps(gameId: string, teamId?: string): void {
+  const ids = teamId ? [teamId] : [...mapCache].filter(([, e]) => e.gameId === gameId).map(([k]) => k);
+  for (const id of ids) {
+    const entry = mapCache.get(id);
+    mapCache.delete(id);
+    if (!hasTeamSubscribers(gameId, id)) continue;
+    // Пачка событий одного действия: прежняя карта берётся из первого сброса, остальные её не теряют.
+    const was = pending.get(id);
+    if (was) clearTimeout(was.timer);
+    const prev = was?.prev ?? entry?.last ?? null;
+    pending.set(id, { prev, timer: setTimeout(() => { pending.delete(id); void pushMapUpdate(gameId, id, prev); }, 300) });
+  }
+}
+async function pushMapUpdate(gameId: string, teamId: string, prev: TeamMap | null): Promise<void> {
+  try {
+    const next = await getTeamMap(gameId, teamId);
+    if (!prev || prev.rev === next.rev) { if (!prev) pushToTeam(gameId, teamId, "map-stale", { rev: next.rev }); return; }
+    // Тайные дела: ссылки и текст сдачи видит только сдавший — в разнице их нет (сравниваются обезличенные карты).
+    const patch = compare(publicMap(prev), publicMap(next));
+    if (patch.length) pushToTeam(gameId, teamId, "map-patch", { base: prev.rev, rev: next.rev, patch });
+  } catch (e) { console.error("map push failed", e); }
+}
+/** Карта в том виде, в каком её получает клиент (даты — строками, как в JSON), без тайных ссылок и без номера версии. */
+function publicMap(m: TeamMap): Record<string, unknown> {
+  const { rev: _rev, ...rest } = m;
+  return JSON.parse(JSON.stringify({ ...rest, tasks: m.tasks.map((t) => (t.deed.secret ? { ...t, links: [], note: "" } : t)) }));
+}
+onPublish((gameId, ev) => invalidateTeamMaps(gameId, ev.teamId && TEAM_ONLY.has(ev.type) ? ev.teamId : undefined));
+export function getTeamMap(gameId: string, teamId: string): Promise<TeamMap> {
+  const hit = mapCache.get(teamId);
+  if (hit && hit.gameId === gameId && Date.now() - hit.at < MAP_TTL_MS) return hit.value;
+  const entry = { gameId, at: Date.now(), last: hit?.last ?? null, value: undefined as unknown as Promise<TeamMap> };
+  entry.value = computeTeamMap(gameId, teamId).then((m) => { const full = { ...m, rev: ++mapRev }; entry.last = full; return full; });
+  mapCache.set(teamId, entry);
+  entry.value.catch(() => { if (mapCache.get(teamId) === entry) mapCache.delete(teamId); });
+  return entry.value;
+}
+
+async function computeTeamMap(gameId: string, teamId: string) {
   await ensureFrontier(gameId, teamId);
   const [revealedRows, rawTasks, hexes, nodes, edges, teamRow] = await Promise.all([
     prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true, revealedAt: true } }),
