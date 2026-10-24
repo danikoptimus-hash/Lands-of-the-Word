@@ -1,6 +1,6 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { api, ApiError, type MapEdgeDto, type MapHexDto, type MapNodeDto, type StormSlot } from "../lib/api";
+import { api, ApiError, prefetch, type MapEdgeDto, type MapHexDto, type MapNodeDto, type StormSlot } from "../lib/api";
 import { AdminMap, type BattleProgress, type CityProgress, type MapFocus, type TeamProgress } from "./AdminMap";
 import { collectMoves, progressAt, TimelineDock } from "./Timeline";
 import { useCoalesced, useGameEvents } from "../lib/useGameEvents";
@@ -32,7 +32,6 @@ interface GameDto { id: string; name: string; createdById?: string; status: stri
 type Tab = "overview" | "map" | "teams" | "deeds" | "review" | "analytics" | "settings";
 const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "analytics", "settings"];
 /** Аналитика игры грузится отдельным файлом: графики нужны только администратору (решение владельца 23.10). */
-const GameAnalytics = lazy(() => import("./GameAnalytics").then((m) => ({ default: m.GameAnalytics })));
 type Progress = { teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] };
 
 /**
@@ -51,6 +50,8 @@ export function GamePage() {
   const [screenEl, setScreenEl] = useState<HTMLDivElement | null>(null);
 
   const [game, setGame] = useState<GameDto | null>(null);
+  /** Модуль аналитики (графики ECharts) докачивается заранее, в фоне; пока его нет — заглушка. Без React.lazy: тот даже с готовым модулем на миг показывает запасной вид. */
+  const [Analytics, setAnalytics] = useState<ComponentType<{ gameId: string }> | null>(null);
   const [hexes, setHexes] = useState<MapHexDto[]>([]);
   const [nodes, setNodes] = useState<MapNodeDto[]>([]);
   const [edges, setEdges] = useState<MapEdgeDto[]>([]);
@@ -73,6 +74,14 @@ export function GamePage() {
   const moves = useMemo(() => (progress?.startedAt ? collectMoves(progress.teams, progress.cities, progress.startedAt) : []), [progress]);
   const shownCities = useMemo(() => (progress && at ? progress.cities.filter((c) => !c.capturedAt || Date.parse(c.capturedAt) <= at.getTime()) : progress?.cities ?? null), [progress, at]);
   const bump = () => setVersion((v) => v + 1);
+  // Разделы открываются сразу (решение владельца 24.10): их данные запрашиваются заранее вместе со страницей, а код графиков
+  // докачивается в фоне, пока администратор смотрит карту. Открытый раздел всё равно перечитывает своё и тихо обновляется.
+  useEffect(() => {
+    if (!game) return;
+    const started = game.status !== "DRAFT";
+    prefetch([`/api/games/${id}/teams`, `/api/games/${id}/deeds`, ...(started ? [`/api/games/${id}/standings`, `/api/games/${id}/journal`, `/api/games/${id}/activity`, `/api/games/${id}/analytics/pace`] : [])]);
+    if (started && !Analytics) void import("./GameAnalytics").then((m) => setAnalytics(() => m.GameAnalytics)).catch(() => {});
+  }, [id, game?.id, game?.status]); // eslint-disable-line react-hooks/exhaustive-deps
   const load = useCallback(async () => {
     const r = await api<{ game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; observer?: boolean }>(`/api/games/${id}`);
     setObserver(Boolean(r.observer)); setGame(r.game); setDisplayTimeZone((r.game.settings as { rules?: { timeZone?: string } }).rules?.timeZone); setHexes(r.hexes); setNodes(r.nodes); setEdges(r.edges); setStats((s) => s ?? r.game.settings.mapStats ?? null);
@@ -218,7 +227,7 @@ export function GamePage() {
           ) : (
             <div className="card"><EmptyState icon="check" text={draft ? t("Появится после старта игры.") : t("Игра завершена: проверять больше нечего.")} /></div>
           ))}
-          {open === "analytics" && <div key="analytics"><Suspense fallback={<div className="card"><LoadingState /></div>}><GameAnalytics gameId={game.id} /></Suspense></div>}
+          {open === "analytics" && <div key="analytics">{Analytics ? <Analytics gameId={game.id} /> : <div className="card"><LoadingState /></div>}</div>}
           {open === "settings" && (
             <div key="settings">
               <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />

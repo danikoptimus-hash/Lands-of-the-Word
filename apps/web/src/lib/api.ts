@@ -25,6 +25,17 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
+/**
+ * Готовые ответы разделов (решение владельца 24.10: «можем ли сделать как плитка настроек — мгновенно»): страница игры
+ * запрашивает данные разделов заранее, раздел при открытии берёт их из памяти и показывает сразу, а свежий ответ
+ * приходит следом и тихо подменяет цифры. Ключ — адрес запроса; память живёт, пока открыта вкладка.
+ */
+const READY = new Map<string, unknown>();
+export function ready<T>(url: string): T | null { return (READY.get(url) as T | undefined) ?? null; }
+export async function apiReady<T>(url: string): Promise<T> { const r = await api<T>(url); READY.set(url, r); return r; }
+/** Запросить заранее то, чего ещё нет в памяти; ошибки молча (раздел запросит сам при открытии). */
+export function prefetch(urls: string[]): void { for (const u of urls) if (!READY.has(u)) void apiReady(u).catch(() => {}); }
+
 export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean; /** Аватарка (решение владельца 24.10). */ avatarId?: string | null; /** Суперадмин запретил ставить аватарки. */ avatarBlocked?: boolean }
 /** Какие способы входа включены на сервере (GET /api/auth/providers). */
 export interface ProvidersDto { google: boolean }

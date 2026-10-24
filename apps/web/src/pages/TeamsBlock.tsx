@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { api, ApiError, GAME_ROLE_ICON, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type StandingRow, type StandingsDto, type TeamDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, GAME_ROLE_ICON, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type GameRole, type StandingRow, type StandingsDto, type TeamDto } from "../lib/api";
 import { Link } from "react-router-dom";
 import { plural } from "../lib/format";
 import { useUi } from "../lib/ui";
@@ -18,7 +18,7 @@ import { DeedBadgePopup } from "../components/DeedBadge";
 
 /** Вкладка «Команды»: список команд с участниками, приглашения по ссылке, строка добавления снизу. */
 export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, goToSettings, onShowOnMap }: { gameId: string; teamCount: number; status: string; version?: number; onChange?: () => void; goToSettings?: () => void; /** «Посмотреть на карте» у дела на руках участника (просьба владельца 10.10). */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
-  const [teams, setTeams] = useState<TeamDto[] | null>(null);
+  const [teams, setTeams] = useState<TeamDto[] | null>(() => ready<{ teams: TeamDto[] }>(`/api/games/${gameId}/teams`)?.teams ?? null);
   const [loadError, setLoadError] = useState(false);
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +34,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   const [pick, setPick] = useState<string | null>(null);
   /** Положение команд и список участников — один раздел (решение владельца 23.09): строка команды с местом и цифрами,
    * по нажатию раскрываются участники, приглашения и меню. */
-  const [standings, setStandings] = useState<StandingsDto | null>(null);
+  const [standings, setStandings] = useState<StandingsDto | null>(() => (status === "DRAFT" ? null : ready<StandingsDto>(`/api/games/${gameId}/standings`)));
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
@@ -45,8 +45,8 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   const close = () => { setOpen(false); setError(null); };
   const fail = (err: unknown) => notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad");
 
-  const load = useCallback(() => api<{ teams: TeamDto[] }>(`/api/games/${gameId}/teams`).then((r) => { setTeams(r.teams); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
-  useEffect(() => { if (status === "DRAFT") { setStandings(null); return; } api<StandingsDto>(`/api/games/${gameId}/standings`).then(setStandings).catch(() => {}); }, [gameId, status, version]);
+  const load = useCallback(() => apiReady<{ teams: TeamDto[] }>(`/api/games/${gameId}/teams`).then((r) => { setTeams(r.teams); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
+  useEffect(() => { if (status === "DRAFT") { setStandings(null); return; } apiReady<StandingsDto>(`/api/games/${gameId}/standings`).then(setStandings).catch(() => {}); }, [gameId, status, version]);
   const reload = async () => { await load(); onChange?.(); };
   useEffect(() => { void load(); }, [load, teamCount, version]);
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, PROOF_LABEL } from "../lib/api";
+import { api, ApiError, apiReady, ready, PROOF_LABEL } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
@@ -33,10 +33,12 @@ function withBook(text: string) {
 
 /** mode — раздел без переключателя: «roads» в разделе «Дела», «quarry» в листе Каменоломни у администратора (решение владельца 05.10). */
 export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }: { gameId: string; version?: number; onChange?: () => void; mode?: "roads" | "quarry"; /** «Посмотреть на карте» у стороны человека из списка (просьба владельца 21.10). */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
-  const [deeds, setDeeds] = useState<DeedDto[] | null>(null);
+  type DeedsResp = { deeds: DeedDto[]; directions: string[]; recommendedMin: number };
+  const first = ready<DeedsResp>(`/api/games/${gameId}/deeds`);
+  const [deeds, setDeeds] = useState<DeedDto[] | null>(first?.deeds ?? null);
   const [loadError, setLoadError] = useState(false);
-  const [directions, setDirections] = useState<string[]>([]);
-  const [recommended, setRecommended] = useState(0);
+  const [directions, setDirections] = useState<string[]>(first?.directions ?? []);
+  const [recommended, setRecommended] = useState(first?.recommendedMin ?? 0);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { confirm, notify } = useUi();
@@ -52,7 +54,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
   const toggle = (id: string) => setExpanded((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const bookName = (c: string) => BOOKS.find((b) => b.code === c)?.nameRu ?? c;
 
-  const load = useCallback(() => api<{ deeds: DeedDto[]; directions: string[]; recommendedMin: number }>(`/api/games/${gameId}/deeds`)
+  const load = useCallback(() => apiReady<DeedsResp>(`/api/games/${gameId}/deeds`)
     .then((r) => { setDeeds(r.deeds); setDirections(r.directions); setRecommended(r.recommendedMin); setLoadError(false); })
     .catch(() => setLoadError(true)), [gameId]);
   const reload = async () => { await load(); onChange?.(); };

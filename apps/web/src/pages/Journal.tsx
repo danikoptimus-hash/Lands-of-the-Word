@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type ActivityRowDto, type FeedItemDto, type JournalKind, type PeaceTeamDto, type SeasonBookDto, type ServiceStatsDto, type TopDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, type ActivityRowDto, type FeedItemDto, type JournalKind, type PeaceTeamDto, type SeasonBookDto, type ServiceStatsDto, type TopDto } from "../lib/api";
 import { getLocale, t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
 import { useUi } from "../lib/ui";
@@ -162,8 +162,8 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
 
 /** Администратор: доска активности участников. */
 export function ActivityBoard({ gameId, version }: { gameId: string; version: number }) {
-  const [rows, setRows] = useState<ActivityRowDto[] | null>(null);
-  useEffect(() => { api<{ rows: ActivityRowDto[] }>(`/api/games/${gameId}/activity`).then((r) => setRows(r.rows)).catch(() => {}); }, [gameId, version]);
+  const [rows, setRows] = useState<ActivityRowDto[] | null>(() => ready<{ rows: ActivityRowDto[] }>(`/api/games/${gameId}/activity`)?.rows ?? null);
+  useEffect(() => { apiReady<{ rows: ActivityRowDto[] }>(`/api/games/${gameId}/activity`).then((r) => setRows(r.rows)).catch(() => {}); }, [gameId, version]);
   if (!rows) return <LoadingState rows={2} />;
   if (rows.length === 0) return <EmptyState inline icon="users" text={t("Участников пока нет.")} />;
   return (
@@ -189,10 +189,12 @@ export function ActivityBoard({ gameId, version }: { gameId: string; version: nu
 /** Администратор: журнал событий и кнопка летописи. */
 export function JournalAdmin({ gameId, version, active, onShowOnMap }: { gameId: string; version: number; active: boolean; /** Кнопка карты в отчёте по делу (просьба владельца 20.10): карта центрируется на стороне дела. */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   const { notify, confirm } = useUi();
-  const [items, setItems] = useState<Array<FeedItemDto & { teamId: string | null }> | null>(null);
-  const [teams, setTeams] = useState<Array<{ id: string; name: string; color: string; avatarId?: string | null }>>([]);
+  type JournalResp = { items: Array<FeedItemDto & { teamId: string | null }>; teams: Array<{ id: string; name: string; color: string; avatarId?: string | null }> };
+  const first = ready<JournalResp>(`/api/games/${gameId}/journal`);
+  const [items, setItems] = useState<Array<FeedItemDto & { teamId: string | null }> | null>(first?.items ?? null);
+  const [teams, setTeams] = useState<Array<{ id: string; name: string; color: string; avatarId?: string | null }>>(first?.teams ?? []);
   const [busy, setBusy] = useState(false);
-  const load = useCallback(() => api<{ items: Array<FeedItemDto & { teamId: string | null }>; teams: Array<{ id: string; name: string; color: string; avatarId?: string | null }> }>(`/api/games/${gameId}/journal`).then((r) => { setItems(r.items); setTeams(r.teams); }).catch(() => {}), [gameId]);
+  const load = useCallback(() => apiReady<JournalResp>(`/api/games/${gameId}/journal`).then((r) => { setItems(r.items); setTeams(r.teams); }).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load, version]);
   async function chronicle() {
     if (!(await confirm(t("Летопись за последние 7 дней уйдёт всем участникам всех команд письмом и уведомлением."), { title: t("Отправить летопись сейчас?"), okLabel: t("Отправить") }))) return;
