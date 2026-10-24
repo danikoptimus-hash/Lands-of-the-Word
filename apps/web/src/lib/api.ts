@@ -3,6 +3,16 @@ export class ApiError extends Error {
   constructor(public status: number, message: string, public issues?: Array<{ path: string; message: string }>) { super(message); }
 }
 
+/** Загрузка файла (аватарка, решение владельца 24.10): multipart, без JSON-заголовка. */
+export async function apiUpload<T = unknown>(url: string, file: Blob, name = "file"): Promise<T> {
+  const fd = new FormData();
+  fd.append("file", file, name);
+  const res = await fetch(url, { method: "POST", body: fd, credentials: "same-origin" });
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!res.ok) throw new ApiError(res.status, data.message ?? "Ошибка запроса", data.issues);
+  return data as T;
+}
 export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -15,7 +25,7 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
   return data as T;
 }
 
-export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean }
+export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean; /** Аватарка (решение владельца 24.10). */ avatarId?: string | null; /** Суперадмин запретил ставить аватарки. */ avatarBlocked?: boolean }
 /** Какие способы входа включены на сервере (GET /api/auth/providers). */
 export interface ProvidersDto { google: boolean }
 export interface GameSummary { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; createdAt: string; createdById?: string }
@@ -25,8 +35,8 @@ export interface MapEdgeDto { aKey: string; bKey: string }
 
 export type TeamRole = "CAPTAIN" | "DEPUTY" | "MEMBER";
 export type GameRole = "NONE" | "SCOUT" | "PROPHET" | "AMBASSADOR" | "CHRONICLER" | "HELMSMAN" | "WARRIOR";
-export interface MemberDto { role: TeamRole; gameRole: GameRole; pendingRole?: GameRole | null; /** Когда капитан сможет снова сменить роль этому участнику (null — хоть сейчас). */ roleChangeAvailableAt?: string | null; /** Администратор закрыл взятие дел до этой даты (решение владельца 21.10); null — открыто. */ deedsFrozenUntil?: string | null; /** Причина заморозки (только администратору). */ deedsFrozenReason?: string | null; joinedAt: string; user: { id: string; nickname: string; displayName: string | null }; /** Лимит дел в сутки этого участника (null — лимита нет): взято за сутки и когда можно взять следующее. Видит вся команда. */ deedLimit?: { max: number; taken: number; nextAt: number | null } | null; /** Дела, которые участник сейчас держит (взятые, на проверке, возвращённые); видят администратор и вся команда. */ activeDeeds?: Array<{ id: string; title: string; status: string; takenAt: string | null; submittedAt: string | null }> }
-export interface TeamDto { id: string; index: number; name: string; color: string; startNodeKey: string | null; status?: string; members: MemberDto[]; /** Тёсаные камни Каменоломни. */ stones?: number }
+export interface MemberDto { role: TeamRole; gameRole: GameRole; pendingRole?: GameRole | null; /** Когда капитан сможет снова сменить роль этому участнику (null — хоть сейчас). */ roleChangeAvailableAt?: string | null; /** Администратор закрыл взятие дел до этой даты (решение владельца 21.10); null — открыто. */ deedsFrozenUntil?: string | null; /** Причина заморозки (только администратору). */ deedsFrozenReason?: string | null; joinedAt: string; user: { id: string; nickname: string; displayName: string | null; avatarId?: string | null }; /** Лимит дел в сутки этого участника (null — лимита нет): взято за сутки и когда можно взять следующее. Видит вся команда. */ deedLimit?: { max: number; taken: number; nextAt: number | null } | null; /** Дела, которые участник сейчас держит (взятые, на проверке, возвращённые); видят администратор и вся команда. */ activeDeeds?: Array<{ id: string; title: string; status: string; takenAt: string | null; submittedAt: string | null }> }
+export interface TeamDto { id: string; index: number; name: string; color: string; /** Аватарка команды (ставит капитан). */ avatarId?: string | null; startNodeKey: string | null; status?: string; members: MemberDto[]; /** Тёсаные камни Каменоломни. */ stones?: number }
 export interface MyTeamDto { role: TeamRole; gameRole: GameRole; team: { id: string; name: string; color: string }; game: { id: string; name: string; status: string } }
 
 /** Значок роли (общий для состава команды и блока «Команды» администратора). */
@@ -43,7 +53,7 @@ export interface MapMarkDto { id: string; q: number; r: number; qf: number; rf: 
 /** Отчёт о визите к адресату конверта: в тот же день, не меньше половины команды, фото ссылкой; иначе город свободен. */
 export type VisitStatus = "PENDING" | "SUBMITTED" | "APPROVED" | "REJECTED" | "EXPIRED";
 export interface VisitDto { id: string; nodeKey: string; bookCode: string; status: VisitStatus; dueAt: string; members: string[]; text: string; links: string[]; adminComment: string; submittedAt: string | null; decidedAt: string | null; createdAt: string; people: Array<{ id: string; name: string }>; need: number }
-export interface MyMapDto { status: string; /** Версия карты команды на сервере: изменения приходят разницей от неё (решение владельца 24.10). */ rev?: number; /** Открытые отчёты о визитах команды. */ visits?: Array<{ id: string; nodeKey: string; bookCode: string; status: VisitStatus; dueAt: string }>; /** Администратор закрыл мне взятие дел до этой даты. */ deedsFrozenUntil?: string | null; deedsFrozenReason?: string | null; /** Начало игры — левый край ползунка истории (решение владельца 05.10). */ startedAt?: string | null; daytime?: DaytimeDto; team: { id: string; name: string; color: string; startNodeKey?: string | null; /** Тёсаные камни Каменоломни (решение владельца 04.10). */ stones?: number }; hexes: MapHexDto[]; revealed: MapNodeDto[]; edges: MapEdgeDto[]; tasks: EdgeTaskDto[]; cities: MapCityDto[]; peeked: Array<{ key: string; kind: string }>; /** Край тумана: ещё не открытые углы освещённых гексов (решение владельца 02.10) — точки, которые разведчик может разведать. */ frontier?: string[]; /** Метки команды на гексах: видит вся команда (решение владельца 22.09). */ marks?: MapMarkDto[]; /** Чужие пройденные стороны там, где открыт туман. */ foreign?: Array<{ aKey: string; bKey: string; /** Морская сторона (высадка). */ sea?: boolean; teamIndex: number; name?: string; color: string }>; /** Только в ответе администратору («глазами команды»): участники, чтобы подписать, кто взял дело. */ members?: Array<{ id: string; nickname: string; displayName: string | null }>; /** Суточный полёт клина птиц к ближайшему неоткрытому городу команды: узел и момент (мс сервера), раз в сутки в своё случайное время. */ dailyBird?: DailyBirdDto | null; /** Для живности: семя мира и часы сервера (мс). */ gameId?: string; now?: number; /** Лимит дел в сутки для текущего участника (null — лимита нет): взято за последние 24 часа и когда освободится место. */ deedLimit?: { max: number; taken: number; nextAt: number | null } | null }
+export interface MyMapDto { status: string; /** Версия карты команды на сервере: изменения приходят разницей от неё (решение владельца 24.10). */ rev?: number; /** Открытые отчёты о визитах команды. */ visits?: Array<{ id: string; nodeKey: string; bookCode: string; status: VisitStatus; dueAt: string }>; /** Администратор закрыл мне взятие дел до этой даты. */ deedsFrozenUntil?: string | null; deedsFrozenReason?: string | null; /** Начало игры — левый край ползунка истории (решение владельца 05.10). */ startedAt?: string | null; daytime?: DaytimeDto; team: { id: string; name: string; color: string; avatarId?: string | null; startNodeKey?: string | null; /** Тёсаные камни Каменоломни (решение владельца 04.10). */ stones?: number }; hexes: MapHexDto[]; revealed: MapNodeDto[]; edges: MapEdgeDto[]; tasks: EdgeTaskDto[]; cities: MapCityDto[]; peeked: Array<{ key: string; kind: string }>; /** Край тумана: ещё не открытые углы освещённых гексов (решение владельца 02.10) — точки, которые разведчик может разведать. */ frontier?: string[]; /** Метки команды на гексах: видит вся команда (решение владельца 22.09). */ marks?: MapMarkDto[]; /** Чужие пройденные стороны там, где открыт туман. */ foreign?: Array<{ aKey: string; bKey: string; /** Морская сторона (высадка). */ sea?: boolean; teamIndex: number; name?: string; color: string }>; /** Только в ответе администратору («глазами команды»): участники, чтобы подписать, кто взял дело. */ members?: Array<{ id: string; nickname: string; displayName: string | null }>; /** Суточный полёт клина птиц к ближайшему неоткрытому городу команды: узел и момент (мс сервера), раз в сутки в своё случайное время. */ dailyBird?: DailyBirdDto | null; /** Для живности: семя мира и часы сервера (мс). */ gameId?: string; now?: number; /** Лимит дел в сутки для текущего участника (null — лимита нет): взято за последние 24 часа и когда освободится место. */ deedLimit?: { max: number; taken: number; nextAt: number | null } | null }
 /** Полёт клина: момент всегда, узел города — только в окне полёта (сервер отдаёт его за минуту до старта и пять минут после). */
 export interface DailyBirdDto { key?: string; at: number }
 /** Время суток игры (решение владельца 03.10): фаза правил, пояс и часы сервера. */
@@ -134,7 +144,7 @@ export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { get QUEUED() 
 
 /** Итоги игры: положение команд и победитель. */
 export interface CityOnPath { nodeKey: string; bookCode: string; name: string; current: boolean; isCapital: boolean; at: string }
-export interface StandingRow { teamId: string; name: string; color: string; index: number; status: string; cities: number; capitals: number; citiesOnPath: CityOnPath[]; deedsApproved: number; nodesRevealed: number; battlesWon: number; battlesLost: number; battlesRepelled: number }
+export interface StandingRow { teamId: string; name: string; color: string; avatarId?: string | null; index: number; status: string; cities: number; capitals: number; citiesOnPath: CityOnPath[]; deedsApproved: number; nodesRevealed: number; battlesWon: number; battlesLost: number; battlesRepelled: number }
 export interface StandingsDto { status: string; finishedAt: string | null; winnerTeamId: string | null; finishReason: string | null; endsAt: string | null; standings: StandingRow[]; leaderTeamId: string | null }
 
 /** Дипломатия: запрос прохода через чужой город. */

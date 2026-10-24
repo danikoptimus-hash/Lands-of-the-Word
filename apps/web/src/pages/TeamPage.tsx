@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
@@ -26,6 +26,8 @@ import { Help } from "../components/Help";
 import { DeedBadgePopup, untilText } from "../components/DeedBadge";
 import { FeedSection, MyServiceSection } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
+import { UserAvatar } from "../components/UserAvatar";
+import { AvatarUploader } from "../components/AvatarUploader";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 
 /** Положение команд (меню и итоги): строка раскрывается, если есть испытания или города на пути. */
@@ -61,7 +63,7 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
             <span className="rank">{st.teamId === standings.winnerTeamId ? <Icon name="trophy" /> : i + 1}</span>
             <div className="body">
               <div className="name">
-                <TeamAvatar name={st.name} color={st.color} size="sm" withName />
+                <TeamAvatar name={st.name} color={st.color} avatarId={st.avatarId} size="sm" withName />
                 {st.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : st.teamId === standings.winnerTeamId ? <Chip tone="ok" icon="trophy">{t("победитель")}</Chip> : st.teamId === teamId ? <Chip tone="accent">{t("мы")}</Chip> : null}
                 {pc?.state === "peace" && <Chip tone="ok" icon="handshake">{peaceTerm(pc) ? `${t("мир")} ${peaceTerm(pc)}` : t("мир")}</Chip>}
                 {pc?.state === "offered" && <Chip tone="info" icon="handshake">{peaceTerm(pc) ? `${t("мир предложен")} ${peaceTerm(pc)}` : t("мир предложен")}</Chip>}
@@ -328,6 +330,8 @@ export function TeamPage() {
 
   const me = team?.members.find((m) => m.user.id === user?.id);
   const isCaptain = me?.role === "CAPTAIN";
+  /** Фото команды ставит капитан (решение владельца 24.10): блок над составом. */
+  const avatarEditor = team && isCaptain ? <AvatarUploader preview={<TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />} url={`/api/games/${id}/teams/${team.id}/avatar`} hasAvatar={Boolean(team.avatarId)} blocked={user?.avatarBlocked} onChanged={loadTeam} hint={t("Фото команды ставит капитан. Оно должно быть уместным: каждое проверяется, за неуместное фото — бан.")} /> : undefined;
   /** Капитан или заместитель: вызов, ответ, столица. */
   const isLeader = isCaptain || me?.role === "DEPUTY";
   // Место высадки выбирает кормчий, капитан и команда советуют (решение владельца 03.10); без кормчего в команде — капитан или заместитель.
@@ -451,7 +455,7 @@ export function TeamPage() {
       <main className="container narrow">
         <Back to={`/games/${id}`} label={t("К странице игры")} />
         <div className="card">
-          <h1 className="row"><TeamAvatar name={team.name} color={team.color} size="lg" />{team.name}</h1>
+          <h1 className="row"><TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />{team.name}</h1>
           <p className="muted mt-3">{t("Вы администратор этой игры, а не участник команды. Карта команды с туманом видна только её участникам; вся карта и ход всех команд — на странице игры.")}</p>
           <div className="actions"><Link className="btn" to={`/games/${id}`}><Icon name="map" />{t("К странице игры")}</Link></div>
         </div>
@@ -463,7 +467,7 @@ export function TeamPage() {
       <main className="container narrow bare">
         <Back to="/" label={t("Мои игры")} />
         <div className="card">
-          <h1 className="row"><TeamAvatar name={team.name} color={team.color} size="lg" />{team.name}</h1>
+          <h1 className="row"><TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />{team.name}</h1>
           <div className="mt-3">{mapError ? <ErrorState text={mapError} onRetry={() => void loadMap()} /> : <LoadingState rows={3} />}</div>
         </div>
       </main>
@@ -475,7 +479,7 @@ export function TeamPage() {
       <main className="container narrow bare">
         <Back to="/" label={t("Мои игры")} />
         <div className="card">
-          <h1 className="row"><TeamAvatar name={team.name} color={team.color} size="lg" />{team.name}</h1>
+          <h1 className="row"><TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />{team.name}</h1>
           {gameName && <p className="muted mt-1">{gameName}</p>}
           {map.status === "FINISHED" ? (
             <>
@@ -496,7 +500,7 @@ export function TeamPage() {
             <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} roster={<Roster embedded team={team} isCaptain={false} onRole={setGameRole} onDeputy={setDeputy} />} />
           </div>
         )}
-        {map.status !== "FINISHED" && <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} /></div>}
+        {map.status !== "FINISHED" && <div className="card"><Roster avatarEditor={avatarEditor} team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} /></div>}
       </main>
     );
   }
@@ -572,7 +576,7 @@ export function TeamPage() {
         <aside className={"side-menu" + (wide ? " with-rail" : "")} role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")}>
           <div className="side-body">
           <div className="side-head" style={{ ["--team" as string]: team.color }}>
-            <TeamAvatar name={team.name} color={team.color} size="lg" />
+            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />
             <div className="grow"><div className="side-name">{team.name}</div><div className="muted small">{gameName || t("Игра")}{isCaptain ? ` · ${t("вы капитан")}` : ""}</div></div>
             {(map?.team.stones ?? 0) > 0 && <button type="button" className="chip-btn" title={t("Тёсаные камни Каменоломни: один камень мостит одну дорогу")} aria-label={t("Камней: {n}", { n: map?.team.stones ?? 0 })} onClick={() => { setQuarryOpen(true); setMenu(false); }}><Chip tone="accent" icon="stone">{map?.team.stones}</Chip></button>}
             <button type="button" className="ghost icon" onClick={closeMenu} aria-label={t("Закрыть")}><Icon name="x" /></button>
@@ -685,7 +689,7 @@ export function TeamPage() {
           )}
           {menuView === "standings" && (
             <section className="section">
-            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />
+            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster avatarEditor={avatarEditor} onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />
 
             {peaceOffer && (
               <Sheet size="sm" title={t("Предложить мир команде «{team}»", { team: peaceOffer.team.name })} onClose={() => setPeaceOffer(null)}>
@@ -938,7 +942,7 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
 
 /** Состав команды: роль — пилюля с объяснением по нажатию; капитан назначает роли выбором. */
 /** embedded — внутри строки таблицы команд: вместо заголовка раздела — строка «Состав · N». */
-function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl, onShowOnMap }: { /** «Посмотреть на карте» у дела на руках участника (просьба владельца 10.10). */ onShowOnMap?: (taskId: string) => void; team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
+function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl, onShowOnMap, avatarEditor }: { /** Блок «фото команды» капитана над составом (решение владельца 24.10). */ avatarEditor?: ReactNode; /** «Посмотреть на карте» у дела на руках участника (просьба владельца 10.10). */ onShowOnMap?: (taskId: string) => void; team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
   // Таймеры «следующее дело через…» тикают раз в полминуты.
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i); }, []);
@@ -955,6 +959,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
         ? <div className="meta roster-head"><Icon name="users" /><span>{t("Состав")} · {team.members.length}</span>{invite}</div>
         : <div className="roster-title"><h2><Icon name="users" />{team.name}<span className="count">{team.members.length}</span></h2>{invite}</div>}
       {inviteUrl && <p className="hint invite-fallback"><a href={inviteUrl}>{inviteUrl}</a></p>}
+      {avatarEditor}
       {isCaptain && waiting.length > 0 && <p className="hint">{t("Роль недавно менялась, сменить снова: {list}. Участникам без роли — сразу.", { list: waiting.map((m) => `${m.user.displayName ?? m.user.nickname} — ${t("с {d}", { d: fmtDate(m.roleChangeAvailableAt!, { time: false }) })}`).join(", ") })}</p>}
       <ul className="list roster">
         {team.members.map((m) => {
@@ -967,7 +972,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
           return (
             <li key={m.user.id} className={picking ? "picking" : undefined}>
               <div className="main">
-                <div className="person"><span className="avatar">{name.slice(0, 1).toUpperCase()}</span><span className="name">{name}</span></div>
+                <div className="person"><UserAvatar name={name} avatarId={m.user.avatarId} /><span className="name">{name}</span></div>
                 {shown && r.hint() && <p className="hint">{r.hint()}</p>}
               </div>
               <div className="side">

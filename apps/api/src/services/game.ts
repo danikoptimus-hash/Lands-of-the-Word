@@ -29,7 +29,7 @@ export async function standings(gameId: string): Promise<Standing[]> {
     prisma.team.findMany({
       where: { gameId }, orderBy: { index: "asc" },
       select: {
-        id: true, name: true, color: true, index: true, status: true,
+        id: true, name: true, color: true, index: true, status: true, avatarId: true,
         cityStates: { where: { firstCapturedAt: { not: null } }, select: { nodeKey: true, capturedAt: true, firstCapturedAt: true, isCapital: true } },
         _count: { select: { nodeStates: true, edgeTasks: { where: { status: "APPROVED", paved: false } } } },
       },
@@ -43,7 +43,7 @@ export async function standings(gameId: string): Promise<Standing[]> {
     .map((t) => {
       const current = t.cityStates.filter((c) => c.capturedAt);
       return {
-        teamId: t.id, name: t.name, color: t.color, index: t.index, status: t.status,
+        teamId: t.id, name: t.name, color: t.color, index: t.index, status: t.status, avatarId: t.avatarId,
         cities: current.length, capitals: current.filter((c) => c.isCapital).length,
         citiesOnPath: t.cityStates
           .map((c) => ({ nodeKey: c.nodeKey, bookCode: bookOf.get(c.nodeKey) ?? "", name: bookName(bookOf.get(c.nodeKey) ?? ""), current: c.capturedAt != null, isCapital: c.isCapital, at: (c.firstCapturedAt ?? new Date()).toISOString() }))

@@ -11,6 +11,8 @@ import { Chip } from "../components/Chip";
 import { CopyField } from "../components/CopyField";
 import { Help } from "../components/Help";
 import { PushToggle } from "../components/PushToggle";
+import { AvatarUploader } from "../components/AvatarUploader";
+import { UserAvatar } from "../components/UserAvatar";
 import { errorText } from "./LoginPage";
 
 /** Аккаунт: имя в команде, почта, язык; смена пароля; уведомления. Никнейм не меняется. У каждой формы своя ошибка. */
@@ -48,6 +50,11 @@ export function AccountPage() {
       <div className="page-head">
         <h1><span className="ico"><Icon name="user" /></span>{t("Аккаунт")}</h1>
         {user.platformRole === "SUPERADMIN" && <Chip tone="accent" icon="star">{t("суперадмин")}</Chip>}
+      </div>
+
+      <div className="card">
+        <h2><Icon name="camera" />{t("Фото")}</h2>
+        <AvatarUploader preview={<UserAvatar name={user.displayName || user.nickname} avatarId={user.avatarId} size="lg" />} url="/api/auth/me/avatar" hasAvatar={Boolean(user.avatarId)} blocked={user.avatarBlocked} onChanged={refresh} />
       </div>
 
       <div className="card">

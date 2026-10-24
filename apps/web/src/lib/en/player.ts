@@ -487,4 +487,8 @@ export const PLAYER: Record<string, string> = {
   "Отчёт о визите · {city}": "Visit report · {city}",
   "{user} сдал(а) отчёт о визите к адресату города {book}": "{user} submitted the visit report for the recipient of {book}", "Отчёт команды «{team}» о визите к адресату города {book} принят": "Team “{team}”’s visit report for the recipient of {book} was accepted", "Отчёт команды «{team}» о визите к адресату города {book} не принят: город свободен": "Team “{team}”’s visit report for the recipient of {book} was not accepted: the city is free", "Команда «{team}» не сдала отчёт о визите к адресату города {book} в тот же день: город свободен": "Team “{team}” did not submit the visit report for the recipient of {book} the same day: the city is free",
   "На кого записать дело": "Record the deed to", "кто делал: идёт в его лимит": "who did it: counts toward their limit",
+  // Аватарки (24.10) "Поставить фото": "Set photo", "Заменить фото": "Replace photo", "Убрать": "Remove", "Фото поставлено": "Photo set", "Фото убрано": "Photo removed",
+  "Фото должно быть уместным. Каждое проверяется; за неуместное фото — бан.": "The photo must be appropriate. Every photo is checked; an inappropriate one means a ban.",
+  "Фото команды ставит капитан. Оно должно быть уместным: каждое проверяется, за неуместное фото — бан.": "The team photo is set by the captain. It must be appropriate: every photo is checked, an inappropriate one means a ban.",
+  "Загрузка фото вам закрыта администратором платформы.": "Photo uploads are closed for you by the platform administrator.",
 };

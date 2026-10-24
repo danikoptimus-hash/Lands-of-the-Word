@@ -28,6 +28,9 @@ import { uiMetricRoutes } from "./routes/uiMetrics.js";
 import { supportRoutes } from "./routes/support.js";
 import { recordResponse } from "./services/stats.js";
 import { eventRoutes } from "./routes/events.js";
+import { avatarRoutes } from "./routes/avatars.js";
+import { initModeration } from "./services/avatars.js";
+import multipart from "@fastify/multipart";
 import { journalRoutes } from "./routes/journal.js";
 import { quarryRoutes } from "./routes/quarry.js";
 import { tradeRoutes } from "./routes/trades.js";
@@ -50,6 +53,9 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   initPush(config.PUBLIC_URL, config.NODE_ENV, (e, msg) => app.log.error(e, msg));
 
   await app.register(cookie, { secret: config.SESSION_SECRET });
+  // Загрузка аватарок (решение владельца 24.10): один файл до 6 МБ, остальное — JSON.
+  await app.register(multipart, { limits: { fileSize: 6 * 1024 * 1024, files: 1, fields: 5 } });
+  initModeration(config.OPENAI_API_KEY);
   await app.register(rateLimit, { global: false });
   app.addHook("preHandler", attachUser);
   // Время ответа и ошибки для дашборда суперадмина (только /api, без содержимого запросов).
@@ -94,6 +100,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
     app.addHook("onClose", async () => clearInterval(timer));
   }
   await app.register(eventRoutes);
+  await app.register(avatarRoutes);
 
   // Раздача собранного веб-клиента (в продакшене); все не-API пути отдают index.html (SPA).
   if (config.WEB_DIST) {

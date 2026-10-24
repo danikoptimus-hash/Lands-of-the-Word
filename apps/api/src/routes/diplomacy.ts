@@ -16,7 +16,7 @@ import { BOOKS, hexCorners, parseVertexKey, vertexHexes, vertexKey } from "@lotw
 import { journal } from "../services/journal.js";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
-const teamSelect = { select: { id: true, name: true, color: true } } as const;
+const teamSelect = { select: { id: true, name: true, color: true, avatarId: true } } as const;
 
 /** Кто говорит от команды с другими командами: посол, если назначен, иначе капитан. */
 async function canSpeak(teamId: string, userId: string): Promise<{ ok: boolean; why: string }> {

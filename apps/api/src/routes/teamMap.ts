@@ -116,7 +116,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const deedsFrozenUntil = m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenUntil : null;
     // Открытые отчёты о визитах (решение владельца 22.10): команде — метка на городе и пункт «требует внимания».
     const visits = (await prisma.cityVisit.findMany({ where: { teamId: m.team.id, status: { in: ["PENDING", "SUBMITTED"] } }, select: { id: true, nodeKey: true, bookCode: true, status: true, dueAt: true } })).filter((v) => v.status !== "PENDING" || v.dueAt.getTime() > Date.now());
-    return { status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, startNodeKey: m.team.startNodeKey, stones: (await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } })).stones }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    return { status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, stones: (await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } })).stones }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */

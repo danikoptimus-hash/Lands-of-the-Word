@@ -36,7 +36,7 @@ export function Layout() {
           {user && (
             <ActionMenu
               label={t("Меню пользователя")}
-              trigger={<button type="button" className="user-menu"><span className="avatar">{name.slice(0, 1).toUpperCase()}{openSupport > 0 && <span className="user-badge" aria-label={t("Открытых обращений: {n}", { n: openSupport })}>{openSupport}</span>}</span><span className="name">{name}</span><Icon name="chevron-down" className="i-sm" /></button>}
+              trigger={<button type="button" className="user-menu"><span className={"avatar" + (user.avatarId ? " photo" : "")}>{user.avatarId ? <img src={`/api/avatars/${user.avatarId}`} alt="" /> : name.slice(0, 1).toUpperCase()}{openSupport > 0 && <span className="user-badge" aria-label={t("Открытых обращений: {n}", { n: openSupport })}>{openSupport}</span>}</span><span className="name">{name}</span><Icon name="chevron-down" className="i-sm" /></button>}
               items={[
                 { label: others.length ? `${t("Аккаунт")} · ${name}` : t("Аккаунт"), icon: "user", onSelect: () => navigate("/account") },
                 ...(superadmin ? [{ label: t("Все игры"), icon: "map", onSelect: () => navigate("/admin/games") }, { label: t("Аналитика"), icon: "eye", onSelect: () => navigate("/admin") }, { label: t("Обращения"), icon: "send", badge: openSupport, onSelect: () => navigate("/admin/support") }] : []),

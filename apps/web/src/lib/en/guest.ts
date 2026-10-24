@@ -76,4 +76,5 @@ export const GUEST: Record<string, string> = {
   "Нужна для восстановления пароля и уведомлений.": "Needed for password recovery and notifications.",
   "Для писем и восстановления пароля. Новую почту подтвердите по ссылке из письма.": "For e-mails and password recovery. Confirm a new e-mail via the link we send.",
   "Ссылка для сброса пароля": "Password reset link",
+  "Единственное исключение — аватарка: если вы поставили фото себе или команде, мы храним его уменьшенную копию без метаданных и показываем только участникам игры после входа. При загрузке фото проверяется на уместность сервисом OpenAI; больше нигде оно не используется. Убрать фото можно в любой момент.": "The one exception is the avatar: if you set a photo for yourself or your team, we keep a reduced copy without metadata and show it only to game participants after signing in. On upload the photo is checked for appropriateness by OpenAI; it is used nowhere else. You can remove the photo at any time.",
 };

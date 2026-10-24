@@ -38,7 +38,7 @@ export async function expirePeaces(gameId?: string): Promise<number> {
 export async function peaceView(gameId: string, teamId: string) {
   await expirePeaces(gameId);
   const [teams, rows] = await Promise.all([
-    prisma.team.findMany({ where: { gameId, NOT: { id: teamId } }, select: { id: true, name: true, color: true, status: true }, orderBy: { index: "asc" } }),
+    prisma.team.findMany({ where: { gameId, NOT: { id: teamId } }, select: { id: true, name: true, color: true, status: true, avatarId: true }, orderBy: { index: "asc" } }),
     prisma.peace.findMany({ where: { gameId, status: { in: ["PROPOSED", "ACTIVE"] }, OR: [{ fromId: teamId }, { toId: teamId }] }, orderBy: { createdAt: "desc" } }),
   ]);
   return teams.map((t) => {

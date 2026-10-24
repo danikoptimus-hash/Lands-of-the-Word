@@ -25,7 +25,7 @@ const entryBody = z.object({
 const passageBody = z.object({ from: z.string().trim().min(3).max(12), to: z.string().trim().min(3).max(12) });
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
 
-const teamSelect = { select: { id: true, index: true, name: true, color: true } } as const;
+const teamSelect = { select: { id: true, index: true, name: true, color: true, avatarId: true } } as const;
 const include = { entries: { orderBy: { createdAt: "asc" as const } }, attacker: teamSelect, defender: teamSelect, allies: true } as const;
 type TeamLite = { id: string; name: string; color: string; index: number };
 type AllianceRow = { id: string; victimId: string; allyId: string; status: "PROPOSED" | "ACTIVE" | "DECLINED" };

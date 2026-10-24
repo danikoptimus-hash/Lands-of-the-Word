@@ -243,4 +243,8 @@ export const ADMIN: Record<string, string> = {
   "Когда все города карты будут у кого-то из команд. Сплошная линия — взятые города по дням. Точечная — логистическая кривая, подобранная по факту с потолком в число городов.": "When every city on the map belongs to some team. Solid line — cities taken by day. Dotted — a logistic curve fitted to the actual data with the number of cities as the ceiling.",
   "Города, накопительно: факт и прогноз": "Cities, cumulative: actual and forecast", "Дел в день": "Deeds per day", "Принятые администратором дела за каждый день партии: дела на сторонах и общие дела Каменоломни. Столбик — день, цвета — команды. Пунктир — прямая тренда по полным дням для включённых в легенде команд.": "Deeds the administrator approved on each day of the game: side deeds and shared Quarry deeds. A bar is a day, colours are teams. Dashed — a trend line over full days for the teams enabled in the legend.", "тренд": "trend",
   "городов взято": "cities taken", "городов в сутки": "cities per day", "после разгона, с {d}": "after ramp-up, since {d}", "дел в сутки, все команды": "deeds per day, all teams", "уже": "done",
+  // Фото (суперадмин, 24.10)
+  "последние {n}": "latest {n}", "Аватарок пока нет.": "No avatars yet.", "без владельца": "no owner", "команда": "team", "поставил(а)": "set by",
+  "проверка: чисто": "check: clean", "запрет": "banned", "Убрать и запретить": "Remove and ban", "Снять запрет": "Lift ban", "Запрет снят": "Ban lifted",
+  "Убрать фото и запретить загрузившему ставить аватарки?": "Remove the photo and ban the uploader from setting avatars?", "Убрать фото?": "Remove the photo?",
 };

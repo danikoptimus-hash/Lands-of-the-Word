@@ -285,6 +285,12 @@ const EN: Record<string, string> = {
   "Адресат не найден": "Recipient not found",
   "Сначала добавьте адресатов конвертов на вкладке «Обзор»": "Add envelope recipients on the “Overview” tab first",
   "Вы не состоите в команде этой игры": "You are not in a team of this game",
+  // Аватарки (24.10)
+  "Проверка фото сейчас недоступна, попробуйте позже": "Photo check is unavailable right now, try again later",
+  "Нужен файл с картинкой": "An image file is required", "Это не картинка": "This is not an image", "Файл больше 6 МБ": "The file is larger than 6 MB",
+  "Не удалось прочитать картинку": "Could not read the image", "Фото не прошло проверку на уместность. Выберите другое.": "The photo failed the appropriateness check. Choose another one.",
+  "Загрузка аватарок вам закрыта": "Avatar uploads are closed for you", "Аватарку команды ставит капитан": "The team avatar is set by the captain",
+  "Только администратор платформы": "Platform administrator only", "Аватарка не найдена": "Avatar not found",
   "Дело уже взято или сдано": "The deed is already taken or submitted",
   "Дело не взято: отпускать нечего": "The deed is not taken: there is nothing to release",
   "С 0:00 до 7:00 по местному времени игра спит: задания города и взятие дел откроются утром.": "From 0:00 to 7:00 local time the game sleeps: city tasks and taking deeds open in the morning.",

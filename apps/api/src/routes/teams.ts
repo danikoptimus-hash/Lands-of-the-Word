@@ -31,7 +31,7 @@ async function requireGameAdmin(request: FastifyRequest, reply: FastifyReply, ga
   return game;
 }
 
-const memberSelect = { role: true, gameRole: true, pendingRole: true, roleChangedAt: true, deedsFrozenUntil: true, deedsFrozenReason: true, joinedAt: true, user: { select: { id: true, nickname: true, displayName: true } } } as const;
+const memberSelect = { role: true, gameRole: true, pendingRole: true, roleChangedAt: true, deedsFrozenUntil: true, deedsFrozenReason: true, joinedAt: true, user: { select: { id: true, nickname: true, displayName: true, avatarId: true } } } as const;
 
 /** Состав: команды с участниками, лимитами дел и держащимися делами. Администратору — все команды, участнику — своя. */
 async function teamsPayload(gameId: string, isAdmin: boolean, teamId: string | null) {
@@ -270,7 +270,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   /** Информация о приглашении (для страницы /join/:token). */
   app.get("/api/invites/:token", async (request, reply) => {
     const { token } = request.params as { token: string };
-    const invite = await prisma.invite.findUnique({ where: { id: token }, include: { team: { select: { id: true, name: true, color: true } }, game: { select: { id: true, name: true, status: true } } } });
+    const invite = await prisma.invite.findUnique({ where: { id: token }, include: { team: { select: { id: true, name: true, color: true, avatarId: true } }, game: { select: { id: true, name: true, status: true } } } });
     if (!invite || invite.expiresAt < new Date() || invite.usesLeft <= 0) return reply.code(404).send({ error: "not_found", message: err(request, "Приглашение не найдено или истекло") });
     if (invite.admin) {
       const isAdmin = await prisma.gameAdmin.findUnique({ where: { gameId_userId: { gameId: invite.gameId, userId: request.user!.id } } });

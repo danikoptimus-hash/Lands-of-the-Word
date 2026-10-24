@@ -39,6 +39,8 @@ services:
       SMTP_HOST: ""
       GOOGLE_CLIENT_ID: ""
       GOOGLE_CLIENT_SECRET: ""
+      # Проверка аватарок на уместность через OpenAI (решение владельца 24.10): ключ в deploy/.env; без него загрузка аватарок закрыта.
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     expose:
       - "3000"
 

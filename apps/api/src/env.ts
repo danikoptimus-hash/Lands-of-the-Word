@@ -18,6 +18,8 @@ const schema = z.object({
   /** Вход через Google (OpenID Connect). Включается, только когда заданы оба значения; храним только почту и id (sub). */
   GOOGLE_CLIENT_ID: z.string().optional().or(z.literal("").transform(() => undefined)),
   GOOGLE_CLIENT_SECRET: z.string().optional().or(z.literal("").transform(() => undefined)),
+  /** Ключ OpenAI для проверки аватарок на уместность (решение владельца 24.10). Без ключа загрузка аватарок закрыта. */
+  OPENAI_API_KEY: z.string().optional().or(z.literal("").transform(() => undefined)),
 });
 
 export type Env = z.infer<typeof schema>;

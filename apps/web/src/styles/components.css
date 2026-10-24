@@ -79,6 +79,17 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar.team { background: var(--team, var(--accent)); color: var(--on-accent); }
 .avatar.lg { width: 44px; height: 44px; font-size: var(--fs-lg); }
 .avatar.sm { width: 24px; height: 24px; font-size: var(--fs-xs); }
+/* Фото вместо буквы (решение владельца 24.10): круг тот же, картинка внутри по размеру. */
+.avatar.photo { padding: 0; overflow: hidden; background: var(--surface-2, var(--accent-soft)); position: relative; }
+.avatar.photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar.photo .user-badge { position: absolute; }
+.avatar-uploader .row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
+.avatar-uploader .row > .avatar { width: 72px; height: 72px; font-size: var(--fs-xl); }
+.avatar-uploader .actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+.avatar-grid { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); }
+.avatar-grid li { display: flex; gap: var(--sp-3); align-items: flex-start; }
+.avatar-grid img { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; flex: none; }
+.avatar-grid .body { min-width: 0; }
 .person { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
 /* Значок лимита дел у участника в составе (решение владельца 04.10): песочные часы с отсчётом или свиток с ячейками. */
 .deed-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px 2px 5px; border-radius: 999px; font-size: 12px; line-height: 1; font-variant-numeric: tabular-nums; flex: none; }
