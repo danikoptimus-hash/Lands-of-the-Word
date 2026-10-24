@@ -31,7 +31,7 @@ type TeamLite = { id: string; name: string; color: string; index: number };
 type AllianceRow = { id: string; victimId: string; allyId: string; status: "PROPOSED" | "ACTIVE" | "DECLINED" };
 type Full = BattleWithEntries & { attacker: TeamLite; defender: TeamLite; allies: AllianceRow[] };
 /** Живые команды игры (не выбывшие). */
-const aliveTeams = (gameId: string) => prisma.team.findMany({ where: { gameId, NOT: { status: "defeated" } }, select: { id: true, index: true, name: true, color: true }, orderBy: { index: "asc" } });
+const aliveTeams = (gameId: string) => prisma.team.findMany({ where: { gameId, NOT: { status: "defeated" } }, select: { id: true, index: true, name: true, color: true, avatarId: true }, orderBy: { index: "asc" } });
 /** Сторона команды в испытании: претендент, хранитель или действующий союзник хранителей (учит стихи ответа). */
 const sideOf = (b: { attackerId: string; defenderId: string; allies: AllianceRow[] }, teamId: string): "ATTACK" | "DEFENSE" | null =>
   b.attackerId === teamId ? "ATTACK" : b.defenderId === teamId || b.allies.some((a) => a.allyId === teamId && a.status === "ACTIVE") ? "DEFENSE" : null;
@@ -117,7 +117,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     // Осада делами: доступна для города с максимумом защиты после срока закрепления.
     const so = await siegeOptions(id, m.team.id, nodeKey);
     const sieges = await prisma.siege.findMany({ where: { gameId: id, nodeKey, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }] }, orderBy: { startedAt: "desc" }, take: 5 });
-    const teamsById = new Map((await prisma.team.findMany({ where: { gameId: id }, select: { id: true, name: true, color: true } })).map((t) => [t.id, t]));
+    const teamsById = new Map((await prisma.team.findMany({ where: { gameId: id }, select: { id: true, name: true, color: true, avatarId: true } })).map((t) => [t.id, t]));
     const siege = { available: so.available, canDeclare: so.canDeclare, reason: so.reason ? err(request, so.reason) : null, days: so.days, deedPoints: so.deedPoints, list: sieges.map((s) => ({ id: s.id, status: s.status, startedAt: s.startedAt, endsAt: s.endsAt, attackerPoints: s.attackerPoints, defenderPoints: s.defenderPoints, attacker: teamsById.get(s.attackerId) ?? null, defender: teamsById.get(s.defenderId) ?? null, mine: s.attackerId === m.team.id ? "ATTACK" : "DEFENSE" })) };
     return { ...options, reason: options.reason ? err(request, options.reason) : null, queue, siege, battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id))), daytime: await gameDaytime(id) };
   });
@@ -145,7 +145,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     await sweep(id);
     const rows = await prisma.siege.findMany({ where: { gameId: id }, orderBy: { startedAt: "desc" }, take: 50 });
-    const teams = new Map((await prisma.team.findMany({ where: { gameId: id }, select: { id: true, name: true, color: true } })).map((t) => [t.id, t]));
+    const teams = new Map((await prisma.team.findMany({ where: { gameId: id }, select: { id: true, name: true, color: true, avatarId: true } })).map((t) => [t.id, t]));
     const books = new Map((await prisma.mapNode.findMany({ where: { gameId: id, key: { in: rows.map((r) => r.nodeKey) } }, select: { key: true, bookCode: true } })).map((n) => [n.key, n.bookCode ?? ""]));
     return { sieges: rows.map((s) => ({ ...s, bookCode: books.get(s.nodeKey) ?? "", attacker: teams.get(s.attackerId) ?? null, defender: teams.get(s.defenderId) ?? null })) };
   });

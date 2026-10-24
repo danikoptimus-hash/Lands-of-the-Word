@@ -82,7 +82,7 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
     const rows = await prisma.supportRequest.findMany({
       where: q.status === "ALL" ? {} : { status: q.status },
       orderBy: [{ status: "asc" }, { createdAt: "desc" }], take: 200,
-      include: { game: { select: { name: true } }, team: { select: { name: true, color: true } }, user: { select: { nickname: true } } },
+      include: { game: { select: { name: true } }, team: { select: { name: true, color: true, avatarId: true } }, user: { select: { nickname: true } } },
     });
     return { requests: rows.map((r) => ({ id: r.id, createdAt: r.createdAt, status: r.status, game: r.game.name, team: r.team ? { name: r.team.name, color: r.team.color } : null, user: r.user.nickname, bookCode: r.bookCode, taskIndex: r.taskIndex, message: r.message, context: r.context, reply: r.reply, resolvedAt: r.resolvedAt })) };
   });

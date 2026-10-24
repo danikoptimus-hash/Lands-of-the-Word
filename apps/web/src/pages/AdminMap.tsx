@@ -32,8 +32,8 @@ export interface BattleProgress { id: string; nodeKey: string; status: string; a
 /** Просьба «Посмотреть на карте» (владелец 10.10): сторона дела, на которой карта центрируется и приближается; nonce — чтобы повтор той же стороны снова сработал. */
 export interface MapFocus { teamId?: string | null; taskId?: string; fromKey: string; toKey: string; nonce: number }
 
-export interface TeamProgress { id: string; name: string; color: string; startNodeKey: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
-type TeamLite = { id: string; name: string; color: string };
+export interface TeamProgress { id: string; name: string; color: string; avatarId?: string | null; startNodeKey: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
+type TeamLite = { id: string; name: string; color: string; avatarId?: string | null };
 
 /**
  * Карта администратора: вся карта без тумана, города на перекрёстках, пройденные стороны цветами команд (половинками, если прошли двое).
@@ -293,7 +293,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             <button type="button" role="tab" aria-selected={!viewAs} className={"va" + (!viewAs ? " on" : "")} title={t("Администратор")} aria-label={t("Администратор")} onClick={() => setViewAs(null)}><Icon name="crown" /></button>
             {progress.map((tm) => (
               <button key={tm.id} type="button" role="tab" aria-selected={viewAs === tm.id} className={"va" + (viewAs === tm.id ? " on" : "")} title={tm.name} aria-label={t("Глазами команды «{name}»", { name: tm.name })} onClick={() => setViewAs(tm.id)}>
-                <TeamAvatar name={tm.name} color={tm.color} size="sm" />
+                <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" zoom={false} />
               </button>
             ))}
           </div>
@@ -340,7 +340,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
         </div>
         </>)}
-        {viewedTeam && fullscreen && <div className="view-as-name" aria-live="polite"><TeamAvatar name={viewedTeam.name} color={viewedTeam.color} size="sm" />{t("Глазами команды «{name}»", { name: viewedTeam.name })}</div>}
+        {viewedTeam && fullscreen && <div className="view-as-name" aria-live="polite"><TeamAvatar name={viewedTeam.name} color={viewedTeam.color} avatarId={viewedTeam.avatarId} size="sm" />{t("Глазами команды «{name}»", { name: viewedTeam.name })}</div>}
         {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.", { name: viewedTeam.name })}</p>}
         {edgeSel && wrapEl && !reportId && <EdgeTasksSheet gameId={gameId} aKey={edgeSel.aKey} bKey={edgeSel.bKey} container={wrapEl} onClose={() => setEdgeSel(null)} onOpenTask={setReportId} />}
         {reportId && wrapEl && <TaskReportSheet gameId={gameId} taskId={reportId} container={wrapEl} onClose={() => { setReportId(null); setEdgeSel(null); }} onReview={onReview} />}
@@ -421,7 +421,7 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
                   {/* Раскрывашка команды (просьба владельца 10.10): участники и сколько заданий города каждый решил сам. */}
                   <details className="city-team-fold">
                     <summary>
-                      <div className="main"><TeamAvatar name={tm.name} color={tm.color} size="sm" withName /></div>
+                      <div className="main"><TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName /></div>
                       <span className="side muted small">
                         {tm.minBid != null && <Chip icon="sword" title={t("Минимальная ставка этой команды для вызова: {n} стихов", { n: tm.minBid })}>{tm.minBid}</Chip>}
                         {tm.capturedAt ? (tm.isCapital ? t("столица здесь") : t("взяла город"))

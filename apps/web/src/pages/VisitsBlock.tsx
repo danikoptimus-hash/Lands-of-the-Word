@@ -12,7 +12,7 @@ import { EmptyState } from "../components/State";
 import { LinkList, ReturnBox, ReviewCard, useAutoRefresh } from "./SubmissionsBlock";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
-type Row = VisitDto & { team: { id: string; index: number; name: string; color: string } };
+type Row = VisitDto & { team: { id: string; index: number; name: string; color: string; avatarId?: string | null } };
 const STATUS: Record<VisitStatus, { text: string; tone: "neutral" | "info" | "ok" | "bad" | "warn" }> = {
   get PENDING() { return { text: t("ждёт отчёта"), tone: "warn" as const }; },
   get SUBMITTED() { return { text: t("на проверке"), tone: "info" as const }; },
@@ -60,7 +60,7 @@ export function VisitsBlock({ gameId, version = 0, onDecided }: { gameId: string
                 return (
                   <li key={v.id} className="review-item">
                     <div className="main">
-                      <span className="row nowrap"><TeamAvatar name={v.team.name} color={v.team.color} size="sm" withName /><Chip tone={st.tone}>{st.text}</Chip></span>
+                      <span className="row nowrap"><TeamAvatar name={v.team.name} color={v.team.color} avatarId={v.team.avatarId} size="sm" withName /><Chip tone={st.tone}>{st.text}</Chip></span>
                       <span className="title">{t("Визит · {city}", { city: BOOK_BY_CODE.get(v.bookCode)?.nameRu ?? v.bookCode })}</span>
                       <span className="meta">{t("город взят {date}", { date: fmtDate(v.createdAt) })}{v.status === "PENDING" ? ` · ${t("сдать до {time}", { time: fmtDate(v.dueAt) })}` : ""}{v.submittedAt ? ` · ${t("сдан {date}", { date: fmtDate(v.submittedAt) })}` : ""}{v.decidedAt && v.status !== "EXPIRED" ? ` · ${t("решено {date}", { date: fmtDate(v.decidedAt) })}` : ""}</span>
                       {v.members.length > 0 && <span className="meta"><Icon name="users" />{t("Ездили {n} из {m}", { n: v.members.length, m: v.people.length })}: {v.members.map((id) => nameOf(v, id)).join(", ")}</span>}

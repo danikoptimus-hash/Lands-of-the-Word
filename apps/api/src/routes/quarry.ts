@@ -83,7 +83,7 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     if (!(await requireAdmin(request, reply, id))) return;
     const status = ((request.query as { status?: string }).status ?? "SUBMITTED") as string;
-    const works = await prisma.quarryWork.findMany({ where: { gameId: id, status }, orderBy: { submittedAt: "asc" }, take: 200, include: { deed: { select: { title: true, description: true, stones: true, quorumPct: true } }, team: { select: { id: true, name: true, color: true, stones: true } } } });
+    const works = await prisma.quarryWork.findMany({ where: { gameId: id, status }, orderBy: { submittedAt: "asc" }, take: 200, include: { deed: { select: { title: true, description: true, stones: true, quorumPct: true } }, team: { select: { id: true, name: true, color: true, avatarId: true, stones: true } } } });
     const users = await prisma.user.findMany({ where: { id: { in: [...new Set([...works.map((w) => w.byId), ...works.flatMap((w) => w.participants)])] } }, select: { id: true, nickname: true, displayName: true } });
     const nameOf = new Map(users.map((u) => [u.id, u.displayName ?? u.nickname]));
     const sizes = new Map((await prisma.membership.groupBy({ by: ["teamId"], where: { team: { gameId: id } }, _count: { _all: true } })).map((g) => [g.teamId, g._count._all]));

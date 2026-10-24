@@ -331,7 +331,7 @@ export function TeamPage() {
   const me = team?.members.find((m) => m.user.id === user?.id);
   const isCaptain = me?.role === "CAPTAIN";
   /** Фото команды ставит капитан (решение владельца 24.10): блок над составом. */
-  const avatarEditor = team && isCaptain ? <AvatarUploader preview={<TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />} url={`/api/games/${id}/teams/${team.id}/avatar`} hasAvatar={Boolean(team.avatarId)} blocked={user?.avatarBlocked} onChanged={loadTeam} hint={t("Фото команды ставит капитан. Оно должно быть уместным: каждое проверяется, за неуместное фото — бан.")} /> : undefined;
+  const avatarEditor = team && isCaptain ? <AvatarUploader preview={<TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" zoom={false} />} url={`/api/games/${id}/teams/${team.id}/avatar`} hasAvatar={Boolean(team.avatarId)} blocked={user?.avatarBlocked} onChanged={loadTeam} /> : undefined;
   /** Капитан или заместитель: вызов, ответ, столица. */
   const isLeader = isCaptain || me?.role === "DEPUTY";
   // Место высадки выбирает кормчий, капитан и команда советуют (решение владельца 03.10); без кормчего в команде — капитан или заместитель.
@@ -741,7 +741,7 @@ export function TeamPage() {
             </button>
           )}
           <button type="button" className="hud-team" onClick={() => { if (!wide) { setMenu(true); setSelectedId(null); } }} aria-label={team.name}>
-            <TeamAvatar name={team.name} color={team.color} /><span className="name">{team.name}</span>
+            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} /><span className="name">{team.name}</span>
           </button>
           {/* Время суток (решение владельца 03.10): ночью только карта, утром отправляют вызов — подсказка у названия команды. */}
           {map?.daytime?.phase === "night" && <span className="hud-tod night" title={t("Ночь: города спят, дела и испытания ждут утра")}><Icon name="moon" />{t("Ночь до 7:00")}</span>}

@@ -48,7 +48,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     // Цифры «на карте» — по всем командам сразу; чтобы сверять с картой «глазами команды», отдаётся и разбивка по командам,
     // и сколько из свободных — морские рейсы (на карте это корабль у порта, а не свиток) (замечание владельца 05.10).
     const grouped = await prisma.teamEdgeTask.groupBy({ by: ["deedId", "status", "teamId", "sea"], where: { gameId: id, status: { in: ["OPEN", "TAKEN", "SUBMITTED", "REJECTED"] } }, _count: { _all: true } });
-    const teams = await prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, index: true, name: true, color: true } });
+    const teams = await prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, index: true, name: true, color: true, avatarId: true } });
     type OnMap = { free: number; taken: number; sea: number; teams: Array<{ index: number; name: string; color: string; free: number; taken: number }> };
     const onMap = new Map<string, OnMap>();
     for (const g of grouped) {

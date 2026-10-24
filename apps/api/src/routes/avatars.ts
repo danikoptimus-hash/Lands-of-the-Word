@@ -96,7 +96,7 @@ export async function avatarRoutes(app: FastifyInstance): Promise<void> {
     await prisma.avatar.deleteMany({ where: { user: null, team: null } });
     const rows = await prisma.avatar.findMany({
       orderBy: { createdAt: "desc" }, take: 200,
-      select: { id: true, createdAt: true, moderation: true, uploadedBy: { select: { id: true, nickname: true, displayName: true, avatarBlocked: true } }, user: { select: { id: true, nickname: true, displayName: true } }, team: { select: { id: true, name: true, color: true, game: { select: { id: true, name: true } } } } },
+      select: { id: true, createdAt: true, moderation: true, uploadedBy: { select: { id: true, nickname: true, displayName: true, avatarBlocked: true } }, user: { select: { id: true, nickname: true, displayName: true } }, team: { select: { id: true, name: true, color: true, avatarId: true, game: { select: { id: true, name: true } } } } },
     });
     return { avatars: rows };
   });

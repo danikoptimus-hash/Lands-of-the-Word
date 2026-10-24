@@ -32,7 +32,7 @@ function publicLock(l: { taskIndex: number; wrong: number; lockedUntil: Date | n
   return { index: l.taskIndex, wrong: l.wrong, lockedUntil: locked ? l.lockedUntil!.getTime() : null };
 }
 
-const ownerSelect = { team: { select: { id: true, index: true, name: true, color: true } } } as const;
+const ownerSelect = { team: { select: { id: true, index: true, name: true, color: true, avatarId: true } } } as const;
 
 /**
  * Города на перекрёстках: попап города у команды (районы, задания, ключ конверта) и просмотр у админа.
@@ -113,7 +113,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const tasksOpen = daytime.tasksOpen;
     const recipient = allDone && !night && node.recipientId ? await prisma.recipient.findUnique({ where: { id: node.recipientId }, select: { label: true, kind: true } }) : null;
     // Кто ещё дошёл до этого города (решение владельца 12.10): чужие одобренные дела, ведущие в узел, с датой прихода.
-    const arrivals = await prisma.teamEdgeTask.findMany({ where: { gameId: id, toKey: nodeKey, status: "APPROVED", NOT: { teamId: m.team.id } }, select: { decidedAt: true, sea: true, team: { select: { id: true, index: true, name: true, color: true } } }, orderBy: { decidedAt: "asc" } });
+    const arrivals = await prisma.teamEdgeTask.findMany({ where: { gameId: id, toKey: nodeKey, status: "APPROVED", NOT: { teamId: m.team.id } }, select: { decidedAt: true, sea: true, team: { select: { id: true, index: true, name: true, color: true, avatarId: true } } }, orderBy: { decidedAt: "asc" } });
     const seen = new Set<string>();
     const visitors = arrivals.filter((a) => !seen.has(a.team.id) && seen.add(a.team.id)).map((a) => ({ id: a.team.id, index: a.team.index, name: a.team.name, color: a.team.color, at: a.decidedAt, sea: a.sea }));
     return {
@@ -386,7 +386,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!node) return reply.code(404).send({ error: "not_found", message: err(request, "Город не найден") });
     const [content, teams, states, recipient, game, memberships, solved] = await Promise.all([
       loadCityContent(node.bookCode!),
-      prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, index: true, name: true, color: true } }),
+      prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, index: true, name: true, color: true, avatarId: true } }),
       prisma.teamCityState.findMany({ where: { gameId: id, nodeKey } }),
       // Адресат конверта (семья, вдова, старица): админ видит в карточке города, у кого шифр.
       node.recipientId ? prisma.recipient.findUnique({ where: { id: node.recipientId }, select: { label: true, kind: true } }) : null,

@@ -58,7 +58,7 @@ export async function journalRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     if (!(await requireAdmin(request, reply, id))) return;
     const rows = await prisma.journal.findMany({ where: { gameId: id }, orderBy: { createdAt: "desc" }, take: 200 });
-    const teams = await prisma.team.findMany({ where: { gameId: id }, select: { id: true, name: true, color: true } });
+    const teams = await prisma.team.findMany({ where: { gameId: id }, select: { id: true, name: true, color: true, avatarId: true } });
     // Отчёт по делу из летописи (решение владельца 30.09): у новых записей id дела лежит в vars.taskId; у старых — ищем
     // последнюю сдачу этой команды с таким названием дела.
     const deedKinds = new Set(["deed_submitted", "deed_approved", "deed_returned"]);

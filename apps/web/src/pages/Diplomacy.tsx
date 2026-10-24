@@ -140,7 +140,7 @@ export function PassagesBlock({ gameId, version = 0 }: { gameId: string; version
           {rows.map((r) => (
             <li key={r.id}>
               <div className="main">
-                <span className="row"><TeamAvatar name={r.requester.name} color={r.requester.color} size="sm" withName /><Icon name="chevron" className="muted" /><TeamAvatar name={r.owner.name} color={r.owner.color} size="sm" withName /></span>
+                <span className="row"><TeamAvatar name={r.requester.name} color={r.requester.color} avatarId={r.requester.avatarId} size="sm" withName /><Icon name="chevron" className="muted" /><TeamAvatar name={r.owner.name} color={r.owner.color} avatarId={r.owner.avatarId} size="sm" withName /></span>
                 <span className="meta">{t("проход через {book}", { book: r.bookName })} · {fmtDate(r.createdAt)}</span>
                 {r.message && <span className="meta">«{r.message}»</span>}
                 {r.answer && <span className="meta">{t("Ответ: «{a}»", { a: r.answer })}</span>}

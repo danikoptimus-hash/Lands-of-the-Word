@@ -605,7 +605,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
   // перекрёстков (решение владельца 18.09: команда должна понимать, где противник).
   // Чужие пройденные стороны: сухопутные и морские с выбранной высадкой (toKey уже узел, а не «sea:…»). По ним на
   // карте команды видно, кто ещё дошёл до открытого узла (решение владельца 12.10: точки команд в подписи города).
-  const foreignRows = (await prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", NOT: { teamId } }, select: { fromKey: true, toKey: true, sea: true, team: { select: { index: true, name: true, color: true } } } })).filter((f) => !isSeaKey(f.toKey));
+  const foreignRows = (await prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", NOT: { teamId } }, select: { fromKey: true, toKey: true, sea: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } })).filter((f) => !isSeaKey(f.toKey));
   // В тексте дела [Книга] — книга города, из которого выходит сторона (решение владельца 08.10); у морской стороны — порт.
   const bookOfNode = new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, n.bookCode!]));
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
@@ -623,7 +623,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
   for (const pr of passages) if (!passageByKey.has(pr.nodeKey)) passageByKey.set(pr.nodeKey, pr.status);
   const [cityStates, owners, battles] = await Promise.all([
     prisma.teamCityState.findMany({ where: { teamId, nodeKey: { in: cityNodes.map((n) => n.key) } } }),
-    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, team: { select: { index: true, name: true, color: true } } } }),
+    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } }),
     prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: teamId }, { defenderId: teamId }] }, select: { nodeKey: true, attackerId: true, status: true } }),
   ]);
   const stateByKey = new Map(cityStates.map((s) => [s.nodeKey, s]));

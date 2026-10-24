@@ -35,7 +35,7 @@ export async function visitRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     if (!(await requireAdmin(request, reply, id))) return;
     await expireVisits(id);
-    const rows = await prisma.cityVisit.findMany({ where: { gameId: id }, orderBy: { createdAt: "desc" }, take: 200, include: { team: { select: { id: true, index: true, name: true, color: true } } } });
+    const rows = await prisma.cityVisit.findMany({ where: { gameId: id }, orderBy: { createdAt: "desc" }, take: 200, include: { team: { select: { id: true, index: true, name: true, color: true, avatarId: true } } } });
     const visits = await Promise.all(rows.map(async (v) => ({ ...(await visitView(v)), team: v.team })));
     return { visits };
   });

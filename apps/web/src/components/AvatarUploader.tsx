@@ -8,9 +8,9 @@ import { AvatarCropper } from "./AvatarCropper";
 /**
  * Аватарка (решение владельца 24.10): одна и та же для участника и команды. Нажатие на само фото открывает выбор
  * файла (отдельной кнопки нет — замечание владельца), затем кадрирование в круге; сервер сжимает и проверяет на
- * уместность. Предупреждение про уместность и бан — всегда на виду под фото.
+ * уместность. Текста-предупреждения под фото нет (решение владельца 24.10: «этот текст везде уберём»): неуместное фото отклоняется ответом сервера.
  */
-export function AvatarUploader({ preview, url, hasAvatar, blocked, onChanged, hint, label }: {
+export function AvatarUploader({ preview, url, hasAvatar, blocked, onChanged, label }: {
   /** Как сейчас выглядит аватарка (кружок с буквой или фото). */
   preview: ReactNode;
   /** POST с файлом и DELETE — один адрес. */
@@ -19,7 +19,6 @@ export function AvatarUploader({ preview, url, hasAvatar, blocked, onChanged, hi
   /** Суперадмин запретил загрузку. */
   blocked?: boolean;
   onChanged: () => void | Promise<void>;
-  hint?: string;
   /** Подпись для читалок у кнопки-фото. */
   label?: string;
 }) {
@@ -50,9 +49,7 @@ export function AvatarUploader({ preview, url, hasAvatar, blocked, onChanged, hi
         <input ref={input} type="file" accept="image/*" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) setPicked(f); e.target.value = ""; }} />
         {hasAvatar && <button type="button" className="ghost icon sm" disabled={busy} onClick={() => void remove()} aria-label={t("Убрать фото")} title={t("Убрать фото")}><Icon name="trash" /></button>}
       </div>
-      {blocked
-        ? <p className="note warn"><Icon name="alert" /><span>{t("Загрузка фото вам закрыта администратором платформы.")}</span></p>
-        : <p className="hint">{hint ?? t("Фото должно быть уместным. Каждое проверяется; за неуместное фото — бан.")}</p>}
+      {blocked && <p className="note warn"><Icon name="alert" /><span>{t("Загрузка фото вам закрыта администратором платформы.")}</span></p>}
       {picked && <AvatarCropper file={picked} onDone={(b) => void send(b)} onCancel={() => setPicked(null)} />}
     </div>
   );

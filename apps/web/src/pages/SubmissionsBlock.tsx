@@ -8,7 +8,7 @@ import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { ErrorState, LoadingState } from "../components/State";
 
-type Row = EdgeTaskDto & { team: { id: string; name: string; color: string }; takenBy: { nickname: string; displayName: string | null } | null; /** Имена участников дела группой, без взявшего. */ participantNames?: string[]; takenAt?: string | null };
+type Row = EdgeTaskDto & { team: { id: string; name: string; color: string; avatarId?: string | null }; takenBy: { nickname: string; displayName: string | null } | null; /** Имена участников дела группой, без взявшего. */ participantNames?: string[]; takenAt?: string | null };
 
 /** Одинаковое обновление для всех блоков «Проверки»: при событиях (version), по фокусу окна и раз в 15 секунд. */
 export function useAutoRefresh(load: () => Promise<unknown>, version: number): void {
@@ -117,7 +117,7 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onS
             <li key={r.id} className={"review-item" + (picked.has(r.id) ? " picked" : "")}>
               {rows.length > 1 && !returned && <label className="pick"><input type="checkbox" checked={picked.has(r.id)} onChange={() => togglePick(r.id)} aria-label={t("Выбрать для пакетного принятия")} /></label>}
               <div className="main">
-                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName />{r.donation && <Chip tone="accent">{t("пожертвование {n}", { n: `${r.donationAmount ?? ""} ${currency ?? ""}`.trim() })}</Chip>}</span>
+                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName />{r.donation && <Chip tone="accent">{t("пожертвование {n}", { n: `${r.donationAmount ?? ""} ${currency ?? ""}`.trim() })}</Chip>}</span>
                 <span className="title">{r.deed.title}</span>
                 {r.person && <span className="meta person-line"><Icon name="user" />{t("Кому: {name}", { name: r.person.name })}</span>}
                 {r.deed.description && <button type="button" className="ghost sm desc-toggle" aria-expanded={descOpen.has(r.id)} onClick={() => toggleDesc(r.id)}><Icon name="scroll" />{t("Описание")}</button>}
@@ -143,7 +143,7 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onS
 
 
 /** Общие дела Каменоломни (решение владельца 04.10): фото всей команды; принято — команде камни по делу. */
-interface QuarryRow { id: string; team: { id: string; name: string; color: string; stones: number }; deed: { title: string; description: string; stones: number; quorumPct: number | null }; stones: number; by: string; participants: string[]; teamSize: number; links: string[]; note: string; submittedAt: string }
+interface QuarryRow { id: string; team: { id: string; name: string; color: string; avatarId?: string | null; stones: number }; deed: { title: string; description: string; stones: number; quorumPct: number | null }; stones: number; by: string; participants: string[]; teamSize: number; links: string[]; note: string; submittedAt: string }
 export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
   const { notify } = useUi();
   const [rows, setRows] = useState<QuarryRow[] | null>(null);
@@ -166,7 +166,7 @@ export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string
           {rows.map((r) => (
             <li key={r.id} className="review-item">
               <div className="main">
-                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName /><Chip tone="accent" icon="stone" title={t("Камней за дело")}>{r.stones}</Chip><span className="muted small">· {t("у команды: {n}", { n: r.team.stones })}</span></span>
+                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName /><Chip tone="accent" icon="stone" title={t("Камней за дело")}>{r.stones}</Chip><span className="muted small">· {t("у команды: {n}", { n: r.team.stones })}</span></span>
                 <span className="title">{r.deed.title}</span>
                 <span className="meta"><span>{t("фото")}</span><span>· {r.by}</span><span>· {fmtDate(r.submittedAt)}</span></span>
                 <span className={"small" + (r.deed.quorumPct != null && r.participants.length < Math.ceil((r.teamSize * r.deed.quorumPct) / 100) ? " warn" : "")}>{t("Были")} ({t("{a} из {b}", { a: r.participants.length, b: r.teamSize })}): {r.participants.join(", ") || "—"}{r.deed.quorumPct != null && <span className="muted"> · {t("нужно не меньше {n}", { n: Math.ceil((r.teamSize * r.deed.quorumPct) / 100) })}</span>}</span>

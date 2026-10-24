@@ -399,7 +399,7 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   const [book, content, owner, state, team, mine, rules] = await Promise.all([
     loadBook(node.bookCode ?? ""),
     loadCityContent(node.bookCode ?? ""),
-    prisma.teamCityState.findFirst({ where: { gameId, nodeKey, capturedAt: { not: null } }, include: { team: { select: { id: true, name: true, color: true } } } }),
+    prisma.teamCityState.findFirst({ where: { gameId, nodeKey, capturedAt: { not: null } }, include: { team: { select: { id: true, name: true, color: true, avatarId: true } } } }),
     prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId, nodeKey } } }),
     prisma.team.findUniqueOrThrow({ where: { id: teamId } }),
     prisma.battle.findFirst({ where: { gameId, nodeKey, attackerId: teamId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } } }),

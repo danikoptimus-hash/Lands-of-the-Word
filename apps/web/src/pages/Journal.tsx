@@ -142,7 +142,7 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
             {[...top.rows, ...(top.me && top.me.rank > top.rows.length ? [top.me] : [])].map((r) => (
               <li key={r.userId} className={top.me?.userId === r.userId ? "me" : ""}>
                 <span className="rank">{r.rank}</span>
-                <TeamAvatar name={r.team} color={r.color} size="sm" title={r.team} />
+                <TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" title={r.team} />
                 <span className="body">
                   <span className="name">{r.name}{top.me?.userId === r.userId ? ` · ${t("это вы")}` : ""}</span>
                   {/* Значки вместо слов (решение владельца 07.10): дела, районы, города, стихи. */}
@@ -173,7 +173,7 @@ export function ActivityBoard({ gameId, version }: { gameId: string; version: nu
             <tr key={r.userId}>
               <td>{i + 1}</td>
               <td>{r.displayName || r.nickname}</td>
-              <td><TeamAvatar name={r.team} color={r.color} size="sm" withName /></td>
+              <td><TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" withName /></td>
               <td>{r.deeds}</td><td>{r.tasks + r.orders}</td><td>{r.verses}</td><td>{r.cities}</td>
               <td className="muted small">{r.lastActiveAt ? fmtDate(r.lastActiveAt) : "—"}</td>
             </tr>
@@ -188,9 +188,9 @@ export function ActivityBoard({ gameId, version }: { gameId: string; version: nu
 export function JournalAdmin({ gameId, version, active, onShowOnMap }: { gameId: string; version: number; active: boolean; /** Кнопка карты в отчёте по делу (просьба владельца 20.10): карта центрируется на стороне дела. */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   const { notify, confirm } = useUi();
   const [items, setItems] = useState<Array<FeedItemDto & { teamId: string | null }> | null>(null);
-  const [teams, setTeams] = useState<Array<{ id: string; name: string; color: string }>>([]);
+  const [teams, setTeams] = useState<Array<{ id: string; name: string; color: string; avatarId?: string | null }>>([]);
   const [busy, setBusy] = useState(false);
-  const load = useCallback(() => api<{ items: Array<FeedItemDto & { teamId: string | null }>; teams: Array<{ id: string; name: string; color: string }> }>(`/api/games/${gameId}/journal`).then((r) => { setItems(r.items); setTeams(r.teams); }).catch(() => {}), [gameId]);
+  const load = useCallback(() => api<{ items: Array<FeedItemDto & { teamId: string | null }>; teams: Array<{ id: string; name: string; color: string; avatarId?: string | null }> }>(`/api/games/${gameId}/journal`).then((r) => { setItems(r.items); setTeams(r.teams); }).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load, version]);
   async function chronicle() {
     if (!(await confirm(t("Летопись за последние 7 дней уйдёт всем участникам всех команд письмом и уведомлением."), { title: t("Отправить летопись сейчас?"), okLabel: t("Отправить") }))) return;
@@ -258,12 +258,12 @@ export function SeasonBookPage() {
       <section>
         <h2>{t("Положение команд")}</h2>
         <ol className="book-standings">
-          {book.standings.map((s, i) => <li key={s.teamId}><span className="rank">{i + 1}</span><TeamAvatar name={s.name} color={s.color} size="sm" withName /><span className="meta">{plural(s.cities, ["город", "города", "городов"])} · {plural(s.deedsApproved, ["дело", "дела", "дел"])}{s.status === "defeated" ? ` · ${t("выбыла")}` : ""}</span></li>)}
+          {book.standings.map((s, i) => <li key={s.teamId}><span className="rank">{i + 1}</span><TeamAvatar name={s.name} color={s.color} avatarId={s.avatarId} size="sm" withName /><span className="meta">{plural(s.cities, ["город", "города", "городов"])} · {plural(s.deedsApproved, ["дело", "дела", "дел"])}{s.status === "defeated" ? ` · ${t("выбыла")}` : ""}</span></li>)}
         </ol>
       </section>
       {book.teams.map((tm) => (
         <section key={tm.id} className="book-team">
-          <h2><TeamAvatar name={tm.name} color={tm.color} size="sm" withName /></h2>
+          <h2><TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName /></h2>
           <div className="book-cols">
             <div>
               <h3>{t("Участники")}</h3>

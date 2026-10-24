@@ -285,3 +285,10 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .list.interactive > li.plain { cursor: default; display: block; padding: 0; }
 .list.interactive > li.plain:hover { background: transparent; }
 .list.interactive > li.plain > .battle { margin-top: 0; }
+
+/* Крупный показ аватарки по нажатию (решение владельца 24.10). */
+.avatar.zoomable { cursor: zoom-in; }
+.avatar-lightbox { position: fixed; inset: 0; z-index: var(--z-modal, 1000); background: rgba(20, 14, 6, 0.72); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3); padding: var(--sp-4); cursor: zoom-out; }
+.avatar-lightbox img { width: min(80vw, 320px); height: min(80vw, 320px); border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 4px var(--surface), 0 12px 40px rgba(0, 0, 0, 0.5); }
+.avatar-lightbox .name { color: #fff; font-weight: 600; font-size: var(--fs-lg); text-align: center; }
+.avatar-lightbox .name, .avatar-lightbox button { cursor: pointer; }

@@ -254,7 +254,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/games/:id/penalties", async (request, reply) => {
     const { id } = request.params as { id: string };
     if (!(await requireGameAdmin(request, reply, id))) return;
-    const rows = await prisma.teamPenalty.findMany({ where: { gameId: id }, orderBy: { createdAt: "desc" }, take: 100, include: { team: { select: { id: true, name: true, color: true } } } });
+    const rows = await prisma.teamPenalty.findMany({ where: { gameId: id }, orderBy: { createdAt: "desc" }, take: 100, include: { team: { select: { id: true, name: true, color: true, avatarId: true } } } });
     return { penalties: rows };
   });
 
@@ -299,7 +299,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const already = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: invite.gameId } } });
     if (already) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже состоите в команде этой игры") });
     const [membership] = await prisma.$transaction([
-      prisma.membership.create({ data: { teamId: invite.teamId, userId: request.user!.id, role: invite.role }, include: { team: { select: { id: true, name: true, color: true, gameId: true } } } }),
+      prisma.membership.create({ data: { teamId: invite.teamId, userId: request.user!.id, role: invite.role }, include: { team: { select: { id: true, name: true, color: true, avatarId: true, gameId: true } } } }),
       prisma.invite.update({ where: { id: token }, data: { usesLeft: { decrement: 1 } } }),
     ]);
     publish(invite.gameId, { type: "teams", teamId: invite.teamId });
@@ -310,9 +310,9 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/me/teams", async (request) => {
     const memberships = await prisma.membership.findMany({
       where: { userId: request.user!.id },
-      include: { team: { select: { id: true, name: true, color: true, game: { select: { id: true, name: true, status: true } } } } },
+      include: { team: { select: { id: true, name: true, color: true, avatarId: true, game: { select: { id: true, name: true, status: true } } } } },
       orderBy: { joinedAt: "desc" },
     });
-    return { teams: memberships.map((m) => ({ role: m.role, gameRole: m.gameRole, team: { id: m.team.id, name: m.team.name, color: m.team.color }, game: m.team.game })) };
+    return { teams: memberships.map((m) => ({ role: m.role, gameRole: m.gameRole, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId }, game: m.team.game })) };
   });
 }

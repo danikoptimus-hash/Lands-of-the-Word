@@ -116,10 +116,10 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
 
 /** Каменоломня глазами администратора: камни у команд и сколько сдач ждёт проверки (сами сдачи — в «Проверке»). */
 export function AdminQuarrySheet({ gameId, container, onClose, onReview }: { gameId: string; container: HTMLElement | null; onClose: () => void; onReview?: () => void }) {
-  const [teams, setTeams] = useState<Array<{ id: string; name: string; color: string; stones?: number }> | null>(null);
+  const [teams, setTeams] = useState<Array<{ id: string; name: string; color: string; avatarId?: string | null; stones?: number }> | null>(null);
   const [pending, setPending] = useState<number | null>(null);
   const load = useCallback(() => Promise.all([
-    api<{ teams: Array<{ id: string; name: string; color: string; stones?: number }> }>(`/api/games/${gameId}/teams`).then((r) => setTeams(r.teams)),
+    api<{ teams: Array<{ id: string; name: string; color: string; avatarId?: string | null; stones?: number }> }>(`/api/games/${gameId}/teams`).then((r) => setTeams(r.teams)),
     api<{ works: unknown[] }>(`/api/games/${gameId}/quarry/submissions`).then((r) => setPending(r.works.length)),
   ]).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load]);

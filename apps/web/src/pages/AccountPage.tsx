@@ -54,7 +54,7 @@ export function AccountPage() {
 
       <div className="card">
         <h2><Icon name="camera" />{t("Фото")}</h2>
-        <AvatarUploader preview={<UserAvatar name={user.displayName || user.nickname} avatarId={user.avatarId} size="lg" />} url="/api/auth/me/avatar" hasAvatar={Boolean(user.avatarId)} blocked={user.avatarBlocked} onChanged={refresh} />
+        <AvatarUploader preview={<UserAvatar name={user.displayName || user.nickname} avatarId={user.avatarId} size="lg" zoom={false} />} url="/api/auth/me/avatar" hasAvatar={Boolean(user.avatarId)} blocked={user.avatarBlocked} onChanged={refresh} />
       </div>
 
       <div className="card">

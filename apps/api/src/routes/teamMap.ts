@@ -70,7 +70,7 @@ export function requireSuperadmin(request: FastifyRequest, reply: FastifyReply):
 
 const taskInclude = {
   deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true, chance: true } },
-  team: { select: { id: true, name: true, color: true } },
+  team: { select: { id: true, name: true, color: true, avatarId: true } },
   person: { select: { id: true, name: true } },
 } as const;
 type TaskWithDeed = { id: string; fromKey: string; deed: { title: string; description: string } };
@@ -124,7 +124,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id, teamId } = request.params as { id: string; teamId: string };
     const game = await requireAdmin(request, reply, id);
     if (!game) return;
-    const team = await prisma.team.findFirst({ where: { id: teamId, gameId: id }, select: { id: true, name: true, color: true, startNodeKey: true, index: true } });
+    const team = await prisma.team.findFirst({ where: { id: teamId, gameId: id }, select: { id: true, name: true, color: true, avatarId: true, startNodeKey: true, index: true } });
     if (!team) return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
     const teamOut = { id: team.id, name: team.name, color: team.color, startNodeKey: team.startNodeKey };
     if (game.status === "DRAFT") return { status: game.status, teamIndex: team.index, team: teamOut, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
@@ -368,7 +368,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const teams = await prisma.team.findMany({
       where: { gameId: id },
       orderBy: { index: "asc" },
-      select: { id: true, name: true, color: true, startNodeKey: true, nodeStates: { select: { nodeKey: true, revealedAt: true } }, edgeTasks: { where: { status: "APPROVED" }, select: { fromKey: true, toKey: true, decidedAt: true, createdAt: true } } },
+      select: { id: true, name: true, color: true, avatarId: true, startNodeKey: true, nodeStates: { select: { nodeKey: true, revealedAt: true } }, edgeTasks: { where: { status: "APPROVED" }, select: { fromKey: true, toKey: true, decidedAt: true, createdAt: true } } },
     });
     const [pending, game] = await Promise.all([
       prisma.teamEdgeTask.count({ where: { gameId: id, status: "SUBMITTED" } }),

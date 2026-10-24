@@ -12,7 +12,7 @@ import { TeamAvatar } from "../components/TeamAvatar";
 import { Help } from "../components/Help";
 
 /** Обращения в поддержку — отдельная страница администратора платформы из меню шапки (решение владельца 01.10: раньше блок жил в «Аналитике»). */
-interface SupportRow { id: string; createdAt: string; status: "OPEN" | "CLOSED"; game: string; team: { name: string; color: string } | null; user: string; bookCode: string | null; taskIndex: number | null; message: string; context: { city?: string | null; prompt?: string | null; lockedUntil?: string | null; doneTasks?: number | null; totalTasks?: number | null; org?: string }; reply: string | null; resolvedAt: string | null }
+interface SupportRow { id: string; createdAt: string; status: "OPEN" | "CLOSED"; game: string; team: { name: string; color: string; avatarId?: string | null } | null; user: string; bookCode: string | null; taskIndex: number | null; message: string; context: { city?: string | null; prompt?: string | null; lockedUntil?: string | null; doneTasks?: number | null; totalTasks?: number | null; org?: string }; reply: string | null; resolvedAt: string | null }
 
 /** Обращения в поддержку: открытые сверху, ответ команде — здесь (пауза задания не снимается). Адрес для писем — в настройке ниже. */
 function SupportBlock() {
@@ -55,7 +55,7 @@ function SupportBlock() {
           {rows.map((r) => (
             <li key={r.id} className={r.status === "CLOSED" ? "closed" : ""}>
               <div className="main">
-                <span className="title">{r.game}{r.team && <> · <TeamAvatar name={r.team.name} color={r.team.color} size="sm" withName /></>} <span className="muted small">· {r.user} · {fmtDate(r.createdAt)}</span></span>
+                <span className="title">{r.game}{r.team && <> · <TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName /></>} <span className="muted small">· {r.user} · {fmtDate(r.createdAt)}</span></span>
                 {r.context.city && <span className="meta">{r.context.city}{r.taskIndex !== null && <> · {t("задание {n}", { n: r.taskIndex + 1 })}{r.context.lockedUntil && <> · {t("закрыто до {d}", { d: fmtDate(r.context.lockedUntil) })}</>}</>}</span>}
                 {r.context.prompt && <span className="muted small">{r.context.prompt}</span>}
                 <p className="msg">{r.message}</p>

@@ -9,7 +9,7 @@ import { LoadingState } from "../components/State";
 import { GuestShell, errorText } from "./LoginPage";
 import { VerifyPendingPage } from "./VerifyPage";
 
-interface InviteInfo { invite: { admin: boolean; role: "CAPTAIN" | "MEMBER"; team: { id: string; name: string; color: string } | null; game: { id: string; name: string; org: { name: string } } }; alreadyIn: { id: string; name: string } | null; alreadyAdmin?: boolean }
+interface InviteInfo { invite: { admin: boolean; role: "CAPTAIN" | "MEMBER"; team: { id: string; name: string; color: string; avatarId?: string | null } | null; game: { id: string; name: string; org: { name: string } } }; alreadyIn: { id: string; name: string } | null; alreadyAdmin?: boolean }
 
 /** Приглашение в команду по ссылке от капитана или администратора. Гостя сначала отправляем на вход. */
 export function JoinPage() {
@@ -55,7 +55,7 @@ export function JoinPage() {
           <p><span className="muted">{t("Игра")}</span> <strong>{info.invite.game.name}</strong></p>
           {info.invite.team && (
             <div className="invite-team">
-              <TeamAvatar name={info.invite.team.name} color={info.invite.team.color} withName />
+              <TeamAvatar name={info.invite.team.name} color={info.invite.team.color} avatarId={info.invite.team.avatarId} withName />
               {info.invite.role === "CAPTAIN" && <Chip icon="star">{t("капитан")}</Chip>}
             </div>
           )}

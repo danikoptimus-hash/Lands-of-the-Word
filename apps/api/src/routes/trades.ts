@@ -19,7 +19,7 @@ import { BOOKS } from "@lotw/domain";
  * сделку. Столицу и захваченную чужую столицу обменять нельзя; город в осаде или под вызовом — тоже.
  */
 const BOOK_NAME = new Map(BOOKS.map((b) => [b.code, b.nameRu]));
-const teamSelect = { select: { id: true, name: true, color: true } } as const;
+const teamSelect = { select: { id: true, name: true, color: true, avatarId: true } } as const;
 const ACTIVE = ["OPEN", "COUNTERED"] as const;
 
 interface CityRef { nodeKey: string; bookCode: string; bookName: string; words: number }
@@ -80,7 +80,7 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
     const owned = await prisma.teamCityState.findMany({ where: { teamId: m.team.id, capturedAt: { not: null } }, select: { nodeKey: true, isCapital: true, secondCapital: true } });
     const myCities = [];
     for (const c of owned) myCities.push({ ...(await cityRef(id, c.nodeKey)), capital: c.isCapital || c.secondCapital, reason: await tradable(id, m.team.id, c.nodeKey) });
-    const teams = await prisma.team.findMany({ where: { gameId: id, NOT: { id: m.team.id }, status: { not: "defeated" } }, select: { id: true, name: true, color: true }, orderBy: { index: "asc" } });
+    const teams = await prisma.team.findMany({ where: { gameId: id, NOT: { id: m.team.id }, status: { not: "defeated" } }, select: { id: true, name: true, color: true, avatarId: true }, orderBy: { index: "asc" } });
     return { canTrade: m.gameRole === "AMBASSADOR", teams, myCities, trades: await Promise.all([...active, ...closed].map((t) => tradeView(id, m.team.id, t))) };
   });
 

@@ -22,7 +22,7 @@ export async function paceForecast(gameId: string) {
   const dayOf = (d: Date) => (d.getTime() - start.getTime()) / DAY;
   const [K, teams, rows, states] = await Promise.all([
     prisma.mapNode.count({ where: { gameId, kind: "CITY" } }),
-    prisma.team.findMany({ where: { gameId }, select: { id: true, name: true, color: true }, orderBy: { index: "asc" } }),
+    prisma.team.findMany({ where: { gameId }, select: { id: true, name: true, color: true, avatarId: true }, orderBy: { index: "asc" } }),
     prisma.journal.findMany({ where: { gameId, kind: { in: ["city_captured", "task_solved", "deed_approved", "quarry_approved"] } }, select: { kind: true, teamId: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
     prisma.teamCityState.findMany({ where: { gameId, capturedAt: { not: null } }, select: { doneTasks: true, isCapital: true } }),
   ]);
