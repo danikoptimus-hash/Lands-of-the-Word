@@ -75,3 +75,4 @@
 .donate-qr img { display: block; width: 180px; height: 180px; }
 .donate-row .stack { flex: 1 1 260px; min-width: 0; }
 .home-foot { display: flex; justify-content: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-4); }
+

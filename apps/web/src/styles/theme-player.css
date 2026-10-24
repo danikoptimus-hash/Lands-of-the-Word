@@ -55,7 +55,8 @@
 .feed details p { font-size: var(--fs-sm); }
 /* Проходы, служение, плитки навигации */
 .passage-card { background: var(--paper-2); border-color: var(--paper-edge); box-shadow: none; }
-.service .svc-stat { background: var(--paper-2); border: 1px solid var(--paper-edge); box-shadow: none; }
+/* Плитки «Моего служения» того же цвета, что шапка раздела (решение владельца 24.10). */
+.service .svc-stat { background: rgba(255,250,236,.82); border: 1px solid var(--paper-edge); box-shadow: none; }
 .service .svc-stat b { font: 700 var(--fs-xl)/1.1 var(--font-display); color: var(--bronze-ink); }
 .service .svc-stat span { font-family: var(--font-ui); }
 .menu-tiles { background: var(--paper-2); border-top: 1px solid var(--paper-edge); box-shadow: none; }
