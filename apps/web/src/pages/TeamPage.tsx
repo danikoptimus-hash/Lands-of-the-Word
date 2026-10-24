@@ -735,8 +735,11 @@ export function TeamPage() {
 
       <div className={"map-area" + (storm.active ? " storm" : "")} ref={setMapEl} onPointerDownCapture={() => { if (wide && menuView !== "home") setMenuView("home"); }}>
         {storm.active ? (
-          /* Шторм: карта без действий — ни дел, ни городов, ни меток, ни высадки (решение владельца 24.10). */
-          <TeamMap map={map} bird={bird} teamIndex={team.index} selectedTaskId={null} onSelect={() => {}} onSelectCity={() => {}} storm={storm} />
+          /* Шторм: карта без действий — ни дел, ни городов, ни меток, ни высадки (решение владельца 24.10). Единственная кнопка — назад в «Мои игры». */
+          <>
+            <TeamMap map={map} bird={bird} teamIndex={team.index} selectedTaskId={null} onSelect={() => {}} onSelectCity={() => {}} storm={storm} />
+            <Link to="/" className="secondary icon hud-btn storm-back" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>
+          </>
         ) : (
         <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask} storm={storm}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
