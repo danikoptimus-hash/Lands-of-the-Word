@@ -23,7 +23,7 @@ import { PeoplePicker } from "../components/PeoplePicker";
 import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
-import { Help } from "../components/Help";
+import { Help, HelpPopup } from "../components/Help";
 import { DeedBadgePopup, untilText } from "../components/DeedBadge";
 import { FeedSection, MyServiceSection } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
@@ -676,12 +676,14 @@ export function TeamPage() {
               {error && <p className="error" role="alert">{error}</p>}
               {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map.deedLimit?.max ?? 0, when: untilText(map.deedLimit?.nextAt ?? Date.now()) })}</p>}
               {map.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
-              {!canTakeNow && <p className="hint"><Icon name="moon" />{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p>}
               <ul className="list interactive">
                 {freeTasks.map((tk) => (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
                     <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{[tk.person ? t("кому: {name}", { name: tk.person.name }) : "", tk.deed.donationMin ? donationText(tk.deed.donationMin) : "", tk.sea ? t("корабль") : ""].filter(Boolean).join(" · ")}</span></div>
-                    <div className="side"><button type="button" className="sm" disabled={busy || limitFull(map) || !canTakeNow || Boolean(map.deedsFrozenUntil)} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button></div>
+                    {/* Ночью «Взять» не висит с текстом над списком, а по нажатию показывает подсказку окошком (решение владельца 24.10). */}
+                    <div className="side" onClick={(e) => e.stopPropagation()}>{!canTakeNow
+                      ? <HelpPopup name={t("Взять")} buttonClassName="sm" trigger={<><Icon name="scroll" />{t("Взять")}</>}><p><Icon name="moon" /> {t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p></HelpPopup>
+                      : <button type="button" className="sm" disabled={busy || limitFull(map) || Boolean(map.deedsFrozenUntil)} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button>}</div>
                   </li>
                 ))}
               </ul>

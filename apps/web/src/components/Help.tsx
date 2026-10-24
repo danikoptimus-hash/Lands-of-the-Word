@@ -22,7 +22,7 @@ const POP_W = 320, GAP = 6, EDGE = 8;
  * Всплывающее окошко (поповер) поверх экрана: по умолчанию кнопка — значок «?», а с trigger — любой свой значок
  * (например, значок дел участника у администратора, решение владельца 04.10). Закрывается нажатием мимо, Esc и прокруткой.
  */
-export function HelpPopup({ children, name, block = false, className, trigger }: { children: ReactNode; name: string; block?: boolean; className?: string; trigger?: ReactNode }) {
+export function HelpPopup({ children, name, block = false, className, trigger, buttonClassName }: { children: ReactNode; name: string; block?: boolean; className?: string; trigger?: ReactNode; /** Классы самой кнопки вместо `pop-btn`: окошко открывает обычная кнопка интерфейса (решение владельца 24.10: ночью «Взять» показывает подсказку, а не висит текстом). */ buttonClassName?: string }) {
   const btn = useRef<HTMLButtonElement>(null);
   const pop = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -60,7 +60,7 @@ export function HelpPopup({ children, name, block = false, className, trigger }:
 
   return (
     <span className={"help-pop-wrap" + (block ? " block" : "") + (className ? " " + className : "")}>
-      <button ref={btn} type="button" className={(trigger ? "pop-btn" : "help-btn") + (block ? " block" : "") + (open ? " open" : "")} aria-label={name} title={name} aria-expanded={open}
+      <button ref={btn} type="button" className={(buttonClassName ?? (trigger ? "pop-btn" : "help-btn")) + (block ? " block" : "") + (open ? " open" : "")} aria-label={name} title={name} aria-expanded={open}
         onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((v) => !v); }}>
         {trigger ?? <><Icon name="help" />{block && <span>{name}</span>}</>}
       </button>
