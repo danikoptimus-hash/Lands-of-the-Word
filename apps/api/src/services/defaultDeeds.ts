@@ -65,7 +65,7 @@ export const RETIRED_TITLES = ["Помочь с подготовкой проп�
  * (другие поля — вероятность, ценник — не трогаются). Решение владельца 23.10: «я не правил вручную, обновить!» —
  * в партии у дела стояла другая вероятность, и обычная синхронизация текст не обновляла.
  */
-export const FORCE_TEXT_TITLES = ["Сделать доброе дело или сюрприз тайно"];
+export const FORCE_TEXT_TITLES = ["Сделать доброе дело или сюрприз тайно", "Помочь ребёнку из большой семьи с уроками"];
 
 const FILE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../content/deeds-default.json");
 export async function loadDefaultDeeds(): Promise<DefaultDeed[]> {
