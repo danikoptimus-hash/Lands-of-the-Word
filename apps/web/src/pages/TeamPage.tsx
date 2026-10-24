@@ -679,7 +679,7 @@ export function TeamPage() {
               <ul className="list interactive">
                 {freeTasks.map((tk) => (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{[tk.person ? t("кому: {name}", { name: tk.person.name }) : "", tk.deed.donationMin ? donationText(tk.deed.donationMin) : "", tk.sea ? t("корабль") : ""].filter(Boolean).join(" · ")}</span></div>
+                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{[tk.person ? t("кому: {name}", { name: tk.person.name }) : "", tk.sea ? t("корабль") : ""].filter(Boolean).join(" · ")}</span></div>
                     {/* Ночью «Взять» не висит с текстом над списком, а по нажатию показывает подсказку окошком (решение владельца 24.10). */}
                     <div className="side" onClick={(e) => e.stopPropagation()}>{!canTakeNow
                       ? <HelpPopup name={t("Взять")} buttonClassName="sm" trigger={<><Icon name="scroll" />{t("Взять")}</>}><p><Icon name="moon" /> {t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p></HelpPopup>
