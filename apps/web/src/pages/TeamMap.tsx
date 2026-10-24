@@ -453,8 +453,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         </g>
       </WorldSvg>
       <div className="map-controls">
-        <button type="button" className="secondary icon" onClick={() => { reportAction("map-fit", "map"); vp.fit(); }} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
-        {start && <button type="button" className="secondary icon" onClick={() => { reportAction("map-start", "map"); vp.focusOn(start.x, start.y, 2.4); }} aria-label={t("К старту")} title={t("К старту")}><Icon name="flag" /></button>}
+        {/* Кнопок «Вся карта» и «К старту» нет (решение владельца 24.10 после опроса участников: «не нужны, карта не такая большая»). */}
         {onMark && <button type="button" className={"secondary icon" + (marking ? " on" : "")} aria-pressed={marking} onClick={() => { if (!marking) reportAction("map-mark", "map"); setMarking((m) => !m); }} aria-label={t("Метка на карте")} title={t("Метка на карте")}><Icon name="pin" /></button>}
       </div>
       {marking && (
