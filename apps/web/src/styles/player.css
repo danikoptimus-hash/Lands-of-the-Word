@@ -577,3 +577,9 @@
 .visit { padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
 .visit .strong .i { color: var(--accent); vertical-align: -.2em; }
 .visit a .i { vertical-align: -.2em; margin-right: 2px; }
+
+/* Звезда заместителя в составе (решение владельца 24.10): один столбец у всех; подсвечена — заместитель. */
+.roster .side .star { width: var(--touch); height: var(--touch); display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--muted); }
+.roster .side .star.on { color: var(--accent); }
+.roster .side .star.on svg { fill: var(--accent); }
+.roster .side .star.placeholder { visibility: hidden; }
