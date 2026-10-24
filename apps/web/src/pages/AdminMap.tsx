@@ -4,7 +4,7 @@ import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/h
 import { CoastOver, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
-import { reportAction, reportPage } from "../lib/perf";
+import { reportPage } from "../lib/perf";
 import { api, ApiError, PROOF_LABEL, type AdminCityDto, type EdgeTaskDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
 import { deedStatus } from "./TeamPage";
 import { Chip } from "../components/Chip";
@@ -343,9 +343,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             </g>
           </WorldSvg>
         </div>
-        <div className="map-controls">
-          <button type="button" className="secondary icon" onClick={() => { reportAction("map-fit", "admin-map"); vp.fit(); }} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
-        </div>
+        {/* Кнопки «Вся карта» нет (решение владельца 24.10: «у админа тоже убрать»). */}
         </>)}
         {viewedTeam && fullscreen && <div className="view-as-name" aria-live="polite"><TeamAvatar name={viewedTeam.name} color={viewedTeam.color} avatarId={viewedTeam.avatarId} size="sm" />{t("Глазами команды «{name}»", { name: viewedTeam.name })}</div>}
         {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.", { name: viewedTeam.name })}</p>}

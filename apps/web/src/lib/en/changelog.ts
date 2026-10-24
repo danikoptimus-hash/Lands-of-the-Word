@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "В таблице команд у каждой команды значок численности, как у администратора; строка «Состав · N» убрана. Кнопка «Вся карта» убрана и у администратора.": "In the teams table every team has a member-count badge, as the admin has; the “Roster · N” line is gone. The “Whole map” button was removed for the admin as well.",
   "На карте участника убраны кнопки «Вся карта» и «К старту», осталась «Метка». Заголовок раздела в меню команды больше не прилипает при прокрутке.": "The “Whole map” and “To start” buttons were removed from the member map; “Mark” remains. The section title in the team menu no longer sticks while scrolling.",
   "Карта команды открывается с главной примерно вдвое быстрее: пока открыт список игр, телефон заранее считает берег, островки, дно и туман.": "The team map opens from the home page about twice as fast: while the games list is open, the phone precomputes the coast, islets, seabed and fog.",
   "Карта команды: при переходе с главной экран отвечает сразу, карта строится следом; разделы «Моё служение» и «Лента» открываются без ожидания.": "Team map: when coming from the home page the screen responds at once and the map builds right after; the “My service” and “Feed” sections open without waiting.",

@@ -73,7 +73,8 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
                 {details && <Icon name="chevron-down" className="chev" />}
               </div>
               {/* Значки вместо слов (решение владельца 07.10): города, дела, перекрёстки. */}
-              <div className="meta chips"><Chip icon="city" title={t("Городов")}>{st.cities}</Chip><Chip icon="scroll" title={t("Принятых дел")}>{st.deedsApproved}</Chip><Chip icon="pin" title={t("Открытых перекрёстков")}>{st.nodesRevealed}</Chip></div>
+              {/* Значки вместо слов (решение владельца 07.10): участники (решение 24.10: как у администратора, у всех команд), города, дела, перекрёстки. */}
+              <div className="meta chips">{st.members !== undefined && <Chip icon="users" title={t("Участников")}>{st.members}</Chip>}<Chip icon="city" title={t("Городов")}>{st.cities}</Chip><Chip icon="scroll" title={t("Принятых дел")}>{st.deedsApproved}</Chip><Chip icon="pin" title={t("Открытых перекрёстков")}>{st.nodesRevealed}</Chip></div>
               {canPeace && pc?.state === "incoming" && (
                 <div className="row peace-row" {...stop}>
                   <button type="button" className="sm" onClick={() => onPeace!(pc!, "accept")}><Icon name="check" />{t("Принять")}</button>
@@ -977,7 +978,7 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
 }
 
 /** Состав команды: роль — пилюля с объяснением по нажатию; капитан назначает роли выбором. */
-/** embedded — внутри строки таблицы команд: вместо заголовка раздела — строка «Состав · N». */
+/** embedded — внутри строки таблицы команд: без заголовка (численность — значком в строке команды, решение владельца 24.10), только кнопка приглашения. */
 function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl, onShowOnMap, avatarEditor }: { /** Блок «фото команды» капитана над составом (решение владельца 24.10). */ avatarEditor?: ReactNode; /** «Посмотреть на карте» у дела на руках участника (просьба владельца 10.10). */ onShowOnMap?: (taskId: string) => void; team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
   // Таймеры «следующее дело через…» тикают раз в полминуты.
   const [now, setNow] = useState(Date.now());
@@ -991,7 +992,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
   return (
     <>
       {embedded
-        ? <div className="meta roster-head"><Icon name="users" /><span>{t("Состав")} · {team.members.length}</span>{invite}</div>
+        ? (invite ? <div className="meta roster-head">{invite}</div> : null)
         : <div className="roster-title"><h2><Icon name="users" />{team.name}<span className="count">{team.members.length}</span></h2>{invite}</div>}
       {inviteUrl && <p className="hint invite-fallback"><a href={inviteUrl}>{inviteUrl}</a></p>}
       {avatarEditor}

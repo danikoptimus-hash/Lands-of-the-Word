@@ -159,7 +159,7 @@ export const BATTLE_STATUS_LABEL: Record<BattleStatus, string> = { get QUEUED() 
 
 /** Итоги игры: положение команд и победитель. */
 export interface CityOnPath { nodeKey: string; bookCode: string; name: string; current: boolean; isCapital: boolean; at: string }
-export interface StandingRow { teamId: string; name: string; color: string; avatarId?: string | null; index: number; status: string; cities: number; capitals: number; citiesOnPath: CityOnPath[]; deedsApproved: number; nodesRevealed: number; battlesWon: number; battlesLost: number; battlesRepelled: number }
+export interface StandingRow { teamId: string; name: string; color: string; avatarId?: string | null; index: number; status: string; /** Численность команды. */ members?: number; cities: number; capitals: number; citiesOnPath: CityOnPath[]; deedsApproved: number; nodesRevealed: number; battlesWon: number; battlesLost: number; battlesRepelled: number }
 export interface StandingsDto { status: string; finishedAt: string | null; winnerTeamId: string | null; finishReason: string | null; endsAt: string | null; standings: StandingRow[]; leaderTeamId: string | null }
 
 /** Дипломатия: запрос прохода через чужой город. */
