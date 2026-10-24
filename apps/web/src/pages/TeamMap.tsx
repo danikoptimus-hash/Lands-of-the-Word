@@ -84,6 +84,19 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const light = storm && storm.t > 0 ? stormLight(dt.light, storm.t) : dt.light;
   const dts = light === dt.light ? dt : { ...dt, light };
   const imgPhase = dt.t >= 0.5 ? dt.to : dt.from;
+  // Полоска внизу экрана на Android (замечание владельца 24.10): браузер красит область жестовой панели в цвет фона
+  // страницы (бумага). Пока открыта карта, фон страницы и theme-color — цвет воды текущего освещения, полоска сливается с морем.
+  useEffect(() => {
+    const body = document.body, meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    const prevMeta = meta?.getAttribute("content") ?? null;
+    body.classList.add("map-open");
+    return () => { body.classList.remove("map-open"); body.style.removeProperty("--map-under"); if (meta && prevMeta !== null) meta.setAttribute("content", prevMeta); };
+  }, []);
+  useEffect(() => {
+    const color = css(light.mid);
+    document.body.style.setProperty("--map-under", color);
+    document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", color);
+  }, [light]);
   const fires = useMemo<FireSite[]>(() => map.revealed.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [map.revealed, size]);
   const revealed = useMemo(() => new Set(map.revealed.map((n) => n.key)), [map.revealed]);
   const cityByKey = useMemo(() => new Map((map.cities ?? []).map((c) => [c.nodeKey, c])), [map.cities]);

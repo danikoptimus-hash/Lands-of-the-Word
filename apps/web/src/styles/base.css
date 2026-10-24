@@ -15,6 +15,9 @@
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; overscroll-behavior-x: none; background: var(--bg); color: var(--text); font: 400 var(--fs-md)/var(--lh-text) var(--font-book); }
 body.no-scroll { overflow: hidden; }
+/* Пока открыта карта команды: фон страницы — цвет воды, чтобы полоса жестов Android внизу не была бумажной (24.10). */
+body.map-open { background: var(--map-under, var(--map-bg)); }
+body.map-open::before { display: none; }
 /* Фон — светлый пейзаж с высоты: гексовое поле, река, горы в дымке (решение владельца 20.09). Сверху лёгкая
    молочная пелена, чтобы картинка создавала объём, но не отвлекала от содержимого. */
 body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
