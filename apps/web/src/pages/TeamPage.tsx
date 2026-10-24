@@ -679,11 +679,12 @@ export function TeamPage() {
               <ul className="list interactive">
                 {freeTasks.map((tk) => (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{[tk.person ? t("кому: {name}", { name: tk.person.name }) : "", tk.sea ? t("корабль") : ""].filter(Boolean).join(" · ")}</span></div>
+                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{tk.person ? t("кому: {name}", { name: tk.person.name }) : ""}</span></div>
                     {/* Ночью «Взять» не висит с текстом над списком, а по нажатию показывает подсказку окошком (решение владельца 24.10). */}
-                    <div className="side" onClick={(e) => e.stopPropagation()}>{!canTakeNow
+                    {/* Корабельное дело — маленький значок корабля на углу кнопки «Взять», как звезда заместителя на значке роли (решение владельца 24.10), без слова. */}
+                    <div className="side" onClick={(e) => e.stopPropagation()}><span className="take-slot">{tk.sea && <span className="sea-badge" title={t("корабль")} aria-label={t("корабль")}><Icon name="ship" /></span>}{!canTakeNow
                       ? <HelpPopup name={t("Взять")} buttonClassName="sm" trigger={<><Icon name="scroll" />{t("Взять")}</>}><p><Icon name="moon" /> {t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p></HelpPopup>
-                      : <button type="button" className="sm" disabled={busy || limitFull(map) || Boolean(map.deedsFrozenUntil)} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button>}</div>
+                      : <button type="button" className="sm" disabled={busy || limitFull(map) || Boolean(map.deedsFrozenUntil)} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button>}</span></div>
                   </li>
                 ))}
               </ul>
