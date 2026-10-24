@@ -491,4 +491,5 @@ export const PLAYER: Record<string, string> = {
   "Фото команды ставит капитан. Оно должно быть уместным: каждое проверяется, за неуместное фото — бан.": "The team photo is set by the captain. It must be appropriate: every photo is checked, an inappropriate one means a ban.",
   "Загрузка фото вам закрыта администратором платформы.": "Photo uploads are closed for you by the platform administrator.",
   "Убрать фото": "Remove photo", "Убрать фото?": "Remove the photo?", "Готово": "Done", "Отмена": "Cancel", "Масштаб": "Zoom", "Передвиньте фото и приблизьте: в круге то, что увидят другие.": "Move and zoom the photo: the circle shows what others will see.",
+  "Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка.": "Leads the team together with the captain: challenges, bids, capital, landing.",
 };

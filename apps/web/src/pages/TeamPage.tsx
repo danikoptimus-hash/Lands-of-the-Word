@@ -979,19 +979,15 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
                 {/* Слева только имя; значок лимита дел и роли — справа, только значками (решение владельца 04.10). Название роли — в подсказке
                     и для читалок; нажатие на роль у капитана открывает ряд ролей, у остальных — пояснение роли. */}
                 <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} frozenUntil={m.deedsFrozenUntil} onShowOnMap={onShowOnMap ? (d) => onShowOnMap(d.id) : undefined} />
+                {/* Заместитель — маленькая звезда над значком роли (решение владельца 24.10), без отдельного столбца. */}
+                <span className="role-slot">{m.role === "DEPUTY" && m.gameRole !== "NONE" && <span className="deputy-star" title={t("заместитель")}><Icon name="star" /><span className="sr-only">{t("заместитель")}</span></span>}
                 {canEdit ? (
                   <button type="button" className={"chip-btn role-pick icon-only" + (m.gameRole === "NONE" ? " none" : "")} aria-label={m.gameRole === "NONE" ? t("без роли") : ROLE[m.gameRole].label()} title={m.gameRole === "NONE" ? t("без роли") : ROLE[m.gameRole].label()} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>
                     <Chip tone={m.gameRole === "NONE" ? "neutral" : "info"} icon={m.gameRole === "NONE" ? "user" : ROLE[m.gameRole].icon}><Icon name="chevron" className="chev" /></Chip>
                   </button>
                 ) : roleKey !== "NONE" ? (
                   <button type="button" className="chip-btn icon-only" aria-label={r.label()} title={r.label()} aria-expanded={shown} onClick={() => setOpen(shown ? null : m.user.id)}><Chip tone={roleKey === "CAPTAIN" || roleKey === "DEPUTY" ? "accent" : "info"} icon={r.icon}><span className="sr-only">{r.label()}</span></Chip></button>
-                ) : null}
-                {/* Звезда заместителя в одном столбце у всех (решение владельца 24.10): у капитана — переключатель, у остальных — подсвеченная звезда у заместителя, у прочих пустое место для ровного ряда. */}
-                {canEdit
-                  ? <button type="button" className={"ghost icon sm star" + (m.role === "DEPUTY" ? " on" : "")} aria-label={m.role === "DEPUTY" ? t("Снять заместителя") : t("Сделать заместителем")} title={m.role === "DEPUTY" ? t("Снять заместителя") : t("Сделать заместителем")} onClick={() => onDeputy(m.user.id, m.role !== "DEPUTY")}><Icon name="star" /></button>
-                  : m.role === "DEPUTY"
-                    ? <span className="icon sm star on" title={t("заместитель")}><Icon name="star" /><span className="sr-only">{t("заместитель")}</span></span>
-                    : <span className="icon sm star placeholder" aria-hidden="true" />}
+                ) : null}</span>
               </div>
               {picking && (
                 <div className="role-tray" role="group" aria-label={t("Роль: {name}", { name })}>
@@ -1001,6 +997,10 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
                       <span className="desc">{ROLE[k].hint()}</span>
                     </button>
                   ))}
+                  <button type="button" className={"role-opt" + (m.role === "DEPUTY" ? " on" : "")} aria-pressed={m.role === "DEPUTY"} onClick={() => { setPick(null); onDeputy(m.user.id, m.role !== "DEPUTY"); }}>
+                    <Chip tone={m.role === "DEPUTY" ? "solid" : "neutral"} icon="star">{t("заместитель")}</Chip>
+                    <span className="desc">{t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка.")}</span>
+                  </button>
                   <p className="hint">{t("Нажмите роль — она назначится сразу. Повторное нажатие на выданную роль снимает её.")}</p>
                 </div>
               )}

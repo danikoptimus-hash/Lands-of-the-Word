@@ -578,8 +578,7 @@
 .visit .strong .i { color: var(--accent); vertical-align: -.2em; }
 .visit a .i { vertical-align: -.2em; margin-right: 2px; }
 
-/* Звезда заместителя в составе (решение владельца 24.10): один столбец у всех; подсвечена — заместитель. */
-.roster .side .star { width: var(--touch); height: var(--touch); display: inline-flex; align-items: center; justify-content: center; flex: none; color: var(--muted); }
-.roster .side .star.on { color: var(--accent); }
-.roster .side .star.on svg { fill: var(--accent); }
-.roster .side .star.placeholder { visibility: hidden; }
+/* Заместитель: маленькая звезда над значком роли (решение владельца 24.10), отдельного столбца нет. */
+.roster .role-slot { position: relative; display: inline-flex; flex: none; }
+.roster .role-slot .deputy-star { position: absolute; top: calc(50% - 16px); right: -1px; width: 11px; height: 11px; border-radius: 50%; background: var(--surface); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 1px var(--border); z-index: 1; pointer-events: none; }
+.roster .role-slot .deputy-star svg { width: 7px; height: 7px; fill: var(--accent); }
