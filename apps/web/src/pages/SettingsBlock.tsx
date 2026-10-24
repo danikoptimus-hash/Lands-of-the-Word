@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError, type StormSlot } from "../lib/api";
+import { stormState } from "@lotw/domain";
 import { useUi } from "../lib/ui";
-import { t } from "../lib/i18n";
+import { getLocale, t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
 import { Help } from "../components/Help";
 import { Stepper } from "../components/Stepper";
@@ -70,6 +71,16 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   const [currency, setCurrency] = useState(game.settings.donationCurrency ?? "");
   const [rules, setRules] = useState<Record<string, number | string>>(() => { const r = (game.settings.rules ?? {}) as Partial<RulesDto>; const out: Record<string, number | string> = {}; for (const k of NUM_KEYS) out[k] = (r[k] as number | undefined) ?? 0; out.adminDigest = r.adminDigest ?? "instant"; out.timeZone = r.timeZone ?? "Asia/Tashkent"; return out; });
   const [storms, setStorms] = useState<StormSlot[]>(() => (game.settings.rules?.storms ?? []).map((x) => ({ ...x })));
+  // Что сохранено на сервере: идёт ли шторм сейчас и когда ближайшая смена — по поясу игры (чтобы сразу видеть ошибку в дне или времени).
+  const stormNow = (() => {
+    const saved = game.settings.rules?.storms ?? [], tz = game.settings.rules?.timeZone || "Asia/Tashkent";
+    if (!saved.length) return null;
+    const st = stormState(saved, tz, new Date());
+    if (st.nextChangeMs === null) return null;
+    let when = "";
+    try { when = new Intl.DateTimeFormat(getLocale() === "en" ? "en-GB" : "ru-RU", { timeZone: tz, weekday: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(Date.now() + st.nextChangeMs)); } catch { when = ""; }
+    return { active: st.active, when };
+  })();
   const [advanced, setAdvanced] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -180,6 +191,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
         <div className="settings-group">
           <h3>{t("Шторм")}<Help popup>{t("Пока идёт шторм, участники видят только карту с бурей: кнопок нет, дела не берутся, города не открываются; сервер действия не принимает. Администраторов шторм не касается. Время по поясу игры; конец раньше начала — интервал через полночь. Можно менять в идущей игре.")}</Help></h3>
           {storms.length === 0 && <p className="hint">{t("Интервалов нет: штормов не будет.")}</p>}
+          {stormNow && <p className="hint">{stormNow.active ? t("По сохранённым настройкам шторм идёт сейчас, до: {when}", { when: stormNow.when }) : t("По сохранённым настройкам ближайший шторм: {when}", { when: stormNow.when })}</p>}
           {storms.map((x, i) => (
             <div key={i} className="storm-row">
               <select aria-label={t("День недели")} value={x.weekday} onChange={(e) => setStorms(storms.map((y, j) => (j === i ? { ...y, weekday: Number(e.target.value) } : y)))}>

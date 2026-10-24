@@ -250,5 +250,6 @@ export const ADMIN: Record<string, string> = {
   // Шторм (24.10)
   "Шторм": "Storm", "Интервалов нет: штормов не будет.": "No intervals: there will be no storms.", "День недели": "Weekday", "Начало": "Start", "Конец": "End",
   "Убрать интервал": "Remove interval", "Добавить интервал": "Add interval",
+  "По сохранённым настройкам шторм идёт сейчас, до: {when}": "By the saved settings a storm is on now, until: {when}", "По сохранённым настройкам ближайший шторм: {when}": "By the saved settings the next storm is: {when}",
   "Пока идёт шторм, участники видят только карту с бурей: кнопок нет, дела не берутся, города не открываются; сервер действия не принимает. Администраторов шторм не касается. Время по поясу игры; конец раньше начала — интервал через полночь. Можно менять в идущей игре.": "During a storm members see only the map with the tempest: no buttons, deeds cannot be taken, cities do not open; the server refuses actions. Admins are not affected. Times follow the game’s time zone; an end earlier than the start means an interval past midnight. Can be changed in a running game.",
 };

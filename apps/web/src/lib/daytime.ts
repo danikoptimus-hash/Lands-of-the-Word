@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { dayLight, dayLightAt, stormState, type DayLight, type DayPhase, type StormSlot } from "@lotw/domain";
 
 /**
@@ -156,41 +156,63 @@ function previewStorm(): boolean {
 
 const STORM_RAMP_MS = 3000;
 
+/** Плавная доля картинки 0..1: идёт к цели кадрами; состояние меняется не чаще ~12 раз в секунду, чтобы не перерисовывать карту на каждый кадр. */
+function useRamp(active: boolean): number {
+  const [t, setT] = useState(active ? 1 : 0);
+  const cur = useRef(active ? 1 : 0);
+  useEffect(() => {
+    const target = active ? 1 : 0;
+    let raf = 0, last = performance.now(), shown = performance.now();
+    const step = (now: number) => {
+      const d = Math.min(0.25, (now - last) / STORM_RAMP_MS); last = now;
+      const v = cur.current, nv = Math.abs(target - v) <= d ? target : v + Math.sign(target - v) * d;
+      cur.current = nv;
+      if (nv === target || now - shown > 80) { shown = now; setT(nv); }
+      if (nv !== target) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [active]);
+  return t;
+}
+
 /**
- * Шторм на клиенте: по расписанию из ответа сервера и его часам, та же функция, что на сервере, — переключается ровно
- * на границе без запроса. Картинка входит и выходит плавно (`t`), правила (`active`) — резко.
+ * Шторм у участника: правду говорит сервер (`daytime.storm.active`), клиент ничего не считает сам. Когда сервер назвал
+ * момент смены (`changesAt`), к нему карта перечитывается (`onBoundary`) и приходит новое состояние — так шторм
+ * начинается и кончается у всех ровно по расписанию, а любая ошибка часов или пояса на телефоне ни на что не влияет.
+ * Картинка входит и выходит плавно (`t`), правила (`active`) — резко.
  */
-export function useStorm(daytime: { timeZone: string; storms?: StormSlot[]; storm?: { active: boolean } } | undefined, serverNow?: number): Storm {
-  const [tick, setTick] = useState(0);
-  const offset = useMemo(() => (serverNow ? serverNow - Date.now() : 0), [serverNow]);
+export function useStorm(daytime: { storm?: { active: boolean; changesAt: number | null } } | undefined, serverNow: number | undefined, onBoundary: () => void): Storm {
   const preview = useMemo(previewStorm, []);
-  const slotsKey = JSON.stringify(daytime?.storms ?? []);
+  const active = preview || Boolean(daytime?.storm?.active);
+  const changesAt = daytime?.storm?.changesAt ?? null;
+  const offset = serverNow ? serverNow - Date.now() : 0;
+  const cb = useRef(onBoundary); cb.current = onBoundary;
+  useEffect(() => {
+    if (preview || changesAt === null) return;
+    // Через полсекунды после границы, но не раньше чем через секунду; дальше — не чаще раза в минуту, пока сервер не назовёт новую границу.
+    const wait = Math.max(1000, changesAt - (Date.now() + offset) + 500);
+    const tm = setTimeout(() => cb.current(), Math.min(wait, 60_000));
+    return () => clearTimeout(tm);
+  }, [changesAt, offset, preview, serverNow]);
+  const t = useRamp(active);
+  return useMemo(() => ({ active, t }), [active, t]);
+}
+
+/** Картинка шторма по расписанию без ответа сервера (карта администратора): считается на клиенте, правил не трогает. */
+export function useStormPicture(storms: StormSlot[] | undefined, timeZone: string | undefined): Storm {
+  const [tick, setTick] = useState(0);
+  const preview = useMemo(previewStorm, []);
+  const slotsKey = JSON.stringify(storms ?? []);
   const st = useMemo(() => {
     if (preview) return { active: true, nextChangeMs: null as number | null };
-    const slots = (daytime?.storms ?? []) as StormSlot[];
-    if (!slots.length) return { active: Boolean(daytime?.storm?.active), nextChangeMs: null as number | null };
-    return stormState(slots, daytime?.timeZone || "Asia/Tashkent", new Date(Date.now() + offset));
-  }, [slotsKey, daytime?.timeZone, daytime?.storm?.active, offset, preview, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+    return stormState((storms ?? []) as StormSlot[], timeZone || "Asia/Tashkent", new Date());
+  }, [slotsKey, timeZone, preview, tick]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (st.nextChangeMs === null) return;
     const tm = setTimeout(() => setTick((n) => n + 1), Math.min(60_000, st.nextChangeMs + 300));
     return () => clearTimeout(tm);
   }, [st]);
-  // Плавный вход и выход картинки: доля идёт к цели кадрами.
-  const [t, setT] = useState(st.active ? 1 : 0);
-  useEffect(() => {
-    const target = st.active ? 1 : 0;
-    let raf = 0, last = performance.now();
-    const step = (now: number) => {
-      const dt = now - last; last = now;
-      setT((v) => {
-        const nv = v + Math.sign(target - v) * Math.min(Math.abs(target - v), dt / STORM_RAMP_MS);
-        if (Math.abs(nv - target) > 0.0005) raf = requestAnimationFrame(step);
-        return Math.abs(nv - target) <= 0.0005 ? target : nv;
-      });
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [st.active]);
+  const t = useRamp(st.active);
   return useMemo(() => ({ active: st.active, t }), [st.active, t]);
 }

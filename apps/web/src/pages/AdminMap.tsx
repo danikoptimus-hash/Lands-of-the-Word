@@ -16,7 +16,7 @@ import { plural } from "../lib/format";
 import { AdminQuarrySheet } from "./QuarrySheet";
 import { Icon, iconPath } from "../components/Icon";
 import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
-import { css, stormLight, useDaytime, useStorm } from "../lib/daytime";
+import { css, stormLight, useDaytime, useStormPicture } from "../lib/daytime";
 import { StormLayer } from "./StormLayer";
 import type { StormSlot } from "../lib/api";
 import { LakesLayer } from "./Lakes";
@@ -138,7 +138,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const [liveWater, setLiveWater] = useState(true);
   const dt0 = useDaytime(timeZone);
   // Шторм у администратора — только картинка: та же буря, что у команд, кнопки и действия остаются.
-  const stormSt = useStorm({ timeZone: timeZone ?? "Asia/Tashkent", storms }, undefined);
+  const stormSt = useStormPicture(storms, timeZone);
   const stormPic = useMemo(() => ({ active: false, t: stormSt.t }), [stormSt.t]);
   const dt = useMemo(() => (stormSt.t > 0 ? { ...dt0, light: stormLight(dt0.light, stormSt.t) } : dt0), [dt0, stormSt.t]);
   const imgPhase = dt.t >= 0.5 ? dt.to : dt.from;

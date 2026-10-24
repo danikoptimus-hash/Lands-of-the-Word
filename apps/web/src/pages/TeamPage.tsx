@@ -173,7 +173,8 @@ export function TeamPage() {
   const moves = useMemo(() => (map ? teamMoves(map) : []), [map]);
   const shownMap = useMemo(() => (map && historyAt ? mapAt(map, historyAt) : map), [map, historyAt]);
   // Шторм (решение владельца 24.10): по расписанию из ответа сервера; в шторм — только карта с бурей, без кнопок и действий.
-  const storm = useStorm(map?.daytime, map?.now);
+  const stormReload = useRef<() => void>(() => {});
+  const storm = useStorm(map?.daytime, map?.now, () => stormReload.current());
   const stormWas = useRef(storm.active);
   const [error, setError] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
@@ -296,6 +297,7 @@ export function TeamPage() {
   const loadTeam = useCallback(() => api<{ isAdmin: boolean; teams: TeamDto[] }>(`/api/games/${id}/teams`).then((r) => { setError(null); setIsAdmin(r.isAdmin); setTeam(r.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, user?.id]);
   const loadMap = useCallback(() => api<MyMapDto & { gameName?: string; donation?: { currency: string } | null }>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); setCurrency(m.donation?.currency ?? ""); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
+  stormReload.current = () => { void loadMap(); };
   // Смена шторма: на входе закрываются меню и все листы, на выходе всё возвращается; карта перечитывается в обоих случаях.
   useEffect(() => {
     if (stormWas.current === storm.active) return;
