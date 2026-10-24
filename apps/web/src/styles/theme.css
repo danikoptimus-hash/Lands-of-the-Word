@@ -84,7 +84,6 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 22px; height: 22px; }
 .list > li, .list .item { border-top-color: var(--paper-edge); box-shadow: none; }
 .list .title { font-family: var(--font-book); }
 .list .meta { font-family: var(--font-ui); color: var(--ink-3); }
-.list.interactive > li:hover { background: var(--paper-light); }
 .skeleton { background: linear-gradient(90deg, var(--paper-2) 25%, var(--paper-edge) 50%, var(--paper-2) 75%); background-size: 400px 100%; }
 .progress { background: var(--paper-2); box-shadow: none; }
 .progress span { background: var(--bronze); }

@@ -135,7 +135,8 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .list .title { font-weight: 600; }
 .list .meta { color: var(--muted); font-size: var(--fs-sm); display: flex; gap: var(--sp-1) var(--sp-2); flex-wrap: wrap; align-items: center; }
 .list.interactive > li { cursor: pointer; border-radius: var(--r-sm); }
-.list.interactive > li:hover { background: var(--surface-2); }
+/* Подсветки строки при наведении и нажатии нет (решение владельца 24.10: «убрать белую обводку при наведении, с компа и с телефона»). */
+.list.interactive > li { -webkit-tap-highlight-color: transparent; }
 .list.interactive > li:focus-visible { outline-offset: -2px; }
 
 /* Состояния блока */
