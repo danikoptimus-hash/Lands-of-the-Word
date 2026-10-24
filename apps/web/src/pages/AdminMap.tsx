@@ -16,7 +16,9 @@ import { plural } from "../lib/format";
 import { AdminQuarrySheet } from "./QuarrySheet";
 import { Icon, iconPath } from "../components/Icon";
 import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
-import { css, useDaytime } from "../lib/daytime";
+import { css, stormLight, useDaytime, useStorm } from "../lib/daytime";
+import { StormLayer } from "./StormLayer";
+import type { StormSlot } from "../lib/api";
 import { LakesLayer } from "./Lakes";
 import { kindLabel } from "./RecipientsBlock";
 import { IsletsLayer, useIslets } from "./Islets";
@@ -76,7 +78,7 @@ function rewindTeamMap(map: MyMapDto, team: TeamProgress, teams: TeamProgress[],
   };
 }
 
-export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone, at = null, focus = null }: { /** «Посмотреть на карте»: при смене nonce карта администратора центрируется на стороне и подсвечивает её. */ focus?: MapFocus | null; /** Момент ползунка истории: карта «глазами команды» урезается к нему. */ at?: Date | null; /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
+export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battles, version, onReview, fullscreen = false, timeZone, storms, at = null, focus = null }: { /** Расписание штормов (решение владельца 24.10): администратору буря показывается картинкой, без запретов. */ storms?: StormSlot[]; /** «Посмотреть на карте»: при смене nonce карта администратора центрируется на стороне и подсвечивает её. */ focus?: MapFocus | null; /** Момент ползунка истории: карта «глазами команды» урезается к нему. */ at?: Date | null; /** Часовой пояс игры: по нему карта администратора красится по времени суток, как у команд. */ timeZone?: string; /** Во весь экран (страница игры): карта заполняет контейнер, переключатель «чьими глазами» и легенда — поверх. */ fullscreen?: boolean; gameId: string; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; progress: TeamProgress[] | null; cities: CityProgress[] | null; battles: BattleProgress[] | null; version: number; onReview?: () => void }) {
   const size = HEX_SIZE;
   const { notify } = useUi();
   const hexKey = hexes.map((h) => `${h.q},${h.r}`).join(";");
@@ -134,7 +136,11 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const obstacles = useMemo(() => islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape })), [islets]);
   const bed = useSeabed(hexes, islets, size, bounds);
   const [liveWater, setLiveWater] = useState(true);
-  const dt = useDaytime(timeZone);
+  const dt0 = useDaytime(timeZone);
+  // Шторм у администратора — только картинка: та же буря, что у команд, кнопки и действия остаются.
+  const stormSt = useStorm({ timeZone: timeZone ?? "Asia/Tashkent", storms }, undefined);
+  const stormPic = useMemo(() => ({ active: false, t: stormSt.t }), [stormSt.t]);
+  const dt = useMemo(() => (stormSt.t > 0 ? { ...dt0, light: stormLight(dt0.light, stormSt.t) } : dt0), [dt0, stormSt.t]);
   const imgPhase = dt.t >= 0.5 ? dt.to : dt.from;
   const fires = useMemo<FireSite[]>(() => nodes.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [nodes, size]);
   const edgeSet = useMemo(() => new Set(edges.map((e) => [e.aKey, e.bKey].sort().join("|"))), [edges]);
@@ -302,13 +308,13 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <div className="mapwrap team-view" key={viewAs}>
             {teamView?.error ? <div className="map-state"><ErrorState text={teamView.error} onRetry={() => setViewAs((v) => v)} /></div>
               : !teamView?.map ? <div className="map-state"><LoadingState /></div>
-              : <TeamMap map={viewMap ?? teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={teamTaskId} onSelect={(tid) => { setTeamTaskId(tid); if (tid) setSelected(null); }} onSelectCity={(key) => { const n = nodeByKey.get(key); if (n) { setSelected(n); setTeamTaskId(null); } }}
+              : <TeamMap map={viewMap ?? teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={teamTaskId} onSelect={(tid) => { setTeamTaskId(tid); if (tid) setSelected(null); }} onSelectCity={(key) => { const n = nodeByKey.get(key); if (n) { setSelected(n); setTeamTaskId(null); } }} storm={stormPic}
                   onMarkTap={(mk) => notify((mk.note ? t("Метка «{note}»", { note: mk.note }) : t("Метка")) + (mk.by?.name ? ` · ${mk.by.name}` : "") + (mk.createdAt ? ` · ${fmtDate(mk.createdAt)}` : ""), "info")} />}
             {teamView?.map && teamTaskId && wrapEl && (() => { const task = teamView.map!.tasks.find((tk) => tk.id === teamTaskId); return task ? <TeamTaskSheet gameId={gameId} task={task} members={teamView.map!.members ?? []} container={wrapEl} onClose={() => setTeamTaskId(null)} onReview={onReview} /> : null; })()}
           </div>
         ) : (<>
         <div ref={vp.ref} {...vp.handlers} className="mapwrap" style={{ background: css(dt.light.bg) }}>
-          <SeaLayer vp={vp} bed={bed} light={dt.light} />
+          <SeaLayer vp={vp} bed={bed} light={dt.light} storm={stormSt.t} />
           <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
           <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} daytime={dt} />
           {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
@@ -328,6 +334,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           </WorldSvg>
           {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
           <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
+          {stormSt.t > 0 && <StormLayer t={stormSt.t} />}
           {/* Подписи городов и метки — отдельным слоем над живностью и маршрутами: название города выше линии корабля (решение владельца 06.10). */}
           <WorldSvg vp={vp} bounds={bounds} overlay>
             <g className="screen-items">
