@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, Navigate, useLocation } from "react-router-dom";
 import { reportPage } from "../lib/perf";
-import { api, ApiError, prefetch, type GameSummary, type MyTeamDto } from "../lib/api";
+import { api, ApiError, apiReady, prefetch, ready, type GameSummary, type MyMapDto, type MyTeamDto } from "../lib/api";
+import { warmTeamMap } from "./mapWarm";
 import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
 import { ActionMenu } from "../components/ActionMenu";
@@ -70,7 +71,9 @@ export function GamesPage() {
       if (!alive) return;
       setGames(g); setTeams(tm);
       // Страница игры и карта команды открываются сразу (решение владельца 24.10): их данные запрашиваются заранее, пока человек на главной.
-      prefetch([...g.flatMap((x) => [`/api/games/${x.id}`, `/api/games/${x.id}/progress`]), ...tm.flatMap((x) => [`/api/games/${x.game.id}/my-map`, `/api/games/${x.game.id}/teams`])]);
+      prefetch([...g.flatMap((x) => [`/api/games/${x.id}`, `/api/games/${x.id}/progress`]), ...tm.map((x) => `/api/games/${x.game.id}/teams`)]);
+      // Карта команды: ответ заранее и заготовка геометрии в простое (решение владельца 24.10, уровень 1).
+      for (const x of tm) { const u = `/api/games/${x.game.id}/my-map`; const have = ready<MyMapDto>(u); if (have) warmTeamMap(have); else void apiReady<MyMapDto>(u).then(warmTeamMap).catch(() => {}); }
     }).catch(() => { if (alive) setFailed(true); });
     return () => { alive = false; };
   }, [attempt]);

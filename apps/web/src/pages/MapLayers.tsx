@@ -7,6 +7,7 @@ import type { MapHexDto } from "../lib/api";
 import { ISLET_IMAGES } from "@lotw/domain";
 import { SeaGL } from "./SeaGL";
 import { perfMark } from "../lib/perfHud";
+import { hexKeyOf, keep } from "../lib/keep";
 import { seabedColor, type Seabed } from "./Seabed";
 import type { DayPhase } from "@lotw/domain";
 import { css, DAY_LIGHT, type Daytime, type Light } from "../lib/daytime";
@@ -150,9 +151,15 @@ export function WorldSvg({ vp, children, overlay }: { vp: Viewport; bounds?: { m
   );
 }
 
+const COAST = new Map<string, string>();
+/** Берег по гексам из памяти заготовок (считается один раз на игру). */
+export function coastCached(hexes: Array<{ q: number; r: number }>, size = HEX_SIZE): string {
+  if (!hexes.length) return "";
+  return keep(COAST, hexKeyOf(hexes) + "|" + size, () => { const t0 = performance.now(); const d = coastPath(hexes, size); perfMark("геометрия: берег", performance.now() - t0); return d; });
+}
 export function useCoast(hexes: Array<{ q: number; r: number }>, size = HEX_SIZE): string {
-  const key = hexes.map((h) => `${h.q},${h.r}`).join(";");
-  return useMemo(() => { const t0 = performance.now(); const d = hexes.length ? coastPath(hexes, size) : ""; perfMark("геометрия: берег", performance.now() - t0); return d; }, [key, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const key = hexKeyOf(hexes);
+  return useMemo(() => coastCached(hexes, size), [key, size]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /**
@@ -242,6 +249,13 @@ const getTiles = (light: Light) => {
 export interface FogClear { nodes: ReadonlyArray<{ x: number; y: number; r: number }>; edges: ReadonlyArray<{ x0: number; y0: number; x1: number; y1: number }> }
 const NO_CLEAR: FogClear = { nodes: [], edges: [] };
 const NEIGHBORS = [[1, 0], [-1, 0], [0, 1], [0, -1], [1, -1], [-1, 1]] as const;
+const fogKeyOf = (fogHexes: MapHexDto[], fogPoints: ReadonlyArray<{ x: number; y: number }>, clear: FogClear) => fogHexes.map((h) => `${h.q},${h.r}`).join(";") + "|" + fogPoints.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(";") + "|" + clear.nodes.length + ":" + clear.edges.length + ":" + clear.nodes.map((n) => n.x.toFixed(0)).join(",");
+const FOG = new Map<string, FogMask | null>();
+/** Маска тумана из памяти заготовок: ключ — гексы тумана, точки края и расчистка. */
+export function fogMaskCached(fogHexes: MapHexDto[], size: number, fogPoints: ReadonlyArray<{ x: number; y: number }>, clear: FogClear, land: ReadonlySet<string>): FogMask | null {
+  if (!fogHexes.length && !fogPoints.length) return null;
+  return keep(FOG, fogKeyOf(fogHexes, fogPoints, clear) + "|" + size, () => { const t0 = performance.now(); const m = buildFogMask(fogHexes, size, fogPoints, clear, land); perfMark("геометрия: туман", performance.now() - t0); return m; });
+}
 function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ x: number; y: number }> = [], clear: FogClear = NO_CLEAR, land: ReadonlySet<string> = new Set()): FogMask | null {
   if (hexes.length === 0 && points.length === 0) return null;
   const pad = size * 3;
@@ -340,8 +354,8 @@ function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ 
 export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS, clear = NO_CLEAR, land, light = DAY_LIGHT }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; /** Точки (перекрёстки края тумана), которые должны быть под туманом и без гекса тумана рядом. */ fogPoints?: ReadonlyArray<{ x: number; y: number }>; /** Что туман не закрывает: известные перекрёстки, города и дороги к ним. */ clear?: FogClear; /** Все гексы суши «q,r»: со стороны моря туман накрывает и пляж. */ land?: ReadonlySet<string>; light?: Light }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const lightRef = useRef(light); lightRef.current = light;
-  const fogKey = fogHexes.map((h) => `${h.q},${h.r}`).join(";") + "|" + fogPoints.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(";") + "|" + clear.nodes.length + ":" + clear.edges.length + ":" + clear.nodes.map((n) => n.x.toFixed(0)).join(",");
-  const mask = useMemo(() => { const t0 = performance.now(); const m = fogHexes.length || fogPoints.length ? buildFogMask(fogHexes, size, fogPoints, clear, land) : null; perfMark("геометрия: туман", performance.now() - t0); return m; }, [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fogKey = fogKeyOf(fogHexes, fogPoints, clear);
+  const mask = useMemo(() => fogMaskCached(fogHexes, size, fogPoints, clear, land ?? new Set()), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const maskRef = useRef(mask); maskRef.current = mask;
   const dirty = useRef(true); dirty.current = true;
   useEffect(() => { dirty.current = true; }, [light]);

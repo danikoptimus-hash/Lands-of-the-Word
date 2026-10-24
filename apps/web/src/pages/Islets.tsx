@@ -4,14 +4,21 @@ import { HEX_SIZE } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
 import { IMG, SHALLOW_RINGS, lightKey, shallowRings, type Viewport } from "./MapLayers";
 import { perfMark } from "../lib/perfHud";
+import { hexKeyOf, keep } from "../lib/keep";
 import { css, DAY_LIGHT, type Daytime } from "../lib/daytime";
 import type { DayPhase } from "@lotw/domain";
 
 /** Раскладка островов по гексам поля (детерминирована, считается один раз на карту). */
+const ISLETS = new Map<string, Islet[]>();
+/** Островки из памяти заготовок (считаются один раз на игру; bounds выводится из тех же гексов). */
+export function isletsCached(hexes: MapHexDto[], size: number, bounds: Bounds | null): Islet[] {
+  if (!bounds || !hexes.length) return [];
+  return keep(ISLETS, hexKeyOf(hexes) + "|" + size, () => { const t0 = performance.now(); const r = generateIslets(hexes, size, bounds); perfMark("геометрия: островки", performance.now() - t0); return r; });
+}
 export function useIslets(hexes: MapHexDto[], size: number, bounds: Bounds | null): Islet[] {
-  const key = hexes.map((h) => `${h.q},${h.r}`).join(";");
+  const key = hexKeyOf(hexes);
   // Зависимость только от ключа гексов: bounds выводится из них же, а новый объект при перезагрузке карты не должен всё пересчитывать.
-  return useMemo(() => { const t0 = performance.now(); const r = bounds && hexes.length ? generateIslets(hexes, size, bounds) : []; perfMark("геометрия: островки", performance.now() - t0); return r; }, [key, size, Boolean(bounds)]); // eslint-disable-line react-hooks/exhaustive-deps
+  return useMemo(() => isletsCached(hexes, size, bounds), [key, size, Boolean(bounds)]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 

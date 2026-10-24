@@ -1,4 +1,5 @@
 import { perfMark } from "../lib/perfHud";
+import { hexKeyOf, keep } from "../lib/keep";
 import { useMemo } from "react";
 import { seaField, type Bounds, type Islet } from "@lotw/domain";
 import { hexCenter } from "../lib/hexmap";
@@ -77,7 +78,13 @@ export function seabedColor(bed: Seabed): HTMLCanvasElement {
   return c;
 }
 
+const BED = new Map<string, Seabed>();
+/** Поле дна из памяти заготовок: ключ — гексы (островки выводятся из них же). */
+export function seabedCached(hexes: MapHexDto[], islets: Islet[], size: number, bounds: Bounds | null): Seabed | null {
+  if (!bounds || !hexes.length) return null;
+  return keep(BED, hexKeyOf(hexes) + "|" + size + "|" + islets.length, () => { const t0 = performance.now(); const r = buildSeabed(hexes, islets, size, bounds); perfMark("геометрия: дно", performance.now() - t0); return r; });
+}
 export function useSeabed(hexes: MapHexDto[], islets: Islet[], size: number, bounds: Bounds | null): Seabed | null {
-  const key = hexes.map((h) => `${h.q},${h.r}`).join(";");
-  return useMemo(() => { const t0 = performance.now(); const r = bounds && hexes.length ? buildSeabed(hexes, islets, size, bounds) : null; perfMark("геометрия: дно", performance.now() - t0); return r; }, [key, islets, size, Boolean(bounds)]); // eslint-disable-line react-hooks/exhaustive-deps
+  const key = hexKeyOf(hexes);
+  return useMemo(() => seabedCached(hexes, islets, size, bounds), [key, islets, size, Boolean(bounds)]); // eslint-disable-line react-hooks/exhaustive-deps
 }

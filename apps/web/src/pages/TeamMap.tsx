@@ -4,7 +4,7 @@ import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixe
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
-import type { DailyBirdDto, EdgeTaskStatus, MapMarkDto, MyMapDto } from "../lib/api";
+import type { DailyBirdDto, EdgeTaskStatus, MapHexDto, MapMarkDto, MyMapDto } from "../lib/api";
 import { CoastOver, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
@@ -52,6 +52,28 @@ export const routeColor = (color: string) => {
 };
 /** Точка метки: гекс и точное место нажатия дробными осевыми координатами. */
 export interface MarkPoint { q: number; r: number; qf: number; rf: number }
+/**
+ * Что укрывает туман и что он не трогает (решение владельца 03.10): гексы тумана; перекрёстки края тумана без гекса тумана
+ * рядом (берег) — под облачком; открытые перекрёстки, города со значками и дороги к ним — расчищены, дорога к ещё
+ * не открытому перекрёстку расчищается не до конца (на 0,55 гекса не доходя). Чистая функция от ответа карты.
+ */
+export function teamFogInputs(map: Pick<MyMapDto, "hexes" | "revealed" | "edges" | "frontier">, size: number): { fogHexes: MapHexDto[]; landKeys: Set<string>; fogClear: FogClear; fogPoints: Array<{ x: number; y: number }> } {
+  const fogHexes = map.hexes.filter((h) => h.lit === false);
+  const landKeys = new Set(map.hexes.map((h) => `${h.q},${h.r}`));
+  const revealed = new Set(map.revealed.map((n) => n.key));
+  const nodes = map.revealed.map((n) => { const p = nodePos(n.key, size); return n.kind === "CITY" ? { x: p.x, y: p.y - size * 0.12, r: size * 0.72 } : n.kind === "START" ? { x: p.x, y: p.y - size * 0.1, r: size * 0.8 } : { x: p.x, y: p.y, r: size * 0.45 }; });
+  const edges = map.edges.map((e) => {
+    const a = nodePos(e.aKey, size), b = nodePos(e.bKey, size), ra = revealed.has(e.aKey), rb = revealed.has(e.bKey);
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1, k = Math.min(0.9, (len - size * 0.55) / len);
+    if (ra && !rb) return { x0: a.x, y0: a.y, x1: a.x + (b.x - a.x) * k, y1: a.y + (b.y - a.y) * k };
+    if (rb && !ra) return { x0: b.x, y0: b.y, x1: b.x + (a.x - b.x) * k, y1: b.y + (a.y - b.y) * k };
+    return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
+  });
+  const fog = new Set(fogHexes.map((h) => `${h.q},${h.r}`));
+  const fogPoints = (map.frontier ?? []).filter((k) => !vertexHexes(parseVertexKey(k)).some((h) => fog.has(`${h.q},${h.r}`))).map((k) => nodePos(k, size));
+  return { fogHexes, landKeys, fogClear: { nodes, edges }, fogPoints };
+}
+
 export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, bird, focusTask, storm }: { /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
@@ -141,28 +163,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const bed = useSeabed(map.hexes, islets, size, bounds);
   const [liveWater, setLiveWater] = useState(true);
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
-  const fogHexes = useMemo(() => map.hexes.filter((h) => h.lit === false), [map.hexes]);
-  const landKeys = useMemo(() => new Set(map.hexes.map((h) => `${h.q},${h.r}`)), [map.hexes]);
-  // Перекрёстки края тумана укрыты облачком и там, где рядом нет гекса тумана (берег): команда их ещё не знает (03.10).
-  // Туман не закрывает то, что команда знает (решение владельца 03.10): открытые перекрёстки, города со значками и дороги
-  // к ним. Дорога к ещё не открытому перекрёстку расчищается не до конца: сам перекрёсток остаётся под облачком.
-  const fogClear = useMemo<FogClear>(() => {
-    const nodes = map.revealed.map((n) => { const p = nodePos(n.key, size); return n.kind === "CITY" ? { x: p.x, y: p.y - size * 0.12, r: size * 0.72 } : n.kind === "START" ? { x: p.x, y: p.y - size * 0.1, r: size * 0.8 } : { x: p.x, y: p.y, r: size * 0.45 }; });
-    const edges = map.edges.map((e) => {
-      const a = nodePos(e.aKey, size), b = nodePos(e.bKey, size), ra = revealed.has(e.aKey), rb = revealed.has(e.bKey);
-      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1, k = Math.min(0.9, (len - size * 0.55) / len);
-      // От известного конца к неизвестному — на 0,55 гекса не доходя до него.
-      if (ra && !rb) return { x0: a.x, y0: a.y, x1: a.x + (b.x - a.x) * k, y1: a.y + (b.y - a.y) * k };
-      if (rb && !ra) return { x0: b.x, y0: b.y, x1: b.x + (a.x - b.x) * k, y1: b.y + (a.y - b.y) * k };
-      return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
-    });
-    return { nodes, edges };
-  }, [map.revealed, map.edges, revealed, size]);
-  const fogPoints = useMemo(() => {
-    const fog = new Set(map.hexes.filter((h) => h.lit === false).map((h) => `${h.q},${h.r}`));
-    // Только перекрёстки, у которых ни один из трёх гексов вокруг не в тумане (остальные туман уже укрывает).
-    return (map.frontier ?? []).filter((k) => !vertexHexes(parseVertexKey(k)).some((h) => fog.has(`${h.q},${h.r}`))).map((k) => nodePos(k, size));
-  }, [map.frontier, map.hexes, size]);
+  // Входы тумана считает общая функция (`teamFogInputs`): ею же пользуется заготовка карты на главной.
+  const fog = useMemo(() => teamFogInputs(map, size), [map.hexes, map.revealed, map.edges, map.frontier, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const { fogHexes, landKeys, fogClear, fogPoints } = fog;
   // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
   const islandCenters = useMemo(() => islandGeometry(map.hexes, size), [map.hexes, size]);
   const nodeByKey = useMemo(() => new Map(map.revealed.map((n) => [n.key, n])), [map.revealed]);
