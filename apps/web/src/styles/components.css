@@ -81,11 +81,19 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar.sm { width: 24px; height: 24px; font-size: var(--fs-xs); }
 /* Фото вместо буквы (решение владельца 24.10): круг тот же, картинка внутри по размеру. */
 .avatar.photo { padding: 0; overflow: hidden; background: var(--surface-2, var(--accent-soft)); position: relative; }
-.avatar.photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.avatar.photo img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
 .avatar.photo .user-badge { position: absolute; }
 .avatar-uploader .row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
-.avatar-uploader .row > .avatar { width: 72px; height: 72px; font-size: var(--fs-xl); }
-.avatar-uploader .actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+/* Само фото — кнопка: нажатие открывает выбор файла (замечание владельца 24.10); значок камеры в углу подсказывает. */
+.avatar-uploader .avatar-btn { position: relative; background: transparent; border: 0; padding: 0; border-radius: 50%; cursor: pointer; min-height: 0; }
+.avatar-uploader .avatar-btn .avatar { width: 72px; height: 72px; font-size: var(--fs-xl); }
+.avatar-uploader .avatar-btn .badge { position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--surface); }
+.avatar-uploader .avatar-btn .badge svg { width: 14px; height: 14px; }
+.avatar-uploader .avatar-btn:disabled { opacity: 0.6; cursor: default; }
+.avatar-crop { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
+.avatar-crop canvas { touch-action: none; border-radius: var(--r-md); background: #000; max-width: 100%; }
+.avatar-crop .zoom { width: 280px; max-width: 100%; display: block; }
+.avatar-crop .zoom input { width: 100%; }
 .avatar-grid { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); }
 .avatar-grid li { display: flex; gap: var(--sp-3); align-items: flex-start; }
 .avatar-grid img { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; flex: none; }
