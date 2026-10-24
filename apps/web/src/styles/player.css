@@ -585,6 +585,7 @@
 .roster .role-slot .deputy-star svg { width: 7px; height: 7px; fill: var(--accent); }
 
 /* Шторм (решение владельца 24.10): тучи и мгла над картой; дождь и молнии — canvas над подписями, под HUD. */
+.fx-layer.fireworks { z-index: 2; }
 .fx-layer.storm-sky { z-index: 2; overflow: hidden; }
 .fx-layer.storm { z-index: 3; }
 .storm-sky .dim { position: absolute; inset: 0; background: radial-gradient(ellipse 90% 60% at 50% 0%, rgba(16, 20, 28, .62), rgba(12, 16, 22, .40) 55%, rgba(8, 10, 16, .50) 100%); }

@@ -11,6 +11,7 @@ import { fmtDate } from "../lib/format";
 import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
 import { css, stormLight, useDaytime, type Storm } from "../lib/daytime";
 import { StormLayer } from "./StormLayer";
+import { FireworksLayer, type FireworkSite } from "./FireworksLayer";
 import { LakesLayer } from "./Lakes";
 import { IsletsLayer, useIslets } from "./Islets";
 import { useSeabed } from "./Seabed";
@@ -119,6 +120,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     document.body.style.setProperty("--map-under", color);
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", color);
   }, [light]);
+  // Салют над городами, взятыми сегодня (решение владельца 24.10): точка запуска — над значком города.
+  const fireworkSites = useMemo<FireworkSite[]>(() => (map.cities ?? []).filter((c) => c.takenAt).map((c) => { const p = nodePos(c.nodeKey, size); return { key: c.nodeKey, x: p.x, y: p.y - size * 0.3, at: Date.parse(c.takenAt!) }; }), [map.cities, size]);
   const fires = useMemo<FireSite[]>(() => map.revealed.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [map.revealed, size]);
   const revealed = useMemo(() => new Set(map.revealed.map((n) => n.key)), [map.revealed]);
   const cityByKey = useMemo(() => new Map((map.cities ?? []).map((c) => [c.nodeKey, c])), [map.cities]);
@@ -444,6 +447,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); рисует слой живности: киты под буквами,
           корабли над ними (решение владельца 05.10). */}
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} labels={islandLabels} routes={routeSpecs} />
+      {fireworkSites.length > 0 && <FireworksLayer vp={vp} sites={fireworkSites} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} />}
       {storm && storm.t > 0 && <StormLayer t={storm.t} />}
       <WorldSvg vp={vp} bounds={bounds} overlay>
         <g className="screen-items">

@@ -10,3 +10,4 @@ export * from "./starts.js";
 export * from "./daytime.js";
 export * from "./seaRoute.js";
 export * from "./storm.js";
+export * from "./fireworks.js";

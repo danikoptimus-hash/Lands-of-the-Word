@@ -623,11 +623,13 @@ async function computeTeamMap(gameId: string, teamId: string) {
   for (const pr of passages) if (!passageByKey.has(pr.nodeKey)) passageByKey.set(pr.nodeKey, pr.status);
   const [cityStates, owners, battles] = await Promise.all([
     prisma.teamCityState.findMany({ where: { teamId, nodeKey: { in: cityNodes.map((n) => n.key) } } }),
-    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } }),
+    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, capturedAt: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } }),
     prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: teamId }, { defenderId: teamId }] }, select: { nodeKey: true, attackerId: true, status: true } }),
   ]);
   const stateByKey = new Map(cityStates.map((s) => [s.nodeKey, s]));
   const ownerByKey = new Map(owners.map((o) => [o.nodeKey, o.team]));
+  // Когда город взят нынешним владельцем (любой командой): салют над городом в день взятия (решение владельца 24.10).
+  const takenAtByKey = new Map(owners.map((o) => [o.nodeKey, o.capturedAt?.toISOString() ?? null]));
   // Роль команды в активной битве за город: атакует (синие мечи) или защищается (красные).
   const battleByKey = new Map(battles.map((b) => [b.nodeKey, b.attackerId === teamId ? "ATTACK" : "DEFENSE"]));
   const cities = await Promise.all(cityNodes.map(async (n) => {
@@ -642,6 +644,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
       done: s?.doneTasks.length ?? 0,
       captured: s?.capturedAt != null,
       capturedAt: s?.capturedAt?.toISOString() ?? null,
+      takenAt: takenAtByKey.get(n.key) ?? null,
       isCapital: s?.isCapital ?? false,
       battle: battleByKey.get(n.key) ?? null,
       ruined: n.ruined,
