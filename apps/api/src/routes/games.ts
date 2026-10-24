@@ -255,7 +255,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const game = await loadGameForAdmin(request, reply, id);
     if (!game) return;
-    const admins = await prisma.gameAdmin.findMany({ where: { gameId: id }, select: { user: { select: { id: true, nickname: true, displayName: true, email: true } } } });
+    const admins = await prisma.gameAdmin.findMany({ where: { gameId: id }, select: { user: { select: { id: true, nickname: true, displayName: true, email: true, avatarId: true } } } });
     return { admins: admins.map((a) => ({ ...a.user, email: a.user.email ? a.user.email.replace(/^(.).*(@.*)$/, "$1…$2") : null, creator: a.user.id === game.createdById })) };
   });
 

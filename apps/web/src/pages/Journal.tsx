@@ -8,6 +8,7 @@ import { useUi } from "../lib/ui";
 import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
+import { UserAvatar } from "../components/UserAvatar";
 import { Back } from "../components/Back";
 import { Help } from "../components/Help";
 import { EmptyState, LoadingState } from "../components/State";
@@ -143,6 +144,7 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
               <li key={r.userId} className={top.me?.userId === r.userId ? "me" : ""}>
                 <span className="rank">{r.rank}</span>
                 <TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" title={r.team} />
+                <UserAvatar name={r.name} avatarId={r.userAvatarId} size="sm" />
                 <span className="body">
                   <span className="name">{r.name}{top.me?.userId === r.userId ? ` · ${t("это вы")}` : ""}</span>
                   {/* Значки вместо слов (решение владельца 07.10): дела, районы, города, стихи. */}
@@ -172,7 +174,7 @@ export function ActivityBoard({ gameId, version }: { gameId: string; version: nu
           {rows.map((r, i) => (
             <tr key={r.userId}>
               <td>{i + 1}</td>
-              <td>{r.displayName || r.nickname}</td>
+              <td><span className="person"><UserAvatar name={r.displayName || r.nickname} avatarId={r.userAvatarId} size="sm" /><span className="name">{r.displayName || r.nickname}</span></span></td>
               <td><TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" withName /></td>
               <td>{r.deeds}</td><td>{r.tasks + r.orders}</td><td>{r.verses}</td><td>{r.cities}</td>
               <td className="muted small">{r.lastActiveAt ? fmtDate(r.lastActiveAt) : "—"}</td>

@@ -506,9 +506,11 @@ export function TeamPage() {
   }
 
   const activeBattles = battles.filter((b) => b.status === "QUEUED" || b.status === "ATTACK" || b.status === "DEFENSE");
-  const ourTasks = map.tasks.filter((tk) => tk.status === "TAKEN" || tk.status === "SUBMITTED" || tk.status === "REJECTED");
+  // В списке дела по алфавиту названий (решение владельца 24.10) — и взятые, и свободные.
+  const byTitle = (a: { deed: { title: string } }, b: { deed: { title: string } }) => a.deed.title.localeCompare(b.deed.title, "ru");
+  const ourTasks = map.tasks.filter((tk) => tk.status === "TAKEN" || tk.status === "SUBMITTED" || tk.status === "REJECTED").sort(byTitle);
   // Свободные дела на карте — в разделе «Дела» с кнопкой «Взять» у каждого, чтобы не искать метку на карте (решение владельца 05.10).
-  const freeTasks = map.tasks.filter((tk) => tk.status === "OPEN");
+  const freeTasks = map.tasks.filter((tk) => tk.status === "OPEN").sort(byTitle);
   const canTakeNow = map.daytime?.phase !== "night" || Boolean(map.daytime?.tasksOpen);
   const donationText = (dm: number | null | undefined) => dm ? `${t("пожертвование от {min} {cur}", { min: dm, cur: currency })}`.trim() : "";
   const landingTask = landingId ? map.tasks.find((tk) => tk.id === landingId && tk.landing) ?? null : null;

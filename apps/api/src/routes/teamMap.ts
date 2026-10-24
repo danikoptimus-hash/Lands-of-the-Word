@@ -383,7 +383,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       battles,
       cities: cityStates.map((s) => ({ teamId: s.teamId, nodeKey: s.nodeKey, orderSolved: s.orderSolved, done: s.doneTasks.length, capturedAt: s.capturedAt?.toISOString() ?? null, isCapital: s.isCapital })),
       teams: teams.map((t) => ({
-        id: t.id, name: t.name, color: t.color, startNodeKey: t.startNodeKey,
+        id: t.id, name: t.name, color: t.color, avatarId: t.avatarId, startNodeKey: t.startNodeKey,
         revealed: t.nodeStates.map((n) => n.nodeKey),
         revealedAt: t.nodeStates.map((n) => n.revealedAt.toISOString()),
         // Морское дело до высадки ведёт «в море» — такой отрезок не рисуем.

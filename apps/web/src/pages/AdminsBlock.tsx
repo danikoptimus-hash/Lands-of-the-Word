@@ -4,12 +4,13 @@ import { useAuth } from "../lib/auth";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
+import { UserAvatar } from "../components/UserAvatar";
 import { Chip } from "../components/Chip";
 import { ActionMenu } from "../components/ActionMenu";
 import { ErrorState, LoadingState } from "../components/State";
 import { Help } from "../components/Help";
 
-interface AdminRow { id: string; nickname: string; displayName: string | null; email: string | null; creator: boolean }
+interface AdminRow { id: string; nickname: string; displayName: string | null; email: string | null; avatarId?: string | null; creator: boolean }
 
 /** Администраторы игры: несколько человек проверяют сдачи и получают письма о них. Почта других не показывается. */
 export function AdminsBlock({ gameId, version = 0 }: { gameId: string; version?: number }) {
@@ -58,7 +59,7 @@ export function AdminsBlock({ gameId, version = 0 }: { gameId: string; version?:
         <ul className="list">
           {rows.map((a) => (
             <li key={a.id}>
-              <div className="main"><span className="person"><span className="avatar">{(a.displayName ?? a.nickname).slice(0, 1).toUpperCase()}</span><span className="name">{a.displayName ?? a.nickname}</span>{a.displayName && <span className="muted small">{a.nickname}</span>}{a.creator && <Chip tone="accent">{t("создатель")}</Chip>}{!a.email && <Chip tone="warn">{t("без почты")}</Chip>}</span></div>
+              <div className="main"><span className="person"><UserAvatar name={a.displayName ?? a.nickname} avatarId={a.avatarId} /><span className="name">{a.displayName ?? a.nickname}</span>{a.displayName && <span className="muted small">{a.nickname}</span>}{a.creator && <Chip tone="accent">{t("создатель")}</Chip>}{!a.email && <Chip tone="warn">{t("без почты")}</Chip>}</span></div>
               {!a.creator && a.id !== user?.id && <div className="side"><ActionMenu label={t("Ещё")} items={[{ label: t("Убрать"), icon: "trash", danger: true, onSelect: () => void remove(a) }]} /></div>}
             </li>
           ))}

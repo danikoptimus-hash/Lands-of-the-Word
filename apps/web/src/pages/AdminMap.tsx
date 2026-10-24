@@ -482,7 +482,7 @@ function NodeSheet({ gameId, node, container, teams, revealed, onClose }: { game
         {revealed.length === 0 ? <EmptyState inline icon="map" text={t("Перекрёсток ещё никто не открыл.")} /> : (
           <div>
             <p className="muted small">{t("Открыли")}</p>
-            <div className="row mt-1">{revealed.map((tm) => <TeamAvatar key={tm.id} name={tm.name} color={tm.color} size="sm" withName />)}</div>
+            <div className="row mt-1">{revealed.map((tm) => <TeamAvatar key={tm.id} name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName />)}</div>
           </div>
         )}
       </div>
