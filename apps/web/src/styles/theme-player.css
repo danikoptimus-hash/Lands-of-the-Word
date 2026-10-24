@@ -7,7 +7,7 @@
    печати, рваный лист, колесо шифра) остаётся. */
 
 /* ---------- HUD: светлый лист с одной кромкой и одной тенью, без размытия над морем ---------- */
-.hud-left .hud-btn, .hud-left .hud-team, .map-area .map-controls button {
+.hud-left .hud-btn, .hud-left .hud-team, .map-area .map-controls button, .map-area .storm-back {
   background: var(--paper-light); border: 1px solid var(--border-strong); color: var(--ink);
   box-shadow: 0 1px 3px rgba(0,0,0,.28); text-shadow: none; }
 .hud-left .hud-btn:hover, .hud-left .hud-team:hover, .map-area .map-controls button:hover { background: #FFFBF0; border-color: var(--ink-2); }
@@ -264,8 +264,8 @@
 .home-card .chip:not(.ok):not(.warn):not(.bad):not(.info):not(.accent) { color: var(--stone-dark); }
 
 /* Кнопки карты у игрока — стекло (решение владельца 21.09) */
-.hud-left .hud-btn, .hud-left .hud-team, .map-area .map-controls button { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
-.hud-left .hud-btn:hover, .hud-left .hud-team:hover, .map-area .map-controls button:hover { background: rgba(255,250,236,.8); }
+.hud-left .hud-btn, .hud-left .hud-team, .map-area .map-controls button, .map-area .storm-back { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.hud-left .hud-btn:hover, .hud-left .hud-team:hover, .map-area .map-controls button:hover, .map-area .storm-back:hover { background: rgba(255,250,236,.8); }
 
 /* Меню команды (решение владельца 21.09): наверху только «требует внимания», разделы — значками */
 .menu-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); padding: var(--sp-3) var(--sp-4); }

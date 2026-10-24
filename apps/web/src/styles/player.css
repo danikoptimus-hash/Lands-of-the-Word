@@ -610,4 +610,4 @@
 .map-canvas.storm .screen-items .m-land, .map-canvas.storm .screen-items .m-quarry, .map-canvas.storm .screen-items .m-battle, .map-canvas.storm .map-ripple { display: none; }
 .map-canvas.storm .m-edge, .map-canvas.storm .m-city { pointer-events: none !important; }
 /* В шторм единственная кнопка — стрелка назад в «Мои игры» (решение владельца 24.10), на месте кнопки меню. */
-.map-area .storm-back { position: absolute; left: calc(var(--sp-3) + var(--safe-left)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 6; display: inline-flex; align-items: center; justify-content: center; width: var(--touch); height: var(--touch); border-radius: var(--r-full); color: var(--text); text-decoration: none; }
+.map-area .storm-back { position: absolute; left: calc(var(--sp-3) + var(--safe-left)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 6; display: inline-flex; align-items: center; justify-content: center; width: var(--control-h); min-height: var(--control-h); padding: 0; border-radius: var(--r-sm); color: var(--text); text-decoration: none; }
