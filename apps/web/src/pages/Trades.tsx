@@ -18,7 +18,7 @@ import { useGameEvents } from "../lib/useGameEvents";
 const words = (n: number) => plural(n, [t("слово"), t("слова"), t("слов")]);
 const CityLine = ({ c }: { c: { bookName: string; words: number } }) => <span className="trade-city"><Icon name="city" /><b>{c.bookName}</b> · {words(c.words)}</span>;
 
-export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged?: () => void }) {
+export function TradesSection({ gameId, onChanged, openFor, onCanTrade }: { gameId: string; onChanged?: () => void; /** Открыть форму предложения этой команде (из меню «⋯» строки команды, решение владельца 24.10). */ openFor?: { teamId: string; nonce: number } | null; /** Сообщить странице, может ли посол предлагать обмен. */ onCanTrade?: (v: boolean) => void }) {
   const { notify, confirm } = useUi();
   const [data, setData] = useState<TradesDto | null>(null);
   const [toTeamId, setToTeamId] = useState("");
@@ -31,6 +31,8 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
   const load = useCallback(() => api<TradesDto>(`/api/games/${gameId}/my-trades`).then(setData).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load]);
   useGameEvents(gameId, (e) => { if (e.type === "trades" || e.type === "cities" || e.type === "teams") void load(); });
+  useEffect(() => { onCanTrade?.(Boolean(data?.canTrade)); }, [data?.canTrade]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (openFor) { setToTeamId(openFor.teamId); setFormOpen(true); } }, [openFor?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!data || !data.canTrade) return null;
 
   async function call(key: string, url: string, body?: unknown, done?: string) {
@@ -58,9 +60,10 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
     await call(x.id, `/api/games/${gameId}/trades/${x.id}/cancel`, {}, t("Сделка отменена"));
   }
 
+  const nothing = active.length === 0 && closed.length === 0;
   return (
-    <section className="section trades">
-      <h2><Icon name="handshake" />{t("Обмен городами")}{active.length > 0 && <span className="count-chip hot">{active.length}</span>}<Help>{t("Посол выставляет свой город другой команде, её посол предлагает взамен свой. Если город подходит — нажмите «Обменять», и города перейдут друг другу; если нет — отклоните и ждите другое предложение. Если переговоры зашли в тупик, любая сторона отменяет сделку. Столицу обменять нельзя. У каждого города показано, сколько слов в его книге.")}</Help></h2>
+    <section className={"section trades" + (nothing ? " empty" : "")}>
+      {!nothing && <h2><Icon name="handshake" />{t("Обмен городами")}{active.length > 0 && <span className="count-chip hot">{active.length}</span>}<Help>{t("Посол выставляет свой город другой команде, её посол предлагает взамен свой. Если город подходит — нажмите «Обменять», и города перейдут друг другу; если нет — отклоните и ждите другое предложение. Если переговоры зашли в тупик, любая сторона отменяет сделку. Столицу обменять нельзя. У каждого города показано, сколько слов в его книге.")}</Help></h2>}
       {active.map((x) => {
         const other = x.mine ? x.to : x.from;
         return (
@@ -99,9 +102,7 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
           </div>
         );
       })}
-      <div className="actions trade-new">
-        <button type="button" onClick={() => setFormOpen(true)}><Icon name="handshake" />{t("Предложить обмен")}</button>
-      </div>
+      {/* Кнопки «Предложить обмен» здесь нет: обмен предлагают из меню «⋯» напротив команды в таблице (решение владельца 24.10). */}
       {formOpen && (
         <Sheet size="sm" title={t("Предложить обмен")} onClose={() => setFormOpen(false)} className="trade-form"
           foot={<><button type="button" className="secondary" onClick={() => setFormOpen(false)}>{t("Отмена")}</button><button type="button" disabled={busy === "new" || !toTeamId || !offerKey} onClick={() => void propose()}><Icon name="handshake" />{t("Предложить обмен")}</button></>}>

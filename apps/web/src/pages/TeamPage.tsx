@@ -24,6 +24,7 @@ import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help, HelpPopup } from "../components/Help";
+import { ActionMenu, type MenuItem } from "../components/ActionMenu";
 import { DeedBadgePopup, untilText } from "../components/DeedBadge";
 import { FeedSection, MyServiceSection } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
@@ -43,7 +44,12 @@ function peaceTerm(p: PeaceTeamDto): string {
   return t("на {n} дн.", { n: p.days });
 }
 
-function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeace }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void; roster?: React.ReactNode; /** Мир: знак напротив каждой чужой команды (решение владельца 21.09) */ peace?: PeaceData | null; onPeace?: (p: PeaceTeamDto, action: PeaceAction) => void }) {
+/** Значок-цифра в строке команды: значение всплывает окошком по нажатию (решение владельца 24.10: «подсказку значения значка показывать при попытке на него нажать»). */
+function StatChip({ icon, label, value }: { icon: string; label: string; value: number }) {
+  return <HelpPopup name={label} trigger={<Chip icon={icon}>{value}</Chip>}><p>{label}</p></HelpPopup>;
+}
+
+function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeace, onTrade }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void; roster?: React.ReactNode; /** Мир: знак напротив каждой чужой команды (решение владельца 21.09) */ peace?: PeaceData | null; onPeace?: (p: PeaceTeamDto, action: PeaceAction) => void; /** Посол: «Предложить обмен» этой команде в меню «⋯» (решение владельца 24.10). */ onTrade?: (teamId: string) => void }) {
   const stop = { onClick: (e: React.SyntheticEvent) => e.stopPropagation(), onKeyDown: (e: React.SyntheticEvent) => e.stopPropagation() };
   if (!standings) return <LoadingState rows={2} />;
   if (standings.standings.length === 0) return <EmptyState inline icon="crown" text={t("Пока нечего показать.")} />;
@@ -54,7 +60,12 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
         const mine = st.teamId === teamId;
         const pc = !mine ? peace?.teams.find((p) => p.team.id === st.teamId) ?? null : null;
         const canPeace = Boolean(peace?.canSpeak && onPeace && pc && pc.team.status !== "defeated" && st.status !== "defeated");
-        const details = trials > 0 || st.citiesOnPath.length > 0 || (mine && Boolean(roster)) || (canPeace && pc?.state === "peace");
+        // Меню «⋯» напротив чужой команды (решение владельца 24.10 вместо отдельных кнопок): мир, расторжение, обмен.
+        const actions: MenuItem[] = [];
+        if (canPeace && pc?.state === "none") actions.push({ label: t("Предложить мир"), icon: "handshake", onSelect: () => onPeace!(pc!, "offer") });
+        if (canPeace && pc?.state === "peace" && pc.breakable) actions.push({ label: t("Расторгнуть мир"), icon: "x", danger: true, onSelect: () => onPeace!(pc!, "break") });
+        if (!mine && onTrade && st.status !== "defeated") actions.push({ label: t("Предложить обмен"), icon: "handshake", onSelect: () => onTrade(st.teamId) });
+        const details = st.citiesOnPath.length > 0 || (mine && Boolean(roster)) || (canPeace && pc?.state === "peace");
         const opened = open ?? teamId;
         const shown = details && opened === st.teamId;
         const toggle = () => setOpen(opened === st.teamId ? "" : st.teamId);
@@ -69,22 +80,23 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
                 {pc?.state === "peace" && <Chip tone="ok" icon="handshake">{peaceTerm(pc) ? `${t("мир")} ${peaceTerm(pc)}` : t("мир")}</Chip>}
                 {pc?.state === "offered" && <Chip tone="info" icon="handshake">{peaceTerm(pc) ? `${t("мир предложен")} ${peaceTerm(pc)}` : t("мир предложен")}</Chip>}
                 {pc?.state === "incoming" && <Chip tone="warn" icon="handshake">{peaceTerm(pc) ? `${t("предлагает мир")} ${peaceTerm(pc)}` : t("предлагает мир")}</Chip>}
-                {canPeace && pc?.state === "none" && <span className="peace-slot" {...stop}><button type="button" className="ghost icon sm peace-btn" aria-label={t("Предложить мир команде «{team}»", { team: st.name })} title={t("Предложить мир команде «{team}»", { team: st.name })} onClick={() => onPeace!(pc!, "offer")}><Icon name="handshake" /></button></span>}
+                {actions.length > 0 && <span className="peace-slot" {...stop}><ActionMenu items={actions} label={t("Действия с командой «{team}»", { team: st.name })} /></span>}
                 {details && <Icon name="chevron-down" className="chev" />}
               </div>
               {/* Значки вместо слов (решение владельца 07.10): города, дела, перекрёстки. */}
               {/* Значки вместо слов (решение владельца 07.10): участники (решение 24.10: как у администратора, у всех команд), города, дела, перекрёстки. */}
-              <div className="meta chips">{st.members !== undefined && <Chip icon="users" title={t("Участников")}>{st.members}</Chip>}<Chip icon="city" title={t("Городов")}>{st.cities}</Chip><Chip icon="scroll" title={t("Принятых дел")}>{st.deedsApproved}</Chip><Chip icon="pin" title={t("Открытых перекрёстков")}>{st.nodesRevealed}</Chip></div>
+              <div className="meta chips" {...stop}>{st.members !== undefined && <StatChip icon="users" label={t("Участников")} value={st.members} />}<StatChip icon="city" label={t("Городов")} value={st.cities} /><StatChip icon="scroll" label={t("Принятых дел")} value={st.deedsApproved} /><StatChip icon="pin" label={t("Открытых перекрёстков")} value={st.nodesRevealed} />
+                {/* Испытания значками, как у администратора (решение владельца 24.10): выиграли, устояли, потеряли. */}
+                {trials > 0 && <><StatChip icon="trophy" label={t("Испытаний выиграли")} value={st.battlesWon} /><StatChip icon="shield" label={t("Испытаний устояли")} value={st.battlesRepelled} /><StatChip icon="flag" label={t("Испытаний потеряли")} value={st.battlesLost} /></>}</div>
               {canPeace && pc?.state === "incoming" && (
                 <div className="row peace-row" {...stop}>
                   <button type="button" className="sm" onClick={() => onPeace!(pc!, "accept")}><Icon name="check" />{t("Принять")}</button>
                   <button type="button" className="secondary sm" onClick={() => onPeace!(pc!, "decline")}>{t("Отклонить")}</button>
                 </div>
               )}
-              {shown && trials > 0 && <div className="meta">{t("Испытания {a} · {b} · {c}", { a: st.battlesWon, b: st.battlesRepelled, c: st.battlesLost })}<span onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}><Help>{t("выиграли · устояли · потеряли")}</Help></span></div>}
               {shown && st.citiesOnPath.length > 0 && <div className="meta">{t("Города")}: {st.citiesOnPath.map((c) => c.name + (c.current ? "" : ` (${t("потерян")})`)).join(", ")}</div>}
               {/* Мир на срок расторгнуть нельзя (решение владельца 22.10): кнопка «Расторгнуть» только у старого мира без срока. */}
-              {shown && canPeace && pc?.state === "peace" && <div className="row peace-row" {...stop}><span className="meta">{pc.since ? t("мир с {d}", { d: fmtDate(pc.since, { time: false }) }) : ""}{peaceTerm(pc) ? ` · ${peaceTerm(pc)}` : ""}</span>{pc.breakable && <button type="button" className="secondary sm" onClick={() => onPeace!(pc!, "break")}>{t("Расторгнуть")}</button>}</div>}
+              {shown && canPeace && pc?.state === "peace" && <div className="meta">{pc.since ? t("мир с {d}", { d: fmtDate(pc.since, { time: false }) }) : ""}{peaceTerm(pc) ? ` · ${peaceTerm(pc)}` : ""}</div>}
               {shown && mine && roster && <div className="standing-roster" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>{roster}</div>}
             </div>
           </li>
@@ -258,6 +270,9 @@ export function TeamPage() {
     try { await api(`/api/games/${id}/peace`, { method: "POST", body: JSON.stringify({ teamId: p.team.id, days }) }); notify(t("Мир предложен")); await loadPeace(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
   }, [id, notify, loadPeace]);
+  /** Обмен городами из меню «⋯» строки команды (решение владельца 24.10): форма посла открывается с этой командой. */
+  const [tradeFor, setTradeFor] = useState<{ teamId: string; nonce: number } | null>(null);
+  const [canTrade, setCanTrade] = useState(false);
   const onPeace = useCallback(async (p: PeaceTeamDto, action: PeaceAction) => {
     const name = p.team.name;
     let path = `/api/games/${id}/peace`, body: unknown = { teamId: p.team.id }, ok = t("Мир предложен");
@@ -601,6 +616,8 @@ export function TeamPage() {
       {menuOpen && (
         <aside className={"side-menu" + (wide ? " with-rail" : "")} role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")}>
           <div className="side-body">
+          {/* Шапка команды и заголовок раздела прилипают вместе одним блоком (решение владельца 24.10: «листаю список внизу, а заголовок и подзаголовок видны так же, как до того»). */}
+          <div className="side-top">
           <div className="side-head" style={{ ["--team" as string]: team.color }}>
             <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />
             <div className="grow"><div className="side-name">{team.name}</div>{isCaptain && <div className="muted small">{t("вы капитан")}</div>}</div>
@@ -614,6 +631,7 @@ export function TeamPage() {
               <h2>{MENU_ITEMS.find((m) => m.key === view)?.label()}</h2>
             </div>
           )}
+          </div>
           {view === "attention" && (
             rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 ? (
                 <section className="section attention">
@@ -718,7 +736,7 @@ export function TeamPage() {
           )}
           {menuView === "standings" && (
             <section className="section">
-            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster avatarEditor={avatarEditor} onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />
+            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} onTrade={canTrade ? (tid) => setTradeFor({ teamId: tid, nonce: Date.now() }) : undefined} roster={<Roster avatarEditor={avatarEditor} onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />
 
             {peaceOffer && (
               <Sheet size="sm" title={t("Предложить мир команде «{team}»", { team: peaceOffer.team.name })} onClose={() => setPeaceOffer(null)}>
@@ -733,7 +751,7 @@ export function TeamPage() {
             </section>
           )}
           {menuView === "standings" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
-          {menuView === "standings" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} onChanged={() => { void loadMap(); void loadStandings(); }} />}
+          {menuView === "standings" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} openFor={tradeFor} onCanTrade={setCanTrade} onChanged={() => { void loadMap(); void loadStandings(); }} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} />}
           {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} />}
           {menuView === "home" && !wide && (

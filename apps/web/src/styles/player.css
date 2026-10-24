@@ -145,7 +145,8 @@
 .menu-rail .i { width: 22px; height: 22px; color: var(--accent); }
 .menu-rail .count-chip { position: absolute; top: 2px; right: 4px; }
 .menu-rail .rail-gap { flex: 1 1 auto; min-height: var(--sp-3); }
-.side-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.side-top { position: sticky; top: 0; z-index: 2; }
+.side-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); background: var(--surface); z-index: 1; }
 .side-name { font-weight: 700; font-size: var(--fs-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-menu .section { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); }
 .side-menu .section h2 { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-md); margin-bottom: var(--sp-2); }
@@ -615,3 +616,6 @@
 .take-slot { position: relative; display: inline-flex; flex: none; }
 .take-slot .sea-badge { position: absolute; top: -4px; right: -4px; width: 11px; height: 11px; border-radius: 50%; background: var(--surface); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 1px var(--border); z-index: 1; pointer-events: none; }
 .take-slot .sea-badge svg { width: 8px; height: 8px; }
+/* Раздел «Обмен городами» без сделок не показывается (кнопка ушла в меню «⋯» строки команды, 24.10); лист формы остаётся. */
+.section.trades.empty { display: none; }
+.standing .chips .help-pop-wrap > .pop-btn { appearance: none; border: 0; background: none; padding: 0; margin: 0; min-height: 0; box-shadow: none; font: inherit; cursor: pointer; display: inline-flex; }

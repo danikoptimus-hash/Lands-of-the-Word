@@ -492,4 +492,6 @@ export const PLAYER: Record<string, string> = {
   "Загрузка фото вам закрыта администратором платформы.": "Photo uploads are closed for you by the platform administrator.",
   "Убрать фото": "Remove photo", "Убрать фото?": "Remove the photo?", "Готово": "Done", "Отмена": "Cancel", "Масштаб": "Zoom", "Передвиньте фото и приблизьте: в круге то, что увидят другие.": "Move and zoom the photo: the circle shows what others will see.",
   "Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка.": "Leads the team together with the captain: challenges, bids, capital, landing.",
+  // Меню «⋯» в таблице команд (24.10)
+  "Расторгнуть мир": "Break the peace", "Действия с командой «{team}»": "Actions with team “{team}”",
 };
