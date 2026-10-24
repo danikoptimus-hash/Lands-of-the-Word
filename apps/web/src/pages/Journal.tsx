@@ -89,9 +89,9 @@ export function journalLine(kind: JournalKind, vars: Record<string, string | num
 
 /** Лента команды «Летопись» (до 21.09 — «Что случилось»): свои события и новости для всех команд. */
 export function FeedSection({ gameId, version }: { gameId: string; version: number }) {
-  const [items, setItems] = useState<FeedItemDto[] | null>(null);
+  const [items, setItems] = useState<FeedItemDto[] | null>(() => ready<{ items: FeedItemDto[] }>(`/api/games/${gameId}/feed`)?.items ?? null);
   const [all, setAll] = useState(false);
-  const load = useCallback(() => api<{ items: FeedItemDto[] }>(`/api/games/${gameId}/feed`).then((r) => setItems(r.items)).catch(() => {}), [gameId]);
+  const load = useCallback(() => apiReady<{ items: FeedItemDto[] }>(`/api/games/${gameId}/feed`).then((r) => setItems(r.items)).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load, version]);
   /** По умолчанию шесть записей — меню укладывается в экран телефона; дальше «Показать всё». */
   const shown = items ? (all ? items : items.slice(0, 6)) : [];
@@ -118,9 +118,9 @@ export function FeedSection({ gameId, version }: { gameId: string; version: numb
 
 /** «Моё служение»: сводка участника. */
 export function MyServiceSection({ gameId, version }: { gameId: string; version: number }) {
-  const [s, setS] = useState<ServiceStatsDto | null>(null);
-  const [top, setTop] = useState<TopDto | null>(null);
-  useEffect(() => { api<ServiceStatsDto>(`/api/games/${gameId}/my-service`).then(setS).catch(() => {}); api<TopDto>(`/api/games/${gameId}/top`).then(setTop).catch(() => {}); }, [gameId, version]);
+  const [s, setS] = useState<ServiceStatsDto | null>(() => ready<ServiceStatsDto>(`/api/games/${gameId}/my-service`));
+  const [top, setTop] = useState<TopDto | null>(() => ready<TopDto>(`/api/games/${gameId}/top`));
+  useEffect(() => { apiReady<ServiceStatsDto>(`/api/games/${gameId}/my-service`).then(setS).catch(() => {}); apiReady<TopDto>(`/api/games/${gameId}/top`).then(setTop).catch(() => {}); }, [gameId, version]);
   return (
     <section className="section">
       <h2><Icon name="user" />{t("Моё служение")}</h2>

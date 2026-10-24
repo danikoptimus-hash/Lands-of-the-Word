@@ -152,7 +152,7 @@ export function WorldSvg({ vp, children, overlay }: { vp: Viewport; bounds?: { m
 
 export function useCoast(hexes: Array<{ q: number; r: number }>, size = HEX_SIZE): string {
   const key = hexes.map((h) => `${h.q},${h.r}`).join(";");
-  return useMemo(() => (hexes.length ? coastPath(hexes, size) : ""), [key, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  return useMemo(() => { const t0 = performance.now(); const d = hexes.length ? coastPath(hexes, size) : ""; perfMark("геометрия: берег", performance.now() - t0); return d; }, [key, size]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 /**
@@ -341,7 +341,7 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
   const ref = useRef<HTMLCanvasElement>(null);
   const lightRef = useRef(light); lightRef.current = light;
   const fogKey = fogHexes.map((h) => `${h.q},${h.r}`).join(";") + "|" + fogPoints.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(";") + "|" + clear.nodes.length + ":" + clear.edges.length + ":" + clear.nodes.map((n) => n.x.toFixed(0)).join(",");
-  const mask = useMemo(() => (fogHexes.length || fogPoints.length ? buildFogMask(fogHexes, size, fogPoints, clear, land) : null), [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mask = useMemo(() => { const t0 = performance.now(); const m = fogHexes.length || fogPoints.length ? buildFogMask(fogHexes, size, fogPoints, clear, land) : null; perfMark("геометрия: туман", performance.now() - t0); return m; }, [fogKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const maskRef = useRef(mask); maskRef.current = mask;
   const dirty = useRef(true); dirty.current = true;
   useEffect(() => { dirty.current = true; }, [light]);

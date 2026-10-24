@@ -5,6 +5,8 @@
  */
 const on = typeof location !== "undefined" && /[?&]perf=1/.test(location.search);
 const samples = new Map<string, number[]>();
+// Для замеров автоматикой (Playwright): с ?perf=1 замеры доступны как window.__perfSamples.
+if (on && typeof window !== "undefined") (window as unknown as { __perfSamples: Map<string, number[]> }).__perfSamples = samples;
 export function perfMark(name: string, ms: number): void {
   if (!on) return;
   const arr = samples.get(name) ?? []; arr.push(ms); if (arr.length > 60) arr.shift(); samples.set(name, arr);

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, apiReady, ready, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
+import { api, ApiError, apiReady, prefetch, ready, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
@@ -172,6 +172,10 @@ export function TeamPage() {
   const [team, setTeam] = useState<TeamDto | null>(() => firstTeams?.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? firstTeams?.teams[0] ?? null);
   const [isAdmin, setIsAdmin] = useState(firstTeams?.isAdmin ?? false);
   const [map, setMap] = useState<MyMapDto | null>(firstMap);
+  // Сначала кадр с оболочкой, потом тяжёлая карта (замер 24.10 на телефоне: с готовыми данными карта строилась прямо в
+  // нажатии и экран замирал на секунды; оболочка за один кадр возвращает мгновенный отклик, карта приходит следом).
+  const [painted, setPainted] = useState(false);
+  useEffect(() => { const raf = requestAnimationFrame(() => setPainted(true)); return () => cancelAnimationFrame(raf); }, []);
   /** Ползунок истории (решение владельца 05.10): null — сейчас, иначе карта команды на момент выбранного хода. */
   const [historyAt, setHistoryAt] = useState<Date | null>(null);
   const moves = useMemo(() => (map ? teamMoves(map) : []), [map]);
@@ -302,6 +306,8 @@ export function TeamPage() {
   const loadMap = useCallback(() => apiReady<MapResp>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); setCurrency(m.donation?.currency ?? ""); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   stormReload.current = () => { void loadMap(); };
+  // Разделы меню («Моё служение», «Лента») открываются сразу (решение владельца 24.10): их ответы запрашиваются заранее.
+  useEffect(() => { if (team && !isAdmin) prefetch([`/api/games/${id}/my-service`, `/api/games/${id}/top`, `/api/games/${id}/feed`]); }, [id, team?.id, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
   // Смена шторма: на входе закрываются меню и все листы, на выходе всё возвращается; карта перечитывается в обоих случаях.
   useEffect(() => {
     if (stormWas.current === storm.active) return;
@@ -459,7 +465,7 @@ export function TeamPage() {
       </main>
     );
   }
-  if (!team) {
+  if (!team || !painted) {
     return (
       <div className="map-screen loading">
         <div className="hud-left"><Link to="/" className="btn secondary icon hud-btn" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link></div>

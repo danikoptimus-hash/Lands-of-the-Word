@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Карта команды: при переходе с главной экран отвечает сразу, карта строится следом; разделы «Моё служение» и «Лента» открываются без ожидания.": "Team map: when coming from the home page the screen responds at once and the map builds right after; the “My service” and “Feed” sections open without waiting.",
   "Карта игры и карта команды открываются с главной сразу: их данные подгружаются заранее, пока открыт список игр.": "The game map and the team map open instantly from the home page: their data is fetched in advance while the games list is open.",
   "Разделы страницы игры у администратора («Команды», «Дела», «Проверка», «Летопись», «Аналитика») открываются сразу: их данные подгружаются заранее вместе со страницей, а свежие цифры подменяются тихо.": "The admin game page sections (Teams, Deeds, Review, Chronicle, Analytics) now open instantly: their data is fetched in advance with the page, and fresh numbers replace them quietly.",
   "В деле «Помочь ребёнку из большой семьи с уроками» уточнено: можно и с младшими братьями и сёстрами из своей семьи.": "The deed “Help a child from a large family with homework” now says: you may also help younger brothers and sisters in your own family.",

@@ -11,7 +11,7 @@ import type { DayPhase } from "@lotw/domain";
 export function useIslets(hexes: MapHexDto[], size: number, bounds: Bounds | null): Islet[] {
   const key = hexes.map((h) => `${h.q},${h.r}`).join(";");
   // Зависимость только от ключа гексов: bounds выводится из них же, а новый объект при перезагрузке карты не должен всё пересчитывать.
-  return useMemo(() => (bounds && hexes.length ? generateIslets(hexes, size, bounds) : []), [key, size, Boolean(bounds)]); // eslint-disable-line react-hooks/exhaustive-deps
+  return useMemo(() => { const t0 = performance.now(); const r = bounds && hexes.length ? generateIslets(hexes, size, bounds) : []; perfMark("геометрия: островки", performance.now() - t0); return r; }, [key, size, Boolean(bounds)]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 
