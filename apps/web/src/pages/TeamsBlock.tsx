@@ -132,8 +132,6 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
   }
 
   const full = (teams?.length ?? 0) >= teamCount;
-  // «Лимит: 3 команд · Изменить»: одна строка перевода, последняя часть после « · » — ссылка в настройки.
-  const limit = t("Лимит: {n} команд · Изменить", { n: teamCount }).split(" · ");
   return (
     <div className="card">
       <div className="card-head">
@@ -141,7 +139,6 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
         {standings && <Link to={`/games/${gameId}/book`} className="btn secondary sm"><Icon name="book" />{t("Книга сезона")}</Link>}
         {!full && <button type="button" className="sm" onClick={() => setOpen(true)} disabled={!teams}><Icon name="plus" />{t("Добавить")}</button>}
       </div>
-      {teams && full && <p className="hint">{limit[0]}{goToSettings && limit[1] && <> · <a href="#settings" onClick={(e) => { e.preventDefault(); goToSettings(); }}>{limit[1]}</a></>}</p>}
       {loadError ? <ErrorState onRetry={() => void load()} /> : !teams ? <LoadingState /> : teams.length === 0 ? <EmptyState inline icon="users" text={t("Команд пока нет: добавьте первую.")} /> : ordered(teams, standings).map(({ tm, st, rank }) => {
         const isOpen = expanded === tm.id;
         const toggle = () => setExpanded(isOpen ? null : tm.id);
