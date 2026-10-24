@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
-import { reportPage } from "../lib/perf";
+import { reportAction, reportPage } from "../lib/perf";
 import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
@@ -453,9 +453,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         </g>
       </WorldSvg>
       <div className="map-controls">
-        <button type="button" className="secondary icon" onClick={vp.fit} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
-        {start && <button type="button" className="secondary icon" onClick={() => vp.focusOn(start.x, start.y, 2.4)} aria-label={t("К старту")} title={t("К старту")}><Icon name="flag" /></button>}
-        {onMark && <button type="button" className={"secondary icon" + (marking ? " on" : "")} aria-pressed={marking} onClick={() => setMarking((m) => !m)} aria-label={t("Метка на карте")} title={t("Метка на карте")}><Icon name="pin" /></button>}
+        <button type="button" className="secondary icon" onClick={() => { reportAction("map-fit", "map"); vp.fit(); }} aria-label={t("Вся карта")} title={t("Вся карта")}><Icon name="expand" /></button>
+        {start && <button type="button" className="secondary icon" onClick={() => { reportAction("map-start", "map"); vp.focusOn(start.x, start.y, 2.4); }} aria-label={t("К старту")} title={t("К старту")}><Icon name="flag" /></button>}
+        {onMark && <button type="button" className={"secondary icon" + (marking ? " on" : "")} aria-pressed={marking} onClick={() => { if (!marking) reportAction("map-mark", "map"); setMarking((m) => !m); }} aria-label={t("Метка на карте")} title={t("Метка на карте")}><Icon name="pin" /></button>}
       </div>
       {marking && (
         <div className="finish-banner mark-banner" role="status">

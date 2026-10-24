@@ -53,6 +53,8 @@ export function GamePage() {
   type GameResp = { game: GameDto; hexes: MapHexDto[]; nodes: MapNodeDto[]; edges: MapEdgeDto[]; observer?: boolean };
   const first = ready<GameResp>(`/api/games/${id}`);
   const [game, setGame] = useState<GameDto | null>(first?.game ?? null);
+  const [painted, setPainted] = useState(false);
+  useEffect(() => { const raf = requestAnimationFrame(() => setPainted(true)); return () => cancelAnimationFrame(raf); }, []);
   /** Модуль аналитики (графики ECharts) докачивается заранее, в фоне; пока его нет — заглушка. Без React.lazy: тот даже с готовым модулем на миг показывает запасной вид. */
   const [Analytics, setAnalytics] = useState<ComponentType<{ gameId: string }> | null>(null);
   const [hexes, setHexes] = useState<MapHexDto[]>(first?.hexes ?? []);
@@ -144,7 +146,9 @@ export function GamePage() {
 
   if (error && !game) return <><Back to="/" label={t("Мои игры")} /><div className="card"><ErrorState text={error} onRetry={loadAll} /></div></>;
   // Загрузка — на том же фоне, что и экран карты, без карточки: иначе при входе в игру на миг мелькала белая плашка.
-  if (!game) return <div className="admin-screen"><div className="admin-empty"><div className="admin-loading"><LoadingState rows={3} /></div></div></div>;
+  // Сначала кадр с заглушкой, потом тяжёлая карта (замечание владельца 24.10: «у админа просто тормозит кнопка, а потом
+  // открывается карта» — с готовыми данными карта строилась прямо в нажатии; у участника оболочка уже шла первым кадром).
+  if (!game || !painted) return <div className="admin-screen"><div className="admin-empty"><div className="admin-loading"><LoadingState rows={3} /></div></div></div>;
   const active = game.status === "ACTIVE";
   const draft = game.status === "DRAFT";
   const reviewCount = counts.submissions + counts.quarry + counts.battles;

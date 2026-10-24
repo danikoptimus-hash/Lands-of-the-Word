@@ -30,4 +30,11 @@ export async function uiMetricRoutes(app: FastifyInstance) {
     await prisma.uiMetric.create({ data: { ...b, ttfb: b.ttfb ?? null, fcp: b.fcp ?? null, lcp: b.lcp ?? null, load: b.load ?? null, fps: b.fps ?? null, jank: b.jank ?? null, longTasks: b.longTasks ?? null, memoryMb: b.memoryMb ?? null } });
     return reply.code(204).send();
   });
+  /** Нажатие кнопки карты: действие, страница, тип устройства. Без пользователя. */
+  app.post("/api/metrics/action", { preHandler: requireUser, config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request, reply) => {
+    const b = ActionBody.parse(request.body);
+    await prisma.uiAction.create({ data: b });
+    return reply.code(204).send();
+  });
 }
+const ActionBody = z.object({ action: z.enum(["map-fit", "map-start", "map-mark"]), page: z.enum(["map", "admin-map"]), device: z.enum(["phone", "desktop"]) });

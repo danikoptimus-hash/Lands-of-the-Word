@@ -881,6 +881,18 @@ model UiMetric {
   @@index([createdAt])
 }
 
+/** Нажатия кнопок карты (вопрос владельца 24.10: пользуются ли «Вся карта» и «К старту»): без пользователя, только что, где и когда. */
+model UiAction {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  action    String   // map-fit | map-start | map-mark
+  page      String   // map | admin-map
+  device    String   // phone | desktop
+
+  @@index([createdAt])
+  @@index([action, createdAt])
+}
+
 /**
  * Обращение в поддержку: игрок описывает проблему, всё остальное (игра, команда, город, задание, состояние
  * блокировки) сервер подставляет сам. Уходит письмом на адрес поддержки и лежит в дашборде суперадмина.
