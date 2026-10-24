@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type BattleDto, type BattleStatus, type PassageDto, type BattleEntryDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, type BattleDto, type BattleStatus, type PassageDto, type BattleEntryDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
@@ -27,12 +27,12 @@ const verses = (n: number) => plural(n, ["стих", "стиха", "стихов
 /** Испытания за города и проверка записей обеих сторон. Счётчик — записи на проверке. */
 export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
   const { notify } = useUi();
-  const [rows, setRows] = useState<BattleDto[] | null>(null);
+  const [rows, setRows] = useState<BattleDto[] | null>(() => ready<{ battles: BattleDto[] }>(`/api/games/${gameId}/battles`)?.battles ?? null);
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<"active" | "all">("active");
   const [returning, setReturning] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null); // гаснут кнопки только у решаемой записи (04.10)
-  const load = useCallback(() => api<{ battles: BattleDto[] }>(`/api/games/${gameId}/battles`).then((r) => { setRows(r.battles); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
+  const load = useCallback(() => apiReady<{ battles: BattleDto[] }>(`/api/games/${gameId}/battles`).then((r) => { setRows(r.battles); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useAutoRefresh(load, version);
 
   async function decide(battleId: string, entryId: string, approve: boolean, comment = "") {

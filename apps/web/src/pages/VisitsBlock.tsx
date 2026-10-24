@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, type VisitDto, type VisitStatus } from "../lib/api";
+import { api, ApiError, apiReady, ready, type VisitDto, type VisitStatus } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate } from "../lib/format";
@@ -24,12 +24,12 @@ const STATUS: Record<VisitStatus, { text: string; tone: "neutral" | "info" | "ok
 /** Отчёты о визитах к адресатам (решение владельца 22.10): принять или не принять; не принят — город свободен. */
 export function VisitsBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
   const { notify, confirm } = useUi();
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const [rows, setRows] = useState<Row[] | null>(() => ready<{ visits: Row[] }>(`/api/games/${gameId}/visits`)?.visits ?? null);
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<"open" | "all">("open");
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const load = useCallback(() => api<{ visits: Row[] }>(`/api/games/${gameId}/visits`).then((r) => { setRows(r.visits); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
+  const load = useCallback(() => apiReady<{ visits: Row[] }>(`/api/games/${gameId}/visits`).then((r) => { setRows(r.visits); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useAutoRefresh(load, version);
 
   async function decide(v: Row, approve: boolean, comment = "") {

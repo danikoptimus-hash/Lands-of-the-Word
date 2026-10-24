@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { api, ApiError, PROOF_LABEL, type EdgeTaskDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, PROOF_LABEL, type EdgeTaskDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate } from "../lib/format";
@@ -59,7 +59,7 @@ export function ReturnBox({ placeholder, okLabel, onOk, onCancel, busy }: { plac
 /** Очередь сдач дел. */
 export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onShowOnMap }: { gameId: string; version?: number; currency?: string; onDecided: () => void; /** «Посмотреть на карте» у сдачи (просьба владельца 10.10): карта центрируется на стороне дела. */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   const { notify } = useUi();
-  const [rows, setRows] = useState<Row[] | null>(null);
+  const [rows, setRows] = useState<Row[] | null>(() => ready<{ tasks: Row[] }>(`/api/games/${gameId}/submissions`)?.tasks ?? null);
   const [loadError, setLoadError] = useState(false);
   const [returning, setReturning] = useState<string | null>(null);
   /** Какая сдача сейчас решается (id) или «batch»: гаснут кнопки только у неё, а не у всех сдач (замечание владельца 04.10). */
@@ -75,7 +75,7 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onS
   const toggleDesc = (id: string) => setDescOpen((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   /** Возвращённые дела (решение владельца 05.10): возвращённое по ошибке можно найти здесь и принять после пересмотра. */
   const [returned, setReturned] = useState(false);
-  const load = useCallback(() => api<{ tasks: Row[] }>(`/api/games/${gameId}/submissions${returned ? "?status=REJECTED" : ""}`).then((r) => { setRows(r.tasks); setLoadError(false); }).catch(() => setLoadError(true)), [gameId, returned]);
+  const load = useCallback(() => apiReady<{ tasks: Row[] }>(`/api/games/${gameId}/submissions${returned ? "?status=REJECTED" : ""}`).then((r) => { setRows(r.tasks); setLoadError(false); }).catch(() => setLoadError(true)), [gameId, returned]);
   useAutoRefresh(load, version);
 
   async function decide(id: string, approve: boolean, comment = "") {
@@ -146,11 +146,11 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onS
 interface QuarryRow { id: string; team: { id: string; name: string; color: string; avatarId?: string | null; stones: number }; deed: { title: string; description: string; stones: number; quorumPct: number | null }; stones: number; by: string; participants: string[]; teamSize: number; links: string[]; note: string; submittedAt: string }
 export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
   const { notify } = useUi();
-  const [rows, setRows] = useState<QuarryRow[] | null>(null);
+  const [rows, setRows] = useState<QuarryRow[] | null>(() => ready<{ works: QuarryRow[] }>(`/api/games/${gameId}/quarry/submissions`)?.works ?? null);
   const [loadError, setLoadError] = useState(false);
   const [returning, setReturning] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const load = useCallback(() => api<{ works: QuarryRow[] }>(`/api/games/${gameId}/quarry/submissions`).then((r) => { setRows(r.works); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
+  const load = useCallback(() => apiReady<{ works: QuarryRow[] }>(`/api/games/${gameId}/quarry/submissions`).then((r) => { setRows(r.works); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useAutoRefresh(load, version);
   async function decide(id: string, approve: boolean, comment = "") {
     setBusyId(id);

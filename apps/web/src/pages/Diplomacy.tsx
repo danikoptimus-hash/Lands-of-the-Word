@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, ApiError, type PassageDto, type PassageStatus } from "../lib/api";
+import { api, ApiError, apiReady, ready, type PassageDto, type PassageStatus } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate } from "../lib/format";
@@ -130,8 +130,8 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
 
 /** Администратор: все запросы прохода в игре, только для чтения. */
 export function PassagesBlock({ gameId, version = 0 }: { gameId: string; version?: number }) {
-  const [rows, setRows] = useState<PassageDto[] | null>(null);
-  useEffect(() => { api<{ passages: PassageDto[] }>(`/api/games/${gameId}/passages`).then((r) => setRows(r.passages)).catch(() => setRows([])); }, [gameId, version]);
+  const [rows, setRows] = useState<PassageDto[] | null>(() => ready<{ passages: PassageDto[] }>(`/api/games/${gameId}/passages`)?.passages ?? null);
+  useEffect(() => { apiReady<{ passages: PassageDto[] }>(`/api/games/${gameId}/passages`).then((r) => setRows(r.passages)).catch(() => setRows([])); }, [gameId, version]);
   return (
     <div className="card">
       <div className="card-head"><h2><span className="ico"><Icon name="handshake" /></span>{t("Проходы")} {rows && rows.length > 0 && <span className="count">{rows.length}</span>}</h2></div>

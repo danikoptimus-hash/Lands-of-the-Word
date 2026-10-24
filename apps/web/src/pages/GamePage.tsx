@@ -79,7 +79,8 @@ export function GamePage() {
   useEffect(() => {
     if (!game) return;
     const started = game.status !== "DRAFT";
-    prefetch([`/api/games/${id}/teams`, `/api/games/${id}/deeds`, ...(started ? [`/api/games/${id}/standings`, `/api/games/${id}/journal`, `/api/games/${id}/activity`, `/api/games/${id}/analytics/pace`] : [])]);
+    const review = game.status === "ACTIVE" ? [`/api/games/${id}/submissions`, `/api/games/${id}/quarry/submissions`, `/api/games/${id}/battles`, `/api/games/${id}/visits`, `/api/games/${id}/passages`] : [];
+    prefetch([`/api/games/${id}/teams`, `/api/games/${id}/deeds`, ...(started ? [`/api/games/${id}/standings`, `/api/games/${id}/journal`, `/api/games/${id}/activity`, `/api/games/${id}/analytics/pace`] : []), ...review]);
     if (started && !Analytics) void import("./GameAnalytics").then((m) => setAnalytics(() => m.GameAnalytics)).catch(() => {});
   }, [id, game?.id, game?.status]); // eslint-disable-line react-hooks/exhaustive-deps
   const load = useCallback(async () => {
