@@ -142,7 +142,6 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
         {!full && <button type="button" className="sm" onClick={() => setOpen(true)} disabled={!teams}><Icon name="plus" />{t("Добавить")}</button>}
       </div>
       {teams && full && <p className="hint">{limit[0]}{goToSettings && limit[1] && <> · <a href="#settings" onClick={(e) => { e.preventDefault(); goToSettings(); }}>{limit[1]}</a></>}</p>}
-      {standings && <p className="hint">{t("Нажмите на команду, чтобы увидеть участников. Значки: участники, города, принятые дела, камни; испытания — выиграли, устояли, потеряли.")}</p>}
       {loadError ? <ErrorState onRetry={() => void load()} /> : !teams ? <LoadingState /> : teams.length === 0 ? <EmptyState inline icon="users" text={t("Команд пока нет: добавьте первую.")} /> : ordered(teams, standings).map(({ tm, st, rank }) => {
         const isOpen = expanded === tm.id;
         const toggle = () => setExpanded(isOpen ? null : tm.id);
