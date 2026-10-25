@@ -1,31 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { fireworksUntil, FIREWORKS_MS } from "./fireworks.js";
+import { fireworksUntil } from "./fireworks.js";
 
 const TZ = "Asia/Tashkent"; // UTC+5, без летнего времени
 const at = (iso: string) => Date.parse(iso);
 
 describe("салют над взятым городом", () => {
-  it("пять минут с момента взятия", () => {
+  it("с момента взятия до конца местного дня", () => {
     const took = at("2026-10-24T09:00:00Z"); // 14:00 местного
-    expect(fireworksUntil(took, took + 60_000, TZ)).toBe(took + FIREWORKS_MS);
-    expect(fireworksUntil(took, took + FIREWORKS_MS + 1, TZ)).toBeNull();
+    const midnight = at("2026-10-24T19:00:00Z"); // 00:00 25.10 местного
+    expect(fireworksUntil(took, took + 60_000, TZ)).toBe(midnight);
+    expect(fireworksUntil(took, at("2026-10-24T17:30:30.500Z"), TZ)).toBe(midnight); // ночью тоже
+    expect(fireworksUntil(took, midnight - 1000, TZ)).toBe(midnight);
   });
-  it("снова пять минут с наступления ночи того же дня (22:00)", () => {
+  it("после полуночи салюта нет", () => {
     const took = at("2026-10-24T09:00:00Z");
-    const night = at("2026-10-24T17:00:00Z"); // 22:00 местного
-    expect(fireworksUntil(took, night + 30_000, TZ)).toBe(night + FIREWORKS_MS);
-    expect(fireworksUntil(took, night - 30_000, TZ)).toBeNull();
-    expect(fireworksUntil(took, night + FIREWORKS_MS + 1000, TZ)).toBeNull();
+    expect(fireworksUntil(took, at("2026-10-24T19:00:00Z"), TZ)).toBeNull();
+    expect(fireworksUntil(took, at("2026-10-25T05:00:00Z"), TZ)).toBeNull();
   });
-  it("город, взятый вчера, ночью сегодня не празднуется", () => {
-    const took = at("2026-10-23T09:00:00Z");
-    const night = at("2026-10-24T17:00:00Z");
-    expect(fireworksUntil(took, night + 30_000, TZ)).toBeNull();
-  });
-  it("город, взятый уже ночью, празднуется только сразу", () => {
+  it("город, взятый ночью, празднуется до полуночи того же дня", () => {
     const took = at("2026-10-24T18:00:00Z"); // 23:00 местного
-    expect(fireworksUntil(took, took + 60_000, TZ)).toBe(took + FIREWORKS_MS);
-    expect(fireworksUntil(took, took + 10 * 60_000, TZ)).toBeNull();
+    expect(fireworksUntil(took, took + 60_000, TZ)).toBe(at("2026-10-24T19:00:00Z"));
   });
   it("до взятия и при неверной дате — ничего", () => {
     expect(fireworksUntil(NaN, Date.now(), TZ)).toBeNull();

@@ -512,7 +512,7 @@ export const PLAYER: Record<string, string> = {
   "Лист дела: что сделать и как сдать.": "A deed sheet: what to do and how to submit.",
   "Ночью «Взять» показывает подсказку.": "At night “Take” shows a hint.",
   "Город берут всей командой: решают задания районов, открывают знак шифра и вводят ключ из конверта. Ключ принимается, когда свою долю заданий решили не меньше половины команды.": "A city is taken by the whole team: solve the district tasks, reveal the cipher sign and enter the key from the envelope. The key is accepted once at least half the team has solved their share of tasks.",
-  "После взятия команда едет к адресату города и сдаёт отчёт о визите. Над городом, взятым сегодня, пять минут идёт салют, и ещё раз с наступления ночи.": "After taking a city the team visits its addressee and submits a visit report. Fireworks burst over a city taken today for five minutes, and again when night falls.",
+  "После взятия команда едет к адресату города и сдаёт отчёт о визите. Над городом, взятым сегодня, до конца дня идёт салют.": "After taking a city the team visits its addressee and submits a visit report. Fireworks burst over a city taken today until the end of the day.",
   "Город: районы, задания, знак и конверт.": "A city: districts, tasks, sign and envelope.",
   "Задание района.": "A district task.",
   "Салют над взятым городом.": "Fireworks over a taken city.",
