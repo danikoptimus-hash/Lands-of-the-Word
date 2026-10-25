@@ -154,8 +154,8 @@ describe("журнал событий: лента, новости, служен�
     expect(sent.length).toBeGreaterThan(1);
     const feed = await feedUntil<{ kind: string; text: string }>(gameId, p2Cookie, "chronicle");
     expect(feed.find((f) => f.kind === "chronicle")?.text).toContain("Положение");
-    const viaRoute = await post(`/api/games/${gameId}/chronicle`, adminCookie);
-    expect(viaRoute.statusCode).toBe(200);
+    // Маршрута ручной рассылки больше нет (решение владельца 25.10): летопись недели не рассылается.
+    expect((await post(`/api/games/${gameId}/chronicle`, adminCookie)).statusCode).toBe(404);
     const book = await get(`/api/games/${gameId}/season-book`, adminCookie);
     expect(book.statusCode).toBe(200);
     const b = book.json();
