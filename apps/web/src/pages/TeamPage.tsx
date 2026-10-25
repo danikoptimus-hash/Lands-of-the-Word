@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, apiReady, prefetch, ready, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
@@ -246,6 +246,21 @@ export function TeamPage() {
   /** Положение команд: подробности (испытания, города) раскрыты у одной команды; по умолчанию — у нашей. */
   const [openStanding, setOpenStanding] = useState<string | null>(null);
   const [menuView, setMenuView] = useState<MenuView>("home");
+  /**
+   * Дело открыто из списка меню (просьба участников 25.10: «посмотрел дело, нажал назад и вернулся в список туда, где листал»):
+   * запоминаем раздел и прокрутку меню; закрытие листа дела возвращает в меню на то же место. На компьютере панель и так не закрывается.
+   */
+  const [backTo, setBackTo] = useState<{ view: MenuView; top: number; bodyTop: number } | null>(null);
+  const [restore, setRestore] = useState<{ top: number; bodyTop: number } | null>(null);
+  const sideRef = useRef<HTMLElement | null>(null);
+  const sideBodyRef = useRef<HTMLDivElement | null>(null);
+  // Прокрутка восстанавливается, когда меню снова на экране (до отрисовки кадра, чтобы список не прыгал).
+  useLayoutEffect(() => {
+    if (!restore || !menu) return;
+    if (sideRef.current) sideRef.current.scrollTop = restore.top;
+    if (sideBodyRef.current) sideBodyRef.current.scrollTop = restore.bodyTop;
+    setRestore(null);
+  }, [restore, menu]);
 
   const loadStandings = useCallback(() => api<StandingsDto>(`/api/games/${id}/standings`).then(setStandings).catch(() => {}), [id]);
   const loadPassages = useCallback(() => api<PassagesDto>(`/api/games/${id}/my-passages`).then(setPassages).catch(() => {}), [id]);
@@ -579,8 +594,18 @@ export function TeamPage() {
     if (await act(`/api/games/${id}/edge-tasks/${taskId}/pave`)) { notify(t("Дорога вымощена: перекрёсток открыт")); setSelectedId(null); }
   }
   const openCity = (key: string) => { setCityKey(key); setSelectedId(null); setFrontierKey(null); setMenu(false); };
-  const openTask = (tid: string | null) => { setSelectedId(tid); if (tid) { setMenu(false); setFrontierKey(null); } };
-  const showOnMap = (tid: string) => { openTask(tid); setFocusTask({ id: tid, nonce: Date.now() }); };
+  const openTask = (tid: string | null) => { setSelectedId(tid); setBackTo(null); if (tid) { setMenu(false); setFrontierKey(null); } };
+  const showOnMap = (tid: string) => {
+    const from = !wide && menu ? { view: menuView, top: sideRef.current?.scrollTop ?? 0, bodyTop: sideBodyRef.current?.scrollTop ?? 0 } : null;
+    openTask(tid);
+    setBackTo(from);
+    setFocusTask({ id: tid, nonce: Date.now() });
+  };
+  const closeTask = () => {
+    setSelectedId(null);
+    if (!backTo) return;
+    setMenuView(backTo.view); setMenu(true); setRestore({ top: backTo.top, bodyTop: backTo.bodyTop }); setBackTo(null);
+  };
   const menuOpen = !storm.active && (wide ? menuView !== "home" : menu);
   const closeMenu = () => { if (wide) setMenuView("home"); else setMenu(false); };
 
@@ -605,8 +630,8 @@ export function TeamPage() {
         </nav>
       )}
       {menuOpen && (
-        <aside className={"side-menu" + (wide ? " with-rail" : "")} role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")}>
-          <div className="side-body">
+        <aside ref={sideRef} className={"side-menu" + (wide ? " with-rail" : "")} role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")}>
+          <div className="side-body" ref={sideBodyRef}>
           {/* Шапка команды и заголовок раздела прилипают вместе одним блоком (решение владельца 24.10: «листаю список внизу, а заголовок и подзаголовок видны так же, как до того»). */}
           <div className="side-top">
           <div className="side-head" style={{ ["--team" as string]: team.color }}>
@@ -839,7 +864,7 @@ export function TeamPage() {
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
           return (
-            <Sheet size="sm" container={mapEl} onClose={() => setSelectedId(null)} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip></div>}>
+            <Sheet size="sm" container={mapEl} onClose={closeTask} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip></div>}>
               {task.person && <p className="meta-line mt-2 person-line"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
               <p className="meta-line mt-2">
                 <Icon name={proof.icon} />{t("Сдать")}: {proof.label()}

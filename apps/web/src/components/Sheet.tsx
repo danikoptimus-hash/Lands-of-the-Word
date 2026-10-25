@@ -8,8 +8,9 @@ import { t } from "../lib/i18n";
  * карточки дела, форм. Esc и клик по фону закрывают; прокрутка страницы под ним блокируется. Фон закрывает только
  * когда нажатие началось на нём: протащили ползунок графика за край окна и отпустили — окно остаётся (жалоба владельца 23.10).
  */
-export function Sheet({ title, head, onClose, children, size = "md", foot, container, className }: {
+export function Sheet({ title, head, onClose, children, size = "md", foot, container, className, closeLabel }: {
   title?: ReactNode; head?: ReactNode; onClose: () => void; children: ReactNode; size?: "sm" | "md" | "lg"; foot?: ReactNode;
+  /** Закрытие ведёт назад (например, в список дел): кнопка — стрелка с этой подписью вместо крестика «Закрыть». */ closeLabel?: string;
   /** Куда монтировать: по умолчанию в body (fixed). Для карты — контейнер карты (absolute). */
   container?: HTMLElement | null; className?: string;
 }) {
@@ -28,7 +29,7 @@ export function Sheet({ title, head, onClose, children, size = "md", foot, conta
         {(title || head) && (
           <div className="overlay-head">
             {head ?? <h2 id={id}>{title}</h2>}
-            <button type="button" className="ghost icon sm" onClick={onClose} aria-label={t("Закрыть")}><Icon name="x" /></button>
+            <button type="button" className="ghost icon sm" onClick={onClose} aria-label={closeLabel ?? t("Закрыть")} title={closeLabel}><Icon name={closeLabel ? "back" : "x"} /></button>
           </div>
         )}
         <div className="overlay-body">{children}</div>

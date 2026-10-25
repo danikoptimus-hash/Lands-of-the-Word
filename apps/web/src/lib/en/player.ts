@@ -545,4 +545,6 @@ export const PLAYER: Record<string, string> = {
   "Летопись: журнал событий.": "Chronicle: the event log.",
   "Ярлыки для конвертов.": "Envelope labels.",
   "Коротко и с картинками с настоящих экранов игры.": "Brief, with pictures from the game’s real screens.",
+  // Возврат из дела в список меню (25.10)
+  "Назад к списку": "Back to the list",
 };
