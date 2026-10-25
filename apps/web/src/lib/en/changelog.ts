@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "В листе дела у участника появился значок карты, как у администратора: карта центрируется на стороне дела.": "The member’s deed sheet got a map icon, as the admin has: the map centres on the deed’s side.",
   "В чужом городе подсказка о проходе говорит точно: если в команде есть посол, запрос отправляет он.": "In a rival city the passage hint is precise: if the team has an ambassador, the request is sent by them.",
   "На компьютере список дел слева остаётся открытым, когда закрываешь лист дела.": "On the computer the deeds list on the left stays open when you close a deed sheet.",
   "У администратора «Посмотреть на карте» переносит к стороне дела с первого раза и из режима «глазами команды».": "The admin’s “Show on map” jumps to the deed’s side on the first try, also from the “through the team’s eyes” mode.",

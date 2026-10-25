@@ -868,7 +868,7 @@ export function TeamPage() {
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
           return (
-            <Sheet size="sm" container={mapEl} onClose={closeTask} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip></div>}>
+            <Sheet size="sm" container={mapEl} onClose={closeTask} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip><button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => { /* Значок карты, как в отчёте у администратора (владелец 25.10): лист закрывается, карта центрируется на стороне дела. */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }}><Icon name="map" /></button></div>}>
               {task.person && <p className="meta-line mt-2 person-line"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
               <p className="meta-line mt-2">
                 <Icon name={proof.icon} />{t("Сдать")}: {proof.label()}
