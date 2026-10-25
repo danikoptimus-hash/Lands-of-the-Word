@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { dayLight, dayLightAt, stormState, type DayLight, type DayPhase, type StormSlot } from "@lotw/domain";
+import { dayLight, dayLightAt, stormState, type DayLight, type DayPhase, type StormSlot, phaseAt } from "@lotw/domain";
 
 /**
  * Освещение карты по времени суток (решение владельца 03.10): утро 7–9, день 9–18, вечер 18–22, ночь 22–7 по поясу игры.
@@ -108,6 +108,12 @@ function previewMinutes(): number | null {
   if (v in fixed) return fixed[v]!;
   const hm = /^(\d{1,2}):(\d{2})$/.exec(v);
   return hm ? Number(hm[1]) * 60 + Number(hm[2]) : null;
+}
+
+/** Фаза предпросмотра `?tod=` для подписей интерфейса (плашка ночи, пометка в листе дела); без предпросмотра — null. Правила не трогает. */
+export function previewPhase(): DayPhase | null {
+  const m = previewMinutes();
+  return m === null ? null : phaseAt(m);
 }
 
 /**

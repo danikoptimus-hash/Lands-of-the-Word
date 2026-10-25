@@ -38,6 +38,8 @@ const zoomOut = async (page, n) => { const b = await page.locator(".map-canvas")
 
 // Вход и главная.
 let ctx = await browser.newContext({ baseURL: BASE, ...phone }); let page = await ctx.newPage();
+// Вступление «о чём игра» на снимке входа не нужно: отметка «уже видел» ставится заранее.
+await page.addInitScript(() => { try { localStorage.setItem("lotw.intro.seen", "1"); } catch {} });
 await page.goto("/login"); await page.waitForTimeout(800); await shot(page, "login");
 await ctx.close();
 ctx = await browser.newContext({ baseURL: BASE, ...phone }); page = await ctx.newPage();

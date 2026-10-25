@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Картинки «Как играть» пересняты днём: плашки ночи на дневных экранах больше нет.": "The “How to play” pictures were reshot by day: no more night badge on daytime screens.",
   "Вступление «о чём игра»: десять экранов с картинками для тех, кто зашёл впервые, ещё до входа; закрывается крестиком, показывается один раз на устройстве, потом открывается кнопкой «О игре» на странице входа и из «Как играть».": "An “about the game” intro: ten illustrated screens for first-time visitors, before signing in; closes with a cross, shows once per device, afterwards opens from the “About the game” button on the sign-in page and from “How to play”.",
   "В листе дела у участника появился значок карты, как у администратора: карта центрируется на стороне дела.": "The member’s deed sheet got a map icon, as the admin has: the map centres on the deed’s side.",
   "В чужом городе подсказка о проходе говорит точно: если в команде есть посол, запрос отправляет он.": "In a rival city the passage hint is precise: if the team has an ambassador, the request is sent by them.",
