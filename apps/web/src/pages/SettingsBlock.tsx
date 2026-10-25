@@ -132,10 +132,9 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     finally { setBusy(false); }
   }
 
-  /** Строка настройки: открывается листом; в идущей игре настройки «только до старта» показываются как справка. */
-  const row = (key: string, label: string, value: ReactNode, d: Draft, editable = true) => editable
-    ? <button key={key} type="button" className="set-row" onClick={() => open({ key }, d)}><span className="k">{label}</span><span className="v">{value}</span><Icon name="chevron-down" className="chev right" /></button>
-    : <div key={key} className="set-row static"><span className="k">{label}</span><span className="v">{value}</span></div>;
+  /** Строка настройки: открывается листом. Настройки «только до старта» в идущей игре не показываются (решение владельца 25.10). */
+  const row = (key: string, label: string, value: ReactNode, d: Draft) =>
+    <button key={key} type="button" className="set-row" onClick={() => open({ key }, d)}><span className="k">{label}</span><span className="v">{value}</span><Icon name="chevron-down" className="chev right" /></button>;
   const num = (v: unknown) => (v === "" ? "" : Number(v));
   const mapNow = { teamCount: game.teamCount, nodeCount: s.nodeCount ?? 250, cityGap: s.cityGap ?? 2 };
 
@@ -223,18 +222,21 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
   const digestLabel = DIGEST()[String(rule("adminDigest"))] ?? "";
   return (
     <div className="card settings">
-      <div className="card-head"><h2><span className="ico"><Icon name="settings" /></span>{t("Настройки")}</h2></div>
-      <div className="settings-group">
-        <h3>{t("Игра")}</h3>
-        {row("name", t("Название"), game.name, { name: game.name }, draftGame)}
-        {row("teamCount", t("Команд"), game.teamCount, { teamCount: game.teamCount }, draftGame)}
-      </div>
-      <div className="settings-group">
-        <h3>{t("Карта и старты")}</h3>
-        {row("nodeCount", t("Перекрёстков на карте"), s.nodeCount ?? 250, { nodeCount: s.nodeCount ?? 250 }, draftGame)}
-        {row("cityGap", t("Расстояние между городами"), plural(s.cityGap ?? 2, [t("сторона"), t("стороны"), t("сторон")]), { cityGap: s.cityGap ?? 2 }, draftGame)}
-        {row("starts", t("Старты"), s.equidistantStarts ? `${t("выровнены")} · ±${s.maxStartDistanceDiff ?? 3}` : t("как получится"), { equidistant: s.equidistantStarts ?? false, maxDiff: s.maxStartDistanceDiff ?? 3 }, draftGame)}
-      </div>
+      {draftGame && (
+        <>
+          <div className="settings-group">
+            <h3>{t("Игра")}</h3>
+            {row("name", t("Название"), game.name, { name: game.name })}
+            {row("teamCount", t("Команд"), game.teamCount, { teamCount: game.teamCount })}
+          </div>
+          <div className="settings-group">
+            <h3>{t("Карта и старты")}</h3>
+            {row("nodeCount", t("Перекрёстков на карте"), s.nodeCount ?? 250, { nodeCount: s.nodeCount ?? 250 })}
+            {row("cityGap", t("Расстояние между городами"), plural(s.cityGap ?? 2, [t("сторона"), t("стороны"), t("сторон")]), { cityGap: s.cityGap ?? 2 })}
+            {row("starts", t("Старты"), s.equidistantStarts ? `${t("выровнены")} · ±${s.maxStartDistanceDiff ?? 3}` : t("как получится"), { equidistant: s.equidistantStarts ?? false, maxDiff: s.maxStartDistanceDiff ?? 3 })}
+          </div>
+        </>
+      )}
       <div className="settings-group">
         <h3>{t("Пожертвование вместо дела")}</h3>
         {row("currency", t("Валюта"), s.donationCurrency || "—", { currency: s.donationCurrency ?? "" })}
@@ -252,7 +254,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
       {RULE_GROUPS.map((g) => (
         <div key={g.title()} className="settings-group">
           <h3>{g.title()}</h3>
-          {g.genealogies && row("genealogies", t("Родословия"), s.includeGenealogies ? t("да") : t("нет"), { genealogies: s.includeGenealogies ?? false }, draftGame)}
+          {g.genealogies && draftGame && row("genealogies", t("Родословия"), s.includeGenealogies ? t("да") : t("нет"), { genealogies: s.includeGenealogies ?? false })}
           {g.keys.map((k) => row(k, k === "timeZone" ? t("Часовой пояс игры") : k === "adminDigest" ? t("Письма о сдачах") : RULE_FIELDS[k as NumKey].short(), k === "adminDigest" ? digestLabel : ruleValue(k, rule(k)), k === "timeZone" ? { timeZone: tz } : k === "adminDigest" ? { adminDigest: rule("adminDigest") } : { value: rule(k) }))}
         </div>
       ))}
