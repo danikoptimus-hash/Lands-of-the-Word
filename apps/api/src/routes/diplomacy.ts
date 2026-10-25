@@ -19,12 +19,13 @@ const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const teamSelect = { select: { id: true, name: true, color: true, avatarId: true } } as const;
 
 /** Кто говорит от команды с другими командами: посол, если назначен, иначе капитан. */
-async function canSpeak(teamId: string, userId: string): Promise<{ ok: boolean; why: string }> {
-  const members = await prisma.membership.findMany({ where: { teamId }, select: { userId: true, role: true, gameRole: true } });
+async function canSpeak(teamId: string, userId: string): Promise<{ ok: boolean; why: string; vars?: Record<string, string> }> {
+  const members = await prisma.membership.findMany({ where: { teamId }, select: { userId: true, role: true, gameRole: true, user: { select: { nickname: true, displayName: true } } } });
   const ambassador = members.find((m) => m.gameRole === "AMBASSADOR");
   const me = members.find((m) => m.userId === userId);
   if (!me) return { ok: false, why: "Вы не состоите в команде" };
-  if (ambassador) return ambassador.userId === userId ? { ok: true, why: "" } : { ok: false, why: "С другими командами говорит посол вашей команды" };
+  // Посол назван по имени (владелец 25.10: «капитан не понимает, где его кнопка запроса прохода»).
+  if (ambassador) return ambassador.userId === userId ? { ok: true, why: "" } : { ok: false, why: "С другими командами говорит посол вашей команды: {name}", vars: { name: ambassador.user.displayName || ambassador.user.nickname } };
   return isLeader(me) ? { ok: true, why: "" } : { ok: false, why: "Запросы другим командам отправляет капитан или посол, если он назначен" };
 }
 
@@ -93,7 +94,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const [lists, speak] = await Promise.all([passagesView(id, m.team.id), canSpeak(m.team.id, request.user!.id)]);
-    return { canSpeak: speak.ok, ...lists };
+    return { canSpeak: speak.ok, speakWhy: speak.ok ? null : err(request, speak.why, speak.vars), ...lists };
   });
 
   /** Запросить проход через чужой город. */
@@ -104,7 +105,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     if (!(await assertAwake(request, reply, id))) return;
     const rules = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } })).settings);
     const speak = await canSpeak(m.team.id, request.user!.id);
-    if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: err(request, speak.why) });
+    if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: err(request, speak.why, speak.vars) });
     const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
     if (!reached) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда ещё не дошла до этого города") });
     const owner = await prisma.teamCityState.findFirst({ where: { gameId: id, nodeKey, capturedAt: { not: null } } });
@@ -128,7 +129,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const r = await prisma.passageRequest.findFirst({ where: { id: reqId, gameId: id, ownerId: m.team.id } });
     if (!r) return reply.code(404).send({ error: "not_found", message: err(request, "Запрос не найден") });
     const speak = await canSpeak(m.team.id, request.user!.id);
-    if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: err(request, speak.why) });
+    if (!speak.ok) return reply.code(403).send({ error: "forbidden", message: err(request, speak.why, speak.vars) });
     if (r.status !== "PENDING") return reply.code(409).send({ error: "conflict", message: err(request, "Запрос уже рассмотрен") });
     const body = z.object({ approve: z.boolean(), answer: z.string().trim().max(500).default("") }).parse(request.body);
     await prisma.passageRequest.update({ where: { id: r.id }, data: { status: body.approve ? "APPROVED" : "DECLINED", answer: body.answer, decidedAt: new Date() } });

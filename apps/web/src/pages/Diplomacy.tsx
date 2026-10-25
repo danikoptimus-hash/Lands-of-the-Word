@@ -9,7 +9,7 @@ import { TeamAvatar } from "../components/TeamAvatar";
 import { Help } from "../components/Help";
 import { EmptyState } from "../components/State";
 
-export interface PassagesDto { canSpeak: boolean; outgoing: PassageDto[]; incoming: PassageDto[] }
+export interface PassagesDto { canSpeak: boolean; /** Почему запрос отправить нельзя (посол назван по имени); null — можно. */ speakWhy?: string | null; outgoing: PassageDto[]; incoming: PassageDto[] }
 
 /** Статус запроса прохода: подпись и тон по единой палитре (ждём — warn, разрешён — success, отказ/сброшен при смене владельца — danger). */
 export function passageStatus(s: PassageStatus): { label: string; tone: ChipTone; icon: string } {
@@ -58,7 +58,7 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
               </div>
               <div className="actions"><button type="button" disabled={busy} onClick={() => void request()}><Icon name="handshake" />{t("Запросить проход")}</button></div>
             </>
-          ) : <p className="hint">{t("Запрос отправляет посол, а без посла — капитан или заместитель.")}</p>}
+          ) : data ? <p className="hint">{data.speakWhy || t("Запрос отправляет посол, а без посла — капитан или заместитель.")}</p> : null}
         </>
       )}
       {error && <p className="error" role="alert">{error}</p>}
