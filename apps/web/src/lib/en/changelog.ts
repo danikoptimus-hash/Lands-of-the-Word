@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "В летописи команды записи о своих делах нажимаются и открывают дело; салют над взятым городом виден и на карте администратора.": "In the team chronicle, entries about your own deeds can be tapped to open the deed; fireworks over a taken city are visible on the admin map too.",
   "Дело, открытое из списка в меню, закрывается стрелкой «назад» — обратно в тот же список, на то же место.": "A deed opened from a list in the menu closes with a “back” arrow — back to the same list, at the same spot.",
   "Салют над взятым сегодня городом идёт до конца дня, а не пять минут.": "Fireworks over a city taken today last until the end of the day instead of five minutes.",
   "Поля ввода и счётчики со стрелками по всей игре скруглены сильнее.": "Input fields and arrow steppers across the game have rounder corners.",

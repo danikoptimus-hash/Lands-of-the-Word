@@ -90,7 +90,7 @@ export function journalLine(kind: JournalKind, vars: Record<string, string | num
 }
 
 /** Лента команды «Летопись» (до 21.09 — «Что случилось»): свои события и новости для всех команд. */
-export function FeedSection({ gameId, version }: { gameId: string; version: number }) {
+export function FeedSection({ gameId, version, onOpenTask }: { gameId: string; version: number; /** Запись о деле своей команды открывает лист дела (просьба владельца 25.10: у участников дела в летописи тоже нажимаются). */ onOpenTask?: (taskId: string) => void }) {
   const [items, setItems] = useState<FeedItemDto[] | null>(() => ready<{ items: FeedItemDto[] }>(`/api/games/${gameId}/feed`)?.items ?? null);
   const [all, setAll] = useState(false);
   const load = useCallback(() => apiReady<{ items: FeedItemDto[] }>(`/api/games/${gameId}/feed`).then((r) => setItems(r.items)).catch(() => {}), [gameId]);
@@ -106,7 +106,10 @@ export function FeedSection({ gameId, version }: { gameId: string; version: numb
             <li key={it.id} className={it.everyone && !it.mine ? "news" : ""}>
               <span className="ico"><Icon name={ICON[it.kind] ?? "info"} /></span>
               <div className="body">
-                {it.kind === "chronicle" ? <details><summary>{t("Летопись недели")} · {fmtDate(it.at, { time: false })}</summary>{it.text.split("\n").map((l, i) => <p key={i} className="small">{l}</p>)}</details> : <span>{journalLine(it.kind, it.vars)}</span>}
+                {it.kind === "chronicle" ? <details><summary>{t("Летопись недели")} · {fmtDate(it.at, { time: false })}</summary>{it.text.split("\n").map((l, i) => <p key={i} className="small">{l}</p>)}</details>
+                  : it.taskId && it.mine && onOpenTask
+                    ? <button type="button" className="linkish" onClick={() => onOpenTask(it.taskId!)} title={t("Открыть дело")}>{journalLine(it.kind, it.vars)} <Icon name="chevron-down" className="chev right" /></button>
+                    : <span>{journalLine(it.kind, it.vars)}</span>}
                 <span className="meta">{fmtDate(it.at)}{it.everyone && !it.mine ? ` · ${t("новость")}` : ""}</span>
               </div>
             </li>

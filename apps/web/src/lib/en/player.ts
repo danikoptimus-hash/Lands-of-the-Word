@@ -547,4 +547,5 @@ export const PLAYER: Record<string, string> = {
   "Коротко и с картинками с настоящих экранов игры.": "Brief, with pictures from the game’s real screens.",
   // Возврат из дела в список меню (25.10)
   "Назад к списку": "Back to the list",
+  "Открыть дело": "Open the deed",
 };

@@ -768,7 +768,7 @@ export function TeamPage() {
           )}
           {menuView === "standings" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
           {menuView === "standings" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} openFor={tradeFor} onCanTrade={setCanTrade} onChanged={() => { void loadMap(); void loadStandings(); }} />}
-          {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} />}
+          {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} onOpenTask={(tid) => { if (map.tasks.some((tk) => tk.id === tid)) showOnMap(tid); else notify(t("Дело уже не на карте"), "info"); }} />}
           {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} />}
           {menuView === "home" && !wide && (
             <nav className="menu-tiles" aria-label={t("Навигация")}>

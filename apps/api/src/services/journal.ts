@@ -110,7 +110,28 @@ export function journal(gameId: string, kind: JournalKind, o: { teamId?: string 
 /** Лента команды: свои записи и новости для всех, новые сверху. */
 export async function feed(gameId: string, teamId: string, limit = 60) {
   const rows = await prisma.journal.findMany({ where: { gameId, OR: [{ teamId }, { everyone: true }] }, orderBy: { createdAt: "desc" }, take: limit });
-  return rows.map((r) => ({ id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: r.everyone, mine: r.teamId === teamId, at: r.createdAt.getTime() }));
+  // Дело из летописи открывается и у участников (просьба владельца 25.10: «у админа прожимаются, у участников нет») — только записи своей команды.
+  const taskIdOf = await journalTaskIds(gameId, rows.filter((r) => r.teamId === teamId));
+  return rows.map((r) => ({ id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: r.everyone, mine: r.teamId === teamId, at: r.createdAt.getTime(), taskId: r.teamId === teamId ? taskIdOf(r) : null }));
+}
+
+const DEED_KINDS = new Set<string>(["deed_submitted", "deed_approved", "deed_returned"]);
+/**
+ * Дело, к которому относится запись летописи (решение владельца 30.09): у новых записей id лежит в vars.taskId; у старых —
+ * последняя сдача той же команды с таким названием дела. Возвращает функцию «запись → id дела или null».
+ */
+export async function journalTaskIds(gameId: string, rows: Array<{ kind: string; vars: unknown; teamId: string | null }>) {
+  const need = rows.filter((r) => DEED_KINDS.has(r.kind) && !(r.vars as Record<string, unknown>).taskId && r.teamId);
+  const byTeamTitle = new Map<string, string>();
+  if (need.length) {
+    const tasks = await prisma.teamEdgeTask.findMany({ where: { gameId, teamId: { in: [...new Set(need.map((r) => r.teamId!))] }, status: { not: "OPEN" } }, select: { id: true, teamId: true, submittedAt: true, deed: { select: { title: true } } }, orderBy: { submittedAt: "desc" } });
+    for (const tk of tasks) { const k = `${tk.teamId}|${tk.deed.title}`; if (!byTeamTitle.has(k)) byTeamTitle.set(k, tk.id); }
+  }
+  return (r: { kind: string; vars: unknown; teamId: string | null }): string | null => {
+    if (!DEED_KINDS.has(r.kind)) return null;
+    const v = r.vars as Record<string, unknown>;
+    return typeof v.taskId === "string" ? v.taskId : byTeamTitle.get(`${r.teamId}|${String(v.deed ?? "")}`) ?? null;
+  };
 }
 
 /** Сводка участника: дела, районы, стихи, переправы (E-03 «Моё служение»). */

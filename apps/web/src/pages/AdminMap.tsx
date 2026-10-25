@@ -18,6 +18,7 @@ import { Icon, iconPath } from "../components/Icon";
 import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
 import { css, stormLight, useDaytime, useStormPicture } from "../lib/daytime";
 import { StormLayer } from "./StormLayer";
+import { FireworksLayer, type FireworkSite } from "./FireworksLayer";
 import type { StormSlot } from "../lib/api";
 import { LakesLayer } from "./Lakes";
 import { kindLabel } from "./RecipientsBlock";
@@ -110,6 +111,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     const timer = setTimeout(() => setFlash(null), 6000);
     return () => clearTimeout(timer);
   }, [focus?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Салют над взятыми сегодня городами и у администратора (просьба владельца 25.10); в режиме истории (ползунок) салюта нет. */
+  const fireworkSites = useMemo<FireworkSite[]>(() => (at ? [] : (cities ?? []).filter((c) => c.capturedAt).map((c) => { const p = nodePos(c.nodeKey, size); return { key: c.nodeKey, x: p.x, y: p.y - size * 0.3, at: Date.parse(c.capturedAt!) }; })), [cities, size, at]);
   const nodeByKey = useMemo(() => new Map(nodes.map((n) => [n.key, n])), [nodes]);
   const positions = useMemo(() => new Map(nodes.map((n) => [n.key, nodePos(n.key, size)])), [nodes, size]);
   const traversedBy = useMemo(() => {
@@ -334,6 +337,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           </WorldSvg>
           {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
           <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
+          {fireworkSites.length > 0 && <FireworksLayer vp={vp} sites={fireworkSites} clock={Date.now} timeZone={timeZone ?? "Asia/Tashkent"} />}
           {stormSt.t > 0 && <StormLayer t={stormSt.t} />}
           {/* Подписи городов и метки — отдельным слоем над живностью и маршрутами: название города выше линии корабля (решение владельца 06.10). */}
           <WorldSvg vp={vp} bounds={bounds} overlay>
