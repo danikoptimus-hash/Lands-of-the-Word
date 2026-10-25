@@ -1,5 +1,7 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "На компьютере список дел слева остаётся открытым, когда закрываешь лист дела.": "On the computer the deeds list on the left stays open when you close a deed sheet.",
+  "У администратора «Посмотреть на карте» переносит к стороне дела с первого раза и из режима «глазами команды».": "The admin’s “Show on map” jumps to the deed’s side on the first try, also from the “through the team’s eyes” mode.",
   "В летописи команды записи о своих делах нажимаются и открывают дело; салют над взятым городом виден и на карте администратора.": "In the team chronicle, entries about your own deeds can be tapped to open the deed; fireworks over a taken city are visible on the admin map too.",
   "Дело, открытое из списка в меню, закрывается стрелкой «назад» — обратно в тот же список, на то же место.": "A deed opened from a list in the menu closes with a “back” arrow — back to the same list, at the same spot.",
   "Салют над взятым сегодня городом идёт до конца дня, а не пять минут.": "Fireworks over a city taken today last until the end of the day instead of five minutes.",

@@ -101,14 +101,25 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     setView({ k, tx: pad + (el.clientWidth - pad - b.width * k) / 2 - b.minX * k, ty: (el.clientHeight - b.height * k) / 2 - b.minY * k }, true);
   }, [measureFit, setView]);
 
-  /** Центрировать точку карты (в координатах сцены) с масштабом k. */
+  /**
+   * Центрировать точку карты (в координатах сцены) с масштабом k. Если контейнера сейчас нет (карта администратора
+   * возвращается из режима «глазами команды» и пересоздаёт его), запрос ждёт и выполняется, когда контейнер появится —
+   * иначе «Посмотреть на карте» срабатывало только со второго раза (жалоба владельца 25.10).
+   */
+  const pendingFocus = useRef<{ x: number; y: number; k: number } | null>(null);
   const focusOn = useCallback((x: number, y: number, k = 2.2) => {
     const el = ref.current;
-    if (!el) return;
+    if (!el) { pendingFocus.current = { x, y, k }; return; }
+    pendingFocus.current = null;
     measureFit();
     const pad = padLeft(el);
     setView({ k, tx: pad + (el.clientWidth - pad) / 2 - x * k, ty: el.clientHeight / 2 - y * k }, true);
   }, [measureFit, setView]);
+  useEffect(() => {
+    const f = pendingFocus.current;
+    if (!el || !f || !boundsRef.current) return;
+    focusOn(f.x, f.y, f.k);
+  }, [el, focusOn]);
 
   // Начальное положение ставится ровно один раз, когда поле карты впервые известно. Дальше карта живёт
   // только по жестам пользователя. При изменении размера окна пересчитывается предел масштаба.

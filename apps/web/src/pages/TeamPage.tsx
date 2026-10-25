@@ -783,7 +783,11 @@ export function TeamPage() {
         </aside>
       )}
 
-      <div className={"map-area" + (storm.active ? " storm" : "")} ref={setMapEl} onPointerDownCapture={() => { if (wide && menuView !== "home") setMenuView("home"); }}>
+      <div className={"map-area" + (storm.active ? " storm" : "")} ref={setMapEl} onPointerDownCapture={(e) => {
+        // Нажатие по самой карте закрывает панель раздела на компьютере; нажатия внутри листа (дело, город, метка) и по его
+        // фону панель не трогают (владелец 25.10: «закрываю дело на крестик — список слева тоже закрывается, так не нужно»).
+        if (wide && menuView !== "home" && !(e.target as HTMLElement).closest(".overlay-backdrop")) setMenuView("home");
+      }}>
         {storm.active ? (
           /* Шторм: карта без действий — ни дел, ни городов, ни меток, ни высадки (решение владельца 24.10). Единственная кнопка — назад в «Мои игры». */
           <>
