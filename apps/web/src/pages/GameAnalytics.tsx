@@ -93,7 +93,6 @@ export function GameAnalytics({ gameId }: { gameId: string }) {
           <StatChip icon="city" label={t("городов взято")} value={`${p.n} ${t("из {n}", { n: p.K })}`} />
           <StatChip icon="city" label={`${t("городов в сутки")} · ${t("после разгона, с {d}", { d: dateOf(p.rampDay) })}`} value={`${fmt1(p.rate)} ${t("в сутки")}`} />
           <StatChip icon="scroll" label={t("дел в сутки, все команды")} value={`${fmt1(p.dailyDeedsAvg)} ${t("в сутки")}`} />
-          {p.logistic.K !== undefined && <StatChip icon="chart" label={t("Потолок прогноза: до стольких городов выходит логистическая кривая при нынешнем темпе.")} value={`→ ${Math.round(p.logistic.K)}`} />}
         </div>
         <Chart option={option} height={380} />
       </div>
