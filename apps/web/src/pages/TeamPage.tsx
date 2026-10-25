@@ -25,6 +25,7 @@ import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help, HelpPopup } from "../components/Help";
 import { ActionMenu, type MenuItem } from "../components/ActionMenu";
+import { StatChip } from "../components/StatChip";
 import { DeedBadgePopup, untilText } from "../components/DeedBadge";
 import { FeedSection, MyServiceSection } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
@@ -42,11 +43,6 @@ function peaceTerm(p: PeaceTeamDto): string {
   if (p.days === 0) return t("до конца игры");
   if (p.state === "peace" && p.until) return t("до {d}", { d: fmtDate(p.until, { time: false }) });
   return t("на {n} дн.", { n: p.days });
-}
-
-/** Значок-цифра в строке команды: значение всплывает окошком по нажатию (решение владельца 24.10: «подсказку значения значка показывать при попытке на него нажать»). */
-function StatChip({ icon, label, value }: { icon: string; label: string; value: number }) {
-  return <HelpPopup name={label} trigger={<Chip icon={icon}>{value}</Chip>}><p>{label}</p></HelpPopup>;
 }
 
 function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeace, onTrade }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void; roster?: React.ReactNode; /** Мир: знак напротив каждой чужой команды (решение владельца 21.09) */ peace?: PeaceData | null; onPeace?: (p: PeaceTeamDto, action: PeaceAction) => void; /** Посол: «Предложить обмен» этой команде в меню «⋯» (решение владельца 24.10). */ onTrade?: (teamId: string) => void }) {

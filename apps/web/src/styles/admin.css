@@ -403,3 +403,6 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 .storm-row select { flex: 1 1 140px; min-width: 120px; }
 .storm-row input[type="time"] { width: 7.5em; flex: none; }
 .storm-row .dash { color: var(--muted); }
+/* Значки темпа партии вместо плиток (25.10): компактно и на телефоне. */
+.pace-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.pace-chips .help-pop-wrap > .pop-btn { appearance: none; border: 0; background: none; padding: 0; margin: 0; min-height: 0; box-shadow: none; font: inherit; cursor: pointer; display: inline-flex; }

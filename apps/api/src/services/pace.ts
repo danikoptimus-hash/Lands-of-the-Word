@@ -47,12 +47,22 @@ export async function paceForecast(gameId: string) {
   const capsSteady = caps.filter((c) => c.day >= rampDay).length;
   const rate = capsSteady / Math.max(T - rampDay, 0.5);
   const milestones = [Math.floor(K / 2), Math.floor(K * 0.95), K];
-  // Логистика с потолком K по дневной сетке.
+  // Логистика по методу наименьших квадратов (замечание владельца 25.10: «наша линия уже замедляется, а кривая как будто
+  // неправильно считается»): подбираются все три параметра — потолок Kf (от взятого сейчас до числа городов на карте),
+  // крутизна r и середина t0. Раньше потолок был зашит в число городов, и кривая не могла показать замедление.
+  // Точки — накопленный факт по дням плюс сегодняшняя; сначала грубая сетка, затем три круга уточнения вокруг лучшего.
   const grid = Array.from({ length: Math.floor(T) + 1 }, (_, i) => i);
-  const cum = grid.map((g) => caps.filter((c) => c.day <= g).length);
-  let best = { sse: Infinity, r: 0.3, t0: 10 };
-  for (let r = 0.05; r <= 1.5; r += 0.01) for (let t0 = 0; t0 <= 60; t0 += 0.5) { let sse = 0; for (let i = 0; i < grid.length; i++) { const p = K / (1 + Math.exp(-r * (grid[i]! - t0))); sse += (p - cum[i]!) ** 2; } if (sse < best.sse) best = { sse, r, t0 }; }
-  const logisticAt = (m: number) => { const f = Math.min(m / K, 0.999); return best.t0 - Math.log(1 / f - 1) / best.r; };
+  const pts: Array<[number, number]> = [...grid.map((g) => [g, caps.filter((c) => c.day <= g).length] as [number, number]), [T, n]];
+  const sseOf = (Kf: number, r: number, t0: number) => { let s = 0; for (const [x, y] of pts) { const p = Kf / (1 + Math.exp(-r * (x - t0))); s += (p - y) ** 2; } return s; };
+  const kLo = Math.max(n, 1), kHi = Math.max(K, kLo);
+  let best = { sse: Infinity, K: kHi, r: 0.3, t0: Math.max(T / 2, 1) };
+  const scan = (ks: number[], rs: number[], ts: number[]) => { for (const Kf of ks) for (const r of rs) for (const t0 of ts) { const s = sseOf(Kf, r, t0); if (s < best.sse) best = { sse: s, K: Kf, r, t0 }; } };
+  const range = (a: number, b: number, step: number) => { const out: number[] = []; for (let v = a; v <= b + 1e-9; v += step) out.push(v); return out; };
+  scan(range(kLo, kHi, Math.max(1, (kHi - kLo) / 25)), range(0.03, 1.5, 0.03), range(-20, T + 60, 1));
+  for (let round = 0, dk = Math.max(1, (kHi - kLo) / 25), dr = 0.03, dt = 1; round < 3; round++, dk /= 5, dr /= 5, dt /= 5) {
+    scan(range(Math.max(kLo, best.K - dk), Math.min(kHi, best.K + dk), Math.max(dk / 5, 0.05)), range(Math.max(0.01, best.r - dr), best.r + dr, dr / 5), range(best.t0 - dt, best.t0 + dt, dt / 5));
+  }
+  const logisticAt = (m: number) => { if (m >= best.K) return null; const f = m / best.K; return best.t0 - Math.log(1 / f - 1) / best.r; };
   const teamTasks = teams.map((t) => steady.map((d) => tasksByDay.get(d)?.get(t.id) ?? 0));
   const dailyTasksAvg = teamTasks.reduce((a, v) => a + (v.length ? v.reduce((x, y) => x + y, 0) / v.length : 0), 0);
   const horizon = 120;
@@ -62,12 +72,12 @@ export async function paceForecast(gameId: string) {
   // Дел в сутки для плитки (владелец 23.10: «мне нужны здесь только дела»): среднее принятых дел по полным дням, все команды.
   let deedsTotal = 0; for (let i = 0; i < fitDays; i++) for (const v of deedsByDay.get(days[i]!)?.values() ?? []) deedsTotal += v;
   const dailyDeedsAvg = fitDays > 0 ? deedsTotal / fitDays : 0;
-  const logistic: Pt[] = []; for (let d = 0; d <= T + horizon; d += 1) logistic.push({ day: d, value: K / (1 + Math.exp(-best.r * (d - best.t0))) });
+  const logistic: Pt[] = []; for (let d = 0; d <= T + horizon; d += 1) logistic.push({ day: d, value: best.K / (1 + Math.exp(-best.r * (d - best.t0))) });
   return {
     tz, startedAt: start, now: end, T, K, n, rate, rampDay, dailyTasksAvg, dailyDeedsAvg, milestones,
     teams,
     fact: caps.map((c, i) => ({ day: c.day, value: i + 1, teamId: c.teamId })),
     deeds: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => deedsByDay.get(d)?.get(t.id) ?? 0) })), fitDays },
-    logistic: { r: best.r, t0: best.t0, curve: logistic, finish: Object.fromEntries(milestones.map((m) => [m, m <= n ? null : logisticAt(m)])) },
+    logistic: { K: best.K, r: best.r, t0: best.t0, curve: logistic, finish: Object.fromEntries(milestones.map((m) => [m, m <= n ? null : logisticAt(m)])) },
   };
 }

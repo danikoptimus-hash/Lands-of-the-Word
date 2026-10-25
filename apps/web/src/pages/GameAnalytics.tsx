@@ -4,6 +4,7 @@ import { t, getLocale } from "../lib/i18n";
 import { Chart, baseOption, chartColors } from "../components/Chart";
 import { ErrorState, LoadingState } from "../components/State";
 import { Help } from "../components/Help";
+import { StatChip } from "../components/StatChip";
 
 /**
  * Темп партии для администратора игры (решение владельца 23.10; уточнение: «оставить только логистическую кривую,
@@ -18,7 +19,7 @@ interface Pace {
   teams: Array<{ id: string; name: string; color: string }>;
   fact: Array<Pt & { teamId: string | null }>;
   deeds: { days: string[]; teams: Array<{ id: string; name: string; color: string; values: number[] }>; fitDays: number };
-  logistic: { r: number; t0: number; curve: Pt[]; finish: Record<string, number | null> };
+  logistic: { /** Подобранный потолок: до стольких городов идёт кривая при нынешнем темпе. */ K?: number; r: number; t0: number; curve: Pt[]; finish: Record<string, number | null> };
 }
 const locale = () => (getLocale() === "en" ? "en-GB" : "ru-RU");
 /** Прямая тренда по методу наименьших квадратов по первым fitN точкам, продлённая на все дни; пусто, если точек мало. */
@@ -44,9 +45,11 @@ export function GameAnalytics({ gameId }: { gameId: string }) {
   const option = useMemo(() => {
     if (!p) return null;
     // Правый край — день, когда логистическая кривая округляется до числа городов: дальше пустое место («можно поставить уже край графика»).
-    const touch = p.logistic.curve.find((q) => q.value >= p.K - 0.5)?.day ?? null;
+    const touch = p.logistic.curve.find((q) => q.value >= (p.logistic.K ?? p.K) - 0.5)?.day ?? null;
     const horizon = Math.min(Math.max(touch ?? p.T + 30, p.T + 7), p.T + 120);
     const fact: Array<[number, number]> = [[0, 0], ...p.fact.map((f) => [f.day, f.value] as [number, number]), [p.T, p.n]];
+    // Линии команд (решение владельца 25.10): города каждой команды накопительно, без логистических кривых.
+    const teamLines = p.teams.map((tm) => { let k = 0; const pts: Array<[number, number]> = [[0, 0]]; for (const f of p.fact) if (f.teamId === tm.id) pts.push([f.day, ++k]); pts.push([p.T, k]); return { tm, pts }; });
     return baseOption(c, {
       legend: { show: false },
       tooltip: { trigger: "axis", backgroundColor: c.surface, borderColor: c.border, textStyle: { color: c.text, fontFamily: c.font }, formatter: (ps: Array<{ seriesName: string; value: [number, number]; marker: string }>) => { const d = ps[0]?.value[0] ?? 0; return `${dateOf(d)}<br/>${ps.map((x) => `${x.marker} ${x.seriesName}: <b>${Math.round(x.value[1])}</b>`).join("<br/>")}`; } },
@@ -56,6 +59,7 @@ export function GameAnalytics({ gameId }: { gameId: string }) {
       dataZoom: [],
       series: [
         { name: t("факт"), type: "line", step: "end", data: fact, itemStyle: { color: c.text }, lineStyle: { width: 2.5, color: c.text }, showSymbol: false, z: 5 },
+        ...teamLines.map(({ tm, pts }) => ({ name: tm.name, type: "line", step: "end", data: pts, itemStyle: { color: tm.color }, lineStyle: { width: 1.5, color: tm.color }, showSymbol: false, z: 4 })),
         { name: "today", type: "line", data: [[p.T, 0], [p.T, p.K]], itemStyle: { color: c.accent }, lineStyle: { width: 1, color: c.accent }, showSymbol: false, silent: true, tooltip: { show: false } },
         { name: t("логистическая кривая"), type: "line", data: p.logistic.curve.map((q) => [q.day, q.value]), itemStyle: { color: c.muted }, lineStyle: { width: 1.5, type: "dotted", color: c.muted }, showSymbol: false },
       ],
@@ -83,11 +87,13 @@ export function GameAnalytics({ gameId }: { gameId: string }) {
   return (
     <>
       <div className="card">
-        <div className="card-head"><h2>{t("Города, накопительно: факт и прогноз")}<Help>{t("Когда все города карты будут у кого-то из команд. Сплошная линия — взятые города по дням. Точечная — логистическая кривая, подобранная по факту с потолком в число городов.")}</Help></h2></div>
-        <div className="tiles mt-2">
-          <div className="tile"><div className="value">{p.n} <span className="muted">{t("из {n}", { n: p.K })}</span></div><div className="cap">{t("городов взято")}</div></div>
-          <div className="tile"><div className="value">{fmt1(p.rate)}</div><div className="cap">{t("городов в сутки")}</div><div className="hint">{t("после разгона, с {d}", { d: dateOf(p.rampDay) })}</div></div>
-          <div className="tile"><div className="value">{fmt1(p.dailyDeedsAvg)}</div><div className="cap">{t("дел в сутки, все команды")}</div></div>
+        <div className="card-head"><h2>{t("Города, накопительно: факт и прогноз")}<Help>{t("Чёрная линия — взятые города по дням, все команды; цветные — каждая команда отдельно. Точечная — логистическая кривая, подобранная по факту методом наименьших квадратов: подбираются потолок, крутизна и середина, поэтому при замедлении кривая выходит на потолок ниже числа городов на карте.")}</Help></h2></div>
+        {/* Значки вместо плиток (решение владельца 25.10: «фактоиды на телефоне слишком крупно, текст спрятать в вопросительный знак, значение передать через значок»). */}
+        <div className="meta chips pace-chips mt-2">
+          <StatChip icon="city" label={t("городов взято")} value={`${p.n} ${t("из {n}", { n: p.K })}`} />
+          <StatChip icon="city" label={`${t("городов в сутки")} · ${t("после разгона, с {d}", { d: dateOf(p.rampDay) })}`} value={`${fmt1(p.rate)} ${t("в сутки")}`} />
+          <StatChip icon="scroll" label={t("дел в сутки, все команды")} value={`${fmt1(p.dailyDeedsAvg)} ${t("в сутки")}`} />
+          {p.logistic.K !== undefined && <StatChip icon="chart" label={t("Потолок прогноза: до стольких городов выходит логистическая кривая при нынешнем темпе.")} value={`→ ${Math.round(p.logistic.K)}`} />}
         </div>
         <Chart option={option} height={380} />
       </div>

@@ -252,4 +252,9 @@ export const ADMIN: Record<string, string> = {
   "Убрать интервал": "Remove interval", "Добавить интервал": "Add interval",
   "По сохранённым настройкам шторм идёт сейчас, до: {when}": "By the saved settings a storm is on now, until: {when}", "По сохранённым настройкам ближайший шторм: {when}": "By the saved settings the next storm is: {when}",
   "Пока идёт шторм, участники видят только карту с бурей: кнопок нет, дела не берутся, города не открываются; сервер действия не принимает. Администраторов шторм не касается. Время по поясу игры; конец раньше начала — интервал через полночь. Можно менять в идущей игре.": "During a storm members see only the map with the tempest: no buttons, deeds cannot be taken, cities do not open; the server refuses actions. Admins are not affected. Times follow the game’s time zone; an end earlier than the start means an interval past midnight. Can be changed in a running game.",
+  // Темп партии: значки и трёхпараметрическая логистика (25.10)
+  "в сутки": "per day",
+  "Чёрная линия — взятые города по дням, все команды; цветные — каждая команда отдельно. Точечная — логистическая кривая, подобранная по факту методом наименьших квадратов: подбираются потолок, крутизна и середина, поэтому при замедлении кривая выходит на потолок ниже числа городов на карте.": "The black line is cities taken by day, all teams; coloured lines are each team separately. The dotted line is a logistic curve fitted to the facts by least squares: the ceiling, steepness and midpoint are all fitted, so when the pace slows the curve levels off below the number of cities on the map.",
+  "Потолок прогноза: до стольких городов выходит логистическая кривая при нынешнем темпе.": "Forecast ceiling: the logistic curve levels off at this many cities at the current pace.",
+  "из {n}": "of {n}",
 };
