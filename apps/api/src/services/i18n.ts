@@ -249,7 +249,6 @@ const EN: Record<string, string> = {
   "Дело «{deed}» одобрено. Капитан или кормчий может выбрать на карте, куда высадиться на другом острове.": "The deed “{deed}” is approved. The captain or the helmsman can now choose on the map where to land on the other island.",
   "Вы не состоите в команде": "You are not in a team",
   "С другими командами говорит посол вашей команды": "Your team's ambassador speaks with other teams",
-  "С другими командами говорит посол вашей команды: {name}": "Your team's ambassador speaks with other teams: {name}",
   "Запросы другим командам отправляет капитан или посол, если он назначен": "Requests to other teams are sent by the captain, or by the ambassador if one is appointed",
   "Город не принадлежит другой команде: проход свободен": "The city does not belong to another team: passage is free",
   "Проход уже разрешён": "Passage is already granted",

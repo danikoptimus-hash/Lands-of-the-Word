@@ -9,7 +9,7 @@ import { TeamAvatar } from "../components/TeamAvatar";
 import { Help } from "../components/Help";
 import { EmptyState } from "../components/State";
 
-export interface PassagesDto { canSpeak: boolean; /** Почему запрос отправить нельзя (посол назван по имени); null — можно. */ speakWhy?: string | null; outgoing: PassageDto[]; incoming: PassageDto[] }
+export interface PassagesDto { canSpeak: boolean; /** Почему запрос отправить нельзя; null — можно. */ speakWhy?: string | null; outgoing: PassageDto[]; incoming: PassageDto[] }
 
 /** Статус запроса прохода: подпись и тон по единой палитре (ждём — warn, разрешён — success, отказ/сброшен при смене владельца — danger). */
 export function passageStatus(s: PassageStatus): { label: string; tone: ChipTone; icon: string } {
