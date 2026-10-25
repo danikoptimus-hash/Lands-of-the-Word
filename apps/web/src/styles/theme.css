@@ -36,7 +36,7 @@ button.ghost:disabled { background: transparent; color: var(--stone); border-col
 
 /* ---------- Поля: свежий лист с чернильной рамкой, без внутренней тени ---------- */
 label { font-family: var(--font-ui); }
-input, select, textarea { background: var(--paper-light); border-color: var(--border-strong); border-radius: var(--r-xs); font-family: var(--font-input); box-shadow: none; }
+input, select, textarea { background: var(--paper-light); border-color: var(--border-strong); border-radius: var(--r-field); font-family: var(--font-input); box-shadow: none; }
 input:focus, select:focus, textarea:focus { border-color: var(--bronze-ink); box-shadow: var(--ring); }
 input:read-only:not([type=checkbox]):not([type=radio]) { background: var(--paper-2); }
 input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px var(--paper-light) inset; }
@@ -186,7 +186,7 @@ code { background: var(--paper-light); border-color: var(--paper-edge); }
 .container .tile, .container .summary-tiles a { box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255,250,236,.55); }
 
 /* Числовое поле со стрелками (решение владельца 20.09) */
-.stepper { display: inline-flex; align-items: stretch; width: 128px; max-width: 100%; border: 1px solid var(--border-strong); border-radius: var(--r-xs); background: var(--paper-light); overflow: hidden; }
+.stepper { display: inline-flex; align-items: stretch; width: 128px; max-width: 100%; border: 1px solid var(--border-strong); border-radius: var(--r-field); background: var(--paper-light); overflow: hidden; }
 .stepper input { flex: 1 1 auto; min-width: 0; width: auto; border: 0; border-radius: 0; background: transparent; box-shadow: none; text-align: center; font: 600 var(--fs-lg)/1 var(--font-input); -moz-appearance: textfield; appearance: textfield; padding: 0 var(--sp-1); }
 .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .stepper input:focus { box-shadow: none; }
