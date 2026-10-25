@@ -115,10 +115,9 @@ details.legend > summary { font-family: var(--font-ui); }
 .settings-group h3 { font-family: var(--font-display); font-size: var(--fs-lg); }
 details.settings-group summary::after { content: ""; width: 20px; height: 20px; background: var(--bronze); -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") center / contain no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") center / contain no-repeat; }
 .rule-group { margin: var(--sp-4) 0 var(--sp-1); font: 700 var(--fs-xs)/1.2 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--bronze-ink); }
-.rule-row { border-bottom-color: var(--paper-edge); }
-.rule-row label { font-family: var(--font-ui); }
-.rule-row select { width: 100%; min-width: 0; }
-.money input.cur { font-family: var(--font-input); }
+.set-row { border-bottom-color: var(--paper-edge); }
+.set-row .k { font-family: var(--font-ui); }
+.set-sheet input.cur { font-family: var(--font-input); }
 .push-row { font-family: var(--font-book); font-style: italic; }
 
 /* ---------- Книга сезона: лист на столе, обложка — кожа с одной тонкой линией ---------- */

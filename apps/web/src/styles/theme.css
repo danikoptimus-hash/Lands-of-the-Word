@@ -197,4 +197,4 @@ code { background: var(--paper-light); border-color: var(--paper-edge); }
 .stepper .arrows button:hover { background: rgba(122,78,23,.12); color: var(--ink); }
 .stepper .arrows button:disabled { opacity: .35; }
 .stepper .arrows .i { width: 16px; height: 16px; }
-.rule-row .stepper { width: 140px; }
+.set-sheet .stepper { width: 140px; }

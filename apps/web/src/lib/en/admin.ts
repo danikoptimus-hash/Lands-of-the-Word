@@ -260,4 +260,12 @@ export const ADMIN: Record<string, string> = {
   // Летопись недели убрана (25.10)
   "Все события игры по порядку: дела, города, испытания, мир, визиты. Нажатие на запись о сдаче открывает отчёт.": "All game events in order: deeds, cities, trials, peace, visits. Tapping a submission entry opens the report.",
   "Письма": "Emails",
+  // Настройки списком строк и листами правки (25.10)
+  "Срок вызова": "Challenge term", "Минимум на ответ": "Minimum to answer", "Возврат взятого дела": "Return of a taken deed", "Дел в сутки на участника": "Deeds per day per member",
+  "Смена ролей": "Role change", "Разведчик и пророк": "Scout and prophet", "Ключ города · решивших": "City key · solvers", "Доля заданий города": "Share of city tasks", "Ответ на запрос прохода": "Answer to a passage request",
+  "вс": "Sun", "пн": "Mon", "вт": "Tue", "ср": "Wed", "чт": "Thu", "пт": "Fri", "сб": "Sat",
+  "день": "day", "дня": "days", "дн.": "d.", "без ограничения": "no limit", "секунда": "second", "секунды": "seconds", "секунд": "seconds",
+  "раз в {d}": "once per {d}", "балл": "point", "балла": "points", "баллов": "points", "сторона": "side", "стороны": "sides", "сторон": "sides",
+  "Старты": "Starts", "Родословия": "Genealogies", "Расстояние между городами": "Distance between cities", "выровнены": "equalised", "как получится": "as it comes",
+  "Новый интервал": "New interval", "Интервал шторма": "Storm interval", "Длится · часов": "Lasts · hours",
 };

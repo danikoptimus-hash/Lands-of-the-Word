@@ -11,6 +11,8 @@ import { TeamAvatar } from "../components/TeamAvatar";
 import { UserAvatar } from "../components/UserAvatar";
 import { Back } from "../components/Back";
 import { Help } from "../components/Help";
+import { StatChip } from "../components/StatChip";
+import { useMediaQuery } from "../lib/media";
 import { EmptyState, LoadingState } from "../components/State";
 import { TaskReportSheet } from "./TaskReport";
 
@@ -160,12 +162,30 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
   );
 }
 
-/** Администратор: доска активности участников. */
+/** Администратор: доска активности участников. На телефоне (решение владельца 25.10) — строки с аватаром и значками-счётчиками вместо таблицы на восемь колонок. */
 export function ActivityBoard({ gameId, version }: { gameId: string; version: number }) {
   const [rows, setRows] = useState<ActivityRowDto[] | null>(() => ready<{ rows: ActivityRowDto[] }>(`/api/games/${gameId}/activity`)?.rows ?? null);
+  const narrow = useMediaQuery("(max-width: 640px)");
   useEffect(() => { apiReady<{ rows: ActivityRowDto[] }>(`/api/games/${gameId}/activity`).then((r) => setRows(r.rows)).catch(() => {}); }, [gameId, version]);
   if (!rows) return <LoadingState rows={2} />;
   if (rows.length === 0) return <EmptyState inline icon="users" text={t("Участников пока нет.")} />;
+  if (narrow) return (
+    <div className="act-list">
+      {rows.map((r, i) => (
+        <div key={r.userId} className="act-row">
+          <span className="rank">{i + 1}</span>
+          <UserAvatar name={r.displayName || r.nickname} avatarId={r.userAvatarId} size="sm" />
+          <div className="who">
+            <div className="line"><span className="name">{r.displayName || r.nickname}</span><TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" /></div>
+            <div className="line chips">
+              <StatChip icon="scroll" label={t("Дела")} value={r.deeds} /><StatChip icon="pin" label={t("Районы")} value={r.tasks + r.orders} /><StatChip icon="book" label={t("Стихи")} value={r.verses} /><StatChip icon="city" label={t("Города")} value={r.cities} />
+              <span className="muted small">{r.lastActiveAt ? fmtDate(r.lastActiveAt) : "—"}</span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
   return (
     <div className="scroll">
       <table className="table activity">

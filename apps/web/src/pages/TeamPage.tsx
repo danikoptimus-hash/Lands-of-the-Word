@@ -15,6 +15,7 @@ import { BATTLE_STATUS, BattleCard, battleTone, isMyTurn, leftText } from "./Bat
 import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
 import { TradesSection } from "./Trades";
 import { useUi } from "../lib/ui";
+import { useMediaQuery } from "../lib/media";
 import { t } from "../lib/i18n";
 import { fmtDate, plural, setDisplayTimeZone } from "../lib/format";
 import { Icon } from "../components/Icon";
@@ -161,12 +162,6 @@ const ROLE: Record<GameRole | "CAPTAIN" | "DEPUTY", { icon: string; label: () =>
   WARRIOR: { icon: "sword", label: () => t("Воин"), hint: () => t("Его выученные стихи в испытаниях считаются вдвое.") },
   NONE: { icon: "user", label: () => t("Без роли"), hint: () => "" },
 };
-
-function useMediaQuery(q: string): boolean {
-  const [m, setM] = useState(() => typeof window !== "undefined" && window.matchMedia(q).matches);
-  useEffect(() => { const mq = window.matchMedia(q); const on = () => setM(mq.matches); mq.addEventListener("change", on); return () => mq.removeEventListener("change", on); }, [q]);
-  return m;
-}
 
 /** Страница команды: карта во весь экран, карточка дела, боковое меню (на широком экране — постоянная колонка). */
 export function TeamPage() {

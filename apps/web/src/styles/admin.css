@@ -201,9 +201,6 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .settings-group:first-of-type { padding-top: 0; margin-top: 0; border-top: 0; }
 .settings-group h3 { margin-bottom: var(--sp-2); }
 .settings-group .sub { margin-left: 28px; }
-.money { display: flex; gap: var(--sp-2); align-items: flex-end; }
-.money input[type=number] { max-width: 14ch; }
-.money input.cur { max-width: 8ch; }
 .push-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
 .push-row span { flex: 1 1 200px; }
 
@@ -296,19 +293,26 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
   .admin-top { max-width: calc(100% - 2 * var(--sp-3)); }
 }
 .admin-loading { width: min(360px, 80vw); }
-/* Продвинутые настройки: свёрнутая группа, строки «подпись — число». */
-details.settings-group summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: var(--sp-2); }
-details.settings-group summary::-webkit-details-marker { display: none; }
-details.settings-group summary::after { content: "▾"; color: var(--muted); margin-left: auto; transition: transform .15s; }
-details.settings-group[open] summary::after { transform: rotate(180deg); }
-details.settings-group summary h3 { margin: 0; }
-.rule-row { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: var(--sp-2); align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--border); }
-.rule-row label { margin: 0; font-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
-/* Значок «?» у настройки стоит в строке подписи без кружка; пояснение всплывает окошком (Help popup). */
-.rule-row label .help-pop-wrap, .settings-group label .help-pop-wrap { margin-left: 2px; }
-.settings-group > label:not(.check) { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; }
-.rule-row input { width: 100%; }
-@media (max-width: 480px) { .rule-row { grid-template-columns: 1fr; } }
+/* Настройки (25.10): строки «подпись — значение», строка открывает лист; в идущей игре настройки «до старта» — справкой. */
+.settings .settings-group h3 { display: flex; align-items: center; gap: var(--sp-2); }
+.settings .settings-group h3 .add { margin-left: auto; }
+.set-row { appearance: none; display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--touch); padding: var(--sp-1) 0; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font: inherit; font-size: var(--fs-md); text-align: left; line-height: var(--lh-ui); white-space: normal; justify-content: flex-start; cursor: pointer; }
+.set-row:hover { background: none; }
+.set-row:active { background: var(--surface-2); transform: none; }
+.set-row.static { cursor: default; color: var(--muted); }
+.set-row .k { flex: 1 1 0; min-width: 0; color: var(--muted); }
+.set-row .k.strong { color: var(--text); font-weight: 600; }
+.set-row .v { flex: 0 0 auto; max-width: 58%; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
+.set-row .chev { flex: none; color: var(--muted); }
+.settings .settings-group .set-row:last-of-type { border-bottom: 0; }
+.set-sheet > label, .set-sheet .sub > label { display: flex; align-items: center; gap: 2px 6px; margin-bottom: var(--sp-1); }
+.set-sheet .sub { margin-top: var(--sp-2); margin-left: 28px; }
+.set-sheet .hint { margin-top: var(--sp-2); }
+.day-chips .chip-btn { min-width: 40px; justify-content: center; padding: 0 var(--sp-2); }
+.day-chips .chip-btn.on { background: var(--accent-soft, var(--surface-2)); border-color: var(--accent); color: var(--accent-ink); }
+.storm-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-3); margin-top: var(--sp-3); }
+.storm-fields input[type="time"] { width: 100%; }
+@media (max-width: 400px) { .storm-fields { grid-template-columns: 1fr; } }
 
 /* ===== Этап 4: доска активности, журнал, «Книга сезона» ===== */
 details.fold-card > summary { list-style: none; display: flex; align-items: center; gap: var(--sp-2); min-height: var(--touch); cursor: pointer; font-weight: 600; }
@@ -317,6 +321,16 @@ details.fold-card > summary > .i:first-child { color: var(--accent); }
 details.fold-card > summary .chev { margin-left: auto; color: var(--muted); transition: transform var(--dur-fast); }
 details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 .table.activity td, .table.activity th { white-space: nowrap; }
+/* Доска активности на телефоне (25.10): строка — место, аватар, имя и команда, значки-счётчики с подсказкой по нажатию. */
+.act-row { display: flex; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-2) 0; border-bottom: 1px solid var(--border); }
+.act-row:last-child { border-bottom: 0; }
+.act-row .rank { flex: none; width: 20px; text-align: right; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; line-height: 28px; }
+.act-row .who { flex: 1 1 auto; min-width: 0; }
+.act-row .line { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
+.act-row .line .name { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-row .line.chips { flex-wrap: wrap; gap: 4px 6px; margin-top: 4px; }
+.act-row .chips .help-pop-wrap > .pop-btn { appearance: none; border: 0; background: none; padding: 0; margin: 0; min-height: 0; box-shadow: none; font: inherit; cursor: pointer; display: inline-flex; }
+.act-row .chips .small { margin-left: auto; }
 .season-book { max-width: 820px; margin: 0 auto; padding: var(--sp-4) var(--sp-4) var(--sp-6); }
 .season-book .book-head { text-align: center; margin: var(--sp-4) 0 var(--sp-5); padding-bottom: var(--sp-4); border-bottom: 2px double var(--accent-strong); }
 .season-book .book-head .org { color: var(--muted); letter-spacing: .08em; text-transform: uppercase; font-size: var(--fs-xs); }
@@ -398,11 +412,6 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
   .analytics-tabs .tabs::-webkit-scrollbar { display: none; }
   .analytics-tabs .tabs > button { flex: 0 0 auto; padding: 0 var(--sp-3); }
 }
-/* Интервалы шторма (24.10): день недели, начало — конец, убрать. */
-.storm-row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-2); flex-wrap: wrap; }
-.storm-row select { flex: 1 1 140px; min-width: 120px; }
-.storm-row input[type="time"] { width: 7.5em; flex: none; }
-.storm-row .dash { color: var(--muted); }
 /* Значки темпа партии вместо плиток (25.10): компактно и на телефоне. */
 .pace-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .pace-chips .help-pop-wrap > .pop-btn { appearance: none; border: 0; background: none; padding: 0; margin: 0; min-height: 0; box-shadow: none; font: inherit; cursor: pointer; display: inline-flex; }
