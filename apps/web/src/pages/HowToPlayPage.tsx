@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { IntroStory } from "./IntroStory";
 import { Back } from "../components/Back";
 import { ScrollTop } from "../components/ScrollTop";
 import { Icon } from "../components/Icon";
@@ -63,12 +65,15 @@ export function HowToPlayPage() {
       t("У администратора карта всей игры и разделы: летопись, команды, дела, проверка сдач и испытаний, аналитика, настройки. В настройках — пожертвования, шторм и правила; ярлыки для конвертов печатаются отдельной страницей."),
     ], figs: [{ src: "admin-map", caption: t("Карта администратора: все команды и маршруты."), wide: true }, { src: "admin-teams", caption: t("Команды и состав."), wide: true }, { src: "admin-deeds", caption: t("Дела игры."), wide: true }, { src: "admin-review", caption: t("Проверка: сдачи, испытания, визиты, проходы."), wide: true }, { src: "admin-analytics", caption: t("Аналитика: города и дела по дням."), wide: true }, { src: "admin-settings", caption: t("Настройки: пожертвование, шторм, правила."), wide: true }, { src: "admin-overview", caption: t("Летопись: журнал событий."), wide: true }, { src: "admin-labels", caption: t("Ярлыки для конвертов."), wide: true }] },
   ];
+  const [intro, setIntro] = useState(false);
   return (
     <div className="how-to">
       <Back to="-1" label={t("Назад")} />
       <ScrollTop />
       <h1 className="mt-2">{t("Как играть?")}</h1>
       <p className="muted mt-2">{t("Коротко и с картинками с настоящих экранов игры.")} <Link to="/whats-new">{t("Что нового")}</Link></p>
+      <p className="mt-2"><button type="button" className="secondary sm" onClick={() => setIntro(true)}><Icon name="sparkle" />{t("О игре за десять экранов")}</button></p>
+      {intro && <IntroStory onClose={() => setIntro(false)} />}
       <nav className="guide-toc mt-3" aria-label={t("Разделы")}>
         {sections.map((s, i) => <a key={s.title} href={`#g${i + 1}`}>{s.title}</a>)}
       </nav>

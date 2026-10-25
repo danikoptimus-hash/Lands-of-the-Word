@@ -6,6 +6,7 @@ import { t, type Locale } from "../lib/i18n";
 import { Tabs } from "../components/Tabs";
 import { Icon } from "../components/Icon";
 import { GoogleMark } from "../components/GoogleMark";
+import { IntroStory, introForced, introSeen } from "./IntroStory";
 
 /** Включён ли вход через Google на сервере: спрашиваем один раз, до ответа (и при ошибке) кнопку не показываем. */
 let providersCache: Promise<ProvidersDto> | null = null;
@@ -25,6 +26,8 @@ export function useProviders(): ProvidersDto | null {
  * Для гостя язык запоминается в браузере; для вошедшего (приглашение) — сохраняется в аккаунте.
  */
 export function GuestShell({ title, back, children }: { title: string; back?: ReactNode; children: ReactNode }) {
+  // Вступление «о чём игра» (решение владельца 25.10): впервые зашедшему — само, один раз на устройстве; дальше по кнопке «О игре».
+  const [intro, setIntro] = useState(() => introForced() || !introSeen());
   const { user, locale, setGuestLocale, refresh } = useAuth();
   async function pick(l: Locale) {
     if (l === locale) return;
@@ -38,7 +41,7 @@ export function GuestShell({ title, back, children }: { title: string; back?: Re
     <div className="login-page">
       <div className="card auth">
         <div className="guest-bar">
-          {back ?? <Link to="/how-to-play" className="btn ghost sm"><Icon name="help" />{t("Как играть?")}</Link>}
+          {back ?? <div className="row"><button type="button" className="ghost sm" onClick={() => setIntro(true)}><Icon name="sparkle" />{t("О игре")}</button><Link to="/how-to-play" className="btn ghost sm"><Icon name="help" />{t("Как играть?")}</Link></div>}
           <div className="lang-switch" role="group" aria-label={t("Язык")}>
             <button type="button" className={locale === "ru" ? "active" : ""} aria-pressed={locale === "ru"} onClick={() => void pick("ru")}>RU</button>
             <button type="button" className={locale === "en" ? "active" : ""} aria-pressed={locale === "en"} onClick={() => void pick("en")}>EN</button>
@@ -50,6 +53,7 @@ export function GuestShell({ title, back, children }: { title: string; back?: Re
         </div>
         {children}
       </div>
+      {intro && <IntroStory onClose={() => setIntro(false)} actions={<button type="button" onClick={() => setIntro(false)}><Icon name="user" />{t("Войти")}</button>} />}
     </div>
   );
 }

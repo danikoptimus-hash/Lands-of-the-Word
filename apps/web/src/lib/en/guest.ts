@@ -77,4 +77,17 @@ export const GUEST: Record<string, string> = {
   "Для писем и восстановления пароля. Новую почту подтвердите по ссылке из письма.": "For e-mails and password recovery. Confirm a new e-mail via the link we send.",
   "Ссылка для сброса пароля": "Password reset link",
   "Единственное исключение — аватарка: если вы поставили фото себе или команде, мы храним его уменьшенную копию без метаданных и показываем только участникам игры после входа. При загрузке фото проверяется на уместность сервисом OpenAI; больше нигде оно не используется. Убрать фото можно в любой момент.": "The one exception is the avatar: if you set a photo for yourself or your team, we keep a reduced copy without metadata and show it only to game participants after signing in. On upload the photo is checked for appropriateness by OpenAI; it is used nowhere else. You can remove the photo at any time.",
+  // Вступление «о чём игра» (25.10)
+  "О игре": "About the game", "Далее": "Next", "Экран {n} из {m}": "Screen {n} of {m}", "О игре за десять экранов": "The game in ten screens",
+  "Земли Слова": "Lands of the Word",
+  "Игра для молодёжи церкви: команды идут по карте двух островов, делают добрые дела и открывают книги Библии.": "A game for church youth: teams travel a map of two islands, do good deeds and open the books of the Bible.",
+  "Карта": "Map", "Два острова, перекрёстки и дороги. Туман скрывает землю, пока команда не пройдёт по ней.": "Two islands, crossroads and roads. Fog hides the land until the team walks it.",
+  "На каждой стороне дороги лежит дело: позвонить одинокому, помочь по хозяйству, выучить стих. Сделал — сдал отчёт, дорога открылась.": "A deed lies on every road side: call a lonely person, help around the house, learn a verse. Done — report filed, the road opens.",
+  "Город — книга Библии. Читайте главы, решайте задания районов, найдите знак и ключ от конверта.": "A city is a book of the Bible. Read the chapters, solve the district tasks, find the sign and the key to the envelope.",
+  "За город можно бросить вызов: стихи наизусть на время. Кто знает Слово лучше, тот и владеет городом.": "A city can be challenged: verses by heart against the clock. Whoever knows the Word better owns the city.",
+  "Команда и роли": "Team and roles", "Капитан раздаёт роли: разведчик, пророк, посол, кормчий, воин. Каждый важен.": "The captain hands out roles: scout, prophet, ambassador, helmsman, warrior. Everyone matters.",
+  "Живая карта": "A living map", "Ночью города спят, по расписанию приходит шторм, а над взятым городом бьёт салют.": "At night the cities sleep, a storm comes on schedule, and fireworks burst over a taken city.",
+  "Летопись и моё служение": "Chronicle and my service", "Каждое дело записано: лента команды и личная сводка служения каждого.": "Every deed is recorded: the team feed and everyone’s personal service summary.",
+  "Проверка дел, таблица команд, аналитика сезона — всё в одном месте.": "Deed review, the teams table, season analytics — all in one place.",
+  "Зарегистрируйтесь или войдите, создайте игру или примите приглашение команды.": "Register or sign in, create a game or accept a team invitation.",
 };
