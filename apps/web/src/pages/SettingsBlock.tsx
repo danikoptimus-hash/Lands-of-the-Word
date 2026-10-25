@@ -266,7 +266,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
       )}
       {ss && (
         <Sheet size="sm" onClose={close} title={ss.title}
-          foot={<>{ss.onRemove && <button type="button" className="secondary danger" onClick={ss.onRemove} disabled={busy}><Icon name="trash" />{t("Убрать")}</button>}<button type="button" className="ghost" onClick={close} disabled={busy}>{t("Отмена")}</button><button type="button" onClick={ss.onSave} disabled={!dirty || !ss.valid || busy}>{t("Готово")}</button></>}>
+          foot={<>{ss.onRemove && <button type="button" className="secondary danger icon" onClick={ss.onRemove} disabled={busy} aria-label={t("Убрать интервал")} title={t("Убрать интервал")}><Icon name="trash" /></button>}<button type="button" className="ghost" onClick={close} disabled={busy}>{t("Отмена")}</button><button type="button" onClick={ss.onSave} disabled={!dirty || !ss.valid || busy}>{t("Готово")}</button></>}>
           <div className="set-sheet">{ss.body}{error && <p className="error">{error}</p>}</div>
         </Sheet>
       )}
