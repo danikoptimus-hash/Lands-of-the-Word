@@ -1,6 +1,5 @@
 import { addAwakeMs, awakeMsBetween } from "@lotw/domain";
 import { prisma } from "../db.js";
-import { sweepChronicles } from "./journal.js";
 import { publish } from "./events.js";
 import { loadBook, randomPassage } from "./bible.js";
 import { loadCityContent } from "./cities.js";
@@ -383,7 +382,8 @@ export async function sweep(gameId?: string): Promise<void> {
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });
   for (const b of lost) await resolveWon(b);
   await sweepSieges(gameId, now);
-  if (!gameId) { await sweepChronicles(now); await sweepDigests(now); }
+  // Еженедельная летопись не рассылается (решение владельца 25.10: «у команд и так летопись ведётся»).
+  if (!gameId) await sweepDigests(now);
   // Усталость городов и возврат зависших дел — по идущим играм.
   const games = await prisma.game.findMany({ where: { ...(gameId ? { id: gameId } : {}), status: "ACTIVE" }, select: { id: true, settings: true } });
   for (const g of games) {

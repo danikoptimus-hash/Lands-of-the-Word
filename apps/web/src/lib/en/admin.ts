@@ -257,4 +257,7 @@ export const ADMIN: Record<string, string> = {
   "Чёрная линия — взятые города по дням, все команды; цветные — каждая команда отдельно. Точечная — логистическая кривая, подобранная по факту методом наименьших квадратов: подбираются потолок, крутизна и середина, поэтому при замедлении кривая выходит на потолок ниже числа городов на карте.": "The black line is cities taken by day, all teams; coloured lines are each team separately. The dotted line is a logistic curve fitted to the facts by least squares: the ceiling, steepness and midpoint are all fitted, so when the pace slows the curve levels off below the number of cities on the map.",
   "Потолок прогноза: до стольких городов выходит логистическая кривая при нынешнем темпе.": "Forecast ceiling: the logistic curve levels off at this many cities at the current pace.",
   "из {n}": "of {n}",
+  // Летопись недели убрана (25.10)
+  "Все события игры по порядку: дела, города, испытания, мир, визиты. Нажатие на запись о сдаче открывает отчёт.": "All game events in order: deeds, cities, trials, peace, visits. Tapping a submission entry opens the report.",
+  "Письма": "Emails",
 };

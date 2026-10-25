@@ -5,7 +5,7 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { defineView } from "../services/views.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
-import { activityBoard, feed, seasonBook, sendChronicle, serviceStats } from "../services/journal.js";
+import { activityBoard, feed, seasonBook, serviceStats } from "../services/journal.js";
 import { breakPeace, decidePeace, peaceView, proposePeace } from "../services/peace.js";
 import { adminOrObserver } from "../services/access.js";
 
@@ -76,14 +76,6 @@ export async function journalRoutes(app: FastifyInstance): Promise<void> {
     return { items: rows.map((r) => ({ id: r.id, kind: r.kind, vars: r.vars, text: r.text, everyone: r.everyone, teamId: r.teamId, at: r.createdAt.getTime(), taskId: taskIdOf(r) })), teams };
   });
 
-  /** Администратор: разослать летопись за последние 7 дней сейчас. */
-  app.post("/api/games/:id/chronicle", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const game = await requireAdmin(request, reply, id);
-    if (!game) return;
-    if (game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра не идёт") });
-    return { lines: await sendChronicle(id) };
-  });
 
   /** «Книга сезона»: администратору — всегда, участникам — после завершения игры (итоги видят все, решение владельца 19.09). */
   app.get("/api/games/:id/season-book", async (request, reply) => {

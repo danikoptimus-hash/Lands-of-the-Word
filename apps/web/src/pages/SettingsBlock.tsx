@@ -10,7 +10,7 @@ import { Stepper } from "../components/Stepper";
 export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily"; /** Штормы (решение владельца 24.10): интервалы недели по поясу игры. */ storms?: StormSlot[] }
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string; rules?: RulesDto } }
 /** Правила, зашитые глобально и убранные из настроек (решение владельца 03.10): минимальная ставка, штраф за сгоревший вызов, закрепление города, усталость, паузы после ошибок. Сервер хранит их значения по умолчанию. */
-type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "fatigueAfterDays" | "fatigueStepDays" | "fatigueStep" | "pauseSteps" | "storms";
+type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "fatigueAfterDays" | "fatigueStepDays" | "fatigueStep" | "pauseSteps" | "storms" | "chronicleWeekday" | "chronicleHourUtc";
 type NumKey = Exclude<keyof RulesDto, FixedKey | "adminDigest" | "timeZone">;
 /** Продвинутые настройки: правила, которые раньше были зашиты в код (решение владельца 18.09). Подписи короткие, единицы — суффиксом; поля сгруппированы. */
 const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: number; step?: number }> = {
@@ -25,8 +25,6 @@ const RULE_FIELDS: Record<NumKey, { label: () => string; min: number; max: numbe
   passageDays: { label: () => t("Ответ на запрос прохода · дней"), min: 1, max: 30 },
   siegeDays: { label: () => t("Осада делами · дней"), min: 1, max: 60 },
   siegeDeedPoints: { label: () => t("Баллов за дело в осаде"), min: 0, max: 100 },
-  chronicleWeekday: { label: () => t("Летопись: день недели"), min: 0, max: 6 },
-  chronicleHourUtc: { label: () => t("Летопись: час (UTC)"), min: 0, max: 23 },
 };
 const NUM_KEYS = Object.keys(RULE_FIELDS) as NumKey[];
 const RULE_GROUPS: Array<{ title: () => string; keys: Array<Exclude<keyof RulesDto, FixedKey>> }> = [
@@ -35,7 +33,7 @@ const RULE_GROUPS: Array<{ title: () => string; keys: Array<Exclude<keyof RulesD
   { title: () => t("Города"), keys: ["keySolversPct", "keyTasksPct"] },
   { title: () => t("Проходы"), keys: ["passageDays"] },
   { title: () => t("Осада"), keys: ["siegeDays", "siegeDeedPoints"] },
-  { title: () => t("Летопись и письма"), keys: ["chronicleWeekday", "chronicleHourUtc", "adminDigest"] },
+  { title: () => t("Письма"), keys: ["adminDigest"] },
 ];
 /** Пояснение к каждому правилу: зачем, когда применяется, на что влияет (решение владельца 02.10). */
 const RULE_HELP: Record<Exclude<keyof RulesDto, FixedKey>, () => string> = {
@@ -51,11 +49,8 @@ const RULE_HELP: Record<Exclude<keyof RulesDto, FixedKey>, () => string> = {
   passageDays: () => t("Сколько дней у владельца города на ответ на запрос прохода. Нет ответа в срок — считается отказом."),
   siegeDays: () => t("Сколько дней длится осада делами города с максимальным уровнем защиты. За это время обе команды набирают баллы одобренными делами."),
   siegeDeedPoints: () => t("Сколько баллов в осаде даёт одобренное дело, если у самого дела своя цена не задана. Цену отдельного дела задают во вкладке «Дела»."),
-  chronicleWeekday: () => t("День недели, когда всем участникам уходит летопись недели: дела, города, испытания без ставок."),
-  chronicleHourUtc: () => t("Час по UTC, после которого в выбранный день уходит летопись недели. Для Ташкента местное время на 5 часов больше."),
   adminDigest: () => t("Как администраторы узнают о сдачах: письмом сразу о каждой, одним письмом раз в 3 часа или одним письмом раз в день. Уведомления в приложении приходят всегда сразу."),
 };
-/** День летописи выбирается по названию; значение по-прежнему 0–6 (0 — воскресенье), как ждёт сервер. */
 const weekdays = () => [t("воскресенье"), t("понедельник"), t("вторник"), t("среда"), t("четверг"), t("пятница"), t("суббота")];
 
 /** Настройки игры: форма всегда открыта, поля сгруппированы. В игре можно менять только пожертвование. */
@@ -128,14 +123,6 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
       </div>
     );
     const f = RULE_FIELDS[key];
-    if (key === "chronicleWeekday") return (
-      <div key={key} className="rule-row">
-        <label htmlFor={id}>{f.label()}<Help popup>{RULE_HELP[key]()}</Help></label>
-        <select id={id} value={String(rules.chronicleWeekday)} onChange={(e) => setRule("chronicleWeekday", Number(e.target.value))}>
-          {weekdays().map((d, i) => <option key={d} value={i}>{d}</option>)}
-        </select>
-      </div>
-    );
     return (
       <div key={key} className="rule-row">
         <label htmlFor={id}>{f.label()}<Help popup>{RULE_HELP[key]()}</Help></label>

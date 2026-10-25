@@ -193,16 +193,8 @@ export function JournalAdmin({ gameId, version, active, onShowOnMap }: { gameId:
   const first = ready<JournalResp>(`/api/games/${gameId}/journal`);
   const [items, setItems] = useState<Array<FeedItemDto & { teamId: string | null }> | null>(first?.items ?? null);
   const [teams, setTeams] = useState<Array<{ id: string; name: string; color: string; avatarId?: string | null }>>(first?.teams ?? []);
-  const [busy, setBusy] = useState(false);
   const load = useCallback(() => apiReady<JournalResp>(`/api/games/${gameId}/journal`).then((r) => { setItems(r.items); setTeams(r.teams); }).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load, version]);
-  async function chronicle() {
-    if (!(await confirm(t("Летопись за последние 7 дней уйдёт всем участникам всех команд письмом и уведомлением."), { title: t("Отправить летопись сейчас?"), okLabel: t("Отправить") }))) return;
-    setBusy(true);
-    try { await api(`/api/games/${gameId}/chronicle`, { method: "POST", body: "{}" }); notify(t("Летопись отправлена")); await load(); }
-    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-    finally { setBusy(false); }
-  }
   const teamOf = (id: string | null) => teams.find((tm) => tm.id === id);
   /** Отчёт по делу из летописи (решение владельца 30.09): запись о сдаче, одобрении или возврате нажимается. */
   const [reportId, setReportId] = useState<string | null>(null);
@@ -210,8 +202,7 @@ export function JournalAdmin({ gameId, version, active, onShowOnMap }: { gameId:
     <div className="card">
       {reportId && <TaskReportSheet gameId={gameId} taskId={reportId} onClose={() => setReportId(null)} onShowOnMap={onShowOnMap ? (f) => { setReportId(null); onShowOnMap(f); } : undefined} />}
       <div className="card-head">
-        <h2><span className="ico"><Icon name="scroll" /></span>{t("Журнал событий")}<Help>{t("Летопись уходит сама раз в неделю (день и час — в продвинутых настройках): дела, города, испытания без ставок, положение команд.")}</Help></h2>
-        {active && <button type="button" className="secondary sm" disabled={busy} onClick={() => void chronicle()}><Icon name="send" />{t("Отправить летопись сейчас")}</button>}
+        <h2><span className="ico"><Icon name="scroll" /></span>{t("Журнал событий")}<Help>{t("Все события игры по порядку: дела, города, испытания, мир, визиты. Нажатие на запись о сдаче открывает отчёт.")}</Help></h2>
       </div>
       {!items ? <LoadingState rows={2} /> : items.length === 0 ? <EmptyState inline icon="scroll" text={t("Событий пока нет.")} /> : (
         <ul className="feed compact">
