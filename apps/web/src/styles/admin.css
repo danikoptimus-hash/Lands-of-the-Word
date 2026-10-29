@@ -282,9 +282,12 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .dock-btn.on .i { color: var(--on-accent); }
 .dock-btn .badge { position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--surface-2, var(--surface)); border: 1px solid var(--border); color: var(--text); font: 700 11px/18px var(--font); text-align: center; }
 .dock-btn .badge.hot { background: var(--danger, #b3402a); border-color: transparent; color: #fff; }
-/* Второй счётчик плитки «Проверка» (29.10): отчёты о визитах — квадратик со скруглением в правом нижнем углу, другой формы и цвета, чем кружок сдач. */
-.dock-btn .badge.visits { top: auto; bottom: -7px; right: -7px; height: 18px; min-width: 18px; border-radius: 5px; display: inline-flex; align-items: center; gap: 2px; padding: 0 4px; background: var(--accent-ink); border-color: transparent; color: var(--on-accent); font-size: 10px; line-height: 16px; }
-.dock-btn .badge.visits .i { width: 11px; height: 11px; color: inherit; }
+/* Плитка «Проверка» (29.10): два красных счётчика по верхним углам, чтобы не закрывать подпись — справа сдачи дел со свитком,
+   слева квадратик отчётов о визитах с городом. */
+.dock-btn .badges { position: absolute; top: -5px; right: -5px; display: flex; gap: 3px; }
+.dock-btn .badges .badge { position: static; display: inline-flex; align-items: center; gap: 2px; padding: 0 5px 0 4px; }
+.dock-btn .badges .badge .i { width: 11px; height: 11px; color: inherit; }
+.dock-btn .badge.visits { border-radius: 5px; }
 .admin-popup.overlay-backdrop { z-index: 8; }
 .admin-popup .overlay-body .card { box-shadow: none; }
 @media (max-width: 767px) {

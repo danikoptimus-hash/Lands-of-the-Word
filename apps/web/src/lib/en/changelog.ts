@@ -1,6 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
-  "У администратора на плитке «Проверка» второй значок в правом нижнем углу: сколько отчётов о визитах ждёт решения, отдельно от сдач дел.": "On the admin’s “Review” tile a second badge in the bottom-right corner shows how many visit reports await a decision, separately from deed submissions.",
+  "У администратора на плитке «Проверка» два счётчика: свиток — сдачи дел, город — отчёты о визитах, которые ждут решения.": "The admin’s “Review” tile has two counters: a scroll for deed submissions and a city for visit reports awaiting a decision.",
   "Возвращённое администратором дело занимает место в дневном лимите: его можно только пересдать, другое дело до следующих 7:00 не взять. Отпущенное дело лимит не держит.": "A deed returned by the admin keeps its place in the daily limit: it can only be resubmitted, another deed cannot be taken until the next 7:00. A released deed does not hold the limit.",
   "Тёсаный камень больше не тратит дневной лимит дел: вымощенная сторона — не дело.": "A hewn stone no longer spends the daily deed limit: a paved side is not a deed.",
   "Дело «Пробежка» убрано из стандартного набора и из идущих игр; взятые и сданные пробежки доигрываются.": "The “Jog” deed was removed from the standard set and from running games; jogs already taken or submitted are played out.",
