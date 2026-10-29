@@ -689,9 +689,11 @@
   .side-menu .side-head { padding-top: calc(var(--sp-3) + 6px); }
   .side-menu .menu-sub h2 { display: flex; align-items: center; gap: var(--sp-2); }
   .side-menu .menu-sub h2 .i { width: var(--icon-md); height: var(--icon-md); color: var(--accent); }
-  .map-area .team-dock { top: auto; left: calc(var(--sp-2) + var(--safe-left)); right: calc(var(--sp-2) + var(--safe-right)); transform: none; bottom: calc(var(--sp-2) + var(--safe-bottom)); flex-direction: row; gap: 2px; padding: 4px; justify-content: space-between; background: color-mix(in srgb, var(--surface) 90%, transparent); border-radius: 22px; box-shadow: var(--shadow-2); }
-  .team-dock .dock-btn { flex: 1 1 0; width: auto; min-width: 0; min-height: 52px; padding: 6px 2px; box-shadow: none; background: transparent; }
-  .team-dock .dock-btn .lbl { font-size: 9.5px; letter-spacing: -.01em; line-height: 1.05; max-width: 100%; white-space: normal; text-align: center; }
+  /* Плитки один в один как у администратора на телефоне (theme-admin.css): отдельные светлые карточки с кромкой, без общей полосы. */
+  .map-area .team-dock { top: auto; left: calc(var(--sp-2) + var(--safe-left)); right: calc(var(--sp-2) + var(--safe-right)); transform: none; bottom: calc(var(--sp-2) + var(--safe-bottom)); flex-direction: row; gap: var(--sp-1); padding: 0; justify-content: space-between; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+  .map-area .team-dock .dock-btn, .map-area .team-dock .dock-btn:hover { flex: 1 1 0; width: auto; min-width: 0; min-height: 52px; padding: 6px 2px; border-radius: var(--r-sm); background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); color: var(--ink); }
+  .map-area .team-dock .dock-btn.on, .map-area .team-dock .dock-btn.on:hover { background: rgba(255,250,236,.9); border-color: var(--bronze); color: var(--bronze-ink); }
+  .map-area .team-dock .dock-btn .lbl { font: 700 9.5px/1.05 var(--font-ui); letter-spacing: -.01em; max-width: 100%; white-space: normal; text-align: center; }
   .team-timeline { bottom: calc(var(--sp-2) + var(--safe-bottom) + 76px); }
   .map-area.storm .team-dock { display: none; }
 }
