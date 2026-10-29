@@ -33,6 +33,7 @@ import { initModeration } from "./services/avatars.js";
 import multipart from "@fastify/multipart";
 import { journalRoutes } from "./routes/journal.js";
 import { awardRoutes } from "./routes/awards.js";
+import { adminUserRoutes } from "./routes/adminUsers.js";
 import { recomputeActiveGames } from "./services/awards.js";
 import { quarryRoutes } from "./routes/quarry.js";
 import { tradeRoutes } from "./routes/trades.js";
@@ -95,6 +96,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(recipientRoutes);
   await app.register(journalRoutes);
   await app.register(awardRoutes);
+  await app.register(adminUserRoutes);
   // Таймеры битв: сгоревшие атаки и просроченные обороны проверяются раз в минуту.
   if (config.NODE_ENV !== "test") {
     // Таймеры не должны зависеть от перезапуска сервера: первый проход — сразу после старта.

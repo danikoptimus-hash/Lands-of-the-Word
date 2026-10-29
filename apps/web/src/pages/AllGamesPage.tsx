@@ -55,6 +55,7 @@ export function AllGamesPage() {
       <Back to="/" label={t("Мои игры")} />
       <div className="page-head">
         <h1><span className="ico"><Icon name="eye" /></span>{t("Все игры")}</h1>
+        <Link to="/admin/users" className="btn secondary sm"><Icon name="users" />{t("Люди")}</Link>
         <Help>{t("Каждая игра открывается глазами её администратора, но только для просмотра: изменить ничего нельзя, участники и администраторы вашего присутствия не видят. Сверху самые живые игры: активность — записи летописи и сдачи дел за 7 дней.")}</Help>
       </div>
       <Tabs<Filter> value={filter} onChange={setFilter} ariaLabel={t("Состояние")} items={[

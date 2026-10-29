@@ -20,6 +20,7 @@ import { VerifyPage, VerifyPendingPage } from "./pages/VerifyPage";
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard").then((m) => ({ default: m.AdminDashboard })));
 import { SupportPage } from "./pages/SupportPage";
 import { AllGamesPage } from "./pages/AllGamesPage";
+import { AdminUsersPage } from "./pages/AdminUsersPage";
 import { NewGamePage } from "./pages/NewGamePage";
 import { HowToPlayPage } from "./pages/HowToPlayPage";
 import { WhatsNewPage } from "./pages/WhatsNewPage";
@@ -64,6 +65,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="/admin" element={<Private><Suspense fallback={null}><AdminDashboard /></Suspense></Private>} />
             <Route path="/admin/support" element={<Private><SupportPage /></Private>} />
             <Route path="/admin/games" element={<Private><AllGamesPage /></Private>} />
+            <Route path="/admin/users" element={<Private><AdminUsersPage /></Private>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
