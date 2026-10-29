@@ -34,8 +34,8 @@ export const AWARDS: ReadonlyArray<AwardDef> = [
   { code: "t_fifty", kind: "TEAM", nameRu: "Полсотни", nameEn: "Fifty", condRu: "50 одобренных дел команды", condEn: "50 approved team deeds", symbol: "a stack of five tied scroll bundles" },
   { code: "t_hundred", kind: "TEAM", nameRu: "Сотня", nameEn: "Hundred", condRu: "100 одобренных дел команды", condEn: "100 approved team deeds", symbol: "a tall sheaf of wheat bound with a ribbon" },
   { code: "t_three_books_day", kind: "TEAM", nameRu: "Книжники", nameEn: "Scribes", condRu: "Задания районов в трёх городах решены за один день", condEn: "District tasks solved in three cities within one day", repeat: true, symbol: "three open books fanned out with a quill" },
-  { code: "t_trial_won", kind: "TEAM", nameRu: "Победители испытания", nameEn: "Trial Victors", condRu: "Выигран вызов на чужой город", condEn: "A challenge for another team's city won", repeat: true, symbol: "a laurel wreath around a small banner" },
-  { code: "t_city_shield", kind: "TEAM", nameRu: "Щит города", nameEn: "City Shield", condRu: "Свой город отстоян при вызове", condEn: "Own city defended in a challenge", repeat: true, symbol: "a round shield with a city tower emblem" },
+  { code: "t_trial_won", kind: "TEAM", nameRu: "Победители испытания", nameEn: "Trial Victors", condRu: "Выигран вызов на чужой город", condEn: "A challenge for another team's city won", repeat: true, symbol: "a golden trophy cup with laurel leaves on both sides" },
+  { code: "t_city_shield", kind: "TEAM", nameRu: "Щит города", nameEn: "City Shield", condRu: "Свой город отстоян при вызове", condEn: "Own city defended in a challenge", repeat: true, symbol: "a single large heraldic shield, nothing else, with a small city gate drawn in its centre" },
   { code: "t_masons", kind: "TEAM", nameRu: "Каменщики", nameEn: "Masons", condRu: "Первая дорога замощена тёсаным камнем", condEn: "The first road paved with hewn stone", symbol: "a mason's hammer and chisel over a cobbled road" },
   { code: "t_envoys", kind: "TEAM", nameRu: "Послы мира", nameEn: "Envoys of Peace", condRu: "Получен проход через чужой город", condEn: "Passage through another team's city granted to us", repeat: true, symbol: "a white dove carrying an olive branch over a gate" },
   { code: "t_hosts", kind: "TEAM", nameRu: "Гостеприимные", nameEn: "Hospitable", condRu: "Дан проход другой команде", condEn: "Passage granted to another team", repeat: true, symbol: "an open city gate with a lantern hanging above it" },
@@ -64,10 +64,10 @@ export const AWARDS: ReadonlyArray<AwardDef> = [
   { code: "p_verses_60", kind: "PERSONAL", nameRu: "Сильный в Писании", nameEn: "Mighty in Scripture", condRu: "60 стихов зачтены в испытаниях", condEn: "60 verses counted in trials", symbol: "a sword with a scroll wrapped around its blade" },
   { code: "p_verses_100", kind: "PERSONAL", nameRu: "Псалмопевец", nameEn: "Psalmist", condRu: "100 стихов зачтены в испытаниях", condEn: "100 verses counted in trials", symbol: "a small harp (lyre)" },
   // Личные: карта и море
-  { code: "p_pathfinder", kind: "PERSONAL", nameRu: "Следопыт", nameEn: "Pathfinder", condRu: "Своими делами открыл 10 перекрёстков", condEn: "Revealed 10 crossroads with own deeds", symbol: "a compass rose" },
+  { code: "p_pathfinder", kind: "PERSONAL", nameRu: "Следопыт", nameEn: "Pathfinder", condRu: "Своими делами открыл 10 перекрёстков", condEn: "Revealed 10 crossroads with own deeds", symbol: "a trail of footprints winding along a path over low hills" },
   { code: "p_keyholder", kind: "PERSONAL", nameRu: "Ключник", nameEn: "Keyholder", condRu: "Своим делом открыл дорогу в город", condEn: "Opened the road into a city with own deed", repeat: true, symbol: "a single ornate key" },
   { code: "p_sea_wolf", kind: "PERSONAL", nameRu: "Морской волк", nameEn: "Sea Wolf", condRu: "Участвовал в морском переходе", condEn: "Took part in a sea crossing", repeat: true, symbol: "a ship's wheel with a wave" },
-  { code: "p_team_pillar", kind: "PERSONAL", nameRu: "Опора команды", nameEn: "Pillar of the Team", condRu: "Больше всех дел в команде за неделю", condEn: "Most deeds in the team in a week", repeat: true, symbol: "a stone column holding up an arch" },
+  { code: "p_team_pillar", kind: "PERSONAL", nameRu: "Опора команды", nameEn: "Pillar of the Team", condRu: "Больше всех дел в команде за неделю", condEn: "Most deeds in the team in a week", repeat: true, symbol: "one single tall stone column (pillar) standing alone, with a plain capital on top, no arch" },
 ];
 
 export const AWARD_BY_CODE: ReadonlyMap<string, AwardDef> = new Map(AWARDS.map((a) => [a.code, a]));
