@@ -287,6 +287,21 @@ export async function userStreak(gameId: string, userId: string): Promise<Streak
   return streakOf(new Set(days.keys()), gameDayKey(Date.now(), tz));
 }
 
+/** Серии всех участников игры одним проходом (для раздела наград администратора). */
+export async function allStreaks(gameId: string): Promise<Map<string, StreakInfo>> {
+  const game = await prisma.game.findUnique({ where: { id: gameId }, select: { settings: true } });
+  const tz = rulesOf(game?.settings).timeZone;
+  const [tasks, works, journal] = await Promise.all([
+    prisma.teamEdgeTask.findMany({ where: { gameId, paved: false, status: { in: ["APPROVED", "SUBMITTED"] } }, select: { id: true, teamId: true, status: true, takenById: true, participants: true, takenAt: true, submittedAt: true, decidedAt: true, sea: true, paved: true, toKey: true } }),
+    prisma.quarryWork.findMany({ where: { gameId, status: { in: ["APPROVED", "SUBMITTED"] } }, select: { teamId: true, byId: true, participants: true, status: true, submittedAt: true, decidedAt: true } }),
+    prisma.journal.findMany({ where: { gameId, kind: { in: [...ACTIVE_KINDS] } }, select: { teamId: true, userId: true, kind: true, vars: true, createdAt: true } }),
+  ]);
+  const today = gameDayKey(Date.now(), tz);
+  const out = new Map<string, StreakInfo>();
+  for (const [userId, days] of activeDays(tasks, works, journal, tz)) out.set(userId, streakOf(new Set(days.keys()), today));
+  return out;
+}
+
 export interface GrantSummary { code: string; count: number; /** Первое получение. */ at: string; /** Последнее получение (для повторяемых). */ last: string }
 /** Сводка наград по кодам: сколько раз и когда. */
 export function summarize(rows: Array<{ code: string; at: Date }>): GrantSummary[] {

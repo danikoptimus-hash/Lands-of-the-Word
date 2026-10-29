@@ -2,10 +2,10 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
-import { requireMember } from "./teamMap.js";
+import { requireAdmin, requireMember } from "./teamMap.js";
 import { adminOrObserver } from "../services/access.js";
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { summarize, userStreak } from "../services/awards.js";
+import { allStreaks, streakOf, summarize, userStreak } from "../services/awards.js";
 
 /**
  * Зал наград (решение владельца 29.10): награды своей команды и личные, награды других команд, карточка участника
@@ -45,6 +45,27 @@ export async function awardRoutes(app: FastifyInstance) {
       mine: summarize(myRows),
       streak,
       teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, avatarId: t.avatarId, out: t.status !== "active", awards: countOf.get(t.id) ?? 0 })),
+    };
+  });
+
+  /** Администратор: награды всех команд и всех участников с сериями (решение владельца 29.10: «для админа плитку награды тоже»). */
+  app.get("/api/games/:id/awards/admin", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const [teams, members, grants, streaks] = await Promise.all([
+      prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, name: true, color: true, avatarId: true } }),
+      prisma.membership.findMany({ where: { team: { gameId: id } }, select: { userId: true, teamId: true, role: true, gameRole: true, user: { select: { nickname: true, displayName: true, avatarId: true } } } }),
+      prisma.awardGrant.findMany({ where: { gameId: id }, select: { teamId: true, userId: true, code: true, at: true } }),
+      allStreaks(id),
+    ]);
+    const empty = streakOf(new Set(), "");
+    const byTeam = new Map(teams.map((t) => [t.id, t]));
+    return {
+      teams: teams.map((t) => ({ ...t, awards: summarize(grants.filter((g) => g.teamId === t.id && g.userId === "")) })),
+      members: members.map((m) => {
+        const st = streaks.get(m.userId) ?? empty;
+        return { userId: m.userId, name: m.user.displayName || m.user.nickname, avatarId: m.user.avatarId, team: byTeam.get(m.teamId) ?? null, role: m.role, gameRole: m.gameRole, streak: { current: st.current, best: st.best }, awards: summarize(grants.filter((g) => g.userId === m.userId)) };
+      }).sort((a, b) => b.awards.reduce((x, g) => x + g.count, 0) - a.awards.reduce((x, g) => x + g.count, 0) || b.streak.current - a.streak.current),
     };
   });
 

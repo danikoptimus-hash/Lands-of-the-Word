@@ -419,3 +419,20 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 /* Значки темпа партии вместо плиток (25.10): компактно и на телефоне. */
 .pace-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .pace-chips .help-pop-wrap > .pop-btn { appearance: none; border: 0; background: none; padding: 0; margin: 0; min-height: 0; box-shadow: none; font: inherit; cursor: pointer; display: inline-flex; }
+/* Шестерёнка настроек на телефоне (решение владельца 29.10): правый верхний угол, без текста; плитки «Настройки» в доке нет. */
+.admin-gear { position: absolute; z-index: 6; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); }
+.admin-gear.on { background: var(--accent-ink); color: var(--on-accent); }
+.admin-gear.on .i { color: var(--on-accent); }
+@media (max-width: 767px) { .admin-top { max-width: calc(100% - 76px); } }
+/* Награды у администратора: список участников со значками. */
+.award-members .side.award-row { display: flex; flex-wrap: wrap; gap: 2px; justify-content: flex-end; max-width: 60%; }
+.award-members .award.sm .award-img { width: 36px; height: 36px; }
+.award-members .award.sm { width: auto; padding: 0; }
+.streak-chip { display: inline-flex; align-items: center; gap: 3px; font-size: var(--fs-xs); font-weight: 600; color: var(--accent-ink); }
+.streak-chip img { width: 18px; height: 18px; }
+/* Шесть плиток дока на телефоне (с «Наградами», 29.10): док во всю ширину, плитки делят её поровну. */
+@media (max-width: 767px) {
+  .admin-dock { left: calc(var(--sp-2) + var(--safe-left)); right: calc(var(--sp-2) + var(--safe-right)); transform: none; gap: 2px; padding: 4px; justify-content: space-between; }
+  .dock-btn { flex: 1 1 0; width: auto; min-width: 0; padding: 6px 2px; }
+  .dock-btn .lbl { font-size: 9.5px; letter-spacing: -.01em; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

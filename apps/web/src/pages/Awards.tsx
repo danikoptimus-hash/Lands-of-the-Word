@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import { AWARDS, AWARD_BY_CODE, PERSONAL_AWARDS, TEAM_AWARDS, streakAward, type AwardDef } from "@lotw/domain";
-import { api, apiReady, ready, type AwardGrantDto, type AwardsDto, type TeamAwardsDto } from "../lib/api";
+import { api, apiReady, ready, type AdminAwardsDto, type AwardGrantDto, type AwardsDto, type TeamAwardsDto } from "../lib/api";
+import { UserAvatar } from "../components/UserAvatar";
+import { EmptyState, LoadingState } from "../components/State";
 import { getLocale, t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Tabs } from "../components/Tabs";
 import { Sheet } from "../components/Sheet";
 import { TeamAvatar } from "../components/TeamAvatar";
-import { LoadingState } from "../components/State";
 
 /**
  * Зал наград (решение владельца 29.10): две вкладки — награды команды (с просмотром других команд) и личные,
@@ -167,3 +168,54 @@ export function MilestoneCard({ code, onOpen, onClose }: { code: string; onOpen:
 
 /** Сводка из кэша (для первого кадра страницы). */
 export function awardsCached(gameId: string): AwardsDto | null { return ready<AwardsDto>(`/api/games/${gameId}/awards`); }
+
+/**
+ * Награды у администратора (решение владельца 29.10): плитка «Награды» в доке. Вкладка «Команды» — чипы команд и сетка
+ * значков выбранной; «Участники» — все участники игры: серия, значки, нажатие на аватарку открывает карточку.
+ */
+export function AdminAwards({ gameId, version }: { gameId: string; version: number }) {
+  const url = `/api/games/${gameId}/awards/admin`;
+  const [data, setData] = useState<AdminAwardsDto | null>(() => ready<AdminAwardsDto>(url));
+  const [tab, setTab] = useState<"teams" | "members">("teams");
+  const [teamId, setTeamId] = useState<string | null>(null);
+  const [pick, setPick] = useState<string | null>(null);
+  useEffect(() => { apiReady<AdminAwardsDto>(url).then(setData).catch(() => {}); }, [url, version]);
+  if (!data) return <div className="card"><LoadingState rows={2} /></div>;
+  const team = data.teams.find((t) => t.id === teamId) ?? data.teams[0] ?? null;
+  const got = team ? team.awards.filter((g) => TEAM_AWARDS.some((d) => d.code === g.code)).length : 0;
+  return (
+    <div className="card awards">
+      <Tabs items={[{ key: "teams", label: t("Команды"), icon: "users" }, { key: "members", label: t("Участники"), icon: "user" }]} value={tab} onChange={setTab} ariaLabel={t("Награды")} />
+      {tab === "teams" && (team ? (
+        <>
+          <div className="award-teams" role="tablist" aria-label={t("Чьи награды")}>
+            {data.teams.map((tm) => (
+              <button key={tm.id} type="button" role="tab" aria-selected={tm.id === team.id} className={"chip-btn" + (tm.id === team.id ? " on" : "")} onClick={() => setTeamId(tm.id)}>
+                <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" zoom={false} /><span>{tm.name}</span><span className="count-chip">{tm.awards.reduce((a, g) => a + g.count, 0)}</span>
+              </button>
+            ))}
+          </div>
+          <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: TEAM_AWARDS.length })}</b><small className="muted">{t("нажмите значок — условие и дата")}</small></div>
+          <AwardGrid defs={TEAM_AWARDS} grants={team.awards} onPick={setPick} />
+          {pick && <AwardSheet code={pick} grant={team.awards.find((g) => g.code === pick)} onClose={() => setPick(null)} />}
+        </>
+      ) : <EmptyState inline icon="users" text={t("Команд пока нет.")} />)}
+      {tab === "members" && (data.members.length === 0 ? <EmptyState inline icon="users" text={t("Участников пока нет.")} /> : (
+        <ul className="list award-members">
+          {data.members.map((m) => (
+            <li key={m.userId}>
+              <div className="main">
+                <span className="person"><UserAvatar name={m.name} avatarId={m.avatarId} userId={m.userId} /><span className="name">{m.name}</span></span>
+                <span className="meta chips">
+                  {m.team && <TeamAvatar name={m.team.name} color={m.team.color} avatarId={m.team.avatarId} size="sm" title={m.team.name} zoom={false} />}
+                  {m.streak.current > 0 && <span className="streak-chip" title={t("Серия: {n}", { n: streakDaysText(m.streak.current) })}><img src="/img/awards/p_streak_10.webp" alt="" />{m.streak.current}</span>}
+                </span>
+              </div>
+              <div className="side award-row">{m.awards.length ? m.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" name={false} />) : <span className="muted small">{t("Наград пока нет")}</span>}</div>
+            </li>
+          ))}
+        </ul>
+      ))}
+    </div>
+  );
+}

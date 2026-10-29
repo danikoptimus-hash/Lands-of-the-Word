@@ -16,6 +16,8 @@ import { FinishBlock } from "./FinishBlock";
 import { JournalAdmin } from "./Journal";
 import { PassagesBlock } from "./Diplomacy";
 import { RecipientsBlock } from "./RecipientsBlock";
+import { AdminAwards } from "./Awards";
+import { useMediaQuery } from "../lib/media";
 import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { Chip } from "../components/Chip";
@@ -29,8 +31,8 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 
 interface GameDto { id: string; name: string; createdById?: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; mapStats?: MapStats; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string } }
-type Tab = "overview" | "map" | "teams" | "deeds" | "review" | "analytics" | "settings";
-const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "analytics", "settings"];
+type Tab = "overview" | "map" | "teams" | "deeds" | "review" | "analytics" | "awards" | "settings";
+const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "analytics", "awards", "settings"];
 /** Аналитика игры грузится отдельным файлом: графики нужны только администратору (решение владельца 23.10). */
 type Progress = { teams: TeamProgress[]; startedAt: string | null; cities: CityProgress[]; battles: BattleProgress[] };
 
@@ -137,6 +139,7 @@ export function GamePage() {
   }
 
   const { user } = useAuth();
+  const narrow = useMediaQuery("(max-width: 767px)");
   const canDelete = Boolean(game) && game!.status !== "ACTIVE" && (game!.createdById === user?.id || user?.platformRole === "SUPERADMIN");
   async function removeGame() {
     if (!game) return;
@@ -163,8 +166,11 @@ export function GamePage() {
     { key: "deeds", label: t("Дела"), icon: "scroll", count: counts.deeds },
     { key: "review", label: t("Проверка"), icon: "check", count: reviewCount, hot: true, count2: counts.visits, count2Label: t("Отчёты о визитах на проверке: {n}", { n: counts.visits }) },
     { key: "analytics", label: t("Аналитика"), icon: "chart" },
+    { key: "awards", label: t("Награды"), icon: "trophy" },
     { key: "settings", label: t("Настройки"), icon: "settings" },
   ];
+  // На телефоне настройки — маленькая шестерёнка в правом верхнем углу, а не плитка дока (решение владельца 29.10).
+  const dock = narrow ? sections.filter((s) => s.key !== "settings") : sections;
   const open = tab === "map" ? null : tab;
   const closePopup = () => setTab("map");
   const titleOf = sections.find((s) => s.key === open);
@@ -195,8 +201,9 @@ export function GamePage() {
         {canDelete && <ActionMenu label={t("Ещё")} items={[{ label: t("Удалить игру"), icon: "trash", danger: true, onSelect: () => void removeGame() }]} />}
       </div>
 
+      {narrow && <button type="button" className={"secondary icon hud-btn admin-gear" + (open === "settings" ? " on" : "")} aria-pressed={open === "settings"} aria-label={t("Настройки")} title={t("Настройки")} onClick={() => setTab(open === "settings" ? "map" : "settings")}><Icon name="settings" /></button>}
       <nav className="admin-dock" aria-label={t("Разделы игры")}>
-        {sections.map((s) => (
+        {dock.map((s) => (
           <button key={s.key} type="button" className={"dock-btn" + (open === s.key ? " on" : "")} aria-pressed={open === s.key} onClick={() => setTab(open === s.key ? "map" : s.key)}>
             <Icon name={s.icon} />
             <span className="lbl">{s.label}</span>
@@ -238,6 +245,7 @@ export function GamePage() {
           ) : (
             <div className="card"><EmptyState icon="check" text={draft ? t("Появится после старта игры.") : t("Игра завершена: проверять больше нечего.")} /></div>
           ))}
+          {open === "awards" && <div key="awards"><AdminAwards gameId={game.id} version={version} /></div>}
           {open === "analytics" && <div key="analytics">{Analytics ? <Analytics gameId={game.id} /> : <div className="card"><LoadingState /></div>}</div>}
           {open === "settings" && (
             <div key="settings">
