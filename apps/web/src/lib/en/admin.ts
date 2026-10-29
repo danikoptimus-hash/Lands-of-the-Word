@@ -268,4 +268,5 @@ export const ADMIN: Record<string, string> = {
   "раз в {d}": "once per {d}", "балл": "point", "балла": "points", "баллов": "points", "сторона": "side", "стороны": "sides", "сторон": "sides",
   "Старты": "Starts", "Родословия": "Genealogies", "Расстояние между городами": "Distance between cities", "выровнены": "equalised", "как получится": "as it comes",
   "Новый интервал": "New interval", "Интервал шторма": "Storm interval", "Длится · часов": "Lasts · hours",
+  "Отчёты о визитах на проверке: {n}": "Visit reports awaiting review: {n}",
 };

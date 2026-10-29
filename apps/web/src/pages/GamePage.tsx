@@ -65,7 +65,7 @@ export function GamePage() {
   const [genError, setGenError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
-  const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, quarry: 0, battles: 0, recipients: 0 });
+  const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, quarry: 0, battles: 0, recipients: 0, visits: 0 });
   const [progress, setProgress] = useState<Progress | null>(() => ready<Progress>(`/api/games/${id}/progress`));
   /** «Посмотреть на карте» из «Проверки» и блока «Команды» (просьба владельца 10.10): закрыть раздел и показать сторону дела вблизи. */
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
@@ -100,7 +100,7 @@ export function GamePage() {
   /** Счётчики для вкладок и чек-листа: что ждёт администратора. Лёгкие запросы, обновляются с каждым событием игры. */
   const loadCounts = useCallback(async (status: string) => {
     const active = status === "ACTIVE";
-    const [teams, deeds, submissions, quarry, battles, recipients] = await Promise.all([
+    const [teams, deeds, submissions, quarry, battles, recipients, visits] = await Promise.all([
       api<{ teams: unknown[] }>(`/api/games/${id}/teams`).then((r) => r.teams.length).catch(() => 0),
       // Счётчик раздела «Дела» — все дела на дорогах, включённые и выключенные, без дел Каменоломни (решения владельца 05.10 и 07.10).
       api<{ deeds: Array<{ quarry?: boolean }> }>(`/api/games/${id}/deeds`).then((r) => r.deeds.filter((d) => !d.quarry).length).catch(() => 0),
@@ -109,8 +109,10 @@ export function GamePage() {
       active ? api<{ works: unknown[] }>(`/api/games/${id}/quarry/submissions`).then((r) => r.works.length).catch(() => 0) : 0,
       active ? api<{ battles: Array<{ entries: Array<{ status: string }> }> }>(`/api/games/${id}/battles`).then((r) => r.battles.reduce((n, b) => n + b.entries.filter((e) => e.status === "SUBMITTED").length, 0)).catch(() => 0) : 0,
       status !== "FINISHED" ? api<{ recipients: unknown[] }>(`/api/games/${id}/recipients`).then((r) => r.recipients.length).catch(() => 0) : 0,
+      // Отчёты о визитах, ждущие решения, — второй значок на плитке «Проверка» (решение владельца 29.10): сдачи дел и визиты считаются порознь.
+      active ? api<{ visits: Array<{ status: string }> }>(`/api/games/${id}/visits`).then((r) => r.visits.filter((v) => v.status === "SUBMITTED").length).catch(() => 0) : 0,
     ]);
-    setCounts({ teams, deeds, submissions, quarry, battles, recipients });
+    setCounts({ teams, deeds, submissions, quarry, battles, recipients, visits });
   }, [id]);
 
   const loadAll = useCallback(() => { load().catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); void loadProgress(); }, [load, loadProgress]);
@@ -155,11 +157,11 @@ export function GamePage() {
   const hasMap = hexes.length > 0;
   const refresh = () => { void load(); void loadProgress(); };
 
-  const sections: Array<{ key: Tab; label: string; icon: string; count?: number; hot?: boolean }> = [
+  const sections: Array<{ key: Tab; label: string; icon: string; count?: number; hot?: boolean; /** Второй счётчик в правом нижнем углу плитки: отчёты о визитах. */ count2?: number; count2Label?: string }> = [
     { key: "overview", label: t("Летопись"), icon: "feather" },
     { key: "teams", label: t("Команды"), icon: "users", count: counts.teams },
     { key: "deeds", label: t("Дела"), icon: "scroll", count: counts.deeds },
-    { key: "review", label: t("Проверка"), icon: "check", count: reviewCount, hot: true },
+    { key: "review", label: t("Проверка"), icon: "check", count: reviewCount, hot: true, count2: counts.visits, count2Label: t("Отчёты о визитах на проверке: {n}", { n: counts.visits }) },
     { key: "analytics", label: t("Аналитика"), icon: "chart" },
     { key: "settings", label: t("Настройки"), icon: "settings" },
   ];
@@ -199,6 +201,7 @@ export function GamePage() {
             <Icon name={s.icon} />
             <span className="lbl">{s.label}</span>
             {s.count ? <span className={"badge" + (s.hot ? " hot" : "")}>{s.count}</span> : null}
+            {s.count2 ? <span className="badge visits" title={s.count2Label} aria-label={s.count2Label}><Icon name="users" />{s.count2}</span> : null}
           </button>
         ))}
       </nav>
