@@ -236,5 +236,6 @@ details.settings-group summary::after { content: ""; width: 20px; height: 20px; 
 .admin-map.full .admin-title, .admin-map.full .admin-back, .admin-map .map-controls button { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
 
 /* Название игры и кнопка «назад» над картой — тоже стекло */
-.admin-top .admin-title, .admin-top .hud-btn, .admin-top .hud-btn:hover { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
-.admin-top .hud-btn:hover { background: rgba(255,250,236,.8); }
+.admin-top .admin-title, .admin-top .hud-btn, .admin-top .hud-btn:hover, .admin-screen .admin-gear.hud-btn { background: rgba(255,250,236,.55); border: 1px solid rgba(255,250,236,.7); box-shadow: 0 2px 8px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+.admin-top .hud-btn:hover, .admin-screen .admin-gear.hud-btn:hover { background: rgba(255,250,236,.8); }
+.admin-screen .admin-gear.hud-btn.on { background: var(--accent-ink); border-color: transparent; }

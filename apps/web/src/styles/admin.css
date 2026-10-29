@@ -420,7 +420,7 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 .pace-chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 .pace-chips .help-pop-wrap > .pop-btn { appearance: none; border: 0; background: none; padding: 0; margin: 0; min-height: 0; box-shadow: none; font: inherit; cursor: pointer; display: inline-flex; }
 /* Шестерёнка настроек на телефоне (решение владельца 29.10): правый верхний угол, без текста; плитки «Настройки» в доке нет. */
-.admin-gear { position: absolute; z-index: 6; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); background: color-mix(in srgb, var(--surface) 90%, transparent); border-color: transparent; box-shadow: var(--shadow-2); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.admin-gear { position: absolute; z-index: 6; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); }
 .admin-gear .i { color: var(--accent-ink); }
 .admin-gear.on { background: var(--accent-ink); color: var(--on-accent); }
 .admin-gear.on .i { color: var(--on-accent); }
