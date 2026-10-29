@@ -42,7 +42,7 @@ export interface User { id: string; nickname: string; displayName: string | null
 /** Какие способы входа включены на сервере (GET /api/auth/providers). */
 export interface ProvidersDto { google: boolean }
 export interface GameSummary { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; createdAt: string; createdById?: string }
-export interface MapHexDto { q: number; r: number; terrain?: string; rotation?: number; lit?: boolean; island?: "OT" | "NT" }
+export interface MapHexDto { q: number; r: number; terrain?: string; rotation?: number; lit?: boolean; island?: "OT" | "NT"; /** Только на карте: местность показана разведкой под раздвинутым туманом (озеро тут рисуется картинкой, а не живой водой). */ peek?: boolean }
 export interface MapNodeDto { key: string; corner: "N" | "S"; q: number; r: number; kind: "EMPTY" | "CITY" | "START"; bookCode: string | null; cityType: string | null; teamIndex: number | null; island?: "OT" | "NT"; coastal?: boolean; /** Когда команда открыла узел (только в карте команды; для ползунка истории). */ revealedAt?: string | null }
 export interface MapEdgeDto { aKey: string; bKey: string }
 

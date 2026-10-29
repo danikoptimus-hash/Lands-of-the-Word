@@ -503,7 +503,7 @@ export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false, fi
         const c = hexCenter(h, size);
         if (!h.lit && h.lit !== undefined) return <polygon key={`f${h.q},${h.r}`} className="hex-fog" points={fogPoly} transform={`translate(${c.x},${c.y})`} fill={FOG_COLOR} />;
         const t = TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert";
-        const fill = (liveWater && t === "water") || !fills ? "none" : `url(#${clipId}-${t}-${(h.rotation ?? 0) % 6})`;
+        const fill = (liveWater && t === "water" && !h.peek) || !fills ? "none" : `url(#${clipId}-${t}-${(h.rotation ?? 0) % 6})`;
         return <polygon key={`t${h.q},${h.r}`} className="hex-tile" points={poly} transform={`translate(${c.x},${c.y})`} fill={fill} vectorEffect="non-scaling-stroke" />;
       })}
     </>
@@ -520,14 +520,14 @@ export function HexTiles({ hexes, size = HEX_SIZE, clipId, liveWater = false, fi
 export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, daytime }: { vp: Viewport; hexes: MapHexDto[]; size?: number; skipWater?: boolean; /** Время суток: картинки двух фаз перехода смешиваются по доле, суша подсвечивается со стороны светила. */ daytime?: Daytime }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const vpRef = useRef(vp); vpRef.current = vp;
-  const key = hexes.map((h) => `${h.q},${h.r}:${h.terrain}:${h.rotation ?? 0}:${h.lit === false ? 0 : 1}`).join(";");
+  const key = hexes.map((h) => `${h.q},${h.r}:${h.terrain}:${h.rotation ?? 0}:${h.lit === false ? 0 : 1}${h.peek ? "p" : ""}`).join(";");
   const from = daytime?.from ?? "day", to = daytime?.to ?? "day", blend = daytime?.t ?? 0, light = daytime?.light ?? DAY_LIGHT;
   const lkey = daytime ? lightKey(daytime) : "day";
   useEffect(() => {
     const canvas = ref.current, host = canvas?.parentElement;
     if (!canvas || !host) return;
     const ctx = canvas.getContext("2d"); if (!ctx) return;
-    const tiles = hexes.filter((h) => h.lit !== false && !(skipWater && h.terrain === "water")).map((h) => ({ c: hexCenter(h, size), t: TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert", rot: ((h.rotation ?? 0) % 6) * Math.PI / 3 }));
+    const tiles = hexes.filter((h) => h.lit !== false && !(skipWater && h.terrain === "water" && !h.peek)).map((h) => ({ c: hexCenter(h, size), t: TERRAINS.includes(h.terrain ?? "") ? h.terrain! : "desert", rot: ((h.rotation ?? 0) % 6) * Math.PI / 3 }));
     if (!tiles.length) { canvas.width = 1; canvas.height = 1; return; }
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5); // картинкам местности хватает; 2× на ноутбуке — 30-мегапиксельный растр
     const images = new Map<string, HTMLImageElement>();

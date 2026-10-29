@@ -19,7 +19,7 @@ import { t, getLocale } from "../lib/i18n";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 /** Результат разведки для показа на карте: перекрёсток и что там (решение владельца 29.10). */
-export interface ScoutReveal { key: string; kind: string; bookCode?: string | null; cityType?: string | null; nonce: number }
+export interface ScoutReveal { key: string; kind: string; bookCode?: string | null; cityType?: string | null; /** Местность гексов вокруг перекрёстка: на время показа они рисуются настоящими плитками, а не серой заглушкой тумана. */ hexes?: Array<{ q: number; r: number; terrain?: string; rotation?: number }>; nonce: number }
 /** Сколько окно разведки держится открытым (мс), не считая раскрытия и смыкания. */
 const SCOUT_HOLD = 5000;
 /** Значок метки дела по статусу: свободно — свиток, в работе — человек, на проверке — часы, возвращено — знак внимания. */
@@ -186,6 +186,14 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     const t3 = setTimeout(() => { setHole(null); setScoutShown(null); }, 700 + SCOUT_HOLD + 800);
     return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
   }, [scout?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Пока окно разведки открыто, гексы вокруг перекрёстка получают местность из ответа разведки и рисуются плитками
+  // (замечание владельца 29.10: под раздвинутым туманом была серая заглушка). Сам туман считается по map.hexes и не меняется.
+  const tileHexes = useMemo(() => {
+    const peekHexes = hole ? scoutShown?.hexes : undefined;
+    if (!peekHexes?.length) return map.hexes;
+    const known = new Map(peekHexes.map((h) => [`${h.q},${h.r}`, h] as const));
+    return map.hexes.map((h) => { const k = h.lit === false ? known.get(`${h.q},${h.r}`) : undefined; return k?.terrain ? { ...h, terrain: k.terrain, rotation: k.rotation, lit: true, peek: true } : h; });
+  }, [map.hexes, hole, scoutShown?.hexes]);
   // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
   const islandCenters = useMemo(() => islandGeometry(map.hexes, size), [map.hexes, size]);
   const nodeByKey = useMemo(() => new Map(map.revealed.map((n) => [n.key, n])), [map.revealed]);
@@ -451,12 +459,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "") + (storm?.active ? " storm" : "")} style={{ background: css(light.bg) }} onClick={marking ? placeMark : undefined}>
       <SeaLayer vp={vp} bed={bed} light={light} storm={storm?.t ?? 0} />
       <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dts} />
-      <TilesLayer vp={vp} hexes={map.hexes} size={size} skipWater={liveWater} daytime={dts} />
+      <TilesLayer vp={vp} hexes={tileHexes} size={size} skipWater={liveWater} daytime={dts} />
       {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dts} />}
       <WorldSvg vp={vp} bounds={bounds}>
         <MapSymbols />
         <OutlineDefs colors={owners} k={vp.view.k} />
-        <HexTiles hexes={map.hexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
+        <HexTiles hexes={tileHexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
         <CoastOver d={coast} size={size} light={light} />
         {worldBody}
       </WorldSvg>

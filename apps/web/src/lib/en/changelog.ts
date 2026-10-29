@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Разведка: под раздвинутым туманом видна настоящая местность гексов вокруг перекрёстка, а не серая заглушка.": "Scouting: the real terrain of the hexes around the crossroads shows under the parted fog instead of a grey placeholder.",
   "Разведка: вместо слов карта на пять секунд раздвигает туман вокруг перекрёстка и показывает, что там — город с названием или пустой перекрёсток.": "Scouting: instead of words the map parts the fog around the crossroads for five seconds and shows what is there — a city with its name or an empty crossroads.",
   "Счётчики на плитках администратора стали меньше и сидят на краю плитки, не закрывая значок.": "The counters on the admin tiles are smaller and sit on the tile’s edge without covering the icon.",
   "У администратора на плитке «Проверка» два счётчика: свиток — сдачи дел, город — отчёты о визитах, которые ждут решения.": "The admin’s “Review” tile has two counters: a scroll for deed submissions and a city for visit reports awaiting a decision.",

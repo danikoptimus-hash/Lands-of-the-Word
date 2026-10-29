@@ -215,7 +215,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const node = isSeaKey(body.nodeKey) ? null : await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: body.nodeKey } } });
     if (!node) return reply.code(404).send({ error: "not_found", message: err(request, "Перекрёсток не найден") });
     // Угол освещённого гекса: хотя бы один из трёх гексов вокруг узла есть на карте и имеет открытый командой угол.
-    const around = await prisma.mapHex.findMany({ where: { gameId: id, OR: vertexHexes(parseVertexKey(body.nodeKey)).map((h) => ({ q: h.q, r: h.r })) }, select: { q: true, r: true } });
+    const around = await prisma.mapHex.findMany({ where: { gameId: id, OR: vertexHexes(parseVertexKey(body.nodeKey)).map((h) => ({ q: h.q, r: h.r })) }, select: { q: true, r: true, terrain: true, rotation: true } });
     const frontier = around.some((h) => hexCorners(h).some((c) => revealed.has(vertexKey(c))));
     if (!frontier) return reply.code(400).send({ error: "validation", message: err(request, "Разведать можно только перекрёсток на краю тумана") });
     const rules = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } })).settings);
@@ -231,7 +231,9 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     ]);
     publish(id, { type: "map", teamId: m.team.id });
     // Что там: карта на пять секунд раздвигает туман и показывает город с названием или пустой перекрёсток (решение владельца 29.10).
-    return { kind: node.kind, bookCode: node.bookCode, cityType: node.cityType };
+    // Местность трёх гексов вокруг перекрёстка: под раздвинутым туманом рисуется настоящая земля, а не серая заглушка
+    // (замечание владельца 29.10). В обычном ответе карты у гексов в тумане местности нет — она остаётся скрытой.
+    return { kind: node.kind, bookCode: node.bookCode, cityType: node.cityType, hexes: around.map((h) => ({ q: h.q, r: h.r, terrain: h.terrain, rotation: h.rotation })) };
   });
 
   /** Пророк: раз в неделю открыть подсказку к любому заданию города — текст стихов района (или районов группы). Показывается один раз, только пророку. */

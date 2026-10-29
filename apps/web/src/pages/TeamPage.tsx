@@ -397,9 +397,9 @@ export function TeamPage() {
   async function peek(nodeKey: string) {
     setBusy(true); setError(null);
     try {
-      const r = await api<{ kind: string; bookCode?: string | null; cityType?: string | null }>(`/api/games/${id}/my-map/peek`, { method: "POST", body: JSON.stringify({ nodeKey }) });
+      const r = await api<{ kind: string; bookCode?: string | null; cityType?: string | null; hexes?: ScoutReveal["hexes"] }>(`/api/games/${id}/my-map/peek`, { method: "POST", body: JSON.stringify({ nodeKey }) });
       setFrontierKey(null); setSelectedId(null); setBackTo(null); setMenu(false);
-      setScout({ key: nodeKey, kind: r.kind, bookCode: r.bookCode, cityType: r.cityType, nonce: Date.now() });
+      setScout({ key: nodeKey, kind: r.kind, bookCode: r.bookCode, cityType: r.cityType, hexes: r.hexes, nonce: Date.now() });
       await loadMap();
     }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
