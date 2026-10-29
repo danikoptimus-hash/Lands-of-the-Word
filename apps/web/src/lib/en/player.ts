@@ -502,7 +502,7 @@ export const PLAYER: Record<string, string> = {
   "Главная: команды, игры и кнопки внизу.": "Home: teams, games and the buttons at the bottom.",
   "Аккаунт: фото, имя в команде, почта, язык.": "Account: photo, name in the team, email, language.",
   "Карта скрыта туманом. Команда стоит на перекрёстке и видит дела на сторонах, но не видит, что за ними. Пройденная сторона красится в цвет команды и открывает следующий перекрёсток.": "The map is hidden by fog. The team stands at a crossroads and sees deeds on the roads, but not what lies beyond. A completed road takes the team’s colour and opens the next crossroads.",
-  "Двигают одним пальцем, приближают щипком или колесом. Кнопка справа — метка на карте для своей команды. Внизу — ползунок истории: как шла команда по дням.": "Drag with one finger, zoom with a pinch or the wheel. The button on the right drops a mark for your team. At the bottom is the history slider: how the team moved day by day.",
+  "Двигают одним пальцем, приближают щипком или колесом. Долгое нажатие на карту ставит метку для своей команды; кнопка справа — награды. Внизу — ползунок истории: как шла команда по дням.": "Drag with one finger, zoom with a pinch or the wheel. A long press on the map places a mark for your team; the button on the right opens the awards. At the bottom is the history slider: how the team moved day by day.",
   "Карта команды: дела на сторонах, города, метка «птицы сели здесь».": "Team map: deeds on the roads, cities, the mark “birds landed here”.",
   "Отдалили: остров целиком.": "Zoomed out: the whole island.",
   "Два острова: Ветхий и Новый Завет, между ними море и морские пути.": "Two islands: the Old and the New Testament, with the sea and sea routes between them.",

@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
 import { reportAction, reportPage } from "../lib/perf";
 import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
@@ -79,7 +79,7 @@ export function teamFogInputs(map: Pick<MyMapDto, "hexes" | "revealed" | "edges"
   return { fogHexes, landKeys, fogClear: { nodes, edges }, fogPoints };
 }
 
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, bird, focusTask, storm, scout }: { /** Разведка (решение владельца 29.10): туман вокруг перекрёстка раздвигается на пять секунд и показывает, что там. */ scout?: ScoutReveal | null; /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, bird, focusTask, storm, scout, onAwards }: { /** Кнопка «Награды» в углу карты (решение владельца 29.10): на месте бывшей кнопки метки. */ onAwards?: () => void; /** Разведка (решение владельца 29.10): туман вокруг перекрёстка раздвигается на пять секунд и показывает, что там. */ scout?: ScoutReveal | null; /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -141,25 +141,40 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     return m;
   }, [map, size]);
   const [ripple, setRipple] = useState<{ x: number; y: number; n: number } | null>(null);
-  const [marking, setMarking] = useState(false);
-  useEffect(() => { if (!onMark) setMarking(false); }, [onMark]);
   /**
-   * Режим метки: точка экрана → точка карты (w·k + t = px) → ближайший гекс, не дальше радиуса гекса (место должно быть на карте).
-   * Метка прилипает к ближайшему перекрёстку (решение владельца 15.10, вместо точки нажатия от 29.09): из шести углов
-   * ближайшего гекса берётся ближайший к нажатию, его положение переводится в дробные осевые координаты. Кнопки внутри карты не считаются.
+   * Метка ставится долгим нажатием на карту (решение владельца 29.10: кнопка-булавка убрана, «метка будет ставиться при
+   * долгом нажатии»). Палец или курсор держится ~0,6 с без сдвига; второй палец, сдвиг или отпускание отменяют. Точка
+   * экрана → точка карты (w·k + t = px) → ближайший гекс, не дальше радиуса гекса; метка прилипает к ближайшему
+   * перекрёстку (решение владельца 15.10). Кнопки и листы внутри карты не считаются. После срабатывания клик гасится.
    */
-  const placeMark = (e: MouseEvent<HTMLDivElement>) => {
-    if (!marking || vp.wasDrag() || (e.target as HTMLElement).closest("button")) return;
-    const rect = e.currentTarget.getBoundingClientRect(), v = vp.viewRef.current;
-    const x = (e.clientX - rect.left - v.tx) / v.k, y = (e.clientY - rect.top - v.ty) / v.k;
+  const press = useRef<{ x: number; y: number; timer: number } | null>(null);
+  const swallowClick = useRef(false);
+  const LONG_PRESS_MS = 600;
+  const markAtPoint = (host: HTMLElement, clientX: number, clientY: number) => {
+    const rect = host.getBoundingClientRect(), v = vp.viewRef.current;
+    const x = (clientX - rect.left - v.tx) / v.k, y = (clientY - rect.top - v.ty) / v.k;
     let best: { q: number; r: number } | null = null, bd = Infinity;
     for (const h of map.hexes) { const c = hexCenter(h, size); const d = (c.x - x) ** 2 + (c.y - y) ** 2; if (d < bd) { bd = d; best = h; } }
     if (!best || bd > (size * 1.1) ** 2) return;
     let px = x, py = y, vd = Infinity;
-    for (const v of hexCorners(best)) { const p = vertexToPixel(v, size); const d = (p.x - x) ** 2 + (p.y - y) ** 2; if (d < vd) { vd = d; px = p.x; py = p.y; } }
+    for (const c of hexCorners(best)) { const p = vertexToPixel(c, size); const d = (p.x - x) ** 2 + (p.y - y) ** 2; if (d < vd) { vd = d; px = p.x; py = p.y; } }
     const rf = py / (1.5 * size), qf = px / (Math.sqrt(3) * size) - rf / 2;
-    setMarking(false); onMark?.({ q: best.q, r: best.r, qf, rf });
+    reportAction("map-mark", "map");
+    try { navigator.vibrate?.(20); } catch { /* не везде */ }
+    onMark?.({ q: best.q, r: best.r, qf, rf });
   };
+  const cancelPress = () => { if (press.current) { clearTimeout(press.current.timer); press.current = null; } };
+  const onPressDown = (e: PointerEvent<HTMLDivElement>) => {
+    vp.handlers.onPointerDown(e);
+    cancelPress();
+    if (!onMark || storm?.active || !e.isPrimary || (e.pointerType === "mouse" && e.button !== 0)) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button, .overlay-backdrop, .map-controls")) return;
+    const host = e.currentTarget, x = e.clientX, y = e.clientY;
+    press.current = { x, y, timer: window.setTimeout(() => { press.current = null; if (vp.wasDrag()) return; swallowClick.current = true; markAtPoint(host, x, y); }, LONG_PRESS_MS) };
+  };
+  const onPressMove = (e: PointerEvent<HTMLDivElement>) => { const p = press.current; if (p && Math.hypot(e.clientX - p.x, e.clientY - p.y) > 8) cancelPress(); };
+  const onClickCapture = (e: MouseEvent<HTMLDivElement>) => { if (swallowClick.current) { swallowClick.current = false; e.stopPropagation(); e.preventDefault(); } };
   // Часы сервера для живности: смещение от местных часов по времени из ответа карты.
   const clockOff = useRef(0);
   useEffect(() => { if (map.now) clockOff.current = map.now - Date.now(); }, [map.now]);
@@ -456,7 +471,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   </>), [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   return (
-    <div ref={vp.ref} {...vp.handlers} className={"map-canvas" + (marking ? " marking" : "") + (storm?.active ? " storm" : "")} style={{ background: css(light.bg) }} onClick={marking ? placeMark : undefined}>
+    <div ref={vp.ref} onPointerDown={onPressDown} onPointerMove={onPressMove} onPointerUp={cancelPress} onPointerCancel={cancelPress} onPointerLeave={cancelPress} onClickCapture={onClickCapture} onContextMenu={(e) => { if (onMark) e.preventDefault(); }} className={"map-canvas" + (storm?.active ? " storm" : "")} style={{ background: css(light.bg) }}>
       <SeaLayer vp={vp} bed={bed} light={light} storm={storm?.t ?? 0} />
       <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dts} />
       <TilesLayer vp={vp} hexes={tileHexes} size={size} skipWater={liveWater} daytime={dts} />
@@ -503,14 +518,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       </WorldSvg>
       <div className="map-controls">
         {/* Кнопок «Вся карта» и «К старту» нет (решение владельца 24.10 после опроса участников: «не нужны, карта не такая большая»). */}
-        {onMark && <button type="button" className={"secondary icon" + (marking ? " on" : "")} aria-pressed={marking} onClick={() => { if (!marking) reportAction("map-mark", "map"); setMarking((m) => !m); }} aria-label={t("Метка на карте")} title={t("Метка на карте")}><Icon name="pin" /></button>}
+        {onAwards && <button type="button" className="secondary icon" onClick={onAwards} aria-label={t("Награды")} title={t("Награды")}><Icon name="trophy" /></button>}
       </div>
-      {marking && (
-        <div className="finish-banner mark-banner" role="status">
-          <Icon name="pin" /><span>{t("Нажмите на карту там, где поставить метку")}</span>
-          <button type="button" className="ghost sm" onClick={() => setMarking(false)}>{t("Отмена")}</button>
-        </div>
-      )}
     </div>
   );
 }

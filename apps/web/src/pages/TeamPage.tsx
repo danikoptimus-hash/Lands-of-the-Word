@@ -838,7 +838,7 @@ export function TeamPage() {
         ) : (
         <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask} storm={storm}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
-          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark}
+          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark} onAwards={() => { setMenu(true); setMenuView("awards"); setSelectedId(null); }}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
           onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} scout={scout} />
         )}
