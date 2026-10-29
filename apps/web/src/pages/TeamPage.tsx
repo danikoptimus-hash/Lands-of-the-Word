@@ -657,8 +657,8 @@ export function TeamPage() {
   // листом над картой; стрелка слева вверху ведёт в «Мои игры». Состояние `menu` осталось для совместимости вызовов.
   const menuOpen = !storm.active && menuView !== "home";
   const closeMenu = () => { rememberScroll(); setMenuView("home"); };
-  // Порядок плиток дока (решение владельца 30.10, слева направо): испытания, внимание, служение, команды, летопись, дела.
-  const DOCK_ORDER: MenuView[] = ["battles", "attention", "service", "standings", "feed", "deeds"];
+  // Порядок плиток дока (решение владельца 30.10, слева направо): внимание, испытания, служение, команды, летопись, дела.
+  const DOCK_ORDER: MenuView[] = ["attention", "battles", "service", "standings", "feed", "deeds"];
   const dockItems = DOCK_ORDER.map((k) => MENU_ITEMS.find((m) => m.key === k)!);
 
   return (
