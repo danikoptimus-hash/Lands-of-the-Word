@@ -86,6 +86,53 @@ describe("лимит дел без обхода", () => {
     expect((await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: d6.id } })).takenById).toBe(uid.c);
     await prisma.user.deleteMany({ where: { id: dId } });
   });
+  it("возвращённое дело место в лимите занимает: другое взять нельзя, своё пересдать можно (решение владельца 29.10)", async () => {
+    const deed = await prisma.deed.findFirstOrThrow({ where: { gameId, proofType: "PHOTO_LINK", quarry: false } });
+    const r1 = await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: "R:1", toKey: "R:2", deedId: deed.id } });
+    const r2 = await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: "R:2", toKey: "R:3", deedId: deed.id } });
+    // Новый участник с чистым лимитом.
+    const r = await registerVerified(app, { nickname: `dl_e_${stamp}`, password: "secret123" }); const eCookie = r.headers["set-cookie"] as string; const eId = r.json().user.id as string;
+    const inv = await post(`/api/games/${gameId}/teams/${teamId}/invites`, ck.cap, { role: "MEMBER" }); await post(`/api/invites/${inv.json().invite.token}/accept`, eCookie);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/take`, eCookie)).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/submit`, eCookie, { links: ["https://example.com/bad"], note: "плохо", participants: [] })).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/decide`, ck.admin, { approve: false, comment: "переделать" })).statusCode).toBe(200);
+    // Дыра закрыта: после возврата лимит по-прежнему выбран, второе дело взять или сдать нельзя.
+    expect((await limitOf(ck.cap, eId))?.taken).toBe(1);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r2.id}/take`, eCookie)).statusCode).toBe(409);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r2.id}/submit`, eCookie, { links: ["https://example.com/2"], note: "второе", participants: [] })).statusCode).toBe(409);
+    // Своё возвращённое — пересдать можно, в том числе взяв его заново.
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/take`, eCookie)).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/submit`, eCookie, { links: ["https://example.com/good"], note: "исправил", participants: [] })).statusCode).toBe(200);
+    expect((await limitOf(ck.cap, eId))?.taken).toBe(1);
+    // Отпущенное дело лимит не держит: взял — отпустил — взял другое, сдать можно только другое.
+    const f = await registerVerified(app, { nickname: `dl_f_${stamp}`, password: "secret123" }); const fCookie = f.headers["set-cookie"] as string; const fId = f.json().user.id as string;
+    const inv2 = await post(`/api/games/${gameId}/teams/${teamId}/invites`, ck.cap, { role: "MEMBER" }); await post(`/api/invites/${inv2.json().invite.token}/accept`, fCookie);
+    const r3 = await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: "R:3", toKey: "R:4", deedId: deed.id } });
+    const r4 = await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: "R:4", toKey: "R:5", deedId: deed.id } });
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r3.id}/take`, fCookie)).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r3.id}/release`, fCookie)).statusCode).toBe(200);
+    expect((await limitOf(ck.cap, fId))?.taken).toBe(0);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r4.id}/take`, fCookie)).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r3.id}/submit`, fCookie, { links: ["https://example.com/3"], note: "отпущенное", participants: [] })).statusCode).toBe(409);
+    await prisma.user.deleteMany({ where: { id: { in: [eId, fId] } } });
+  });
+  it("лимит 5 в сутки: пять взятых и возвращённых держат счёт, шестое нельзя", async () => {
+    await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: ck.admin }, payload: { settings: { rules: { maxDeedsPerDay: 5 } } } });
+    const deed = await prisma.deed.findFirstOrThrow({ where: { gameId, proofType: "PHOTO_LINK", quarry: false } });
+    const g = await registerVerified(app, { nickname: `dl_g_${stamp}`, password: "secret123" }); const gCookie = g.headers["set-cookie"] as string; const gId = g.json().user.id as string;
+    const inv = await post(`/api/games/${gameId}/teams/${teamId}/invites`, ck.cap, { role: "MEMBER" }); await post(`/api/invites/${inv.json().invite.token}/accept`, gCookie);
+    const ids: string[] = [];
+    for (let i = 0; i < 6; i++) ids.push((await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: `F:${i}`, toKey: `F:${i + 1}`, deedId: deed.id } })).id);
+    for (let i = 0; i < 5; i++) {
+      expect((await post(`/api/games/${gameId}/edge-tasks/${ids[i]}/take`, gCookie)).statusCode).toBe(200);
+      expect((await post(`/api/games/${gameId}/edge-tasks/${ids[i]}/submit`, gCookie, { links: ["https://example.com/x"], note: "x", participants: [] })).statusCode).toBe(200);
+      expect((await post(`/api/games/${gameId}/edge-tasks/${ids[i]}/decide`, ck.admin, { approve: i % 2 === 0, comment: "" })).statusCode).toBe(200);
+    }
+    expect((await limitOf(ck.cap, gId))?.taken).toBe(5);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${ids[5]}/take`, gCookie)).statusCode).toBe(409);
+    await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: ck.admin }, payload: { settings: { rules: { maxDeedsPerDay: 1 } } } });
+    await prisma.user.deleteMany({ where: { id: gId } });
+  });
   it("вымощенная камнем сторона в лимит не идёт (ошибка 29.10: у капитана после камня появлялся лимит)", async () => {
     const deed = await prisma.deed.findFirstOrThrow({ where: { gameId, proofType: "PHOTO_LINK", quarry: false } });
     const d7 = await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: "T:7", toKey: "T:8", deedId: deed.id } });

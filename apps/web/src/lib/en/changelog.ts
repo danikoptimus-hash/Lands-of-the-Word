@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Возвращённое администратором дело занимает место в дневном лимите: его можно только пересдать, другое дело до следующих 7:00 не взять. Отпущенное дело лимит не держит.": "A deed returned by the admin keeps its place in the daily limit: it can only be resubmitted, another deed cannot be taken until the next 7:00. A released deed does not hold the limit.",
   "Тёсаный камень больше не тратит дневной лимит дел: вымощенная сторона — не дело.": "A hewn stone no longer spends the daily deed limit: a paved side is not a deed.",
   "Дело «Пробежка» убрано из стандартного набора и из идущих игр; взятые и сданные пробежки доигрываются.": "The “Jog” deed was removed from the standard set and from running games; jogs already taken or submitted are played out.",
   "Картинки «Как играть» пересняты днём: плашки ночи на дневных экранах больше нет.": "The “How to play” pictures were reshot by day: no more night badge on daytime screens.",

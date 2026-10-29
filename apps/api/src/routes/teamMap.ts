@@ -28,10 +28,10 @@ const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().m
 
 
 /** Лимит дел в сутки для участника: сколько взято с последних 7:00 по поясу игры и когда счёт обнулится. null — лимита нет. */
-async function deedLimitFor(gameId: string, userId: string): Promise<DeedLimit | null> {
+async function deedLimitFor(gameId: string, userId: string, excludeTaskId?: string): Promise<DeedLimit | null> {
   const max = (await gameRules(gameId)).maxDeedsPerDay;
   if (!max) return null;
-  return (await deedLimitsFor(gameId, max, [userId])).get(userId) ?? null;
+  return (await deedLimitsFor(gameId, max, [userId], excludeTaskId)).get(userId) ?? null;
 }
 /** «через 3 ч 20 мин» / «через 15 мин» для сообщения о лимите. */
 function untilText(request: Parameters<typeof err>[0], at: number): string {
@@ -147,7 +147,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     // Заморозка администратором (решение владельца 21.10): взять новое дело нельзя до указанной даты.
     if (m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now()) return reply.code(409).send({ error: "frozen", message: err(request, "Администратор закрыл вам взятие дел до {date}", { date: fmtDay(m.deedsFrozenUntil, toLocale(request.user?.locale)) }) });
     // Лимит дел в сутки на участника (решение владельца 02.10): превысил — взять (забронировать) нельзя, пусть берут другие.
-    const limit = await deedLimitFor(id, request.user!.id);
+    // Своё возвращённое дело в счёт лимита уже входит, и взять его заново для пересдачи можно всегда (решение владельца 29.10).
+    const own = task.status === "REJECTED" && task.takenById === request.user!.id;
+    const limit = await deedLimitFor(id, request.user!.id, own ? task.id : undefined);
     if (limit && limit.taken >= limit.max) return reply.code(409).send({ error: "conflict", message: err(request, "В сутки можно взять не больше {n} дел. Счёт обнулится в 7:00, через {when}", { n: limit.max, when: untilText(request, limit.nextAt ?? Date.now()) }) });
     const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id, takenAt: new Date() }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
