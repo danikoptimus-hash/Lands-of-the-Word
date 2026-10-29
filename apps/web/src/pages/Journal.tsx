@@ -99,7 +99,6 @@ export function FeedSection({ gameId, version, onOpenTask }: { gameId: string; v
   const shown = items ? (all ? items : items.slice(0, 6)) : [];
   return (
     <section className="section">
-      <h2><Icon name="feather" />{t("Летопись")}</h2>
       {!items ? <LoadingState rows={2} /> : items.length === 0 ? <EmptyState inline icon="scroll" text={t("Пока тихо. Первые события — после первого дела.")} /> : (
         <ul className="feed">
           {shown.map((it) => (
@@ -128,7 +127,6 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
   useEffect(() => { apiReady<ServiceStatsDto>(`/api/games/${gameId}/my-service`).then(setS).catch(() => {}); apiReady<TopDto>(`/api/games/${gameId}/top`).then(setTop).catch(() => {}); }, [gameId, version]);
   return (
     <section className="section">
-      <h2><Icon name="user" />{t("Моё служение")}</h2>
       {!s ? <LoadingState rows={1} /> : (
         <div className="service">
           <div className="svc-stat"><b>{s.deeds}</b><span>{plural(s.deeds, ["дело", "дела", "дел"]).replace(/^\d+\s*/, "")}</span></div>
