@@ -275,9 +275,10 @@
 .menu-grid > button .i { width: 24px; height: 24px; color: var(--bronze-ink); }
 .menu-grid > button .count-chip { position: absolute; top: 6px; right: 6px; }
 /* Заголовок раздела меню не прилипает (решение владельца 24.10: «зачем заголовок при листании прыгает вверх, пусть остаётся на месте»). */
-.menu-sub { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3); background: rgba(255,250,236,.82); border-bottom: 1px solid var(--paper-edge); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-.menu-sub h2 { margin: 0; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--sp-2); font: 700 var(--fs-lg)/1.1 var(--font-display); color: var(--ink); }
-.menu-sub h2 .i { width: var(--icon-md); height: var(--icon-md); color: var(--accent); flex: none; }
+.menu-sub { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 40px; padding: 2px var(--sp-1) 2px var(--sp-3); background: rgba(255,250,236,.82); border-bottom: 1px solid var(--paper-edge); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.menu-sub h2 { margin: 0; flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--sp-2); font: 700 var(--fs-md)/1.1 var(--font-display); color: var(--ink); }
+.menu-sub h2 .i { width: var(--icon-sm); height: var(--icon-sm); color: var(--accent); flex: none; }
+.menu-sub .ghost.icon { width: 36px; height: 36px; min-height: 0; padding: 0; }
 .menu-sub .ghost.sm { padding-left: var(--sp-1); }
 .side-menu .section.attention h2 .i { color: var(--wax-ink); }
 .side-menu .section.attention .list li .chev { flex: none; width: 18px; height: 18px; color: var(--ink-2); }

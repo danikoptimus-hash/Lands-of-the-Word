@@ -686,7 +686,7 @@
 /* Телефон по схеме администратора (решение владельца 29.10): панель раздела — лист снизу над картой, док из шести плиток внизу. */
 @media (max-width: 1023px) {
   .side-menu { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: calc(100% - var(--safe-top) - 64px); border-radius: var(--r-lg) var(--r-lg) 0 0; padding-left: 0; padding-top: 0; animation: sheetUp var(--dur-slow) var(--ease-out); }
-  .side-menu .menu-sub { padding-top: calc(var(--sp-2) + 6px); }
+  .side-menu .menu-sub { padding-top: 6px; }
   /* Плитки один в один как у администратора на телефоне: те же правила, что admin.css + theme-admin.css при ≤767px
      (владелец 29.10: «размер, прозрачность и т. д.»). Подписи в одну строку с обрезкой, высота 52px, ширина поровну. */
   .map-area .team-dock { top: auto; left: calc(var(--sp-2) + var(--safe-left)); right: calc(var(--sp-2) + var(--safe-right)); transform: none; bottom: calc(var(--sp-2) + var(--safe-bottom)); flex-direction: row; gap: var(--sp-2); padding: 0; justify-content: space-between; align-items: stretch; background: transparent; border: 0; border-radius: 0; box-shadow: none; }
