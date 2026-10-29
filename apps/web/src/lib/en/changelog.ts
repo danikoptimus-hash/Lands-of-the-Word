@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "В панели раздела только значок, название раздела и крестик: шапки с аватаркой и названием команды больше нет.": "A section panel shows only the section icon, its name and a close cross: the team header with the avatar and name is gone.",
   "Карточка команды с наградами открывается с любой аватарки команды: в «Моих играх», в шапке карты, в списках, отчётах, испытаниях и проходах. Карточка участника — с любой аватарки участника.": "The team card with awards opens from any team avatar: in “My games”, the map header, lists, reports, trials and passages. The member card opens from any member avatar.",
   "Дело из списка показывается на карте: панель раздела прячется, карта и дело видны. При повторном открытии раздела список стоит на том же месте, где остановились.": "A deed from the list is shown on the map: the section panel hides, the map and the deed are visible. Reopening a section brings the list back to where you stopped.",
   "В разделах «Летопись» и «Моё служение» заголовок больше не повторяется дважды.": "The “Chronicle” and “My service” sections no longer repeat their heading twice.",

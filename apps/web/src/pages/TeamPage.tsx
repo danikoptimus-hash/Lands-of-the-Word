@@ -685,19 +685,13 @@ export function TeamPage() {
         <aside ref={sideRef} className={"side-menu" + (wide ? " with-rail" : "")} role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")} onScroll={rememberScroll}>
           <div className="side-body" ref={sideBodyRef} onScroll={rememberScroll}>
           {/* Шапка команды и заголовок раздела прилипают вместе одним блоком (решение владельца 24.10: «листаю список внизу, а заголовок и подзаголовок видны так же, как до того»). */}
+          {/* Заголовок панели (решение владельца 30.10: «на его месте оставить только значок раздела и название раздела,
+              что гораздо экономнее по месту и минималистичнее»): значок, название раздела, крестик. Шапки команды нет. */}
           <div className="side-top">
-          <div className="side-head" style={{ ["--team" as string]: team.color }}>
-            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" teamId={team.id} />
-            <div className="grow"><div className="side-name">{team.name}</div>{isCaptain && <div className="muted small">{t("вы капитан")}</div>}</div>
-            {(map?.team.stones ?? 0) > 0 && <button type="button" className="chip-btn" title={t("Тёсаные камни Каменоломни: один камень мостит одну дорогу")} aria-label={t("Камней: {n}", { n: map?.team.stones ?? 0 })} onClick={() => { setQuarryOpen(true); setMenu(false); }}><Chip tone="accent" icon="stone">{map?.team.stones}</Chip></button>}
-            <button type="button" className="ghost icon" onClick={closeMenu} aria-label={t("Закрыть")}><Icon name="x" /></button>
-          </div>
-
-          {view !== "home" && (
             <div className="menu-sub">
               <h2><Icon name={MENU_ITEMS.find((m) => m.key === view)?.icon ?? "map"} />{MENU_ITEMS.find((m) => m.key === view)?.label()}</h2>
+              <button type="button" className="ghost icon" onClick={closeMenu} aria-label={t("Закрыть")}><Icon name="x" /></button>
             </div>
-          )}
           </div>
           {view === "attention" && (
             rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 ? (
