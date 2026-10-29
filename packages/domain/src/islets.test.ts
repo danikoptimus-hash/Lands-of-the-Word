@@ -34,7 +34,7 @@ describe("islets", () => {
     for (const i of a) { expect(i.img).toBeGreaterThanOrEqual(1); expect(i.img).toBeLessThanOrEqual(7); expect(i.cover).toBeGreaterThan(i.r * 0.5); }
   });
 
-  it("каменоломня всегда рядом с берегом: не дальше QUARRY_REACH гексов от отмели поля, при любом seed", () => {
+  it("каменоломня не дальше QUARRY_REACH гексов от отмели поля, при любом seed", () => {
     for (const radius of [3, 5, 7]) {
       const hx = field(radius), bb = bounds(hx), centers = hx.map((h) => hexToPixel(h, SIZE));
       for (let seed = 1; seed <= 40; seed++) {
