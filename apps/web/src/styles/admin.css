@@ -303,7 +303,8 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .settings .settings-group h3 .add { margin-left: auto; }
 .set-row { appearance: none; display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--touch); padding: var(--sp-1) 0; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font: inherit; font-size: var(--fs-md); text-align: left; line-height: var(--lh-ui); white-space: normal; justify-content: flex-start; cursor: pointer; }
 .set-row:hover { background: none; }
-.set-row:active { background: var(--surface-2); transform: none; }
+/* Без заливки при нажатии (владелец 30.10: «появляется светлая заливка, убрать»). */
+.set-row:active, .set-row:focus { background: none; transform: none; }
 .set-row .k { flex: 1 1 0; min-width: 0; color: var(--muted); }
 .set-row .k.strong { color: var(--text); font-weight: 600; }
 .set-row .v { flex: 0 0 auto; max-width: 58%; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
