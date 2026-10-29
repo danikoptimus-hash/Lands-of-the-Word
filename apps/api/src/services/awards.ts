@@ -203,9 +203,10 @@ export function computeAwards(data: {
       if (mine[29]) person(tm.id, u, "p_thirty", mine[29].at);
       if (mine[99]) person(tm.id, u, "p_hundred", mine[99].at);
       const own = byTs(tasks.filter((t) => t.status === "APPROVED" && !t.paved && t.takenById === u && t.submittedAt).map((t) => ({ ...t, at: t.submittedAt! })));
-      // Ранняя птица: взял и сдал в те же игровые сутки, сдал между 7 и 9 утра (владелец: «если взял вчера, а сдал утром — не то»).
-      const early = own.filter((t) => t.takenAt && gameDayKey(t.takenAt, tz) === gameDayKey(t.at, tz) && localHour(t.at, tz) >= 7 && localHour(t.at, tz) < 9);
-      if (early[4]) person(tm.id, u, "p_early_bird", early[4].decidedAt ?? early[4].at);
+      // Ранняя птица: одно дело, взятое и сданное в те же игровые сутки между 7 и 9 утра (владелец 29.10: «если взял вчера,
+      // а сдал утром — не то»; 30.10: «сделать одно дело взятое утром сданное также утром. Было 5, нужно сделать 1»).
+      const early = own.filter((t) => t.takenAt && gameDayKey(t.takenAt, tz) === gameDayKey(t.at, tz) && localHour(t.takenAt, tz) >= 7 && localHour(t.at, tz) >= 7 && localHour(t.at, tz) < 9);
+      if (early[0]) person(tm.id, u, "p_early_bird", early[0].decidedAt ?? early[0].at);
       let ok = 0;
       for (const t of own) { ok = returnedTasks.has(t.id) ? 0 : ok + 1; if (ok === 10) { person(tm.id, u, "p_first_try", t.decidedAt ?? t.at); break; } }
       // Следопыт и ключник: перекрёстки, открытые своими делами (узел открылся в минуту одобрения), дорога в город.

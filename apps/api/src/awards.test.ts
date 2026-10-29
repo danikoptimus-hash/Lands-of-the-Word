@@ -33,12 +33,12 @@ describe("награды по истории", () => {
     expect(codes).not.toContain("team:t_full_crew"); // u2 ничего не сдал
     expect(g.find((x) => x.code === "p_streak_5")!.at.toISOString()).toBe("2026-10-24T04:00:00.000Z");
   });
-  it("ранняя птица: взял и сдал в те же сутки до 9 утра, пять раз", () => {
-    const tasks = Array.from({ length: 5 }, (_, i) => task(i, "u1", `2026-10-2${i}`, { takenAt: d(`2026-10-2${i}T02:10:00Z`), submittedAt: d(`2026-10-2${i}T03:30:00Z`) })); // 07:10 → 08:30
-    const late = task(9, "u1", "2026-10-26", { takenAt: d("2026-10-25T15:00:00Z"), submittedAt: d("2026-10-26T03:00:00Z") }); // взял вчера
-    const g = computeAwards({ ...base, teams: [{ id: "T", members: ["u1"] }], tasks: [...tasks.slice(0, 4), late] });
-    expect(g.some((x) => x.code === "p_early_bird")).toBe(false);
-    const g2 = computeAwards({ ...base, teams: [{ id: "T", members: ["u1"] }], tasks });
-    expect(g2.some((x) => x.code === "p_early_bird")).toBe(true);
+  it("ранняя птица: одно дело, взятое утром и сданное тем же утром до 9; взятое вчера не считается", () => {
+    const late = task(9, "u1", "2026-10-26", { takenAt: d("2026-10-25T15:00:00Z"), submittedAt: d("2026-10-26T03:00:00Z") }); // взял вчера, сдал в 08:00
+    expect(computeAwards({ ...base, teams: [{ id: "T", members: ["u1"] }], tasks: [late] }).some((x) => x.code === "p_early_bird")).toBe(false);
+    const night = task(8, "u1", "2026-10-26", { takenAt: d("2026-10-25T20:00:00Z"), submittedAt: d("2026-10-25T22:30:00Z") }); // те же игровые сутки, но ночью
+    expect(computeAwards({ ...base, teams: [{ id: "T", members: ["u1"] }], tasks: [night] }).some((x) => x.code === "p_early_bird")).toBe(false);
+    const morning = task(7, "u1", "2026-10-26", { takenAt: d("2026-10-26T02:10:00Z"), submittedAt: d("2026-10-26T03:30:00Z") }); // 07:10 → 08:30
+    expect(computeAwards({ ...base, teams: [{ id: "T", members: ["u1"] }], tasks: [morning] }).some((x) => x.code === "p_early_bird")).toBe(true);
   });
 });

@@ -56,7 +56,7 @@ export const AWARDS: ReadonlyArray<AwardDef> = [
   { code: "p_ten", kind: "PERSONAL", nameRu: "Верный в малом", nameEn: "Faithful in Little", condRu: "10 одобренных дел", condEn: "10 approved deeds", symbol: "a small cluster of ten grains" },
   { code: "p_thirty", kind: "PERSONAL", nameRu: "Верный во многом", nameEn: "Faithful in Much", condRu: "30 одобренных дел", condEn: "30 approved deeds", symbol: "a basket full of fruit" },
   { code: "p_hundred", kind: "PERSONAL", nameRu: "Сотник", nameEn: "Centurion", condRu: "100 одобренных дел", condEn: "100 approved deeds", symbol: "a roman centurion helmet with a crest" },
-  { code: "p_early_bird", kind: "PERSONAL", nameRu: "Ранняя птица", nameEn: "Early Bird", condRu: "5 дел взяты и сданы в тот же день до 9 утра", condEn: "5 deeds taken and submitted the same day before 9 a.m.", symbol: "a small bird singing at sunrise" },
+  { code: "p_early_bird", kind: "PERSONAL", nameRu: "Ранняя птица", nameEn: "Early Bird", condRu: "Дело взято утром и сдано в то же утро, до 9 часов", condEn: "A deed taken in the morning and submitted the same morning, before 9 a.m.", symbol: "a small bird singing at sunrise" },
   { code: "p_first_try", kind: "PERSONAL", nameRu: "С первого раза", nameEn: "First Try", condRu: "10 дел подряд одобрены без возврата", condEn: "10 deeds in a row approved without a return", symbol: "an arrow in the centre of a target" },
   // Личные: стихи в испытаниях
   { code: "p_verses_10", kind: "PERSONAL", nameRu: "Стих в сердце", nameEn: "Verse in the Heart", condRu: "10 стихов зачтены в испытаниях", condEn: "10 verses counted in trials", symbol: "a heart with a small scroll inside" },
