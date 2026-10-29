@@ -433,7 +433,10 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
       const animated = (!reduced || holeRef.current) && maskRef.current;
-      if (!dirty.current && (!animated || t - last < 1000 / 24)) return;
+      // Пока окно разведки раскрывается или смыкается — без ограничения кадров (решение владельца 29.10: «подними на 60 кадров»);
+      // облака в покое — не чаще 24 к/с ради батареи.
+      const h = holeRef.current, moving = h ? (() => { const f = fogHoleAt(h, performance.now()); return f !== null && f < 1; })() : false;
+      if (!dirty.current && (!animated || (!moving && t - last < 1000 / 24))) return;
       dirty.current = false; last = t;
       draw(t);
     };
