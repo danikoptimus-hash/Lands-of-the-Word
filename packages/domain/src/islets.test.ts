@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { generateIslets, isletRadiusAt, isletSeed, seaField } from "./islets.js";
+import { QUARRY_REACH, generateIslets, isletRadiusAt, isletSeed, seaField } from "./islets.js";
 import { ISLET_IMAGES, ISLET_SHAPE_N } from "./isletShapes.js";
 import { hexToPixel } from "./hex.js";
 
@@ -32,6 +32,19 @@ describe("islets", () => {
     expect(a.length).toBeGreaterThanOrEqual(6);
     expect(new Set(a.map((i) => i.img)).size).toBeGreaterThanOrEqual(4);
     for (const i of a) { expect(i.img).toBeGreaterThanOrEqual(1); expect(i.img).toBeLessThanOrEqual(7); expect(i.cover).toBeGreaterThan(i.r * 0.5); }
+  });
+
+  it("каменоломня всегда рядом с берегом: не дальше QUARRY_REACH гексов от отмели поля, при любом seed", () => {
+    for (const radius of [3, 5, 7]) {
+      const hx = field(radius), bb = bounds(hx), centers = hx.map((h) => hexToPixel(h, SIZE));
+      for (let seed = 1; seed <= 40; seed++) {
+        const q = generateIslets(hx, SIZE, bb, seed).find((i) => i.quarry);
+        expect(q, `seed ${seed}`).toBeTruthy();
+        const nearest = Math.min(...centers.map((c) => Math.hypot(c.x - q!.x, c.y - q!.y)));
+        expect(nearest).toBeGreaterThanOrEqual(q!.cover + SIZE * 2.6 - 1e-6);
+        expect(nearest).toBeLessThanOrEqual(q!.cover + SIZE * (2.6 + QUARRY_REACH) + 1e-6);
+      }
+    }
   });
 
   it("лежат в поясе моря, не касаются поля и друг друга", () => {

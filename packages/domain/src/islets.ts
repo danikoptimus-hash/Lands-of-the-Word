@@ -62,24 +62,38 @@ const PLAN: ReadonlyArray<{ img: number; lo: number; hi: number }> = [
   { img: 4, lo: 1.0, hi: 1.3 },
 ];
 
+/** Отмель гекса поля: ближе островок к центру гекса не подходит (плюс своя отмель). */
+const SHORE = 2.6;
+/**
+ * Каменоломня не дальше стольких радиусов гекса от берега (решение владельца 29.10: «бывает, что она попадает где-то
+ * далеко от островов и приходится туда листать карту»). Остальные островки — где угодно в поясе моря.
+ */
+export const QUARRY_REACH = 3;
+
 /** Раскладка в поясе моря вокруг поля: островок не подходит к полю ближе, чем отмель и песок берега, и не пересекается с соседями. */
 export function generateIslets(fieldHexes: ReadonlyArray<Hex>, size: number, bounds: Bounds, seed = isletSeed(fieldHexes)): Islet[] {
   if (!fieldHexes.length) return [];
   const rng = createRng(seed);
+  // Каменоломня ищет место своим потоком случайных чисел: её ограничение по дальности не сдвигает остальные островки.
+  const qrng = createRng((seed ^ 0x9e3779b9) >>> 0);
   const field = seaField(bounds);
   const centers = fieldHexes.map((h) => hexToPixel(h, size));
   const out: Islet[] = [];
   for (const item of PLAN) {
     const spec = ISLET_IMAGES.find((s) => s.img === item.img)!;
-    const r = size * between(rng, item.lo, item.hi);
+    const quarry = item.img === 7 && !out.some((o) => o.quarry);
+    const rnd = quarry ? qrng : rng;
+    const r = size * between(rnd, item.lo, item.hi);
     const cover = r * spec.maxR + size * 1.2;
-    for (let tries = 0; tries < 200; tries++) {
-      const x = between(rng, field.minX + cover, field.minX + field.width - cover);
-      const y = between(rng, field.minY + cover, field.minY + field.height - cover);
+    for (let tries = 0; tries < (quarry ? 2000 : 200); tries++) {
+      const x = between(rnd, field.minX + cover, field.minX + field.width - cover);
+      const y = between(rnd, field.minY + cover, field.minY + field.height - cover);
       // Не ближе к любому гексу поля, чем его отмель (size × 2.6 от центра гекса) плюс своя отмель.
-      if (centers.some((c) => Math.hypot(c.x - x, c.y - y) < cover + size * 2.6)) continue;
+      const nearest = Math.min(...centers.map((c) => Math.hypot(c.x - x, c.y - y)));
+      if (nearest < cover + size * SHORE) continue;
+      if (quarry && nearest > cover + size * (SHORE + QUARRY_REACH)) continue;
       if (out.some((o) => Math.hypot(o.x - x, o.y - y) < cover + o.cover + size * 1.2)) continue;
-      out.push({ x, y, r, shape: spec.shape, img: item.img, cover, ...(item.img === 7 && !out.some((o) => o.quarry) ? { quarry: true } : {}) });
+      out.push({ x, y, r, shape: spec.shape, img: item.img, cover, ...(quarry ? { quarry: true } : {}) });
       break;
     }
   }
