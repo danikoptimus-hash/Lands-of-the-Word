@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Карту команды можно приближать почти вдвое сильнее, чем раньше.": "The team map can be zoomed in almost twice as far as before.",
   "Награда в карточке участника или команды открывается по нажатию: условие и дата. Значки в карточке грузятся заранее.": "An award in a member’s or team’s card opens on tap: condition and date. Card badges are loaded in advance.",
   "Плитки дока участника на телефоне: испытания, внимание, служение, команды, летопись, дела.": "Phone dock tiles for members: Trials, Attention, Service, Teams, Chronicle, Deeds.",
   "На телефоне страница команды устроена как у администратора: стрелка слева вверху ведёт в «Мои игры», внизу док из шести плиток (Внимание, Дела, Испытания, Команды, Летопись, Моё служение), раздел открывается листом над картой. Бокового меню и нижних ссылок больше нет.": "On the phone the team page now works like the admin page: the arrow at the top left goes to “My games”, a dock of six tiles sits at the bottom (Attention, Deeds, Trials, Teams, Chronicle, My service) and a section opens as a sheet over the map. The side menu and the bottom links are gone.",

@@ -13,7 +13,7 @@ export interface Bounds { minX: number; minY: number; width: number; height: num
  * метки) масштабируются CSS-переменными, которые слои ставят на каждый кадр (WorldSvg) — без перерастрирования.
  * Сдвиг ограничен: остров не уходит из окна, минимальный масштаб — «вся карта», максимальный — в 8 раз крупнее.
  */
-export function useViewport(bounds: Bounds | null, focus?: { x: number; y: number; k?: number } | null) {
+export function useViewport(bounds: Bounds | null, focus?: { x: number; y: number; k?: number } | null, opts?: { /** Во сколько раз можно приблизить относительно «вся карта» (по умолчанию 8; карта команды — 14, решение владельца 30.10). */ maxZoom?: number }) {
   // Контейнер может пересоздаваться (например, после режима «глазами команды»): ссылка — колбэк,
   // а эффекты с колесом и наблюдателем размера привязаны к текущему элементу через состояние.
   const ref = useRef<HTMLDivElement | null>(null);
@@ -24,8 +24,9 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
   const listeners = useRef(new Set<(v: View) => void>());
   const boundsRef = useRef(bounds); boundsRef.current = bounds;
   const fitK = useRef(1);
-  /** Пределы масштаба относительно «вся карта»: отдалить можно вдвое (вокруг острова остаётся широкое море), приблизить — в 8 раз. */
-  const clampK = (k: number) => Math.min(fitK.current * 8, Math.max(fitK.current * 0.5, k));
+  /** Пределы масштаба относительно «вся карта»: отдалить можно вдвое (вокруг острова остаётся широкое море), приблизить — в maxZoom раз. */
+  const maxZoom = opts?.maxZoom ?? 8;
+  const clampK = (k: number) => Math.min(fitK.current * maxZoom, Math.max(fitK.current * 0.5, k));
 
   const clampView = useCallback((v: View): View => {
     const el = ref.current, b = boundsRef.current;

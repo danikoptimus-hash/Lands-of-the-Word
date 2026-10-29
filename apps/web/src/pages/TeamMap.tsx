@@ -87,7 +87,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const renderStart = performance.now();
   useLayoutEffect(() => { perfMark("карта команды: React+DOM", performance.now() - renderStart); });
   useEffect(() => { perfMark("карта команды: до кадра", performance.now() - renderStart); });
-  const vp = useViewport(bounds, start ? { x: start.x, y: start.y, k: 2.4 } : null);
+  // Участникам можно приблизить карту сильнее (решение владельца 30.10: «сделать возможность приближать карту ближе»).
+  const vp = useViewport(bounds, start ? { x: start.x, y: start.y, k: 2.4 } : null, { maxZoom: 14 });
   useEffect(() => {
     if (!focusTask) return;
     const tk = map.tasks.find((x) => x.id === focusTask.id);
