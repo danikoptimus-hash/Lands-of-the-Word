@@ -617,7 +617,7 @@ export function TeamPage() {
       if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) { swipe.current = null; return; }
     }
     const tp = e.touches[0]!;
-    swipe.current = { x: tp.clientX, y: tp.clientY, edge: tp.clientX < 40 || menu };
+    swipe.current = { x: tp.clientX, y: tp.clientY, edge: false };
   };
   const onTouchEnd = (e: React.TouchEvent) => {
     const st = swipe.current; swipe.current = null;
@@ -625,8 +625,7 @@ export function TeamPage() {
     const tp = e.changedTouches[0]!;
     const dx = tp.clientX - st.x, dy = tp.clientY - st.y;
     if (Math.abs(dy) > Math.abs(dx)) return;
-    if (!menu && st.edge && dx > 40) setMenu(true);
-    if (menu && dx < -60) setMenu(false);
+    if (menuView !== "home" && dx < -60) closeMenu();
   };
   async function pave(taskId: string) {
     const ok = await confirm(t("Потратить один тёсаный камень: сторона откроется как пройденная, дело делать не нужно. Камней у команды: {n}.", { n: map?.team.stones ?? 0 }), { title: t("Вымостить дорогу?"), okLabel: t("Вымостить") });
@@ -646,12 +645,15 @@ export function TeamPage() {
     if (!backTo) return;
     setMenuView(backTo.view); setMenu(true); setRestore({ top: backTo.top, bodyTop: backTo.bodyTop }); setBackTo(null);
   };
-  const menuOpen = !storm.active && (wide ? menuView !== "home" : menu);
-  const closeMenu = () => { if (wide) setMenuView("home"); else setMenu(false); };
+  // Телефон по схеме администратора (решение владельца 29.10): бокового меню нет, разделы открываются из дока внизу
+  // листом над картой; стрелка слева вверху ведёт в «Мои игры». Состояние `menu` осталось для совместимости вызовов.
+  const menuOpen = !storm.active && menuView !== "home";
+  const closeMenu = () => setMenuView("home");
+  const dockItems = MENU_ITEMS.filter((m) => m.key !== "awards");
 
   return (
     <div className="map-screen" ref={screenRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      {menuOpen && !wide && <div className="side-backdrop" onClick={() => setMenu(false)} />}
+      {menuOpen && !wide && <div className="side-backdrop" onClick={closeMenu} />}
       {/* На компьютере (решение владельца 05.10, вечер): колонка плиток висит полупрозрачно над картой; нажатие открывает панель
           раздела рядом, повторное нажатие на ту же плитку или нажатие на карту закрывает её. */}
       {wide && !storm.active && (
@@ -683,8 +685,7 @@ export function TeamPage() {
 
           {view !== "home" && (
             <div className="menu-sub">
-              {!wide && <button type="button" className="ghost sm" onClick={() => setMenuView("home")}><Icon name="back" />{t("Меню")}</button>}
-              <h2>{MENU_ITEMS.find((m) => m.key === view)?.label()}</h2>
+              <h2><Icon name={MENU_ITEMS.find((m) => m.key === view)?.icon ?? "map"} />{MENU_ITEMS.find((m) => m.key === view)?.label()}</h2>
             </div>
           )}
           </div>
@@ -720,18 +721,6 @@ export function TeamPage() {
                   </ul>
                 </section>
             ) : <section className="section"><EmptyState inline icon="bell" text={t("Ничего не требует внимания.")} /></section>
-          )}
-          {view === "home" && (
-            <>
-              {!wide && <nav className="menu-grid" aria-label={t("Разделы")}>
-                {MENU_ITEMS.map((m) => { const n = menuCounts[m.key] ?? 0; return (
-                  <button key={m.key} type="button" onClick={() => setMenuView(m.key)}>
-                    <Icon name={m.icon} />{m.label()}{n > 0 && <span className={"count-chip" + (m.hot && n > 0 ? " hot" : "")}>{n}</span>}
-                  </button>
-                ); })}
-              </nav>}
-              {standings?.status === "ACTIVE" && standings.endsAt && <p className="hint menu-hint">{t("Игра идёт до {d}", { d: fmtDate(standings.endsAt) })}</p>}
-            </>
           )}
           {menuView === "deeds" && (
             <section className="section">
@@ -811,15 +800,6 @@ export function TeamPage() {
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} onOpenTask={(tid) => { if (map.tasks.some((tk) => tk.id === tid)) showOnMap(tid); else notify(t("Дело уже не на карте"), "info"); }} />}
           {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} />}
           {menuView === "awards" && <AwardsSection gameId={id} version={awardsVersion} data={awards} onLoaded={(d) => { setAwards(d); const n = d.team.reduce((a, g) => a + g.count, 0) + d.mine.reduce((a, g) => a + g.count, 0); setAwardsSeen(n); try { localStorage.setItem(`lotw.awards.seen.${id}`, String(n)); } catch { /* ничего */ } }} />}
-          {menuView === "home" && !wide && (
-            <nav className="menu-tiles" aria-label={t("Навигация")}>
-            <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
-            <Link to="/account"><Icon name="user" />{t("Аккаунт")}</Link>
-            <Link to="/how-to-play"><Icon name="help" />{t("Как играть")}</Link>
-            <Link to="/whats-new"><Icon name="sparkle" />{t("Что нового")}</Link>
-            <button type="button" onClick={() => void logout()}><Icon name="logout" />{t("Выйти")}</button>
-          </nav>
-          )}
           </div>
         </aside>
       )}
@@ -843,6 +823,16 @@ export function TeamPage() {
           onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} scout={scout} />
         )}
         {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
+        {!wide && (
+          <nav className="admin-dock team-dock" aria-label={t("Разделы")}>
+            {dockItems.map((m) => { const n = menuCounts[m.key] ?? 0; return (
+              <button key={m.key} type="button" className={"dock-btn" + (menuView === m.key ? " on" : "")} aria-pressed={menuView === m.key} onClick={() => { setSelectedId(null); setMenuView((v) => (v === m.key ? "home" : m.key)); }}>
+                <Icon name={m.icon} /><span className="lbl">{m.label()}</span>
+                {n > 0 && <span className={"badge" + (m.hot ? " hot" : "")}>{n}</span>}
+              </button>
+            ); })}
+          </nav>
+        )}
         {map.startedAt && <div className="team-timeline"><TimelineDock moves={moves} startedAt={map.startedAt} at={historyAt} onChange={(d) => { setHistoryAt(d); setSelectedId(null); }} /></div>}
         {landingTask && (
           <div className="finish-banner landing-banner" role="status">
@@ -851,12 +841,8 @@ export function TeamPage() {
           </div>
         )}
         <div className="hud-left">
-          {!wide && (
-            <button type="button" className="secondary icon hud-btn" onClick={() => { setMenu(true); setSelectedId(null); }} aria-label={attention > 0 ? t("Меню · требует внимания: {n}", { n: attention }) : t("Меню")} title={t("Меню")}>
-              <Icon name="menu" />{attention > 0 && <span className="count-chip hot">{attention}</span>}
-            </button>
-          )}
-          <button type="button" className="hud-team" onClick={() => { if (!wide) { setMenu(true); setSelectedId(null); } }} aria-label={team.name}>
+          {!wide && <Link to="/" className="btn secondary icon hud-btn" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>}
+          <button type="button" className="hud-team" aria-label={team.name}>
             <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} /><span className="name">{team.name}</span>
           </button>
           {/* Время суток (решение владельца 03.10): ночью только карта, утром отправляют вызов — подсказка у названия команды. */}

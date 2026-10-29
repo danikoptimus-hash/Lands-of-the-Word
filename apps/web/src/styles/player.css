@@ -682,3 +682,17 @@
 @keyframes confetti { 0% { opacity: 0; transform: translateY(0) rotate(0); } 10% { opacity: 1; } 100% { opacity: 0; transform: translateY(340px) rotate(300deg); } }
 @media (prefers-reduced-motion: reduce) { .milestone-rays, .milestone-confetti i, .streak-flame.lit::before { animation: none; } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* Телефон по схеме администратора (решение владельца 29.10): панель раздела — лист снизу над картой, док из шести плиток внизу. */
+@media (max-width: 1023px) {
+  .side-menu { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: calc(100% - var(--safe-top) - 64px); border-radius: var(--r-lg) var(--r-lg) 0 0; padding-left: 0; padding-top: 0; animation: sheetUp var(--dur-slow) var(--ease-out); }
+  .side-menu .side-head { padding-top: calc(var(--sp-3) + 6px); }
+  .side-menu .menu-sub h2 { display: flex; align-items: center; gap: var(--sp-2); }
+  .side-menu .menu-sub h2 .i { width: var(--icon-md); height: var(--icon-md); color: var(--accent); }
+  .map-area .team-dock { top: auto; left: calc(var(--sp-2) + var(--safe-left)); right: calc(var(--sp-2) + var(--safe-right)); transform: none; bottom: calc(var(--sp-2) + var(--safe-bottom)); flex-direction: row; gap: 2px; padding: 4px; justify-content: space-between; background: color-mix(in srgb, var(--surface) 90%, transparent); border-radius: 22px; box-shadow: var(--shadow-2); }
+  .team-dock .dock-btn { flex: 1 1 0; width: auto; min-width: 0; min-height: 52px; padding: 6px 2px; box-shadow: none; background: transparent; }
+  .team-dock .dock-btn .lbl { font-size: 9.5px; letter-spacing: -.01em; line-height: 1.05; max-width: 100%; white-space: normal; text-align: center; }
+  .team-timeline { bottom: calc(var(--sp-2) + var(--safe-bottom) + 76px); }
+  .map-area.storm .team-dock { display: none; }
+}
+@keyframes sheetUp { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
