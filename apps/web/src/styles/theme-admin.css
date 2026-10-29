@@ -37,9 +37,9 @@
 .admin-dock .dock-btn.on, .admin-dock .dock-btn.on:hover { background: var(--bronze-ink); border-color: var(--bronze-deep); color: var(--paper-light); box-shadow: 0 1px 3px rgba(0,0,0,.28); text-shadow: none; }
 .admin-dock .dock-btn.on .i { color: var(--paper-light); }
 /* Счётчики на кнопках дока — лёгкие светлые кружки; «требует внимания» — плоский сургучный (решение владельца 19.09) */
-.admin-dock .dock-btn .badge { min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--paper-light); border: 1px solid var(--bronze); color: var(--bronze-ink); font: 700 11px/18px var(--font-ui); text-shadow: none; box-shadow: none; }
+.admin-dock .dock-btn .badge { min-width: 14px; height: 14px; padding: 0 4px; border-radius: 7px; background: var(--paper-light); border: 1px solid var(--bronze); color: var(--bronze-ink); font: 700 9px/12px var(--font-ui); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
 .admin-dock .dock-btn .badge.hot { background: var(--wax); border-color: transparent; color: var(--paper-light); }
-.admin-dock .dock-btn .badge.visits { border-radius: 5px; }
+.admin-dock .dock-btn .badge.visits { border-radius: 4px; }
 @media (max-width: 767px) {
   /* Телефон: без планки — отдельные светлые бумажные кнопки, как на компьютере (решение владельца 19.09) */
   .admin-dock { background: transparent; border: 0; border-radius: 0; box-shadow: none; padding: 0; gap: var(--sp-2); }

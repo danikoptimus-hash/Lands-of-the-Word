@@ -280,14 +280,15 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 .dock-btn:hover { background: var(--surface); }
 .dock-btn.on { background: var(--accent-ink); color: var(--on-accent); }
 .dock-btn.on .i { color: var(--on-accent); }
-.dock-btn .badge { position: absolute; top: -5px; right: -5px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--surface-2, var(--surface)); border: 1px solid var(--border); color: var(--text); font: 700 11px/18px var(--font); text-align: center; }
+/* Счётчики на плитках (решение владельца 29.10): на треть меньше и лишь наполовину заходят на плитку — остальное снаружи, у края. */
+.dock-btn .badge { position: absolute; top: -7px; right: -7px; min-width: 14px; height: 14px; padding: 0 4px; border-radius: 7px; background: var(--surface-2, var(--surface)); border: 1px solid var(--border); color: var(--text); font: 700 9px/12px var(--font); text-align: center; }
 .dock-btn .badge.hot { background: var(--danger, #b3402a); border-color: transparent; color: #fff; }
 /* Плитка «Проверка» (29.10): два красных счётчика по верхним углам, чтобы не закрывать подпись — справа сдачи дел со свитком,
    слева квадратик отчётов о визитах с городом. */
-.dock-btn .badges { position: absolute; top: -5px; right: -5px; display: flex; gap: 3px; }
-.dock-btn .badges .badge { position: static; display: inline-flex; align-items: center; gap: 2px; padding: 0 5px 0 4px; }
-.dock-btn .badges .badge .i { width: 11px; height: 11px; color: inherit; }
-.dock-btn .badge.visits { border-radius: 5px; }
+.dock-btn .badges { position: absolute; top: -7px; right: -7px; display: flex; gap: 2px; }
+.dock-btn .badges .badge { position: static; display: inline-flex; align-items: center; gap: 1px; padding: 0 4px 0 3px; }
+.dock-btn .badges .badge .i { width: 9px; height: 9px; color: inherit; }
+.dock-btn .badge.visits { border-radius: 4px; }
 .admin-popup.overlay-backdrop { z-index: 8; }
 .admin-popup .overlay-body .card { box-shadow: none; }
 @media (max-width: 767px) {

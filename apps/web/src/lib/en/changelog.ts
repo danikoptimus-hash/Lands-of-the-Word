@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Счётчики на плитках администратора стали меньше и сидят на краю плитки, не закрывая значок.": "The counters on the admin tiles are smaller and sit on the tile’s edge without covering the icon.",
   "У администратора на плитке «Проверка» два счётчика: свиток — сдачи дел, город — отчёты о визитах, которые ждут решения.": "The admin’s “Review” tile has two counters: a scroll for deed submissions and a city for visit reports awaiting a decision.",
   "Возвращённое администратором дело занимает место в дневном лимите: его можно только пересдать, другое дело до следующих 7:00 не взять. Отпущенное дело лимит не держит.": "A deed returned by the admin keeps its place in the daily limit: it can only be resubmitted, another deed cannot be taken until the next 7:00. A released deed does not hold the limit.",
   "Тёсаный камень больше не тратит дневной лимит дел: вымощенная сторона — не дело.": "A hewn stone no longer spends the daily deed limit: a paved side is not a deed.",
