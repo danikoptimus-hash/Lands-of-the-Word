@@ -89,14 +89,19 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   useEffect(() => { perfMark("карта команды: до кадра", performance.now() - renderStart); });
   // Участникам можно приблизить карту сильнее (решение владельца 30.10: «сделать возможность приближать карту ближе»).
   const vp = useViewport(bounds, start ? { x: start.x, y: start.y, k: 2.4 } : null, { maxZoom: 14 });
+  /** Подсветка стороны после «Посмотреть на карте» (решение владельца 30.10: как у администратора): дорога и пульсирующее кольцо посередине несколько секунд. */
+  const [flash, setFlash] = useState<{ x: number; y: number; a: { x: number; y: number }; b: { x: number; y: number } | null } | null>(null);
   useEffect(() => {
     if (!focusTask) return;
     const tk = map.tasks.find((x) => x.id === focusTask.id);
     if (!tk) return;
     const a = nodePos(tk.fromKey, size);
-    const b = tk.toKey.startsWith("sea:") || !map.revealed.some((n) => n.key === tk.toKey) ? a : nodePos(tk.toKey, size);
+    const sea = tk.toKey.startsWith("sea:");
+    const b = sea ? a : nodePos(tk.toKey, size);
     const k = 3.5, x = (a.x + b.x) / 2, y = (a.y + b.y) / 2;
     vp.focusOn(x, y, k);
+    setFlash({ x, y, a, b: sea ? null : b });
+    const flashTimer = setTimeout(() => setFlash(null), 6000);
     // Карточка дела выезжает снизу и закрывает часть карты: когда она встала, точку переносим в середину свободной части.
     const timer = setTimeout(() => {
       const canvas = document.querySelector(".map-canvas"), sheet = document.querySelector(".deed-sheet");
@@ -104,7 +109,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       const c = canvas.getBoundingClientRect(), r = sheet.getBoundingClientRect();
       if (r.top > c.top + c.height * 0.25 && r.top < c.bottom) vp.focusOn(x, y + (c.bottom - r.top) / 2 / k, k);
     }, 700);
-    return () => clearTimeout(timer);
+    return () => { clearTimeout(timer); clearTimeout(flashTimer); };
   }, [focusTask?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   // Время суток (решение владельца 03.10): по поясу игры и часам сервера; картинки городов — фазы, которой больше в переходе.
   const dt = useDaytime(map.daytime?.timeZone, map.now);
@@ -483,6 +488,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         <HexTiles hexes={tileHexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
         <CoastOver d={coast} size={size} light={light} />
         {worldBody}
+        {flash && (
+          <g className="adm-flash" pointerEvents="none">
+            {flash.b && <><line x1={flash.a.x} y1={flash.a.y} x2={flash.b.x} y2={flash.b.y} /><line x1={flash.a.x} y1={flash.a.y} x2={flash.b.x} y2={flash.b.y} /></>}
+            <circle className="pulse" cx={flash.x} cy={flash.y} r={size * 0.5} />
+            <circle className="dot" cx={flash.x} cy={flash.y} r={size * 0.12} />
+          </g>
+        )}
       </WorldSvg>
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={light} hole={hole} />}
       {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); рисует слой живности: киты под буквами,
