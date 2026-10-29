@@ -90,7 +90,7 @@ export function GamesPage() {
           <div className="cards">
             {teams.map((tm) => (
               <Link key={tm.team.id} to={`/games/${tm.game.id}/team`} className="home-card team-card">
-                <TeamAvatar name={tm.team.name} color={tm.team.color} avatarId={tm.team.avatarId} size="lg" />
+                <TeamAvatar name={tm.team.name} color={tm.team.color} avatarId={tm.team.avatarId} size="lg" teamId={tm.team.id} gameId={tm.game.id} />
                 <div className="main">
                   <div className="title"><span className="name">{tm.team.name}</span>{tm.role === "CAPTAIN" && <Chip icon="star">{t("капитан")}</Chip>}<StatusChip status={tm.game.status} /></div>
                   <div className="meta"><span>{tm.game.name}</span></div>

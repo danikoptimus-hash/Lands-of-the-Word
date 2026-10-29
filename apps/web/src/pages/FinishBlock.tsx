@@ -77,7 +77,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
           <div className="taken-cities">
             {data.standings.map((tm) => tm.citiesOnPath.length > 0 && (
               <div key={tm.teamId} className="row">
-                <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName />
+                <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName teamId={tm.teamId} />
                 {tm.citiesOnPath.map((c) => <Chip key={c.nodeKey} tone={c.current ? (c.isCapital ? "accent" : "ok") : "neutral"} icon={c.isCapital ? "star" : undefined} title={c.current ? fmtDate(c.at) : t("потерян") + " · " + fmtDate(c.at)}><span className={c.current ? "" : "lost"}>{c.name}</span></Chip>)}
               </div>
             ))}
@@ -125,7 +125,7 @@ function Standings({ rows, winnerId, leaderId }: { rows: StandingRow[]; winnerId
         return (
           <div key={tm.teamId} className={"standing-row" + (out ? " out" : "")}>
             <span className="rank">{i + 1}</span>
-            <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} />
+            <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} teamId={tm.teamId} />
             <div className="body">
               <div className="name">
                 {tm.name}

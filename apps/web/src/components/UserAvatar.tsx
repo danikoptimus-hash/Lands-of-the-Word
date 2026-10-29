@@ -25,14 +25,14 @@ export function UserAvatar({ name, avatarId, size, className, zoom = true, userI
   if (!avatarId && !(zoom && userId)) return <span className={cls} aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>;
   if (!avatarId) return (
     <>
-      <span className={cls + " zoomable"} role="button" tabIndex={0} aria-label={name} onPointerEnter={() => warm(userId)} onPointerDown={() => warm(userId)} onFocus={() => warm(userId)} onClick={(e) => { e.stopPropagation(); setOpen(true); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setOpen(true); } }}>{name.slice(0, 1).toUpperCase()}</span>
+      <span className={cls + " zoomable"} role="button" tabIndex={0} aria-label={name} onPointerEnter={() => warm(userId)} onPointerDown={() => warm(userId)} onFocus={() => warm(userId)} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setOpen(true); } }}>{name.slice(0, 1).toUpperCase()}</span>
       {open && <AvatarLightbox avatarId={null} name={name} userId={userId} onClose={() => setOpen(false)} />}
     </>
   );
   if (!zoom) return <span className={cls + " photo"} aria-hidden="true"><img src={`/api/avatars/${avatarId}`} alt="" loading="lazy" decoding="async" /></span>;
   return (
     <>
-      <span className={cls + " photo zoomable"} role="button" tabIndex={0} aria-label={name} onPointerEnter={() => warm(userId)} onPointerDown={() => warm(userId)} onFocus={() => warm(userId)} onClick={(e) => { e.stopPropagation(); setOpen(true); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setOpen(true); } }}>
+      <span className={cls + " photo zoomable"} role="button" tabIndex={0} aria-label={name} onPointerEnter={() => warm(userId)} onPointerDown={() => warm(userId)} onFocus={() => warm(userId)} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setOpen(true); } }}>
         <img src={`/api/avatars/${avatarId}`} alt="" loading="lazy" decoding="async" />
       </span>
       {open && <AvatarLightbox avatarId={avatarId} name={name} userId={userId} onClose={() => setOpen(false)} />}

@@ -146,7 +146,7 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
             {[...top.rows, ...(top.me && top.me.rank > top.rows.length ? [top.me] : [])].map((r) => (
               <li key={r.userId} className={top.me?.userId === r.userId ? "me" : ""}>
                 <span className="rank">{r.rank}</span>
-                <TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" title={r.team} />
+                <TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" title={r.team} teamId={r.teamId} />
                 <UserAvatar name={r.name} avatarId={r.userAvatarId} size="sm" userId={r.userId} />
                 <span className="body">
                   <span className="name">{r.name}{top.me?.userId === r.userId ? ` · ${t("это вы")}` : ""}</span>
@@ -177,7 +177,7 @@ export function ActivityBoard({ gameId, version }: { gameId: string; version: nu
           <span className="rank">{i + 1}</span>
           <UserAvatar name={r.displayName || r.nickname} avatarId={r.userAvatarId} size="sm" userId={r.userId} />
           <div className="who">
-            <div className="line"><span className="name">{r.displayName || r.nickname}</span><TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" /></div>
+            <div className="line"><span className="name">{r.displayName || r.nickname}</span><TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" teamId={r.teamId} /></div>
             <div className="line chips">
               <StatChip icon="scroll" label={t("Дела")} value={r.deeds} /><StatChip icon="pin" label={t("Районы")} value={r.tasks + r.orders} /><StatChip icon="book" label={t("Стихи")} value={r.verses} /><StatChip icon="city" label={t("Города")} value={r.cities} />
               <span className="muted small">{r.lastActiveAt ? fmtDate(r.lastActiveAt) : "—"}</span>
@@ -196,7 +196,7 @@ export function ActivityBoard({ gameId, version }: { gameId: string; version: nu
             <tr key={r.userId}>
               <td>{i + 1}</td>
               <td><span className="person"><UserAvatar name={r.displayName || r.nickname} avatarId={r.userAvatarId} size="sm" userId={r.userId} /><span className="name">{r.displayName || r.nickname}</span></span></td>
-              <td><TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" withName /></td>
+              <td><TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" withName teamId={r.teamId} /></td>
               <td>{r.deeds}</td><td>{r.tasks + r.orders}</td><td>{r.verses}</td><td>{r.cities}</td>
               <td className="muted small">{r.lastActiveAt ? fmtDate(r.lastActiveAt) : "—"}</td>
             </tr>
@@ -279,7 +279,7 @@ export function SeasonBookPage() {
       </section>
       {book.teams.map((tm) => (
         <section key={tm.id} className="book-team">
-          <h2><TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName /></h2>
+          <h2><TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName teamId={tm.id} /></h2>
           <div className="book-cols">
             <div>
               <h3>{t("Участники")}</h3>

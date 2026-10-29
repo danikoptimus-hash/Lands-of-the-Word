@@ -154,7 +154,7 @@ export async function serviceStats(gameId: string, userId: string, teamId: strin
 /** Доска активности для администратора: все участники игры с той же сводкой, самые активные сверху. */
 export async function activityBoard(gameId: string) {
   const members = await prisma.membership.findMany({ where: { team: { gameId } }, select: { userId: true, teamId: true, role: true, gameRole: true, user: { select: { nickname: true, displayName: true, avatarId: true } }, team: { select: { name: true, color: true, avatarId: true } } } });
-  const rows = await Promise.all(members.map(async (m) => ({ userId: m.userId, nickname: m.user.nickname, displayName: m.user.displayName, team: m.team.name, color: m.team.color, avatarId: m.team.avatarId, userAvatarId: m.user.avatarId, role: m.role, gameRole: m.gameRole, ...(await serviceStats(gameId, m.userId, m.teamId)) })));
+  const rows = await Promise.all(members.map(async (m) => ({ userId: m.userId, teamId: m.teamId, nickname: m.user.nickname, displayName: m.user.displayName, team: m.team.name, color: m.team.color, avatarId: m.team.avatarId, userAvatarId: m.user.avatarId, role: m.role, gameRole: m.gameRole, ...(await serviceStats(gameId, m.userId, m.teamId)) })));
   const score = (r: ServiceStats) => r.deeds * 3 + r.tasks + r.orders + r.cities * 2 + Math.ceil(r.verses / 5) + r.trips;
   return rows.sort((a, b) => score(b) - score(a) || (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0));
 }

@@ -349,7 +349,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         </div>
         {/* Кнопки «Вся карта» нет (решение владельца 24.10: «у админа тоже убрать»). */}
         </>)}
-        {viewedTeam && fullscreen && <div className="view-as-name" aria-live="polite"><TeamAvatar name={viewedTeam.name} color={viewedTeam.color} avatarId={viewedTeam.avatarId} size="sm" />{t("Глазами команды «{name}»", { name: viewedTeam.name })}</div>}
+        {viewedTeam && fullscreen && <div className="view-as-name" aria-live="polite"><TeamAvatar name={viewedTeam.name} color={viewedTeam.color} avatarId={viewedTeam.avatarId} size="sm" teamId={viewedTeam.id} />{t("Глазами команды «{name}»", { name: viewedTeam.name })}</div>}
         {viewedTeam && !fullscreen && <p className="hint view-as-hint">{t("Карта глазами команды «{name}»: туман, стороны и метки как у неё. Нажмите свиток или город, чтобы увидеть дело или ход занятия города.", { name: viewedTeam.name })}</p>}
         {edgeSel && wrapEl && !reportId && <EdgeTasksSheet gameId={gameId} aKey={edgeSel.aKey} bKey={edgeSel.bKey} container={wrapEl} onClose={() => setEdgeSel(null)} onOpenTask={setReportId} />}
         {reportId && wrapEl && <TaskReportSheet gameId={gameId} taskId={reportId} container={wrapEl} onClose={() => { setReportId(null); setEdgeSel(null); }} onReview={onReview} />}
@@ -491,7 +491,7 @@ function NodeSheet({ gameId, node, container, teams, revealed, onClose }: { game
         {revealed.length === 0 ? <EmptyState inline icon="map" text={t("Перекрёсток ещё никто не открыл.")} /> : (
           <div>
             <p className="muted small">{t("Открыли")}</p>
-            <div className="row mt-1">{revealed.map((tm) => <TeamAvatar key={tm.id} name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName />)}</div>
+            <div className="row mt-1">{revealed.map((tm) => <TeamAvatar key={tm.id} name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName teamId={tm.id} />)}</div>
           </div>
         )}
       </div>

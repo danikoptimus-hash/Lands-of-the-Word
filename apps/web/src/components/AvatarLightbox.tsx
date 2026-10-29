@@ -12,8 +12,8 @@ import type { AwardGrantDto } from "../lib/api";
  * Внутри игры (решение владельца 29.10) — карточка участника: фото крупно, игровой ник, команда и роль, серия и личные
  * награды; данные берутся по id участника и игре из адреса страницы. Закрывается нажатием в любом месте или Esc.
  */
-export function AvatarLightbox({ avatarId, name, userId, teamId, color, onClose }: { avatarId: string | null; name: string; userId?: string; /** Команда игры: карточка с её наградами. */ teamId?: string; color?: string; onClose: () => void }) {
-  const gameId = typeof window !== "undefined" ? /\/games\/([^/]+)/.exec(window.location.pathname)?.[1] : undefined;
+export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: gameIdProp, onClose }: { avatarId: string | null; name: string; userId?: string; /** Команда игры: карточка с её наградами. */ teamId?: string; color?: string; /** Игра, если её нет в адресе страницы. */ gameId?: string; onClose: () => void }) {
+  const gameId = gameIdProp ?? (typeof window !== "undefined" ? /\/games\/([^/]+)/.exec(window.location.pathname)?.[1] : undefined);
   // Карточка из памяти показывается сразу, свежая подгружается следом (просьба владельца 29.10: «каждый раз при открытии
   // подгружается заново»): как у разделов страницы команды.
   const url = gameId && userId ? `/api/games/${gameId}/members/${userId}/card` : null;

@@ -539,7 +539,7 @@ export function TeamPage() {
       <main className="container narrow">
         <Back to={`/games/${id}`} label={t("К странице игры")} />
         <div className="card">
-          <h1 className="row"><TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />{team.name}</h1>
+          <h1 className="row"><TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" teamId={team.id} />{team.name}</h1>
           <p className="muted mt-3">{t("Вы администратор этой игры, а не участник команды. Карта команды с туманом видна только её участникам; вся карта и ход всех команд — на странице игры.")}</p>
           <div className="actions"><Link className="btn" to={`/games/${id}`}><Icon name="map" />{t("К странице игры")}</Link></div>
         </div>
@@ -551,7 +551,7 @@ export function TeamPage() {
       <main className="container narrow bare">
         <Back to="/" label={t("Мои игры")} />
         <div className="card">
-          <h1 className="row"><TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />{team.name}</h1>
+          <h1 className="row"><TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" teamId={team.id} />{team.name}</h1>
           <div className="mt-3">{mapError ? <ErrorState text={mapError} onRetry={() => void loadMap()} /> : <LoadingState rows={3} />}</div>
         </div>
       </main>
@@ -563,7 +563,7 @@ export function TeamPage() {
       <main className="container narrow bare">
         <Back to="/" label={t("Мои игры")} />
         <div className="card">
-          <h1 className="row"><TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />{team.name}</h1>
+          <h1 className="row"><TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" teamId={team.id} />{team.name}</h1>
           {gameName && <p className="muted mt-1">{gameName}</p>}
           {map.status === "FINISHED" ? (
             <>
@@ -853,7 +853,7 @@ export function TeamPage() {
         <div className="hud-left">
           {!wide && <Link to="/" className="btn secondary icon hud-btn" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>}
           <button type="button" className="hud-team" aria-label={team.name}>
-            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} /><span className="name">{team.name}</span>
+            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} teamId={team.id} /><span className="name">{team.name}</span>
           </button>
           {/* Время суток (решение владельца 03.10): ночью только карта, утром отправляют вызов — подсказка у названия команды. */}
           {phase === "night" && <span className="hud-tod night" title={t("Ночь: города спят, дела и испытания ждут утра")}><Icon name="moon" />{t("Ночь до 7:00")}</span>}

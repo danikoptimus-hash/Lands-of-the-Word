@@ -41,7 +41,7 @@ export function TaskReportSheet({ gameId, taskId, container, onClose, onReview, 
     <Sheet size="sm" container={container} onClose={onClose} className="deed-sheet task-report" head={<div className="sheet-title"><h2>{task?.deed.title ?? t("Отчёт по делу")}</h2>{st && <Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>}{task && onShowOnMap && <button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => onShowOnMap({ teamId: task.team.id, taskId: task.id, fromKey: task.fromKey, toKey: task.toKey })}><Icon name="map" /></button>}</div>}>
       {error ? <ErrorState text={error} /> : !task ? <LoadingState rows={3} /> : (
         <>
-          <p className="meta-line"><TeamAvatar name={task.team.name} color={task.team.color} avatarId={task.team.avatarId} size="sm" withName /></p>
+          <p className="meta-line"><TeamAvatar name={task.team.name} color={task.team.color} avatarId={task.team.avatarId} size="sm" withName teamId={task.team.id} /></p>
           <p className="muted small">{PROOF_LABEL[task.deed.proofType]}</p>
           {task.deed.description && <p className="mt-2 small">{task.deed.description}</p>}
           {task.person && <p className="meta-line mt-2"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
@@ -79,7 +79,7 @@ export function EdgeTasksSheet({ gameId, aKey, bKey, container, onClose, onOpenT
           {tasks.map((tk) => { const st = deedStatus(tk.status); return (
             <li key={tk.id}>
               <button type="button" className="row-btn" onClick={() => onOpenTask(tk.id)}>
-                <TeamAvatar name={tk.team.name} color={tk.team.color} avatarId={tk.team.avatarId} size="sm" />
+                <TeamAvatar name={tk.team.name} color={tk.team.color} avatarId={tk.team.avatarId} size="sm" teamId={tk.team.id} />
                 <span className="body">
                   <span className="title">{tk.deed.title}</span>
                   <span className="meta">{tk.team.name}{tk.person ? ` · ${t("кому: {name}", { name: tk.person.name })}` : ""}{tk.takenBy ? ` · ${tk.takenBy.name}` : ""}{tk.submittedAt ? ` · ${fmtDate(tk.submittedAt)}` : ""}</span>

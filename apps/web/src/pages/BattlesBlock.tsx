@@ -57,8 +57,8 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
               <div key={b.id} className="trial">
                 <div className="row between">
                   <div className="sides">
-                    <span className="who"><TeamAvatar name={b.attacker.name} color={b.attacker.color} avatarId={b.attacker.avatarId} size="sm" withName /><Chip tone="warn">{t("вызов")}</Chip></span>
-                    <span className="who"><TeamAvatar name={b.defender.name} color={b.defender.color} avatarId={b.defender.avatarId} size="sm" withName /><Chip tone="info">{t("ответ")}</Chip></span>
+                    <span className="who"><TeamAvatar name={b.attacker.name} color={b.attacker.color} avatarId={b.attacker.avatarId} size="sm" withName teamId={b.attacker.id} /><Chip tone="warn">{t("вызов")}</Chip></span>
+                    <span className="who"><TeamAvatar name={b.defender.name} color={b.defender.color} avatarId={b.defender.avatarId} size="sm" withName teamId={b.defender.id} /><Chip tone="info">{t("ответ")}</Chip></span>
                   </div>
                   <Chip tone={st.tone}>{st.text}</Chip>
                 </div>

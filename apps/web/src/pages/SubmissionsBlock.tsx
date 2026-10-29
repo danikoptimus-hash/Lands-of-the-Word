@@ -117,7 +117,7 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onS
             <li key={r.id} className={"review-item" + (picked.has(r.id) ? " picked" : "")}>
               {rows.length > 1 && !returned && <label className="pick"><input type="checkbox" checked={picked.has(r.id)} onChange={() => togglePick(r.id)} aria-label={t("Выбрать для пакетного принятия")} /></label>}
               <div className="main">
-                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName />{r.donation && <Chip tone="accent">{t("пожертвование {n}", { n: `${r.donationAmount ?? ""} ${currency ?? ""}`.trim() })}</Chip>}</span>
+                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName teamId={r.team.id} />{r.donation && <Chip tone="accent">{t("пожертвование {n}", { n: `${r.donationAmount ?? ""} ${currency ?? ""}`.trim() })}</Chip>}</span>
                 <span className="title">{r.deed.title}</span>
                 {r.person && <span className="meta person-line"><Icon name="user" />{t("Кому: {name}", { name: r.person.name })}</span>}
                 {r.deed.description && <button type="button" className="ghost sm desc-toggle" aria-expanded={descOpen.has(r.id)} onClick={() => toggleDesc(r.id)}><Icon name="scroll" />{t("Описание")}</button>}
@@ -166,7 +166,7 @@ export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string
           {rows.map((r) => (
             <li key={r.id} className="review-item">
               <div className="main">
-                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName /><Chip tone="accent" icon="stone" title={t("Камней за дело")}>{r.stones}</Chip><span className="muted small">· {t("у команды: {n}", { n: r.team.stones })}</span></span>
+                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName teamId={r.team.id} /><Chip tone="accent" icon="stone" title={t("Камней за дело")}>{r.stones}</Chip><span className="muted small">· {t("у команды: {n}", { n: r.team.stones })}</span></span>
                 <span className="title">{r.deed.title}</span>
                 <span className="meta"><span>{t("фото")}</span><span>· {r.by}</span><span>· {fmtDate(r.submittedAt)}</span></span>
                 <span className={"small" + (r.deed.quorumPct != null && r.participants.length < Math.ceil((r.teamSize * r.deed.quorumPct) / 100) ? " warn" : "")}>{t("Были")} ({t("{a} из {b}", { a: r.participants.length, b: r.teamSize })}): {r.participants.join(", ") || "—"}{r.deed.quorumPct != null && <span className="muted"> · {t("нужно не меньше {n}", { n: Math.ceil((r.teamSize * r.deed.quorumPct) / 100) })}</span>}</span>
