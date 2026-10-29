@@ -383,8 +383,9 @@ export async function deedLimitsFor(gameId: string, max: number, userIds: string
   // пока он не пересдал это дело (после пересдачи оно снова в окне по времени взятия).
   // Дело, сданное сразу без взятия, тоже в счёт — по времени сдачи (решение владельца 22.10: летописец сдавал такие дела
   // без ограничения). Участие в групповом деле (галочки) в лимит не идёт: помочь другим после своего дела можно.
+  // Сторона, вымощенная тёсаным камнем, — не дело: в лимит не идёт (ошибка 29.10: у капитана после камня появлялся лимит).
   const rows = await prisma.teamEdgeTask.findMany({
-    where: { gameId, status: { not: "REJECTED" }, takenById: { in: userIds }, ...(excludeTaskId ? { NOT: { id: excludeTaskId } } : {}), OR: [{ takenAt: { gte: since } }, { takenAt: null, submittedAt: { gte: since } }] },
+    where: { gameId, status: { not: "REJECTED" }, paved: false, takenById: { in: userIds }, ...(excludeTaskId ? { NOT: { id: excludeTaskId } } : {}), OR: [{ takenAt: { gte: since } }, { takenAt: null, submittedAt: { gte: since } }] },
     select: { takenById: true },
   });
   const count = new Map<string, number>();

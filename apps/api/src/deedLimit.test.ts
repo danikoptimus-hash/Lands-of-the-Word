@@ -86,4 +86,18 @@ describe("лимит дел без обхода", () => {
     expect((await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: d6.id } })).takenById).toBe(uid.c);
     await prisma.user.deleteMany({ where: { id: dId } });
   });
+  it("вымощенная камнем сторона в лимит не идёт (ошибка 29.10: у капитана после камня появлялся лимит)", async () => {
+    const deed = await prisma.deed.findFirstOrThrow({ where: { gameId, proofType: "PHOTO_LINK", quarry: false } });
+    const d7 = await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: "T:7", toKey: "T:8", deedId: deed.id } });
+    const d8 = await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: "T:8", toKey: "T:9", deedId: deed.id } });
+    // Капитан выбрал лимит прошлым тестом; обнулим: дела прошлых тестов уже сданы, но взяты сегодня — сдвинем их на вчера.
+    await prisma.teamEdgeTask.updateMany({ where: { gameId, takenById: uid.cap }, data: { takenAt: new Date(Date.now() - 2 * 86_400_000), submittedAt: new Date(Date.now() - 2 * 86_400_000) } });
+    expect((await limitOf(ck.cap, uid.cap))?.taken).toBe(0);
+    await prisma.team.update({ where: { id: teamId }, data: { stones: 1 } });
+    expect((await post(`/api/games/${gameId}/edge-tasks/${d7.id}/pave`, ck.cap)).statusCode).toBe(200);
+    expect((await limitOf(ck.cap, uid.cap))?.taken).toBe(0);
+    // После камня дело берётся как обычно.
+    expect((await post(`/api/games/${gameId}/edge-tasks/${d8.id}/take`, ck.cap)).statusCode).toBe(200);
+    expect((await limitOf(ck.cap, uid.cap))?.taken).toBe(1);
+  });
 });

@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Тёсаный камень больше не тратит дневной лимит дел: вымощенная сторона — не дело.": "A hewn stone no longer spends the daily deed limit: a paved side is not a deed.",
   "Дело «Пробежка» убрано из стандартного набора и из идущих игр; взятые и сданные пробежки доигрываются.": "The “Jog” deed was removed from the standard set and from running games; jogs already taken or submitted are played out.",
   "Картинки «Как играть» пересняты днём: плашки ночи на дневных экранах больше нет.": "The “How to play” pictures were reshot by day: no more night badge on daytime screens.",
   "Вступление «о чём игра»: десять экранов с картинками для тех, кто зашёл впервые, ещё до входа; закрывается крестиком, показывается один раз на устройстве, потом открывается кнопкой «О игре» на странице входа и из «Как играть».": "An “about the game” intro: ten illustrated screens for first-time visitors, before signing in; closes with a cross, shows once per device, afterwards opens from the “About the game” button on the sign-in page and from “How to play”.",
