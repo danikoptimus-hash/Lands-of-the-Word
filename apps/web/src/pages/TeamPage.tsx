@@ -5,7 +5,7 @@ import { api, ApiError, apiReady, prefetch, ready, type BattleDto, type DailyBir
 import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
-import { TeamMap, type MarkPoint } from "./TeamMap";
+import { TeamMap, type MarkPoint, type ScoutReveal } from "./TeamMap";
 import { previewPhase, useStorm } from "../lib/daytime";
 import { TimelineDock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
@@ -392,9 +392,16 @@ export function TeamPage() {
     finally { setBusy(false); }
   }
   const peekedKind = (key: string) => map?.peeked?.find((p) => p.key === key)?.kind ?? null;
+  /** Разведка (решение владельца 29.10): вместо слов карта на пять секунд раздвигает туман вокруг перекрёстка и показывает, что там; листы закрываются, чтобы карту было видно. */
+  const [scout, setScout] = useState<ScoutReveal | null>(null);
   async function peek(nodeKey: string) {
     setBusy(true); setError(null);
-    try { const r = await api<{ kind: string }>(`/api/games/${id}/my-map/peek`, { method: "POST", body: JSON.stringify({ nodeKey }) }); notify(r.kind === "CITY" ? t("Разведка: там город") : t("Разведка: там развилка"), "info"); await loadMap(); }
+    try {
+      const r = await api<{ kind: string; bookCode?: string | null; cityType?: string | null }>(`/api/games/${id}/my-map/peek`, { method: "POST", body: JSON.stringify({ nodeKey }) });
+      setFrontierKey(null); setSelectedId(null); setBackTo(null); setMenu(false);
+      setScout({ key: nodeKey, kind: r.kind, bookCode: r.bookCode, cityType: r.cityType, nonce: Date.now() });
+      await loadMap();
+    }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
@@ -801,7 +808,7 @@ export function TeamPage() {
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
-          onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} />
+          onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} scout={scout} />
         )}
         {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
         {map.startedAt && <div className="team-timeline"><TimelineDock moves={moves} startedAt={map.startedAt} at={historyAt} onChange={(d) => { setHistoryAt(d); setSelectedId(null); }} /></div>}

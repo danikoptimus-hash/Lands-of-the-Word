@@ -109,6 +109,9 @@
 .mark-banner button { flex: none; }
 .roster-head .roster-invite { margin-left: auto; }
 .roster-head > span { white-space: nowrap; }
+/* Окно разведки (29.10): то, что за туманом, проявляется вместе с раскрытием тумана и гаснет при смыкании. */
+.m-scout { opacity: 0; transition: opacity .6s ease; }
+.m-scout.on { opacity: 1; }
 .m-peek { pointer-events: none; }
 .m-peek circle { fill: var(--surface); stroke: var(--text); stroke-width: 1.2; }
 .m-peek use { color: var(--text); }

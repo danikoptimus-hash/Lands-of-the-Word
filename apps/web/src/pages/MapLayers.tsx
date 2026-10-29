@@ -351,7 +351,20 @@ function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ 
  * ~24 раза в секунду для дрейфа и сразу при каждом движении карты; только пока вкладка видна;
  * при «уменьшить движение» — без дрейфа. Вид читается из ref, без React.
  */
-export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS, clear = NO_CLEAR, land, light = DAY_LIGHT }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; /** Точки (перекрёстки края тумана), которые должны быть под туманом и без гекса тумана рядом. */ fogPoints?: ReadonlyArray<{ x: number; y: number }>; /** Что туман не закрывает: известные перекрёстки, города и дороги к ним. */ clear?: FogClear; /** Все гексы суши «q,r»: со стороны моря туман накрывает и пляж. */ land?: ReadonlySet<string>; light?: Light }) {
+/** Окно в тумане на время разведки (решение владельца 29.10): центр в координатах карты, радиус, момент начала и сколько держать открытым. */
+export interface FogHole { x: number; y: number; r: number; start: number; hold: number }
+const HOLE_OPEN = 700, HOLE_CLOSE = 700;
+/** Доля раскрытия окна 0…1 к моменту now: плавно открывается, держится, плавно закрывается; null — окна уже нет. */
+export function fogHoleAt(h: FogHole, now: number): number | null {
+  const dt = now - h.start;
+  if (dt < 0) return 0;
+  const ease = (u: number) => 1 - (1 - u) * (1 - u);
+  if (dt < HOLE_OPEN) return ease(dt / HOLE_OPEN);
+  if (dt < HOLE_OPEN + h.hold) return 1;
+  const c = (dt - HOLE_OPEN - h.hold) / HOLE_CLOSE;
+  return c >= 1 ? null : 1 - ease(c);
+}
+export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS, clear = NO_CLEAR, land, light = DAY_LIGHT, hole = null }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; /** Окно разведки: туман вокруг перекрёстка раздвигается и смыкается обратно. */ hole?: FogHole | null; /** Точки (перекрёстки края тумана), которые должны быть под туманом и без гекса тумана рядом. */ fogPoints?: ReadonlyArray<{ x: number; y: number }>; /** Что туман не закрывает: известные перекрёстки, города и дороги к ним. */ clear?: FogClear; /** Все гексы суши «q,r»: со стороны моря туман накрывает и пляж. */ land?: ReadonlySet<string>; light?: Light }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const lightRef = useRef(light); lightRef.current = light;
   const fogKey = fogKeyOf(fogHexes, fogPoints, clear);
@@ -359,6 +372,7 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
   const maskRef = useRef(mask); maskRef.current = mask;
   const dirty = useRef(true); dirty.current = true;
   useEffect(() => { dirty.current = true; }, [light]);
+  const holeRef = useRef(hole); holeRef.current = hole;
 
   useEffect(() => {
     const canvas = ref.current;
@@ -403,13 +417,22 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
       layer(pats.b, size * 7, -1.2, 2.8, 0.9);
       ctx.globalCompositeOperation = "destination-in";
       ctx.drawImage(m.canvas, m.x, m.y, m.w, m.h);
+      // Окно разведки: мягкий круг вырезается из тумана по текущей доле раскрытия.
+      const hole = holeRef.current, f = hole ? fogHoleAt(hole, performance.now()) : null;
+      if (hole && f !== null && f > 0) {
+        const r = hole.r * f;
+        const g = ctx.createRadialGradient(hole.x, hole.y, r * 0.55, hole.x, hole.y, r);
+        g.addColorStop(0, "rgba(0,0,0,1)"); g.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalCompositeOperation = "destination-out";
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hole.x, hole.y, r, 0, Math.PI * 2); ctx.fill();
+      }
       ctx.restore();
     };
     let raf = 0, last = 0;
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
-      const animated = !reduced && maskRef.current;
+      const animated = (!reduced || holeRef.current) && maskRef.current;
       if (!dirty.current && (!animated || t - last < 1000 / 24)) return;
       dirty.current = false; last = t;
       draw(t);

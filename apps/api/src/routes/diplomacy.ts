@@ -230,7 +230,8 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
       prisma.membership.update({ where: { teamId_userId: { teamId: m.team.id, userId: request.user!.id } }, data: { peekedAt: new Date() } }),
     ]);
     publish(id, { type: "map", teamId: m.team.id });
-    return { kind: node.kind };
+    // Что там: карта на пять секунд раздвигает туман и показывает город с названием или пустой перекрёсток (решение владельца 29.10).
+    return { kind: node.kind, bookCode: node.bookCode, cityType: node.cityType };
   });
 
   /** Пророк: раз в неделю открыть подсказку к любому заданию города — текст стихов района (или районов группы). Показывается один раз, только пророку. */
