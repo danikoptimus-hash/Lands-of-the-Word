@@ -4,7 +4,8 @@ import { apiReady, ready, GAME_ROLE_ICON, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type
 import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "./Icon";
-import { AwardBadge } from "../pages/Awards";
+import { AwardBadge, AwardSheet, preloadAwardImages } from "../pages/Awards";
+import type { AwardGrantDto } from "../lib/api";
 
 /**
  * Крупный показ аватарки по нажатию (решение владельца 24.10: «отобразиться по центру экрана крупнее»).
@@ -19,13 +20,15 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, onClose 
   const teamUrl = gameId && teamId ? `/api/games/${gameId}/awards/teams/${teamId}` : null;
   const [card, setCard] = useState<MemberCardDto | null>(() => (url ? ready<MemberCardDto>(url) : null));
   const [teamCard, setTeamCard] = useState<TeamAwardsDto | null>(() => (teamUrl ? ready<TeamAwardsDto>(teamUrl) : null));
-  useEffect(() => { if (teamUrl) apiReady<TeamAwardsDto>(teamUrl).then(setTeamCard).catch(() => {}); }, [teamUrl]);
+  // Описание награды по нажатию на значок (решение владельца 30.10) — и у участников, и у администратора.
+  const [pick, setPick] = useState<AwardGrantDto | null>(null);
+  useEffect(() => { if (teamUrl) apiReady<TeamAwardsDto>(teamUrl).then((d) => { setTeamCard(d); preloadAwardImages(d.awards.map((g) => g.code)); }).catch(() => {}); }, [teamUrl]);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-  useEffect(() => { if (url) apiReady<MemberCardDto>(url).then(setCard).catch(() => {}); }, [url]);
+  useEffect(() => { if (url) apiReady<MemberCardDto>(url).then((d) => { setCard(d); preloadAwardImages(d.awards.map((g) => g.code)); }).catch(() => {}); }, [url]);
   const photo = avatarId ? <img src={`/api/avatars/${avatarId}`} alt={name} /> : <span className="letter" aria-hidden="true" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{name.slice(0, 1).toUpperCase()}</span>;
   if (teamUrl) {
     return createPortal(
@@ -34,10 +37,11 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, onClose 
         <div className="card" onClick={(e) => e.stopPropagation()}>
           <div className="name" style={{ color: "inherit" }}>{name}</div>
           {teamCard && (teamCard.awards.length
-            ? <div className="awards-row">{teamCard.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" />)}</div>
+            ? <div className="awards-row">{teamCard.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" eager onClick={() => setPick(g)} />)}</div>
             : <div className="none">{t("Наград пока нет")}</div>)}
           <button type="button" className="secondary sm" onClick={onClose}>{t("Закрыть")}</button>
         </div>
+        {pick && <AwardSheet code={pick.code} grant={pick} onClose={() => setPick(null)} />}
       </div>,
       document.body,
     );
@@ -60,10 +64,11 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, onClose 
         {card && <div className="sub"><Icon name={card.gameRole !== "NONE" ? GAME_ROLE_ICON[card.gameRole] : card.role === "CAPTAIN" ? "crown" : "user"} />{card.team.name} · {card.gameRole !== "NONE" ? GAME_ROLE_LABEL[card.gameRole] : TEAM_ROLE_LABEL[card.role]}</div>}
         {card && card.streak.current > 0 && <div className="sub"><Icon name="sparkle" />{t("Серия: {n}", { n: plural(card.streak.current, ["день подряд", "дня подряд", "дней подряд"]) })}</div>}
         {card && (card.awards.length
-          ? <div className="awards-row">{card.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" />)}</div>
+          ? <div className="awards-row">{card.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" eager onClick={() => setPick(g)} />)}</div>
           : <div className="none">{t("Наград пока нет")}</div>)}
         <button type="button" className="secondary sm" onClick={onClose}>{t("Закрыть")}</button>
       </div>
+      {pick && <AwardSheet code={pick.code} grant={pick} onClose={() => setPick(null)} />}
     </div>,
     document.body,
   );

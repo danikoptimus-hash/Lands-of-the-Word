@@ -301,3 +301,5 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar-lightbox .card .awards-row { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-1) var(--sp-2); margin-top: var(--sp-1); max-height: 46vh; overflow: auto; }
 .avatar-lightbox .card .awards-row .award { width: 76px; }
 .avatar-lightbox .card .none { color: var(--muted); font-size: var(--fs-sm); margin: var(--sp-1) 0; }
+/* Лист награды из карточки участника (30.10): выше карточки (у неё z-index 1000). */
+.overlay-backdrop:has(> .award-sheet) { z-index: calc(var(--z-modal, 1000) + 5); }

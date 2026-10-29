@@ -19,13 +19,18 @@ export const awardName = (a: AwardDef) => (getLocale() === "en" ? a.nameEn : a.n
 export const awardCond = (a: AwardDef) => (getLocale() === "en" ? a.condEn : a.condRu);
 const streakDaysText = (n: number) => plural(n, ["день подряд", "дня подряд", "дней подряд"]);
 
-export function AwardBadge({ code, earned, count, size = "md", onClick, name = true }: { code: string; earned: boolean; count?: number; size?: "sm" | "md" | "lg"; onClick?: () => void; /** Подпись под значком. */ name?: boolean }) {
+/** Картинки значков подгружаются заранее (просьба владельца 30.10: «награды в профиле подгружаются, это выглядит как глюк»). */
+const warmed = new Set<string>();
+export function preloadAwardImages(codes: Iterable<string>): void {
+  for (const code of codes) { if (warmed.has(code)) continue; warmed.add(code); const im = new Image(); im.decoding = "async"; im.src = `/img/awards/${code}.webp`; }
+}
+export function AwardBadge({ code, earned, count, size = "md", onClick, name = true, eager = false }: { code: string; earned: boolean; count?: number; size?: "sm" | "md" | "lg"; onClick?: () => void; /** Подпись под значком. */ name?: boolean; /** Грузить сразу, не лениво: в карточках и листах. */ eager?: boolean }) {
   const a = AWARD_BY_CODE.get(code);
   if (!a) return null;
   const label = awardName(a);
   const body = (
     <>
-      <span className="award-img"><img src={`/img/awards/${code}.webp`} alt="" loading="lazy" decoding="async" />{earned && a.repeat && (count ?? 0) > 1 && <span className="award-count">×{count}</span>}</span>
+      <span className="award-img"><img src={`/img/awards/${code}.webp`} alt="" loading={eager ? "eager" : "lazy"} decoding="async" />{earned && a.repeat && (count ?? 0) > 1 && <span className="award-count">×{count}</span>}</span>
       {name && <span className="award-name">{label}</span>}
     </>
   );
@@ -35,13 +40,13 @@ export function AwardBadge({ code, earned, count, size = "md", onClick, name = t
 }
 
 /** Лист с подробностями награды. */
-function AwardSheet({ code, grant, onClose }: { code: string; grant?: AwardGrantDto; onClose: () => void }) {
+export function AwardSheet({ code, grant, onClose }: { code: string; grant?: AwardGrantDto; onClose: () => void }) {
   const a = AWARD_BY_CODE.get(code);
   if (!a) return null;
   return (
     <Sheet size="sm" title={awardName(a)} onClose={onClose} className="award-sheet">
       <div className="award-detail">
-        <AwardBadge code={code} earned={Boolean(grant)} count={grant?.count} size="lg" name={false} />
+        <AwardBadge code={code} earned={Boolean(grant)} count={grant?.count} size="lg" name={false} eager />
         <p className="award-cond">{awardCond(a)}</p>
         {grant
           ? a.repeat && grant.count > 1
@@ -154,7 +159,7 @@ export function MilestoneCard({ code, onOpen, onClose }: { code: string; onOpen:
         <span className="milestone-rays" aria-hidden="true" />
         <span className="milestone-confetti" aria-hidden="true">{Array.from({ length: 14 }, (_, i) => <i key={i} style={{ ["--i" as string]: i }} />)}</span>
         <div className="milestone-kicker">{t("Рубеж серии")}</div>
-        <AwardBadge code={code} earned size="lg" name={false} />
+        <AwardBadge code={code} earned size="lg" name={false} eager />
         <h3>{t("«{name}» — {n}", { name: awardName(a), n: streakDaysText(a.streakDays ?? 0) })}</h3>
         <p>{awardCond(a)}{next ? `. ${t("Следующий рубеж — «{name}», {n}", { name: awardName(next), n: streakDaysText(next.streakDays ?? 0) })}` : ""}</p>
         <div className="row">
@@ -179,7 +184,8 @@ export function AdminAwards({ gameId, version }: { gameId: string; version: numb
   const [tab, setTab] = useState<"teams" | "members">("teams");
   const [teamId, setTeamId] = useState<string | null>(null);
   const [pick, setPick] = useState<string | null>(null);
-  useEffect(() => { apiReady<AdminAwardsDto>(url).then(setData).catch(() => {}); }, [url, version]);
+  const [memberPick, setMemberPick] = useState<{ code: string; grant?: AwardGrantDto } | null>(null);
+  useEffect(() => { apiReady<AdminAwardsDto>(url).then((d) => { setData(d); preloadAwardImages(d.members.flatMap((m) => m.awards.map((g) => g.code))); }).catch(() => {}); }, [url, version]);
   if (!data) return <div className="card"><LoadingState rows={2} /></div>;
   const team = data.teams.find((t) => t.id === teamId) ?? data.teams[0] ?? null;
   const got = team ? team.awards.filter((g) => TEAM_AWARDS.some((d) => d.code === g.code)).length : 0;
@@ -211,11 +217,12 @@ export function AdminAwards({ gameId, version }: { gameId: string; version: numb
                   {m.streak.current > 0 && <span className="streak-chip" title={t("Серия: {n}", { n: streakDaysText(m.streak.current) })}><img src="/img/awards/p_streak_10.webp" alt="" />{m.streak.current}</span>}
                 </span>
               </div>
-              <div className="side award-row">{m.awards.length ? m.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" name={false} />) : <span className="muted small">{t("Наград пока нет")}</span>}</div>
+              <div className="side award-row">{m.awards.length ? m.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" name={false} eager onClick={() => setMemberPick({ code: g.code, grant: g })} />) : <span className="muted small">{t("Наград пока нет")}</span>}</div>
             </li>
           ))}
         </ul>
       ))}
+      {memberPick && <AwardSheet code={memberPick.code} grant={memberPick.grant} onClose={() => setMemberPick(null)} />}
     </div>
   );
 }

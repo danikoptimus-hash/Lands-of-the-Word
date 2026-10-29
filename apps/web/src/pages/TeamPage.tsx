@@ -6,7 +6,7 @@ import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
 import { TeamMap, type MarkPoint, type ScoutReveal } from "./TeamMap";
-import { AwardsSection, MilestoneCard, StreakBanner, awardsCached } from "./Awards";
+import { AwardsSection, MilestoneCard, StreakBanner, awardsCached, preloadAwardImages } from "./Awards";
 import { AWARD_BY_CODE } from "@lotw/domain";
 import { previewPhase, useStorm } from "../lib/daytime";
 import { TimelineDock } from "./Timeline";
@@ -211,7 +211,7 @@ export function TeamPage() {
   const [streakShow, setStreakShow] = useState(false);
   const [milestone, setMilestone] = useState<string | null>(null);
   const [awardsSeen, setAwardsSeen] = useState(() => { try { return Number(localStorage.getItem(`lotw.awards.seen.${id}`) ?? 0); } catch { return 0; } });
-  useEffect(() => { apiReady<AwardsDto>(`/api/games/${id}/awards`).then(setAwards).catch(() => {}); }, [id, awardsVersion]);
+  useEffect(() => { apiReady<AwardsDto>(`/api/games/${id}/awards`).then((d) => { setAwards(d); preloadAwardImages(["p_streak_10", ...d.team.map((g) => g.code), ...d.mine.map((g) => g.code)]); }).catch(() => {}); }, [id, awardsVersion]);
   useEffect(() => {
     if (!awards) return;
     const s = awards.streak;

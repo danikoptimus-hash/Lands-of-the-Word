@@ -1,12 +1,17 @@
 import { useState } from "react";
 import { AvatarLightbox } from "./AvatarLightbox";
-import { prefetch } from "../lib/api";
+import { apiReady, ready, type MemberCardDto } from "../lib/api";
+import { preloadAwardImages } from "../pages/Awards";
 
 /** Карточка участника запрашивается заранее, как только палец или курсор коснулся аватарки: к открытию она уже в памяти. */
 function warm(userId?: string): void {
   if (!userId) return;
   const gameId = /\/games\/([^/]+)/.exec(window.location.pathname)?.[1];
-  if (gameId) prefetch([`/api/games/${gameId}/members/${userId}/card`]);
+  if (!gameId) return;
+  const url = `/api/games/${gameId}/members/${userId}/card`;
+  const got = ready<MemberCardDto>(url);
+  if (got) preloadAwardImages(got.awards.map((g) => g.code));
+  else void apiReady<MemberCardDto>(url).then((d) => preloadAwardImages(d.awards.map((g) => g.code))).catch(() => {});
 }
 
 /**
