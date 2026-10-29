@@ -200,14 +200,8 @@ export function GamePage() {
           <button key={s.key} type="button" className={"dock-btn" + (open === s.key ? " on" : "")} aria-pressed={open === s.key} onClick={() => setTab(open === s.key ? "map" : s.key)}>
             <Icon name={s.icon} />
             <span className="lbl">{s.label}</span>
-            {s.count2 === undefined
-              ? (s.count ? <span className={"badge" + (s.hot ? " hot" : "")}>{s.count}</span> : null)
-              : (s.count || s.count2) ? (
-                <span className="badges">
-                  {s.count2 ? <span className="badge hot visits" title={s.count2Label} aria-label={s.count2Label}><Icon name="city" />{s.count2}</span> : null}
-                  {s.count ? <span className="badge hot deeds"><Icon name="scroll" />{s.count}</span> : null}
-                </span>
-              ) : null}
+            {s.count ? <span className={"badge" + (s.hot ? " hot" : "") + (s.count2 !== undefined ? " deeds" : "")}>{s.count2 !== undefined && <Icon name="scroll" />}{s.count}</span> : null}
+            {s.count2 ? <span className="badge hot visits" title={s.count2Label} aria-label={s.count2Label}><Icon name="city" />{s.count2}</span> : null}
           </button>
         ))}
       </nav>
