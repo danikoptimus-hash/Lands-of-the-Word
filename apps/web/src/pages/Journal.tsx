@@ -276,7 +276,7 @@ export function SeasonBookPage() {
       <section>
         <h2>{t("Положение команд")}</h2>
         <ol className="book-standings">
-          {book.standings.map((s, i) => <li key={s.teamId}><span className="rank">{i + 1}</span><TeamAvatar name={s.name} color={s.color} avatarId={s.avatarId} size="sm" withName /><span className="meta">{plural(s.cities, ["город", "города", "городов"])} · {plural(s.deedsApproved, ["дело", "дела", "дел"])}{s.status === "defeated" ? ` · ${t("выбыла")}` : ""}</span></li>)}
+          {book.standings.map((s, i) => <li key={s.teamId}><span className="rank">{i + 1}</span><TeamAvatar name={s.name} color={s.color} avatarId={s.avatarId} size="sm" withName teamId={s.teamId} /><span className="meta">{plural(s.cities, ["город", "города", "городов"])} · {plural(s.deedsApproved, ["дело", "дела", "дел"])}{s.status === "defeated" ? ` · ${t("выбыла")}` : ""}</span></li>)}
         </ol>
       </section>
       {book.teams.map((tm) => (

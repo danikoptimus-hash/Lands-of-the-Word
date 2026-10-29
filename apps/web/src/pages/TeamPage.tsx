@@ -74,7 +74,7 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
             <span className="rank">{st.teamId === standings.winnerTeamId ? <Icon name="trophy" /> : i + 1}</span>
             <div className="body">
               <div className="name">
-                <TeamAvatar name={st.name} color={st.color} avatarId={st.avatarId} size="sm" withName />
+                <TeamAvatar name={st.name} color={st.color} avatarId={st.avatarId} size="sm" withName teamId={st.teamId} />
                 {st.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : st.teamId === standings.winnerTeamId ? <Chip tone="ok" icon="trophy">{t("победитель")}</Chip> : st.teamId === teamId ? <Chip tone="accent">{t("мы")}</Chip> : null}
                 {pc?.state === "peace" && <Chip tone="ok" icon="handshake">{peaceTerm(pc) ? `${t("мир")} ${peaceTerm(pc)}` : t("мир")}</Chip>}
                 {pc?.state === "offered" && <Chip tone="info" icon="handshake">{peaceTerm(pc) ? `${t("мир предложен")} ${peaceTerm(pc)}` : t("мир предложен")}</Chip>}
@@ -611,6 +611,11 @@ export function TeamPage() {
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (wide) return;
+    // Полоса, которая сама листается вбок (чипы команд в «Наградах», вкладки), свайп не отдаёт панели (владелец 29.10:
+    // «двигаю табы команд в наградах — закрывается вкладка и выходит на карту»).
+    for (let el = e.target as HTMLElement | null; el && el !== e.currentTarget; el = el.parentElement) {
+      if (el.scrollWidth > el.clientWidth + 1 && /auto|scroll/.test(getComputedStyle(el).overflowX)) { swipe.current = null; return; }
+    }
     const tp = e.touches[0]!;
     swipe.current = { x: tp.clientX, y: tp.clientY, edge: tp.clientX < 40 || menu };
   };
@@ -670,7 +675,7 @@ export function TeamPage() {
           {/* Шапка команды и заголовок раздела прилипают вместе одним блоком (решение владельца 24.10: «листаю список внизу, а заголовок и подзаголовок видны так же, как до того»). */}
           <div className="side-top">
           <div className="side-head" style={{ ["--team" as string]: team.color }}>
-            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" />
+            <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" teamId={team.id} />
             <div className="grow"><div className="side-name">{team.name}</div>{isCaptain && <div className="muted small">{t("вы капитан")}</div>}</div>
             {(map?.team.stones ?? 0) > 0 && <button type="button" className="chip-btn" title={t("Тёсаные камни Каменоломни: один камень мостит одну дорогу")} aria-label={t("Камней: {n}", { n: map?.team.stones ?? 0 })} onClick={() => { setQuarryOpen(true); setMenu(false); }}><Chip tone="accent" icon="stone">{map?.team.stones}</Chip></button>}
             <button type="button" className="ghost icon" onClick={closeMenu} aria-label={t("Закрыть")}><Icon name="x" /></button>

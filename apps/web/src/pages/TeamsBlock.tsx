@@ -146,7 +146,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
         <div key={tm.id} className={"team-block" + (isOpen ? " open" : "") + (st?.status === "defeated" ? " out" : "")}>
           <div className="team-head" role="button" tabIndex={0} aria-expanded={isOpen} onClick={toggle} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); } }}>
             {st && <span className="rank">{rank}</span>}
-            <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} />
+            <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} teamId={tm.id} />
             <div className="body">
               <div className="name">{tm.name}
                 {st?.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : standings?.leaderTeamId === tm.id ? <Chip tone="accent">{t("лидер")}</Chip> : null}
@@ -231,7 +231,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
           <p className="hint">{t("В какую команду?")}</p>
           <ul className="list">
             {(teams ?? []).filter((tm) => tm.id !== moving.teamId && tm.status !== "defeated").map((tm) => (
-              <li key={tm.id}><div className="main"><TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} withName /></div><div className="side"><button type="button" className="sm" onClick={() => void moveTo(tm)}>{t("Перевести")}</button></div></li>
+              <li key={tm.id}><div className="main"><TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} withName teamId={tm.id} /></div><div className="side"><button type="button" className="sm" onClick={() => void moveTo(tm)}>{t("Перевести")}</button></div></li>
             ))}
           </ul>
         </Sheet>

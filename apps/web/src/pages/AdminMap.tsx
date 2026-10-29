@@ -430,7 +430,7 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
                   {/* Раскрывашка команды (просьба владельца 10.10): участники и сколько заданий города каждый решил сам. */}
                   <details className="city-team-fold">
                     <summary>
-                      <div className="main"><TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName /></div>
+                      <div className="main"><TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" withName teamId={tm.id} /></div>
                       <span className="side muted small">
                         {tm.minBid != null && <Chip icon="sword" title={t("Минимальная ставка этой команды для вызова: {n} стихов", { n: tm.minBid })}>{tm.minBid}</Chip>}
                         {tm.capturedAt ? (tm.isCapital ? t("столица здесь") : t("взяла город"))

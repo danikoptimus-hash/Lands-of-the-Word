@@ -5,9 +5,9 @@ import { AvatarLightbox } from "./AvatarLightbox";
  * Команда всегда показывается одинаково: кружок цвета команды с первой буквой (или фото команды, решение владельца 24.10)
  * + название рядом (по желанию). Нажатие на фото показывает его крупно (zoom; выключается внутри кнопок).
  */
-export function TeamAvatar({ name, color, avatarId, size, withName = false, title, zoom = true }: { name: string; color: string; /** Аватарка команды, если капитан её поставил. */ avatarId?: string | null; size?: "sm" | "lg"; withName?: boolean; /** Подсказка с названием команды, когда названия словами рядом нет. */ title?: string; zoom?: boolean }) {
+export function TeamAvatar({ name, color, avatarId, size, withName = false, title, zoom = true, teamId }: { /** Команда игры: по нажатию карточка с её наградами (решение владельца 29.10), даже без фото. */ teamId?: string; name: string; color: string; /** Аватарка команды, если капитан её поставил. */ avatarId?: string | null; size?: "sm" | "lg"; withName?: boolean; /** Подсказка с названием команды, когда названия словами рядом нет. */ title?: string; zoom?: boolean }) {
   const [open, setOpen] = useState(false);
-  const canZoom = Boolean(avatarId) && zoom;
+  const canZoom = (Boolean(avatarId) || Boolean(teamId)) && zoom;
   const a = (
     <span
       className={"avatar team" + (size ? " " + size : "") + (avatarId ? " photo" : "") + (canZoom ? " zoomable" : "")}
@@ -20,7 +20,7 @@ export function TeamAvatar({ name, color, avatarId, size, withName = false, titl
       {avatarId ? <img src={`/api/avatars/${avatarId}`} alt="" loading="lazy" decoding="async" /> : name.slice(0, 1).toUpperCase()}
     </span>
   );
-  const box = open && avatarId ? <AvatarLightbox avatarId={avatarId} name={name} onClose={() => setOpen(false)} /> : null;
+  const box = open && canZoom ? <AvatarLightbox avatarId={avatarId ?? null} name={name} teamId={teamId} color={color} onClose={() => setOpen(false)} /> : null;
   if (!withName) return <>{a}{box}</>;
   return <span className="person">{a}<span className="name">{name}</span>{box}</span>;
 }

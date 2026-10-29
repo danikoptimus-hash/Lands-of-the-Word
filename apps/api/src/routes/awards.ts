@@ -3,6 +3,8 @@ import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { requireMember } from "./teamMap.js";
+import { adminOrObserver } from "../services/access.js";
+import type { FastifyReply, FastifyRequest } from "fastify";
 import { summarize, userStreak } from "../services/awards.js";
 
 /**
@@ -10,6 +12,16 @@ import { summarize, userStreak } from "../services/awards.js";
  * по нажатию на аватарку (фото, игровой ник, команда и роль, личные награды). Каталог наград лежит в @lotw/domain
  * и на клиенте тот же, сервер отдаёт только полученное: код, сколько раз, когда.
  */
+/** Участник игры или её администратор (владелец 29.10: «почему админы не видят награды?!»): иначе 403. */
+async function requireMemberOrAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string): Promise<boolean> {
+  const m = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId } }, select: { teamId: true } });
+  if (m) return true;
+  const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: { select: { userId: true } } } });
+  if (game && adminOrObserver(request, game.admins)) return true;
+  await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не состоите в команде этой игры") });
+  return false;
+}
+
 export async function awardRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireUser);
 
@@ -39,8 +51,7 @@ export async function awardRoutes(app: FastifyInstance) {
   /** Награды другой команды той же игры. */
   app.get("/api/games/:id/awards/teams/:teamId", async (request, reply) => {
     const { id, teamId } = request.params as { id: string; teamId: string };
-    const m = await requireMember(request, reply, id);
-    if (!m) return;
+    if (!(await requireMemberOrAdmin(request, reply, id))) return;
     const team = await prisma.team.findFirst({ where: { id: teamId, gameId: id }, select: { id: true, name: true, color: true, avatarId: true } });
     if (!team) return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
     const rows = await prisma.awardGrant.findMany({ where: { gameId: id, teamId, userId: "" }, select: { code: true, at: true } });
@@ -50,8 +61,7 @@ export async function awardRoutes(app: FastifyInstance) {
   /** Карточка участника: видна любому участнику игры. Ник — игровой (как в списках команды), без почты. */
   app.get("/api/games/:id/members/:userId/card", async (request, reply) => {
     const { id, userId } = request.params as { id: string; userId: string };
-    const m = await requireMember(request, reply, id);
-    if (!m) return;
+    if (!(await requireMemberOrAdmin(request, reply, id))) return;
     const member = await prisma.membership.findFirst({ where: { userId, team: { gameId: id } }, select: { role: true, gameRole: true, user: { select: { nickname: true, displayName: true, avatarId: true } }, team: { select: { id: true, name: true, color: true } } } });
     if (!member) return reply.code(404).send({ error: "not_found", message: err(request, "Участник не найден") });
     const [rows, streak] = await Promise.all([
