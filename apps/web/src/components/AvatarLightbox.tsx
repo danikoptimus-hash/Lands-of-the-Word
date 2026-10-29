@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, GAME_ROLE_ICON, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type MemberCardDto } from "../lib/api";
+import { apiReady, ready, GAME_ROLE_ICON, GAME_ROLE_LABEL, TEAM_ROLE_LABEL, type MemberCardDto } from "../lib/api";
 import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "./Icon";
@@ -13,13 +13,16 @@ import { AwardBadge } from "../pages/Awards";
  */
 export function AvatarLightbox({ avatarId, name, userId, onClose }: { avatarId: string | null; name: string; userId?: string; onClose: () => void }) {
   const gameId = typeof window !== "undefined" ? /\/games\/([^/]+)/.exec(window.location.pathname)?.[1] : undefined;
-  const [card, setCard] = useState<MemberCardDto | null>(null);
+  // Карточка из памяти показывается сразу, свежая подгружается следом (просьба владельца 29.10: «каждый раз при открытии
+  // подгружается заново»): как у разделов страницы команды.
+  const url = gameId && userId ? `/api/games/${gameId}/members/${userId}/card` : null;
+  const [card, setCard] = useState<MemberCardDto | null>(() => (url ? ready<MemberCardDto>(url) : null));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
-  useEffect(() => { if (gameId && userId) api<MemberCardDto>(`/api/games/${gameId}/members/${userId}/card`).then(setCard).catch(() => {}); }, [gameId, userId]);
+  useEffect(() => { if (url) apiReady<MemberCardDto>(url).then(setCard).catch(() => {}); }, [url]);
   const photo = avatarId ? <img src={`/api/avatars/${avatarId}`} alt={name} /> : <span className="letter" aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span>;
   if (!gameId || !userId) {
     return createPortal(
