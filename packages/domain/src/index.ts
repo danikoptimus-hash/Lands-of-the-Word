@@ -11,3 +11,4 @@ export * from "./daytime.js";
 export * from "./seaRoute.js";
 export * from "./storm.js";
 export * from "./fireworks.js";
+export * from "./awards.js";
