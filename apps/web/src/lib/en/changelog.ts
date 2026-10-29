@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Дело из списка показывается на карте: панель раздела прячется, карта и дело видны. При повторном открытии раздела список стоит на том же месте, где остановились.": "A deed from the list is shown on the map: the section panel hides, the map and the deed are visible. Reopening a section brings the list back to where you stopped.",
   "В разделах «Летопись» и «Моё служение» заголовок больше не повторяется дважды.": "The “Chronicle” and “My service” sections no longer repeat their heading twice.",
   "«Ранняя птица» даётся за одно дело, взятое утром и сданное в то же утро до 9 часов, а не за пять.": "“Early Bird” is now earned for one deed taken in the morning and submitted the same morning before 9 a.m., not five.",
   "Карту команды можно приближать почти вдвое сильнее, чем раньше.": "The team map can be zoomed in almost twice as far as before.",

@@ -278,13 +278,19 @@ export function TeamPage() {
   const [restore, setRestore] = useState<{ top: number; bodyTop: number } | null>(null);
   const sideRef = useRef<HTMLElement | null>(null);
   const sideBodyRef = useRef<HTMLDivElement | null>(null);
-  // Прокрутка восстанавливается, когда меню снова на экране (до отрисовки кадра, чтобы список не прыгал).
+  // Прокрутка восстанавливается, когда панель раздела снова на экране (до отрисовки кадра, чтобы список не прыгал).
   useLayoutEffect(() => {
-    if (!restore || !menu) return;
+    if (!restore || menuView === "home") return;
     if (sideRef.current) sideRef.current.scrollTop = restore.top;
     if (sideBodyRef.current) sideBodyRef.current.scrollTop = restore.bodyTop;
     setRestore(null);
-  }, [restore, menu]);
+  }, [restore, menuView]);
+  // Где остановился в каждом разделе (решение владельца 30.10: «если я опять нажму на плитку дела, то я должен оказаться
+  // на том же месте списка дел, где остановился в прошлый раз»): прокрутка запоминается при листании и возвращается при
+  // следующем открытии раздела с плитки.
+  const scrollMemo = useRef<Partial<Record<MenuView, { top: number; bodyTop: number }>>>({});
+  const rememberScroll = () => { if (menuView !== "home") scrollMemo.current[menuView] = { top: sideRef.current?.scrollTop ?? 0, bodyTop: sideBodyRef.current?.scrollTop ?? 0 }; };
+  const openView = (key: MenuView) => { setSelectedId(null); setMenuView(key); const m = scrollMemo.current[key]; if (m) setRestore(m); };
 
   const loadStandings = useCallback(() => api<StandingsDto>(`/api/games/${id}/standings`).then(setStandings).catch(() => {}), [id]);
   const loadPassages = useCallback(() => api<PassagesDto>(`/api/games/${id}/my-passages`).then(setPassages).catch(() => {}), [id]);
@@ -607,7 +613,7 @@ export function TeamPage() {
   const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length, awards: Math.max(0, awardsTotal - awardsSeen) };
   /** На компьютере (решение владельца 05.10, вечер): плитки разделов висят над картой, панель открыта только пока выбран раздел; «home» — панель закрыта. */
   const view: MenuView = menuView;
-  const toggleView = (key: MenuView) => setMenuView((v) => (wide && v === key ? "home" : key));
+  const toggleView = (key: MenuView) => { if (wide && menuView === key) { rememberScroll(); setMenuView("home"); } else openView(key); };
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (wide) return;
@@ -633,9 +639,11 @@ export function TeamPage() {
     if (await act(`/api/games/${id}/edge-tasks/${taskId}/pave`)) { notify(t("Дорога вымощена: перекрёсток открыт")); setSelectedId(null); }
   }
   const openCity = (key: string) => { setCityKey(key); setSelectedId(null); setFrontierKey(null); setMenu(false); };
-  const openTask = (tid: string | null) => { setSelectedId(tid); setBackTo(null); if (tid) { setMenu(false); setFrontierKey(null); } };
+  // На телефоне открытие дела прячет панель раздела: карта и лист дела должны быть видны (владелец 30.10: «нажимаю на
+  // «посмотреть на карте» и ничего не происходит!!! нужно, чтобы все менюшки прятались и на карте показалось дело»).
+  const openTask = (tid: string | null) => { setSelectedId(tid); setBackTo(null); if (tid) { if (!wide) { rememberScroll(); setMenuView("home"); } setFrontierKey(null); } };
   const showOnMap = (tid: string) => {
-    const from = !wide && menu ? { view: menuView, top: sideRef.current?.scrollTop ?? 0, bodyTop: sideBodyRef.current?.scrollTop ?? 0 } : null;
+    const from = !wide && menuView !== "home" ? { view: menuView, top: sideRef.current?.scrollTop ?? 0, bodyTop: sideBodyRef.current?.scrollTop ?? 0 } : null;
     openTask(tid);
     setBackTo(from);
     setFocusTask({ id: tid, nonce: Date.now() });
@@ -643,12 +651,12 @@ export function TeamPage() {
   const closeTask = () => {
     setSelectedId(null);
     if (!backTo) return;
-    setMenuView(backTo.view); setMenu(true); setRestore({ top: backTo.top, bodyTop: backTo.bodyTop }); setBackTo(null);
+    setMenuView(backTo.view); setRestore({ top: backTo.top, bodyTop: backTo.bodyTop }); setBackTo(null);
   };
   // Телефон по схеме администратора (решение владельца 29.10): бокового меню нет, разделы открываются из дока внизу
   // листом над картой; стрелка слева вверху ведёт в «Мои игры». Состояние `menu` осталось для совместимости вызовов.
   const menuOpen = !storm.active && menuView !== "home";
-  const closeMenu = () => setMenuView("home");
+  const closeMenu = () => { rememberScroll(); setMenuView("home"); };
   // Порядок плиток дока (решение владельца 30.10, слева направо): испытания, внимание, служение, команды, летопись, дела.
   const DOCK_ORDER: MenuView[] = ["battles", "attention", "service", "standings", "feed", "deeds"];
   const dockItems = DOCK_ORDER.map((k) => MENU_ITEMS.find((m) => m.key === k)!);
@@ -674,8 +682,8 @@ export function TeamPage() {
         </nav>
       )}
       {menuOpen && (
-        <aside ref={sideRef} className={"side-menu" + (wide ? " with-rail" : "")} role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")}>
-          <div className="side-body" ref={sideBodyRef}>
+        <aside ref={sideRef} className={"side-menu" + (wide ? " with-rail" : "")} role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")} onScroll={rememberScroll}>
+          <div className="side-body" ref={sideBodyRef} onScroll={rememberScroll}>
           {/* Шапка команды и заголовок раздела прилипают вместе одним блоком (решение владельца 24.10: «листаю список внизу, а заголовок и подзаголовок видны так же, как до того»). */}
           <div className="side-top">
           <div className="side-head" style={{ ["--team" as string]: team.color }}>
@@ -828,7 +836,7 @@ export function TeamPage() {
         {!wide && (
           <nav className="admin-dock team-dock" aria-label={t("Разделы")}>
             {dockItems.map((m) => { const n = menuCounts[m.key] ?? 0; return (
-              <button key={m.key} type="button" className={"dock-btn" + (menuView === m.key ? " on" : "")} aria-pressed={menuView === m.key} onClick={() => { setSelectedId(null); setMenuView((v) => (v === m.key ? "home" : m.key)); }}>
+              <button key={m.key} type="button" className={"dock-btn" + (menuView === m.key ? " on" : "")} aria-pressed={menuView === m.key} onClick={() => { if (menuView === m.key) { rememberScroll(); setMenuView("home"); } else openView(m.key); }}>
                 <Icon name={m.icon} /><span className="lbl">{(m.short ?? m.label)()}</span>
                 {n > 0 && <span className={"badge" + (m.hot ? " hot" : "")}>{n}</span>}
               </button>
