@@ -623,3 +623,65 @@
 /* Раздел «Обмен городами» без сделок не показывается (кнопка ушла в меню «⋯» строки команды, 24.10); лист формы остаётся. */
 .section.trades.empty { display: none; }
 .standing .chips .help-pop-wrap > .pop-btn { appearance: none; border: 0; background: none; padding: 0; margin: 0; min-height: 0; box-shadow: none; font: inherit; cursor: pointer; display: inline-flex; }
+
+/* Зал наград и серия дней (решение владельца 29.10). Значки — картинки медальонов, не взятые — серые. */
+.awards .tabs { margin-bottom: var(--sp-2); }
+.award-teams { display: flex; gap: var(--sp-1); overflow-x: auto; padding: 2px 0 var(--sp-2); scrollbar-width: none; }
+.award-teams::-webkit-scrollbar { display: none; }
+.award-teams .chip-btn { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 0 10px 0 4px; min-height: 36px; border: 1px solid var(--border); border-radius: var(--r-full); background: var(--surface-2); font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; }
+.award-teams .chip-btn.on { background: var(--paper-light); border-color: var(--accent); color: var(--text); font-weight: 600; }
+.award-teams .chip-btn .count-chip { margin-left: 2px; }
+.award-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2); margin: var(--sp-2) 0 var(--sp-1); }
+.award-head b { font-family: var(--font-display); font-size: var(--fs-md); }
+.award-head small { font-size: var(--fs-xs); }
+.award-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: var(--sp-3) var(--sp-1); }
+.award { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 2px 0; min-width: 0; width: 100%; background: transparent; border: 0; min-height: 0; color: var(--text); text-align: center; box-shadow: none; white-space: normal; }
+.award:hover { background: transparent; }
+.award-img { position: relative; display: block; width: 64px; height: 64px; }
+.award.sm .award-img { width: 48px; height: 48px; }
+.award.lg .award-img { width: 128px; height: 128px; }
+.award-img img { width: 100%; height: 100%; display: block; filter: drop-shadow(0 2px 4px rgba(43, 29, 18, .25)); }
+.award.locked .award-img img { filter: grayscale(1) opacity(.42); }
+.award.locked .award-name { color: var(--ink-3); }
+.award-name { font-size: 11px; font-weight: 600; line-height: 1.2; max-width: 100%; overflow-wrap: anywhere; }
+.award-count { position: absolute; right: -4px; bottom: -2px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700; line-height: 22px; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
+.award-detail { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--sp-2); padding: var(--sp-2) 0; }
+.award-cond { margin: 0; font-size: var(--fs-md); }
+/* Серия: карточка в «Моих» и плашка над картой. */
+.streak-card, .streak-banner .streak-main { display: flex; align-items: center; gap: var(--sp-3); }
+.streak-card { padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--paper-light); margin-bottom: var(--sp-2); }
+.streak-card b, .streak-banner b { display: block; font-family: var(--font-display); font-size: var(--fs-md); line-height: 1.2; }
+.streak-card small, .streak-banner small { display: block; color: var(--muted); font-size: var(--fs-xs); }
+.streak-flame { position: relative; flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; }
+.streak-flame img { width: 100%; height: 100%; filter: grayscale(1) opacity(.5); }
+.streak-flame.lit img { filter: none; }
+.streak-flame.lit::before { content: ""; position: absolute; inset: -8px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 179, 92, .55), rgba(224, 179, 92, 0) 70%); animation: streakGlow 2.2s ease-in-out infinite; }
+@keyframes streakGlow { 0%, 100% { transform: scale(.85); opacity: .7; } 50% { transform: scale(1.1); opacity: 1; } }
+.streak-bar { height: 8px; margin: 6px 0 4px; border-radius: 4px; background: var(--paper-2); border: 1px solid var(--border); overflow: hidden; }
+.streak-bar i { display: block; height: 100%; background: linear-gradient(90deg, #C99A4E, #E0B35C); transition: width var(--dur-slow); }
+.streak-banner { position: absolute; z-index: 6; left: calc(var(--sp-3) + var(--safe-left)); right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top) + 52px); display: flex; align-items: center; gap: var(--sp-1); padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--paper); box-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, .28)); animation: streakIn var(--dur-slow) var(--ease-out); }
+@media (min-width: 900px) { .streak-banner { left: auto; right: calc(var(--sp-3) + var(--safe-right)); width: 360px; } }
+@keyframes streakIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
+.streak-banner .streak-main { flex: 1; min-width: 0; padding: 0; background: transparent; border: 0; min-height: 0; color: var(--text); text-align: left; box-shadow: none; }
+.streak-banner .streak-main:hover { background: transparent; }
+.streak-dots { display: flex; gap: 3px; margin-top: 5px; }
+.streak-dots i { width: 16px; height: 6px; border-radius: 3px; background: var(--paper-2); border: 1px solid var(--border); }
+.streak-dots i.on { background: var(--accent); border-color: var(--accent-strong); }
+/* Праздник рубежа серии: карточка в центре карты, лучи и конфетти. */
+.milestone-backdrop { position: absolute; inset: 0; z-index: 7; display: grid; place-items: center; padding: var(--sp-4); background: rgba(30, 26, 20, .45); animation: fadeIn var(--dur-base); }
+.milestone { position: relative; overflow: hidden; width: min(100%, 380px); padding: var(--sp-4) var(--sp-4) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--paper); text-align: center; box-shadow: 0 24px 60px rgba(0, 0, 0, .4); display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); animation: milestoneIn .5s var(--ease-out); }
+@keyframes milestoneIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
+.milestone-kicker { font-size: var(--fs-xs); font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink-3); }
+.milestone h3 { margin: 0; font-size: var(--fs-xl); line-height: 1.15; }
+.milestone p { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.milestone .row { display: flex; gap: var(--sp-2); justify-content: center; margin-top: var(--sp-1); }
+.milestone-rays { position: absolute; left: 50%; top: 118px; width: 420px; height: 420px; margin: -210px 0 0 -210px; pointer-events: none; z-index: 0; background: conic-gradient(from 0deg, rgba(224, 179, 92, 0) 0 8%, rgba(224, 179, 92, .22) 12%, rgba(224, 179, 92, 0) 16%, rgba(224, 179, 92, 0) 28%, rgba(224, 179, 92, .22) 32%, rgba(224, 179, 92, 0) 36%, rgba(224, 179, 92, 0) 48%, rgba(224, 179, 92, .22) 52%, rgba(224, 179, 92, 0) 56%, rgba(224, 179, 92, 0) 68%, rgba(224, 179, 92, .22) 72%, rgba(224, 179, 92, 0) 76%, rgba(224, 179, 92, 0) 88%, rgba(224, 179, 92, .22) 92%, rgba(224, 179, 92, 0) 96%); border-radius: 50%; animation: raysSpin 18s linear infinite; }
+@keyframes raysSpin { to { transform: rotate(360deg); } }
+.milestone > :not(.milestone-rays):not(.milestone-confetti) { position: relative; z-index: 1; }
+.milestone-confetti { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+.milestone-confetti i { position: absolute; top: -10px; left: calc(6% + var(--i) * 6.5%); width: 7px; height: 11px; border-radius: 2px; background: #E0B35C; opacity: 0; animation: confetti 2.8s ease-in calc(var(--i) * .13s) 2; }
+.milestone-confetti i:nth-child(3n) { background: #B9873F; width: 6px; height: 6px; border-radius: 50%; }
+.milestone-confetti i:nth-child(3n + 1) { background: #9E3B2B; }
+@keyframes confetti { 0% { opacity: 0; transform: translateY(0) rotate(0); } 10% { opacity: 1; } 100% { opacity: 0; transform: translateY(340px) rotate(300deg); } }
+@media (prefers-reduced-motion: reduce) { .milestone-rays, .milestone-confetti i, .streak-flame.lit::before { animation: none; } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }

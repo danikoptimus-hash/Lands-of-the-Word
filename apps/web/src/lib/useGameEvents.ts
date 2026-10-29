@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 
-export type GameEventType = "game" | "map" | "teams" | "deeds" | "tasks" | "submissions" | "cities" | "battles" | "journal" | "peace" | "quarry" | "trades";
+export type GameEventType = "game" | "map" | "teams" | "deeds" | "tasks" | "submissions" | "cities" | "battles" | "journal" | "peace" | "quarry" | "trades" | "awards";
 export interface GameEvent { type: GameEventType; teamId?: string; at: number }
 
 /**

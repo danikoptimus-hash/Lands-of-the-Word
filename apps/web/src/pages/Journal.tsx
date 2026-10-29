@@ -149,7 +149,7 @@ export function MyServiceSection({ gameId, version }: { gameId: string; version:
               <li key={r.userId} className={top.me?.userId === r.userId ? "me" : ""}>
                 <span className="rank">{r.rank}</span>
                 <TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" title={r.team} />
-                <UserAvatar name={r.name} avatarId={r.userAvatarId} size="sm" />
+                <UserAvatar name={r.name} avatarId={r.userAvatarId} size="sm" userId={r.userId} />
                 <span className="body">
                   <span className="name">{r.name}{top.me?.userId === r.userId ? ` · ${t("это вы")}` : ""}</span>
                   {/* Значки вместо слов (решение владельца 07.10): дела, районы, города, стихи. */}
@@ -177,7 +177,7 @@ export function ActivityBoard({ gameId, version }: { gameId: string; version: nu
       {rows.map((r, i) => (
         <div key={r.userId} className="act-row">
           <span className="rank">{i + 1}</span>
-          <UserAvatar name={r.displayName || r.nickname} avatarId={r.userAvatarId} size="sm" />
+          <UserAvatar name={r.displayName || r.nickname} avatarId={r.userAvatarId} size="sm" userId={r.userId} />
           <div className="who">
             <div className="line"><span className="name">{r.displayName || r.nickname}</span><TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" /></div>
             <div className="line chips">
@@ -197,7 +197,7 @@ export function ActivityBoard({ gameId, version }: { gameId: string; version: nu
           {rows.map((r, i) => (
             <tr key={r.userId}>
               <td>{i + 1}</td>
-              <td><span className="person"><UserAvatar name={r.displayName || r.nickname} avatarId={r.userAvatarId} size="sm" /><span className="name">{r.displayName || r.nickname}</span></span></td>
+              <td><span className="person"><UserAvatar name={r.displayName || r.nickname} avatarId={r.userAvatarId} size="sm" userId={r.userId} /><span className="name">{r.displayName || r.nickname}</span></span></td>
               <td><TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" withName /></td>
               <td>{r.deeds}</td><td>{r.tasks + r.orders}</td><td>{r.verses}</td><td>{r.cities}</td>
               <td className="muted small">{r.lastActiveAt ? fmtDate(r.lastActiveAt) : "—"}</td>

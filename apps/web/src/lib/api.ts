@@ -174,3 +174,10 @@ export const PASSAGE_LABEL: Record<PassageStatus, string> = { get PENDING() { re
 /** Каменоломня (решение владельца 04.10): общие дела команды, сдачи и камни. */
 export interface QuarryWorkDto { id: string; deedId: string; title: string; status: "SUBMITTED" | "APPROVED" | "REJECTED"; stones: number; by: string; /** Кто был (решение владельца 07.10): им дело идёт в зачёт. */ participants: string[]; links: string[]; note: string; submittedAt: string; decidedAt: string | null; adminComment: string }
 export interface QuarryDto { stones: number; canWork: boolean; members: Array<{ id: string; name: string }>; deeds: Array<{ id: string; title: string; description: string; direction: string; proofType: string; stones: number; /** Доля состава, которая должна присутствовать; null — не проверяется. */ quorumPct: number | null }>; works: QuarryWorkDto[] }
+
+/** Награды (решение владельца 29.10): полученное по кодам каталога @lotw/domain. */
+export interface AwardGrantDto { code: string; count: number; at: string; last: string }
+export interface StreakDto { current: number; best: number; today: boolean; next: number | null; toNext: number | null; todayKey: string }
+export interface AwardsDto { teamId: string; team: AwardGrantDto[]; mine: AwardGrantDto[]; streak: StreakDto; teams: Array<{ id: string; name: string; color: string; avatarId?: string | null; out: boolean; awards: number }> }
+export interface TeamAwardsDto { team: { id: string; name: string; color: string; avatarId?: string | null }; awards: AwardGrantDto[] }
+export interface MemberCardDto { name: string; avatarId: string | null; team: { id: string; name: string; color: string }; role: TeamRole; gameRole: GameRole; awards: AwardGrantDto[]; streak: { current: number; best: number } }

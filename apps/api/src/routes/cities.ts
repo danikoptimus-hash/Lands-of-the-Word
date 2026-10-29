@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { scheduleAwards } from "../services/awards.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { publish } from "../services/events.js";
@@ -212,6 +213,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     // Черновик: при верном порядке больше не нужен, при неверном хранит последнюю расстановку.
     await prisma.teamCityState.update({ where: { id: c.state.id }, data: { orderAttempts: { increment: 1 }, orderSolved: wrong === 0, orderDraft: wrong === 0 ? [] : body.ids } });
     void taskEvent(id, c.m.team.id, request.user!.id, nodeKey, null, wrong === 0 ? "ok" : "wrong");
+    if (wrong === 0) scheduleAwards(id);
     if (wrong === 0) journal(id, "order_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), book: c.node.bookCode ?? "" } });
     publish(id, { type: "cities", teamId: c.m.team.id });
     return { correct: wrong === 0, wrong };
@@ -257,6 +259,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     // Личное решение уже открытого командой задания: знак известен, в летопись и к руинам не идёт.
     if (correct && teamDone) return { correct: true, fragment: c.node.cityCode?.[index] ?? null, personal: true };
     if (correct) {
+      scheduleAwards(id);
       journal(id, "task_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), n: index + 1, book: c.node.bookCode ?? "" } });
       // Руины с сокровищем (решение владельца 18.09): первая команда, решившая все задания руин, получает знак шифра соседнего города.
       if (c.node.ruined && !c.node.treasureTeamId && c.content.tasks.every((_, i) => i === index || c.state.doneTasks.includes(i))) await ruinsTreasure(id, c.m.team.id, c.node.key, c.node.bookCode ?? "");
@@ -311,6 +314,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const updated = await prisma.teamCityState.update({ where: { id: c.state.id }, data: { capturedAt: new Date(), firstCapturedAt: c.state.firstCapturedAt ?? new Date(), isCapital: hasCapital === 0, keyWrong: 0, keyLockedUntil: null } });
     if (c.node.ruined) await prisma.mapNode.update({ where: { id: c.node.id }, data: { ruined: false, maxReachedAt: null, lockedUntil: null, sumMode: false } });
     await onCityOwned(id, nodeKey, c.m.team.id);
+    scheduleAwards(id);
     journal(id, c.node.ruined ? "ruins_taken" : "city_captured", { everyone: true, teamId: c.m.team.id, userId: request.user!.id, vars: { team: c.m.team.name, book: c.node.bookCode ?? "", capital: updated.isCapital ? " (столица)" : "" } });
     // Город взят ключом от адресата: в тот же день нужен отчёт о визите (решение владельца 22.10). Руины берутся без адресата.
     const visit = c.node.ruined ? null : await openVisit(id, c.m.team.id, nodeKey, c.node.bookCode ?? "");

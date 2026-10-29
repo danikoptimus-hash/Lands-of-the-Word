@@ -1035,3 +1035,23 @@ model UserDay {
   @@id([userId, day])
   @@index([day])
 }
+
+/**
+ * Награды (решение владельца 29.10): полученные командой (userId пустой) и личные. Одна строка — одно получение;
+ * повторяемые награды различаются ключом (вызов, проход, неделя), остальные — «once». Считаются по истории игры
+ * сервисом awards.ts и никогда не отбираются: таблица только пополняется.
+ */
+model AwardGrant {
+  id        String   @id @default(cuid())
+  gameId    String
+  teamId    String
+  userId    String   @default("")
+  code      String
+  key       String   @default("once")
+  at        DateTime
+  createdAt DateTime @default(now())
+
+  @@unique([gameId, teamId, userId, code, key])
+  @@index([gameId, teamId])
+  @@index([gameId, userId])
+}

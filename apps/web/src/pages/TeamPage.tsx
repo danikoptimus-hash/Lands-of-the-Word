@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, apiReady, prefetch, ready, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
+import { api, ApiError, apiReady, prefetch, ready, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
 import { TeamMap, type MarkPoint, type ScoutReveal } from "./TeamMap";
+import { AwardsSection, MilestoneCard, StreakBanner, awardsCached } from "./Awards";
+import { AWARD_BY_CODE } from "@lotw/domain";
 import { previewPhase, useStorm } from "../lib/daytime";
 import { TimelineDock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
@@ -109,7 +111,7 @@ export function finishReasonLabel(reason: string | null): string {
 }
 
 /** Разделы меню команды (решение владельца 21.09): на главном экране меню — только то, что требует внимания, и значки разделов. Состав, проходы и мир — внутри «Команд»; лента событий называется «Летопись». */
-type MenuView = "home" | "attention" | "deeds" | "battles" | "standings" | "feed" | "service";
+type MenuView = "home" | "attention" | "deeds" | "battles" | "standings" | "feed" | "service" | "awards";
 /** Колокольчик — такая же плитка, как остальные (просьба участника 05.10): внутри всё, что требует внимания. */
 const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: () => string; hot?: boolean }> = [
   { key: "attention", icon: "bell", label: () => t("Внимание"), hot: true },
@@ -118,6 +120,7 @@ const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: (
   { key: "standings", icon: "crown", label: () => t("Команды"), hot: true },
   { key: "feed", icon: "feather", label: () => t("Летопись") },
   { key: "service", icon: "user", label: () => t("Моё служение") },
+  { key: "awards", icon: "trophy", label: () => t("Награды") },
 ];
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -202,6 +205,27 @@ export function TeamPage() {
   const [cityVersion, setCityVersion] = useState(0);
   /** Лента, «Моё служение» и мир перезагружаются по событиям журнала, дел, городов и испытаний. */
   const [feedVersion, setFeedVersion] = useState(0);
+  // Награды и серия (решение владельца 29.10): сводка нужна и для плашки над картой, и для раздела «Награды».
+  const [awards, setAwards] = useState<AwardsDto | null>(() => awardsCached(id));
+  const [awardsVersion, setAwardsVersion] = useState(0);
+  const [streakShow, setStreakShow] = useState(false);
+  const [milestone, setMilestone] = useState<string | null>(null);
+  const [awardsSeen, setAwardsSeen] = useState(() => { try { return Number(localStorage.getItem(`lotw.awards.seen.${id}`) ?? 0); } catch { return 0; } });
+  useEffect(() => { apiReady<AwardsDto>(`/api/games/${id}/awards`).then(setAwards).catch(() => {}); }, [id, awardsVersion]);
+  useEffect(() => {
+    if (!awards) return;
+    const s = awards.streak;
+    try {
+      // Рубеж серии, взятый в последние полтора суток и ещё не отпразднованный на этом устройстве.
+      const shown = (localStorage.getItem(`lotw.milestone.${id}`) ?? "").split(",");
+      const fresh = awards.mine.find((g) => AWARD_BY_CODE.get(g.code)?.streakDays && Date.now() - new Date(g.at).getTime() < 36 * 3_600_000 && !shown.includes(g.code));
+      if (fresh) { setMilestone(fresh.code); return; }
+      if (s.current > 0 && localStorage.getItem(`lotw.streak.${id}`) !== s.todayKey) setStreakShow(true);
+    } catch { /* приватный режим: покажем и так */ }
+  }, [awards?.streak.todayKey, awards?.mine.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeStreak = useCallback(() => { setStreakShow(false); try { if (awards) localStorage.setItem(`lotw.streak.${id}`, awards.streak.todayKey); } catch { /* ничего */ } }, [awards, id]);
+  const closeMilestone = useCallback(() => { if (milestone) { try { const k = `lotw.milestone.${id}`; localStorage.setItem(k, [...(localStorage.getItem(k) ?? "").split(",").filter(Boolean), milestone].join(",")); } catch { /* ничего */ } } setMilestone(null); }, [milestone, id]);
+  const awardsTotal = awards ? awards.team.reduce((a, g) => a + g.count, 0) + awards.mine.reduce((a, g) => a + g.count, 0) : 0;
   const [battles, setBattles] = useState<BattleDto[]>([]);
   const [standings, setStandings] = useState<StandingsDto | null>(null);
   const [passages, setPassages] = useState<PassagesDto | null>(null);
@@ -341,6 +365,7 @@ export function TeamPage() {
   // Перечитывания по событиям склеиваются (решение владельца 23.10): несколько событий за 2,5 с — одно перечитывание.
   const teamLater = useCoalesced(loadTeam), mapLater = useCoalesced(loadMap), passagesLater = useCoalesced(loadPassages), battlesLater = useCoalesced(loadBattles), standingsLater = useCoalesced(loadStandings), peaceLater = useCoalesced(loadPeace);
   const cityLater = useCoalesced(() => setCityVersion((v) => v + 1)), feedLater = useCoalesced(() => setFeedVersion((v) => v + 1));
+  const awardsLater = useCoalesced(() => setAwardsVersion((v) => v + 1));
   // Карта приходит разницей от сервера (решение владельца 24.10): применяем к своей версии; если версии разошлись — перечитываем.
   const mapRef = useRef(map); mapRef.current = map;
   const onMapPush = (m: MapPush) => {
@@ -365,6 +390,7 @@ export function TeamPage() {
     if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") standingsLater();
     if (e.type === "peace" || e.type === "teams" || e.type === "game") peaceLater();
     if (e.type === "journal" || e.type === "peace" || e.type === "submissions" || e.type === "cities" || e.type === "battles" || e.type === "game") feedLater();
+    if (e.type === "awards" || e.type === "submissions" || e.type === "game") awardsLater();
   }, onMapPush);
   useEffect(() => {
     const tm = setInterval(() => void loadMap(), 60000);
@@ -578,7 +604,7 @@ export function TeamPage() {
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0);
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
-  const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length };
+  const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length, awards: Math.max(0, awardsTotal - awardsSeen) };
   /** На компьютере (решение владельца 05.10, вечер): плитки разделов висят над картой, панель открыта только пока выбран раздел; «home» — панель закрыта. */
   const view: MenuView = menuView;
   const toggleView = (key: MenuView) => setMenuView((v) => (wide && v === key ? "home" : key));
@@ -779,6 +805,7 @@ export function TeamPage() {
           {menuView === "standings" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} openFor={tradeFor} onCanTrade={setCanTrade} onChanged={() => { void loadMap(); void loadStandings(); }} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} onOpenTask={(tid) => { if (map.tasks.some((tk) => tk.id === tid)) showOnMap(tid); else notify(t("Дело уже не на карте"), "info"); }} />}
           {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} />}
+          {menuView === "awards" && <AwardsSection gameId={id} version={awardsVersion} data={awards} onLoaded={(d) => { setAwards(d); const n = d.team.reduce((a, g) => a + g.count, 0) + d.mine.reduce((a, g) => a + g.count, 0); setAwardsSeen(n); try { localStorage.setItem(`lotw.awards.seen.${id}`, String(n)); } catch { /* ничего */ } }} />}
           {menuView === "home" && !wide && (
             <nav className="menu-tiles" aria-label={t("Навигация")}>
             <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
@@ -831,6 +858,9 @@ export function TeamPage() {
           {phase === "night" && <span className="hud-tod night" title={t("Ночь: города спят, дела и испытания ждут утра")}><Icon name="moon" />{t("Ночь до 7:00")}</span>}
           {phase === "morning" && <span className="hud-tod morning" title={t("Утро: вызов на город отправляют на проверку до 9:00")}><Icon name="sun" />{t("Утро до 9:00")}</span>}
         </div>
+        {/* Серия дней (решение владельца 29.10): плашка при заходе раз в игровые сутки; в день рубежа — праздник со значком. */}
+        {streakShow && awards && !milestone && !selectedId && <StreakBanner streak={awards.streak} onOpen={() => { closeStreak(); setMenu(true); setMenuView("awards"); }} onClose={closeStreak} />}
+        {milestone && <MilestoneCard code={milestone} onOpen={() => { closeMilestone(); setMenu(true); setMenuView("awards"); }} onClose={closeMilestone} />}
         {standings?.status === "FINISHED" && (
           <div className="finish-banner" role="status"><Icon name="trophy" /><span>{winner ? t("Игра завершена: победила «{team}»", { team: winner }) : t("Игра завершена")}</span></div>
         )}
@@ -1054,7 +1084,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
           return (
             <li key={m.user.id} className={picking ? "picking" : undefined}>
               <div className="main">
-                <div className="person"><UserAvatar name={name} avatarId={m.user.avatarId} /><span className="name">{name}</span></div>
+                <div className="person"><UserAvatar name={name} avatarId={m.user.avatarId} userId={m.user.id} /><span className="name">{name}</span></div>
                 {shown && r.hint() && <p className="hint">{r.hint()}</p>}
               </div>
               <div className="side">

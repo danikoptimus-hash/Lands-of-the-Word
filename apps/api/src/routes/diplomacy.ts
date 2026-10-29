@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { scheduleAwards } from "../services/awards.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { assertAwake, assertTasksOpen } from "../services/daytime.js";
@@ -132,6 +133,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     if (r.status !== "PENDING") return reply.code(409).send({ error: "conflict", message: err(request, "Запрос уже рассмотрен") });
     const body = z.object({ approve: z.boolean(), answer: z.string().trim().max(500).default("") }).parse(request.body);
     await prisma.passageRequest.update({ where: { id: r.id }, data: { status: body.approve ? "APPROVED" : "DECLINED", answer: body.answer, decidedAt: new Date() } });
+    if (body.approve) scheduleAwards(id);
     if (body.approve) await ensureFrontier(id, r.requesterId);
     journal(id, body.approve ? "passage_granted" : "passage_denied", { teamId: r.requesterId, vars: { other: m.team.name, book: (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: r.nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "" } });
     publish(id, { type: "map", teamId: r.requesterId });
@@ -230,6 +232,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
       prisma.membership.update({ where: { teamId_userId: { teamId: m.team.id, userId: request.user!.id } }, data: { peekedAt: new Date() } }),
     ]);
     publish(id, { type: "map", teamId: m.team.id });
+    scheduleAwards(id);
     // Что там: карта на пять секунд раздвигает туман и показывает город с названием или пустой перекрёсток (решение владельца 29.10).
     // Местность трёх гексов вокруг перекрёстка: под раздвинутым туманом рисуется настоящая земля, а не серая заглушка
     // (замечание владельца 29.10). В обычном ответе карты у гексов в тумане местности нет — она остаётся скрытой.

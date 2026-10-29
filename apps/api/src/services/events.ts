@@ -4,7 +4,7 @@ import type { FastifyReply } from "fastify";
  * Живые события по игре (Server-Sent Events). Один процесс — подписчики в памяти.
  * Любая мутация в игре вызывает publish(gameId, { type }), клиенты перезагружают нужные данные.
  */
-export type GameEventType = "game" | "map" | "teams" | "deeds" | "tasks" | "submissions" | "cities" | "battles" | "journal" | "peace" | "quarry" | "trades";
+export type GameEventType = "game" | "map" | "teams" | "deeds" | "tasks" | "submissions" | "cities" | "battles" | "journal" | "peace" | "quarry" | "trades" | "awards";
 export interface GameEvent { type: GameEventType; teamId?: string; at: number }
 
 /** Кто слушает: команда участника (null — администратор или наблюдатель, им нужно всё). */

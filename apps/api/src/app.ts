@@ -32,6 +32,8 @@ import { avatarRoutes } from "./routes/avatars.js";
 import { initModeration } from "./services/avatars.js";
 import multipart from "@fastify/multipart";
 import { journalRoutes } from "./routes/journal.js";
+import { awardRoutes } from "./routes/awards.js";
+import { recomputeActiveGames } from "./services/awards.js";
 import { quarryRoutes } from "./routes/quarry.js";
 import { tradeRoutes } from "./routes/trades.js";
 
@@ -92,10 +94,15 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(tradeRoutes);
   await app.register(recipientRoutes);
   await app.register(journalRoutes);
+  await app.register(awardRoutes);
   // Таймеры битв: сгоревшие атаки и просроченные обороны проверяются раз в минуту.
   if (config.NODE_ENV !== "test") {
     // Таймеры не должны зависеть от перезапуска сервера: первый проход — сразу после старта.
     setTimeout(() => { sweep().catch((e) => app.log.error(e, "battle sweep failed")); }, 5_000);
+    // Награды (решение владельца 29.10): при старте — пересчёт по всей истории идущих игр, дальше раз в час как страховка.
+    setTimeout(() => { recomputeActiveGames().catch((e) => app.log.error(e, "awards recompute failed")); }, 8_000);
+    const awardsTimer = setInterval(() => { recomputeActiveGames().catch((e) => app.log.error(e, "awards recompute failed")); }, 3_600_000);
+    app.addHook("onClose", async () => clearInterval(awardsTimer));
     const timer = setInterval(() => { sweep().catch((e) => app.log.error(e, "battle sweep failed")); expirePeaces().catch((e) => app.log.error(e, "peace expiry failed")); expireVisits().catch((e) => app.log.error(e, "visit expiry failed")); }, 60_000);
     app.addHook("onClose", async () => clearInterval(timer));
   }

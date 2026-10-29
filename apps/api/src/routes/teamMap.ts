@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { scheduleAwards } from "../services/awards.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
@@ -281,6 +282,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     }).then((u) => bookIn(id, u));
     if (body.approve) journal(id, "deed_approved", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, who: "", taskId: task.id } });
     else journal(id, "deed_returned", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, taskId: task.id } });
+    scheduleAwards(id);
     // Морское дело: узел не открывается — кормчий сам выбирает место высадки на другом острове.
     if (body.approve && task.sea) notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан или кормчий может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title }));
     else if (body.approve) {
@@ -328,6 +330,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { toKey: body.nodeKey } });
     await revealNode(id, m.team.id, body.nodeKey);
     journal(id, "sea_landed", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id) } });
+    scheduleAwards(id);
     publish(id, { type: "map", teamId: m.team.id });
     publish(id, { type: "tasks", teamId: m.team.id });
     return { ok: true };

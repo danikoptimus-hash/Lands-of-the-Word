@@ -184,7 +184,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                 const picking = pick === m.user.id;
                 return (
                   <li key={m.user.id} className="member-row">
-                    <div className="main"><span className="person"><UserAvatar name={nick} avatarId={m.user.avatarId} /><span className="name">{nick}</span></span></div>
+                    <div className="main"><span className="person"><UserAvatar name={nick} avatarId={m.user.avatarId} userId={m.user.id} /><span className="name">{nick}</span></span></div>
                     <div className="side">
                       {/* Значок лимита дел справа, у ролей (решение владельца 04.10); дела на руках спрятаны в значок: нажатие открывает окошко
                           со списком — взятые с датой, сданные «на проверке», возвращённые. */}

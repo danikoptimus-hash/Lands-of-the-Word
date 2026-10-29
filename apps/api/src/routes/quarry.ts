@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { scheduleAwards } from "../services/awards.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
 import { assertAwake } from "../services/daytime.js";
@@ -135,6 +136,7 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     ]);
     await revealNode(id, m.team.id, task.toKey);
     journal(id, "paved", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: task.deed.title, taskId: task.id } });
+    scheduleAwards(id);
     publish(id, { type: "tasks", teamId: m.team.id });
     publish(id, { type: "quarry", teamId: m.team.id });
     publish(id, { type: "teams" });

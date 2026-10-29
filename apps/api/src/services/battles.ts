@@ -1,4 +1,5 @@
 import { addAwakeMs, awakeMsBetween } from "@lotw/domain";
+import { scheduleAwards } from "./awards.js";
 import { prisma } from "../db.js";
 import { publish } from "./events.js";
 import { loadBook, randomPassage } from "./bible.js";
@@ -259,6 +260,7 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
     prisma.mapNode.update({ where: { gameId_key: { gameId: b.gameId, key: b.nodeKey } }, data: { defenseLevel: M, fatigueAt: null, ...(lockedUntil ? { lockedUntil, maxReachedAt: now } : {}) } }),
   ]);
   publish(b.gameId, { type: "battles" });
+  scheduleAwards(b.gameId);
   publish(b.gameId, { type: "map" });
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_repelled", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
   notifyTeam(b.gameId, b.defenderId, "город {book} устоял", (locale) => msg(locale, "Ответ одобрен: {m} стихов против {need}. Город остаётся вашим, уровень испытания теперь {m}.", { m: M, need }) + (lockedUntil ? msg(locale, " Каждый участник выучил всю книгу: город закреплён до {date}.", { date: fmtDay(lockedUntil, locale) }) : ""), { book: b.bookCode });
@@ -320,6 +322,7 @@ export async function resolveWon(b: Battle): Promise<void> {
   await prisma.$transaction(ops);
   await onCityOwned(b.gameId, b.nodeKey, b.attackerId);
   publish(b.gameId, { type: "battles" });
+  scheduleAwards(b.gameId);
   publish(b.gameId, { type: "map" });
   publish(b.gameId, { type: "cities" });
   publish(b.gameId, { type: "teams" });
