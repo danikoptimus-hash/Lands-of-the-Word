@@ -24,6 +24,17 @@ const warmed = new Set<string>();
 export function preloadAwardImages(codes: Iterable<string>): void {
   for (const code of codes) { if (warmed.has(code)) continue; warmed.add(code); const im = new Image(); im.decoding = "async"; im.src = `/img/awards/${code}.webp`; }
 }
+/**
+ * Все значки — в фоне, когда страница свободна (владелец 30.10: «они подгружаются, это выглядит как глюк»): любая
+ * карточка участника или команды открывается с готовыми картинками. Service worker держит их в кэше, так что это
+ * один раз на устройство (41 картинка, ~2 МБ).
+ */
+let allQueued = false;
+export function preloadAllAwardImages(): void {
+  if (allQueued) return; allQueued = true;
+  const run = () => preloadAwardImages(AWARDS.map((a) => a.code));
+  if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 4000 }); else setTimeout(run, 1500);
+}
 export function AwardBadge({ code, earned, count, size = "md", onClick, name = true, eager = false }: { code: string; earned: boolean; count?: number; size?: "sm" | "md" | "lg"; onClick?: () => void; /** Подпись под значком. */ name?: boolean; /** Грузить сразу, не лениво: в карточках и листах. */ eager?: boolean }) {
   const a = AWARD_BY_CODE.get(code);
   if (!a) return null;

@@ -16,7 +16,7 @@ import { FinishBlock } from "./FinishBlock";
 import { JournalAdmin } from "./Journal";
 import { PassagesBlock } from "./Diplomacy";
 import { RecipientsBlock } from "./RecipientsBlock";
-import { AdminAwards } from "./Awards";
+import { AdminAwards, preloadAllAwardImages } from "./Awards";
 import { useMediaQuery } from "../lib/media";
 import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
@@ -81,6 +81,8 @@ export function GamePage() {
   const moves = useMemo(() => (progress?.startedAt ? collectMoves(progress.teams, progress.cities, progress.startedAt) : []), [progress]);
   const shownCities = useMemo(() => (progress && at ? progress.cities.filter((c) => !c.capturedAt || Date.parse(c.capturedAt) <= at.getTime()) : progress?.cities ?? null), [progress, at]);
   const bump = () => setVersion((v) => v + 1);
+  // Значки наград — в фоне при заходе (владелец 30.10): карточки участников и команд открываются без догрузки.
+  useEffect(() => { if (game?.status === "ACTIVE" || game?.status === "FINISHED") preloadAllAwardImages(); }, [game?.status]);
   // Разделы открываются сразу (решение владельца 24.10): их данные запрашиваются заранее вместе со страницей, а код графиков
   // докачивается в фоне, пока администратор смотрит карту. Открытый раздел всё равно перечитывает своё и тихо обновляется.
   useEffect(() => {
