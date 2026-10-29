@@ -572,4 +572,5 @@ export const PLAYER: Record<string, string> = {
   "В зал наград": "To the hall of awards",
   "Наград пока нет": "No awards yet",
   "день подряд": "day in a row", "дня подряд": "days in a row", "дней подряд": "days in a row",
+  "Служение": "Service",
 };

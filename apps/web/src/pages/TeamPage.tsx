@@ -113,13 +113,13 @@ export function finishReasonLabel(reason: string | null): string {
 /** Разделы меню команды (решение владельца 21.09): на главном экране меню — только то, что требует внимания, и значки разделов. Состав, проходы и мир — внутри «Команд»; лента событий называется «Летопись». */
 type MenuView = "home" | "attention" | "deeds" | "battles" | "standings" | "feed" | "service" | "awards";
 /** Колокольчик — такая же плитка, как остальные (просьба участника 05.10): внутри всё, что требует внимания. */
-const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: () => string; hot?: boolean }> = [
+const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: () => string; /** Короткая подпись для плитки дока на телефоне (ширина плитки как у администратора). */ short?: () => string; hot?: boolean }> = [
   { key: "attention", icon: "bell", label: () => t("Внимание"), hot: true },
   { key: "deeds", icon: "scroll", label: () => t("Дела") },
   { key: "battles", icon: "wave", label: () => t("Испытания"), hot: true },
   { key: "standings", icon: "crown", label: () => t("Команды"), hot: true },
   { key: "feed", icon: "feather", label: () => t("Летопись") },
-  { key: "service", icon: "user", label: () => t("Моё служение") },
+  { key: "service", icon: "user", label: () => t("Моё служение"), short: () => t("Служение") },
   { key: "awards", icon: "trophy", label: () => t("Награды") },
 ];
 
@@ -827,7 +827,7 @@ export function TeamPage() {
           <nav className="admin-dock team-dock" aria-label={t("Разделы")}>
             {dockItems.map((m) => { const n = menuCounts[m.key] ?? 0; return (
               <button key={m.key} type="button" className={"dock-btn" + (menuView === m.key ? " on" : "")} aria-pressed={menuView === m.key} onClick={() => { setSelectedId(null); setMenuView((v) => (v === m.key ? "home" : m.key)); }}>
-                <Icon name={m.icon} /><span className="lbl">{m.label()}</span>
+                <Icon name={m.icon} /><span className="lbl">{(m.short ?? m.label)()}</span>
                 {n > 0 && <span className={"badge" + (m.hot ? " hot" : "")}>{n}</span>}
               </button>
             ); })}
