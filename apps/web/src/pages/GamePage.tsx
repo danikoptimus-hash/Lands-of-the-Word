@@ -58,7 +58,7 @@ export function GamePage() {
   const [painted, setPainted] = useState(false);
   useEffect(() => { const raf = requestAnimationFrame(() => setPainted(true)); return () => cancelAnimationFrame(raf); }, []);
   /** Модуль аналитики (графики ECharts) докачивается заранее, в фоне; пока его нет — заглушка. Без React.lazy: тот даже с готовым модулем на миг показывает запасной вид. */
-  const [Analytics, setAnalytics] = useState<ComponentType<{ gameId: string }> | null>(null);
+  const [Analytics, setAnalytics] = useState<ComponentType<{ gameId: string; version?: number }> | null>(null);
   const [hexes, setHexes] = useState<MapHexDto[]>(first?.hexes ?? []);
   const [nodes, setNodes] = useState<MapNodeDto[]>(first?.nodes ?? []);
   const [edges, setEdges] = useState<MapEdgeDto[]>(first?.edges ?? []);
@@ -246,7 +246,7 @@ export function GamePage() {
             <div className="card"><EmptyState icon="check" text={draft ? t("Появится после старта игры.") : t("Игра завершена: проверять больше нечего.")} /></div>
           ))}
           {open === "awards" && <div key="awards"><AdminAwards gameId={game.id} version={version} /></div>}
-          {open === "analytics" && <div key="analytics">{Analytics ? <Analytics gameId={game.id} /> : <div className="card"><LoadingState /></div>}</div>}
+          {open === "analytics" && <div key="analytics">{Analytics ? <Analytics gameId={game.id} version={version} /> : <div className="card"><LoadingState /></div>}</div>}
           {open === "settings" && (
             <div key="settings">
               <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />

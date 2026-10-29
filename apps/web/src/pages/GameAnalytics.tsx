@@ -32,14 +32,14 @@ function trendLine(totals: number[], fitN: number): number[] {
 }
 const dayLabel = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateString(locale(), { day: "numeric", month: "short", timeZone: "UTC" });
 
-export function GameAnalytics({ gameId }: { gameId: string }) {
+export function GameAnalytics({ gameId, version = 0 }: { gameId: string; /** Растёт с каждым событием игры: взятие города, одобрение дела, район — тренды и логистическая кривая перечитываются (проверка владельца 30.10). */ version?: number }) {
   const [p, setP] = useState<Pace | null>(() => ready<Pace>(`/api/games/${gameId}/analytics/pace`));
   const [error, setError] = useState<string | null>(null);
   /** Что включено в легенде графика дел: тренд пересчитывается под выбранные команды («тренд должен пересчитываться под выбранную комбинацию команд»). */
   const [sel, setSel] = useState<Record<string, boolean>>({});
   // Готовый ответ показывается сразу, свежий тихо подменяет (решение владельца 24.10); заглушка — только когда данных ещё не было.
   const load = () => { setError(null); apiReady<Pace>(`/api/games/${gameId}/analytics/pace`).then(setP).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); };
-  useEffect(load, [gameId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(load, [gameId, version]); // eslint-disable-line react-hooks/exhaustive-deps
   const c = useMemo(chartColors, []);
   const dateOf = (day: number) => { if (!p) return ""; const d = new Date(Date.parse(p.startedAt) + Math.min(day, 3650) * 86_400_000); return d.toLocaleDateString(locale(), { day: "numeric", month: "short", timeZone: p.tz }); };
   const option = useMemo(() => {
