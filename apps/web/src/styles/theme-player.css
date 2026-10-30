@@ -19,7 +19,7 @@
 /* Боковое меню команды — стекло (решение владельца 21.09) */
 .side-menu { background: rgba(255,250,236,.55); -webkit-backdrop-filter: blur(18px) saturate(1.05); backdrop-filter: blur(18px) saturate(1.05); }
 .side-menu .side-head { background: rgba(255,250,236,.82); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); z-index: 2; }
-@media (min-width: 1024px) { .side-menu { border-right: 1px solid var(--bronze-deep); box-shadow: 2px 0 8px rgba(31,20,10,.16); } }
+@media (min-width: 1024px) { .side-menu { border-top: 2px solid var(--bronze); border-right: 1px solid var(--paper-edge); box-shadow: 0 12px 40px rgba(31,20,10,.28); } }
 /* Голова меню команды — светлый лист с лентой цвета команды (решение владельца 20.09: ничего тёмного) */
 .side-head { background: var(--paper-light); color: var(--ink); border-bottom: 3px solid var(--team, var(--bronze)); box-shadow: none; }
 .side-head .side-name { font: 700 var(--fs-xl)/1.1 var(--font-display); }

@@ -128,23 +128,12 @@
 .side-backdrop { position: absolute; inset: 0; z-index: var(--z-drawer); background: var(--overlay); animation: fade var(--dur-base) var(--ease-out); }
 .side-menu { position: absolute; top: 0; bottom: 0; left: 0; z-index: calc(var(--z-drawer) + 1); width: min(380px, 88%); background: var(--surface); box-shadow: var(--shadow-3); overflow: auto; -webkit-overflow-scrolling: touch; animation: slideIn var(--dur-slow) var(--ease-out); display: flex; flex-direction: column; padding-top: var(--safe-top); padding-left: var(--safe-left); }
 @media (min-width: 1024px) {
-  /* На компьютере (решение владельца 05.10, вечер): колонка плиток висит полупрозрачно над картой слева; панель раздела
-     открывается рядом с ней по нажатию на плитку и закрывается повторным нажатием или нажатием на карту. */
-  .side-menu { left: calc(84px + 2 * var(--sp-3) + var(--safe-left)); top: var(--sp-3); bottom: var(--sp-3); width: 380px; border-radius: var(--r-md); box-shadow: var(--shadow-3); border: 1px solid var(--border); animation: none; z-index: 6; overflow: hidden; padding-top: 0; padding-left: 0; background: color-mix(in srgb, var(--surface) 94%, transparent); }
-  .menu-rail.floating { position: absolute; left: calc(var(--sp-3) + var(--safe-left)); top: var(--sp-3); bottom: var(--sp-3); z-index: 6; border: 1px solid var(--border); border-radius: var(--r-md); background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: var(--shadow-1); }
-  .menu-rail.floating > a:hover, .menu-rail.floating > button:hover { background: color-mix(in srgb, var(--surface) 80%, transparent); }
-  .menu-rail.floating > button.on { background: var(--surface); }
-  .map-canvas { --map-pad-left: calc(84px + 2 * var(--sp-3)); }
-  .hud-left { left: calc(84px + 3 * var(--sp-3) + var(--safe-left)); }
+  /* Компьютер по схеме администратора (решение владельца 30.10): стрелка и чип команды слева вверху, колонка плиток
+     под ними (общие стили .admin-dock), раздел — окно над картой по центру с затемнением, как админский попап. */
+  .side-menu { left: 50%; right: auto; transform: translateX(-50%); top: calc(var(--sp-3) + var(--safe-top) + 60px); bottom: var(--sp-4); width: min(880px, calc(100% - 2 * (64px + 3 * var(--sp-3)))); max-height: none; border-radius: var(--r-lg); box-shadow: var(--shadow-3); border: 1px solid var(--border); animation: scaleIn var(--dur-base) var(--ease-out); z-index: calc(var(--z-drawer) + 1); overflow: hidden; padding: 0; }
+  .map-canvas { --map-pad-left: calc(64px + 2 * var(--sp-3)); }
 }
 .side-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; overflow: auto; -webkit-overflow-scrolling: touch; }
-.menu-rail { flex: none; width: 84px; display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2) var(--sp-1) calc(var(--sp-2) + var(--safe-bottom)); border-right: 1px solid var(--border); background: var(--surface-2); overflow: auto; }
-.menu-rail > a, .menu-rail > button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 56px; padding: var(--sp-2) 2px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--text); font-size: var(--fs-xs); font-weight: 600; line-height: 1.1; text-align: center; text-decoration: none; white-space: normal; }
-.menu-rail > a:hover, .menu-rail > button:hover { background: var(--surface); text-decoration: none; }
-.menu-rail > button.on { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border-strong); }
-.menu-rail .i { width: 22px; height: 22px; color: var(--accent); }
-.menu-rail .count-chip { position: absolute; top: 2px; right: 4px; }
-.menu-rail .rail-gap { flex: 1 1 auto; min-height: var(--sp-3); }
 .side-top { position: sticky; top: 0; z-index: 2; }
 .side-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); background: var(--surface); z-index: 1; }
 .side-name { font-weight: 700; font-size: var(--fs-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

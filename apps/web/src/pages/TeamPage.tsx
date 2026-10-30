@@ -169,7 +169,7 @@ const ROLE: Record<GameRole | "CAPTAIN" | "DEPUTY", { icon: string; label: () =>
 /** Страница команды: карта во весь экран, карточка дела, боковое меню (на широком экране — постоянная колонка). */
 export function TeamPage() {
   const { id = "" } = useParams();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { notify, confirm } = useUi();
   const wide = useMediaQuery("(min-width: 1024px)");
   // Готовые ответы с главной (решение владельца 24.10): состав и карта рисуются сразу, свежие придут следом.
@@ -613,7 +613,6 @@ export function TeamPage() {
   const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length, awards: Math.max(0, awardsTotal - awardsSeen) };
   /** На компьютере (решение владельца 05.10, вечер): плитки разделов висят над картой, панель открыта только пока выбран раздел; «home» — панель закрыта. */
   const view: MenuView = menuView;
-  const toggleView = (key: MenuView) => { if (wide && menuView === key) { rememberScroll(); setMenuView("home"); } else openView(key); };
 
   const onTouchStart = (e: React.TouchEvent) => {
     if (wide) return;
@@ -641,9 +640,9 @@ export function TeamPage() {
   const openCity = (key: string) => { setCityKey(key); setSelectedId(null); setFrontierKey(null); setMenu(false); };
   // На телефоне открытие дела прячет панель раздела: карта и лист дела должны быть видны (владелец 30.10: «нажимаю на
   // «посмотреть на карте» и ничего не происходит!!! нужно, чтобы все менюшки прятались и на карте показалось дело»).
-  const openTask = (tid: string | null) => { setSelectedId(tid); setBackTo(null); if (tid) { if (!wide) { rememberScroll(); setMenuView("home"); } setFrontierKey(null); } };
+  const openTask = (tid: string | null) => { setSelectedId(tid); setBackTo(null); if (tid) { rememberScroll(); setMenuView("home"); setFrontierKey(null); } };
   const showOnMap = (tid: string) => {
-    const from = !wide && menuView !== "home" ? { view: menuView, top: sideRef.current?.scrollTop ?? 0, bodyTop: sideBodyRef.current?.scrollTop ?? 0 } : null;
+    const from = menuView !== "home" ? { view: menuView, top: sideRef.current?.scrollTop ?? 0, bodyTop: sideBodyRef.current?.scrollTop ?? 0 } : null;
     openTask(tid);
     setBackTo(from);
     setFocusTask({ id: tid, nonce: Date.now() });
@@ -663,26 +662,11 @@ export function TeamPage() {
 
   return (
     <div className="map-screen" ref={screenRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
-      {menuOpen && !wide && <div className="side-backdrop" onClick={closeMenu} />}
+      {menuOpen && <div className="side-backdrop" onClick={closeMenu} />}
       {/* На компьютере (решение владельца 05.10, вечер): колонка плиток висит полупрозрачно над картой; нажатие открывает панель
           раздела рядом, повторное нажатие на ту же плитку или нажатие на карту закрывает её. */}
-      {wide && !storm.active && (
-        <nav className="menu-rail floating" aria-label={t("Разделы")}>
-          {MENU_ITEMS.map((m) => { const n = menuCounts[m.key] ?? 0; return (
-            <button key={m.key} type="button" className={view === m.key ? "on" : undefined} aria-pressed={view === m.key} onClick={() => toggleView(m.key)}>
-              <Icon name={m.icon} />{m.label()}{n > 0 && <span className={"count-chip" + (m.hot ? " hot" : "")}>{n}</span>}
-            </button>
-          ); })}
-          <span className="rail-gap" />
-          <Link to="/"><Icon name="home" />{t("Мои игры")}</Link>
-          <Link to="/account"><Icon name="user" />{t("Аккаунт")}</Link>
-          <Link to="/how-to-play"><Icon name="help" />{t("Как играть")}</Link>
-          <Link to="/whats-new"><Icon name="sparkle" />{t("Что нового")}</Link>
-          <button type="button" onClick={() => void logout()}><Icon name="logout" />{t("Выйти")}</button>
-        </nav>
-      )}
       {menuOpen && (
-        <aside ref={sideRef} className={"side-menu" + (wide ? " with-rail" : "")} role={wide ? undefined : "dialog"} aria-modal={wide ? undefined : true} aria-label={t("Меню команды")} onScroll={rememberScroll}>
+        <aside ref={sideRef} className="side-menu" role="dialog" aria-modal={true} aria-label={t("Меню команды")} onScroll={rememberScroll}>
           <div className="side-body" ref={sideBodyRef} onScroll={rememberScroll}>
           {/* Шапка команды и заголовок раздела прилипают вместе одним блоком (решение владельца 24.10: «листаю список внизу, а заголовок и подзаголовок видны так же, как до того»). */}
           {/* Заголовок панели (решение владельца 30.10: «на его месте оставить только значок раздела и название раздела,
@@ -827,7 +811,7 @@ export function TeamPage() {
           onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} scout={scout} />
         )}
         {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
-        {!wide && (
+        {!storm.active && (
           <nav className="admin-dock team-dock" aria-label={t("Разделы")}>
             {dockItems.map((m) => { const n = menuCounts[m.key] ?? 0; return (
               <button key={m.key} type="button" className={"dock-btn" + (menuView === m.key ? " on" : "")} aria-pressed={menuView === m.key} onClick={() => { if (menuView === m.key) { rememberScroll(); setMenuView("home"); } else openView(m.key); }}>
@@ -845,7 +829,7 @@ export function TeamPage() {
           </div>
         )}
         <div className="hud-left">
-          {!wide && <Link to="/" className="btn secondary icon hud-btn" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>}
+          <Link to="/" className="btn secondary icon hud-btn" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>
           <button type="button" className="hud-team" aria-label={team.name}>
             <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} teamId={team.id} /><span className="name">{team.name}</span>
           </button>
