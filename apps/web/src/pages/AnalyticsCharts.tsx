@@ -32,7 +32,7 @@ export function AnalyticsCharts() {
   const [error, setError] = useState<string | null>(null);
   const [grain, setGrain] = useState<Grain>("D");
   const [activeGrain, setActiveGrain] = useState<Grain>("D");
-  const grainTabs = (value: Grain, onChange: (g: Grain) => void) => <Tabs<Grain> value={value} onChange={onChange} ariaLabel={t("Шаг")} items={[{ key: "D", label: "D" }, { key: "W", label: "W" }, { key: "M", label: "M" }]} />;
+  const grainTabs = (value: Grain, onChange: (g: Grain) => void) => <Tabs<Grain> swipe={false} value={value} onChange={onChange} ariaLabel={t("Шаг")} items={[{ key: "D", label: "D" }, { key: "W", label: "W" }, { key: "M", label: "M" }]} />;
   const load = () => { setA(null); setError(null); api<Analytics>("/api/admin/analytics").then(setA).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); };
   useEffect(load, []);
   const c = useMemo(chartColors, []);

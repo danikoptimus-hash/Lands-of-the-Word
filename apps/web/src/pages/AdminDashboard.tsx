@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
 import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -92,6 +92,7 @@ export function AdminDashboard() {
   useEffect(() => { if (user?.platformRole === "SUPERADMIN") load(); }, [days, user]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!user) return null;
   if (user.platformRole !== "SUPERADMIN") return <Navigate to="/" replace />;
+  const swipeRef = useRef<HTMLDivElement>(null);
   const d = m?.period.dates ?? [];
   const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
   return (
@@ -102,7 +103,8 @@ export function AdminDashboard() {
         <h1><span className="ico"><Icon name="check" /></span>{t("Аналитика")}</h1>
         <Help>{t("Только обобщённые числа: без содержимого игр и без привязки к людям. Под каждым графиком ползунок: двигайте его края, чтобы приблизить период.")}</Help>
       </div>
-      <div className="analytics-tabs"><Tabs<Section> value={tab} onChange={setTab} ariaLabel={t("Раздел аналитики")} items={[{ key: "users", label: t("Пользователи") }, { key: "games", label: t("Игры") }, { key: "activity", label: t("Активность") }, { key: "battles", label: t("Испытания") }, { key: "passages", label: t("Проходы") }, { key: "ui", label: t("Интерфейс") }, { key: "tech", label: t("Сервер") }, { key: "photos", label: t("Фото") }]} /></div>
+      <div ref={swipeRef}>
+      <div className="analytics-tabs"><Tabs<Section> swipeArea={swipeRef} value={tab} onChange={setTab} ariaLabel={t("Раздел аналитики")} items={[{ key: "users", label: t("Пользователи") }, { key: "games", label: t("Игры") }, { key: "activity", label: t("Активность") }, { key: "battles", label: t("Испытания") }, { key: "passages", label: t("Проходы") }, { key: "ui", label: t("Интерфейс") }, { key: "tech", label: t("Сервер") }, { key: "photos", label: t("Фото") }]} /></div>
       {tab === "users" && <AnalyticsCharts />}
       {tab === "photos" && <AvatarsAdmin />}
       {tab !== "users" && error && <div className="card"><ErrorState text={error} onRetry={load} /></div>}
@@ -193,6 +195,7 @@ export function AdminDashboard() {
           </>)}
         </>
       )}
+      </div>
     </>
   );
 }

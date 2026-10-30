@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useSwipeTabs } from "../components/Tabs";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, apiReady, ready, PROOF_LABEL } from "../lib/api";
 import { useUi } from "../lib/ui";
@@ -105,8 +106,11 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
   const roads = deeds?.filter((d) => !d.quarry) ?? null;
   const quarry = deeds?.filter((d) => d.quarry) ?? null;
   const shown = inQuarry ? quarry : roads;
+  // Свайп по блоку переключает «Обычные дела» и «Дела Каменоломни» (решение владельца 30.10), как у вкладок Tabs.
+  const [root, setRoot] = useState<HTMLElement | null>(null);
+  useSwipeTabs(mode ? null : root, ["roads", "quarry"] as const, inQuarry ? "quarry" : "roads", (k) => setSection(k));
   return (
-    <div className="card">
+    <div className="card" ref={setRoot}>
       <div className="card-head">
         <h2><span className="ico"><Icon name={inQuarry ? "stone" : "scroll"} /></span>{inQuarry ? t("Дела Каменоломни") : t("Дела")} {shown && <span className="count">{shown.length}</span>}</h2>
         <div className="row">

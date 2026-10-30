@@ -660,7 +660,7 @@ export function TeamPage() {
   // Порядок плиток дока (решение владельца 30.10, слева направо): внимание, испытания, служение, команды, летопись, дела.
   const DOCK_ORDER: MenuView[] = ["attention", "battles", "service", "standings", "feed", "deeds"];
   const dockItems = DOCK_ORDER.map((k) => MENU_ITEMS.find((m) => m.key === k)!);
-  /** Кнопка наград над картой, плашка серии и праздник рубежа открывают «Моё служение» на вкладке «Награды». */
+  /** Плашка серии и праздник рубежа открывают «Моё служение» на вкладке «Награды» (кнопки наград над картой нет — решение владельца 30.10). */
   const openAwards = () => { setMenu(true); setMenuView("service"); setServiceTab("awards"); setSelectedId(null); };
 
   return (
@@ -818,7 +818,7 @@ export function TeamPage() {
         ) : (
         <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask} storm={storm}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
-          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark} onAwards={openAwards}
+          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
           onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} scout={scout} />
         )}

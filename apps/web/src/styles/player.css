@@ -619,10 +619,12 @@
 .award-teams .chip-btn .count-chip { margin-left: 2px; }
 /* Рейтинг наград (решение владельца 30.10): значки одной строкой, строка листается пальцем, на новую строку не переносится */
 .side-menu .section > .tabs { margin-bottom: var(--sp-3); }
-.award-strip { display: flex; gap: 6px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 4px 2px 2px 0; margin-top: 2px; }
+.award-strip { display: flex; gap: 4px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; padding: 4px 2px 2px 0; margin-top: 2px; }
 .award-strip::-webkit-scrollbar { display: none; }
 .award-strip .award { flex: none; width: auto; }
-.award-strip .award-img { width: 44px; height: 44px; }
+/* Вдвое меньше значков сетки (решение владельца 30.10: «в рейтингах уменьшить значки в 2 раза»); .award.sm задаёт 48px, поэтому селектор точнее */
+.award-strip .award.sm .award-img { width: 22px; height: 22px; }
+.award-strip .award-count { right: -4px; bottom: -3px; min-width: 14px; height: 14px; padding: 0 3px; font-size: 9px; line-height: 14px; }
 .award-rating { margin-top: var(--sp-4); }
 .award-rating .top-list li.out { opacity: .65; }
 .award-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2); margin: var(--sp-2) 0 var(--sp-1); }
