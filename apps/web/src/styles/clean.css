@@ -1,63 +1,13 @@
-/* Чистый вид (решение владельца 30.10, по образцу банковских приложений: «лаконично, компактно, минималистично»):
-   переключатели — мягкие пилюли без рамки и подчёркивания, поля — заливка без рамки со скруглением, блоки внутри окон
-   и панелей — без вложенных рамок и подложек, разделители — тонкие и светлые, чипы и второстепенные кнопки — без рамок.
-   Подключается последним и поправляет общие правила theme.css / theme-player.css / theme-admin.css; геометрия и
-   раскладка не меняются. */
-:root { --r-field: 12px; --hair: rgba(122, 78, 23, .12); --soft: color-mix(in srgb, var(--paper-2) 62%, var(--paper-light)); }
-
-/* ---------- Переключатели (вкладки) ---------- */
+/* Переключатели-пилюли (решение владельца 30.10, по образцу банковских приложений: «подобные переключатели кати в прод во
+   всех разделах, остальное всё не трогай»): мягкая заливка без рамки и подчёркивания, активная вкладка светлая с лёгкой
+   тенью, счётчик внутри вкладки — мягкий кружок. Подключается последним и поправляет .tabs из theme.css; остальной вид
+   игры не меняется. Полная версия «чистого вида» (поля, блоки, разделители, окна) владельцем не принята и в репозитории
+   не хранится. */
+:root { --soft: color-mix(in srgb, var(--paper-2) 62%, var(--paper-light)); }
 .tabs { background: var(--soft); border: 0; border-radius: var(--r-full); padding: 3px; gap: 2px; box-shadow: none; }
 .tabs > button, .tabs > a { border-radius: var(--r-full); min-height: 36px; color: var(--ink-2); font: 600 var(--fs-sm)/1 var(--font-ui); box-shadow: none; }
 .tabs > button:hover, .tabs > a:hover { background: rgba(255, 246, 227, .5); color: var(--ink); }
 .tabs > button.active, .tabs > a.active { background: var(--paper-light); color: var(--ink); box-shadow: 0 1px 3px rgba(43, 29, 18, .14); }
 .tabs.sticky { background: var(--soft); }
 .tabs.stacked > button { min-height: 48px; }
-
-/* Чипы команд в зале наград — те же пилюли */
-.award-teams .chip-btn { border: 0; background: var(--soft); color: var(--ink-2); min-height: 34px; }
-.award-teams .chip-btn.on { background: var(--paper-light); color: var(--ink); box-shadow: 0 1px 3px rgba(43, 29, 18, .14); border: 0; }
-
-/* ---------- Поля ввода ---------- */
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea { background: var(--soft); border: 1px solid transparent; border-radius: var(--r-field); box-shadow: none; }
-input:focus, select:focus, textarea:focus { border-color: var(--bronze); background: var(--paper-light); box-shadow: none; }
-.stepper { border: 1px solid transparent; background: var(--soft); border-radius: var(--r-field); }
-.admin-popup .overlay-body input, .admin-popup .overlay-body select, .admin-popup .overlay-body textarea, .admin-popup .overlay-body .stepper { background: rgba(255, 250, 236, .55); }
-.field > label { color: var(--ink-2); font-size: var(--fs-sm); }
-
-/* ---------- Окна, панели, блоки ---------- */
-.overlay { border-top: 0; }
-@media (min-width: 640px) { .overlay { border: 0; } }
-.overlay.admin-popup { border-top: 0; }
-.overlay .grabber { background: rgba(122, 78, 23, .22); }
-.overlay .overlay-foot { border-top: 1px solid var(--hair); }
-.toast { border-color: transparent; }
-.help-pop { border-color: transparent; }
-@media (min-width: 1024px) { .side-menu { border-top: 0; border-right: 0; } }
-.overlay .overlay-head { border-bottom: 1px solid var(--hair); }
-.menu-sub { border-bottom: 1px solid var(--hair); }
-/* Блоки внутри окна или панели — без своих рамок и подложек, между соседними только тонкая линия */
-.admin-popup .overlay-body .card, .side-menu .card { background: transparent; border: 0; box-shadow: none; border-radius: 0; padding: var(--sp-2) 0 var(--sp-3); margin: 0; }
-.admin-popup .overlay-body .card + .card, .side-menu .card + .card { border-top: 1px solid var(--hair); }
-.admin-popup .overlay-body .card-head, .side-menu .card-head { margin-bottom: var(--sp-2); }
-.admin-popup .overlay-body .card-head h2, .side-menu .card-head h2 { font-size: var(--fs-lg); }
-/* Плитки с числами — мягкая заливка без рамки */
-.tile, .summary-tiles a, .card.flat, .keys .key, .admin-popup .overlay-body .tile, .admin-popup .overlay-body .summary-tiles a, .admin-popup .overlay-body .card.flat, .admin-popup .overlay-body .keys .key { background: rgba(255, 250, 236, .5); border: 0; border-radius: 14px; box-shadow: none; }
-.summary-tiles a:hover { border: 0; background: rgba(255, 250, 236, .7); }
-/* Карточки на страницах (аккаунт, игры, люди): без рамки, одна мягкая тень */
-.card { border: 0; border-radius: 16px; box-shadow: 0 1px 2px rgba(43, 29, 18, .05), 0 8px 24px rgba(43, 29, 18, .07); }
-.admin-empty .card { border: 0; }
-/* Разделители */
-.side-menu .section { border-bottom: 1px solid var(--hair); }
-.list > li, .list .item { border-top-color: var(--hair); }
-details.fold { border-top-color: var(--hair); }
-.set-row { border-bottom-color: var(--hair); }
-.admin-popup .feed li { border-top-color: var(--hair); }
-
-/* ---------- Чипы, счётчики, второстепенные кнопки ---------- */
-.chip, .badge, .pill, .stat { border-color: transparent; background: var(--soft); }
-.count-chip { border-color: transparent; background: rgba(122, 78, 23, .10); color: var(--bronze-ink); box-shadow: none; }
-.count-chip.hot { background: var(--wax); color: var(--paper-light); }
-.tabs .count-chip { background: rgba(122, 78, 23, .10); }
-button.secondary, .btn.secondary { border-color: transparent; background: var(--soft); box-shadow: none; }
-button.secondary:hover, .btn.secondary:hover { background: var(--paper-light); border-color: transparent; }
-button.ghost, .btn.ghost { border-color: transparent; }
+.tabs .count-chip { border-color: transparent; background: rgba(122, 78, 23, .10); color: var(--bronze-ink); box-shadow: none; }
