@@ -25,26 +25,34 @@ async function requireMemberOrAdmin(request: FastifyRequest, reply: FastifyReply
 export async function awardRoutes(app: FastifyInstance) {
   app.addHook("preHandler", requireUser);
 
-  /** Своя команда, свои награды, серия и список команд игры для просмотра чужих наград. */
+  /**
+   * Сводка наград для участника (решение владельца 30.10): свои и командные награды, серия, и рейтинги наград — все
+   * команды игры и все участники со своими значками, по убыванию числа наград (с повторами). Личные награды видны всем
+   * участникам игры, как и в карточке участника.
+   */
   app.get("/api/games/:id/awards", async (request, reply) => {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const userId = request.user!.id;
-    const [teamRows, myRows, teams, counts, streak] = await Promise.all([
-      prisma.awardGrant.findMany({ where: { gameId: id, teamId: m.team.id, userId: "" }, select: { code: true, at: true } }),
-      prisma.awardGrant.findMany({ where: { gameId: id, userId }, select: { code: true, at: true } }),
+    const [grants, teams, members, streak] = await Promise.all([
+      prisma.awardGrant.findMany({ where: { gameId: id }, select: { teamId: true, userId: true, code: true, at: true } }),
       prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, name: true, color: true, avatarId: true, status: true } }),
-      prisma.awardGrant.groupBy({ by: ["teamId"], where: { gameId: id, userId: "" }, _count: { _all: true } }),
+      prisma.membership.findMany({ where: { team: { gameId: id } }, select: { userId: true, teamId: true, user: { select: { nickname: true, displayName: true, avatarId: true } } } }),
       userStreak(id, userId),
     ]);
-    const countOf = new Map(counts.map((c) => [c.teamId, c._count._all]));
+    const total = (rows: ReturnType<typeof summarize>) => rows.reduce((a, g) => a + g.count, 0);
+    const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "ru");
+    const teamRows = teams.map((t) => ({ id: t.id, name: t.name, color: t.color, avatarId: t.avatarId, out: t.status !== "active", awards: summarize(grants.filter((g) => g.teamId === t.id && g.userId === "")) }));
+    const memberRows = members.map((mm) => ({ userId: mm.userId, teamId: mm.teamId, name: mm.user.displayName || mm.user.nickname, avatarId: mm.user.avatarId, awards: summarize(grants.filter((g) => g.userId === mm.userId)) }));
     return {
+      userId,
       teamId: m.team.id,
-      team: summarize(teamRows),
-      mine: summarize(myRows),
+      team: teamRows.find((t) => t.id === m.team.id)?.awards ?? [],
+      mine: memberRows.find((r) => r.userId === userId)?.awards ?? summarize(grants.filter((g) => g.userId === userId)),
       streak,
-      teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, avatarId: t.avatarId, out: t.status !== "active", awards: countOf.get(t.id) ?? 0 })),
+      teams: [...teamRows].sort((a, b) => total(b.awards) - total(a.awards) || byName(a, b)),
+      members: memberRows.sort((a, b) => total(b.awards) - total(a.awards) || byName(a, b)),
     };
   });
 

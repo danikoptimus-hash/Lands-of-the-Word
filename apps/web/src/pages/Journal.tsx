@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, apiReady, ready, type ActivityRowDto, type FeedItemDto, type JournalKind, type PeaceTeamDto, type SeasonBookDto, type ServiceStatsDto, type TopDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, type ActivityRowDto, type AwardsDto, type FeedItemDto, type JournalKind, type PeaceTeamDto, type SeasonBookDto, type ServiceStatsDto, type TopDto } from "../lib/api";
 import { getLocale, t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
 import { useUi } from "../lib/ui";
@@ -15,6 +15,8 @@ import { StatChip } from "../components/StatChip";
 import { useMediaQuery } from "../lib/media";
 import { EmptyState, LoadingState } from "../components/State";
 import { TaskReportSheet } from "./TaskReport";
+import { Tabs } from "../components/Tabs";
+import { AwardRating, MyAwardsBlock, awardsTotal } from "./Awards";
 
 /**
  * Журнал событий у игроков и администратора (решения владельца 18.09, глава 4): лента команды «Что случилось» (E-04),
@@ -120,45 +122,67 @@ export function FeedSection({ gameId, version, onOpenTask }: { gameId: string; v
   );
 }
 
-/** «Моё служение»: сводка участника. */
-export function MyServiceSection({ gameId, version }: { gameId: string; version: number }) {
+export type ServiceTab = "service" | "awards";
+/**
+ * «Моё служение» (раскладка владельца 30.10): две вкладки. «Служение» — сводка участника с плиткой наград, ниже «Рейтинг
+ * игроков» со значком числа наград у каждого (только для сведения, на место в рейтинге не влияет). «Награды» — серия дней,
+ * свои значки и «Рейтинг наград игроков». Вкладку держит страница команды: кнопка наград над картой открывает «Награды».
+ */
+export function MyServiceSection({ gameId, version, awards, tab, onTab }: { gameId: string; version: number; awards: AwardsDto | null; tab: ServiceTab; onTab: (tab: ServiceTab) => void }) {
   const [s, setS] = useState<ServiceStatsDto | null>(() => ready<ServiceStatsDto>(`/api/games/${gameId}/my-service`));
   const [top, setTop] = useState<TopDto | null>(() => ready<TopDto>(`/api/games/${gameId}/top`));
   useEffect(() => { apiReady<ServiceStatsDto>(`/api/games/${gameId}/my-service`).then(setS).catch(() => {}); apiReady<TopDto>(`/api/games/${gameId}/top`).then(setTop).catch(() => {}); }, [gameId, version]);
+  const awardsOf = new Map((awards?.members ?? []).map((m) => [m.userId, awardsTotal(m.awards)]));
+  const myAwards = awards ? awardsTotal(awards.mine) : null;
   return (
     <section className="section">
-      {!s ? <LoadingState rows={1} /> : (
-        <div className="service">
-          <div className="svc-stat"><b>{s.deeds}</b><span>{plural(s.deeds, ["дело", "дела", "дел"]).replace(/^\d+\s*/, "")}</span></div>
-          {/* Порядок как у значков в списке ниже (решение владельца 07.10): дела, районы, города, стихи. */}
-          <div className="svc-stat"><b>{s.tasks}</b><span>{t("районов")}</span></div>
-          <div className="svc-stat"><b>{s.cities}</b><span>{t("городов")}</span></div>
-          <div className="svc-stat"><b>{s.verses}</b><span>{t("стихов")}</span></div>
-          {s.trips > 0 && <div className="svc-stat"><b>{s.trips}</b><span>{t("переправ")}</span></div>}
-        </div>
-      )}
-      {s && s.deedsPending > 0 && <p className="hint">{t("В работе или на проверке: {n}", { n: s.deedsPending })}</p>}
-      {/* Общий список участников всех команд по очкам (решения владельца 30.09 и 07.10): все участники, не только десятка. */}
-      {top && top.rows.length > 0 && (
-        <div className="top-board">
-          <h3><Icon name="star" />{t("Самые активные")}<Help>{t("Все команды вместе. Дело — 3 очка, город — 2, район и переправа — по 1, каждые 5 стихов — 1. Дела считаются и участникам групповых дел. Значки: свиток — дела, карта — районы, город — города, книга — стихи.")}</Help></h3>
-          <ol className="top-list">
-            {[...top.rows, ...(top.me && top.me.rank > top.rows.length ? [top.me] : [])].map((r) => (
-              <li key={r.userId} className={top.me?.userId === r.userId ? "me" : ""}>
-                <span className="rank">{r.rank}</span>
-                <TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" title={r.team} teamId={r.teamId} />
-                <UserAvatar name={r.name} avatarId={r.userAvatarId} size="sm" userId={r.userId} />
-                <span className="body">
-                  <span className="name">{r.name}{top.me?.userId === r.userId ? ` · ${t("это вы")}` : ""}</span>
-                  {/* Значки вместо слов (решение владельца 07.10): дела, районы, города, стихи. */}
-                  <span className="meta chips"><Chip icon="scroll" title={t("Дел")}>{r.deeds}</Chip><Chip icon="map" title={t("Районов")}>{r.tasks}</Chip><Chip icon="city" title={t("Городов")}>{r.cities}</Chip><Chip icon="book" title={t("Стихов")}>{r.verses}</Chip></span>
-                </span>
-              </li>
-            ))}
-          </ol>
-          {top.total > top.rows.length && <p className="muted small">{t("Всего участников: {n}", { n: top.total })}</p>}
-        </div>
-      )}
+      <Tabs items={[{ key: "service", label: t("Служение"), icon: "user" }, { key: "awards", label: t("Награды"), icon: "trophy" }]} value={tab} onChange={onTab} ariaLabel={t("Моё служение")} />
+      {tab === "service" && (<>
+        {!s ? <LoadingState rows={1} /> : (
+          <div className="service">
+            <div className="svc-stat"><b>{s.deeds}</b><span>{plural(s.deeds, ["дело", "дела", "дел"]).replace(/^\d+\s*/, "")}</span></div>
+            {/* Порядок как у значков в списке ниже (решение владельца 07.10): дела, районы, города, стихи; награды — с повторами (30.10). */}
+            <div className="svc-stat"><b>{s.tasks}</b><span>{t("районов")}</span></div>
+            <div className="svc-stat"><b>{s.cities}</b><span>{t("городов")}</span></div>
+            <div className="svc-stat"><b>{s.verses}</b><span>{t("стихов")}</span></div>
+            {s.trips > 0 && <div className="svc-stat"><b>{s.trips}</b><span>{t("переправ")}</span></div>}
+            <div className="svc-stat"><b>{myAwards ?? "…"}</b><span>{t("наград")}</span></div>
+          </div>
+        )}
+        {s && s.deedsPending > 0 && <p className="hint">{t("В работе или на проверке: {n}", { n: s.deedsPending })}</p>}
+        {/* Общий список участников всех команд по очкам (решения владельца 30.09 и 07.10): все участники, не только десятка. */}
+        {top && top.rows.length > 0 && (
+          <div className="top-board">
+            <h3><Icon name="star" />{t("Рейтинг игроков")}<Help>{t("Все команды вместе. Дело — 3 очка, город — 2, район и переправа — по 1, каждые 5 стихов — 1. Дела считаются и участникам групповых дел. Значки: свиток — дела, карта — районы, город — города, книга — стихи, кубок — награды (на место не влияют).")}</Help></h3>
+            <ol className="top-list">
+              {[...top.rows, ...(top.me && top.me.rank > top.rows.length ? [top.me] : [])].map((r) => (
+                <li key={r.userId} className={top.me?.userId === r.userId ? "me" : ""}>
+                  <span className="rank">{r.rank}</span>
+                  <TeamAvatar name={r.team} color={r.color} avatarId={r.avatarId} size="sm" title={r.team} teamId={r.teamId} />
+                  <UserAvatar name={r.name} avatarId={r.userAvatarId} size="sm" userId={r.userId} />
+                  <span className="body">
+                    <span className="name">{r.name}{top.me?.userId === r.userId ? ` · ${t("это вы")}` : ""}</span>
+                    {/* Значки вместо слов (решение владельца 07.10): дела, районы, города, стихи; число наград — для сведения (30.10). */}
+                    <span className="meta chips"><Chip icon="scroll" title={t("Дел")}>{r.deeds}</Chip><Chip icon="map" title={t("Районов")}>{r.tasks}</Chip><Chip icon="city" title={t("Городов")}>{r.cities}</Chip><Chip icon="book" title={t("Стихов")}>{r.verses}</Chip>{awardsOf.has(r.userId) && <Chip icon="trophy" tone="accent" title={t("Наград")}>{awardsOf.get(r.userId)}</Chip>}</span>
+                  </span>
+                </li>
+              ))}
+            </ol>
+            {top.total > top.rows.length && <p className="muted small">{t("Всего участников: {n}", { n: top.total })}</p>}
+          </div>
+        )}
+      </>)}
+      {tab === "awards" && (!awards ? <LoadingState rows={2} /> : (<>
+        <MyAwardsBlock data={awards} />
+        <AwardRating
+          title={t("Рейтинг наград игроков")}
+          help={t("Все участники игры по числу наград с повторами. Строку значков можно листать. Нажмите значок — условие и дата.")}
+          empty={t("Наград пока нет.")}
+          rows={awards.members.map((m) => {
+            const tm = awards.teams.find((x) => x.id === m.teamId);
+            return { key: m.userId, name: m.name, awards: m.awards, me: m.userId === awards.userId, tag: m.userId === awards.userId ? t("это вы") : undefined, who: <>{tm && <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" title={tm.name} teamId={tm.id} />}<UserAvatar name={m.name} avatarId={m.avatarId} size="sm" userId={m.userId} /></> };
+          })} />
+      </>))}
     </section>
   );
 }

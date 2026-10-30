@@ -1,18 +1,21 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { AWARDS, AWARD_BY_CODE, PERSONAL_AWARDS, TEAM_AWARDS, streakAward, type AwardDef } from "@lotw/domain";
-import { api, apiReady, ready, type AdminAwardsDto, type AwardGrantDto, type AwardsDto, type TeamAwardsDto } from "../lib/api";
+import { apiReady, ready, type AdminAwardsDto, type AwardGrantDto, type AwardsDto } from "../lib/api";
 import { UserAvatar } from "../components/UserAvatar";
 import { EmptyState, LoadingState } from "../components/State";
 import { getLocale, t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { Help } from "../components/Help";
 import { Tabs } from "../components/Tabs";
 import { Sheet } from "../components/Sheet";
 import { TeamAvatar } from "../components/TeamAvatar";
 
 /**
- * Зал наград (решение владельца 29.10): две вкладки — награды команды (с просмотром других команд) и личные,
- * сверху у личных — серия дней. Значки — картинки `/img/awards/<code>.webp`; не взятые показаны серыми. Нажатие на
+ * Награды (решение владельца 29.10, раскладка 30.10): личные — во вкладке «Награды» раздела «Моё служение» (серия дней,
+ * сетка своих значков, ниже рейтинг наград участников), командные — во вкладке «Награды команд» раздела «Команды»
+ * (сетка своей команды, ниже рейтинг наград команд). В рейтингах значки идут одной строкой, которая листается пальцем,
+ * на новую строку не переносятся. Значки — картинки `/img/awards/<code>.webp`; не взятые показаны серыми. Нажатие на
  * значок открывает лист с условием и датой; у повторяемых наград — счётчик на значке и даты первого и последнего раза.
  */
 export const awardName = (a: AwardDef) => (getLocale() === "en" ? a.nameEn : a.nameRu);
@@ -96,43 +99,65 @@ export function StreakCard({ streak }: { streak: AwardsDto["streak"] }) {
   );
 }
 
-export function AwardsSection({ gameId, version, data, onLoaded }: { gameId: string; version: number; /** Уже загруженная сводка (страница команды держит её для плашки серии). */ data: AwardsDto | null; onLoaded: (d: AwardsDto) => void }) {
-  const [tab, setTab] = useState<"team" | "mine">("team");
-  const [teamId, setTeamId] = useState<string | null>(null);
-  const [other, setOther] = useState<Record<string, TeamAwardsDto>>({});
+/** Число наград с повторами. */
+export const awardsTotal = (grants: AwardGrantDto[]) => grants.reduce((a, g) => a + g.count, 0);
+
+/** Личные награды: серия дней и сетка по каталогу. */
+export function MyAwardsBlock({ data }: { data: AwardsDto }) {
   const [pick, setPick] = useState<string | null>(null);
-  useEffect(() => { apiReady<AwardsDto>(`/api/games/${gameId}/awards`).then(onLoaded).catch(() => {}); }, [gameId, version]); // eslint-disable-line react-hooks/exhaustive-deps
-  const shownTeam = teamId ?? data?.teamId ?? null;
-  useEffect(() => {
-    if (!shownTeam || !data || shownTeam === data.teamId || other[shownTeam]) return;
-    api<TeamAwardsDto>(`/api/games/${gameId}/awards/teams/${shownTeam}`).then((r) => setOther((o) => ({ ...o, [shownTeam]: r }))).catch(() => {});
-  }, [shownTeam, data, gameId, other, version]);
-  if (!data) return <section className="section"><LoadingState rows={2} /></section>;
-  const teamGrants = shownTeam === data.teamId ? data.team : other[shownTeam ?? ""]?.awards ?? null;
-  const grants = tab === "team" ? teamGrants ?? [] : data.mine;
-  const defs = tab === "team" ? TEAM_AWARDS : PERSONAL_AWARDS;
-  const gotCount = grants.filter((g) => defs.some((d) => d.code === g.code)).length;
+  const got = data.mine.filter((g) => PERSONAL_AWARDS.some((d) => d.code === g.code)).length;
   return (
-    <section className="section awards">
-      <Tabs items={[{ key: "team", label: t("Команда"), icon: "users" }, { key: "mine", label: t("Мои"), icon: "user" }]} value={tab} onChange={setTab} ariaLabel={t("Награды")} />
-      {tab === "team" && (
-        <div className="award-teams" role="tablist" aria-label={t("Чьи награды")}>
-          {[...data.teams].sort((a, b) => Number(b.id === data.teamId) - Number(a.id === data.teamId)).map((tm) => (
-            <button key={tm.id} type="button" role="tab" aria-selected={tm.id === shownTeam} className={"chip-btn" + (tm.id === shownTeam ? " on" : "")} onClick={() => setTeamId(tm.id)}>
-              <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" zoom={false} /><span>{tm.name}</span><span className="count-chip">{tm.awards}</span>
-            </button>
+    <div className="awards">
+      <StreakCard streak={data.streak} />
+      <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: PERSONAL_AWARDS.length })}</b><small className="muted">{t("нажмите значок — условие и дата")}</small></div>
+      <AwardGrid defs={PERSONAL_AWARDS} grants={data.mine} onPick={setPick} />
+      {pick && <AwardSheet code={pick} grant={data.mine.find((g) => g.code === pick)} onClose={() => setPick(null)} />}
+    </div>
+  );
+}
+
+/** Награды своей команды: сетка по каталогу. */
+export function TeamAwardsBlock({ data }: { data: AwardsDto }) {
+  const [pick, setPick] = useState<string | null>(null);
+  const got = data.team.filter((g) => TEAM_AWARDS.some((d) => d.code === g.code)).length;
+  return (
+    <div className="awards">
+      <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: TEAM_AWARDS.length })}</b><small className="muted">{t("нажмите значок — условие и дата")}</small></div>
+      <AwardGrid defs={TEAM_AWARDS} grants={data.team} onPick={setPick} />
+      {pick && <AwardSheet code={pick} grant={data.team.find((g) => g.code === pick)} onClose={() => setPick(null)} />}
+    </div>
+  );
+}
+
+export interface AwardRatingRow { key: string; who: ReactNode; name: string; awards: AwardGrantDto[]; /** Своя строка — подсветка. */ me?: boolean; /** Подпись после имени: «это вы», «ваша команда». */ tag?: string; /** Выбывшая команда. */ muted?: boolean }
+/**
+ * Рейтинг наград (решение владельца 30.10): строки как в рейтинге игроков, но вместо значков-счётчиков — сами награды
+ * одной строкой; если не умещаются, строка листается пальцем, на новую строку не переносится. Порядок — по числу наград
+ * с повторами (сервер). Нажатие на награду открывает её лист.
+ */
+export function AwardRating({ title, help, rows, empty }: { title: string; help?: string; rows: AwardRatingRow[]; empty: string }) {
+  const [pick, setPick] = useState<{ code: string; grant: AwardGrantDto } | null>(null);
+  return (
+    <div className="top-board award-rating">
+      <h3><Icon name="trophy" />{title}{help && <Help>{help}</Help>}</h3>
+      {rows.length === 0 ? <EmptyState inline icon="trophy" text={empty} /> : (
+        <ol className="top-list">
+          {rows.map((r, i) => (
+            <li key={r.key} className={(r.me ? "me" : "") + (r.muted ? " out" : "")}>
+              <span className="rank">{i + 1}</span>
+              {r.who}
+              <span className="body">
+                <span className="name">{r.name}{r.tag ? ` · ${r.tag}` : ""}<span className="muted"> · {awardsTotal(r.awards)}</span></span>
+                {r.awards.length === 0
+                  ? <span className="meta">{t("Наград пока нет")}</span>
+                  : <span className="award-strip">{r.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" name={false} eager onClick={() => setPick({ code: g.code, grant: g })} />)}</span>}
+              </span>
+            </li>
           ))}
-        </div>
+        </ol>
       )}
-      {tab === "mine" && <StreakCard streak={data.streak} />}
-      {tab === "team" && teamGrants === null ? <LoadingState rows={2} /> : (
-        <>
-          <div className="award-head"><b>{t("Получено {n} из {m}", { n: gotCount, m: defs.length })}</b><small className="muted">{t("нажмите значок — условие и дата")}</small></div>
-          <AwardGrid defs={defs} grants={grants} onPick={setPick} />
-        </>
-      )}
-      {pick && <AwardSheet code={pick} grant={grants.find((g) => g.code === pick)} onClose={() => setPick(null)} />}
-    </section>
+      {pick && <AwardSheet code={pick.code} grant={pick.grant} onClose={() => setPick(null)} />}
+    </div>
   );
 }
 

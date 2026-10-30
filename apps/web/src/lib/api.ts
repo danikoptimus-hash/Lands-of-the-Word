@@ -178,7 +178,10 @@ export interface QuarryDto { stones: number; canWork: boolean; members: Array<{ 
 /** Награды (решение владельца 29.10): полученное по кодам каталога @lotw/domain. */
 export interface AwardGrantDto { code: string; count: number; at: string; last: string }
 export interface StreakDto { current: number; best: number; today: boolean; next: number | null; toNext: number | null; todayKey: string }
-export interface AwardsDto { teamId: string; team: AwardGrantDto[]; mine: AwardGrantDto[]; streak: StreakDto; teams: Array<{ id: string; name: string; color: string; avatarId?: string | null; out: boolean; awards: number }> }
+export interface AwardTeamRowDto { id: string; name: string; color: string; avatarId?: string | null; out: boolean; awards: AwardGrantDto[] }
+export interface AwardMemberRowDto { userId: string; teamId: string; name: string; avatarId: string | null; awards: AwardGrantDto[] }
+/** Сводка наград участника: свои и командные, серия, рейтинги наград команд и участников (по убыванию числа наград с повторами). */
+export interface AwardsDto { userId: string; teamId: string; team: AwardGrantDto[]; mine: AwardGrantDto[]; streak: StreakDto; teams: AwardTeamRowDto[]; members: AwardMemberRowDto[] }
 export interface TeamAwardsDto { team: { id: string; name: string; color: string; avatarId?: string | null }; awards: AwardGrantDto[] }
 export interface MemberCardDto { name: string; avatarId: string | null; team: { id: string; name: string; color: string }; role: TeamRole; gameRole: GameRole; awards: AwardGrantDto[]; streak: { current: number; best: number } }
 export interface AdminAwardsDto { teams: Array<{ id: string; name: string; color: string; avatarId?: string | null; awards: AwardGrantDto[] }>; members: Array<{ userId: string; name: string; avatarId: string | null; team: { id: string; name: string; color: string; avatarId?: string | null } | null; role: TeamRole; gameRole: GameRole; streak: { current: number; best: number }; awards: AwardGrantDto[] }> }

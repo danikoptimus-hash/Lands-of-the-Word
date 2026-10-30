@@ -6,7 +6,7 @@ import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
 import { TeamMap, type MarkPoint, type ScoutReveal } from "./TeamMap";
-import { AwardsSection, MilestoneCard, StreakBanner, awardsCached, preloadAllAwardImages, preloadAwardImages } from "./Awards";
+import { AwardRating, MilestoneCard, StreakBanner, TeamAwardsBlock, awardsCached, preloadAllAwardImages, preloadAwardImages } from "./Awards";
 import { AWARD_BY_CODE } from "@lotw/domain";
 import { previewPhase, useStorm } from "../lib/daytime";
 import { TimelineDock } from "./Timeline";
@@ -30,8 +30,9 @@ import { Help, HelpPopup } from "../components/Help";
 import { ActionMenu, type MenuItem } from "../components/ActionMenu";
 import { StatChip } from "../components/StatChip";
 import { DeedBadgePopup, untilText } from "../components/DeedBadge";
-import { FeedSection, MyServiceSection } from "./Journal";
+import { FeedSection, MyServiceSection, type ServiceTab } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
+import { Tabs } from "../components/Tabs";
 import { UserAvatar } from "../components/UserAvatar";
 import { AvatarUploader } from "../components/AvatarUploader";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
@@ -111,7 +112,7 @@ export function finishReasonLabel(reason: string | null): string {
 }
 
 /** Разделы меню команды (решение владельца 21.09): на главном экране меню — только то, что требует внимания, и значки разделов. Состав, проходы и мир — внутри «Команд»; лента событий называется «Летопись». */
-type MenuView = "home" | "attention" | "deeds" | "battles" | "standings" | "feed" | "service" | "awards";
+type MenuView = "home" | "attention" | "deeds" | "battles" | "standings" | "feed" | "service";
 /** Колокольчик — такая же плитка, как остальные (просьба участника 05.10): внутри всё, что требует внимания. */
 const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: () => string; /** Короткая подпись для плитки дока на телефоне (ширина плитки как у администратора). */ short?: () => string; hot?: boolean }> = [
   { key: "attention", icon: "bell", label: () => t("Внимание"), hot: true },
@@ -120,7 +121,6 @@ const MENU_ITEMS: Array<{ key: Exclude<MenuView, "home">; icon: string; label: (
   { key: "standings", icon: "crown", label: () => t("Команды"), hot: true },
   { key: "feed", icon: "feather", label: () => t("Летопись") },
   { key: "service", icon: "user", label: () => t("Моё служение"), short: () => t("Служение") },
-  { key: "awards", icon: "trophy", label: () => t("Награды") },
 ];
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -210,7 +210,9 @@ export function TeamPage() {
   const [awardsVersion, setAwardsVersion] = useState(0);
   const [streakShow, setStreakShow] = useState(false);
   const [milestone, setMilestone] = useState<string | null>(null);
-  const [awardsSeen, setAwardsSeen] = useState(() => { try { return Number(localStorage.getItem(`lotw.awards.seen.${id}`) ?? 0); } catch { return 0; } });
+  // Награды живут во вкладках разделов (раскладка владельца 30.10): личные — в «Моём служении», командные — в «Командах».
+  const [serviceTab, setServiceTab] = useState<ServiceTab>("service");
+  const [standingsTab, setStandingsTab] = useState<"rating" | "awards">("rating");
   useEffect(() => { apiReady<AwardsDto>(`/api/games/${id}/awards`).then((d) => { setAwards(d); preloadAwardImages(["p_streak_10", ...d.team.map((g) => g.code), ...d.mine.map((g) => g.code)]); preloadAllAwardImages(); }).catch(() => {}); }, [id, awardsVersion]);
   useEffect(() => {
     if (!awards) return;
@@ -225,7 +227,6 @@ export function TeamPage() {
   }, [awards?.streak.todayKey, awards?.mine.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const closeStreak = useCallback(() => { setStreakShow(false); try { if (awards) localStorage.setItem(`lotw.streak.${id}`, awards.streak.todayKey); } catch { /* ничего */ } }, [awards, id]);
   const closeMilestone = useCallback(() => { if (milestone) { try { const k = `lotw.milestone.${id}`; localStorage.setItem(k, [...(localStorage.getItem(k) ?? "").split(",").filter(Boolean), milestone].join(",")); } catch { /* ничего */ } } setMilestone(null); }, [milestone, id]);
-  const awardsTotal = awards ? awards.team.reduce((a, g) => a + g.count, 0) + awards.mine.reduce((a, g) => a + g.count, 0) : 0;
   const [battles, setBattles] = useState<BattleDto[]>([]);
   const [standings, setStandings] = useState<StandingsDto | null>(null);
   const [passages, setPassages] = useState<PassagesDto | null>(null);
@@ -610,7 +611,7 @@ export function TeamPage() {
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0);
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
-  const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length, awards: Math.max(0, awardsTotal - awardsSeen) };
+  const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length };
   /** На компьютере (решение владельца 05.10, вечер): плитки разделов висят над картой, панель открыта только пока выбран раздел; «home» — панель закрыта. */
   const view: MenuView = menuView;
 
@@ -659,6 +660,8 @@ export function TeamPage() {
   // Порядок плиток дока (решение владельца 30.10, слева направо): внимание, испытания, служение, команды, летопись, дела.
   const DOCK_ORDER: MenuView[] = ["attention", "battles", "service", "standings", "feed", "deeds"];
   const dockItems = DOCK_ORDER.map((k) => MENU_ITEMS.find((m) => m.key === k)!);
+  /** Кнопка наград над картой, плашка серии и праздник рубежа открывают «Моё служение» на вкладке «Награды». */
+  const openAwards = () => { setMenu(true); setMenuView("service"); setServiceTab("awards"); setSelectedId(null); };
 
   return (
     <div className="map-screen" ref={screenRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
@@ -769,7 +772,17 @@ export function TeamPage() {
           )}
           {menuView === "standings" && (
             <section className="section">
-            <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} onTrade={canTrade ? (tid) => setTradeFor({ teamId: tid, nonce: Date.now() }) : undefined} roster={<Roster avatarEditor={avatarEditor} onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />
+            {/* Две вкладки (раскладка владельца 30.10): рейтинг команд с составом, проходами и миром; награды команд — сетка своей и рейтинг наград. */}
+            <Tabs items={[{ key: "rating", label: t("Рейтинг команд"), icon: "crown" }, { key: "awards", label: t("Награды команд"), icon: "trophy" }]} value={standingsTab} onChange={setStandingsTab} ariaLabel={t("Команды")} />
+            {standingsTab === "awards" && (!awards ? <LoadingState rows={2} /> : (<>
+              <TeamAwardsBlock data={awards} />
+              <AwardRating
+                title={t("Рейтинг наград команд")}
+                help={t("Все команды игры по числу наград с повторами. Строку значков можно листать. Нажмите значок — условие и дата.")}
+                empty={t("Наград пока нет.")}
+                rows={awards.teams.map((tm) => ({ key: tm.id, name: tm.name, awards: tm.awards, me: tm.id === awards.teamId, tag: tm.id === awards.teamId ? t("ваша команда") : tm.out ? t("выбыла") : undefined, muted: tm.out, who: <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" title={tm.name} teamId={tm.id} /> }))} />
+            </>))}
+            {standingsTab === "rating" && <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} onTrade={canTrade ? (tid) => setTradeFor({ teamId: tid, nonce: Date.now() }) : undefined} roster={<Roster avatarEditor={avatarEditor} onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />}
 
             {peaceOffer && (
               <Sheet size="sm" title={t("Предложить мир команде «{team}»", { team: peaceOffer.team.name })} onClose={() => setPeaceOffer(null)}>
@@ -783,11 +796,10 @@ export function TeamPage() {
             )}
             </section>
           )}
-          {menuView === "standings" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
-          {menuView === "standings" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} openFor={tradeFor} onCanTrade={setCanTrade} onChanged={() => { void loadMap(); void loadStandings(); }} />}
+          {menuView === "standings" && standingsTab === "rating" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
+          {menuView === "standings" && standingsTab === "rating" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} openFor={tradeFor} onCanTrade={setCanTrade} onChanged={() => { void loadMap(); void loadStandings(); }} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} onOpenTask={(tid) => { if (map.tasks.some((tk) => tk.id === tid)) showOnMap(tid); else notify(t("Дело уже не на карте"), "info"); }} />}
-          {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} />}
-          {menuView === "awards" && <AwardsSection gameId={id} version={awardsVersion} data={awards} onLoaded={(d) => { setAwards(d); const n = d.team.reduce((a, g) => a + g.count, 0) + d.mine.reduce((a, g) => a + g.count, 0); setAwardsSeen(n); try { localStorage.setItem(`lotw.awards.seen.${id}`, String(n)); } catch { /* ничего */ } }} />}
+          {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} awards={awards} tab={serviceTab} onTab={setServiceTab} />}
           </div>
         </aside>
       )}
@@ -806,7 +818,7 @@ export function TeamPage() {
         ) : (
         <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask} storm={storm}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
-          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark} onAwards={() => { setMenu(true); setMenuView("awards"); setSelectedId(null); }}
+          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark} onAwards={openAwards}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
           onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} scout={scout} />
         )}
@@ -838,8 +850,8 @@ export function TeamPage() {
           {phase === "morning" && <span className="hud-tod morning" title={t("Утро: вызов на город отправляют на проверку до 9:00")}><Icon name="sun" />{t("Утро до 9:00")}</span>}
         </div>
         {/* Серия дней (решение владельца 29.10): плашка при заходе раз в игровые сутки; в день рубежа — праздник со значком. */}
-        {streakShow && awards && !milestone && !selectedId && <StreakBanner streak={awards.streak} onOpen={() => { closeStreak(); setMenu(true); setMenuView("awards"); }} onClose={closeStreak} />}
-        {milestone && <MilestoneCard code={milestone} onOpen={() => { closeMilestone(); setMenu(true); setMenuView("awards"); }} onClose={closeMilestone} />}
+        {streakShow && awards && !milestone && !selectedId && <StreakBanner streak={awards.streak} onOpen={() => { closeStreak(); openAwards(); }} onClose={closeStreak} />}
+        {milestone && <MilestoneCard code={milestone} onOpen={() => { closeMilestone(); openAwards(); }} onClose={closeMilestone} />}
         {standings?.status === "FINISHED" && (
           <div className="finish-banner" role="status"><Icon name="trophy" /><span>{winner ? t("Игра завершена: победила «{team}»", { team: winner }) : t("Игра завершена")}</span></div>
         )}
