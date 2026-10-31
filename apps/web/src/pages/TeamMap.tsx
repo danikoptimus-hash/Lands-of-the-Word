@@ -386,8 +386,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             return <g key={n.key} style={sc(p.x, p.y)}><circle className="m-fork" r={5} /></g>;
           })}
           {showMarkers && (map.peeked ?? []).map((pk) => {
-            const pos = positions.get(pk.key);
-            if (!pos) return null;
+            // Координаты из ключа: у разведанного угла без дороги к открытой части карты записи в positions нет (жалоба участника 31.10: метка стояла только через сторону с делом).
+            const pos = positions.get(pk.key) ?? nodePos(pk.key, size);
             return (
               <g key={"pk" + pk.key} className="m-peek" style={sc(pos.x, pos.y, "translate(0, -16px)")}>
                 <circle r={10} />
