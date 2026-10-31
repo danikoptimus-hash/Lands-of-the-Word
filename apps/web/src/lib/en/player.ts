@@ -565,7 +565,6 @@ export const PLAYER: Record<string, string> = {
   "Мои": "Mine",
   "Чьи награды": "Whose awards",
   "Получено {n} из {m}": "Earned {n} of {m}",
-  "нажмите значок — условие и дата": "tap a badge for the condition and date",
   "{name} — ещё впереди": "{name} — still ahead",
   "Получена {n} раз: впервые {a}, последний раз {b}": "Earned {n} times: first on {a}, last on {b}",
   "Получена {d}": "Earned on {d}",

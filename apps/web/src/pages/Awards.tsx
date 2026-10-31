@@ -165,7 +165,7 @@ export function MyAwardsBlock({ data }: { data: AwardsDto }) {
   return (
     <div className="awards">
       <StreakCard streak={data.streak} />
-      <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: PERSONAL_AWARDS.length })}</b><small className="muted">{t("нажмите значок — условие и дата")}</small></div>
+      <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: PERSONAL_AWARDS.length })}</b></div>
       <AwardGrid defs={PERSONAL_AWARDS} grants={data.mine} onPick={setPick} />
       {pick && <AwardSheet code={pick} grant={data.mine.find((g) => g.code === pick)} onClose={() => setPick(null)} />}
     </div>
@@ -178,7 +178,7 @@ export function TeamAwardsBlock({ data }: { data: AwardsDto }) {
   const got = data.team.filter((g) => TEAM_AWARDS.some((d) => d.code === g.code)).length;
   return (
     <div className="awards">
-      <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: TEAM_AWARDS.length })}</b><small className="muted">{t("нажмите значок — условие и дата")}</small></div>
+      <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: TEAM_AWARDS.length })}</b></div>
       <AwardGrid defs={TEAM_AWARDS} grants={data.team} onPick={setPick} />
       {pick && <AwardSheet code={pick} grant={data.team.find((g) => g.code === pick)} onClose={() => setPick(null)} />}
     </div>
@@ -292,7 +292,7 @@ export function AdminAwards({ gameId, version }: { gameId: string; version: numb
               </button>
             ))}
           </div>
-          <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: TEAM_AWARDS.length })}</b><small className="muted">{t("нажмите значок — условие и дата")}</small></div>
+          <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: TEAM_AWARDS.length })}</b></div>
           <AwardGrid defs={TEAM_AWARDS} grants={team.awards} onPick={setPick} />
           {pick && <AwardSheet code={pick} grant={team.awards.find((g) => g.code === pick)} onClose={() => setPick(null)} />}
         </>
