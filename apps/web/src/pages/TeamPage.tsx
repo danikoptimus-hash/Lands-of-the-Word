@@ -653,6 +653,8 @@ export function TeamPage() {
     if (!backTo) return;
     setMenuView(backTo.view); setRestore({ top: backTo.top, bodyTop: backTo.bodyTop }); setBackTo(null);
   };
+  /** Нажатие по карте мимо листа дела — сразу на карту, без возврата в список (жалоба участника 31.10: «невозможно выйти из карточки дела на карту»); стрелка в листе по-прежнему ведёт в список на то же место. */
+  const dismissTask = () => { setSelectedId(null); setBackTo(null); };
   // Телефон по схеме администратора (решение владельца 29.10): бокового меню нет, разделы открываются из дока внизу
   // листом над картой; стрелка слева вверху ведёт в «Мои игры». Состояние `menu` осталось для совместимости вызовов.
   const menuOpen = !storm.active && menuView !== "home";
@@ -898,7 +900,7 @@ export function TeamPage() {
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
           return (
-            <Sheet size="sm" container={mapEl} onClose={closeTask} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip><button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => { /* Значок карты, как в отчёте у администратора (владелец 25.10): лист закрывается, карта центрируется на стороне дела. */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }}><Icon name="map" /></button></div>}>
+            <Sheet size="sm" container={mapEl} onClose={closeTask} onDismiss={backTo ? dismissTask : undefined} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip><button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => { /* Значок карты, как в отчёте у администратора (владелец 25.10): лист закрывается, карта центрируется на стороне дела. */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }}><Icon name="map" /></button></div>}>
               {task.person && <p className="meta-line mt-2 person-line"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
               <p className="meta-line mt-2">
                 <Icon name={proof.icon} />{t("Сдать")}: {proof.label()}
