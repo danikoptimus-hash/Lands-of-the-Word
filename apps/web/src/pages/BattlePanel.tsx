@@ -310,7 +310,7 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
               <div className="main">
                 <span className="title">{e.ref} <span className="muted small">· {verses(e.verses)} · {e.nickname}</span>{(e.weight ?? 1) > 1 && <Chip tone="accent" icon="sword">{t("воин ×{k}", { k: e.weight ?? 1 })}</Chip>}</span>
                 {e.adminComment && <span className="meta">{t("Комментарий: {c}", { c: e.adminComment })}</span>}
-                {e.links.length > 0 && <span className="meta">{e.links.map((l, i) => <a key={l} href={l} target="_blank" rel="noopener noreferrer">{t("видео")}{e.links.length > 1 ? ` ${i + 1}` : ""}</a>)}</span>}
+                {e.links.length > 0 && <span className="meta">{e.links.map((l, i) => <a key={l} className="vlink" href={l} target="_blank" rel="noopener noreferrer" aria-label={e.links.length > 1 ? `${t("Видео")} ${i + 1}` : t("Видео")} title={e.links.length > 1 ? `${t("Видео")} ${i + 1}` : t("Видео")}><Icon name="video" />{e.links.length > 1 ? i + 1 : ""}</a>)}</span>}
               </div>
               <Chip tone={e.status === "APPROVED" ? "ok" : e.status === "REJECTED" ? "bad" : "warn"} icon={e.status === "APPROVED" ? "check" : e.status === "REJECTED" ? "alert" : "clock"}>{e.status === "APPROVED" ? t("принято") : e.status === "REJECTED" ? t("возвращено") : t("на проверке")}</Chip>
             </li>

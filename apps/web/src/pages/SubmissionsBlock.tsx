@@ -39,7 +39,10 @@ export function ReviewCard({ icon, title, count, loading, error, onRetry, childr
 export function LinkList({ links, kind }: { links: string[]; kind: "photo" | "video" | "link" }) {
   if (links.length === 0) return null;
   const word = kind === "photo" ? t("Фото") : kind === "video" ? t("Видео") : t("Ссылка");
-  return <span className="links">{links.map((l, i) => <a key={l + i} href={l} target="_blank" rel="noopener noreferrer"><Icon name={kind === "photo" ? "camera" : kind === "video" ? "video" : "link"} />{links.length > 1 ? `${word} ${i + 1}` : word}</a>)}</span>;
+  const label = (i: number) => (links.length > 1 ? `${word} ${i + 1}` : word);
+  // Видео — только значок (решение владельца 31.10: «уберём надпись видео, оставим только значок»); номер, если видео несколько.
+  if (kind === "video") return <span className="links">{links.map((l, i) => <a key={l + i} className="vlink" href={l} target="_blank" rel="noopener noreferrer" aria-label={label(i)} title={label(i)}><Icon name="video" />{links.length > 1 ? i + 1 : ""}</a>)}</span>;
+  return <span className="links">{links.map((l, i) => <a key={l + i} href={l} target="_blank" rel="noopener noreferrer"><Icon name={kind === "photo" ? "camera" : "link"} />{label(i)}</a>)}</span>;
 }
 
 /** Отрицательное решение: поле причины появляется только когда возвращают, с фокусом. */

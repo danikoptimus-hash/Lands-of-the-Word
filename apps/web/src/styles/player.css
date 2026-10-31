@@ -302,6 +302,9 @@
 .declare .row.nowrap input { max-width: 12ch; }
 .battle { margin-top: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
 .battle .strong .i { color: var(--accent); vertical-align: -.2em; }
+/* Ссылка на видео у записи: только значок (решение владельца 31.10), номер — если видео несколько. */
+.vlink { display: inline-flex; align-items: center; gap: 2px; min-height: 28px; padding: 0 4px; color: var(--link); text-decoration: none; font-weight: 600; }
+.vlink .i { width: 20px; height: 20px; }
 /* Прошлые испытания города: строка медальонов и чип итога в одну строку. */
 .war .list > li.past { flex-wrap: nowrap; align-items: center; }
 
@@ -319,14 +322,15 @@
 .trial-turn.mine > .i { color: var(--accent-ink); }
 .trial-turn.admin > .i { color: var(--wax-ink, var(--danger)); }
 .trial-turn.over { background: var(--surface-2); }
-.trial-steps { --medal: 44px; --mark: 18px; list-style: none; margin: var(--sp-3) auto 0; padding: 0; display: flex; justify-content: space-between; align-items: flex-start; max-width: 640px; }
+.trial-steps { --medal: 44px; --mark: 18px; position: relative; z-index: 0; list-style: none; margin: var(--sp-3) auto 0; padding: 0; display: flex; justify-content: space-between; align-items: flex-start; max-width: 640px; }
 @media (min-width: 640px) { .trial-steps { --medal: 56px; --mark: 20px; } }
-.trial-steps .step { position: relative; z-index: 0; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
-/* Перемычка от середины прошлого медальона к середине этого. */
-.trial-steps .step::before { content: ""; position: absolute; z-index: -1; left: -50%; width: 100%; top: calc(var(--medal) / 2 - 3px); height: 6px; background: var(--paper-2); border-top: 1px solid var(--paper-edge); border-bottom: 1px solid var(--paper-edge); }
+.trial-steps .step { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+/* Перемычка от края прошлого медальона до края этого (замечание владельца 31.10: полоса не должна заходить на картинку);
+   на 2px прячется под медальоны, которые рисуются поверх полос (z-index 1 в контексте списка). */
+.trial-steps .step::before { content: ""; position: absolute; z-index: 0; left: calc(-50% + var(--medal) / 2 - 2px); width: calc(100% - var(--medal) + 4px); top: calc(var(--medal) / 2 - 3px); height: 6px; background: var(--paper-2); border-top: 1px solid var(--paper-edge); border-bottom: 1px solid var(--paper-edge); }
 .trial-steps .step:first-child::before { display: none; }
 .trial-steps .step.done::before, .trial-steps .step.current::before, .trial-steps .step.failed::before { background: linear-gradient(90deg, var(--bronze-light), var(--bronze)); border-color: var(--bronze); }
-.trial-steps .medal { position: relative; display: block; width: var(--medal); height: var(--medal); border-radius: 50%; background: var(--paper-light); box-shadow: 0 1px 3px rgba(59, 36, 21, .22); transition: transform var(--dur-base) var(--ease-out); }
+.trial-steps .medal { position: relative; z-index: 1; display: block; width: var(--medal); height: var(--medal); border-radius: 50%; background: var(--paper-light); box-shadow: 0 1px 3px rgba(59, 36, 21, .22); transition: transform var(--dur-base) var(--ease-out); }
 .trial-steps .medal img { display: block; width: 100%; height: 100%; border-radius: 50%; transition: filter var(--dur-base); }
 .trial-steps .step.future .medal { box-shadow: none; background: transparent; }
 .trial-steps .step.future .medal img { filter: grayscale(1) opacity(.38); }
