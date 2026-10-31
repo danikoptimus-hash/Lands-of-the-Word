@@ -130,7 +130,8 @@
 @media (min-width: 1024px) {
   /* Компьютер по схеме администратора (решение владельца 30.10): стрелка и чип команды слева вверху, колонка плиток
      под ними (общие стили .admin-dock), раздел — окно над картой по центру с затемнением, как админский попап. */
-  .side-menu { left: 50%; right: auto; transform: translateX(-50%); top: calc(var(--sp-3) + var(--safe-top) + 60px); bottom: var(--sp-4); width: min(880px, calc(100% - 2 * (64px + 3 * var(--sp-3)))); max-height: none; border-radius: var(--r-lg); box-shadow: var(--shadow-3); border: 1px solid var(--border); animation: scaleIn var(--dur-base) var(--ease-out); z-index: calc(var(--z-drawer) + 1); overflow: hidden; padding: 0; }
+  /* Центр через margin, не через transform: анимация scaleIn меняет transform, и окно появлялось левее, а потом прыгало в центр (владелец 31.10). */
+  .side-menu { left: 0; right: 0; margin: 0 auto; top: calc(var(--sp-3) + var(--safe-top) + 60px); bottom: var(--sp-4); width: min(880px, calc(100% - 2 * (64px + 3 * var(--sp-3)))); max-height: none; border-radius: var(--r-lg); box-shadow: var(--shadow-3); border: 1px solid var(--border); animation: scaleIn var(--dur-base) var(--ease-out); z-index: calc(var(--z-drawer) + 1); overflow: hidden; padding: 0; }
   .map-canvas { --map-pad-left: calc(64px + 2 * var(--sp-3)); }
 }
 .side-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; overflow: auto; -webkit-overflow-scrolling: touch; }
@@ -301,6 +302,55 @@
 .declare .row.nowrap input { max-width: 12ch; }
 .battle { margin-top: var(--sp-3); padding: var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); }
 .battle .strong .i { color: var(--accent); vertical-align: -.2em; }
+/* Прошлые испытания города: строка медальонов и чип итога в одну строку. */
+.war .list > li.past { flex-wrap: nowrap; align-items: center; }
+
+/* Схема испытания (решение владельца 31.10: «красивую пошаговую схему из этапов… всю схему блёклой, а завершённые и
+   текущие этапы явно»): строка «чей ход» и шесть медальонов «вызов → стихи → проверка → ответ → проверка → итог» в стиле
+   наград. Пройденные — ярко с галочкой, текущий — с тёплым кольцом, будущие — серые и бледные, сорванные — с крестом.
+   Перемычки между медальонами загораются вместе с этапом. Одна схема у администратора, претендентов и хранителей. */
+.trial-flow { margin-top: var(--sp-3); }
+.trial-turn { display: flex; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); border: 1px solid var(--border); background: var(--surface); font-size: var(--fs-sm); line-height: var(--lh-ui); }
+.trial-turn > .i { flex: none; width: var(--icon-md); height: var(--icon-md); color: var(--accent); margin-top: 1px; }
+.trial-turn .grow { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.trial-turn b { font-weight: 600; color: var(--text); }
+.trial-turn span { color: var(--muted); font-size: var(--fs-xs); }
+.trial-turn.mine { background: var(--accent-soft); border-color: var(--bronze-light); }
+.trial-turn.mine > .i { color: var(--accent-ink); }
+.trial-turn.admin > .i { color: var(--wax-ink, var(--danger)); }
+.trial-turn.over { background: var(--surface-2); }
+.trial-steps { --medal: 44px; --mark: 18px; list-style: none; margin: var(--sp-3) auto 0; padding: 0; display: flex; justify-content: space-between; align-items: flex-start; max-width: 640px; }
+@media (min-width: 640px) { .trial-steps { --medal: 56px; --mark: 20px; } }
+.trial-steps .step { position: relative; z-index: 0; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+/* Перемычка от середины прошлого медальона к середине этого. */
+.trial-steps .step::before { content: ""; position: absolute; z-index: -1; left: -50%; width: 100%; top: calc(var(--medal) / 2 - 3px); height: 6px; background: var(--paper-2); border-top: 1px solid var(--paper-edge); border-bottom: 1px solid var(--paper-edge); }
+.trial-steps .step:first-child::before { display: none; }
+.trial-steps .step.done::before, .trial-steps .step.current::before, .trial-steps .step.failed::before { background: linear-gradient(90deg, var(--bronze-light), var(--bronze)); border-color: var(--bronze); }
+.trial-steps .medal { position: relative; display: block; width: var(--medal); height: var(--medal); border-radius: 50%; background: var(--paper-light); box-shadow: 0 1px 3px rgba(59, 36, 21, .22); transition: transform var(--dur-base) var(--ease-out); }
+.trial-steps .medal img { display: block; width: 100%; height: 100%; border-radius: 50%; transition: filter var(--dur-base); }
+.trial-steps .step.future .medal { box-shadow: none; background: transparent; }
+.trial-steps .step.future .medal img { filter: grayscale(1) opacity(.38); }
+.trial-steps .step.current .medal { transform: scale(1.1); box-shadow: 0 2px 8px rgba(168, 114, 46, .35); }
+.trial-steps .step.current .medal::before { content: ""; position: absolute; inset: -14%; border-radius: 50%; background: radial-gradient(circle, rgba(242, 193, 78, .55), rgba(242, 193, 78, 0) 70%); z-index: -1; animation: streakGlow 2.2s ease-in-out infinite; }
+.trial-steps .step.current .medal::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--bronze); animation: wdPulse 1.6s ease-in-out infinite; }
+.trial-steps .step.failed .medal img { filter: saturate(.6); }
+.trial-steps .mark { position: absolute; right: -3px; bottom: -3px; width: var(--mark); height: var(--mark); border-radius: 50%; display: grid; place-items: center; color: var(--paper-light); border: 2px solid var(--paper-light); box-sizing: content-box; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); }
+.trial-steps .mark.ok { background: var(--success); }
+.trial-steps .mark.bad { background: var(--danger); }
+.trial-steps .mark .i { width: calc(var(--mark) * .62); height: calc(var(--mark) * .62); stroke-width: 3; }
+.trial-steps .cap { max-width: 100%; margin-top: 2px; font: 600 10px/1.2 var(--font-ui); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trial-steps .sub { max-width: 100%; font-size: 10px; line-height: 1.2; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trial-steps .step.future .cap, .trial-steps .step.future .sub { color: var(--ink-3); opacity: .7; }
+.trial-steps .step.current .cap { color: var(--accent-ink); }
+@media (min-width: 640px) { .trial-steps .cap { font-size: var(--fs-xs); } .trial-steps .sub { font-size: var(--fs-xs); } }
+/* Строка медальонов в списке испытаний: без подписей, 24px. */
+.trial-flow.compact { margin-top: 4px; }
+.trial-flow.compact .trial-steps { --medal: 24px; --mark: 12px; margin: 0; max-width: none; justify-content: flex-start; }
+.trial-flow.compact .trial-steps .step { flex: 0 0 36px; }
+.trial-flow.compact .trial-steps .step::before { height: 4px; top: calc(var(--medal) / 2 - 2px); border-width: 0; }
+.trial-flow.compact .trial-steps .step.current .medal::after { inset: -3px; border-width: 1.5px; }
+.trial-flow.compact .trial-steps .mark { right: -2px; bottom: -2px; border-width: 1.5px; }
+@media (prefers-reduced-motion: reduce) { .trial-steps .step.current .medal::before, .trial-steps .step.current .medal::after { animation: none; } }
 .verses { list-style: none; margin: var(--sp-2) 0; padding: 0; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); overflow: hidden; }
 @media (min-width: 640px) { .verses { max-height: 300px; overflow: auto; } }
 .verses li { border-top: 1px solid var(--border); }

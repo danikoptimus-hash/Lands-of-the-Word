@@ -10,6 +10,7 @@ import { TeamAvatar } from "../components/TeamAvatar";
 import { Tabs } from "../components/Tabs";
 import { EmptyState } from "../components/State";
 import { LinkList, ReturnBox, ReviewCard, useAutoRefresh } from "./SubmissionsBlock";
+import { TrialFlow } from "./TrialFlow";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 /** Статусы испытания словами среднего рода (в api.ts «отменена» — женский род от «битвы»). */
@@ -62,20 +63,20 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
                   </div>
                   <Chip tone={st.tone}>{st.text}</Chip>
                 </div>
+                {/* Схема этапов и чей ход (решение владельца 31.10) — та же, что у команд. */}
+                <TrialFlow b={b} teamId={null} />
                 <div className="mt-2"><strong>{t("Город {name}", { name: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? "" })}</strong> <span className="muted small">· {t("ставка")} {verses(b.bid)}</span></div>
                 <div className="cols">
                   <div>
                     <strong>{t("Вызов")}</strong>{b.passage ? ` · ${b.passage.ref}` : ""}<br />
                     {t("выучено {a} · принято {b}", { a: b.attackSum, b: b.attackApproved })}
-                    {b.attackDoneAt ? ` · ${t("сдано на проверку")}` : b.attackDeadline && b.status === "ATTACK" ? ` · ${t("до {d}", { d: fmtDate(b.attackDeadline) })}` : ""}
                     {/* Администратор видит выданный отрывок целиком и кому какие стихи достались (решение владельца 04.10). */}
                     <PassageDetails passage={b.passage} entries={b.entries.filter((e) => e.side === "ATTACK")} />
                   </div>
                   {(b.status === "DEFENSE" || b.defenseSum > 0 || b.defensePassage) && (
                     <div>
                       <strong>{t("Ответ")}</strong>{b.defensePassage ? ` · ${b.defensePassage.ref}` : ""}<br />
-                      {t("выучено {a} · принято {b} · нужно {c}", { a: b.defenseSum, b: b.defenseApproved, c: b.bid })}
-                      {b.defenseDoneAt ? ` · ${t("сдано на проверку")}` : b.defenseDeadline && b.status === "DEFENSE" ? ` · ${t("до {d}", { d: fmtDate(b.defenseDeadline) })}` : ""}
+                      {t("выучено {a} · принято {b} · нужно {c}", { a: b.defenseSum, b: b.defenseApproved, c: b.defenseNeed ?? b.bid })}
                       {b.defenseBid != null && b.status === "REPELLED" ? ` · ${t("устояли на {n}", { n: verses(b.defenseBid) })}` : ""}
                       <PassageDetails passage={b.defensePassage} entries={b.entries.filter((e) => e.side === "DEFENSE")} />
                     </div>

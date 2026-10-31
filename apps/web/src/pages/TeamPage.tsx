@@ -14,6 +14,7 @@ import { mapAt, teamMoves } from "./TeamHistory";
 import { CityPopup } from "./CityPopup";
 import { QuarrySheet } from "./QuarrySheet";
 import { BATTLE_STATUS, BattleCard, battleTone, isMyTurn, leftText } from "./BattlePanel";
+import { TrialFlow } from "./TrialFlow";
 import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
 import { TradesSection } from "./Trades";
 import { useUi } from "../lib/ui";
@@ -221,6 +222,7 @@ export function TeamPage() {
   // Награды живут во вкладках разделов (раскладка владельца 30.10): личные — в «Моём служении», командные — в «Командах».
   const [serviceTab, setServiceTab] = useState<ServiceTab>("service");
   const [standingsTab, setStandingsTab] = useState<"rating" | "awards">("rating");
+  const [battlesTab, setBattlesTab] = useState<"defense" | "challenge">("defense");
   useEffect(() => { apiReady<AwardsDto>(`/api/games/${id}/awards`).then((d) => { setAwards(d); preloadAwardImages(["flame", "p_streak_10", ...d.team.map((g) => g.code), ...d.mine.map((g) => g.code)]); preloadAllAwardImages(); }).catch(() => {}); }, [id, awardsVersion]);
   useEffect(() => {
     if (!awards) return;
@@ -299,6 +301,20 @@ export function TeamPage() {
   // следующем открытии раздела с плитки.
   const scrollMemo = useRef<Partial<Record<MenuView, { top: number; bodyTop: number }>>>({});
   const rememberScroll = () => { if (menuView !== "home") scrollMemo.current[menuView] = { top: sideRef.current?.scrollTop ?? 0, bodyTop: sideBodyRef.current?.scrollTop ?? 0 }; };
+  // Лист раздела на телефоне не сжимается, пока открыт (решение владельца 31.10: «когда сворачиваешь свою команду, окно
+  // сокращается и прыгает вниз — оставим его размер, а список подтянется к верху»): наибольшая высота листа держится
+  // как min-height до смены раздела; поворот экрана или клавиатура сбрасывают замок.
+  useEffect(() => {
+    const el = sideRef.current;
+    if (menuView === "home" || !el || !window.matchMedia("(max-width: 1023px)").matches) return;
+    let floor = 0;
+    const hold = () => { const h = el.offsetHeight; if (h > floor) { floor = h; el.style.minHeight = `${h}px`; } };
+    const ro = new ResizeObserver(hold);
+    ro.observe(el);
+    const reset = () => { floor = 0; el.style.minHeight = ""; };
+    window.addEventListener("resize", reset);
+    return () => { ro.disconnect(); window.removeEventListener("resize", reset); el.style.minHeight = ""; };
+  }, [menuView]);
   const openView = (key: MenuView) => { setSelectedId(null); setMenuView(key); const m = scrollMemo.current[key]; if (m) setRestore(m); };
 
   const loadStandings = useCallback(() => api<StandingsDto>(`/api/games/${id}/standings`).then(setStandings).catch(() => {}), [id]);
@@ -619,6 +635,12 @@ export function TeamPage() {
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0);
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
+  // Две вкладки испытаний (решение владельца 31.10: «вместо того, чтобы писать, кто претендент, а кто хранитель, — две табы»):
+  // «Оборона» — вызовы нашим городам и защитные союзы, «Вызовы» — наши вызовы чужим городам. Пустая вкладка уступает непустой.
+  const defending = activeBattles.filter((b) => b.attacker.id !== team.id);
+  const challenging = activeBattles.filter((b) => b.attacker.id === team.id);
+  const battlesShown = battlesTab === "defense" && defending.length === 0 && challenging.length > 0 ? "challenge" : battlesTab === "challenge" && challenging.length === 0 && defending.length > 0 ? "defense" : battlesTab;
+  const battlesList = battlesShown === "defense" ? defending : challenging;
   const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length };
   /** На компьютере (решение владельца 05.10, вечер): плитки разделов висят над картой, панель открыта только пока выбран раздел; «home» — панель закрыта. */
   const view: MenuView = menuView;
@@ -758,18 +780,21 @@ export function TeamPage() {
           )}
           {menuView === "battles" && (
             <section className="section">
-            {activeBattles.length === 0 ? <EmptyState inline icon="wave" text={t("Сейчас испытаний нет.")} /> : (
+            <Tabs items={[{ key: "defense", label: t("Оборона"), icon: "shield", count: defending.length }, { key: "challenge", label: t("Вызовы"), icon: "wave", count: challenging.length }]} value={battlesShown} onChange={setBattlesTab} ariaLabel={t("Испытания")} />
+            {battlesList.length === 0 ? <EmptyState inline icon={battlesShown === "defense" ? "shield" : "wave"} text={battlesShown === "defense" ? t("Вызовов нашим городам сейчас нет.") : t("Наших вызовов сейчас нет.")} /> : (
               <ul className="list interactive">
-                {activeBattles.map((b) => {
+                {battlesList.map((b) => {
                   const attacker = b.attacker.id === team.id;
                   const deadline = b.status === "ATTACK" ? b.attackDeadline : b.status === "DEFENSE" ? b.defenseDeadline : null;
+                  const meta = [deadline ? t("осталось {t}", { t: leftText(deadline, now) }) : "", isMyTurn(b, team.id) ? t("ваш ход") : ""].filter(Boolean).join(" · ");
                   // Союзник хранителей: до чужого города команда могла не дойти, поэтому карточка испытания — прямо здесь.
                   if (b.myAlliance && !attacker && b.defender.id !== team.id) return <li key={b.id} className="plain"><BattleCard gameId={id} b={b} teamId={team.id} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} now={now} daytime={map.daytime} onChanged={() => void loadBattles()} /></li>;
                   return (
                     <li key={b.id} role="button" tabIndex={0} onClick={() => openCity(b.nodeKey)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCity(b.nodeKey); } }}>
                       <div className="main">
                         <span className="title">{t("Испытание · {city}", { city: bookName(b.bookCode) })}</span>
-                        <span className="meta">{attacker ? t("Вы — претенденты") : t("Вы — хранители")}{deadline ? ` · ${t("осталось {t}", { t: leftText(deadline, now) })}` : ""}{isMyTurn(b, team.id) ? ` · ${t("ваш ход")}` : ""}</span>
+                        {meta && <span className="meta">{meta}</span>}
+                        <TrialFlow b={b} teamId={team.id} now={now} compact />
                       </div>
                       <Chip tone={battleTone(b.status, attacker)}>{BATTLE_STATUS[b.status]}</Chip>
                     </li>

@@ -6,6 +6,7 @@ import { fmtDate, fmtLeft, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Help } from "../components/Help";
+import { TrialFlow } from "./TrialFlow";
 
 /** Статусы испытания: средний род, единая палитра (DESIGN.md §1, §3). */
 export const BATTLE_STATUS: Record<BattleStatus, string> = { get QUEUED() { return t("в очереди"); }, get ATTACK() { return t("вызов"); }, get DEFENSE() { return t("ответ"); }, get WON() { return t("город перешёл"); }, get REPELLED() { return t("город устоял"); }, get EXPIRED() { return t("вызов не завершён"); }, get CANCELLED() { return t("отменено"); } };
@@ -118,7 +119,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
       {active.map((b) => <BattleCard key={b.id} gameId={gameId} b={b} teamId={teamId} isCaptain={isCaptain} canAlly={canAlly} now={now} daytime={war.daytime} onChanged={() => { void load(); onChanged(); }} />)}
       {past.length > 0 && (
         <ul className="list mt-3">
-          {past.map((b) => <li key={b.id}><span className="muted small">{fmtDate(b.declaredAt, { time: false })} · {b.attacker.name} → {b.defender.name} · {verses(b.bid)}</span><Chip tone={battleTone(b.status, b.attacker.id === teamId)}>{BATTLE_STATUS[b.status]}</Chip></li>)}
+          {past.map((b) => <li key={b.id} className="past"><div className="main"><span className="muted small">{fmtDate(b.declaredAt, { time: false })} · {b.attacker.name} → {b.defender.name} · {verses(b.bid)}</span><TrialFlow b={b} teamId={teamId} compact /></div><Chip tone={battleTone(b.status, b.attacker.id === teamId)}>{BATTLE_STATUS[b.status]}</Chip></li>)}
         </ul>
       )}
     </div>
@@ -170,7 +171,6 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
 
-  const deadline = b.status === "ATTACK" ? b.attackDeadline : b.status === "DEFENSE" ? b.defenseDeadline : null;
   const attackTime = b.startedAt && b.attackDoneAt ? fmtLeft(Date.parse(b.attackDoneAt) - Date.parse(b.startedAt)) : "";
   const allies = b.allies ?? [];
   const candidates = b.allyCandidates ?? [];
@@ -187,13 +187,12 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
           {allies.map((a) => <Chip key={a.id} tone={a.status === "ACTIVE" ? "ok" : "neutral"} icon={a.status === "ACTIVE" ? "shield" : "clock"} color={a.team.color}>{a.status === "ACTIVE" ? t("союзник: {team}", { team: a.team.name }) : t("ждём ответа: {team}", { team: a.team.name })}</Chip>)}
         </div>
       )}
+      {/* Схема этапов и чей ход (решение владельца 31.10): срок, «на проверке» и счёт — в ней, а не россыпью текста. */}
+      <TrialFlow b={b} teamId={teamId} now={now} />
       <p className="muted small mt-2">
         {t("Ставка: {n}", { n: verses(b.bid) })}
         {!attacker && need !== b.bid && ` · ${t("хранителям нужно {n}", { n: verses(need) })}`}
         {b.status === "DEFENSE" && ` · ${t("вызов: {n} за {time}", { n: verses(b.bid), time: attackTime })}`}
-        {deadline && ` · ${t("осталось {t}", { t: leftText(deadline, now) })}`}
-        {b.status === "ATTACK" && b.attackDoneAt && ` · ${t("вызов на проверке")}`}
-        {b.status === "DEFENSE" && b.defenseDoneAt && ` · ${t("ответ на проверке")}`}
       </p>
       {error && <p className="error" role="alert">{error}</p>}
       {b.status === "QUEUED" && attacker && (
