@@ -177,7 +177,7 @@ export interface QuarryDto { stones: number; canWork: boolean; members: Array<{ 
 
 /** Награды (решение владельца 29.10): полученное по кодам каталога @lotw/domain. */
 export interface AwardGrantDto { code: string; count: number; at: string; last: string }
-export interface StreakDto { current: number; best: number; today: boolean; next: number | null; toNext: number | null; todayKey: string; /** Последние семь игровых дней, последний — сегодня. */ days: Array<{ key: string; done: boolean }> }
+export interface StreakDto { current: number; best: number; today: boolean; next: number | null; toNext: number | null; todayKey: string; /** Текущая неделя с понедельника по воскресенье; дни после todayKey — будущие. */ days: Array<{ key: string; done: boolean }> }
 export interface AwardTeamRowDto { id: string; name: string; color: string; avatarId?: string | null; out: boolean; awards: AwardGrantDto[] }
 export interface AwardMemberRowDto { userId: string; teamId: string; name: string; avatarId: string | null; awards: AwardGrantDto[] }
 /** Сводка наград участника: свои и командные, серия, рейтинги наград команд и участников (по убыванию числа наград с повторами). */
