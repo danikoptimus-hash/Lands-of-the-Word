@@ -85,10 +85,10 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
           <div className="field">
             <label htmlFor="war-bid">{t("Ставка, стихов")}</label>
             <div className="row nowrap">
-              <input id="war-bid" type="number" inputMode="numeric" min={war.minBid} value={bid} onChange={(e) => setBid(e.target.value === "" ? "" : Number(e.target.value))} />
-              <button type="button" disabled={busy || bid === "" || bid < war.minBid} onClick={() => void declare()}><Icon name="wave" />{t("Испытать город")}</button>
+              <input id="war-bid" type="number" inputMode="numeric" min={war.minBid} max={war.maxBid ?? undefined} value={bid} onChange={(e) => setBid(e.target.value === "" ? "" : Number(e.target.value))} />
+              <button type="button" disabled={busy || bid === "" || bid < war.minBid || (war.maxBid != null && bid > war.maxBid)} onClick={() => void declare()}><Icon name="wave" />{t("Испытать город")}</button>
             </div>
-            <p className="hint">{t("минимум {n}", { n: war.minBid })}{war.penalty ? ` · ${t("включая штраф {n} за незавершённые вызовы", { n: war.penalty })}` : ""}{war.queue > 0 ? ` · ${t("в очереди уже {n}", { n: war.queue })}` : ""}</p>
+            <p className="hint">{t("минимум {n}", { n: war.minBid })}{war.maxBid != null ? ` · ${t("максимум {n}: хранители ({m}) не ответят больше", { n: war.maxBid, m: plural(war.ownerMembers ?? 0, ["участник", "участника", "участников"]) })}` : ""}{war.penalty ? ` · ${t("включая штраф {n} за незавершённые вызовы", { n: war.penalty })}` : ""}{war.queue > 0 ? ` · ${t("в очереди уже {n}", { n: war.queue })}` : ""}</p>
           </div>
           <details className="disclose sm">
             <summary><Icon name="help" />{t("Как проходит испытание")}<Icon name="chevron-down" className="chev" /></summary>

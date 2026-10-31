@@ -69,6 +69,11 @@ describe("битва за город", () => {
     expect(w.json()).toMatchObject({ canDeclare: true, minBid: 10, defenseLevel: 0, bookVerses: 85 });
     const low = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 9 });
     expect(low.statusCode).toBe(400);
+    // Городская стена (решение владельца 31.10): ставка не выше участники хранителей × стихи книги; потолок отдаётся в сводке.
+    expect(w.json().maxBid).toBe(85 * w.json().ownerMembers);
+    const high = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: w.json().maxBid + 1 });
+    expect(high.statusCode).toBe(400);
+    expect(high.json().message).toContain("хранители могут ответить");
   });
 
   it("объявление войны выдаёт случайный отрывок из N стихов и запускает таймер атаки", async () => {
@@ -83,9 +88,11 @@ describe("битва за город", () => {
     expect(b.attackDeadline).toBeTruthy();
     const again = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 10 });
     expect(again.statusCode).toBe(409);
-    // Защитники видят объявленную атаку
+    // Хранители о вызове не знают, пока админ не одобрил записи претендентов (решение владельца 31.10).
     const d = await get(`/api/games/${gameId}/my-battles`, p1Cookie);
-    expect(d.json().battles[0].id).toBe(battleId);
+    expect(d.json().battles.some((x: { id: string }) => x.id === battleId)).toBe(false);
+    const own = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie);
+    expect(own.json().battles.some((x: { id: string }) => x.id === battleId)).toBe(false);
   });
 
   it("участники отмечают выученные стихи отрывка; сумма по участникам; капитан отправляет атаку", async () => {
@@ -129,6 +136,9 @@ describe("битва за город", () => {
     }
     const b = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(b.status).toBe("DEFENSE");
+    // Только теперь хранители видят испытание (решение владельца 31.10), а новость о проверенном вызове идёт всем.
+    expect(((await get(`/api/games/${gameId}/my-battles`, p1Cookie)).json().battles as Array<{ id: string; status: string }>).find((x) => x.id === battleId)?.status).toBe("DEFENSE");
+    expect(await prisma.journal.count({ where: { gameId, kind: "trial_defense", everyone: true } })).toBe(1);
     // Ночью таймеры стоят (03.10): T — дневное время от старта до отправки, дедлайн — через T дневного времени.
     const tz = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone;
     const T = awakeMsBetween(tz, b.startedAt!, b.attackDoneAt!) - b.attackPausedMs;

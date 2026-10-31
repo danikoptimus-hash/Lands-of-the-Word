@@ -91,9 +91,17 @@ async function nicknames(ids: string[]): Promise<Map<string, string>> {
 }
 const usersOf = (battles: Full[]) => nicknames([...new Set(battles.flatMap((b) => b.entries.map((e) => e.userId)))]);
 
+/**
+ * Хранители о вызове не знают, пока администратор не одобрил записи претендентов и не пошло время ответа (решение
+ * владельца 31.10: «в противном случае у защитников неоправданно больше времени»). Исключение — вызов, нарушивший мир:
+ * он объявляется всем сразу (решение владельца 22.10: хранители зовут союзника заранее).
+ */
+const visibleTo = (b: { attackerId: string; defenderId: string; status: string; violation: boolean; defenseFactor: number }, teamId: string) =>
+  !(b.defenderId === teamId && b.attackerId !== teamId && (b.status === "QUEUED" || b.status === "ATTACK") && !b.violation && b.defenseFactor <= 1);
+
 const battlesView = defineView("battles", { scope: "team", events: ["battles", "submissions", "teams", "cities"], compute: async (gameId, teamId) => {
   await sweep(gameId);
-  const battles: Full[] = await prisma.battle.findMany({ where: { gameId, OR: [{ attackerId: teamId }, { defenderId: teamId }, { allies: { some: { allyId: teamId, status: { in: ["PROPOSED", "ACTIVE"] } } } }] }, orderBy: { declaredAt: "desc" }, include, take: 30 });
+  const battles: Full[] = (await prisma.battle.findMany({ where: { gameId, OR: [{ attackerId: teamId }, { defenderId: teamId }, { allies: { some: { allyId: teamId, status: { in: ["PROPOSED", "ACTIVE"] } } } }] }, orderBy: { declaredAt: "desc" }, include, take: 30 })).filter((b) => visibleTo(b, teamId));
   return { battles, users: await usersOf(battles) };
 } });
 
@@ -111,7 +119,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
     if (!reached) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда ещё не дошла до этого города") });
     const options = await warOptions(id, m.team.id, nodeKey);
-    const battles = await prisma.battle.findMany({ where: { gameId: id, nodeKey, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }] }, orderBy: { declaredAt: "desc" }, include, take: 10 });
+    const battles = (await prisma.battle.findMany({ where: { gameId: id, nodeKey, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }] }, orderBy: { declaredAt: "desc" }, include, take: 10 })).filter((b) => visibleTo(b, m.team.id));
     const users = await usersOf(battles);
     const queue = await prisma.battle.count({ where: { gameId: id, nodeKey, status: "QUEUED" } });
     // Осада делами: доступна для города с максимумом защиты после срока закрепления.
@@ -188,13 +196,15 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!o.canDeclare || !o.owner) return reply.code(409).send({ error: "conflict", message: err(request, o.reason ?? "Нельзя бросить вызов") });
     const body = declareBody.parse(request.body);
     if (body.bid < o.minBid) return reply.code(400).send({ error: "validation", message: err(request, "Минимальная ставка на этот город для вашей команды — {min} стихов", { min: o.minBid }) });
+    // Городская стена (решение владельца 31.10): ставка не выше того, что хранители могут ответить.
+    if (o.maxBid !== null && body.bid > o.maxBid) return reply.code(400).send({ error: "validation", message: err(request, "Ставка не больше {max} стихов: столько хранители могут ответить ({n} участников × {v} стихов книги)", { max: o.maxBid, n: o.ownerMembers ?? 0, v: o.bookVerses ?? 0 }) });
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId: id, key: nodeKey } } });
     const sumMode = node.sumMode || body.bid >= (o.bookVerses ?? Infinity);
     if (sumMode && !node.sumMode) await prisma.mapNode.update({ where: { id: node.id }, data: { sumMode: true } });
     const active = await prisma.battle.count({ where: { gameId: id, nodeKey, status: { in: ["ATTACK", "DEFENSE"] } } });
     // Сгоревший раньше вызов этой команды этому городу: в очереди — после всех, кто встал раньше.
     const last = await prisma.battle.findFirst({ where: { gameId: id, nodeKey, attackerId: m.team.id, status: { in: ["EXPIRED", "WON", "REPELLED"] } }, orderBy: { resolvedAt: "desc" }, select: { status: true } });
-    const created = await prisma.battle.create({ data: { gameId: id, nodeKey, bookCode: node.bookCode!, attackerId: m.team.id, defenderId: o.owner.id, bid: body.bid, sumMode, status: "QUEUED", afterBurn: last?.status === "EXPIRED" } });
+    const created = await prisma.battle.create({ data: { gameId: id, nodeKey, bookCode: node.bookCode!, attackerId: m.team.id, defenderId: o.owner.id, bid: body.bid, sumMode, status: "QUEUED", afterBurn: last?.status === "EXPIRED", defenseCap: o.maxBid } });
     // Вызов при действующем мире нарушает его (решение владельца 22.10). Две команды в игре — защита города вдвое;
     // три и больше — хранители могут просить третью команду о защитном союзе.
     if (await violatePeace(id, m.team.id, o.owner.id, node.bookCode ?? "")) {
@@ -211,9 +221,8 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (active === 0) await startAttack(created.id);
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "battles", teamId: o.owner.id });
-    journal(id, active === 0 ? "trial_declared" : "trial_queued", { everyone: true, teamId: m.team.id, vars: { team: m.team.name, other: o.owner.name, book: node.bookCode ?? "" } });
-    if (active === 0) notifyTeam(id, o.owner.id, "вызов вашему городу {book}", "Команда «{team}» бросила вызов вашему городу {book} (игра «{game}»), ставка {bid} стихов. Когда админ одобрит их записи, у вас будет ровно столько же времени, сколько ушло у них.", { book: node.bookCode ?? "", team: m.team.name, game: game.name, bid: body.bid });
-    else notifyTeam(id, o.owner.id, "очередь на ваш город {book}", "Команда «{team}» встала в очередь на вызов вашему городу {book} (игра «{game}»), ставка {bid} стихов. Вызов начнётся, когда закончится идущее испытание.", { book: node.bookCode ?? "", team: m.team.name, game: game.name, bid: body.bid });
+    // Хранители о вызове узнают только после одобрения записей претендентов (решение владельца 31.10): новость — только претендентам, письма хранителям нет.
+    journal(id, active === 0 ? "trial_declared" : "trial_queued", { everyone: false, teamId: m.team.id, vars: { team: m.team.name, other: o.owner.name, book: node.bookCode ?? "" } });
     return reply.code(201).send({ id: created.id, status: active === 0 ? "ATTACK" : "QUEUED", sumMode });
   });
 
@@ -232,7 +241,11 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const st = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey: b.nodeKey } } });
     const min = minBidFor(node.defenseLevel, st?.attackPenalty ?? 0, await gameRules(id));
     if (body.bid < min) return reply.code(400).send({ error: "validation", message: err(request, "Минимальная ставка — {min} стихов", { min }) });
-    await prisma.battle.update({ where: { id: b.id }, data: { bid: body.bid, sumMode: node.sumMode || body.bid >= ((await loadBook(b.bookCode))?.total ?? Infinity) } });
+    const book = await loadBook(b.bookCode);
+    const members = await prisma.membership.count({ where: { teamId: b.defenderId } });
+    const cap = book ? book.total * Math.max(1, members) : null;
+    if (cap !== null && body.bid > cap) return reply.code(400).send({ error: "validation", message: err(request, "Ставка не больше {max} стихов: столько хранители могут ответить ({n} участников × {v} стихов книги)", { max: cap, n: members, v: book?.total ?? 0 }) });
+    await prisma.battle.update({ where: { id: b.id }, data: { bid: body.bid, defenseCap: cap, sumMode: node.sumMode || body.bid >= (book?.total ?? Infinity) } });
     publish(id, { type: "battles", teamId: m.team.id });
     return { ok: true };
   });

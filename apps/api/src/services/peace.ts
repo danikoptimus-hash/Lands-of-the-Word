@@ -113,7 +113,7 @@ export async function breakPeace(gameId: string, peaceId: string, teamId: string
 export async function closeTrialsForPeace(gameId: string, aId: string, bId: string, aName: string, bName: string): Promise<void> {
   const now = new Date();
   const pair = { OR: [{ attackerId: aId, defenderId: bId }, { attackerId: bId, defenderId: aId }] };
-  const battles = await prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, ...pair }, select: { id: true, attackerId: true, bookCode: true } });
+  const battles = await prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, ...pair }, select: { id: true, attackerId: true, bookCode: true, status: true, violation: true, defenseFactor: true } });
   const sieges = await prisma.siege.findMany({ where: { gameId, status: "ACTIVE", ...pair }, select: { id: true, attackerId: true, nodeKey: true } });
   if (!battles.length && !sieges.length) return;
   const nameOf = (id: string) => (id === aId ? aName : bName), otherOf = (id: string) => (id === aId ? bName : aName);
@@ -121,7 +121,8 @@ export async function closeTrialsForPeace(gameId: string, aId: string, bId: stri
     prisma.battle.updateMany({ where: { id: { in: battles.map((b) => b.id) } }, data: { status: "CANCELLED", resolvedAt: now } }),
     prisma.siege.updateMany({ where: { id: { in: sieges.map((s) => s.id) } }, data: { status: "CANCELLED", resolvedAt: now } }),
   ]);
-  for (const b of battles) journal(gameId, "trial_peace", { everyone: true, teamId: b.attackerId, vars: { team: nameOf(b.attackerId), other: otherOf(b.attackerId), book: b.bookCode } });
+  // Вызов, о котором хранители ещё не знали (до одобрения записей, без нарушения мира), закрывается тихо: новость только претендентам (решение владельца 31.10).
+  for (const b of battles) journal(gameId, "trial_peace", { everyone: b.status === "DEFENSE" || b.violation || b.defenseFactor > 1, teamId: b.attackerId, vars: { team: nameOf(b.attackerId), other: otherOf(b.attackerId), book: b.bookCode } });
   if (sieges.length) {
     const nodes = await prisma.mapNode.findMany({ where: { gameId, key: { in: sieges.map((s) => s.nodeKey) } }, select: { key: true, bookCode: true } });
     const book = new Map(nodes.map((n) => [n.key, n.bookCode ?? ""]));

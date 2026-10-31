@@ -193,6 +193,8 @@ const EN: Record<string, string> = {
   "Игра не идёт": "The game is not running",
   "Нельзя бросить вызов": "You cannot challenge this city",
   "Минимальная ставка на этот город для вашей команды — {min} стихов": "Your team's minimum bid for this city is {min} verses",
+  "Ставка не больше {max} стихов: столько хранители могут ответить ({n} участников × {v} стихов книги)": "The bid cannot exceed {max} verses: that is all the keepers can answer ({n} members × {v} verses of the book)",
+  "Вызов команды «{team}» городу {book} команды «{other}» проверен: пошло время ответа": "The challenge of team “{team}” to city {book} of team “{other}” has been verified: the answer time is running",
   "Ставку можно менять, только пока вызов в очереди": "The bid can be changed only while the challenge is in the queue",
   "Минимальная ставка — {min} стихов": "The minimum bid is {min} verses",
   "Отрывок ответа выбирает капитан": "The captain picks the answer passage",

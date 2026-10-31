@@ -107,7 +107,7 @@ describe("журнал событий: лента, новости, служен�
     expect(top.total).toBeGreaterThanOrEqual(2);
   });
 
-  it("вызов городу — новость для всех команд без ставки; мир закрывает идущие вызовы, расторжение — сразу", async () => {
+  it("вызов городу — новость только претендентам, без ставки; мир закрывает идущие вызовы, расторжение — сразу", async () => {
     // Мир: «Берег» предлагает, «Моряки» принимают → вызов невозможен.
     expect((await post(`/api/games/${gameId}/peace`, p2Cookie, { teamId: team1, days: 7 })).statusCode).toBe(200);
     const view1 = (await get(`/api/games/${gameId}/peace`, p1Cookie)).json();
@@ -117,7 +117,9 @@ describe("журнал событий: лента, новости, служен�
     const open = await prisma.battle.create({ data: { gameId, nodeKey: rutKey, bookCode: "rut", attackerId: team2, defenderId: team1, bid: 10, status: "ATTACK", startedAt: new Date() } });
     expect((await post(`/api/games/${gameId}/peace/${incoming.peaceId}/accept`, p1Cookie)).statusCode).toBe(200);
     expect((await prisma.battle.findUniqueOrThrow({ where: { id: open.id } })).status).toBe("CANCELLED");
-    expect((await feedUntil<{ kind: string; everyone: boolean }>(gameId, p1Cookie, "trial_peace")).find((f) => f.kind === "trial_peace")?.everyone).toBe(true);
+    // Вызов ещё не был проверен: хранители о нём не знали, и закрытие миром — новость только претендентам (решение владельца 31.10).
+    expect((await feedUntil<{ kind: string; everyone: boolean }>(gameId, p2Cookie, "trial_peace")).find((f) => f.kind === "trial_peace")?.everyone).toBe(false);
+    expect(((await get(`/api/games/${gameId}/feed`, p1Cookie)).json().items as Array<{ kind: string }>).some((f) => f.kind === "trial_peace")).toBe(false);
     // Мир не запрещает вызов, но вызов его нарушит (решение владельца 22.10): сводка войны показывает мир.
     const war = (await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie)).json();
     expect(war.canDeclare).toBe(true);
@@ -134,19 +136,27 @@ describe("журнал событий: лента, новости, служен�
     expect((await post(`/api/games/${gameId}/peace/${incoming.peaceId}/break`, p2Cookie)).statusCode).toBe(200);
     const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 10 });
     expect(declared.statusCode).toBe(201);
-    const feed1 = await feedUntil<{ kind: string; vars: Record<string, string | number>; everyone: boolean }>(gameId, p1Cookie, "trial_declared");
-    const trial = feed1.find((f) => f.kind === "trial_declared");
-    expect(trial?.everyone).toBe(true);
+    // Хранители о вызове не знают до одобрения записей (решение владельца 31.10): новость только претендентам.
+    const feed2 = await feedUntil<{ kind: string; vars: Record<string, string | number>; everyone: boolean }>(gameId, p2Cookie, "trial_declared");
+    const trial = feed2.find((f) => f.kind === "trial_declared");
+    expect(trial?.everyone).toBe(false);
     expect(trial?.vars).toMatchObject({ team: "Берег", other: "Моряки", book: "rut" });
     // Ставка в новости не показывается.
     expect(trial?.vars.bid).toBeUndefined();
+    const feed1 = await feedUntil<{ kind: string; vars: Record<string, string | number>; everyone: boolean }>(gameId, p1Cookie, "peace_broken");
+    expect(feed1.some((f) => f.kind === "trial_declared")).toBe(false);
     expect(feed1.some((f) => f.kind === "peace_broken" && f.everyone)).toBe(true);
-  });
+    // Хранителям вызов не виден и в списке испытаний, претендентам — виден.
+    expect(((await get(`/api/games/${gameId}/my-battles`, p1Cookie)).json().battles as Array<{ status: string }>).some((b) => b.status === "ATTACK")).toBe(false);
+    expect(((await get(`/api/games/${gameId}/my-battles`, p2Cookie)).json().battles as Array<{ status: string }>).some((b) => b.status === "ATTACK")).toBe(true);
+  }, 20000);
 
   it("летопись недели собирается из журнала и записывается новостью; книга сезона — командам администратор", async () => {
     const lines = await chronicleLines(gameId, new Date(Date.now() - 86_400_000), new Date(), "ru");
     expect(lines.some((l) => l.startsWith("Дела за неделю"))).toBe(true);
-    expect(lines.some((l) => l.includes("Испытания"))).toBe(true);
+    // Вызовы до одобрения записей — тайна хранителей (решение владельца 31.10): в летописи их нет, а до ответа в этом тесте не дошло.
+    expect(lines.some((l) => l.includes("Испытания"))).toBe(false);
+    expect(lines.join("\n")).not.toContain("бросила вызов");
     expect(lines.some((l) => l.startsWith("Положение"))).toBe(true);
     // Ставок и чисел стихов в летописи нет.
     expect(lines.join("\n")).not.toMatch(/ставк|стих/i);

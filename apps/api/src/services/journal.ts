@@ -16,7 +16,7 @@ import { standings } from "./game.js";
 export type JournalKind =
   | "deed_submitted" | "deed_approved" | "deed_returned"
   | "order_solved" | "task_solved" | "city_captured" | "ruins_taken" | "treasure"
-  | "trial_declared" | "trial_queued" | "trial_started" | "trial_repelled" | "trial_won" | "trial_burnt" | "trial_cancelled" | "trial_peace"
+  | "trial_declared" | "trial_queued" | "trial_started" | "trial_defense" | "trial_repelled" | "trial_won" | "trial_burnt" | "trial_cancelled" | "trial_peace"
   | "siege_declared" | "siege_won" | "siege_repelled" | "siege_peace"
   | "trade_proposed" | "trade_countered" | "trade_done" | "trade_cancelled"
   | "passage_granted" | "passage_denied" | "sea_landed"
@@ -42,6 +42,7 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   trial_declared: "Команда «{team}» бросила вызов городу {book} команды «{other}»",
   trial_queued: "Команда «{team}» встала в очередь на город {book} команды «{other}»",
   trial_started: "Вызов команды «{team}» городу {book} команды «{other}» начался",
+  trial_defense: "Вызов команды «{team}» городу {book} команды «{other}» проверен: пошло время ответа",
   trial_repelled: "Город {book} устоял: команда «{other}» отбила вызов команды «{team}»",
   trial_won: "Команда «{team}» взяла город {book} у команды «{other}»",
   trial_burnt: "Вызов команды «{team}» городу {book} команды «{other}» сгорел",
@@ -172,7 +173,8 @@ export async function chronicleLines(gameId: string, from: Date, to: Date, local
   lines.push(deeds.length ? msg(locale, "Дела за неделю: {list}.", { list: deeds.map((d) => `«${d.name}» — ${d.n}`).join(", ") }) : msg(locale, "Дел за неделю не принято."));
   const cities = rows.filter((r) => r.kind === "city_captured" || r.kind === "ruins_taken" || r.kind === "trial_won" || r.kind === "siege_won" || r.kind === "visit_rejected" || r.kind === "visit_expired");
   if (cities.length) lines.push(msg(locale, "Города: {list}.", { list: cities.map((r) => journalText(locale, r.kind as JournalKind, r.vars as JournalVars)).join("; ") }));
-  const trials = rows.filter((r) => ["trial_declared", "trial_repelled", "trial_won", "trial_burnt", "siege_declared", "siege_won", "siege_repelled"].includes(r.kind));
+  // Этап вызова до одобрения — тайна хранителей (решение владельца 31.10): в летопись идут проверенные вызовы и итоги.
+  const trials = rows.filter((r) => ["trial_defense", "trial_repelled", "trial_won", "siege_declared", "siege_won", "siege_repelled"].includes(r.kind));
   if (trials.length) lines.push(msg(locale, "Испытания: {list}.", { list: trials.map((r) => journalText(locale, r.kind as JournalKind, r.vars as JournalVars)).join("; ") }));
   const peace = rows.filter((r) => r.kind === "peace_made" || r.kind === "peace_broken" || r.kind === "peace_ended" || r.kind === "peace_violated" || r.kind === "ally_joined");
   if (peace.length) lines.push(msg(locale, "Мир: {list}.", { list: peace.map((r) => journalText(locale, r.kind as JournalKind, r.vars as JournalVars)).join("; ") }));
@@ -213,7 +215,7 @@ export async function seasonBook(gameId: string) {
     standings(gameId),
     prisma.team.findMany({ where: { gameId }, include: { members: { include: { user: { select: { id: true, nickname: true, displayName: true } } } }, cityStates: { where: { capturedAt: { not: null } } } }, orderBy: { index: "asc" } }),
     prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", paved: false }, include: { deed: { select: { title: true, direction: true } } }, orderBy: { decidedAt: "asc" } }),
-    prisma.journal.findMany({ where: { gameId, OR: [{ everyone: true }, { kind: { in: ["trial_declared", "trial_repelled", "trial_won", "trial_burnt"] } }] }, orderBy: { createdAt: "asc" } }),
+    prisma.journal.findMany({ where: { gameId, OR: [{ everyone: true }, { kind: { in: ["trial_declared", "trial_defense", "trial_repelled", "trial_won", "trial_burnt"] } }] }, orderBy: { createdAt: "asc" } }),
   ]);
   const nodes = await prisma.mapNode.findMany({ where: { gameId, bookCode: { not: null } }, select: { key: true, bookCode: true } });
   const bookOf = new Map(nodes.map((n) => [n.key, n.bookCode!]));

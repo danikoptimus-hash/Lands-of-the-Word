@@ -50,7 +50,8 @@ export function minBidFor(defenseLevel: number, penalty: number, rules: Rules): 
 
 /** Сумма выученных стихов по участникам стороны (внутри участника стих считается один раз; у воина — с весом 2, решение владельца 22.09). */
 /** Сколько стихов нужно хранителям: ставка вызова, при нарушении мира в игре из двух команд — вдвое (решение владельца 22.10). */
-export const defenseNeed = (b: { bid: number; defenseFactor: number }) => b.bid * Math.max(1, b.defenseFactor);
+/** Городская стена (решение владельца 31.10): больше физического максимума хранителей (участники × стихи книги) ответ не требует — максимум держит город всегда. */
+export const defenseNeed = (b: { bid: number; defenseFactor: number; defenseCap?: number | null }) => Math.min(b.bid * Math.max(1, b.defenseFactor), b.defenseCap && b.defenseCap > 0 ? b.defenseCap : Infinity);
 
 export function sumVerses(entries: BattleEntry[], side: "ATTACK" | "DEFENSE", onlyApproved: boolean): number {
   const byUser = new Map<string, { set: Set<number>; weight: number }>();
@@ -153,9 +154,9 @@ export async function startNextFromQueue(gameId: string, nodeKey: string): Promi
     const started = await startAttack(q.id);
     publish(gameId, { type: "battles", teamId: q.attackerId });
     publish(gameId, { type: "battles", teamId: owner.teamId });
-    { const [a, d] = await teamNames(q.attackerId, owner.teamId); journal(gameId, "trial_started", { everyone: true, teamId: q.attackerId, vars: { team: a, other: d, book: node.bookCode ?? "" } }); }
+    // Хранители о вызове не знают до одобрения записей (решение владельца 31.10): новость и письмо — только претендентам.
+    { const [a, d] = await teamNames(q.attackerId, owner.teamId); journal(gameId, "trial_started", { everyone: false, teamId: q.attackerId, vars: { team: a, other: d, book: node.bookCode ?? "" } }); }
     notifyTeam(gameId, q.attackerId, "ваш вызов городу {book} начался", (locale) => msg(locale, "Очередь дошла до вас: отрывок выдан, срок вызова — до {date}.", { date: fmtDate(started.attackDeadline!, locale) }), { book: q.bookCode });
-    notifyTeam(gameId, owner.teamId, "вызов вашему городу {book}", "Команда «{team}» из очереди начала вызов вашему городу, ставка {bid} стихов.", { book: q.bookCode, team: (await prisma.team.findUnique({ where: { id: q.attackerId }, select: { name: true } }))?.name ?? "", bid: q.bid });
     return;
   }
   if (queued.length) publish(gameId, { type: "battles" });
@@ -226,6 +227,8 @@ export async function maybeStartDefense(b: BattleWithEntries): Promise<BattleWit
   // стоп-часы; дедлайн ответа отмеряется тоже дневным временем, а одобрение ночью запускает ответ с 7:00.
   const T = Math.max(rules.minAnswerSeconds * 1000, awakeMsBetween(rules.timeZone, b.startedAt, b.attackDoneAt) - b.attackPausedMs);
   let upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackApprovedAt: now, defenseDeadline: addAwakeMs(rules.timeZone, now, T) }, include: { entries: true } });
+  // С этого момента о вызове узнают все (решение владельца 31.10): хранители — письмом ниже, остальные — новостью.
+  { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_defense", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
   upd = await carryLearnedVerses(upd);
   publish(b.gameId, { type: "battles", teamId: b.defenderId });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
@@ -377,9 +380,8 @@ export async function sweep(gameId?: string): Promise<void> {
     publish(b.gameId, { type: "battles", teamId: b.defenderId });
     publish(b.gameId, { type: "map", teamId: b.attackerId });
     publish(b.gameId, { type: "map", teamId: b.defenderId });
-    { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_burnt", { everyone: true, teamId: b.attackerId, vars: { team: a, other: d, book: b.bookCode } }); }
+    { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_burnt", { everyone: false, teamId: b.attackerId, vars: { team: a, other: d, book: b.bookCode } }); }
     notifyTeam(b.gameId, b.attackerId, "вызов городу {book} не завершён", "За {days} дней вызов не был отправлен на проверку. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}.", { book: b.bookCode, days: rules.attackDays, penalty: rules.burnPenalty });
-    notifyTeam(b.gameId, b.defenderId, "вызов вашему городу {book} сгорел", "Претенденты не уложились в срок: вызов снят, город остаётся вашим.", { book: b.bookCode });
     await startNextFromQueue(b.gameId, b.nodeKey);
   }
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });
@@ -410,6 +412,9 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   ]);
   const penalty = state?.attackPenalty ?? 0;
   const minBid = minBidFor(node.defenseLevel, penalty, rules);
+  // Городская стена (решение владельца 31.10): ставка не выше того, что хранители могут ответить, — участники × стихи книги.
+  const ownerMembers = owner ? await prisma.membership.count({ where: { teamId: owner.teamId } }) : null;
+  const maxBid = book && ownerMembers !== null ? book.total * Math.max(1, ownerMembers) : null;
   const studied = Boolean(content && state?.orderSolved && content.tasks.every((_, i) => state!.doneTasks.includes(i)));
   const locked = isLocked(node);
   let reason: string | null = null;
@@ -424,7 +429,7 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   else if (mine) reason = mine.status === "QUEUED" ? "Ваш вызов уже в очереди" : "Ваш вызов этому городу уже идёт";
   // Мир не запрещает вызов (решение владельца 22.10), но нарушает его: интерфейс предупреждает.
   const peace = owner ? await prisma.peace.findFirst({ where: { gameId, status: "ACTIVE", OR: [{ fromId: teamId, toId: owner.teamId }, { fromId: owner.teamId, toId: teamId }], AND: [{ OR: [{ until: null }, { until: { gt: new Date() } }] }] }, select: { until: true } }) : null;
-  return { peace: peace ? { until: peace.until } : null, defenseLevel: node.defenseLevel, sumMode: node.sumMode, locked, lockedUntil: locked ? node.lockedUntil : null, maxed: node.maxReachedAt !== null, bookVerses: book?.total ?? null, penalty, minBid, attackDays: rules.attackDays, burnPenalty: rules.burnPenalty, canDeclare: reason === null, reason, owner: owner?.team ?? null };
+  return { peace: peace ? { until: peace.until } : null, defenseLevel: node.defenseLevel, sumMode: node.sumMode, locked, lockedUntil: locked ? node.lockedUntil : null, maxed: node.maxReachedAt !== null, bookVerses: book?.total ?? null, penalty, minBid, maxBid, ownerMembers, attackDays: rules.attackDays, burnPenalty: rules.burnPenalty, canDeclare: reason === null, reason, owner: owner?.team ?? null };
 }
 
 void bookName;
