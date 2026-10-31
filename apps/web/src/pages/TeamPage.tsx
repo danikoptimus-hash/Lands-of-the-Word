@@ -209,7 +209,7 @@ export function TeamPage() {
   const [awards, setAwards] = useState<AwardsDto | null>(() => awardsCached(id));
   const [awardsVersion, setAwardsVersion] = useState(0);
   const [streakShow, setStreakShow] = useState(false);
-  /** День только что засчитан (по образцу Duolingo, 31.10): плашка с вспышкой огонька. */
+  /** День только что засчитан (решение владельца 31.10): плашка с вспышкой огонька. */
   const [streakLit, setStreakLit] = useState(false);
   const todayWas = useRef<boolean | null>(null);
   useEffect(() => {
@@ -861,7 +861,7 @@ export function TeamPage() {
         </div>
         {/* Серия дней (решение владельца 29.10): плашка при заходе раз в игровые сутки; в день рубежа — праздник со значком. */}
         {streakShow && awards && !milestone && !selectedId && <StreakBanner streak={awards.streak} celebrate={streakLit} onOpen={() => { closeStreak(); openAwards(); }} onClose={closeStreak} />}
-        {/* Огонёк серии в шапке карты (решение владельца 31.10 по образцу Duolingo): горит, если сегодняшний день засчитан; нажатие открывает награды. */}
+        {/* Огонёк серии в шапке карты (решение владельца 31.10): горит, если сегодняшний день засчитан; нажатие открывает награды. */}
         {awards && (
           <div className="hud-right">
             <button type="button" className={"hud-streak" + (awards.streak.today ? " lit" : "")} onClick={openAwards} aria-label={t("Серия: {n}", { n: plural(awards.streak.current, ["день подряд", "дня подряд", "дней подряд"]) })} title={awards.streak.today ? t("Сегодня засчитан") : t("Сегодня ещё не засчитан")}>

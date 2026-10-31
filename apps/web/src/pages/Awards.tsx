@@ -82,7 +82,7 @@ function AwardGrid({ defs, grants, onPick }: { defs: ReadonlyArray<AwardDef>; gr
   );
 }
 
-/** Огонёк серии: горит, если сегодняшний день засчитан, иначе серый (по образцу Duolingo, решение владельца 31.10). */
+/** Огонёк серии: горит, если сегодняшний день засчитан, иначе серый (решение владельца 31.10). */
 export function FlameIcon({ lit, size = "md", ignite = false }: { lit: boolean; size?: "sm" | "md" | "xl"; /** Вспышка: день только что засчитан. */ ignite?: boolean }) {
   return <span className={"streak-flame " + size + (lit ? " lit" : "") + (ignite ? " ignite" : "")} aria-hidden="true"><img src="/img/awards/flame.webp" alt="" decoding="async" /></span>;
 }
@@ -113,7 +113,7 @@ export function WeekStrip({ days, todayKey, mini = false }: { days: StreakDto["d
 }
 const STREAK_HELP = "День засчитывается за сданное дело (и в Каменоломне), решённый район, собранный порядок районов, взятый город или руины. Игровой день длится с 7:00 до 7:00.";
 
-/** Серия дней (раскладка владельца 31.10 по образцу Duolingo): большой огонёк и число, состояние дня, полоса недели, рекорд и шкала до рубежа. */
+/** Серия дней (раскладка владельца 31.10): большой огонёк и число, состояние дня, полоса недели, рекорд и шкала до рубежа. */
 export function StreakCard({ streak }: { streak: AwardsDto["streak"] }) {
   const next = streak.next, nextDef = next === null ? null : streakAward(next);
   // Предыдущий рубеж: секции шкалы — дни между рубежами (5 → 10 → … → 30 → 40 → 50).

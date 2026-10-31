@@ -643,7 +643,7 @@
 .award-count { position: absolute; right: -4px; bottom: -2px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700; line-height: 22px; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
 .award-detail { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--sp-2); padding: var(--sp-2) 0; }
 .award-cond { margin: 0; font-size: var(--fs-md); }
-/* ---------- Серия дней (вид владельца 31.10 по образцу Duolingo: огонёк, число, дни недели) ---------- */
+/* ---------- Серия дней (вид владельца 31.10: огонёк, число, дни недели) ---------- */
 .streak-flame { position: relative; isolation: isolate; flex: none; width: 46px; height: 46px; display: grid; place-items: center; }
 .streak-flame.sm { width: 26px; height: 26px; }
 .streak-flame.xl { width: 96px; height: 96px; }
