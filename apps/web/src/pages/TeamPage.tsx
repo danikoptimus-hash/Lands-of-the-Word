@@ -6,7 +6,7 @@ import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
 import { TeamMap, type MarkPoint, type ScoutReveal } from "./TeamMap";
-import { AwardRating, MilestoneCard, StreakBanner, TeamAwardsBlock, awardsCached, preloadAllAwardImages, preloadAwardImages } from "./Awards";
+import { AwardRating, FlameIcon, MilestoneCard, StreakBanner, TeamAwardsBlock, awardsCached, preloadAllAwardImages, preloadAwardImages } from "./Awards";
 import { AWARD_BY_CODE } from "@lotw/domain";
 import { previewPhase, useStorm } from "../lib/daytime";
 import { TimelineDock } from "./Timeline";
@@ -209,11 +209,19 @@ export function TeamPage() {
   const [awards, setAwards] = useState<AwardsDto | null>(() => awardsCached(id));
   const [awardsVersion, setAwardsVersion] = useState(0);
   const [streakShow, setStreakShow] = useState(false);
+  /** День только что засчитан (по образцу Duolingo, 31.10): плашка с вспышкой огонька. */
+  const [streakLit, setStreakLit] = useState(false);
+  const todayWas = useRef<boolean | null>(null);
+  useEffect(() => {
+    const now = awards?.streak.today ?? null;
+    if (now !== null && todayWas.current === false && now === true) { setStreakLit(true); setStreakShow(true); }
+    if (now !== null) todayWas.current = now;
+  }, [awards?.streak.today]);
   const [milestone, setMilestone] = useState<string | null>(null);
   // Награды живут во вкладках разделов (раскладка владельца 30.10): личные — в «Моём служении», командные — в «Командах».
   const [serviceTab, setServiceTab] = useState<ServiceTab>("service");
   const [standingsTab, setStandingsTab] = useState<"rating" | "awards">("rating");
-  useEffect(() => { apiReady<AwardsDto>(`/api/games/${id}/awards`).then((d) => { setAwards(d); preloadAwardImages(["p_streak_10", ...d.team.map((g) => g.code), ...d.mine.map((g) => g.code)]); preloadAllAwardImages(); }).catch(() => {}); }, [id, awardsVersion]);
+  useEffect(() => { apiReady<AwardsDto>(`/api/games/${id}/awards`).then((d) => { setAwards(d); preloadAwardImages(["flame", "p_streak_10", ...d.team.map((g) => g.code), ...d.mine.map((g) => g.code)]); preloadAllAwardImages(); }).catch(() => {}); }, [id, awardsVersion]);
   useEffect(() => {
     if (!awards) return;
     const s = awards.streak;
@@ -225,7 +233,7 @@ export function TeamPage() {
       if (s.current > 0 && localStorage.getItem(`lotw.streak.${id}`) !== s.todayKey) setStreakShow(true);
     } catch { /* приватный режим: покажем и так */ }
   }, [awards?.streak.todayKey, awards?.mine.length]); // eslint-disable-line react-hooks/exhaustive-deps
-  const closeStreak = useCallback(() => { setStreakShow(false); try { if (awards) localStorage.setItem(`lotw.streak.${id}`, awards.streak.todayKey); } catch { /* ничего */ } }, [awards, id]);
+  const closeStreak = useCallback(() => { setStreakShow(false); setStreakLit(false); try { if (awards) localStorage.setItem(`lotw.streak.${id}`, awards.streak.todayKey); } catch { /* ничего */ } }, [awards, id]);
   const closeMilestone = useCallback(() => { if (milestone) { try { const k = `lotw.milestone.${id}`; localStorage.setItem(k, [...(localStorage.getItem(k) ?? "").split(",").filter(Boolean), milestone].join(",")); } catch { /* ничего */ } } setMilestone(null); }, [milestone, id]);
   const [battles, setBattles] = useState<BattleDto[]>([]);
   const [standings, setStandings] = useState<StandingsDto | null>(null);
@@ -852,7 +860,15 @@ export function TeamPage() {
           {phase === "morning" && <span className="hud-tod morning" title={t("Утро: вызов на город отправляют на проверку до 9:00")}><Icon name="sun" />{t("Утро до 9:00")}</span>}
         </div>
         {/* Серия дней (решение владельца 29.10): плашка при заходе раз в игровые сутки; в день рубежа — праздник со значком. */}
-        {streakShow && awards && !milestone && !selectedId && <StreakBanner streak={awards.streak} onOpen={() => { closeStreak(); openAwards(); }} onClose={closeStreak} />}
+        {streakShow && awards && !milestone && !selectedId && <StreakBanner streak={awards.streak} celebrate={streakLit} onOpen={() => { closeStreak(); openAwards(); }} onClose={closeStreak} />}
+        {/* Огонёк серии в шапке карты (решение владельца 31.10 по образцу Duolingo): горит, если сегодняшний день засчитан; нажатие открывает награды. */}
+        {awards && (
+          <div className="hud-right">
+            <button type="button" className={"hud-streak" + (awards.streak.today ? " lit" : "")} onClick={openAwards} aria-label={t("Серия: {n}", { n: plural(awards.streak.current, ["день подряд", "дня подряд", "дней подряд"]) })} title={awards.streak.today ? t("Сегодня засчитан") : t("Сегодня ещё не засчитан")}>
+              <FlameIcon lit={awards.streak.today} size="sm" /><b>{awards.streak.current}</b>
+            </button>
+          </div>
+        )}
         {milestone && <MilestoneCard code={milestone} onOpen={() => { closeMilestone(); openAwards(); }} onClose={closeMilestone} />}
         {standings?.status === "FINISHED" && (
           <div className="finish-banner" role="status"><Icon name="trophy" /><span>{winner ? t("Игра завершена: победила «{team}»", { team: winner }) : t("Игра завершена")}</span></div>

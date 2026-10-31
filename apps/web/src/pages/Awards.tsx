@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { AWARDS, AWARD_BY_CODE, PERSONAL_AWARDS, TEAM_AWARDS, streakAward, type AwardDef } from "@lotw/domain";
-import { apiReady, ready, type AdminAwardsDto, type AwardGrantDto, type AwardsDto } from "../lib/api";
+import { apiReady, ready, type AdminAwardsDto, type AwardGrantDto, type AwardsDto, type StreakDto } from "../lib/api";
 import { UserAvatar } from "../components/UserAvatar";
 import { EmptyState, LoadingState } from "../components/State";
 import { getLocale, t } from "../lib/i18n";
@@ -82,19 +82,67 @@ function AwardGrid({ defs, grants, onPick }: { defs: ReadonlyArray<AwardDef>; gr
   );
 }
 
-/** Серия дней: огонёк, число, рекорд и шкала до следующего рубежа. */
+/** Огонёк серии: горит, если сегодняшний день засчитан, иначе серый (по образцу Duolingo, решение владельца 31.10). */
+export function FlameIcon({ lit, size = "md", ignite = false }: { lit: boolean; size?: "sm" | "md" | "xl"; /** Вспышка: день только что засчитан. */ ignite?: boolean }) {
+  return <span className={"streak-flame " + size + (lit ? " lit" : "") + (ignite ? " ignite" : "")} aria-hidden="true"><img src="/img/awards/flame.webp" alt="" decoding="async" /></span>;
+}
+const WEEKDAY = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"] as const;
+const weekdayOf = (key: string) => t(WEEKDAY[new Date(`${key}T12:00:00Z`).getUTCDay()]!);
+/**
+ * Полоса последних семи дней (решение владельца 31.10: «у них есть дни недели, сразу понятно, засчитался ли сегодняшний
+ * день»): подпись дня недели сверху, кружок снизу. Засчитанные дни — галочка в оранжевом кружке, соседние засчитанные
+ * соединены лентой; сегодня — подпись оранжевая, пока день не засчитан — пунктирный пульсирующий кружок.
+ */
+export function WeekStrip({ days, mini = false }: { days: StreakDto["days"]; mini?: boolean }) {
+  const n = days.length;
+  return (
+    <div className={"streak-week" + (mini ? " mini" : "")} role="list" aria-label={t("Последние семь дней")}>
+      {days.map((d, i) => i < n - 1 && d.done && days[i + 1]!.done ? <i key={"b" + d.key} className="wd-band" style={{ left: `${((i + 0.5) * 100) / n}%`, width: `${100 / n}%` }} /> : null)}
+      {days.map((d, i) => {
+        const today = i === n - 1;
+        return (
+          <div key={d.key} role="listitem" className={"wd" + (d.done ? " on" : "") + (today ? " today" : "")} title={today ? t("Сегодня") : fmtDate(`${d.key}T12:00:00Z`, { time: false })} aria-label={`${weekdayOf(d.key)}: ${d.done ? t("засчитан") : today ? t("ещё не засчитан") : t("пропущен")}`}>
+            <span className="wd-label">{weekdayOf(d.key)}</span>
+            <span className="wd-dot">{d.done ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" /></svg> : null}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+const STREAK_HELP = "День засчитывается за сданное дело (и в Каменоломне), решённый район, собранный порядок районов, взятый город или руины. Игровой день длится с 7:00 до 7:00.";
+
+/** Серия дней (раскладка владельца 31.10 по образцу Duolingo): большой огонёк и число, состояние дня, полоса недели, рекорд и шкала до рубежа. */
 export function StreakCard({ streak }: { streak: AwardsDto["streak"] }) {
   const next = streak.next, prev = next === null ? streak.current : Math.max(0, next - 5);
   const pct = next === null ? 100 : Math.round(((streak.current - prev) / (next - prev)) * 100);
   const nextDef = next === null ? null : streakAward(next);
+  const lit = streak.today;
   return (
-    <div className="streak-card">
-      <span className={"streak-flame" + (streak.current > 0 ? " lit" : "")}><img src="/img/awards/p_streak_10.webp" alt="" /></span>
-      <div className="grow">
-        <b>{streak.current > 0 ? t("Серия: {n}", { n: streakDaysText(streak.current) }) : t("Серии пока нет")}</b>
-        <small>{streak.best > 0 ? t("Рекорд: {n}", { n: streakDaysText(streak.best) }) : t("Сдайте дело сегодня — серия начнётся")}{!streak.today && streak.current > 0 ? ` · ${t("сегодня ещё нет дела")}` : ""}</small>
-        {next !== null && nextDef && <><div className="streak-bar"><i style={{ width: `${Math.max(4, Math.min(100, pct))}%` }} /></div><small>{t("До «{name}» ещё {n}", { name: awardName(nextDef), n: plural(streak.toNext ?? 0, ["день", "дня", "дней"]) })}</small></>}
+    <div className={"streak-card" + (lit ? " lit" : "")}>
+      <div className="streak-hero">
+        <FlameIcon lit={lit} size="xl" />
+        <div className="streak-count">
+          <b>{streak.current}</b>
+          <span>{streak.current === 0 && !lit ? t("Серии пока нет") : plural(streak.current, ["день подряд", "дня подряд", "дней подряд"]).replace(/^\d+\s*/, "")}</span>
+        </div>
+        <Help>{t(STREAK_HELP)}</Help>
       </div>
+      <p className={"streak-state" + (lit ? " ok" : "")}>
+        <Icon name={lit ? "check" : "clock"} />
+        {lit ? t("Сегодня засчитан") : streak.current > 0 ? t("Сегодня ещё не засчитан: сдайте дело до 7:00 утра, и серия продолжится") : t("Сегодня ещё не засчитан: сдайте дело, и серия начнётся")}
+      </p>
+      <WeekStrip days={streak.days} />
+      <div className="streak-foot">
+        <span className="streak-best"><Icon name="trophy" />{t("Рекорд: {n}", { n: streakDaysText(streak.best) })}</span>
+        {next !== null && nextDef && (
+          <span className="streak-next">
+            <AwardBadge code={nextDef.code} earned={false} size="sm" name={false} eager />
+            <span>{t("До «{name}» ещё {n}", { name: awardName(nextDef), n: plural(streak.toNext ?? 0, ["день", "дня", "дней"]) })}</span>
+          </span>
+        )}
+      </div>
+      {next !== null && <div className="streak-bar"><i style={{ width: `${Math.max(4, Math.min(100, pct))}%` }} /></div>}
     </div>
   );
 }
@@ -162,21 +210,20 @@ export function AwardRating({ title, help, rows, empty }: { title: string; help?
 }
 
 /**
- * Плашка серии над картой при заходе (решение владельца 29.10): огонёк, длина серии, точки до рубежа. Уходит сама
- * через несколько секунд или по крестику; нажатие открывает зал наград. Показывается раз в игровые сутки на устройстве.
+ * Плашка серии над картой (решение владельца 29.10, вид 31.10): при заходе раз в игровые сутки и в момент, когда день
+ * засчитан (огонёк вспыхивает). Огонёк, число, состояние дня и полоса недели; уходит сама через несколько секунд или по
+ * крестику; нажатие открывает награды.
  */
-export function StreakBanner({ streak, onOpen, onClose }: { streak: AwardsDto["streak"]; onOpen: () => void; onClose: () => void }) {
-  useEffect(() => { const tm = setTimeout(onClose, 7000); return () => clearTimeout(tm); }, [onClose]);
-  const next = streak.next, prev = next === null ? 0 : Math.max(0, next - 5);
-  const nextDef = next === null ? null : streakAward(next);
+export function StreakBanner({ streak, onOpen, onClose, celebrate = false }: { streak: AwardsDto["streak"]; onOpen: () => void; onClose: () => void; /** День только что засчитан: вспышка огонька и «Серия продлена». */ celebrate?: boolean }) {
+  useEffect(() => { const tm = setTimeout(onClose, celebrate ? 6000 : 7000); return () => clearTimeout(tm); }, [onClose, celebrate]);
   return (
-    <div className="streak-banner" role="status">
+    <div className={"streak-banner" + (streak.today ? " lit" : "")} role="status">
       <button type="button" className="streak-main" onClick={onOpen}>
-        <span className="streak-flame lit"><img src="/img/awards/p_streak_10.webp" alt="" /></span>
+        <FlameIcon lit={streak.today} size="md" ignite={celebrate} />
         <span className="grow">
-          <b>{t("Серия: {n}", { n: streakDaysText(streak.current) })}</b>
-          <small>{nextDef && streak.toNext !== null ? t("До «{name}» ещё {n}", { name: awardName(nextDef), n: plural(streak.toNext, ["день", "дня", "дней"]) }) : t("Все рубежи серии пройдены")}</small>
-          {next !== null && <span className="streak-dots" aria-hidden="true">{Array.from({ length: next - prev }, (_, i) => <i key={i} className={prev + i < streak.current ? "on" : ""} />)}</span>}
+          <b>{celebrate ? t("Серия продлена: {n}", { n: streakDaysText(streak.current) }) : streak.current > 0 ? t("Серия: {n}", { n: streakDaysText(streak.current) }) : t("Серии пока нет")}</b>
+          <small>{streak.today ? t("Сегодня засчитан") : t("Сегодня ещё не засчитан")}</small>
+          <WeekStrip days={streak.days} mini />
         </span>
       </button>
       <button type="button" className="ghost icon sm" onClick={onClose} aria-label={t("Закрыть")}><Icon name="x" /></button>

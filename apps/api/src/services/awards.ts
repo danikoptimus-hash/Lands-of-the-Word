@@ -48,6 +48,8 @@ export interface StreakInfo {
   toNext: number | null;
   /** Ключ сегодняшних игровых суток. */
   todayKey: string;
+  /** Последние семь игровых дней, последний — сегодня: ключ дня и засчитан ли он. */
+  days: Array<{ key: string; done: boolean }>;
 }
 
 /** Серия по множеству засчитанных дней. Если сегодня ещё нет дела, серия со вчерашнего дня жива до конца суток. */
@@ -62,7 +64,9 @@ export function streakOf(days: ReadonlySet<string>, todayKey: string): StreakInf
   let best = 0, run = 0, prev = Number.NaN;
   for (const d of sorted) { run = d === prev + 1 ? run + 1 : 1; prev = d; if (run > best) best = run; }
   const next = nextStreakMilestone(current);
-  return { current, best, today, next, toNext: next === null ? null : next - current, todayKey };
+  // Последние семь игровых дней, последний — сегодня (раскладка владельца 31.10 по образцу Duolingo: дни недели с галочками).
+  const week = Array.from({ length: 7 }, (_, i) => { const key = keyOfIndex(t - 6 + i); return { key, done: days.has(key) }; });
+  return { current, best, today, next, toNext: next === null ? null : next - current, todayKey, days: week };
 }
 
 /** Серии (подряд идущие дни) из множества дней: [первый индекс, длина]. */

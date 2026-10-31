@@ -595,7 +595,7 @@
 @keyframes storm-drift { from { transform: translate3d(-6%, 0, 0); } to { transform: translate3d(6%, 0, 0); } }
 @media (prefers-reduced-motion: reduce) { .storm-sky .clouds { animation: none; } }
 /* В шторм участник видит только карту: кнопок, свитков дел, меток и ползунка истории нет; города не нажимаются. */
-.map-area.storm .hud-left, .map-area.storm .map-controls, .map-area.storm .team-timeline, .map-area.storm .finish-banner { display: none; }
+.map-area.storm .hud-left, .map-area.storm .hud-right, .map-area.storm .map-controls, .map-area.storm .team-timeline, .map-area.storm .finish-banner { display: none; }
 .map-canvas.storm .screen-items, .map-canvas.storm .screen-items * { pointer-events: none !important; }
 .map-canvas.storm .screen-items .m-deed, .map-canvas.storm .screen-items .m-mark, .map-canvas.storm .screen-items .m-peek, .map-canvas.storm .screen-items .m-fork,
 .map-canvas.storm .screen-items .m-land, .map-canvas.storm .screen-items .m-quarry, .map-canvas.storm .screen-items .m-battle, .map-canvas.storm .map-ripple { display: none; }
@@ -643,27 +643,68 @@
 .award-count { position: absolute; right: -4px; bottom: -2px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: var(--r-full); background: var(--accent); color: var(--on-accent); font-size: 12px; font-weight: 700; line-height: 22px; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
 .award-detail { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--sp-2); padding: var(--sp-2) 0; }
 .award-cond { margin: 0; font-size: var(--fs-md); }
-/* Серия: карточка в «Моих» и плашка над картой. */
-.streak-card, .streak-banner .streak-main { display: flex; align-items: center; gap: var(--sp-3); }
-.streak-card { padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--paper-light); margin-bottom: var(--sp-2); }
-.streak-card b, .streak-banner b { display: block; font-family: var(--font-display); font-size: var(--fs-md); line-height: 1.2; }
-.streak-card small, .streak-banner small { display: block; color: var(--muted); font-size: var(--fs-xs); }
-.streak-flame { position: relative; flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; }
-.streak-flame img { width: 100%; height: 100%; filter: grayscale(1) opacity(.5); }
-.streak-flame.lit img { filter: none; }
-.streak-flame.lit::before { content: ""; position: absolute; inset: -8px; border-radius: 50%; background: radial-gradient(circle, rgba(224, 179, 92, .55), rgba(224, 179, 92, 0) 70%); animation: streakGlow 2.2s ease-in-out infinite; }
+/* ---------- Серия дней (вид владельца 31.10 по образцу Duolingo: огонёк, число, дни недели) ---------- */
+.streak-flame { position: relative; isolation: isolate; flex: none; width: 46px; height: 46px; display: grid; place-items: center; }
+.streak-flame.sm { width: 26px; height: 26px; }
+.streak-flame.xl { width: 96px; height: 96px; }
+.streak-flame img { width: 100%; height: 100%; display: block; filter: grayscale(1) opacity(.45); transition: filter var(--dur-base); }
+.streak-flame.lit img { filter: drop-shadow(0 2px 6px rgba(224, 122, 43, .35)); }
+.streak-flame.lit::before { content: ""; position: absolute; inset: -12%; border-radius: 50%; background: radial-gradient(circle, rgba(242, 193, 78, .55), rgba(242, 193, 78, 0) 70%); animation: streakGlow 2.2s ease-in-out infinite; z-index: -1; }
+.streak-flame.lit.xl::before { inset: -18%; }
 @keyframes streakGlow { 0%, 100% { transform: scale(.85); opacity: .7; } 50% { transform: scale(1.1); opacity: 1; } }
-.streak-bar { height: 8px; margin: 6px 0 4px; border-radius: 4px; background: var(--paper-2); border: 1px solid var(--border); overflow: hidden; }
-.streak-bar i { display: block; height: 100%; background: linear-gradient(90deg, #C99A4E, #E0B35C); transition: width var(--dur-slow); }
-.streak-banner { position: absolute; z-index: 6; left: calc(var(--sp-3) + var(--safe-left)); right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top) + 52px); display: flex; align-items: center; gap: var(--sp-1); padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--paper); box-shadow: var(--shadow-lg, 0 10px 30px rgba(0, 0, 0, .28)); animation: streakIn var(--dur-slow) var(--ease-out); }
-@media (min-width: 900px) { .streak-banner { left: auto; right: calc(var(--sp-3) + var(--safe-right)); width: 360px; } }
+.streak-flame.ignite img { animation: ignite .9s cubic-bezier(.2, .9, .3, 1.3) both; }
+@keyframes ignite { 0% { filter: grayscale(1) opacity(.45); transform: scale(.8); } 55% { filter: none; transform: scale(1.3) rotate(-6deg); } 100% { filter: drop-shadow(0 2px 6px rgba(224, 122, 43, .35)); transform: none; } }
+/* Карточка в «Моём служении → Награды» */
+.streak-card { position: relative; padding: var(--sp-3) var(--sp-3) var(--sp-3); border: 1px solid var(--paper-edge); border-radius: var(--r-lg); background: linear-gradient(180deg, #FFF6E6, var(--paper-light)); margin-bottom: var(--sp-3); }
+.streak-card.lit { border-color: #E9BE78; background: linear-gradient(180deg, #FFE9C2, #FFF8EA); }
+.streak-hero { display: flex; align-items: center; gap: var(--sp-3); }
+.streak-hero .help { margin-left: auto; align-self: flex-start; }
+.streak-count { display: flex; flex-direction: column; min-width: 0; }
+.streak-count b { font: 800 46px/1 var(--font-display); color: var(--ink-3); letter-spacing: -.02em; }
+.streak-card.lit .streak-count b { color: #E07A2B; background: linear-gradient(180deg, #F2A43A, #D9641E); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
+.streak-count span { font: 600 var(--fs-sm)/1.2 var(--font-ui); color: var(--muted); margin-top: 2px; }
+.streak-state { display: flex; align-items: flex-start; gap: 6px; margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--ink-2); }
+.streak-state .i { flex: none; width: 16px; height: 16px; margin-top: 1px; color: var(--ink-3); }
+.streak-state.ok { color: #2F6B2F; font-weight: 600; }
+.streak-state.ok .i { color: #2F6B2F; }
+/* Полоса недели: подписи дней сверху, кружки снизу, лента между засчитанными соседями */
+.streak-week { position: relative; display: flex; justify-content: space-between; margin: var(--sp-3) 0 var(--sp-2); --wd-dot: 30px; --wd-label: 14px; }
+.streak-week.mini { --wd-dot: 20px; --wd-label: 11px; margin: 6px 0 0; }
+.wd { position: relative; z-index: 1; flex: 1 1 0; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.wd-label { height: var(--wd-label); font: 700 11px/var(--wd-label) var(--font-ui); color: var(--ink-3); text-transform: uppercase; letter-spacing: .02em; }
+.streak-week.mini .wd-label { font-size: 9px; }
+.wd.today .wd-label { color: #D9641E; }
+.wd-dot { width: var(--wd-dot); height: var(--wd-dot); border-radius: 50%; background: var(--paper-2); border: 2px solid var(--paper-edge); display: grid; place-items: center; color: #5A3A12; box-sizing: border-box; }
+.wd-dot svg { width: calc(var(--wd-dot) * .6); height: calc(var(--wd-dot) * .6); }
+.wd.on .wd-dot { background: linear-gradient(180deg, #F6C75A, #E8923A); border-color: #D9772A; box-shadow: inset 0 -2px 0 rgba(90, 40, 10, .18); }
+.wd.today:not(.on) .wd-dot { border: 2px dashed #E07A2B; background: #FFF3DD; animation: wdPulse 1.6s ease-in-out infinite; }
+@keyframes wdPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(224, 122, 43, .45); } 50% { box-shadow: 0 0 0 6px rgba(224, 122, 43, 0); } }
+.wd-band { position: absolute; z-index: 0; top: calc(var(--wd-label) + 4px + var(--wd-dot) * .18); height: calc(var(--wd-dot) * .64); background: linear-gradient(90deg, #F2B54E, #E8923A); }
+.streak-foot { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-xs); color: var(--muted); }
+.streak-best, .streak-next { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.streak-next > span { flex: 1; min-width: 0; }
+.streak-best .i { width: 14px; height: 14px; }
+.streak-next .award { width: auto; flex: none; }
+.streak-next .award.sm .award-img { width: 26px; height: 26px; }
+.streak-bar { height: 8px; margin: 6px 0 0; border-radius: 4px; background: var(--paper-2); border: 1px solid var(--paper-edge); overflow: hidden; }
+.streak-bar i { display: block; height: 100%; background: linear-gradient(90deg, #F2B54E, #E07A2B); transition: width var(--dur-slow); }
+/* Плашка над картой */
+.streak-banner { position: absolute; z-index: 6; left: calc(var(--sp-3) + var(--safe-left)); right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top) + 52px); display: flex; align-items: center; gap: var(--sp-1); padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3); border: 1px solid var(--paper-edge); border-radius: var(--r-lg); background: linear-gradient(180deg, #FFF6E6, var(--paper-light)); box-shadow: var(--shadow-lift); animation: streakIn var(--dur-base) var(--ease-out); }
+.streak-banner.lit { border-color: #E9BE78; background: linear-gradient(180deg, #FFE9C2, #FFF8EA); }
+@media (min-width: 900px) { .streak-banner { left: auto; right: calc(var(--sp-3) + var(--safe-right)); width: 380px; } }
 @keyframes streakIn { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
-.streak-banner .streak-main { flex: 1; min-width: 0; padding: 0; background: transparent; border: 0; min-height: 0; color: var(--text); text-align: left; box-shadow: none; }
+.streak-banner .streak-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-3); padding: 0; background: transparent; border: 0; min-height: 0; color: var(--text); text-align: left; box-shadow: none; }
 .streak-banner .streak-main:hover { background: transparent; }
-.streak-dots { display: flex; gap: 3px; margin-top: 5px; }
-.streak-dots i { width: 16px; height: 6px; border-radius: 3px; background: var(--paper-2); border: 1px solid var(--border); }
-.streak-dots i.on { background: var(--accent); border-color: var(--accent-strong); }
-/* Праздник рубежа серии: карточка в центре карты, лучи и конфетти. */
+.streak-banner .grow { flex: 1; min-width: 0; }
+.streak-banner b { display: block; font-family: var(--font-display); font-size: var(--fs-md); line-height: 1.2; }
+.streak-banner small { display: block; color: var(--muted); font-size: var(--fs-xs); }
+/* Огонёк в шапке карты справа сверху */
+.hud-right { position: absolute; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; }
+.hud-streak { display: flex; align-items: center; gap: 4px; min-height: var(--touch); padding: 0 12px 0 8px; border-radius: var(--r-full); border: 1px solid var(--paper-edge); background: color-mix(in srgb, var(--surface) 94%, transparent); box-shadow: var(--shadow-1); color: var(--ink-3); }
+.hud-streak b { font: 800 16px/1 var(--font-display); }
+.hud-streak.lit { color: #D9641E; border-color: #E9BE78; }
+.hud-streak:hover { background: var(--surface); }
+.map-area.storm .hud-right { display: none; }
 .milestone-backdrop { position: absolute; inset: 0; z-index: 7; display: grid; place-items: center; padding: var(--sp-4); background: rgba(30, 26, 20, .45); animation: fadeIn var(--dur-base); }
 .milestone { position: relative; overflow: hidden; width: min(100%, 380px); padding: var(--sp-4) var(--sp-4) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--paper); text-align: center; box-shadow: 0 24px 60px rgba(0, 0, 0, .4); display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); animation: milestoneIn .5s var(--ease-out); }
 @keyframes milestoneIn { from { opacity: 0; transform: scale(.9); } to { opacity: 1; transform: none; } }
