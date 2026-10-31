@@ -6,7 +6,7 @@ import { EmptyState, LoadingState } from "../components/State";
 import { getLocale, t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
-import { Help } from "../components/Help";
+import { Help, HelpPopup } from "../components/Help";
 import { Tabs } from "../components/Tabs";
 import { Sheet } from "../components/Sheet";
 import { TeamAvatar } from "../components/TeamAvatar";
@@ -128,9 +128,12 @@ export function StreakCard({ streak }: { streak: AwardsDto["streak"] }) {
         </div>
         <Help>{t(STREAK_HELP)}</Help>
       </div>
+      {/* Подсказка про время спрятана за значком часов (решение владельца 31.10: «чтоб было меньше текста»). */}
       <p className={"streak-state" + (lit ? " ok" : "")}>
-        <Icon name={lit ? "check" : "clock"} />
-        {lit ? t("Сегодня засчитан") : streak.current > 0 ? t("Сегодня ещё не засчитан: сдайте дело до 7:00 утра, и серия продолжится") : t("Сегодня ещё не засчитан: сдайте дело, и серия начнётся")}
+        {lit
+          ? <Icon name="check" />
+          : <HelpPopup name={t("Когда сдать")} trigger={<Icon name="clock" />} buttonClassName="streak-when">{streak.current > 0 ? t("Сдайте дело до 7:00 утра, и серия продолжится. Игровой день длится с 7:00 до 7:00.") : t("Сдайте дело сегодня, и серия начнётся. Игровой день длится с 7:00 до 7:00.")}</HelpPopup>}
+        {lit ? t("Сегодня засчитан") : t("Сегодня ещё не засчитан")}
       </p>
       <WeekStrip days={streak.days} />
       <div className="streak-foot">

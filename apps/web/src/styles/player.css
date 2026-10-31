@@ -665,6 +665,8 @@
 .streak-count span { font: 600 var(--fs-sm)/1.2 var(--font-ui); color: var(--muted); margin-top: 2px; }
 .streak-state { display: flex; align-items: flex-start; gap: 6px; margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--ink-2); }
 .streak-state .i { flex: none; width: 16px; height: 16px; margin-top: 1px; color: var(--ink-3); }
+.streak-state .streak-when { flex: none; width: 22px; height: 22px; min-height: 0; padding: 0; margin: -3px 0 0; border: 0; border-radius: 50%; background: rgba(122, 78, 23, .10); color: var(--ink-2); box-shadow: none; display: inline-grid; place-items: center; }
+.streak-state .streak-when .i { width: 14px; height: 14px; margin: 0; color: inherit; }
 .streak-state.ok { color: #2F6B2F; font-weight: 600; }
 .streak-state.ok .i { color: #2F6B2F; }
 /* Полоса недели: подписи дней сверху, кружки снизу, лента между засчитанными соседями */
