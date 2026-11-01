@@ -69,7 +69,7 @@ describe("битва за город", () => {
     expect(w.json()).toMatchObject({ canDeclare: true, minBid: 10, defenseLevel: 0, bookVerses: 85 });
     const low = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 9 });
     expect(low.statusCode).toBe(400);
-    // Городская стена (решение владельца 31.10): ставка не выше участники хранителей × стихи книги; потолок отдаётся в сводке.
+    // Предел ответа (решение владельца 31.10): ставка не выше участники хранителей × стихи книги; потолок отдаётся в сводке.
     expect(w.json().maxBid).toBe(85 * w.json().ownerMembers);
     const high = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: w.json().maxBid + 1 });
     expect(high.statusCode).toBe(400);

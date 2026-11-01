@@ -30,7 +30,7 @@ const bookName = (code: string) => { const b = BOOK_BY_CODE.get(code); return b 
 export const JOURNAL_TEXT: Record<JournalKind, string> = {
   deed_submitted: "{user} сдал(а) дело «{deed}» на проверку",
   deed_approved: "Дело «{deed}» принято{who}: перекрёсток открыт",
-  deed_returned: "Дело «{deed}» возвращено на доработку",
+  deed_returned: "Дело «{deed}» возвращено на доработку{comment}",
   order_solved: "{user} собрал(а) порядок районов города {book}",
   task_solved: "{user} решил(а) район {n} города {book}",
   city_captured: "Команда «{team}» взяла город {book}{capital}",
@@ -61,7 +61,7 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   capital_moved: "Столица перенесена",
   quarry_submitted: "{user} сдал(а) общее дело «{deed}» в Каменоломне",
   quarry_approved: "Каменоломня: дело «{deed}» принято, команда получила камней: {n}",
-  quarry_returned: "Каменоломня: дело «{deed}» возвращено на доработку",
+  quarry_returned: "Каменоломня: дело «{deed}» возвращено на доработку{comment}",
   paved: "{user} вымостил(а) дорогу камнем из Каменоломни",
   peace_offered: "Команда «{team}» предложила мир команде «{other}»{term}",
   peace_made: "Команды «{team}» и «{other}» заключили мир{term}",
@@ -78,8 +78,37 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   visit_expired: "Команда «{team}» не сдала отчёт о визите к адресату города {book} в тот же день: город свободен",
   chronicle: "Летопись недели",
   game_finished: "Игра завершена{winner}",
+  // Полнота летописи (решение владельца 01.11): события, которые раньше шли только уведомлениями.
+  trial_submitted: "Вызов городу {book} отправлен на проверку: {verses} стихов",
+  answer_submitted: "Ответ за город {book} отправлен на проверку: {verses} стихов",
+  trial_approved: "Вызов городу {book} одобрен: {verses} стихов. Капитан начинает испытание кнопкой «Испытать»",
+  trial_entry_returned: "Запись {side} за город {book} возвращена администратором: {ref}{comment}",
+  trial_dropped: "Вызов городу {book} снят из очереди: {why}",
+  defense_doubled: "Защита города {book} удвоена: мир нарушен в игре из двух команд, хранителям нужно {need} стихов",
+  city_fatigue: "Город {book} слабеет: из города давно не делали дел, уровень испытания снизился на {n}",
+  city_locked: "Город {book} закреплён до {date}: каждый хранитель выучил всю книгу",
+  passage_requested: "Команда «{team}» просит проход через город {book} команды «{other}»{message}",
+  passage_given: "Проход через город {book} для команды «{team}» разрешён",
+  passage_refused: "В проходе через город {book} команде «{team}» отказано",
+  passage_expired: "Запрос команды «{team}» на проход через город {book} команды «{other}» остался без ответа: отказ",
+  trade_rejected: "Команда «{team}» не приняла встречный город {book}: сделка продолжается",
+  support_answered: "Ответ поддержки{task}: {answer}",
+  ship_ready: "Корабль готов к отплытию: дело «{deed}» принято, капитан или кормчий выбирает, куда высадиться",
+  deed_released: "Дело «{deed}» не сдано за {days} дн. и снова свободно для всей команды",
+  deeds_frozen: "Взятие дел закрыто на {n} дн., до {date}{reason}",
+  deeds_unfrozen: "Взятие дел снова открыто",
+  member_left: "{user} переведён(а) администратором в команду «{team}»",
+  member_joined: "{user} переведён(а) администратором из команды «{team}»",
+  member_moved: "Администратор перевёл вас в команду «{team}»",
+  wall_block_submitted: "{user} сдал(а) блок стены города {book}: {ref}",
+  wall_block_approved: "Блок стены города {book} принят: {ref}. Толщина стены — {n} стихов",
+  wall_block_returned: "Блок стены города {book} возвращён администратором: {ref}{comment}",
+  wall_applied: "Стена города {book} легла в ответ: зачтено {n} стихов",
 };
-const ICON: Partial<Record<JournalKind, string>> = { trial_peace: "handshake", siege_peace: "handshake", peace_ended: "handshake", trade_proposed: "handshake", trade_countered: "handshake", trade_done: "city", trade_cancelled: "x", deed_submitted: "send", deed_approved: "check", deed_returned: "back", order_solved: "lock", task_solved: "book", city_captured: "city", ruins_taken: "city", treasure: "star", trial_declared: "wave", trial_queued: "list", trial_started: "wave", trial_defense: "wave", trial_repelled: "flag", trial_won: "trophy", trial_burnt: "clock", siege_declared: "scroll", siege_won: "trophy", siege_repelled: "flag", passage_granted: "handshake", passage_denied: "x", sea_landed: "ship", penalty: "alert", role_changed: "user", capital_moved: "crown", peace_offered: "handshake", peace_made: "handshake", peace_broken: "alert", peace_violated: "alert", ally_requested: "shield", ally_joined: "shield", ally_declined: "x", visit_submitted: "send", visit_approved: "check", visit_rejected: "alert", visit_expired: "clock", chronicle: "scroll", game_finished: "trophy" };
+const ICON: Partial<Record<JournalKind, string>> = { trial_peace: "handshake", siege_peace: "handshake", peace_ended: "handshake", trade_proposed: "handshake", trade_countered: "handshake", trade_done: "city", trade_cancelled: "x", deed_submitted: "send", deed_approved: "check", deed_returned: "back", order_solved: "lock", task_solved: "book", city_captured: "city", ruins_taken: "city", treasure: "star", trial_declared: "wave", trial_queued: "list", trial_started: "wave", trial_defense: "wave", trial_repelled: "flag", trial_won: "trophy", trial_burnt: "clock", siege_declared: "scroll", siege_won: "trophy", siege_repelled: "flag", passage_granted: "handshake", passage_denied: "x", sea_landed: "ship", penalty: "alert", role_changed: "user", capital_moved: "crown", peace_offered: "handshake", peace_made: "handshake", peace_broken: "alert", peace_violated: "alert", ally_requested: "shield", ally_joined: "shield", ally_declined: "x", visit_submitted: "send", visit_approved: "check", visit_rejected: "alert", visit_expired: "clock", chronicle: "scroll", game_finished: "trophy",
+  trial_submitted: "send", answer_submitted: "send", trial_approved: "check", trial_entry_returned: "back", trial_dropped: "x", defense_doubled: "shield", city_fatigue: "clock", city_locked: "lock",
+  passage_requested: "handshake", passage_given: "check", passage_refused: "x", passage_expired: "clock", trade_rejected: "x", support_answered: "mail", ship_ready: "ship", deed_released: "back",
+  deeds_frozen: "alert", deeds_unfrozen: "check", member_left: "users", member_joined: "users", member_moved: "users", wall_block_submitted: "wall", wall_block_approved: "wall", wall_block_returned: "back", wall_applied: "wall" };
 
 /** Текст записи: шаблон вида через словарь, код книги подставляется названием, служебные подстановки переводятся. */
 export function journalLine(kind: JournalKind, vars: Record<string, string | number>): string {
@@ -88,7 +117,9 @@ export function journalLine(kind: JournalKind, vars: Record<string, string | num
   if (typeof v.book2 === "string") v.book2 = bookName(v.book2);
   if (typeof v.other === "string" && kind === "treasure") v.other = bookName(v.other);
   // Служебные подстановки — сами шаблоны (например {winner} = «: победила команда «{team}»»): переводятся и заполняются теми же переменными.
-  for (const k of ["capital", "who", "winner", "role", "term"]) if (typeof v[k] === "string" && v[k]) v[k] = t(v[k] as string, v);
+  for (const k of ["capital", "who", "winner", "role", "term", "why", "side", "task", "reason", "answer"]) if (typeof v[k] === "string" && v[k]) v[k] = t(v[k] as string, v);
+  // Необязательные хвосты (комментарий, причина, сообщение): у старых записей их нет — пусто, а не «{comment}».
+  for (const k of ["comment", "message", "reason", "task"]) if (v[k] === undefined) v[k] = "";
   return t(JOURNAL_TEXT[kind] ?? kind, v);
 }
 
@@ -105,14 +136,14 @@ export function FeedSection({ gameId, version, onOpenTask }: { gameId: string; v
       {!items ? <LoadingState rows={2} /> : items.length === 0 ? <EmptyState inline icon="scroll" text={t("Пока тихо. Первые события — после первого дела.")} /> : (
         <ul className="feed">
           {shown.map((it) => (
-            <li key={it.id} className={it.everyone && !it.mine ? "news" : ""}>
+            <li key={it.id} className={it.everyone && !it.mine ? "news" : it.personal ? "me" : ""}>
               <span className="ico"><Icon name={ICON[it.kind] ?? "info"} /></span>
               <div className="body">
                 {it.kind === "chronicle" ? <details><summary>{t("Летопись недели")} · {fmtDate(it.at, { time: false })}</summary>{it.text.split("\n").map((l, i) => <p key={i} className="small">{l}</p>)}</details>
                   : it.taskId && it.mine && onOpenTask
                     ? <button type="button" className="linkish" onClick={() => onOpenTask(it.taskId!)} title={t("Открыть дело")}>{journalLine(it.kind, it.vars)} <Icon name="chevron-down" className="chev right" /></button>
                     : <span>{journalLine(it.kind, it.vars)}</span>}
-                <span className="meta">{fmtDate(it.at)}{it.everyone && !it.mine ? ` · ${t("новость")}` : ""}</span>
+                <span className="meta">{fmtDate(it.at)}{it.everyone && !it.mine ? ` · ${t("новость")}` : it.personal ? ` · ${t("только вам")}` : ""}</span>
               </div>
             </li>
           ))}

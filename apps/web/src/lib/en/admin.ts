@@ -291,4 +291,16 @@ export const ADMIN: Record<string, string> = {
   "учётка": "account",
   "учётки": "accounts",
   "учёток": "accounts",
+  // Городская стена (решение владельца 01.11).
+  "Блок принят: стена выросла": "Block accepted: the wall grew",
+  "Блок возвращён": "Block returned",
+  "Стены": "Walls",
+  "Какие блоки показывать": "Which blocks to show",
+  "Причина возврата: участник её увидит": "Reason for return: the member will see it",
+  "Городская стена хранителей: принятые блоки стихов": "The keepers’ city wall: accepted verse blocks",
+  "стена {n}": "wall {n}",
+  "Блок стены": "Wall block",
+  "Блок стены · стихов": "Wall block · verses",
+  "Городская стена: сколько стихов книги подряд в одном блоке. Блок учит один хранитель и сдаёт видео; принятые блоки сами ложатся в ответ при испытании.": "City wall: how many consecutive verses of the book make one block. One keeper learns a block and submits a video; accepted blocks go into the answer by themselves during a trial.",
+  "На проверке": "Under review",
 };

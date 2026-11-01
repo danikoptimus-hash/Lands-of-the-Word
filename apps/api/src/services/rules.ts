@@ -16,6 +16,8 @@ export const rulesSchema = z.object({
   burnPenalty: z.number().int().min(0).max(100).default(5),
   /** Минимальное время ответа хранителей, секунд (техническая защита; блиц законен). */
   minAnswerSeconds: z.number().int().min(10).max(86_400).default(60),
+  /** Городская стена (решение владельца 01.11): сколько стихов книги подряд в одном блоке стены. */
+  wallBlockVerses: z.number().int().min(1).max(200).default(10),
   /** Срок ответа на запрос прохода, дней; молчание — отказ. */
   passageDays: z.number().min(0.001).max(30).default(3),
   /** Закрепление города после отбитого максимума, недель. */

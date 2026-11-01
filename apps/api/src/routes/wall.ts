@@ -1,0 +1,175 @@
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { prisma } from "../db.js";
+import { assertAwake } from "../services/daytime.js";
+import { publish } from "../services/events.js";
+import { requireUser } from "../auth.js";
+import { err, msg } from "../services/i18n.js";
+import { requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
+import { notifyAdmins, notifyUser } from "../services/notify.js";
+import { journal, nick } from "../services/journal.js";
+import { gameRules } from "../services/battles.js";
+import { brickRange, brickRef, layApprovedBlockIntoDefense, wallBook, wallOf } from "../services/wall.js";
+import { BOOKS } from "@lotw/domain";
+
+const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
+const buildBody = z.object({
+  block: z.number().int().min(0).max(10_000),
+  links: z.array(z.string().trim().url().max(500)).min(1).max(5),
+  note: z.string().trim().max(500).default(""),
+});
+const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
+
+/** Город, которым владеет команда (взят и не потерян). */
+async function ownedCity(gameId: string, teamId: string, nodeKey: string) {
+  const [state, node] = await Promise.all([
+    prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId, nodeKey } }, select: { capturedAt: true } }),
+    prisma.mapNode.findUnique({ where: { gameId_key: { gameId, key: nodeKey } }, select: { bookCode: true, ruined: true } }),
+  ]);
+  return node?.bookCode && state?.capturedAt ? { bookCode: node.bookCode } : null;
+}
+
+async function nicknames(ids: string[]): Promise<Map<string, string>> {
+  const rows = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, nickname: true, displayName: true } });
+  return new Map(rows.map((u) => [u.id, u.displayName || u.nickname]));
+}
+
+/**
+ * Городская стена (решение владельца 01.11): участники команды-хранителя сдают блоки стихов книги своего города;
+ * администратор проверяет; стена ложится в ответ при испытании (services/wall.ts).
+ */
+export async function wallRoutes(app: FastifyInstance): Promise<void> {
+  app.addHook("preHandler", requireUser);
+
+  /** Стена своего города: толщина, кладка и какие блоки участник ещё может сдать. */
+  app.get("/api/games/:id/my-city/:nodeKey/wall", async (request, reply) => {
+    const { id, nodeKey } = request.params as { id: string; nodeKey: string };
+    const m = await requireMember(request, reply, id);
+    if (!m) return;
+    const city = await ownedCity(id, m.team.id, nodeKey);
+    if (!city) return reply.code(409).send({ error: "conflict", message: err(request, "Стену строят только в своём городе") });
+    const { book, n } = await wallBook(id, city.bookCode);
+    if (!book) return reply.code(409).send({ error: "conflict", message: err(request, "Текст этой книги ещё не загружен") });
+    const userId = request.user!.id;
+    const [rows, mineEntries, defense, members] = await Promise.all([
+      prisma.wallBlock.findMany({ where: { teamId: m.team.id, nodeKey }, orderBy: { createdAt: "asc" } }),
+      prisma.battleEntry.findMany({ where: { userId, status: { not: "REJECTED" }, battle: { gameId: id, bookCode: city.bookCode } }, select: { startIdx: true, endIdx: true } }),
+      prisma.battle.findFirst({ where: { gameId: id, nodeKey, defenderId: m.team.id, status: "DEFENSE" }, select: { id: true } }),
+      prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true } }),
+    ]);
+    const inTeam = new Set(members.map((x) => x.userId));
+    const learned = new Set<number>();
+    for (const e of mineEntries) for (let i = e.startIdx; i <= e.endIdx; i++) learned.add(i);
+    const total = book.total, count = Math.ceil(total / n);
+    const myBlocks = new Map(rows.filter((r) => r.userId === userId && r.status !== "REJECTED").map((r) => [Math.floor(r.startIdx / n), r.status] as const));
+    const bricks = Array.from({ length: count }, (_, k) => {
+      const { start, end } = brickRange(k, n, total);
+      let state: "free" | "learned" | "submitted" | "approved" = "free";
+      const my = myBlocks.get(k);
+      if (my === "APPROVED") state = "approved";
+      else if (my === "SUBMITTED") state = "submitted";
+      else { for (let i = start; i <= end; i++) if (learned.has(i)) { state = "learned"; break; } }
+      return { k, start, end, ref: brickRef(book, start, end), state };
+    });
+    const names = await nicknames([...new Set(rows.map((r) => r.userId))]);
+    const live = rows.filter((r) => inTeam.has(r.userId) && r.status !== "REJECTED");
+    const wall = await wallOf(m.team.id, nodeKey);
+    const why = defense ? "Идёт ответ хранителей: стена строится в мирное время" : bricks.every((b) => b.state !== "free") ? "Все блоки книги вы уже сдали" : null;
+    return {
+      mine: true, blockVerses: n, total, verses: wall.verses, blockCount: wall.blocks, pending: wall.pending,
+      canBuild: !why, why: why ? err(request, why) : null,
+      bricks,
+      blocks: live.map((r) => ({ id: r.id, k: Math.floor(r.startIdx / n), ref: brickRef(book, r.startIdx, r.endIdx), verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),
+      returned: rows.filter((r) => r.userId === userId && r.status === "REJECTED").slice(-3).map((r) => ({ id: r.id, ref: brickRef(book, r.startIdx, r.endIdx), adminComment: r.adminComment, decidedAt: r.decidedAt })),
+    };
+  });
+
+  /** Сдать блок: выучил n стихов подряд, прикрепил видео. Любой участник команды-хранителя, в мирное время, не ночью и не в шторм. */
+  app.post("/api/games/:id/my-city/:nodeKey/wall", async (request, reply) => {
+    const { id, nodeKey } = request.params as { id: string; nodeKey: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    if (!(await assertAwake(request, reply, id))) return;
+    const city = await ownedCity(id, m.team.id, nodeKey);
+    if (!city) return reply.code(409).send({ error: "conflict", message: err(request, "Стену строят только в своём городе") });
+    const body = buildBody.parse(request.body);
+    const { book, n } = await wallBook(id, city.bookCode);
+    if (!book) return reply.code(409).send({ error: "conflict", message: err(request, "Текст этой книги ещё не загружен") });
+    if (body.block >= Math.ceil(book.total / n)) return reply.code(400).send({ error: "validation", message: err(request, "Такого блока в книге нет") });
+    const defense = await prisma.battle.findFirst({ where: { gameId: id, nodeKey, defenderId: m.team.id, status: "DEFENSE" }, select: { id: true } });
+    if (defense) return reply.code(409).send({ error: "conflict", message: err(request, "Идёт ответ хранителей: стена строится в мирное время") });
+    const { start, end } = brickRange(body.block, n, book.total);
+    const userId = request.user!.id;
+    const dup = await prisma.wallBlock.findFirst({ where: { teamId: m.team.id, nodeKey, userId, startIdx: start, status: { not: "REJECTED" } }, select: { status: true } });
+    if (dup) return reply.code(409).send({ error: "conflict", message: err(request, dup.status === "APPROVED" ? "Этот блок у вас уже принят" : "Этот блок у вас уже на проверке") });
+    // Стих сдаётся один раз (решение владельца 03.10): стихи, отмеченные в испытаниях этой книги, в блок не входят.
+    const overlap = await prisma.battleEntry.findFirst({ where: { userId, status: { not: "REJECTED" }, startIdx: { lte: end }, endIdx: { gte: start }, battle: { gameId: id, bookCode: city.bookCode } }, select: { id: true } });
+    if (overlap) return reply.code(409).send({ error: "conflict", message: err(request, "Стихи этого блока вы уже сдавали в испытании: второй раз они не засчитываются") });
+    const weight = m.gameRole === "WARRIOR" ? 2 : 1;
+    const row = await prisma.wallBlock.create({ data: { gameId: id, teamId: m.team.id, nodeKey, bookCode: city.bookCode, userId, startIdx: start, endIdx: end, links: body.links, note: body.note, weight } });
+    const ref = brickRef(book, start, end);
+    journal(id, "wall_block_submitted", { teamId: m.team.id, userId, vars: { user: await nick(userId), book: city.bookCode, ref } });
+    publish(id, { type: "cities", teamId: m.team.id });
+    publish(id, { type: "submissions" });
+    if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "блок стены города {book}", "Команда «{team}» сдала блок городской стены ({ref}). Проверьте запись в блоке «Стены».", { book: city.bookCode, team: m.team.name, ref });
+    return reply.code(201).send({ ok: true, id: row.id, ref });
+  });
+
+  /** Убрать свой блок, пока он на проверке. */
+  app.delete("/api/games/:id/my-city/:nodeKey/wall/:blockId", async (request, reply) => {
+    const { id, nodeKey, blockId } = request.params as { id: string; nodeKey: string; blockId: string };
+    const m = await requireMember(request, reply, id);
+    if (!m) return;
+    const row = await prisma.wallBlock.findFirst({ where: { id: blockId, gameId: id, teamId: m.team.id, nodeKey } });
+    if (!row) return reply.code(404).send({ error: "not_found", message: err(request, "Блок не найден") });
+    if (row.userId !== request.user!.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Убрать можно только свой блок") });
+    if (row.status !== "SUBMITTED") return reply.code(409).send({ error: "conflict", message: err(request, "Проверенный блок убрать нельзя") });
+    await prisma.wallBlock.delete({ where: { id: row.id } });
+    publish(id, { type: "cities", teamId: m.team.id });
+    publish(id, { type: "submissions" });
+    return { ok: true };
+  });
+
+  /** Администратор: блоки стен всех команд, на проверке первыми. */
+  app.get("/api/games/:id/walls", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const rows = await prisma.wallBlock.findMany({ where: { gameId: id }, orderBy: [{ createdAt: "desc" }], take: 200, include: { team: { select: { id: true, name: true, color: true, avatarId: true } } } });
+    const books = new Map<string, Awaited<ReturnType<typeof wallBook>>["book"]>();
+    for (const code of new Set(rows.map((r) => r.bookCode))) books.set(code, (await wallBook(id, code)).book);
+    const names = await nicknames([...new Set(rows.map((r) => r.userId))]);
+    const pending = rows.filter((r) => r.status === "SUBMITTED"), rest = rows.filter((r) => r.status !== "SUBMITTED").slice(0, 30);
+    return {
+      blocks: [...pending, ...rest].map((r) => {
+        const book = books.get(r.bookCode);
+        return { id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, bookName: BOOK_BY_CODE.get(r.bookCode)?.nameRu ?? r.bookCode, team: r.team, nickname: names.get(r.userId) ?? "?", ref: book ? brickRef(book, r.startIdx, r.endIdx) : `${r.startIdx + 1}–${r.endIdx + 1}`, verses: r.endIdx - r.startIdx + 1, weight: r.weight, links: r.links, note: r.note, status: r.status, adminComment: r.adminComment, createdAt: r.createdAt, decidedAt: r.decidedAt };
+      }),
+    };
+  });
+
+  /** Администратор: принять или вернуть блок. Принятый во время ответа хранителей блок сразу ложится в ответ. */
+  app.post("/api/games/:id/walls/:blockId/decide", async (request, reply) => {
+    const { id, blockId } = request.params as { id: string; blockId: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const row = await prisma.wallBlock.findFirst({ where: { id: blockId, gameId: id } });
+    if (!row) return reply.code(404).send({ error: "not_found", message: err(request, "Блок не найден") });
+    if (row.status !== "SUBMITTED") return reply.code(409).send({ error: "conflict", message: err(request, "Блок уже проверен") });
+    const body = decideBody.parse(request.body);
+    await prisma.wallBlock.update({ where: { id: row.id }, data: { status: body.approve ? "APPROVED" : "REJECTED", adminComment: body.comment, decidedAt: new Date() } });
+    const { book } = await wallBook(id, row.bookCode);
+    const ref = book ? brickRef(book, row.startIdx, row.endIdx) : "";
+    if (body.approve) {
+      const wall = await wallOf(row.teamId, row.nodeKey);
+      journal(id, "wall_block_approved", { teamId: row.teamId, userId: row.userId, vars: { book: row.bookCode, ref, n: wall.verses } });
+      await layApprovedBlockIntoDefense(id, row.teamId, row.nodeKey);
+      // Стена видна на карте всем командам, дошедшим до города: событие без команды.
+      publish(id, { type: "cities" });
+    } else {
+      journal(id, "wall_block_returned", { personal: true, userId: row.userId, teamId: row.teamId, vars: { book: row.bookCode, ref, comment: body.comment ? `: ${body.comment}` : "" } });
+      notifyUser(id, row.userId, "блок стены города {book} возвращён", (locale) => msg(locale, "Администратор вернул блок городской стены ({ref}).{comment} Переснимите и сдайте заново.", { ref, comment: body.comment ? ` ${body.comment}` : "" }), { book: row.bookCode });
+      publish(id, { type: "cities", teamId: row.teamId });
+    }
+    publish(id, { type: "submissions" });
+    return { ok: true };
+  });
+}

@@ -9,6 +9,7 @@ import { fmtDate, fmtDay, msg } from "./i18n.js";
 import { checkLastTeam, checkTimeLimits } from "./game.js";
 import { expirePassages } from "../routes/diplomacy.js";
 import { onCityOwned, returnStaleTasks } from "./teamMap.js";
+import { applyWall } from "./wall.js";
 import { days, rulesOf, type Rules } from "./rules.js";
 import { sweepSieges } from "./siege.js";
 import { BOOKS } from "@lotw/domain";
@@ -50,7 +51,7 @@ export function minBidFor(defenseLevel: number, penalty: number, rules: Rules): 
 
 /** Сумма выученных стихов по участникам стороны (внутри участника стих считается один раз; у воина — с весом 2, решение владельца 22.09). */
 /** Сколько стихов нужно хранителям: ставка вызова, при нарушении мира в игре из двух команд — вдвое (решение владельца 22.10). */
-/** Городская стена (решение владельца 31.10): больше физического максимума хранителей (участники × стихи книги) ответ не требует — максимум держит город всегда. */
+/** Предел ответа (решение владельца 31.10; стена с 01.11 — services/wall.ts): больше физического максимума хранителей (участники × стихи книги) ответ не требует — максимум держит город всегда. */
 export const defenseNeed = (b: { bid: number; defenseFactor: number; defenseCap?: number | null }) => Math.min(b.bid * Math.max(1, b.defenseFactor), b.defenseCap && b.defenseCap > 0 ? b.defenseCap : Infinity);
 
 export function sumVerses(entries: BattleEntry[], side: "ATTACK" | "DEFENSE", onlyApproved: boolean): number {
@@ -135,19 +136,27 @@ export async function startNextFromQueue(gameId: string, nodeKey: string): Promi
   if (isLocked(node)) {
     const queued = await prisma.battle.findMany({ where: { gameId, nodeKey, status: "QUEUED" } });
     await prisma.battle.updateMany({ where: { gameId, nodeKey, status: "QUEUED" }, data: { status: "CANCELLED", resolvedAt: new Date() } });
-    for (const q of queued) notifyTeam(gameId, q.attackerId, "вызов городу {book} отменён", (locale) => msg(locale, "Город закреплён до {date}: хранители отбились, выучив всю книгу каждым участником. Вызов из очереди отменён.", { date: fmtDay(node.lockedUntil!, locale) }), { book: node.bookCode ?? "" });
+    for (const q of queued) {
+      notifyTeam(gameId, q.attackerId, "вызов городу {book} отменён", (locale) => msg(locale, "Город закреплён до {date}: хранители отбились, выучив всю книгу каждым участником. Вызов из очереди отменён.", { date: fmtDay(node.lockedUntil!, locale) }), { book: node.bookCode ?? "" });
+      journal(gameId, "trial_dropped", { teamId: q.attackerId, vars: { book: node.bookCode ?? "", why: "город закреплён до {date}", date: node.lockedUntil!.toLocaleDateString("ru-RU", { timeZone: rules.timeZone }) } });
+    }
     return;
   }
   const owner = await prisma.teamCityState.findFirst({ where: { gameId, nodeKey, capturedAt: { not: null } } });
   const queued = orderQueue(await prisma.battle.findMany({ where: { gameId, nodeKey, status: "QUEUED" } }));
   for (const q of queued) {
-    if (!owner || owner.teamId === q.attackerId) { await prisma.battle.update({ where: { id: q.id }, data: { status: "CANCELLED", resolvedAt: new Date() } }); continue; }
+    if (!owner || owner.teamId === q.attackerId) {
+      await prisma.battle.update({ where: { id: q.id }, data: { status: "CANCELLED", resolvedAt: new Date() } });
+      journal(gameId, "trial_dropped", { teamId: q.attackerId, vars: { book: node.bookCode ?? "", why: "город больше не у тех хранителей" } });
+      continue;
+    }
     const st = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: q.attackerId, nodeKey } } });
     const min = minBidFor(node.defenseLevel, st?.attackPenalty ?? 0, rules);
     if (q.bid < min) {
       // Уровень защиты вырос выше ставки в очереди: атака отменяется (решение владельца).
       await prisma.battle.update({ where: { id: q.id }, data: { status: "CANCELLED", resolvedAt: new Date() } });
       notifyTeam(gameId, q.attackerId, "вызов городу {book} отменён", "Пока вы стояли в очереди, уровень испытания города вырос до {level}, а ваша ставка {bid} стала ниже минимальной ({min}). Вызов отменён; можно бросить вызов заново с большей ставкой.", { book: q.bookCode, level: node.defenseLevel, bid: q.bid, min });
+      journal(gameId, "trial_dropped", { teamId: q.attackerId, vars: { book: q.bookCode, why: "ставка {bid} ниже новой минимальной {min}", bid: q.bid, min } });
       continue;
     }
     await prisma.battle.update({ where: { id: q.id }, data: { defenderId: owner.teamId } });
@@ -169,6 +178,7 @@ export async function submitAttack(b: BattleWithEntries): Promise<{ ok: true; ba
   const sum = sumVerses(b.entries, "ATTACK", false);
   if (sum < b.bid) return { ok: false, message: "Выучено {sum} из {need} стихов: не хватает {missing}", vars: { sum, need: b.bid, missing: b.bid - sum } };
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: new Date() }, include: { entries: true } });
+  journal(b.gameId, "trial_submitted", { teamId: b.attackerId, vars: { book: b.bookCode, verses: sum } });
   return { ok: true, battle: await approveAttack(upd) };
 }
 
@@ -181,6 +191,7 @@ export async function submitDefense(b: BattleWithEntries): Promise<{ ok: true; b
   const sum = sumVerses(b.entries, "DEFENSE", false);
   if (sum < need) return { ok: false, message: "Выучено {sum} из {need} стихов: не хватает {missing}", vars: { sum, need, missing: need - sum } };
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: new Date(), defenseBid: sum }, include: { entries: true } });
+  journal(b.gameId, "answer_submitted", { teamId: b.defenderId, vars: { book: b.bookCode, verses: sum } });
   return { ok: true, battle: await maybeRepel(upd) };
 }
 
@@ -230,6 +241,7 @@ export async function approveAttack(b: BattleWithEntries): Promise<BattleWithEnt
   const pausedWall = Math.max(0, now.getTime() - b.attackDoneAt.getTime());
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { attackApprovedAt: now, ...(b.attackDeadline ? { attackDeadline: new Date(b.attackDeadline.getTime() + pausedWall) } : {}) }, include: { entries: true } });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
+  journal(b.gameId, "trial_approved", { teamId: b.attackerId, vars: { book: b.bookCode, verses: sumVerses(upd.entries, "ATTACK", true) } });
   notifyTeam(b.gameId, b.attackerId, "вызов городу {book} одобрен", (locale) => msg(locale, "Все записи приняты: {verses} стихов. Нажмите «Испытать», когда команде удобно (не ночью и не в шторм): с этого момента хранители узнают о вызове, и у них будет столько же времени, сколько ушло у вас. Испытать нужно до {deadline}, иначе вызов сгорит.", { verses: b.bid, deadline: upd.attackDeadline ? fmtDate(upd.attackDeadline, locale) : "" }), { book: b.bookCode });
   return upd;
 }
@@ -250,6 +262,8 @@ export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; ba
   // С этого момента о вызове узнают все (решение владельца 31.10): хранители — письмом ниже, остальные — новостью.
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_defense", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
   upd = await carryLearnedVerses(upd);
+  // Городская стена (решение владельца 01.11): принятые блоки хранителей ложатся в ответ сами — защита от блиц-вызова.
+  { const wall = await applyWall(upd); upd = wall.battle; if (wall.added > 0) journal(b.gameId, "wall_applied", { teamId: b.defenderId, vars: { book: b.bookCode, n: wall.added } }); }
   publish(b.gameId, { type: "battles", teamId: b.defenderId });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
   const hours = Math.round(T / 360_000) / 10;
@@ -307,6 +321,7 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
   scheduleAwards(b.gameId);
   publish(b.gameId, { type: "map" });
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_repelled", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
+  if (lockedUntil) journal(b.gameId, "city_locked", { everyone: true, teamId: b.defenderId, vars: { book: b.bookCode, date: lockedUntil.toLocaleDateString("ru-RU", { timeZone: rules.timeZone }) } });
   notifyTeam(b.gameId, b.defenderId, "город {book} устоял", (locale) => msg(locale, "Ответ одобрен: {m} стихов против {need}. Город остаётся вашим, уровень испытания теперь {m}.", { m: M, need }) + (lockedUntil ? msg(locale, " Каждый участник выучил всю книгу: город закреплён до {date}.", { date: fmtDay(lockedUntil, locale) }) : ""), { book: b.bookCode });
   notifyTeam(b.gameId, b.attackerId, "город {book} устоял", "Хранители ответили {m} стихами против ваших {need}. Следующий вызов этому городу потребует не меньше {next}.", { book: b.bookCode, m: M, need, next: minBidFor(M, prevPenalty, rules) });
   await startNextFromQueue(b.gameId, b.nodeKey);
@@ -399,6 +414,7 @@ export async function applyFatigue(gameId: string, rules: Rules, now = new Date(
     await prisma.mapNode.update({ where: { id: node.id }, data: { defenseLevel: Math.max(0, node.defenseLevel - rules.fatigueStep), fatigueAt: now } });
     publish(gameId, { type: "map", teamId: c.teamId });
     notifyTeam(gameId, c.teamId, "город {book} слабеет", "Из города давно не делали дел: уровень испытания снизился на {n}. Одно одобренное дело на стороне из города остановит убыль.", { book: node.bookCode ?? "", n: rules.fatigueStep });
+    journal(gameId, "city_fatigue", { teamId: c.teamId, vars: { book: node.bookCode ?? "", n: rules.fatigueStep } });
   }
 }
 
@@ -455,7 +471,7 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   ]);
   const penalty = state?.attackPenalty ?? 0;
   const minBid = minBidFor(node.defenseLevel, penalty, rules);
-  // Городская стена (решение владельца 31.10): ставка не выше того, что хранители могут ответить, — участники × стихи книги.
+  // Предел ответа (решение владельца 31.10): ставка не выше того, что хранители могут ответить, — участники × стихи книги.
   const ownerMembers = owner ? await prisma.membership.count({ where: { teamId: owner.teamId } }) : null;
   const maxBid = book && ownerMembers !== null ? book.total * Math.max(1, ownerMembers) : null;
   const studied = Boolean(content && state?.orderSolved && content.tasks.every((_, i) => state!.doneTasks.includes(i)));

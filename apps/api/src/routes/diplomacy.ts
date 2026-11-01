@@ -14,7 +14,7 @@ import { err, fmtDay, msg, toLocale } from "../services/i18n.js";
 import { loadBook, verseText, formatRange, parseDistrictRange } from "../services/bible.js";
 import { loadCityContent } from "../services/cities.js";
 import { BOOKS, hexCorners, parseVertexKey, vertexHexes, vertexKey } from "@lotw/domain";
-import { journal } from "../services/journal.js";
+import { journal, teamNames } from "../services/journal.js";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const teamSelect = { select: { id: true, name: true, color: true, avatarId: true } } as const;
@@ -39,6 +39,9 @@ export async function expirePassages(gameId?: string): Promise<void> {
     await prisma.passageRequest.update({ where: { id: r.id }, data: { status: "EXPIRED", decidedAt: new Date() } });
     publish(r.gameId, { type: "map", teamId: r.requesterId });
     notifyTeam(r.gameId, r.requesterId, "проход не разрешён", "Владелец города не ответил на запрос прохода в срок: по правилам это отказ. Можно запросить снова.");
+    const [rq, ow] = await teamNames(r.requesterId, r.ownerId);
+    const book = (await bookOf(r.gameId, [r.nodeKey])).get(r.nodeKey) ?? "";
+    for (const tid of [r.requesterId, r.ownerId]) journal(r.gameId, "passage_expired", { teamId: tid, vars: { team: rq, other: ow, book } });
   }
 }
 
@@ -118,6 +121,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "map", teamId: m.team.id });
     const books = await bookOf(id, [nodeKey]);
     notifyTeam(id, owner.teamId, books.get(nodeKey) ? "запрос прохода через {book}" : "запрос прохода через ваш город", (locale) => msg(locale, "Команда «{team}» просит разрешить проход через ваш город.{message} На ответ {days} дн.; молчание — отказ. Разрешение отозвать нельзя.", { team: m.team.name, days: rules.passageDays, message: body.message ? msg(locale, " Сообщение: {message}", { message: body.message }) : "" }), { book: books.get(nodeKey) ?? "" });
+    { const [ow] = await teamNames(owner.teamId); const pv = { team: m.team.name, other: ow, book: books.get(nodeKey) ?? "", message: body.message ? `: «${body.message}»` : "" }; journal(id, "passage_requested", { teamId: m.team.id, vars: pv }); journal(id, "passage_requested", { teamId: owner.teamId, vars: pv }); }
     return reply.code(201).send({ id: r.id, expiresAt: r.expiresAt });
   });
 
@@ -135,7 +139,9 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     await prisma.passageRequest.update({ where: { id: r.id }, data: { status: body.approve ? "APPROVED" : "DECLINED", answer: body.answer, decidedAt: new Date() } });
     if (body.approve) scheduleAwards(id);
     if (body.approve) await ensureFrontier(id, r.requesterId);
-    journal(id, body.approve ? "passage_granted" : "passage_denied", { teamId: r.requesterId, vars: { other: m.team.name, book: (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: r.nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "" } });
+    const pbook = (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: r.nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "";
+    journal(id, body.approve ? "passage_granted" : "passage_denied", { teamId: r.requesterId, vars: { other: m.team.name, book: pbook } });
+    { const [rq] = await teamNames(r.requesterId); journal(id, body.approve ? "passage_given" : "passage_refused", { teamId: m.team.id, vars: { team: rq, book: pbook } }); }
     publish(id, { type: "map", teamId: r.requesterId });
     publish(id, { type: "map", teamId: m.team.id });
     notifyTeam(id, r.requesterId, body.approve ? "проход разрешён" : "в проходе отказано", (locale) => msg(locale, "Команда «{team}» {verb} проход через свой город.{answer}", { team: m.team.name, verb: body.approve ? "разрешила" : "не разрешила", answer: body.answer ? msg(locale, " Ответ: {answer}", { answer: body.answer }) : "" }));

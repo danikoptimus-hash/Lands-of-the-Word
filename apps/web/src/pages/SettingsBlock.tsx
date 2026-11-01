@@ -9,7 +9,7 @@ import { Help } from "../components/Help";
 import { Stepper } from "../components/Stepper";
 import { Sheet } from "../components/Sheet";
 
-export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily"; /** Штормы (решение владельца 24.10): интервалы недели по поясу игры. */ storms?: StormSlot[] }
+export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; wallBlockVerses: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily"; /** Штормы (решение владельца 24.10): интервалы недели по поясу игры. */ storms?: StormSlot[] }
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string; rules?: RulesDto } }
 /** Правила, зашитые глобально и убранные из настроек (решение владельца 03.10): минимальная ставка, штраф за сгоревший вызов, закрепление города, усталость, паузы после ошибок. Сервер хранит их значения по умолчанию. */
 type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "fatigueAfterDays" | "fatigueStepDays" | "fatigueStep" | "pauseSteps" | "storms" | "chronicleWeekday" | "chronicleHourUtc";
@@ -19,6 +19,7 @@ type RuleKey = Exclude<keyof RulesDto, FixedKey>;
 const RULE_FIELDS: Record<NumKey, { short: () => string; label: () => string; min: number; max: number; step?: number }> = {
   attackDays: { short: () => t("Срок вызова"), label: () => t("Срок вызова · дней"), min: 1, max: 60 },
   minAnswerSeconds: { short: () => t("Минимум на ответ"), label: () => t("Минимум на ответ · секунд"), min: 10, max: 86400 },
+  wallBlockVerses: { short: () => t("Блок стены"), label: () => t("Блок стены · стихов"), min: 1, max: 200 },
   deedReturnDays: { short: () => t("Возврат взятого дела"), label: () => t("Возврат взятого дела · дней"), min: 1, max: 365 },
   maxDeedsPerDay: { short: () => t("Дел в сутки на участника"), label: () => t("Дел в сутки на участника · 0 = без ограничения"), min: 0, max: 50 },
   roleChangeDays: { short: () => t("Смена ролей"), label: () => t("Смена ролей · раз в дней"), min: 0, max: 365 },
@@ -30,7 +31,7 @@ const RULE_FIELDS: Record<NumKey, { short: () => string; label: () => string; mi
   siegeDeedPoints: { short: () => t("Баллов за дело в осаде"), label: () => t("Баллов за дело в осаде"), min: 0, max: 100 },
 };
 const RULE_GROUPS: Array<{ title: () => string; keys: RuleKey[]; /** Строка «Родословия» (только до старта) живёт в группе испытаний. */ genealogies?: boolean }> = [
-  { title: () => t("Испытания"), keys: ["attackDays", "timeZone", "minAnswerSeconds"], genealogies: true },
+  { title: () => t("Испытания"), keys: ["attackDays", "timeZone", "minAnswerSeconds", "wallBlockVerses"], genealogies: true },
   { title: () => t("Дела и роли"), keys: ["deedReturnDays", "maxDeedsPerDay", "roleChangeDays", "roleCooldownDays"] },
   { title: () => t("Города"), keys: ["keySolversPct", "keyTasksPct"] },
   { title: () => t("Проходы"), keys: ["passageDays"] },
@@ -42,6 +43,7 @@ const RULE_HELP: Record<RuleKey, () => string> = {
   attackDays: () => t("Сколько дней с начала вызова у претендентов, чтобы отправить записи на проверку. Время, пока записи лежат у администратора, не считается. Не успели — вызов сгорает и ставится штраф."),
   timeZone: () => t("Часовой пояс, по которому считаются времена суток игры: утро 7:00–9:00, день 9:00–18:00, вечер 18:00–22:00, ночь 22:00–7:00. Ночью города спят и ничего делать нельзя, только смотреть карту; вызов на город отправляют на проверку только утром. Записывается именем из базы часовых поясов, например Asia/Tashkent или Europe/Moscow. Можно менять в идущей игре."),
   minAnswerSeconds: () => t("Техническая защита хранителей. Их срок на ответ равен времени вызова претендентов, но не меньше этого числа секунд, даже если претенденты справились мгновенно."),
+  wallBlockVerses: () => t("Городская стена: сколько стихов книги подряд в одном блоке. Блок учит один хранитель и сдаёт видео; принятые блоки сами ложатся в ответ при испытании."),
   deedReturnDays: () => t("Взятое и не сданное дело через столько дней само возвращается в общий список команды, а взявшему приходит уведомление."),
   maxDeedsPerDay: () => t("Сколько дел один участник может взять за сутки. Считаются дела, взятые за последние 24 часа с момента взятия. Сверх лимита взять дело нельзя, лист дела об этом скажет. 0 — без ограничения. Можно менять в идущей игре."),
   roleChangeDays: () => t("Уже выданную игровую роль капитан может сменить не чаще раза в столько дней. Участникам без роли роль выдаётся сразу. 0 — без ограничения."),
@@ -74,6 +76,7 @@ function ruleValue(key: RuleKey, v: number | string): string {
     case "keySolversPct": return n === 0 ? UNLIMITED() : `${n} %`;
     case "keyTasksPct": return `${n} %`;
     case "siegeDeedPoints": return plural(n, [t("балл"), t("балла"), t("баллов")]);
+    case "wallBlockVerses": return plural(n, [t("стих"), t("стиха"), t("стихов")]);
   }
 }
 const toMin = (hm: string) => { const [h, m] = hm.split(":").map(Number); return (h ?? 0) * 60 + (m ?? 0); };

@@ -6,6 +6,7 @@ import { requireMember, requireSuperadmin } from "./teamMap.js";
 import { loadCityContent } from "../services/cities.js";
 import { sendMail } from "../services/mail.js";
 import { getPublicUrl, notifyTeam } from "../services/notify.js";
+import { journal } from "../services/journal.js";
 import { publish } from "../services/events.js";
 import { bookName, err, msg, type Locale } from "../services/i18n.js";
 import { setSupportEmail, supportEmail, supportSettings } from "../services/support.js";
@@ -104,6 +105,7 @@ export async function supportRoutes(app: FastifyInstance): Promise<void> {
       } else {
         notifyTeam(r.gameId, r.teamId, "ответ поддержки", (locale) => msg(locale, "Ответ поддержки: {answer}", { answer: answer(locale) }));
       }
+      journal(r.gameId, "support_answered", { teamId: r.teamId, vars: { task: r.taskIndex !== null ? " по заданию {n} города {book}" : "", n: (r.taskIndex ?? 0) + 1, book: r.bookCode ?? "", answer: body.reply || "обращение рассмотрено" } });
       publish(r.gameId, { type: "cities", teamId: r.teamId });
     }
     return { ok: true };

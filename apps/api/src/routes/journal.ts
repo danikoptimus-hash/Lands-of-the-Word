@@ -5,7 +5,7 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { defineView } from "../services/views.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
-import { activityBoard, feed, journalTaskIds, seasonBook, serviceStats } from "../services/journal.js";
+import { activityBoard, feed, journalTaskIds, personalFeed, seasonBook, serviceStats } from "../services/journal.js";
 import { breakPeace, decidePeace, peaceView, proposePeace } from "../services/peace.js";
 import { adminOrObserver } from "../services/access.js";
 
@@ -22,7 +22,9 @@ export async function journalRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    return { items: await feedView(id, m.team.id) };
+    // Личные записи участника (решение владельца 01.11) — поверх ленты команды, по времени.
+    const [team, personal] = await Promise.all([feedView(id, m.team.id), personalFeed(id, request.user!.id)]);
+    return { items: personal.length ? [...team, ...personal].sort((a, b) => b.at - a.at) : team };
   });
 
   /** «Моё служение»: сводка участника. */

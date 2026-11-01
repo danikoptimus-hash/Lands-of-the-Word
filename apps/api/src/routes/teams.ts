@@ -202,6 +202,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "teams" });
     // Уведомление участнику: штраф, срок и причина, если администратор её написал (решение владельца 21.10).
     notifyUser(id, userId, "штраф: взятие дел закрыто", (locale) => msg(locale, "Вы оштрафованы: взятие новых дел закрыто на {n} дн., до {date}.{reason} Дела на руках можно сдать или отпустить.", { n: body.days, date: fmtDay(until, locale), reason: body.reason ? " " + msg(locale, "Причина: {reason}", { reason: body.reason }) : "" }));
+    journal(id, "deeds_frozen", { personal: true, userId, teamId, vars: { n: body.days, date: until.toLocaleDateString("ru-RU"), reason: body.reason ? ": {why}" : "", why: body.reason } });
     return { until };
   });
   app.delete("/api/games/:id/teams/:teamId/members/:userId/freeze", async (request, reply) => {
@@ -211,7 +212,10 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     if (!membership || membership.team.gameId !== id) return reply.code(404).send({ error: "not_found", message: err(request, "Участник не найден") });
     await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { deedsFrozenUntil: null, deedsFrozenReason: null } });
     publish(id, { type: "teams" });
-    if (membership.deedsFrozenUntil && membership.deedsFrozenUntil.getTime() > Date.now()) notifyUser(id, userId, "взятие дел открыто", (locale) => msg(locale, "Администратор снова открыл вам взятие дел."));
+    if (membership.deedsFrozenUntil && membership.deedsFrozenUntil.getTime() > Date.now()) {
+      notifyUser(id, userId, "взятие дел открыто", (locale) => msg(locale, "Администратор снова открыл вам взятие дел."));
+      journal(id, "deeds_unfrozen", { personal: true, userId, teamId });
+    }
     return { ok: true };
   });
 
@@ -236,6 +240,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "teams", teamId });
     publish(id, { type: "teams", teamId: to.id });
     notifyUser(id, userId, "вы переведены в команду «{team}»", "Администратор перевёл вас в команду «{team}». Откройте карту команды.", { team: to.name });
+    { const who = await nick(userId); journal(id, "member_left", { teamId, vars: { user: who, team: to.name } }); journal(id, "member_joined", { teamId: to.id, vars: { user: who, team: membership.team.name } }); journal(id, "member_moved", { personal: true, userId, teamId: to.id, vars: { team: to.name } }); }
     return { ok: true };
   });
 

@@ -8,6 +8,7 @@ import { Chip, type ChipTone } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { Help } from "../components/Help";
 import { EmptyState } from "../components/State";
+import { Tabs } from "../components/Tabs";
 
 export interface PassagesDto { canSpeak: boolean; /** Почему запрос отправить нельзя; null — можно. */ speakWhy?: string | null; outgoing: PassageDto[]; incoming: PassageDto[] }
 
@@ -66,11 +67,16 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
   );
 }
 
-/** В боковом меню «Проходы»: входящие запросы (ответить, можно текстом), выданные разрешения (безотзывные), наши запросы. */
+/**
+ * В боковом меню «Проходы» — две вкладки (решение владельца 01.11: «разделить наши запросы и запросы других команд»):
+ * «К нам» — запросы других команд через наши города (ответить, можно текстом) и выданные разрешения (безотзывные);
+ * «Наши» — наши запросы через чужие города с их состоянием. Открывается та, где есть что решать.
+ */
 export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; data: PassagesDto | null; onChanged: () => void }) {
   const { notify } = useUi();
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [tab, setTab] = useState<"in" | "out" | null>(null);
   async function decide(r: PassageDto, approve: boolean) {
     setBusy(r.id);
     try { await api(`/api/games/${gameId}/passages/${r.id}/decide`, { method: "POST", body: JSON.stringify({ approve, answer: answers[r.id] ?? "" }) }); notify(approve ? t("Проход разрешён") : t("В проходе отказано"), "info"); onChanged(); }
@@ -79,13 +85,18 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
   }
   const pending = data?.incoming.filter((r) => r.status === "PENDING") ?? [];
   const granted = data?.incoming.filter((r) => r.status === "APPROVED") ?? [];
-  const outgoing = data?.outgoing.slice(0, 5) ?? [];
+  const outgoing = data?.outgoing.slice(0, 10) ?? [];
   // Пока запросов нет, блока нет вовсе (решение владельца 21.09): появляется вместе с первым запросом.
   if (pending.length === 0 && granted.length === 0 && outgoing.length === 0) return null;
+  const inCount = pending.length + granted.length;
+  const shown: "in" | "out" = tab ?? (pending.length > 0 || (inCount > 0 && outgoing.length === 0) ? "in" : outgoing.length > 0 ? "out" : "in");
   return (
     <section className="section">
       <h2><Icon name="handshake" />{t("Проходы")}{pending.length > 0 && <span className="count-chip hot">{pending.length}</span>}</h2>
-      {pending.map((r) => (
+      <Tabs items={[{ key: "in", label: t("К нам"), icon: "city", count: inCount || undefined, hot: pending.length > 0 }, { key: "out", label: t("Наши"), icon: "flag", count: outgoing.length || undefined }]} value={shown} onChange={setTab} ariaLabel={t("Проходы")} />
+      {shown === "in" && inCount === 0 && <EmptyState inline icon="handshake" text={t("Через ваши города проход пока не просили.")} />}
+      {shown === "out" && outgoing.length === 0 && <EmptyState inline icon="handshake" text={t("Ваша команда проход пока не просила.")} />}
+      {shown === "in" && pending.map((r) => (
         <div key={r.id} className="passage-card">
           <div><strong>«{r.requester.name}»</strong> {t("просит проход через")} <strong>{r.bookName}</strong></div>
           {r.message && <p className="muted small">«{r.message}»</p>}
@@ -104,7 +115,7 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
           ) : <p className="hint">{t("Отвечает посол, а без посла — капитан или заместитель.")}</p>}
         </div>
       ))}
-      {granted.length > 0 && (
+      {shown === "in" && granted.length > 0 && (
         <ul className="list">
           {granted.map((r) => (
             <li key={r.id}>
@@ -114,11 +125,12 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
           ))}
         </ul>
       )}
-      {outgoing.length > 0 && (
+      {shown === "out" && outgoing.length > 0 && (
         <ul className="list">
           {outgoing.map((r) => (
             <li key={r.id}>
-              <div className="main"><span className="title">{t("Наш запрос: {book}", { book: r.bookName })}</span><span className="meta">{t("владелец «{team}»", { team: r.owner.name })}{r.answer ? ` · «${r.answer}»` : ""}</span></div>
+              {/* Во вкладке «Наши» слово «наш запрос» лишнее (правило владельца 01.11: не дублировать): только город и владелец. */}
+              <div className="main"><span className="title">{r.bookName}</span><span className="meta">{t("владелец «{team}»", { team: r.owner.name })}{r.answer ? ` · «${r.answer}»` : ""}</span></div>
               <PassageChip s={r.status} />
             </li>
           ))}

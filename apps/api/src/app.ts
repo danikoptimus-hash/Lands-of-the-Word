@@ -14,6 +14,7 @@ import { deedRoutes } from "./routes/deeds.js";
 import { teamMapRoutes } from "./routes/teamMap.js";
 import { cityRoutes } from "./routes/cities.js";
 import { battleRoutes } from "./routes/battles.js";
+import { wallRoutes } from "./routes/wall.js";
 import { recipientRoutes } from "./routes/recipients.js";
 import { diplomacyRoutes } from "./routes/diplomacy.js";
 import { sweep } from "./services/battles.js";
@@ -89,6 +90,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(teamMapRoutes);
   await app.register(cityRoutes);
   await app.register(battleRoutes);
+  await app.register(wallRoutes);
   await app.register(visitRoutes);
   await app.register(diplomacyRoutes);
   await app.register(quarryRoutes);

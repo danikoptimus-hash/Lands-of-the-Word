@@ -25,7 +25,15 @@ export type JournalKind =
   | "peace_offered" | "peace_made" | "peace_declined" | "peace_broken" | "peace_ended" | "peace_violated"
   | "ally_requested" | "ally_joined" | "ally_declined"
   | "visit_submitted" | "visit_approved" | "visit_rejected" | "visit_expired"
-  | "chronicle" | "game_finished";
+  | "chronicle" | "game_finished"
+  // Полнота летописи (решение владельца 01.11: «добавь туда события, которые проходят через уведомления»).
+  | "trial_submitted" | "answer_submitted" | "trial_approved" | "trial_entry_returned" | "trial_dropped" | "defense_doubled"
+  | "city_fatigue" | "city_locked"
+  | "passage_requested" | "passage_given" | "passage_refused" | "passage_expired" | "trade_rejected"
+  | "support_answered" | "ship_ready" | "deed_released" | "deeds_frozen" | "deeds_unfrozen"
+  | "member_left" | "member_joined" | "member_moved"
+  // Городская стена (решение владельца 01.11).
+  | "wall_block_submitted" | "wall_block_approved" | "wall_block_returned" | "wall_applied";
 
 export type JournalVars = Record<string, string | number>;
 
@@ -33,7 +41,7 @@ export type JournalVars = Record<string, string | number>;
 export const JOURNAL_TEXT: Record<JournalKind, string> = {
   deed_submitted: "{user} сдал(а) дело «{deed}» на проверку",
   deed_approved: "Дело «{deed}» принято{who}: перекрёсток открыт",
-  deed_returned: "Дело «{deed}» возвращено на доработку",
+  deed_returned: "Дело «{deed}» возвращено на доработку{comment}",
   order_solved: "{user} собрал(а) порядок районов города {book}",
   task_solved: "{user} решил(а) район {n} города {book}",
   city_captured: "Команда «{team}» взяла город {book}{capital}",
@@ -64,7 +72,7 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   capital_moved: "Столица перенесена",
   quarry_submitted: "{user} сдал(а) общее дело «{deed}» в Каменоломне",
   quarry_approved: "Каменоломня: дело «{deed}» принято, команда получила камней: {n}",
-  quarry_returned: "Каменоломня: дело «{deed}» возвращено на доработку",
+  quarry_returned: "Каменоломня: дело «{deed}» возвращено на доработку{comment}",
   paved: "{user} вымостил(а) дорогу камнем из Каменоломни",
   peace_offered: "Команда «{team}» предложила мир команде «{other}»{term}",
   peace_made: "Команды «{team}» и «{other}» заключили мир{term}",
@@ -81,6 +89,31 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   visit_expired: "Команда «{team}» не сдала отчёт о визите к адресату города {book} в тот же день: город свободен",
   chronicle: "Летопись недели",
   game_finished: "Игра завершена{winner}",
+  trial_submitted: "Вызов городу {book} отправлен на проверку: {verses} стихов",
+  answer_submitted: "Ответ за город {book} отправлен на проверку: {verses} стихов",
+  trial_approved: "Вызов городу {book} одобрен: {verses} стихов. Капитан начинает испытание кнопкой «Испытать»",
+  trial_entry_returned: "Запись {side} за город {book} возвращена администратором: {ref}{comment}",
+  trial_dropped: "Вызов городу {book} снят из очереди: {why}",
+  defense_doubled: "Защита города {book} удвоена: мир нарушен в игре из двух команд, хранителям нужно {need} стихов",
+  city_fatigue: "Город {book} слабеет: из города давно не делали дел, уровень испытания снизился на {n}",
+  city_locked: "Город {book} закреплён до {date}: каждый хранитель выучил всю книгу",
+  passage_requested: "Команда «{team}» просит проход через город {book} команды «{other}»{message}",
+  passage_given: "Проход через город {book} для команды «{team}» разрешён",
+  passage_refused: "В проходе через город {book} команде «{team}» отказано",
+  passage_expired: "Запрос команды «{team}» на проход через город {book} команды «{other}» остался без ответа: отказ",
+  trade_rejected: "Команда «{team}» не приняла встречный город {book}: сделка продолжается",
+  support_answered: "Ответ поддержки{task}: {answer}",
+  ship_ready: "Корабль готов к отплытию: дело «{deed}» принято, капитан или кормчий выбирает, куда высадиться",
+  deed_released: "Дело «{deed}» не сдано за {days} дн. и снова свободно для всей команды",
+  deeds_frozen: "Взятие дел закрыто на {n} дн., до {date}{reason}",
+  deeds_unfrozen: "Взятие дел снова открыто",
+  member_left: "{user} переведён(а) администратором в команду «{team}»",
+  member_joined: "{user} переведён(а) администратором из команды «{team}»",
+  member_moved: "Администратор перевёл вас в команду «{team}»",
+  wall_block_submitted: "{user} сдал(а) блок стены города {book}: {ref}",
+  wall_block_approved: "Блок стены города {book} принят: {ref}. Толщина стены — {n} стихов",
+  wall_block_returned: "Блок стены города {book} возвращён администратором: {ref}{comment}",
+  wall_applied: "Стена города {book} легла в ответ: зачтено {n} стихов",
 };
 
 /** Текст записи на языке получателя (для писем и летописи). */
@@ -100,9 +133,13 @@ export async function teamNames(...ids: string[]): Promise<string[]> {
 }
 export const ROLE_RU: Record<string, string> = { NONE: "без роли", SCOUT: "разведчик", PROPHET: "пророк", AMBASSADOR: "посол", CHRONICLER: "летописец", HELMSMAN: "кормчий", WARRIOR: "воин" };
 
-/** Записать событие. Не ломает запрос: ошибка только в консоль. */
-export function journal(gameId: string, kind: JournalKind, o: { teamId?: string | null; userId?: string | null; everyone?: boolean; vars?: JournalVars; text?: string } = {}): void {
-  void prisma.journal.create({ data: { gameId, kind, teamId: o.teamId ?? null, userId: o.userId ?? null, everyone: o.everyone ?? false, vars: o.vars ?? {}, text: o.text ?? "" } })
+/**
+ * Записать событие. Не ломает запрос: ошибка только в консоль.
+ * `personal` — личная запись участника (решение владельца 01.11: штраф, перевод, возврат записи): без команды, видна
+ * только ему в его летописи; teamId при этом нужен лишь для рассылки события его команде.
+ */
+export function journal(gameId: string, kind: JournalKind, o: { teamId?: string | null; userId?: string | null; everyone?: boolean; vars?: JournalVars; text?: string; personal?: boolean } = {}): void {
+  void prisma.journal.create({ data: { gameId, kind, teamId: o.personal ? null : o.teamId ?? null, userId: o.userId ?? null, everyone: o.everyone ?? false, vars: o.vars ?? {}, text: o.text ?? "" } })
     // Запись одной команды — событие только ей (новость для всех — всем): иначе каждая сдача дела будила всю игру (прогон 23.10).
     .then(() => publish(gameId, { type: "journal", teamId: o.everyone ? undefined : o.teamId ?? undefined }))
     .catch((e) => console.error("journal failed", e));
@@ -114,6 +151,12 @@ export async function feed(gameId: string, teamId: string, limit = 60) {
   // Дело из летописи открывается и у участников (просьба владельца 25.10: «у админа прожимаются, у участников нет») — только записи своей команды.
   const taskIdOf = await journalTaskIds(gameId, rows.filter((r) => r.teamId === teamId));
   return rows.map((r) => ({ id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: r.everyone, mine: r.teamId === teamId, at: r.createdAt.getTime(), taskId: r.teamId === teamId ? taskIdOf(r) : null }));
+}
+
+/** Личные записи участника (без команды): штрафы, переводы, возвраты записей — только ему. */
+export async function personalFeed(gameId: string, userId: string, limit = 30) {
+  const rows = await prisma.journal.findMany({ where: { gameId, userId, teamId: null, everyone: false }, orderBy: { createdAt: "desc" }, take: limit });
+  return rows.map((r) => ({ id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: false, mine: true, personal: true as const, at: r.createdAt.getTime(), taskId: null }));
 }
 
 const DEED_KINDS = new Set<string>(["deed_submitted", "deed_approved", "deed_returned"]);
@@ -135,21 +178,27 @@ export async function journalTaskIds(gameId: string, rows: Array<{ kind: string;
   };
 }
 
+/** Личные записи о действиях администратора: в «последнюю активность» участника не идут. */
+const PASSIVE_KINDS = new Set<string>(["trial_entry_returned", "deeds_frozen", "deeds_unfrozen", "member_moved", "wall_block_returned"]);
 /** Сводка участника: дела, районы, стихи, переправы (E-03 «Моё служение»). */
 export interface ServiceStats { deeds: number; deedsPending: number; tasks: number; orders: number; cities: number; verses: number; trips: number; lastActiveAt: number | null }
 export async function serviceStats(gameId: string, userId: string, teamId: string): Promise<ServiceStats> {
   // Общие дела Каменоломни (решение владельца 07.10): принятое дело идёт в зачёт тем, кого отметили при сдаче.
-  const [deeds, deedsPending, quarryDone, quarryPending, entries, rows] = await Promise.all([
+  const [deeds, deedsPending, quarryDone, quarryPending, entries, rows, wall] = await Promise.all([
     prisma.teamEdgeTask.count({ where: { gameId, teamId, status: "APPROVED", paved: false, OR: [{ takenById: userId }, { participants: { has: userId } }] } }),
     prisma.teamEdgeTask.count({ where: { gameId, teamId, status: { in: ["TAKEN", "SUBMITTED"] }, OR: [{ takenById: userId }, { participants: { has: userId } }] } }),
     prisma.quarryWork.count({ where: { gameId, teamId, status: "APPROVED", participants: { has: userId } } }),
     prisma.quarryWork.count({ where: { gameId, teamId, status: "SUBMITTED", participants: { has: userId } } }),
-    prisma.battleEntry.findMany({ where: { userId, teamId, status: "APPROVED", battle: { gameId } }, select: { startIdx: true, endIdx: true } }),
+    // Зачтённые копии (carried) — те же стихи ещё раз: не считаются. Блоки стены (01.11) — выученные стихи, считаются.
+    prisma.battleEntry.findMany({ where: { userId, teamId, status: "APPROVED", carried: false, battle: { gameId } }, select: { startIdx: true, endIdx: true } }),
     prisma.journal.findMany({ where: { gameId, userId }, select: { kind: true, createdAt: true } }),
+    prisma.wallBlock.findMany({ where: { gameId, userId, teamId, status: "APPROVED" }, select: { startIdx: true, endIdx: true } }),
   ]);
   const count = (k: JournalKind) => rows.filter((r) => r.kind === k).length;
-  const last = rows.reduce<number | null>((a, r) => (a === null || r.createdAt.getTime() > a ? r.createdAt.getTime() : a), null);
-  return { deeds: deeds + quarryDone, deedsPending: deedsPending + quarryPending, tasks: count("task_solved"), orders: count("order_solved"), cities: count("city_captured") + count("ruins_taken"), verses: entries.reduce((a, e) => a + (e.endIdx - e.startIdx + 1), 0), trips: count("sea_landed"), lastActiveAt: last };
+  // Записи о действиях администратора над участником — не его активность.
+  const last = rows.filter((r) => !PASSIVE_KINDS.has(r.kind)).reduce<number | null>((a, r) => (a === null || r.createdAt.getTime() > a ? r.createdAt.getTime() : a), null);
+  const verses = [...entries, ...wall].reduce((a, e) => a + (e.endIdx - e.startIdx + 1), 0);
+  return { deeds: deeds + quarryDone, deedsPending: deedsPending + quarryPending, tasks: count("task_solved"), orders: count("order_solved"), cities: count("city_captured") + count("ruins_taken"), verses, trips: count("sea_landed"), lastActiveAt: last };
 }
 
 /** Доска активности для администратора: все участники игры с той же сводкой, самые активные сверху. */

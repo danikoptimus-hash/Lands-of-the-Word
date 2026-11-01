@@ -5,9 +5,10 @@ import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
 import { BurntScroll, CipherSeal, Crossword, LockChoice, LockRings, PickCooling, ProphetCandle, WaxEnvelope, findGap } from "./CityForms";
 import { WarSection } from "./BattlePanel";
+import { WallSection } from "./Wall";
 import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
-import { fmtDate, fmtLeft } from "../lib/format";
+import { fmtDate, fmtLeft , plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
@@ -193,7 +194,10 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       <img src={IMG.city(city?.node.cityType)} alt="" />
       <div className="title">
         <h2 id="city-title">{book?.nameRu ?? t("Город")}</h2>
-        <div className="status">{statusLine}{city?.state.isCapital && <Chip tone="solid" icon="crown">{t("Столица")}</Chip>}{city?.content && <ProphetCandle availableAt={city.state.hintAvailableAt} now={now} />}</div>
+        <div className="status">{statusLine}{city?.state.isCapital && <Chip tone="solid" icon="crown">{t("Столица")}</Chip>}
+          {/* Городская стена (решение владельца 01.11): хранителям — толщина, другим командам — только что стена есть. */}
+          {city?.wall?.exists && <Chip tone="solid" icon="wall" title={city.wall.verses != null ? t("Городская стена: {n}", { n: plural(city.wall.verses, ["стих", "стиха", "стихов"]) }) : t("У города есть стена")}>{city.wall.verses != null ? city.wall.verses : t("стена")}</Chip>}
+          {city?.content && <ProphetCandle availableAt={city.state.hintAvailableAt} now={now} />}</div>
         {/* Кто ещё дошёл до города (решение владельца 12.10): точки команд в подписи на карте, здесь — с названиями и датой. */}
         {city?.visitors && city.visitors.length > 0 && (
           <div className="status visitors">{city.visitors.map((v) => <Chip key={v.id} tone="team" color={v.color} icon={v.sea ? "ship" : "users"} title={v.at ? t("Пришла {d}", { d: fmtDate(v.at, { time: false }) }) : undefined}>{v.name}</Chip>)}</div>
@@ -323,6 +327,13 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
         <details className="disclose">
           <summary><Icon name="handshake" />{t("Проход")}<Icon name="chevron-down" className="chev" /></summary>
           <PassageSection gameId={gameId} nodeKey={nodeKey} version={version} onChanged={onChanged} />
+        </details>
+      )}
+      {/* Стена своего города (решение владельца 01.11): кладка, кнопка «+» — сдать блок. */}
+      {city?.content && !task && city.state.capturedAt && (
+        <details className="disclose">
+          <summary><Icon name="wall" />{t("Стена")}<Icon name="chevron-down" className="chev" /></summary>
+          <WallSection gameId={gameId} nodeKey={nodeKey} version={version} asleep={night || Boolean(city.daytime?.storm?.active)} onChanged={onChanged} />
         </details>
       )}
       {city?.content && !task && (city.owner || city.state.capturedAt) && (

@@ -108,7 +108,7 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
       journal(id, "quarry_approved", { teamId: work.teamId, userId: work.byId, vars: { deed: work.deed.title, n: stones } });
       notifyTeam(id, work.teamId, "Каменоломня: камни получены", (locale) => msg(locale, "Общее дело «{deed}» принято: команда получила камней — {n}. Камень мостит любую свободную дорогу на карте.", { deed: work.deed.title, n: stones }));
     } else {
-      journal(id, "quarry_returned", { teamId: work.teamId, userId: work.byId, vars: { deed: work.deed.title } });
+      journal(id, "quarry_returned", { teamId: work.teamId, userId: work.byId, vars: { deed: work.deed.title, comment: body.comment ? `: ${body.comment}` : "" } });
       notifyTeam(id, work.teamId, "Каменоломня: дело вернули", (locale) => msg(locale, "Администратор вернул общее дело «{deed}».{comment}", { deed: work.deed.title, comment: body.comment ? ` ${body.comment}` : "" }));
     }
     publish(id, { type: "submissions", teamId: work.teamId });

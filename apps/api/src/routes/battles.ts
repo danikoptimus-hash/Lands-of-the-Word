@@ -14,6 +14,7 @@ import { declareSiege, siegeOptions } from "../services/siege.js";
 import { BOOKS } from "@lotw/domain";
 import { journal } from "../services/journal.js";
 import { violatePeace } from "../services/peace.js";
+import { wallVersesOf } from "../services/wall.js";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const declareBody = z.object({ bid: z.number().int().min(1).max(100000) });
@@ -77,10 +78,13 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
   };
 }
 
-/** Стихи книги, уже принятые у участника в других испытаниях этой игры (на любой стороне): сдать их снова нельзя. */
+/** Стихи книги, уже принятые у участника в других испытаниях этой игры (на любой стороне) или сданные блоками стены (01.11): сдать их снова нельзя. */
 async function learnedVerses(gameId: string, battleId: string, bookCode: string, userId: string): Promise<Set<number>> {
-  const past = await prisma.battleEntry.findMany({ where: { userId, status: "APPROVED", battle: { gameId, bookCode, NOT: { id: battleId } } }, select: { startIdx: true, endIdx: true } });
-  const out = new Set<number>();
+  const [past, wall] = await Promise.all([
+    prisma.battleEntry.findMany({ where: { userId, status: "APPROVED", carried: false, battle: { gameId, bookCode, NOT: { id: battleId } } }, select: { startIdx: true, endIdx: true } }),
+    wallVersesOf(gameId, bookCode, userId),
+  ]);
+  const out = new Set<number>(wall);
   for (const e of past) for (let i = e.startIdx; i <= e.endIdx; i++) out.add(i);
   return out;
 }
@@ -213,6 +217,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
         await prisma.battle.update({ where: { id: created.id }, data: { defenseFactor: 2 } });
         notifyTeam(id, o.owner.id, "защита города {book} удвоена", "Мир нарушен, а в игре только две команды: для ответа вашему городу {book} нужно вдвое больше стихов, чем ставка претендентов — {need}.", { book: node.bookCode ?? "", need: body.bid * 2 });
         notifyTeam(id, m.team.id, "защита города {book} удвоена", "Вы нарушили мир: хранителям города {book} хватит вдвое больше стихов, чем ваша ставка — {need}.", { book: node.bookCode ?? "", need: body.bid * 2 });
+        for (const tid of [o.owner.id, m.team.id]) journal(id, "defense_doubled", { teamId: tid, vars: { book: node.bookCode ?? "", need: body.bid * 2 } });
       } else {
         await prisma.battle.update({ where: { id: created.id }, data: { violation: true } });
         notifyTeam(id, o.owner.id, "мир нарушен: можно позвать союзника", "Команда «{team}» нарушила мир вызовом вашему городу {book}. Вы можете попросить другую команду о защитном союзе: её участники будут учить стихи ответа вместе с вами. Кнопка — в карточке испытания.", { team: m.team.name, book: node.bookCode ?? "" });
@@ -467,6 +472,8 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "submissions" });
     // Возврат записи приходит тому, кто её отметил и прикрепил, вместе с причиной администратора (решение владельца 03.10); команде целиком письмо не идёт.
     if (!body.approve) notifyUser(id, e.userId, "ваша запись в испытании возвращена", "Админ вернул вашу запись ({side}){comment} Переснимите и прикрепите заново.", { side: e.side === "ATTACK" ? "вызов" : "ответ", comment: body.comment ? `: ${body.comment}` : "." });
+    // Личная запись летописи (решение владельца 01.11): возврат виден тому, чья запись, с причиной администратора.
+    if (!body.approve) { const book = await loadBook(e.battle.bookCode); journal(id, "trial_entry_returned", { personal: true, userId: e.userId, teamId: e.teamId, vars: { side: e.side === "ATTACK" ? "вызова" : "ответа", book: e.battle.bookCode, ref: book ? formatRange(book, e.startIdx, e.endIdx) : "", comment: body.comment ? `: ${body.comment}` : "" } }); }
     return { ok: true, status: full.status };
   });
 }

@@ -366,7 +366,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const fs = fullLabels ? 11 : 9;
               const text = fullLabels ? [book?.nameRu ?? "", progress, status].filter(Boolean).join(" · ") : book?.nameRu ?? "";
               const iconW = c?.isCapital ? fs + 4 : 0;
-              const w = textWidth(text, fs) + iconW + 14, h = fs + 9;
+              // Городская стена (решение владельца 01.11): значок у подписи виден всем, толщину знают только хранители.
+              const wallW = c?.wall ? fs + 4 : 0;
+              const w = textWidth(text, fs) + iconW + wallW + 14, h = fs + 9;
               // Подпись стоит под картинкой города (сдвиг в единицах карты), а масштабируется через --inv на каждый кадр.
               return (
                 <g key={n.key} data-key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))` }} onClick={() => clickCity(n.key)}>
@@ -378,7 +380,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                   )}
                   <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
                   {c?.isCapital && <use href="#m-crown" x={-w / 2 + 6} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
-                  <text x={iconW / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{text}</text>
+                  {c?.wall && <use href="#m-wall" x={w / 2 - fs - 5} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
+                  <text x={(iconW - wallW) / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{text}</text>
                 </g>
               );
             }

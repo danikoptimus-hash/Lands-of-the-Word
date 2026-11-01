@@ -172,6 +172,7 @@ model Game {
   visits      CityVisit[]
   quarryWorks  QuarryWork[]
   trades      CityTrade[]
+  wallBlocks  WallBlock[]
 }
 
 model GameAdmin {
@@ -339,6 +340,7 @@ model Team {
   peaceOut       Peace[] @relation("peaceFrom")
   peaceIn        Peace[] @relation("peaceTo")
   visits         CityVisit[]
+  wallBlocks     WallBlock[]
 }
 
 model Membership {
@@ -629,7 +631,7 @@ model Battle {
   attackPausedMs    Int          @default(0)
   /** Вызов объявлен после того, как предыдущий вызов этой команды этому городу сгорел: в очереди — после всех, кто встал раньше. */
   afterBurn         Boolean      @default(false)
-  /** Городская стена (решение владельца 31.10): столько стихов хранители могут ответить физически (участники × стихи книги на момент вызова); ставка не выше, ответ не требует больше. */
+  /** Предел ответа (решение владельца 31.10; до 01.11 звался «городской стеной», теперь стена — WallBlock): столько стихов хранители могут ответить физически (участники × стихи книги на момент вызова); ставка не выше, ответ не требует больше. */
   defenseCap        Int?
   /** Вызов нарушил мир (решение владельца 22.10): хранители могут просить третью команду о защитном союзе. */
   violation         Boolean      @default(false)
@@ -740,6 +742,37 @@ enum TradeStatus {
  * её посол предлагает взамен свой (counterKey); первый либо меняется (DONE), либо отклоняет встречный город
  * (counterKey → declinedKeys, снова OPEN — ждём другое предложение); любая сторона может отменить сделку (CANCELLED).
  */
+/**
+ * Городская стена (решение владельца 01.11): хранители укрепляют свой город в мирное время — участник учит блок
+ * (`rules.wallBlockVerses` стихов книги города подряд, блоки выровнены по книге: 1–10, 11–20, …) и сдаёт запись на проверку.
+ * Принятые блоки — толщина стены; при «Испытать» игра сама кладёт их в ответ хранителей, как зачтённые стихи.
+ * Блок привязан к команде и городу: со сменой владельца стена уходит с командой. Другие команды видят только, что стена есть.
+ */
+model WallBlock {
+  id           String      @id @default(cuid())
+  gameId       String
+  game         Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  teamId       String
+  team         Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  nodeKey      String
+  bookCode     String
+  userId       String
+  startIdx     Int
+  endIdx       Int
+  links        String[]    @default([])
+  note         String      @default("")
+  status       EntryStatus @default(SUBMITTED)
+  adminComment String      @default("")
+  /** Вес стихов: 2 у воина на момент сдачи, иначе 1 (как в записях испытаний). */
+  weight       Int         @default(1)
+  createdAt    DateTime    @default(now())
+  decidedAt    DateTime?
+
+  @@index([gameId, nodeKey, status])
+  @@index([teamId, nodeKey])
+  @@index([userId])
+}
+
 model CityTrade {
   id           String      @id @default(cuid())
   gameId       String

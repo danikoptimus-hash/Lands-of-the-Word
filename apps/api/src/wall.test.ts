@@ -1,0 +1,193 @@
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { readFile } from "node:fs/promises";
+import { buildApp } from "./app.js";
+import { prisma } from "./db.js";
+import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
+
+/**
+ * Городская стена (решение владельца 01.11): хранители сдают блоки стихов своего города в мирное время, администратор
+ * проверяет, при «Испытать» стена ложится в ответ сама.
+ */
+const app = await buildApp({ NODE_ENV: "test", SESSION_SECRET: "test-secret-please" });
+const stamp = Date.now();
+const adminNick = `wadm_${stamp}`, keeperNick = `wk_${stamp}`, keeper2Nick = `wk2_${stamp}`, attackerNick = `wa_${stamp}`, attacker2Nick = `wa2_${stamp}`;
+let adminCookie = "", keeperCookie = "", keeper2Cookie = "", attackerCookie = "", attacker2Cookie = "", gameId = "", rutKey = "", keepers = "", attackers = "";
+const content = JSON.parse(await readFile(new URL("../../../content/cities/rut.json", import.meta.url), "utf8")) as { tasks: unknown[] };
+const allTasks = content.tasks.map((_, i) => i);
+
+async function register(nickname: string) {
+  const res = await registerVerified(app, { nickname, password: "secret123" });
+  return res.headers["set-cookie"] as string;
+}
+async function joinTeam(name: string, cookie: string, role: "CAPTAIN" | "MEMBER" = "CAPTAIN", teamId?: string) {
+  let tid = teamId;
+  if (!tid) {
+    const t = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams`, headers: { cookie: adminCookie }, payload: { name } });
+    tid = t.json().team.id as string;
+  }
+  const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${tid}/invites`, headers: { cookie: adminCookie }, payload: { role } });
+  await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie } });
+  return tid;
+}
+const get = (url: string, cookie: string) => app.inject({ method: "GET", url, headers: { cookie } });
+const post = (url: string, cookie: string, payload?: unknown) => app.inject({ method: "POST", url, headers: { cookie }, payload });
+
+beforeAll(async () => {
+  await app.ready();
+  adminCookie = await register(adminNick);
+  keeperCookie = await register(keeperNick);
+  keeper2Cookie = await register(keeper2Nick);
+  attackerCookie = await register(attackerNick);
+  attacker2Cookie = await register(attacker2Nick);
+  const g = await post("/api/games", adminCookie, { name: "Стена", teamCount: 2 });
+  gameId = g.json().game.id;
+  await post(`/api/games/${gameId}/generate`, adminCookie);
+  keepers = await joinTeam("Стражи", keeperCookie);
+  await joinTeam("Стражи", keeper2Cookie, "MEMBER", keepers);
+  attackers = await joinTeam("Гости", attackerCookie);
+  await joinTeam("Гости", attacker2Cookie, "MEMBER", attackers);
+  await post(`/api/games/${gameId}/deeds/import-default`, adminCookie);
+  await readyForStart(app, gameId, adminCookie);
+  await setGamePhase(app, gameId, adminCookie, "morning");
+  // Минимум на ответ — час: под нагрузкой полного прогона срок ответа в 60 с истекал между запросами, и город переходил.
+  const rules = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { minAnswerSeconds: 3600 } } } });
+  if (rules.statusCode !== 200) throw new Error(`rules not set: ${rules.body}`);
+  await post(`/api/games/${gameId}/start`, adminCookie);
+  const rut = await prisma.mapNode.findFirstOrThrow({ where: { gameId, bookCode: "rut" } });
+  rutKey = rut.key;
+  await prisma.teamNodeState.createMany({ data: [{ teamId: keepers, nodeKey: rutKey }, { teamId: attackers, nodeKey: rutKey }] });
+  await prisma.teamCityState.createMany({ data: [
+    { gameId, teamId: keepers, nodeKey: rutKey, orderSolved: true, doneTasks: allTasks, capturedAt: new Date(), isCapital: true },
+    { gameId, teamId: attackers, nodeKey: rutKey, orderSolved: true, doneTasks: allTasks },
+  ] });
+});
+
+afterAll(async () => {
+  await prisma.game.deleteMany({ where: { id: gameId } });
+  await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, keeperNick, keeper2Nick, attackerNick, attacker2Nick] } } });
+  await cleanupFixtures(gameId);
+  await app.close();
+  await prisma.$disconnect();
+});
+
+const wallUrl = () => `/api/games/${gameId}/my-city/${rutKey}/wall`;
+let blockId = "";
+
+describe("городская стена", () => {
+  it("стену строит только команда-хранитель; блок — выровненный отрезок книги", async () => {
+    const foreign = await get(wallUrl(), attackerCookie);
+    expect(foreign.statusCode).toBe(409);
+    const w = await get(wallUrl(), keeperCookie);
+    expect(w.statusCode).toBe(200);
+    expect(w.json()).toMatchObject({ mine: true, blockVerses: 10, total: 85, verses: 0, blockCount: 0, canBuild: true });
+    expect(w.json().bricks).toHaveLength(9);
+    expect(w.json().bricks[0]).toMatchObject({ k: 0, start: 0, end: 9, state: "free" });
+    expect(w.json().bricks[8]).toMatchObject({ k: 8, start: 80, end: 84 });
+    const bad = await post(wallUrl(), keeperCookie, { block: 9, links: ["https://example.com/v"] });
+    expect(bad.statusCode).toBe(400);
+    const noLink = await post(wallUrl(), keeperCookie, { block: 0, links: [] });
+    expect(noLink.statusCode).toBe(400);
+    const notOwner = await post(wallUrl(), attackerCookie, { block: 0, links: ["https://example.com/v"] });
+    expect(notOwner.statusCode).toBe(409);
+  });
+
+  it("участник сдаёт блок, второй раз тот же блок не сдаётся; администратор принимает — стена растёт", async () => {
+    const res = await post(wallUrl(), keeper2Cookie, { block: 0, links: ["https://example.com/v1"] });
+    expect(res.statusCode).toBe(201);
+    blockId = res.json().id;
+    expect(res.json().ref).toBe("1:1–10");
+    const dup = await post(wallUrl(), keeper2Cookie, { block: 0, links: ["https://example.com/v1"] });
+    expect(dup.statusCode).toBe(409);
+    // Другой участник может сдать тот же блок: стихи считаются по участникам.
+    const other = await post(wallUrl(), keeperCookie, { block: 0, links: ["https://example.com/v2"] });
+    expect(other.statusCode).toBe(201);
+    const pending = await get(wallUrl(), keeperCookie);
+    expect(pending.json()).toMatchObject({ verses: 0, blockCount: 0, pending: 2 });
+    expect(pending.json().bricks[0].state).toBe("submitted");
+    const list = await get(`/api/games/${gameId}/walls`, adminCookie);
+    expect(list.json().blocks.filter((b: { status: string }) => b.status === "SUBMITTED")).toHaveLength(2);
+    const ok = await post(`/api/games/${gameId}/walls/${blockId}/decide`, adminCookie, { approve: true });
+    expect(ok.statusCode).toBe(200);
+    const again = await post(`/api/games/${gameId}/walls/${blockId}/decide`, adminCookie, { approve: true });
+    expect(again.statusCode).toBe(409);
+    const w = await get(wallUrl(), keeperCookie);
+    expect(w.json()).toMatchObject({ verses: 10, blockCount: 1, pending: 1 });
+    // Второй блок возвращён: участник может сдать его снова.
+    const second = pending.json().blocks.find((b: { mine: boolean }) => b.mine) as { id: string };
+    const back = await post(`/api/games/${gameId}/walls/${second.id}/decide`, adminCookie, { approve: false, comment: "не слышно" });
+    expect(back.statusCode).toBe(200);
+    const w2 = await get(wallUrl(), keeperCookie);
+    expect(w2.json().bricks[0].state).toBe("free");
+    expect(w2.json().returned[0]).toMatchObject({ ref: "1:1–10", adminComment: "не слышно" });
+    // Карта: у города есть стена, толщина не отдаётся.
+    const map = await get(`/api/games/${gameId}/my-map`, attackerCookie);
+    expect(map.json().cities.find((c: { nodeKey: string }) => c.nodeKey === rutKey).wall).toBe(true);
+    const city = await get(`/api/games/${gameId}/my-city/${rutKey}`, attackerCookie);
+    expect(city.json().wall).toEqual({ exists: true });
+    const own = await get(`/api/games/${gameId}/my-city/${rutKey}`, keeperCookie);
+    expect(own.json().wall).toMatchObject({ exists: true, verses: 10, blocks: 1 });
+  });
+
+  it("при «Испытать» стена ложится в ответ: ставка покрыта — город устоял без единого нового стиха", async () => {
+    const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, attackerCookie, { bid: 10 });
+    expect(declared.statusCode).toBe(201);
+    const battleId = declared.json().id as string;
+    const war = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, attackerCookie);
+    const b = war.json().battles[0];
+    const verses = Array.from({ length: 10 }, (_, i) => b.passage.start + i);
+    const marked = await post(`/api/games/${gameId}/battles/${battleId}/entries`, attackerCookie, { verses, links: ["https://example.com/a"] });
+    expect(marked.statusCode).toBe(201);
+    // Пока вызов не начат, хранители строят стену дальше (о вызове они не знают).
+    const more = await post(wallUrl(), keeper2Cookie, { block: 1, links: ["https://example.com/v3"] });
+    expect(more.statusCode).toBe(201);
+    const submitted = await post(`/api/games/${gameId}/battles/${battleId}/submit`, attackerCookie);
+    expect(submitted.statusCode).toBe(200);
+    const entries = await prisma.battleEntry.findMany({ where: { battleId, side: "ATTACK" } });
+    for (const e of entries) await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
+    const launched = await post(`/api/games/${gameId}/battles/${battleId}/attack`, attackerCookie);
+    expect(launched.statusCode).toBe(200);
+    // Принятый блок (10 стихов) покрыл ставку 10: ответ дан сразу, город устоял.
+    expect(launched.json().status).toBe("REPELLED");
+    const laid = await prisma.battleEntry.findMany({ where: { battleId, side: "DEFENSE" } });
+    expect(laid).toHaveLength(1);
+    expect(laid[0]).toMatchObject({ carried: true, status: "APPROVED", startIdx: 0, endIdx: 9, note: "Блок городской стены" });
+    const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
+    expect(node.defenseLevel).toBe(10);
+    await new Promise((r) => setTimeout(r, 300)); // записи летописи пишутся в фоне
+    const rows = await prisma.journal.findMany({ where: { gameId, kind: { in: ["wall_applied", "trial_repelled", "wall_block_approved", "wall_block_submitted", "trial_submitted", "trial_approved"] } } });
+    expect(rows.map((r) => r.kind).sort()).toEqual(["trial_approved", "trial_submitted", "wall_applied", "wall_block_approved", "wall_block_submitted", "wall_block_submitted", "wall_block_submitted", "trial_repelled"].sort());
+  });
+
+  it("стихи блока стены в испытании второй раз не засчитываются; во время ответа стену не строят", async () => {
+    // Стражи вызывают Гостей? Город у Стражей — проверим правило «сдано раньше» через их же ответ: сделаем новый вызов.
+    const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, attackerCookie, { bid: 30 });
+    expect(declared.statusCode).toBe(201);
+    const battleId = declared.json().id as string;
+    const war = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, attackerCookie);
+    const b = war.json().battles.find((x: { id: string }) => x.id === battleId);
+    const verses = Array.from({ length: 30 }, (_, i) => b.passage.start + i);
+    // Стихи отмечает второй участник претендентов: у первого часть стихов книги уже сдана в прошлом вызове и второй раз не считается.
+    const marked = await post(`/api/games/${gameId}/battles/${battleId}/entries`, attacker2Cookie, { verses, links: ["https://example.com/b"] });
+    expect(marked.statusCode).toBe(201);
+    await post(`/api/games/${gameId}/battles/${battleId}/submit`, attackerCookie);
+    const entries = await prisma.battleEntry.findMany({ where: { battleId, side: "ATTACK" } });
+    for (const e of entries) await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
+    const launched = await post(`/api/games/${gameId}/battles/${battleId}/attack`, attackerCookie);
+    expect(launched.json().status).toBe("DEFENSE");
+    // Ответ идёт: стену не строят.
+    const build = await post(wallUrl(), keeperCookie, { block: 2, links: ["https://example.com/v4"] });
+    expect(build.statusCode).toBe(409);
+    // Блок 1 (стихи 11–20) ждал проверки: принятый во время ответа, он ложится в ответ сразу.
+    const pendingBlock = await prisma.wallBlock.findFirstOrThrow({ where: { gameId, status: "SUBMITTED" } });
+    await post(`/api/games/${gameId}/walls/${pendingBlock.id}/decide`, adminCookie, { approve: true });
+    const laid = await prisma.battleEntry.findMany({ where: { battleId, side: "DEFENSE", note: "Блок городской стены" } });
+    expect(laid.map((e) => e.startIdx).sort((x, y) => x - y)).toEqual([0, 10]);
+    // Хранитель, сдавший блок 1–10 стеной, не может отметить те же стихи в ответе.
+    await post(`/api/games/${gameId}/battles/${battleId}/defense-passage`, keeperCookie, { from: "1:1", to: "2:10" });
+    const dto = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, keeper2Cookie);
+    const mine = dto.json().battles.find((x: { id: string }) => x.id === battleId);
+    expect(mine.learnedVerses).toEqual(expect.arrayContaining([0, 9, 10, 19]));
+    const twice = await post(`/api/games/${gameId}/battles/${battleId}/entries`, keeper2Cookie, { verses: [0, 1, 2], links: ["https://example.com/c"] });
+    expect(twice.statusCode).toBe(409);
+  });
+});

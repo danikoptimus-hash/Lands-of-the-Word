@@ -281,10 +281,10 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       include: taskInclude,
     }).then((u) => bookIn(id, u));
     if (body.approve) journal(id, "deed_approved", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, who: "", taskId: task.id } });
-    else journal(id, "deed_returned", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, taskId: task.id } });
+    else journal(id, "deed_returned", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, taskId: task.id, comment: body.comment ? `: ${body.comment}` : "" } });
     scheduleAwards(id);
     // Морское дело: узел не открывается — кормчий сам выбирает место высадки на другом острове.
-    if (body.approve && task.sea) notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан или кормчий может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title }));
+    if (body.approve && task.sea) { journal(id, "ship_ready", { teamId: task.teamId, vars: { deed: updated.deed.title } }); notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан или кормчий может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title })); }
     else if (body.approve) {
       await revealNode(id, task.teamId, task.toKey);
       // Уведомление об одобрении дела (решение владельца 18.09): раньше команда узнавала о зачёте, только открыв карту.

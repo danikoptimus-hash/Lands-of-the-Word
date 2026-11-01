@@ -11,6 +11,7 @@ import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.j
 import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask, stripAnswers } from "../services/cities.js";
 import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
+import { wallOf } from "../services/wall.js";
 import type { CityContent } from "../services/cities.js";
 import { err, msg } from "../services/i18n.js";
 import { journal, nick } from "../services/journal.js";
@@ -117,9 +118,13 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const arrivals = await prisma.teamEdgeTask.findMany({ where: { gameId: id, toKey: nodeKey, status: "APPROVED", NOT: { teamId: m.team.id } }, select: { decidedAt: true, sea: true, team: { select: { id: true, index: true, name: true, color: true, avatarId: true } } }, orderBy: { decidedAt: "asc" } });
     const seen = new Set<string>();
     const visitors = arrivals.filter((a) => !seen.has(a.team.id) && seen.add(a.team.id)).map((a) => ({ id: a.team.id, index: a.team.index, name: a.team.name, color: a.team.color, at: a.decidedAt, sea: a.sea }));
+    // Городская стена (решение владельца 01.11): хранителям — толщина, остальным — только есть ли стена.
+    const wallFull = ownerState ? await wallOf(ownerState.team.id, nodeKey) : null;
+    const wall = !wallFull ? null : ownerState!.team.id === m.team.id ? { exists: wallFull.blocks > 0, verses: wallFull.verses, blocks: wallFull.blocks, pending: wallFull.pending } : { exists: wallFull.blocks > 0 };
     return {
       daytime,
       visitors,
+      wall,
       node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, ruined: node.ruined },
       recipient,
       visit,
@@ -417,7 +422,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         fatigueNextAt = new Date(node.fatigueAt ? node.fatigueAt.getTime() + days(rules.fatigueStepDays) : last + days(rules.fatigueAfterDays));
       }
     }
-    const defense = owner ? { level: node.defenseLevel, sumMode: node.sumMode, lockedUntil: isLocked(node) ? node.lockedUntil : null, fatigueNextAt, fatigueStep: rules.fatigueStep } : null;
+    const wall = owner ? await wallOf(owner.teamId, nodeKey) : null;
+    const defense = owner ? { level: node.defenseLevel, sumMode: node.sumMode, lockedUntil: isLocked(node) ? node.lockedUntil : null, fatigueNextAt, fatigueStep: rules.fatigueStep, wall: wall && wall.blocks > 0 ? { verses: wall.verses, blocks: wall.blocks } : null } : null;
     // Ответы на задания видит только администратор платформы (решение владельца): администратор игры — задания без ответов.
     const superadmin = request.user!.platformRole === "SUPERADMIN";
     return {

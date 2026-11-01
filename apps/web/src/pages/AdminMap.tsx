@@ -410,6 +410,7 @@ function CitySheet({ gameId, node, version, container, revealed, battle, teamByI
               <Chip icon="shield" title={t("Уровень защиты: столько стихов отбили хранители")}>{city.defense.level}</Chip>
               {city.defense.sumMode && <Chip tone="neutral" title={t("Книга исчерпана: ставки считаются суммой стихов по участникам")}>Σ</Chip>}
               {city.defense.lockedUntil && <Chip tone="accent" icon="lock" title={t("Закреплён: вызовы невозможны до этой даты")}>{fmtDate(city.defense.lockedUntil, { time: false })}</Chip>}
+              {city.defense.wall && <Chip tone="neutral" icon="wall" title={t("Городская стена хранителей: принятые блоки стихов")}>{t("стена {n}", { n: city.defense.wall.verses })}</Chip>}
               {city.defense.fatigueNextAt && !city.defense.lockedUntil && <Chip tone="neutral" icon="clock" title={t("Усталость: без дел из города уровень тает на {n} с этой даты", { n: city.defense.fatigueStep })}>−{city.defense.fatigueStep} · {fmtDate(city.defense.fatigueNextAt, { time: false })}</Chip>}
             </dd></>}
           </dl>

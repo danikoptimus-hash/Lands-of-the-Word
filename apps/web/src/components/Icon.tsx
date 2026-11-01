@@ -42,6 +42,7 @@ const P: Record<string, string> = {
   send: "m22 2-7 20-4-9-9-4 20-7Z",
   telescope: "m4 14 12-7 3 5-12 7-3-5Zm12-7 3-2 3 5-3 2M9 17l3 5m-6-2 3-3",
   lock: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
+  wall: "M3 5h18v14H3ZM3 9.7h18M3 14.3h18M9 5v4.7M15 5v4.7M12 9.7v4.6M9 14.3V19M15 14.3V19",
   hourglass: "M6 2h12M6 22h12M7 2v4l5 6-5 6v4M17 2v4l-5 6 5 6v4",
   stone: "M8 4h7l5 5v6l-4 5H8l-5-4V9l5-5Zm0 0 4 5m0 0 8 0m-8 0v11",
   shield: "M12 2 4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3Z",

@@ -8,6 +8,8 @@ import { publish, onPublish, TEAM_ONLY, hasTeamSubscribers, pushToTeam } from ".
 import jsonPatch from "fast-json-patch";
 const { compare } = jsonPatch;
 import { days, rulesOf, type Rules } from "./rules.js";
+import { journal } from "./journal.js";
+import { wallsAt } from "./wall.js";
 
 /**
  * Карта глазами команды.
@@ -343,6 +345,7 @@ export async function returnStaleTasks(gameId: string, rules: Rules, now = new D
     await prisma.teamEdgeTask.update({ where: { id: t.id }, data: { status: "OPEN", takenById: null, takenAt: null } });
     publish(gameId, { type: "tasks", teamId: t.teamId });
     if (t.takenById) notifyUser(gameId, t.takenById, "дело вернулось в список", "Дело «{deed}» не было сдано за {days} дней и снова свободно для всей команды.", { deed: t.deed.title, days: rules.deedReturnDays });
+    journal(gameId, "deed_released", { teamId: t.teamId, vars: { deed: t.deed.title, days: rules.deedReturnDays } });
   }
 }
 
@@ -625,11 +628,13 @@ async function computeTeamMap(gameId: string, teamId: string) {
   for (const pr of passages) if (!passageByKey.has(pr.nodeKey)) passageByKey.set(pr.nodeKey, pr.status);
   const [cityStates, owners, battles] = await Promise.all([
     prisma.teamCityState.findMany({ where: { teamId, nodeKey: { in: cityNodes.map((n) => n.key) } } }),
-    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, capturedAt: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } }),
+    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, teamId: true, capturedAt: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } }),
     prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: teamId }, { defenderId: teamId }] }, select: { nodeKey: true, attackerId: true, status: true } }),
   ]);
   const stateByKey = new Map(cityStates.map((s) => [s.nodeKey, s]));
   const ownerByKey = new Map(owners.map((o) => [o.nodeKey, o.team]));
+  // Городская стена (решение владельца 01.11): все видят, что стена есть; толщину — только хранители, в окне города.
+  const walls = await wallsAt(gameId, owners.map((o) => ({ nodeKey: o.nodeKey, teamId: o.teamId })));
   // Когда город взят нынешним владельцем (любой командой): салют над городом в день взятия (решение владельца 24.10).
   const takenAtByKey = new Map(owners.map((o) => [o.nodeKey, o.capturedAt?.toISOString() ?? null]));
   // Роль команды в активной битве за город: атакует (синие мечи) или защищается (красные).
@@ -650,6 +655,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
       isCapital: s?.isCapital ?? false,
       battle: battleByKey.get(n.key) ?? null,
       ruined: n.ruined,
+      wall: walls.has(n.key),
       // Проход дальше через чужой город: закрыт, пока владелец не разрешит.
       blocked: blocked.has(n.key),
       passage: passageByKey.get(n.key) ?? null,

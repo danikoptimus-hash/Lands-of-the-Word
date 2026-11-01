@@ -16,14 +16,15 @@ export async function sweepDigests(now = new Date()): Promise<void> {
     const last = st.lastDigestAt ? Date.parse(st.lastDigestAt) : 0;
     const interval = rules.adminDigest === "3h" ? 3 * 3_600_000 : 24 * 3_600_000;
     if (now.getTime() - last < interval) continue;
-    const [roadDeeds, quarry, sides] = await Promise.all([
+    const [roadDeeds, quarry, sides, walls] = await Promise.all([
       prisma.teamEdgeTask.count({ where: { gameId: g.id, status: "SUBMITTED" } }),
       prisma.quarryWork.count({ where: { gameId: g.id, status: "SUBMITTED" } }),
       prisma.battle.count({ where: { gameId: g.id, status: { in: ["ATTACK", "DEFENSE"] }, entries: { some: { status: "SUBMITTED" } } } }),
+      prisma.wallBlock.count({ where: { gameId: g.id, status: "SUBMITTED" } }),
     ]);
     await prisma.game.update({ where: { id: g.id }, data: { settings: { ...(g.settings as object), lastDigestAt: now.toISOString() } } });
     const deeds = roadDeeds + quarry; // сдачи Каменоломни тоже ждут проверки
-    if (deeds + sides === 0) continue;
-    notifyAdmins(g.id, "сдачи ждут проверки", "На проверке: дел — {deeds}, сторон испытаний — {sides}. Откройте раздел «Проверка».", { deeds, sides });
+    if (deeds + sides + walls === 0) continue;
+    notifyAdmins(g.id, "сдачи ждут проверки", "На проверке: дел — {deeds}, сторон испытаний — {sides}, блоков стен — {walls}. Откройте раздел «Проверка».", { deeds, sides, walls });
   }
 }

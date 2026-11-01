@@ -169,6 +169,7 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
     await prisma.cityTrade.update({ where: { id: t.id }, data: { status: "OPEN", counterKey: null, declinedKeys: { push: t.counterKey }, updatedAt: new Date() } });
     const counter = await cityRef(id, t.counterKey);
     notifyTeam(id, t.toId, "встречный город не подошёл", "Команда «{team}» не приняла город {book} в обмен. Посол может предложить другой город или отменить сделку.", { team: m.team.name, book: counter.bookName });
+    for (const tid of [t.toId, m.team.id]) journal(id, "trade_rejected", { teamId: tid, vars: { team: m.team.name, book: counter.bookCode } });
     publish(id, { type: "trades", teamId: t.toId });
     publish(id, { type: "trades", teamId: m.team.id });
     return { ok: true };
