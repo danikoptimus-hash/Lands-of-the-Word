@@ -211,7 +211,7 @@ describe("битва за город", () => {
     expect(w.json().minBid).toBe(17); // max(10 + 5, 12 + 5)
   });
 
-  it("капитан отменяет вызов на шаге нападения: статус CANCELLED, штраф +1 к минимальной ставке", async () => {
+  it("капитан отменяет вызов на шаге нападения: статус CANCELLED, без штрафа", async () => {
     const before = (await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie)).json() as { minBid: number; penalty: number };
     const res = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: before.minBid });
     expect(res.statusCode).toBe(201);
@@ -219,7 +219,7 @@ describe("битва за город", () => {
     expect((await post(`/api/games/${gameId}/battles/${res.json().id}/cancel`, p2Cookie)).statusCode).toBe(200);
     const w = (await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie)).json() as { battles: Array<{ status: string }>; penalty: number };
     expect(w.battles[0]!.status).toBe("CANCELLED");
-    expect(w.penalty).toBe(before.penalty + 1);
+    expect(w.penalty).toBe(before.penalty);
     expect((await post(`/api/games/${gameId}/battles/${res.json().id}/cancel`, p2Cookie)).statusCode).toBe(409);
   });
 

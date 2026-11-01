@@ -169,7 +169,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
   }
 
   async function cancel() {
-    const ok = await confirm(t("Вызов будет отменён. Следующий вызов этому городу для вашей команды подорожает на 1 стих."), { title: t("Отменить вызов городу {city}?", { city: b.bookName }), okLabel: t("Отменить вызов"), danger: true });
+    const ok = await confirm(t("Вызов будет отменён. Бросить новый можно в любое время."), { title: t("Отменить вызов городу {city}?", { city: b.bookName }), okLabel: t("Отменить вызов"), danger: true });
     if (!ok) return;
     try { await api(`/api/games/${gameId}/battles/${b.id}/cancel`, { method: "POST" }); notify(t("Вызов отменён")); onChanged(); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
@@ -273,7 +273,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
           </div>
         </>
       )}
-      {/* Отмена вызова капитаном на любом шаге нападения (решение владельца 01.11): штраф +1 стих к следующему вызову этому городу. */}
+      {/* Отмена вызова капитаном на любом шаге нападения (решение владельца 01.11), без штрафа. */}
       {attacker && isCaptain && (b.status === "QUEUED" || b.status === "ATTACK") && (
         <div className="actions mt-2"><button type="button" className="ghost" onClick={() => void cancel()}><Icon name="x" />{t("Отменить вызов")}</button></div>
       )}

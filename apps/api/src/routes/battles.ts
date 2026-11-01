@@ -372,7 +372,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, status: r.battle.status };
   });
 
-  /** Капитан претендентов отменяет вызов на любом шаге нападения (решение владельца 01.11); штраф +1 к минимальной ставке. */
+  /** Капитан претендентов отменяет вызов на любом шаге нападения (решение владельца 01.11), без штрафа. */
   app.post("/api/games/:id/battles/:battleId/cancel", async (request, reply) => {
     const { id, battleId } = request.params as { id: string; battleId: string };
     const m = await requireMember(request, reply, id);

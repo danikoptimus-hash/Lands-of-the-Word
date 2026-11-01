@@ -265,29 +265,20 @@ export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; ba
 
 /**
  * Капитан претендентов отменяет вызов на любом шаге нападения — в очереди, пока учат, на проверке или после одобрения
- * до «Испытать» (решение владельца 01.11: «если передумал — отменить, пусть будет санкция: один стих дорожает»).
- * Штраф: минимальная ставка этого города для команды растёт на 1 (как после сгорания — на burnPenalty). Во время ответа
- * хранителей отмены нет.
+ * до «Испытать» (решение владельца 01.11: «если передумал — отменить»; штраф сначала был +1 стих, затем владелец его
+ * убрал: «убери санкции за отмену всё-таки»). Во время ответа хранителей отмены нет.
  */
-export const CANCEL_PENALTY = 1;
 export async function cancelAttack(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
   if (b.status !== "QUEUED" && b.status !== "ATTACK") return { ok: false, message: "Отменить можно только до начала ответа хранителей" };
   const now = new Date();
-  const [upd] = await prisma.$transaction([
-    prisma.battle.update({ where: { id: b.id }, data: { status: "CANCELLED", resolvedAt: now }, include: { entries: true } }),
-    prisma.teamCityState.upsert({
-      where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } },
-      create: { gameId: b.gameId, teamId: b.attackerId, nodeKey: b.nodeKey, attackPenalty: CANCEL_PENALTY },
-      update: { attackPenalty: { increment: CANCEL_PENALTY } },
-    }),
-  ]);
+  const upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "CANCELLED", resolvedAt: now }, include: { entries: true } });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
   publish(b.gameId, { type: "map", teamId: b.attackerId });
   // Хранители знали о вызове только при нарушении мира — им и сообщаем.
   const keepersKnew = b.violation || b.defenseFactor > 1;
   if (keepersKnew) publish(b.gameId, { type: "battles", teamId: b.defenderId });
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_cancelled", { everyone: keepersKnew, teamId: b.attackerId, vars: { team: a, other: d, book: b.bookCode } }); }
-  notifyTeam(b.gameId, b.attackerId, "вызов городу {book} отменён", "Капитан отменил вызов. Следующий вызов этому городу для вашей команды дороже на {n}.", { book: b.bookCode, n: CANCEL_PENALTY });
+  notifyTeam(b.gameId, b.attackerId, "вызов городу {book} отменён", "Капитан отменил вызов. Бросить новый можно в любое время.", { book: b.bookCode });
   if (keepersKnew) notifyTeam(b.gameId, b.defenderId, "вызов городу {book} отменён", "Претенденты отменили вызов вашему городу.", { book: b.bookCode });
   if (b.status === "ATTACK") await startNextFromQueue(b.gameId, b.nodeKey);
   return { ok: true, battle: upd };
