@@ -243,11 +243,13 @@ describe("испытание по решениям 18.09", () => {
     expect((await post(`/api/games/${gameId}/battles/${battleId}/submit`, p2Cookie)).statusCode).toBe(200);
     await setGamePhase(app, gameId, adminCookie, "day");
     for (const e of await entriesOf(battleId)) await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
+    // Атаку после одобрения начинает капитан претендентов (решение владельца 01.11).
+    expect((await post(`/api/games/${gameId}/battles/${battleId}/attack`, p2Cookie)).statusCode).toBe(200);
     const def = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(def.status).toBe("DEFENSE");
-    // T — дневное время от старта до отправки минус стоп-часы; дедлайн ответа — через T дневного времени.
+    // T — дневное время от старта до отправки минус стоп-часы; дедлайн ответа — через T дневного времени от начала атаки.
     const expectedT = awakeMsBetween(tz, def.startedAt!, def.attackDoneAt!) - def.attackPausedMs;
-    expect(Math.abs(def.defenseDeadline!.getTime() - addAwakeMs(tz, def.attackApprovedAt!, expectedT).getTime())).toBeLessThan(5_000);
+    expect(Math.abs(def.defenseDeadline!.getTime() - addAwakeMs(tz, def.attackLaunchedAt!, expectedT).getTime())).toBeLessThan(5_000);
     expect(expectedT).toBeGreaterThan(0);
     // Претенденты не видят отрывок и суммы хранителей, хранителям нужно ровно 10.
     const mine = await get(`/api/games/${gameId}/my-battles`, p2Cookie);
@@ -289,6 +291,7 @@ describe("испытание по решениям 18.09", () => {
     await post(`/api/games/${gameId}/battles/${id}/entries`, p1Cookie, { verses: Array.from({ length: 15 }, (_, i) => start + i), links: ["https://example.com/m"] });
     await post(`/api/games/${gameId}/battles/${id}/submit`, p1Cookie);
     for (const e of await entriesOf(id)) await post(`/api/games/${gameId}/battles/${id}/entries/${e.id}/decide`, adminCookie, { approve: true });
+    expect((await post(`/api/games/${gameId}/battles/${id}/attack`, p1Cookie)).statusCode).toBe(200);
     const b = await prisma.battle.findUniqueOrThrow({ where: { id }, include: { entries: true } });
     // Зачтённых стихов (18) хватило на ставку 15: ответ дан без единого нового стиха.
     expect(b.status).toBe("REPELLED");

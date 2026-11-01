@@ -21,7 +21,9 @@ export function battleTone(s: BattleStatus, attacker: boolean): ChipTone {
   }
 }
 /** Наш ход: претенденты во время вызова, хранители во время ответа — пока не отправили на проверку. */
-export const isMyTurn = (b: BattleDto, teamId: string) => (b.attacker.id === teamId && b.status === "ATTACK" && !b.attackDoneAt) || (b.defender.id === teamId && b.status === "DEFENSE" && !b.defenseDoneAt);
+export const isMyTurn = (b: BattleDto, teamId: string) => (b.attacker.id === teamId && b.status === "ATTACK" && (!b.attackDoneAt || isLaunching(b))) || (b.defender.id === teamId && b.status === "DEFENSE" && !b.defenseDoneAt);
+/** Вызов одобрен, атака ещё не начата: ход капитана претендентов — нажать «Атаковать» (решение владельца 01.11). */
+export const isLaunching = (b: BattleDto) => b.status === "ATTACK" && Boolean(b.attackApprovedAt) && !b.attackLaunchedAt;
 export function leftText(deadline: string | null, now: number): string {
   if (!deadline) return "";
   const ms = Date.parse(deadline) - now;
@@ -133,7 +135,9 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
   // Союзник хранителей (решение владельца 22.10): третья команда, которую позвали после нарушения мира. Учит стихи ответа, но не отправляет его.
   const ally = !attacker && b.defender.id !== teamId && Boolean(b.myAlliance);
   const allyActive = ally && b.myAlliance?.status === "ACTIVE";
-  const myTurn = isMyTurn(b, teamId) || (allyActive && b.status === "DEFENSE" && !b.defenseDoneAt);
+  const launching = attacker && isLaunching(b);
+  /** Учим и отправляем: наш ход без окна «Атаковать» (там стихи уже приняты). */
+  const myTurn = (isMyTurn(b, teamId) && !launching) || (allyActive && b.status === "DEFENSE" && !b.defenseDoneAt);
   const [error, setError] = useState<string | null>(null);
   const [bid, setBid] = useState(b.bid);
   const [asking, setAsking] = useState(false);
@@ -142,9 +146,9 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
   const sum = attacker ? b.attackSum : b.defenseSum;
   const approved = attacker ? b.attackApproved : b.defenseApproved;
   const passage = attacker ? b.passage : b.defensePassage;
-  const night = daytime?.phase === "night", morning = daytime?.phase === "morning";
-  /** Отправить на проверку: ночью никому, вызов (атаку) — только утром. */
-  const canSend = !night && (!attacker || !daytime || morning);
+  const night = daytime?.phase === "night", storm = Boolean(daytime?.storm?.active);
+  /** Отправить на проверку и начать атаку: ночью и в шторм нельзя (утреннего окна для вызова больше нет — решение владельца 01.11). */
+  const canSend = !night && !storm;
 
   async function raise() {
     try { await api(`/api/games/${gameId}/battles/${b.id}/bid`, { method: "POST", body: JSON.stringify({ bid }) }); notify(t("Ставка обновлена")); onChanged(); }
@@ -154,6 +158,13 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
     const ok = await confirm(attacker ? t("Выучено {a} из {b}. После отправки добавлять стихи нельзя; время вызова остановится.", { a: sum, b: need }) : t("Выучено {a} из {b}. После отправки добавлять стихи нельзя.", { a: sum, b: need }), { title: attacker ? t("Отправить вызов на проверку?") : t("Отправить ответ на проверку?"), okLabel: t("Отправить") });
     if (!ok) return;
     try { await api(`/api/games/${gameId}/battles/${b.id}/submit`, { method: "POST" }); notify(t("Отправлено на проверку администратору")); onChanged(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
+  }
+
+  async function launch() {
+    const ok = await confirm(t("Хранители «{team}» узнают о вызове сейчас, и у них пойдёт время ответа — столько же, сколько ушло у вас.", { team: b.defender.name }), { title: t("Начать атаку на город {city}?", { city: b.bookName }), okLabel: t("Атаковать") });
+    if (!ok) return;
+    try { await api(`/api/games/${gameId}/battles/${b.id}/attack`, { method: "POST" }); notify(t("Атака начата")); onChanged(); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
 
@@ -178,7 +189,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
     <div className={"battle " + b.status.toLowerCase()}>
       <div className="row between nowrap">
         <div className="grow"><div className="strong"><Icon name="wave" /> {t("Испытание · {city}", { city: b.bookName })}</div><div className="muted small">{attacker ? t("Вы — претенденты, против «{team}»", { team: b.defender.name }) : ally ? t("Вы — союзники хранителей «{team}», вызов от «{other}»", { team: b.defender.name, other: b.attacker.name }) : t("Вы — хранители, вызов от «{team}»", { team: b.attacker.name })}</div></div>
-        <Chip tone={myTurn ? "accent" : battleTone(b.status, attacker)}>{BATTLE_STATUS[b.status]}</Chip>
+        <Chip tone={myTurn || launching ? "accent" : battleTone(b.status, attacker)}>{BATTLE_STATUS[b.status]}</Chip>
       </div>
       {(b.violation || (b.defenseFactor ?? 1) > 1) && (
         <div className="row mt-2">
@@ -195,6 +206,17 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
         {b.status === "DEFENSE" && ` · ${t("вызов: {n} за {time}", { n: verses(b.bid), time: attackTime })}`}
       </p>
       {error && <p className="error" role="alert">{error}</p>}
+      {/* Атака после одобрения не начинается сама (решение владельца 01.11): капитан нажимает «Атаковать», когда команде удобно, кроме ночи и шторма. */}
+      {launching && (
+        <div className="mt-2 stack-sm">
+          <div className="note"><Icon name="check" /><span>{t("Вызов одобрен. Хранители ещё не знают о нём: нажмите «Атаковать», когда команда готова — у них будет столько же времени, сколько ушло у вас.")}</span></div>
+          {isCaptain
+            ? <div className="actions"><button type="button" disabled={!canSend} onClick={() => void launch()}><Icon name="flag" />{t("Атаковать")}</button></div>
+            : <p className="hint">{t("Атаку начинает капитан или заместитель.")}</p>}
+          {night && <p className="hint">{t("Ночью атаку не начинают: с 7:00 по местному времени.")}</p>}
+          {storm && !night && <p className="hint">{t("В шторм атаку не начинают.")}</p>}
+        </div>
+      )}
       {b.status === "QUEUED" && attacker && (
         <div className="field">
           <label htmlFor={"bid-" + b.id}>{t("Ставка, стихов")}</label>
@@ -236,13 +258,9 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
           )}
           {passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn || night} onChanged={onChanged} />}
           {isCaptain && myTurn && !ally && sum < need && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
-          {/* Времена суток (решение владельца 03.10): ночью испытание ждёт утра; вызов отправляют на проверку только утром, ответ хранителей — утром, днём и вечером. */}
+          {/* Времена суток (решение владельца 03.10) и шторм (24.10): ночью и в шторм стихи не отправляют. Утреннего окна для вызова нет (01.11). */}
           {myTurn && night && <div className="note warn"><Icon name="moon" /><span>{t("Ночь: испытание ждёт утра. С 7:00 по местному времени можно отмечать стихи и отправлять на проверку.")}</span></div>}
-          {attacker && myTurn && !night && daytime && (
-            morning
-              ? <p className="hint"><Icon name="sun" /> {t("Вызов отправляют на проверку утром, с 7:00 до 9:00 по местному времени.")}</p>
-              : <div className="note warn"><Icon name="clock" /><span>{t("Сейчас вызов отправить нельзя: его отправляют на проверку утром, с 7:00 до 9:00 по местному времени. Стихи отмечать можно.")}</span></div>
-          )}
+          {myTurn && storm && !night && <div className="note warn"><Icon name="clock" /><span>{t("Шторм: отправить на проверку можно, когда буря пройдёт.")}</span></div>}
           <div className="actions">
             {isCaptain && myTurn && !ally && <button type="button" disabled={sum < need || !canSend} onClick={() => void submit()}><Icon name="send" />{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}</button>}
           </div>

@@ -42,7 +42,7 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   trial_declared: "Команда «{team}» бросила вызов городу {book} команды «{other}»",
   trial_queued: "Команда «{team}» встала в очередь на город {book} команды «{other}»",
   trial_started: "Вызов команды «{team}» городу {book} команды «{other}» начался",
-  trial_defense: "Вызов команды «{team}» городу {book} команды «{other}» проверен: пошло время ответа",
+  trial_defense: "Команда «{team}» пошла на город {book} команды «{other}»: пошло время ответа",
   trial_repelled: "Город {book} устоял: команда «{other}» отбила вызов команды «{team}»",
   trial_won: "Команда «{team}» взяла город {book} у команды «{other}»",
   trial_burnt: "Вызов команды «{team}» городу {book} команды «{other}» сгорел",

@@ -13,7 +13,7 @@ import { TimelineDock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
 import { CityPopup } from "./CityPopup";
 import { QuarrySheet } from "./QuarrySheet";
-import { BATTLE_STATUS, BattleCard, battleTone, isMyTurn, leftText } from "./BattlePanel";
+import { BATTLE_STATUS, BattleCard, battleTone, isLaunching, isMyTurn, leftText } from "./BattlePanel";
 import { TrialFlow } from "./TrialFlow";
 import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
 import { TradesSection } from "./Trades";
@@ -786,7 +786,7 @@ export function TeamPage() {
                 {battlesList.map((b) => {
                   const attacker = b.attacker.id === team.id;
                   // Отсчёт идёт только пока сторона учит: после «Отправить на проверку» часы стоят (стоп-часы на сервере), и срок не показывается.
-                  const deadline = b.status === "ATTACK" && !b.attackDoneAt ? b.attackDeadline : b.status === "DEFENSE" && !b.defenseDoneAt ? b.defenseDeadline : null;
+                  const deadline = b.status === "ATTACK" && (!b.attackDoneAt || isLaunching(b)) ? b.attackDeadline : b.status === "DEFENSE" && !b.defenseDoneAt ? b.defenseDeadline : null;
                   const meta = [deadline ? t("осталось {t}", { t: leftText(deadline, now) }) : "", isMyTurn(b, team.id) ? t("ваш ход") : ""].filter(Boolean).join(" · ");
                   // Союзник хранителей: до чужого города команда могла не дойти, поэтому карточка испытания — прямо здесь.
                   if (b.myAlliance && !attacker && b.defender.id !== team.id) return <li key={b.id} className="plain"><BattleCard gameId={id} b={b} teamId={team.id} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} now={now} daytime={map.daytime} onChanged={() => void loadBattles()} /></li>;

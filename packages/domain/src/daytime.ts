@@ -104,29 +104,3 @@ export function nightBoundary(timeZone: string, from: Date): { night: boolean; a
   return { night, at: new Date(from.getTime() + until * 60_000 - inMinute) };
 }
 
-/** Сколько «дневных» миллисекунд между двумя моментами: ночь (22:00–7:00 по поясу) не считается. */
-export function awakeMsBetween(timeZone: string, from: Date, to: Date): number {
-  let t = from.getTime(), total = 0;
-  const end = to.getTime();
-  for (let guard = 0; t < end && guard < 10_000; guard++) {
-    const b = nightBoundary(timeZone, new Date(t));
-    const stop = Math.min(b.at.getTime(), end);
-    if (!b.night) total += stop - t;
-    t = stop;
-  }
-  return total;
-}
-
-/** Момент через `ms` дневных миллисекунд после `from`: ночь пропускается; если `from` ночью — отсчёт с 7:00. */
-export function addAwakeMs(timeZone: string, from: Date, ms: number): Date {
-  let t = from.getTime(), left = Math.max(0, ms);
-  for (let guard = 0; guard < 10_000; guard++) {
-    const b = nightBoundary(timeZone, new Date(t));
-    if (b.night) { t = b.at.getTime(); continue; }
-    const seg = b.at.getTime() - t;
-    if (seg >= left) return new Date(t + left);
-    left -= seg;
-    t = b.at.getTime();
-  }
-  return new Date(t);
-}

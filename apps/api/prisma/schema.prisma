@@ -620,6 +620,8 @@ model Battle {
   attackDeadline    DateTime?
   attackDoneAt      DateTime?
   attackApprovedAt  DateTime?
+  /** Капитан претендентов нажал «Атаковать» после одобрения вызова (решение владельца 01.11): с этого момента хранители знают о вызове и идёт время ответа. */
+  attackLaunchedAt  DateTime?
   defenseDeadline   DateTime?
   defenseDoneAt     DateTime?
   resolvedAt        DateTime?

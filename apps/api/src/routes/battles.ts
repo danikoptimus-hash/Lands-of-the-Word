@@ -8,7 +8,7 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { formatRange, loadBook, refToIndex, parseRef, verseText, type BibleBook } from "../services/bible.js";
-import { afterReject, defenseNeed, gameRules, maybeRepel, maybeStartDefense, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
+import { afterReject, approveAttack, defenseNeed, gameRules, launchAttack, maybeRepel, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { declareSiege, siegeOptions } from "../services/siege.js";
 import { BOOKS } from "@lotw/domain";
@@ -69,7 +69,7 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
     id: b.id, nodeKey: b.nodeKey, bookCode: b.bookCode, bookName: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode, status: b.status, sumMode: b.sumMode, bid: b.bid, defenseBid: hideDefense ? null : b.defenseBid,
     violation: b.violation, defenseFactor: b.defenseFactor, defenseNeed: defenseNeed(b), allies, allyCandidates, myAlliance: myAlliance ? { id: myAlliance.id, status: myAlliance.status } : null,
     attacker: b.attacker, defender: b.defender, mySide, passage, defensePassage,
-    declaredAt: b.declaredAt, startedAt: b.startedAt, attackDeadline: b.attackDeadline, attackDoneAt: b.attackDoneAt, attackApprovedAt: b.attackApprovedAt,
+    declaredAt: b.declaredAt, startedAt: b.startedAt, attackDeadline: b.attackDeadline, attackDoneAt: b.attackDoneAt, attackApprovedAt: b.attackApprovedAt, attackLaunchedAt: b.attackLaunchedAt,
     defenseDeadline: b.defenseDeadline, defenseDoneAt: b.defenseDoneAt, resolvedAt: b.resolvedAt,
     attackSum: sumVerses(b.entries, "ATTACK", false), attackApproved: sumVerses(b.entries, "ATTACK", true),
     defenseSum: hideDefense ? 0 : sumVerses(b.entries, "DEFENSE", false), defenseApproved: hideDefense ? 0 : sumVerses(b.entries, "DEFENSE", true),
@@ -342,15 +342,33 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
     const side = b.attackerId === m.team.id ? "ATTACK" : b.defenderId === m.team.id ? "DEFENSE" : null;
     if (!side) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда не участвует в этом испытании") });
-    // Времена суток (решение владельца 03.10): ночью на проверку не отправляют ничего; вызов (атака) — только утром, с 7:00 до 9:00.
-    const dt = await assertAwake(request, reply, id);
-    if (!dt) return;
-    if (side === "ATTACK" && dt.phase !== "morning") return reply.code(409).send({ error: "window", message: err(request, "Вызов отправляют на проверку утром, с 7:00 до 9:00 по местному времени. Стихи отмечать можно."), daytime: dt });
+    // Ночью и в шторм на проверку не отправляют ничего. Утреннего окна для вызова больше нет (решение владельца 01.11):
+    // атаку после одобрения капитан начинает сам, в любое время, кроме ночи и шторма.
+    if (!(await assertAwake(request, reply, id))) return;
     const r = side === "ATTACK" ? await submitAttack(b) : await submitDefense(b);
     if (!r.ok) return reply.code(409).send({ error: "conflict", message: err(request, r.message, r.vars) });
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "submissions" });
     if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "{side} отправлен на проверку", "Команда «{team}» отправила {side} за город {book} на проверку. Проверьте записи в блоке «Испытания».", { side: side === "ATTACK" ? "вызов" : "ответ", team: m.team.name, book: b.bookCode });
+    return { ok: true, status: r.battle.status };
+  });
+
+  /** Капитан претендентов начинает атаку после одобрения вызова (решение владельца 01.11): в любое время, кроме ночи и шторма. */
+  app.post("/api/games/:id/battles/:battleId/attack", async (request, reply) => {
+    const { id, battleId } = request.params as { id: string; battleId: string };
+    const m = await requireMember(request, reply, id);
+    if (!m) return;
+    if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Начать атаку может только капитан") });
+    if (!(await assertAwake(request, reply, id))) return;
+    await sweep(id);
+    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true } });
+    if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
+    if (b.attackerId !== m.team.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Атаку начинают претенденты") });
+    const r = await launchAttack(b);
+    if (!r.ok) return reply.code(409).send({ error: "conflict", message: err(request, r.message) });
+    publish(id, { type: "battles", teamId: m.team.id });
+    publish(id, { type: "battles", teamId: b.defenderId });
+    publish(id, { type: "cities" });
     return { ok: true, status: r.battle.status };
   });
 
@@ -428,7 +446,7 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     await prisma.battleEntry.update({ where: { id: e.id }, data: { status: body.approve ? "APPROVED" : "REJECTED", adminComment: body.comment, decidedAt: new Date() } });
     let full = (await prisma.battle.findUniqueOrThrow({ where: { id: battleId }, include: { entries: true } })) as BattleWithEntries;
     if (!body.approve) full = await afterReject(full, e.side);
-    else full = e.side === "ATTACK" ? await maybeStartDefense(full) : await maybeRepel(full);
+    else full = e.side === "ATTACK" ? await approveAttack(full) : await maybeRepel(full);
     publish(id, { type: "battles", teamId: e.teamId });
     publish(id, { type: "submissions" });
     // Возврат записи приходит тому, кто её отметил и прикрепил, вместе с причиной администратора (решение владельца 03.10); команде целиком письмо не идёт.

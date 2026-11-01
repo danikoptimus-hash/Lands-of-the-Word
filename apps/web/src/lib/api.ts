@@ -146,7 +146,7 @@ export interface BattleDto {
   id: string; nodeKey: string; bookCode: string; bookName: string; status: BattleStatus; sumMode: boolean; bid: number; defenseBid: number | null;
   attacker: { id: string; index: number; name: string; color: string; avatarId?: string | null }; defender: { id: string; index: number; name: string; color: string; avatarId?: string | null };
   mySide: "ATTACK" | "DEFENSE" | null; passage: PassageDto | null; defensePassage: PassageDto | null;
-  declaredAt: string; startedAt: string | null; attackDeadline: string | null; attackDoneAt: string | null; attackApprovedAt: string | null;
+  declaredAt: string; startedAt: string | null; attackDeadline: string | null; attackDoneAt: string | null; attackApprovedAt: string | null; /** Капитан претендентов нажал «Атаковать» (решение владельца 01.11): хранители узнали о вызове, идёт время ответа. */ attackLaunchedAt: string | null;
   defenseDeadline: string | null; defenseDoneAt: string | null; resolvedAt: string | null;
   /** Нарушение мира (решение владельца 22.10): вызов при мире; при трёх и более командах хранители зовут союзника, при двух — защита вдвое. */
   violation?: boolean; defenseFactor?: number; defenseNeed?: number; allies?: Array<{ id: string; status: "PROPOSED" | "ACTIVE"; team: { id: string; index: number; name: string; color: string; avatarId?: string | null } }>; allyCandidates?: Array<{ id: string; index: number; name: string; color: string; avatarId?: string | null }>; myAlliance?: { id: string; status: "PROPOSED" | "ACTIVE" } | null;

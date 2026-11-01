@@ -123,7 +123,7 @@ describe("битва за город", () => {
     expect(late.statusCode).toBe(409);
   });
 
-  it("одобрение всей атаки админом запускает оборону ровно на T", async () => {
+  it("одобрение всей атаки админом принимает вызов, а оборону на ровно T запускает кнопка «Атаковать»", async () => {
     // Арифметика таймеров — в поясе, где сейчас день: сдвинутые назад отметки не попадают в ночь (ночью таймеры стоят, 03.10).
     await setGamePhase(app, gameId, adminCookie, "day");
     await prisma.battle.update({ where: { id: battleId }, data: { startedAt: new Date(Date.now() - 3_600_000), attackDoneAt: new Date(Date.now() - 600_000) } });
@@ -134,16 +134,28 @@ describe("битва за город", () => {
       const r = await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
       expect(r.statusCode).toBe(200);
     }
+    // Одобрение не начинает атаку само (решение владельца 01.11): вызов принят, хранители по-прежнему не видят его, новости нет.
+    const approved = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
+    expect(approved.status).toBe("ATTACK");
+    expect(approved.attackApprovedAt).toBeTruthy();
+    expect(approved.attackLaunchedAt).toBeNull();
+    expect(((await get(`/api/games/${gameId}/my-battles`, p1Cookie)).json().battles as Array<{ id: string }>).find((x) => x.id === battleId)).toBeUndefined();
+    expect(await prisma.journal.count({ where: { gameId, kind: "trial_defense", everyone: true } })).toBe(0);
+    // Атаку начинает капитан претендентов; хранители — не могут.
+    expect((await post(`/api/games/${gameId}/battles/${battleId}/attack`, p1Cookie)).statusCode).toBe(403);
+    expect((await post(`/api/games/${gameId}/battles/${battleId}/attack`, p2Cookie)).statusCode).toBe(200);
     const b = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(b.status).toBe("DEFENSE");
-    // Только теперь хранители видят испытание (решение владельца 31.10), а новость о проверенном вызове идёт всем.
+    expect(b.attackLaunchedAt).toBeTruthy();
+    expect((await post(`/api/games/${gameId}/battles/${battleId}/attack`, p2Cookie)).statusCode).toBe(409);
+    // Только теперь хранители видят испытание (решение владельца 31.10), а новость о начале атаки идёт всем.
     expect(((await get(`/api/games/${gameId}/my-battles`, p1Cookie)).json().battles as Array<{ id: string; status: string }>).find((x) => x.id === battleId)?.status).toBe("DEFENSE");
     expect(await prisma.journal.count({ where: { gameId, kind: "trial_defense", everyone: true } })).toBe(1);
-    // Ночью таймеры стоят (03.10): T — дневное время от старта до отправки, дедлайн — через T дневного времени.
+    // Ночью таймеры стоят (03.10): T — дневное время от старта до отправки, дедлайн — через T дневного времени от начала атаки.
     const tz = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone;
     const T = awakeMsBetween(tz, b.startedAt!, b.attackDoneAt!) - b.attackPausedMs;
     expect(Math.abs(T - 3_000_000)).toBeLessThan(5_000);
-    expect(Math.abs(b.defenseDeadline!.getTime() - addAwakeMs(tz, b.attackApprovedAt!, T).getTime())).toBeLessThan(5_000);
+    expect(Math.abs(b.defenseDeadline!.getTime() - addAwakeMs(tz, b.attackLaunchedAt!, T).getTime())).toBeLessThan(5_000);
     await setGamePhase(app, gameId, adminCookie, "morning");
   });
 
@@ -213,6 +225,7 @@ describe("битва за город", () => {
     const list = await get(`/api/games/${gameId}/battles`, adminCookie);
     const entry = list.json().battles.find((x: { id: string }) => x.id === id).entries[0] as { id: string };
     await post(`/api/games/${gameId}/battles/${id}/entries/${entry.id}/decide`, adminCookie, { approve: true });
+    expect((await post(`/api/games/${gameId}/battles/${id}/attack`, p2Cookie)).statusCode).toBe(200);
     await prisma.battle.update({ where: { id }, data: { defenseDeadline: new Date(Date.now() - 1000) } });
     const after = await get(`/api/games/${gameId}/my-battles`, p1Cookie);
     expect(after.json().battles[0].status).toBe("WON");

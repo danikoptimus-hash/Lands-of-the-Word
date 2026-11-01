@@ -169,7 +169,7 @@ export async function submitAttack(b: BattleWithEntries): Promise<{ ok: true; ba
   const sum = sumVerses(b.entries, "ATTACK", false);
   if (sum < b.bid) return { ok: false, message: "Выучено {sum} из {need} стихов: не хватает {missing}", vars: { sum, need: b.bid, missing: b.bid - sum } };
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: new Date() }, include: { entries: true } });
-  return { ok: true, battle: await maybeStartDefense(upd) };
+  return { ok: true, battle: await approveAttack(upd) };
 }
 
 /** Капитан хранителей отправляет ответ на проверку до дедлайна: сумма ≥ ставки вызова. */
@@ -218,15 +218,35 @@ async function carryLearnedVerses(b: BattleWithEntries): Promise<BattleWithEntri
   return prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } });
 }
 
-/** Вызов отправлен и весь одобрен → время ответа ровно T = (отправка − старт) − время на проверке. */
-export async function maybeStartDefense(b: BattleWithEntries): Promise<BattleWithEntries> {
-  if (b.status !== "ATTACK" || !b.attackDoneAt || !b.startedAt || !sideApproved(b, "ATTACK", b.bid)) return b;
+/**
+ * Все записи вызова одобрены: вызов принят, но атака не начинается сама (решение владельца 01.11: «капитан должен нажать
+ * кнопку атаковать в удобное для них время, и только тогда хранители узнают об атаке и у них запускается таймер»).
+ * Стоп-часы: время проверки в срок вызова не входит; срок продолжает идти до нажатия «Атаковать» — не начатый за срок
+ * вызов сгорает, как и не отправленный на проверку.
+ */
+export async function approveAttack(b: BattleWithEntries): Promise<BattleWithEntries> {
+  if (b.status !== "ATTACK" || !b.attackDoneAt || !b.startedAt || b.attackApprovedAt || !sideApproved(b, "ATTACK", b.bid)) return b;
+  const now = new Date();
+  const pausedWall = Math.max(0, now.getTime() - b.attackDoneAt.getTime());
+  const upd = await prisma.battle.update({ where: { id: b.id }, data: { attackApprovedAt: now, ...(b.attackDeadline ? { attackDeadline: new Date(b.attackDeadline.getTime() + pausedWall) } : {}) }, include: { entries: true } });
+  publish(b.gameId, { type: "battles", teamId: b.attackerId });
+  notifyTeam(b.gameId, b.attackerId, "вызов городу {book} одобрен", (locale) => msg(locale, "Все записи приняты: {verses} стихов. Нажмите «Атаковать», когда команде удобно (не ночью и не в шторм): с этого момента хранители узнают о вызове, и у них будет столько же времени, сколько ушло у вас. Атаковать нужно до {deadline}, иначе вызов сгорит.", { verses: b.bid, deadline: upd.attackDeadline ? fmtDate(upd.attackDeadline, locale) : "" }), { book: b.bookCode });
+  return upd;
+}
+
+/**
+ * Капитан претендентов нажал «Атаковать»: хранители узнают о вызове, идёт время ответа. Ночью и в шторм таймеры стоят
+ * (решения владельца 03.10 и 01.11): T — дневное время вызова от выдачи отрывка до отправки на проверку минус стоп-часы;
+ * срок ответа отмеряется тем же дневным временем.
+ */
+export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
+  if (b.status !== "ATTACK" || !b.attackDoneAt || !b.startedAt) return { ok: false, message: "Вызов сейчас не идёт" };
+  if (!b.attackApprovedAt) return { ok: false, message: "Вызов ещё не проверен администратором" };
+  if (b.attackLaunchedAt) return { ok: false, message: "Атака уже начата" };
   const rules = await gameRules(b.gameId);
   const now = new Date();
-  // Ночью таймеры стоят (решение владельца 03.10): T — дневное время вызова (ночь 22:00–7:00 не считается) минус
-  // стоп-часы; дедлайн ответа отмеряется тоже дневным временем, а одобрение ночью запускает ответ с 7:00.
-  const T = Math.max(rules.minAnswerSeconds * 1000, awakeMsBetween(rules.timeZone, b.startedAt, b.attackDoneAt) - b.attackPausedMs);
-  let upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackApprovedAt: now, defenseDeadline: addAwakeMs(rules.timeZone, now, T) }, include: { entries: true } });
+  const T = Math.max(rules.minAnswerSeconds * 1000, awakeMsBetween(rules.timeZone, b.startedAt, b.attackDoneAt, rules.storms) - b.attackPausedMs);
+  let upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackLaunchedAt: now, defenseDeadline: addAwakeMs(rules.timeZone, now, T, rules.storms) }, include: { entries: true } });
   // С этого момента о вызове узнают все (решение владельца 31.10): хранители — письмом ниже, остальные — новостью.
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_defense", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
   upd = await carryLearnedVerses(upd);
@@ -240,7 +260,7 @@ export async function maybeStartDefense(b: BattleWithEntries): Promise<BattleWit
     upd = await prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: now, defenseBid: carried }, include: { entries: true } });
     upd = await maybeRepel(upd);
   }
-  return upd;
+  return { ok: true, battle: upd };
 }
 
 /** Ответ отправлен в срок и весь одобрен с суммой ≥ ставки → вызов отражён. */
@@ -278,16 +298,17 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
  */
 export async function afterReject(b: BattleWithEntries, side: "ATTACK" | "DEFENSE"): Promise<BattleWithEntries> {
   const now = new Date();
-  const { timeZone } = await gameRules(b.gameId);
+  const { timeZone, storms } = await gameRules(b.gameId);
   if (side === "ATTACK" && b.status === "ATTACK" && b.attackDoneAt) {
-    // Стоп-часы — дневным временем (ночь и так не считается); срок вызова (календарные дни) сдвигается на всё время проверки.
-    const pausedAwake = awakeMsBetween(timeZone, b.attackDoneAt, now), pausedWall = Math.max(0, now.getTime() - b.attackDoneAt.getTime());
-    return prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: null, attackPausedMs: { increment: pausedAwake }, ...(b.attackDeadline ? { attackDeadline: new Date(b.attackDeadline.getTime() + pausedWall) } : {}) }, include: { entries: true } });
+    // Стоп-часы — дневным временем (ночь и шторм и так не считаются); срок вызова (календарные дни) сдвигается на всё время
+    // проверки. Если вызов уже был одобрен, но атака не начата, одобрение снимается — сторона добирает и отправляет заново.
+    const pausedAwake = awakeMsBetween(timeZone, b.attackDoneAt, now, storms), pausedWall = Math.max(0, now.getTime() - b.attackDoneAt.getTime());
+    return prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: null, attackApprovedAt: null, attackPausedMs: { increment: pausedAwake }, ...(b.attackDeadline ? { attackDeadline: new Date(b.attackDeadline.getTime() + pausedWall) } : {}) }, include: { entries: true } });
   }
   if (side === "DEFENSE" && b.status === "DEFENSE" && b.defenseDoneAt) {
-    // Сколько дневного времени оставалось в момент отправки — столько же остаётся с момента возврата (с 7:00, если возврат ночью).
-    const left = b.defenseDeadline ? awakeMsBetween(timeZone, b.defenseDoneAt, b.defenseDeadline) : 0;
-    return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null, ...(b.defenseDeadline ? { defenseDeadline: addAwakeMs(timeZone, now, left) } : {}) }, include: { entries: true } });
+    // Сколько дневного времени оставалось в момент отправки — столько же остаётся с момента возврата (с пробуждения, если возврат ночью или в шторм).
+    const left = b.defenseDeadline ? awakeMsBetween(timeZone, b.defenseDoneAt, b.defenseDeadline, storms) : 0;
+    return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null, ...(b.defenseDeadline ? { defenseDeadline: addAwakeMs(timeZone, now, left, storms) } : {}) }, include: { entries: true } });
   }
   return b;
 }
@@ -365,7 +386,8 @@ export async function sweep(gameId?: string): Promise<void> {
   const now = new Date();
   await checkTimeLimits(gameId);
   await expirePassages(gameId);
-  const burnt = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ATTACK", attackDeadline: { lt: now }, attackDoneAt: null } });
+  // Сгорает вызов, не отправленный на проверку за срок, и вызов, одобренный, но не начатый за срок (решение владельца 01.11); на проверке срок стоит.
+  const burnt = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "ATTACK", attackDeadline: { lt: now }, OR: [{ attackDoneAt: null }, { attackApprovedAt: { not: null } }] } });
   for (const b of burnt) {
     const rules = await gameRules(b.gameId);
     await prisma.$transaction([
@@ -381,7 +403,7 @@ export async function sweep(gameId?: string): Promise<void> {
     publish(b.gameId, { type: "map", teamId: b.attackerId });
     publish(b.gameId, { type: "map", teamId: b.defenderId });
     { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_burnt", { everyone: false, teamId: b.attackerId, vars: { team: a, other: d, book: b.bookCode } }); }
-    notifyTeam(b.gameId, b.attackerId, "вызов городу {book} не завершён", "За {days} дней вызов не был отправлен на проверку. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}.", { book: b.bookCode, days: rules.attackDays, penalty: rules.burnPenalty });
+    notifyTeam(b.gameId, b.attackerId, "вызов городу {book} не завершён", b.attackApprovedAt ? "Вызов был одобрен, но атака не начата в срок. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}." : "За {days} дней вызов не был отправлен на проверку. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}.", { book: b.bookCode, days: rules.attackDays, penalty: rules.burnPenalty });
     await startNextFromQueue(b.gameId, b.nodeKey);
   }
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });

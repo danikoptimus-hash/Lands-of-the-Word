@@ -8,6 +8,9 @@ import { t } from "../lib/i18n";
  * карточки дела, форм. Esc и клик по фону закрывают; прокрутка страницы под ним блокируется. Фон закрывает только
  * когда нажатие началось на нём: протащили ползунок графика за край окна и отпустили — окно остаётся (жалоба владельца 23.10).
  */
+/** Открытые листы снизу вверх: Esc закрывает верхний. */
+const openSheets: symbol[] = [];
+
 export function Sheet({ title, head, onClose, onDismiss, children, size = "md", foot, container, className, closeLabel }: {
   title?: ReactNode; head?: ReactNode; onClose: () => void; children: ReactNode; size?: "sm" | "md" | "lg"; foot?: ReactNode;
   /** Закрытие ведёт назад (например, в список дел): кнопка — стрелка с этой подписью вместо крестика «Закрыть». */ closeLabel?: string;
@@ -19,10 +22,13 @@ export function Sheet({ title, head, onClose, onDismiss, children, size = "md", 
   const downOnBackdrop = useRef(false);
   useEffect(() => {
     document.body.classList.add("no-scroll");
+    // Листы бывают вложенными (лист отрывка поверх окна «Проверка» у администратора): Esc закрывает только верхний.
+    const token = Symbol("sheet");
+    openSheets.push(token);
     const dismiss = onDismiss ?? onClose;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") dismiss(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && openSheets[openSheets.length - 1] === token) dismiss(); };
     window.addEventListener("keydown", onKey);
-    return () => { window.removeEventListener("keydown", onKey); document.body.classList.remove("no-scroll"); };
+    return () => { window.removeEventListener("keydown", onKey); openSheets.splice(openSheets.indexOf(token), 1); if (openSheets.length === 0) document.body.classList.remove("no-scroll"); };
   }, [onClose, onDismiss]);
   const node = (
     <div className={"overlay-backdrop" + (container ? " absolute" : "")} onPointerDown={(e) => { downOnBackdrop.current = e.target === e.currentTarget; }} onClick={(e) => { if (downOnBackdrop.current && e.target === e.currentTarget) (onDismiss ?? onClose)(); downOnBackdrop.current = false; }}>

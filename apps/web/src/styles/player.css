@@ -341,9 +341,22 @@
 .trial-steps .mark { position: absolute; right: -3px; bottom: -3px; width: var(--mark); height: var(--mark); border-radius: 50%; display: grid; place-items: center; color: var(--paper-light); border: 2px solid var(--paper-light); box-sizing: content-box; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); }
 .trial-steps .mark.ok { background: var(--success); }
 .trial-steps .mark.bad { background: var(--danger); }
+.trial-steps .mark.count { top: -5px; right: -6px; bottom: auto; min-width: var(--mark); width: auto; padding: 0 4px; background: var(--wax); color: var(--paper-light); font: 700 10px/var(--mark) var(--font-ui); border-radius: 999px; }
+/* Медальон-кнопка (администратор, решение владельца 01.11): «Стихи» и «Ответ» открывают отрывок, «Проверка» — записи. */
+.trial-steps button.medal { border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; -webkit-appearance: none; appearance: none; }
+.trial-steps button.medal:hover, .trial-steps button.medal:active { background: var(--paper-light); box-shadow: 0 2px 8px rgba(168, 114, 46, .35); transform: scale(1.06); }
+.trial-steps .step.current button.medal:hover, .trial-steps .step.current button.medal:active { transform: scale(1.12); }
+.trial-steps button.medal:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+/* Шапка карточки администратора: город, аватарки сторон, стрелка со знаком испытания. */
+.trial-head { display: flex; align-items: center; gap: var(--sp-2); min-height: 36px; }
+.trial-head .city { display: inline-flex; align-items: center; gap: var(--sp-1); font-weight: 700; margin-right: var(--sp-1); }
+.trial-head .city .i { width: var(--icon-md); height: var(--icon-md); color: var(--accent); }
+.trial-arrow { flex: none; color: var(--bronze); }
+.passage-body > p { margin-bottom: var(--sp-2); }
 .trial-steps .mark .i { width: calc(var(--mark) * .62); height: calc(var(--mark) * .62); stroke-width: 3; }
 .trial-steps .cap { max-width: 100%; margin-top: 2px; font: 600 10px/1.2 var(--font-ui); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.trial-steps .sub { max-width: 100%; font-size: 10px; line-height: 1.2; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trial-steps .sub { max-width: 100%; font-size: 10px; line-height: 1.15; color: var(--muted); overflow-wrap: anywhere; }
+@media (min-width: 640px) { .trial-steps .sub { line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
 .trial-steps .step.future .cap, .trial-steps .step.future .sub { color: var(--ink-3); opacity: .7; }
 .trial-steps .step.current .cap { color: var(--accent-ink); }
 @media (min-width: 640px) { .trial-steps .cap { font-size: var(--fs-xs); } .trial-steps .sub { font-size: var(--fs-xs); } }

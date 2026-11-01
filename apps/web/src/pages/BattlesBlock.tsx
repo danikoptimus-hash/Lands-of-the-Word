@@ -1,31 +1,38 @@
 import { useCallback, useState } from "react";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, apiReady, ready, type BattleDto, type BattleStatus, type PassageDto, type BattleEntryDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, type BattleDto, type PassageDto, type BattleEntryDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
-import { Icon } from "../components/Icon";
+import { Icon, iconPath } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { Tabs } from "../components/Tabs";
+import { Sheet } from "../components/Sheet";
 import { EmptyState } from "../components/State";
 import { LinkList, ReturnBox, ReviewCard, useAutoRefresh } from "./SubmissionsBlock";
-import { TrialFlow } from "./TrialFlow";
+import { TrialFlow, type StepKey } from "./TrialFlow";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
-/** Статусы испытания словами среднего рода (в api.ts «отменена» — женский род от «битвы»). */
-const STATUS: Record<BattleStatus, { text: string; tone: "neutral" | "info" | "ok" | "bad" | "warn" }> = {
-  get QUEUED() { return { text: t("в очереди"), tone: "neutral" as const }; },
-  get ATTACK() { return { text: t("идёт вызов"), tone: "info" as const }; },
-  get DEFENSE() { return { text: t("идёт ответ"), tone: "info" as const }; },
-  get WON() { return { text: t("город перешёл"), tone: "warn" as const }; },
-  get REPELLED() { return { text: t("город устоял"), tone: "ok" as const }; },
-  get EXPIRED() { return { text: t("вызов не завершён"), tone: "neutral" as const }; },
-  get CANCELLED() { return { text: t("отменено"), tone: "neutral" as const }; },
-};
 const verses = (n: number) => plural(n, ["стих", "стиха", "стихов"]);
+const bookName = (code: string) => BOOK_BY_CODE.get(code)?.nameRu ?? code;
 
-/** Испытания за города и проверка записей обеих сторон. Счётчик — записи на проверке. */
+/** Стрелка «претенденты → хранители» со знаком испытания над ней (решение владельца 01.11). */
+function TrialArrow() {
+  return (
+    <svg className="trial-arrow" viewBox="0 0 48 30" width="48" height="30" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <g transform="translate(15 -3) scale(0.75)"><path d={iconPath("wave")} /></g>
+      <path d="M5 23h37m-6-6 6 6-6 6" />
+    </svg>
+  );
+}
+
+/**
+ * Испытания за города и проверка записей обеих сторон (переделка по решению владельца 01.11): в карточке — город,
+ * аватарки сторон со стрелкой и шкала этапов. Медальоны шкалы нажимаются: «Стихи» и «Ответ» открывают отрывок
+ * с раскладкой, «Проверка» — записи стороны с «Принять»/«Вернуть»; счётчик на медальоне — записи на проверке.
+ * Счётчик карточки — все записи на проверке.
+ */
 export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
   const { notify } = useUi();
   const [rows, setRows] = useState<BattleDto[] | null>(() => ready<{ battles: BattleDto[] }>(`/api/games/${gameId}/battles`)?.battles ?? null);
@@ -33,6 +40,7 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
   const [filter, setFilter] = useState<"active" | "all">("active");
   const [returning, setReturning] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null); // гаснут кнопки только у решаемой записи (04.10)
+  const [sheet, setSheet] = useState<{ battleId: string; step: StepKey } | null>(null);
   const load = useCallback(() => apiReady<{ battles: BattleDto[] }>(`/api/games/${gameId}/battles`).then((r) => { setRows(r.battles); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
   useAutoRefresh(load, version);
 
@@ -46,6 +54,8 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
   const active = all.filter((b) => b.status === "ATTACK" || b.status === "DEFENSE" || b.status === "QUEUED");
   const pending = all.reduce((n, b) => n + b.entries.filter((e) => e.status === "SUBMITTED").length, 0);
   const shown = filter === "all" ? all : active;
+  const open = sheet ? all.find((b) => b.id === sheet.battleId) ?? null : null;
+  const sheetSide = sheet?.step === "check2" || sheet?.step === "answer" ? "DEFENSE" : "ATTACK";
 
   return (
     <ReviewCard icon="wave" title={t("Испытания")} count={pending} loading={!rows} error={loadError} onRetry={() => void load()}>
@@ -53,62 +63,54 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
         <>
           {all.length > active.length && <Tabs value={filter} onChange={setFilter} ariaLabel={t("Какие испытания показывать")} items={[{ key: "active", label: t("Идут"), count: active.length }, { key: "all", label: t("Все"), count: all.length }]} />}
           {shown.length === 0 ? <EmptyState inline icon="wave" text={t("Сейчас испытаний нет.")} /> : shown.map((b) => {
-            const st = STATUS[b.status];
+            const pendingA = b.entries.filter((e) => e.side === "ATTACK" && e.status === "SUBMITTED").length;
+            const pendingD = b.entries.filter((e) => e.side === "DEFENSE" && e.status === "SUBMITTED").length;
             return (
               <div key={b.id} className="trial">
-                <div className="row between">
-                  <div className="sides">
-                    <span className="who"><TeamAvatar name={b.attacker.name} color={b.attacker.color} avatarId={b.attacker.avatarId} size="sm" withName teamId={b.attacker.id} /><Chip tone="warn">{t("вызов")}</Chip></span>
-                    <span className="who"><TeamAvatar name={b.defender.name} color={b.defender.color} avatarId={b.defender.avatarId} size="sm" withName teamId={b.defender.id} /><Chip tone="info">{t("ответ")}</Chip></span>
-                  </div>
-                  <Chip tone={st.tone}>{st.text}</Chip>
+                <div className="trial-head">
+                  <span className="city"><Icon name="city" />{bookName(b.bookCode)}</span>
+                  <TeamAvatar name={b.attacker.name} color={b.attacker.color} avatarId={b.attacker.avatarId} size="sm" title={b.attacker.name} teamId={b.attacker.id} />
+                  <TrialArrow />
+                  <TeamAvatar name={b.defender.name} color={b.defender.color} avatarId={b.defender.avatarId} size="sm" title={b.defender.name} teamId={b.defender.id} />
                 </div>
-                {/* Схема этапов и чей ход (решение владельца 31.10) — та же, что у команд. */}
-                <TrialFlow b={b} teamId={null} />
-                <div className="mt-2"><strong>{t("Город {name}", { name: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? "" })}</strong> <span className="muted small">· {t("ставка")} {verses(b.bid)}</span></div>
-                <div className="cols">
-                  <div>
-                    <strong>{t("Вызов")}</strong>{b.passage ? ` · ${b.passage.ref}` : ""}<br />
-                    {t("выучено {a} · принято {b}", { a: b.attackSum, b: b.attackApproved })}
-                    {/* Администратор видит выданный отрывок целиком и кому какие стихи достались (решение владельца 04.10). */}
-                    <PassageDetails passage={b.passage} entries={b.entries.filter((e) => e.side === "ATTACK")} />
-                  </div>
-                  {(b.status === "DEFENSE" || b.defenseSum > 0 || b.defensePassage) && (
-                    <div>
-                      <strong>{t("Ответ")}</strong>{b.defensePassage ? ` · ${b.defensePassage.ref}` : ""}<br />
-                      {t("выучено {a} · принято {b} · нужно {c}", { a: b.defenseSum, b: b.defenseApproved, c: b.defenseNeed ?? b.bid })}
-                      {b.defenseBid != null && b.status === "REPELLED" ? ` · ${t("устояли на {n}", { n: verses(b.defenseBid) })}` : ""}
-                      <PassageDetails passage={b.defensePassage} entries={b.entries.filter((e) => e.side === "DEFENSE")} />
-                    </div>
-                  )}
-                </div>
-                {b.entries.length > 0 && (
-                  <ul className="list">
-                    {b.entries.map((e) => (
-                      <li key={e.id} className="review-item">
-                        <div className="main">
-                          <span className="title"><Chip tone={e.side === "ATTACK" ? "warn" : "info"}>{e.side === "ATTACK" ? t("вызов") : t("ответ")}</Chip> {e.ref}</span>
-                          <span className="meta"><span>{verses(e.verses)}</span><span>· {e.nickname}</span><span>· {fmtDate(e.createdAt)}</span></span>
-                          {e.note && <span className="report">{e.note}</span>}
-                          <LinkList links={e.links} kind="video" />
-                        </div>
-                        <div className="side">
-                          {e.status === "SUBMITTED" ? (
-                            <>
-                              <button type="button" className="sm" onClick={() => void decide(b.id, e.id, true)} disabled={busyId === e.id}><Icon name="check" />{t("Принять")}</button>
-                              {returning !== e.id && <button type="button" className="secondary sm" onClick={() => setReturning(e.id)} disabled={busyId === e.id}><Icon name="x" />{t("Вернуть")}</button>}
-                            </>
-                          ) : <Chip tone={e.status === "APPROVED" ? "ok" : "bad"}>{e.status === "APPROVED" ? t("принято") : t("возвращено")}</Chip>}
-                        </div>
-                        {returning === e.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === e.id} onOk={(text) => void decide(b.id, e.id, false, text)} onCancel={() => setReturning(null)} />}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <TrialFlow b={b} teamId={null} turn={false} admin
+                  onStep={(step) => setSheet({ battleId: b.id, step })}
+                  canOpen={{ learn: Boolean(b.passage), answer: Boolean(b.defensePassage), check1: b.entries.some((e) => e.side === "ATTACK"), check2: b.entries.some((e) => e.side === "DEFENSE") }}
+                  badges={{ check1: pendingA, check2: pendingD }} />
               </div>
             );
           })}
         </>
+      )}
+      {open && sheet && (sheet.step === "learn" || sheet.step === "answer") && (
+        <Sheet size="md" onClose={() => setSheet(null)} title={`${sheet.step === "learn" ? t("Вызов") : t("Ответ")} · ${bookName(open.bookCode)} ${(sheet.step === "learn" ? open.passage : open.defensePassage)?.ref ?? ""}`}>
+          <PassageBody passage={sheet.step === "learn" ? open.passage : open.defensePassage} entries={open.entries.filter((e) => e.side === sheetSide)} />
+        </Sheet>
+      )}
+      {open && sheet && (sheet.step === "check1" || sheet.step === "check2") && (
+        <Sheet size="md" onClose={() => setSheet(null)} title={`${t("Проверка")} · ${sheetSide === "ATTACK" ? t("вызов") : t("ответ")} · ${bookName(open.bookCode)}`}>
+          <ul className="list">
+            {open.entries.filter((e) => e.side === sheetSide).map((e) => (
+              <li key={e.id} className="review-item">
+                <div className="main">
+                  <span className="title">{e.ref}</span>
+                  <span className="meta"><span>{verses(e.verses)}</span><span>· {e.nickname}</span><span>· {fmtDate(e.createdAt)}</span></span>
+                  {e.note && <span className="report">{e.note}</span>}
+                  <LinkList links={e.links} kind="video" />
+                </div>
+                <div className="side">
+                  {e.status === "SUBMITTED" ? (
+                    <>
+                      <button type="button" className="sm" onClick={() => void decide(open.id, e.id, true)} disabled={busyId === e.id}><Icon name="check" />{t("Принять")}</button>
+                      {returning !== e.id && <button type="button" className="secondary sm" onClick={() => setReturning(e.id)} disabled={busyId === e.id}><Icon name="x" />{t("Вернуть")}</button>}
+                    </>
+                  ) : <Chip tone={e.status === "APPROVED" ? "ok" : "bad"}>{e.status === "APPROVED" ? t("принято") : t("возвращено")}</Chip>}
+                </div>
+                {returning === e.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === e.id} onOk={(text) => void decide(open.id, e.id, false, text)} onCancel={() => setReturning(null)} />}
+              </li>
+            ))}
+          </ul>
+        </Sheet>
       )}
     </ReviewCard>
   );
@@ -128,10 +130,11 @@ function rangesOf(idxs: number[], refOf: (i: number) => string): string[] {
 }
 
 /**
- * Подробности отрывка для администратора (решение владельца 04.10): текст выданного отрывка целиком и раскладка —
- * кому какие стихи достались, сколько у каждого принято, какие стихи ещё никто не отметил.
+ * Отрывок для администратора (решение владельца 04.10): текст выданного отрывка целиком и раскладка — кому какие стихи
+ * достались, сколько у каждого принято, какие стихи ещё никто не отметил. Открывается с медальона «Стихи» или «Ответ»
+ * на шкале испытания (решение владельца 01.11).
  */
-function PassageDetails({ passage, entries }: { passage: PassageDto | null; entries: BattleEntryDto[] }) {
+function PassageBody({ passage, entries }: { passage: PassageDto | null; entries: BattleEntryDto[] }) {
   if (!passage) return null;
   const refOf = (i: number) => passage.verses?.find((v) => v.idx === i)?.ref ?? String(i);
   const byUser = new Map<string, { verses: Set<number>; approved: Set<number>; weight: number }>();
@@ -145,8 +148,8 @@ function PassageDetails({ passage, entries }: { passage: PassageDto | null; entr
   for (let i = passage.start; i <= passage.end; i++) if (!covered.has(i)) free.push(i);
   const total = passage.end - passage.start + 1;
   return (
-    <details className="fold passage-fold">
-      <summary><Icon name="book" />{t("Отрывок и раскладка")} <span className="count">· {total}</span><Icon name="chevron-down" className="chev" /></summary>
+    <div className="passage-body">
+      <p className="muted small">{t("Отрывок")} · {verses(total)}</p>
       <ul className="list compact">
         {[...byUser.entries()].map(([nick, u]) => (
           <li key={nick}><div className="main"><span className="title">{nick}{u.weight > 1 && <Chip tone="info" icon="sword">×{u.weight}</Chip>}</span><span className="meta"><span>{rangesOf([...u.verses], refOf).join(", ")}</span><span>· {verses(u.verses.size)}</span><span>· {t("принято {n}", { n: u.approved.size })}</span></span></div></li>
@@ -159,6 +162,6 @@ function PassageDetails({ passage, entries }: { passage: PassageDto | null; entr
           {passage.verses.map((v) => <li key={v.idx} className={covered.has(v.idx) ? "covered" : undefined}><b>{v.ref}</b> {v.text ?? ""}</li>)}
         </ol>
       ) : <p className="hint">{t("Текст отрывка недоступен.")}</p>}
-    </details>
+    </div>
   );
 }
