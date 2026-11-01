@@ -119,7 +119,7 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
         <ul className="list">
           {granted.map((r) => (
             <li key={r.id}>
-              <div className="main"><span className="title">{t("Проход для «{team}»", { team: r.requester.name })}</span><span className="meta">{r.bookName}</span></div>
+              <div className="main"><span className="title">{t("Проход для «{team}»", { team: r.requester.name })}</span><span className="meta">{r.bookName}</span>{r.message && <span className="meta">«{r.message}»</span>}{r.answer && <span className="meta">{t("Ответ: «{a}»", { a: r.answer })}</span>}</div>
               <span className="muted small">{t("действует, пока город ваш")}</span>
             </li>
           ))}
@@ -130,7 +130,8 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
           {outgoing.map((r) => (
             <li key={r.id}>
               {/* Во вкладке «Наши» слово «наш запрос» лишнее (правило владельца 01.11: не дублировать): только город и владелец. */}
-              <div className="main"><span className="title">{r.bookName}</span><span className="meta">{t("владелец «{team}»", { team: r.owner.name })}{r.answer ? ` · «${r.answer}»` : ""}</span></div>
+              {/* Текст своего запроса и ответ владельца (замечание владельца 01.11: «участники не видят текст своего запроса на проход»). */}
+              <div className="main"><span className="title">{r.bookName}</span><span className="meta">{t("владелец «{team}»", { team: r.owner.name })}</span>{r.message && <span className="meta">«{r.message}»</span>}{r.answer && <span className="meta">{t("Ответ: «{a}»", { a: r.answer })}</span>}</div>
               <PassageChip s={r.status} />
             </li>
           ))}
