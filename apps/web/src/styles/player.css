@@ -322,8 +322,9 @@
 .trial-turn.mine > .i { color: var(--accent-ink); }
 .trial-turn.admin > .i { color: var(--wax-ink, var(--danger)); }
 .trial-turn.over { background: var(--surface-2); }
-.trial-steps { --medal: 44px; --mark: 18px; position: relative; z-index: 0; list-style: none; margin: var(--sp-3) auto 0; padding: 0; display: flex; justify-content: space-between; align-items: flex-start; max-width: 640px; }
-@media (min-width: 640px) { .trial-steps { --medal: 56px; --mark: 20px; } }
+/* На телефоне семь медальонов по 38px с выносом на 8px в поля карточки — чтобы значкам не было тесно (замечание владельца 01.11). */
+.trial-steps { --medal: 38px; --mark: 16px; position: relative; z-index: 0; list-style: none; margin: var(--sp-3) calc(-1 * var(--sp-2)) 0; padding: 0; display: flex; justify-content: space-between; align-items: flex-start; }
+@media (min-width: 640px) { .trial-steps { --medal: 56px; --mark: 20px; margin: var(--sp-3) auto 0; max-width: 640px; } }
 .trial-steps .step { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
 /* Перемычка от края прошлого медальона до края этого (замечание владельца 31.10: полоса не должна заходить на картинку);
    на 2px прячется под медальоны, которые рисуются поверх полос (z-index 1 в контексте списка). */

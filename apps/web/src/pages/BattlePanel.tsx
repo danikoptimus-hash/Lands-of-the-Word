@@ -89,7 +89,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
             <label htmlFor="war-bid">{t("Ставка, стихов")}</label>
             <div className="row nowrap">
               <input id="war-bid" type="number" inputMode="numeric" min={war.minBid} max={war.maxBid ?? undefined} value={bid} onChange={(e) => setBid(e.target.value === "" ? "" : Number(e.target.value))} />
-              <button type="button" disabled={busy || bid === "" || bid < war.minBid || (war.maxBid != null && bid > war.maxBid)} onClick={() => void declare()}><Icon name="wave" />{t("Испытать город")}</button>
+              <button type="button" disabled={busy || bid === "" || bid < war.minBid || (war.maxBid != null && bid > war.maxBid)} onClick={() => void declare()}><Icon name="wave" />{t("Сделать вызов")}</button>
             </div>
             <p className="hint">{t("минимум {n}", { n: war.minBid })}{war.maxBid != null ? ` · ${t("максимум {n}: хранители ({m}) не ответят больше", { n: war.maxBid, m: plural(war.ownerMembers ?? 0, ["участник", "участника", "участников"]) })}` : ""}{war.penalty ? ` · ${t("включая штраф {n} за незавершённые вызовы", { n: war.penalty })}` : ""}{war.queue > 0 ? ` · ${t("в очереди уже {n}", { n: war.queue })}` : ""}</p>
           </div>
@@ -162,9 +162,9 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
   }
 
   async function launch() {
-    const ok = await confirm(t("Хранители «{team}» узнают о вызове сейчас, и у них пойдёт время ответа — столько же, сколько ушло у вас.", { team: b.defender.name }), { title: t("Начать атаку на город {city}?", { city: b.bookName }), okLabel: t("Атаковать") });
+    const ok = await confirm(t("Хранители «{team}» узнают о вызове сейчас, и у них пойдёт время ответа — столько же, сколько ушло у вас.", { team: b.defender.name }), { title: t("Начать испытание города {city}?", { city: b.bookName }), okLabel: t("Испытать") });
     if (!ok) return;
-    try { await api(`/api/games/${gameId}/battles/${b.id}/attack`, { method: "POST" }); notify(t("Атака начата")); onChanged(); }
+    try { await api(`/api/games/${gameId}/battles/${b.id}/attack`, { method: "POST" }); notify(t("Испытание начато")); onChanged(); }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
 
@@ -209,9 +209,9 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
       {/* Атака после одобрения не начинается сама (решение владельца 01.11): капитан нажимает «Атаковать», когда команде удобно, кроме ночи и шторма. */}
       {launching && (
         <div className="mt-2 stack-sm">
-          <div className="note"><Icon name="check" /><span>{t("Вызов одобрен. Хранители ещё не знают о нём: нажмите «Атаковать», когда команда готова — у них будет столько же времени, сколько ушло у вас.")}</span></div>
+          <div className="note"><Icon name="check" /><span>{t("Вызов одобрен. Хранители ещё не знают о нём: нажмите «Испытать», когда команда готова — у них будет столько же времени, сколько ушло у вас.")}</span></div>
           {isCaptain
-            ? <div className="actions"><button type="button" disabled={!canSend} onClick={() => void launch()}><Icon name="flag" />{t("Атаковать")}</button></div>
+            ? <div className="actions"><button type="button" disabled={!canSend} onClick={() => void launch()}><Icon name="flag" />{t("Испытать")}</button></div>
             : <p className="hint">{t("Атаку начинает капитан или заместитель.")}</p>}
           {night && <p className="hint">{t("Ночью атаку не начинают: с 7:00 по местному времени.")}</p>}
           {storm && !night && <p className="hint">{t("В шторм атаку не начинают.")}</p>}

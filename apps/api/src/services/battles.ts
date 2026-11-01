@@ -230,7 +230,7 @@ export async function approveAttack(b: BattleWithEntries): Promise<BattleWithEnt
   const pausedWall = Math.max(0, now.getTime() - b.attackDoneAt.getTime());
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { attackApprovedAt: now, ...(b.attackDeadline ? { attackDeadline: new Date(b.attackDeadline.getTime() + pausedWall) } : {}) }, include: { entries: true } });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
-  notifyTeam(b.gameId, b.attackerId, "вызов городу {book} одобрен", (locale) => msg(locale, "Все записи приняты: {verses} стихов. Нажмите «Атаковать», когда команде удобно (не ночью и не в шторм): с этого момента хранители узнают о вызове, и у них будет столько же времени, сколько ушло у вас. Атаковать нужно до {deadline}, иначе вызов сгорит.", { verses: b.bid, deadline: upd.attackDeadline ? fmtDate(upd.attackDeadline, locale) : "" }), { book: b.bookCode });
+  notifyTeam(b.gameId, b.attackerId, "вызов городу {book} одобрен", (locale) => msg(locale, "Все записи приняты: {verses} стихов. Нажмите «Испытать», когда команде удобно (не ночью и не в шторм): с этого момента хранители узнают о вызове, и у них будет столько же времени, сколько ушло у вас. Атаковать нужно до {deadline}, иначе вызов сгорит.", { verses: b.bid, deadline: upd.attackDeadline ? fmtDate(upd.attackDeadline, locale) : "" }), { book: b.bookCode });
   return upd;
 }
 
