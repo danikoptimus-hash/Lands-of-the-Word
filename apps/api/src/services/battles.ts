@@ -1,4 +1,4 @@
-import { addAwakeMs, awakeMsBetween } from "@lotw/domain";
+import { activeMsBetween, addActiveMs, wakeUp } from "@lotw/domain";
 import { scheduleAwards } from "./awards.js";
 import { prisma } from "../db.js";
 import { publish } from "./events.js";
@@ -247,9 +247,10 @@ export async function approveAttack(b: BattleWithEntries): Promise<BattleWithEnt
 }
 
 /**
- * Капитан претендентов нажал «Атаковать»: хранители узнают о вызове, идёт время ответа. Ночью и в шторм таймеры стоят
- * (решения владельца 03.10 и 01.11): T — дневное время вызова от выдачи отрывка до отправки на проверку минус стоп-часы;
- * срок ответа отмеряется тем же дневным временем.
+ * Капитан претендентов нажал «Испытать»: хранители узнают о вызове, идёт время ответа. Реальное время обеим сторонам
+ * (решение владельца 01.11, вечер: ночь считается претендентам и ровно так же отдаётся хранителям, чтобы отрывок,
+ * взятый в 21:59, не давал ночь бесплатно): T — время по часам от выдачи отрывка до отправки на проверку минус
+ * стоп-часы, пауза — только шторм; срок ответа — через T по часам, а выпавший на ночь или шторм срок ждёт пробуждения.
  */
 export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
   if (b.status !== "ATTACK" || !b.attackDoneAt || !b.startedAt) return { ok: false, message: "Вызов сейчас не идёт" };
@@ -257,8 +258,8 @@ export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; ba
   if (b.attackLaunchedAt) return { ok: false, message: "Испытание уже начато" };
   const rules = await gameRules(b.gameId);
   const now = new Date();
-  const T = Math.max(rules.minAnswerSeconds * 1000, awakeMsBetween(rules.timeZone, b.startedAt, b.attackDoneAt, rules.storms) - b.attackPausedMs);
-  let upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackLaunchedAt: now, defenseDeadline: addAwakeMs(rules.timeZone, now, T, rules.storms) }, include: { entries: true } });
+  const T = Math.max(rules.minAnswerSeconds * 1000, activeMsBetween(rules.timeZone, b.startedAt, b.attackDoneAt, rules.storms) - b.attackPausedMs);
+  let upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackLaunchedAt: now, defenseDeadline: wakeUp(rules.timeZone, addActiveMs(rules.timeZone, now, T, rules.storms), rules.storms) }, include: { entries: true } });
   // С этого момента о вызове узнают все (решение владельца 31.10): хранители — письмом ниже, остальные — новостью.
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_defense", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
   upd = await carryLearnedVerses(upd);
@@ -336,15 +337,15 @@ export async function afterReject(b: BattleWithEntries, side: "ATTACK" | "DEFENS
   const now = new Date();
   const { timeZone, storms } = await gameRules(b.gameId);
   if (side === "ATTACK" && b.status === "ATTACK" && b.attackDoneAt) {
-    // Стоп-часы — дневным временем (ночь и шторм и так не считаются); срок вызова (календарные дни) сдвигается на всё время
-    // проверки. Если вызов уже был одобрен, но атака не начата, одобрение снимается — сторона добирает и отправляет заново.
-    const pausedAwake = awakeMsBetween(timeZone, b.attackDoneAt, now, storms), pausedWall = Math.max(0, now.getTime() - b.attackDoneAt.getTime());
+    // Стоп-часы — по часам, без штормов (как и T); срок вызова (календарные дни) сдвигается на всё время проверки.
+    // Если вызов уже был одобрен, но испытание не начато, одобрение снимается — сторона добирает и отправляет заново.
+    const pausedAwake = activeMsBetween(timeZone, b.attackDoneAt, now, storms), pausedWall = Math.max(0, now.getTime() - b.attackDoneAt.getTime());
     return prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: null, attackApprovedAt: null, attackPausedMs: { increment: pausedAwake }, ...(b.attackDeadline ? { attackDeadline: new Date(b.attackDeadline.getTime() + pausedWall) } : {}) }, include: { entries: true } });
   }
   if (side === "DEFENSE" && b.status === "DEFENSE" && b.defenseDoneAt) {
-    // Сколько дневного времени оставалось в момент отправки — столько же остаётся с момента возврата (с пробуждения, если возврат ночью или в шторм).
-    const left = b.defenseDeadline ? awakeMsBetween(timeZone, b.defenseDoneAt, b.defenseDeadline, storms) : 0;
-    return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null, ...(b.defenseDeadline ? { defenseDeadline: addAwakeMs(timeZone, now, left, storms) } : {}) }, include: { entries: true } });
+    // Сколько времени по часам оставалось в момент отправки — столько же остаётся с момента возврата; срок на ночи или в шторм ждёт пробуждения.
+    const left = b.defenseDeadline ? activeMsBetween(timeZone, b.defenseDoneAt, b.defenseDeadline, storms) : 0;
+    return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null, ...(b.defenseDeadline ? { defenseDeadline: wakeUp(timeZone, addActiveMs(timeZone, now, left, storms), storms) } : {}) }, include: { entries: true } });
   }
   return b;
 }

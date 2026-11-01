@@ -703,4 +703,5 @@ export const PLAYER: Record<string, string> = {
   "Стена": "Wall",
   "Ночью и в шторм стену не строят": "The wall is not built at night or in a storm",
   "зачтено (стена и прошлые испытания): {n}": "counted (wall and past trials): {n}",
+  "Хранителям даётся столько же времени по часам, сколько ушло у претендентов, вместе с ночью; срок, выпавший на ночь, ждёт утра. Они выбирают отрывок из книги и учат не меньше стихов. Стихи этой книги, выученные раньше, и блоки стены засчитываются им сами. Ничья — в пользу хранителей.": "The keepers get as much time by the clock as the challengers spent, night included; a deadline that falls at night waits for the morning. They choose a passage from the book and learn no fewer verses. Verses of this book learned earlier and wall blocks are credited to them automatically. A tie goes to the keepers.",
 };

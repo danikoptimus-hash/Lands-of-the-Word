@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { addAwakeMs, awakeMsBetween, dayLightAt, dayPhase, phaseAt } from "@lotw/domain";
+import { activeMsBetween, addActiveMs, addAwakeMs, awakeMsBetween, dayLightAt, dayPhase, phaseAt, wakeUp } from "@lotw/domain";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
@@ -183,6 +183,17 @@ describe("ночью таймеры испытаний стоят (03.10)", () =
     expect(addAwakeMs(tz, new Date("2026-10-02T22:00:00Z"), 7_200_000).toISOString()).toBe("2026-10-03T04:00:00.000Z");
     // Днём без ночи между — обычное сложение.
     expect(addAwakeMs(tz, new Date("2026-10-03T05:00:00Z"), 1_800_000).toISOString()).toBe("2026-10-03T05:30:00.000Z");
+    // Реальное время (01.11, вечер): ночь считается, пауза только шторм; срок на ночи ждёт 7:00 (в Ташкенте 7:00 = 02:00Z).
+    expect(activeMsBetween(tz, new Date("2026-10-03T15:00:00Z"), new Date("2026-10-04T03:00:00Z"))).toBe(12 * 3_600_000);
+    const storm = [{ weekday: 6, from: "21:00", to: "22:00" }]; // суббота 03.10.2026, 21:00–22:00 по Ташкенту = 16:00–17:00Z
+    expect(activeMsBetween(tz, new Date("2026-10-03T15:00:00Z"), new Date("2026-10-03T18:00:00Z"), storm)).toBe(2 * 3_600_000);
+    expect(addActiveMs(tz, new Date("2026-10-03T16:59:00Z"), 60_000, storm).toISOString()).toBe("2026-10-03T17:01:00.000Z"); // из шторма отсчёт с его конца
+    expect(addActiveMs(tz, new Date("2026-10-03T15:00:00Z"), 2 * 3_600_000, storm).toISOString()).toBe("2026-10-03T18:00:00.000Z");
+    expect(wakeUp(tz, new Date("2026-10-03T18:01:00Z")).toISOString()).toBe("2026-10-04T02:00:00.000Z");
+    expect(wakeUp(tz, new Date("2026-10-03T12:00:00Z")).toISOString()).toBe("2026-10-03T12:00:00.000Z");
+    // Шторм до 22:00 переходит в ночь: пробуждение — 7:00; дневной шторм — его конец.
+    expect(wakeUp(tz, new Date("2026-10-03T16:30:00Z"), storm).toISOString()).toBe("2026-10-04T02:00:00.000Z");
+    expect(wakeUp(tz, new Date("2026-10-03T07:30:00Z"), [{ weekday: 6, from: "12:00", to: "13:00" }]).toISOString()).toBe("2026-10-03T08:00:00.000Z");
   });
 });
 
@@ -230,9 +241,9 @@ describe("испытание по решениям 18.09", () => {
     expect(rej.statusCode).toBe(200);
     const after = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(after.attackDoneAt).toBeNull();
-    // Стоп-часы — дневным временем (ночь не считается, 03.10); срок вызова сдвигается на всё время проверки.
+    // Стоп-часы — по часам, без штормов (решение владельца 01.11, вечер); срок вызова сдвигается на всё время проверки.
     const tz = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone;
-    const pausedAwake = awakeMsBetween(tz, new Date(Date.now() - 600_000), new Date());
+    const pausedAwake = activeMsBetween(tz, new Date(Date.now() - 600_000), new Date());
     expect(Math.abs(after.attackPausedMs - pausedAwake)).toBeLessThan(5_000);
     expect(after.attackDeadline!.getTime() - before.attackDeadline!.getTime()).toBeGreaterThan(590_000);
     // Уступить город нельзя — такого действия нет.
@@ -247,9 +258,9 @@ describe("испытание по решениям 18.09", () => {
     expect((await post(`/api/games/${gameId}/battles/${battleId}/attack`, p2Cookie)).statusCode).toBe(200);
     const def = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(def.status).toBe("DEFENSE");
-    // T — дневное время от старта до отправки минус стоп-часы; дедлайн ответа — через T дневного времени от начала атаки.
-    const expectedT = awakeMsBetween(tz, def.startedAt!, def.attackDoneAt!) - def.attackPausedMs;
-    expect(Math.abs(def.defenseDeadline!.getTime() - addAwakeMs(tz, def.attackLaunchedAt!, expectedT).getTime())).toBeLessThan(5_000);
+    // T — время по часам от старта до отправки минус стоп-часы; срок ответа — через T по часам от начала испытания (на ночи — с 7:00).
+    const expectedT = activeMsBetween(tz, def.startedAt!, def.attackDoneAt!) - def.attackPausedMs;
+    expect(Math.abs(def.defenseDeadline!.getTime() - wakeUp(tz, addActiveMs(tz, def.attackLaunchedAt!, expectedT)).getTime())).toBeLessThan(5_000);
     expect(expectedT).toBeGreaterThan(0);
     // Претенденты не видят отрывок и суммы хранителей, хранителям нужно ровно 10.
     const mine = await get(`/api/games/${gameId}/my-battles`, p2Cookie);
