@@ -172,10 +172,13 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const isChange = started && body.gameRole !== undefined && membership.gameRole !== "NONE" && body.gameRole !== membership.gameRole;
     // Лимит считается по участнику, а не по команде (решение владельца 19.10): смена роли одному не мешает сменить роль другому.
     if (isChange && !isAdmin && membership.roleChangedAt && rules.roleChangeDays > 0 && Date.now() - membership.roleChangedAt.getTime() < days(rules.roleChangeDays)) {
-      return reply.code(429).send({ error: "cooldown", message: err(request, "Роль этого участника меняется не чаще раза в {n} дн.; следующая смена — {date}", { n: rules.roleChangeDays, date: new Date(membership.roleChangedAt.getTime() + days(rules.roleChangeDays)).toLocaleDateString("ru-RU") }) });
+      return reply.code(429).send({ error: "cooldown", message: err(request, "Роль этого участника меняется не чаще раза в {n} дн.; следующая смена — {date}", { n: rules.roleChangeDays, date: new Date(membership.roleChangedAt.getTime() + days(rules.roleChangeDays)).toLocaleDateString("ru-RU", { timeZone: rules.timeZone }) }) });
     }
     // Одну роль могут носить несколько участников (решение владельца 23.09: все игроки с ролями, команды бывают больше набора ролей).
-    const updated = await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { ...body, ...(body.gameRole !== undefined ? { pendingRole: null, ...(started ? { roleChangedAt: new Date() } : {}) } : {}) }, select: memberSelect });
+    // Отметка смены ставится только при настоящей выдаче или смене роли (жалоба капитана 01.11: повторный выбор той же
+    // роли или снятие роли сдвигали недельный срок, и «следующая смена» уезжала вперёд).
+    const stamp = started && body.gameRole !== undefined && body.gameRole !== "NONE" && body.gameRole !== membership.gameRole;
+    const updated = await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { ...body, ...(body.gameRole !== undefined ? { pendingRole: null, ...(stamp ? { roleChangedAt: new Date() } : {}) } : {}) }, select: memberSelect });
     if (body.gameRole !== undefined) {
       if (body.gameRole !== "NONE") journal(id, "role_changed", { teamId, userId, vars: { user: await nick(userId), role: ROLE_RU[body.gameRole] ?? body.gameRole } });
     }
