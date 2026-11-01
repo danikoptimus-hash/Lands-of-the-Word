@@ -1,4 +1,4 @@
-import { activeMsBetween, addActiveMs, wakeUp } from "@lotw/domain";
+import { activeMsBetween, addAwakeMs, awakeMsBetween } from "@lotw/domain";
 import { scheduleAwards } from "./awards.js";
 import { prisma } from "../db.js";
 import { publish } from "./events.js";
@@ -247,10 +247,10 @@ export async function approveAttack(b: BattleWithEntries): Promise<BattleWithEnt
 }
 
 /**
- * Капитан претендентов нажал «Испытать»: хранители узнают о вызове, идёт время ответа. Реальное время обеим сторонам
- * (решение владельца 01.11, вечер: ночь считается претендентам и ровно так же отдаётся хранителям, чтобы отрывок,
- * взятый в 21:59, не давал ночь бесплатно): T — время по часам от выдачи отрывка до отправки на проверку минус
- * стоп-часы, пауза — только шторм; срок ответа — через T по часам, а выпавший на ночь или шторм срок ждёт пробуждения.
+ * Капитан претендентов нажал «Испытать»: хранители узнают о вызове, идёт время ответа. T претендентов — по часам
+ * (решение владельца 01.11, вечер: ночь считается, чтобы отрывок, взятый в 21:59, не давал ночь бесплатно; пауза — только
+ * шторм) от выдачи отрывка до отправки на проверку минус стоп-часы. Хранителям — те же T, но дневным временем: ночью и в
+ * шторм их таймер стоит (решение владельца 01.11, ночь: «они не заставляли атакующих нападать и учить ночью»).
  */
 export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
   if (b.status !== "ATTACK" || !b.attackDoneAt || !b.startedAt) return { ok: false, message: "Вызов сейчас не идёт" };
@@ -259,7 +259,7 @@ export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; ba
   const rules = await gameRules(b.gameId);
   const now = new Date();
   const T = Math.max(rules.minAnswerSeconds * 1000, activeMsBetween(rules.timeZone, b.startedAt, b.attackDoneAt, rules.storms) - b.attackPausedMs);
-  let upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackLaunchedAt: now, defenseDeadline: wakeUp(rules.timeZone, addActiveMs(rules.timeZone, now, T, rules.storms), rules.storms) }, include: { entries: true } });
+  let upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "DEFENSE", attackLaunchedAt: now, defenseDeadline: addAwakeMs(rules.timeZone, now, T, rules.storms) }, include: { entries: true } });
   // С этого момента о вызове узнают все (решение владельца 31.10): хранители — письмом ниже, остальные — новостью.
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_defense", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
   upd = await carryLearnedVerses(upd);
@@ -343,9 +343,9 @@ export async function afterReject(b: BattleWithEntries, side: "ATTACK" | "DEFENS
     return prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: null, attackApprovedAt: null, attackPausedMs: { increment: pausedAwake }, ...(b.attackDeadline ? { attackDeadline: new Date(b.attackDeadline.getTime() + pausedWall) } : {}) }, include: { entries: true } });
   }
   if (side === "DEFENSE" && b.status === "DEFENSE" && b.defenseDoneAt) {
-    // Сколько времени по часам оставалось в момент отправки — столько же остаётся с момента возврата; срок на ночи или в шторм ждёт пробуждения.
-    const left = b.defenseDeadline ? activeMsBetween(timeZone, b.defenseDoneAt, b.defenseDeadline, storms) : 0;
-    return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null, ...(b.defenseDeadline ? { defenseDeadline: wakeUp(timeZone, addActiveMs(timeZone, now, left, storms), storms) } : {}) }, include: { entries: true } });
+    // Сколько дневного времени оставалось в момент отправки — столько же остаётся с момента возврата (с пробуждения, если возврат ночью или в шторм).
+    const left = b.defenseDeadline ? awakeMsBetween(timeZone, b.defenseDoneAt, b.defenseDeadline, storms) : 0;
+    return prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null, ...(b.defenseDeadline ? { defenseDeadline: addAwakeMs(timeZone, now, left, storms) } : {}) }, include: { entries: true } });
   }
   return b;
 }

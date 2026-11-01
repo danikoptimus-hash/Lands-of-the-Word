@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
-import { activeMsBetween, addActiveMs, wakeUp } from "@lotw/domain";
+import { activeMsBetween, addAwakeMs } from "@lotw/domain";
 import { rulesOf } from "./services/rules.js";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
@@ -157,12 +157,12 @@ describe("битва за город", () => {
     expect(((await get(`/api/games/${gameId}/my-battles`, p1Cookie)).json().battles as Array<{ id: string; status: string }>).find((x) => x.id === battleId)?.status).toBe("DEFENSE");
     expect(((await get(`/api/games/${gameId}/my-map`, p1Cookie)).json().cities as Array<{ nodeKey: string; battle: string | null }>).find((c) => c.nodeKey === rutKey)?.battle).toBe("DEFENSE");
     expect(await prisma.journal.count({ where: { gameId, kind: "trial_defense", everyone: true } })).toBe(1);
-    // Реальное время обеим сторонам (решение владельца 01.11, вечер): T — по часам от старта до отправки, пауза только шторм;
-    // срок ответа — через T по часам от начала испытания, а выпавший на ночь срок ждёт 7:00.
+    // T претендентов — по часам от старта до отправки (01.11, вечер), пауза только шторм; хранителям — T дневного времени:
+    // ночью и в шторм их таймер стоит (01.11, ночь).
     const tz = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone;
     const T = activeMsBetween(tz, b.startedAt!, b.attackDoneAt!) - b.attackPausedMs;
     expect(Math.abs(T - 3_000_000)).toBeLessThan(5_000);
-    expect(Math.abs(b.defenseDeadline!.getTime() - wakeUp(tz, addActiveMs(tz, b.attackLaunchedAt!, T)).getTime())).toBeLessThan(5_000);
+    expect(Math.abs(b.defenseDeadline!.getTime() - addAwakeMs(tz, b.attackLaunchedAt!, T).getTime())).toBeLessThan(5_000);
     await setGamePhase(app, gameId, adminCookie, "morning");
   });
 

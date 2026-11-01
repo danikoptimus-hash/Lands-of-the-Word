@@ -258,9 +258,9 @@ describe("испытание по решениям 18.09", () => {
     expect((await post(`/api/games/${gameId}/battles/${battleId}/attack`, p2Cookie)).statusCode).toBe(200);
     const def = await prisma.battle.findUniqueOrThrow({ where: { id: battleId } });
     expect(def.status).toBe("DEFENSE");
-    // T — время по часам от старта до отправки минус стоп-часы; срок ответа — через T по часам от начала испытания (на ночи — с 7:00).
+    // T — время по часам от старта до отправки минус стоп-часы; срок ответа — через T дневного времени от начала испытания.
     const expectedT = activeMsBetween(tz, def.startedAt!, def.attackDoneAt!) - def.attackPausedMs;
-    expect(Math.abs(def.defenseDeadline!.getTime() - wakeUp(tz, addActiveMs(tz, def.attackLaunchedAt!, expectedT)).getTime())).toBeLessThan(5_000);
+    expect(Math.abs(def.defenseDeadline!.getTime() - addAwakeMs(tz, def.attackLaunchedAt!, expectedT).getTime())).toBeLessThan(5_000);
     expect(expectedT).toBeGreaterThan(0);
     // Претенденты не видят отрывок и суммы хранителей, хранителям нужно ровно 10.
     const mine = await get(`/api/games/${gameId}/my-battles`, p2Cookie);
