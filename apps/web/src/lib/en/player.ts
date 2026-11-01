@@ -105,7 +105,7 @@ export const PLAYER: Record<string, string> = {
   "стих": "verse", "стиха": "verses", "стихов": "verses",
   // Состав и роли
   "Роль: {name}": "Role: {name}", "Что даёт роль": "What the role gives", "Нажмите роль — она назначится сразу. Повторное нажатие на выданную роль снимает её.": "Tap a role — it is assigned at once. Tapping the given role again removes it.",
-  "Раз в неделю может разведать, что за стороной: город или развилка.": "Once a week can scout what lies beyond a side: a city or a crossroads.",
+  "Раз в неделю может разведать, что за стороной: город или развилка. И раз в неделю, отдельно, — есть ли стена у чужого города.": "Once a week can scout what lies beyond a side: a city or a fork. And once a week, separately, whether another team’s city has a wall.",
   "Раз в неделю зажигает свечу к заданию города и один раз видит письмо с подсказкой.": "Once a week lights a candle for a city task and sees the hint letter once.",
   "Просит проходы через чужие города, отвечает на чужие запросы, предлагает мир.": "Asks for passage through other teams’ cities, answers their requests, offers peace.",
   "Сдаёт дела за команду и следит, чтобы ссылки и фото были приложены.": "Submits deeds for the team and makes sure links and photos are attached.",
@@ -704,4 +704,14 @@ export const PLAYER: Record<string, string> = {
   "Ночью и в шторм стену не строят": "The wall is not built at night or in a storm",
   "зачтено (стена и прошлые испытания): {n}": "counted (wall and past trials): {n}",
   "Хранителям даётся столько же времени, сколько прошло у претендентов по часам, вместе с ночью, но ночью и в шторм таймер хранителей стоит. Они выбирают отрывок из книги и учат не меньше стихов. Стихи этой книги, выученные раньше, и блоки стены засчитываются им сами. Ничья — в пользу хранителей.": "The keepers get as much time as the challengers spent by the clock, night included, but the keepers’ timer stands still at night and in a storm. They choose a passage from the book and learn no fewer verses. Verses of this book learned earlier and wall blocks are credited to them automatically. A tie goes to the keepers.",
+  // Разведка стен (решение владельца 02.11).
+  "Разведано {d}": "Scouted {d}",
+  "без стены": "no wall",
+  "Разведать стену": "Scout the wall",
+  "Следующая разведка стен — {d}": "Next wall scouting — {d}",
+  "Разведка: у города есть стена": "Scouting: the city has a wall",
+  "Разведка: стены нет": "Scouting: no wall",
+  "{user} разведал(а) стену города {book}: {result}": "{user} scouted the wall of the city of {book}: {result}",
+  "стена есть": "there is a wall",
+  "стены нет": "no wall",
 };

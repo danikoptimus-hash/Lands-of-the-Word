@@ -28,7 +28,7 @@ async function memberIds(teamId: string): Promise<Set<string>> {
   return new Set((await prisma.membership.findMany({ where: { teamId }, select: { userId: true } })).map((m) => m.userId));
 }
 
-/** Толщина стены команды в городе: стихи принятых блоков нынешних участников (воин — вдвое) и число блоков. */
+/** Толщина стены команды в городе: стихи принятых блоков нынешних участников и число блоков; блок воина — два блока (решение владельца 02.11). */
 export async function wallOf(teamId: string, nodeKey: string): Promise<{ verses: number; blocks: number; pending: number }> {
   const [rows, members] = await Promise.all([
     prisma.wallBlock.findMany({ where: { teamId, nodeKey, status: { in: ["APPROVED", "SUBMITTED"] } }, select: { userId: true, startIdx: true, endIdx: true, weight: true, status: true } }),
@@ -37,8 +37,8 @@ export async function wallOf(teamId: string, nodeKey: string): Promise<{ verses:
   let verses = 0, blocks = 0, pending = 0;
   for (const r of rows) {
     if (!members.has(r.userId)) continue;
-    if (r.status === "SUBMITTED") { pending++; continue; }
-    blocks++;
+    if (r.status === "SUBMITTED") { pending += r.weight; continue; }
+    blocks += r.weight;
     verses += (r.endIdx - r.startIdx + 1) * r.weight;
   }
   return { verses, blocks, pending };

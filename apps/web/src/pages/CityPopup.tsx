@@ -83,6 +83,16 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   const [struck, setStruck] = useState<number | null>(null);
   const [capResult, setCapResult] = useState<"ok" | "bad" | null>(null);
 
+  /** Разведка стены чужого города (решение владельца 02.11): есть стена или нет, без толщины; раз в неделю, свой лимит. */
+  async function scoutWall() {
+    setBusy(true);
+    try {
+      const r = await api<{ hasWall: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/scout-wall`, { method: "POST" });
+      notify(r.hasWall ? t("Разведка: у города есть стена") : t("Разведка: стены нет"));
+      await load(); onChanged();
+    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  }
   const load = useCallback(() => api<MyCityDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`).then((c) => { setCity(c); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [gameId, nodeKey]);
   useEffect(() => { void load(); }, [load, version]);
   useEffect(() => { const tm = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(tm); }, []);
@@ -195,8 +205,10 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       <div className="title">
         <h2 id="city-title">{book?.nameRu ?? t("Город")}</h2>
         <div className="status">{statusLine}{city?.state.isCapital && <Chip tone="solid" icon="crown">{t("Столица")}</Chip>}
-          {/* Городская стена (решение владельца 01.11): хранителям — толщина, другим командам — только что стена есть. */}
-          {city?.wall?.exists && <Chip tone="solid" icon="wall" title={city.wall.verses != null ? t("Городская стена: {n}", { n: plural(city.wall.verses, ["стих", "стиха", "стихов"]) }) : t("У города есть стена")}>{city.wall.verses != null ? city.wall.verses : t("стена")}</Chip>}
+          {/* Городская стена: хранителям — толщина; чужим — что разведал разведчик (решение владельца 02.11), кнопка разведки — разведчику. */}
+          {city?.wall?.verses != null && city.wall.exists && <Chip tone="solid" icon="wall" title={t("Городская стена: {n}", { n: plural(city.wall.verses, ["стих", "стиха", "стихов"]) })}>{city.wall.verses}</Chip>}
+          {city?.wall?.scouted && <Chip tone="solid" icon={city.wall.exists ? "wall" : "telescope"} title={t("Разведано {d}", { d: city.wall.scoutedAt ? fmtDate(city.wall.scoutedAt, { time: false }) : "" })}>{city.wall.exists ? t("стена") : t("без стены")}</Chip>}
+          {city?.wall?.canScout && <button type="button" className="secondary icon sm" aria-label={t("Разведать стену")} title={city.wall.nextScoutAt ? t("Следующая разведка стен — {d}", { d: fmtDate(city.wall.nextScoutAt, { time: false }) }) : t("Разведать стену")} disabled={busy || night || Boolean(city.wall.nextScoutAt)} onClick={() => void scoutWall()}><Icon name="telescope" /></button>}
           {city?.content && <ProphetCandle availableAt={city.state.hintAvailableAt} now={now} />}</div>
         {/* Кто ещё дошёл до города (решение владельца 12.10): точки команд в подписи на карте, здесь — с названиями и датой. */}
         {city?.visitors && city.visitors.length > 0 && (

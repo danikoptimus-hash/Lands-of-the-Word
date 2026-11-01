@@ -634,8 +634,11 @@ async function computeTeamMap(gameId: string, teamId: string) {
   ]);
   const stateByKey = new Map(cityStates.map((s) => [s.nodeKey, s]));
   const ownerByKey = new Map(owners.map((o) => [o.nodeKey, o.team]));
-  // Городская стена (решение владельца 01.11): все видят, что стена есть; толщину — только хранители, в окне города.
-  const walls = await wallsAt(gameId, owners.map((o) => ({ nodeKey: o.nodeKey, teamId: o.teamId })));
+  // Городская стена: свой город — живая стена; чужой — только снимок разведчика (решение владельца 02.11: «значок стены
+  // не виден по умолчанию… нужно разведывать через разведчика»), толщину чужие не знают никогда.
+  const ownerTeamByKey = new Map(owners.map((o) => [o.nodeKey, o.teamId]));
+  const walls = await wallsAt(gameId, owners.filter((o) => o.teamId === teamId).map((o) => ({ nodeKey: o.nodeKey, teamId: o.teamId })));
+  const scoutedWall = new Map((await prisma.teamWallScout.findMany({ where: { teamId }, select: { nodeKey: true, hasWall: true } })).map((s) => [s.nodeKey, s.hasWall]));
   // Когда город взят нынешним владельцем (любой командой): салют над городом в день взятия (решение владельца 24.10).
   const takenAtByKey = new Map(owners.map((o) => [o.nodeKey, o.capturedAt?.toISOString() ?? null]));
   // Роль команды в активной битве за город: претендент (синий знак) или хранитель (красный). Тайна вызова (замечание
@@ -657,7 +660,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
       isCapital: s?.isCapital ?? false,
       battle: battleByKey.get(n.key) ?? null,
       ruined: n.ruined,
-      wall: walls.has(n.key),
+      wall: ownerTeamByKey.get(n.key) === teamId ? walls.has(n.key) : scoutedWall.get(n.key) ?? false,
       // Проход дальше через чужой город: закрыт, пока владелец не разрешит.
       blocked: blocked.has(n.key),
       passage: passageByKey.get(n.key) ?? null,

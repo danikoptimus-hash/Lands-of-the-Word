@@ -33,7 +33,7 @@ export type JournalKind =
   | "support_answered" | "ship_ready" | "deed_released" | "deeds_frozen" | "deeds_unfrozen"
   | "member_left" | "member_joined" | "member_moved"
   // Городская стена (решение владельца 01.11).
-  | "wall_block_submitted" | "wall_block_approved" | "wall_block_returned" | "wall_applied";
+  | "wall_block_submitted" | "wall_block_approved" | "wall_block_returned" | "wall_applied" | "wall_scouted";
 
 export type JournalVars = Record<string, string | number>;
 
@@ -114,6 +114,7 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   wall_block_approved: "Блок стены города {book} принят: {ref}. Толщина стены — {n} стихов",
   wall_block_returned: "Блок стены города {book} возвращён администратором: {ref}{comment}",
   wall_applied: "Стена города {book} легла в ответ: зачтено {n} стихов",
+  wall_scouted: "{user} разведал(а) стену города {book}: {result}",
 };
 
 /** Текст записи на языке получателя (для писем и летописи). */

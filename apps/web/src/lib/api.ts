@@ -89,8 +89,8 @@ export interface TaskLockDto { index: number; wrong: number; lockedUntil: number
 export interface SupportItemDto { id: string; taskIndex: number | null; createdAt: number; status: "OPEN" | "CLOSED"; reply: string | null }
 export interface MyCityDto {
   daytime?: DaytimeDto;
-  /** Городская стена (решение владельца 01.11): хранителям — толщина, остальным — только есть ли. */
-  wall?: { exists: boolean; verses?: number; blocks?: number; pending?: number } | null;
+  /** Городская стена: хранителям — толщина; чужим — снимок разведчика (02.11): разведано ли, есть ли, когда, можно ли разведать. */
+  wall?: { exists?: boolean; verses?: number; blocks?: number; pending?: number; scouted?: boolean; scoutedAt?: string; canScout?: boolean; nextScoutAt?: string | null } | null;
   node: { key: string; bookCode: string; cityType: string | null; ruined: boolean };
   /** Другие команды, дошедшие до этого города: по дате прихода (решение владельца 12.10). */
   visitors?: Array<{ id: string; index: number; name: string; color: string; avatarId?: string | null; at: string | null; sea: boolean }>;
@@ -128,7 +128,7 @@ export type JournalKind = "deed_submitted" | "deed_approved" | "deed_returned" |
   | "trial_submitted" | "answer_submitted" | "trial_approved" | "trial_entry_returned" | "trial_dropped" | "defense_doubled" | "city_fatigue" | "city_locked"
   | "passage_requested" | "passage_given" | "passage_refused" | "passage_expired" | "trade_rejected" | "support_answered" | "ship_ready" | "deed_released"
   | "deeds_frozen" | "deeds_unfrozen" | "member_left" | "member_joined" | "member_moved"
-  | "wall_block_submitted" | "wall_block_approved" | "wall_block_returned" | "wall_applied";
+  | "wall_block_submitted" | "wall_block_approved" | "wall_block_returned" | "wall_applied" | "wall_scouted";
 export interface FeedItemDto { id: string; kind: JournalKind; vars: Record<string, string | number>; text: string; everyone: boolean; mine?: boolean; /** Личная запись (решение владельца 01.11): видна только этому участнику. */ personal?: boolean; at: number; /** Дело, к которому относится запись: администратору — отчёт, участнику — лист дела своей команды (25.10). */ taskId?: string | null }
 /** Сдача дела для администратора: кто взял и участвовал, ссылки, текст, решение. */
 export interface AdminTaskDto { id: string; fromKey: string; toKey: string; status: EdgeTaskStatus; sea: boolean; team: { id: string; name: string; color: string; avatarId?: string | null }; deed: DeedLite; person?: { id: string; name: string } | null; takenBy: { id: string; name: string } | null; participants: Array<{ id: string; name: string }>; links: string[]; note: string; donation: boolean; donationAmount: number | null; takenAt: string | null; submittedAt: string | null; decidedAt: string | null; decidedBy: string | null; adminComment: string; createdAt: string }

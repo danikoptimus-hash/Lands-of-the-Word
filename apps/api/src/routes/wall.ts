@@ -4,7 +4,8 @@ import { prisma } from "../db.js";
 import { assertAwake } from "../services/daytime.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
-import { err, msg } from "../services/i18n.js";
+import { err, fmtDay, msg, toLocale } from "../services/i18n.js";
+import { days } from "../services/rules.js";
 import { requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { notifyAdmins, notifyUser } from "../services/notify.js";
 import { journal, nick } from "../services/journal.js";
@@ -113,6 +114,39 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "submissions" });
     if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "блок стены города {book}", "Команда «{team}» сдала блок городской стены ({ref}). Проверьте запись в блоке «Стены».", { book: city.bookCode, team: m.team.name, ref });
     return reply.code(201).send({ ok: true, id: row.id, ref });
+  });
+
+  /**
+   * Разведка стены (решение владельца 02.11: «значок стены не виден по умолчанию… нужно разведывать через разведчика»):
+   * разведчик раз в `roleCooldownDays` (свой лимит, независимый от разведки перекрёстков) узнаёт, есть ли стена у чужого
+   * города — без толщины. Снимок на момент разведки: стену, построенную позже, покажет только новая разведка.
+   */
+  app.post("/api/games/:id/my-city/:nodeKey/scout-wall", async (request, reply) => {
+    const { id, nodeKey } = request.params as { id: string; nodeKey: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    if (!(await assertAwake(request, reply, id))) return;
+    if (m.gameRole !== "SCOUT") return reply.code(403).send({ error: "forbidden", message: err(request, "Разведать стену может только разведчик команды") });
+    const reached = await prisma.teamNodeState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
+    if (!reached) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда ещё не дошла до этого города") });
+    const owner = await prisma.teamCityState.findFirst({ where: { gameId: id, nodeKey, capturedAt: { not: null } }, select: { teamId: true } });
+    if (!owner || owner.teamId === m.team.id) return reply.code(409).send({ error: "conflict", message: err(request, "Стену разведывают у чужого города") });
+    const rules = await gameRules(id);
+    if (m.wallScoutedAt && Date.now() - m.wallScoutedAt.getTime() < days(rules.roleCooldownDays)) {
+      const next = new Date(m.wallScoutedAt.getTime() + days(rules.roleCooldownDays));
+      return reply.code(429).send({ error: "cooldown", message: err(request, "Разведка стен доступна раз в неделю: следующая — {date}", { date: fmtDay(next, toLocale(request.user?.locale)) }) });
+    }
+    const now = new Date();
+    const hasWall = (await wallOf(owner.teamId, nodeKey)).blocks > 0;
+    await prisma.$transaction([
+      prisma.teamWallScout.upsert({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } }, create: { teamId: m.team.id, nodeKey, hasWall, scoutedAt: now }, update: { hasWall, scoutedAt: now } }),
+      prisma.membership.update({ where: { teamId_userId: { teamId: m.team.id, userId: request.user!.id } }, data: { wallScoutedAt: now } }),
+    ]);
+    const book = (await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: nodeKey } }, select: { bookCode: true } }))?.bookCode ?? "";
+    journal(id, "wall_scouted", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), book, result: hasWall ? "стена есть" : "стены нет" } });
+    publish(id, { type: "map", teamId: m.team.id });
+    publish(id, { type: "cities", teamId: m.team.id });
+    return { hasWall, scoutedAt: now };
   });
 
   /** Убрать свой блок, пока он на проверке. */

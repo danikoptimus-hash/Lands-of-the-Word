@@ -485,6 +485,9 @@ const EN: Record<string, string> = {
   "Команда «{team}» сдала блок городской стены ({ref}). Проверьте запись в блоке «Стены».": "Team “{team}” submitted a city wall block ({ref}). Check the recording in the “Walls” block.",
   "блок стены города {book} возвращён": "wall block of the city of {book} returned",
   "Администратор вернул блок городской стены ({ref}).{comment} Переснимите и сдайте заново.": "The administrator returned the city wall block ({ref}).{comment} Re-record and submit again.",
+  "Разведать стену может только разведчик команды": "Only the team’s scout can scout a wall",
+  "Стену разведывают у чужого города": "Walls are scouted at another team’s city",
+  "Разведка стен доступна раз в неделю: следующая — {date}": "Wall scouting is available once a week: next on {date}",
   "разведчик": "scout", "пророк": "prophet", "посол": "ambassador", "летописец": "chronicler", "кормчий": "helmsman", "воин": "warrior", "без роли": "no role",
 };
 

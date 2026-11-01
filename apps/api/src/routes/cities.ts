@@ -118,9 +118,17 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const arrivals = await prisma.teamEdgeTask.findMany({ where: { gameId: id, toKey: nodeKey, status: "APPROVED", NOT: { teamId: m.team.id } }, select: { decidedAt: true, sea: true, team: { select: { id: true, index: true, name: true, color: true, avatarId: true } } }, orderBy: { decidedAt: "asc" } });
     const seen = new Set<string>();
     const visitors = arrivals.filter((a) => !seen.has(a.team.id) && seen.add(a.team.id)).map((a) => ({ id: a.team.id, index: a.team.index, name: a.team.name, color: a.team.color, at: a.decidedAt, sea: a.sea }));
-    // Городская стена (решение владельца 01.11): хранителям — толщина, остальным — только есть ли стена.
-    const wallFull = ownerState ? await wallOf(ownerState.team.id, nodeKey) : null;
-    const wall = !wallFull ? null : ownerState!.team.id === m.team.id ? { exists: wallFull.blocks > 0, verses: wallFull.verses, blocks: wallFull.blocks, pending: wallFull.pending } : { exists: wallFull.blocks > 0 };
+    // Городская стена (решение владельца 01.11): хранителям — толщина. Чужим — только то, что разведал их разведчик (решение
+    // владельца 02.11): снимок «есть / нет» на момент разведки, кнопка разведчику, свой недельный лимит.
+    let wall: Record<string, unknown> | null = null;
+    if (ownerState && ownerState.team.id === m.team.id) {
+      const w = await wallOf(m.team.id, nodeKey);
+      wall = { exists: w.blocks > 0, verses: w.verses, blocks: w.blocks, pending: w.pending };
+    } else if (ownerState) {
+      const sc = await prisma.teamWallScout.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
+      const nextAt = m.wallScoutedAt ? new Date(m.wallScoutedAt.getTime() + days(rules.roleCooldownDays)) : null;
+      wall = { scouted: Boolean(sc), ...(sc ? { exists: sc.hasWall, scoutedAt: sc.scoutedAt } : {}), canScout: m.gameRole === "SCOUT", nextScoutAt: nextAt && nextAt.getTime() > Date.now() ? nextAt : null };
+    }
     return {
       daytime,
       visitors,

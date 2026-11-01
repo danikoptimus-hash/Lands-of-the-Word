@@ -316,6 +316,7 @@ model Team {
   lastRoleChangeAt DateTime?
   penalties      TeamPenalty[]
   peeks          TeamPeek[]
+  wallScouts     TeamWallScout[]
   marks          TeamMark[]
   /** Аватарка команды (ставит капитан, решение владельца 24.10). */
   avatarId       String?      @unique
@@ -361,6 +362,8 @@ model Membership {
   /** Когда этот разведчик в последний раз разведывал и когда этот пророк открывал подсказку: недельный лимит — на каждого, не на команду (решение владельца 22.10). */
   peekedAt DateTime?
   hintedAt DateTime?
+  /** Разведка стен (решение владельца 02.11): свой недельный лимит, независимый от разведки перекрёстков. */
+  wallScoutedAt DateTime?
   joinedAt DateTime @default(now())
 
   @@id([teamId, userId])
@@ -827,6 +830,18 @@ model PassageRequest {
 }
 
 /** Разведчик заглянул за ребро: известно, город там или пустая развилка (без названия). */
+/** Разведка стены чужого города (решение владельца 02.11): что увидел разведчик — есть стена или нет, без толщины; снимок на момент разведки. */
+model TeamWallScout {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  nodeKey   String
+  hasWall   Boolean
+  scoutedAt DateTime @default(now())
+
+  @@unique([teamId, nodeKey])
+}
+
 model TeamPeek {
   id        String   @id @default(cuid())
   teamId    String

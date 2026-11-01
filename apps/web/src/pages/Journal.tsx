@@ -104,11 +104,12 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   wall_block_approved: "Блок стены города {book} принят: {ref}. Толщина стены — {n} стихов",
   wall_block_returned: "Блок стены города {book} возвращён администратором: {ref}{comment}",
   wall_applied: "Стена города {book} легла в ответ: зачтено {n} стихов",
+  wall_scouted: "{user} разведал(а) стену города {book}: {result}",
 };
 const ICON: Partial<Record<JournalKind, string>> = { trial_peace: "handshake", siege_peace: "handshake", peace_ended: "handshake", trade_proposed: "handshake", trade_countered: "handshake", trade_done: "city", trade_cancelled: "x", deed_submitted: "send", deed_approved: "check", deed_returned: "back", order_solved: "lock", task_solved: "book", city_captured: "city", ruins_taken: "city", treasure: "star", trial_declared: "wave", trial_queued: "list", trial_started: "wave", trial_defense: "wave", trial_repelled: "flag", trial_won: "trophy", trial_burnt: "clock", siege_declared: "scroll", siege_won: "trophy", siege_repelled: "flag", passage_granted: "handshake", passage_denied: "x", sea_landed: "ship", penalty: "alert", role_changed: "user", capital_moved: "crown", peace_offered: "handshake", peace_made: "handshake", peace_broken: "alert", peace_violated: "alert", ally_requested: "shield", ally_joined: "shield", ally_declined: "x", visit_submitted: "send", visit_approved: "check", visit_rejected: "alert", visit_expired: "clock", chronicle: "scroll", game_finished: "trophy",
   trial_submitted: "send", answer_submitted: "send", trial_approved: "check", trial_entry_returned: "back", trial_dropped: "x", defense_doubled: "shield", city_fatigue: "clock", city_locked: "lock",
   passage_requested: "handshake", passage_given: "check", passage_refused: "x", passage_expired: "clock", trade_rejected: "x", support_answered: "mail", ship_ready: "ship", deed_released: "back",
-  deeds_frozen: "alert", deeds_unfrozen: "check", member_left: "users", member_joined: "users", member_moved: "users", wall_block_submitted: "wall", wall_block_approved: "wall", wall_block_returned: "back", wall_applied: "wall" };
+  deeds_frozen: "alert", deeds_unfrozen: "check", member_left: "users", member_joined: "users", member_moved: "users", wall_block_submitted: "wall", wall_block_approved: "wall", wall_block_returned: "back", wall_applied: "wall", wall_scouted: "telescope" };
 
 /** Текст записи: шаблон вида через словарь, код книги подставляется названием, служебные подстановки переводятся. */
 export function journalLine(kind: JournalKind, vars: Record<string, string | number>): string {
@@ -117,7 +118,7 @@ export function journalLine(kind: JournalKind, vars: Record<string, string | num
   if (typeof v.book2 === "string") v.book2 = bookName(v.book2);
   if (typeof v.other === "string" && kind === "treasure") v.other = bookName(v.other);
   // Служебные подстановки — сами шаблоны (например {winner} = «: победила команда «{team}»»): переводятся и заполняются теми же переменными.
-  for (const k of ["capital", "who", "winner", "role", "term", "why", "side", "task", "reason", "answer"]) if (typeof v[k] === "string" && v[k]) v[k] = t(v[k] as string, v);
+  for (const k of ["capital", "who", "winner", "role", "term", "why", "side", "task", "reason", "answer", "result"]) if (typeof v[k] === "string" && v[k]) v[k] = t(v[k] as string, v);
   // Необязательные хвосты (комментарий, причина, сообщение): у старых записей их нет — пусто, а не «{comment}».
   for (const k of ["comment", "message", "reason", "task"]) if (v[k] === undefined) v[k] = "";
   return t(JOURNAL_TEXT[kind] ?? kind, v);

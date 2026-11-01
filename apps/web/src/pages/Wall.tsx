@@ -23,7 +23,9 @@ const blocksWord = (n: number) => plural(n, ["блок", "блока", "блок
  */
 function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string> }) {
   const PER = 8, BW = 40, BH = 18, GAP = 2, MAXROWS = 10, PILE = 2;
-  const approved = blocks.filter((b) => b.status === "APPROVED"), pending = blocks.filter((b) => b.status === "SUBMITTED");
+  // Блок воина — два кирпича (решение владельца 02.11): раскладываем по весу, ключ — id блока и номер кирпича.
+  const bricksOf = (st: WallBlockDto["status"]) => blocks.filter((b) => b.status === st).flatMap((b) => Array.from({ length: Math.max(1, b.weight) }, (_, i) => ({ ...b, key: `${b.id}:${i}` })));
+  const approved = bricksOf("APPROVED"), pending = bricksOf("SUBMITTED");
   const shown = approved.slice(0, PER * MAXROWS);
   const rows = Math.max(1, Math.ceil(shown.length / PER));
   const merlon = 8, ground = 4;
@@ -44,7 +46,7 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
           const x = GAP + c * (BW + GAP) + shiftOf(r);
           if (!b) return r === 0 && approved.length === 0 ? <rect key={i} className="brick ghost" x={x} y={y} width={BW} height={BH} rx={1.5} /> : null;
           const cls = "brick" + ((r + c) % 3 === 1 ? " alt" : "") + (b.mine ? " mine" : "") + (fresh.has(b.id) ? " new" : "");
-          return <rect key={b.id} className={cls} x={x} y={y} width={BW} height={BH} rx={1.5}><title>{`${b.ref} · ${b.nickname}`}</title></rect>;
+          return <rect key={b.key} className={cls} x={x} y={y} width={BW} height={BH} rx={1.5}><title>{`${b.ref} · ${b.nickname}${b.weight > 1 ? ` · ${t("воин ×{k}", { k: b.weight })}` : ""}`}</title></rect>;
         });
       })}
       {/* зубцы — над заполненными колонками верхнего ряда */}
@@ -52,7 +54,7 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
       {/* камни на проверке — рядом со стеной */}
       {pileShown.map((b, i) => {
         const r = Math.floor(i / PILE), c = i % PILE;
-        return <rect key={b.id} className={"brick pending" + (b.mine ? " mine" : "")} x={wallW + GAP * 2 + c * (BW + GAP) + (r % 2 ? (BW + GAP) / 4 : 0)} y={H - ground - (r + 1) * (BH + GAP)} width={BW} height={BH} rx={1.5}><title>{`${b.ref} · ${b.nickname} · ${t("на проверке")}`}</title></rect>;
+        return <rect key={b.key} className={"brick pending" + (b.mine ? " mine" : "")} x={wallW + GAP * 2 + c * (BW + GAP) + (r % 2 ? (BW + GAP) / 4 : 0)} y={H - ground - (r + 1) * (BH + GAP)} width={BW} height={BH} rx={1.5}><title>{`${b.ref} · ${b.nickname} · ${t("на проверке")}`}</title></rect>;
       })}
       <line className="ground" x1={0} x2={W} y1={H - ground + 1} y2={H - ground + 1} />
       {approved.length > shown.length && <text className="more" x={wallW - 4} y={merlon + 14} textAnchor="end">+{approved.length - shown.length}</text>}

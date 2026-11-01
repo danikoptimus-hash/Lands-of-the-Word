@@ -119,13 +119,33 @@ describe("городская стена", () => {
     const w2 = await get(wallUrl(), keeperCookie);
     expect(w2.json().bricks[0].state).toBe("free");
     expect(w2.json().returned[0]).toMatchObject({ ref: "1:1–10", adminComment: "не слышно" });
-    // Карта: у города есть стена, толщина не отдаётся.
-    const map = await get(`/api/games/${gameId}/my-map`, attackerCookie);
-    expect(map.json().cities.find((c: { nodeKey: string }) => c.nodeKey === rutKey).wall).toBe(true);
-    const city = await get(`/api/games/${gameId}/my-city/${rutKey}`, attackerCookie);
-    expect(city.json().wall).toEqual({ exists: true });
+    // Блок воина — два блока и вдвое стихов (решение владельца 02.11).
+    await prisma.membership.update({ where: { teamId_userId: { teamId: keepers, userId: (await prisma.user.findUniqueOrThrow({ where: { nickname: keeperNick } })).id } }, data: { gameRole: "WARRIOR" } });
+    const warrior = await post(wallUrl(), keeperCookie, { block: 2, links: ["https://example.com/v-w"] });
+    expect(warrior.statusCode).toBe(201);
+    await post(`/api/games/${gameId}/walls/${warrior.json().id}/decide`, adminCookie, { approve: true });
     const own = await get(`/api/games/${gameId}/my-city/${rutKey}`, keeperCookie);
-    expect(own.json().wall).toMatchObject({ exists: true, verses: 10, blocks: 1 });
+    expect(own.json().wall).toMatchObject({ exists: true, verses: 30, blocks: 3 });
+    // Чужим стена не видна, пока её не разведал разведчик (решение владельца 02.11): ни на карте, ни в окне города.
+    const map0 = await get(`/api/games/${gameId}/my-map`, attackerCookie);
+    expect(map0.json().cities.find((c: { nodeKey: string }) => c.nodeKey === rutKey).wall).toBe(false);
+    const city0 = await get(`/api/games/${gameId}/my-city/${rutKey}`, attackerCookie);
+    expect(city0.json().wall).toMatchObject({ scouted: false, canScout: false });
+    expect(city0.json().wall.exists).toBeUndefined();
+    const notScout = await post(`/api/games/${gameId}/my-city/${rutKey}/scout-wall`, attackerCookie);
+    expect(notScout.statusCode).toBe(403);
+    await prisma.membership.update({ where: { teamId_userId: { teamId: attackers, userId: (await prisma.user.findUniqueOrThrow({ where: { nickname: attackerNick } })).id } }, data: { gameRole: "SCOUT" } });
+    const scouted = await post(`/api/games/${gameId}/my-city/${rutKey}/scout-wall`, attackerCookie);
+    expect(scouted.statusCode).toBe(200);
+    expect(scouted.json().hasWall).toBe(true);
+    const again2 = await post(`/api/games/${gameId}/my-city/${rutKey}/scout-wall`, attackerCookie);
+    expect(again2.statusCode).toBe(429);
+    const map1 = await get(`/api/games/${gameId}/my-map`, attackerCookie);
+    expect(map1.json().cities.find((c: { nodeKey: string }) => c.nodeKey === rutKey).wall).toBe(true);
+    const city1 = await get(`/api/games/${gameId}/my-city/${rutKey}`, attackerCookie);
+    expect(city1.json().wall).toMatchObject({ scouted: true, exists: true, canScout: true });
+    expect(city1.json().wall.nextScoutAt).toBeTruthy();
+    expect(city1.json().wall.verses).toBeUndefined();
   });
 
   it("при «Испытать» стена ложится в ответ: ставка покрыта — город устоял без единого нового стиха", async () => {
@@ -146,26 +166,27 @@ describe("городская стена", () => {
     for (const e of entries) await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
     const launched = await post(`/api/games/${gameId}/battles/${battleId}/attack`, attackerCookie);
     expect(launched.statusCode).toBe(200);
-    // Принятый блок (10 стихов) покрыл ставку 10: ответ дан сразу, город устоял.
+    // Принятые блоки (10 + блок воина 10×2) покрыли ставку 10: ответ дан сразу, город устоял, уровень = сумме ответа.
     expect(launched.json().status).toBe("REPELLED");
-    const laid = await prisma.battleEntry.findMany({ where: { battleId, side: "DEFENSE" } });
-    expect(laid).toHaveLength(1);
-    expect(laid[0]).toMatchObject({ carried: true, status: "APPROVED", startIdx: 0, endIdx: 9, note: "Блок городской стены" });
+    const laid = await prisma.battleEntry.findMany({ where: { battleId, side: "DEFENSE" }, orderBy: { startIdx: "asc" } });
+    expect(laid).toHaveLength(2);
+    expect(laid[0]).toMatchObject({ carried: true, status: "APPROVED", startIdx: 0, endIdx: 9, weight: 1, note: "Блок городской стены" });
+    expect(laid[1]).toMatchObject({ carried: true, status: "APPROVED", startIdx: 20, endIdx: 29, weight: 2, note: "Блок городской стены" });
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
-    expect(node.defenseLevel).toBe(10);
+    expect(node.defenseLevel).toBe(30);
     await new Promise((r) => setTimeout(r, 300)); // записи летописи пишутся в фоне
     const rows = await prisma.journal.findMany({ where: { gameId, kind: { in: ["wall_applied", "trial_repelled", "wall_block_approved", "wall_block_submitted", "trial_submitted", "trial_approved"] } } });
-    expect(rows.map((r) => r.kind).sort()).toEqual(["trial_approved", "trial_submitted", "wall_applied", "wall_block_approved", "wall_block_submitted", "wall_block_submitted", "wall_block_submitted", "trial_repelled"].sort());
+    expect(rows.map((r) => r.kind).sort()).toEqual(["trial_approved", "trial_submitted", "wall_applied", "wall_block_approved", "wall_block_approved", "wall_block_submitted", "wall_block_submitted", "wall_block_submitted", "wall_block_submitted", "trial_repelled"].sort());
   });
 
   it("стихи блока стены в испытании второй раз не засчитываются; во время ответа стену не строят", async () => {
     // Стражи вызывают Гостей? Город у Стражей — проверим правило «сдано раньше» через их же ответ: сделаем новый вызов.
-    const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, attackerCookie, { bid: 30 });
+    const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, attackerCookie, { bid: 50 });
     expect(declared.statusCode).toBe(201);
     const battleId = declared.json().id as string;
     const war = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, attackerCookie);
     const b = war.json().battles.find((x: { id: string }) => x.id === battleId);
-    const verses = Array.from({ length: 30 }, (_, i) => b.passage.start + i);
+    const verses = Array.from({ length: 50 }, (_, i) => b.passage.start + i);
     // Стихи отмечает второй участник претендентов: у первого часть стихов книги уже сдана в прошлом вызове и второй раз не считается.
     const marked = await post(`/api/games/${gameId}/battles/${battleId}/entries`, attacker2Cookie, { verses, links: ["https://example.com/b"] });
     expect(marked.statusCode).toBe(201);
@@ -181,7 +202,7 @@ describe("городская стена", () => {
     const pendingBlock = await prisma.wallBlock.findFirstOrThrow({ where: { gameId, status: "SUBMITTED" } });
     await post(`/api/games/${gameId}/walls/${pendingBlock.id}/decide`, adminCookie, { approve: true });
     const laid = await prisma.battleEntry.findMany({ where: { battleId, side: "DEFENSE", note: "Блок городской стены" } });
-    expect(laid.map((e) => e.startIdx).sort((x, y) => x - y)).toEqual([0, 10]);
+    expect(laid.map((e) => e.startIdx).sort((x, y) => x - y)).toEqual([0, 10, 20]);
     // Хранитель, сдавший блок 1–10 стеной, не может отметить те же стихи в ответе.
     await post(`/api/games/${gameId}/battles/${battleId}/defense-passage`, keeperCookie, { from: "1:1", to: "2:10" });
     const dto = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, keeper2Cookie);
