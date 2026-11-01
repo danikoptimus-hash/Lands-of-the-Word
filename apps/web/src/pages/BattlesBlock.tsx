@@ -4,7 +4,7 @@ import { api, ApiError, apiReady, ready, type BattleDto, type PassageDto, type B
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
-import { Icon, iconPath } from "../components/Icon";
+import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { Tabs } from "../components/Tabs";
@@ -19,10 +19,11 @@ const bookName = (code: string) => BOOK_BY_CODE.get(code)?.nameRu ?? code;
 
 /** Стрелка «претенденты → хранители» со знаком испытания над ней (решение владельца 01.11). */
 function TrialArrow() {
+  // По эскизу владельца 01.11: знак испытания (две волны), к концу которых прикреплён наконечник стрелки; без древка.
   return (
-    <svg className="trial-arrow" viewBox="0 0 48 30" width="48" height="30" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <g transform="translate(15 -3) scale(0.75)"><path d={iconPath("wave")} /></g>
-      <path d="M5 23h37m-6-6 6 6-6 6" />
+    <svg className="trial-arrow" viewBox="0 0 30 24" width="30" height="20" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 9c2-3 4-3 6 0s4 3 6 0 4-3 6 0M2 15c2-3 4-3 6 0s4 3 6 0 4-3 6 0" />
+      <path d="M22.5 7.5 27.5 12l-5 4.5" />
     </svg>
   );
 }

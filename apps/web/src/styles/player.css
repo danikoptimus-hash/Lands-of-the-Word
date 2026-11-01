@@ -355,7 +355,7 @@
 .trial-head { display: flex; align-items: center; gap: var(--sp-2); min-height: 36px; }
 .trial-head .city { display: inline-flex; align-items: center; gap: var(--sp-1); font-weight: 700; margin-right: var(--sp-1); }
 .trial-head .city .i { width: var(--icon-md); height: var(--icon-md); color: var(--accent); }
-.trial-arrow { flex: none; color: var(--bronze); }
+.trial-arrow { flex: none; width: 30px; height: 20px; color: var(--bronze); }
 .passage-body > p { margin-bottom: var(--sp-2); }
 .trial-steps .mark .i { width: calc(var(--mark) * .62); height: calc(var(--mark) * .62); stroke-width: 3; }
 .trial-steps .cap { max-width: 100%; margin-top: 2px; font: 600 10px/1.2 var(--font-ui); color: var(--text); white-space: nowrap; overflow: visible; }
