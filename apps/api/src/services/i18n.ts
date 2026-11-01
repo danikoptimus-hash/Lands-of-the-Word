@@ -443,7 +443,7 @@ const EN: Record<string, string> = {
   "ваш вызов городу {book} начался": "your challenge to the city of {book} has begun",
   "Очередь дошла до вас: отрывок выдан, срок вызова — до {date}.": "Your turn in the queue has come: the passage is issued, the challenge deadline is {date}.",
   "Команда «{team}» из очереди начала вызов вашему городу, ставка {bid} стихов.": "Team “{team}” from the queue has begun a challenge to your city with a bid of {bid} verses.",
-  " Уже зачтено из прошлых испытаний: {n}.": " Already credited from previous trials: {n}.",
+  " Уже зачтено (стена и прошлые испытания): {n}.": " Already counted (wall and past trials): {n}.",
   " Каждый участник выучил всю книгу: город закреплён до {date}.": " Every member has learned the whole book: the city is locked until {date}.",
   "город {book} слабеет": "the city of {book} is weakening",
   "Из города давно не делали дел: уровень испытания снизился на {n}. Одно одобренное дело на стороне из города остановит убыль.": "No deeds have been done from the city for a long time: its trial level dropped by {n}. One approved deed on a side out of the city stops the decline.",

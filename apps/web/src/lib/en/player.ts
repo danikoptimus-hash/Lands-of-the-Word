@@ -702,4 +702,5 @@ export const PLAYER: Record<string, string> = {
   "стена": "wall",
   "Стена": "Wall",
   "Ночью и в шторм стену не строят": "The wall is not built at night or in a storm",
+  "зачтено (стена и прошлые испытания): {n}": "counted (wall and past trials): {n}",
 };

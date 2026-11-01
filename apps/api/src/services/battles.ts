@@ -268,7 +268,7 @@ export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; ba
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
   const hours = Math.round(T / 360_000) / 10;
   const carried = sumVerses(upd.entries, "DEFENSE", true);
-  notifyTeam(b.gameId, b.defenderId, "пошло время ответа города {book}", (locale) => msg(locale, "Вызов одобрен: {verses} стихов. У вас {hours} ч (до {deadline}), чтобы выучить не меньше.{carried} Капитан выбирает отрывок из книги, участники отмечают выученные стихи и прикрепляют видео.", { verses: b.bid, hours, deadline: fmtDate(upd.defenseDeadline!, locale), carried: carried ? msg(locale, " Уже зачтено из прошлых испытаний: {n}.", { n: carried }) : "" }), { book: b.bookCode });
+  notifyTeam(b.gameId, b.defenderId, "пошло время ответа города {book}", (locale) => msg(locale, "Вызов одобрен: {verses} стихов. У вас {hours} ч (до {deadline}), чтобы выучить не меньше.{carried} Капитан выбирает отрывок из книги, участники отмечают выученные стихи и прикрепляют видео.", { verses: b.bid, hours, deadline: fmtDate(upd.defenseDeadline!, locale), carried: carried ? msg(locale, " Уже зачтено (стена и прошлые испытания): {n}.", { n: carried }) : "" }), { book: b.bookCode });
   // Если зачтённых стихов уже хватает — ответ дан без единого нового стиха.
   if (carried >= defenseNeed(b)) {
     upd = await prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: now, defenseBid: carried }, include: { entries: true } });
