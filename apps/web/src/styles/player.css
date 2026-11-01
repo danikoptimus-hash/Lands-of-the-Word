@@ -355,12 +355,13 @@
 .trial-arrow { flex: none; color: var(--bronze); }
 .passage-body > p { margin-bottom: var(--sp-2); }
 .trial-steps .mark .i { width: calc(var(--mark) * .62); height: calc(var(--mark) * .62); stroke-width: 3; }
-.trial-steps .cap { max-width: 100%; margin-top: 2px; font: 600 10px/1.2 var(--font-ui); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* На телефоне подпись «Испытание» (9 букв) должна влезть в колонку ~47px: 9.5px с лёгким поджатием, без обрезки. */
+.trial-steps .cap { max-width: 100%; margin-top: 2px; font: 600 9.5px/1.2 var(--font-ui); letter-spacing: -.01em; color: var(--text); white-space: nowrap; overflow: visible; }
 .trial-steps .sub { max-width: 100%; font-size: 10px; line-height: 1.15; color: var(--muted); overflow-wrap: anywhere; }
 @media (min-width: 640px) { .trial-steps .sub { line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
 .trial-steps .step.future .cap, .trial-steps .step.future .sub { color: var(--ink-3); opacity: .7; }
 .trial-steps .step.current .cap { color: var(--accent-ink); }
-@media (min-width: 640px) { .trial-steps .cap { font-size: var(--fs-xs); } .trial-steps .sub { font-size: var(--fs-xs); } }
+@media (min-width: 640px) { .trial-steps .cap { font-size: var(--fs-xs); letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; } .trial-steps .sub { font-size: var(--fs-xs); } }
 /* Строка медальонов в списке испытаний: без подписей, 24px. */
 .trial-flow.compact { margin-top: 4px; }
 .trial-flow.compact .trial-steps { --medal: 24px; --mark: 12px; margin: 0; max-width: none; justify-content: flex-start; }
