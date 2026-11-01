@@ -323,7 +323,7 @@
 .trial-turn.admin > .i { color: var(--wax-ink, var(--danger)); }
 .trial-turn.over { background: var(--surface-2); }
 /* На телефоне семь медальонов по 38px с выносом на 8px в поля карточки — чтобы значкам не было тесно (замечание владельца 01.11). */
-.trial-steps { --medal: 38px; --mark: 16px; position: relative; z-index: 0; list-style: none; margin: var(--sp-3) calc(-1 * var(--sp-2)) 0; padding: 0; display: flex; justify-content: space-between; align-items: flex-start; }
+.trial-steps { --medal: 40px; --mark: 16px; position: relative; z-index: 0; list-style: none; margin: var(--sp-3) calc(-1 * var(--sp-2)) 0; padding: 0; display: flex; justify-content: space-between; align-items: flex-start; }
 @media (min-width: 640px) { .trial-steps { --medal: 56px; --mark: 20px; margin: var(--sp-3) auto 0; max-width: 640px; } }
 .trial-steps .step { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
 /* Перемычка от края прошлого медальона до края этого (замечание владельца 31.10: полоса не должна заходить на картинку);
@@ -344,7 +344,7 @@
 .trial-steps .mark.bad { background: var(--danger); }
 .trial-steps .mark.count { top: -5px; right: -6px; bottom: auto; min-width: var(--mark); width: auto; padding: 0 4px; background: var(--wax); color: var(--paper-light); font: 700 10px/var(--mark) var(--font-ui); border-radius: 999px; }
 /* Медальон-кнопка (администратор, решение владельца 01.11): «Стихи» и «Ответ» открывают отрывок, «Проверка» — записи. */
-.trial-steps button.medal { border: 0; padding: 0; cursor: pointer; font: inherit; color: inherit; -webkit-appearance: none; appearance: none; }
+.trial-steps button.medal { border: 0; padding: 0; margin: 0; min-height: 0; min-width: 0; width: var(--medal); height: var(--medal); border-radius: 50%; cursor: pointer; font: inherit; color: inherit; line-height: 0; -webkit-appearance: none; appearance: none; }
 .trial-steps button.medal:hover, .trial-steps button.medal:active { background: var(--paper-light); box-shadow: 0 2px 8px rgba(168, 114, 46, .35); transform: scale(1.06); }
 .trial-steps .step.current button.medal:hover, .trial-steps .step.current button.medal:active { transform: scale(1.12); }
 .trial-steps button.medal:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

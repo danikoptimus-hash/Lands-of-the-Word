@@ -36,13 +36,13 @@ export function trialTurn(b: BattleDto, teamId: string | null, now = Date.now())
     case "ATTACK":
       if (!b.attackDoneAt) return { who: "attacker", mine: attacker, text: attacker ? t("Ваш ход: учите стихи, капитан отправляет вызов на проверку") : t("Ход претендентов «{team}»: учат стихи", { team: b.attacker.name }), detail: `${t("выучено {a} из {b}", { a: b.attackSum, b: b.bid })} · ${t("до {d}", { d: fmtDate(b.attackDeadline) })} · ${t("осталось {t}", { t: left(b.attackDeadline, now) })}` };
       if (!b.attackApprovedAt) return { who: "admin", mine: false, text: t("Ход администратора: проверяет записи вызова"), detail: t("принято {a} из {b}", { a: b.attackApproved, b: b.bid }) };
-      return { who: "attacker", mine: attacker, text: attacker ? t("Ваш ход: вызов одобрен — капитан нажимает «Испытать», когда команда готова") : t("Ход претендентов «{team}»: готовятся к атаке", { team: b.attacker.name }), detail: `${t("атаковать до {d}", { d: fmtDate(b.attackDeadline) })} · ${t("осталось {t}", { t: left(b.attackDeadline, now) })}` };
+      return { who: "attacker", mine: attacker, text: attacker ? t("Ваш ход: вызов одобрен — капитан нажимает «Испытать», когда команда готова") : t("Ход претендентов «{team}»: готовятся к испытанию", { team: b.attacker.name }), detail: `${t("испытать до {d}", { d: fmtDate(b.attackDeadline) })} · ${t("осталось {t}", { t: left(b.attackDeadline, now) })}` };
     case "DEFENSE":
       if (!b.defenseDoneAt) return { who: "defender", mine: defender, text: defender ? t("Ваш ход: учите ответ, капитан отправляет его на проверку") : t("Ход хранителей «{team}»: учат ответ", { team: b.defender.name }), detail: `${defender || !teamId ? t("выучено {a} из {b}", { a: b.defenseSum, b: need }) + " · " : ""}${t("до {d}", { d: fmtDate(b.defenseDeadline) })} · ${t("осталось {t}", { t: left(b.defenseDeadline, now) })}` };
       return { who: "admin", mine: false, text: t("Ход администратора: проверяет записи ответа"), detail: defender || !teamId ? t("принято {a} из {b}", { a: b.defenseApproved, b: need }) : "" };
     case "REPELLED": return { who: "over", mine: false, text: t("Город устоял"), detail: `${b.defenseBid != null ? t("ответ: {n}", { n: verses(b.defenseBid) }) + " · " : ""}${day(b.resolvedAt)}` };
     case "WON": return { who: "over", mine: false, text: t("Город взят"), detail: `${t("ответ не сдан в срок")} · ${day(b.resolvedAt)}` };
-    case "EXPIRED": return { who: "over", mine: false, text: t("Вызов сгорел"), detail: `${b.attackApprovedAt ? t("атака не начата в срок") : t("не отправлен на проверку за срок")} · ${day(b.resolvedAt)}` };
+    case "EXPIRED": return { who: "over", mine: false, text: t("Вызов сгорел"), detail: `${b.attackApprovedAt ? t("испытание не начато в срок") : t("не отправлен на проверку за срок")} · ${day(b.resolvedAt)}` };
     default: return { who: "over", mine: false, text: t("Испытание отменено"), detail: day(b.resolvedAt) };
   }
 }
@@ -62,10 +62,10 @@ export function trialSteps(b: BattleDto, teamId: string | null, admin = false): 
   const check1: Step = s === "ATTACK" && b.attackDoneAt && !approved ? { key: "check1", icon: "check", cap: t("Проверка"), sub: admin ? "" : t("{a} из {b}", { a: b.attackApproved, b: b.bid }), state: "current" }
     : approved ? { key: "check1", icon: "check", cap: t("Проверка"), sub: day(b.attackApprovedAt), state: "done" }
     : { key: "check1", icon: "check", cap: t("Проверка"), sub: "", state: "future" };
-  const attack: Step = s === "ATTACK" && approved ? { key: "attack", icon: "attack", cap: t("Атака"), sub: t("до {d}", { d: day(b.attackDeadline) }), state: "current" }
-    : launched ? { key: "attack", icon: "attack", cap: t("Атака"), sub: day(launched), state: "done" }
-    : s === "EXPIRED" && approved ? { key: "attack", icon: "attack", cap: t("Атака"), sub: t("не начата"), state: "failed" }
-    : { key: "attack", icon: "attack", cap: t("Атака"), sub: "", state: "future" };
+  const attack: Step = s === "ATTACK" && approved ? { key: "attack", icon: "attack", cap: t("Испытание"), sub: t("до {d}", { d: day(b.attackDeadline) }), state: "current" }
+    : launched ? { key: "attack", icon: "attack", cap: t("Испытание"), sub: day(launched), state: "done" }
+    : s === "EXPIRED" && approved ? { key: "attack", icon: "attack", cap: t("Испытание"), sub: t("не начато"), state: "failed" }
+    : { key: "attack", icon: "attack", cap: t("Испытание"), sub: "", state: "future" };
   const answer: Step = s === "DEFENSE" && !b.defenseDoneAt ? { key: "answer", icon: "answer", cap: t("Ответ"), sub: admin ? verses(need) : defenderSees ? t("{a} из {b}", { a: b.defenseSum, b: need }) : verses(need), state: "current" }
     : s === "DEFENSE" || s === "REPELLED" ? { key: "answer", icon: "answer", cap: t("Ответ"), sub: day(b.defenseDoneAt), state: "done" }
     : s === "WON" ? { key: "answer", icon: "answer", cap: t("Ответ"), sub: t("не сдан"), state: "failed" }

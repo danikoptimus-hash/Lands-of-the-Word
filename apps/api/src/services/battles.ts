@@ -230,7 +230,7 @@ export async function approveAttack(b: BattleWithEntries): Promise<BattleWithEnt
   const pausedWall = Math.max(0, now.getTime() - b.attackDoneAt.getTime());
   const upd = await prisma.battle.update({ where: { id: b.id }, data: { attackApprovedAt: now, ...(b.attackDeadline ? { attackDeadline: new Date(b.attackDeadline.getTime() + pausedWall) } : {}) }, include: { entries: true } });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
-  notifyTeam(b.gameId, b.attackerId, "вызов городу {book} одобрен", (locale) => msg(locale, "Все записи приняты: {verses} стихов. Нажмите «Испытать», когда команде удобно (не ночью и не в шторм): с этого момента хранители узнают о вызове, и у них будет столько же времени, сколько ушло у вас. Атаковать нужно до {deadline}, иначе вызов сгорит.", { verses: b.bid, deadline: upd.attackDeadline ? fmtDate(upd.attackDeadline, locale) : "" }), { book: b.bookCode });
+  notifyTeam(b.gameId, b.attackerId, "вызов городу {book} одобрен", (locale) => msg(locale, "Все записи приняты: {verses} стихов. Нажмите «Испытать», когда команде удобно (не ночью и не в шторм): с этого момента хранители узнают о вызове, и у них будет столько же времени, сколько ушло у вас. Испытать нужно до {deadline}, иначе вызов сгорит.", { verses: b.bid, deadline: upd.attackDeadline ? fmtDate(upd.attackDeadline, locale) : "" }), { book: b.bookCode });
   return upd;
 }
 
@@ -242,7 +242,7 @@ export async function approveAttack(b: BattleWithEntries): Promise<BattleWithEnt
 export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
   if (b.status !== "ATTACK" || !b.attackDoneAt || !b.startedAt) return { ok: false, message: "Вызов сейчас не идёт" };
   if (!b.attackApprovedAt) return { ok: false, message: "Вызов ещё не проверен администратором" };
-  if (b.attackLaunchedAt) return { ok: false, message: "Атака уже начата" };
+  if (b.attackLaunchedAt) return { ok: false, message: "Испытание уже начато" };
   const rules = await gameRules(b.gameId);
   const now = new Date();
   const T = Math.max(rules.minAnswerSeconds * 1000, awakeMsBetween(rules.timeZone, b.startedAt, b.attackDoneAt, rules.storms) - b.attackPausedMs);
@@ -403,7 +403,7 @@ export async function sweep(gameId?: string): Promise<void> {
     publish(b.gameId, { type: "map", teamId: b.attackerId });
     publish(b.gameId, { type: "map", teamId: b.defenderId });
     { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_burnt", { everyone: false, teamId: b.attackerId, vars: { team: a, other: d, book: b.bookCode } }); }
-    notifyTeam(b.gameId, b.attackerId, "вызов городу {book} не завершён", b.attackApprovedAt ? "Вызов был одобрен, но атака не начата в срок. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}." : "За {days} дней вызов не был отправлен на проверку. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}.", { book: b.bookCode, days: rules.attackDays, penalty: rules.burnPenalty });
+    notifyTeam(b.gameId, b.attackerId, "вызов городу {book} не завершён", b.attackApprovedAt ? "Вызов был одобрен, но испытание не начато в срок. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}." : "За {days} дней вызов не был отправлен на проверку. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}.", { book: b.bookCode, days: rules.attackDays, penalty: rules.burnPenalty });
     await startNextFromQueue(b.gameId, b.nodeKey);
   }
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });

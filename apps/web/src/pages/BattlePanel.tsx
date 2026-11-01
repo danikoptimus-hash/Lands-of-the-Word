@@ -212,9 +212,9 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
           <div className="note"><Icon name="check" /><span>{t("Вызов одобрен. Хранители ещё не знают о нём: нажмите «Испытать», когда команда готова — у них будет столько же времени, сколько ушло у вас.")}</span></div>
           {isCaptain
             ? <div className="actions"><button type="button" disabled={!canSend} onClick={() => void launch()}><Icon name="flag" />{t("Испытать")}</button></div>
-            : <p className="hint">{t("Атаку начинает капитан или заместитель.")}</p>}
-          {night && <p className="hint">{t("Ночью атаку не начинают: с 7:00 по местному времени.")}</p>}
-          {storm && !night && <p className="hint">{t("В шторм атаку не начинают.")}</p>}
+            : <p className="hint">{t("Испытание начинает капитан или заместитель.")}</p>}
+          {night && <p className="hint">{t("Ночью испытание не начинают: с 7:00 по местному времени.")}</p>}
+          {storm && !night && <p className="hint">{t("В шторм испытание не начинают.")}</p>}
         </div>
       )}
       {b.status === "QUEUED" && attacker && (

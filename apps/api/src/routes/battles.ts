@@ -358,12 +358,12 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const { id, battleId } = request.params as { id: string; battleId: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Начать атаку может только капитан") });
+    if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Начать испытание может только капитан") });
     if (!(await assertAwake(request, reply, id))) return;
     await sweep(id);
     const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true } });
     if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
-    if (b.attackerId !== m.team.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Атаку начинают претенденты") });
+    if (b.attackerId !== m.team.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Испытание начинают претенденты") });
     const r = await launchAttack(b);
     if (!r.ok) return reply.code(409).send({ error: "conflict", message: err(request, r.message) });
     publish(id, { type: "battles", teamId: m.team.id });
