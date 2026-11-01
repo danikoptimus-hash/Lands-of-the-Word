@@ -785,7 +785,8 @@ export function TeamPage() {
               <ul className="list interactive">
                 {battlesList.map((b) => {
                   const attacker = b.attacker.id === team.id;
-                  const deadline = b.status === "ATTACK" ? b.attackDeadline : b.status === "DEFENSE" ? b.defenseDeadline : null;
+                  // Отсчёт идёт только пока сторона учит: после «Отправить на проверку» часы стоят (стоп-часы на сервере), и срок не показывается.
+                  const deadline = b.status === "ATTACK" && !b.attackDoneAt ? b.attackDeadline : b.status === "DEFENSE" && !b.defenseDoneAt ? b.defenseDeadline : null;
                   const meta = [deadline ? t("осталось {t}", { t: leftText(deadline, now) }) : "", isMyTurn(b, team.id) ? t("ваш ход") : ""].filter(Boolean).join(" · ");
                   // Союзник хранителей: до чужого города команда могла не дойти, поэтому карточка испытания — прямо здесь.
                   if (b.myAlliance && !attacker && b.defender.id !== team.id) return <li key={b.id} className="plain"><BattleCard gameId={id} b={b} teamId={team.id} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} now={now} daytime={map.daytime} onChanged={() => void loadBattles()} /></li>;
