@@ -168,6 +168,13 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
   }
 
+  async function cancel() {
+    const ok = await confirm(t("Вызов будет отменён. Следующий вызов этому городу для вашей команды подорожает на 1 стих."), { title: t("Отменить вызов городу {city}?", { city: b.bookName }), okLabel: t("Отменить вызов"), danger: true });
+    if (!ok) return;
+    try { await api(`/api/games/${gameId}/battles/${b.id}/cancel`, { method: "POST" }); notify(t("Вызов отменён")); onChanged(); }
+    catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
+  }
+
   async function askAlly(team: { id: string; name: string }) {
     const ok = await confirm(t("Команда «{team}» узнает, что мир нарушен, и сможет принять союз: её участники будут учить стихи ответа вместе с вами.", { team: team.name }), { title: t("Попросить «{team}» о защитном союзе?", { team: team.name }), okLabel: t("Попросить") });
     if (!ok) return;
@@ -265,6 +272,10 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
             {isCaptain && myTurn && !ally && <button type="button" disabled={sum < need || !canSend} onClick={() => void submit()}><Icon name="send" />{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}</button>}
           </div>
         </>
+      )}
+      {/* Отмена вызова капитаном на любом шаге нападения (решение владельца 01.11): штраф +1 стих к следующему вызову этому городу. */}
+      {attacker && isCaptain && (b.status === "QUEUED" || b.status === "ATTACK") && (
+        <div className="actions mt-2"><button type="button" className="ghost" onClick={() => void cancel()}><Icon name="x" />{t("Отменить вызов")}</button></div>
       )}
     </div>
   );

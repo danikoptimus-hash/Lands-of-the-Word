@@ -8,7 +8,7 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { formatRange, loadBook, refToIndex, parseRef, verseText, type BibleBook } from "../services/bible.js";
-import { afterReject, approveAttack, defenseNeed, gameRules, launchAttack, maybeRepel, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
+import { afterReject, approveAttack, cancelAttack, defenseNeed, gameRules, launchAttack, maybeRepel, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { declareSiege, siegeOptions } from "../services/siege.js";
 import { BOOKS } from "@lotw/domain";
@@ -368,6 +368,22 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!r.ok) return reply.code(409).send({ error: "conflict", message: err(request, r.message) });
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "battles", teamId: b.defenderId });
+    publish(id, { type: "cities" });
+    return { ok: true, status: r.battle.status };
+  });
+
+  /** Капитан претендентов отменяет вызов на любом шаге нападения (решение владельца 01.11); штраф +1 к минимальной ставке. */
+  app.post("/api/games/:id/battles/:battleId/cancel", async (request, reply) => {
+    const { id, battleId } = request.params as { id: string; battleId: string };
+    const m = await requireMember(request, reply, id);
+    if (!m) return;
+    if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Отменить вызов может только капитан") });
+    await sweep(id);
+    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true } });
+    if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
+    if (b.attackerId !== m.team.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Вызов отменяют претенденты") });
+    const r = await cancelAttack(b);
+    if (!r.ok) return reply.code(409).send({ error: "conflict", message: err(request, r.message) });
     publish(id, { type: "cities" });
     return { ok: true, status: r.battle.status };
   });
