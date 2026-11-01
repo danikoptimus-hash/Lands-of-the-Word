@@ -107,10 +107,6 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
-  async function resetRoleCooldown(teamId: string, userId: string, nick: string) {
-    try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}/role-cooldown`, { method: "DELETE" }); notify(t("{nick}: роль можно сменить сразу", { nick })); await reload(); }
-    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-  }
   async function unfreeze(teamId: string, userId: string, nick: string) {
     setBusy(true);
     try { await api(`/api/games/${gameId}/teams/${teamId}/members/${userId}/freeze`, { method: "DELETE" }); notify(t("{nick}: взятие дел открыто", { nick })); await reload(); }
@@ -209,8 +205,6 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                         m.deedsFrozenUntil
                           ? { label: t("Открыть взятие дел"), icon: "play", onSelect: () => void unfreeze(tm.id, m.user.id, nick) }
                           : { label: t("Закрыть взятие дел…"), icon: "lock", onSelect: () => setFreezing({ teamId: tm.id, userId: m.user.id, nick, days: 7, reason: "" }) },
-                        // Срок смены роли (просьба владельца 01.11): администратор снимает недельное ожидание одним нажатием.
-                        ...(m.roleChangeAvailableAt ? [{ label: t("Снять срок смены роли"), icon: "refresh", onSelect: () => void resetRoleCooldown(tm.id, m.user.id, nick) }] : []),
                         { label: t("Убрать из команды"), icon: "trash", danger: true, sep: true, onSelect: () => void kick(tm.id, m.user.id, nick) },
                       ]} />
                     </div>
