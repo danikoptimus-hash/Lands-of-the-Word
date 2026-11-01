@@ -10,6 +10,7 @@ const { compare } = jsonPatch;
 import { days, rulesOf, type Rules } from "./rules.js";
 import { journal } from "./journal.js";
 import { wallsAt } from "./wall.js";
+import { battleVisibleTo } from "./visibility.js";
 
 /**
  * Карта глазами команды.
@@ -629,7 +630,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
   const [cityStates, owners, battles] = await Promise.all([
     prisma.teamCityState.findMany({ where: { teamId, nodeKey: { in: cityNodes.map((n) => n.key) } } }),
     prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, teamId: true, capturedAt: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } }),
-    prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: teamId }, { defenderId: teamId }] }, select: { nodeKey: true, attackerId: true, status: true } }),
+    prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: teamId }, { defenderId: teamId }] }, select: { nodeKey: true, attackerId: true, defenderId: true, status: true, violation: true, defenseFactor: true } }),
   ]);
   const stateByKey = new Map(cityStates.map((s) => [s.nodeKey, s]));
   const ownerByKey = new Map(owners.map((o) => [o.nodeKey, o.team]));
@@ -637,8 +638,9 @@ async function computeTeamMap(gameId: string, teamId: string) {
   const walls = await wallsAt(gameId, owners.map((o) => ({ nodeKey: o.nodeKey, teamId: o.teamId })));
   // Когда город взят нынешним владельцем (любой командой): салют над городом в день взятия (решение владельца 24.10).
   const takenAtByKey = new Map(owners.map((o) => [o.nodeKey, o.capturedAt?.toISOString() ?? null]));
-  // Роль команды в активной битве за город: атакует (синие мечи) или защищается (красные).
-  const battleByKey = new Map(battles.map((b) => [b.nodeKey, b.attackerId === teamId ? "ATTACK" : "DEFENSE"]));
+  // Роль команды в активной битве за город: претендент (синий знак) или хранитель (красный). Тайна вызова (замечание
+  // владельца 01.11: «значки при вызове до сих пор отображаются у хранителей»): хранителям знак — только с «Испытать».
+  const battleByKey = new Map(battles.filter((b) => battleVisibleTo(b, teamId)).map((b) => [b.nodeKey, b.attackerId === teamId ? "ATTACK" : "DEFENSE"]));
   const cities = await Promise.all(cityNodes.map(async (n) => {
     const content = await loadCityContent(n.bookCode ?? "");
     const s = stateByKey.get(n.key);

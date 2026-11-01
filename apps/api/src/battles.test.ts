@@ -88,6 +88,11 @@ describe("битва за город", () => {
     expect(b.attackDeadline).toBeTruthy();
     const again = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, p2Cookie, { bid: 10 });
     expect(again.statusCode).toBe(409);
+    // Тайна вызова на карте (замечание владельца 01.11): у хранителей знака испытания нет, у претендентов есть.
+    const ownerMap = await get(`/api/games/${gameId}/my-map`, p1Cookie);
+    expect((ownerMap.json().cities as Array<{ nodeKey: string; battle: string | null }>).find((c) => c.nodeKey === rutKey)?.battle).toBeNull();
+    const attackerMap = await get(`/api/games/${gameId}/my-map`, p2Cookie);
+    expect((attackerMap.json().cities as Array<{ nodeKey: string; battle: string | null }>).find((c) => c.nodeKey === rutKey)?.battle).toBe("ATTACK");
     // Хранители о вызове не знают, пока админ не одобрил записи претендентов (решение владельца 31.10).
     const d = await get(`/api/games/${gameId}/my-battles`, p1Cookie);
     expect(d.json().battles.some((x: { id: string }) => x.id === battleId)).toBe(false);
@@ -150,6 +155,7 @@ describe("битва за город", () => {
     expect((await post(`/api/games/${gameId}/battles/${battleId}/attack`, p2Cookie)).statusCode).toBe(409);
     // Только теперь хранители видят испытание (решение владельца 31.10), а новость о начале атаки идёт всем.
     expect(((await get(`/api/games/${gameId}/my-battles`, p1Cookie)).json().battles as Array<{ id: string; status: string }>).find((x) => x.id === battleId)?.status).toBe("DEFENSE");
+    expect(((await get(`/api/games/${gameId}/my-map`, p1Cookie)).json().cities as Array<{ nodeKey: string; battle: string | null }>).find((c) => c.nodeKey === rutKey)?.battle).toBe("DEFENSE");
     expect(await prisma.journal.count({ where: { gameId, kind: "trial_defense", everyone: true } })).toBe(1);
     // Реальное время обеим сторонам (решение владельца 01.11, вечер): T — по часам от старта до отправки, пауза только шторм;
     // срок ответа — через T по часам от начала испытания, а выпавший на ночь срок ждёт 7:00.

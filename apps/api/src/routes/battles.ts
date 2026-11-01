@@ -15,6 +15,7 @@ import { BOOKS } from "@lotw/domain";
 import { journal } from "../services/journal.js";
 import { violatePeace } from "../services/peace.js";
 import { wallVersesOf } from "../services/wall.js";
+import { battleVisibleTo } from "../services/visibility.js";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const declareBody = z.object({ bid: z.number().int().min(1).max(100000) });
@@ -95,13 +96,7 @@ async function nicknames(ids: string[]): Promise<Map<string, string>> {
 }
 const usersOf = (battles: Full[]) => nicknames([...new Set(battles.flatMap((b) => b.entries.map((e) => e.userId)))]);
 
-/**
- * Хранители о вызове не знают, пока администратор не одобрил записи претендентов и не пошло время ответа (решение
- * владельца 31.10: «в противном случае у защитников неоправданно больше времени»). Исключение — вызов, нарушивший мир:
- * он объявляется всем сразу (решение владельца 22.10: хранители зовут союзника заранее).
- */
-const visibleTo = (b: { attackerId: string; defenderId: string; status: string; violation: boolean; defenseFactor: number }, teamId: string) =>
-  !(b.defenderId === teamId && b.attackerId !== teamId && (b.status === "QUEUED" || b.status === "ATTACK") && !b.violation && b.defenseFactor <= 1);
+const visibleTo = battleVisibleTo;
 
 const battlesView = defineView("battles", { scope: "team", events: ["battles", "submissions", "teams", "cities"], compute: async (gameId, teamId) => {
   await sweep(gameId);
