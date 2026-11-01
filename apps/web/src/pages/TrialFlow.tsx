@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import type { BattleDto } from "../lib/api";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtLeft, plural } from "../lib/format";
@@ -94,6 +95,15 @@ export function TrialFlow({ b, teamId, now = Date.now(), compact = false, turn =
 }) {
   const steps = trialSteps(b, teamId, admin);
   const tn = trialTurn(b, teamId, now);
+  const ref = useRef<HTMLOListElement>(null);
+  // На телефоне шкала шире экрана и прокручивается: текущий этап подкручивается в середину (решение владельца 01.11).
+  const cur = steps.find((s) => s.state === "current")?.key ?? steps[steps.length - 1]!.key;
+  useEffect(() => {
+    const ol = ref.current;
+    if (!ol || compact || ol.scrollWidth <= ol.clientWidth + 1) return;
+    const el = ol.querySelector<HTMLElement>(".step.current") ?? ol.querySelector<HTMLElement>(".step:last-child");
+    if (el) ol.scrollLeft = Math.max(0, el.offsetLeft - (ol.clientWidth - el.offsetWidth) / 2);
+  }, [cur, compact]);
   const whoIcon = tn.who === "admin" ? "check" : tn.who === "attacker" ? "wave" : tn.who === "defender" ? "shield" : tn.who === "over" ? "flag" : "clock";
   return (
     <div className={"trial-flow" + (compact ? " compact" : "") + (live(b) ? "" : " over")}>
@@ -103,7 +113,7 @@ export function TrialFlow({ b, teamId, now = Date.now(), compact = false, turn =
           <div className="grow"><b>{tn.text}</b>{tn.detail && <span>{tn.detail}</span>}</div>
         </div>
       )}
-      <ol className="trial-steps" aria-label={t("Этапы испытания")}>
+      <ol ref={ref} className="trial-steps" aria-label={t("Этапы испытания")}>
         {steps.map((s) => {
           const label = `${s.cap}${s.sub ? ` · ${s.sub}` : ""}`;
           const count = badges?.[s.key] ?? 0;

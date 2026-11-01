@@ -322,10 +322,13 @@
 .trial-turn.mine > .i { color: var(--accent-ink); }
 .trial-turn.admin > .i { color: var(--wax-ink, var(--danger)); }
 .trial-turn.over { background: var(--surface-2); }
-/* На телефоне семь медальонов по 38px с выносом на 8px в поля карточки — чтобы значкам не было тесно (замечание владельца 01.11). */
-.trial-steps { --medal: 40px; --mark: 16px; position: relative; z-index: 0; list-style: none; margin: var(--sp-3) calc(-1 * var(--sp-2)) 0; padding: 0; display: flex; justify-content: space-between; align-items: flex-start; }
-@media (min-width: 640px) { .trial-steps { --medal: 56px; --mark: 20px; margin: var(--sp-3) auto 0; max-width: 640px; } }
-.trial-steps .step { position: relative; flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+/* На телефоне шкала прокручивается пальцем, как строка наград (решение владельца 01.11: «между кружками больше расстояния,
+   а саму шкалу подвижной»): колонки по 64px, медальоны 44px, полоска прокрутки спрятана, текущий этап подкручивается в центр. */
+.trial-steps { --medal: 44px; --mark: 18px; position: relative; z-index: 0; list-style: none; margin: var(--sp-3) calc(-1 * var(--sp-3)) 0; padding: 8px var(--sp-3) 2px; display: flex; justify-content: flex-start; align-items: flex-start; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.trial-steps::-webkit-scrollbar { display: none; }
+@media (min-width: 640px) { .trial-steps { --medal: 56px; --mark: 20px; margin: var(--sp-3) auto 0; padding: 0; max-width: 640px; justify-content: space-between; overflow: visible; } }
+.trial-steps .step { position: relative; flex: 0 0 64px; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+@media (min-width: 640px) { .trial-steps .step { flex: 1 1 0; } }
 /* Перемычка от края прошлого медальона до края этого (замечание владельца 31.10: полоса не должна заходить на картинку);
    на 2px прячется под медальоны, которые рисуются поверх полос (z-index 1 в контексте списка). */
 .trial-steps .step::before { content: ""; position: absolute; z-index: 0; left: calc(-50% + var(--medal) / 2 - 2px); width: calc(100% - var(--medal) + 4px); top: calc(var(--medal) / 2 - 3px); height: 6px; background: var(--paper-2); border-top: 1px solid var(--paper-edge); border-bottom: 1px solid var(--paper-edge); }
@@ -355,16 +358,15 @@
 .trial-arrow { flex: none; color: var(--bronze); }
 .passage-body > p { margin-bottom: var(--sp-2); }
 .trial-steps .mark .i { width: calc(var(--mark) * .62); height: calc(var(--mark) * .62); stroke-width: 3; }
-/* На телефоне подпись «Испытание» (9 букв) должна влезть в колонку ~47px: 9.5px с лёгким поджатием, без обрезки. */
-.trial-steps .cap { max-width: 100%; margin-top: 2px; font: 600 9.5px/1.2 var(--font-ui); letter-spacing: -.01em; color: var(--text); white-space: nowrap; overflow: visible; }
+.trial-steps .cap { max-width: 100%; margin-top: 2px; font: 600 10px/1.2 var(--font-ui); color: var(--text); white-space: nowrap; overflow: visible; }
 .trial-steps .sub { max-width: 100%; font-size: 10px; line-height: 1.15; color: var(--muted); overflow-wrap: anywhere; }
 @media (min-width: 640px) { .trial-steps .sub { line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } }
 .trial-steps .step.future .cap, .trial-steps .step.future .sub { color: var(--ink-3); opacity: .7; }
 .trial-steps .step.current .cap { color: var(--accent-ink); }
-@media (min-width: 640px) { .trial-steps .cap { font-size: var(--fs-xs); letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; } .trial-steps .sub { font-size: var(--fs-xs); } }
+@media (min-width: 640px) { .trial-steps .cap { font-size: var(--fs-xs); overflow: hidden; text-overflow: ellipsis; } .trial-steps .sub { font-size: var(--fs-xs); } }
 /* Строка медальонов в списке испытаний: без подписей, 24px. */
 .trial-flow.compact { margin-top: 4px; }
-.trial-flow.compact .trial-steps { --medal: 24px; --mark: 12px; margin: 0; max-width: none; justify-content: flex-start; }
+.trial-flow.compact .trial-steps { --medal: 24px; --mark: 12px; margin: 0; padding: 0; max-width: none; justify-content: flex-start; overflow: visible; }
 .trial-flow.compact .trial-steps .step { flex: 0 0 36px; }
 .trial-flow.compact .trial-steps .step::before { height: 4px; top: calc(var(--medal) / 2 - 2px); border-width: 0; }
 .trial-flow.compact .trial-steps .step.current .medal::after { inset: -3px; border-width: 1.5px; }

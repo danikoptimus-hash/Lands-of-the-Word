@@ -18,6 +18,7 @@ interface Pace {
   tz: string; startedAt: string; now: string; T: number; K: number; n: number; rate: number; rampDay: number; dailyTasksAvg: number; dailyDeedsAvg: number; milestones: number[];
   teams: Array<{ id: string; name: string; color: string }>;
   fact: Array<Pt & { teamId: string | null }>;
+  /** Переходы городов по испытаниям и осадам: день, кто отдал, кто взял. */ transfers?: Array<{ day: number; from: string; to: string }>;
   deeds: { days: string[]; teams: Array<{ id: string; name: string; color: string; values: number[] }>; fitDays: number };
   logistic: { /** Подобранный потолок: до стольких городов идёт кривая при нынешнем темпе. */ K?: number; r: number; t0: number; curve: Pt[]; finish: Record<string, number | null> };
 }
@@ -49,7 +50,11 @@ export function GameAnalytics({ gameId, version = 0 }: { gameId: string; /** Р�
     const horizon = Math.min(Math.max(touch ?? p.T + 30, p.T + 7), p.T + 120);
     const fact: Array<[number, number]> = [[0, 0], ...p.fact.map((f) => [f.day, f.value] as [number, number]), [p.T, p.n]];
     // Линии команд (решение владельца 25.10): города каждой команды накопительно, без логистических кривых.
-    const teamLines = p.teams.map((tm) => { let k = 0; const pts: Array<[number, number]> = [[0, 0]]; for (const f of p.fact) if (f.teamId === tm.id) pts.push([f.day, ++k]); pts.push([p.T, k]); return { tm, pts }; });
+    // Линии команд: взятые города плюс переходы по испытаниям и осадам (замечание владельца 01.11: отвоёванные города не отображались).
+    const teamLines = p.teams.map((tm) => {
+      const ev = [...p.fact.filter((f) => f.teamId === tm.id).map((f) => ({ day: f.day, d: 1 })), ...(p.transfers ?? []).flatMap((x) => [...(x.to === tm.id ? [{ day: x.day, d: 1 }] : []), ...(x.from === tm.id ? [{ day: x.day, d: -1 }] : [])])].sort((a, b) => a.day - b.day);
+      let k = 0; const pts: Array<[number, number]> = [[0, 0]]; for (const e of ev) pts.push([e.day, (k += e.d)]); pts.push([p.T, k]); return { tm, pts };
+    });
     return baseOption(c, {
       legend: { show: false },
       tooltip: { trigger: "axis", backgroundColor: c.surface, borderColor: c.border, textStyle: { color: c.text, fontFamily: c.font }, formatter: (ps: Array<{ seriesName: string; value: [number, number]; marker: string }>) => { const d = ps[0]?.value[0] ?? 0; return `${dateOf(d)}<br/>${ps.map((x) => `${x.marker} ${x.seriesName}: <b>${Math.round(x.value[1])}</b>`).join("<br/>")}`; } },
