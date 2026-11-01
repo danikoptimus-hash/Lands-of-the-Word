@@ -31,10 +31,12 @@
 .intro-dots button.on { background: #E0B35C; transform: scale(1.4); }
 @media (min-width: 900px) {
   .intro-slide { grid-template-rows: none; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--sp-6); max-width: 1100px; width: 100%; margin: 0 auto; }
-  .intro-slide.wide { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); }
+  /* Широкие снимки с компьютера — крупно (владелец 01.11: «красивый скрин карты с компьютера, большой»). */
+  .intro-slide.wide { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); max-width: 1400px; }
+  .intro-pic .shot.wide { width: 100%; }
   .intro-text { text-align: left; }
   .intro-actions { justify-content: flex-start; }
   .intro-pic .shot.phone { max-height: min(78vh, 760px); }
-  .intro-nav { max-width: 1100px; width: 100%; margin: 0 auto; }
+  .intro-nav { max-width: 1400px; width: 100%; margin: 0 auto; }
 }
 @media (prefers-reduced-motion: reduce) { .intro-slide { animation: none; } }

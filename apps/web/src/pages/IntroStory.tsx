@@ -14,18 +14,26 @@ export function introSeen(): boolean { try { return localStorage.getItem(KEY) ==
 export function markIntroSeen(): void { try { localStorage.setItem(KEY, "1"); } catch { /* приватный режим: покажем ещё раз */ } }
 export function introForced(): boolean { try { return new URLSearchParams(window.location.search).get("intro") === "1"; } catch { return false; } }
 
-type Slide = { img: string; wide?: boolean; title: () => string; text: () => string; hero?: boolean };
+type Slide = { img: string; /** Видео вместо картинки (mp4 и webm), картинка — постер. */ video?: { mp4: string; webm: string }; wide?: boolean; title: () => string; text: () => string };
+/**
+ * Экраны (переделка по решениям владельца 01.11): настоящие снимки с человеческими никами, карта двух островов с компьютера,
+ * времена суток четырьмя телефонами, шторм и ночь — короткие видео, отдельные экраны про награды и серию дней.
+ * Файлы — `public/img/intro/*`; снимки делаются скриптом на локальной игре с тестовыми участниками.
+ */
 const SLIDES: Slide[] = [
-  { img: "/img/brand/hero.webp", wide: true, hero: true, title: () => t("Земли Слова"), text: () => t("Игра для молодёжи церкви: команды идут по карте двух островов, делают добрые дела и открывают книги Библии.") },
-  { img: "/img/guide/islands.webp", title: () => t("Карта"), text: () => t("Два острова, перекрёстки и дороги. Туман скрывает землю, пока команда не пройдёт по ней.") },
-  { img: "/img/guide/deed.webp", title: () => t("Дела"), text: () => t("На каждой стороне дороги лежит дело: позвонить одинокому, помочь по хозяйству, выучить стих. Сделал — сдал отчёт, дорога открылась.") },
+  { img: "/img/intro/table.webp", wide: true, title: () => t("Земли Слова"), text: () => t("Игра для молодёжи церкви: команды идут по карте двух островов, делают добрые дела, открывают города и изучают книги Библии.") },
+  { img: "/img/intro/map-day.webp", wide: true, title: () => t("Карта"), text: () => t("Два острова — Ветхий и Новый Завет. Перекрёстки, дороги и города-книги. Туман скрывает землю, пока команда не пройдёт по ней.") },
+  { img: "/img/guide/deed.webp", title: () => t("Дела"), text: () => t("На каждой стороне дороги лежит дело: позвонить одинокому, помочь по хозяйству, выучить стих. Сделал — прикрепи фото или видео, администратор примет, и дорога пройдена.") },
   { img: "/img/guide/city.webp", title: () => t("Города"), text: () => t("Город — книга Библии. Читайте главы, решайте задания районов, найдите знак и ключ от конверта.") },
-  { img: "/img/guide/standings.webp", title: () => t("Испытания"), text: () => t("За город можно бросить вызов: стихи наизусть на время. Кто знает Слово лучше, тот и владеет городом.") },
-  { img: "/img/guide/roster.webp", title: () => t("Команда и роли"), text: () => t("Капитан раздаёт роли: разведчик, пророк, посол, кормчий, воин. Каждый важен.") },
-  { img: "/img/guide/fireworks.webp", title: () => t("Живая карта"), text: () => t("Ночью города спят, по расписанию приходит шторм, а над взятым городом бьёт салют.") },
-  { img: "/img/guide/service.webp", title: () => t("Летопись и моё служение"), text: () => t("Каждое дело записано: лента команды и личная сводка служения каждого.") },
-  { img: "/img/guide/admin-map.webp", wide: true, title: () => t("Администратору"), text: () => t("Проверка дел, таблица команд, аналитика сезона — всё в одном месте.") },
-  { img: "/img/guide/games.webp", title: () => t("Начать"), text: () => t("Зарегистрируйтесь или войдите, создайте игру или примите приглашение команды.") },
+  { img: "/img/intro/trials.webp", wide: true, title: () => t("Испытания"), text: () => t("Город можно отвоевать. Команда делает вызов и учит наизусть отрывок из книги этого города. Когда администратор принял стихи, капитан начинает испытание — и у хранителей ровно столько же времени, чтобы ответить своими стихами. Кто знает Слово лучше, тот и владеет городом. Каждый шаг виден на шкале.") },
+  { img: "/img/intro/roster.webp", title: () => t("Команда и роли"), text: () => t("Капитан раздаёт роли: разведчик, пророк, посол, кормчий, воин. Каждый важен.") },
+  { img: "/img/intro/tod.webp", wide: true, title: () => t("Времена суток"), text: () => t("Утро, день, вечер и ночь по местному времени: карта меняет свет. Ночью города спят, дела и испытания ждут 7:00.") },
+  { img: "/img/intro/storm-poster.webp", video: { mp4: "/img/intro/storm.mp4", webm: "/img/intro/storm.webm" }, title: () => t("Шторм"), text: () => t("По расписанию приходит шторм: дождь и молнии над островами. Пока идёт буря, можно только смотреть карту, а время испытаний стоит.") },
+  { img: "/img/intro/journal.webp", wide: true, title: () => t("Летопись и моё служение"), text: () => t("Каждое дело записано: летопись команды день за днём и личная сводка служения — сколько дел, районов, городов и стихов за игру.") },
+  { img: "/img/intro/awards.webp", title: () => t("Награды"), text: () => t("За дела, стихи, города и верность команда и каждый участник получают значки. Они собираются в «Моём служении» и в рейтингах команд.") },
+  { img: "/img/intro/streak.webp", title: () => t("Серия дней"), text: () => t("Каждый день с делом или стихом продлевает серию. Огонёк на карте показывает, засчитан ли сегодняшний день, а неделя — какие дни были.") },
+  { img: "/img/intro/map-evening.webp", wide: true, title: () => t("Администратору"), text: () => t("Проверка дел и испытаний, таблица команд, аналитика сезона и настройки — всё в одном месте, на компьютере и на телефоне.") },
+  { img: "/img/intro/map-night.webp", wide: true, title: () => t("Начать"), text: () => t("Зарегистрируйтесь или войдите, создайте игру или примите приглашение команды.") },
 ];
 
 export function IntroStory({ onClose, actions }: { onClose: () => void; /** Кнопки последнего экрана: у гостя «Войти», у вошедшего — закрыть. */ actions?: ReactNode }) {
@@ -60,10 +68,10 @@ export function IntroStory({ onClose, actions }: { onClose: () => void; /** Кн
     <div className="intro" role="dialog" aria-modal="true" aria-label={t("О игре")} onPointerDown={onPointerDown} onPointerUp={onPointerUp}>
       <div className="intro-bg" aria-hidden="true" />
       <button type="button" className="intro-close" onClick={close} aria-label={t("Закрыть")} title={t("Закрыть")}><Icon name="x" /></button>
-      <div className={"intro-slide" + (s.wide ? " wide" : "") + (s.hero ? " hero" : "") + (dir > 0 ? " fwd" : " back")} key={i}>
+      <div className={"intro-slide" + (s.wide ? " wide" : "") + (dir > 0 ? " fwd" : " back")} key={i}>
         <div className="intro-pic">
-          {s.hero
-            ? <div className="intro-hero" style={{ backgroundImage: `url(${s.img})` }}><img src="/img/brand/logo-256.png" alt="" width={96} height={96} /></div>
+          {s.video
+            ? <video className={s.wide ? "shot wide" : "shot phone"} autoPlay muted loop playsInline poster={s.img} key={s.video.mp4}><source src={s.video.mp4} type="video/mp4" /><source src={s.video.webm} type="video/webm" /></video>
             : <img src={s.img} alt="" className={s.wide ? "shot wide" : "shot phone"} />}
         </div>
         <div className="intro-text">
