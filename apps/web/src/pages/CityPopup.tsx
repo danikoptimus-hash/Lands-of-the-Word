@@ -216,7 +216,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
           {[t("Порядок"), t("Районы"), t("Конверт")].map((label, i) => {
             const n = i + 1;
             const cls = n < step ? "done" : n === step ? "current" : "";
-            return <li key={n} className={cls} aria-current={n === step ? "step" : undefined}><span className="num">{n < step ? <Icon name="check" /> : n}</span><span>{label}</span></li>;
+            return <li key={n} className={cls} aria-current={n === step ? "step" : undefined}><span className="num">{n}</span><span>{label}</span></li>;
           })}
         </ol>
       )}

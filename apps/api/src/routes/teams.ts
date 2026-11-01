@@ -191,6 +191,17 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
    * Заморозка взятия дел участнику (решение владельца 21.10): администратор закрывает участнику взятие дел на столько
    * дней, сколько сочтёт нужным, и может открыть раньше срока. Дела на руках не трогаются — их можно сдать или отпустить.
    */
+  /** Администратор снимает недельный срок смены роли участника (просьба владельца 01.11: срок уехал, поправить без базы). */
+  app.delete("/api/games/:id/teams/:teamId/members/:userId/role-cooldown", async (request, reply) => {
+    const { id, teamId, userId } = request.params as { id: string; teamId: string; userId: string };
+    if (!(await requireGameAdmin(request, reply, id))) return;
+    const membership = await prisma.membership.findUnique({ where: { teamId_userId: { teamId, userId } }, include: { team: { select: { gameId: true } } } });
+    if (!membership || membership.team.gameId !== id) return reply.code(404).send({ error: "not_found", message: err(request, "Участник не найден") });
+    await prisma.membership.update({ where: { teamId_userId: { teamId, userId } }, data: { roleChangedAt: null } });
+    publish(id, { type: "teams", teamId });
+    return { ok: true };
+  });
+
   app.post("/api/games/:id/teams/:teamId/members/:userId/freeze", async (request, reply) => {
     const { id, teamId, userId } = request.params as { id: string; teamId: string; userId: string };
     if (!(await requireGameAdmin(request, reply, id))) return;

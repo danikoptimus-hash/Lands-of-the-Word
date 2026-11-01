@@ -72,7 +72,7 @@ export function HowToPlayPage() {
       <ScrollTop />
       <h1 className="mt-2">{t("Как играть?")}</h1>
       <p className="muted mt-2">{t("Коротко и с картинками с настоящих экранов игры.")} <Link to="/whats-new">{t("Что нового")}</Link></p>
-      <p className="mt-2"><button type="button" className="secondary sm" onClick={() => setIntro(true)}><Icon name="sparkle" />{t("О игре за десять экранов")}</button></p>
+      <p className="mt-2"><button type="button" className="secondary sm" onClick={() => setIntro(true)}><Icon name="sparkle" />{t("Об игре за несколько экранов")}</button></p>
       {intro && <IntroStory onClose={() => setIntro(false)} />}
       <nav className="guide-toc mt-3" aria-label={t("Разделы")}>
         {sections.map((s, i) => <a key={s.title} href={`#g${i + 1}`}>{s.title}</a>)}

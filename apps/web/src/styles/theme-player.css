@@ -101,7 +101,7 @@
 .steps li.current { background: transparent; color: var(--bronze-ink); box-shadow: none; }
 .steps li.current .num { background: var(--bronze-ink); border-color: var(--bronze-ink); color: var(--paper-light); animation: flipIn .45s var(--spring); }
 .steps li.done { color: var(--moss-ink); }
-.steps li.done .num { width: 30px; height: 30px; margin: -2px; border: 0; background: var(--moss-ink); -webkit-mask: var(--wax-mask) center / 100% 100% no-repeat; mask: var(--wax-mask) center / 100% 100% no-repeat; filter: none; text-shadow: none; animation: stamp .38s var(--stamp); }
+.steps li.done .num { width: 30px; height: 30px; margin: -2px; border: 0; background: var(--moss-ink); color: var(--paper-light); -webkit-mask: var(--wax-mask) center / 100% 100% no-repeat; mask: var(--wax-mask) center / 100% 100% no-repeat; filter: none; text-shadow: none; animation: stamp .38s var(--stamp); }
 .steps .num .i { width: 14px; height: 14px; }
 .step-body > h3, .step-head h3 { font: 600 20px/1.2 var(--font-display); }
 .step-head { margin-bottom: var(--sp-2); }
