@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { api, ApiError, type WallBlockDto, type WallBrickDto, type WallDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
-import { plural } from "../lib/format";
+import { fmtDate, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
@@ -24,7 +24,7 @@ const blocksWord = (n: number) => plural(n, ["блок", "блока", "блок
 function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string> }) {
   const PER = 8, BW = 40, BH = 18, GAP = 2, MAXROWS = 10, PILE = 2;
   // Блок воина — два кирпича (решение владельца 02.11): раскладываем по весу, ключ — id блока и номер кирпича.
-  const bricksOf = (st: WallBlockDto["status"]) => blocks.filter((b) => b.status === st).flatMap((b) => Array.from({ length: Math.max(1, b.weight) }, (_, i) => ({ ...b, key: `${b.id}:${i}` })));
+  const bricksOf = (st: WallBlockDto["status"]) => blocks.filter((b) => b.status === st && !b.used).flatMap((b) => Array.from({ length: Math.max(1, b.weight) }, (_, i) => ({ ...b, key: `${b.id}:${i}` })));
   const approved = bricksOf("APPROVED"), pending = bricksOf("SUBMITTED");
   const shown = approved.slice(0, PER * MAXROWS);
   const rows = Math.max(1, Math.ceil(shown.length / PER));
@@ -110,7 +110,7 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
             <li key={b.id}>
               <div className="main"><span className="title">{b.ref} <span className="muted small">· {b.nickname}</span>{b.weight > 1 && <Chip tone="accent" icon="sword">{t("воин ×{k}", { k: b.weight })}</Chip>}</span>{b.adminComment && <span className="meta">{b.adminComment}</span>}</div>
               <span className="row nowrap">
-                <Chip tone={b.status === "APPROVED" ? "ok" : "warn"} icon={b.status === "APPROVED" ? "check" : "clock"}>{b.status === "APPROVED" ? t("принят") : t("на проверке")}</Chip>
+                {b.used ? <Chip tone="bad" icon="wave" title={b.usedAt ? t("Лёг в ответ {d}", { d: fmtDate(b.usedAt, { time: false }) }) : undefined}>{t("сгорел")}</Chip> : <Chip tone={b.status === "APPROVED" ? "ok" : "warn"} icon={b.status === "APPROVED" ? "check" : "clock"}>{b.status === "APPROVED" ? t("принят") : t("на проверке")}</Chip>}
                 {b.mine && b.status === "SUBMITTED" && <button type="button" className="ghost icon sm" aria-label={t("Убрать блок")} title={t("Убрать блок")} onClick={() => void remove(b)}><Icon name="x" /></button>}
               </span>
             </li>
@@ -140,7 +140,7 @@ function BuildSheet({ gameId, nodeKey, bricks, n, mineCount, onClose, onDone }: 
     } catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
-  const stateTitle = (s: WallBrickDto["state"]) => s === "approved" ? t("принят") : s === "submitted" ? t("на проверке") : s === "learned" ? t("стихи сданы в испытании") : "";
+  const stateTitle = (s: WallBrickDto["state"]) => s === "approved" ? t("принят") : s === "submitted" ? t("на проверке") : s === "learned" ? t("стихи сданы в испытании") : s === "used" ? t("сгорел в испытании") : "";
   return (
     <Sheet size="md" title={t("Блок стены")} onClose={onClose} foot={<button type="button" disabled={busy || k === null || urls.length === 0} onClick={() => void send()}><Icon name="check" />{chosen ? t("Сдать {ref}", { ref: chosen.ref }) : t("Сдать блок")}</button>}>
       <p className="hint">{t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}</p>
@@ -151,6 +151,7 @@ function BuildSheet({ gameId, nodeKey, bricks, n, mineCount, onClose, onDone }: 
             {b.state === "approved" && <Icon name="check" />}
             {b.state === "submitted" && <Icon name="clock" />}
             {b.state === "learned" && <Icon name="lock" />}
+            {b.state === "used" && <Icon name="wave" />}
           </button>
         ))}
       </div>

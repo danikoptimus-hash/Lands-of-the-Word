@@ -770,6 +770,9 @@ model WallBlock {
   weight       Int         @default(1)
   createdAt    DateTime    @default(now())
   decidedAt    DateTime?
+  /** Блок лёг в ответ и сгорел (решение владельца 02.11): стена тает на использованные блоки; стихи у участника остаются сданными. */
+  usedBattleId String?
+  usedAt       DateTime?
 
   @@index([gameId, nodeKey, status])
   @@index([teamId, nodeKey])

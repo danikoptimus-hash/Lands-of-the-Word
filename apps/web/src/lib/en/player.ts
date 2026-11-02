@@ -669,7 +669,7 @@ export const PLAYER: Record<string, string> = {
   "{user} сдал(а) блок стены города {book}: {ref}": "{user} submitted a wall block of the city of {book}: {ref}",
   "Блок стены города {book} принят: {ref}. Толщина стены — {n} стихов": "Wall block of the city of {book} accepted: {ref}. Wall thickness — {n} verses",
   "Блок стены города {book} возвращён администратором: {ref}{comment}": "Wall block of the city of {book} returned by the administrator: {ref}{comment}",
-  "Стена города {book} легла в ответ: зачтено {n} стихов": "The wall of the city of {book} went into the answer: {n} verses counted",
+  "Стена города {book} легла в ответ: зачтено {n} стихов{burnt}": "The wall of the city of {book} went into the answer: {n} verses counted{burnt}",
   "Дело «{deed}» возвращено на доработку{comment}": "Deed “{deed}” returned for rework{comment}",
   "Каменоломня: дело «{deed}» возвращено на доработку{comment}": "Quarry: deed “{deed}” returned for rework{comment}",
   "только вам": "only you",
@@ -714,4 +714,9 @@ export const PLAYER: Record<string, string> = {
   "{user} разведал(а) стену города {book}: {result}": "{user} scouted the wall of the city of {book}: {result}",
   "стена есть": "there is a wall",
   "стены нет": "no wall",
+  // Сгорание блоков (решение владельца 02.11).
+  ", сгорело блоков: {k}": ", blocks burnt: {k}",
+  "сгорел": "burnt",
+  "сгорел в испытании": "burnt in a trial",
+  "Лёг в ответ {d}": "Went into the answer {d}",
 };

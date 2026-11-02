@@ -113,7 +113,7 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   wall_block_submitted: "{user} сдал(а) блок стены города {book}: {ref}",
   wall_block_approved: "Блок стены города {book} принят: {ref}. Толщина стены — {n} стихов",
   wall_block_returned: "Блок стены города {book} возвращён администратором: {ref}{comment}",
-  wall_applied: "Стена города {book} легла в ответ: зачтено {n} стихов",
+  wall_applied: "Стена города {book} легла в ответ: зачтено {n} стихов{burnt}",
   wall_scouted: "{user} разведал(а) стену города {book}: {result}",
 };
 

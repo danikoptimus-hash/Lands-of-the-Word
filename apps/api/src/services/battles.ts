@@ -264,7 +264,7 @@ export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; ba
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_defense", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
   upd = await carryLearnedVerses(upd);
   // Городская стена (решение владельца 01.11): принятые блоки хранителей ложатся в ответ сами — защита от блиц-вызова.
-  { const wall = await applyWall(upd); upd = wall.battle; if (wall.added > 0) journal(b.gameId, "wall_applied", { teamId: b.defenderId, vars: { book: b.bookCode, n: wall.added } }); }
+  { const wall = await applyWall(upd); upd = wall.battle; if (wall.added > 0) journal(b.gameId, "wall_applied", { teamId: b.defenderId, vars: { book: b.bookCode, n: wall.added, burnt: ", сгорело блоков: {k}", k: wall.burnt } }); }
   publish(b.gameId, { type: "battles", teamId: b.defenderId });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
   const hours = Math.round(T / 360_000) / 10;

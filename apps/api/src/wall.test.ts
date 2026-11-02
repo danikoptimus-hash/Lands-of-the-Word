@@ -166,14 +166,18 @@ describe("городская стена", () => {
     for (const e of entries) await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
     const launched = await post(`/api/games/${gameId}/battles/${battleId}/attack`, attackerCookie);
     expect(launched.statusCode).toBe(200);
-    // Принятые блоки (10 + блок воина 10×2) покрыли ставку 10: ответ дан сразу, город устоял, уровень = сумме ответа.
+    // В ответ лёг только нужный блок — самый старый (10 стихов) перекрыл ставку 10; он сгорел, блок воина остался в стене.
     expect(launched.json().status).toBe("REPELLED");
     const laid = await prisma.battleEntry.findMany({ where: { battleId, side: "DEFENSE" }, orderBy: { startIdx: "asc" } });
-    expect(laid).toHaveLength(2);
+    expect(laid).toHaveLength(1);
     expect(laid[0]).toMatchObject({ carried: true, status: "APPROVED", startIdx: 0, endIdx: 9, weight: 1, note: "Блок городской стены" });
-    expect(laid[1]).toMatchObject({ carried: true, status: "APPROVED", startIdx: 20, endIdx: 29, weight: 2, note: "Блок городской стены" });
     const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
-    expect(node.defenseLevel).toBe(30);
+    expect(node.defenseLevel).toBe(10);
+    expect((await prisma.wallBlock.findUniqueOrThrow({ where: { id: blockId } })).usedBattleId).toBe(battleId);
+    const after = await get(wallUrl(), keeperCookie);
+    expect(after.json()).toMatchObject({ verses: 20, blockCount: 2 });
+    expect(after.json().blocks.find((x: { id: string }) => x.id === blockId)).toMatchObject({ used: true });
+    expect(after.json().bricks[0].state).toBe("free"); // у капитана блок 1–10 был возвращён — свободен; у сдавшего он сгорел
     await new Promise((r) => setTimeout(r, 300)); // записи летописи пишутся в фоне
     const rows = await prisma.journal.findMany({ where: { gameId, kind: { in: ["wall_applied", "trial_repelled", "wall_block_approved", "wall_block_submitted", "trial_submitted", "trial_approved"] } } });
     expect(rows.map((r) => r.kind).sort()).toEqual(["trial_approved", "trial_submitted", "wall_applied", "wall_block_approved", "wall_block_approved", "wall_block_submitted", "wall_block_submitted", "wall_block_submitted", "wall_block_submitted", "trial_repelled"].sort());
@@ -181,6 +185,8 @@ describe("городская стена", () => {
 
   it("стихи блока стены в испытании второй раз не засчитываются; во время ответа стену не строят", async () => {
     // Стражи вызывают Гостей? Город у Стражей — проверим правило «сдано раньше» через их же ответ: сделаем новый вызов.
+    // Сгоревший блок закрывает свои стихи сдавшему: в сетке — «сгорел».
+    expect((await get(wallUrl(), keeper2Cookie)).json().bricks[0].state).toBe("used");
     const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, attackerCookie, { bid: 50 });
     expect(declared.statusCode).toBe(201);
     const battleId = declared.json().id as string;
@@ -201,8 +207,10 @@ describe("городская стена", () => {
     // Блок 1 (стихи 11–20) ждал проверки: принятый во время ответа, он ложится в ответ сразу.
     const pendingBlock = await prisma.wallBlock.findFirstOrThrow({ where: { gameId, status: "SUBMITTED" } });
     await post(`/api/games/${gameId}/walls/${pendingBlock.id}/decide`, adminCookie, { approve: true });
+    // В ответ легли блок воина (при «Испытать») и блок 11–20 (принят во время ответа): 20 + 10 < 50, ответ идёт; оба сгорели.
     const laid = await prisma.battleEntry.findMany({ where: { battleId, side: "DEFENSE", note: "Блок городской стены" } });
-    expect(laid.map((e) => e.startIdx).sort((x, y) => x - y)).toEqual([0, 10, 20]);
+    expect(laid.map((e) => e.startIdx).sort((x, y) => x - y)).toEqual([10, 20]);
+    expect((await get(wallUrl(), keeperCookie)).json()).toMatchObject({ verses: 0, blockCount: 0 });
     // Хранитель, сдавший блок 1–10 стеной, не может отметить те же стихи в ответе.
     await post(`/api/games/${gameId}/battles/${battleId}/defense-passage`, keeperCookie, { from: "1:1", to: "2:10" });
     const dto = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, keeper2Cookie);

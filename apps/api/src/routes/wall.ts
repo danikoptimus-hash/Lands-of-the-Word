@@ -62,12 +62,13 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     const learned = new Set<number>();
     for (const e of mineEntries) for (let i = e.startIdx; i <= e.endIdx; i++) learned.add(i);
     const total = book.total, count = Math.ceil(total / n);
-    const myBlocks = new Map(rows.filter((r) => r.userId === userId && r.status !== "REJECTED").map((r) => [Math.floor(r.startIdx / n), r.status] as const));
+    const myBlocks = new Map(rows.filter((r) => r.userId === userId && r.status !== "REJECTED").map((r) => [Math.floor(r.startIdx / n), r.usedAt ? "USED" : r.status] as const));
     const bricks = Array.from({ length: count }, (_, k) => {
       const { start, end } = brickRange(k, n, total);
-      let state: "free" | "learned" | "submitted" | "approved" = "free";
+      let state: "free" | "learned" | "submitted" | "approved" | "used" = "free";
       const my = myBlocks.get(k);
-      if (my === "APPROVED") state = "approved";
+      if (my === "USED") state = "used";
+      else if (my === "APPROVED") state = "approved";
       else if (my === "SUBMITTED") state = "submitted";
       else { for (let i = start; i <= end; i++) if (learned.has(i)) { state = "learned"; break; } }
       return { k, start, end, ref: brickRef(book, start, end), state };
@@ -80,7 +81,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
       mine: true, blockVerses: n, total, verses: wall.verses, blockCount: wall.blocks, pending: wall.pending,
       canBuild: !why, why: why ? err(request, why) : null,
       bricks,
-      blocks: live.map((r) => ({ id: r.id, k: Math.floor(r.startIdx / n), ref: brickRef(book, r.startIdx, r.endIdx), verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),
+      blocks: live.map((r) => ({ id: r.id, k: Math.floor(r.startIdx / n), ref: brickRef(book, r.startIdx, r.endIdx), verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),
       returned: rows.filter((r) => r.userId === userId && r.status === "REJECTED").slice(-3).map((r) => ({ id: r.id, ref: brickRef(book, r.startIdx, r.endIdx), adminComment: r.adminComment, decidedAt: r.decidedAt })),
     };
   });
@@ -176,7 +177,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     return {
       blocks: [...pending, ...rest].map((r) => {
         const book = books.get(r.bookCode);
-        return { id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, bookName: BOOK_BY_CODE.get(r.bookCode)?.nameRu ?? r.bookCode, team: r.team, nickname: names.get(r.userId) ?? "?", ref: book ? brickRef(book, r.startIdx, r.endIdx) : `${r.startIdx + 1}–${r.endIdx + 1}`, verses: r.endIdx - r.startIdx + 1, weight: r.weight, links: r.links, note: r.note, status: r.status, adminComment: r.adminComment, createdAt: r.createdAt, decidedAt: r.decidedAt };
+        return { id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, bookName: BOOK_BY_CODE.get(r.bookCode)?.nameRu ?? r.bookCode, team: r.team, nickname: names.get(r.userId) ?? "?", ref: book ? brickRef(book, r.startIdx, r.endIdx) : `${r.startIdx + 1}–${r.endIdx + 1}`, verses: r.endIdx - r.startIdx + 1, weight: r.weight, links: r.links, note: r.note, status: r.status, usedAt: r.usedAt, adminComment: r.adminComment, createdAt: r.createdAt, decidedAt: r.decidedAt };
       }),
     };
   });

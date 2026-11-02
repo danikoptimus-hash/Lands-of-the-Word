@@ -303,4 +303,5 @@ export const ADMIN: Record<string, string> = {
   "Блок стены · стихов": "Wall block · verses",
   "Городская стена: сколько стихов книги подряд в одном блоке. Блок учит один хранитель и сдаёт видео; принятые блоки сами ложатся в ответ при испытании.": "City wall: how many consecutive verses of the book make one block. One keeper learns a block and submits a video; accepted blocks go into the answer by themselves during a trial.",
   "На проверке": "Under review",
+  "сгорел": "burnt",
 };

@@ -52,7 +52,7 @@ export function WallsBlock({ gameId, version = 0, onDecided }: { gameId: string;
                     <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id}><Icon name="check" />{t("Принять")}</button>
                     {returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" />{t("Вернуть")}</button>}
                   </>
-                ) : <Chip tone={r.status === "APPROVED" ? "ok" : "bad"}>{r.status === "APPROVED" ? t("принято") : t("возвращено")}</Chip>}
+                ) : r.usedAt ? <Chip tone="bad" icon="wave">{t("сгорел")}</Chip> : <Chip tone={r.status === "APPROVED" ? "ok" : "bad"}>{r.status === "APPROVED" ? t("принято") : t("возвращено")}</Chip>}
               </div>
               {returning === r.id && <ReturnBox placeholder={t("Причина возврата: участник её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
             </li>
