@@ -259,7 +259,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
       {(b.status === "ATTACK" || b.status === "DEFENSE") && (attacker || b.status === "DEFENSE") && (!ally || allyActive) && (
         <>
           <div className="progress mt-2"><span style={{ width: `${Math.min(100, need ? (sum / need) * 100 : 0)}%` }} /></div>
-          <div className="muted small mt-1">{t("Выучено {a} из {b} · принято {c}", { a: sum, b: need, c: approved })}{!attacker && b.entries.some((e) => e.carried) ? ` · ${t("зачтено (стена и прошлые испытания): {n}", { n: b.entries.filter((e) => e.carried).reduce((s, e) => s + e.verses, 0) })}` : ""}</div>
+          <div className="muted small mt-1">{t("Выучено {a} из {b} · принято {c}", { a: sum, b: need, c: approved })}{!attacker && b.entries.some((e) => e.carried) ? ` · ${t("зачтено ранее: {n}", { n: b.entries.filter((e) => e.carried).reduce((s, e) => s + e.verses, 0) })}` : ""}</div>
           {!attacker && !passage && b.status === "DEFENSE" && !b.defenseDoneAt && (
             isCaptain && !ally ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Ждём: капитан выбирает отрывок ответа.")}</span></div>
           )}

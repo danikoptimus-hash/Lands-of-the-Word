@@ -11,10 +11,12 @@ import { defenseNeed, gameRules, maybeRepel, sumVerses, type BattleWithEntries }
  * Блоки выровнены по книге (1–10, 11–20, …; последний короче), чтобы кладка на экране совпадала с книгой и участник
  * не сдавал один стих дважды: блок, пересекающий его стихи из испытаний, закрыт.
  * Блоки копятся без предела, но только в мирное время: пока по городу идёт ответ хранителей, сдавать нельзя.
- * При «Испытать» в ответ ложатся зачтёнными записями только нужные блоки — старые первыми, пока не перекрыта ставка;
- * легший в ответ блок сгорает (решение владельца 02.11: «стена должна постепенно таять ровно на количество использованных
- * блоков»), его стихи у участника остаются сданными. Блок, принятый уже во время ответа, ложится в него сразу, если ещё
- * нужен. Толщину знают только хранители и администратор; чужим стену показывает разведка (02.11).
+ * Стена ложится в ответ не при «Испытать», а за минуту до конца времени ответа (решение владельца 02.11: «стена должна
+ * срабатывать только за минуту до конца таймера, а не в начале»): до этого хранители отвечают сами. В ответ ложатся
+ * зачтёнными записями только нужные блоки — старые первыми, пока не перекрыта ставка; легший в ответ блок сгорает
+ * (решение владельца 02.11: «стена должна постепенно таять ровно на количество использованных блоков»), его стихи у
+ * участника остаются сданными. Блок, принятый во время ответа, ждёт той же минуты (если она уже наступила — ложится сразу).
+ * Толщину знают только хранители и администратор; чужим стену показывает разведка (02.11).
  */
 
 export const WALL_NOTE = "Блок городской стены";
@@ -102,12 +104,32 @@ export async function applyWall(b: BattleWithEntries): Promise<{ battle: BattleW
 }
 
 /**
- * Блок принят, когда по городу уже идёт ответ: кладём его в ответ сразу; если зачтённого теперь хватает — ответ дан
- * без единого нового стиха (как при «Испытать»).
+ * Последняя минута времени ответа: стена ложится в ответ (обход раз в минуту, services/battles.ts → sweep). Отметка
+ * `wallAppliedAt` ставится первой, чтобы два обхода не положили стену дважды; если зачтённого теперь хватает — ответ дан.
+ */
+export async function layWallBeforeDeadline(b: BattleWithEntries): Promise<void> {
+  if (b.status !== "DEFENSE" || b.defenseDoneAt || b.wallAppliedAt) return;
+  const marked = await prisma.battle.updateMany({ where: { id: b.id, wallAppliedAt: null }, data: { wallAppliedAt: new Date() } });
+  if (marked.count === 0) return;
+  const { battle, added, burnt } = await applyWall({ ...b, wallAppliedAt: new Date() });
+  if (added === 0) return;
+  journal(b.gameId, "wall_applied", { teamId: b.defenderId, vars: { book: b.bookCode, n: added, burnt: ", сгорело блоков: {k}", k: burnt } });
+  const carried = sumVerses(battle.entries, "DEFENSE", true);
+  if (carried >= defenseNeed(battle)) {
+    const done = await prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: new Date(), defenseBid: carried }, include: { entries: true } });
+    await maybeRepel(done);
+  }
+  publish(b.gameId, { type: "battles", teamId: b.defenderId });
+  publish(b.gameId, { type: "battles", teamId: b.attackerId });
+}
+
+/**
+ * Блок принят, когда по городу уже идёт ответ: если минута стены уже наступила — кладём его в ответ сразу, иначе он
+ * дождётся её вместе с остальными; если зачтённого теперь хватает — ответ дан без единого нового стиха.
  */
 export async function layApprovedBlockIntoDefense(gameId: string, teamId: string, nodeKey: string): Promise<void> {
   const b = await prisma.battle.findFirst({ where: { gameId, nodeKey, defenderId: teamId, status: "DEFENSE", defenseDoneAt: null }, include: { entries: true } });
-  if (!b) return;
+  if (!b || !b.wallAppliedAt) return;
   const { battle, added, burnt } = await applyWall(b);
   if (added === 0) return;
   journal(gameId, "wall_applied", { teamId, vars: { book: b.bookCode, n: added, burnt: ", сгорело блоков: {k}", k: burnt } });

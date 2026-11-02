@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { sweep } from "./services/battles.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
 
 /**
@@ -63,6 +64,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Дела сторон ссылаются на дела игры (RESTRICT): удаляются первыми, иначе каскад от игры может упереться в них.
+  await prisma.teamEdgeTask.deleteMany({ where: { gameId } });
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, keeperNick, keeper2Nick, attackerNick, attacker2Nick] } } });
   await cleanupFixtures(gameId);
@@ -148,7 +151,7 @@ describe("городская стена", () => {
     expect(city1.json().wall.verses).toBeUndefined();
   });
 
-  it("при «Испытать» стена ложится в ответ: ставка покрыта — город устоял без единого нового стиха", async () => {
+  it("стена ложится в ответ за минуту до конца времени ответа, а не при «Испытать»: ставка покрыта — город устоял без единого нового стиха", async () => {
     const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, attackerCookie, { bid: 10 });
     expect(declared.statusCode).toBe(201);
     const battleId = declared.json().id as string;
@@ -166,8 +169,16 @@ describe("городская стена", () => {
     for (const e of entries) await post(`/api/games/${gameId}/battles/${battleId}/entries/${e.id}/decide`, adminCookie, { approve: true });
     const launched = await post(`/api/games/${gameId}/battles/${battleId}/attack`, attackerCookie);
     expect(launched.statusCode).toBe(200);
-    // В ответ лёг только нужный блок — самый старый (10 стихов) перекрыл ставку 10; он сгорел, блок воина остался в стене.
-    expect(launched.json().status).toBe("REPELLED");
+    // При «Испытать» стена ещё не ложится (решение владельца 02.11): хранители отвечают сами, блоки целы.
+    expect(launched.json().status).toBe("DEFENSE");
+    expect(await prisma.battleEntry.count({ where: { battleId, side: "DEFENSE" } })).toBe(0);
+    await sweep(gameId);
+    expect(await prisma.battleEntry.count({ where: { battleId, side: "DEFENSE" } })).toBe(0);
+    // За минуту до конца времени ответа обход кладёт стену: в ответ лёг только нужный блок — самый старый (10 стихов)
+    // перекрыл ставку 10; он сгорел, блок воина остался в стене.
+    await prisma.battle.update({ where: { id: battleId }, data: { defenseDeadline: new Date(Date.now() + 45_000) } });
+    await sweep(gameId);
+    expect((await prisma.battle.findUniqueOrThrow({ where: { id: battleId } })).status).toBe("REPELLED");
     const laid = await prisma.battleEntry.findMany({ where: { battleId, side: "DEFENSE" }, orderBy: { startIdx: "asc" } });
     expect(laid).toHaveLength(1);
     expect(laid[0]).toMatchObject({ carried: true, status: "APPROVED", startIdx: 0, endIdx: 9, weight: 1, note: "Блок городской стены" });
@@ -204,13 +215,18 @@ describe("городская стена", () => {
     // Ответ идёт: стену не строят.
     const build = await post(wallUrl(), keeperCookie, { block: 2, links: ["https://example.com/v4"] });
     expect(build.statusCode).toBe(409);
-    // Блок 1 (стихи 11–20) ждал проверки: принятый во время ответа, он ложится в ответ сразу.
+    // Блок 1 (стихи 11–20) ждал проверки: принятый во время ответа, он ждёт минуты стены вместе с блоком воина (решение владельца 02.11).
     const pendingBlock = await prisma.wallBlock.findFirstOrThrow({ where: { gameId, status: "SUBMITTED" } });
     await post(`/api/games/${gameId}/walls/${pendingBlock.id}/decide`, adminCookie, { approve: true });
-    // В ответ легли блок воина (при «Испытать») и блок 11–20 (принят во время ответа): 20 + 10 < 50, ответ идёт; оба сгорели.
+    expect(await prisma.battleEntry.count({ where: { battleId, side: "DEFENSE", note: "Блок городской стены" } })).toBe(0);
+    expect((await get(wallUrl(), keeperCookie)).json()).toMatchObject({ verses: 30, blockCount: 3 });
+    // За минуту до конца в ответ легли блок воина и блок 11–20: 20 + 10 < 50, ответ идёт; оба сгорели.
+    await prisma.battle.update({ where: { id: battleId }, data: { defenseDeadline: new Date(Date.now() + 50_000) } });
+    await sweep(gameId);
     const laid = await prisma.battleEntry.findMany({ where: { battleId, side: "DEFENSE", note: "Блок городской стены" } });
     expect(laid.map((e) => e.startIdx).sort((x, y) => x - y)).toEqual([10, 20]);
     expect((await get(wallUrl(), keeperCookie)).json()).toMatchObject({ verses: 0, blockCount: 0 });
+    expect((await prisma.battle.findUniqueOrThrow({ where: { id: battleId } })).status).toBe("DEFENSE");
     // Хранитель, сдавший блок 1–10 стеной, не может отметить те же стихи в ответе.
     await post(`/api/games/${gameId}/battles/${battleId}/defense-passage`, keeperCookie, { from: "1:1", to: "2:10" });
     const dto = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, keeper2Cookie);

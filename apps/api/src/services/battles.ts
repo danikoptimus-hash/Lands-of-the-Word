@@ -9,7 +9,7 @@ import { fmtDate, fmtDay, msg } from "./i18n.js";
 import { checkLastTeam, checkTimeLimits } from "./game.js";
 import { expirePassages } from "../routes/diplomacy.js";
 import { onCityOwned, returnStaleTasks } from "./teamMap.js";
-import { applyWall } from "./wall.js";
+import { layWallBeforeDeadline, wallOf } from "./wall.js";
 import { days, rulesOf, type Rules } from "./rules.js";
 import { sweepSieges } from "./siege.js";
 import { BOOKS } from "@lotw/domain";
@@ -263,13 +263,14 @@ export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; ba
   // С этого момента о вызове узнают все (решение владельца 31.10): хранители — письмом ниже, остальные — новостью.
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_defense", { everyone: true, teamId: b.defenderId, vars: { team: a, other: d, book: b.bookCode } }); }
   upd = await carryLearnedVerses(upd);
-  // Городская стена (решение владельца 01.11): принятые блоки хранителей ложатся в ответ сами — защита от блиц-вызова.
-  { const wall = await applyWall(upd); upd = wall.battle; if (wall.added > 0) journal(b.gameId, "wall_applied", { teamId: b.defenderId, vars: { book: b.bookCode, n: wall.added, burnt: ", сгорело блоков: {k}", k: wall.burnt } }); }
+  // Городская стена (решение владельца 01.11) ложится в ответ сама, но не сейчас, а за минуту до конца времени ответа
+  // (решение владельца 02.11: «стена должна срабатывать только за минуту до конца таймера, а не в начале») — см. sweep().
+  const wall = await wallOf(b.defenderId, b.nodeKey);
   publish(b.gameId, { type: "battles", teamId: b.defenderId });
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
   const hours = Math.round(T / 360_000) / 10;
   const carried = sumVerses(upd.entries, "DEFENSE", true);
-  notifyTeam(b.gameId, b.defenderId, "пошло время ответа города {book}", (locale) => msg(locale, "Вызов одобрен: {verses} стихов. У вас {hours} ч (до {deadline}), чтобы выучить не меньше.{carried} Капитан выбирает отрывок из книги, участники отмечают выученные стихи и прикрепляют видео.", { verses: b.bid, hours, deadline: fmtDate(upd.defenseDeadline!, locale), carried: carried ? msg(locale, " Уже зачтено (стена и прошлые испытания): {n}.", { n: carried }) : "" }), { book: b.bookCode });
+  notifyTeam(b.gameId, b.defenderId, "пошло время ответа города {book}", (locale) => msg(locale, "Вызов одобрен: {verses} стихов. У вас {hours} ч (до {deadline}), чтобы выучить не меньше.{carried} Капитан выбирает отрывок из книги, участники отмечают выученные стихи и прикрепляют видео.", { verses: b.bid, hours, deadline: fmtDate(upd.defenseDeadline!, locale), carried: (carried ? msg(locale, " Уже зачтено: {n}.", { n: carried }) : "") + (wall.verses > 0 ? msg(locale, " Стена ({n} стихов) ляжет в ответ за минуту до конца времени.", { n: wall.verses }) : "") }), { book: b.bookCode });
   // Если зачтённых стихов уже хватает — ответ дан без единого нового стиха.
   if (carried >= defenseNeed(b)) {
     upd = await prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: now, defenseBid: carried }, include: { entries: true } });
@@ -420,6 +421,8 @@ export async function applyFatigue(gameId: string, rules: Rules, now = new Date(
 }
 
 /** Сгоревшие вызовы, просроченные ответы, усталость, возврат зависших дел. Вызывается по таймеру и перед чтением. */
+/** За сколько до конца времени ответа стена ложится в ответ (решение владельца 02.11: «за минуту до конца таймера»). */
+export const WALL_LEAD_MS = 60_000;
 export async function sweep(gameId?: string): Promise<void> {
   const now = new Date();
   await checkTimeLimits(gameId);
@@ -444,6 +447,10 @@ export async function sweep(gameId?: string): Promise<void> {
     notifyTeam(b.gameId, b.attackerId, "вызов городу {book} не завершён", b.attackApprovedAt ? "Вызов был одобрен, но испытание не начато в срок. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}." : "За {days} дней вызов не был отправлен на проверку. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty}.", { book: b.bookCode, days: rules.attackDays, penalty: rules.burnPenalty });
     await startNextFromQueue(b.gameId, b.nodeKey);
   }
+  // Стена ложится в ответ за минуту до конца времени ответа (решение владельца 02.11), а не при «Испытать»: до этого
+  // хранители отвечают сами; опоздавший обход кладёт стену и после срока, прежде чем признать город потерянным.
+  const walls = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDoneAt: null, wallAppliedAt: null, defenseDeadline: { lte: new Date(now.getTime() + WALL_LEAD_MS) } }, include: { entries: true } });
+  for (const b of walls) await layWallBeforeDeadline(b);
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });
   for (const b of lost) await resolveWon(b);
   await sweepSieges(gameId, now);

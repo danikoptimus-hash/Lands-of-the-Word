@@ -640,6 +640,8 @@ model Battle {
   violation         Boolean      @default(false)
   /** Множитель защиты: 2, если мир нарушен в игре из двух команд — хранителям нужно вдвое больше стихов. */
   defenseFactor     Int          @default(1)
+  /** Стена легла в ответ (решение владельца 02.11: «стена должна срабатывать только за минуту до конца таймера, а не в начале»): отметка, что блоки уже положены. */
+  wallAppliedAt     DateTime?
   entries           BattleEntry[]
   allies            DefenseAlliance[]
 

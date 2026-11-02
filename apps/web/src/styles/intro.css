@@ -13,6 +13,8 @@
 .intro-pic .shot { max-width: 100%; max-height: 100%; object-fit: contain; }
 .intro-pic .shot.phone { border-radius: 28px; border: 5px solid #2B2117; box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(243,234,211,.18); background: #000; }
 .intro-pic .shot.wide { border-radius: 14px; box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(243,234,211,.18); }
+/* Ролик о игре (первый экран): 16:9 со стандартным управлением, звук включается нажатием на воспроизведение. */
+.intro-pic .shot.promo { width: 100%; aspect-ratio: 16 / 9; background: #000; }
 .intro-hero { width: 100%; height: 100%; min-height: 160px; border-radius: 18px; background-size: cover; background-position: center; display: flex; align-items: center; justify-content: center; box-shadow: 0 24px 60px rgba(0,0,0,.55), inset 0 0 0 1px rgba(243,234,211,.18); }
 .intro-hero img { width: 96px; height: 96px; filter: drop-shadow(0 8px 20px rgba(0,0,0,.5)); }
 .intro-text { max-width: 36rem; text-align: center; padding: 0 var(--sp-2); }

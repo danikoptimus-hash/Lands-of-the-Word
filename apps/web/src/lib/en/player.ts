@@ -683,7 +683,7 @@ export const PLAYER: Record<string, string> = {
   "блока": "blocks",
   "блоков": "blocks",
   "Убрать блок {ref} с проверки?": "Withdraw block {ref} from review?",
-  "Блок — {n} стихов книги подряд, которые выучил один участник. Принятые блоки сами ложатся в ответ, когда городу бросят вызов. Другие команды видят стену, но не её толщину.": "A block is {n} consecutive verses of the book learned by one member. Accepted blocks go into the answer by themselves when the city is challenged. Other teams see the wall but not its thickness.",
+  "Блок — {n} стихов книги подряд, которые выучил один участник. Принятые блоки сами ложатся в ответ за минуту до конца времени ответа: до этого хранители отвечают сами. Другие команды видят стену, но не её толщину.": "A block is {n} consecutive verses of the book learned by one member. Accepted blocks go into the answer by themselves one minute before the answer time runs out; until then the keepers answer on their own. Other teams see the wall but not its thickness.",
   "Блоки стены": "Wall blocks",
   "Сдать блок стены": "Submit a wall block",
   "Блок {ref} возвращён": "Block {ref} returned",
@@ -702,7 +702,7 @@ export const PLAYER: Record<string, string> = {
   "стена": "wall",
   "Стена": "Wall",
   "Ночью и в шторм стену не строят": "The wall is not built at night or in a storm",
-  "зачтено (стена и прошлые испытания): {n}": "counted (wall and past trials): {n}",
+  "зачтено ранее: {n}": "counted earlier: {n}",
   "Хранителям даётся столько же времени, сколько прошло у претендентов по часам, вместе с ночью, но ночью и в шторм таймер хранителей стоит. Они выбирают отрывок из книги и учат не меньше стихов. Стихи этой книги, выученные раньше, и блоки стены засчитываются им сами. Ничья — в пользу хранителей.": "The keepers get as much time as the challengers spent by the clock, night included, but the keepers’ timer stands still at night and in a storm. They choose a passage from the book and learn no fewer verses. Verses of this book learned earlier and wall blocks are credited to them automatically. A tie goes to the keepers.",
   // Разведка стен (решение владельца 02.11).
   "Разведано {d}": "Scouted {d}",

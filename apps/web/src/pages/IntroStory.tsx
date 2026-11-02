@@ -14,13 +14,14 @@ export function introSeen(): boolean { try { return localStorage.getItem(KEY) ==
 export function markIntroSeen(): void { try { localStorage.setItem(KEY, "1"); } catch { /* приватный режим: покажем ещё раз */ } }
 export function introForced(): boolean { try { return new URLSearchParams(window.location.search).get("intro") === "1"; } catch { return false; } }
 
-type Slide = { img: string; /** Видео вместо картинки (mp4 и webm), картинка — постер. */ video?: { mp4: string; webm: string }; wide?: boolean; title: () => string; text: () => string };
+type Slide = { img: string; /** Видео вместо картинки (mp4 и webm), картинка — постер. */ video?: { mp4: string; webm: string }; /** Ролик о игре со звуком и управлением (решение владельца 02.11: идёт первым экраном), картинка — постер. */ promo?: string; wide?: boolean; title: () => string; text: () => string };
 /**
  * Экраны (переделка по решениям владельца 01.11): настоящие снимки с человеческими никами, карта двух островов с компьютера,
  * времена суток четырьмя телефонами, шторм и ночь — короткие видео, отдельные экраны про награды и серию дней.
  * Файлы — `public/img/intro/*`; снимки делаются скриптом на локальной игре с тестовыми участниками.
  */
 const SLIDES: Slide[] = [
+  { img: "/img/intro/promo-poster.webp", promo: "/img/intro/promo.mp4", wide: true, title: () => t("Земли Слова"), text: () => t("Две с половиной минуты о том, как устроена игра.") },
   { img: "/img/intro/table.webp", wide: true, title: () => t("Земли Слова"), text: () => t("Игра для молодёжи церкви: команды идут по карте двух островов, делают добрые дела, открывают города и изучают книги Библии.") },
   { img: "/img/intro/map-day.webp", wide: true, title: () => t("Карта"), text: () => t("Два острова — Ветхий и Новый Завет. Перекрёстки, дороги и города-книги. Туман скрывает землю, пока команда не пройдёт по ней.") },
   { img: "/img/guide/deed.webp", title: () => t("Дела"), text: () => t("На каждой стороне дороги лежит дело: позвонить одинокому, помочь по хозяйству, выучить стих. Сделал — прикрепи фото или видео, администратор примет, и дорога пройдена.") },
@@ -56,7 +57,7 @@ export function IntroStory({ onClose, actions }: { onClose: () => void; /** Кн
   useEffect(() => { const next = SLIDES[i + 1]; if (next) { const im = new Image(); im.src = next.img; } }, [i]);
   // Свайп: палец ушёл дальше 50 px по горизонтали и меньше по вертикали.
   const start = useRef<{ x: number; y: number } | null>(null);
-  const onPointerDown = (e: React.PointerEvent) => { start.current = { x: e.clientX, y: e.clientY }; };
+  const onPointerDown = (e: React.PointerEvent) => { start.current = (e.target as HTMLElement).closest?.("video") ? null : { x: e.clientX, y: e.clientY }; };
   const onPointerUp = (e: React.PointerEvent) => {
     const s = start.current; start.current = null;
     if (!s) return;
@@ -70,7 +71,9 @@ export function IntroStory({ onClose, actions }: { onClose: () => void; /** Кн
       <button type="button" className="intro-close" onClick={close} aria-label={t("Закрыть")} title={t("Закрыть")}><Icon name="x" /></button>
       <div className={"intro-slide" + (s.wide ? " wide" : "") + (dir > 0 ? " fwd" : " back")} key={i}>
         <div className="intro-pic">
-          {s.video
+          {s.promo
+            ? <video className="shot wide promo" controls playsInline preload="metadata" poster={s.img} key={s.promo}><source src={s.promo} type="video/mp4" /></video>
+            : s.video
             ? <video className={s.wide ? "shot wide" : "shot phone"} autoPlay muted loop playsInline poster={s.img} key={s.video.mp4}><source src={s.video.mp4} type="video/mp4" /><source src={s.video.webm} type="video/webm" /></video>
             : <img src={s.img} alt="" className={s.wide ? "shot wide" : "shot phone"} />}
         </div>

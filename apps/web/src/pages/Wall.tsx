@@ -95,7 +95,7 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
         <span className="muted small">
           {d.blockCount > 0 ? `${blocksWord(d.blockCount)} · ${verses(d.verses)}` : t("Стены ещё нет")}
           {d.pending > 0 && <> · <Chip tone="warn" icon="clock">{d.pending}</Chip></>}
-          <Help>{t("Блок — {n} стихов книги подряд, которые выучил один участник. Принятые блоки сами ложатся в ответ, когда городу бросят вызов. Другие команды видят стену, но не её толщину.", { n: d.blockVerses })}</Help>
+          <Help>{t("Блок — {n} стихов книги подряд, которые выучил один участник. Принятые блоки сами ложатся в ответ за минуту до конца времени ответа: до этого хранители отвечают сами. Другие команды видят стену, но не её толщину.", { n: d.blockVerses })}</Help>
         </span>
         <span className="row nowrap">
           {d.blocks.length > 0 && <button type="button" className="ghost icon" aria-label={t("Блоки стены")} title={t("Блоки стены")} aria-expanded={list} onClick={() => setList((v) => !v)}><Icon name="list" /></button>}
