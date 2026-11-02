@@ -13,6 +13,9 @@ on:
       voice_id:
         description: "voice_id уже созданного голоса (тогда запись не нужна)"
         default: ""
+      voice_name:
+        description: "Или часть имени голоса из «Моих голосов» на ElevenLabs"
+        default: ""
       model_id:
         description: "Модель ElevenLabs"
         default: "eleven_multilingual_v2"
@@ -63,6 +66,7 @@ jobs:
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           SAMPLE: ${{ inputs.sample }}
           VOICE_ID: ${{ inputs.voice_id }}
+          VOICE_NAME: ${{ inputs.voice_name }}
           MODEL_ID: ${{ inputs.model_id }}
           KEEP_ACCENTS: ${{ inputs.keep_accents }}
           SFX: ${{ inputs.sfx }}

@@ -8,7 +8,7 @@
      KEEP_ACCENTS: 1 — с пометками ударений, 0 — без, both — оба варианта в out/tts).
   3. При SFX=1 генерирует звуковые эффекты для ролика → out/sfx/*.mp3.
 Переменные окружения: ELEVENLABS_API_KEY, SAMPLE (аудио или видео), SAMPLE_RANGE (отрезки мм:сс-мм:сс через запятую), ISOLATE (чистка),
-VOICE_ID, MODEL_ID (eleven_multilingual_v2), KEEP_ACCENTS, SFX, MUSIC, STAGES (voice,tts,sfx,music), ONLY (номера строк), TAKES (дубли), OUT.
+VOICE_ID или VOICE_NAME (часть имени голоса из «Моих голосов»), MODEL_ID (eleven_multilingual_v2), KEEP_ACCENTS, SFX, MUSIC, STAGES (voice,tts,sfx,music), ONLY (номера строк), TAKES (дубли), OUT.
 """
 import json, os, sys, time, uuid, urllib.request, urllib.error
 
@@ -87,6 +87,13 @@ STAGES = [x.strip() for x in os.environ.get("STAGES", "voice,tts,sfx,music").spl
 
 # 1. Голос
 voice_id = os.environ.get("VOICE_ID", "").strip()
+VOICE_NAME = os.environ.get("VOICE_NAME", "").strip()
+if not voice_id and VOICE_NAME:  # голос из «Моих голосов» по части имени
+    res = call("/voices?show_legacy=true")
+    found = [v for v in res.get("voices", []) if VOICE_NAME.lower() in (v.get("name") or "").lower()]
+    if not found:
+        print("голос не найден среди ваших:", VOICE_NAME, "| есть:", [v.get("name") for v in res.get("voices", [])][:40]); sys.exit(1)
+    voice_id = found[0]["voice_id"]; print("голос по имени:", found[0]["name"], voice_id)
 if "voice" in STAGES and not voice_id:
     samples = [p.strip() for p in os.environ.get("SAMPLE", "").split(",") if p.strip()]
     missing = [p for p in samples if not os.path.exists(p)]
