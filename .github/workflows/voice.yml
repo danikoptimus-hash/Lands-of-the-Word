@@ -1,0 +1,61 @@
+# Озвучка ролика для онбординга голосом владельца через ElevenLabs (кнопка Run workflow).
+# Ключ — только в секрете ELEVENLABS_API_KEY. Запись голоса кладут в репозиторий (путь — поле sample),
+# либо указывают voice_id уже созданного голоса. Результат: артефакт voice-tts и ветка voice-tts (out/tts, out/sfx).
+name: voice
+
+on:
+  workflow_dispatch:
+    inputs:
+      sample:
+        description: "Путь к записи голоса в репозитории (через запятую, если файлов несколько)"
+        default: "voice-sample.m4a"
+      voice_id:
+        description: "voice_id уже созданного голоса (тогда запись не нужна)"
+        default: ""
+      model_id:
+        description: "Модель ElevenLabs"
+        default: "eleven_multilingual_v2"
+      keep_accents:
+        description: "Оставить знаки ударения в тексте (1/0)"
+        default: "0"
+      sfx:
+        description: "Сгенерировать звуковые эффекты (1/0)"
+        default: "1"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: voice
+  cancel-in-progress: false
+
+jobs:
+  voice:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Озвучка
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          SAMPLE: ${{ inputs.sample }}
+          VOICE_ID: ${{ inputs.voice_id }}
+          MODEL_ID: ${{ inputs.model_id }}
+          KEEP_ACCENTS: ${{ inputs.keep_accents }}
+          SFX: ${{ inputs.sfx }}
+          OUT: out
+        run: python3 scripts/voice/elevenlabs_tts.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: voice-tts
+          path: out
+      - name: Ветка voice-tts с результатом
+        run: |
+          cd out
+          git init -q
+          git checkout -q -b voice-tts
+          git add -A
+          git -c user.name="voice-workflow" -c user.email="voice-workflow@users.noreply.github.com" commit -qm "Озвучка ролика, запуск ${{ github.run_id }}"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" voice-tts
