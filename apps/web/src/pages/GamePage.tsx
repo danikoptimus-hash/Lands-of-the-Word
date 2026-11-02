@@ -68,7 +68,7 @@ export function GamePage() {
   const [genError, setGenError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
-  const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, quarry: 0, battles: 0, recipients: 0, visits: 0 });
+  const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, quarry: 0, battles: 0, walls: 0, recipients: 0, visits: 0 });
   const [progress, setProgress] = useState<Progress | null>(() => ready<Progress>(`/api/games/${id}/progress`));
   /** «Посмотреть на карте» из «Проверки» и блока «Команды» (просьба владельца 10.10): закрыть раздел и показать сторону дела вблизи. */
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
@@ -105,7 +105,7 @@ export function GamePage() {
   /** Счётчики для вкладок и чек-листа: что ждёт администратора. Лёгкие запросы, обновляются с каждым событием игры. */
   const loadCounts = useCallback(async (status: string) => {
     const active = status === "ACTIVE";
-    const [teams, deeds, submissions, quarry, battles, recipients, visits] = await Promise.all([
+    const [teams, deeds, submissions, quarry, battles, walls, recipients, visits] = await Promise.all([
       api<{ teams: unknown[] }>(`/api/games/${id}/teams`).then((r) => r.teams.length).catch(() => 0),
       // Счётчик раздела «Дела» — все дела на дорогах, включённые и выключенные, без дел Каменоломни (решения владельца 05.10 и 07.10).
       api<{ deeds: Array<{ quarry?: boolean }> }>(`/api/games/${id}/deeds`).then((r) => r.deeds.filter((d) => !d.quarry).length).catch(() => 0),
@@ -113,11 +113,13 @@ export function GamePage() {
       // Сдачи Каменоломни тоже ждут проверки — считаем их в кружке «Проверка» (замечание владельца 07.10).
       active ? api<{ works: unknown[] }>(`/api/games/${id}/quarry/submissions`).then((r) => r.works.length).catch(() => 0) : 0,
       active ? api<{ battles: Array<{ entries: Array<{ status: string }> }> }>(`/api/games/${id}/battles`).then((r) => r.battles.reduce((n, b) => n + b.entries.filter((e) => e.status === "SUBMITTED").length, 0)).catch(() => 0) : 0,
+      // Блоки городской стены на проверке (замечание владельца 02.11: «почему нет уведомления на плитке про стены») — в тот же кружок.
+      active ? api<{ blocks: Array<{ status: string }> }>(`/api/games/${id}/walls`).then((r) => r.blocks.filter((b) => b.status === "SUBMITTED").length).catch(() => 0) : 0,
       status !== "FINISHED" ? api<{ recipients: unknown[] }>(`/api/games/${id}/recipients`).then((r) => r.recipients.length).catch(() => 0) : 0,
       // Отчёты о визитах, ждущие решения, — второй значок на плитке «Проверка» (решение владельца 29.10): сдачи дел и визиты считаются порознь.
       active ? api<{ visits: Array<{ status: string }> }>(`/api/games/${id}/visits`).then((r) => r.visits.filter((v) => v.status === "SUBMITTED").length).catch(() => 0) : 0,
     ]);
-    setCounts({ teams, deeds, submissions, quarry, battles, recipients, visits });
+    setCounts({ teams, deeds, submissions, quarry, battles, walls, recipients, visits });
   }, [id]);
 
   const loadAll = useCallback(() => { load().catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); void loadProgress(); }, [load, loadProgress]);
@@ -159,7 +161,7 @@ export function GamePage() {
   if (!game || !painted) return <div className="admin-screen"><div className="admin-empty"><div className="admin-loading"><LoadingState rows={3} /></div></div></div>;
   const active = game.status === "ACTIVE";
   const draft = game.status === "DRAFT";
-  const reviewCount = counts.submissions + counts.quarry + counts.battles;
+  const reviewCount = counts.submissions + counts.quarry + counts.battles + counts.walls;
   const hasMap = hexes.length > 0;
   const refresh = () => { void load(); void loadProgress(); };
 
