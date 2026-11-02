@@ -31,6 +31,9 @@ on:
       music:
         description: "Сгенерировать музыку (1/0)"
         default: "1"
+      stages:
+        description: "Этапы через запятую: voice,tts,sfx,music (например, только music,sfx)"
+        default: "voice,tts,sfx,music"
 
 permissions:
   contents: write
@@ -58,6 +61,7 @@ jobs:
           SAMPLE_RANGE: ${{ inputs.sample_range }}
           ISOLATE: ${{ inputs.isolate }}
           MUSIC: ${{ inputs.music }}
+          STAGES: ${{ inputs.stages }}
           OUT: out
         run: python3 scripts/voice/elevenlabs_tts.py
       - uses: actions/upload-artifact@v4

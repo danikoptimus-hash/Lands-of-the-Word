@@ -8,7 +8,7 @@
      KEEP_ACCENTS: 1 — с пометками ударений, 0 — без, both — оба варианта в out/tts).
   3. При SFX=1 генерирует звуковые эффекты для ролика → out/sfx/*.mp3.
 Переменные окружения: ELEVENLABS_API_KEY, SAMPLE (аудио или видео), SAMPLE_RANGE (отрезки мм:сс-мм:сс через запятую), ISOLATE (чистка),
-VOICE_ID, MODEL_ID (eleven_multilingual_v2), KEEP_ACCENTS, SFX, MUSIC, OUT.
+VOICE_ID, MODEL_ID (eleven_multilingual_v2), KEEP_ACCENTS, SFX, MUSIC, STAGES (voice,tts,sfx,music), OUT.
 """
 import json, os, sys, time, uuid, urllib.request, urllib.error
 
@@ -83,9 +83,11 @@ def isolate(path):
     return out
 
 
+STAGES = [x.strip() for x in os.environ.get("STAGES", "voice,tts,sfx,music").split(",") if x.strip()]  # какие этапы выполнять
+
 # 1. Голос
 voice_id = os.environ.get("VOICE_ID", "").strip()
-if not voice_id:
+if "voice" in STAGES and not voice_id:
     samples = [p.strip() for p in os.environ.get("SAMPLE", "").split(",") if p.strip()]
     missing = [p for p in samples if not os.path.exists(p)]
     if not samples or missing:
@@ -99,10 +101,10 @@ if not voice_id:
     res = call("/voices/add", body, hdr)
     voice_id = res["voice_id"]
     print("голос создан:", voice_id, "проверка нужна:" if res.get("requires_verification") else "")
-json.dump({"voice_id": voice_id, "model_id": MODEL}, open(f"{OUT}/voice.json", "w"))
+if voice_id: json.dump({"voice_id": voice_id, "model_id": MODEL}, open(f"{OUT}/voice.json", "w"))
 
 # 2. Строки
-lines = json.load(open(LINES, encoding="utf-8"))
+lines = json.load(open(LINES, encoding="utf-8")) if "tts" in STAGES and voice_id else []
 settings = {"stability": 0.5, "similarity_boost": 0.8, "style": 0.15, "use_speaker_boost": True}
 MODE = os.environ.get("KEEP_ACCENTS", "both")  # 1 — с пометками ударений, 0 — без, both — оба варианта
 variants = [("mine", True), ("mine-plain", False)] if MODE == "both" else [("mine", MODE == "1")]
@@ -116,7 +118,7 @@ for i, line in enumerate(lines):
         print(i, suffix, len(audio), "байт:", text[:60])
 
 # 3. Звуки
-if os.environ.get("SFX", "0") == "1":
+if os.environ.get("SFX", "0") == "1" and "sfx" in STAGES:
     os.makedirs(f"{OUT}/sfx", exist_ok=True)
     SFX = [
         ("sea", "Calm sea waves gently lapping, soft steady wind, distant seagulls, peaceful, no music", 12),
@@ -138,7 +140,7 @@ if os.environ.get("SFX", "0") == "1":
         open(f"{OUT}/sfx/{name}.mp3", "wb").write(audio)
         print("звук", name, len(audio), "байт")
 # 4. Музыка (Eleven Music): фон под ролик, без слов
-if os.environ.get("MUSIC", "0") == "1":
+if os.environ.get("MUSIC", "0") == "1" and "music" in STAGES:
     os.makedirs(f"{OUT}/music", exist_ok=True)
     TRACKS = [
         ("bed", "Majestic symphonic orchestral soundtrack in the style of a grand strategy game main theme: full orchestra, soaring strings, "
