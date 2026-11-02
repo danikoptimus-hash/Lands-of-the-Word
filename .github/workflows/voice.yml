@@ -17,8 +17,8 @@ on:
         description: "Модель ElevenLabs"
         default: "eleven_multilingual_v2"
       keep_accents:
-        description: "Оставить знаки ударения в тексте (1/0)"
-        default: "0"
+        description: "Ударения в тексте: 1 — с пометками, 0 — без, both — оба варианта"
+        default: "both"
       sample_range:
         description: "Отрезки записи мм:сс-мм:сс через запятую (пусто — весь файл)"
         default: ""

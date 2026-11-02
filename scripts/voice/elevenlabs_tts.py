@@ -5,7 +5,7 @@
   1. Если передан VOICE_ID — использует готовый голос; иначе создаёт голос мгновенным клонированием
      из записи (SAMPLE, пути через запятую) с шумоочисткой и сохраняет voice_id в out/voice.json.
   2. Озвучивает строки из scripts/voice/lines.json → out/tts/s<N>-mine.mp3 (знаки ударения «´» убираются,
-     если KEEP_ACCENTS не «1»).
+     KEEP_ACCENTS: 1 — с пометками ударений, 0 — без, both — оба варианта в out/tts).
   3. При SFX=1 генерирует звуковые эффекты для ролика → out/sfx/*.mp3.
 Переменные окружения: ELEVENLABS_API_KEY, SAMPLE (аудио или видео), SAMPLE_RANGE (отрезки мм:сс-мм:сс через запятую), ISOLATE (чистка),
 VOICE_ID, MODEL_ID (eleven_multilingual_v2), KEEP_ACCENTS, SFX, MUSIC, OUT.
@@ -18,7 +18,6 @@ if not KEY:
     print("нет ELEVENLABS_API_KEY"); sys.exit(1)
 OUT = os.environ.get("OUT", "out")
 MODEL = os.environ.get("MODEL_ID", "eleven_multilingual_v2")
-KEEP = os.environ.get("KEEP_ACCENTS", "0") == "1"
 LINES = os.environ.get("LINES", "scripts/voice/lines.json")
 os.makedirs(f"{OUT}/tts", exist_ok=True)
 
@@ -105,13 +104,16 @@ json.dump({"voice_id": voice_id, "model_id": MODEL}, open(f"{OUT}/voice.json", "
 # 2. Строки
 lines = json.load(open(LINES, encoding="utf-8"))
 settings = {"stability": 0.5, "similarity_boost": 0.8, "style": 0.15, "use_speaker_boost": True}
+MODE = os.environ.get("KEEP_ACCENTS", "both")  # 1 — с пометками ударений, 0 — без, both — оба варианта
+variants = [("mine", True), ("mine-plain", False)] if MODE == "both" else [("mine", MODE == "1")]
 for i, line in enumerate(lines):
-    text = line["text"] if KEEP else line["text"].replace("́", "")
-    payload = json.dumps({"text": text, "model_id": MODEL, "voice_settings": settings}, ensure_ascii=False).encode()
-    audio = call(f"/text-to-speech/{voice_id}?output_format=mp3_44100_128", payload, {"Content-Type": "application/json"}, raw=True)
-    path = f"{OUT}/tts/s{i}-mine.mp3"
-    open(path, "wb").write(audio)
-    print(i, len(audio), "байт:", text[:60])
+    for suffix, keep in variants:
+        text = line["text"] if keep else line["text"].replace("\u0301", "")
+        payload = json.dumps({"text": text, "model_id": MODEL, "voice_settings": settings}, ensure_ascii=False).encode()
+        audio = call(f"/text-to-speech/{voice_id}?output_format=mp3_44100_128", payload, {"Content-Type": "application/json"}, raw=True)
+        path = f"{OUT}/tts/s{i}-{suffix}.mp3"
+        open(path, "wb").write(audio)
+        print(i, suffix, len(audio), "байт:", text[:60])
 
 # 3. Звуки
 if os.environ.get("SFX", "0") == "1":
