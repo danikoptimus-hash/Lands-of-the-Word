@@ -874,7 +874,14 @@
 .bm-cell.plan::after { content: ""; position: absolute; right: 1px; bottom: 1px; width: 5px; height: 5px; border-radius: 50%; background: var(--text, var(--ink)); box-shadow: 0 0 0 1px var(--surface, #fff); }
 .bm-legend .sw.dot { position: relative; }
 .bm-legend .sw.dot::after { content: ""; position: absolute; right: 1px; bottom: 1px; width: 5px; height: 5px; border-radius: 50%; background: var(--text, var(--ink)); }
-.bm-people li label { width: 100%; align-items: center; min-height: var(--touch); cursor: pointer; }
-.bm-people input { width: 20px; height: 20px; flex: none; }
+/* Окно стиха (02.11, «компактнее»): кто уже закрыл — одной строкой, кому поручить — чипы-переключатели. */
+.bm-taken { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 var(--sp-2); }
+.bm-taken span { display: inline-flex; align-items: center; gap: 4px; }
+.bm-taken .i { width: 14px; height: 14px; }
+.bm-people { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.bm-person { min-height: 36px; padding: 0 12px; border-radius: 18px; font-size: var(--fs-sm); font-weight: 600; background: transparent; color: var(--text, var(--ink)); border: 1px solid var(--border-strong, var(--muted)); box-shadow: none; display: inline-flex; align-items: center; gap: 6px; }
+.bm-person .i { width: 16px; height: 16px; }
+.bm-person.on { background: var(--success-soft); border-color: var(--success); color: var(--success); }
+.bm-person:disabled { opacity: .7; cursor: default; }
 .brick-grid .brick-btn.cracked .i { color: var(--warn); }
 .feed li.me .ico { background: var(--accent-soft); color: var(--accent); }

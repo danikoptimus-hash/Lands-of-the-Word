@@ -296,6 +296,8 @@
 .masonry .brick.mine { stroke: var(--bronze-ink); }
 .masonry .brick.pending { stroke: var(--ink-3); }
 .masonry .tip rect { fill: var(--paper-light); stroke: var(--paper-edge); }
+.bm-person { background: var(--paper-light); border-color: var(--paper-edge); }
+.bm-person.on { background: var(--moss-soft, var(--success-soft)); border-color: var(--moss, var(--success)); color: var(--moss-ink, var(--success)); }
 .bm-cell, .bm-legend .sw { background: var(--paper-light); border-color: var(--paper-edge); }
 .bm-cell.learned, .bm-legend .sw.learned { background: var(--moss, var(--success)); border-color: var(--moss, var(--success)); }
 .bm-cell.others, .bm-legend .sw.others { background: repeating-linear-gradient(135deg, var(--moss, var(--success)) 0 2px, var(--paper-light) 2px 5px); }

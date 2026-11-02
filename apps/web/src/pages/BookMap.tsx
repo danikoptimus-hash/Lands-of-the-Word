@@ -60,27 +60,23 @@ export function BookMap({ gameId, bookCode, battleId, version = 0 }: { gameId: s
         ))}
       </div>
       {picked && (
-        <Sheet size="sm" title={`${d.book.name} ${picked.ref}`} onClose={() => setPick(null)}>
-          {picked.marked.length > 0 && <p className="meta-line"><Icon name="send" />{t("В этом испытании: {names}", { names: picked.marked.map((m) => m.name).join(", ") })}</p>}
-          {picked.learned.length > 0 && <p className="meta-line"><Icon name="check" />{t("Сдали раньше: {names}", { names: picked.learned.map((m) => m.name).join(", ") })}</p>}
+        <Sheet size="sm" title={picked.ref} onClose={() => setPick(null)} className="bm-sheet">
+          {(picked.marked.length > 0 || picked.learned.length > 0) && (
+            <p className="muted small bm-taken">
+              {picked.marked.length > 0 && <span><Icon name="send" />{picked.marked.map((m) => m.name).join(", ")}</span>}
+              {picked.learned.length > 0 && <span><Icon name="check" />{picked.learned.map((m) => m.name).join(", ")}</span>}
+            </p>
+          )}
           {picked.free.length === 0
-            ? <p className="hint mt-2">{t("Этот стих уже некому поручить: все в команде его сдавали.")}</p>
+            ? <p className="hint">{t("Этот стих уже некому поручить: все в команде его сдавали.")}</p>
             : (
-              <ul className="list mt-2 bm-people" aria-label={t("Кто будет учить")}>
+              <div className="bm-people" role="group" aria-label={t("Кто будет учить")}>
                 {picked.free.map((m) => {
                   const on = picked.planned.has(m.userId);
-                  return (
-                    <li key={m.userId}>
-                      <label className="row nowrap gap-2">
-                        <input type="checkbox" checked={on} disabled={!d.canPlan} onChange={(e) => void toggle(picked.idx, m.userId, e.target.checked)} />
-                        <span className="main">{m.name}{m.captain && <span className="muted small"> · {t("капитан")}</span>}</span>
-                      </label>
-                    </li>
-                  );
+                  return <button key={m.userId} type="button" className={"bm-person" + (on ? " on" : "")} aria-pressed={on} disabled={!d.canPlan} onClick={() => void toggle(picked.idx, m.userId, !on)}>{on && <Icon name="check" />}{m.name}</button>;
                 })}
-              </ul>
+              </div>
             )}
-          {!d.canPlan && picked.free.length > 0 && <p className="muted small mt-2">{t("Отмечает капитан.")}</p>}
         </Sheet>
       )}
     </div>
