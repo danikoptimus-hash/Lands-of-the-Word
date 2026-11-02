@@ -84,6 +84,12 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
   })() : null;
   return (
     <svg className="masonry" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={approved.length ? t("Стена: {n}", { n: blocksWord(approved.length) }) : t("Стены ещё нет")} onClick={() => setPick(null)}>
+      {/* Текстуры кирпичей (решение владельца 02.11: «на стену в городе тоже нужно сгенерить текстуры»): узор на каждый камень по его рамке. */}
+      <defs>
+        {[["bm-sand", "brick-sand"], ["bm-sand2", "brick-sand2"], ["bm-dark", "brick-dark"]].map(([id, f]) => (
+          <pattern key={id} id={id} patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width={1} height={1}><image href={`/img/props/${f}.webp`} width={1} height={1} preserveAspectRatio="none" /></pattern>
+        ))}
+      </defs>
       {placed.map(({ b, x, y, r, c }) => brick(b, x, y, "brick" + ((r + c) % 3 === 1 ? " alt" : "") + (b.mine ? " mine" : "") + (fresh.has(b.id) ? " new" : "")))}
       {approved.length === 0 && Array.from({ length: PER }, (_, c) => <rect key={"g" + c} className="brick ghost" x={GAP + c * (BW + GAP)} y={H - ground - (BH + GAP)} width={BW} height={BH} rx={1.5} />)}
       {/* зубцы — над заполненными колонками верхнего ряда */}
@@ -165,7 +171,7 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
       {/* Карта книги (решение владельца 02.11: «и в блоках города, чтобы капитан понимал, кому что»). */}
       <details className="disclose sm book-map-fold">
         <summary><Icon name="book" />{t("Книга")}<Icon name="chevron-down" className="chev" /></summary>
-        <BookMap gameId={gameId} bookCode={d.bookCode} version={version + d.blocks.length} />
+        <BookMap gameId={gameId} bookCode={d.bookCode} version={version + d.blocks.length} look="bricks" />
       </details>
       {build && <BuildSheet gameId={gameId} nodeKey={nodeKey} bricks={d.bricks} n={d.blockVerses} mineCount={mine.length} onClose={() => setBuild(false)} onDone={() => { setBuild(false); void load(); onChanged(); }} />}
     </div>

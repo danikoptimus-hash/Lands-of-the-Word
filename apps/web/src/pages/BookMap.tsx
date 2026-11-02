@@ -13,7 +13,9 @@ import { Sheet } from "../components/Sheet";
  * кто отметил сейчас, и список тех, кому его ещё можно поручить; капитан отмечает, кто будет учить (план заучивания).
  * Показывается хранителям в ответе, претендентам в вызове и в стене своего города.
  */
-export function BookMap({ gameId, bookCode, battleId, version = 0 }: { gameId: string; bookCode: string; battleId?: string; version?: number }) {
+/** Вид клеток (решение владельца 02.11): хранителям и в стене — кирпичи, претендентам — камни для катапульт; текстуры `public/img/props/brick-*.webp`, `stone-*.webp`. */
+export type BookLook = "bricks" | "stones";
+export function BookMap({ gameId, bookCode, battleId, version = 0, look = "bricks" }: { gameId: string; bookCode: string; battleId?: string; version?: number; look?: BookLook }) {
   const { notify } = useUi();
   const [d, setD] = useState<BookMapDto | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function BookMap({ gameId, bookCode, battleId, version = 0 }: { gameId: s
   };
   const picked = pick !== null ? { idx: pick, ref: refOf(pick), learned: sets.filter((m) => m.learnedSet.has(pick)), marked: sets.filter((m) => m.markedSet.has(pick)), free: sets.filter((m) => !m.learnedSet.has(pick) && !m.markedSet.has(pick)), planned: planBy.get(pick) ?? new Set<string>() } : null;
   return (
-    <div className="book-map">
+    <div className={"book-map look-" + look}>
       <div className="row between nowrap">
         <span className="muted small">{d.book.name}</span>
         <Help>
@@ -54,7 +56,7 @@ export function BookMap({ gameId, bookCode, battleId, version = 0 }: { gameId: s
           <div className="bm-row" key={c}>
             <span className="bm-ch">{c + 1}</span>
             <div className="bm-cells">
-              {Array.from({ length: n }, (_, v) => { const i = offsets[c]! + v; return <button key={v} type="button" className={"bm-cell " + classOf(i) + (inPassage(i) ? " sel" : "") + (planBy.has(i) ? " plan" : "")} aria-label={refOf(i)} title={refOf(i)} onClick={() => setPick(i)} />; })}
+              {Array.from({ length: n }, (_, v) => { const i = offsets[c]! + v; return <button key={v} type="button" className={"bm-cell " + classOf(i) + (i % 2 ? " odd" : "") + (inPassage(i) ? " sel" : "") + (planBy.has(i) ? " plan" : "")} aria-label={refOf(i)} title={refOf(i)} onClick={() => setPick(i)} />; })}
             </div>
           </div>
         ))}

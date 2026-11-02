@@ -826,8 +826,9 @@
 .wall .hint.warn { color: var(--warn); }
 .masonry { display: block; width: 100%; max-width: 420px; height: auto; --brick: #c9a870; --brick-2: #b9955c; --mortar: #7d6240; }
 .masonry .brick { fill: var(--brick); stroke: var(--mortar); stroke-width: .8; transform-box: fill-box; transform-origin: center; }
-.masonry .brick.alt { fill: var(--brick-2); }
-.masonry .brick.merlon { fill: var(--brick-2); }
+.masonry .brick { fill: url(#bm-sand); }
+.masonry .brick.alt { fill: url(#bm-sand2); }
+.masonry .brick.merlon { fill: url(#bm-sand); }
 .masonry .brick.pending { fill: transparent; stroke-dasharray: 3 2; stroke: var(--muted); }
 .masonry .brick.ghost { fill: transparent; stroke-dasharray: 2 3; stroke: var(--border-strong, var(--muted)); opacity: .6; }
 .masonry .brick.mine { stroke: var(--accent-ink, var(--accent)); stroke-width: 1.4; }
@@ -862,6 +863,39 @@
 .bm-ch { flex: none; width: 22px; font-size: var(--fs-xs); color: var(--muted); text-align: right; line-height: 16px; font-variant-numeric: tabular-nums; }
 .bm-cells { display: flex; flex-wrap: wrap; gap: 2px; }
 .bm-cell { width: 16px; height: 16px; min-height: 0; padding: 0; border-radius: 3px; border: 1px solid var(--border-strong, var(--muted)); background: var(--surface, #fff); box-shadow: none; }
+/* Кирпичи и камни (решение владельца 02.11): клетка — спрайт с текстурой; свободная — бледный меловой камень за пунктиром. */
+.look-bricks .bm-cell, .look-stones .bm-cell { border: 0; background: transparent center / 100% 100% no-repeat; border-radius: 0; }
+.look-bricks .bm-cell { width: 24px; height: 14px; }
+.look-bricks .bm-cells { gap: 3px 3px; }
+.look-stones .bm-cell { width: 20px; height: 20px; }
+.look-bricks .bm-cell.free { background: url("/img/props/brick-chalk.webp") center / 100% 100% no-repeat; opacity: .45; }
+.look-bricks .bm-cell.others { background: url("/img/props/brick-sand.webp") center / 100% 100% no-repeat; }
+.look-bricks .bm-cell.others.odd { background: url("/img/props/brick-sand2.webp") center / 100% 100% no-repeat; }
+.look-bricks .bm-cell.learned { background: url("/img/props/brick-dark.webp") center / 100% 100% no-repeat; }
+.look-bricks .bm-cell.marked { background: url("/img/props/brick-slate.webp") center / 100% 100% no-repeat; }
+.look-stones .bm-cell.free { background: url("/img/props/stone-chalk.webp") center / 100% 100% no-repeat; opacity: .45; }
+.look-stones .bm-cell.others { background: url("/img/props/stone-granite.webp") center / 100% 100% no-repeat; }
+.look-stones .bm-cell.learned { background: url("/img/props/stone-basalt.webp") center / 100% 100% no-repeat; }
+.look-stones .bm-cell.marked { background: url("/img/props/stone-slate.webp") center / 100% 100% no-repeat; }
+/* Цветные правила состояний (.bm-cell.marked и т. п.) той же силы и стоят ниже: у спрайтов фон-цвет снимается явно. */
+.look-bricks .bm-cell.free, .look-bricks .bm-cell.others, .look-bricks .bm-cell.learned, .look-bricks .bm-cell.marked,
+.look-stones .bm-cell.free, .look-stones .bm-cell.others, .look-stones .bm-cell.learned, .look-stones .bm-cell.marked,
+.look-bricks .bm-legend .sw.free, .look-bricks .bm-legend .sw.others, .look-bricks .bm-legend .sw.learned, .look-bricks .bm-legend .sw.marked,
+.look-stones .bm-legend .sw.free, .look-stones .bm-legend .sw.others, .look-stones .bm-legend .sw.learned, .look-stones .bm-legend .sw.marked { background-color: transparent; border-color: transparent; }
+.look-bricks .bm-cell.sel, .look-stones .bm-cell.sel { outline-offset: 0; }
+.look-bricks .bm-cell.plan::after, .look-stones .bm-cell.plan::after { box-shadow: 0 0 0 1px #fff; }
+.look-bricks .bm-legend .sw, .look-stones .bm-legend .sw { border: 0; background: transparent center / 100% 100% no-repeat; border-radius: 0; width: 18px; height: 11px; }
+.look-stones .bm-legend .sw { width: 14px; height: 14px; }
+.look-bricks .bm-legend .sw.free { background: url("/img/props/brick-chalk.webp") center / 100% 100% no-repeat; opacity: .45; }
+.look-bricks .bm-legend .sw.others { background: url("/img/props/brick-sand.webp") center / 100% 100% no-repeat; }
+.look-bricks .bm-legend .sw.learned { background: url("/img/props/brick-dark.webp") center / 100% 100% no-repeat; }
+.look-bricks .bm-legend .sw.marked { background: url("/img/props/brick-slate.webp") center / 100% 100% no-repeat; }
+.look-stones .bm-legend .sw.free { background: url("/img/props/stone-chalk.webp") center / 100% 100% no-repeat; opacity: .45; }
+.look-stones .bm-legend .sw.others { background: url("/img/props/stone-granite.webp") center / 100% 100% no-repeat; }
+.look-stones .bm-legend .sw.learned { background: url("/img/props/stone-basalt.webp") center / 100% 100% no-repeat; }
+.look-stones .bm-legend .sw.marked { background: url("/img/props/stone-slate.webp") center / 100% 100% no-repeat; }
+.look-bricks .bm-legend .sw.sel, .look-stones .bm-legend .sw.sel { background: transparent; outline: 2px solid var(--bronze, var(--accent-ink)); outline-offset: 0; }
+.look-bricks .bm-legend .sw.dot, .look-stones .bm-legend .sw.dot { background: transparent; border: 1px solid var(--border-strong, var(--muted)); border-radius: 3px; }
 .bm-cell.learned, .bm-legend .sw.learned { background: var(--success); border-color: var(--success); }
 .bm-cell.others, .bm-legend .sw.others { background: repeating-linear-gradient(135deg, var(--success) 0 2px, transparent 2px 5px); }
 .bm-cell.marked, .bm-legend .sw.marked { background: var(--bm-marked, #3d6fa5); border-color: var(--bm-marked, #3d6fa5); }

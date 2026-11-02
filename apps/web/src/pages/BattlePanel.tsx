@@ -265,7 +265,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
           {!ally && ((attacker && b.status === "ATTACK" && !b.attackDoneAt) || (!attacker && b.status === "DEFENSE" && !b.defenseDoneAt)) && (
             <details className="disclose sm book-map-fold" open>
               <summary><Icon name="book" />{t("Книга")}<Icon name="chevron-down" className="chev" /></summary>
-              <BookMap gameId={gameId} bookCode={b.bookCode} battleId={b.id} version={b.entries.length + (passage ? 1 : 0)} />
+              <BookMap gameId={gameId} bookCode={b.bookCode} battleId={b.id} version={b.entries.length + (passage ? 1 : 0)} look={attacker ? "stones" : "bricks"} />
             </details>
           )}
           {!attacker && !passage && b.status === "DEFENSE" && !b.defenseDoneAt && (
