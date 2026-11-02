@@ -832,6 +832,14 @@
 .masonry .brick.ghost { fill: transparent; stroke-dasharray: 2 3; stroke: var(--border-strong, var(--muted)); opacity: .6; }
 .masonry .brick.mine { stroke: var(--accent-ink, var(--accent)); stroke-width: 1.4; }
 .masonry .brick.new { animation: brick-in .55s cubic-bezier(.2,.9,.3,1.3) both; }
+/* Надломленный блок (02.11): отколотый край и трещина; нажатый камень обведён; подсказка — над камнем. */
+.masonry .brick { cursor: pointer; outline: none; }
+.masonry .brick.cracked .shape { fill: inherit; stroke: inherit; stroke-width: inherit; }
+.masonry .brick.cracked .crack { fill: none; stroke: var(--mortar); stroke-width: .9; stroke-linejoin: round; stroke-linecap: round; }
+.masonry .brick.pick, .masonry .brick:focus-visible { stroke: var(--accent-ink, var(--accent)); stroke-width: 1.8; }
+.masonry .tip rect { fill: var(--surface, #fff); stroke: var(--border-strong, var(--muted)); stroke-width: .8; filter: drop-shadow(0 2px 3px rgba(0,0,0,.25)); }
+.masonry .tip text { font-size: 8.5px; font-weight: 600; fill: var(--ink, #222); }
+.masonry .tip text + text { font-weight: 400; fill: var(--muted); }
 .masonry .ground { stroke: var(--mortar); stroke-width: 1.5; }
 .masonry .more { fill: var(--muted); font-size: 11px; font-weight: 700; }
 @keyframes brick-in { from { transform: translateY(-18px) scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
@@ -844,4 +852,6 @@
 .brick-grid .brick-btn.approved { background: var(--success-soft); color: var(--success); }
 .brick-grid .brick-btn.approved .i { color: var(--success); }
 .brick-grid .brick-btn.submitted .i { color: var(--warn); }
+.brick-grid .brick-btn.cracked { background: var(--warn-soft, var(--accent-soft)); color: var(--warn); border-style: dashed; }
+.brick-grid .brick-btn.cracked .i { color: var(--warn); }
 .feed li.me .ico { background: var(--accent-soft); color: var(--accent); }

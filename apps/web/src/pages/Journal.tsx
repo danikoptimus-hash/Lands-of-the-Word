@@ -105,11 +105,13 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   wall_block_returned: "Блок стены города {book} возвращён администратором: {ref}{comment}",
   wall_applied: "Стена города {book} легла в ответ: зачтено {n} стихов{burnt}",
   wall_scouted: "{user} разведал(а) стену города {book}: {result}",
+  wall_repair_submitted: "{user} сдал(а) починку блока стены города {book}: {part} из {ref}",
+  wall_block_repaired: "Блок стены города {book} починен: {ref}. Толщина стены — {n} стихов",
 };
 const ICON: Partial<Record<JournalKind, string>> = { trial_peace: "handshake", siege_peace: "handshake", peace_ended: "handshake", trade_proposed: "handshake", trade_countered: "handshake", trade_done: "city", trade_cancelled: "x", deed_submitted: "send", deed_approved: "check", deed_returned: "back", order_solved: "lock", task_solved: "book", city_captured: "city", ruins_taken: "city", treasure: "star", trial_declared: "wave", trial_queued: "list", trial_started: "wave", trial_defense: "wave", trial_repelled: "flag", trial_won: "trophy", trial_burnt: "clock", siege_declared: "scroll", siege_won: "trophy", siege_repelled: "flag", passage_granted: "handshake", passage_denied: "x", sea_landed: "ship", penalty: "alert", role_changed: "user", capital_moved: "crown", peace_offered: "handshake", peace_made: "handshake", peace_broken: "alert", peace_violated: "alert", ally_requested: "shield", ally_joined: "shield", ally_declined: "x", visit_submitted: "send", visit_approved: "check", visit_rejected: "alert", visit_expired: "clock", chronicle: "scroll", game_finished: "trophy",
   trial_submitted: "send", answer_submitted: "send", trial_approved: "check", trial_entry_returned: "back", trial_dropped: "x", defense_doubled: "shield", city_fatigue: "clock", city_locked: "lock",
   passage_requested: "handshake", passage_given: "check", passage_refused: "x", passage_expired: "clock", trade_rejected: "x", support_answered: "mail", ship_ready: "ship", deed_released: "back",
-  deeds_frozen: "alert", deeds_unfrozen: "check", member_left: "users", member_joined: "users", member_moved: "users", wall_block_submitted: "wall", wall_block_approved: "wall", wall_block_returned: "back", wall_applied: "wall", wall_scouted: "telescope" };
+  deeds_frozen: "alert", deeds_unfrozen: "check", member_left: "users", member_joined: "users", member_moved: "users", wall_block_submitted: "wall", wall_block_approved: "wall", wall_repair_submitted: "wall", wall_block_repaired: "wall", wall_block_returned: "back", wall_applied: "wall", wall_scouted: "telescope" };
 
 /** Текст записи: шаблон вида через словарь, код книги подставляется названием, служебные подстановки переводятся. */
 export function journalLine(kind: JournalKind, vars: Record<string, string | number>): string {

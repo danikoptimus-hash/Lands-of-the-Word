@@ -62,27 +62,31 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     const learned = new Set<number>();
     for (const e of mineEntries) for (let i = e.startIdx; i <= e.endIdx; i++) learned.add(i);
     const total = book.total, count = Math.ceil(total / n);
-    const myBlocks = new Map(rows.filter((r) => r.userId === userId && r.status !== "REJECTED").map((r) => [Math.floor(r.startIdx / n), r.usedAt ? "USED" : r.status] as const));
+    // Починки (repairOfId) — отдельные строки: на проверке держат блок в состоянии «на проверке», принятые — история.
+    const repairPending = new Set(rows.filter((r) => r.repairOfId && r.status === "SUBMITTED").map((r) => r.repairOfId!));
+    const myBlocks = new Map(rows.filter((r) => r.userId === userId && r.status !== "REJECTED" && !r.repairOfId).map((r) => [Math.floor(r.startIdx / n), r] as const));
     const bricks = Array.from({ length: count }, (_, k) => {
       const { start, end } = brickRange(k, n, total);
-      let state: "free" | "learned" | "submitted" | "approved" | "used" = "free";
+      let state: "free" | "learned" | "submitted" | "approved" | "used" | "cracked" = "free";
       const my = myBlocks.get(k);
-      if (my === "USED") state = "used";
-      else if (my === "APPROVED") state = "approved";
-      else if (my === "SUBMITTED") state = "submitted";
+      if (my?.usedAt) state = "used";
+      else if (my?.status === "APPROVED" && my.missing > 0) state = repairPending.has(my.id) ? "submitted" : "cracked";
+      else if (my?.status === "APPROVED") state = "approved";
+      else if (my?.status === "SUBMITTED") state = "submitted";
       else { for (let i = start; i <= end; i++) if (learned.has(i)) { state = "learned"; break; } }
-      return { k, start, end, ref: brickRef(book, start, end), state };
+      const missing = state === "cracked" ? my!.missing : 0;
+      return { k, start, end, ref: brickRef(book, start, end), state, missing, repairRef: missing ? brickRef(book, end - missing + 1, end) : null };
     });
     const names = await nicknames([...new Set(rows.map((r) => r.userId))]);
-    const live = rows.filter((r) => inTeam.has(r.userId) && r.status !== "REJECTED");
+    const live = rows.filter((r) => inTeam.has(r.userId) && r.status !== "REJECTED" && !r.repairOfId);
     const wall = await wallOf(m.team.id, nodeKey);
-    const why = defense ? "Идёт ответ хранителей: стена строится в мирное время" : bricks.every((b) => b.state !== "free") ? "Все блоки книги вы уже сдали" : null;
+    const why = defense ? "Идёт ответ хранителей: стена строится в мирное время" : bricks.every((b) => b.state !== "free" && b.state !== "cracked") ? "Все блоки книги вы уже сдали" : null;
     return {
       mine: true, blockVerses: n, total, verses: wall.verses, blockCount: wall.blocks, pending: wall.pending,
       canBuild: !why, why: why ? err(request, why) : null,
       bricks,
-      blocks: live.map((r) => ({ id: r.id, k: Math.floor(r.startIdx / n), ref: brickRef(book, r.startIdx, r.endIdx), verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),
-      returned: rows.filter((r) => r.userId === userId && r.status === "REJECTED").slice(-3).map((r) => ({ id: r.id, ref: brickRef(book, r.startIdx, r.endIdx), adminComment: r.adminComment, decidedAt: r.decidedAt })),
+      blocks: live.map((r) => ({ id: r.id, k: Math.floor(r.startIdx / n), ref: brickRef(book, r.startIdx, r.endIdx), verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, missing: r.missing, repairPending: repairPending.has(r.id), adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),
+      returned: rows.filter((r) => r.userId === userId && r.status === "REJECTED").slice(-3).map((r) => ({ id: r.id, ref: brickRef(book, r.startIdx, r.endIdx), repair: Boolean(r.repairOfId), adminComment: r.adminComment, decidedAt: r.decidedAt })),
     };
   });
 
@@ -102,7 +106,20 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     if (defense) return reply.code(409).send({ error: "conflict", message: err(request, "Идёт ответ хранителей: стена строится в мирное время") });
     const { start, end } = brickRange(body.block, n, book.total);
     const userId = request.user!.id;
-    const dup = await prisma.wallBlock.findFirst({ where: { teamId: m.team.id, nodeKey, userId, startIdx: start, status: { not: "REJECTED" } }, select: { status: true } });
+    const dup = await prisma.wallBlock.findFirst({ where: { teamId: m.team.id, nodeKey, userId, startIdx: start, status: { not: "REJECTED" }, repairOfId: null }, select: { id: true, status: true, missing: true, endIdx: true, weight: true } });
+    if (dup && dup.status === "APPROVED" && dup.missing > 0) {
+      // Починка надломленного блока (решение владельца 02.11): хозяин досдаёт недостающие стихи с конца блока, администратор проверяет.
+      const pending = await prisma.wallBlock.findFirst({ where: { repairOfId: dup.id, status: "SUBMITTED" }, select: { id: true } });
+      if (pending) return reply.code(409).send({ error: "conflict", message: err(request, "Починка этого блока уже на проверке") });
+      const rs = dup.endIdx - dup.missing + 1, re = dup.endIdx;
+      const row = await prisma.wallBlock.create({ data: { gameId: id, teamId: m.team.id, nodeKey, bookCode: city.bookCode, userId, startIdx: rs, endIdx: re, links: body.links, note: body.note, weight: dup.weight, repairOfId: dup.id } });
+      const ref = brickRef(book, start, end), part = brickRef(book, rs, re);
+      journal(id, "wall_repair_submitted", { teamId: m.team.id, userId, vars: { user: await nick(userId), book: city.bookCode, ref, part } });
+      publish(id, { type: "cities", teamId: m.team.id });
+      publish(id, { type: "submissions" });
+      if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "починка стены города {book}", "Команда «{team}» сдала починку блока городской стены ({part} из {ref}). Проверьте запись в блоке «Стены».", { book: city.bookCode, team: m.team.name, ref, part });
+      return reply.code(201).send({ ok: true, id: row.id, ref: part, repair: true });
+    }
     if (dup) return reply.code(409).send({ error: "conflict", message: err(request, dup.status === "APPROVED" ? "Этот блок у вас уже принят" : "Этот блок у вас уже на проверке") });
     // Стих сдаётся один раз (решение владельца 03.10): стихи, отмеченные в испытаниях этой книги, в блок не входят.
     const overlap = await prisma.battleEntry.findFirst({ where: { userId, status: { not: "REJECTED" }, startIdx: { lte: end }, endIdx: { gte: start }, battle: { gameId: id, bookCode: city.bookCode } }, select: { id: true } });
@@ -177,12 +194,12 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     return {
       blocks: [...pending, ...rest].map((r) => {
         const book = books.get(r.bookCode);
-        return { id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, bookName: BOOK_BY_CODE.get(r.bookCode)?.nameRu ?? r.bookCode, team: r.team, nickname: names.get(r.userId) ?? "?", ref: book ? brickRef(book, r.startIdx, r.endIdx) : `${r.startIdx + 1}–${r.endIdx + 1}`, verses: r.endIdx - r.startIdx + 1, weight: r.weight, links: r.links, note: r.note, status: r.status, usedAt: r.usedAt, adminComment: r.adminComment, createdAt: r.createdAt, decidedAt: r.decidedAt };
+        return { id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, bookName: BOOK_BY_CODE.get(r.bookCode)?.nameRu ?? r.bookCode, team: r.team, nickname: names.get(r.userId) ?? "?", ref: book ? brickRef(book, r.startIdx, r.endIdx) : `${r.startIdx + 1}–${r.endIdx + 1}`, verses: r.endIdx - r.startIdx + 1, weight: r.weight, repair: Boolean(r.repairOfId), missing: r.missing, links: r.links, note: r.note, status: r.status, usedAt: r.usedAt, adminComment: r.adminComment, createdAt: r.createdAt, decidedAt: r.decidedAt };
       }),
     };
   });
 
-  /** Администратор: принять или вернуть блок. Принятый во время ответа хранителей блок сразу ложится в ответ. */
+  /** Администратор: принять или вернуть блок или починку. Блок, принятый в последнюю минуту ответа хранителей, ложится в ответ сразу. */
   app.post("/api/games/:id/walls/:blockId/decide", async (request, reply) => {
     const { id, blockId } = request.params as { id: string; blockId: string };
     if (!(await requireAdmin(request, reply, id))) return;
@@ -190,18 +207,24 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     if (!row) return reply.code(404).send({ error: "not_found", message: err(request, "Блок не найден") });
     if (row.status !== "SUBMITTED") return reply.code(409).send({ error: "conflict", message: err(request, "Блок уже проверен") });
     const body = decideBody.parse(request.body);
-    await prisma.wallBlock.update({ where: { id: row.id }, data: { status: body.approve ? "APPROVED" : "REJECTED", adminComment: body.comment, decidedAt: new Date() } });
+    const orig = row.repairOfId ? await prisma.wallBlock.findUnique({ where: { id: row.repairOfId } }) : null;
+    await prisma.$transaction([
+      prisma.wallBlock.update({ where: { id: row.id }, data: { status: body.approve ? "APPROVED" : "REJECTED", adminComment: body.comment, decidedAt: new Date() } }),
+      // Принятая починка возвращает исходному блоку недостающие стихи (решение владельца 02.11); записи починки — к блоку.
+      ...(body.approve && orig ? [prisma.wallBlock.update({ where: { id: orig.id }, data: { missing: 0, links: { push: row.links.slice(0, 5) } } })] : []),
+    ]);
     const { book } = await wallBook(id, row.bookCode);
     const ref = book ? brickRef(book, row.startIdx, row.endIdx) : "";
     if (body.approve) {
       const wall = await wallOf(row.teamId, row.nodeKey);
-      journal(id, "wall_block_approved", { teamId: row.teamId, userId: row.userId, vars: { book: row.bookCode, ref, n: wall.verses } });
+      if (orig) journal(id, "wall_block_repaired", { teamId: row.teamId, userId: row.userId, vars: { book: row.bookCode, ref: book ? brickRef(book, orig.startIdx, orig.endIdx) : ref, n: wall.verses } });
+      else journal(id, "wall_block_approved", { teamId: row.teamId, userId: row.userId, vars: { book: row.bookCode, ref, n: wall.verses } });
       await layApprovedBlockIntoDefense(id, row.teamId, row.nodeKey);
       // Стена видна на карте всем командам, дошедшим до города: событие без команды.
       publish(id, { type: "cities" });
     } else {
-      journal(id, "wall_block_returned", { personal: true, userId: row.userId, teamId: row.teamId, vars: { book: row.bookCode, ref, comment: body.comment ? `: ${body.comment}` : "" } });
-      notifyUser(id, row.userId, "блок стены города {book} возвращён", (locale) => msg(locale, "Администратор вернул блок городской стены ({ref}).{comment} Переснимите и сдайте заново.", { ref, comment: body.comment ? ` ${body.comment}` : "" }), { book: row.bookCode });
+      journal(id, "wall_block_returned", { personal: true, userId: row.userId, teamId: row.teamId, vars: { book: row.bookCode, ref: orig ? `${ref} (починка)` : ref, comment: body.comment ? `: ${body.comment}` : "" } });
+      notifyUser(id, row.userId, orig ? "починка стены города {book} возвращена" : "блок стены города {book} возвращён", (locale) => msg(locale, orig ? "Администратор вернул починку блока городской стены ({ref}).{comment} Переснимите и сдайте заново." : "Администратор вернул блок городской стены ({ref}).{comment} Переснимите и сдайте заново.", { ref, comment: body.comment ? ` ${body.comment}` : "" }), { book: row.bookCode });
       publish(id, { type: "cities", teamId: row.teamId });
     }
     publish(id, { type: "submissions" });

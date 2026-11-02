@@ -295,6 +295,9 @@
 .masonry { --brick: #cfb07a; --brick-2: #bf9b60; --mortar: #6f5435; }
 .masonry .brick.mine { stroke: var(--bronze-ink); }
 .masonry .brick.pending { stroke: var(--ink-3); }
+.masonry .tip rect { fill: var(--paper-light); stroke: var(--paper-edge); }
+.masonry .tip text { fill: var(--ink); }
+.masonry .tip text + text { fill: var(--ink-2, var(--muted)); }
 .brick-grid .brick-btn { font-family: var(--font-ui); background: var(--paper-light); border-color: var(--paper-edge); box-shadow: none; }
 .brick-grid .brick-btn.on { background: var(--bronze-soft); border-color: var(--bronze); color: var(--bronze-ink); }
 .brick-grid .brick-btn.approved { background: var(--moss-soft, var(--success-soft)); color: var(--moss-ink, var(--success)); }
