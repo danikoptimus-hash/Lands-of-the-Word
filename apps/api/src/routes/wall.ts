@@ -6,7 +6,8 @@ import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err, fmtDay, msg, toLocale } from "../services/i18n.js";
 import { days } from "../services/rules.js";
-import { requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
+import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
+import { learnedVerses } from "./battles.js";
 import { notifyAdmins, notifyUser } from "../services/notify.js";
 import { journal, nick } from "../services/journal.js";
 import { gameRules } from "../services/battles.js";
@@ -77,12 +78,25 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
       const missing = state === "cracked" ? my!.missing : 0;
       return { k, start, end, ref: brickRef(book, start, end), state, missing, repairRef: missing ? brickRef(book, end - missing + 1, end) : null };
     });
-    const names = await nicknames([...new Set(rows.map((r) => r.userId))]);
+    // Кто из команды может взять каждый блок (решение владельца 02.11: «чтобы капитан понимал, сколько человек может взять,
+    // какие полностью свободны»): у участника нет сданных стихов блока (испытания и стена) и нет своей строки на него; план по блокам.
+    const teamMembers = members.map((x) => x.userId);
+    const closedBy = new Map(await Promise.all(teamMembers.map(async (uid) => [uid, await learnedVerses(id, "", city.bookCode, uid)] as const)));
+    const rowsBy = new Map<string, Set<number>>();
+    for (const r of rows) if (r.status !== "REJECTED" && !r.repairOfId) { if (!rowsBy.has(r.userId)) rowsBy.set(r.userId, new Set()); rowsBy.get(r.userId)!.add(Math.floor(r.startIdx / n)); }
+    const plans = await prisma.learnPlan.findMany({ where: { teamId: m.team.id, bookCode: city.bookCode }, select: { idx: true, userId: true } });
+    for (const b of bricks) {
+      const takers = teamMembers.filter((uid) => !rowsBy.get(uid)?.has(b.k) && !Array.from({ length: b.end - b.start + 1 }, (_, i) => b.start + i).some((i) => closedBy.get(uid)!.has(i)));
+      const planned = [...new Set(plans.filter((pl) => pl.idx >= b.start && pl.idx <= b.end).map((pl) => pl.userId))];
+      Object.assign(b, { takers, planned });
+    }
+    const names = await nicknames([...new Set([...rows.map((r) => r.userId), ...teamMembers])]);
     const live = rows.filter((r) => inTeam.has(r.userId) && r.status !== "REJECTED" && !r.repairOfId);
     const wall = await wallOf(m.team.id, nodeKey);
     const why = defense ? "Идёт ответ хранителей: стена строится в мирное время" : bricks.every((b) => b.state !== "free" && b.state !== "cracked") ? "Все блоки книги вы уже сдали" : null;
     return {
       mine: true, bookCode: city.bookCode, blockVerses: n, total, verses: wall.verses, blockCount: wall.blocks, pending: wall.pending,
+      canPlan: isLeader(m), members: members.map((x) => ({ userId: x.userId, name: names.get(x.userId) ?? "?" })),
       canBuild: !why, why: why ? err(request, why) : null,
       bricks,
       blocks: live.map((r) => ({ id: r.id, k: Math.floor(r.startIdx / n), ref: brickRef(book, r.startIdx, r.endIdx), verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, missing: r.missing, repairPending: repairPending.has(r.id), adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),

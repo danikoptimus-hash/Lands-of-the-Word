@@ -917,5 +917,29 @@
 .bm-person .i { width: 16px; height: 16px; }
 .bm-person.on { background: var(--success-soft); border-color: var(--success); color: var(--success); }
 .bm-person:disabled { opacity: .7; cursor: default; }
+.bm-person .x2 { font-size: var(--fs-xs); color: var(--muted); }
+/* Итог сверху карты (02.11): отмечено плюс поручено против ставки. */
+.bm-total { margin: 0; font-size: var(--fs-md); } .bm-total b { font-size: var(--fs-lg); } .bm-total .bad { color: var(--danger); } .bm-total .ok { color: var(--success); }
+/* Отрезок, который ведут пальцем. */
+.bm-grid { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.bm-cell.rng { box-shadow: 0 0 0 2px var(--text, var(--ink)); }
+/* Лист сдачи блока (02.11): кирпичи с текстурами, число — сколько человек могут взять, полностью свободные выделены. */
+.brick-grid.bricks-tex .brick-btn { position: relative; min-height: 50px; border: 0; color: #2a1d10; text-shadow: 0 1px 0 rgba(255,255,255,.35); background: url("/img/props/brick-sand.webp") center / 100% 100% no-repeat; border-radius: 3px; }
+.brick-grid.bricks-tex .brick-btn:nth-child(3n+2) { background-image: url("/img/props/brick-sand2.webp"); }
+.brick-grid.bricks-tex .brick-btn.approved { background-image: url("/img/props/brick-dark.webp"); color: #f3ead3; text-shadow: 0 1px 0 rgba(0,0,0,.45); }
+.brick-grid.bricks-tex .brick-btn.approved .i { color: #f3ead3; }
+.brick-grid.bricks-tex .brick-btn.submitted { background-image: url("/img/props/brick-slate.webp"); color: #10192a; }
+.brick-grid.bricks-tex .brick-btn.learned, .brick-grid.bricks-tex .brick-btn.used { background-image: url("/img/props/brick-chalk.webp"); color: var(--muted); opacity: .75; }
+.brick-grid.bricks-tex .brick-btn.cracked { background-image: url("/img/props/brick-sand.webp"); outline: 2px dashed var(--warn); outline-offset: -2px; }
+.brick-grid.bricks-tex .brick-btn.on { outline: 3px solid var(--accent); outline-offset: 0; }
+.brick-grid.bricks-tex .brick-btn:disabled { opacity: .55; }
+.brick-grid.bricks-tex .brick-btn.whole { box-shadow: 0 0 0 2px var(--success); }
+.brick-grid.bricks-tex .brick-btn.none .cnt { opacity: .5; }
+.brick-grid.bricks-tex .brick-btn .cnt { position: absolute; right: 3px; top: 3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: rgba(243,234,211,.92); color: #2a1d10; font-size: 11px; font-weight: 700; line-height: 18px; text-shadow: none; }
+.brick-grid.bricks-tex .brick-btn.whole .cnt { background: var(--success); color: #fff; }
+.brick-grid.bricks-tex .brick-btn .pl { position: absolute; left: 3px; top: 3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--text, var(--ink)); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-shadow: none; }
+.brick-who .bm-people { margin-top: var(--sp-1); }
+.brick-who.pin { position: sticky; top: calc(-1 * var(--sp-4)); z-index: 2; margin: calc(-1 * var(--sp-2)) 0 var(--sp-2); padding: var(--sp-2) 0; background: var(--surface); border-bottom: 1px solid var(--border, rgba(0,0,0,.08)); }
+.brick-who.pin .ref { font-weight: 700; margin-right: var(--sp-2); }
 .brick-grid .brick-btn.cracked .i { color: var(--warn); }
 .feed li.me .ico { background: var(--accent-soft); color: var(--accent); }

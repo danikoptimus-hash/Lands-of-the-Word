@@ -76,6 +76,21 @@ describe("карта книги", () => {
     expect((await get(`/api/games/${gameId}/book-map?book=rut`, keeper2Cookie)).json().plan).toEqual([{ idx: 0, userId: me }]);
     expect((await post(`/api/games/${gameId}/book-plan`, keeperCookie, { book: "rut", idx: 0, userId: me, on: false })).statusCode).toBe(200);
     expect((await get(`/api/games/${gameId}/book-map?book=rut`, keeperCookie)).json().plan).toEqual([]);
+    // Отрезок (пальцем по ряду или блок стены): поручить целиком; сдавшему часть стихов — нельзя.
+    expect((await post(`/api/games/${gameId}/book-plan`, keeperCookie, { book: "rut", from: 10, to: 19, userId: me, on: true })).statusCode).toBe(200);
+    expect((await get(`/api/games/${gameId}/book-map?book=rut`, keeperCookie)).json().plan).toHaveLength(10);
+    expect((await post(`/api/games/${gameId}/book-plan`, keeperCookie, { book: "rut", from: 5, to: 12, userId: keeper2Id, on: true })).statusCode).toBe(409);
+    expect((await post(`/api/games/${gameId}/book-plan`, keeperCookie, { book: "rut", from: 10, to: 19, userId: me, on: false })).statusCode).toBe(200);
+    expect((await get(`/api/games/${gameId}/book-map?book=rut`, keeperCookie)).json().plan).toEqual([]);
+    // Лист блоков стены: кто может взять каждый блок — блок 1–10 закрыт у сдавшего, свободен у капитана.
+    const wall = (await get(`/api/games/${gameId}/my-city/${rutKey}/wall`, keeperCookie)).json();
+    expect(wall.canPlan).toBe(true);
+    expect(wall.members).toHaveLength(2);
+    expect(wall.bricks[0].takers).toEqual([me]);
+    expect(wall.bricks[1].takers.sort()).toEqual([me, keeper2Id].sort());
+    await post(`/api/games/${gameId}/book-plan`, keeperCookie, { book: "rut", from: 10, to: 19, userId: keeper2Id, on: true });
+    expect((await get(`/api/games/${gameId}/my-city/${rutKey}/wall`, keeperCookie)).json().bricks[1].planned).toEqual([keeper2Id]);
+    expect((await get(`/api/games/${gameId}/my-city/${rutKey}/wall`, keeper2Cookie)).json().canPlan).toBe(false);
   });
 
   it("в испытании: претендентам в вызове, хранителям в ответе, чужой стороне нельзя", async () => {
@@ -98,6 +113,7 @@ describe("карта книги", () => {
     const def = await get(`/api/games/${gameId}/book-map?book=rut&battle=${battleId}`, keeperCookie);
     expect(def.statusCode).toBe(200);
     expect(def.json().need).toBe(10);
+    expect(def.json().have).toBe(0);
     expect((await get(`/api/games/${gameId}/book-map?book=deu&battle=${battleId}`, keeperCookie)).statusCode).toBe(400);
   });
 });

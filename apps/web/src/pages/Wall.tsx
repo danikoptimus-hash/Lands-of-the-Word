@@ -173,23 +173,31 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
         <summary><Icon name="book" />{t("Книга")}<Icon name="chevron-down" className="chev" /></summary>
         <BookMap gameId={gameId} bookCode={d.bookCode} version={version + d.blocks.length} look="bricks" />
       </details>
-      {build && <BuildSheet gameId={gameId} nodeKey={nodeKey} bricks={d.bricks} n={d.blockVerses} mineCount={mine.length} onClose={() => setBuild(false)} onDone={() => { setBuild(false); void load(); onChanged(); }} />}
+      {build && <BuildSheet gameId={gameId} nodeKey={nodeKey} bookCode={d.bookCode} bricks={d.bricks} members={d.members} canPlan={d.canPlan} n={d.blockVerses} mineCount={mine.length} onClose={() => setBuild(false)} onDone={() => { setBuild(false); void load(); onChanged(); }} />}
     </div>
   );
 }
 
-/** Лист сдачи блока: кирпичи книги (свободные, сданные, выученные в испытаниях, надломленные — к починке), ссылка на видео. */
-function BuildSheet({ gameId, nodeKey, bricks, n, mineCount, onClose, onDone }: { gameId: string; nodeKey: string; bricks: WallBrickDto[]; n: number; mineCount: number; onClose: () => void; onDone: () => void }) {
+/**
+ * Лист сдачи блока: кирпичи книги с текстурами (моё состояние: свободен, сдан, принят, сгорел, надломлен — к починке);
+ * на каждом — сколько человек в команде могут его взять (решение владельца 02.11: «чтобы капитан понимал, сколько
+ * человек может взять, какие полностью свободны»), полностью свободные выделены. Выбранный блок показывает имена,
+ * капитан поручает блок чипами (план заучивания). Ссылка на видео — для своей сдачи.
+ */
+function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, n, mineCount, onClose, onDone }: { gameId: string; nodeKey: string; bookCode: string; bricks: WallBrickDto[]; members: WallDto["members"]; canPlan: boolean; n: number; mineCount: number; onClose: () => void; onDone: () => void }) {
   const { notify } = useUi();
   const [k, setK] = useState<number | null>(null);
   const [links, setLinks] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [planned, setPlanned] = useState<Map<number, Set<string>>>(() => new Map(bricks.map((b) => [b.k, new Set(b.planned)])));
   const chosen = useMemo(() => bricks.find((b) => b.k === k) ?? null, [bricks, k]);
   const repair = chosen?.state === "cracked" ? chosen : null;
+  const canSubmit = chosen != null && (chosen.state === "free" || chosen.state === "cracked");
   const urls = links.split(/\s+/).filter(Boolean);
+  const nameOf = (id: string) => members.find((m) => m.userId === id)?.name ?? "?";
   async function send() {
-    if (k === null) return;
+    if (k === null || !canSubmit) return;
     setBusy(true); setError(null);
     try {
       const r = await api<{ ref: string; repair?: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/wall`, { method: "POST", body: JSON.stringify({ block: k, links: urls }) });
@@ -197,26 +205,51 @@ function BuildSheet({ gameId, nodeKey, bricks, n, mineCount, onClose, onDone }: 
     } catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
+  async function plan(b: WallBrickDto, userId: string, on: boolean) {
+    setPlanned((m) => { const next = new Map(m); const set = new Set(next.get(b.k) ?? []); if (on) set.add(userId); else set.delete(userId); next.set(b.k, set); return next; });
+    try { await api(`/api/games/${gameId}/book-plan`, { method: "POST", body: JSON.stringify({ book: bookCode, from: b.start, to: b.end, userId, on }) }); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+  }
   const stateTitle = (b: WallBrickDto) => b.state === "approved" ? t("принят") : b.state === "submitted" ? t("на проверке") : b.state === "learned" ? t("стихи сданы в испытании") : b.state === "used" ? t("сгорел в испытании") : b.state === "cracked" ? t("надломлен: не хватает {n} стихов", { n: b.missing ?? 0 }) : "";
+  const all = members.length;
   return (
-    <Sheet size="md" title={t("Блок стены")} onClose={onClose} foot={<button type="button" disabled={busy || k === null || urls.length === 0} onClick={() => void send()}><Icon name="check" />{repair ? t("Починить {ref}", { ref: repair.ref }) : chosen ? t("Сдать {ref}", { ref: chosen.ref }) : t("Сдать блок")}</button>}>
-      <p className="hint">{repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}</p>
-      <div className="brick-grid" role="radiogroup" aria-label={t("Блоки книги")}>
-        {bricks.map((b) => (
-          <button key={b.k} type="button" role="radio" aria-checked={k === b.k} className={"brick-btn " + b.state + (k === b.k ? " on" : "")} disabled={b.state !== "free" && b.state !== "cracked"} title={stateTitle(b)} onClick={() => setK(b.k)}>
-            <span className="ref">{b.ref}</span>
-            {b.state === "approved" && <Icon name="check" />}
-            {b.state === "submitted" && <Icon name="clock" />}
-            {b.state === "learned" && <Icon name="lock" />}
-            {b.state === "used" && <Icon name="wave" />}
-            {b.state === "cracked" && <Icon name="alert" />}
-          </button>
-        ))}
+    <Sheet size="md" title={t("Блок стены")} onClose={onClose} foot={<button type="button" disabled={busy || !canSubmit || urls.length === 0} onClick={() => void send()}><Icon name="check" />{repair ? t("Починить {ref}", { ref: repair.ref }) : chosen && canSubmit ? t("Сдать {ref}", { ref: chosen.ref }) : t("Сдать блок")}</button>}>
+      <p className="hint">{repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}<Help>{t("Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажмите на блок — увидите имена; капитан поручает блок.")}</Help></p>
+      {chosen && (
+        <div className="brick-who pin">
+          {chosen.takers.length === 0
+            ? <p className="muted small">{t("Этот блок уже некому взять: у каждого в команде часть его стихов сдана.")}</p>
+            : (
+              <div className="bm-people" role="group" aria-label={t("Кто будет учить")}>
+                <span className="ref">{chosen.ref}</span>
+                {chosen.takers.map((uid) => { const on = planned.get(chosen.k)?.has(uid) ?? false; return <button key={uid} type="button" className={"bm-person" + (on ? " on" : "")} aria-pressed={on} disabled={!canPlan} onClick={() => void plan(chosen, uid, !on)}>{on && <Icon name="check" />}{nameOf(uid)}</button>; })}
+              </div>
+            )}
+        </div>
+      )}
+      <div className="brick-grid bricks-tex" role="radiogroup" aria-label={t("Блоки книги")}>
+        {bricks.map((b) => {
+          const takers = b.takers.length, pl = (planned.get(b.k) ?? new Set()).size;
+          return (
+            <button key={b.k} type="button" role="radio" aria-checked={k === b.k} className={"brick-btn " + b.state + (k === b.k ? " on" : "") + (takers === all && all > 0 ? " whole" : takers === 0 ? " none" : "")} disabled={!canPlan && b.state !== "free" && b.state !== "cracked"} title={stateTitle(b)} onClick={() => setK(b.k)}>
+              <span className="ref">{b.ref}</span>
+              {b.state === "approved" && <Icon name="check" />}
+              {b.state === "submitted" && <Icon name="clock" />}
+              {b.state === "learned" && <Icon name="lock" />}
+              {b.state === "used" && <Icon name="wave" />}
+              {b.state === "cracked" && <Icon name="alert" />}
+              <span className="cnt" title={t("Могут взять: {n}", { n: takers })}>{takers === all && all > 0 ? t("все") : takers}</span>
+              {pl > 0 && <span className="pl" title={t("Поручен: {n}", { n: pl })}>{pl}</span>}
+            </button>
+          );
+        })}
       </div>
-      <div className="field mt-3">
-        <label htmlFor="wall-links">{t("Ссылки на видео")}</label>
-        <textarea id="wall-links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} />
-      </div>
+      {canSubmit && (
+        <div className="field mt-3">
+          <label htmlFor="wall-links">{t("Ссылки на видео")}</label>
+          <textarea id="wall-links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} />
+        </div>
+      )}
       {error && <p className="error" role="alert">{error}</p>}
     </Sheet>
   );

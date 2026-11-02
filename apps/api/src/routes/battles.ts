@@ -80,7 +80,7 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
 }
 
 /** Стихи книги, уже принятые у участника в других испытаниях этой игры (на любой стороне) или сданные блоками стены (01.11): сдать их снова нельзя. */
-async function learnedVerses(gameId: string, battleId: string, bookCode: string, userId: string): Promise<Set<number>> {
+export async function learnedVerses(gameId: string, battleId: string, bookCode: string, userId: string): Promise<Set<number>> {
   const [past, wall] = await Promise.all([
     prisma.battleEntry.findMany({ where: { userId, status: "APPROVED", carried: false, battle: { gameId, bookCode, NOT: { id: battleId } } }, select: { startIdx: true, endIdx: true } }),
     wallVersesOf(gameId, bookCode, userId),
@@ -205,7 +205,9 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     rows.sort((p, q2) => Number(q2.captain) - Number(p.captain) || p.name.localeCompare(q2.name, "ru"));
     const passage = b && side === "DEFENSE" && b.defenseStart != null && b.defenseEnd != null ? { start: b.defenseStart, end: b.defenseEnd }
       : b && side === "ATTACK" && b.passageStart != null && b.passageEnd != null ? { start: b.passageStart, end: b.passageEnd } : null;
-    return { book: { code: book.code, name: BOOKS.find((x) => x.code === q.book)?.nameRu ?? q.book, verseCounts: book.verseCounts, total: book.total }, need: b ? (side === "ATTACK" ? b.bid : defenseNeed(b)) : null, passage, canPlan: isLeader(m), members: rows, plan };
+    // Сколько уже есть у стороны в этом испытании (отмечено и зачтено, с весом воина) — для итога на карте.
+    const have = b && side ? sumVerses(b.entries, side, false) : null;
+    return { book: { code: book.code, name: BOOKS.find((x) => x.code === q.book)?.nameRu ?? q.book, verseCounts: book.verseCounts, total: book.total }, need: b ? (side === "ATTACK" ? b.bid : defenseNeed(b)) : null, have, passage, canPlan: isLeader(m), members: rows, plan };
   });
 
   /** План заучивания: капитан отмечает (или снимает отметку), кто из команды учит стих книги. Того, кто стих уже сдал, отметить нельзя. */
@@ -214,16 +216,21 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
     if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Распределяет стихи капитан") });
-    const body = z.object({ book: z.string().regex(/^[a-z0-9]+$/), idx: z.number().int().min(0).max(100_000), userId: z.string().min(1), on: z.boolean() }).parse(request.body);
+    // Один стих (idx) или отрезок (from–to, включительно) — проведённый пальцем по карте или блок стены (решение владельца 02.11).
+    const body = z.object({ book: z.string().regex(/^[a-z0-9]+$/), idx: z.number().int().min(0).max(100_000).optional(), from: z.number().int().min(0).max(100_000).optional(), to: z.number().int().min(0).max(100_000).optional(), userId: z.string().min(1), on: z.boolean() }).parse(request.body);
+    const from = body.idx ?? body.from, to = body.idx ?? body.to;
+    if (from == null || to == null || to < from || to - from > 500) return reply.code(400).send({ error: "validation", message: err(request, "Такого стиха в книге нет") });
     const member = await prisma.membership.findFirst({ where: { teamId: m.team.id, userId: body.userId }, select: { userId: true } });
     if (!member) return reply.code(404).send({ error: "not_found", message: err(request, "Участник не в вашей команде") });
     const book = await loadBook(body.book);
-    if (!book || body.idx >= book.total) return reply.code(400).send({ error: "validation", message: err(request, "Такого стиха в книге нет") });
+    if (!book || to >= book.total) return reply.code(400).send({ error: "validation", message: err(request, "Такого стиха в книге нет") });
+    const idxs = Array.from({ length: to - from + 1 }, (_, i) => from + i);
     if (body.on) {
-      if ((await learnedVerses(id, "", body.book, body.userId)).has(body.idx)) return reply.code(409).send({ error: "conflict", message: err(request, "Этот стих участник уже сдавал") });
-      await prisma.learnPlan.upsert({ where: { teamId_bookCode_idx_userId: { teamId: m.team.id, bookCode: body.book, idx: body.idx, userId: body.userId } }, update: {}, create: { gameId: id, teamId: m.team.id, bookCode: body.book, idx: body.idx, userId: body.userId, createdById: request.user!.id } });
+      const learned = await learnedVerses(id, "", body.book, body.userId);
+      if (idxs.some((i) => learned.has(i))) return reply.code(409).send({ error: "conflict", message: err(request, idxs.length > 1 ? "Часть этих стихов участник уже сдавал" : "Этот стих участник уже сдавал") });
+      await prisma.learnPlan.createMany({ data: idxs.map((idx) => ({ gameId: id, teamId: m.team.id, bookCode: body.book, idx, userId: body.userId, createdById: request.user!.id })), skipDuplicates: true });
     } else {
-      await prisma.learnPlan.deleteMany({ where: { teamId: m.team.id, bookCode: body.book, idx: body.idx, userId: body.userId } });
+      await prisma.learnPlan.deleteMany({ where: { teamId: m.team.id, bookCode: body.book, idx: { gte: from, lte: to }, userId: body.userId } });
     }
     publish(id, { type: "battles", teamId: m.team.id });
     return { ok: true };
