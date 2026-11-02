@@ -139,8 +139,11 @@ if os.environ.get("SFX", "0") == "1":
 if os.environ.get("MUSIC", "0") == "1":
     os.makedirs(f"{OUT}/music", exist_ok=True)
     TRACKS = [
-        ("bed", "Warm cinematic adventure soundtrack for a story about a journey across islands and ancient cities: soft strings, light percussion, "
-                "gentle piano, hopeful and calm, slowly building, no vocals, no lyrics, suitable as background under narration", 140000),
+        ("bed", "Majestic symphonic orchestral soundtrack in the style of a grand strategy game main theme: full orchestra, soaring strings, "
+                "noble French horns and brass fanfares, timpani, subtle choir pads, epic and uplifting, builds slowly from a quiet solemn opening "
+                "to a triumphant climax near the end, instrumental only, no vocals, no lyrics", 150000),
+        ("bed-soft", "Majestic but restrained symphonic underscore for narration: warm strings, soft horns, gentle timpani, slow and noble, "
+                     "grand strategy game atmosphere, instrumental only, no vocals, no lyrics, steady dynamics without sudden peaks", 150000),
         ("storm", "Short dramatic orchestral swell with thunder-like low drums and rising strings, tense, no vocals", 15000),
     ]
     for name, prompt, ms in TRACKS:
