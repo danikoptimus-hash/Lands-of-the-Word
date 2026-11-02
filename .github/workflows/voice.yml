@@ -43,6 +43,9 @@ on:
       takes:
         description: "Сколько дублей каждой строки"
         default: "1"
+      lines:
+        description: "Файл строк (JSON) в репозитории"
+        default: "scripts/voice/lines.json"
 
 permissions:
   contents: write
@@ -76,6 +79,7 @@ jobs:
           STAGES: ${{ inputs.stages }}
           ONLY: ${{ inputs.only }}
           TAKES: ${{ inputs.takes }}
+          LINES: ${{ inputs.lines }}
           OUT: out
         run: python3 scripts/voice/elevenlabs_tts.py
       - uses: actions/upload-artifact@v4
