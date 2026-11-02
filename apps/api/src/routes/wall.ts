@@ -82,7 +82,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     const wall = await wallOf(m.team.id, nodeKey);
     const why = defense ? "Идёт ответ хранителей: стена строится в мирное время" : bricks.every((b) => b.state !== "free" && b.state !== "cracked") ? "Все блоки книги вы уже сдали" : null;
     return {
-      mine: true, blockVerses: n, total, verses: wall.verses, blockCount: wall.blocks, pending: wall.pending,
+      mine: true, bookCode: city.bookCode, blockVerses: n, total, verses: wall.verses, blockCount: wall.blocks, pending: wall.pending,
       canBuild: !why, why: why ? err(request, why) : null,
       bricks,
       blocks: live.map((r) => ({ id: r.id, k: Math.floor(r.startIdx / n), ref: brickRef(book, r.startIdx, r.endIdx), verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, missing: r.missing, repairPending: repairPending.has(r.id), adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),

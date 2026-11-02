@@ -173,6 +173,7 @@ model Game {
   quarryWorks  QuarryWork[]
   trades      CityTrade[]
   wallBlocks  WallBlock[]
+  learnPlans  LearnPlan[]
 }
 
 model GameAdmin {
@@ -342,6 +343,7 @@ model Team {
   peaceIn        Peace[] @relation("peaceTo")
   visits         CityVisit[]
   wallBlocks     WallBlock[]
+  learnPlans     LearnPlan[]
 }
 
 model Membership {
@@ -783,6 +785,26 @@ model WallBlock {
   @@index([gameId, nodeKey, status])
   @@index([teamId, nodeKey])
   @@index([userId])
+}
+
+/**
+ * План заучивания (решение владельца 02.11: «при нажатии на стих должно появляться окно, где можно отметить тех, кто будет
+ * учить этот стих»): капитан отмечает на карте книги, кто из команды учит стих — для ответа, вызова или блока стены.
+ */
+model LearnPlan {
+  id          String   @id @default(cuid())
+  gameId      String
+  game        Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  bookCode    String
+  idx         Int
+  userId      String
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@unique([teamId, bookCode, idx, userId])
+  @@index([teamId, bookCode])
 }
 
 model CityTrade {

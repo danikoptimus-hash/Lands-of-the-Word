@@ -855,11 +855,7 @@
 .brick-grid .brick-btn.cracked { background: var(--warn-soft, var(--accent-soft)); color: var(--warn); border-style: dashed; }
 /* Карта книги хранителей (02.11): плашки участников, сетка по главам, клетка — стих. */
 .book-map { margin-top: var(--sp-2); }
-.bm-who { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
-.bm-who button { min-height: 32px; padding: 0 10px; border-radius: 16px; font-size: var(--fs-sm); font-weight: 600; background: transparent; color: var(--text, var(--ink)); border: 1px solid var(--border-strong, var(--muted)); box-shadow: none; display: inline-flex; align-items: center; gap: 6px; }
-.bm-who button b { font-weight: 700; font-size: var(--fs-xs); min-width: 20px; padding: 0 5px; border-radius: 10px; background: var(--success-soft); color: var(--success); font-variant-numeric: tabular-nums; }
-.bm-who button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
-.bm-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin-top: var(--sp-2); }
+.bm-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
 .bm-legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-strong, var(--muted)); vertical-align: -2px; margin-right: 4px; background: var(--surface, #fff); }
 .bm-grid { margin-top: var(--sp-2); }
 .bm-row { display: flex; align-items: flex-start; gap: 6px; margin-top: 3px; }
@@ -874,6 +870,11 @@
 .bm-row { margin-top: 5px; }
 .bm-cells { gap: 4px; }
 .bm-cell.pick { box-shadow: 0 0 0 2px var(--text, var(--ink)); }
-.bm-cells .bm-tip { flex-basis: 100%; margin: 4px 0 2px; }
+.bm-cell { position: relative; }
+.bm-cell.plan::after { content: ""; position: absolute; right: 1px; bottom: 1px; width: 5px; height: 5px; border-radius: 50%; background: var(--text, var(--ink)); box-shadow: 0 0 0 1px var(--surface, #fff); }
+.bm-legend .sw.dot { position: relative; }
+.bm-legend .sw.dot::after { content: ""; position: absolute; right: 1px; bottom: 1px; width: 5px; height: 5px; border-radius: 50%; background: var(--text, var(--ink)); }
+.bm-people li label { width: 100%; align-items: center; min-height: var(--touch); cursor: pointer; }
+.bm-people input { width: 20px; height: 20px; flex: none; }
 .brick-grid .brick-btn.cracked .i { color: var(--warn); }
 .feed li.me .ico { background: var(--accent-soft); color: var(--accent); }

@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
+import { BookMap } from "./BookMap";
 
 /**
  * Городская стена в своём городе (решение владельца 01.11): кладка из принятых блоков (каждый блок — участник выучил
@@ -161,6 +162,11 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
           ))}
         </ul>
       )}
+      {/* Карта книги (решение владельца 02.11: «и в блоках города, чтобы капитан понимал, кому что»). */}
+      <details className="disclose sm book-map-fold">
+        <summary><Icon name="book" />{t("Книга")}<Icon name="chevron-down" className="chev" /></summary>
+        <BookMap gameId={gameId} bookCode={d.bookCode} version={version + d.blocks.length} />
+      </details>
       {build && <BuildSheet gameId={gameId} nodeKey={nodeKey} bricks={d.bricks} n={d.blockVerses} mineCount={mine.length} onClose={() => setBuild(false)} onDone={() => { setBuild(false); void load(); onChanged(); }} />}
     </div>
   );
