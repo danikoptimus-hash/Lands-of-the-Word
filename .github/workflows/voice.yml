@@ -67,10 +67,12 @@ jobs:
           OUT: out
         run: python3 scripts/voice/elevenlabs_tts.py
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: voice-tts
           path: out
       - name: Ветка voice-tts с результатом
+        if: always()
         run: |
           cd out
           git init -q

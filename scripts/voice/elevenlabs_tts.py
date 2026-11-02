@@ -136,9 +136,13 @@ if os.environ.get("SFX", "0") == "1" and "sfx" in STAGES:
     ]
     for name, prompt, dur in SFX:
         payload = json.dumps({"text": prompt, "duration_seconds": dur, "prompt_influence": 0.3}).encode()
-        audio = call("/sound-generation", payload, {"Content-Type": "application/json"}, raw=True)
-        open(f"{OUT}/sfx/{name}.mp3", "wb").write(audio)
-        print("звук", name, len(audio), "байт")
+        try:
+            audio = call("/sound-generation", payload, {"Content-Type": "application/json"}, raw=True)
+            open(f"{OUT}/sfx/{name}.mp3", "wb").write(audio)
+            print("звук", name, len(audio), "байт")
+        except Exception as e:
+            print("звук не сгенерирован:", name, str(e)[:200])
+            if "401" in str(e): break  # нет права у ключа — дальше бессмысленно
 # 4. Музыка (Eleven Music): фон под ролик, без слов
 if os.environ.get("MUSIC", "0") == "1" and "music" in STAGES:
     os.makedirs(f"{OUT}/music", exist_ok=True)
@@ -158,4 +162,5 @@ if os.environ.get("MUSIC", "0") == "1" and "music" in STAGES:
             print("музыка", name, len(audio), "байт")
         except Exception as e:
             print("музыка не сгенерирована:", name, str(e)[:200])
+            if "401" in str(e): break
 print("готово:", OUT)
