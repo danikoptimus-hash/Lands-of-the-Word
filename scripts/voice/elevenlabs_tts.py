@@ -8,7 +8,7 @@
      KEEP_ACCENTS: 1 — с пометками ударений, 0 — без, both — оба варианта в out/tts).
   3. При SFX=1 генерирует звуковые эффекты для ролика → out/sfx/*.mp3.
 Переменные окружения: ELEVENLABS_API_KEY, SAMPLE (аудио или видео), SAMPLE_RANGE (отрезки мм:сс-мм:сс через запятую), ISOLATE (чистка),
-VOICE_ID, MODEL_ID (eleven_multilingual_v2), KEEP_ACCENTS, SFX, MUSIC, STAGES (voice,tts,sfx,music), OUT.
+VOICE_ID, MODEL_ID (eleven_multilingual_v2), KEEP_ACCENTS, SFX, MUSIC, STAGES (voice,tts,sfx,music), ONLY (номера строк), TAKES (дубли), OUT.
 """
 import json, os, sys, time, uuid, urllib.request, urllib.error
 
@@ -108,14 +108,18 @@ lines = json.load(open(LINES, encoding="utf-8")) if "tts" in STAGES and voice_id
 settings = {"stability": 0.5, "similarity_boost": 0.8, "style": 0.15, "use_speaker_boost": True}
 MODE = os.environ.get("KEEP_ACCENTS", "both")  # 1 — с пометками ударений, 0 — без, both — оба варианта
 variants = [("mine", True), ("mine-plain", False)] if MODE == "both" else [("mine", MODE == "1")]
+ONLY = [int(x) for x in os.environ.get("ONLY", "").split(",") if x.strip().isdigit()]  # только эти строки (номера с 0)
+TAKES = max(1, int(os.environ.get("TAKES", "1") or 1))  # несколько дублей каждой строки: s<N>-take<K>-...
 for i, line in enumerate(lines):
+    if ONLY and i not in ONLY: continue
     for suffix, keep in variants:
         text = line["text"] if keep else line["text"].replace("\u0301", "")
         payload = json.dumps({"text": text, "model_id": MODEL, "voice_settings": settings}, ensure_ascii=False).encode()
-        audio = call(f"/text-to-speech/{voice_id}?output_format=mp3_44100_128", payload, {"Content-Type": "application/json"}, raw=True)
-        path = f"{OUT}/tts/s{i}-{suffix}.mp3"
-        open(path, "wb").write(audio)
-        print(i, suffix, len(audio), "байт:", text[:60])
+        for k in range(TAKES):
+            audio = call(f"/text-to-speech/{voice_id}?output_format=mp3_44100_128", payload, {"Content-Type": "application/json"}, raw=True)
+            path = f"{OUT}/tts/s{i}-{suffix}.mp3" if TAKES == 1 else f"{OUT}/tts/s{i}-take{k + 1}-{suffix}.mp3"
+            open(path, "wb").write(audio)
+            print(i, suffix, f"дубль {k + 1}," if TAKES > 1 else "", len(audio), "байт:", text[:60])
 
 # 3. Звуки
 if os.environ.get("SFX", "0") == "1" and "sfx" in STAGES:
