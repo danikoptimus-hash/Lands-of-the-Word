@@ -160,6 +160,8 @@ export interface BattleDto {
   attackSum: number; attackApproved: number; defenseSum: number; defenseApproved: number; entries: BattleEntryDto[]; myVerses: number[]; /** Стихи, уже принятые у меня в прошлых испытаниях этой книги: второй раз не сдаются. */ learnedVerses?: number[]; bookTotal: number | null;
 }
 export interface BookTextDto { code: string; name: string; verseCounts: number[]; chapters: string[][] | null; total: number }
+/** Карта книги для хранителей на время ответа (02.11): по участнику — стихи, сданные раньше (второй раз не считаются), и отмеченные в этом ответе. */
+export interface BookMapDto { book: { code: string; name: string; verseCounts: number[]; total: number }; need: number; passage: { start: number; end: number } | null; members: Array<{ userId: string; name: string; role: string | null; captain: boolean; learned: number[]; marked: number[] }> }
 /** Городская стена своего города (решение владельца 01.11): толщина, кладка и какие блоки участник может сдать. */
 export type WallBrickState = "free" | "learned" | "submitted" | "approved" | "used" | "cracked";
 /** Кирпич книги в листе сдачи; надломленный (02.11): сколько стихов не хватает и какие это стихи. */

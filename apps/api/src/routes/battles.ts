@@ -168,6 +168,35 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Текст всей книги (для выбора отрывка обороны капитаном). */
+  /**
+   * Карта книги для хранителей на время ответа (решение владельца 02.11: «должен быть интерфейс, где видна вся книга и
+   * стихи, которые уже заучены, горят зелёным… для одного человека эти стихи могут быть закрыты, а для другого открыты»):
+   * по каждому участнику — стихи, сданные раньше (прошлые испытания и стена: второй раз не считаются) и отмеченные в этом
+   * ответе, плюс выбранный отрывок. Видят только хранители, пока идёт ответ.
+   */
+  app.get("/api/games/:id/battles/:battleId/book-map", async (request, reply) => {
+    const { id, battleId } = request.params as { id: string; battleId: string };
+    const m = await requireMember(request, reply, id);
+    if (!m) return;
+    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true } });
+    if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
+    if (b.defenderId !== m.team.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Карту книги видят хранители города") });
+    if (b.status !== "DEFENSE") return reply.code(409).send({ error: "conflict", message: err(request, "Ответ сейчас не идёт") });
+    const book = await loadBook(b.bookCode);
+    if (!book) return reply.code(409).send({ error: "conflict", message: err(request, "Текст этой книги ещё не загружен") });
+    const members = await prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true, gameRole: true, role: true } });
+    const names = await nicknames(members.map((x) => x.userId));
+    const rows = await Promise.all(members.map(async (x) => {
+      const learned = await learnedVerses(id, b.id, b.bookCode, x.userId);
+      const marked = new Set<number>();
+      for (const e of b.entries) if (e.userId === x.userId && e.side === "DEFENSE" && e.status !== "REJECTED") for (let i = e.startIdx; i <= e.endIdx; i++) marked.add(i);
+      return { userId: x.userId, name: names.get(x.userId) ?? "?", role: x.gameRole, captain: x.role === "CAPTAIN", learned: [...learned].sort((p, q) => p - q), marked: [...marked].sort((p, q) => p - q) };
+    }));
+    rows.sort((p, q) => Number(q.captain) - Number(p.captain) || p.name.localeCompare(q.name, "ru"));
+    const passage = b.defenseStart != null && b.defenseEnd != null ? { start: b.defenseStart, end: b.defenseEnd } : null;
+    return { book: { code: book.code, name: BOOKS.find((x) => x.code === b.bookCode)?.nameRu ?? b.bookCode, verseCounts: book.verseCounts, total: book.total }, need: defenseNeed(b), passage, members: rows };
+  });
+
   app.get("/api/games/:id/battles/:battleId/book", async (request, reply) => {
     const { id, battleId } = request.params as { id: string; battleId: string };
     const m = await requireMember(request, reply, id);

@@ -853,5 +853,27 @@
 .brick-grid .brick-btn.approved .i { color: var(--success); }
 .brick-grid .brick-btn.submitted .i { color: var(--warn); }
 .brick-grid .brick-btn.cracked { background: var(--warn-soft, var(--accent-soft)); color: var(--warn); border-style: dashed; }
+/* Карта книги хранителей (02.11): плашки участников, сетка по главам, клетка — стих. */
+.book-map { margin-top: var(--sp-2); }
+.bm-who { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.bm-who button { min-height: 32px; padding: 0 10px; border-radius: 16px; font-size: var(--fs-sm); font-weight: 600; background: transparent; color: var(--text, var(--ink)); border: 1px solid var(--border-strong, var(--muted)); box-shadow: none; display: inline-flex; align-items: center; gap: 6px; }
+.bm-who button b { font-weight: 700; font-size: var(--fs-xs); min-width: 20px; padding: 0 5px; border-radius: 10px; background: var(--success-soft); color: var(--success); font-variant-numeric: tabular-nums; }
+.bm-who button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-ink); }
+.bm-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin-top: var(--sp-2); }
+.bm-legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-strong, var(--muted)); vertical-align: -2px; margin-right: 4px; background: var(--surface, #fff); }
+.bm-grid { margin-top: var(--sp-2); }
+.bm-row { display: flex; align-items: flex-start; gap: 6px; margin-top: 3px; }
+.bm-ch { flex: none; width: 22px; font-size: var(--fs-xs); color: var(--muted); text-align: right; line-height: 16px; font-variant-numeric: tabular-nums; }
+.bm-cells { display: flex; flex-wrap: wrap; gap: 2px; }
+.bm-cell { width: 16px; height: 16px; min-height: 0; padding: 0; border-radius: 3px; border: 1px solid var(--border-strong, var(--muted)); background: var(--surface, #fff); box-shadow: none; }
+.bm-cell.learned, .bm-legend .sw.learned { background: var(--success); border-color: var(--success); }
+.bm-cell.others, .bm-legend .sw.others { background: repeating-linear-gradient(135deg, var(--success) 0 2px, transparent 2px 5px); }
+.bm-cell.marked, .bm-legend .sw.marked { background: var(--bm-marked, #3d6fa5); border-color: var(--bm-marked, #3d6fa5); }
+/* выбранный отрывок — кольцо снаружи клетки, заливка видна */
+.bm-cell.sel, .bm-legend .sw.sel { outline: 2px solid var(--bronze, var(--accent-ink)); outline-offset: 1px; }
+.bm-row { margin-top: 5px; }
+.bm-cells { gap: 4px; }
+.bm-cell.pick { box-shadow: 0 0 0 2px var(--text, var(--ink)); }
+.bm-cells .bm-tip { flex-basis: 100%; margin: 4px 0 2px; }
 .brick-grid .brick-btn.cracked .i { color: var(--warn); }
 .feed li.me .ico { background: var(--accent-soft); color: var(--accent); }

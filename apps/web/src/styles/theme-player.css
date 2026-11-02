@@ -296,6 +296,11 @@
 .masonry .brick.mine { stroke: var(--bronze-ink); }
 .masonry .brick.pending { stroke: var(--ink-3); }
 .masonry .tip rect { fill: var(--paper-light); stroke: var(--paper-edge); }
+.bm-cell, .bm-legend .sw { background: var(--paper-light); border-color: var(--paper-edge); }
+.bm-cell.learned, .bm-legend .sw.learned { background: var(--moss, var(--success)); border-color: var(--moss, var(--success)); }
+.bm-cell.others, .bm-legend .sw.others { background: repeating-linear-gradient(135deg, var(--moss, var(--success)) 0 2px, var(--paper-light) 2px 5px); }
+.bm-who button { background: var(--paper-light); border-color: var(--paper-edge); }
+.bm-who button.on { background: var(--bronze-soft); border-color: var(--bronze); color: var(--bronze-ink); }
 .masonry .tip text { fill: var(--ink); }
 .masonry .tip text + text { fill: var(--ink-2, var(--muted)); }
 .brick-grid .brick-btn { font-family: var(--font-ui); background: var(--paper-light); border-color: var(--paper-edge); box-shadow: none; }

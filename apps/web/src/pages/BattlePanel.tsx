@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, ApiError, type BattleDto, type BattleStatus, type BookTextDto, type DaytimeDto, type PassageDto, type WarDto } from "../lib/api";
+import { api, ApiError, type BookMapDto, type BattleDto, type BattleStatus, type BookTextDto, type DaytimeDto, type PassageDto, type WarDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
+import { useAuth } from "../lib/auth";
 import { fmtDate, fmtLeft, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Chip, type ChipTone } from "../components/Chip";
@@ -260,6 +261,13 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
         <>
           <div className="progress mt-2"><span style={{ width: `${Math.min(100, need ? (sum / need) * 100 : 0)}%` }} /></div>
           <div className="muted small mt-1">{t("Выучено {a} из {b} · принято {c}", { a: sum, b: need, c: approved })}{!attacker && b.entries.some((e) => e.carried) ? ` · ${t("зачтено ранее: {n}", { n: b.entries.filter((e) => e.carried).reduce((s, e) => s + e.verses, 0) })}` : ""}</div>
+          {/* Карта книги (решение владельца 02.11): хранители видят всю книгу и чьи стихи уже закрыты, прежде чем брать отрывок. */}
+          {!attacker && !ally && b.status === "DEFENSE" && !b.defenseDoneAt && (
+            <details className="disclose sm book-map-fold" open>
+              <summary><Icon name="book" />{t("Книга")}<Icon name="chevron-down" className="chev" /></summary>
+              <BookMap gameId={gameId} battleId={b.id} version={b.entries.length + (passage ? 1 : 0)} />
+            </details>
+          )}
           {!attacker && !passage && b.status === "DEFENSE" && !b.defenseDoneAt && (
             isCaptain && !ally ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Ждём: капитан выбирает отрывок ответа.")}</span></div>
           )}
@@ -277,6 +285,68 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
       {attacker && isCaptain && (b.status === "QUEUED" || b.status === "ATTACK") && (
         <div className="actions mt-2"><button type="button" className="ghost" onClick={() => void cancel()}><Icon name="x" />{t("Отменить вызов")}</button></div>
       )}
+    </div>
+  );
+}
+
+
+/**
+ * Карта книги хранителей (решение владельца 02.11): плашки участников и сетка книги по главам, клетка — стих. Зелёная —
+ * закрыта (сдана раньше: испытания и стена), штриховая — закрыта только у других, синяя — отмечена в этом ответе, белая —
+ * свободна. Режим «Все» показывает команду целиком; режим участника — что может взять именно он. Нажатие на клетку —
+ * ссылка и у кого стих закрыт.
+ */
+function BookMap({ gameId, battleId, version }: { gameId: string; battleId: string; version: number }) {
+  const { user } = useAuth();
+  const [d, setD] = useState<BookMapDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [who, setWho] = useState<string>("all");
+  const [pick, setPick] = useState<number | null>(null);
+  useEffect(() => { api<BookMapDto>(`/api/games/${gameId}/battles/${battleId}/book-map`).then((x) => { setD(x); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); }, [gameId, battleId, version]);
+  useEffect(() => { if (d && who === "all" && user && d.members.some((m) => m.userId === user.id)) setWho(user.id); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [d?.book.code]);
+  const sets = useMemo(() => (d?.members ?? []).map((m) => ({ ...m, learnedSet: new Set(m.learned), markedSet: new Set(m.marked) })), [d]);
+  if (error) return <p className="error" role="alert">{error}</p>;
+  if (!d) return <p className="muted small mt-2">{t("Загружаем книгу…")}</p>;
+  const offsets = d.book.verseCounts.reduce<number[]>((acc, n, i) => { acc.push(i === 0 ? 0 : acc[i - 1]! + d.book.verseCounts[i - 1]!); return acc; }, []);
+  const me = sets.find((m) => m.userId === who) ?? null;
+  const freeFor = (m: (typeof sets)[number]) => d.book.total - new Set([...m.learned, ...m.marked]).size;
+  const freeAll = Array.from({ length: d.book.total }, (_, i) => i).filter((i) => sets.every((m) => !m.learnedSet.has(i) && !m.markedSet.has(i))).length;
+  const classOf = (i: number) => {
+    const markedBy = sets.filter((m) => m.markedSet.has(i)), learnedBy = sets.filter((m) => m.learnedSet.has(i));
+    if (me) return me.markedSet.has(i) ? "marked" : me.learnedSet.has(i) ? "learned" : learnedBy.length + markedBy.length > 0 ? "others" : "free";
+    if (markedBy.length > 0) return "marked";
+    if (learnedBy.length >= sets.length && sets.length > 0) return "learned";
+    return learnedBy.length > 0 ? "others" : "free";
+  };
+  const refOf = (i: number) => { let c = 0; while (c + 1 < offsets.length && offsets[c + 1]! <= i) c++; return `${c + 1}:${i - offsets[c]! + 1}`; };
+  const tip = (i: number) => {
+    const learnedBy = sets.filter((m) => m.learnedSet.has(i)).map((m) => m.name), markedBy = sets.filter((m) => m.markedSet.has(i)).map((m) => m.name);
+    const parts = [refOf(i)];
+    if (markedBy.length) parts.push(t("в этом ответе: {names}", { names: markedBy.join(", ") }));
+    if (learnedBy.length) parts.push(t("сдано раньше: {names}", { names: learnedBy.join(", ") }));
+    if (!markedBy.length && !learnedBy.length) parts.push(t("свободен для всех"));
+    return parts.join(" · ");
+  };
+  const inPassage = (i: number) => Boolean(d.passage && i >= d.passage.start && i <= d.passage.end);
+  return (
+    <div className="book-map">
+      <div className="bm-who" role="tablist" aria-label={t("Чьи стихи показать")}>
+        <button type="button" role="tab" aria-selected={who === "all"} className={who === "all" ? "on" : ""} title={t("свободно для всех: {n}", { n: freeAll })} onClick={() => setWho("all")}>{t("Все")}<b>{freeAll}</b></button>
+        {sets.map((m) => <button key={m.userId} type="button" role="tab" aria-selected={who === m.userId} className={who === m.userId ? "on" : ""} title={t("свободно для него: {n}", { n: freeFor(m) })} onClick={() => setWho(m.userId)}>{m.name}<b>{freeFor(m)}</b></button>)}
+      </div>
+      <p className="muted small bm-legend"><i className="sw learned" />{me ? t("закрыто") : t("закрыто у всех")} <i className="sw others" />{me ? t("закрыто у других") : t("закрыто у части")} <i className="sw marked" />{t("в этом ответе")} <i className="sw free" />{t("свободно")}{d.passage && <> <i className="sw sel" />{t("отрывок")}</>}</p>
+      <div className="bm-grid" aria-label={d.book.name}>
+        {d.book.verseCounts.map((n, c) => (
+          <div className="bm-row" key={c}>
+            <span className="bm-ch">{c + 1}</span>
+            <div className="bm-cells">
+              {Array.from({ length: n }, (_, v) => { const i = offsets[c]! + v; const cls = classOf(i); return <button key={v} type="button" className={"bm-cell " + cls + (inPassage(i) ? " sel" : "") + (pick === i ? " pick" : "")} aria-label={tip(i)} title={tip(i)} onClick={() => setPick((x) => (x === i ? null : i))} />; })}
+              {/* подсказка — под строкой главы, где нажали, чтобы не искать её внизу длинной сетки */}
+              {pick !== null && pick >= offsets[c]! && pick < offsets[c]! + n && <p className="hint bm-tip" aria-live="polite">{tip(pick)}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
