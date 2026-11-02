@@ -7,7 +7,8 @@
   2. Озвучивает строки из scripts/voice/lines.json → out/tts/s<N>-mine.mp3 (знаки ударения «´» убираются,
      если KEEP_ACCENTS не «1»).
   3. При SFX=1 генерирует звуковые эффекты для ролика → out/sfx/*.mp3.
-Переменные окружения: ELEVENLABS_API_KEY, SAMPLE, VOICE_ID, MODEL_ID (eleven_multilingual_v2), KEEP_ACCENTS, SFX, OUT.
+Переменные окружения: ELEVENLABS_API_KEY, SAMPLE (аудио или видео), SAMPLE_RANGE (отрезки мм:сс-мм:сс через запятую), ISOLATE (чистка),
+VOICE_ID, MODEL_ID (eleven_multilingual_v2), KEEP_ACCENTS, SFX, MUSIC, OUT.
 """
 import json, os, sys, time, uuid, urllib.request, urllib.error
 
@@ -51,6 +52,38 @@ def multipart(fields, files):
     return b"\r\n".join(out), {"Content-Type": "multipart/form-data; boundary=" + b.decode()}
 
 
+def prepare_sample(src, ranges):
+    """Звук из видео/аудио: нужные отрезки (мм:сс-мм:сс через запятую), моно 44,1 кГц, один файл m4a."""
+    import subprocess
+    os.makedirs(f"{OUT}/sample", exist_ok=True)
+    def sec(t):
+        parts = [float(x) for x in t.strip().split(":")]
+        return sum(v * 60 ** i for i, v in enumerate(reversed(parts)))
+    cuts = []
+    for k, r in enumerate([x for x in ranges.split(",") if x.strip()] or [""]):
+        part = f"{OUT}/sample/part{k}.wav"
+        cmd = ["ffmpeg", "-v", "error", "-y"]
+        if r.strip():
+            a, b = r.split("-"); cmd += ["-ss", str(sec(a)), "-to", str(sec(b))]
+        cmd += ["-i", src, "-vn", "-ac", "1", "-ar", "44100", part]
+        subprocess.run(cmd, check=True); cuts.append(part)
+    lst = f"{OUT}/sample/list.txt"
+    open(lst, "w").write("".join(f"file '{os.path.abspath(c)}'\n" for c in cuts))
+    out = f"{OUT}/sample/sample.m4a"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", lst, "-c:a", "aac", "-b:a", "160k", out], check=True)
+    return out
+
+
+def isolate(path):
+    """Чистка записи от шума и музыки (Voice Isolator)."""
+    body, hdr = multipart({}, [("audio", path)])
+    audio = call("/audio-isolation", body, hdr, raw=True)
+    out = f"{OUT}/sample/sample-clean.mp3"
+    open(out, "wb").write(audio)
+    print("запись очищена:", len(audio), "байт")
+    return out
+
+
 # 1. Голос
 voice_id = os.environ.get("VOICE_ID", "").strip()
 if not voice_id:
@@ -58,6 +91,11 @@ if not voice_id:
     missing = [p for p in samples if not os.path.exists(p)]
     if not samples or missing:
         print("нет записи голоса:", missing or "SAMPLE пуст"); sys.exit(1)
+    ranges = os.environ.get("SAMPLE_RANGE", "").strip()
+    if ranges or any(p.lower().endswith((".mp4", ".mov", ".webm", ".mkv")) for p in samples):
+        samples = [prepare_sample(samples[0], ranges)]
+    if os.environ.get("ISOLATE", "0") == "1":
+        samples = [isolate(samples[0])]
     body, hdr = multipart({"name": "Земли Слова — диктор", "description": "Голос диктора ролика", "remove_background_noise": "true"}, [("files", p) for p in samples])
     res = call("/voices/add", body, hdr)
     voice_id = res["voice_id"]
@@ -85,10 +123,32 @@ if os.environ.get("SFX", "0") == "1":
         ("whoosh", "Soft cinematic whoosh transition", 2),
         ("quill", "Quill pen writing on parchment", 3),
         ("seal", "Wax seal stamp pressed firmly onto paper", 2),
+        ("impact", "Deep cinematic impact hit with a short low boom and subtle debris", 2),
+        ("swoosh", "Fast whoosh fly-in with a soft thump landing", 1.5),
+        ("stamp", "Heavy rubber stamp slam on a wooden desk", 1.5),
+        ("flip", "Quick card flip, crisp paper snap", 1),
+        ("coin", "Small bright chime, medal awarded", 1.5),
+        ("pop", "Soft pop, bubble", 1),
     ]
     for name, prompt, dur in SFX:
         payload = json.dumps({"text": prompt, "duration_seconds": dur, "prompt_influence": 0.3}).encode()
         audio = call("/sound-generation", payload, {"Content-Type": "application/json"}, raw=True)
         open(f"{OUT}/sfx/{name}.mp3", "wb").write(audio)
         print("звук", name, len(audio), "байт")
+# 4. Музыка (Eleven Music): фон под ролик, без слов
+if os.environ.get("MUSIC", "0") == "1":
+    os.makedirs(f"{OUT}/music", exist_ok=True)
+    TRACKS = [
+        ("bed", "Warm cinematic adventure soundtrack for a story about a journey across islands and ancient cities: soft strings, light percussion, "
+                "gentle piano, hopeful and calm, slowly building, no vocals, no lyrics, suitable as background under narration", 140000),
+        ("storm", "Short dramatic orchestral swell with thunder-like low drums and rising strings, tense, no vocals", 15000),
+    ]
+    for name, prompt, ms in TRACKS:
+        payload = json.dumps({"prompt": prompt, "music_length_ms": ms}).encode()
+        try:
+            audio = call("/music?output_format=mp3_44100_128", payload, {"Content-Type": "application/json"}, raw=True)
+            open(f"{OUT}/music/{name}.mp3", "wb").write(audio)
+            print("музыка", name, len(audio), "байт")
+        except Exception as e:
+            print("музыка не сгенерирована:", name, str(e)[:200])
 print("готово:", OUT)

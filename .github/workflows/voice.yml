@@ -1,6 +1,7 @@
 # Озвучка ролика для онбординга голосом владельца через ElevenLabs (кнопка Run workflow).
 # Ключ — только в секрете ELEVENLABS_API_KEY. Запись голоса кладут в репозиторий (путь — поле sample),
-# либо указывают voice_id уже созданного голоса. Результат: артефакт voice-tts и ветка voice-tts (out/tts, out/sfx).
+# либо указывают voice_id уже созданного голоса. Из видео звук вырезается сам (sample_range — нужные отрезки).
+# Результат: артефакт voice-tts и ветка voice-tts (out/tts, out/sfx, out/music, out/sample).
 name: voice
 
 on:
@@ -18,8 +19,17 @@ on:
       keep_accents:
         description: "Оставить знаки ударения в тексте (1/0)"
         default: "0"
+      sample_range:
+        description: "Отрезки записи мм:сс-мм:сс через запятую (пусто — весь файл)"
+        default: ""
+      isolate:
+        description: "Почистить запись от шума и музыки перед клонированием (1/0)"
+        default: "1"
       sfx:
         description: "Сгенерировать звуковые эффекты (1/0)"
+        default: "1"
+      music:
+        description: "Сгенерировать музыку (1/0)"
         default: "1"
 
 permissions:
@@ -45,6 +55,9 @@ jobs:
           MODEL_ID: ${{ inputs.model_id }}
           KEEP_ACCENTS: ${{ inputs.keep_accents }}
           SFX: ${{ inputs.sfx }}
+          SAMPLE_RANGE: ${{ inputs.sample_range }}
+          ISOLATE: ${{ inputs.isolate }}
+          MUSIC: ${{ inputs.music }}
           OUT: out
         run: python3 scripts/voice/elevenlabs_tts.py
       - uses: actions/upload-artifact@v4
