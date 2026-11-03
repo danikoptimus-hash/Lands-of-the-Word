@@ -288,11 +288,19 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   }, [map.foreign]);
   // Кольцо под своим городом (решение владельца 03.11: «кольцо под городом — давай его»): дуга цвета каждой чужой команды,
   // чья пройденная сторона упирается в город, — подпись и значки дел больше не прячут чужую половину дороги.
+  // Дуга лежит со стороны, откуда входит дорога команды (замечание владельца 03.11: «на красной дорожке зелёная дуга, а на зелёной
+  // красная — сделай соответствующе»): угол дороги от города; дорога сверху зеркалится вниз, сторона (лево/право) сохраняется.
   const guestsAt = useMemo(() => {
-    const m = new Map<string, string[]>();
-    for (const f of map.foreign ?? []) for (const k of [f.aKey, f.bKey]) { const list = m.get(k) ?? []; if (!list.includes(f.color)) list.push(f.color); m.set(k, list); }
-    return m;
-  }, [map.foreign]);
+    const m = new Map<string, Map<string, number[]>>();
+    for (const f of map.foreign ?? []) for (const [k, o] of [[f.aKey, f.bKey], [f.bKey, f.aKey]] as const) {
+      const p = positions.get(k), q = positions.get(o);
+      const ang = p && q ? Math.abs(Math.atan2(q.y - p.y, q.x - p.x)) : Math.PI / 2;
+      const byTeam = m.get(k) ?? new Map<string, number[]>(); const list = byTeam.get(f.color) ?? []; list.push(ang); byTeam.set(f.color, list); m.set(k, byTeam);
+    }
+    const out = new Map<string, Array<{ color: string; angle: number }>>();
+    for (const [k, byTeam] of m) out.set(k, [...byTeam].map(([color, angs]) => ({ color, angle: angs.reduce((s, a) => s + a, 0) / angs.length })).sort((a, b) => a.angle - b.angle));
+    return out;
+  }, [map.foreign, positions]);
   const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -330,13 +338,22 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             return (
               <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
                 <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : "url(#outline-free)"} />
-                {c?.owner && c.owner.index === teamIndex && (guestsAt.get(n.key) ?? []).map((color, i, all) => {
-                  // Дуги под основанием города, по одной на команду, с просветом между ними.
-                  const rx = CITY * 0.5, ry = CITY * 0.3, n0 = all.length;
-                  const a0 = Math.PI * (0.12 + i * (0.76 / n0)), a1 = Math.PI * (0.12 + (i + 1) * (0.76 / n0)) - 0.1;
-                  const d = `M${(p.x + rx * Math.cos(a0)).toFixed(2)},${(p.y + ry * Math.sin(a0)).toFixed(2)} A${rx.toFixed(2)},${ry.toFixed(2)} 0 0 1 ${(p.x + rx * Math.cos(a1)).toFixed(2)},${(p.y + ry * Math.sin(a1)).toFixed(2)}`;
-                  return <g key={color} className="guest"><path className="halo" d={d} /><path d={d} style={{ stroke: color }} /></g>;
-                })}
+                {c?.owner && c.owner.index === teamIndex && (() => {
+                  // Дуги под основанием города, по одной на команду, каждая со стороны своей дороги, с просветом между ними.
+                  const guests = guestsAt.get(n.key) ?? [];
+                  if (guests.length === 0) return null;
+                  const rx = CITY * 0.5, ry = CITY * 0.3, lo = Math.PI * 0.12, hi = Math.PI * 0.88, gap = 0.1;
+                  const w = Math.min(Math.PI * 0.38, (hi - lo - gap * (guests.length - 1)) / guests.length);
+                  const centers: number[] = [];
+                  for (const g of guests) { let c0 = Math.min(Math.max(g.angle, lo + w / 2), hi - w / 2); if (centers.length) c0 = Math.max(c0, centers[centers.length - 1]! + w + gap); centers.push(c0); }
+                  const over = centers[centers.length - 1]! + w / 2 - hi;
+                  if (over > 0) for (let i = 0; i < centers.length; i++) centers[i] = centers[i]! - over;
+                  return guests.map((g, i) => {
+                    const a0 = centers[i]! - w / 2, a1 = centers[i]! + w / 2;
+                    const d = `M${(p.x + rx * Math.cos(a0)).toFixed(2)},${(p.y + ry * Math.sin(a0)).toFixed(2)} A${rx.toFixed(2)},${ry.toFixed(2)} 0 0 1 ${(p.x + rx * Math.cos(a1)).toFixed(2)},${(p.y + ry * Math.sin(a1)).toFixed(2)}`;
+                    return <g key={g.color} className="guest"><path className="halo" d={d} /><path d={d} style={{ stroke: g.color }} /></g>;
+                  });
+                })()}
               </g>
             );
           }
