@@ -116,6 +116,7 @@
 .m-peek circle { fill: var(--surface); stroke: var(--text); stroke-width: 1.2; }
 .m-peek use { color: var(--text); }
 .m-deed .far { fill: var(--map-far); }
+.m-target .far { fill: var(--map-far); }
 .m-far { cursor: pointer; pointer-events: auto; } .m-far .far { fill: var(--map-far); } .m-far .hit { fill: transparent; }
 .m-deed circle:not(.far) { fill: var(--map-paper); stroke: var(--text); stroke-width: 1.3; }
 .m-deed.sel circle:not(.far) { stroke-width: 2.5; }
@@ -689,7 +690,7 @@
 /* В шторм участник видит только карту: кнопок, свитков дел, меток и ползунка истории нет; города не нажимаются. */
 .map-area.storm .hud-left, .map-area.storm .hud-right, .map-area.storm .map-controls, .map-area.storm .team-timeline, .map-area.storm .finish-banner { display: none; }
 .map-canvas.storm .screen-items, .map-canvas.storm .screen-items * { pointer-events: none !important; }
-.map-canvas.storm .screen-items .m-deed, .map-canvas.storm .screen-items .m-mark, .map-canvas.storm .screen-items .m-peek, .map-canvas.storm .screen-items .m-fork,
+.map-canvas.storm .screen-items .m-deed, .map-canvas.storm .screen-items .m-target, .map-canvas.storm .screen-items .m-mark, .map-canvas.storm .screen-items .m-peek, .map-canvas.storm .screen-items .m-fork,
 .map-canvas.storm .screen-items .m-land, .map-canvas.storm .screen-items .m-quarry, .map-canvas.storm .screen-items .m-battle, .map-canvas.storm .map-ripple { display: none; }
 .map-canvas.storm .m-edge, .map-canvas.storm .m-city { pointer-events: none !important; }
 /* В шторм единственная кнопка — стрелка назад в «Мои игры» (решение владельца 24.10), на месте кнопки меню. */

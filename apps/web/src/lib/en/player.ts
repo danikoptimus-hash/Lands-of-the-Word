@@ -132,7 +132,7 @@ export const PLAYER: Record<string, string> = {
   // Карта
   "ждём прохода": "awaiting passage", "проход закрыт": "passage closed",
   // Попап города
-  "Ваш город": "Your city", "Город команды «{team}»": "City of team “{team}”", "Город в руинах": "City in ruins", "Свободный город": "Free city", "Столица": "Capital",
+  "Ваш город": "Your city", "Город команды «{team}»": "City of team “{team}”", "Столица команды «{team}»": "Capital of team “{team}”", "Ссылка-приглашение или код": "Invite link or code", "Вступить": "Join", "Не похоже на приглашение: вставьте ссылку от капитана целиком": "This doesn’t look like an invite: paste the whole link from the captain", "Город в руинах": "City in ruins", "Свободный город": "Free city", "Столица": "Capital",
   "Шаги": "Steps", "Порядок": "Order", "Конверт": "Envelope",
   "Расставьте районы по порядку книги": "Arrange the districts in the order of the book", "Тяните за ручку или пользуйтесь стрелками.": "Drag by the handle or use the arrows.",
   "Не на месте: {n} · попытка {k}": "Out of place: {n} · attempt {k}", "Порядок верный: районы открыты": "The order is right: the districts are open",

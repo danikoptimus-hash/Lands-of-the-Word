@@ -41,4 +41,11 @@ describe("награды по истории", () => {
     const morning = task(7, "u1", "2026-10-26", { takenAt: d("2026-10-26T02:10:00Z"), submittedAt: d("2026-10-26T03:30:00Z") }); // 07:10 → 08:30
     expect(computeAwards({ ...base, teams: [{ id: "T", members: ["u1"] }], tasks: [morning] }).some((x) => x.code === "p_early_bird")).toBe(true);
   });
+  it("ранняя птица засчитывается за каждое такое дело (решение владельца 03.11)", () => {
+    const days = ["2026-10-24", "2026-10-25", "2026-10-26"];
+    const tasks = days.map((day, i) => task(20 + i, "u1", day, { takenAt: d(`${day}T02:10:00Z`), submittedAt: d(`${day}T03:30:00Z`) }));
+    const birds = computeAwards({ ...base, teams: [{ id: "T", members: ["u1"] }], tasks }).filter((x) => x.code === "p_early_bird");
+    expect(birds.length).toBe(3);
+    expect(new Set(birds.map((x) => x.key)).size).toBe(3); // ключ — id дела, записи не схлопываются
+  });
 });

@@ -389,6 +389,37 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     );
   })();
   const screenBody = useMemo(() => (<>
+          {/* Слои (решение владельца 03.11: «чтобы точка узла не перекрывала название города или плена»): точки узлов — метка
+              старта, перекрёстки, цели дел и край тумана — снизу; над ними подписи городов и пленов; сверху значки дел и метки. */}
+          {map.revealed.map((n) => {
+            const p = positions.get(n.key)!;
+            if (n.kind === "START") return <g key={n.key} style={sc(p.x, p.y)}><circle className="m-start" r={6} fill={map.team.color} /></g>;
+            if (n.kind === "CITY" || !showForks) return null;
+            return <g key={n.key} style={sc(p.x, p.y)}><circle className="m-fork" r={5} /></g>;
+          })}
+          {/* Серая точка цели дела — только пока перекрёсток не открыт: если команда дошла до него другой дорогой, белый перекрёсток не закрашивается (03.10). */}
+          {showMarkers && map.edges.map((e) => {
+            const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
+            if (!tk || tk.status === "APPROVED") return null;
+            const farKey = revealed.has(e.aKey) ? e.bKey : e.aKey;
+            if (revealed.has(farKey)) return null;
+            const far = positions.get(farKey) ?? nodePos(farKey, size);
+            return <g key={"tg" + e.aKey + e.bKey} className="m-target" style={sc(far.x, far.y)}><circle className="far" r={5} /></g>;
+          })}
+          {/* Край тумана: все ещё не открытые углы освещённых гексов без дороги с делом (решение владельца 02.10) — серая точка, по нажатию лист края тумана. */}
+          {showMarkers && onFrontierTap && (() => {
+            const covered = new Set(map.tasks.filter((tk) => tk.status !== "APPROVED").map((tk) => tk.toKey));
+            return (map.frontier ?? []).map((farKey) => {
+              if (covered.has(farKey) || revealed.has(farKey)) return null;
+              const p = positions.get(farKey) ?? nodePos(farKey, size);
+              return (
+                <g key={"far" + farKey} data-key={farKey} className="m-far" style={sc(p.x, p.y)} role="button" aria-label={t("Край тумана")} onClick={() => { if (!vp.wasDrag()) onFrontierTap(farKey); }}>
+                  <circle className="hit" r={14} />
+                  <circle className="far" r={5} />
+                </g>
+              );
+            });
+          })()}
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;
             const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
@@ -396,14 +427,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               // Стартовая точка подписана как «плен», из которого команда выходит (решение владельца 16.09).
               const name = startName(n.teamIndex ?? teamIndex, getLocale()), fs = fullLabels ? 11 : 9, w = Math.ceil(name.length * fs * 0.62) + 16, h = fs + 9;
               // Подпись справа от метки: по горизонтали из перекрёстка стороны не выходят (они идут вверх/вниз и наискось), метки дел не мешают.
+              // Подпись плена ничего не открывает: нажатия проходят сквозь неё к точкам края тумана под ней.
               return (
-                <Fragment key={n.key}>
-                  <g style={sc(p.x, p.y)}><circle className="m-start" r={6} fill={map.team.color} /></g>
-                  <g className={"m-label start" + (fullLabels ? "" : " sm")} style={sc(p.x, p.y)}>
-                    <rect x={12} y={-h / 2} width={w} height={h} rx={h / 2} />
-                    <text x={12 + w / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{name}</text>
-                  </g>
-                </Fragment>
+                <g key={n.key} className={"m-label start" + (fullLabels ? "" : " sm")} style={{ ...sc(p.x, p.y), pointerEvents: "none" }}>
+                  <rect x={12} y={-h / 2} width={w} height={h} rx={h / 2} />
+                  <text x={12 + w / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{name}</text>
+                </g>
               );
             }
             if (n.kind === "CITY") {
@@ -432,8 +461,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                 </g>
               );
             }
-            if (!showForks) return null;
-            return <g key={n.key} style={sc(p.x, p.y)}><circle className="m-fork" r={5} /></g>;
+            return null;
           })}
           {showMarkers && (map.peeked ?? []).map((pk) => {
             // Координаты из ключа: у разведанного угла без дороги к открытой части карты записи в positions нет (жалоба участника 31.10: метка стояла только через сторону с делом).
@@ -457,8 +485,6 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const r = sel ? R + 2 : R;
             return (
               <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "")} onClick={() => click(tk.id)}>
-                {/* Серая точка цели только пока перекрёсток не открыт: если команда дошла до него другой дорогой, белый перекрёсток не закрашивается (03.10). */}
-                {!revealed.has(farKey) && <g style={sc(far.x, far.y)}><circle className="far" r={5} /></g>}
                 <g style={sc(m.x, m.y)}>
                   <circle r={r} />
                   <use href={`#m-${DEED_SYMBOL[tk.status]}`} x={-r * 0.6} y={-r * 0.6} width={r * 1.2} height={r * 1.2} />
@@ -466,20 +492,6 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               </g>
             );
           })}
-          {/* Край тумана: все ещё не открытые углы освещённых гексов без дороги с делом (решение владельца 02.10) — серая точка, по нажатию лист края тумана. */}
-          {showMarkers && onFrontierTap && (() => {
-            const covered = new Set(map.tasks.filter((tk) => tk.status !== "APPROVED").map((tk) => tk.toKey));
-            return (map.frontier ?? []).map((farKey) => {
-              if (covered.has(farKey) || revealed.has(farKey)) return null;
-              const p = positions.get(farKey) ?? nodePos(farKey, size);
-              return (
-                <g key={"far" + farKey} data-key={farKey} className="m-far" style={sc(p.x, p.y)} role="button" aria-label={t("Край тумана")} onClick={() => { if (!vp.wasDrag()) onFrontierTap(farKey); }}>
-                  <circle className="hit" r={14} />
-                  <circle className="far" r={5} />
-                </g>
-              );
-            });
-          })()}
           {ships.map(({ tk, x, y, port }) => {
             const sel = tk.id === selectedTaskId, r = (sel ? R + 2 : R) + 2;
             return (

@@ -629,11 +629,14 @@ async function computeTeamMap(gameId: string, teamId: string) {
   for (const pr of passages) if (!passageByKey.has(pr.nodeKey)) passageByKey.set(pr.nodeKey, pr.status);
   const [cityStates, owners, battles] = await Promise.all([
     prisma.teamCityState.findMany({ where: { teamId, nodeKey: { in: cityNodes.map((n) => n.key) } } }),
-    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, teamId: true, capturedAt: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } }),
+    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, teamId: true, capturedAt: true, isCapital: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } }),
     prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: teamId }, { defenderId: teamId }] }, select: { nodeKey: true, attackerId: true, defenderId: true, status: true, violation: true, defenseFactor: true, attackLaunchedAt: true } }),
   ]);
   const stateByKey = new Map(cityStates.map((s) => [s.nodeKey, s]));
   const ownerByKey = new Map(owners.map((o) => [o.nodeKey, o.team]));
+  // Столица — по владельцу города (решение владельца 03.11: «команды видели на городах, которые они открыли, знак, столица ли
+  // это другой команды»); раньше признак брался из состояния своей команды, и чужие столицы выглядели обычными городами.
+  const capitalByKey = new Map(owners.map((o) => [o.nodeKey, o.isCapital]));
   // Городская стена: свой город — живая стена; чужой — только снимок разведчика (решение владельца 02.11: «значок стены
   // не виден по умолчанию… нужно разведывать через разведчика»), толщину чужие не знают никогда.
   const ownerTeamByKey = new Map(owners.map((o) => [o.nodeKey, o.teamId]));
@@ -657,7 +660,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
       captured: s?.capturedAt != null,
       capturedAt: s?.capturedAt?.toISOString() ?? null,
       takenAt: takenAtByKey.get(n.key) ?? null,
-      isCapital: s?.isCapital ?? false,
+      isCapital: capitalByKey.get(n.key) ?? false,
       battle: battleByKey.get(n.key) ?? null,
       ruined: n.ruined,
       wall: ownerTeamByKey.get(n.key) === teamId ? walls.has(n.key) : scoutedWall.get(n.key) ?? false,

@@ -397,6 +397,28 @@ describe("дипломатия, роли, столица, руины, пожер
     await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { keySolversPct: 50, keyTasksPct: 50 } } } });
   });
 
+  it("задания, решённые до журнала событий, засчитываются по летописи; другие команды видят, столица ли это владельца (решение владельца 03.11)", async () => {
+    const nick = `${p1Nick}_old`;
+    const cookie = await register(nick);
+    const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team1}/invites`, headers: { cookie: adminCookie }, payload: { role: "MEMBER" } });
+    expect((await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie } })).statusCode).toBe(201);
+    const user = await prisma.user.findUniqueOrThrow({ where: { nickname: nick } });
+    const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
+    // Первое решение двух заданий записано только в летописи — как до 02.10, когда журнала событий ещё не было.
+    for (const n of [1, 2]) await prisma.journal.create({ data: { gameId, teamId: team1, userId: user.id, kind: "task_solved", vars: { user: nick, n, book: node.bookCode } } });
+    expect((await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie } })).json().state.mySolved).toEqual([0, 1]);
+    // Повторно решить засчитанное по летописи нельзя: оно уже «ваше».
+    const again = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/tasks/0/answer`, headers: { cookie }, payload: { answer: "x" } });
+    expect(again.statusCode).toBe(409);
+    expect(again.json().message).toContain("уже решили");
+    // Город взяла команда «Львы» (предыдущий тест): «Орлы» видят владельца и его признак столицы.
+    const owner = await prisma.teamCityState.findFirstOrThrow({ where: { gameId, nodeKey: rutKey, capturedAt: { not: null } } });
+    expect(owner.teamId).toBe(team1);
+    const seen = (await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p2Cookie } })).json();
+    expect(seen.owner).toMatchObject({ id: team1, isCapital: owner.isCapital });
+    await prisma.user.deleteMany({ where: { nickname: nick } });
+  });
+
   it("руины берутся без ключа после решённых заданий", async () => {
     await prisma.mapNode.update({ where: { gameId_key: { gameId, key: rutKey } }, data: { ruined: true } });
     await prisma.teamCityState.updateMany({ where: { nodeKey: rutKey, gameId }, data: { capturedAt: null, isCapital: false } });

@@ -197,7 +197,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   // адресат и конверт спят до 7:00. С 0:00 до 7:00 город спит целиком.
   const tasksOpen = city?.daytime?.tasksOpen ?? !night;
   const sleeping = night && !tasksOpen;
-  const statusLine = !city ? "" : city.state.capturedAt ? t("Ваш город") : city.owner ? t("Город команды «{team}»", { team: city.owner.name }) : city.node.ruined ? t("Город в руинах") : t("Свободный город");
+  const statusLine = !city ? "" : city.state.capturedAt ? t("Ваш город") : city.owner ? (city.owner.isCapital ? t("Столица команды «{team}»", { team: city.owner.name }) : t("Город команды «{team}»", { team: city.owner.name })) : city.node.ruined ? t("Город в руинах") : t("Свободный город");
 
   const head = (
     <div className="city-head" style={{ ["--city-img" as string]: `url(${IMG.city(city?.node.cityType)})` }}>
@@ -293,9 +293,11 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
             </>
           )}
 
-          {step === 3 && !city.state.capturedAt && !night && enoughSolvers && <h3>{t("Получите конверт с ключом")}</h3>}
-          {/* Ключ после половины команды (решение владельца 05.10): строка видна с первого задания, чтобы команда делила задания заранее. */}
-          {needSolvers > 0 && !city.state.capturedAt && !city.node.ruined && (
+          {step === 3 && !city.state.capturedAt && !foreign && !night && enoughSolvers && <h3>{t("Получите конверт с ключом")}</h3>}
+          {/* Ключ после половины команды (решение владельца 05.10): строка видна с первого задания, чтобы команда делила задания заранее.
+              В городе другой команды строки нет: ключом его не взять, только испытанием (случай владельца 03.11 — после потери
+              Псалтири участница видела «для ключа нужно 5», хотя ключ там уже не принимается). */}
+          {needSolvers > 0 && !city.state.capturedAt && !city.node.ruined && !foreign && (
             <p className={"meta-line solvers-line" + (allDone && !enoughSolvers ? " warn" : "")}>
               <Icon name="users" />{t("Решили свою долю: {a} из {b}", { a: solvers, b: teamSize })} · {enoughSolvers ? t("для ключа хватает") : t("для ключа нужно {c}", { c: needSolvers })} · {t("вы: {x} из {y}", { x: mine.length, y: total })}
               <Help>{t("Задания решает каждый сам: после первого верного ответа знак шифра открыт команде, но задание можно решить и после этого, для своего зачёта. Участник считается, когда решил не меньше {n} заданий города; ключ конверта можно ввести, когда таких участников не меньше половины команды.", { n: needTasks })}</Help>
@@ -311,10 +313,10 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
               </div>
             </div>
           )}
-          {allDone && !night && !enoughSolvers && !city.node.ruined && !city.state.capturedAt && (
+          {allDone && !night && !enoughSolvers && !city.node.ruined && !city.state.capturedAt && !foreign && (
             <div className="note warn"><Icon name="users" /><span>{t("Все знаки открыты, но ключ ждёт: не меньше {c} участников должны решить каждый хотя бы {n} заданий, пока таких {a}. Задания можно решать и после того, как команда открыла знак: откройте район с полупрозрачной галочкой.", { c: needSolvers, n: needTasks, a: solvers })}</span></div>
           )}
-          {allDone && !night && (enoughSolvers || city.node.ruined || Boolean(city.state.capturedAt)) && (
+          {allDone && !night && (enoughSolvers || city.node.ruined || Boolean(city.state.capturedAt) || foreign) && (
             <div className="capture">
               {city.node.ruined && !city.owner && !city.state.capturedAt && <div className="note warn"><Icon name="info" /><span>{t("Город в руинах: его можно занять без конверта.")}</span></div>}
               <WaxEnvelope fragments={city.content.fragments} cipher={city.content.fragments.map((f) => f ?? "·").join("")}

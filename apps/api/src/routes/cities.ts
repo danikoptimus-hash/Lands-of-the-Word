@@ -34,7 +34,7 @@ function publicLock(l: { taskIndex: number; wrong: number; lockedUntil: Date | n
   return { index: l.taskIndex, wrong: l.wrong, lockedUntil: locked ? l.lockedUntil!.getTime() : null };
 }
 
-const ownerSelect = { team: { select: { id: true, index: true, name: true, color: true, avatarId: true } } } as const;
+const ownerSelect = { isCapital: true, team: { select: { id: true, index: true, name: true, color: true, avatarId: true } } } as const;
 
 /**
  * Города на перекрёстках: попап города у команды (районы, задания, ключ конверта) и просмотр у админа.
@@ -57,24 +57,43 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     return node;
   }
 
-  /** Какие задания этого города участник решил сам (по событиям «верный ответ»); задания решаются каждым лично (решение владельца 05.10). */
-  async function mySolved(gameId: string, teamId: string, userId: string, nodeKey: string): Promise<number[]> {
-    const rows = await prisma.taskEvent.findMany({ where: { gameId, teamId, userId, nodeKey, kind: "ok", taskIndex: { not: null } }, select: { taskIndex: true }, distinct: ["taskIndex"] });
-    return rows.map((r) => r.taskIndex!).sort((a, b) => a - b);
+  /**
+   * Личный зачёт по заданиям города (решение владельца 05.10: задания решает каждый сам): события «верный ответ» (TaskEvent,
+   * ведутся с 02.10) плюс записи летописи «задание решено» — кто первым открыл знак команде (летопись ведётся с 18.09).
+   * Без летописи не засчитывались задания, решённые до журнала событий (случай владельца 03.11: участница решала половину
+   * заданий Псалтири, а видела «вы: 3 из 19»).
+   */
+  async function solvedRows(gameId: string, nodeKey: string, bookCode: string, where: { teamId?: string; userId?: string } = {}): Promise<Array<{ teamId: string; userId: string; taskIndex: number }>> {
+    const [events, firsts] = await Promise.all([
+      prisma.taskEvent.findMany({ where: { gameId, nodeKey, kind: "ok", taskIndex: { not: null }, ...where }, select: { teamId: true, userId: true, taskIndex: true }, distinct: ["teamId", "userId", "taskIndex"] }),
+      bookCode ? prisma.journal.findMany({ where: { gameId, kind: "task_solved", vars: { path: ["book"], equals: bookCode }, ...where }, select: { teamId: true, userId: true, vars: true } }) : Promise.resolve([]),
+    ]);
+    const out = new Map<string, { teamId: string; userId: string; taskIndex: number }>();
+    for (const e of events) out.set(`${e.teamId}:${e.userId}:${e.taskIndex}`, { teamId: e.teamId, userId: e.userId, taskIndex: e.taskIndex! });
+    for (const j of firsts) {
+      const n = Number((j.vars as { n?: unknown } | null)?.n);
+      if (!j.teamId || !j.userId || !Number.isInteger(n) || n < 1) continue;
+      out.set(`${j.teamId}:${j.userId}:${n - 1}`, { teamId: j.teamId, userId: j.userId, taskIndex: n - 1 });
+    }
+    return [...out.values()];
+  }
+  /** Какие задания этого города участник решил сам. */
+  async function mySolved(gameId: string, teamId: string, userId: string, nodeKey: string, bookCode: string): Promise<number[]> {
+    return (await solvedRows(gameId, nodeKey, bookCode, { teamId, userId })).map((r) => r.taskIndex).sort((a, b) => a - b);
   }
   /**
    * Ключ после половины команды (решение владельца 05.10): участник считается решавшим город, когда сам решил не меньше
    * keyTasksPct процентов его заданий (вверх до целого); ключ открывается, когда таких участников не меньше keySolversPct
    * процентов состава (вверх до целого). Расстановка районов не считается.
    */
-  async function solversOf(gameId: string, teamId: string, nodeKey: string, total: number, rules: { keySolversPct: number; keyTasksPct: number }): Promise<{ solvers: number; members: number; needSolvers: number; needTasks: number }> {
+  async function solversOf(gameId: string, teamId: string, nodeKey: string, bookCode: string, total: number, rules: { keySolversPct: number; keyTasksPct: number }): Promise<{ solvers: number; members: number; needSolvers: number; needTasks: number }> {
     const [rows, members] = await Promise.all([
-      prisma.taskEvent.findMany({ where: { gameId, teamId, nodeKey, kind: "ok", taskIndex: { not: null } }, select: { userId: true, taskIndex: true }, distinct: ["userId", "taskIndex"] }),
+      solvedRows(gameId, nodeKey, bookCode, { teamId }),
       prisma.membership.count({ where: { teamId } }),
     ]);
     const needTasks = Math.max(1, Math.ceil(total * rules.keyTasksPct / 100));
     const perUser = new Map<string, number>();
-    for (const r of rows) perUser.set(r.userId, (perUser.get(r.userId) ?? 0) + 1);
+    for (const r of rows) if (r.taskIndex < total) perUser.set(r.userId, (perUser.get(r.userId) ?? 0) + 1);
     const solvers = [...perUser.values()].filter((n) => n >= needTasks).length;
     return { solvers, members, needSolvers: Math.ceil(members * rules.keySolversPct / 100), needTasks };
   }
@@ -106,7 +125,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const keyLockedUntil = state?.keyLockedUntil ? state.keyLockedUntil.getTime() : 0;
     const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } });
     const rules = rulesOf(game.settings);
-    const [solvers, mine] = await Promise.all([solversOf(id, m.team.id, nodeKey, content?.tasks.length ?? 0, rules), mySolved(id, m.team.id, request.user!.id, nodeKey)]);
+    const [solvers, mine] = await Promise.all([solversOf(id, m.team.id, nodeKey, node.bookCode ?? "", content?.tasks.length ?? 0, rules), mySolved(id, m.team.id, request.user!.id, nodeKey, node.bookCode ?? "")]);
     // Адресат конверта показывается только когда все задания решены: раньше он команде не нужен.
     const allDone = Boolean(content) && solved && done.length >= (content?.tasks.length ?? 0);
     // Ночью (решение владельца 03.10) знаки шифра и адресат конверта скрыты до утра; задания открыты до полуночи (решение владельца 04.10).
@@ -136,7 +155,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, ruined: node.ruined },
       recipient,
       visit,
-      owner: ownerState?.team ?? null,
+      // Владелец города и столица ли это его (решение владельца 03.11).
+      owner: ownerState ? { ...ownerState.team, isCapital: ownerState.isCapital } : null,
       team: { capitalMovedAt: m.team.capitalMovedAt, gameRole: m.gameRole, role: m.role },
       content: content
         ? {
@@ -244,7 +264,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     // Задание решает каждый сам (решение владельца 05.10): после первого верного ответа знак шифра открыт команде, но
     // остальные участники могут решить то же задание для своего зачёта; повторно одному и тому же — нельзя.
     const teamDone = c.state.doneTasks.includes(index);
-    if ((await mySolved(id, c.m.team.id, request.user!.id, nodeKey)).includes(index)) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже решили это задание") });
+    if ((await mySolved(id, c.m.team.id, request.user!.id, nodeKey, c.node.bookCode ?? "")).includes(index)) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже решили это задание") });
     const body = answerBody.parse(request.body);
     const now = Date.now();
     const lockWhere = { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: index } };
@@ -306,7 +326,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!allDone) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала решите задания всех районов") });
     // Ключ конверта — только когда задания решили не меньше доли состава (решение владельца 05.10); руины берутся без ключа и без этого.
     if (!c.node.ruined) {
-      const s = await solversOf(id, c.m.team.id, nodeKey, c.content.tasks.length, c.rules);
+      const s = await solversOf(id, c.m.team.id, nodeKey, c.node.bookCode ?? "", c.content.tasks.length, c.rules);
       if (s.solvers < s.needSolvers) return reply.code(409).send({ error: "conflict", message: err(request, "Ключ можно ввести, когда не меньше {pct}% команды решат каждый хотя бы {tasks} заданий города: таких {a} из {b}, нужно {c}", { pct: c.rules.keySolversPct, tasks: s.needTasks, a: s.solvers, b: s.members, c: s.needSolvers }) });
     }
     const body = c.node.ruined ? { key: c.node.cityKey ?? "" } : captureBody.parse(request.body);
@@ -410,7 +430,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       prisma.game.findUnique({ where: { id }, select: { settings: true } }),
       // Личный зачёт по участникам (просьба владельца 10.10): кто из команды сколько заданий этого города решил сам.
       prisma.membership.findMany({ where: { team: { gameId: id } }, select: { teamId: true, userId: true, joinedAt: true, user: { select: { nickname: true, displayName: true } } }, orderBy: { joinedAt: "asc" } }),
-      prisma.taskEvent.findMany({ where: { gameId: id, nodeKey, kind: "ok", taskIndex: { not: null } }, select: { teamId: true, userId: true, taskIndex: true }, distinct: ["teamId", "userId", "taskIndex"] }),
+      solvedRows(id, nodeKey, node.bookCode ?? ""),
     ]);
     const byTeam = new Map(states.map((s) => [s.teamId, s]));
     const solvedBy = new Map<string, number>();

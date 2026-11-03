@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { useEffect, useState, type FormEvent } from "react";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { reportPage } from "../lib/perf";
 import { api, ApiError, apiReady, prefetch, ready, type GameSummary, type MyMapDto, type MyTeamDto } from "../lib/api";
 import { warmTeamMap } from "./mapWarm";
@@ -130,7 +130,42 @@ export function GamesPage() {
         <EmptyState icon="users" text={t("Вас ещё не пригласили в команду. Попросите у капитана ссылку-приглашение.")} />
       )}
 
+      <JoinByLink />
+
       <div className="home-foot"><Link to="/games/new" className="btn ghost"><Icon name="plus" />{t("Создать игру")}</Link><Link to="/how-to-play" className="btn ghost"><Icon name="help" />{t("Как играть?")}</Link><Link to="/whats-new" className="btn ghost"><Icon name="sparkle" />{t("Что нового")}</Link><a href="https://t.me/the_Word_was_God" target="_blank" rel="noopener noreferrer" className="btn ghost"><Icon name="send" />Telegram</a><Link to="/donate" className="btn ghost"><Icon name="star" />{t("Поддержать развитие игры")}</Link></div>
     </>
+  );
+}
+
+/** Код приглашения из ссылки (…/join/<код>) или сам код: 24 знака base64url, как выдаёт сервер. */
+export function inviteToken(raw: string): string | null {
+  const v = raw.trim();
+  const m = /\/join\/([A-Za-z0-9_-]{8,})/.exec(v);
+  if (m) return m[1]!;
+  return /^[A-Za-z0-9_-]{8,}$/.test(v) ? v : null;
+}
+
+/**
+ * Вступить по приглашению прямо в приложении (решение владельца 03.11 по сообщению участника: ссылка из мессенджера
+ * открывается в браузере, а не в сохранённом на экран приложении, и там приходится входить заново). Вставьте ссылку или
+ * код — откроется та же страница приглашения, но внутри приложения, где вы уже вошли.
+ */
+function JoinByLink() {
+  const navigate = useNavigate();
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  function go(e: FormEvent) {
+    e.preventDefault();
+    const token = inviteToken(value);
+    if (!token) { setError(t("Не похоже на приглашение: вставьте ссылку от капитана целиком")); return; }
+    navigate(`/join/${token}`);
+  }
+  return (
+    <form className="home-join" onSubmit={go}>
+      <Icon name="link" />
+      <input id="join-invite" value={value} onChange={(e) => { setValue(e.target.value); setError(null); }} placeholder={t("Ссылка-приглашение или код")} aria-label={t("Ссылка-приглашение или код")} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" />
+      <button type="submit" className="sm" disabled={!value.trim()}>{t("Вступить")}</button>
+      {error && <p className="error">{error}</p>}
+    </form>
   );
 }
