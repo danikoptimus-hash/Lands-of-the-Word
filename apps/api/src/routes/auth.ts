@@ -92,11 +92,17 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   /**
    * Тестовый вход за бота (решение владельца 03.11: удобное переключение между тестовыми ботами на стенде, чтобы
-   * проверять игру их глазами). Доступно ТОЛЬКО на стенде и локально (devLoginEnabled по хосту PUBLIC_URL) и ТОЛЬКО
-   * для тестовых ботов — ник tg_*, почта @example.com. На проде (голый домен) маршрутов нет: 404. Реальные аккаунты
-   * недоступны даже на стенде, который является копией прода: фильтр по нику и почте их не пропускает. Нового обхода
-   * авторизации не добавляется — используется та же createSession, что и обычный вход; пароль просто не нужен для
-   * заведомо тестовых ботов. Пометка «за кого вошли» видна обычным списком аккаунтов устройства (/api/auth/accounts).
+   * проверять игру их глазами). Защита:
+   *  1) только стенд и локальная разработка — devLoginEnabled по хосту PUBLIC_URL; на проде маршрутов /api/dev/* нет
+   *     вовсе (404). Вход анонимный (без пароля) — иначе на стенде не переключиться одним тапом, как и просил владелец;
+   *  2) войти можно ТОЛЬКО за тестового бота — ник tg_*, почта @example.com; реальные аккаунты недоступны даже на
+   *     стенде, который является копией прода;
+   *  3) войти нельзя за суперадмина платформы, даже если это бот: тестовый вход не выдаёт прав на все игры и всех
+   *     людей стенда. Боты партии — обычные пользователи (игру ведут правами администратора самой игры, GameAdmin,
+   *     а не платформы), поэтому суперадмин тут и не нужен.
+   * Нового обхода авторизации нет — та же createSession, что и обычный вход. Ботам почта подтверждается прямо здесь
+   * (на @example.com писем не бывает; иначе игра показала бы «Подтвердите почту»). Прежняя активная сессия паркуется —
+   * вернуться в неё можно обычным переключением аккаунтов устройства.
    */
   const isTestBot = (u: { nickname: string; email: string | null }) =>
     /^tg_/i.test(u.nickname) && (u.email ?? "").toLowerCase().endsWith("@example.com");
@@ -104,7 +110,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/dev/bots", async (_request, reply) => {
     if (!devLoginEnabled(app.config)) return reply.code(404).send({ error: "not_found" });
     const bots = await prisma.user.findMany({
-      where: { nickname: { startsWith: "tg_" }, email: { endsWith: "@example.com" } },
+      where: { nickname: { startsWith: "tg_" }, email: { endsWith: "@example.com" }, platformRole: { not: "SUPERADMIN" } },
       select: { nickname: true, displayName: true },
       orderBy: { nickname: "asc" },
     });
@@ -113,11 +119,14 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
 
   app.post("/api/dev/become", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request, reply) => {
     if (!devLoginEnabled(app.config)) return reply.code(404).send({ error: "not_found" });
-    const body = z.object({ nickname: z.string().trim().min(1), add: z.boolean().optional() }).parse(request.body ?? {});
-    const user = await prisma.user.findFirst({ where: { nickname: { equals: body.nickname, mode: "insensitive" } } });
-    if (!user || !isTestBot(user)) return reply.code(404).send({ error: "not_found", message: err(request, "Тестовый бот не найден") });
-    await createSession(reply, user.id, secure, body.add ? { request } : undefined);
-    return { user: publicUser(user) };
+    const body = z.object({ nickname: z.string().trim().min(1) }).parse(request.body ?? {});
+    const found = await prisma.user.findFirst({ where: { nickname: { equals: body.nickname, mode: "insensitive" } } });
+    if (!found || !isTestBot(found) || found.platformRole === "SUPERADMIN") return reply.code(404).send({ error: "not_found", message: err(request, "Тестовый бот не найден") });
+    const target = found.emailVerified ? found : await prisma.user.update({ where: { id: found.id }, data: { emailVerified: true } });
+    if (request.user && target.id === request.user.id) return { user: publicUser(target) };
+    // Паркуем прежнюю активную сессию (владельца или прежнего бота), только если она есть; анонимный вход — одной сессией.
+    await createSession(reply, target.id, secure, request.user ? { request } : undefined);
+    return { user: publicUser(target) };
   });
 
   app.post("/api/auth/register", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {

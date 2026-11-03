@@ -1,23 +1,20 @@
 /**
  * Партия «Осень (тест)» на стенде, укомплектованная ТОЛЬКО тестовыми ботами (решение владельца 03.11: поднять осень
  * в копии на тесте и переключаться между ботами). Реальных людей в партии нет — три команды из ботов tg_*, как в
- * scripts/sim-game.mjs. Скрипт не играет и не делает скриншотов: только заводит ботов, создаёт игру, карту, команды,
- * адресатов, дела и (по умолчанию) запускает игру с ускоренными сроками, чтобы всё можно было проверить быстро.
+ * scripts/sim-game.mjs. Скрипт не играет и не делает скриншотов: заводит ботов, создаёт игру, карту, команды,
+ * адресатов, дела и (по умолчанию) запускает игру с ускоренными сроками.
  *
- * Запуск на сервере стенда (пароль ботов в репозитории не хранится):
- *   SEED_BASE=https://test.<домен> SIM_PASS=<пароль ботов> node scripts/seed-stand.mjs
+ * Запуск на сервере стенда или локально (пароль не нужен — вход за бота идёт тем же /api/dev/become, что и панель):
+ *   SEED_BASE=https://test.<домен> node scripts/seed-stand.mjs
  * Переменные: SEED_START=0 — оставить черновиком; SEED_NAME="…" — имя игры; SEED_SEED=<число> — зерно карты.
  *
- * tg_admin должен быть суперадмином платформы (иначе игру не создать). На свежей базе первый зарегистрированный
- * становится суперадмином; на копии прода выдать роль один раз в базе стенда:
- *   docker exec lotw-db-test psql -U lotw -d lotw -c "UPDATE \"User\" SET \"platformRole\"='SUPERADMIN' WHERE nickname='tg_admin';"
+ * Суперадмин не нужен: игру ведёт администратор самой игры (создатель становится GameAdmin). /api/dev/* доступно
+ * только на стенде и локально (хост test.* или localhost); ботам почта подтверждается автоматически при входе.
  */
 const BASE = (process.env.SEED_BASE ?? "https://test.landsoftheword.com").replace(/\/$/, "");
-const PASS = process.env.SIM_PASS;
 const NAME = process.env.SEED_NAME ?? "Осень (тест)";
 const START = process.env.SEED_START !== "0";
 const SEED = Number(process.env.SEED_SEED ?? Math.floor(Math.random() * 1e9));
-if (!PASS) { console.error("Нужен SIM_PASS (пароль тестовых ботов)."); process.exit(1); }
 
 const TEAMS = [
   { name: "Моряки", nicks: ["tg_m1", "tg_m2", "tg_m3", "tg_m4", "tg_m5", "tg_m6"] },
@@ -28,7 +25,6 @@ const ADMIN = "tg_admin";
 const ALL = [ADMIN, ...TEAMS.flatMap((t) => t.nicks)];
 const cookies = new Map();
 
-/** Пояс, где сейчас местный час равен hour (как в scripts/testAuth): даёт предсказуемое время суток. */
 function zoneForLocalHour(hour, now = new Date()) {
   let n = ((hour - now.getUTCHours()) % 24 + 24) % 24;
   if (n > 14) n -= 24;
@@ -48,24 +44,22 @@ async function api(nick, method, path, body) {
 }
 const get = (n, p) => api(n, "GET", p);
 const post = (n, p, b) => api(n, "POST", p, b);
-async function login(nick) {
-  const r = await fetch(BASE + "/api/auth/login", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nickname: nick, password: PASS }) });
-  if (r.status !== 200) throw new Error(`вход ${nick}: ${r.status}`);
+/** Вход за бота панельным способом (/api/dev/become): без пароля, с автоподтверждением почты; работает только на стенде/локально. */
+async function become(nick) {
+  const r = await fetch(BASE + "/api/dev/become", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nickname: nick }) });
+  if (r.status === 404) throw new Error(`/api/dev/become недоступен или ${nick} не тестовый бот (нужен стенд test.* и ник tg_*@example.com). Статус 404.`);
+  if (r.status !== 200) throw new Error(`вход за ${nick}: ${r.status}`);
   cookies.set(nick, (r.headers.get("set-cookie") ?? "").split(";")[0]);
 }
 
 async function main() {
   console.log(`Стенд: ${BASE}`);
+  // Регистрируем недостающих ботов (на стенде без SMTP почта подтверждается сразу); существующие — 409, не страшно.
   for (const n of ALL) {
-    const r = await fetch(BASE + "/api/auth/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nickname: n, password: PASS, email: `${n}@example.com` }) });
+    const r = await fetch(BASE + "/api/auth/register", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nickname: n, password: Math.random().toString(36).slice(2) + "Aa1", email: `${n}@example.com` }) });
     if (r.status !== 201 && r.status !== 409) console.log(`  регистрация ${n}: ${r.status}`);
   }
-  for (const n of ALL) await login(n);
-  const me = await get(ADMIN, "/api/auth/me");
-  if (me.user?.platformRole !== "SUPERADMIN") {
-    console.error(`\ntg_admin не суперадмин — игру создать нельзя. Выдайте роль на стенде один раз:\n  docker exec lotw-db-test psql -U lotw -d lotw -c "UPDATE \\"User\\" SET \\"platformRole\\"='SUPERADMIN' WHERE nickname='tg_admin';"\nи запустите скрипт снова.`);
-    process.exit(2);
-  }
+  for (const n of ALL) await become(n); // заодно подтверждает почту каждому боту
 
   const g = await post(ADMIN, "/api/games", { name: NAME, teamCount: 3, settings: { equidistantStarts: true, maxStartDistanceDiff: 2 } });
   const gameId = g.game.id;
