@@ -7,6 +7,10 @@
 }
 
 /* Чек-лист подготовки (Обзор в черновике) */
+/* Блок, к которому привели из «Подготовки» (решение владельца 03.11: «сразу на раздел с адресатами направлять»): короткая подсветка рамки. */
+.card.flash { animation: card-flash 2.6s ease-out; }
+@keyframes card-flash { 0%, 45% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: none; } }
+@media (prefers-reduced-motion: reduce) { .card.flash { animation: none; box-shadow: 0 0 0 3px var(--accent); } }
 .checklist { list-style: none; margin: 0; padding: 0; }
 .checklist > li { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-3) 0; border-top: 1px solid var(--border); }
 .checklist > li:first-child { border-top: 0; }
@@ -14,7 +18,7 @@
 .checklist .step.done { background: var(--success-soft); border-color: transparent; color: var(--success); }
 .checklist .step .i { width: 16px; height: 16px; }
 .checklist .body { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
-.checklist .body .title { font-weight: 600; }
+.checklist .body .title { font-weight: 600; display: inline-flex; align-items: center; gap: var(--sp-1); }
 .checklist .act { flex: none; display: flex; align-items: center; min-height: 32px; }
 .problems { margin-top: var(--sp-3); display: flex; flex-direction: column; gap: var(--sp-2); }
 .problems .note { margin: 0; }

@@ -5,6 +5,7 @@ import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { ErrorState, LoadingState } from "../components/State";
+import { Help } from "../components/Help";
 
 interface Item { key: string; vars?: Record<string, string | number> }
 interface Readiness { canStart: boolean; problems: string[]; warnings: string[]; problemItems: Item[]; warningItems: Item[] }
@@ -18,6 +19,8 @@ const PROBLEM_TAB: Record<string, Tab | undefined> = new Proxy({}, { get: (_t, k
  * Чек-лист подготовки в черновике: карта → команды и приглашения → дела → адресаты конвертов и ярлыки → «Начать игру».
  * Без адресатов конвертов старт закрыт (решение владельца 3.18): без адресата шифр некому назвать; не скачанные ярлыки — предупреждение.
  * Готовность проверяет сервер; список обновляется при любом изменении на странице (version), при возврате на вкладку и раз в 15 секунд.
+ * У каждого шага — «?» с пояснением, зачем он нужен; ссылка шага адресатов ведёт сразу к блоку адресатов в настройках
+ * (решение владельца 03.11: «пользователь попадает в настройки в начало и не понимает, что ему нужно сделать»).
  */
 export function StartBlock({ gameId, version, onStarted, hasMap, nodeCount, cityCount, stats, onGenerate, generating, generateError, teams, teamCount, deeds, recipients, goTo, goToRecipients }: {
   gameId: string; version: number; onStarted: () => void;
@@ -58,10 +61,10 @@ export function StartBlock({ gameId, version, onStarted, hasMap, nodeCount, city
     <div className="card">
       <div className="card-head"><h2><span className="ico"><Icon name="play" /></span>{t("Подготовка")}</h2></div>
       <ol className="checklist">
-        <Step n={1} done={hasMap} title={t("Карта")} status={mapStatus} action={<button type="button" className={hasMap ? "secondary sm" : "sm"} onClick={onGenerate} disabled={generating}><Icon name="refresh" />{hasMap ? t("Заново") : t("Сгенерировать карту")}</button>} error={generateError} />
-        <Step n={2} done={teams >= teamCount && teams > 0} title={t("Команды и приглашения")} status={t("{a} из {b}", { a: teams, b: teamCount })} action={tabLink("teams")} />
-        <Step n={3} done={deeds > 0} title={t("Дела")} status={plural(deeds, ["дело", "дела", "дел"])} action={tabLink("deeds")} />
-        <Step n={4} done={recipients > 0} title={t("Адресаты конвертов и ярлыки")} status={recipients > 0 ? plural(recipients, ["адресат", "адресата", "адресатов"]) : t("Нужны до старта: без адресата шифр некому назвать")} action={<a href="#settings" onClick={(e) => { e.preventDefault(); goToRecipients(); }}>{t("Настройки")}</a>} />
+        <Step n={1} done={hasMap} title={t("Карта")} help={t("Поле игры: города на перекрёстках дорог и стартовые точки команд. Карта создаётся случайно; «Заново» даёт другую, пока игра в черновике. После старта карту изменить нельзя.")} status={mapStatus} action={<button type="button" className={hasMap ? "secondary sm" : "sm"} onClick={onGenerate} disabled={generating}><Icon name="refresh" />{hasMap ? t("Заново") : t("Сгенерировать карту")}</button>} error={generateError} />
+        <Step n={2} done={teams >= teamCount && teams > 0} title={t("Команды и приглашения")} help={t("Создайте команды и разошлите приглашения по ссылке: по ней игрок попадает в свою команду. Для старта в каждой команде нужны капитан и не меньше двух участников, у каждого — роль.")} status={t("{a} из {b}", { a: teams, b: teamCount })} action={tabLink("teams")} />
+        <Step n={3} done={deeds > 0} title={t("Дела")} help={t("Задания, за которые команды проходят стороны карты: на каждом выходе из города лежит дело, команда выполняет его и сдаёт на проверку. Без дел командам некуда идти.")} status={plural(deeds, ["дело", "дела", "дел"])} action={tabLink("deeds")} />
+        <Step n={4} done={recipients > 0} title={t("Адресаты конвертов и ярлыки")} help={t("Последний шаг города — назвать шифр адресату (семье, вдове, старцу) и получить конверт с ключом. Адресатов вводит администратор: короткая подпись и тип, без имён и адресов; игра раздаёт их городам поровну. Без адресатов старт закрыт. Ярлыки — наклейки на конверты: скачайте PDF, распечатайте и раздайте конверты адресатам.")} status={recipients > 0 ? plural(recipients, ["адресат", "адресата", "адресатов"]) : t("Нужны до старта: без адресата шифр некому назвать")} action={<a href="#settings" onClick={(e) => { e.preventDefault(); goToRecipients(); }}>{t("Адресаты")}</a>} />
       </ol>
       {loadError ? <ErrorState text={t("Не удалось проверить готовность")} onRetry={() => void load()} /> : !r ? <LoadingState rows={1} /> : (
         <div className="problems">
@@ -76,12 +79,12 @@ export function StartBlock({ gameId, version, onStarted, hasMap, nodeCount, city
   );
 }
 
-function Step({ n, done, title, status, action, error }: { n: number; done: boolean; title: string; status: string; action?: ReactNode; error?: string | null }) {
+function Step({ n, done, title, help, status, action, error }: { n: number; done: boolean; title: string; /** Зачем нужен шаг — под «?» рядом с названием. */ help?: string; status: string; action?: ReactNode; error?: string | null }) {
   return (
     <li>
       <span className={"step" + (done ? " done" : "")} aria-label={done ? t("готово") : undefined}>{done ? <Icon name="check" /> : n}</span>
       <div className="body">
-        <span className="title">{title}</span>
+        <span className="title">{title}{help && <Help>{help}</Help>}</span>
         <span className="muted small">{status}</span>
         {error && <span className="error">{error}</span>}
       </div>

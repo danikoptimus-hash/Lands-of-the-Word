@@ -230,7 +230,7 @@ export function GamePage() {
                     hasMap={hasMap} nodeCount={nodes.length} cityCount={nodes.filter((n) => n.kind === "CITY").length} stats={stats}
                     onGenerate={() => void generate()} generating={busy} generateError={genError}
                     teams={counts.teams} teamCount={game.teamCount} deeds={counts.deeds} recipients={counts.recipients}
-                    goTo={setTab} goToRecipients={() => setTab("settings")}
+                    goTo={setTab} goToRecipients={() => { setTab("settings"); let n = 0; const tick = () => { const el = document.getElementById("recipients"); if (el) { el.scrollIntoView({ behavior: "smooth", block: "start" }); el.classList.add("flash"); setTimeout(() => el.classList.remove("flash"), 2600); } else if (n++ < 30) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }}
                   />
                 </>
               )}

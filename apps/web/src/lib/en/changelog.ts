@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Администратору: в «Подготовке» у каждого шага знак «?» с пояснением, зачем он нужен; ссылка шага «Адресаты конвертов и ярлыки» ведёт сразу к блоку адресатов.": "For the administrator: every step of “Preparation” has a “?” explaining why it is needed; the link of the “Envelope recipients and labels” step leads straight to the recipients block.",
   "У своего города на карте — шатёр цвета команды, которая дошла до него по дороге, на той дороге, по которой подошла: подпись и значки дел больше не прячут чужой отрезок у ворот.": "At your own city on the map there is now a tent in the colour of a team that reached it by road, on the road it came by: the label and deed markers no longer hide the foreign stretch at the gates.",
   "Отмена вызова теперь со штрафом: минимальная ставка на этот город для команды растёт на 5 стихов, как после сгоревшего вызова.": "Cancelling a challenge now carries a penalty: the team’s minimum bid for this city grows by 5 verses, as after a burnt challenge.",
   "У администратора на плитке «Проверка» отдельный красный значок с кирпичиком: сколько блоков стен ждут проверки.": "For the administrator, the “Review” tile has a separate red brick badge: how many wall blocks await review.",
