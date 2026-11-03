@@ -343,22 +343,24 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
                 <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : "url(#outline-free)"} />
                 {c?.owner && c.owner.index === teamIndex && (() => {
-                  // Шатёр стоит у своей дороги (требование владельца 03.11: «ВСЕГДА возле дороги, с которой подошли»): на дороге
-                  // сразу за картинкой города, со сдвигом вбок на 14px экрана — мимо значка дела; у вертикальной дороги вниз —
-                  // ниже подписи. Сторона сдвига — где суша (выше дороги в первую очередь); второй шатёр на той же дороге —
+                  // Шатёр стоит у своей дороги (требование владельца 03.11: «ВСЕГДА возле дороги, с которой подошли»): опорная точка
+                  // на дороге у края картинки города (единицы карты), от неё — сдвиг в пикселях экрана: вдоль дороги 8px (у
+                  // вертикальной вниз 20px — мимо подписи) и вбок 14px — мимо значка дела. Сдвиг экранный, а не в единицах
+                  // карты: при сильном приближении шатёр оставался бы у соседнего узла (замечание владельца 03.11: «синий шатёр
+                  // у узла, а не города»). Сторона сдвига — где суша (выше дороги в первую очередь); второй шатёр на той же дороге —
                   // с другой стороны, третий — дальше по дороге. Размер постоянный на экране (scale(--inv)).
                   const out: ReactElement[] = [], used = new Map<string, number>();
                   for (const g of campsAt.get(n.key) ?? []) {
                     const roadKey = `${Math.round(g.ux * 10)},${Math.round(g.uy * 10)}`;
                     const i = used.get(roadKey) ?? 0; used.set(roadKey, i + 1);
-                    const along = (g.uy > 0.9 ? 1.15 : 0.72) * CITY + 0.45 * CITY * Math.floor(i / 2);
+                    const down = g.uy > 0.9, along = 0.55 * CITY + 0.45 * CITY * Math.floor(i / 2), push = down ? 20 : 8, side = down ? 16 : 14;
                     const bx = p.x + g.ux * along, by = p.y + g.uy * along;
                     const nx = -g.uy, ny = g.ux;
                     let sgn = (ny <= 0 ? 1 : -1) * (i % 2 === 0 ? 1 : -1);
                     if (!tentOnLand(bx + nx * sgn * 0.3 * CITY, by + ny * sgn * 0.3 * CITY) && tentOnLand(bx - nx * sgn * 0.3 * CITY, by - ny * sgn * 0.3 * CITY)) sgn = -sgn;
                     out.push(
                       <g key={g.color + roadKey} className="camp" style={{ transform: `translate(${bx.toFixed(2)}px, ${by.toFixed(2)}px) scale(var(--inv, 1))` }}>
-                        <g transform={`translate(${(nx * sgn * 14).toFixed(1)}, ${(ny * sgn * 14).toFixed(1)})`}>
+                        <g transform={`translate(${(g.ux * push + nx * sgn * side).toFixed(1)}, ${(g.uy * push + ny * sgn * side).toFixed(1)})`}>
                           <path d="M-9.5,8 L0,-9.5 L9.5,8 Z" style={{ fill: g.color }} />
                           <path className="door" d="M-2.7,8 L0,1.6 L2.7,8 Z" />
                         </g>
