@@ -19,7 +19,7 @@ describe("серия дней", () => {
 });
 
 describe("награды по истории", () => {
-  const base = { tz: TZ, now: d("2026-10-29T12:00:00Z"), nodes: [{ key: "N:1,1", kind: "CITY", island: "OT" }], hexes: [], nodeStates: [], cityStates: [], battles: [], entries: [], passages: [], peeks: [], works: [], journal: [] };
+  const base = { tz: TZ, now: d("2026-10-29T12:00:00Z"), nodes: [{ key: "N:1,1", kind: "CITY", island: "OT" }], hexes: [], nodeStates: [], cityStates: [], battles: [], entries: [], wall: [], passages: [], peeks: [], works: [], journal: [] };
   const task = (i: number, u: string, day: string, extra: Partial<Parameters<typeof computeAwards>[0]["tasks"][number]> = {}) => ({ id: `t${i}`, teamId: "T", status: "APPROVED", takenById: u, participants: [], takenAt: d(`${day}T03:00:00Z`), submittedAt: d(`${day}T04:00:00Z`), decidedAt: d(`${day}T05:00:00Z`), sea: false, paved: false, toKey: "N:0,0", ...extra });
   it("первое дело команды и участника, рубеж серии 5 дней, ключник за дорогу в город", () => {
     const days = ["2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24"];
@@ -47,5 +47,22 @@ describe("награды по истории", () => {
     const birds = computeAwards({ ...base, teams: [{ id: "T", members: ["u1"] }], tasks }).filter((x) => x.code === "p_early_bird");
     expect(birds.length).toBe(3);
     expect(new Set(birds.map((x) => x.key)).size).toBe(3); // ключ — id дела, записи не схлопываются
+  });
+  it("заученные стихи: испытания и стена, каждый стих один раз; рубежи 10, 50, 100, 200, прежние 30 и 60 не выдаются", () => {
+    const rec = (book: string, from: number, to: number, day: string, extra: { carried?: boolean } = {}) => ({ userId: "u1", teamId: "T", bookCode: book, startIdx: from, endIdx: to, carried: false, decidedAt: d(`${day}T10:00:00Z`), createdAt: d(`${day}T09:00:00Z`), ...extra });
+    const entries = [
+      rec("PSA", 0, 29, "2026-10-20"), // 30 стихов в испытании
+      rec("PSA", 0, 29, "2026-10-21"), // те же стихи в другом испытании — не новые
+      rec("PSA", 30, 89, "2026-10-22", { carried: true }), // перенесено из прошлого вызова — не новые
+      rec("JHN", 0, 99, "2026-10-24"), // ещё 100 → 140
+    ];
+    const wall = [
+      rec("PSA", 20, 39, "2026-10-21"), // 10 новых (30–39) → 40
+      rec("ROM", 0, 59, "2026-10-25"), // 60 новых → 200
+      rec("ROM", 50, 59, "2026-10-26"), // починка блока — те же стихи
+    ];
+    const g = computeAwards({ ...base, teams: [{ id: "T", members: ["u1"] }], tasks: [], entries, wall }).filter((x) => x.code.startsWith("p_verses_"));
+    const at = Object.fromEntries(g.map((x) => [x.code, x.at.toISOString().slice(0, 10)]));
+    expect(at).toEqual({ p_verses_10: "2026-10-20", p_verses_50: "2026-10-24", p_verses_100: "2026-10-24", p_verses_200: "2026-10-25" });
   });
 });

@@ -35,7 +35,7 @@ export function preloadAwardImages(codes: Iterable<string>): void {
 let allQueued = false;
 export function preloadAllAwardImages(): void {
   if (allQueued) return; allQueued = true;
-  const run = () => preloadAwardImages(AWARDS.map((a) => a.code));
+  const run = () => preloadAwardImages(AWARDS.filter((a) => !a.retired).map((a) => a.code));
   if (typeof requestIdleCallback === "function") requestIdleCallback(run, { timeout: 4000 }); else setTimeout(run, 1500);
 }
 export function AwardBadge({ code, earned, count, size = "md", onClick, name = true, eager = false }: { code: string; earned: boolean; count?: number; size?: "sm" | "md" | "lg"; onClick?: () => void; /** Подпись под значком. */ name?: boolean; /** Грузить сразу, не лениво: в карточках и листах. */ eager?: boolean }) {
@@ -72,12 +72,23 @@ export function AwardSheet({ code, grant, onClose }: { code: string; grant?: Awa
   );
 }
 
-/** Сетка значков по каталогу: полученные ярко, остальные серые. */
+/** Награды каталога, которые видит этот человек или команда: снятые с выдачи — только если уже получены. */
+function shownDefs(defs: ReadonlyArray<AwardDef>, grants: AwardGrantDto[]): AwardDef[] {
+  return defs.filter((a) => !a.retired || grants.some((g) => g.code === a.code));
+}
+/** «Получено N из M» по видимым наградам. */
+function AwardHead({ defs, grants }: { defs: ReadonlyArray<AwardDef>; grants: AwardGrantDto[] }) {
+  const shown = shownDefs(defs, grants);
+  const got = shown.filter((a) => grants.some((g) => g.code === a.code)).length;
+  return <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: shown.length })}</b></div>;
+}
+
+/** Сетка значков по каталогу: полученные ярко, остальные серые; снятые с выдачи видны только получившим. */
 function AwardGrid({ defs, grants, onPick }: { defs: ReadonlyArray<AwardDef>; grants: AwardGrantDto[]; onPick: (code: string) => void }) {
   const got = new Map(grants.map((g) => [g.code, g]));
   return (
     <div className="award-grid">
-      {defs.map((a) => { const g = got.get(a.code); return <AwardBadge key={a.code} code={a.code} earned={Boolean(g)} count={g?.count} onClick={() => onPick(a.code)} />; })}
+      {shownDefs(defs, grants).map((a) => { const g = got.get(a.code); return <AwardBadge key={a.code} code={a.code} earned={Boolean(g)} count={g?.count} onClick={() => onPick(a.code)} />; })}
     </div>
   );
 }
@@ -161,11 +172,10 @@ export const awardsTotal = (grants: AwardGrantDto[]) => grants.reduce((a, g) => 
 /** Личные награды: серия дней и сетка по каталогу. */
 export function MyAwardsBlock({ data }: { data: AwardsDto }) {
   const [pick, setPick] = useState<string | null>(null);
-  const got = data.mine.filter((g) => PERSONAL_AWARDS.some((d) => d.code === g.code)).length;
   return (
     <div className="awards">
       <StreakCard streak={data.streak} />
-      <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: PERSONAL_AWARDS.length })}</b></div>
+      <AwardHead defs={PERSONAL_AWARDS} grants={data.mine} />
       <AwardGrid defs={PERSONAL_AWARDS} grants={data.mine} onPick={setPick} />
       {pick && <AwardSheet code={pick} grant={data.mine.find((g) => g.code === pick)} onClose={() => setPick(null)} />}
     </div>
@@ -175,10 +185,9 @@ export function MyAwardsBlock({ data }: { data: AwardsDto }) {
 /** Награды своей команды: сетка по каталогу. */
 export function TeamAwardsBlock({ data }: { data: AwardsDto }) {
   const [pick, setPick] = useState<string | null>(null);
-  const got = data.team.filter((g) => TEAM_AWARDS.some((d) => d.code === g.code)).length;
   return (
     <div className="awards">
-      <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: TEAM_AWARDS.length })}</b></div>
+      <AwardHead defs={TEAM_AWARDS} grants={data.team} />
       <AwardGrid defs={TEAM_AWARDS} grants={data.team} onPick={setPick} />
       {pick && <AwardSheet code={pick} grant={data.team.find((g) => g.code === pick)} onClose={() => setPick(null)} />}
     </div>
@@ -279,7 +288,6 @@ export function AdminAwards({ gameId, version }: { gameId: string; version: numb
   useEffect(() => { apiReady<AdminAwardsDto>(url).then((d) => { setData(d); preloadAwardImages(d.members.flatMap((m) => m.awards.map((g) => g.code))); }).catch(() => {}); }, [url, version]);
   if (!data) return <div className="card"><LoadingState rows={2} /></div>;
   const team = data.teams.find((t) => t.id === teamId) ?? data.teams[0] ?? null;
-  const got = team ? team.awards.filter((g) => TEAM_AWARDS.some((d) => d.code === g.code)).length : 0;
   return (
     <div className="card awards">
       <Tabs items={[{ key: "teams", label: t("Команды"), icon: "users" }, { key: "members", label: t("Участники"), icon: "user" }]} value={tab} onChange={setTab} ariaLabel={t("Награды")} />
@@ -292,7 +300,7 @@ export function AdminAwards({ gameId, version }: { gameId: string; version: numb
               </button>
             ))}
           </div>
-          <div className="award-head"><b>{t("Получено {n} из {m}", { n: got, m: TEAM_AWARDS.length })}</b></div>
+          <AwardHead defs={TEAM_AWARDS} grants={team.awards} />
           <AwardGrid defs={TEAM_AWARDS} grants={team.awards} onPick={setPick} />
           {pick && <AwardSheet code={pick} grant={team.awards.find((g) => g.code === pick)} onClose={() => setPick(null)} />}
         </>

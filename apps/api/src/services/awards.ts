@@ -1,5 +1,5 @@
 import { prisma } from "../db.js";
-import { AWARDS, STREAK_MILESTONES, hexCorners, vertexKey, nextStreakMilestone } from "@lotw/domain";
+import { AWARDS, STREAK_MILESTONES, VERSE_MILESTONES, hexCorners, vertexKey, nextStreakMilestone } from "@lotw/domain";
 import { rulesOf } from "./rules.js";
 import { publish } from "./events.js";
 
@@ -112,7 +112,9 @@ export function computeAwards(data: {
   nodeStates: Array<{ teamId: string; nodeKey: string; revealedAt: Date }>;
   cityStates: Array<{ teamId: string; nodeKey: string; capturedAt: Date | null; firstCapturedAt: Date | null }>;
   battles: Array<{ id: string; attackerId: string; defenderId: string; status: string; resolvedAt: Date | null }>;
-  entries: Array<{ userId: string; teamId: string; startIdx: number; endIdx: number; carried: boolean; decidedAt: Date | null; createdAt: Date }>;
+  entries: Array<{ userId: string; teamId: string; bookCode: string; startIdx: number; endIdx: number; carried: boolean; decidedAt: Date | null; createdAt: Date }>;
+  /** Принятые блоки стены (сданные стихи участника; сгоревшие в ответ и починки тоже). */
+  wall: Array<{ userId: string; teamId: string; bookCode: string; startIdx: number; endIdx: number; decidedAt: Date | null; createdAt: Date }>;
   passages: Array<{ id: string; requesterId: string; ownerId: string; status: string; decidedAt: Date | null }>;
   peeks: Array<{ teamId: string; createdAt: Date }>;
 }): Grant[] {
@@ -221,11 +223,18 @@ export function computeAwards(data: {
       if (opened[9]) person(tm.id, u, "p_pathfinder", opened[9].decidedAt!);
       for (const t of own) if (cityKeys.has(t.toKey)) person(tm.id, u, "p_keyholder", t.decidedAt ?? t.at, t.toKey);
       for (const t of tasks) if (t.status === "APPROVED" && t.sea && doers(t).has(u)) person(tm.id, u, "p_sea_wolf", t.decidedAt ?? t.submittedAt ?? now, t.id);
-      // Стихи: зачтённые записи испытаний без перенесённых из прошлых.
-      let verses = 0;
-      for (const e of byTs(data.entries.filter((e) => e.userId === u && e.teamId === tm.id && !e.carried).map((e) => ({ ...e, at: e.decidedAt ?? e.createdAt })))) {
-        const before = verses; verses += e.endIdx - e.startIdx + 1;
-        for (const [n, code] of [[10, "p_verses_10"], [30, "p_verses_30"], [60, "p_verses_60"], [100, "p_verses_100"]] as const) if (before < n && verses >= n) person(tm.id, u, code, e.at);
+      // Заученные стихи (решение владельца 03.11: «по кол-ву заученных стихов: 10, 50, 100, 200»): принятые записи
+      // испытаний и принятые блоки стены, каждый стих один раз — тот же стих в другом испытании, перенесённый из прошлого
+      // вызова или сданный в починку стены новым не считается. Вес воина не учитывается: считаются сами стихи.
+      const learned = new Set<string>();
+      const recited = [
+        ...data.entries.filter((e) => e.userId === u && e.teamId === tm.id && !e.carried),
+        ...data.wall.filter((w) => w.userId === u && w.teamId === tm.id),
+      ];
+      for (const e of byTs(recited.map((e) => ({ ...e, at: e.decidedAt ?? e.createdAt })))) {
+        const before = learned.size;
+        for (let i = e.startIdx; i <= e.endIdx; i++) learned.add(`${e.bookCode}:${i}`);
+        for (const n of VERSE_MILESTONES) if (before < n && learned.size >= n) person(tm.id, u, `p_verses_${n}`, e.at);
       }
       // Недельный счёт для «Опоры команды».
       for (const t of own) { const wk = weekOf(gameDayKey(t.at, tz)); let m = weekly.get(wk); if (!m) { m = new Map(); weekly.set(wk, m); } const c = m.get(u) ?? { n: 0, last: t.at }; c.n++; if (t.at > c.last) c.last = t.at; m.set(u, c); }
@@ -248,7 +257,7 @@ export async function recomputeAwards(gameId: string): Promise<number> {
   const game = await prisma.game.findUnique({ where: { id: gameId }, select: { settings: true, status: true } });
   if (!game) return 0;
   const tz = rulesOf(game.settings).timeZone;
-  const [teams, tasks, works, journal, nodes, hexes, nodeStates, cityStates, battles, entries, passages, peeks] = await Promise.all([
+  const [teams, tasks, works, journal, nodes, hexes, nodeStates, cityStates, battles, entryRows, wall, passages, peeks] = await Promise.all([
     prisma.team.findMany({ where: { gameId }, select: { id: true, members: { select: { userId: true } } } }),
     prisma.teamEdgeTask.findMany({ where: { gameId, status: { not: "OPEN" } }, select: { id: true, teamId: true, status: true, takenById: true, participants: true, takenAt: true, submittedAt: true, decidedAt: true, sea: true, paved: true, toKey: true } }),
     prisma.quarryWork.findMany({ where: { gameId }, select: { teamId: true, byId: true, participants: true, status: true, submittedAt: true, decidedAt: true } }),
@@ -258,11 +267,13 @@ export async function recomputeAwards(gameId: string): Promise<number> {
     prisma.teamNodeState.findMany({ where: { team: { gameId } }, select: { teamId: true, nodeKey: true, revealedAt: true } }),
     prisma.teamCityState.findMany({ where: { gameId }, select: { teamId: true, nodeKey: true, capturedAt: true, firstCapturedAt: true } }),
     prisma.battle.findMany({ where: { gameId, status: { in: ["WON", "REPELLED"] } }, select: { id: true, attackerId: true, defenderId: true, status: true, resolvedAt: true } }),
-    prisma.battleEntry.findMany({ where: { battle: { gameId }, status: "APPROVED" }, select: { userId: true, teamId: true, startIdx: true, endIdx: true, carried: true, decidedAt: true, createdAt: true } }),
+    prisma.battleEntry.findMany({ where: { battle: { gameId }, status: "APPROVED" }, select: { userId: true, teamId: true, startIdx: true, endIdx: true, carried: true, decidedAt: true, createdAt: true, battle: { select: { bookCode: true } } } }),
+    prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED" }, select: { userId: true, teamId: true, bookCode: true, startIdx: true, endIdx: true, decidedAt: true, createdAt: true } }),
     prisma.passageRequest.findMany({ where: { gameId, status: "APPROVED" }, select: { id: true, requesterId: true, ownerId: true, status: true, decidedAt: true } }),
     prisma.teamPeek.findMany({ where: { team: { gameId } }, select: { teamId: true, createdAt: true } }),
   ]);
-  const grants = computeAwards({ tz, now: new Date(), teams: teams.map((t) => ({ id: t.id, members: t.members.map((m) => m.userId) })), tasks, works, journal, nodes, hexes, nodeStates, cityStates, battles, entries, passages, peeks });
+  const entries = entryRows.map(({ battle, ...e }) => ({ ...e, bookCode: battle.bookCode }));
+  const grants = computeAwards({ tz, now: new Date(), teams: teams.map((t) => ({ id: t.id, members: t.members.map((m) => m.userId) })), tasks, works, journal, nodes, hexes, nodeStates, cityStates, battles, entries, wall, passages, peeks });
   if (!grants.length) return 0;
   const res = await prisma.awardGrant.createMany({ data: grants.map((g) => ({ gameId, ...g })), skipDuplicates: true });
   if (res.count > 0) publish(gameId, { type: "awards" });
