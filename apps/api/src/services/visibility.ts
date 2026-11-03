@@ -3,5 +3,10 @@
  * не нажал «Испытать» (статус DEFENSE). Исключение — вызов, нарушивший мир: он объявляется всем сразу (решение владельца
  * 22.10: хранители зовут союзника заранее). Правило одно для списков испытаний, окна города и значков на карте.
  */
-export const battleVisibleTo = (b: { attackerId: string; defenderId: string; status: string; violation: boolean; defenseFactor: number }, teamId: string): boolean =>
-  !(b.defenderId === teamId && b.attackerId !== teamId && (b.status === "QUEUED" || b.status === "ATTACK") && !b.violation && b.defenseFactor <= 1);
+/**
+ * Хранители узнают о вызове только с «Испытать» (attackLaunchedAt); до этого вызов для них не существует — ни идущий,
+ * ни отменённый, ни сгоревший (замечание владельца 03.11: «с какого фига начали отображаться вызовы, которые не дошли
+ * до испытания… хранителям?»). Исключение — нарушение мира и удвоенная защита: о таком вызове хранители знали сразу.
+ */
+export const battleVisibleTo = (b: { attackerId: string; defenderId: string; status: string; violation: boolean; defenseFactor: number; attackLaunchedAt?: Date | null }, teamId: string): boolean =>
+  !(b.defenderId === teamId && b.attackerId !== teamId && (b.status === "QUEUED" || b.status === "ATTACK" || !b.attackLaunchedAt) && !b.violation && b.defenseFactor <= 1);

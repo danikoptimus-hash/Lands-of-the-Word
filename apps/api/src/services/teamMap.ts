@@ -630,7 +630,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
   const [cityStates, owners, battles] = await Promise.all([
     prisma.teamCityState.findMany({ where: { teamId, nodeKey: { in: cityNodes.map((n) => n.key) } } }),
     prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, teamId: true, capturedAt: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } }),
-    prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: teamId }, { defenderId: teamId }] }, select: { nodeKey: true, attackerId: true, defenderId: true, status: true, violation: true, defenseFactor: true } }),
+    prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: teamId }, { defenderId: teamId }] }, select: { nodeKey: true, attackerId: true, defenderId: true, status: true, violation: true, defenseFactor: true, attackLaunchedAt: true } }),
   ]);
   const stateByKey = new Map(cityStates.map((s) => [s.nodeKey, s]));
   const ownerByKey = new Map(owners.map((o) => [o.nodeKey, o.team]));
