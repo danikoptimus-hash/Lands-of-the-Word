@@ -57,7 +57,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
       prisma.wallBlock.findMany({ where: { teamId: m.team.id, nodeKey }, orderBy: { createdAt: "asc" } }),
       prisma.battleEntry.findMany({ where: { userId, status: { not: "REJECTED" }, battle: { gameId: id, bookCode: city.bookCode } }, select: { startIdx: true, endIdx: true } }),
       prisma.battle.findFirst({ where: { gameId: id, nodeKey, defenderId: m.team.id, status: "DEFENSE" }, select: { id: true } }),
-      prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true } }),
+      prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true, role: true } }),
     ]);
     const inTeam = new Set(members.map((x) => x.userId));
     const learned = new Set<number>();
@@ -96,7 +96,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     const why = defense ? "Идёт ответ хранителей: стена строится в мирное время" : bricks.every((b) => b.state !== "free" && b.state !== "cracked") ? "Все блоки книги вы уже сдали" : null;
     return {
       mine: true, bookCode: city.bookCode, blockVerses: n, total, verses: wall.verses, blockCount: wall.blocks, pending: wall.pending,
-      canPlan: isLeader(m), members: members.map((x) => ({ userId: x.userId, name: names.get(x.userId) ?? "?" })),
+      canPlan: isLeader(m), members: members.map((x) => ({ userId: x.userId, name: names.get(x.userId) ?? "?", role: x.role })),
       canBuild: !why, why: why ? err(request, why) : null,
       bricks,
       blocks: live.map((r) => ({ id: r.id, k: Math.floor(r.startIdx / n), ref: brickRef(book, r.startIdx, r.endIdx), verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, missing: r.missing, repairPending: repairPending.has(r.id), adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),

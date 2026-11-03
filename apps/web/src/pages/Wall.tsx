@@ -7,7 +7,7 @@ import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
-import { BookMap } from "./BookMap";
+import { BookMap, PlanSheet } from "./BookMap";
 
 /**
  * Городская стена в своём городе (решение владельца 01.11): кладка из принятых блоков (каждый блок — участник выучил
@@ -187,6 +187,8 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
 function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, n, mineCount, onClose, onDone }: { gameId: string; nodeKey: string; bookCode: string; bricks: WallBrickDto[]; members: WallDto["members"]; canPlan: boolean; n: number; mineCount: number; onClose: () => void; onDone: () => void }) {
   const { notify } = useUi();
   const [k, setK] = useState<number | null>(null);
+  /** Блок, для которого открыт лист «кто будет учить» (капитану; решение владельца 03.11). */
+  const [who, setWho] = useState<WallBrickDto | null>(null);
   const [links, setLinks] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -215,23 +217,11 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, n, mi
   return (
     <Sheet size="md" title={t("Блок стены")} onClose={onClose} foot={<button type="button" disabled={busy || !canSubmit || urls.length === 0} onClick={() => void send()}><Icon name="check" />{repair ? t("Починить {ref}", { ref: repair.ref }) : chosen && canSubmit ? t("Сдать {ref}", { ref: chosen.ref }) : t("Сдать блок")}</button>}>
       <p className="hint">{repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}<Help>{t("Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажмите на блок — увидите имена; капитан поручает блок.")}</Help></p>
-      {chosen && (
-        <div className="brick-who pin">
-          {chosen.takers.length === 0
-            ? <p className="muted small">{t("Этот блок уже некому взять: у каждого в команде часть его стихов сдана.")}</p>
-            : (
-              <div className="bm-people" role="group" aria-label={t("Кто будет учить")}>
-                <span className="ref">{chosen.ref}</span>
-                {chosen.takers.map((uid) => { const on = planned.get(chosen.k)?.has(uid) ?? false; return <button key={uid} type="button" className={"bm-person" + (on ? " on" : "")} aria-pressed={on} disabled={!canPlan} onClick={() => void plan(chosen, uid, !on)}>{on && <Icon name="check" />}{nameOf(uid)}</button>; })}
-              </div>
-            )}
-        </div>
-      )}
       <div className="brick-grid bricks-tex" role="radiogroup" aria-label={t("Блоки книги")}>
         {bricks.map((b) => {
           const takers = b.takers.length, pl = (planned.get(b.k) ?? new Set()).size;
           return (
-            <button key={b.k} type="button" role="radio" aria-checked={k === b.k} className={"brick-btn " + b.state + (k === b.k ? " on" : "") + (takers === all && all > 0 ? " whole" : takers === 0 ? " none" : "")} disabled={!canPlan && b.state !== "free" && b.state !== "cracked"} title={stateTitle(b)} onClick={() => setK(b.k)}>
+            <button key={b.k} type="button" role="radio" aria-checked={k === b.k} className={"brick-btn " + b.state + (k === b.k ? " on" : "") + (takers === all && all > 0 ? " whole" : takers === 0 ? " none" : "")} disabled={!canPlan && b.state !== "free" && b.state !== "cracked"} title={stateTitle(b)} onClick={() => { setK(b.k); if (canPlan) setWho(b); }}>
               <span className="ref">{b.ref}</span>
               {b.state === "approved" && <Icon name="check" />}
               {b.state === "submitted" && <Icon name="clock" />}
@@ -251,6 +241,18 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, n, mi
         </div>
       )}
       {error && <p className="error" role="alert">{error}</p>}
+      {who && (
+        <PlanSheet
+          title={`${who.ref} · ${plural(who.end - who.start + 1, ["стих", "стиха", "стихов"])}`}
+          taken={{ marked: [], learned: members.filter((m) => !who.takers.includes(m.userId)).map((m) => m.name) }}
+          free={who.takers.map((uid) => ({ userId: uid, name: nameOf(uid), x2: members.find((m) => m.userId === uid)?.role === "WARRIOR" }))}
+          planned={planned.get(who.k) ?? new Set()}
+          canPlan={canPlan}
+          emptyText={t("Этот блок уже некому взять: у каждого в команде часть его стихов сдана.")}
+          onToggle={(uid, on) => void plan(who, uid, on)}
+          onClose={() => setWho(null)}
+        />
+      )}
     </Sheet>
   );
 }

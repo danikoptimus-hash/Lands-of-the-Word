@@ -86,25 +86,54 @@ export function BookMap({ gameId, bookCode, battleId, version = 0, look = "brick
         ))}
       </div>
       {picked && (
-        <Sheet size="sm" title={picked.n > 1 ? `${picked.ref} · ${verses(picked.n)}` : picked.ref} onClose={() => setRange(null)} className="bm-sheet">
-          {(picked.marked.length > 0 || picked.learned.length > 0) && (
-            <p className="muted small bm-taken">
-              {picked.marked.length > 0 && <span><Icon name="send" />{picked.marked.map((m) => m.name).join(", ")}</span>}
-              {picked.learned.length > 0 && <span><Icon name="check" />{picked.learned.map((m) => m.name).join(", ")}</span>}
-            </p>
-          )}
-          {picked.free.length === 0
-            ? <p className="hint">{picked.n > 1 ? t("Эти стихи уже некому поручить целиком: у каждого в команде часть из них сдана.") : t("Этот стих уже некому поручить: все в команде его сдавали.")}</p>
-            : (
-              <div className="bm-people" role="group" aria-label={t("Кто будет учить")}>
-                {picked.free.map((m) => {
-                  const on = picked.planned.has(m.userId);
-                  return <button key={m.userId} type="button" className={"bm-person" + (on ? " on" : "")} aria-pressed={on} disabled={!d.canPlan} onClick={() => void toggle(picked.a, picked.b, m.userId, !on)}>{on && <Icon name="check" />}{m.name}{weightOf(m.role) > 1 && <span className="x2">×2</span>}</button>;
-                })}
-              </div>
-            )}
-        </Sheet>
+        <PlanSheet
+          title={picked.n > 1 ? `${picked.ref} · ${verses(picked.n)}` : picked.ref}
+          taken={{ marked: picked.marked.map((m) => m.name), learned: picked.learned.map((m) => m.name) }}
+          free={picked.free.map((m) => ({ userId: m.userId, name: m.name, x2: weightOf(m.role) > 1 }))}
+          planned={picked.planned}
+          canPlan={d.canPlan}
+          emptyText={picked.n > 1 ? t("Эти стихи уже некому поручить целиком: у каждого в команде часть из них сдана.") : t("Этот стих уже некому поручить: все в команде его сдавали.")}
+          onToggle={(uid, on) => void toggle(picked.a, picked.b, uid, on)}
+          onClose={() => setRange(null)}
+        />
       )}
     </div>
+  );
+}
+
+/**
+ * Лист «кто будет учить» — один и тот же в испытании и в блоках стены (решение владельца 03.11: «сделать также, как в защите
+ * или нападении, такую же менюшку»): заголовок с отрезком, строка «кто уже закрыл» (отправлено / зачтено), чипы свободных.
+ */
+export function PlanSheet({ title, taken, free, planned, canPlan, emptyText, onToggle, onClose }: {
+  title: string;
+  /** Кто уже закрыл часть отрезка: отправлено в ответ или вызов (значок письма) и зачтено или выучено (галочка). */
+  taken: { marked: string[]; learned: string[] };
+  free: Array<{ userId: string; name: string; x2?: boolean }>;
+  planned: Set<string>;
+  canPlan: boolean;
+  emptyText: string;
+  onToggle: (userId: string, on: boolean) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Sheet size="sm" title={title} onClose={onClose} className="bm-sheet">
+      {(taken.marked.length > 0 || taken.learned.length > 0) && (
+        <p className="muted small bm-taken">
+          {taken.marked.length > 0 && <span><Icon name="send" />{taken.marked.join(", ")}</span>}
+          {taken.learned.length > 0 && <span><Icon name="check" />{taken.learned.join(", ")}</span>}
+        </p>
+      )}
+      {free.length === 0
+        ? <p className="hint">{emptyText}</p>
+        : (
+          <div className="bm-people" role="group" aria-label={t("Кто будет учить")}>
+            {free.map((m) => {
+              const on = planned.has(m.userId);
+              return <button key={m.userId} type="button" className={"bm-person" + (on ? " on" : "")} aria-pressed={on} disabled={!canPlan} onClick={() => onToggle(m.userId, !on)}>{on && <Icon name="check" />}{m.name}{m.x2 && <span className="x2">×2</span>}</button>;
+            })}
+          </div>
+        )}
+    </Sheet>
   );
 }
