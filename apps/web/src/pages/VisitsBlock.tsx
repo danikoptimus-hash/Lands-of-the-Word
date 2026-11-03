@@ -26,7 +26,7 @@ export function VisitsBlock({ gameId, version = 0, onDecided }: { gameId: string
   const { notify, confirm } = useUi();
   const [rows, setRows] = useState<Row[] | null>(() => ready<{ visits: Row[] }>(`/api/games/${gameId}/visits`)?.visits ?? null);
   const [loadError, setLoadError] = useState(false);
-  const [filter, setFilter] = useState<"open" | "all">("open");
+  const [filter, setFilter] = useState<"open" | "closed">("open");
   const [rejecting, setRejecting] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const load = useCallback(() => apiReady<{ visits: Row[] }>(`/api/games/${gameId}/visits`).then((r) => { setRows(r.visits); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
@@ -45,14 +45,16 @@ export function VisitsBlock({ gameId, version = 0, onDecided }: { gameId: string
   const all = rows ?? [];
   const open = all.filter((v) => v.status === "PENDING" || v.status === "SUBMITTED");
   const pending = all.filter((v) => v.status === "SUBMITTED").length;
-  const shown = filter === "all" ? all : open;
+  // Вторая вкладка — только решённые, без открытых (решение владельца 03.11).
+  const closed = all.filter((v) => !open.includes(v));
+  const shown = filter === "closed" ? closed : open;
   const nameOf = (v: Row, id: string) => v.people.find((m) => m.id === id)?.name ?? "?";
 
   return (
     <ReviewCard icon="users" title={t("Визиты")} count={pending} loading={!rows} error={loadError} onRetry={() => void load()}>
       {all.length > 0 && (
         <>
-          {all.length > open.length && <Tabs value={filter} onChange={setFilter} ariaLabel={t("Какие визиты показывать")} items={[{ key: "open", label: t("Открытые"), count: open.length }, { key: "all", label: t("Все"), count: all.length }]} />}
+          {all.length > open.length && <Tabs value={filter} onChange={setFilter} ariaLabel={t("Какие визиты показывать")} items={[{ key: "open", label: t("Открытые"), count: open.length }, { key: "closed", label: t("Решённые"), count: closed.length }]} />}
           {shown.length === 0 ? <EmptyState inline icon="users" text={t("Сейчас отчётов нет.")} /> : (
             <ul className="list">
               {shown.map((v) => {

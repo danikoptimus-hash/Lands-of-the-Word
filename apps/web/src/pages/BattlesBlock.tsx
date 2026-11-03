@@ -38,7 +38,7 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
   const { notify } = useUi();
   const [rows, setRows] = useState<BattleDto[] | null>(() => ready<{ battles: BattleDto[] }>(`/api/games/${gameId}/battles`)?.battles ?? null);
   const [loadError, setLoadError] = useState(false);
-  const [filter, setFilter] = useState<"active" | "all">("active");
+  const [filter, setFilter] = useState<"active" | "done">("active");
   const [returning, setReturning] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null); // гаснут кнопки только у решаемой записи (04.10)
   const [sheet, setSheet] = useState<{ battleId: string; step: StepKey } | null>(null);
@@ -54,7 +54,9 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
   const all = rows ?? [];
   const active = all.filter((b) => b.status === "ATTACK" || b.status === "DEFENSE" || b.status === "QUEUED");
   const pending = all.reduce((n, b) => n + b.entries.filter((e) => e.status === "SUBMITTED").length, 0);
-  const shown = filter === "all" ? all : active;
+  // Вторая вкладка — только завершённые, без идущих (решение владельца 03.11: «„все“ меня запутывает»).
+  const done = all.filter((b) => !active.includes(b));
+  const shown = filter === "done" ? done : active;
   const open = sheet ? all.find((b) => b.id === sheet.battleId) ?? null : null;
   const sheetSide = sheet?.step === "check2" || sheet?.step === "answer" ? "DEFENSE" : "ATTACK";
 
@@ -62,7 +64,7 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
     <ReviewCard icon="wave" title={t("Испытания")} count={pending} loading={!rows} error={loadError} onRetry={() => void load()}>
       {all.length > 0 && (
         <>
-          {all.length > active.length && <Tabs value={filter} onChange={setFilter} ariaLabel={t("Какие испытания показывать")} items={[{ key: "active", label: t("Идут"), count: active.length }, { key: "all", label: t("Все"), count: all.length }]} />}
+          {all.length > active.length && <Tabs value={filter} onChange={setFilter} ariaLabel={t("Какие испытания показывать")} items={[{ key: "active", label: t("Идут"), count: active.length }, { key: "done", label: t("Завершённые"), count: done.length }]} />}
           {shown.length === 0 ? <EmptyState inline icon="wave" text={t("Сейчас испытаний нет.")} /> : shown.map((b) => {
             const pendingA = b.entries.filter((e) => e.side === "ATTACK" && e.status === "SUBMITTED").length;
             const pendingD = b.entries.filter((e) => e.side === "DEFENSE" && e.status === "SUBMITTED").length;

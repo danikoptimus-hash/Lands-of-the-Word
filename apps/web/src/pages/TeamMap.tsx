@@ -348,7 +348,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                   // вертикальной вниз 20px — мимо подписи) и вбок 14px — мимо значка дела. Сдвиг экранный, а не в единицах
                   // карты: при сильном приближении шатёр оставался бы у соседнего узла (замечание владельца 03.11: «синий шатёр
                   // у узла, а не города»). Сторона сдвига — где суша (выше дороги в первую очередь); второй шатёр на той же дороге —
-                  // с другой стороны, третий — дальше по дороге. Размер постоянный на экране (scale(--inv)).
+                  // с другой стороны, третий — дальше по дороге. Размер 9px, постоянный на экране (scale(--inv)).
                   const out: ReactElement[] = [], used = new Map<string, number>();
                   for (const g of campsAt.get(n.key) ?? []) {
                     const roadKey = `${Math.round(g.ux * 10)},${Math.round(g.uy * 10)}`;
@@ -361,8 +361,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                     out.push(
                       <g key={g.color + roadKey} className="camp" style={{ transform: `translate(${bx.toFixed(2)}px, ${by.toFixed(2)}px) scale(var(--inv, 1))` }}>
                         <g transform={`translate(${(g.ux * push + nx * sgn * side).toFixed(1)}, ${(g.uy * push + ny * sgn * side).toFixed(1)})`}>
-                          <path d="M-9.5,8 L0,-9.5 L9.5,8 Z" style={{ fill: g.color }} />
-                          <path className="door" d="M-2.7,8 L0,1.6 L2.7,8 Z" />
+                          {/* Вдвое меньше прежнего (решение владельца 03.11: «значки шатров сделаем в два раза меньше»). */}
+                          <path d="M-4.75,4 L0,-4.75 L4.75,4 Z" style={{ fill: g.color }} />
+                          <path className="door" d="M-1.35,4 L0,0.8 L1.35,4 Z" />
                         </g>
                       </g>,
                     );

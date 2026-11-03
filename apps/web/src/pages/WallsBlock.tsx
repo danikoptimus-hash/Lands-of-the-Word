@@ -16,7 +16,7 @@ export function WallsBlock({ gameId, version = 0, onDecided }: { gameId: string;
   const { notify } = useUi();
   const [rows, setRows] = useState<AdminWallBlockDto[] | null>(() => ready<{ blocks: AdminWallBlockDto[] }>(`/api/games/${gameId}/walls`)?.blocks ?? null);
   const [loadError, setLoadError] = useState(false);
-  const [filter, setFilter] = useState<"pending" | "all">("pending");
+  const [filter, setFilter] = useState<"pending" | "done">("pending");
   const [returning, setReturning] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const load = useCallback(() => apiReady<{ blocks: AdminWallBlockDto[] }>(`/api/games/${gameId}/walls`).then((r) => { setRows(r.blocks); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
@@ -30,10 +30,12 @@ export function WallsBlock({ gameId, version = 0, onDecided }: { gameId: string;
   if (rows && rows.length === 0) return null;
   const all = rows ?? [];
   const pending = all.filter((r) => r.status === "SUBMITTED");
-  const shown = filter === "all" ? all : pending;
+  // Вторая вкладка — только проверенные, без ждущих (решение владельца 03.11).
+  const done = all.filter((r) => r.status !== "SUBMITTED");
+  const shown = filter === "done" ? done : pending;
   return (
     <ReviewCard icon="wall" title={t("Стены")} count={pending.length} loading={!rows} error={loadError} onRetry={() => void load()}>
-      {all.length > pending.length && <Tabs value={filter} onChange={setFilter} ariaLabel={t("Какие блоки показывать")} items={[{ key: "pending", label: t("На проверке"), count: pending.length }, { key: "all", label: t("Все"), count: all.length }]} />}
+      {all.length > pending.length && <Tabs value={filter} onChange={setFilter} ariaLabel={t("Какие блоки показывать")} items={[{ key: "pending", label: t("На проверке"), count: pending.length }, { key: "done", label: t("Проверенные"), count: done.length }]} />}
       {shown.length > 0 && (
         <ul className="list">
           {shown.map((r) => (
