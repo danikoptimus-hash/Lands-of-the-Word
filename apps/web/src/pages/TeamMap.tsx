@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactElement, type PointerEvent } from "react";
 import { reportAction, reportPage } from "../lib/perf";
-import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
+import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routePathD, routeArrow, pixelToHex } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfMark } from "../lib/perfHud";
@@ -302,6 +302,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     }
     return m;
   }, [map.foreign, positions, size]);
+  // Шатёр не ставится на воду (замечание владельца 03.11): суша — гексы карты без озёр.
+  const tentLand = useMemo(() => new Set(map.hexes.filter((h) => h.terrain !== "water").map((h) => `${h.q},${h.r}`)), [map.hexes]);
+  const tentOnLand = (x: number, y: number) => { const h = pixelToHex({ x, y }, size); return tentLand.has(`${h.q},${h.r}`); };
   const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -343,17 +346,29 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                   // Шатёр постоянного экранного размера (scale(--inv), как подписи и метки дел), по одному на команду и сторону
                   // города: косые дороги — у бока картинки с их стороны, вертикальные — над картинкой или у основания, рядом с
                   // дорогой, чтобы не прятаться под подписью и меткой дела; второй шатёр на той же стороне — выше или напротив.
+                  // Место на воде (порт, озеро) пропускается — берётся следующее по кругу, на суше.
                   const seen = new Map<string, number>(), done = new Set<string>(), out: ReactElement[] = [];
+                  // У порта нижняя половина картинки — гавань: боковые шатры выше, у основания не ставим.
+                  const port = n.cityType === "port", lift = port ? -0.3 : 0;
+                  const ORDER: Record<string, string[]> = { R: ["R", "T", "B", "L"], L: ["L", "T", "B", "R"], T: ["T", "R", "L", "B"], B: ["B", "R", "L", "T"] };
+                  const at = (slot: string, i: number): [number, number] => {
+                    const alt = (i % 2 === 0 ? 1 : -1) * (1 + Math.floor(i / 2));
+                    if (slot === "R") return [p.x + 0.6 * CITY, p.y + (lift - 0.36 * i) * CITY];
+                    if (slot === "L") return [p.x - 0.6 * CITY, p.y + (lift - 0.36 * i) * CITY];
+                    if (slot === "T") return [p.x + 0.45 * alt * CITY, p.y - 0.62 * CITY];
+                    return [p.x + 0.45 * alt * CITY, p.y + 0.08 * CITY];
+                  };
                   for (const g of campsAt.get(n.key) ?? []) {
                     const flank = Math.abs(g.ux) > 0.3;
-                    const slot = flank ? (g.ux > 0 ? "R" : "L") : (g.uy < 0 ? "T" : "B");
-                    if (done.has(g.color + slot)) continue;
-                    done.add(g.color + slot);
-                    const i = seen.get(slot) ?? 0; seen.set(slot, i + 1);
-                    const x = p.x + (flank ? Math.sign(g.ux) * 0.6 : (i % 2 === 0 ? 1 : -1) * 0.45 * (1 + Math.floor(i / 2))) * CITY;
-                    const y = p.y + (flank ? (g.uy < 0 ? -0.05 : 0.05) - 0.36 * i : g.uy < 0 ? -0.62 : 0.08) * CITY;
+                    const want = flank ? (g.ux > 0 ? "R" : "L") : (g.uy < 0 ? "T" : "B");
+                    if (done.has(g.color + want)) continue;
+                    done.add(g.color + want);
+                    let pick: { slot: string; x: number; y: number } | null = null;
+                    for (const slot of ORDER[want]!) { if (port && slot === "B") continue; const [x, y] = at(slot, seen.get(slot) ?? 0); if (tentOnLand(x, y)) { pick = { slot, x, y }; break; } }
+                    if (!pick) { const [x, y] = at(want, seen.get(want) ?? 0); pick = { slot: want, x, y }; }
+                    seen.set(pick.slot, (seen.get(pick.slot) ?? 0) + 1);
                     out.push(
-                      <g key={g.color + slot} className="camp" style={{ transform: `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) scale(var(--inv, 1))` }}>
+                      <g key={g.color + want} className="camp" style={{ transform: `translate(${pick.x.toFixed(2)}px, ${pick.y.toFixed(2)}px) scale(var(--inv, 1))` }}>
                         <path d="M-9.5,8 L0,-9.5 L9.5,8 Z" style={{ fill: g.color }} />
                         <path className="door" d="M-2.7,8 L0,1.6 L2.7,8 Z" />
                       </g>,
@@ -366,7 +381,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           }
           return null;
         })}
-  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, campsAt, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, campsAt, tentLand, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
   // Каменоломня (решение владельца 04.10): скалистый островок с подписью, нажимается — открывает лист общих дел.
   const quarry = islets.find((i) => i.quarry) ?? null;
   const quarryMarker = quarry && (() => {
