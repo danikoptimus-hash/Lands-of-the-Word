@@ -73,6 +73,15 @@ async function main() {
     for (const n of t.nicks.slice(1)) await post(n, `/api/invites/${memInv.invite.token}/accept`);
     console.log(`  команда ${t.name}: капитан ${t.nicks[0]}, ещё ${t.nicks.length - 1}`);
   }
+  // Роли участникам (иначе старт закрыт): заместитель + разведчик/пророк/посол/кормчий; раздаёт капитан.
+  const teams = (await get(ADMIN, `/api/games/${gameId}/teams`)).teams;
+  const idOf = (team, nick) => team.members.find((m) => m.user.nickname === nick).user.id;
+  for (const t of TEAMS) {
+    const team = teams.find((x) => x.name === t.name); const cap = t.nicks[0];
+    await api(cap, "PATCH", `/api/games/${gameId}/teams/${team.id}/members/${idOf(team, t.nicks[1])}`, { role: "DEPUTY" });
+    for (const [gr, nick] of [["SCOUT", t.nicks[2]], ["PROPHET", t.nicks[3]], ["AMBASSADOR", t.nicks[4]], ["HELMSMAN", t.nicks[5]]])
+      await api(cap, "PATCH", `/api/games/${gameId}/teams/${team.id}/members/${idOf(team, nick)}`, { gameRole: gr });
+  }
   for (const [label, kind] of [["Семья у вокзала", "FAMILY"], ["Бабушка с третьего этажа", "WIDOW"], ["Дедушка у рынка", "ELDER"]]) await post(ADMIN, `/api/games/${gameId}/recipients`, { label, kind });
   await post(ADMIN, `/api/games/${gameId}/deeds/import-default`);
   await api(ADMIN, "PATCH", `/api/games/${gameId}`, { settings: { rules: rulesFast } });
