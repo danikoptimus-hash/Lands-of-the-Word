@@ -195,7 +195,7 @@ export const ADMIN: Record<string, string> = {
   // Удаление игры
   "Удалить игру": "Delete the game", "Удалить игру?": "Delete the game?", "Игра удалена": "Game deleted",
   "Черновик «{name}» будет удалён вместе с командами и картой.": "The draft “{name}” will be deleted together with its teams and map.",
-  "Игра «{name}» будет удалена без возможности восстановления: карта, команды, дела, история ходов.": "The game “{name}” will be deleted permanently: map, teams, deeds, move history.",
+  "Игра «{name}» исчезнет из ваших игр. У участников она останется: карта, команды, летопись, награды.": "The game “{name}” will disappear from your games. The participants keep it: the map, the teams, the chronicle, the awards.",
   // Дела: книги по теме и частота
   "Вероятность появления на новой дороге": "Chance to appear on a new road", "Вес при розыгрыше: дело на 100% выпадает в пять раз чаще дела на 20%. Дела до 60% не ставятся рядом с таким же делом, от 80% — могут.": "Weight in the draw: a deed at 100% comes up five times as often as one at 20%. Deeds up to 60% are not placed next to the same deed; from 80% they may be.",
   "Книги по теме": "Books by theme", "Добавить книгу…": "Add a book…", "Любая книга": "Any book", "Убрать книгу {name}": "Remove book {name}", " и ещё {n}": " and {n} more",

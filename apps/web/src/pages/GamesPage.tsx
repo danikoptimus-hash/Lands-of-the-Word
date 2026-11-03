@@ -54,7 +54,7 @@ export function GamesPage() {
   /** Удаление из списка: те же права и тексты, что на странице игры; после удаления карточка просто исчезает. */
   const canDelete = (g: GameSummary) => g.status !== "ACTIVE" && (g.createdById === user?.id || user?.platformRole === "SUPERADMIN");
   async function removeGame(g: GameSummary) {
-    const what = g.status === "DRAFT" ? t("Черновик «{name}» будет удалён вместе с командами и картой.", { name: g.name }) : t("Игра «{name}» будет удалена без возможности восстановления: карта, команды, дела, история ходов.", { name: g.name });
+    const what = g.status === "DRAFT" ? t("Черновик «{name}» будет удалён вместе с командами и картой.", { name: g.name }) : t("Игра «{name}» исчезнет из ваших игр. У участников она останется: карта, команды, летопись, награды.", { name: g.name });
     if (!(await confirm(what, { title: t("Удалить игру?"), okLabel: t("Удалить"), danger: true }))) return;
     try { await api(`/api/games/${g.id}`, { method: "DELETE" }); notify(t("Игра удалена")); setGames((list) => list?.filter((x) => x.id !== g.id) ?? list); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }

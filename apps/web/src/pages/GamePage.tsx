@@ -148,7 +148,7 @@ export function GamePage() {
   const canDelete = Boolean(game) && game!.status !== "ACTIVE" && (game!.createdById === user?.id || user?.platformRole === "SUPERADMIN");
   async function removeGame() {
     if (!game) return;
-    const what = game.status === "DRAFT" ? t("Черновик «{name}» будет удалён вместе с командами и картой.", { name: game.name }) : t("Игра «{name}» будет удалена без возможности восстановления: карта, команды, дела, история ходов.", { name: game.name });
+    const what = game.status === "DRAFT" ? t("Черновик «{name}» будет удалён вместе с командами и картой.", { name: game.name }) : t("Игра «{name}» исчезнет из ваших игр. У участников она останется: карта, команды, летопись, награды.", { name: game.name });
     if (!(await confirm(what, { title: t("Удалить игру?"), okLabel: t("Удалить"), danger: true }))) return;
     try { await api(`/api/games/${game.id}`, { method: "DELETE" }); notify(t("Игра удалена")); navigate("/", { replace: true }); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }

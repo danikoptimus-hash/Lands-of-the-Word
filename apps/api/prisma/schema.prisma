@@ -161,6 +161,8 @@ model Game {
   deeds       Deed[]
   startedAt   DateTime?
   finishedAt   DateTime?
+  /** Удалена администратором после завершения (решение владельца 03.11): для администраторов игры нет, у участников остаётся. */
+  deletedAt    DateTime?
   winnerTeamId String?
   /** Почему завершена: last_team (осталась одна команда), time_limit (срок), manual (админ). */
   finishReason String?

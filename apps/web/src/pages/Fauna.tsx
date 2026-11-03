@@ -432,13 +432,15 @@ function surfDepth(s: Surf): number {
 interface Cet {
   spec: CetSpec; x: number; y: number; h: number; v: number; /** Угловая скорость (рад/с): курс меняется только через неё, плавно. */ om: number; turn: number; phase: number; depth: number; seed: number;
   car: Carrot | null; surf: Surf | null; trail: Trail;
+  /** Якорь застревания: где и когда зверь в последний раз продвинулся на полкорпуса (03.11). */
+  ax: number; ay: number; at: number;
   /** Дельфины: место в стае относительно поводка, начало прыжка и его прошедшая доля. */
   fdx: number; fdy: number; jumpAt: number; ju: number;
   /** Свой поток случайностей (одиночные звери; дельфины шагают потоком стаи). */
   rng: () => number;
 }
 function makeCet(spec: CetSpec, car: Carrot | null, x: number, y: number, h: number): Cet {
-  return { spec, x, y, h, v: spec.speed, om: 0, turn: 0, phase: rnd(0, TAU), depth: 0.3, seed: rnd(0, 100), car, surf: spec.kind === "dolphin" ? null : makeSurf(spec.kind), trail: makeTrail(), fdx: 0, fdy: 0, jumpAt: -1e9, ju: 0, rng: spawnRng() };
+  return { spec, x, y, h, v: spec.speed, om: 0, turn: 0, phase: rnd(0, TAU), depth: 0.3, seed: rnd(0, 100), car, surf: spec.kind === "dolphin" ? null : makeSurf(spec.kind), trail: makeTrail(), fdx: 0, fdy: 0, jumpAt: -1e9, ju: 0, rng: spawnRng(), ax: x, ay: y, at: 0 };
 }
 /**
  * Плывёт к цели как тело, а не как точка: движется только вдоль своего курса, курс меняется через угловую
@@ -527,10 +529,23 @@ function keepInWater(c: Mover, p: Profile, clearance: number, dt: number, omMax:
   }
 }
 
+/**
+ * Зверь застрял — зажат между берегом и островком или в бухте, где зоны выталкивания не оставляют места: его бросает
+ * с кромки на кромку, и он дрожит на месте (замечание владельца 03.11: «косатка стоит на месте и дрыгается»).
+ * Если за 3 с он не продвинулся и на полкорпуса — поводок обрывается: новый маршрут начнётся за краем, зверь
+ * уходит на глубину и переносится незаметно, как после обычной паузы.
+ */
+function unstick(c: Cet, car: Carrot, T: number): void {
+  if (Math.hypot(c.x - c.ax, c.y - c.ay) > c.spec.L * 0.5) { c.ax = c.x; c.ay = c.y; c.at = T; return; }
+  if (T - c.at < 3) return;
+  c.at = T; car.t = 1; car.wait = 1e-3;
+  if (c.surf) c.surf.t = 0;
+}
 /** Кит и косатка: поводок вдоль берега; цикл всплытия с фонтаном и кругами на воде. */
 function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: number, ships: readonly Ship[] = []): void {
   rand = c.rng;
   const car = c.car!, s = c.surf!, sp = c.spec;
+  unstick(c, car, T);
   // Поводок притормаживает, если зверь отстал (иначе он «срежет» и пойдёт по берегу).
   const behind = Math.hypot(car.x - c.x, car.y - c.y);
   const wasWaiting = car.wait > 0;
@@ -572,6 +587,7 @@ function stepSolo(c: Cet, p: Profile, size: number, fx: Fx, dt: number, T: numbe
 /** Дельфины: держат строй за общим поводком (пружинные смещения), по очереди выпрыгивают. */
 function stepPod(ds: Cet[], pod: Carrot, p: Profile, size: number, fx: Fx, dt: number, T: number): void {
   const lead = ds[0]!, sp = lead.spec;
+  unstick(lead, pod, T);
   const behind = Math.hypot(pod.x - lead.x, pod.y - lead.y);
   const wasWaiting = pod.wait > 0;
   carrotStep(pod, p, size, sp.speed * dt * clamp(1.6 - behind / (sp.L * 3), 0.25, 1), T);

@@ -59,6 +59,8 @@ function validTimeZone(tz: string): boolean {
 
 async function loadGameForAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const game = await prisma.game.findUnique({ where: { id: gameId }, include: { admins: true } });
+  // Завершённая игра, удалённая администратором, для администраторов не существует (участникам она открыта как прежде).
+  if (game?.deletedAt) { await reply.code(404).send({ error: "not_found", message: err(request, "Игра удалена") }); return null; }
   if (!game) { await reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") }); return null; }
   const isAdmin = adminOrObserver(request, game.admins);
   if (!isAdmin) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не администратор этой игры") }); return null; }
@@ -73,7 +75,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
 
   app.get("/api/games", async (request) => {
     const games = await prisma.game.findMany({
-      where: { admins: { some: { userId: request.user!.id } } },
+      where: { admins: { some: { userId: request.user!.id } }, deletedAt: null },
       orderBy: { createdAt: "desc" },
       select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, createdById: true },
     });
@@ -88,7 +90,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Только для администратора платформы") });
     const week = new Date(Date.now() - 7 * 86_400_000), day = new Date(Date.now() - 86_400_000);
     const [games, members, journalAll, journalWeek, pending, submittedWeek] = await Promise.all([
-      prisma.game.findMany({ orderBy: { createdAt: "desc" }, select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, startedAt: true, finishedAt: true, settings: true, _count: { select: { teams: true, admins: true } } } }),
+      prisma.game.findMany({ where: { deletedAt: null }, orderBy: { createdAt: "desc" }, select: { id: true, name: true, status: true, teamCount: true, mapSeed: true, createdAt: true, startedAt: true, finishedAt: true, settings: true, _count: { select: { teams: true, admins: true } } } }),
       prisma.membership.findMany({ select: { team: { select: { gameId: true } }, user: { select: { lastSeenAt: true } } } }),
       prisma.journal.groupBy({ by: ["gameId"], _max: { createdAt: true } }),
       prisma.journal.groupBy({ by: ["gameId"], where: { createdAt: { gte: week } }, _count: { _all: true } }),
@@ -142,7 +144,10 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (!game) return;
     if (game.createdById !== request.user!.id && request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Удалить игру может только её создатель") });
     if (game.status === "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Идущую игру удалить нельзя: сначала завершите её") });
-    await prisma.game.delete({ where: { id } });
+    // Завершённая игра — история участников: летопись, награды, города (решение владельца 03.11: «если админ удаляет
+    // завершённую игру, у участников она остаётся»). Удаляется только для администраторов; черновик стирается целиком.
+    if (game.status === "FINISHED") await prisma.game.update({ where: { id }, data: { deletedAt: new Date() } });
+    else await prisma.game.delete({ where: { id } });
     return reply.code(204).send();
   });
 
