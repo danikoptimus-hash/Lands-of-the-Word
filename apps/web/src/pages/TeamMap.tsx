@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type PointerEvent } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactElement, type PointerEvent } from "react";
 import { reportAction, reportPage } from "../lib/perf";
 import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
@@ -286,21 +286,22 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     for (const f of map.foreign ?? []) { const k = [f.aKey, f.bKey].sort().join("|"); const list = m.get(k) ?? []; if (!list.some((x) => x.color === f.color)) list.push({ color: f.color }); m.set(k, list); }
     return m;
   }, [map.foreign]);
-  // Кольцо под своим городом (решение владельца 03.11: «кольцо под городом — давай его»): дуга цвета каждой чужой команды,
-  // чья пройденная сторона упирается в город, — подпись и значки дел больше не прячут чужую половину дороги.
-  // Дуга лежит со стороны, откуда входит дорога команды (замечание владельца 03.11: «на красной дорожке зелёная дуга, а на зелёной
-  // красная — сделай соответствующе»): угол дороги от города; дорога сверху зеркалится вниз, сторона (лево/право) сохраняется.
-  const guestsAt = useMemo(() => {
-    const m = new Map<string, Map<string, number[]>>();
+  // Шатёр у ворот (решение владельца 03.11: сначала «кольцо под городом», затем «давай переделаем с дуг на вариант шатёр
+  // у ворот»): у своего города на каждой пройденной чужой стороне — шатёр цвета той команды, по одному на команду и дорогу.
+  // Косая дорога — шатёр у бока картинки с её стороны, вертикальная — над картинкой или у её основания: так он не прячется
+  // под подписью и значками дел ни при каком масштабе.
+  const campsAt = useMemo(() => {
+    const m = new Map<string, Array<{ color: string; ux: number; uy: number }>>();
     for (const f of map.foreign ?? []) for (const [k, o] of [[f.aKey, f.bKey], [f.bKey, f.aKey]] as const) {
-      const p = positions.get(k), q = positions.get(o);
-      const ang = p && q ? Math.abs(Math.atan2(q.y - p.y, q.x - p.x)) : Math.PI / 2;
-      const byTeam = m.get(k) ?? new Map<string, number[]>(); const list = byTeam.get(f.color) ?? []; list.push(ang); byTeam.set(f.color, list); m.set(k, byTeam);
+      // Дальний конец (порт за морем, неразведанный угол) может не иметь записи в positions — координаты из ключа.
+      const p = positions.get(k) ?? nodePos(k, size), q = positions.get(o) ?? nodePos(o, size);
+      const l = Math.hypot(q.x - p.x, q.y - p.y) || 1, ux = (q.x - p.x) / l, uy = (q.y - p.y) / l;
+      const list = m.get(k) ?? [];
+      if (!list.some((c) => c.color === f.color && Math.abs(c.ux - ux) < 0.2 && Math.abs(c.uy - uy) < 0.2)) list.push({ color: f.color, ux, uy });
+      m.set(k, list);
     }
-    const out = new Map<string, Array<{ color: string; angle: number }>>();
-    for (const [k, byTeam] of m) out.set(k, [...byTeam].map(([color, angs]) => ({ color, angle: angs.reduce((s, a) => s + a, 0) / angs.length })).sort((a, b) => a.angle - b.angle));
-    return out;
-  }, [map.foreign, positions]);
+    return m;
+  }, [map.foreign, positions, size]);
   const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -339,27 +340,33 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
                 <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : "url(#outline-free)"} />
                 {c?.owner && c.owner.index === teamIndex && (() => {
-                  // Дуги под основанием города, по одной на команду, каждая со стороны своей дороги, с просветом между ними.
-                  const guests = guestsAt.get(n.key) ?? [];
-                  if (guests.length === 0) return null;
-                  const rx = CITY * 0.5, ry = CITY * 0.3, lo = Math.PI * 0.12, hi = Math.PI * 0.88, gap = 0.1;
-                  const w = Math.min(Math.PI * 0.38, (hi - lo - gap * (guests.length - 1)) / guests.length);
-                  const centers: number[] = [];
-                  for (const g of guests) { let c0 = Math.min(Math.max(g.angle, lo + w / 2), hi - w / 2); if (centers.length) c0 = Math.max(c0, centers[centers.length - 1]! + w + gap); centers.push(c0); }
-                  const over = centers[centers.length - 1]! + w / 2 - hi;
-                  if (over > 0) for (let i = 0; i < centers.length; i++) centers[i] = centers[i]! - over;
-                  return guests.map((g, i) => {
-                    const a0 = centers[i]! - w / 2, a1 = centers[i]! + w / 2;
-                    const d = `M${(p.x + rx * Math.cos(a0)).toFixed(2)},${(p.y + ry * Math.sin(a0)).toFixed(2)} A${rx.toFixed(2)},${ry.toFixed(2)} 0 0 1 ${(p.x + rx * Math.cos(a1)).toFixed(2)},${(p.y + ry * Math.sin(a1)).toFixed(2)}`;
-                    return <g key={g.color} className="guest"><path className="halo" d={d} /><path d={d} style={{ stroke: g.color }} /></g>;
-                  });
+                  // Шатёр постоянного экранного размера (scale(--inv), как подписи и метки дел), по одному на команду и сторону
+                  // города: косые дороги — у бока картинки с их стороны, вертикальные — над картинкой или у основания, рядом с
+                  // дорогой, чтобы не прятаться под подписью и меткой дела; второй шатёр на той же стороне — выше или напротив.
+                  const seen = new Map<string, number>(), done = new Set<string>(), out: ReactElement[] = [];
+                  for (const g of campsAt.get(n.key) ?? []) {
+                    const flank = Math.abs(g.ux) > 0.3;
+                    const slot = flank ? (g.ux > 0 ? "R" : "L") : (g.uy < 0 ? "T" : "B");
+                    if (done.has(g.color + slot)) continue;
+                    done.add(g.color + slot);
+                    const i = seen.get(slot) ?? 0; seen.set(slot, i + 1);
+                    const x = p.x + (flank ? Math.sign(g.ux) * 0.6 : (i % 2 === 0 ? 1 : -1) * 0.45 * (1 + Math.floor(i / 2))) * CITY;
+                    const y = p.y + (flank ? (g.uy < 0 ? -0.05 : 0.05) - 0.36 * i : g.uy < 0 ? -0.62 : 0.08) * CITY;
+                    out.push(
+                      <g key={g.color + slot} className="camp" style={{ transform: `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px) scale(var(--inv, 1))` }}>
+                        <path d="M-9.5,8 L0,-9.5 L9.5,8 Z" style={{ fill: g.color }} />
+                        <path className="door" d="M-2.7,8 L0,1.6 L2.7,8 Z" />
+                      </g>,
+                    );
+                  }
+                  return out;
                 })()}
               </g>
             );
           }
           return null;
         })}
-  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, guestsAt, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, campsAt, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
   // Каменоломня (решение владельца 04.10): скалистый островок с подписью, нажимается — открывает лист общих дел.
   const quarry = islets.find((i) => i.quarry) ?? null;
   const quarryMarker = quarry && (() => {
