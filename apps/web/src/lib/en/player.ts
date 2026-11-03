@@ -1,5 +1,6 @@
 /** EN-строки области «player»: карта, HUD, меню, дело, город, задание, испытание, проходы, «Как играть». Ключ — русская строка как в коде. */
 export const PLAYER: Record<string, string> = {
+  "Завершённых испытаний ваших городов нет.": "Your cities have no finished trials.", "Завершённых вызовов нет.": "There are no finished challenges.",
   "Закрытые": "Closed", "Какие проходы показывать": "Which passages to show", "Открытых запросов к вам нет.": "There are no open requests to you.", "Открытых запросов у вас нет.": "You have no open requests.", "Закрытых запросов к вам нет.": "There are no closed requests to you.", "Закрытых запросов у вас нет.": "You have no closed requests.",
   "Пришла {d}": "Arrived {d}",
   "Пожертвования": "Donations", "Поддержать развитие игры": "Support the game’s development",

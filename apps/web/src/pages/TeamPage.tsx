@@ -223,6 +223,8 @@ export function TeamPage() {
   const [serviceTab, setServiceTab] = useState<ServiceTab>("service");
   const [standingsTab, setStandingsTab] = useState<"rating" | "awards">("rating");
   const [battlesTab, setBattlesTab] = useState<"defense" | "challenge">("defense");
+  /** История испытаний (решение владельца 03.11: «почему бы у участников не сделать закрытые? Пусть будет история»): «Идут» / «Завершённые». */
+  const [battlesPhase, setBattlesPhase] = useState<"active" | "done" | null>(null);
   useEffect(() => { apiReady<AwardsDto>(`/api/games/${id}/awards`).then((d) => { setAwards(d); preloadAwardImages(["flame", "p_streak_10", ...d.team.map((g) => g.code), ...d.mine.map((g) => g.code)]); preloadAllAwardImages(); }).catch(() => {}); }, [id, awardsVersion]);
   useEffect(() => {
     if (!awards) return;
@@ -640,7 +642,11 @@ export function TeamPage() {
   const defending = activeBattles.filter((b) => b.attacker.id !== team.id);
   const challenging = activeBattles.filter((b) => b.attacker.id === team.id);
   const battlesShown = battlesTab === "defense" && defending.length === 0 && challenging.length > 0 ? "challenge" : battlesTab === "challenge" && challenging.length === 0 && defending.length > 0 ? "defense" : battlesTab;
-  const battlesList = battlesShown === "defense" ? defending : challenging;
+  const finishedBattles = battles.filter((b) => !activeBattles.includes(b));
+  const defendingDone = finishedBattles.filter((b) => b.attacker.id !== team.id), challengingDone = finishedBattles.filter((b) => b.attacker.id === team.id);
+  const battlesActive = battlesShown === "defense" ? defending : challenging, battlesDone = battlesShown === "defense" ? defendingDone : challengingDone;
+  const battlesPhaseShown: "active" | "done" = battlesPhase ?? (battlesActive.length > 0 ? "active" : "done");
+  const battlesList = battlesPhaseShown === "active" ? battlesActive : battlesDone;
   const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length };
   /** На компьютере (решение владельца 05.10, вечер): плитки разделов висят над картой, панель открыта только пока выбран раздел; «home» — панель закрыта. */
   const view: MenuView = menuView;
@@ -781,13 +787,14 @@ export function TeamPage() {
           {menuView === "battles" && (
             <section className="section">
             <Tabs items={[{ key: "defense", label: t("Оборона"), icon: "shield", count: defending.length }, { key: "challenge", label: t("Вызовы"), icon: "wave", count: challenging.length }]} value={battlesShown} onChange={setBattlesTab} ariaLabel={t("Испытания")} />
-            {battlesList.length === 0 ? <EmptyState inline icon={battlesShown === "defense" ? "shield" : "wave"} text={battlesShown === "defense" ? t("Вызовов нашим городам сейчас нет.") : t("Наших вызовов сейчас нет.")} /> : (
+            <Tabs items={[{ key: "active", label: t("Идут"), count: battlesActive.length || undefined }, { key: "done", label: t("Завершённые"), count: battlesDone.length || undefined }]} value={battlesPhaseShown} onChange={setBattlesPhase} ariaLabel={t("Какие испытания показывать")} swipe={false} />
+            {battlesList.length === 0 ? <EmptyState inline icon={battlesShown === "defense" ? "shield" : "wave"} text={battlesPhaseShown === "done" ? (battlesShown === "defense" ? t("Завершённых испытаний ваших городов нет.") : t("Завершённых вызовов нет.")) : battlesShown === "defense" ? t("Вызовов нашим городам сейчас нет.") : t("Наших вызовов сейчас нет.")} /> : (
               <ul className="list interactive">
                 {battlesList.map((b) => {
                   const attacker = b.attacker.id === team.id;
                   // Отсчёт идёт только пока сторона учит: после «Отправить на проверку» часы стоят (стоп-часы на сервере), и срок не показывается.
                   const deadline = b.status === "ATTACK" && (!b.attackDoneAt || isLaunching(b)) ? b.attackDeadline : b.status === "DEFENSE" && !b.defenseDoneAt ? b.defenseDeadline : null;
-                  const meta = [deadline ? t("осталось {t}", { t: leftText(deadline, now) }) : "", isMyTurn(b, team.id) ? t("ваш ход") : ""].filter(Boolean).join(" · ");
+                  const meta = [deadline ? t("осталось {t}", { t: leftText(deadline, now) }) : "", isMyTurn(b, team.id) ? t("ваш ход") : "", !deadline && b.resolvedAt ? fmtDate(b.resolvedAt, { time: false }) : ""].filter(Boolean).join(" · ");
                   // Союзник хранителей: до чужого города команда могла не дойти, поэтому карточка испытания — прямо здесь.
                   if (b.myAlliance && !attacker && b.defender.id !== team.id) return <li key={b.id} className="plain"><BattleCard gameId={id} b={b} teamId={team.id} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} now={now} daytime={map.daytime} onChanged={() => void loadBattles()} /></li>;
                   return (
