@@ -286,6 +286,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     for (const f of map.foreign ?? []) { const k = [f.aKey, f.bKey].sort().join("|"); const list = m.get(k) ?? []; if (!list.some((x) => x.color === f.color)) list.push({ color: f.color }); m.set(k, list); }
     return m;
   }, [map.foreign]);
+  // Кольцо под своим городом (решение владельца 03.11: «кольцо под городом — давай его»): дуга цвета каждой чужой команды,
+  // чья пройденная сторона упирается в город, — подпись и значки дел больше не прячут чужую половину дороги.
+  const guestsAt = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const f of map.foreign ?? []) for (const k of [f.aKey, f.bKey]) { const list = m.get(k) ?? []; if (!list.includes(f.color)) list.push(f.color); m.set(k, list); }
+    return m;
+  }, [map.foreign]);
   const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -323,12 +330,19 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             return (
               <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
                 <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : "url(#outline-free)"} />
+                {c?.owner && c.owner.index === teamIndex && (guestsAt.get(n.key) ?? []).map((color, i, all) => {
+                  // Дуги под основанием города, по одной на команду, с просветом между ними.
+                  const rx = CITY * 0.5, ry = CITY * 0.3, n0 = all.length;
+                  const a0 = Math.PI * (0.12 + i * (0.76 / n0)), a1 = Math.PI * (0.12 + (i + 1) * (0.76 / n0)) - 0.1;
+                  const d = `M${(p.x + rx * Math.cos(a0)).toFixed(2)},${(p.y + ry * Math.sin(a0)).toFixed(2)} A${rx.toFixed(2)},${ry.toFixed(2)} 0 0 1 ${(p.x + rx * Math.cos(a1)).toFixed(2)},${(p.y + ry * Math.sin(a1)).toFixed(2)}`;
+                  return <g key={color} className="guest"><path className="halo" d={d} /><path d={d} style={{ stroke: color }} /></g>;
+                })}
               </g>
             );
           }
           return null;
         })}
-  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, guestsAt, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
   // Каменоломня (решение владельца 04.10): скалистый островок с подписью, нажимается — открывает лист общих дел.
   const quarry = islets.find((i) => i.quarry) ?? null;
   const quarryMarker = quarry && (() => {
