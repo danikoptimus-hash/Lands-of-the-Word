@@ -8,7 +8,7 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { formatRange, loadBook, refToIndex, parseRef, verseText, type BibleBook } from "../services/bible.js";
-import { afterReject, approveAttack, cancelAttack, defenseNeed, gameRules, launchAttack, maybeRepel, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
+import { afterReject, approveAttack, CANCEL_PENALTY, cancelAttack, defenseNeed, gameRules, launchAttack, maybeRepel, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { declareSiege, siegeOptions } from "../services/siege.js";
 import { BOOKS } from "@lotw/domain";
@@ -69,7 +69,7 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
   const allyCandidates = b.violation && live && forTeamId === b.defenderId && teams.length >= 3 ? teams.filter((t) => t.id !== b.attackerId && t.id !== b.defenderId && !shown.some((a) => a.allyId === t.id)) : [];
   return {
     id: b.id, nodeKey: b.nodeKey, bookCode: b.bookCode, bookName: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode, status: b.status, sumMode: b.sumMode, bid: b.bid, defenseBid: hideDefense ? null : b.defenseBid,
-    violation: b.violation, defenseFactor: b.defenseFactor, defenseNeed: defenseNeed(b), allies, allyCandidates, myAlliance: myAlliance ? { id: myAlliance.id, status: myAlliance.status } : null,
+    violation: b.violation, defenseFactor: b.defenseFactor, defenseNeed: defenseNeed(b), cancelPenalty: CANCEL_PENALTY, allies, allyCandidates, myAlliance: myAlliance ? { id: myAlliance.id, status: myAlliance.status } : null,
     attacker: b.attacker, defender: b.defender, mySide, passage, defensePassage,
     declaredAt: b.declaredAt, startedAt: b.startedAt, attackDeadline: b.attackDeadline, attackDoneAt: b.attackDoneAt, attackApprovedAt: b.attackApprovedAt, attackLaunchedAt: b.attackLaunchedAt,
     defenseDeadline: b.defenseDeadline, defenseDoneAt: b.defenseDoneAt, resolvedAt: b.resolvedAt,

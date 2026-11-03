@@ -612,7 +612,7 @@ export const PLAYER: Record<string, string> = {
   "день подряд": "day in a row", "дня подряд": "days in a row", "дней подряд": "days in a row",
   "Служение": "Service",
   "Оборона": "Defense", "Вызовы": "Challenges", "Вызовов нашим городам сейчас нет.": "No challenges to our cities right now.", "Наших вызовов сейчас нет.": "We have no challenges right now.",
-  "Вызов будет отменён. Бросить новый можно в любое время.": "The challenge will be cancelled. A new one can be made at any time.", "Отменить вызов городу {city}?": "Cancel the challenge to the city of {city}?", "Отменить вызов": "Cancel the challenge", "Вызов отменён": "Challenge cancelled",
+  "Вызов будет отменён. Минимальная ставка на этот город для вашей команды вырастет на {n}.": "The challenge will be cancelled. Your team’s minimum bid for this city will grow by {n}.", "Отменить вызов городу {city}?": "Cancel the challenge to the city of {city}?", "Отменить вызов": "Cancel the challenge", "Вызов отменён": "Challenge cancelled",
   // Схема испытания
   "не начато": "not started", "испытать до {d}": "begin the trial before {d}", "испытание не начато в срок": "the trial was not started in time",
   "Ваш ход: вызов одобрен — капитан нажимает «Испытать», когда команда готова": "Your move: the challenge is approved, the captain presses “Begin the trial” when the team is ready",

@@ -44,6 +44,8 @@ export async function gameRules(gameId: string): Promise<Rules> {
 
 /** Шаг над уровнем защиты (решение владельца 04.10): следующий вызов городу — не меньше уровня + 5, одинаково для всех команд. */
 export const LEVEL_STEP = 5;
+/** Штраф за отмену вызова (решение владельца 03.11: «отмена испытания удорожала атаку на 5 стихов, а не на 1»): минимальная ставка команды на этот город растёт, как при сгоревшем вызове. */
+export const CANCEL_PENALTY = 5;
 /** Минимальная ставка команды на город: max(минимум + штраф за сгоревшие вызовы этой команды, уровень защиты + 5). */
 export function minBidFor(defenseLevel: number, penalty: number, rules: Rules): number {
   return Math.max(rules.minBid + penalty, defenseLevel > 0 ? defenseLevel + LEVEL_STEP : 0);
@@ -282,19 +284,29 @@ export async function launchAttack(b: BattleWithEntries): Promise<{ ok: true; ba
 /**
  * Капитан претендентов отменяет вызов на любом шаге нападения — в очереди, пока учат, на проверке или после одобрения
  * до «Испытать» (решение владельца 01.11: «если передумал — отменить»; штраф сначала был +1 стих, затем владелец его
- * убрал: «убери санкции за отмену всё-таки»). Во время ответа хранителей отмены нет.
+ * убрал: «убери санкции за отмену всё-таки», а 03.11 вернул: «отмена испытания удорожала атаку на 5 стихов, а не на 1» —
+ * минимальная ставка команды на этот город растёт на CANCEL_PENALTY). Во время ответа хранителей отмены нет.
  */
 export async function cancelAttack(b: BattleWithEntries): Promise<{ ok: true; battle: BattleWithEntries } | { ok: false; message: string }> {
   if (b.status !== "QUEUED" && b.status !== "ATTACK") return { ok: false, message: "Отменить можно только до начала ответа хранителей" };
   const now = new Date();
-  const upd = await prisma.battle.update({ where: { id: b.id }, data: { status: "CANCELLED", resolvedAt: now }, include: { entries: true } });
+  const [upd] = await prisma.$transaction([
+    prisma.battle.update({ where: { id: b.id }, data: { status: "CANCELLED", resolvedAt: now }, include: { entries: true } }),
+    prisma.teamCityState.upsert({
+      where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } },
+      create: { gameId: b.gameId, teamId: b.attackerId, nodeKey: b.nodeKey, attackPenalty: CANCEL_PENALTY },
+      update: { attackPenalty: { increment: CANCEL_PENALTY } },
+    }),
+  ]);
+  const [node, st, rules] = await Promise.all([nodeOf(b.gameId, b.nodeKey), prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } }, select: { attackPenalty: true } }), gameRules(b.gameId)]);
+  const next = minBidFor(node.defenseLevel, st?.attackPenalty ?? 0, rules);
   publish(b.gameId, { type: "battles", teamId: b.attackerId });
   publish(b.gameId, { type: "map", teamId: b.attackerId });
   // Хранители знали о вызове только при нарушении мира — им и сообщаем.
   const keepersKnew = b.violation || b.defenseFactor > 1;
   if (keepersKnew) publish(b.gameId, { type: "battles", teamId: b.defenderId });
   { const [a, d] = await teamNames(b.attackerId, b.defenderId); journal(b.gameId, "trial_cancelled", { everyone: keepersKnew, teamId: b.attackerId, vars: { team: a, other: d, book: b.bookCode } }); }
-  notifyTeam(b.gameId, b.attackerId, "вызов городу {book} отменён", "Капитан отменил вызов. Бросить новый можно в любое время.", { book: b.bookCode });
+  notifyTeam(b.gameId, b.attackerId, "вызов городу {book} отменён", "Капитан отменил вызов. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty} — следующий вызов не меньше {next}.", { book: b.bookCode, penalty: CANCEL_PENALTY, next });
   if (keepersKnew) notifyTeam(b.gameId, b.defenderId, "вызов городу {book} отменён", "Претенденты отменили вызов вашему городу.", { book: b.bookCode });
   if (b.status === "ATTACK") await startNextFromQueue(b.gameId, b.nodeKey);
   return { ok: true, battle: upd };
@@ -496,7 +508,7 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   else if (mine) reason = mine.status === "QUEUED" ? "Ваш вызов уже в очереди" : "Ваш вызов этому городу уже идёт";
   // Мир не запрещает вызов (решение владельца 22.10), но нарушает его: интерфейс предупреждает.
   const peace = owner ? await prisma.peace.findFirst({ where: { gameId, status: "ACTIVE", OR: [{ fromId: teamId, toId: owner.teamId }, { fromId: owner.teamId, toId: teamId }], AND: [{ OR: [{ until: null }, { until: { gt: new Date() } }] }] }, select: { until: true } }) : null;
-  return { peace: peace ? { until: peace.until } : null, defenseLevel: node.defenseLevel, sumMode: node.sumMode, locked, lockedUntil: locked ? node.lockedUntil : null, maxed: node.maxReachedAt !== null, bookVerses: book?.total ?? null, penalty, minBid, maxBid, ownerMembers, attackDays: rules.attackDays, burnPenalty: rules.burnPenalty, canDeclare: reason === null, reason, owner: owner?.team ?? null };
+  return { peace: peace ? { until: peace.until } : null, defenseLevel: node.defenseLevel, sumMode: node.sumMode, locked, lockedUntil: locked ? node.lockedUntil : null, maxed: node.maxReachedAt !== null, bookVerses: book?.total ?? null, penalty, minBid, maxBid, ownerMembers, attackDays: rules.attackDays, burnPenalty: rules.burnPenalty, cancelPenalty: CANCEL_PENALTY, canDeclare: reason === null, reason, owner: owner?.team ?? null };
 }
 
 void bookName;

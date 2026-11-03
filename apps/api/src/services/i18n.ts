@@ -100,7 +100,7 @@ const EN: Record<string, string> = {
   "пошло время ответа города {book}": "the answer clock for the city of {book} is running",
   "вызов городу {book} одобрен": "challenge to the city of {book} approved",
   "Отменить можно только до начала ответа хранителей": "A challenge can be cancelled only before the keepers’ answer begins",
-  "Капитан отменил вызов. Бросить новый можно в любое время.": "The captain cancelled the challenge. A new one can be made at any time.",
+  "Капитан отменил вызов. Штраф: минимальная ставка на этот город для вашей команды выросла на {penalty} — следующий вызов не меньше {next}.": "The captain cancelled the challenge. Penalty: your team’s minimum bid for this city has grown by {penalty} — the next challenge is at least {next}.",
   "Претенденты отменили вызов вашему городу.": "The challengers cancelled their challenge to your city.",
   "Отменить вызов может только капитан": "Only the captain can cancel a challenge",
   "Вызов отменяют претенденты": "A challenge is cancelled by the challengers",
