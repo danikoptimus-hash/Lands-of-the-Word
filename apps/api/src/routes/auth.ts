@@ -7,6 +7,7 @@ import { activeSessionId, createSession, destroyAllSessions, destroySession, pub
 import { createHash, randomBytes } from "node:crypto";
 import { describeMailError, mailEnabled, sendMail, verifyMail } from "../services/mail.js";
 import { err, msg, toLocale } from "../services/i18n.js";
+import { devLoginEnabled } from "../env.js";
 import { platformMetrics } from "../services/metrics.js";
 import { analytics } from "../services/activity.js";
 
@@ -88,6 +89,36 @@ async function registerFailedLogin(user: User, log: { error: (e: unknown, msg: s
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   const secure = app.config.NODE_ENV === "production";
+
+  /**
+   * Тестовый вход за бота (решение владельца 03.11: удобное переключение между тестовыми ботами на стенде, чтобы
+   * проверять игру их глазами). Доступно ТОЛЬКО на стенде и локально (devLoginEnabled по хосту PUBLIC_URL) и ТОЛЬКО
+   * для тестовых ботов — ник tg_*, почта @example.com. На проде (голый домен) маршрутов нет: 404. Реальные аккаунты
+   * недоступны даже на стенде, который является копией прода: фильтр по нику и почте их не пропускает. Нового обхода
+   * авторизации не добавляется — используется та же createSession, что и обычный вход; пароль просто не нужен для
+   * заведомо тестовых ботов. Пометка «за кого вошли» видна обычным списком аккаунтов устройства (/api/auth/accounts).
+   */
+  const isTestBot = (u: { nickname: string; email: string | null }) =>
+    /^tg_/i.test(u.nickname) && (u.email ?? "").toLowerCase().endsWith("@example.com");
+
+  app.get("/api/dev/bots", async (_request, reply) => {
+    if (!devLoginEnabled(app.config)) return reply.code(404).send({ error: "not_found" });
+    const bots = await prisma.user.findMany({
+      where: { nickname: { startsWith: "tg_" }, email: { endsWith: "@example.com" } },
+      select: { nickname: true, displayName: true },
+      orderBy: { nickname: "asc" },
+    });
+    return { bots };
+  });
+
+  app.post("/api/dev/become", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request, reply) => {
+    if (!devLoginEnabled(app.config)) return reply.code(404).send({ error: "not_found" });
+    const body = z.object({ nickname: z.string().trim().min(1), add: z.boolean().optional() }).parse(request.body ?? {});
+    const user = await prisma.user.findFirst({ where: { nickname: { equals: body.nickname, mode: "insensitive" } } });
+    if (!user || !isTestBot(user)) return reply.code(404).send({ error: "not_found", message: err(request, "Тестовый бот не найден") });
+    await createSession(reply, user.id, secure, body.add ? { request } : undefined);
+    return { user: publicUser(user) };
+  });
 
   app.post("/api/auth/register", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
     const body = registerBody.parse(request.body);

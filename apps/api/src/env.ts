@@ -24,6 +24,18 @@ const schema = z.object({
 
 export type Env = z.infer<typeof schema>;
 
+/**
+ * Вход за тестового бота без пароля (быстрое переключение на стенде) включён только когда сайт — стенд или локальная
+ * разработка: хост PUBLIC_URL начинается с «test.» либо это localhost/127.0.0.1. На проде PUBLIC_URL — голый домен
+ * (landsoftheword.com), поэтому там это всегда выключено: маршрутов /api/dev/* в проде нет вовсе, бэкдора не возникает.
+ */
+export function devLoginEnabled(env: Pick<Env, "PUBLIC_URL">): boolean {
+  try {
+    const host = new URL(env.PUBLIC_URL).hostname;
+    return host === "localhost" || host === "127.0.0.1" || host.startsWith("test.");
+  } catch { return false; }
+}
+
 export function loadEnv(overrides: Partial<Record<keyof Env, string>> = {}): Env {
   const parsed = schema.safeParse({ ...process.env, ...overrides });
   if (!parsed.success) {

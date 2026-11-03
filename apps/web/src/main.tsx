@@ -27,6 +27,7 @@ import { WhatsNewPage } from "./pages/WhatsNewPage";
 import { DonatePage } from "./pages/DonatePage";
 import { GoogleNicknamePage } from "./pages/GoogleNicknamePage";
 import { PrivacyPage } from "./pages/PrivacyPage";
+import { DevSwitcher } from "./components/DevSwitcher";
 import "./styles/index.css";
 import { t } from "./lib/i18n";
 
@@ -69,6 +70,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>
+        <DevSwitcher />
         </UiProvider>
       </AuthProvider>
     </BrowserRouter>
