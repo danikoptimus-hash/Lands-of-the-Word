@@ -31,6 +31,7 @@ export const ADMIN: Record<string, string> = {
   "После старта карту изменить нельзя. Команды получат стартовые точки и первые дела.": "The map cannot be changed after the start. Teams get their start points and first deeds.",
   "от старта до ближайшего города: {d} ходов": "from start to the nearest city: {d} moves", "Ещё не создана": "Not created yet", "Заново": "Again",
   "Завершённые": "Finished", "Решённые": "Decided", "Проверенные": "Reviewed",
+  "Открытых запросов нет.": "There are no open requests.", "Закрытых запросов нет.": "There are no closed requests.",
   "Команды и приглашения": "Teams and invitations", "Адресаты конвертов и ярлыки": "Envelope recipients and labels", "Адресаты": "Recipients",
   "Поле игры: города на перекрёстках дорог и стартовые точки команд. Карта создаётся случайно; «Заново» даёт другую, пока игра в черновике. После старта карту изменить нельзя.": "The playing field: cities at the crossroads and the teams’ starting points. The map is generated at random; “Again” makes a different one while the game is a draft. After the start the map cannot be changed.",
   "Создайте команды и разошлите приглашения по ссылке: по ней игрок попадает в свою команду. Для старта в каждой команде нужны капитан и не меньше двух участников, у каждого — роль.": "Create the teams and send out invitation links: a link puts a player into their team. To start, every team needs a captain and at least two members, each with a role.",

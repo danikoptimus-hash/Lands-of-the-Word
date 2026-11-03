@@ -140,27 +140,52 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
   );
 }
 
-/** Администратор: все запросы прохода в игре, только для чтения. */
+/**
+ * Администратор: все запросы прохода в игре, только для чтения. Решение владельца 03.11: вкладки «Открытые / Закрытые»;
+ * строка как у испытаний — город заголовком, аватарки команд (кто просит → чей город) со стрелкой; текст запроса и ответ
+ * скрыты, раскрываются нажатием на строку.
+ */
 export function PassagesBlock({ gameId, version = 0 }: { gameId: string; version?: number }) {
   const [rows, setRows] = useState<PassageDto[] | null>(() => ready<{ passages: PassageDto[] }>(`/api/games/${gameId}/passages`)?.passages ?? null);
+  const [filter, setFilter] = useState<"open" | "closed" | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   useEffect(() => { apiReady<{ passages: PassageDto[] }>(`/api/games/${gameId}/passages`).then((r) => setRows(r.passages)).catch(() => setRows([])); }, [gameId, version]);
+  const all = rows ?? [];
+  const open = all.filter((r) => r.status === "PENDING"), closed = all.filter((r) => r.status !== "PENDING");
+  const shownTab: "open" | "closed" = filter ?? (open.length > 0 ? "open" : "closed");
+  const shown = shownTab === "open" ? open : closed;
+  const toggle = (id: string) => setExpanded((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   return (
     <div className="card">
-      <div className="card-head"><h2><span className="ico"><Icon name="handshake" /></span>{t("Проходы")} {rows && rows.length > 0 && <span className="count">{rows.length}</span>}</h2></div>
-      {rows === null ? <div className="skeleton" /> : rows.length === 0 ? <EmptyState inline icon="handshake" text={t("Запросов прохода пока не было.")} /> : (
-        <ul className="list">
-          {rows.map((r) => (
-            <li key={r.id}>
-              <div className="main">
-                <span className="row"><TeamAvatar name={r.requester.name} color={r.requester.color} avatarId={r.requester.avatarId} size="sm" withName teamId={r.requester.id} /><Icon name="chevron" className="muted" /><TeamAvatar name={r.owner.name} color={r.owner.color} avatarId={r.owner.avatarId} size="sm" withName /></span>
-                <span className="meta">{t("проход через {book}", { book: r.bookName })} · {fmtDate(r.createdAt)}</span>
-                {r.message && <span className="meta">«{r.message}»</span>}
-                {r.answer && <span className="meta">{t("Ответ: «{a}»", { a: r.answer })}</span>}
-              </div>
-              <PassageChip s={r.status} />
-            </li>
-          ))}
-        </ul>
+      <div className="card-head"><h2><span className="ico"><Icon name="handshake" /></span>{t("Проходы")} {all.length > 0 && <span className="count">{all.length}</span>}</h2></div>
+      {rows === null ? <div className="skeleton" /> : all.length === 0 ? <EmptyState inline icon="handshake" text={t("Запросов прохода пока не было.")} /> : (
+        <>
+          <Tabs value={shownTab} onChange={setFilter} ariaLabel={t("Какие проходы показывать")} items={[{ key: "open", label: t("Открытые"), count: open.length || undefined }, { key: "closed", label: t("Закрытые"), count: closed.length || undefined }]} />
+          {shown.length === 0 ? <EmptyState inline icon="handshake" text={shownTab === "open" ? t("Открытых запросов нет.") : t("Закрытых запросов нет.")} /> : (
+            <ul className="list interactive passages">
+              {shown.map((r) => {
+                const hasText = Boolean(r.message || r.answer), isOpen = expanded.has(r.id);
+                const onToggle = () => { if (hasText) toggle(r.id); };
+                return (
+                  <li key={r.id} role={hasText ? "button" : undefined} tabIndex={hasText ? 0 : undefined} aria-expanded={hasText ? isOpen : undefined} onClick={onToggle} onKeyDown={(e) => { if (hasText && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onToggle(); } }}>
+                    <div className="main">
+                      <span className="trial-head" onClick={(e) => e.stopPropagation()}>
+                        <span className="city"><Icon name="city" />{r.bookName}</span>
+                        <TeamAvatar name={r.requester.name} color={r.requester.color} avatarId={r.requester.avatarId} size="sm" title={r.requester.name} teamId={r.requester.id} />
+                        <Icon name="chevron" className="muted" />
+                        <TeamAvatar name={r.owner.name} color={r.owner.color} avatarId={r.owner.avatarId} size="sm" title={r.owner.name} teamId={r.owner.id} />
+                      </span>
+                      <span className="meta">{fmtDate(r.createdAt)}</span>
+                      {isOpen && r.message && <span className="meta">«{r.message}»</span>}
+                      {isOpen && r.answer && <span className="meta">{t("Ответ: «{a}»", { a: r.answer })}</span>}
+                    </div>
+                    <span className="row nowrap"><PassageChip s={r.status} />{hasText && <Icon name="chevron-down" className={"chev" + (isOpen ? " open" : "")} />}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
       )}
     </div>
   );

@@ -11,6 +11,11 @@
 .card.flash { animation: card-flash 2.6s ease-out; }
 @keyframes card-flash { 0%, 45% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: none; } }
 @media (prefers-reduced-motion: reduce) { .card.flash { animation: none; box-shadow: 0 0 0 3px var(--accent); } }
+/* Проходы у администратора (решение владельца 03.11): текст запроса скрыт, стрелка раскрытия поворачивается. */
+.list.passages > li { cursor: pointer; }
+.list.passages .chev { width: 16px; height: 16px; color: var(--muted); transition: transform .2s; flex: none; }
+.list.passages .chev.open { transform: rotate(180deg); }
+.list.passages .trial-head { min-height: 0; flex-wrap: wrap; }
 .checklist { list-style: none; margin: 0; padding: 0; }
 .checklist > li { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-3) 0; border-top: 1px solid var(--border); }
 .checklist > li:first-child { border-top: 0; }
