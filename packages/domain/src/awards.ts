@@ -15,11 +15,15 @@ export interface AwardDef {
   repeat?: boolean;
   /** Рубеж серии дней — для плашки серии и праздника рубежа. */
   streakDays?: number;
+  /** Снята с выдачи: новым не даётся, у получивших остаётся и видна только им (полученная награда не отбирается). */
+  retired?: boolean;
   /** Что нарисовано на значке — подсказка для генерации картинки (на английском, без текста на самой картинке). */
   symbol: string;
 }
 
 export const STREAK_MILESTONES = [5, 10, 15, 20, 25, 30, 40, 50] as const;
+/** Рубежи заученных стихов: награда p_verses_<n> (решение владельца 03.11: «10, 50, 100, 200»). */
+export const VERSE_MILESTONES = [10, 50, 100, 200] as const;
 
 export const AWARDS: ReadonlyArray<AwardDef> = [
   // Командные
@@ -58,11 +62,15 @@ export const AWARDS: ReadonlyArray<AwardDef> = [
   { code: "p_hundred", kind: "PERSONAL", nameRu: "Сотник", nameEn: "Centurion", condRu: "100 одобренных дел", condEn: "100 approved deeds", symbol: "a roman centurion helmet with a crest" },
   { code: "p_early_bird", kind: "PERSONAL", nameRu: "Ранняя птица", nameEn: "Early Bird", condRu: "Дело взято утром и сдано в то же утро, до 9 часов", condEn: "A deed taken in the morning and submitted the same morning, before 9 a.m.", repeat: true, symbol: "a small bird singing at sunrise" },
   { code: "p_first_try", kind: "PERSONAL", nameRu: "С первого раза", nameEn: "First Try", condRu: "10 дел подряд одобрены без возврата", condEn: "10 deeds in a row approved without a return", symbol: "an arrow in the centre of a target" },
-  // Личные: стихи в испытаниях
-  { code: "p_verses_10", kind: "PERSONAL", nameRu: "Стих в сердце", nameEn: "Verse in the Heart", condRu: "10 стихов зачтены в испытаниях", condEn: "10 verses counted in trials", symbol: "a heart with a small scroll inside" },
-  { code: "p_verses_30", kind: "PERSONAL", nameRu: "Хранитель Слова", nameEn: "Keeper of the Word", condRu: "30 стихов зачтены в испытаниях", condEn: "30 verses counted in trials", symbol: "an open book with a key lying on it" },
-  { code: "p_verses_60", kind: "PERSONAL", nameRu: "Сильный в Писании", nameEn: "Mighty in Scripture", condRu: "60 стихов зачтены в испытаниях", condEn: "60 verses counted in trials", symbol: "a sword with a scroll wrapped around its blade" },
-  { code: "p_verses_100", kind: "PERSONAL", nameRu: "Псалмопевец", nameEn: "Psalmist", condRu: "100 стихов зачтены в испытаниях", condEn: "100 verses counted in trials", symbol: "a small harp (lyre)" },
+  // Личные: заученные стихи — в испытаниях и в стене, каждый стих один раз (решение владельца 03.11: «награды разные
+  // за заучивание стихов, по кол-ву заученных стихов: 10, 50, 100, 200»; названия и значки 50 и 200 одобрены им же).
+  { code: "p_verses_10", kind: "PERSONAL", nameRu: "Стих в сердце", nameEn: "Verse in the Heart", condRu: "10 стихов заучено и принято: в испытаниях и в стене", condEn: "10 verses memorized and accepted: in trials and in the wall", symbol: "a heart with a small scroll inside" },
+  // Прежние ступени 30 и 60 сняты с выдачи: у получивших остаются, новым не даются.
+  { code: "p_verses_30", kind: "PERSONAL", nameRu: "Хранитель Слова", nameEn: "Keeper of the Word", condRu: "30 стихов зачтены в испытаниях", condEn: "30 verses counted in trials", retired: true, symbol: "an open book with a key lying on it" },
+  { code: "p_verses_50", kind: "PERSONAL", nameRu: "Слаще мёда", nameEn: "Sweeter than Honey", condRu: "50 стихов заучено и принято: в испытаниях и в стене", condEn: "50 verses memorized and accepted: in trials and in the wall", symbol: "an open honeycomb with a few drops of honey and a small open scroll resting on it" },
+  { code: "p_verses_60", kind: "PERSONAL", nameRu: "Сильный в Писании", nameEn: "Mighty in Scripture", condRu: "60 стихов зачтены в испытаниях", condEn: "60 verses counted in trials", retired: true, symbol: "a sword with a scroll wrapped around its blade" },
+  { code: "p_verses_100", kind: "PERSONAL", nameRu: "Псалмопевец", nameEn: "Psalmist", condRu: "100 стихов заучено и принято: в испытаниях и в стене", condEn: "100 verses memorized and accepted: in trials and in the wall", symbol: "a small harp (lyre)" },
+  { code: "p_verses_200", kind: "PERSONAL", nameRu: "Дерево при потоках вод", nameEn: "Tree by the Streams", condRu: "200 стихов заучено и принято: в испытаниях и в стене", condEn: "200 verses memorized and accepted: in trials and in the wall", symbol: "a leafy fruit-bearing tree planted beside two gently flowing streams of water" },
   // Личные: карта и море
   { code: "p_pathfinder", kind: "PERSONAL", nameRu: "Следопыт", nameEn: "Pathfinder", condRu: "Своими делами открыл 10 перекрёстков", condEn: "Revealed 10 crossroads with own deeds", symbol: "a trail of footprints winding along a path over low hills" },
   { code: "p_keyholder", kind: "PERSONAL", nameRu: "Ключник", nameEn: "Keyholder", condRu: "Своим делом открыл дорогу в город", condEn: "Opened the road into a city with own deed", repeat: true, symbol: "a single ornate key" },
