@@ -375,6 +375,24 @@
 .trial-flow.compact .trial-steps .step.current .medal::after { inset: -3px; border-width: 1.5px; }
 .trial-flow.compact .trial-steps .mark { right: -2px; bottom: -2px; border-width: 1.5px; }
 @media (prefers-reduced-motion: reduce) { .trial-steps .step.current .medal::before, .trial-steps .step.current .medal::after { animation: none; } }
+
+/* Часы испытания (решение владельца 03.11): медальоны «Стихи» и «Ответ» по нажатию открывают окошко с часами; пока часы идут — песочные часы на медальоне. */
+.trial-steps .medal-pop { display: contents; }
+.trial-steps .help-pop-wrap { position: relative; z-index: 1; }
+.trial-steps button.medal.open { background: var(--paper-light); box-shadow: 0 2px 8px rgba(168, 114, 46, .35); transform: scale(1.06); }
+.trial-steps .mark.clock { background: var(--accent); }
+.trial-steps .mark.clock .i { animation: clockTurn 2.4s ease-in-out infinite; }
+.trial-clock { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); font: 400 var(--fs-sm)/var(--lh-ui) var(--font-ui); color: var(--text); }
+.trial-clock .face { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.trial-clock .face .i { flex: none; width: 22px; height: 22px; color: var(--accent-ink); }
+.trial-clock.running .face .i { animation: clockTurn 2.4s ease-in-out infinite; }
+.trial-clock .face b { font: 700 28px/1 var(--font-ui); font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+.trial-clock .bar { display: block; width: 100%; max-width: 220px; height: 6px; border-radius: 3px; background: var(--paper-2); overflow: hidden; }
+.trial-clock .bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--bronze-light), var(--bronze)); transition: width 1s linear; }
+.trial-clock .why { font-size: var(--fs-xs); color: var(--muted); }
+.sheet-body > .trial-clock, .sheet .trial-clock { margin-bottom: var(--sp-3); }
+@keyframes clockTurn { 0%, 45% { transform: rotate(0); } 60%, 100% { transform: rotate(180deg); } }
+@media (prefers-reduced-motion: reduce) { .trial-steps .mark.clock .i, .trial-clock.running .face .i { animation: none; } }
 .verses { list-style: none; margin: var(--sp-2) 0; padding: 0; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); overflow: hidden; }
 @media (min-width: 640px) { .verses { max-height: 300px; overflow: auto; } }
 .verses li { border-top: 1px solid var(--border); }

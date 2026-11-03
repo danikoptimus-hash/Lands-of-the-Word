@@ -149,6 +149,8 @@ export interface SeasonBookDto {
 export type BattleStatus = "QUEUED" | "ATTACK" | "DEFENSE" | "WON" | "REPELLED" | "EXPIRED" | "CANCELLED";
 export interface BattleEntryDto { id: string; side: "ATTACK" | "DEFENSE"; userId: string; nickname: string; ref: string; start: number; end: number; verses: number; weight?: number; links: string[]; note: string; status: "SUBMITTED" | "APPROVED" | "REJECTED"; adminComment: string; carried?: boolean; createdAt: string }
 export interface PassageDto { ref: string; start: number; end: number; verses: Array<{ idx: number; ref: string; text: string | null }> | null }
+/** Часы стороны испытания (решение владельца 03.11): сколько натикало к моменту `at`; пока `running`, клиент дотикивает сам. `limit` — сколько всего отпущено хранителям (T); `why` — отчего часы стоят. */
+export interface ClockDto { ms: number; running: boolean; at: string; limit: number | null; why: "review" | "night" | "storm" | "over" | null }
 export interface BattleDto {
   id: string; nodeKey: string; bookCode: string; bookName: string; status: BattleStatus; sumMode: boolean; bid: number; defenseBid: number | null;
   attacker: { id: string; index: number; name: string; color: string; avatarId?: string | null }; defender: { id: string; index: number; name: string; color: string; avatarId?: string | null };
@@ -158,6 +160,8 @@ export interface BattleDto {
   /** Нарушение мира (решение владельца 22.10): вызов при мире; при трёх и более командах хранители зовут союзника, при двух — защита вдвое. */
   violation?: boolean; defenseFactor?: number; defenseNeed?: number; /** Штраф за отмену вызова (решение владельца 03.11): на сколько растёт минимальная ставка претендентов на этот город. */ cancelPenalty?: number; allies?: Array<{ id: string; status: "PROPOSED" | "ACTIVE"; team: { id: string; index: number; name: string; color: string; avatarId?: string | null } }>; allyCandidates?: Array<{ id: string; index: number; name: string; color: string; avatarId?: string | null }>; myAlliance?: { id: string; status: "PROPOSED" | "ACTIVE" } | null;
   attackSum: number; attackApproved: number; defenseSum: number; defenseApproved: number; entries: BattleEntryDto[]; myVerses: number[]; /** Стихи, уже принятые у меня в прошлых испытаниях этой книги: второй раз не сдаются. */ learnedVerses?: number[]; bookTotal: number | null;
+  /** Часы вызова (претендентам и администратору) и ответа (хранителям и администратору), 03.11. */
+  attackClock?: ClockDto | null; defenseClock?: ClockDto | null;
 }
 export interface BookTextDto { code: string; name: string; verseCounts: number[]; chapters: string[][] | null; total: number }
 /** Карта книги (02.11): по участнику своей команды — стихи, сданные раньше (второй раз не считаются), отмеченные в испытании, и план заучивания. */

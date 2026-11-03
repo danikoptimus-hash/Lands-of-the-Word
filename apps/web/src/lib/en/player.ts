@@ -756,4 +756,12 @@ export const PLAYER: Record<string, string> = {
   "сгорел": "burnt",
   "сгорел в испытании": "burnt in a trial",
   "Лёг в ответ {d}": "Went into the answer {d}",
+  "{d} д {t}": "{d} d {t}",
+  "идут": "running",
+  "стоят: на проверке": "stopped: under review",
+  "стоят: ночь": "stopped: night",
+  "стоят: шторм": "stopped: storm",
+  "итог": "final",
+  "время вызова": "challenge time",
+  "время ответа": "answer time",
 };

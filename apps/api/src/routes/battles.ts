@@ -9,9 +9,10 @@ import { err } from "../services/i18n.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { formatRange, loadBook, refToIndex, parseRef, verseText, type BibleBook } from "../services/bible.js";
 import { afterReject, approveAttack, CANCEL_PENALTY, cancelAttack, defenseNeed, gameRules, launchAttack, maybeRepel, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
+import type { Rules } from "../services/rules.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { declareSiege, siegeOptions } from "../services/siege.js";
-import { BOOKS } from "@lotw/domain";
+import { activeMsBetween, awakeMsBetween, BOOKS, dayLight, stormState } from "@lotw/domain";
 import { journal } from "../services/journal.js";
 import { violatePeace } from "../services/peace.js";
 import { wallVersesOf } from "../services/wall.js";
@@ -43,10 +44,41 @@ function versesOf(book: BibleBook, start: number, end: number) {
 }
 
 /**
+ * Часы стороны (решение владельца 03.11: «при нажатии видно было время, сколько на таймере получилось от момента старта
+ * таймера… чтобы это и во время заучивания было видно, таймер тикал… когда уже отправлен на проверку, таймер остановился,
+ * но был виден»). `ms` — сколько натикало к моменту `at`; пока `running`, клиент дотикивает сам. Часы вызова — по часам
+ * без штормов минус стоп-часы проверки (как T в `launchAttack`); часы ответа — дневное время с «Испытать», считаются от
+ * срока ответа (он сдвигается при возврате записи, поэтому время на проверке не входит): прошло = T − осталось.
+ * `limit` — T хранителей: сколько всего им отпущено. `why` — отчего часы стоят: проверка, ночь, шторм или итог.
+ */
+export interface ClockDto { ms: number; running: boolean; at: string; limit: number | null; why: "review" | "night" | "storm" | "over" | null }
+const clamp = (x: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, x));
+function attackClockOf(b: Full, rules: Rules, now: Date, storm: boolean): ClockDto | null {
+  if (!b.startedAt) return null;
+  const live = b.status === "ATTACK";
+  const end = b.attackDoneAt ?? (live ? now : b.resolvedAt ?? now);
+  const ms = Math.max(0, activeMsBetween(rules.timeZone, b.startedAt, end, rules.storms) - b.attackPausedMs);
+  const running = live && !b.attackDoneAt && !storm;
+  return { ms, running, at: now.toISOString(), limit: null, why: running ? null : !live ? "over" : b.attackDoneAt ? "review" : "storm" };
+}
+function defenseClockOf(b: Full, rules: Rules, now: Date, storm: boolean, night: boolean): ClockDto | null {
+  if (!b.attackLaunchedAt || !b.startedAt || !b.attackDoneAt || !b.defenseDeadline) return null;
+  const live = b.status === "DEFENSE";
+  const limit = Math.max(rules.minAnswerSeconds * 1000, activeMsBetween(rules.timeZone, b.startedAt, b.attackDoneAt, rules.storms) - b.attackPausedMs);
+  const end = b.defenseDoneAt ?? (live ? now : b.resolvedAt ?? now);
+  const left = end.getTime() >= b.defenseDeadline.getTime() ? 0 : awakeMsBetween(rules.timeZone, end, b.defenseDeadline, rules.storms);
+  const running = live && !b.defenseDoneAt && !storm && !night;
+  return { ms: clamp(limit - left, 0, limit), running, at: now.toISOString(), limit, why: running ? null : !live ? "over" : b.defenseDoneAt ? "review" : storm ? "storm" : "night" };
+}
+
+/**
  * Испытание в ответе: отрывки с текстом, суммы, записи своей стороны, мои отмеченные стихи. Админ видит всё.
  * Претенденты не видят ни отрывка, ни сумм хранителей, пока испытание идёт (утечка закрыта 18.09).
+ * Часы вызова — претендентам и администратору, часы ответа — хранителям (с союзником) и администратору.
  */
-async function view(b: Full, users: Map<string, string>, forTeamId: string | null, userId: string | null) {
+async function view(b: Full, users: Map<string, string>, forTeamId: string | null, userId: string | null, rules: Rules) {
+  const now = new Date();
+  const storm = stormState(rules.storms, rules.timeZone, now).active, night = dayLight(rules.timeZone, now).phase === "night";
   const book = await loadBook(b.bookCode);
   const range = (s: number, e: number) => (book ? formatRange(book, s, e) : `${s}–${e}`);
   const mySide = forTeamId === null ? null : sideOf(b, forTeamId);
@@ -76,6 +108,8 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
     attackSum: sumVerses(b.entries, "ATTACK", false), attackApproved: sumVerses(b.entries, "ATTACK", true),
     defenseSum: hideDefense ? 0 : sumVerses(b.entries, "DEFENSE", false), defenseApproved: hideDefense ? 0 : sumVerses(b.entries, "DEFENSE", true),
     entries, myVerses: my, learnedVerses: learned, bookTotal: book?.total ?? null,
+    attackClock: forTeamId === null || mySide === "ATTACK" ? attackClockOf(b, rules, now, storm) : null,
+    defenseClock: forTeamId === null || mySide === "DEFENSE" ? defenseClockOf(b, rules, now, storm, night) : null,
   };
 }
 
@@ -126,7 +160,8 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const sieges = await prisma.siege.findMany({ where: { gameId: id, nodeKey, OR: [{ attackerId: m.team.id }, { defenderId: m.team.id }] }, orderBy: { startedAt: "desc" }, take: 5 });
     const teamsById = new Map((await prisma.team.findMany({ where: { gameId: id }, select: { id: true, name: true, color: true, avatarId: true } })).map((t) => [t.id, t]));
     const siege = { available: so.available, canDeclare: so.canDeclare, reason: so.reason ? err(request, so.reason) : null, days: so.days, deedPoints: so.deedPoints, list: sieges.map((s) => ({ id: s.id, status: s.status, startedAt: s.startedAt, endsAt: s.endsAt, attackerPoints: s.attackerPoints, defenderPoints: s.defenderPoints, attacker: teamsById.get(s.attackerId) ?? null, defender: teamsById.get(s.defenderId) ?? null, mine: s.attackerId === m.team.id ? "ATTACK" : "DEFENSE" })) };
-    return { ...options, reason: options.reason ? err(request, options.reason) : null, queue, siege, battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id))), daytime: await gameDaytime(id) };
+    const rules = await gameRules(id);
+    return { ...options, reason: options.reason ? err(request, options.reason) : null, queue, siege, battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id, rules))), daytime: await gameDaytime(id) };
   });
 
   /** Объявить осаду делами (капитан или заместитель): город с максимумом защиты после срока закрепления. */
@@ -163,8 +198,8 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     // Испытания команды из базы — готовый ответ (services/views.ts); вид для участника (свои стихи, выученное) строится из него.
-    const { battles, users } = await battlesView(id, m.team.id);
-    return { battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id))), daytime: await gameDaytime(id) };
+    const [{ battles, users }, rules] = await Promise.all([battlesView(id, m.team.id), gameRules(id)]);
+    return { battles: await Promise.all(battles.map((b) => view(b, users, m.team.id, request.user!.id, rules))), daytime: await gameDaytime(id) };
   });
 
   /** Текст всей книги (для выбора отрывка обороны капитаном). */
@@ -516,8 +551,8 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     await sweep(id);
     const battles = await prisma.battle.findMany({ where: { gameId: id }, orderBy: { declaredAt: "desc" }, include, take: 100 });
-    const users = await usersOf(battles);
-    return { battles: await Promise.all(battles.map((b) => view(b, users, null, null))) };
+    const [users, rules] = await Promise.all([usersOf(battles), gameRules(id)]);
+    return { battles: await Promise.all(battles.map((b) => view(b, users, null, null, rules))) };
   });
 
   /** Админ: одобрить или вернуть запись. */

@@ -12,6 +12,7 @@ import { Sheet } from "../components/Sheet";
 import { EmptyState } from "../components/State";
 import { LinkList, ReturnBox, ReviewCard, useAutoRefresh } from "./SubmissionsBlock";
 import { TrialFlow, type StepKey } from "./TrialFlow";
+import { ClockFace } from "../components/TrialClock";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 const verses = (n: number) => plural(n, ["стих", "стиха", "стихов"]);
@@ -32,7 +33,7 @@ function TrialArrow() {
  * Испытания за города и проверка записей обеих сторон (переделка по решению владельца 01.11): в карточке — город,
  * аватарки сторон со стрелкой и шкала этапов. Медальоны шкалы нажимаются: «Стихи» и «Ответ» открывают отрывок
  * с раскладкой, «Проверка» — записи стороны с «Принять»/«Вернуть»; счётчик на медальоне — записи на проверке.
- * Счётчик карточки — все записи на проверке.
+ * Счётчик карточки — все записи на проверке. В листе отрывка сверху — часы стороны (решение владельца 03.11).
  */
 export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
   const { notify } = useUi();
@@ -87,6 +88,8 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
       )}
       {open && sheet && (sheet.step === "learn" || sheet.step === "answer") && (
         <Sheet size="md" onClose={() => setSheet(null)} title={`${sheet.step === "learn" ? t("Вызов") : t("Ответ")} · ${bookName(open.bookCode)} ${(sheet.step === "learn" ? open.passage : open.defensePassage)?.ref ?? ""}`}>
+          {sheet.step === "learn" && open.attackClock && <ClockFace clock={open.attackClock} kind="attack" />}
+          {sheet.step === "answer" && open.defenseClock && <ClockFace clock={open.defenseClock} kind="defense" />}
           <PassageBody passage={sheet.step === "learn" ? open.passage : open.defensePassage} entries={open.entries.filter((e) => e.side === sheetSide)} />
         </Sheet>
       )}

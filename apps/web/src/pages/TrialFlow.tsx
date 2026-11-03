@@ -3,6 +3,8 @@ import type { BattleDto } from "../lib/api";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtLeft, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { HelpPopup } from "../components/Help";
+import { ClockFace } from "../components/TrialClock";
 
 /**
  * Схема испытания (решение владельца 31.10: «красивую пошаговую схему из этапов для каждой атаки… всю схему блёклой,
@@ -13,7 +15,8 @@ import { Icon } from "../components/Icon";
  * текущий — с пульсирующим кольцом, будущие — серые и бледные, сорванный — с крестом. Над схемой строка «чей ход»
  * с тем, что именно сейчас должно произойти (у администратора её нет: ему хватает шкалы). Администратор нажимает
  * медальоны: «Стихи» и «Ответ» открывают отрывок с раскладкой, «Проверка» — записи стороны; счётчик на медальоне —
- * сколько записей ждут проверки.
+ * сколько записей ждут проверки. Часы (решение владельца 03.11): у претендентов медальон «Стихи», у хранителей «Ответ»
+ * по нажатию показывают окошком, сколько натикало с начала; пока часы идут, на медальоне песочные часы.
  */
 export type StepKey = "call" | "learn" | "check1" | "attack" | "answer" | "check2" | "result";
 type StepState = "done" | "current" | "future" | "failed";
@@ -117,20 +120,26 @@ export function TrialFlow({ b, teamId, now = Date.now(), compact = false, turn =
         {steps.map((s) => {
           const label = `${s.cap}${s.sub ? ` · ${s.sub}` : ""}`;
           const count = badges?.[s.key] ?? 0;
+          const clock = s.key === "learn" ? b.attackClock ?? null : s.key === "answer" ? b.defenseClock ?? null : null;
           const inner = (
             <>
               <img src={`/img/trial/${s.icon}.webp`} alt="" decoding="async" />
               {s.state === "done" && <i className="mark ok"><Icon name="check" /></i>}
               {s.state === "failed" && <i className="mark bad"><Icon name="x" /></i>}
               {count > 0 && <i className="mark count">{count}</i>}
+              {clock?.running && s.state !== "done" && <i className="mark clock"><Icon name="hourglass" /></i>}
             </>
           );
           const clickable = Boolean(onStep && canOpen?.[s.key]);
+          const clockName = `${label} · ${s.key === "learn" ? t("время вызова") : t("время ответа")}`;
           return (
-            <li key={s.key} className={"step " + s.state + (clickable ? " can-open" : "")} title={label}>
+            <li key={s.key} className={"step " + s.state + (clickable || clock ? " can-open" : "")} title={clock ? clockName : label}>
               {clickable
                 ? <button type="button" className="medal" onClick={() => onStep!(s.key)} aria-label={label}>{inner}</button>
-                : <span className="medal">{inner}</span>}
+                : clock
+                  // Окошко с часами; строка списка команды сама открывает город, поэтому клавиши до неё не доходят (нажатие гасит сама кнопка).
+                  ? <span className="medal-pop" onKeyDown={(e) => e.stopPropagation()}><HelpPopup name={clockName} buttonClassName="medal" trigger={inner}><ClockFace clock={clock} kind={s.key === "learn" ? "attack" : "defense"} /></HelpPopup></span>
+                  : <span className="medal">{inner}</span>}
               {!compact && <span className="cap">{s.cap}</span>}
               {!compact && s.sub && <span className="sub">{s.sub}</span>}
             </li>
