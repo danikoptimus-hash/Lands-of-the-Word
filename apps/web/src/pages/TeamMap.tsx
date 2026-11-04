@@ -3,7 +3,7 @@ import { reportAction, reportPage } from "../lib/perf";
 import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routeArrow, pixelToHex } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
-import { perfExpose, perfMark } from "../lib/perfHud";
+import { perfExpose, perfMark, perfOff } from "../lib/perfHud";
 import { hitTest, mapPoint, stylesK, type HitModel } from "../lib/mapHit";
 import { RoutesGL } from "./RoutesGL";
 // Пробный переключатель Э3 (пока пути на WebGL поверх живности; окончательная раскладка слоёв — после разделения холста живности).
@@ -590,7 +590,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           корабли над ними (решение владельца 05.10). */}
       <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} labels={islandLabels} routes={GL_ROUTES ? [] : routeSpecs} />
       {GL_ROUTES && <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => {}} />}
-      {fireworkSites.length > 0 && <FireworksLayer vp={vp} sites={fireworkSites} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} />}
+      {fireworkSites.length > 0 && !perfOff("fireworks") && <FireworksLayer vp={vp} sites={fireworkSites} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} />}
       {storm && storm.t > 0 && <StormLayer t={storm.t} />}
       <WorldSvg vp={vp} bounds={bounds} overlay>
         {scoutShown && (() => {

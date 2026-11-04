@@ -39,10 +39,13 @@ export function perfCommit(): void {
   requestAnimationFrame(() => { perfMark("фиксация → кадр", performance.now() - t0); requestAnimationFrame(() => perfMark("фиксация → 2-й кадр", performance.now() - t0)); });
 }
 /**
- * Выключатели слоёв для сравнения на настоящем устройстве (только вместе с ?perf=1): `&perfoff=fauna,world,overlay,fog,sea`
- * прячет слой живности, мировой SVG (дороги и города), верхний SVG (подписи и значки), туман или море. Слой при этом
+ * Выключатели слоёв для сравнения на настоящем устройстве (только вместе с ?perf=1): `&perfoff=fauna,world,overlay,fog,sea,fireworks`
+ * прячет слой живности, мировой SVG (дороги и города), верхний SVG (подписи и значки), туман, море или салют (салют —
+ * в коде: в свежей тяжёлой партии стенда салют горел у 56 городов сразу и давал 11 кадров в секунду на компьютере владельца). Слой при этом
  * продолжает считать, но не растрируется и не компонуется — так видно, чей растр стоит кадров. Без параметра — ничего.
  */
+/** Слой выключен параметром `?perfoff=` (только с ?perf=1): салют отключается в коде, а не стилем — его частицы считаются в скрипте. */
+export function perfOff(name: "fireworks"): boolean { return on && (/[?&]perfoff=([^&]+)/.exec(location.search)?.[1] ?? "").split(",").includes(name); }
 const OFF: Record<string, string> = {
   fauna: ".fx-layer.fauna{display:none!important}",
   world: ".map-svg.world:not(.passthrough){display:none!important}",
