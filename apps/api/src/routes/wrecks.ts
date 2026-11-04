@@ -39,8 +39,7 @@ export async function wreckRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     const since = new Date(Date.now() - 120_000);
     const rows = await prisma.wreck.findMany({ where: { gameId: id, OR: [{ closedAt: null }, { closedAt: { gte: since } }] }, orderBy: { createdAt: "asc" }, include: { works: { select: { teamId: true, status: true } } } });
-    const rules = await gameRules(id);
-    return { wrecks: rows.map((w) => ({ id: w.id, deedId: w.deedId, title: w.title, model: w.model, q: w.q, r: w.r, seed: w.seed, createdAt: w.createdAt, closedAt: w.closedAt, sunkAt: w.sunk ? w.closedAt : null, cargo: { stones: rules.wreckStones, blocks: rules.wreckBlocks }, doneTeams: new Set(w.works.filter((x) => x.status === "APPROVED").map((x) => x.teamId)).size, pending: w.works.filter((x) => x.status === "SUBMITTED").length })) };
+    return { wrecks: rows.map((w) => ({ id: w.id, deedId: w.deedId, title: w.title, model: w.model, q: w.q, r: w.r, seed: w.seed, createdAt: w.createdAt, closedAt: w.closedAt, sunkAt: w.sunk ? w.closedAt : null, cargo: { stones: w.stones, blocks: w.blocks }, doneTeams: new Set(w.works.filter((x) => x.status === "APPROVED").map((x) => x.teamId)).size, pending: w.works.filter((x) => x.status === "SUBMITTED").length })) };
   });
 
   /** Сдать срочное задание: капитан, заместитель или летописец, не ночью. */
@@ -81,7 +80,7 @@ export async function wreckRoutes(app: FastifyInstance): Promise<void> {
     const { id, workId } = request.params as { id: string; workId: string };
     if (!(await requireAdmin(request, reply, id))) return;
     const body = decideBody.parse(request.body);
-    const work = await prisma.wreckWork.findFirst({ where: { id: workId, gameId: id }, include: { wreck: { select: { title: true, closedAt: true } } } });
+    const work = await prisma.wreckWork.findFirst({ where: { id: workId, gameId: id }, include: { wreck: { select: { title: true, closedAt: true, stones: true, blocks: true } } } });
     if (!work) return reply.code(404).send({ error: "not_found", message: err(request, "Сдача не найдена") });
     if (work.status !== "SUBMITTED") return reply.code(409).send({ error: "conflict", message: err(request, "Эта сдача уже рассмотрена") });
     const now = new Date();
@@ -92,8 +91,8 @@ export async function wreckRoutes(app: FastifyInstance): Promise<void> {
       publish(id, { type: "submissions", teamId: work.teamId }); publish(id, { type: "wrecks", teamId: work.teamId }); publish(id, { type: "map", teamId: work.teamId });
       return { ok: true };
     }
-    // Груз: одно из двух, 50/50; числа — из правил на момент решения. Сервер считает всё сам.
-    const roll = rollCargo(await gameRules(id), random);
+    // Груз: одно из двух, 50/50; числа — из корабля (снимок дела) на момент решения. Сервер считает всё сам.
+    const roll = rollCargo(work.wreck, random);
     await prisma.$transaction([
       prisma.wreckWork.update({ where: { id: workId }, data: { status: "APPROVED", decidedAt: now, decidedById: request.user!.id, adminComment: body.comment, cargo: roll.cargo, amount: roll.amount } }),
       prisma.team.update({ where: { id: work.teamId }, data: roll.cargo === "STONES" ? { stones: { increment: roll.amount } } : { cargoBlocks: { increment: roll.amount } } }),
