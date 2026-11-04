@@ -47,7 +47,7 @@ function useAwayCounter(url: string | null) {
   }, [url]);
 }
 
-export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version, container, onClose, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Капитан, заместитель или посол: защитный союз. */ canAlly?: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
+export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version, container, onClose, onChanged, onTrade }: { /** Послу: выставить этот свой город на обмен (решение владельца 04.11: обмен — из карточки города). */ onTrade?: () => void; gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Капитан, заместитель или посол: защитный союз. */ canAlly?: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
   const { notify, confirm } = useUi();
 
   const confirmMove = () => confirm(t("Это единственный перенос за игру."), { title: t("Перенести столицу в этот город?"), okLabel: t("Перенести") });
@@ -331,6 +331,13 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
             <div className="row mt-2">
               <button type="button" className="secondary" disabled={busy || Boolean(city.team.capitalMovedAt)} onClick={() => void makeCapital()}><Icon name="crown" />{t("Перенести столицу сюда")}</button>
               {city.team.capitalMovedAt ? <span className="hint">{t("уже использован")}</span> : <Help>{t("Один раз за игру. Пока на столицу брошен вызов или стоит очередь, перенести её нельзя.")}</Help>}
+            </div>
+          )}
+          {/* Обмен городами — из карточки своего города (решение владельца 04.11: «перенести этот раздел в сами города»); столицу не обменивают. */}
+          {city.state.capturedAt && !city.state.isCapital && onTrade && (
+            <div className="row mt-2">
+              <button type="button" className="secondary" disabled={busy} onClick={onTrade}><Icon name="handshake" />{t("Обменять город")}</button>
+              <Help>{t("Посол выставляет этот город другой команде; её посол предлагает свой город взамен. Сделки — в «Командах».")}</Help>
             </div>
           )}
         </section>

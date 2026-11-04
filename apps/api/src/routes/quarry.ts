@@ -28,23 +28,35 @@ async function teamMembers(teamId: string) {
   return rows.map((m) => ({ id: m.userId, name: m.user.displayName || m.user.nickname }));
 }
 
+/**
+ * Каменоломня открывается, когда команда дошла до прибрежного города (решение владельца 04.11: «доступна только когда
+ * команда достигла прибрежного города… до этого может открывать и смотреть, но должно висеть предупреждение»):
+ * у команды открыт хотя бы один город с признаком coastal.
+ */
+async function coastReached(gameId: string, teamId: string): Promise<boolean> {
+  const n = await prisma.teamNodeState.count({ where: { teamId, nodeKey: { in: (await prisma.mapNode.findMany({ where: { gameId, kind: "CITY", coastal: true }, select: { key: true } })).map((x) => x.key) } } });
+  return n > 0;
+}
+
 export async function quarryRoutes(app: FastifyInstance): Promise<void> {
   /** Каменоломня глазами команды: камни, общие дела, свои сдачи. */
   app.get("/api/games/:id/quarry", async (request, reply) => {
     const { id } = request.params as { id: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
-    const [deeds, works, team, members] = await Promise.all([
+    const [deeds, works, team, members, coast] = await Promise.all([
       prisma.deed.findMany({ where: { gameId: id, quarry: true, disabled: false }, select: quarryDeedSelect, orderBy: { createdAt: "asc" } }),
       prisma.quarryWork.findMany({ where: { teamId: m.team.id }, orderBy: { submittedAt: "desc" }, take: 30, include: { deed: { select: { title: true } } } }),
       prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } }),
       teamMembers(m.team.id),
+      coastReached(id, m.team.id),
     ]);
     const userIds = [...new Set([...works.map((w) => w.byId), ...works.flatMap((w) => w.participants)])];
     const users = await prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, nickname: true, displayName: true } });
     const nameOf = new Map(users.map((u) => [u.id, u.displayName ?? u.nickname]));
     return {
       stones: team.stones,
+      coastReached: coast,
       canWork: canWork(m),
       members,
       deeds,
@@ -59,6 +71,7 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     if (!m) return;
     if (!canWork(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Общее дело сдаёт капитан, заместитель или летописец") });
     if (!(await assertAwake(request, reply, id))) return;
+    if (!(await coastReached(id, m.team.id))) return reply.code(409).send({ error: "conflict", message: err(request, "Каменоломня откроется, когда команда дойдёт до прибрежного города") });
     const deed = await prisma.deed.findFirst({ where: { id: deedId, gameId: id, quarry: true, disabled: false }, select: quarryDeedSelect });
     if (!deed) return reply.code(404).send({ error: "not_found", message: err(request, "Общее дело не найдено") });
     const body = workBody.parse(request.body);

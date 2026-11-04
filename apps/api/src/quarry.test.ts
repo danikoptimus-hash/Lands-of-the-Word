@@ -63,6 +63,12 @@ describe("Каменоломня", () => {
     expect(build.stones).toBe(3);
     // Рядовой участник сдать не может, капитан — может; повторная сдача, пока первая на проверке, — 409.
     expect((await post(`/api/games/${gameId}/quarry/${build.id}/submit`, memCookie, { links: ["https://photos.example/team"] })).statusCode).toBe(403);
+    // Каменоломня закрыта, пока команда не дошла до прибрежного города (решение владельца 04.11): смотреть можно, сдавать — нет.
+    expect((await get(`/api/games/${gameId}/quarry`, capCookie)).json().coastReached).toBe(false);
+    expect((await post(`/api/games/${gameId}/quarry/${build.id}/submit`, capCookie, { links: ["https://photos.example/team"], participants: ["x"] })).statusCode).toBe(409);
+    const port = await prisma.mapNode.findFirstOrThrow({ where: { gameId, kind: "CITY", coastal: true } });
+    await prisma.teamNodeState.create({ data: { teamId, nodeKey: port.key } });
+    expect((await get(`/api/games/${gameId}/quarry`, capCookie)).json().coastReached).toBe(true);
     // Кто был — обязательно (решение владельца 07.10): без отметки сдача не принимается.
     expect((await post(`/api/games/${gameId}/quarry/${build.id}/submit`, capCookie, { links: ["https://photos.example/team"] })).statusCode).toBe(400);
     const members = (await get(`/api/games/${gameId}/quarry`, capCookie)).json().members as Array<{ id: string; name: string }>;

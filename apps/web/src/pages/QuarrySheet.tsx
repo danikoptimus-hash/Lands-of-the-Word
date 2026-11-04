@@ -48,6 +48,7 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
       <p className="muted small">{t("Здесь команда добывает тёсаный камень общими делами: вся команда вместе. Один камень мостит одну свободную дорогу на карте.")}<Help>{t("Общее дело сдаёт капитан, заместитель или летописец: фото, где видна вся команда. Администратор принимает — команде начисляются камни. Чтобы вымостить дорогу, откройте свободное дело на карте и нажмите «Вымостить дорогу». Вымощенная сторона открывает перекрёсток, но в счёт дел не идёт. Камни не сгорают.")}</Help></p>
       {loadError ? <ErrorState onRetry={() => void load()} /> : !data ? <LoadingState rows={3} /> : (
         <>
+          {data.coastReached === false && <p className="note warn"><Icon name="alert" /><span>{t("Каменоломня откроется, когда команда дойдёт до любого прибрежного города. Пока здесь можно только осмотреться.")}</span></p>}
           <h3 className="mt-3">{t("Общие дела")}</h3>
           {data.deeds.length === 0 ? <EmptyState inline icon="stone" text={t("Общих дел пока нет: администратор добавляет их в «Делах».")} /> : (
             <ul className="list quarry-deeds">
@@ -84,7 +85,7 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
                         </div>
                       )}
                     </div>
-                    {data.canWork && !pending && !picking && <div className="side"><button type="button" className="sm" onClick={() => { setOpen(d.id); setLinks(""); setNote(""); setPresent(data.members.map((x) => x.id)); }}><Icon name="camera" />{t("Сдать")}</button></div>}
+                    {data.canWork && data.coastReached !== false && !pending && !picking && <div className="side"><button type="button" className="sm" onClick={() => { setOpen(d.id); setLinks(""); setNote(""); setPresent(data.members.map((x) => x.id)); }}><Icon name="camera" />{t("Сдать")}</button></div>}
                   </li>
                 );
               })}

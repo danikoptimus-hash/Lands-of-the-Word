@@ -342,7 +342,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             return (
               <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
                 <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : "url(#outline-free)"} />
-                {c?.owner && c.owner.index === teamIndex && (() => {
+                {/* Свой город — по признаку captured, а не по индексу владельца: у администратора «глазами команды» индексы
+                    могли расходиться, и шатров не было (замечание владельца 04.11). */}
+                {c?.owner && c.captured && (() => {
                   // Шатёр стоит у своей дороги (требование владельца 03.11: «ВСЕГДА возле дороги, с которой подошли»): опорная точка
                   // на дороге у края картинки города (единицы карты), от неё — сдвиг в пикселях экрана: вдоль дороги 8px (у
                   // вертикальной вниз 20px — мимо подписи) и вбок 14px — мимо значка дела. Сдвиг экранный, а не в единицах

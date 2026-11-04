@@ -18,21 +18,14 @@ import { useGameEvents } from "../lib/useGameEvents";
 const words = (n: number) => plural(n, [t("слово"), t("слова"), t("слов")]);
 const CityLine = ({ c }: { c: { bookName: string; words: number } }) => <span className="trade-city"><Icon name="city" /><b>{c.bookName}</b> · {words(c.words)}</span>;
 
-export function TradesSection({ gameId, onChanged, openFor, onCanTrade }: { gameId: string; onChanged?: () => void; /** Открыть форму предложения этой команде (из меню «⋯» строки команды, решение владельца 24.10). */ openFor?: { teamId: string; nonce: number } | null; /** Сообщить странице, может ли посол предлагать обмен. */ onCanTrade?: (v: boolean) => void }) {
+export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged?: () => void; /** Открыть форму предложения этой команде (из меню «⋯» строки команды, решение владельца 24.10). */ openFor?: { teamId: string; nonce: number } | null; /** Сообщить странице, может ли посол предлагать обмен. */ onCanTrade?: (v: boolean) => void }) {
   const { notify, confirm } = useUi();
   const [data, setData] = useState<TradesDto | null>(null);
-  const [toTeamId, setToTeamId] = useState("");
-  const [offerKey, setOfferKey] = useState("");
-  const [message, setMessage] = useState("");
   const [counter, setCounter] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  /** Форма предложения спрятана в кнопку (решение владельца 04.10): открывается листом поверх меню. */
-  const [formOpen, setFormOpen] = useState(false);
   const load = useCallback(() => api<TradesDto>(`/api/games/${gameId}/my-trades`).then(setData).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load]);
   useGameEvents(gameId, (e) => { if (e.type === "trades" || e.type === "cities" || e.type === "teams") void load(); });
-  useEffect(() => { onCanTrade?.(Boolean(data?.canTrade)); }, [data?.canTrade]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (openFor) { setToTeamId(openFor.teamId); setFormOpen(true); } }, [openFor?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!data || !data.canTrade) return null;
 
   async function call(key: string, url: string, body?: unknown, done?: string) {
@@ -46,10 +39,6 @@ export function TradesSection({ gameId, onChanged, openFor, onCanTrade }: { game
   const closed = data.trades.filter((x) => x.status === "DONE" || x.status === "CANCELLED");
   const statusChip = (x: TradeDto) => x.status === "DONE" ? <Chip tone="ok" icon="check">{t("обмен состоялся")}</Chip> : x.status === "CANCELLED" ? <Chip tone="bad" icon="x">{t("отменена")}</Chip> : x.status === "COUNTERED" ? <Chip tone="info" icon="handshake">{t("есть встречный город")}</Chip> : <Chip tone="warn" icon="clock">{t("ждём встречный город")}</Chip>;
 
-  async function propose() {
-    if (!toTeamId || !offerKey) { notify(t("Выберите команду и город"), "bad"); return; }
-    if (await call("new", `/api/games/${gameId}/trades`, { toTeamId, offerKey, message }, t("Предложение отправлено"))) { setOfferKey(""); setMessage(""); setFormOpen(false); }
-  }
   async function accept(x: TradeDto) {
     if (!x.counter) return;
     if (!(await confirm(t("Город {a} уйдёт команде «{team}», город {b} станет вашим. Обменяться?", { a: x.offer.bookName, team: x.to.name, b: x.counter.bookName }), { title: t("Обмен городами"), okLabel: t("Обменять") }))) return;
@@ -102,22 +91,7 @@ export function TradesSection({ gameId, onChanged, openFor, onCanTrade }: { game
           </div>
         );
       })}
-      {/* Кнопки «Предложить обмен» здесь нет: обмен предлагают из меню «⋯» напротив команды в таблице (решение владельца 24.10). */}
-      {formOpen && (
-        <Sheet size="sm" title={t("Предложить обмен")} onClose={() => setFormOpen(false)} className="trade-form"
-          foot={<><button type="button" className="secondary" onClick={() => setFormOpen(false)}>{t("Отмена")}</button><button type="button" disabled={busy === "new" || !toTeamId || !offerKey} onClick={() => void propose()}><Icon name="handshake" />{t("Предложить обмен")}</button></>}>
-          {data.teams.length === 0 ? <p className="hint">{t("Других команд в игре нет.")}</p> : tradable.length === 0 ? <p className="hint">{t("Пока нечего предложить: нужен взятый город, кроме столицы.")}</p> : (
-            <>
-              <label htmlFor="trade-team">{t("Команда")}</label>
-              <select id="trade-team" value={toTeamId} onChange={(e) => setToTeamId(e.target.value)}><option value="">{t("Выберите команду…")}</option>{data.teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
-              <label htmlFor="trade-city" className="mt-2">{t("Наш город")}</label>
-              <select id="trade-city" value={offerKey} onChange={(e) => setOfferKey(e.target.value)}><option value="">{t("Выберите город…")}</option>{tradable.map((c) => <option key={c.nodeKey} value={c.nodeKey}>{c.bookName} · {words(c.words)}</option>)}</select>
-              <div className="field mt-2"><label htmlFor="trade-msg">{t("Сообщение послу")} <span className="opt">{t("необязательно")}</span></label><input id="trade-msg" className="full" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} /></div>
-              <p className="hint">{t("Посол другой команды увидит город и число слов в его книге и предложит свой город взамен.")}</p>
-            </>
-          )}
-        </Sheet>
-      )}
+      {/* Кнопки «Предложить обмен» здесь нет: обмен предлагают из карточки своего города (решение владельца 04.11; до того — из меню «⋯» напротив команды). */}
       {closed.length > 0 && (
         <ul className="list">
           {closed.map((x) => (
@@ -129,5 +103,43 @@ export function TradesSection({ gameId, onChanged, openFor, onCanTrade }: { game
         </ul>
       )}
     </section>
+  );
+}
+
+/**
+ * Предложить обмен из карточки своего города (решение владельца 04.11: «обмен городов… перенести в сами города, когда город
+ * выбираешь»): город уже выбран, посол выбирает команду и пишет сообщение. Лист открывается поверх карточки города.
+ */
+export function TradeProposeSheet({ gameId, offerKey, container, onClose, onDone }: { gameId: string; offerKey: string; container?: HTMLElement | null; onClose: () => void; onDone?: () => void }) {
+  const { notify } = useUi();
+  const [data, setData] = useState<TradesDto | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [toTeamId, setToTeamId] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { api<TradesDto>(`/api/games/${gameId}/my-trades`).then(setData).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); }, [gameId]);
+  const city = data?.myCities.find((c) => c.nodeKey === offerKey) ?? null;
+  const open = data?.trades.find((x) => x.mine && x.offer.nodeKey === offerKey && (x.status === "OPEN" || x.status === "COUNTERED")) ?? null;
+  async function propose() {
+    if (!toTeamId) { notify(t("Выберите команду"), "bad"); return; }
+    setBusy(true);
+    try { await api(`/api/games/${gameId}/trades`, { method: "POST", body: JSON.stringify({ toTeamId, offerKey, message }) }); notify(t("Предложение отправлено")); onDone?.(); onClose(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  }
+  const can = Boolean(data?.canTrade && city && !city.reason && !open && data.teams.length > 0);
+  return (
+    <Sheet size="sm" title={t("Обменять город")} container={container} onClose={onClose} className="trade-form"
+      foot={<><button type="button" className="secondary" onClick={onClose}>{t("Отмена")}</button><button type="button" disabled={busy || !can || !toTeamId} onClick={() => void propose()}><Icon name="handshake" />{t("Предложить обмен")}</button></>}>
+      {error ? <p className="error" role="alert">{error}</p> : !data ? <p className="muted small">{t("Загружаем…")}</p> : !data.canTrade ? <p className="hint">{t("Обмен городами ведёт посол команды.")}</p> : !city ? <p className="hint">{t("Этот город обменять нельзя: он не ваш.")}</p> : city.reason ? <p className="hint">{city.reason}</p> : open ? <p className="hint">{t("Этот город уже выставлен на обмен команде «{team}»: сделка в «Командах».", { team: open.to.name })}</p> : data.teams.length === 0 ? <p className="hint">{t("Других команд в игре нет.")}</p> : (
+        <>
+          <p className="trade-offer"><Icon name="city" /><b>{city.bookName}</b> · {words(city.words)}</p>
+          <label htmlFor="trade-team">{t("Команда")}</label>
+          <select id="trade-team" value={toTeamId} onChange={(e) => setToTeamId(e.target.value)}><option value="">{t("Выберите команду…")}</option>{data.teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
+          <div className="field mt-2"><label htmlFor="trade-msg">{t("Сообщение послу")} <span className="opt">{t("необязательно")}</span></label><input id="trade-msg" className="full" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} /></div>
+          <p className="hint">{t("Посол другой команды увидит город и число слов в его книге и предложит свой город взамен.")}</p>
+        </>
+      )}
+    </Sheet>
   );
 }

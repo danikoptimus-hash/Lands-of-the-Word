@@ -13,6 +13,8 @@ import { journal, nick } from "../services/journal.js";
 import { gameRules } from "../services/battles.js";
 import { adminOrObserver } from "../services/access.js";
 import { paceForecast } from "../services/pace.js";
+import { brickRef } from "../services/wall.js";
+import { loadBook } from "../services/bible.js";
 
 const submitBody = z.object({
   links: z.array(z.string().trim().url().max(500)).max(10).default([]),
@@ -117,7 +119,18 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const deedsFrozenUntil = m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenUntil : null;
     // Открытые отчёты о визитах (решение владельца 22.10): команде — метка на городе и пункт «требует внимания».
     const visits = (await prisma.cityVisit.findMany({ where: { teamId: m.team.id, status: { in: ["PENDING", "SUBMITTED"] } }, select: { id: true, nodeKey: true, bookCode: true, status: true, dueAt: true } })).filter((v) => v.status !== "PENDING" || v.dueAt.getTime() > Date.now());
-    return { status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, stones: (await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } })).stones }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    // Возвращённые администратором блоки стены (решение владельца 04.11: возврат — в «Внимание»): свои, за две недели,
+    // пока тот же блок не сдан заново; записи испытаний клиент берёт из my-battles.
+    const since = new Date(Date.now() - 14 * 86_400_000);
+    const rejected = await prisma.wallBlock.findMany({ where: { teamId: m.team.id, userId: request.user!.id, status: "REJECTED", decidedAt: { gte: since } }, orderBy: { decidedAt: "desc" }, select: { id: true, nodeKey: true, bookCode: true, startIdx: true, endIdx: true, adminComment: true, decidedAt: true, createdAt: true, repairOfId: true } });
+    const returnedBlocks: Array<{ id: string; nodeKey: string; bookCode: string; ref: string; comment: string; at: string }> = [];
+    for (const r of rejected) {
+      const redone = await prisma.wallBlock.count({ where: { teamId: m.team.id, userId: request.user!.id, nodeKey: r.nodeKey, startIdx: r.startIdx, status: { not: "REJECTED" }, createdAt: { gt: r.createdAt } } });
+      if (redone > 0) continue;
+      const book = await loadBook(r.bookCode);
+      returnedBlocks.push({ id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, ref: (book ? brickRef(book, r.startIdx, r.endIdx) : "") + (r.repairOfId ? " (починка)" : ""), comment: r.adminComment, at: (r.decidedAt ?? r.createdAt).toISOString() });
+    }
+    return { returnedBlocks, status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, stones: (await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } })).stones }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
@@ -373,7 +386,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const teams = await prisma.team.findMany({
       where: { gameId: id },
       orderBy: { index: "asc" },
-      select: { id: true, name: true, color: true, avatarId: true, startNodeKey: true, nodeStates: { select: { nodeKey: true, revealedAt: true } }, edgeTasks: { where: { status: "APPROVED" }, select: { fromKey: true, toKey: true, decidedAt: true, createdAt: true } } },
+      select: { id: true, index: true, name: true, color: true, avatarId: true, startNodeKey: true, nodeStates: { select: { nodeKey: true, revealedAt: true } }, edgeTasks: { where: { status: "APPROVED" }, select: { fromKey: true, toKey: true, decidedAt: true, createdAt: true } } },
     });
     const [pending, game] = await Promise.all([
       prisma.teamEdgeTask.count({ where: { gameId: id, status: "SUBMITTED" } }),
@@ -388,7 +401,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       battles,
       cities: cityStates.map((s) => ({ teamId: s.teamId, nodeKey: s.nodeKey, orderSolved: s.orderSolved, done: s.doneTasks.length, capturedAt: s.capturedAt?.toISOString() ?? null, isCapital: s.isCapital })),
       teams: teams.map((t) => ({
-        id: t.id, name: t.name, color: t.color, avatarId: t.avatarId, startNodeKey: t.startNodeKey,
+        id: t.id, index: t.index, name: t.name, color: t.color, avatarId: t.avatarId, startNodeKey: t.startNodeKey,
         revealed: t.nodeStates.map((n) => n.nodeKey),
         revealedAt: t.nodeStates.map((n) => n.revealedAt.toISOString()),
         // Морское дело до высадки ведёт «в море» — такой отрезок не рисуем.

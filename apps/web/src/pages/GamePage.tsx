@@ -112,7 +112,8 @@ export function GamePage() {
       active ? api<{ tasks: unknown[] }>(`/api/games/${id}/submissions`).then((r) => r.tasks.length).catch(() => 0) : 0,
       // Сдачи Каменоломни тоже ждут проверки — считаем их в кружке «Проверка» (замечание владельца 07.10).
       active ? api<{ works: unknown[] }>(`/api/games/${id}/quarry/submissions`).then((r) => r.works.length).catch(() => 0) : 0,
-      active ? api<{ battles: Array<{ entries: Array<{ status: string }> }> }>(`/api/games/${id}/battles`).then((r) => r.battles.reduce((n, b) => n + b.entries.filter((e) => e.status === "SUBMITTED").length, 0)).catch(() => 0) : 0,
+      // Испытания с записями на проверке — по одному на испытание, как в блоке «Испытания» (замечание владельца 04.11).
+      active ? api<{ battles: Array<{ entries: Array<{ status: string }> }> }>(`/api/games/${id}/battles`).then((r) => r.battles.filter((b) => b.entries.some((e) => e.status === "SUBMITTED")).length).catch(() => 0) : 0,
       // Блоки городской стены на проверке (замечание владельца 02.11: «почему нет уведомления на плитке про стены») — в тот же кружок.
       active ? api<{ blocks: Array<{ status: string }> }>(`/api/games/${id}/walls`).then((r) => r.blocks.filter((b) => b.status === "SUBMITTED").length).catch(() => 0) : 0,
       status !== "FINISHED" ? api<{ recipients: unknown[] }>(`/api/games/${id}/recipients`).then((r) => r.recipients.length).catch(() => 0) : 0,

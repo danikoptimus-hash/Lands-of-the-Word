@@ -16,7 +16,7 @@ import { QuarrySheet } from "./QuarrySheet";
 import { BATTLE_STATUS, BattleCard, battleTone, isLaunching, isMyTurn, leftText } from "./BattlePanel";
 import { TrialFlow } from "./TrialFlow";
 import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
-import { TradesSection } from "./Trades";
+import { TradesSection, TradeProposeSheet } from "./Trades";
 import { useUi } from "../lib/ui";
 import { useMediaQuery } from "../lib/media";
 import { t } from "../lib/i18n";
@@ -35,7 +35,6 @@ import { FeedSection, MyServiceSection, type ServiceTab } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { Tabs } from "../components/Tabs";
 import { UserAvatar } from "../components/UserAvatar";
-import { AvatarUploader } from "../components/AvatarUploader";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 
 /** Положение команд (меню и итоги): строка раскрывается, если есть испытания или города на пути. */
@@ -50,7 +49,7 @@ function peaceTerm(p: PeaceTeamDto): string {
   return t("на {n} дн.", { n: p.days });
 }
 
-function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeace, onTrade }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void; roster?: React.ReactNode; /** Мир: знак напротив каждой чужой команды (решение владельца 21.09) */ peace?: PeaceData | null; onPeace?: (p: PeaceTeamDto, action: PeaceAction) => void; /** Посол: «Предложить обмен» этой команде в меню «⋯» (решение владельца 24.10). */ onTrade?: (teamId: string) => void }) {
+function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeace }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void; roster?: React.ReactNode; /** Мир: знак напротив каждой чужой команды (решение владельца 21.09) */ peace?: PeaceData | null; onPeace?: (p: PeaceTeamDto, action: PeaceAction) => void }) {
   const stop = { onClick: (e: React.SyntheticEvent) => e.stopPropagation(), onKeyDown: (e: React.SyntheticEvent) => e.stopPropagation() };
   if (!standings) return <LoadingState rows={2} />;
   if (standings.standings.length === 0) return <EmptyState inline icon="crown" text={t("Пока нечего показать.")} />;
@@ -61,11 +60,11 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
         const mine = st.teamId === teamId;
         const pc = !mine ? peace?.teams.find((p) => p.team.id === st.teamId) ?? null : null;
         const canPeace = Boolean(peace?.canSpeak && onPeace && pc && pc.team.status !== "defeated" && st.status !== "defeated");
-        // Меню «⋯» напротив чужой команды (решение владельца 24.10 вместо отдельных кнопок): мир, расторжение, обмен.
+        // Меню «⋯» напротив чужой команды (решение владельца 24.10 вместо отдельных кнопок): мир, расторжение. Обмен городами —
+        // из карточки своего города (решение владельца 04.11).
         const actions: MenuItem[] = [];
         if (canPeace && pc?.state === "none") actions.push({ label: t("Предложить мир"), icon: "handshake", onSelect: () => onPeace!(pc!, "offer") });
         if (canPeace && pc?.state === "peace" && pc.breakable) actions.push({ label: t("Расторгнуть мир"), icon: "x", danger: true, onSelect: () => onPeace!(pc!, "break") });
-        if (!mine && onTrade && st.status !== "defeated") actions.push({ label: t("Предложить обмен"), icon: "handshake", onSelect: () => onTrade(st.teamId) });
         const details = st.citiesOnPath.length > 0 || (mine && Boolean(roster)) || (canPeace && pc?.state === "peace");
         const opened = open ?? teamId;
         const shown = details && opened === st.teamId;
@@ -333,9 +332,8 @@ export function TeamPage() {
     try { await api(`/api/games/${id}/peace`, { method: "POST", body: JSON.stringify({ teamId: p.team.id, days }) }); notify(t("Мир предложен")); await loadPeace(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
   }, [id, notify, loadPeace]);
-  /** Обмен городами из меню «⋯» строки команды (решение владельца 24.10): форма посла открывается с этой командой. */
-  const [tradeFor, setTradeFor] = useState<{ teamId: string; nonce: number } | null>(null);
-  const [canTrade, setCanTrade] = useState(false);
+  /** Обмен городами из карточки своего города (решение владельца 04.11): ключ города, выставляемого на обмен. */
+  const [tradeCity, setTradeCity] = useState<string | null>(null);
   const onPeace = useCallback(async (p: PeaceTeamDto, action: PeaceAction) => {
     const name = p.team.name;
     let path = `/api/games/${id}/peace`, body: unknown = { teamId: p.team.id }, ok = t("Мир предложен");
@@ -434,8 +432,6 @@ export function TeamPage() {
 
   const me = team?.members.find((m) => m.user.id === user?.id);
   const isCaptain = me?.role === "CAPTAIN";
-  /** Фото команды ставит капитан (решение владельца 24.10): блок над составом. */
-  const avatarEditor = team && isCaptain ? <AvatarUploader preview={<TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} size="lg" zoom={false} />} url={`/api/games/${id}/teams/${team.id}/avatar`} hasAvatar={Boolean(team.avatarId)} blocked={user?.avatarBlocked} onChanged={loadTeam} /> : undefined;
   /** Капитан или заместитель: вызов, ответ, столица. */
   const isLeader = isCaptain || me?.role === "DEPUTY";
   // Место высадки выбирает кормчий, капитан и команда советуют (решение владельца 03.10); без кормчего в команде — капитан или заместитель.
@@ -611,7 +607,7 @@ export function TeamPage() {
             <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} roster={<Roster embedded team={team} isCaptain={false} onRole={setGameRole} onDeputy={setDeputy} />} />
           </div>
         )}
-        {map.status !== "FINISHED" && <div className="card"><Roster avatarEditor={avatarEditor} team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} /></div>}
+        {map.status !== "FINISHED" && <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} /></div>}
       </main>
     );
   }
@@ -634,7 +630,12 @@ export function TeamPage() {
   const allyAsks = activeBattles.filter((b) => b.myAlliance?.status === "PROPOSED").length;
   // Отчёт о визите (решение владельца 22.10) ждёт капитана или заместителя до полуночи.
   const visitsDue = (map.visits ?? []).filter((v) => v.status === "PENDING");
-  const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0);
+  // Возвращённые администратором записи (решение владельца 04.11: «когда админ возвращает стихи при проверке — нужно
+  // уведомление… в раздел с колокольчиком»): мои записи в идущих испытаниях, пока сторона не отправлена заново, и мои
+  // блоки стены, пока блок не сдан заново (с сервера, my-map).
+  const returnedEntries = activeBattles.flatMap((b) => b.entries.filter((e) => e.userId === user?.id && e.status === "REJECTED" && e.side === b.mySide && (e.side === "ATTACK" ? !b.attackDoneAt : !b.defenseDoneAt)).map((e) => ({ battle: b, entry: e })));
+  const returnedBlocks = map.returnedBlocks ?? [];
+  const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length;
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
   // Две вкладки испытаний (решение владельца 31.10: «вместо того, чтобы писать, кто претендент, а кто хранитель, — две табы»):
@@ -719,7 +720,7 @@ export function TeamPage() {
             </div>
           </div>
           {view === "attention" && (
-            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 ? (
+            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 || returnedEntries.length > 0 || returnedBlocks.length > 0 ? (
                 <section className="section attention">
                   <ul className="list interactive">
                     {rejectedTasks.map((tk) => (
@@ -740,6 +741,16 @@ export function TeamPage() {
                     {myTurnBattles.map((b) => (
                       <li key={b.id} role="button" tabIndex={0} onClick={() => openCity(b.nodeKey)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCity(b.nodeKey); } }}>
                         <div className="main"><span className="title">{t("Испытание · {city}", { city: bookName(b.bookCode) })}</span><span className="meta">{t("ваш ход")}</span></div><Icon name="chevron" className="chev" />
+                      </li>
+                    ))}
+                    {returnedEntries.map(({ battle: b, entry: e }) => (
+                      <li key={e.id} role="button" tabIndex={0} onClick={() => openCity(b.nodeKey)} onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openCity(b.nodeKey); } }}>
+                        <div className="main"><span className="title">{t("Запись возвращена · {city} · {ref}", { city: bookName(b.bookCode), ref: e.ref })}</span><span className="meta">{e.adminComment || t("переснимите и прикрепите заново")}</span></div><Icon name="chevron" className="chev" />
+                      </li>
+                    ))}
+                    {returnedBlocks.map((r) => (
+                      <li key={r.id} role="button" tabIndex={0} onClick={() => openCity(r.nodeKey)} onKeyDown={(ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); openCity(r.nodeKey); } }}>
+                        <div className="main"><span className="title">{t("Блок стены возвращён · {city} · {ref}", { city: bookName(r.bookCode), ref: r.ref })}</span><span className="meta">{r.comment || t("сдайте блок заново")}</span></div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
                     {visitsDue.map((v) => (
@@ -825,7 +836,7 @@ export function TeamPage() {
                 empty={t("Наград пока нет.")}
                 rows={awards.teams.map((tm) => ({ key: tm.id, name: tm.name, awards: tm.awards, me: tm.id === awards.teamId, tag: tm.id === awards.teamId ? t("ваша команда") : tm.out ? t("выбыла") : undefined, muted: tm.out, who: <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" title={tm.name} teamId={tm.id} /> }))} />
             </>))}
-            {standingsTab === "rating" && <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} onTrade={canTrade ? (tid) => setTradeFor({ teamId: tid, nonce: Date.now() }) : undefined} roster={<Roster avatarEditor={avatarEditor} onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />}
+            {standingsTab === "rating" && <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />}
 
             {peaceOffer && (
               <Sheet size="sm" title={t("Предложить мир команде «{team}»", { team: peaceOffer.team.name })} onClose={() => setPeaceOffer(null)}>
@@ -840,7 +851,7 @@ export function TeamPage() {
             </section>
           )}
           {menuView === "standings" && standingsTab === "rating" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
-          {menuView === "standings" && standingsTab === "rating" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} openFor={tradeFor} onCanTrade={setCanTrade} onChanged={() => { void loadMap(); void loadStandings(); }} />}
+          {menuView === "standings" && standingsTab === "rating" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} onChanged={() => { void loadMap(); void loadStandings(); }} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} onOpenTask={(tid) => { if (map.tasks.some((tk) => tk.id === tid)) showOnMap(tid); else notify(t("Дело уже не на карте"), "info"); }} />}
           {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} awards={awards} tab={serviceTab} onTab={setServiceTab} />}
           </div>
@@ -932,7 +943,8 @@ export function TeamPage() {
             </Sheet>
           );
         })()}
-        {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} version={cityVersion} container={mapEl} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); void loadPassages(); }} />}
+        {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} onTrade={me?.gameRole === "AMBASSADOR" && map.status === "ACTIVE" ? () => setTradeCity(cityKey) : undefined} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} version={cityVersion} container={mapEl} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); void loadPassages(); }} />}
+        {tradeCity && <TradeProposeSheet gameId={id} offerKey={tradeCity} container={mapEl} onClose={() => setTradeCity(null)} onDone={() => { void loadMap(); void loadStandings(); }} />}
 
         {task && (() => {
           const st = deedStatus(task.status);
@@ -1098,7 +1110,7 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
 
 /** Состав команды: роль — пилюля с объяснением по нажатию; капитан назначает роли выбором. */
 /** embedded — внутри строки таблицы команд: без заголовка (численность — значком в строке команды, решение владельца 24.10), только кнопка приглашения. */
-function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl, onShowOnMap, avatarEditor }: { /** Блок «фото команды» капитана над составом (решение владельца 24.10). */ avatarEditor?: ReactNode; /** «Посмотреть на карте» у дела на руках участника (просьба владельца 10.10). */ onShowOnMap?: (taskId: string) => void; team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
+function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl, onShowOnMap }: { /** «Посмотреть на карте» у дела на руках участника (просьба владельца 10.10). */ onShowOnMap?: (taskId: string) => void; team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
   // Таймеры «следующее дело через…» тикают раз в полминуты.
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i); }, []);
@@ -1114,7 +1126,6 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
         ? (invite ? <div className="meta roster-head">{invite}</div> : null)
         : <div className="roster-title"><h2><Icon name="users" />{team.name}<span className="count">{team.members.length}</span></h2>{invite}</div>}
       {inviteUrl && <p className="hint invite-fallback"><a href={inviteUrl}>{inviteUrl}</a></p>}
-      {avatarEditor}
       <ul className="list roster">
         {team.members.map((m) => {
           const name = m.user.displayName ?? m.user.nickname;

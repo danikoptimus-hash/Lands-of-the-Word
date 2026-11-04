@@ -5,12 +5,16 @@ import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "./Icon";
 import { AwardBadge, AwardSheet, preloadAwardImages } from "../pages/Awards";
+import { AvatarUploader } from "./AvatarUploader";
+import { useAuth } from "../lib/auth";
 import type { AwardGrantDto } from "../lib/api";
 
 /**
  * Крупный показ аватарки по нажатию (решение владельца 24.10: «отобразиться по центру экрана крупнее»).
  * Внутри игры (решение владельца 29.10) — карточка участника: фото крупно, игровой ник, команда и роль, серия и личные
  * награды; данные берутся по id участника и игре из адреса страницы. Закрывается нажатием в любом месте или Esc.
+ * Профиль команды (решение владельца 04.11): капитан ставит или меняет фото команды нажатием на само фото здесь же;
+ * отдельного блока в составе больше нет.
  */
 export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: gameIdProp, onClose }: { avatarId: string | null; name: string; userId?: string; /** Команда игры: карточка с её наградами. */ teamId?: string; color?: string; /** Игра, если её нет в адресе страницы. */ gameId?: string; onClose: () => void }) {
   const gameId = gameIdProp ?? (typeof window !== "undefined" ? /\/games\/([^/]+)/.exec(window.location.pathname)?.[1] : undefined);
@@ -22,7 +26,9 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
   const [teamCard, setTeamCard] = useState<TeamAwardsDto | null>(() => (teamUrl ? ready<TeamAwardsDto>(teamUrl) : null));
   // Описание награды по нажатию на значок (решение владельца 30.10) — и у участников, и у администратора.
   const [pick, setPick] = useState<AwardGrantDto | null>(null);
-  useEffect(() => { if (teamUrl) apiReady<TeamAwardsDto>(teamUrl).then((d) => { setTeamCard(d); preloadAwardImages(d.awards.map((g) => g.code)); }).catch(() => {}); }, [teamUrl]);
+  const { user } = useAuth();
+  const loadTeam = () => (teamUrl ? apiReady<TeamAwardsDto>(teamUrl).then((d) => { setTeamCard(d); preloadAwardImages(d.awards.map((g) => g.code)); }).catch(() => {}) : Promise.resolve());
+  useEffect(() => { void loadTeam(); }, [teamUrl]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -31,9 +37,14 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
   useEffect(() => { if (url) apiReady<MemberCardDto>(url).then((d) => { setCard(d); preloadAwardImages(d.awards.map((g) => g.code)); }).catch(() => {}); }, [url]);
   const photo = avatarId ? <img src={`/api/avatars/${avatarId}`} alt={name} /> : <span className="letter" aria-hidden="true" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{name.slice(0, 1).toUpperCase()}</span>;
   if (teamUrl) {
+    // Свежая аватарка — из карточки (после замены родитель узнаёт о ней позже, по событию «состав»).
+    const teamAvatarId = teamCard ? teamCard.team.avatarId ?? null : avatarId;
+    const teamPhoto = teamAvatarId ? <img src={`/api/avatars/${teamAvatarId}`} alt={name} /> : <span className="letter" aria-hidden="true" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{name.slice(0, 1).toUpperCase()}</span>;
     return createPortal(
       <div className="avatar-lightbox" role="dialog" aria-label={name} onClick={(e) => { e.stopPropagation(); onClose(); }}>
-        {photo}
+        {teamCard?.canEdit && gameId && teamId
+          ? <div className="team-photo-edit" onClick={(e) => e.stopPropagation()}><AvatarUploader preview={teamPhoto} url={`/api/games/${gameId}/teams/${teamId}/avatar`} hasAvatar={Boolean(teamAvatarId)} blocked={user?.avatarBlocked} onChanged={loadTeam} label={teamAvatarId ? t("Заменить фото команды") : t("Поставить фото команды")} /></div>
+          : teamPhoto}
         <div className="card" onClick={(e) => e.stopPropagation()}>
           <div className="name" style={{ color: "inherit" }}>{name}</div>
           {teamCard && (teamCard.awards.length
