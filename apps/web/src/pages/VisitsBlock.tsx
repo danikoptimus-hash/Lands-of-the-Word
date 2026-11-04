@@ -54,7 +54,7 @@ export function VisitsBlock({ gameId, version = 0, onDecided }: { gameId: string
     <ReviewCard icon="users" title={t("Визиты")} count={pending} loading={!rows} error={loadError} onRetry={() => void load()}>
       {all.length > 0 && (
         <>
-          {all.length > open.length && <Tabs value={filter} onChange={setFilter} ariaLabel={t("Какие визиты показывать")} items={[{ key: "open", label: t("Открытые"), count: open.length }, { key: "closed", label: t("Решённые"), count: closed.length }]} />}
+          {all.length > open.length && <Tabs value={filter} onChange={setFilter} ariaLabel={t("Какие визиты показывать")} items={[{ key: "open", label: t("Открытые"), count: open.length }, { key: "closed", label: t("Закрытые"), count: closed.length }]} />}
           {shown.length === 0 ? <EmptyState inline icon="users" text={t("Сейчас отчётов нет.")} /> : (
             <ul className="list">
               {shown.map((v) => {
