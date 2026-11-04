@@ -95,6 +95,9 @@
 .m-deed.wreck .urgent text { fill: #fff; pointer-events: none; }
 .m-deed.wreck > g > circle:not(.far) { fill: var(--danger-soft, #f3d9d2); stroke: var(--danger, #b3402a); }
 .m-deed.wreck use { color: var(--danger, #b3402a); }
+/* Сдано на проверку: цвета ожидания, как у других дел (решение владельца 05.11). */
+.m-deed.wreck.submitted > g > circle:not(.far) { fill: var(--warn-soft); stroke: var(--warn); }
+.m-deed.wreck.submitted use { color: var(--warn); }
 .m-deed.sea.landing use { color: var(--on-accent); }
 /* Место высадки: пульсирующее кольцо и якорь; нажатие — высадка (сервер пускает только капитана). */
 .m-land { cursor: pointer; pointer-events: auto; }
