@@ -7,7 +7,7 @@ import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
-import { BookMap, PlanSheet } from "./BookMap";
+import { BookMap, WhoSheet } from "./BookMap";
 
 /**
  * Городская стена в своём городе (решение владельца 01.11): кладка из принятых блоков (каждый блок — участник выучил
@@ -187,12 +187,11 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
 function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, n, mineCount, onClose, onDone }: { gameId: string; nodeKey: string; bookCode: string; bricks: WallBrickDto[]; members: WallDto["members"]; canPlan: boolean; n: number; mineCount: number; onClose: () => void; onDone: () => void }) {
   const { notify } = useUi();
   const [k, setK] = useState<number | null>(null);
-  /** Блок, для которого открыт лист «кто будет учить» (капитану; решение владельца 03.11). */
+  /** Блок, для которого открыт лист «кто учил» (решение владельца 03.11; 04.11 — без отметок, просто кто сдал и кто нет). */
   const [who, setWho] = useState<WallBrickDto | null>(null);
   const [links, setLinks] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [planned, setPlanned] = useState<Map<number, Set<string>>>(() => new Map(bricks.map((b) => [b.k, new Set(b.planned)])));
   const chosen = useMemo(() => bricks.find((b) => b.k === k) ?? null, [bricks, k]);
   const repair = chosen?.state === "cracked" ? chosen : null;
   const canSubmit = chosen != null && (chosen.state === "free" || chosen.state === "cracked");
@@ -207,11 +206,6 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, n, mi
     } catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
-  async function plan(b: WallBrickDto, userId: string, on: boolean) {
-    setPlanned((m) => { const next = new Map(m); const set = new Set(next.get(b.k) ?? []); if (on) set.add(userId); else set.delete(userId); next.set(b.k, set); return next; });
-    try { await api(`/api/games/${gameId}/book-plan`, { method: "POST", body: JSON.stringify({ book: bookCode, from: b.start, to: b.end, userId, on }) }); }
-    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-  }
   const stateTitle = (b: WallBrickDto) => b.state === "approved" ? t("принят") : b.state === "submitted" ? t("на проверке") : b.state === "learned" ? t("стихи сданы в испытании") : b.state === "used" ? t("сгорел в испытании") : b.state === "cracked" ? t("надломлен: не хватает {n} стихов", { n: b.missing ?? 0 }) : "";
   const all = members.length;
   return (
@@ -219,7 +213,7 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, n, mi
       <p className="hint">{repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}<Help>{t("Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажмите на блок — увидите имена; капитан поручает блок.")}</Help></p>
       <div className="brick-grid bricks-tex" role="radiogroup" aria-label={t("Блоки книги")}>
         {bricks.map((b) => {
-          const takers = b.takers.length, pl = (planned.get(b.k) ?? new Set()).size;
+          const takers = b.takers.length;
           return (
             <button key={b.k} type="button" role="radio" aria-checked={k === b.k} className={"brick-btn " + b.state + (k === b.k ? " on" : "") + (takers === all && all > 0 ? " whole" : takers === 0 ? " none" : "")} disabled={!canPlan && b.state !== "free" && b.state !== "cracked"} title={stateTitle(b)} onClick={() => { setK(b.k); if (canPlan) setWho(b); }}>
               <span className="ref">{b.ref}</span>
@@ -229,7 +223,6 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, n, mi
               {b.state === "used" && <Icon name="wave" />}
               {b.state === "cracked" && <Icon name="alert" />}
               <span className="cnt" title={t("Могут взять: {n}", { n: takers })}>{takers === all && all > 0 ? t("все") : takers}</span>
-              {pl > 0 && <span className="pl" title={t("Поручен: {n}", { n: pl })}>{pl}</span>}
             </button>
           );
         })}
@@ -242,14 +235,11 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, n, mi
       )}
       {error && <p className="error" role="alert">{error}</p>}
       {who && (
-        <PlanSheet
+        <WhoSheet
           title={`${who.ref} · ${plural(who.end - who.start + 1, ["стих", "стиха", "стихов"])}`}
-          taken={{ marked: [], learned: members.filter((m) => !who.takers.includes(m.userId)).map((m) => m.name) }}
-          free={who.takers.map((uid) => ({ userId: uid, name: nameOf(uid), x2: members.find((m) => m.userId === uid)?.role === "WARRIOR" }))}
-          planned={planned.get(who.k) ?? new Set()}
-          canPlan={canPlan}
-          emptyText={t("Этот блок уже некому взять: у каждого в команде часть его стихов сдана.")}
-          onToggle={(uid, on) => void plan(who, uid, on)}
+          learned={members.filter((m) => !who.takers.includes(m.userId)).map((m) => m.name)}
+          marked={[]}
+          free={who.takers.map((uid) => ({ name: nameOf(uid), x2: members.find((m) => m.userId === uid)?.role === "WARRIOR" }))}
           onClose={() => setWho(null)}
         />
       )}

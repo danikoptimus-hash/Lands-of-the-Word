@@ -309,6 +309,7 @@ const EN: Record<string, string> = {
   "Дело не взято: отпускать нечего": "The deed is not taken: there is nothing to release",
   "С 0:00 до 7:00 по местному времени игра спит: задания города и взятие дел откроются утром.": "From 0:00 to 7:00 local time the game sleeps: city tasks and taking deeds open in the morning.",
   "Общее дело сдаёт капитан, заместитель или летописец": "A team deed is submitted by the captain, the deputy or the chronicler",
+  "Каменоломня откроется, когда команда дойдёт до прибрежного города": "The Quarry opens once the team reaches a coastal city",
   "Общее дело не найдено": "Team deed not found",
   "Отметьте, кто был: им дело пойдёт в зачёт": "Mark who was there: the deed will count for them",
   "Для этого дела нужно не меньше {n} участников из {m}": "This deed needs at least {n} of {m} members",

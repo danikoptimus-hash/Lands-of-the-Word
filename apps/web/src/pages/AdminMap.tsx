@@ -35,7 +35,7 @@ export interface BattleProgress { id: string; nodeKey: string; status: string; a
 /** Просьба «Посмотреть на карте» (владелец 10.10): сторона дела, на которой карта центрируется и приближается; nonce — чтобы повтор той же стороны снова сработал. */
 export interface MapFocus { teamId?: string | null; taskId?: string; fromKey: string; toKey: string; nonce: number }
 
-export interface TeamProgress { id: string; name: string; color: string; avatarId?: string | null; startNodeKey: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
+export interface TeamProgress { id: string; /** Индекс команды в игре (как в owner.index и foreign.teamIndex карты команды). */ index?: number; name: string; color: string; avatarId?: string | null; startNodeKey: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
 type TeamLite = { id: string; name: string; color: string; avatarId?: string | null };
 
 /**
@@ -58,7 +58,9 @@ function rewindTeamMap(map: MyMapDto, team: TeamProgress, teams: TeamProgress[],
   for (const h of map.hexes) if (lit(h)) for (const c of cornersOf(h)) { const k = keyOf(c); if (!revealed.has(k) && nodeKeys.has(k)) frontier.add(k); }
   const ownerAt = new Map<string, TeamProgress>();
   for (const c of cities ?? []) if (c.capturedAt) { const tm = teams.find((x) => x.id === c.teamId); if (tm) ownerAt.set(c.nodeKey, tm); }
-  const index = (id: string) => Math.max(0, teams.findIndex((x) => x.id === id));
+  // Индекс владельца — настоящий индекс команды (замечание владельца 04.11: без шатров «глазами команды»); место в списке — запасной вариант.
+  const index = (id: string) => teams.find((x) => x.id === id)?.index ?? Math.max(0, teams.findIndex((x) => x.id === id));
+  const byIndex = (i: number) => teams.find((x) => x.index === i) ?? teams[i];
   const otherTraversed = new Map<string, Set<string>>(teams.map((tm) => [tm.id, new Set(tm.traversed.map((e) => edgeKey(e.fromKey, e.toKey)))]));
   return {
     ...map,
@@ -74,7 +76,7 @@ function rewindTeamMap(map: MyMapDto, team: TeamProgress, teams: TeamProgress[],
     }),
     peeked: [],
     frontier: [...frontier],
-    foreign: (map.foreign ?? []).filter((f) => { const tm = teams[f.teamIndex]; return tm && tm.id !== team.id && otherTraversed.get(tm.id)?.has(edgeKey(f.aKey, f.bKey)); }),
+    foreign: (map.foreign ?? []).filter((f) => { const tm = byIndex(f.teamIndex); return tm && tm.id !== team.id && otherTraversed.get(tm.id)?.has(edgeKey(f.aKey, f.bKey)); }),
     dailyBird: null,
   };
 }
