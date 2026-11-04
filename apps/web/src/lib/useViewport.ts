@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { seaField } from "@lotw/domain";
+import { perfCommit, perfExpose, perfGesture } from "./perfHud";
 
 export interface View { k: number; tx: number; ty: number }
 export interface Bounds { minX: number; minY: number; width: number; height: number }
@@ -61,7 +62,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     if (commit) setViewState(v);
   }, [clampView]);
   const lastCommit = useRef(0);
-  const commit = useCallback(() => { lastCommit.current = performance.now(); lastCommitView.current = viewRef.current; setViewState(viewRef.current); }, []);
+  const commit = useCallback(() => { lastCommit.current = performance.now(); lastCommitView.current = viewRef.current; perfCommit(); setViewState(viewRef.current); }, []);
   const lastCommitView = useRef<View>({ k: 1, tx: 0, ty: 0 });
   /**
    * По ходу жеста: растр мира построен с запасом вокруг экрана (WorldSvg: 0.4 экрана); если масштаб ушёл дальше ×1.5
@@ -161,7 +162,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       if (pts.length === 1) {
         // До порога карта не сдвигается: дрожание пальца при нажатии не превращает нажатие в перетаскивание.
         if (!g.drag && Math.hypot(e.clientX - g.start.x, e.clientY - g.start.y) <= slop(e.pointerType)) return;
-        if (!g.drag) { g.drag = true; setDragging(true); }
+        if (!g.drag) { g.drag = true; setDragging(true); perfGesture("start"); }
         const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
         setView((v) => ({ ...v, tx: v.tx + dx, ty: v.ty + dy }));
         commitIfFar();
@@ -181,6 +182,7 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
       g.pinch = { dist, mid };
       g.drag = true;
       setDragging(true);
+      perfGesture("start");
       setView((v) => {
         const k = clampK(v.k * ratio);
         const f = k / v.k;
@@ -191,13 +193,13 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     const up = (e: PointerEvent) => {
       if (!pointers.current.has(e.pointerId)) return;
       pointers.current.delete(e.pointerId);
-      if (pointers.current.size === 0) { gesture.current = null; commit(); setTimeout(() => setDragging(false), 0); }
+      if (pointers.current.size === 0) { gesture.current = null; commit(); perfGesture("end"); setTimeout(() => setDragging(false), 0); }
       else if (gesture.current) gesture.current.pinch = null;
     };
-    const clear = (e: TouchEvent) => { if (e.touches.length === 0 && pointers.current.size) { pointers.current.clear(); gesture.current = null; commit(); setTimeout(() => setDragging(false), 0); } };
+    const clear = (e: TouchEvent) => { if (e.touches.length === 0 && pointers.current.size) { pointers.current.clear(); gesture.current = null; commit(); perfGesture("end"); setTimeout(() => setDragging(false), 0); } };
     // Приложение свернули или ушли с вкладки во время касания: pointerup уже не придёт, жест сбрасывается целиком,
     // иначе после возврата каждое нажатие считается перетаскиванием и на карте ничего не нажимается (ошибка 05.10).
-    const reset = () => { if (!pointers.current.size && !gesture.current && !draggingRef.current) return; pointers.current.clear(); gesture.current = null; commit(); setDragging(false); };
+    const reset = () => { if (!pointers.current.size && !gesture.current && !draggingRef.current) return; pointers.current.clear(); gesture.current = null; commit(); perfGesture("end"); setDragging(false); };
     const onVisibility = () => { if (document.visibilityState === "hidden") reset(); };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
@@ -225,9 +227,10 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
       const r = el.getBoundingClientRect();
+      perfGesture("start");
       zoomAt(e.deltaY < 0 ? 1.15 : 1 / 1.15, e.clientX - r.left, e.clientY - r.top, false);
       commitIfFar();
-      window.clearTimeout(timer); timer = window.setTimeout(commit, 120);
+      window.clearTimeout(timer); timer = window.setTimeout(() => { commit(); perfGesture("end"); }, 120);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => { el.removeEventListener("wheel", onWheel); window.clearTimeout(timer); };
@@ -249,6 +252,10 @@ export function useViewport(bounds: Bounds | null, focus?: { x: number; y: numbe
     gesture.current = { start: { x: e.clientX, y: e.clientY }, drag: pts.length > 1 ? (gesture.current?.drag ?? false) : false, pinch };
     if (pts.length === 1 && draggingRef.current) setDragging(false);
   };
+
+  // Для скриптов замера и эталонных снимков (scripts/map-perf.mjs, scripts/map-shots.mjs) с ?perf=1: масштаб
+  // относительно «вся карта» и установка вида с фиксацией; без параметра ничего не делает.
+  useEffect(() => { perfExpose("view", { fitK: () => fitK.current, get: () => viewRef.current, set: (v: View) => setView(v, true), fit, zoomAt: (f: number, cx?: number, cy?: number) => zoomAt(f, cx, cy, true) }); }, [setView, fit, zoomAt]);
 
   /** true, если последний жест был перетаскиванием или щипком (значит клик по клетке игнорируем). */
   const wasDrag = () => (gesture.current?.drag ?? false) || draggingRef.current;
