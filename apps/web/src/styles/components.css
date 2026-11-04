@@ -309,4 +309,5 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar-lightbox .card .awards-row .award { width: 76px; }
 .avatar-lightbox .card .none { color: var(--muted); font-size: var(--fs-sm); margin: var(--sp-1) 0; }
 /* Лист награды из карточки участника (30.10): выше карточки (у неё z-index 1000). */
-.overlay-backdrop:has(> .award-sheet) { z-index: calc(var(--z-modal, 1000) + 5); }
+/* Пока открыта карточка участника или команды, любой лист и окно подтверждения из неё — над ней (решение владельца 04.11). */
+.overlay-backdrop:has(> .award-sheet), body.has-lightbox .overlay-backdrop, body.has-lightbox .modal-backdrop { z-index: calc(var(--z-modal, 1000) + 5); }
