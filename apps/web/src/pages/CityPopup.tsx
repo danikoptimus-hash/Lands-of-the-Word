@@ -210,7 +210,10 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
           {city?.wall?.verses != null && city.wall.exists && <Chip tone="solid" icon="wall" title={t("Городская стена: {n}", { n: plural(city.wall.verses, ["стих", "стиха", "стихов"]) })}>{city.wall.verses}</Chip>}
           {city?.wall?.scouted && <Chip tone="solid" icon={city.wall.exists ? "wall" : "telescope"} title={t("Разведано {d}", { d: city.wall.scoutedAt ? fmtDate(city.wall.scoutedAt, { time: false }) : "" })}>{city.wall.exists ? t("стена") : t("без стены")}</Chip>}
           {city?.wall?.canScout && <button type="button" className="secondary icon sm" aria-label={t("Разведать стену")} title={city.wall.nextScoutAt ? t("Следующая разведка стен — {d}", { d: fmtDate(city.wall.nextScoutAt, { time: false }) }) : t("Разведать стену")} disabled={busy || night || Boolean(city.wall.nextScoutAt)} onClick={() => void scoutWall()}><Icon name="telescope" /></button>}
-          {city?.content && <ProphetCandle availableAt={city.state.hintAvailableAt} now={now} />}</div>
+          {city?.content && <ProphetCandle availableAt={city.state.hintAvailableAt} now={now} />}
+          {/* Знак ночи — маленький, в шапке города (решение владельца 04.11). */}
+          {city?.content && sleeping && <NightNote inline>{t("Город спит до 7:00 по местному времени. Ночью задания, знаки шифра и конверт закрыты; утром всё откроется.")}</NightNote>}
+          {city?.content && night && !sleeping && <NightNote inline>{t("До 0:00 можно расставлять районы и решать задания. Знаки шифра и конверт закрыты до 7:00 по местному времени.")}</NightNote>}</div>
         {/* Кто ещё дошёл до города (решение владельца 12.10): точки команд в подписи на карте, здесь — с названиями и датой. */}
         {/* В своём городе чипы других команд не нужны (решение владельца 04.11: «зачем тут это? нужно убрать»). */}
         {city?.visitors && city.visitors.length > 0 && !city.state.capturedAt && (
@@ -226,8 +229,6 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       {error && <p className="error" role="alert">{error}</p>}
       {!city && !error && <LoadingState rows={4} />}
       {city && !city.content && <div className="note warn"><Icon name="alert" /><span>{t("Задания для книги «{book}» ещё готовятся. Город пока нельзя взять.", { book: book?.nameRu ?? "" })}</span></div>}
-      {city?.content && sleeping && <NightNote>{t("Город спит до 7:00 по местному времени. Ночью задания, знаки шифра и конверт закрыты; утром всё откроется.")}</NightNote>}
-      {city?.content && night && !sleeping && <NightNote>{t("До 0:00 можно расставлять районы и решать задания. Знаки шифра и конверт закрыты до 7:00 по местному времени.")}</NightNote>}
 
       {!sleeping && city?.content && !task && (
         <ol className="steps" aria-label={t("Шаги")}>
