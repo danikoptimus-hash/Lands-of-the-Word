@@ -37,7 +37,7 @@ for (const [profile, game, map] of RUNS) {
   await ctx.request.post("/api/auth/login", { data: { nickname: USERS[map], password: PASS } });
   const page = await ctx.newPage();
   await page.clock.setFixedTime(TIME);
-  await page.goto(`/games/${GAMES[game]}${map === "team" ? "/team" : ""}?perf=1&tod=day${process.env.MAP_QUERY ? "&" + process.env.MAP_QUERY : ""}`); // MAP_QUERY — доп. параметры адреса (переключатели вариантов)
+  await page.goto(`/games/${GAMES[game]}${map === "team" ? "/team" : ""}?perf=1&tod=${process.env.MAP_TOD ?? "day"}${process.env.MAP_QUERY ? "&" + process.env.MAP_QUERY : ""}`); // MAP_QUERY — доп. параметры адреса (переключатели вариантов), MAP_TOD — время суток предпросмотра
   const host = map === "team" ? ".map-canvas" : ".admin-map-area .mapwrap";
   await page.waitForSelector(`${host} .map-svg`, { timeout: 60000 });
   // Туман (холст сразу после мирового SVG) тоже скрыт: его облака плывут по часам кадра, а не по Date, и снимки не повторялись бы.
