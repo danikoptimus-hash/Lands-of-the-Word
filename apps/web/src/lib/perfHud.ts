@@ -38,7 +38,21 @@ export function perfCommit(): void {
   const t0 = performance.now();
   requestAnimationFrame(() => { perfMark("фиксация → кадр", performance.now() - t0); requestAnimationFrame(() => perfMark("фиксация → 2-й кадр", performance.now() - t0)); });
 }
+/**
+ * Выключатели слоёв для сравнения на настоящем устройстве (только вместе с ?perf=1): `&perfoff=fauna,world,overlay,fog,sea`
+ * прячет слой живности, мировой SVG (дороги и города), верхний SVG (подписи и значки), туман или море. Слой при этом
+ * продолжает считать, но не растрируется и не компонуется — так видно, чей растр стоит кадров. Без параметра — ничего.
+ */
+const OFF: Record<string, string> = {
+  fauna: ".fx-layer.fauna{display:none!important}",
+  world: ".map-svg.world:not(.passthrough){display:none!important}",
+  overlay: ".map-svg.world.passthrough{display:none!important}",
+  fog: ".map-svg.world+canvas.fx-layer:not(.fauna){display:none!important}",
+  sea: ".fx-layer.sea{display:none!important}",
+};
 if (on && typeof document !== "undefined") {
+  const off = (/[?&]perfoff=([^&]+)/.exec(location.search)?.[1] ?? "").split(",").map((k) => OFF[k]).filter(Boolean);
+  if (off.length) { const st = document.createElement("style"); st.textContent = off.join("\n"); document.head.appendChild(st); }
   const box = document.createElement("pre"); box.id = "perf-hud";
   box.style.cssText = "position:fixed;left:8px;bottom:8px;z-index:9999;margin:0;padding:6px 8px;font:11px/1.35 monospace;background:rgba(0,0,0,.75);color:#9f9;border-radius:6px;pointer-events:none;white-space:pre";
   document.body.appendChild(box);
@@ -54,7 +68,7 @@ if (on && typeof document !== "undefined") {
     worst = Math.max(worst, dt); last = now; frames++;
     if (gestureFrames) gestureFrames.push(dt);
     if (now - tick >= 1000) {
-      const lines = [`кадр max ${worst.toFixed(0)} мс · ${frames} fps`];
+      const lines = [`кадр max ${worst.toFixed(0)} мс · ${frames} fps${off.length ? " · без: " + (/[?&]perfoff=([^&]+)/.exec(location.search)?.[1] ?? "") : ""}`];
       const g = perf.gesture;
       if (g) lines.push(`жест: p50 ${g.p50.toFixed(0)} · p95 ${g.p95.toFixed(0)} · max ${g.max.toFixed(0)} · n ${g.n}`);
       const c = count();
