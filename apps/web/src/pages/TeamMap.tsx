@@ -461,7 +461,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                   <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
                   {c?.isCapital && <use href="#m-crown" x={-w / 2 + 6} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
                   {c?.wall && <use href="#m-wall" x={w / 2 - fs - 5 - (noEntry ? fs + 5 : 0)} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
-                  {noEntry && <g className="no-entry" transform={`translate(${w / 2 - (fs + 2) / 2 - 5}, 0)`}><circle r={(fs + 2) / 2} /><rect x={-(fs + 2) / 2 + 2.2} y={-1.1} width={fs + 2 - 4.4} height={2.2} rx={1.1} /></g>}
+                  {noEntry && <g className="no-entry" transform={`translate(${w / 2 - (fs + 2) / 2 - 5}, 0)`}><circle r={(fs + 2) / 2 - 0.8} /><rect x={-(fs + 2) / 2 + 2.6} y={-1.2} width={fs + 2 - 5.2} height={2.4} rx={0.6} /></g>}
                   <text x={(iconW - wallW) / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{text}</text>
                 </g>
               );
