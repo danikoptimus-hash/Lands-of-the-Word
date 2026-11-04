@@ -6,6 +6,7 @@ import { plural } from "../lib/format";
 import { Icon } from "./Icon";
 import { AwardBadge, AwardSheet, preloadAwardImages } from "../pages/Awards";
 import { AvatarUploader } from "./AvatarUploader";
+import { InviteButtons } from "./InviteButtons";
 import { useAuth } from "../lib/auth";
 import type { AwardGrantDto } from "../lib/api";
 
@@ -50,6 +51,7 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
           {teamCard && (teamCard.awards.length
             ? <div className="awards-row">{teamCard.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" eager onClick={() => setPick(g)} />)}</div>
             : <div className="none">{t("Наград пока нет")}</div>)}
+          {teamCard?.canInvite && gameId && teamId && <InviteButtons gameId={gameId} teamId={teamId} />}
           <button type="button" className="secondary sm" onClick={onClose}>{t("Закрыть")}</button>
         </div>
         {pick && <AwardSheet code={pick.code} grant={pick} onClose={() => setPick(null)} />}

@@ -22,6 +22,7 @@ import { useMediaQuery } from "../lib/media";
 import { t } from "../lib/i18n";
 import { fmtDate, plural, setDisplayTimeZone } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { NightNote } from "../components/NightNote";
 import { LinksField } from "../components/LinksField";
 import { PeoplePicker } from "../components/PeoplePicker";
 import { Back } from "../components/Back";
@@ -937,7 +938,7 @@ export function TeamPage() {
               <p className="muted">{t("Дороги с делом сюда пока нет.")}</p>
               {pk && <div className="note info"><Icon name="telescope" /><span>{pk === "CITY" ? t("Разведано: там город.") : t("Разведано: там развилка.")}</span></div>}
               {error && <p className="error" role="alert">{error}</p>}
-              {phase === "night" && <div className="note info night-note"><Icon name="moon" /><span>{t("Ночь: разведка ждёт утра, с 7:00 по местному времени.")}</span></div>}
+              {phase === "night" && <NightNote>{t("Ночь: разведка ждёт утра, с 7:00 по местному времени.")}</NightNote>}
               {me?.gameRole === "SCOUT" && !pk && phase !== "night" && <div className="actions"><button type="button" className="secondary" disabled={busy} onClick={() => void peek(frontierKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></div>}
               {me?.gameRole !== "SCOUT" && !pk && <p className="hint">{t("Разведать этот перекрёсток может разведчик команды.")}</p>}
             </Sheet>
@@ -993,9 +994,9 @@ export function TeamPage() {
               {task.status === "SUBMITTED" && <div className="note info"><Icon name="clock" /><span>{t("На проверке у администратора.")}</span></div>}
               {peeked && <div className="note info"><Icon name="telescope" /><span>{peeked === "CITY" ? t("Разведано: там город.") : t("Разведано: там развилка.")}</span></div>}
               {error && <p className="error" role="alert">{error}</p>}
-              {night && !canTake && task.status !== "APPROVED" && task.status !== "SUBMITTED" && <div className="note info night-note"><Icon name="moon" /><span>{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</span></div>}
-              {night && canTake && (task.status === "OPEN" || task.status === "REJECTED") && <div className="note info night-note"><Icon name="moon" /><span>{t("До 0:00 дело можно взять; сдать и разведать — с 7:00 по местному времени.")}</span></div>}
-              {night && canTake && task.status === "TAKEN" && <div className="note info night-note"><Icon name="moon" /><span>{t("Ночь: сдать дело можно с 7:00 по местному времени.")}</span></div>}
+              {night && !canTake && task.status !== "APPROVED" && task.status !== "SUBMITTED" && <NightNote>{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</NightNote>}
+              {night && canTake && (task.status === "OPEN" || task.status === "REJECTED") && <NightNote>{t("До 0:00 дело можно взять; сдать и разведать — с 7:00 по местному времени.")}</NightNote>}
+              {night && canTake && task.status === "TAKEN" && <NightNote>{t("Ночь: сдать дело можно с 7:00 по местному времени.")}</NightNote>}
               {canTake && (task.status === "OPEN" || task.status === "REJECTED") && (
                 <div className="actions">
                   <button type="button" disabled={busy || limitFull(map) || Boolean(map?.deedsFrozenUntil)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>

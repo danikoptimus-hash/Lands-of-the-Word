@@ -86,7 +86,10 @@ export async function awardRoutes(app: FastifyInstance) {
     const rows = await prisma.awardGrant.findMany({ where: { gameId: id, teamId, userId: "" }, select: { code: true, at: true } });
     // Фото команды меняется в её профиле (решение владельца 04.11): право — у капитана этой команды (как у POST …/avatar).
     const canEdit = Boolean(await prisma.membership.findFirst({ where: { userId: request.user!.id, teamId, role: "CAPTAIN" }, select: { userId: true } }));
-    return { team, awards: summarize(rows), canEdit };
+    // Ссылки-приглашения капитана и участников — администратору в профиле команды (решение владельца 04.11: «переносим тоже в профиль команды»).
+    const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { admins: { select: { userId: true } } } });
+    const canInvite = game.admins.some((a) => a.userId === request.user!.id);
+    return { team, awards: summarize(rows), canEdit, canInvite };
   });
 
   /** Карточка участника: видна любому участнику игры. Ник — игровой (как в списках команды), без почты. */

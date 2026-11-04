@@ -62,7 +62,7 @@ export function BookMap({ gameId, bookCode, battleId, version = 0, look = "brick
           : <span className="muted small">{d.book.name}</span>}
         <Help>
           {/* Класс вида — на самой легенде: окошко «?» рисуется порталом вне .book-map, и текстуры кирпичей до неё не доходили (замечание владельца 04.11). */}
-          <p className={"bm-legend look-" + look}><i className="sw learned" />{t("закрыто у всех")} <i className="sw others" />{t("закрыто у части")} {battleId && <><i className="sw marked" />{t("в этом испытании")} </>}<i className="sw free" />{t("свободно")} {d.passage && <><i className="sw sel" />{t("отрывок")} </>}</p>
+          <p className={"bm-legend look-" + look}><span><i className="sw learned" />{t("закрыто у всех")}</span><span><i className="sw others" />{t("закрыто у части")}</span>{battleId && <span><i className="sw marked" />{t("в этом испытании")}</span>}<span><i className="sw free" />{t("свободно")}</span>{d.passage && <span><i className="sw sel" />{t("отрывок")}</span>}</p>
           <p>{t("Стих сдаётся один раз: что человек сдал в испытаниях или стеной, второй раз ему не засчитывается. Нажмите на стих или проведите пальцем по ряду — увидите, кто эти стихи уже сдал, а кто ещё нет.")}</p>
           {d.need != null && <p>{t("Итог сверху: отмечено в этом испытании; стихи воина считаются вдвое.")}</p>}
         </Help>
