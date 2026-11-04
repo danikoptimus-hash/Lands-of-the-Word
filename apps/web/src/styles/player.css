@@ -77,6 +77,9 @@
 .city-head .status.visitors { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .m-label text { fill: var(--text); pointer-events: none; }
 .m-label use { color: var(--text); pointer-events: none; }
+/* Запрещающий знак «проход закрыт» в подписи города (решение владельца 04.11): красный круг с белой чертой. */
+.m-label .no-entry circle { fill: #b3402a; stroke: #fff6e4; stroke-width: 1; }
+.m-label .no-entry rect { fill: #fff6e4; }
 .m-label.owned rect { fill: var(--team); }
 .m-label.ruined rect { fill: var(--muted); }
 .m-label.owned text, .m-label.ruined text { fill: var(--on-accent); }
