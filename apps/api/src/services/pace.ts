@@ -7,11 +7,32 @@ import { dayKey } from "./activity.js";
  * факт и прогноз», плюс «график с количеством дел в день»): города накопительно, факт и прогноз, когда вся карта будет
  * занята. Перенос отчёта pace-report: темп после разгона и логистическая кривая с потолком K (прогноз Монте-Карло убран
  * по решению владельца 23.10: «оставим только логистическую кривую»). Дела в день — принятые дела на сторонах и общие
- * дела Каменоломни по командам.
+ * дела Каменоломни по командам. Стихов в день — такой же график по выученным стихам (решение владельца 04.11).
  * Время — сутки от старта.
  */
 const DAY = 86_400_000;
 interface Pt { day: number; value: number }
+
+/** Принятые стихи одного участника: запись испытания или блок стены. */
+export interface Recited { userId: string; teamId: string; bookCode: string; startIdx: number; endIdx: number; at: Date }
+
+/**
+ * Выученные стихи по дням и командам (решение владельца 04.11: «график заученных стихов… точно такой же, как по делам…
+ * если 2 человека выучили один и тот же стих — в подсчёте это 2 стиха, а не 1»). Счёт по людям: у каждого участника стих
+ * засчитывается один раз, в день первого принятия, поэтому тот же стих у двоих — два стиха, а повтор своего стиха (в другом
+ * испытании, в починке стены) новым не считается. Дни вне партии пропускаются.
+ */
+export function versesByDay(recited: Recited[], days: string[], tz: string): Map<string, Map<string, number>> {
+  const out = new Map<string, Map<string, number>>(days.map((d) => [d, new Map()]));
+  const seen = new Set<string>();
+  for (const e of [...recited].sort((a, b) => a.at.getTime() - b.at.getTime())) {
+    let fresh = 0;
+    for (let i = e.startIdx; i <= e.endIdx; i++) { const k = `${e.userId}:${e.bookCode}:${i}`; if (!seen.has(k)) { seen.add(k); fresh++; } }
+    const m = out.get(dayKey(e.at, tz));
+    if (fresh && m) m.set(e.teamId, (m.get(e.teamId) ?? 0) + fresh);
+  }
+  return out;
+}
 
 export async function paceForecast(gameId: string) {
   const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId }, select: { startedAt: true, createdAt: true, settings: true, status: true, finishedAt: true } });
@@ -20,13 +41,16 @@ export async function paceForecast(gameId: string) {
   const end = game.finishedAt ?? new Date();
   const T = Math.max((end.getTime() - start.getTime()) / DAY, 0.5);
   const dayOf = (d: Date) => (d.getTime() - start.getTime()) / DAY;
-  const [K, teams, rows, states, wonBattles, wonSieges] = await Promise.all([
+  const [K, teams, rows, states, wonBattles, wonSieges, entries, blocks] = await Promise.all([
     prisma.mapNode.count({ where: { gameId, kind: "CITY" } }),
     prisma.team.findMany({ where: { gameId }, select: { id: true, name: true, color: true, avatarId: true }, orderBy: { index: "asc" } }),
     prisma.journal.findMany({ where: { gameId, kind: { in: ["city_captured", "ruins_taken", "task_solved", "deed_approved", "quarry_approved"] } }, select: { kind: true, teamId: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
     prisma.teamCityState.findMany({ where: { gameId, capturedAt: { not: null } }, select: { doneTasks: true, isCapital: true } }),
     prisma.battle.findMany({ where: { gameId, status: "WON", resolvedAt: { not: null } }, select: { attackerId: true, defenderId: true, resolvedAt: true } }),
     prisma.siege.findMany({ where: { gameId, status: "WON", resolvedAt: { not: null } }, select: { attackerId: true, defenderId: true, resolvedAt: true } }),
+    // Стихи: принятые записи испытаний без перенесённых из прошлого вызова и принятые блоки стены (сгоревшие и починки тоже).
+    prisma.battleEntry.findMany({ where: { battle: { gameId }, status: "APPROVED", carried: false }, select: { userId: true, teamId: true, startIdx: true, endIdx: true, decidedAt: true, createdAt: true, battle: { select: { bookCode: true } } } }),
+    prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED" }, select: { userId: true, teamId: true, bookCode: true, startIdx: true, endIdx: true, decidedAt: true, createdAt: true } }),
   ]);
   // Взятие города — выполнением заданий (и руин тоже). Переход города по испытанию или осаде (замечание владельца 01.11:
   // «отвоевал 2 города, а на графике это не отобразилось») общий счёт не меняет, а линии команд — да: минус у хранителей, плюс у претендентов.
@@ -77,6 +101,10 @@ export async function paceForecast(gameId: string) {
   // Дел в сутки для плитки (владелец 23.10: «мне нужны здесь только дела»): среднее принятых дел по полным дням, все команды.
   let deedsTotal = 0; for (let i = 0; i < fitDays; i++) for (const v of deedsByDay.get(days[i]!)?.values() ?? []) deedsTotal += v;
   const dailyDeedsAvg = fitDays > 0 ? deedsTotal / fitDays : 0;
+  const verses = versesByDay([
+    ...entries.map((e) => ({ userId: e.userId, teamId: e.teamId, bookCode: e.battle.bookCode, startIdx: e.startIdx, endIdx: e.endIdx, at: e.decidedAt ?? e.createdAt })),
+    ...blocks.map((b) => ({ userId: b.userId, teamId: b.teamId, bookCode: b.bookCode, startIdx: b.startIdx, endIdx: b.endIdx, at: b.decidedAt ?? b.createdAt })),
+  ], days, tz);
   const logistic: Pt[] = []; for (let d = 0; d <= T + horizon; d += 1) logistic.push({ day: d, value: best.K / (1 + Math.exp(-best.r * (d - best.t0))) });
   return {
     tz, startedAt: start, now: end, T, K, n, rate, rampDay, dailyTasksAvg, dailyDeedsAvg, milestones,
@@ -84,6 +112,7 @@ export async function paceForecast(gameId: string) {
     fact: caps.map((c, i) => ({ day: c.day, value: i + 1, teamId: c.teamId })),
     transfers,
     deeds: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => deedsByDay.get(d)?.get(t.id) ?? 0) })), fitDays },
+    verses: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => verses.get(d)?.get(t.id) ?? 0) })), fitDays },
     logistic: { K: best.K, r: best.r, t0: best.t0, curve: logistic, finish: Object.fromEntries(milestones.map((m) => [m, m <= n ? null : logisticAt(m)])) },
   };
 }
