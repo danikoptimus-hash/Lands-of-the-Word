@@ -188,3 +188,79 @@ export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string
     </ReviewCard>
   );
 }
+
+
+/**
+ * Разбитые бурей корабли (решение владельца 04.11): сдачи срочных заданий. Принято — груз по жребию сервера (камни или
+ * блоки для стен), после решения видно, что выпало; возвращено — с комментарием, команда может сдать снова.
+ */
+interface WreckRow { id: string; wreckId: string; team: { id: string; name: string; color: string; avatarId?: string | null; stones: number; cargoBlocks: number }; title: string; description: string; proofType: EdgeTaskDto["deed"]["proofType"]; by: string; participants: string[]; links: string[]; note: string; status: "SUBMITTED" | "APPROVED" | "REJECTED"; submittedAt: string; decidedAt: string | null; adminComment: string; cargo: "STONES" | "BLOCKS" | null; amount: number | null; sunk: boolean }
+export function WrecksBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
+  const { notify } = useUi();
+  const [rows, setRows] = useState<WreckRow[] | null>(() => ready<{ works: WreckRow[] }>(`/api/games/${gameId}/wrecks/submissions`)?.works ?? null);
+  const [done, setDone] = useState<WreckRow[]>([]);
+  const [loadError, setLoadError] = useState(false);
+  const [returning, setReturning] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [descOpen, setDescOpen] = useState<Set<string>>(new Set());
+  const load = useCallback(() => Promise.all([
+    apiReady<{ works: WreckRow[] }>(`/api/games/${gameId}/wrecks/submissions`).then((r) => setRows(r.works)),
+    api<{ works: WreckRow[] }>(`/api/games/${gameId}/wrecks/submissions?status=DECIDED`).then((r) => setDone(r.works.slice(0, 6))).catch(() => {}),
+  ]).then(() => setLoadError(false)).catch(() => setLoadError(true)), [gameId]);
+  useAutoRefresh(load, version);
+  async function decide(id: string, approve: boolean, comment = "") {
+    setBusyId(id);
+    try {
+      const r = await api<{ cargo?: "STONES" | "BLOCKS"; amount?: number }>(`/api/games/${gameId}/wrecks/works/${id}/decide`, { method: "POST", body: JSON.stringify({ approve, comment }) });
+      notify(approve ? (r.cargo === "STONES" ? t("Принято: выпали тёсаные камни — {n}", { n: r.amount ?? 0 }) : t("Принято: выпали блоки для стен — {n}", { n: r.amount ?? 0 })) : t("Сдача возвращена"));
+      setReturning(null); await load(); onDecided();
+    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusyId(null); }
+  }
+  const cargoText = (w: WreckRow) => w.cargo === "STONES" ? t("выпало: тёсаных камней {n}", { n: w.amount ?? 0 }) : w.cargo === "BLOCKS" ? t("выпало: блоков для стен {n}", { n: w.amount ?? 0 }) : "";
+  const linkKind = (p: WreckRow["proofType"]) => (p === "PHOTO_LINK" ? "photo" : p === "VIDEO_LINK" ? "video" : "link");
+  const toggleDesc = (id: string) => setDescOpen((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  if (rows && rows.length === 0 && done.length === 0) return null;
+  return (
+    <ReviewCard icon="ship" title={t("Корабли")} count={rows?.length ?? 0} loading={!rows} error={loadError} onRetry={() => void load()}>
+      {rows && rows.length > 0 && (
+        <ul className="list">
+          {rows.map((r) => (
+            <li key={r.id} className="review-item">
+              <div className="main">
+                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName teamId={r.team.id} /><Chip tone="bad" icon="ship">{t("срочное")}</Chip><span className="muted small">· {t("у команды: камней {a}, блоков {b}", { a: r.team.stones, b: r.team.cargoBlocks })}</span></span>
+                <span className="title">{r.title}</span>
+                {r.description && <button type="button" className="ghost sm desc-toggle" aria-expanded={descOpen.has(r.id)} onClick={() => toggleDesc(r.id)}><Icon name="scroll" />{t("Описание")}</button>}
+                {r.description && descOpen.has(r.id) && <span className="deed-desc open small muted">{r.description}</span>}
+                <span className="meta"><span>{PROOF_LABEL[r.proofType]}</span><span>· {r.by}</span><span>· {fmtDate(r.submittedAt)}</span>{r.participants.length > 0 && <span className="participants">· <Icon name="users" />{t("с участниками: {names}", { names: r.participants.join(", ") })}</span>}</span>
+                {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
+                <LinkList links={r.links} kind={linkKind(r.proofType)} />
+              </div>
+              <div className="side">
+                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id}><Icon name="check" />{t("Принять")}</button>
+                {returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" />{t("Вернуть")}</button>}
+              </div>
+              {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
+            </li>
+          ))}
+        </ul>
+      )}
+      {done.length > 0 && (
+        <details className="disclose sm mt-2">
+          <summary><Icon name="clock" />{t("Решённые")}<Icon name="chevron-down" className="chev" /></summary>
+          <ul className="list">
+            {done.map((w) => (
+              <li key={w.id}>
+                <div className="main">
+                  <span className="row nowrap"><TeamAvatar name={w.team.name} color={w.team.color} avatarId={w.team.avatarId} size="sm" withName teamId={w.team.id} />{w.status === "APPROVED" ? <Chip tone="ok" icon="check">{t("принято")}</Chip> : <Chip tone="bad" icon="alert">{w.sunk && w.adminComment === "Корабль затонул" ? t("корабль затонул") : t("возвращено")}</Chip>}</span>
+                  <span className="title">{w.title}</span>
+                  <span className="meta">{w.decidedAt && <span>{fmtDate(w.decidedAt)}</span>}{w.status === "APPROVED" && <span>· <Icon name={w.cargo === "STONES" ? "stone" : "wall"} />{cargoText(w)}</span>}{w.status === "REJECTED" && w.adminComment && w.adminComment !== "Корабль затонул" && <span>· {w.adminComment}</span>}</span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </ReviewCard>
+  );
+}

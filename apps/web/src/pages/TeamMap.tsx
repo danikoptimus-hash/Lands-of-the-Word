@@ -12,7 +12,7 @@ import type { DailyBirdDto, EdgeTaskStatus, MapHexDto, MapMarkDto, MyMapDto } fr
 import { CoastOver, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
-import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
+import { FaunaLayer, trimRoute, type FireSite, type WreckSpec } from "./Fauna";
 import { css, stormLight, useDaytime, type Storm } from "../lib/daytime";
 import { StormLayer } from "./StormLayer";
 import { FireworksLayer, type FireworkSite } from "./FireworksLayer";
@@ -83,7 +83,7 @@ export function teamFogInputs(map: Pick<MyMapDto, "hexes" | "revealed" | "edges"
   return { fogHexes, landKeys, fogClear: { nodes, edges }, fogPoints };
 }
 
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, bird, focusTask, storm, scout }: { /** Разведка (решение владельца 29.10): туман вокруг перекрёстка раздвигается на пять секунд и показывает, что там. */ scout?: ScoutReveal | null; /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, onSelectWreck, bird, focusTask, storm, scout }: { /** Нажатие на разбитый бурей корабль (решение владельца 04.11): лист срочного задания. */ onSelectWreck?: (wreckId: string) => void; /** Разведка (решение владельца 29.10): туман вокруг перекрёстка раздвигается на пять секунд и показывает, что там. */ scout?: ScoutReveal | null; /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -138,6 +138,15 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const fireworkSites = useMemo<FireworkSite[]>(() => (map.cities ?? []).filter((c) => c.takenAt).map((c) => { const p = nodePos(c.nodeKey, size); return { key: c.nodeKey, x: p.x, y: p.y - size * 0.3, at: Date.parse(c.takenAt!) }; }), [map.cities, size]);
   const fires = useMemo<FireSite[]>(() => map.revealed.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [map.revealed, size]);
   const revealed = useMemo(() => new Set(map.revealed.map((n) => n.key)), [map.revealed]);
+  // Разбитые бурей корабли (решение владельца 04.11): место — гекс от сервера; починка от момента одобрения, гибель — от closedAt.
+  const wreckSpecs = useMemo<WreckSpec[]>(() => (map.wrecks ?? []).map((w) => { const c = hexCenter(w, size); return { id: w.id, x: c.x, y: c.y, kind: (w.model % 3) as 0 | 1 | 2, seed: w.seed, repairedAt: w.mine?.status === "APPROVED" && w.mine.decidedAt ? Date.parse(w.mine.decidedAt) : null, sunkAt: w.sunkAt ? Date.parse(w.sunkAt) : null }; }), [map.wrecks, size]);
+  // Маркер корабля гаснет, когда он уплыл или ушёл под воду: секунды от часов сервера, тик раз в две секунды, пока есть такие корабли.
+  const [wreckTick, setWreckTick] = useState(0);
+  useEffect(() => {
+    if (!wreckSpecs.some((w) => w.repairedAt != null || w.sunkAt != null)) return;
+    const timer = setInterval(() => setWreckTick((v) => v + 1), 2000);
+    return () => clearInterval(timer);
+  }, [wreckSpecs]);
   const cityByKey = useMemo(() => new Map((map.cities ?? []).map((c) => [c.nodeKey, c])), [map.cities]);
   const taskByEdge = useMemo(() => {
     const m = new Map<string, (typeof map.tasks)[number]>();
@@ -588,7 +597,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={light} hole={hole} />}
       {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); рисует слой живности: киты под буквами,
           корабли над ними (решение владельца 05.10). */}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} labels={islandLabels} routes={GL_ROUTES ? [] : routeSpecs} />
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} labels={islandLabels} routes={GL_ROUTES ? [] : routeSpecs} wrecks={wreckSpecs} />
       {GL_ROUTES && <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => {}} />}
       {fireworkSites.length > 0 && !perfOff("fireworks") && <FireworksLayer vp={vp} sites={fireworkSites} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} />}
       {storm && storm.t > 0 && <StormLayer t={storm.t} />}
@@ -616,6 +625,25 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         <g className="screen-items">
           {/* Каменоломня вне memo: обработчик нажатия должен видеть свежее состояние перетаскивания (ошибка 05.10: после закрытия лист не открывался). */}
           {quarryMarker}
+          {/* Разбитые корабли вне memo (как Каменоломня): маркер «срочно» над кораблём виден при любом масштабе, область
+              нажатия ~1,2 гекса вокруг корпуса — выше городов (слой над миром); нажатие по маркеру тоже открывает лист. */}
+          {wreckSpecs.map((w) => {
+            void wreckTick;
+            const now = serverClock();
+            if ((w.repairedAt != null && now - w.repairedAt > 9000) || (w.sunkAt != null && w.repairedAt == null && now - w.sunkAt > 9500)) return null;
+            const r = R + 2, open = () => { if (!vp.wasDrag()) onSelectWreck?.(w.id); };
+            const title = (map.wrecks ?? []).find((x) => x.id === w.id)?.title ?? "";
+            return (
+              <g key={"wreck" + w.id} data-id={w.id} className="m-deed sea wreck" role="button" aria-label={t("Срочное задание: {title}", { title })} onClick={open}>
+                <circle className="wreck-hit" cx={w.x} cy={w.y} r={size * 1.15} />
+                <g style={sc(w.x, w.y - size * 0.95)}>
+                  <circle r={r} />
+                  <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
+                  <g className="urgent" transform={`translate(${(r * 0.72).toFixed(1)}, ${(-r * 0.72).toFixed(1)})`}><circle r={6.5} /><text textAnchor="middle" dy="0.36em" fontSize={9.5} fontWeight={800}>!</text></g>
+                </g>
+              </g>
+            );
+          })}
           {screenBody}
         </g>
       </WorldSvg>

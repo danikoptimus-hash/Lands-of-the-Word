@@ -4,7 +4,8 @@
  * Запуск (из корня, при поднятом локальном сервере с тестовыми данными):
  *   MAP_GAME=<id тяжёлой партии> MAP_CAPTAIN=<ник капитана> MAP_ADMIN=<ник администратора> MAP_PASS=<пароль тестовых аккаунтов> \
  *   [MAP_GAME_LIGHT=<id лёгкой партии>] [MAP_BASE=http://localhost:3000] [MAP_OUT=/путь/map-perf.json] [MAP_CPU=4] [MAP_TRACE=1] \
- *   [MAP_RUNS=phone:team:full,phone:team:early,...] [MAP_QUERY=routes=gl] node scripts/map-perf.mjs
+ *   [MAP_RUNS=phone:team:full,phone:team:early,...] [MAP_QUERY=routes=gl] [MAP_STYLE='image[filter]{filter:none}'] node scripts/map-perf.mjs
+ * MAP_STYLE — дополнительный CSS на страницу (опыты: например, выключить фильтр обводки городов).
  * Ники и пароль — только из переменных окружения. Нужен Playwright (devDependencies) и Chromium (PW_CHROMIUM,
  * по умолчанию /opt/pw-browsers/chromium).
  *
@@ -50,8 +51,9 @@ for (const [profile, map, variant] of RUNS) {
       if ((v === "nofauna" && fauna) || (!all && this.classList.contains("fx-layer") && !fauna)) return null;
       return orig.call(this, type, opts);
     };
-    if (v === "nosvg") document.addEventListener("DOMContentLoaded", () => { const st = document.createElement("style"); st.textContent = ".map-svg.world{display:none!important}"; document.head.appendChild(st); });
-  }, { v: variant, all: process.env.MAP_LAYERS === "all" });
+    const css = (v === "nosvg" ? ".map-svg.world{display:none!important}\n" : "") + (extra ?? "");
+    if (css) document.addEventListener("DOMContentLoaded", () => { const st = document.createElement("style"); st.textContent = css; document.head.appendChild(st); });
+  }, { v: variant, all: process.env.MAP_LAYERS === "all", extra: process.env.MAP_STYLE ?? "" });
   if (variant === "early") await ctx.route(/\/api\/games\/[^/]+\/(my-map|teams\/[^/]+\/map)(\?|$)/, async (route) => { const r = await route.fetch(); const b = await r.json(); b.tasks = []; b.foreign = []; b.marks = []; await route.fulfill({ response: r, json: b }); });
   await ctx.request.post("/api/auth/login", { data: { nickname: USERS[map], password: PASS } });
   const page = await ctx.newPage();
@@ -60,7 +62,8 @@ for (const [profile, map, variant] of RUNS) {
   await page.waitForSelector(`${host} .map-svg`, { state: "attached", timeout: 60000 });
   await page.addStyleTag({ content: ".toasts{display:none!important}" });
   await page.waitForTimeout(6000); // догон живности и первая фиксация
-  const counts = await page.evaluate(() => ({ svg: [...document.querySelectorAll(".map-svg")].map((s) => s.querySelectorAll("*").length), edges: document.querySelectorAll(".m-edge, .adm-edge").length, routes: document.querySelectorAll(".sea-route, .adm-sea-route").length, cityFilters: document.querySelectorAll("image[filter]").length, canvases: [...document.querySelectorAll("canvas")].map((c) => `${c.className}:${c.width}×${c.height}`) }));
+  // Стороны и пути — из модели попадания карты (с Э1 их областей нажатия в SVG нет): window.__perf.scene.
+  const counts = await page.evaluate(() => ({ svg: [...document.querySelectorAll(".map-svg")].map((s) => s.querySelectorAll("*").length), edges: window.__perf?.scene?.edges ?? document.querySelectorAll(".m-edge, .adm-edge").length, routes: window.__perf?.scene?.routes ?? 0, cityFilters: document.querySelectorAll("image[filter]").length, canvases: [...document.querySelectorAll("canvas")].map((c) => `${c.className}:${c.width}×${c.height}`) }));
   const cdp = await ctx.newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU });
   const idle = await page.evaluate(() => new Promise((res) => { const f = []; let last = 0; const t0 = performance.now(); const step = (now) => { if (last) f.push(now - last); last = now; if (now - t0 < 2500) requestAnimationFrame(step); else res(f); }; requestAnimationFrame(step); }));

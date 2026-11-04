@@ -8,7 +8,7 @@ import { TeamsBlock } from "./TeamsBlock";
 import { DeedsBlock } from "./DeedsBlock";
 import { StartBlock, type MapStats } from "./StartBlock";
 import { SettingsBlock } from "./SettingsBlock";
-import { QuarryBlock, SubmissionsBlock } from "./SubmissionsBlock";
+import { QuarryBlock, SubmissionsBlock, WrecksBlock } from "./SubmissionsBlock";
 import { BattlesBlock } from "./BattlesBlock";
 import { WallsBlock } from "./WallsBlock";
 import { VisitsBlock } from "./VisitsBlock";
@@ -68,7 +68,7 @@ export function GamePage() {
   const [genError, setGenError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [version, setVersion] = useState(0);
-  const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, quarry: 0, battles: 0, walls: 0, recipients: 0, visits: 0 });
+  const [counts, setCounts] = useState({ teams: 0, deeds: 0, submissions: 0, quarry: 0, wrecks: 0, battles: 0, walls: 0, recipients: 0, visits: 0 });
   const [progress, setProgress] = useState<Progress | null>(() => ready<Progress>(`/api/games/${id}/progress`));
   /** «Посмотреть на карте» из «Проверки» и блока «Команды» (просьба владельца 10.10): закрыть раздел и показать сторону дела вблизи. */
   const [mapFocus, setMapFocus] = useState<MapFocus | null>(null);
@@ -89,7 +89,7 @@ export function GamePage() {
   useEffect(() => {
     if (!game) return;
     const started = game.status !== "DRAFT";
-    const review = game.status === "ACTIVE" ? [`/api/games/${id}/submissions`, `/api/games/${id}/quarry/submissions`, `/api/games/${id}/battles`, `/api/games/${id}/visits`, `/api/games/${id}/passages`] : [];
+    const review = game.status === "ACTIVE" ? [`/api/games/${id}/submissions`, `/api/games/${id}/quarry/submissions`, `/api/games/${id}/wrecks/submissions`, `/api/games/${id}/battles`, `/api/games/${id}/visits`, `/api/games/${id}/passages`] : [];
     prefetch([`/api/games/${id}/teams`, `/api/games/${id}/deeds`, ...(started ? [`/api/games/${id}/standings`, `/api/games/${id}/journal`, `/api/games/${id}/activity`, `/api/games/${id}/analytics/pace`] : []), ...review]);
     if (started && !Analytics) void import("./GameAnalytics").then((m) => setAnalytics(() => m.GameAnalytics)).catch(() => {});
   }, [id, game?.id, game?.status]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -105,13 +105,15 @@ export function GamePage() {
   /** Счётчики для вкладок и чек-листа: что ждёт администратора. Лёгкие запросы, обновляются с каждым событием игры. */
   const loadCounts = useCallback(async (status: string) => {
     const active = status === "ACTIVE";
-    const [teams, deeds, submissions, quarry, battles, walls, recipients, visits] = await Promise.all([
+    const [teams, deeds, submissions, quarry, wrecks, battles, walls, recipients, visits] = await Promise.all([
       api<{ teams: unknown[] }>(`/api/games/${id}/teams`).then((r) => r.teams.length).catch(() => 0),
       // Счётчик раздела «Дела» — все дела на дорогах, включённые и выключенные, без дел Каменоломни (решения владельца 05.10 и 07.10).
       api<{ deeds: Array<{ quarry?: boolean }> }>(`/api/games/${id}/deeds`).then((r) => r.deeds.filter((d) => !d.quarry).length).catch(() => 0),
       active ? api<{ tasks: unknown[] }>(`/api/games/${id}/submissions`).then((r) => r.tasks.length).catch(() => 0) : 0,
       // Сдачи Каменоломни тоже ждут проверки — считаем их в кружке «Проверка» (замечание владельца 07.10).
       active ? api<{ works: unknown[] }>(`/api/games/${id}/quarry/submissions`).then((r) => r.works.length).catch(() => 0) : 0,
+      // Сдачи срочных заданий с разбитых кораблей (решение владельца 04.11) — в тот же кружок «Проверка».
+      active ? api<{ works: unknown[] }>(`/api/games/${id}/wrecks/submissions`).then((r) => r.works.length).catch(() => 0) : 0,
       // Идущие испытания — как на вкладке «Идут» в блоке «Испытания» (решение владельца 04.11: «если активных испытаний 3»).
       active ? api<{ battles: Array<{ status: string }> }>(`/api/games/${id}/battles`).then((r) => r.battles.filter((b) => b.status === "ATTACK" || b.status === "DEFENSE" || b.status === "QUEUED").length).catch(() => 0) : 0,
       // Блоки городской стены на проверке (замечание владельца 02.11: «почему нет уведомления на плитке про стены») — в тот же кружок.
@@ -120,7 +122,7 @@ export function GamePage() {
       // Отчёты о визитах, ждущие решения, — второй значок на плитке «Проверка» (решение владельца 29.10): сдачи дел и визиты считаются порознь.
       active ? api<{ visits: Array<{ status: string }> }>(`/api/games/${id}/visits`).then((r) => r.visits.filter((v) => v.status === "SUBMITTED").length).catch(() => 0) : 0,
     ]);
-    setCounts({ teams, deeds, submissions, quarry, battles, walls, recipients, visits });
+    setCounts({ teams, deeds, submissions, quarry, wrecks, battles, walls, recipients, visits });
   }, [id]);
 
   const loadAll = useCallback(() => { load().catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); void loadProgress(); }, [load, loadProgress]);
@@ -163,7 +165,7 @@ export function GamePage() {
   const active = game.status === "ACTIVE";
   const draft = game.status === "DRAFT";
   // Испытания на проверке — отдельным значком с волной, а не в кружке дел (замечание владельца 04.11: «показывается значок дела, а не значок испытания»).
-  const reviewCount = counts.submissions + counts.quarry;
+  const reviewCount = counts.submissions + counts.quarry + counts.wrecks;
   const hasMap = hexes.length > 0;
   const refresh = () => { void load(); void loadProgress(); };
 
@@ -247,6 +249,7 @@ export function GamePage() {
             <div key="review">
               <SubmissionsBlock gameId={game.id} version={version} currency={game.settings.donationCurrency} onDecided={() => { void loadProgress(); bump(); }} onShowOnMap={showOnMap} />
               <QuarryBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
+              <WrecksBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <BattlesBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <WallsBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <VisitsBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />

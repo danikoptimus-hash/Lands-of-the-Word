@@ -13,3 +13,4 @@ export * from "./storm.js";
 export * from "./sleep.js";
 export * from "./fireworks.js";
 export * from "./awards.js";
+export * from "./wrecks.js";

@@ -10,6 +10,7 @@ const { compare } = jsonPatch;
 import { days, rulesOf, type Rules } from "./rules.js";
 import { journal } from "./journal.js";
 import { wallsAt } from "./wall.js";
+import { wrecksForTeam } from "./wrecks.js";
 import { battleVisibleTo } from "./visibility.js";
 
 /**
@@ -72,7 +73,7 @@ export async function pickDeed(gameId: string, teamId: string, bookCode: string 
   // если команда его уже брала или сдавала; дела до 60% не ставятся рядом с таким же (в двух шагах); по книге города — в первую очередь.
   const [allDeeds, used] = await Promise.all([
     // Выключенные администратором дела на новые дороги не ставятся (решение владельца 06.10).
-    prisma.deed.findMany({ where: { gameId, quarry: false, disabled: false, ...(excludeId ? { id: { not: excludeId } } : {}), ...(onlyRemote ? { remote: true } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, chance: true, title: true, description: true } }),
+    prisma.deed.findMany({ where: { gameId, quarry: false, wreck: false, disabled: false, ...(excludeId ? { id: { not: excludeId } } : {}), ...(onlyRemote ? { remote: true } : {}) }, select: { id: true, canRepeat: true, bookCodes: true, chance: true, title: true, description: true } }),
     prisma.teamEdgeTask.findMany({ where: { teamId, status: { not: "OPEN" } }, select: { deedId: true } }),
   ]);
   // Дело с [Книга] или [Главы] в тексте — только на сторону из города (решение владельца 08.10: «исключительно с книгой,
@@ -686,6 +687,8 @@ async function computeTeamMap(gameId: string, teamId: string) {
   const foreign = foreignRows.filter((f) => revealed.has(f.fromKey) || revealed.has(f.toKey)).map((f) => ({ aKey: f.fromKey, bKey: f.toKey, sea: f.sea, teamIndex: f.team.index, name: f.team.name, color: f.team.color }));
   const authorRows = marks.length ? await prisma.user.findMany({ where: { id: { in: [...new Set(marks.map((mk) => mk.createdById))] } }, select: { id: true, nickname: true, displayName: true } }) : [];
   const authors = new Map(authorRows.map((u) => [u.id, u.displayName || u.nickname] as const));
+  // Разбитые бурей корабли (решение владельца 04.11): одни на все команды; свой статус сдачи — у каждой команды свой.
+  const wrecks = await wrecksForTeam(gameId, teamId);
   const withLanding = await Promise.all(visibleTasks.map(async (t) => {
     if (!t.sea) return t;
     const landing = t.status === "APPROVED" && isSeaKey(t.toKey);
@@ -710,5 +713,6 @@ async function computeTeamMap(gameId: string, teamId: string) {
     // Часовой полёт клина к ближайшему неоткрытому городу команды (решение владельца 29.09, с 02.10 раз в час): раз в сутки, в своё случайное время.
     dailyBird: birdView(dailyBird(gameId, teamId, teamRow?.startNodeKey, revealed, nodes, edges)),
     foreign,
+    wrecks,
   };
 }

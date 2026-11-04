@@ -1,0 +1,83 @@
+import { useState } from "react";
+import { api, ApiError, PROOF_LABEL, type WreckDto } from "../lib/api";
+import { useUi } from "../lib/ui";
+import { t } from "../lib/i18n";
+import { fmtDate } from "../lib/format";
+import { Icon } from "../components/Icon";
+import { Chip } from "../components/Chip";
+import { Sheet } from "../components/Sheet";
+import { Help } from "../components/Help";
+import { LinksField } from "../components/LinksField";
+import { PeoplePicker } from "../components/PeoplePicker";
+
+/**
+ * Лист срочного задания с разбитого бурей корабля (решение владельца 04.11): описание дела, возможный груз (команда
+ * знает, что на борту, но не знает, что выпадет), форма сдачи как у Каменоломни (ссылки, отчёт, кто участвовал).
+ * Состояния: на проверке; возвращено с комментарием (сдать снова); принято — что выпало, корабль уходит; затонул.
+ */
+export function WreckSheet({ gameId, wreck, members, canWork, asleep = false, container, onClose, onChanged }: { gameId: string; wreck: WreckDto; members: Array<{ id: string; name: string }>; /** Капитан, заместитель или летописец: могут сдать. */ canWork: boolean; /** Ночь или шторм: сдать нельзя. */ asleep?: boolean; container: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
+  const { notify } = useUi();
+  const [links, setLinks] = useState<string[]>([]);
+  const [note, setNote] = useState("");
+  const [participants, setParticipants] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const mine = wreck.mine;
+  const pending = mine?.status === "SUBMITTED", approved = mine?.status === "APPROVED", returned = mine?.status === "REJECTED";
+  const sunk = Boolean(wreck.sunkAt) && !approved;
+  const canSubmit = canWork && !pending && !approved && !sunk;
+  const linksNeeded = wreck.proofType !== "REPORT" && wreck.proofType !== "WITNESS";
+  async function submit() {
+    if (linksNeeded && links.length === 0) { notify(t("Приложите ссылку на фото или видео"), "bad"); return; }
+    if (!linksNeeded && !note.trim()) { notify(t("Напишите, что сделали"), "bad"); return; }
+    setBusy(true);
+    try {
+      await api(`/api/games/${gameId}/wrecks/${wreck.id}/submit`, { method: "POST", body: JSON.stringify({ links, note, participants }) });
+      notify(t("Сдано на проверку")); setLinks([]); setNote(""); setParticipants([]); onChanged();
+    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  }
+  const cargoLine = approved && mine ? (mine.cargo === "STONES" ? t("Капитан отблагодарил: {n} тёсаных камней", { n: mine.amount ?? 0 }) : t("Капитан отблагодарил: {n} блоков для стен", { n: mine.amount ?? 0 })) : "";
+  return (
+    <Sheet size="md" container={container} onClose={onClose} className="deed-sheet wreck-sheet" head={<div className="sheet-title"><h2><Icon name="ship" />{wreck.title}</h2><Chip tone="bad" icon="alert">{t("Срочное задание")}</Chip></div>}>
+      {sunk ? (
+        <p className="note warn"><Icon name="alert" /><span>{t("Корабль затонул, не дождавшись помощи: задание закрыто.")}</span></p>
+      ) : (
+        <p className="muted small"><Icon name="ship" /> {t("Разбитый бурей корабль у берега просит помощи. Его могут выручить несколько команд.")}<Help>{t("Сдаёт капитан, заместитель или летописец. Администратор проверяет; за принятое задание команда получает что-то одно из груза — что именно, решает жребий. Корабль уходит, когда задание принято.")}</Help></p>
+      )}
+      {wreck.description && <p className="deed-text">{wreck.description}</p>}
+      <p className="meta"><Chip icon="camera">{PROOF_LABEL[wreck.proofType]}</Chip>{wreck.doneTeams > 0 && <span className="muted small"> · {t("уже выручили команд: {n}", { n: wreck.doneTeams })}</span>}</p>
+      {/* Груз: команда знает, что на борту, но не знает, что выпадет (решение владельца 04.11). */}
+      {!approved && !sunk && (
+        <div className="note cargo-note">
+          <Icon name="stone" />
+          <span>{t("На борту: тёсаные камни и блоки для стен. Выполните это задание — капитан корабля и команда отблагодарят вас чем-то из груза: {stones} тёсаных камней или {blocks} блоков стен. Что именно — узнаете после проверки.", { stones: wreck.cargo.stones, blocks: wreck.cargo.blocks })}</span>
+        </div>
+      )}
+      {pending && mine && <p className="note"><Icon name="clock" /><span>{t("На проверке у администратора")} · {fmtDate(mine.submittedAt)}</span></p>}
+      {returned && mine && <p className="note warn"><Icon name="back" /><span>{t("Возвращено администратором")}{mine.adminComment ? `: ${mine.adminComment}` : ""}. {t("Можно сдать снова.")}</span></p>}
+      {approved && mine && (
+        <div className="note ok">
+          <Icon name={mine.cargo === "STONES" ? "stone" : "wall"} />
+          <span><b>{cargoLine}</b><br />{mine.cargo === "STONES" ? t("Камень мостит одну свободную дорогу на карте.") : t("Блок кладётся в стену своего города: откройте город → «Стена».")} {t("Корабль починен и уходит в море.")}</span>
+        </div>
+      )}
+      {canSubmit && (
+        <div className="stack-sm mt-2">
+          {linksNeeded && <LinksField label={wreck.proofType === "VIDEO_LINK" ? t("Ссылки на видео") : wreck.proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />}
+          <div className="field"><label htmlFor="wreck-note">{t("Коротко")} {linksNeeded && <span className="opt">{t("необязательно")}</span>}</label><textarea id="wreck-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Что сделали")} /></div>
+          {members.length > 0 && (
+            <div className="field">
+              <label className="label" htmlFor="wreck-people">{t("Кто участвовал")} <span className="opt">{t("им дело пойдёт в зачёт")}</span></label>
+              <PeoplePicker id="wreck-people" people={members} value={participants} onChange={setParticipants} empty={t("никого не отмечено")} />
+            </div>
+          )}
+          <div className="actions row">
+            <button type="button" disabled={busy || asleep} title={asleep ? t("Ночью и в шторм задания ждут утра") : undefined} onClick={() => void submit()}><Icon name="send" />{t("Сдать на проверку")}</button>
+          </div>
+          {asleep && <p className="hint">{t("Ночью и в шторм задания ждут утра.")}</p>}
+        </div>
+      )}
+      {!canWork && !pending && !approved && !sunk && <p className="hint">{t("Сдаёт капитан, заместитель или летописец.")}</p>}
+    </Sheet>
+  );
+}

@@ -58,6 +58,8 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
   const pile = pileShown.map((b, i) => { const r = Math.floor(i / PILE), c = i % PILE; return { b, x: wallW + GAP * 2 + c * (BW + GAP) + (r % 2 ? (BW + GAP) / 4 : 0), y: H - ground - (r + 1) * (BH + GAP) }; });
   const lines = (b: Brick): [string, string] => {
     const total = b.verses, intact = total - b.missing;
+    // Блок из груза разбитого корабля (решение владельца 04.11): без стихов, толщина как у обычного блока.
+    if (b.cargo) return [t("Блок из груза корабля"), b.used ? t("сгорел") : t("толщина {n}", { n: verses(total) })];
     const who = `${b.ref} · ${b.nickname}${b.weight > 1 ? ` · ${t("воин ×{k}", { k: b.weight })}` : ""}`;
     const what = b.missing > 0 ? `${t("{n} из {m} стихов", { n: intact, m: total })} · ${t("не хватает {n}", { n: b.missing })}` : b.status === "SUBMITTED" ? `${verses(total)} · ${t("на проверке")}` : b.repairPending ? `${verses(total)} · ${t("починка на проверке")}` : verses(total);
     return [who, what];
@@ -90,7 +92,7 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
           <pattern key={id} id={id} patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width={1} height={1}><image href={`/img/props/${f}.webp`} width={1} height={1} preserveAspectRatio="none" /></pattern>
         ))}
       </defs>
-      {placed.map(({ b, x, y, r, c }) => brick(b, x, y, "brick" + ((r + c) % 3 === 1 ? " alt" : "") + (b.mine ? " mine" : "") + (fresh.has(b.id) ? " new" : "")))}
+      {placed.map(({ b, x, y, r, c }) => brick(b, x, y, "brick" + ((r + c) % 3 === 1 ? " alt" : "") + (b.cargo ? " cargo" : "") + (b.mine && !b.cargo ? " mine" : "") + (fresh.has(b.id) ? " new" : "")))}
       {approved.length === 0 && Array.from({ length: PER }, (_, c) => <rect key={"g" + c} className="brick ghost" x={GAP + c * (BW + GAP)} y={H - ground - (BH + GAP)} width={BW} height={BH} rx={1.5} />)}
       {/* камни на проверке — рядом со стеной */}
       {pile.map(({ b, x, y }) => brick(b, x, y, "brick pending" + (b.mine ? " mine" : "")))}
@@ -124,6 +126,12 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
     setD(w); setError(null);
   }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети")));
   useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, nodeKey, version]);
+  /** Положить блок из груза разбитого корабля (решение владельца 04.11): сразу принятым, без стихов. */
+  async function layCargo() {
+    if (!d || !(await confirm(t("Блок из груза ляжет в стену этого города сразу, без стихов, толщиной как обычный блок. Осталось блоков: {n}.", { n: d.cargoBlocks ?? 0 }), { okLabel: t("Положить") }))) return;
+    try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/wall/cargo`, { method: "POST" }); notify(t("Блок из груза лёг в стену")); await load(); onChanged(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+  }
   async function remove(b: WallBlockDto) {
     if (!(await confirm(t("Убрать блок {ref} с проверки?", { ref: b.ref }), { okLabel: t("Убрать") }))) return;
     try { await api(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/wall/${b.id}`, { method: "DELETE" }); await load(); onChanged(); }
@@ -150,12 +158,14 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
         </span>
       </div>
       {!canBuild && whyNot && <p className="hint">{whyNot}</p>}
+      {/* Груз разбитого корабля (решение владельца 04.11): блоки для стен кладутся сразу. */}
+      {(d.cargoBlocks ?? 0) > 0 && <p className="row wrap gap-2 mt-2"><button type="button" className="secondary sm" disabled={!d.canCargo || asleep} onClick={() => void layCargo()}><Icon name="ship" />{t("Положить блок из груза (осталось {n})", { n: d.cargoBlocks ?? 0 })}</button>{!d.canCargo && <span className="hint">{t("Кладёт капитан, заместитель или летописец в мирное время.")}</span>}</p>}
       {d.returned.length > 0 && d.returned.map((r) => <p key={r.id} className="hint warn"><Icon name="back" /> {r.repair ? t("Починка {ref} возвращена", { ref: r.ref }) : t("Блок {ref} возвращён", { ref: r.ref })}{r.adminComment ? `: ${r.adminComment}` : ""}</p>)}
       {list && (
         <ul className="list mt-2 wall-list">
           {[...d.blocks].reverse().map((b) => (
             <li key={b.id}>
-              <div className="main"><span className="title">{b.ref} <span className="muted small">· {b.nickname} · {b.missing > 0 && !b.used ? t("{n} из {m} стихов", { n: b.verses - b.missing, m: b.verses }) : verses(b.verses)}</span>{b.weight > 1 && <Chip tone="accent" icon="sword">{t("воин ×{k}", { k: b.weight })}</Chip>}</span>{b.adminComment && <span className="meta">{b.adminComment}</span>}</div>
+              <div className="main"><span className="title">{b.cargo ? t("Блок из груза корабля") : b.ref} <span className="muted small">· {b.nickname} · {b.cargo ? t("толщина {n}", { n: verses(b.verses) }) : b.missing > 0 && !b.used ? t("{n} из {m} стихов", { n: b.verses - b.missing, m: b.verses }) : verses(b.verses)}</span>{b.weight > 1 && <Chip tone="accent" icon="sword">{t("воин ×{k}", { k: b.weight })}</Chip>}</span>{b.adminComment && <span className="meta">{b.adminComment}</span>}</div>
               <span className="row nowrap">
                 {b.used ? <Chip tone="bad" icon="wave" title={b.usedAt ? t("Лёг в ответ {d}", { d: fmtDate(b.usedAt, { time: false }) }) : undefined}>{t("сгорел")}</Chip>
                   : b.status === "APPROVED" && b.missing > 0 ? <Chip tone="warn" icon={b.repairPending ? "clock" : "alert"}>{b.repairPending ? t("починка на проверке") : t("надломлен")}</Chip>
