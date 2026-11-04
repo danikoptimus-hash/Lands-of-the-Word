@@ -90,7 +90,8 @@
 .m-deed.sea .mooring { stroke: var(--surface); stroke-width: calc(2px / var(--k, 1)); stroke-dasharray: calc(3px / var(--k, 1)) calc(3px / var(--k, 1)); opacity: .8; pointer-events: none; }
 .m-deed.sea.landing circle { fill: var(--success); stroke: var(--surface); }
 /* Разбитый бурей корабль (04.11): область нажатия вокруг корпуса (в единицах карты) и красный знак «срочно» на маркере. */
-.m-deed.wreck .wreck-hit { fill: transparent; stroke: none; pointer-events: auto; }
+/* Область нажатия по корпусу всегда невидима — и когда дело сдано (правило .m-deed.submitted circle сильнее; замечание владельца 05.11: круг закрыл корабль). */
+.m-deed.wreck circle.wreck-hit, .m-deed.wreck.submitted circle.wreck-hit { fill: transparent; stroke: none; pointer-events: auto; }
 .m-deed.wreck .urgent circle { fill: var(--danger, #b3402a); stroke: var(--surface); stroke-width: 1.2; }
 .m-deed.wreck .urgent text { fill: #fff; pointer-events: none; }
 .m-deed.wreck > g > circle:not(.far) { fill: var(--danger-soft, #f3d9d2); stroke: var(--danger, #b3402a); }
