@@ -181,7 +181,8 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
   .overlay.sm { max-width: 440px; } .overlay.md { max-width: 640px; } .overlay.lg { max-width: 880px; }
   .overlay .grabber { display: none; }
 }
-.modal-backdrop { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center; padding: var(--sp-4); z-index: var(--z-dialog); animation: fade var(--dur-base) var(--ease-out); }
+/* Окно подтверждения всегда над листами (замечание владельца 05.11: «Отпустить корабль» из редактора дела открывалось под ним). */
+.modal-backdrop { position: fixed; inset: 0; background: var(--overlay); display: flex; align-items: center; justify-content: center; padding: var(--sp-4); z-index: calc(var(--z-dialog) + 1); animation: fade var(--dur-base) var(--ease-out); }
 .modal { background: var(--surface); border-radius: var(--r-lg); padding: var(--sp-5); max-width: 440px; width: 100%; box-shadow: var(--shadow-3); animation: scaleIn var(--dur-base) var(--ease-out); }
 .modal h2 { margin-bottom: var(--sp-2); }
 .modal p { margin: 0 0 var(--sp-2); color: var(--muted); }
