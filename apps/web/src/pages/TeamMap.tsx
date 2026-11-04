@@ -397,8 +397,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     }
     return {
       size,
-      fog: tileHexes.filter((h) => !h.lit && h.lit !== undefined).map((h) => hexCenter(h, size)),
-      grid: tileHexes.filter((h) => h.lit || h.lit === undefined).map((h) => hexCenter(h, size)),
+      hexes: tileHexes.map((h) => ({ ...hexCenter(h, size), fog: !h.lit && h.lit !== undefined })),
       fogColor: parseColor(FOG_COLOR), gridColor: [text[0], text[1], text[2], 0.28],
       coast: coastLoops(coast), sand: rgb(light.sand), wet: rgb(light.wet),
       edges, images, camps,

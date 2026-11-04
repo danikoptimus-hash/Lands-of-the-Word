@@ -1,5 +1,8 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState, type MouseEvent, type PointerEvent } from "react";
 import { hitTest, mapPoint, stylesK, type HitModel } from "../lib/mapHit";
+import { WorldGL, type WorldScene } from "./WorldGL";
+import { coastLoops, rgb, themeColor, worldMode } from "../lib/worldScene";
+import { parseColor } from "../lib/glLines";
 import { perfExpose, perfOff } from "../lib/perfHud";
 import { RoutesGL } from "./RoutesGL";
 // Пробный переключатель Э3 (пока пути на WebGL поверх живности; окончательная раскладка слоёв — после разделения холста живности).
@@ -152,6 +155,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const obstacles = useMemo(() => islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape })), [islets]);
   const bed = useSeabed(hexes, islets, size, bounds);
   const [liveWater, setLiveWater] = useState(true);
+  // Мир на WebGL (этап Э2): по `?map=gl`; без WebGL или при потере контекста — обратно к SVG.
+  const [glWorld, setGlWorld] = useState(() => worldMode() === "gl");
   const dt0 = useDaytime(timeZone);
   // Шторм у администратора — только картинка: та же буря, что у команд, кнопки и действия остаются.
   const stormSt = useStormPicture(storms, timeZone);
@@ -213,6 +218,48 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     if ("node" in hit) setSelected(hit.node); else setEdgeSel(hit.edge);
   };
   const onWorldPointerMove = (e: PointerEvent<SVGSVGElement>) => { if (e.pointerType === "mouse") e.currentTarget.style.cursor = hitAt(e.currentTarget, e.clientX, e.clientY) ? "pointer" : ""; };
+  // Мир на WebGL: мирового SVG нет, нажатие приходит контейнеру; значки верхнего SVG и кнопки — не наши.
+  const hostHit = (host: HTMLElement, clientX: number, clientY: number) => { const view = vp.viewRef.current; return hitTest(mapPoint(host, view, clientX, clientY), hitModel, 18, view.k); };
+  const foreignTarget = (t: EventTarget | null) => Boolean((t as Element | null)?.closest?.(".map-svg, button, .map-controls, .overlay-backdrop, .toasts"));
+  const onHostClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (!glWorld || vp.wasDrag() || foreignTarget(e.target)) return;
+    const hit = hostHit(e.currentTarget, e.clientX, e.clientY);
+    if (!hit) return;
+    if ("node" in hit) setSelected(hit.node); else setEdgeSel(hit.edge);
+  };
+  const onHostPointerMove = (e: PointerEvent<HTMLDivElement>) => { if (glWorld && e.pointerType === "mouse") e.currentTarget.style.cursor = !foreignTarget(e.target) && hostHit(e.currentTarget, e.clientX, e.clientY) ? "pointer" : ""; };
+  // Сцена для мира на WebGL — из тех же данных и по тем же правилам, что SVG ниже.
+  const worldScene = useMemo<WorldScene>(() => {
+    const text = themeColor("--text", "#1F1B16");
+    const halo: [number, number, number, number] = [1, 250 / 255, 240 / 255, 0.85];
+    const edgesGl: WorldScene["edges"] = [];
+    for (const e of edges) {
+      const a = positions.get(e.aKey), b = positions.get(e.bKey);
+      if (!a || !b) continue;
+      const teams = traversedBy.get([e.aKey, e.bKey].sort().join("|")) ?? [];
+      if (teams.length === 0) { edgesGl.push({ a, b, line: { color: [31 / 255, 27 / 255, 22 / 255, 0.25], px: 1.5, scale: "k", cap: "butt" } }); continue; }
+      const c0 = parseColor(routeColor(teams[0]!.color));
+      if (teams.length === 1) { edgesGl.push({ a, b, halo: { color: halo, px: 9 }, line: { color: c0, px: 5, scale: "max16" } }); continue; }
+      const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      // Две команды: подложка на всю сторону, линия первой — до середины, второй — от середины.
+      edgesGl.push({ a, b, halo: { color: halo, px: 9 }, line: { color: c0, px: 5, scale: "max16" }, halfLine: m, extra: [{ a: m, b, color: parseColor(routeColor(teams[1]!.color)), px: 5 }] });
+    }
+    const CITY = size * 0.77, START = size * 0.9;
+    const images: WorldScene["images"] = [];
+    for (const n of nodes) {
+      const p = positions.get(n.key); if (!p) continue;
+      if (n.kind === "START") images.push({ src: IMG.start(n.teamIndex ?? 0, imgPhase), x: p.x - START / 2, y: p.y - START * 0.58, w: START, h: START });
+      if (n.kind === "CITY") { const owner = ownerOf.get(n.key); images.push({ src: IMG.city(n.cityType, imgPhase), x: p.x - CITY / 2, y: p.y - CITY * 0.6, w: CITY, h: CITY, ring: owner ? { color: parseColor(owner.color), owned: true } : { color: [1, 1, 1, 0.85], owned: false } }); }
+    }
+    return { size, hexes: hexes.map((h) => ({ ...hexCenter(h, size), fog: false })), fogColor: [0, 0, 0, 0], gridColor: [text[0], text[1], text[2], 0.28], coast: coastLoops(coast), sand: rgb(dt.light.sand), wet: rgb(dt.light.wet), edges: edgesGl, images, camps: [] };
+  }, [nodes, edges, positions, ownerOf, traversedBy, size, imgPhase, hexes, coast, dt.light]);
+  const flashEl = flash && (() => { const a = positions.get(flash.aKey), b = positions.get(flash.bKey); return (
+    <g className="adm-flash" pointerEvents="none">
+      {a && b && <><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} /><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} /></>}
+      <circle className="pulse" cx={flash.x} cy={flash.y} r={size * 0.5} />
+      <circle className="dot" cx={flash.x} cy={flash.y} r={size * 0.12} />
+    </g>
+  ); })();
   // Мир и экранные элементы — мемо по данным: фиксация масштаба не должна заново строить сотни SVG-элементов.
   const worldBody = useMemo(() => (<>
             {/* Дороги и переправы — под значками городов и стартов, иначе светлая подложка маршрута перекрывает их (замечание владельца 30.09). */}
@@ -347,25 +394,20 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             {teamView?.map && teamTaskId && wrapEl && (() => { const task = teamView.map!.tasks.find((tk) => tk.id === teamTaskId); return task ? <TeamTaskSheet gameId={gameId} task={task} members={teamView.map!.members ?? []} container={wrapEl} onClose={() => setTeamTaskId(null)} onReview={onReview} /> : null; })()}
           </div>
         ) : (<>
-        <div ref={vp.ref} {...vp.handlers} className="mapwrap" style={{ background: css(dt.light.bg) }}>
+        <div ref={vp.ref} {...vp.handlers} onClick={onHostClick} onPointerMove={onHostPointerMove} className="mapwrap" style={{ background: css(dt.light.bg) }}>
           <SeaLayer vp={vp} bed={bed} light={dt.light} storm={stormSt.t} />
           <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
           <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} daytime={dt} />
           {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
-          <WorldSvg vp={vp} bounds={bounds} onClick={onWorldClick} onPointerMove={onWorldPointerMove}>
-            <MapSymbols />
-            <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} k={vp.view.k} />
-            <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
-            <CoastOver d={coast} size={size} light={dt.light} />
-            {worldBody}
-            {flash && (() => { const a = positions.get(flash.aKey), b = positions.get(flash.bKey); return (
-              <g className="adm-flash" pointerEvents="none">
-                {a && b && <><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} /><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} /></>}
-                <circle className="pulse" cx={flash.x} cy={flash.y} r={size * 0.5} />
-                <circle className="dot" cx={flash.x} cy={flash.y} r={size * 0.12} />
-              </g>
-            ); })()}
-          </WorldSvg>
+          {glWorld
+            ? <WorldGL vp={vp} scene={worldScene} onUnsupported={() => setGlWorld(false)} />
+            : <WorldSvg vp={vp} bounds={bounds} onClick={onWorldClick} onPointerMove={onWorldPointerMove}>
+                <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} k={vp.view.k} />
+                <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />
+                <CoastOver d={coast} size={size} light={dt.light} />
+                {worldBody}
+                {flashEl}
+              </WorldSvg>}
           {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
           <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={GL_ROUTES ? [] : routeSpecs} wrecks={wreckSpecs} />
           {GL_ROUTES && <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => {}} />}
@@ -373,6 +415,9 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           {stormSt.t > 0 && <StormLayer t={stormSt.t} />}
           {/* Подписи городов и метки — отдельным слоем над живностью и маршрутами: название города выше линии корабля (решение владельца 06.10). */}
           <WorldSvg vp={vp} bounds={bounds} overlay>
+            {/* Символы нужны верхнему слою; подсветка «показать на карте» при мире на WebGL живёт здесь же. */}
+            <MapSymbols />
+            {glWorld && flashEl}
             <g className="screen-items">
               {quarryMarker}
               {wreckSpecs.filter((w) => !(w.sunkAt != null && Date.now() - w.sunkAt > 9500)).map((w) => {
