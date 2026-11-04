@@ -9,7 +9,7 @@ import { Help } from "../components/Help";
 import { Stepper } from "../components/Stepper";
 import { Sheet } from "../components/Sheet";
 
-export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; wallBlockVerses: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily"; /** Штормы (решение владельца 24.10): интервалы недели по поясу игры. */ storms?: StormSlot[] }
+export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; wallBlockVerses: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily"; /** Разбитые бурей корабли (решение владельца 04.11): сколько камней или блоков может выпасть из груза. */ wreckStones: number; wreckBlocks: number; /** Штормы (решение владельца 24.10): интервалы недели по поясу игры. */ storms?: StormSlot[] }
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string; rules?: RulesDto } }
 /** Правила, зашитые глобально и убранные из настроек (решение владельца 03.10): минимальная ставка, штраф за сгоревший вызов, закрепление города, усталость, паузы после ошибок. Сервер хранит их значения по умолчанию. */
 type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "fatigueAfterDays" | "fatigueStepDays" | "fatigueStep" | "pauseSteps" | "storms" | "chronicleWeekday" | "chronicleHourUtc";
@@ -29,6 +29,8 @@ const RULE_FIELDS: Record<NumKey, { short: () => string; label: () => string; mi
   passageDays: { short: () => t("Ответ на запрос прохода"), label: () => t("Ответ на запрос прохода · дней"), min: 1, max: 30 },
   siegeDays: { short: () => t("Осада делами"), label: () => t("Осада делами · дней"), min: 1, max: 60 },
   siegeDeedPoints: { short: () => t("Баллов за дело в осаде"), label: () => t("Баллов за дело в осаде"), min: 0, max: 100 },
+  wreckStones: { short: () => t("Камней из груза"), label: () => t("Камней из груза · тёсаных камней"), min: 0, max: 50 },
+  wreckBlocks: { short: () => t("Блоков из груза"), label: () => t("Блоков из груза · блоков для стен"), min: 0, max: 50 },
 };
 const RULE_GROUPS: Array<{ title: () => string; keys: RuleKey[]; /** Строка «Родословия» (только до старта) живёт в группе испытаний. */ genealogies?: boolean }> = [
   { title: () => t("Испытания"), keys: ["attackDays", "timeZone", "minAnswerSeconds", "wallBlockVerses"], genealogies: true },
@@ -36,6 +38,7 @@ const RULE_GROUPS: Array<{ title: () => string; keys: RuleKey[]; /** Строк�
   { title: () => t("Города"), keys: ["keySolversPct", "keyTasksPct"] },
   { title: () => t("Проходы"), keys: ["passageDays"] },
   { title: () => t("Осада"), keys: ["siegeDays", "siegeDeedPoints"] },
+  { title: () => t("Корабли"), keys: ["wreckStones", "wreckBlocks"] },
   { title: () => t("Письма"), keys: ["adminDigest"] },
 ];
 /** Пояснение к каждому правилу: зачем, когда применяется, на что влияет (решение владельца 02.10). */
@@ -53,6 +56,8 @@ const RULE_HELP: Record<RuleKey, () => string> = {
   passageDays: () => t("Сколько дней у владельца города на ответ на запрос прохода. Нет ответа в срок — считается отказом."),
   siegeDays: () => t("Сколько дней длится осада делами города с максимальным уровнем защиты. За это время обе команды набирают баллы одобренными делами."),
   siegeDeedPoints: () => t("Сколько баллов в осаде даёт одобренное дело, если у самого дела своя цена не задана. Цену отдельного дела задают во вкладке «Дела»."),
+  wreckStones: () => t("Разбитый бурей корабль: срочное задание, которое администратор помечает в деле. Команда, чьё задание принято, получает что-то одно из груза — тёсаные камни или блоки для стен, 50 на 50. Столько тёсаных камней выпадает, если жребий — камни. Можно менять в идущей игре: считается на момент решения."),
+  wreckBlocks: () => t("Столько блоков для стен выпадает, если жребий — блоки. Блок из груза кладётся в стену своего города сразу, без стихов, толщиной как обычный блок."),
   adminDigest: () => t("Как администраторы узнают о сдачах: письмом сразу о каждой, одним письмом раз в 3 часа или одним письмом раз в день. Уведомления в приложении приходят всегда сразу."),
 };
 const DIGEST = (): Record<string, string> => ({ instant: t("сразу о каждой"), "3h": t("одним письмом раз в 3 часа"), daily: t("одним письмом раз в день") });
@@ -77,6 +82,8 @@ function ruleValue(key: RuleKey, v: number | string): string {
     case "keyTasksPct": return `${n} %`;
     case "siegeDeedPoints": return plural(n, [t("балл"), t("балла"), t("баллов")]);
     case "wallBlockVerses": return plural(n, [t("стих"), t("стиха"), t("стихов")]);
+    case "wreckStones": return plural(n, [t("камень"), t("камня"), t("камней")]);
+    case "wreckBlocks": return plural(n, [t("блок"), t("блока"), t("блоков")]);
   }
 }
 const toMin = (hm: string) => { const [h, m] = hm.split(":").map(Number); return (h ?? 0) * 60 + (m ?? 0); };

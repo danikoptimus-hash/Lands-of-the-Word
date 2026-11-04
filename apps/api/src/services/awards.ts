@@ -268,7 +268,7 @@ export async function recomputeAwards(gameId: string): Promise<number> {
     prisma.teamCityState.findMany({ where: { gameId }, select: { teamId: true, nodeKey: true, capturedAt: true, firstCapturedAt: true } }),
     prisma.battle.findMany({ where: { gameId, status: { in: ["WON", "REPELLED"] } }, select: { id: true, attackerId: true, defenderId: true, status: true, resolvedAt: true } }),
     prisma.battleEntry.findMany({ where: { battle: { gameId }, status: "APPROVED" }, select: { userId: true, teamId: true, startIdx: true, endIdx: true, carried: true, decidedAt: true, createdAt: true, battle: { select: { bookCode: true } } } }),
-    prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED" }, select: { userId: true, teamId: true, bookCode: true, startIdx: true, endIdx: true, decidedAt: true, createdAt: true } }),
+    prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED", cargo: false }, select: { userId: true, teamId: true, bookCode: true, startIdx: true, endIdx: true, decidedAt: true, createdAt: true } }),
     prisma.passageRequest.findMany({ where: { gameId, status: "APPROVED" }, select: { id: true, requesterId: true, ownerId: true, status: true, decidedAt: true } }),
     prisma.teamPeek.findMany({ where: { team: { gameId } }, select: { teamId: true, createdAt: true } }),
   ]);

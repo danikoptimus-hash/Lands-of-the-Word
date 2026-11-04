@@ -14,11 +14,11 @@ import { Help } from "../components/Help";
 import { plural } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "AUDIO_LINK" | "WITNESS";
-interface DeedDto { /** Выключено администратором: на новые дороги не попадает (06.10). */ disabled?: boolean; /** Сколько людей в списке «кому звонить» (решение владельца 21.10). */ peopleCount?: number; id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number; /** Сколько из свободных — морские рейсы (на карте корабль, а не свиток). */ sea?: number; /** Разбивка по командам: сверять с картой «глазами команды». */ teams?: Array<{ index: number; name: string; color: string; free: number; taken: number }> }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
-type Form = { quarry: boolean; /** Пусто, пока администратор стирает число (замечание владельца 08.10: единицу нельзя было удалить); при сохранении — не меньше 1. */ stones: number | ""; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
+interface DeedDto { /** Срочное задание — разбитый бурей корабль (решение владельца 04.11); wreckId — открытый корабль у дела. */ wreck?: boolean; wreckId?: string | null; /** Выключено администратором: на новые дороги не попадает (06.10). */ disabled?: boolean; /** Сколько людей в списке «кому звонить» (решение владельца 21.10). */ peopleCount?: number; id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number; /** Сколько из свободных — морские рейсы (на карте корабль, а не свиток). */ sea?: number; /** Разбивка по командам: сверять с картой «глазами команды». */ teams?: Array<{ index: number; name: string; color: string; free: number; taken: number }> }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
+type Form = { wreck: boolean; quarry: boolean; /** Пусто, пока администратор стирает число (замечание владельца 08.10: единицу нельзя было удалить); при сохранении — не меньше 1. */ stones: number | ""; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
 /** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
 const CHANCES = [20, 40, 60, 80, 100];
-const EMPTY: Form = { quarry: false, stones: 1, title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: "", donationMin: "" };
+const EMPTY: Form = { wreck: false, quarry: false, stones: 1, title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: "", donationMin: "" };
 
 /** Вкладка «Дела»: список дел игры; добавление и изменение — в одной форме-шторке; стандартный набор — только пока список пуст. */
 /**
@@ -62,7 +62,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
   useEffect(() => { void load(); }, [load, version]);
 
   const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, quarry: inQuarry, direction: directions[0] ?? "" } }); };
-  const formOf = (d: DeedDto): Form => ({ quarry: d.quarry ?? false, stones: d.stones ?? 1, title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 60, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" });
+  const formOf = (d: DeedDto): Form => ({ wreck: d.wreck ?? false, quarry: d.quarry ?? false, stones: d.stones ?? 1, title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 60, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" });
   const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: formOf(d) }); };
   /** Дубликат дела (решение владельца 04.10): форма нового дела, заполненная полями исходного; сохраняется как отдельное дело. */
   const openDuplicate = (d: DeedDto) => { setError(null); setSheet({ id: null, form: { ...formOf(d), title: t("{title} (копия)", { title: d.title }) } }); };
@@ -72,7 +72,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
     e.preventDefault(); if (!sheet) return;
     setError(null); setBusy(true);
     try {
-      const f = sheet.form.quarry ? { ...sheet.form, canRepeat: true, bookCodes: [], secret: false, remote: false, siegePoints: "" as const, donationMin: "" as const } : sheet.form;
+      const f = sheet.form.quarry ? { ...sheet.form, wreck: false, canRepeat: true, bookCodes: [], secret: false, remote: false, siegePoints: "" as const, donationMin: "" as const } : sheet.form;
       const body = JSON.stringify({ ...f, stones: f.stones === "" ? 1 : f.stones, siegePoints: f.siegePoints === "" ? null : Number(f.siegePoints), donationMin: f.donationMin === "" ? null : Number(f.donationMin) });
       if (sheet.id) { await api(`/api/games/${gameId}/deeds/${sheet.id}`, { method: "PUT", body }); notify(t("Дело сохранено")); }
       else { await api(`/api/games/${gameId}/deeds`, { method: "POST", body }); notify(t("Дело добавлено")); }
@@ -95,6 +95,13 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
   /** Выключить/включить дело (решение владельца 06.10): выключенное на новые дороги не ставится, уже выданные стороны остаются. */
   async function toggleDisabled(d: DeedDto) {
     try { await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "PUT", body: JSON.stringify({ disabled: !d.disabled }) }); notify(d.disabled ? t("Дело включено: снова может попасть на новые дороги") : t("Дело выключено: на новые дороги больше не попадёт")); await reload(); }
+    catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
+  }
+  /** Отпустить корабль (решение владельца 04.11): корабль тонет у команд, которые не успели, открытые сдачи закрываются. */
+  async function releaseWreck(d: DeedDto) {
+    if (!d.wreckId) return;
+    if (!(await confirm(t("Корабль затонет: команды, не успевшие сдать задание, его потеряют, открытые сдачи закроются. Дело останется срочным — снимите флажок, если корабль больше не нужен."), { title: t("Отпустить корабль?"), okLabel: t("Отпустить"), danger: true }))) return;
+    try { await api(`/api/games/${gameId}/wrecks/${d.wreckId}/close`, { method: "POST" }); notify(t("Корабль затонул")); await reload(); }
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
   }
   async function remove(d: DeedDto) {
@@ -136,7 +143,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
           {shown.map((d) => { const open = expanded.has(d.id); return (
             <li key={d.id} className={"deed-row" + (open ? " open" : "") + (d.disabled ? " off" : "")}>
               <div className="main" onClick={() => toggle(d.id)}>
-                <span className="title">{withBook(d.title)} {d.quarry && <Chip tone="accent" icon="stone" title={t("Камней за дело")}>{d.stones ?? 1}</Chip>} {d.disabled && <Chip tone="warn" icon="x">{t("выключено")}</Chip>} {(d.peopleCount ?? 0) > 0 && <Chip icon="users" title={t("Людей в списке «кому звонить»")}>{d.peopleCount}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
+                <span className="title">{withBook(d.title)} {d.wreck && <Chip tone="bad" icon="ship" title={t("Срочное задание: разбитый бурей корабль на карте")}>{t("срочное")}</Chip>} {d.quarry && <Chip tone="accent" icon="stone" title={t("Камней за дело")}>{d.stones ?? 1}</Chip>} {d.disabled && <Chip tone="warn" icon="x">{t("выключено")}</Chip>} {(d.peopleCount ?? 0) > 0 && <Chip icon="users" title={t("Людей в списке «кому звонить»")}>{d.peopleCount}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
                 {d.description && <span className={"deed-desc small" + (open ? " open" : "")}>{withBook(d.description)}</span>}
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
@@ -218,6 +225,9 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
             <div className="with-help mt-3"><label className="check"><input type="checkbox" checked={form.canRepeat} onChange={(e) => setForm({ canRepeat: e.target.checked })} />{t("Повторяемое")}</label><Help>{t("Можно выдавать нескольким командам.")}</Help></div>
             <div className="with-help mt-2"><label className="check"><input type="checkbox" checked={form.secret} onChange={(e) => setForm({ secret: e.target.checked })} />{t("Тайное")}</label><Help>{t("Сдачу видит только проверяющий — сюрприз без раскрытия адресата.")}</Help></div>
             <div className="with-help mt-2"><label className="check"><input type="checkbox" checked={form.remote} onChange={(e) => setForm({ remote: e.target.checked })} />{t("Можно издалека")}</label><Help>{t("Для уехавших и болеющих. Такое дело всегда есть среди свободных сторон.")}</Help></div>
+            {/* Срочное задание — разбитый бурей корабль (решение владельца 04.11). */}
+            <div className="with-help mt-2"><label className="check"><input type="checkbox" checked={form.wreck} onChange={(e) => setForm({ wreck: e.target.checked })} /><Icon name="ship" />{t("Срочное задание — разбитый бурей корабль")}</label><Help>{t("На карте всех команд у берега появится разбитый корабль с этим заданием. Его могут сдать несколько команд; за принятое задание капитан корабля благодарит грузом — тёсаными камнями или блоками для стен, что выпадет (числа — в настройках, группа «Корабли»). На дороги такое дело не ставится. Снимите флажок или удалите дело — корабль затонет.")}</Help></div>
+            {form.wreck && sheet.id && (() => { const cur = deeds?.find((x) => x.id === sheet.id); return cur?.wreckId ? <p className="hint row wrap"><span><Icon name="ship" />{t("Корабль на карте.")}</span><button type="button" className="secondary sm" onClick={() => void releaseWreck(cur)}><Icon name="x" />{t("Отпустить корабль")}</button></p> : null; })()}
             </>}
             {error && <p className="error">{error}</p>}
           </form>

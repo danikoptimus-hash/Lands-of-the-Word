@@ -8,6 +8,7 @@ import { err } from "../services/i18n.js";
 import { DIRECTIONS, deedBody, reassignOpenSides, syncGameDeeds } from "../services/defaultDeeds.js";
 import { adminOrObserver } from "../services/access.js";
 import { peopleOf, rebalancePeople } from "../services/people.js";
+import { openWreck, sinkWreck } from "../services/wrecks.js";
 
 export { DIRECTIONS } from "../services/defaultDeeds.js";
 
@@ -44,6 +45,8 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return;
     const rows = await prisma.deed.findMany({ where: { gameId: id }, orderBy: { createdAt: "asc" }, include: { _count: { select: { people: true } } } });
+    // Открытый корабль у срочного дела (решение владельца 04.11): в редакторе — кнопка «Отпустить корабль».
+    const openWrecks = new Map((await prisma.wreck.findMany({ where: { gameId: id, closedAt: null, deedId: { not: null } }, select: { id: true, deedId: true } })).map((w) => [w.deedId!, w.id]));
     // Сколько таких дел сейчас на картах всех команд: свободных (OPEN) и в работе (взято, на проверке, возвращено) — решение владельца 04.10.
     // Цифры «на карте» — по всем командам сразу; чтобы сверять с картой «глазами команды», отдаётся и разбивка по командам,
     // и сколько из свободных — морские рейсы (на карте это корабль у порта, а не свиток) (замечание владельца 05.10).
@@ -63,7 +66,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     }
     // «Тяжесть» убрана (решение владельца 3.15): колонка difficulty живёт только ради хешей старых игр и наружу не отдаётся.
     // Порядок списка — по убыванию «свободных + в работе» (решение владельца 04.10), при равенстве — по дате создания.
-    const deeds = rows.map(({ difficulty: _difficulty, _count, ...d }) => ({ ...d, peopleCount: _count.people, onMap: onMap.get(d.id) ?? { free: 0, taken: 0, sea: 0, teams: [] } }))
+    const deeds = rows.map(({ difficulty: _difficulty, _count, ...d }) => ({ ...d, peopleCount: _count.people, wreckId: openWrecks.get(d.id) ?? null, onMap: onMap.get(d.id) ?? { free: 0, taken: 0, sea: 0, teams: [] } }))
       .sort((a, b) => (b.onMap.free + b.onMap.taken) - (a.onMap.free + a.onMap.taken) || a.createdAt.getTime() - b.createdAt.getTime());
     const settings = (game.settings ?? {}) as { nodeCount?: number; cityGap?: number };
     return { deeds, directions: DIRECTIONS, recommendedMin: recommendedDeedCount(effectiveNodeCount(settings)) };
@@ -73,7 +76,10 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     if (!(await requireGameAdmin(request, reply, id))) return;
     const body = deedBody.parse(request.body);
-    const deed = await prisma.deed.create({ data: { ...body, gameId: id } });
+    // Срочное задание (04.11) — не дело Каменоломни: один из двух признаков.
+    const deed = await prisma.deed.create({ data: { ...body, quarry: body.wreck ? false : body.quarry, gameId: id } });
+    // Срочное задание — на карте появляется разбитый корабль (решение владельца 04.11).
+    if (deed.wreck && !deed.disabled) await openWreck(id, deed);
     publish(id, { type: "deeds" });
     // Решение владельца 05.10: дело, которое уже появилось на стороне, не подменяется. Новое дело попадает
     // только на новые стороны (до 05.10 добавление дела перераздавало свободные стороны всех команд).
@@ -88,9 +94,12 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const { disabled } = z.object({ disabled: z.boolean().optional() }).parse(request.body);
     const exists = await prisma.deed.findFirst({ where: { id: deedId, gameId: id } });
     if (!exists) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
-    const deed = await prisma.deed.update({ where: { id: deedId }, data: { ...body, ...(disabled === undefined ? {} : { disabled }) } });
-    // Дело перевели в Каменоломню (решение владельца 20.10): свободные стороны с ним получают другие дела.
-    if (body.quarry && !exists.quarry) await reassignOpenSides(id, deedId);
+    const deed = await prisma.deed.update({ where: { id: deedId }, data: { ...body, ...(body.wreck ? { quarry: false } : {}), ...(disabled === undefined ? {} : { disabled }) } });
+    // Дело перевели в Каменоломню (решение владельца 20.10) или сделали срочным (04.11): свободные стороны с ним получают другие дела.
+    if ((body.quarry && !exists.quarry) || (body.wreck && !exists.wreck)) await reassignOpenSides(id, deedId);
+    // Разбитый корабль (решение владельца 04.11): срочное и включённое дело держит корабль открытым; снятый флажок или
+    // выключение — корабль тонет у тех, кто не успел.
+    if (deed.wreck && !deed.disabled) await openWreck(id, deed); else await sinkWreck(id, { deedId });
     publish(id, { type: "deeds" });
     // Новые вероятность и книги действуют только на новые стороны: дела, которые уже видны на карте, остаются (решение владельца 05.10).
     return { deed };
@@ -108,6 +117,8 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     if (deed.edgeTasks.some((t) => t.status !== "OPEN")) return reply.code(409).send({ error: "conflict", message: err(request, "Это дело уже взято или сдано командой: удалить нельзя, но можно отредактировать") });
     const other = await prisma.deed.count({ where: { gameId: id, id: { not: deedId } } });
     if (deed.edgeTasks.length > 0 && other === 0) return reply.code(409).send({ error: "conflict", message: err(request, "Это единственное дело в игре: сначала добавьте другие") });
+    // Удаление срочного дела: корабль тонет (решение владельца 04.11: «если команда так и не взяла дело корабля, а админ уже удалил дело, то корабль тонет»).
+    if (deed.wreck) await sinkWreck(id, { deedId });
     for (const t of deed.edgeTasks) {
       const replacement = await pickDeed(id, t.teamId, await bookOfNodeKey(id, t.fromKey), deedId);
       if (!replacement) return reply.code(409).send({ error: "conflict", message: err(request, "Не удалось подобрать замену на стороны с этим делом") });

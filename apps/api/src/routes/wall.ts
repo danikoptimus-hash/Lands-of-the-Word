@@ -11,7 +11,7 @@ import { learnedVerses } from "./battles.js";
 import { notifyAdmins, notifyUser } from "../services/notify.js";
 import { journal, nick } from "../services/journal.js";
 import { gameRules } from "../services/battles.js";
-import { brickRange, brickRef, layApprovedBlockIntoDefense, wallBook, wallOf } from "../services/wall.js";
+import { brickRange, brickRef, cargoRange, CARGO_NOTE, layApprovedBlockIntoDefense, wallBook, wallOf } from "../services/wall.js";
 import { BOOKS } from "@lotw/domain";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -65,7 +65,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     const total = book.total, count = Math.ceil(total / n);
     // Починки (repairOfId) — отдельные строки: на проверке держат блок в состоянии «на проверке», принятые — история.
     const repairPending = new Set(rows.filter((r) => r.repairOfId && r.status === "SUBMITTED").map((r) => r.repairOfId!));
-    const myBlocks = new Map(rows.filter((r) => r.userId === userId && r.status !== "REJECTED" && !r.repairOfId).map((r) => [Math.floor(r.startIdx / n), r] as const));
+    const myBlocks = new Map(rows.filter((r) => r.userId === userId && r.status !== "REJECTED" && !r.repairOfId && !r.cargo).map((r) => [Math.floor(r.startIdx / n), r] as const));
     const bricks = Array.from({ length: count }, (_, k) => {
       const { start, end } = brickRange(k, n, total);
       let state: "free" | "learned" | "submitted" | "approved" | "used" | "cracked" = "free";
@@ -83,7 +83,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     const teamMembers = members.map((x) => x.userId);
     const closedBy = new Map(await Promise.all(teamMembers.map(async (uid) => [uid, await learnedVerses(id, "", city.bookCode, uid)] as const)));
     const rowsBy = new Map<string, Set<number>>();
-    for (const r of rows) if (r.status !== "REJECTED" && !r.repairOfId) { if (!rowsBy.has(r.userId)) rowsBy.set(r.userId, new Set()); rowsBy.get(r.userId)!.add(Math.floor(r.startIdx / n)); }
+    for (const r of rows) if (r.status !== "REJECTED" && !r.repairOfId && !r.cargo) { if (!rowsBy.has(r.userId)) rowsBy.set(r.userId, new Set()); rowsBy.get(r.userId)!.add(Math.floor(r.startIdx / n)); }
     const plans = await prisma.learnPlan.findMany({ where: { teamId: m.team.id, bookCode: city.bookCode }, select: { idx: true, userId: true } });
     for (const b of bricks) {
       const takers = teamMembers.filter((uid) => !rowsBy.get(uid)?.has(b.k) && !Array.from({ length: b.end - b.start + 1 }, (_, i) => b.start + i).some((i) => closedBy.get(uid)!.has(i)));
@@ -91,15 +91,19 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
       Object.assign(b, { takers, planned });
     }
     const names = await nicknames([...new Set([...rows.map((r) => r.userId), ...teamMembers])]);
-    const live = rows.filter((r) => inTeam.has(r.userId) && r.status !== "REJECTED" && !r.repairOfId);
+    // Блок из груза корабля (решение владельца 04.11) — командный: виден и после ухода положившего.
+    const live = rows.filter((r) => (r.cargo || inTeam.has(r.userId)) && r.status !== "REJECTED" && !r.repairOfId);
     const wall = await wallOf(m.team.id, nodeKey);
+    const teamRow = await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { cargoBlocks: true } });
     const why = defense ? "Идёт ответ хранителей: стена строится в мирное время" : bricks.every((b) => b.state !== "free" && b.state !== "cracked") ? "Все блоки книги вы уже сдали" : null;
     return {
       mine: true, bookCode: city.bookCode, blockVerses: n, total, verses: wall.verses, blockCount: wall.blocks, pending: wall.pending,
+      // Груз разбитого корабля (04.11): сколько блоков у команды и может ли этот участник положить блок (капитан, заместитель, летописец).
+      cargoBlocks: teamRow.cargoBlocks, canCargo: teamRow.cargoBlocks > 0 && !defense && (isLeader(m) || m.gameRole === "CHRONICLER"),
       canPlan: isLeader(m), members: members.map((x) => ({ userId: x.userId, name: names.get(x.userId) ?? "?", role: x.role })),
       canBuild: !why, why: why ? err(request, why) : null,
       bricks,
-      blocks: live.map((r) => ({ id: r.id, k: Math.floor(r.startIdx / n), ref: brickRef(book, r.startIdx, r.endIdx), verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, missing: r.missing, repairPending: repairPending.has(r.id), adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),
+      blocks: live.map((r) => ({ id: r.id, k: r.cargo ? -1 : Math.floor(r.startIdx / n), ref: r.cargo ? "груз корабля" : brickRef(book, r.startIdx, r.endIdx), cargo: r.cargo, verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, missing: r.missing, repairPending: repairPending.has(r.id), adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),
       returned: rows.filter((r) => r.userId === userId && r.status === "REJECTED").slice(-3).map((r) => ({ id: r.id, ref: brickRef(book, r.startIdx, r.endIdx), repair: Boolean(r.repairOfId), adminComment: r.adminComment, decidedAt: r.decidedAt })),
     };
   });
@@ -146,6 +150,38 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "submissions" });
     if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "блок стены города {book}", "Команда «{team}» сдала блок городской стены ({ref}). Проверьте запись в блоке «Стены».", { book: city.bookCode, team: m.team.name, ref });
     return reply.code(201).send({ ok: true, id: row.id, ref });
+  });
+
+  /**
+   * Положить блок из груза разбитого корабля (решение владельца 04.11): капитан, заместитель или летописец, в своём городе,
+   * в мирное время; блок ложится сразу принятым, стихов за ним нет (условный диапазон ниже нуля), толщина — как у обычного
+   * блока веса 1; карта книги и починка его не учитывают. Списывается один блок у команды.
+   */
+  app.post("/api/games/:id/my-city/:nodeKey/wall/cargo", async (request, reply) => {
+    const { id, nodeKey } = request.params as { id: string; nodeKey: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    if (!(isLeader(m) || m.gameRole === "CHRONICLER")) return reply.code(403).send({ error: "forbidden", message: err(request, "Блок из груза кладёт капитан, заместитель или летописец") });
+    if (!(await assertAwake(request, reply, id))) return;
+    const city = await ownedCity(id, m.team.id, nodeKey);
+    if (!city) return reply.code(409).send({ error: "conflict", message: err(request, "Стену строят только в своём городе") });
+    const defense = await prisma.battle.findFirst({ where: { gameId: id, nodeKey, defenderId: m.team.id, status: "DEFENSE" }, select: { id: true } });
+    if (defense) return reply.code(409).send({ error: "conflict", message: err(request, "Идёт ответ хранителей: стена строится в мирное время") });
+    const team = await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { cargoBlocks: true } });
+    if (team.cargoBlocks < 1) return reply.code(409).send({ error: "conflict", message: err(request, "У команды нет блоков из груза") });
+    const { n } = await wallBook(id, city.bookCode);
+    const k = await prisma.wallBlock.count({ where: { teamId: m.team.id, nodeKey, cargo: true } });
+    const { start, end } = cargoRange(k, n);
+    const now = new Date(), userId = request.user!.id;
+    const [, row] = await prisma.$transaction([
+      prisma.team.update({ where: { id: m.team.id }, data: { cargoBlocks: { decrement: 1 } } }),
+      prisma.wallBlock.create({ data: { gameId: id, teamId: m.team.id, nodeKey, bookCode: city.bookCode, userId, startIdx: start, endIdx: end, note: CARGO_NOTE, weight: 1, cargo: true, status: "APPROVED", decidedAt: now } }),
+    ]);
+    const wall = await wallOf(m.team.id, nodeKey);
+    journal(id, "wall_cargo_laid", { teamId: m.team.id, userId, vars: { user: await nick(userId), book: city.bookCode, n: wall.verses } });
+    publish(id, { type: "cities" });
+    publish(id, { type: "teams" });
+    return reply.code(201).send({ ok: true, id: row.id, cargoBlocks: team.cargoBlocks - 1 });
   });
 
   /**
@@ -208,7 +244,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     return {
       blocks: [...pending, ...rest].map((r) => {
         const book = books.get(r.bookCode);
-        return { id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, bookName: BOOK_BY_CODE.get(r.bookCode)?.nameRu ?? r.bookCode, team: r.team, nickname: names.get(r.userId) ?? "?", ref: book ? brickRef(book, r.startIdx, r.endIdx) : `${r.startIdx + 1}–${r.endIdx + 1}`, verses: r.endIdx - r.startIdx + 1, weight: r.weight, repair: Boolean(r.repairOfId), missing: r.missing, links: r.links, note: r.note, status: r.status, usedAt: r.usedAt, adminComment: r.adminComment, createdAt: r.createdAt, decidedAt: r.decidedAt };
+        return { id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, bookName: BOOK_BY_CODE.get(r.bookCode)?.nameRu ?? r.bookCode, team: r.team, nickname: names.get(r.userId) ?? "?", cargo: r.cargo, ref: r.cargo ? "груз корабля" : book ? brickRef(book, r.startIdx, r.endIdx) : `${r.startIdx + 1}–${r.endIdx + 1}`, verses: r.endIdx - r.startIdx + 1, weight: r.weight, repair: Boolean(r.repairOfId), missing: r.missing, links: r.links, note: r.note, status: r.status, usedAt: r.usedAt, adminComment: r.adminComment, createdAt: r.createdAt, decidedAt: r.decidedAt };
       }),
     };
   });

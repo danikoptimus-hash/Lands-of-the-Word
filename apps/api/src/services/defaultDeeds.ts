@@ -49,6 +49,8 @@ export const deedBody = z.object({
   stones: z.number().int().min(1).max(20).default(1),
   /** Общее дело: сколько процентов состава должно присутствовать (отмечают при сдаче, решение владельца 07.10); null — не проверяется. */
   quorumPct: z.number().int().min(1).max(100).nullable().default(null),
+  /** Срочное задание — разбитый бурей корабль (решение владельца 04.11): на дороги и в Каменоломню не ставится, корабль виден всем командам. */
+  wreck: z.boolean().default(false),
 });
 export type DeedFields = z.infer<typeof deedBody>;
 const setItem = deedBody.extend({ replaces: z.array(z.string().trim().min(2)).default([]), donationMin: z.number().int().min(0).max(100_000_000).nullable().optional() });
@@ -96,7 +98,8 @@ export function deedTextHash(d: DeedLike): string {
   return deedHash({ ...d, stones: undefined, quorumPct: undefined, quarry: d.quarry });
 }
 /** Ценник (donationMin) набор переносит в игру, только если он в наборе задан; иначе остаётся тот, что выставил администратор игры. */
-const fields = (d: DefaultDeed): Omit<DeedFields, "donationMin"> & { donationMin?: number | null } => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, chance: d.chance, secret: d.secret, remote: d.remote, siegePoints: d.siegePoints, quarry: d.quarry, stones: d.stones, quorumPct: d.quorumPct, ...(d.donationMin !== undefined ? { donationMin: d.donationMin } : {}) });
+/** Срочность (wreck, 04.11) — настройка администратора игры: набор её не задаёт и не сбрасывает. */
+const fields = (d: DefaultDeed): Omit<DeedFields, "donationMin" | "wreck"> & { donationMin?: number | null } => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, chance: d.chance, secret: d.secret, remote: d.remote, siegePoints: d.siegePoints, quarry: d.quarry, stones: d.stones, quorumPct: d.quorumPct, ...(d.donationMin !== undefined ? { donationMin: d.donationMin } : {}) });
 const lc = (s: string) => s.trim().toLowerCase();
 
 export interface SyncResult { added: number; updated: number; removed: number }

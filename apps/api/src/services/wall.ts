@@ -20,6 +20,12 @@ import { defenseNeed, gameRules, maybeRepel, sumVerses, type BattleWithEntries }
  */
 
 export const WALL_NOTE = "Блок городской стены";
+/** Блок из груза разбитого корабля (решение владельца 04.11): стихов за ним нет, в ответ ложится условным диапазоном ниже нуля (см. `cargoRange`). */
+export const CARGO_NOTE = "Блок стены из груза корабля";
+/** Условный диапазон k-го блока из груза в городе: −(k+1)·n … −k·n−1 — не пересекается ни с настоящими стихами (≥ 0), ни с другими блоками груза. */
+export function cargoRange(k: number, n: number): { start: number; end: number } {
+  return { start: -(k + 1) * n, end: -k * n - 1 };
+}
 
 /** Границы блока по номеру k: от k·n до k·n+n−1, последний блок — до конца книги. */
 export function brickRange(k: number, n: number, total: number): { start: number; end: number } {
@@ -34,12 +40,13 @@ async function memberIds(teamId: string): Promise<Set<string>> {
 /** Толщина стены команды в городе: стихи принятых и не сгоревших блоков нынешних участников и число блоков; блок воина — два (02.11). */
 export async function wallOf(teamId: string, nodeKey: string): Promise<{ verses: number; blocks: number; pending: number }> {
   const [rows, members] = await Promise.all([
-    prisma.wallBlock.findMany({ where: { teamId, nodeKey, status: { in: ["APPROVED", "SUBMITTED"] }, usedAt: null }, select: { userId: true, startIdx: true, endIdx: true, weight: true, status: true, missing: true, repairOfId: true } }),
+    prisma.wallBlock.findMany({ where: { teamId, nodeKey, status: { in: ["APPROVED", "SUBMITTED"] }, usedAt: null }, select: { userId: true, startIdx: true, endIdx: true, weight: true, status: true, missing: true, repairOfId: true, cargo: true } }),
     memberIds(teamId),
   ]);
   let verses = 0, blocks = 0, pending = 0;
   for (const r of rows) {
-    if (!members.has(r.userId)) continue;
+    // Блок из груза корабля (04.11) — командный: не зависит от того, кто его положил.
+    if (!r.cargo && !members.has(r.userId)) continue;
     if (r.status === "SUBMITTED") { pending += r.weight; continue; }
     if (r.repairOfId) continue; // принятая починка уже вернула стихи исходному блоку
     blocks += r.weight;
@@ -51,19 +58,19 @@ export async function wallOf(teamId: string, nodeKey: string): Promise<{ verses:
 /** Есть ли стена у хранителей каждого из городов (для карты: без толщины). */
 export async function wallsAt(gameId: string, owners: Array<{ nodeKey: string; teamId: string }>): Promise<Set<string>> {
   if (owners.length === 0) return new Set();
-  const rows = await prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED", usedAt: null, repairOfId: null, nodeKey: { in: owners.map((o) => o.nodeKey) } }, select: { nodeKey: true, teamId: true, userId: true } });
+  const rows = await prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED", usedAt: null, repairOfId: null, nodeKey: { in: owners.map((o) => o.nodeKey) } }, select: { nodeKey: true, teamId: true, userId: true, cargo: true } });
   if (rows.length === 0) return new Set();
   const members = await prisma.membership.findMany({ where: { teamId: { in: [...new Set(rows.map((r) => r.teamId))] } }, select: { teamId: true, userId: true } });
   const inTeam = new Set(members.map((m) => `${m.teamId}|${m.userId}`));
   const ownerOf = new Map(owners.map((o) => [o.nodeKey, o.teamId]));
   const out = new Set<string>();
-  for (const r of rows) if (ownerOf.get(r.nodeKey) === r.teamId && inTeam.has(`${r.teamId}|${r.userId}`)) out.add(r.nodeKey);
+  for (const r of rows) if (ownerOf.get(r.nodeKey) === r.teamId && (r.cargo || inTeam.has(`${r.teamId}|${r.userId}`))) out.add(r.nodeKey);
   return out;
 }
 
 /** Стихи книги, которые участник уже сдал блоками стены (кроме возвращённых): в испытании второй раз не засчитываются. */
 export async function wallVersesOf(gameId: string, bookCode: string, userId: string): Promise<Set<number>> {
-  const rows = await prisma.wallBlock.findMany({ where: { gameId, bookCode, userId, status: { not: "REJECTED" } }, select: { startIdx: true, endIdx: true } });
+  const rows = await prisma.wallBlock.findMany({ where: { gameId, bookCode, userId, status: { not: "REJECTED" }, cargo: false }, select: { startIdx: true, endIdx: true } });
   const out = new Set<number>();
   for (const r of rows) for (let i = r.startIdx; i <= r.endIdx; i++) out.add(i);
   return out;
@@ -91,16 +98,16 @@ export async function applyWall(b: BattleWithEntries): Promise<{ battle: BattleW
   const updates: Prisma.PrismaPromise<unknown>[] = [];
   let burnt = 0, cracked = 0, added = 0;
   for (const w of blocks) {
-    if (!members.has(w.userId)) continue;
+    if (!w.cargo && !members.has(w.userId)) continue;
     const have = sumVerses(entries, "DEFENSE", true);
     if (have >= need) break;
     const intactEnd = w.endIdx - w.missing, avail = intactEnd - w.startIdx + 1;
     if (avail <= 0) continue;
     const take = Math.min(avail, Math.ceil((need - have) / Math.max(1, w.weight)));
     const s = intactEnd - take + 1, e = intactEnd;
-    rows.push({ battleId: b.id, side: "DEFENSE", teamId: b.defenderId, userId: w.userId, startIdx: s, endIdx: e, links: w.links.slice(0, 20), weight: w.weight, note: WALL_NOTE, status: "APPROVED", carried: true, decidedAt: now });
+    rows.push({ battleId: b.id, side: "DEFENSE", teamId: b.defenderId, userId: w.userId, startIdx: s, endIdx: e, links: w.links.slice(0, 20), weight: w.weight, note: w.cargo ? CARGO_NOTE : WALL_NOTE, status: "APPROVED", carried: true, decidedAt: now });
     // Сумма считается по людям и стихам: кладём, пока ставка не перекрыта.
-    entries = [...entries, { id: w.id, battleId: b.id, side: "DEFENSE", teamId: b.defenderId, userId: w.userId, startIdx: s, endIdx: e, links: w.links, note: WALL_NOTE, status: "APPROVED", adminComment: "", weight: w.weight, carried: true, createdAt: now, decidedAt: now }];
+    entries = [...entries, { id: w.id, battleId: b.id, side: "DEFENSE", teamId: b.defenderId, userId: w.userId, startIdx: s, endIdx: e, links: w.links, note: w.cargo ? CARGO_NOTE : WALL_NOTE, status: "APPROVED", adminComment: "", weight: w.weight, carried: true, createdAt: now, decidedAt: now }];
     added += take * w.weight;
     if (take === avail) { updates.push(prisma.wallBlock.update({ where: { id: w.id }, data: { usedBattleId: b.id, usedAt: now, missing: w.endIdx - w.startIdx + 1 } })); burnt += w.weight; }
     else { updates.push(prisma.wallBlock.update({ where: { id: w.id }, data: { usedBattleId: b.id, missing: w.missing + take } })); cracked += 1; }

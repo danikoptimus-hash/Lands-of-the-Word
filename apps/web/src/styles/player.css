@@ -89,6 +89,12 @@
 /* Корабль у порта: метка морского дела с морской стороны, тонкий «швартов» к порту. */
 .m-deed.sea .mooring { stroke: var(--surface); stroke-width: calc(2px / var(--k, 1)); stroke-dasharray: calc(3px / var(--k, 1)) calc(3px / var(--k, 1)); opacity: .8; pointer-events: none; }
 .m-deed.sea.landing circle { fill: var(--success); stroke: var(--surface); }
+/* Разбитый бурей корабль (04.11): область нажатия вокруг корпуса (в единицах карты) и красный знак «срочно» на маркере. */
+.m-deed.wreck .wreck-hit { fill: transparent; stroke: none; pointer-events: auto; }
+.m-deed.wreck .urgent circle { fill: var(--danger, #b3402a); stroke: var(--surface); stroke-width: 1.2; }
+.m-deed.wreck .urgent text { fill: #fff; pointer-events: none; }
+.m-deed.wreck > g > circle:not(.far) { fill: var(--danger-soft, #f3d9d2); stroke: var(--danger, #b3402a); }
+.m-deed.wreck use { color: var(--danger, #b3402a); }
 .m-deed.sea.landing use { color: var(--on-accent); }
 /* Место высадки: пульсирующее кольцо и якорь; нажатие — высадка (сервер пускает только капитана). */
 .m-land { cursor: pointer; pointer-events: auto; }
@@ -860,6 +866,8 @@
 .masonry .brick { fill: var(--brick); stroke: var(--mortar); stroke-width: .8; transform-box: fill-box; transform-origin: center; }
 .masonry .brick { fill: url(#bm-sand); }
 .masonry .brick.alt { fill: url(#bm-sand2); }
+/* Блок из груза корабля (04.11): тёмный камень, чтобы отличался от блоков со стихами. */
+.masonry .brick.cargo { fill: url(#bm-dark); }
 .masonry .brick.merlon { fill: url(#bm-sand); }
 .masonry .brick.pending { fill: transparent; stroke-dasharray: 3 2; stroke: var(--muted); }
 .masonry .brick.ghost { fill: transparent; stroke-dasharray: 2 3; stroke: var(--border-strong, var(--muted)); opacity: .6; }

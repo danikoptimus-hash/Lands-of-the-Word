@@ -176,6 +176,8 @@ model Game {
   trades      CityTrade[]
   wallBlocks  WallBlock[]
   learnPlans  LearnPlan[]
+  wrecks      Wreck[]
+  wreckWorks  WreckWork[]
 }
 
 model GameAdmin {
@@ -311,6 +313,9 @@ model Team {
   /** Тёсаные камни Каменоломни (решение владельца 04.10): один камень мостит одну свободную сторону. */
   stones         Int          @default(0)
   quarryWorks    QuarryWork[]
+  /** Блоки для стен из груза разбитого корабля (решение владельца 04.11): блок ложится в стену своего города сразу принятым. */
+  cargoBlocks    Int          @default(0)
+  wreckWorks     WreckWork[]
   /** Разведчик: последний «взгляд» за ребро (раз в неделю). */
   lastPeekAt     DateTime?
   /** Пророк: последняя подсказка к заданию города (раз в неделю). */
@@ -418,6 +423,10 @@ model Deed {
   /** Общее дело: сколько процентов состава должно присутствовать (отмечается при сдаче); null — не проверяется. */
   quorumPct   Int?
   quarryWorks QuarryWork[]
+  /** Срочное задание — разбитый бурей корабль (решение владельца 04.11): на дороги не ставится, виден всем командам на карте; за него благодарят грузом. */
+  wreck       Boolean   @default(false)
+  wrecks      Wreck[]
+  wreckWorks  WreckWork[]
   /** Список людей у дела (решение владельца 21.10): кому звонить; стороны с этим делом получают имя равномерно. */
   people      DeedPerson[]
   /** Хеш версии стандартного набора, из которой взято дело; пока администратор дело не правил, совпадает с хешем содержимого — такие дела сервер обновляет сам при выходе новой версии набора. */
@@ -783,6 +792,8 @@ model WallBlock {
   missing      Int         @default(0)
   /** Починка надломленного блока: сдача его недостающих стихов; после принятия исходный блок снова цел, эта строка остаётся историей. */
   repairOfId   String?
+  /** Блок из груза разбитого корабля (решение владельца 04.11): стихов за ним нет, диапазон условный (ниже нуля), ложится сразу принятым, толщина — как у обычного блока. */
+  cargo        Boolean     @default(false)
 
   @@index([gameId, nodeKey, status])
   @@index([teamId, nodeKey])
@@ -1139,4 +1150,61 @@ model AwardGrant {
   @@unique([gameId, teamId, userId, code, key])
   @@index([gameId, teamId])
   @@index([gameId, userId])
+}
+
+/**
+ * Разбитый бурей корабль (решение владельца 04.11): один на все команды, появляется на карте, когда администратор помечает
+ * дело как срочное; стоит на водном гексе у берега (`q, r`), одна из трёх моделей; закрывается, когда флажок снят или
+ * корабль отпущен. На дело — не больше одного открытого корабля.
+ */
+model Wreck {
+  id        String    @id @default(cuid())
+  gameId    String
+  game      Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  /** Дело; после удаления дела корабль тонет, строка остаётся на две минуты анимации и в истории сдач. */
+  deedId    String?
+  deed      Deed?     @relation(fields: [deedId], references: [id], onDelete: SetNull)
+  /** Название дела на момент появления корабля (на случай удаления дела). */
+  title     String    @default("")
+  q         Int
+  r         Int
+  /** Модель корабля: 0 — шлюп, 1 — когг, 2 — трёхмачтовый. */
+  model     Int       @default(0)
+  /** Семя: место и ритм сигнальных ракет одинаковы у всех игроков. */
+  seed      Int       @default(0)
+  createdAt DateTime  @default(now())
+  closedAt  DateTime?
+  /** Затонул (решение владельца 04.11: «если команда так и не взяла дело корабля, а админ уже удалил дело, то корабль тонет»): дело удалено, флажок снят или корабль отпущен. */
+  sunk      Boolean   @default(false)
+  works     WreckWork[]
+
+  @@index([gameId, closedAt])
+}
+
+/** Сдача срочного задания командой (по образцу QuarryWork): принято — груз выпал (камни или блоки, 50/50). */
+model WreckWork {
+  id           String    @id @default(cuid())
+  gameId       String
+  game         Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  wreckId      String
+  wreck        Wreck     @relation(fields: [wreckId], references: [id], onDelete: Cascade)
+  deedId       String?
+  deed         Deed?     @relation(fields: [deedId], references: [id], onDelete: SetNull)
+  teamId       String
+  team         Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId       String
+  participants String[]  @default([])
+  links        String[]  @default([])
+  note         String    @default("")
+  status       String    @default("SUBMITTED")
+  submittedAt  DateTime  @default(now())
+  decidedAt    DateTime?
+  decidedById  String?
+  adminComment String    @default("")
+  /** Что выпало при одобрении: STONES — тёсаные камни, BLOCKS — блоки для стен. */
+  cargo        String?
+  amount       Int?
+
+  @@index([gameId, status])
+  @@index([wreckId, teamId])
 }
