@@ -54,9 +54,9 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
   }
   const all = rows ?? [];
   const active = all.filter((b) => b.status === "ATTACK" || b.status === "DEFENSE" || b.status === "QUEUED");
-  // В кружке — испытания, где есть записи на проверке, а не сами записи (замечание владельца 04.11: «показывает 3 активных
-  // испытания, а в уведомлении и в шапке сверху показывает 5»): одно испытание с пятью записями — один пункт проверки.
-  const pending = all.filter((b) => b.entries.some((e) => e.status === "SUBMITTED")).length;
+  // В кружке — число идущих испытаний, как на вкладке «Идут» (решение владельца 04.11: «почему на плитке цифра 1, если
+  // активных испытаний 3?!»); раньше считались записи на проверке.
+  const pending = active.length;
   // Вторая вкладка — только завершённые, без идущих (решение владельца 03.11: «„все“ меня запутывает»).
   const done = all.filter((b) => !active.includes(b));
   const shown = filter === "done" ? done : active;
