@@ -6,7 +6,7 @@
  * Запуск (из корня, при поднятом локальном сервере с тестовыми данными):
  *   MAP_SHOTS=/путь/вне/репозитория MAP_GAME=<id тяжёлой партии> [MAP_GAME_LIGHT=<id лёгкой партии>] MAP_CAPTAIN=<ник капитана> \
  *   MAP_ADMIN=<ник администратора> MAP_PASS=<пароль тестовых аккаунтов> [MAP_BASE=http://localhost:3000] \
- *   [MAP_TIME=2026-11-04T12:00:00+05:00] [MAP_RUNS=phone:heavy:team,...] node scripts/map-shots.mjs
+ *   [MAP_TIME=2026-11-04T12:00:00+05:00] [MAP_RUNS=phone:heavy:team,...] [MAP_QUERY=routes=gl] node scripts/map-shots.mjs
  * Ники и пароль — только из переменных окружения. Нужен Playwright (devDependencies) и Chromium (PW_CHROMIUM).
  *
  * Чтобы снимки повторялись: часы страницы остановлены (`page.clock.setFixedTime`) — живность, время суток и костры у
@@ -37,7 +37,7 @@ for (const [profile, game, map] of RUNS) {
   await ctx.request.post("/api/auth/login", { data: { nickname: USERS[map], password: PASS } });
   const page = await ctx.newPage();
   await page.clock.setFixedTime(TIME);
-  await page.goto(`/games/${GAMES[game]}${map === "team" ? "/team" : ""}?perf=1&tod=day`);
+  await page.goto(`/games/${GAMES[game]}${map === "team" ? "/team" : ""}?perf=1&tod=day${process.env.MAP_QUERY ? "&" + process.env.MAP_QUERY : ""}`); // MAP_QUERY — доп. параметры адреса (переключатели вариантов)
   const host = map === "team" ? ".map-canvas" : ".admin-map-area .mapwrap";
   await page.waitForSelector(`${host} .map-svg`, { timeout: 60000 });
   // Туман (холст сразу после мирового SVG) тоже скрыт: его облака плывут по часам кадра, а не по Date, и снимки не повторялись бы.

@@ -4,7 +4,7 @@
  * Запуск (из корня, при поднятом локальном сервере с тестовыми данными):
  *   MAP_GAME=<id тяжёлой партии> MAP_CAPTAIN=<ник капитана> MAP_ADMIN=<ник администратора> MAP_PASS=<пароль тестовых аккаунтов> \
  *   [MAP_GAME_LIGHT=<id лёгкой партии>] [MAP_BASE=http://localhost:3000] [MAP_OUT=/путь/map-perf.json] [MAP_CPU=4] [MAP_TRACE=1] \
- *   [MAP_RUNS=phone:team:full,phone:team:early,...] node scripts/map-perf.mjs
+ *   [MAP_RUNS=phone:team:full,phone:team:early,...] [MAP_QUERY=routes=gl] node scripts/map-perf.mjs
  * Ники и пароль — только из переменных окружения. Нужен Playwright (devDependencies) и Chromium (PW_CHROMIUM,
  * по умолчанию /opt/pw-browsers/chromium).
  *
@@ -55,7 +55,7 @@ for (const [profile, map, variant] of RUNS) {
   if (variant === "early") await ctx.route(/\/api\/games\/[^/]+\/(my-map|teams\/[^/]+\/map)(\?|$)/, async (route) => { const r = await route.fetch(); const b = await r.json(); b.tasks = []; b.foreign = []; b.marks = []; await route.fulfill({ response: r, json: b }); });
   await ctx.request.post("/api/auth/login", { data: { nickname: USERS[map], password: PASS } });
   const page = await ctx.newPage();
-  await page.goto(`/games/${game}${map === "team" ? "/team" : ""}?perf=1&tod=day`);
+  await page.goto(`/games/${game}${map === "team" ? "/team" : ""}?perf=1&tod=day${process.env.MAP_QUERY ? "&" + process.env.MAP_QUERY : ""}`); // MAP_QUERY — доп. параметры адреса (переключатели вариантов)
   const host = map === "team" ? ".map-canvas" : ".admin-map-area .mapwrap";
   await page.waitForSelector(`${host} .map-svg`, { state: "attached", timeout: 60000 });
   await page.addStyleTag({ content: ".toasts{display:none!important}" });
