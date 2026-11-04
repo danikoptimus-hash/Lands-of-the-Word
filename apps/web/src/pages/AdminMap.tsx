@@ -1,5 +1,7 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, routeCurve, routePathD, routeArrow } from "@lotw/domain";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState, type MouseEvent, type PointerEvent } from "react";
+import { hitTest, mapPoint, stylesK, type HitModel } from "../lib/mapHit";
+import { perfExpose } from "../lib/perfHud";
+import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, routeCurve, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
 import { useViewport } from "../lib/useViewport";
@@ -177,6 +179,31 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const islandLabels = useMemo(() => (showIslands && islandCenters.has("NT") ? [...islandCenters].map(([isl, c]) => ({ x: c.x, y: c.y, r: c.r + size * 4, name: isl === "OT" ? t("Ветхий Завет") : t("Новый Завет") })) : []), [showIslands, islandCenters, size]);
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста). */
   const sc = (x: number, y: number) => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))` });
+  // Нажатия в коде (этап Э1 плана ускорения карты): области те же, что были у невидимых линий SVG — любая сторона и
+  // морская переправа полосой 18 экранных пикселей, город — прямоугольником картинки; приоритет как в SVG: город выше
+  // переправы, переправа выше стороны, последний в списке выше.
+  const hitModel = useMemo<HitModel<{ node: MapNodeDto } | { edge: { aKey: string; bKey: string } }>>(() => {
+    const CITY = size * 0.77;
+    const obstacles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape }));
+    return {
+      rects: nodes.filter((n) => n.kind === "CITY" && positions.has(n.key)).map((n) => { const p = positions.get(n.key)!; return { x: p.x - CITY / 2, y: p.y - CITY * 0.6, w: CITY, h: CITY, id: { node: n } }; }),
+      routes: (progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => ({ pts: routeCurve(seaRoute(landKeys, e.fromKey, e.toKey, size, undefined, obstacles), landKeys, size, obstacles), id: { edge: { aKey: e.fromKey, bKey: e.toKey } } }))),
+      edges: edges.flatMap((e) => { const a = positions.get(e.aKey), b = positions.get(e.bKey); return a && b ? [{ pts: [a, b], id: { edge: { aKey: e.aKey, bKey: e.bKey } } }] : []; }),
+    };
+  }, [nodes, edges, positions, progress, edgeSet, landKeys, islets, size]);
+  useEffect(() => { perfExpose("scene", { edges: hitModel.edges.length, routes: hitModel.routes.length, model: hitModel }); }, [hitModel]);
+  const hitAt = (svg: SVGSVGElement, clientX: number, clientY: number) => {
+    const host = svg.parentElement; if (!host) return null;
+    const view = vp.viewRef.current;
+    return hitTest(mapPoint(host, view, clientX, clientY), hitModel, 18, stylesK(svg, view.k));
+  };
+  const onWorldClick = (e: MouseEvent<SVGSVGElement>) => {
+    if (vp.wasDrag()) return;
+    const hit = hitAt(e.currentTarget, e.clientX, e.clientY);
+    if (!hit) return;
+    if ("node" in hit) setSelected(hit.node); else setEdgeSel(hit.edge);
+  };
+  const onWorldPointerMove = (e: PointerEvent<SVGSVGElement>) => { if (e.pointerType === "mouse") e.currentTarget.style.cursor = hitAt(e.currentTarget, e.clientX, e.clientY) ? "pointer" : ""; };
   // Мир и экранные элементы — мемо по данным: фиксация масштаба не должна заново строить сотни SVG-элементов.
   const worldBody = useMemo(() => (<>
             {/* Дороги и переправы — под значками городов и стартов, иначе светлая подложка маршрута перекрывает их (замечание владельца 30.09). */}
@@ -184,22 +211,15 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               const a = positions.get(e.aKey), b = positions.get(e.bKey);
               if (!a || !b) return null;
               const teams = traversedBy.get([e.aKey, e.bKey].sort().join("|")) ?? [];
-              // Широкая прозрачная линия поверх — чтобы в дорогу можно было попасть пальцем: открывает дела на этой стороне.
-              const hit = <line className="edge-hit" data-a={e.aKey} data-b={e.bKey} x1={a.x} y1={a.y} x2={b.x} y2={b.y} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.aKey, bKey: e.bKey }); }} />;
-              if (teams.length === 0) return <g key={e.aKey + e.bKey}><line className="adm-edge" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />{hit}</g>;
+              // Нажатие по стороне (открывает дела на ней) считает код — hitModel, невидимой широкой линии больше нет.
+              if (teams.length === 0) return <g key={e.aKey + e.bKey}><line className="adm-edge" x1={a.x} y1={a.y} x2={b.x} y2={b.y} /></g>;
               // Маршруты: светлая подложка и осветлённый цвет команды, чтобы не сливались с местностью (решение владельца 30.09).
               const halo = <line className="adm-halo" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />;
-              if (teams.length === 1) return <g key={e.aKey + e.bKey}>{halo}<line className="adm-path" x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={{ stroke: routeColor(teams[0]!.color) }} />{hit}</g>;
+              if (teams.length === 1) return <g key={e.aKey + e.bKey}>{halo}<line className="adm-path" x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={{ stroke: routeColor(teams[0]!.color) }} /></g>;
               const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-              return <g key={e.aKey + e.bKey}>{halo}<line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} style={{ stroke: routeColor(teams[0]!.color) }} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} style={{ stroke: routeColor(teams[1]!.color) }} />{hit}</g>;
+              return <g key={e.aKey + e.bKey}>{halo}<line className="adm-path" x1={a.x} y1={a.y} x2={mx} y2={my} style={{ stroke: routeColor(teams[0]!.color) }} /><line className="adm-path" x1={mx} y1={my} x2={b.x} y2={b.y} style={{ stroke: routeColor(teams[1]!.color) }} /></g>;
             })}
-            {/* Морские переправы (решение владельца 05.10): плавная линия строго по воде, в обход островков, со стрелкой к месту высадки. */}
-            {(progress ?? []).flatMap((tm) => tm.traversed.filter((e) => !edgeSet.has([e.fromKey, e.toKey].sort().join("|")) && positions.has(e.fromKey) && positions.has(e.toKey)).map((e) => {
-              const pts = routeCurve(seaRoute(landKeys, e.fromKey, e.toKey, size, undefined, obstacles), landKeys, size, obstacles);
-              const d = routePathD(pts), arrow = routeArrow(pts, size * 1.1), end = { x: arrow.x, y: arrow.y }, heading = arrow.heading;
-              void end; void heading; // линия и стрелка рисуются слоем живности (решение владельца 06.10); здесь только область нажатия
-              return <g key={"sea" + tm.id + e.fromKey + e.toKey} className="adm-sea-route"><path className="edge-hit" d={d} onClick={() => { if (!vp.wasDrag()) setEdgeSel({ aKey: e.fromKey, bKey: e.toKey }); }} /></g>;
-            }))}
+            {/* Морские переправы (решение владельца 05.10) рисует слой живности; нажатие по ним считает код (hitModel). */}
             {nodes.map((n) => {
               const p = positions.get(n.key)!;
               const CITY = size * 0.77, START = size * 0.9; // решение владельца 16.09: знаки городов и стартов в полтора раза меньше прежних (1,15 и 1,35)
@@ -208,7 +228,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 const owner = ownerOf.get(n.key);
                 // Картинка города кликабельна сама (как у команды); владелец — обводка по контуру картинки цветом команды.
                 return (
-                  <g key={"c" + n.key} data-key={n.key} className="m-city" onClick={() => { if (!vp.wasDrag()) setSelected(n); }}>
+                  <g key={"c" + n.key} data-key={n.key} className="m-city">
                     <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={owner ? `url(#outline-${owner.color.slice(1)})` : "url(#outline-free)"} />
                   </g>
                 );
@@ -323,7 +343,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dt} />
           <TilesLayer vp={vp} hexes={hexes} size={size} skipWater={liveWater} daytime={dt} />
           {liveWater && <LakesLayer vp={vp} hexes={hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dt} />}
-          <WorldSvg vp={vp} bounds={bounds}>
+          <WorldSvg vp={vp} bounds={bounds} onClick={onWorldClick} onPointerMove={onWorldPointerMove}>
             <MapSymbols />
             <OutlineDefs colors={[...new Set((progress ?? []).map((tm) => tm.color))]} k={vp.view.k} />
             <HexTiles hexes={hexes} size={size} clipId="hexclip-admin" liveWater={liveWater} fills={false} />

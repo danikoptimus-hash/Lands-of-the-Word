@@ -71,7 +71,6 @@
 .adm-halo { stroke: rgba(255, 250, 240, .85); stroke-width: calc(9px / max(1.6, var(--k, 1))); stroke-linecap: round; pointer-events: none; }
 .adm-halo.sea { stroke: rgba(255, 250, 240, .6); stroke-width: calc(7px / max(1.6, var(--k, 1))); }
 /* Дорога нажимается: прозрачная широкая линия поверх (решение владельца 30.09 — отчёты по делам на стороне). */
-.edge-hit { stroke: transparent; stroke-width: calc(18px / var(--k, 1)); stroke-linecap: round; cursor: pointer; pointer-events: stroke; }
 .edge-tasks button.row-btn { display: flex; align-items: center; justify-content: flex-start; gap: var(--sp-2); width: 100%; min-height: 0; text-align: left; background: none; border: 0; border-radius: 0; box-shadow: none; padding: var(--sp-2) 0; font: inherit; line-height: inherit; color: inherit; white-space: normal; cursor: pointer; transform: none; }
 .edge-tasks button.row-btn:hover, .edge-tasks button.row-btn:active { background: none; transform: none; }
 .edge-tasks button.row-btn .body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
@@ -85,7 +84,7 @@
 .feed button.linkish .chev { vertical-align: middle; color: var(--muted); width: 14px; height: 14px; }
 .task-report .report-text { white-space: pre-wrap; }
 .adm-sea { fill: none; stroke-width: calc(5px / max(1.6, var(--k, 1))); stroke-linecap: round; stroke-linejoin: round; opacity: .95; }
-.adm-sea-route .adm-halo, .adm-sea-route .edge-hit { fill: none; stroke-linejoin: round; }
+.adm-sea-route .adm-halo { fill: none; stroke-linejoin: round; }
 /* «Посмотреть на карте» (10.10): сторона дела подсвечена линией и пульсирующим кольцом несколько секунд. */
 .adm-flash line { stroke: #fff; stroke-width: calc(12px / max(1.6, var(--k, 1))); stroke-linecap: round; opacity: .9; }
 .adm-flash line + line { stroke: var(--accent); stroke-width: calc(6px / max(1.6, var(--k, 1))); }

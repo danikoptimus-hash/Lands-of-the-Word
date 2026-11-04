@@ -112,7 +112,7 @@ function SeaCanvas({ vp, bed, light }: { vp: Viewport; bed: Seabed | null; light
  * не чаще VAR_MS — каждое обновление перерисовывает слой, и на каждый кадр это дорого.
  */
 const PAD = 0.4, VAR_MS = 120;
-export function WorldSvg({ vp, children, overlay }: { vp: Viewport; bounds?: { minX: number; minY: number; width: number; height: number }; children: React.ReactNode; /** Верхний слой подписей: сам SVG не ловит нажатия, только его интерактивные дети. */ overlay?: boolean }) {
+export function WorldSvg({ vp, children, overlay, onClick, onPointerMove }: { vp: Viewport; bounds?: { minX: number; minY: number; width: number; height: number }; children: React.ReactNode; /** Верхний слой подписей: сам SVG не ловит нажатия, только его интерактивные дети. */ overlay?: boolean; /** Нажатие по миру: карта сама считает, что под точкой (Э1, lib/mapHit.ts), невидимых линий нажатия в SVG больше нет. */ onClick?: React.MouseEventHandler<SVGSVGElement>; onPointerMove?: React.PointerEventHandler<SVGSVGElement> }) {
   const ref = useRef<SVGSVGElement>(null);
   const [box, setBox] = useState({ w: 0, h: 0 });
   const base = vp.view;
@@ -145,7 +145,7 @@ export function WorldSvg({ vp, children, overlay }: { vp: Viewport; bounds?: { m
   const w = box.w + 2 * pad, h = box.h + 2 * pad;
   const vx = (-pad - base.tx) / base.k, vy = (-pad - base.ty) / base.k;
   return (
-    <svg ref={ref} className={"map-svg world" + (overlay ? " passthrough" : "")} width={w} height={h} viewBox={`${vx} ${vy} ${w / base.k} ${h / base.k}`} style={{ width: w, height: h, left: -pad, top: -pad }}>
+    <svg ref={ref} className={"map-svg world" + (overlay ? " passthrough" : "")} width={w} height={h} viewBox={`${vx} ${vy} ${w / base.k} ${h / base.k}`} style={{ width: w, height: h, left: -pad, top: -pad }} onClick={onClick} onPointerMove={onPointerMove}>
       {children}
     </svg>
   );
