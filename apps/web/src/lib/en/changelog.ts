@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Администратору: в аналитике игры есть «Стихов в день» — такой же график, как «Дел в день»: выученные стихи, принятые в испытаниях и в стене, по командам. Один и тот же стих у двоих считается за два.": "For the administrator: game analytics now has “Verses per day”, the same chart as “Deeds per day”: memorized verses accepted in trials and in the wall, by team. The same verse learned by two people counts as two.",
   "Точки перекрёстков на карте больше не закрывают названия городов и пленов: подписи лежат поверх точек.": "Crossroad dots on the map no longer cover the names of cities and captivities: labels lie above the dots.",
   "На открытых городах видно, столица ли это другой команды: корона на подписи и «Столица команды …» в карточке города.": "Revealed cities show whether they are another team’s capital: a crown on the label and “Capital of team …” in the city card.",
   "Вступить в команду можно прямо в приложении: на главной вставьте ссылку-приглашение или код — браузер открывать не нужно.": "You can join a team right inside the app: paste the invite link or code on the home screen — no need to open the browser.",

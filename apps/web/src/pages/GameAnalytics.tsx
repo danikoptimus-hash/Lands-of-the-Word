@@ -10,16 +10,21 @@ import { StatChip } from "../components/StatChip";
  * Темп партии для администратора игры (решение владельца 23.10; уточнение: «оставить только логистическую кривую,
  * факт и прогноз», затем «уберём зелёную линию, оставим только логистическую кривую», «добавить график с количеством дел
  * в день»). Первый график — города накопительно: сплошная — факт, точечная — логистическая кривая. Второй — принятые дела
- * в день, стеком по командам, с прямой тренда по полным дням. Таблица вех и текст под первым графиком убраны («убрать весь этот текст»),
+ * в день, стеком по командам, с прямой тренда по полным дням. Третий — выученные стихи в день, точно такой же (решение владельца
+ * 04.11). Таблица вех и текст под первым графиком убраны («убрать весь этот текст»),
  * как и подписи «сегодня» и «все K городов» с горизонталью: потолок оси Y — само число городов.
  */
 interface Pt { day: number; value: number }
+/** Столбики по дням стеком по командам; fitDays — сколько полных дней идёт в прямую тренда. */
+interface Daily { days: string[]; teams: Array<{ id: string; name: string; color: string; values: number[] }>; fitDays: number }
 interface Pace {
   tz: string; startedAt: string; now: string; T: number; K: number; n: number; rate: number; rampDay: number; dailyTasksAvg: number; dailyDeedsAvg: number; milestones: number[];
   teams: Array<{ id: string; name: string; color: string }>;
   fact: Array<Pt & { teamId: string | null }>;
   /** Переходы городов по испытаниям и осадам: день, кто отдал, кто взял. */ transfers?: Array<{ day: number; from: string; to: string }>;
-  deeds: { days: string[]; teams: Array<{ id: string; name: string; color: string; values: number[] }>; fitDays: number };
+  deeds: Daily;
+  /** Выученные стихи в день: у каждого участника стих один раз, один стих у двоих — два (решение владельца 04.11). */
+  verses?: Daily;
   logistic: { /** Подобранный потолок: до стольких городов идёт кривая при нынешнем темпе. */ K?: number; r: number; t0: number; curve: Pt[]; finish: Record<string, number | null> };
 }
 const locale = () => (getLocale() === "en" ? "en-GB" : "ru-RU");
@@ -36,8 +41,6 @@ const dayLabel = (iso: string) => new Date(iso + "T00:00:00Z").toLocaleDateStrin
 export function GameAnalytics({ gameId, version = 0 }: { gameId: string; /** Растёт с каждым событием игры: взятие города, одобрение дела, район — тренды и логистическая кривая перечитываются (проверка владельца 30.10). */ version?: number }) {
   const [p, setP] = useState<Pace | null>(() => ready<Pace>(`/api/games/${gameId}/analytics/pace`));
   const [error, setError] = useState<string | null>(null);
-  /** Что включено в легенде графика дел: тренд пересчитывается под выбранные команды («тренд должен пересчитываться под выбранную комбинацию команд»). */
-  const [sel, setSel] = useState<Record<string, boolean>>({});
   // Готовый ответ показывается сразу, свежий тихо подменяет (решение владельца 24.10); заглушка — только когда данных ещё не было.
   const load = () => { setError(null); apiReady<Pace>(`/api/games/${gameId}/analytics/pace`).then(setP).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))); };
   useEffect(load, [gameId, version]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -70,24 +73,8 @@ export function GameAnalytics({ gameId, version = 0 }: { gameId: string; /** Р�
       ],
     });
   }, [p, c]); // eslint-disable-line react-hooks/exhaustive-deps
-  const deedsOption = useMemo(() => {
-    if (!p) return null;
-    const shown = p.deeds.teams.filter((tm) => sel[tm.name] !== false);
-    const totals = p.deeds.days.map((_, i) => shown.reduce((a, tm) => a + (tm.values[i] ?? 0), 0));
-    const trend = shown.length ? trendLine(totals, Math.min(p.deeds.fitDays, totals.length)) : [];
-    return baseOption(c, {
-      legend: { top: 0, textStyle: { color: c.muted }, selected: sel },
-      tooltip: { trigger: "axis", backgroundColor: c.surface, borderColor: c.border, textStyle: { color: c.text, fontFamily: c.font }, formatter: (ps: Array<{ axisValue: string; seriesName: string; seriesIndex: number; value: number; marker: string }>) => { const bars = ps.filter((x) => x.seriesIndex < p.deeds.teams.length); return `${ps[0]?.axisValue ?? ""}<br/>${ps.map((x) => `${x.marker} ${x.seriesName}: <b>${x.value}</b>`).join("<br/>")}${bars.length > 1 ? `<br/>${t("все")}: <b>${bars.reduce((a, x) => a + (x.value || 0), 0)}</b>` : ""}`; } },
-      xAxis: { type: "category", data: p.deeds.days.map(dayLabel), axisLabel: { color: c.muted }, axisLine: { lineStyle: { color: c.border } } },
-      yAxis: { type: "value", minInterval: 1, axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.border, opacity: 0.6 } } },
-      series: [
-        ...p.deeds.teams.map((tm) => ({ name: tm.name, type: "bar", stack: "deeds", data: tm.values, itemStyle: { color: tm.color }, barMaxWidth: 36 })),
-        { name: t("тренд"), type: "line", data: trend, itemStyle: { color: c.text }, lineStyle: { width: 2, type: "dashed", color: c.text }, showSymbol: false, z: 5 },
-      ],
-    });
-  }, [p, c, sel]);
   if (error) return <div className="card"><ErrorState text={error} onRetry={load} /></div>;
-  if (!p || !option || !deedsOption) return <div className="card"><LoadingState /></div>;
+  if (!p || !option) return <div className="card"><LoadingState /></div>;
   const fmt1 = (x: number) => (Math.round(x * 10) / 10).toLocaleString(locale());
   return (
     <>
@@ -101,10 +88,39 @@ export function GameAnalytics({ gameId, version = 0 }: { gameId: string; /** Р�
         </div>
         <Chart option={option} height={380} />
       </div>
-      <div className="card">
-        <div className="card-head"><h2>{t("Дел в день")}<Help>{t("Принятые администратором дела за каждый день партии: дела на сторонах и общие дела Каменоломни. Столбик — день, цвета — команды. Пунктир — прямая тренда по полным дням для включённых в легенде команд.")}</Help></h2></div>
-        <Chart option={deedsOption} height={320} onLegend={setSel} />
-      </div>
+      <DailyBars data={p.deeds} title={t("Дел в день")} help={t("Принятые администратором дела за каждый день партии: дела на сторонах и общие дела Каменоломни. Столбик — день, цвета — команды. Пунктир — прямая тренда по полным дням для включённых в легенде команд.")} />
+      {p.verses && <DailyBars data={p.verses} title={t("Стихов в день")} help={t("Выученные стихи, принятые администратором за каждый день партии: записи испытаний и блоки стены. Каждый участник считается отдельно: если двое выучили один и тот же стих, это два стиха. Свой стих второй раз и стихи, перенесённые из прошлого вызова, не считаются. Столбик — день, цвета — команды. Пунктир — прямая тренда по полным дням для включённых в легенде команд.")} />}
     </>
+  );
+}
+
+/**
+ * Столбики по дням стеком по командам с пунктиром тренда: «Дел в день» и такой же «Стихов в день» (решение владельца 04.11:
+ * «вот точно такой же, в таком же виде, только по выученным стихам»). Легенда у каждого графика своя: тренд пересчитывается
+ * под включённые команды («тренд должен пересчитываться под выбранную комбинацию команд»).
+ */
+function DailyBars({ data, title, help }: { data: Daily; title: string; help: string }) {
+  const c = useMemo(chartColors, []);
+  const [sel, setSel] = useState<Record<string, boolean>>({});
+  const option = useMemo(() => {
+    const shown = data.teams.filter((tm) => sel[tm.name] !== false);
+    const totals = data.days.map((_, i) => shown.reduce((a, tm) => a + (tm.values[i] ?? 0), 0));
+    const trend = shown.length ? trendLine(totals, Math.min(data.fitDays, totals.length)) : [];
+    return baseOption(c, {
+      legend: { top: 0, textStyle: { color: c.muted }, selected: sel },
+      tooltip: { trigger: "axis", backgroundColor: c.surface, borderColor: c.border, textStyle: { color: c.text, fontFamily: c.font }, formatter: (ps: Array<{ axisValue: string; seriesName: string; seriesIndex: number; value: number; marker: string }>) => { const bars = ps.filter((x) => x.seriesIndex < data.teams.length); return `${ps[0]?.axisValue ?? ""}<br/>${ps.map((x) => `${x.marker} ${x.seriesName}: <b>${x.value}</b>`).join("<br/>")}${bars.length > 1 ? `<br/>${t("все")}: <b>${bars.reduce((a, x) => a + (x.value || 0), 0)}</b>` : ""}`; } },
+      xAxis: { type: "category", data: data.days.map(dayLabel), axisLabel: { color: c.muted }, axisLine: { lineStyle: { color: c.border } } },
+      yAxis: { type: "value", minInterval: 1, axisLabel: { color: c.muted }, splitLine: { lineStyle: { color: c.border, opacity: 0.6 } } },
+      series: [
+        ...data.teams.map((tm) => ({ name: tm.name, type: "bar", stack: "daily", data: tm.values, itemStyle: { color: tm.color }, barMaxWidth: 36 })),
+        { name: t("тренд"), type: "line", data: trend, itemStyle: { color: c.text }, lineStyle: { width: 2, type: "dashed", color: c.text }, showSymbol: false, z: 5 },
+      ],
+    });
+  }, [data, c, sel]);
+  return (
+    <div className="card">
+      <div className="card-head"><h2>{title}<Help>{help}</Help></h2></div>
+      <Chart option={option} height={320} onLegend={setSel} />
+    </div>
   );
 }
