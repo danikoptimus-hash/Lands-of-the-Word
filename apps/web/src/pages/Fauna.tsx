@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { perfMark } from "../lib/perfHud";
 import { DAY_LIGHT, type Light } from "../lib/daytime";
 import { HEX_SIZE, hexCenter } from "../lib/hexmap";
@@ -1252,25 +1252,30 @@ function drawIslandLabels(ctx: CanvasRenderingContext2D, k: number): void {
   ctx.restore();
 }
 /** Часть мира: «море» (звери, переправы, буквы, корабли, тени птиц на земле) рисуется под подписями карты, «небо» (сами птицы) — над ними (решение владельца 06.10). */
-type WorldPart = "all" | "sea" | "sky";
+/** Части мира по холстам: under — следы, звери и эффекты (под морскими путями); deck — подписи островов, корабли, тени птиц, (пути, если их рисует холст); sky — птицы. "sea" = under + deck (старые стенды). */
+type WorldPart = "all" | "sea" | "sky" | "under" | "deck";
 function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis, alpha = 1, part: WorldPart = "all"): void {
   ctx.globalAlpha = alpha;
   const T = w.T, px = 1 / k, lod = k >= 1.1, size = w.size, p = w.p;
-  const sea = part !== "sky", sky = part !== "sea";
-  if (sea) {
+  const under = part === "all" || part === "sea" || part === "under", deck = part === "all" || part === "sea" || part === "deck", sky = part === "all" || part === "sky";
+  if (under) {
     // Следы по пройденному пути — под телами; у зверей только у поверхности, у кораблей всегда и с крыльями.
     for (const c of w.cets) drawTrail(ctx, c.trail, T, c.spec.L, c.spec.kind === "dolphin" ? 3 : 6, px, vis, false);
     for (const sh of w.ships) drawTrail(ctx, sh.trail, T, sh.spec.L, 9, px, vis, true);
     for (const c of w.cets) if (inView(vis, c.x, c.y)) drawCet(ctx, c, T, px, lod);
     drawFx(ctx, w.fx, T, px, vis);
-    drawRoutes(ctx, k); drawIslandLabels(ctx, k); ctx.globalAlpha = alpha; // переправы и буквы между китами и кораблями
+  }
+  if (deck) {
+    // Переправы (когда их рисует холст, а не RoutesGL) и буквы — между китами и кораблями; с Э3 пути на WebGL лежат
+    // между холстами under и deck, и порядок тот же: звери под путями, корабли над.
+    drawRoutes(ctx, k); drawIslandLabels(ctx, k); ctx.globalAlpha = alpha;
     for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
   }
   // Птицы: тень лежит на земле (под подписями), тело летит над подписями городов.
   for (const g of w.gulls) {
     if (!inView(vis, g.x, g.y)) continue;
     ctx.save(); ctx.translate(g.x, g.y);
-    if (sea) drawBirdShadow(ctx, GULL, g.S, g.phase, g.amp, g.roll, g.h, g.alt, 0.22 * (1 - 0.5 * g.alt));
+    if (deck) drawBirdShadow(ctx, GULL, g.S, g.phase, g.amp, g.roll, g.h, g.alt, 0.22 * (1 - 0.5 * g.alt));
     if (sky) { ctx.rotate(g.h); drawBird(ctx, GULL, g.S, g.phase, g.amp, g.roll, "rgb(208,214,218)", "rgb(252,253,254)", "rgb(40,44,48)", 1); }
     ctx.restore();
   }
@@ -1284,7 +1289,7 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis,
       if (!inView(vis, x, y)) continue;
       const h = f.h + 0.06 * noise1(T * 0.8, b.seed + 2), roll = f.roll + 0.08 * noise1(T * 0.9, b.seed + 4);
       ctx.save(); ctx.translate(x, y);
-      if (sea) {
+      if (deck) {
         // Тень только над сушей: по профилю острова с плавной кромкой.
         const land = Math.max(...p.parts.map((part) => smooth((radiusAt(part, Math.atan2(y - part.cy, x - part.cx)) - size * 0.3 - Math.hypot(x - part.cx, y - part.cy)) / (size * 1.5))));
         drawBirdShadow(ctx, LANDBIRD, f.S, b.phase, b.amp, roll, h, 0.55, 0.28 * land);
@@ -1995,9 +2000,11 @@ const NO_FIRES: FireSite[] = [];
 const NO_LABELS: IslandLabelSpec[] = [];
 const NO_ROUTES: RouteSpec[] = [];
 const NO_WRECKS: WreckSpec[] = [];
-export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, labels = NO_LABELS, routes = NO_ROUTES, wrecks = NO_WRECKS }: { /** Разбитые бурей корабли (решение владельца 04.11): место, модель, семя ракет, время починки или гибели. */ wrecks?: WreckSpec[]; /** Морские маршруты: рисуются между зверями и кораблями (решение владельца 06.10). */ routes?: RouteSpec[]; /** Подписи островов: рисуются между зверями и кораблями (решение владельца 05.10). */ labels?: IslandLabelSpec[]; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
+export function FaunaLayer({ vp, hexes, between = null, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, labels = NO_LABELS, routes = NO_ROUTES, wrecks = NO_WRECKS }: { /** Слой между холстами «под» и «над» (морские пути на WebGL, этап Э3): звери под ним, корабли над. */ between?: ReactNode; /** Разбитые бурей корабли (решение владельца 04.11): место, модель, семя ракет, время починки или гибели. */ wrecks?: WreckSpec[]; /** Морские маршруты: рисуются между зверями и кораблями (решение владельца 06.10). */ routes?: RouteSpec[]; /** Подписи островов: рисуются между зверями и кораблями (решение владельца 05.10). */ labels?: IslandLabelSpec[]; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  // Второй холст — небо: птицы летят над подписями городов и метками карты (решение владельца 06.10).
+  // Второй холст — палуба: подписи островов, корабли, костры, тени птиц, разбитые корабли — над морскими путями (RoutesGL в слоте between).
+  const deckRef = useRef<HTMLCanvasElement>(null);
+  // Третий холст — небо: птицы летят над подписями городов и метками карты (решение владельца 06.10).
   const skyRef = useRef<HTMLCanvasElement>(null);
   const dailyRef = useRef(daily); dailyRef.current = daily;
   const clockRef = useRef(clock); clockRef.current = clock;
@@ -2022,22 +2029,22 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
   const vpRef = useRef(vp); vpRef.current = vp;
 
   useEffect(() => {
-    const canvas = ref.current, sky = skyRef.current, host = canvas?.parentElement, profile = profileRef.current;
-    if (!canvas || !sky || !host || !profile) return;
-    const ctx = canvas.getContext("2d"), sctx = sky.getContext("2d");
-    if (!ctx || !sctx) return;
+    const canvas = ref.current, deck = deckRef.current, sky = skyRef.current, host = canvas?.parentElement, profile = profileRef.current;
+    if (!canvas || !deck || !sky || !host || !profile) return;
+    const ctx = canvas.getContext("2d"), dctx = deck.getContext("2d"), sctx = sky.getContext("2d");
+    if (!ctx || !dctx || !sctx) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let W = 0, H = 0;
-    const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); for (const c of [canvas, sky]) if (c.width !== W || c.height !== H) { c.width = W; c.height = H; } };
+    const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); for (const c of [canvas, deck, sky]) if (c.width !== W || c.height !== H) { c.width = W; c.height = H; } };
     resize();
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       // «Уменьшить движение»: живности нет, разбитые корабли — статичной картинкой без ракет и дыма (перерисовка по жесту).
       const drawStatic = () => {
         const { k, tx, ty } = vpRef.current.viewRef.current;
-        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
-        ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
+        dctx.setTransform(1, 0, 0, 1, 0, 0); dctx.clearRect(0, 0, W, H);
+        dctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
         WRECKS = wrecksRef.current; SEA = seaRef.current; LIGHT = lightRef.current;
-        drawWrecks(ctx, size, 0, clockRef.current(), 1 / k, { x0: -tx / k - size * 3, y0: -ty / k - size * 3, x1: (W / dpr - tx) / k + size * 3, y1: (H / dpr - ty) / k + size * 3 }, false);
+        drawWrecks(dctx, size, 0, clockRef.current(), 1 / k, { x0: -tx / k - size * 3, y0: -ty / k - size * 3, x1: (W / dpr - tx) / k + size * 3, y1: (H / dpr - ty) / k + size * 3 }, false);
       };
       staticRedraw.current = drawStatic;
       drawStatic();
@@ -2071,24 +2078,28 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
     // При движении карты перерисовываем сразу (иначе звери «примерзают» к экрану до следующего кадра по таймеру).
     const unsub = vpRef.current.subscribe(() => { dirty = true; });
 
-    const clear = () => { for (const c of [ctx, sctx]) { c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); } };
+    const clear = () => { for (const c of [ctx, dctx, sctx]) { c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, W, H); } };
     const draw = () => {
       const { k, tx, ty } = vpRef.current.viewRef.current;
       clear();
       if (!cur) return;
       ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
+      dctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
       sctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
       // Видимая область с запасом в три гекса: звери чуть за краем ещё видны хвостом или следом.
       vis.x0 = -tx / k - size * 3; vis.y0 = -ty / k - size * 3; vis.x1 = (W / dpr - tx) / k + size * 3; vis.y1 = (H / dpr - ty) / k + size * 3;
       const a = prev ? Math.min(1, cur.w.T / FADE) : 1;
       LIGHT = lightRef.current; LABELS = labelsRef.current; ROUTES = routesRef.current; WRECKS = wrecksRef.current; SEA = seaRef.current;
       const now = clockRef.current();
-      if (prev) drawWorld(ctx, prev.w, k, vis, 1 - a, "sea");
-      drawWorld(ctx, cur.w, k, vis, a, "sea");
+      if (prev) drawWorld(ctx, prev.w, k, vis, 1 - a, "under");
+      drawWorld(ctx, cur.w, k, vis, a, "under");
       ctx.globalAlpha = 1;
+      if (prev) drawWorld(dctx, prev.w, k, vis, 1 - a, "deck");
+      drawWorld(dctx, cur.w, k, vis, a, "deck");
+      dctx.globalAlpha = 1;
       // Разбитые корабли — поверх живности и подписей островов, по часам сервера (не по времени мира: эпохи их не трогают).
-      drawWrecks(ctx, size, now / 1000, now, 1 / k, vis, true, cur.w);
-      drawFires(ctx, firesRef.current, cur.w.T, 1 / k, vis, LIGHT.fire);
+      drawWrecks(dctx, size, now / 1000, now, 1 / k, vis, true, cur.w);
+      drawFires(dctx, firesRef.current, cur.w.T, 1 / k, vis, LIGHT.fire);
       if (prev) drawWorld(sctx, prev.w, k, vis, 1 - a, "sky");
       drawWorld(sctx, cur.w, k, vis, a, "sky");
       drawRockets(sctx, size, now, 1 / k, vis);
@@ -2113,5 +2124,5 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
   }, [profile, size, seed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!profile) return null;
-  return <><canvas ref={ref} className="fx-layer fauna" aria-hidden /><canvas ref={skyRef} className="fx-layer fauna sky" aria-hidden /></>;
+  return <><canvas ref={ref} className="fx-layer fauna" aria-hidden />{between}<canvas ref={deckRef} className="fx-layer fauna deck" aria-hidden /><canvas ref={skyRef} className="fx-layer fauna sky" aria-hidden /></>;
 }

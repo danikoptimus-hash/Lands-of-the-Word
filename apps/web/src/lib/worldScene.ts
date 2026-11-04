@@ -1,8 +1,9 @@
 /**
  * Сборка сцены для мира на WebGL (WorldGL, этап Э2): общие для обеих карт помощники — разбор пути берега (квадратичные
  * кривые `coastPath` разбиваются на отрезки), цвета из CSS-переменных темы и переключатель режима.
- * Режим: `?map=gl` или `?map=svg` в адресе (запоминается на устройстве в localStorage `lotw.map`); по умолчанию — SVG,
- * пока владелец не решил иначе (план, раздел 6, п. 5). Без WebGL или при потере контекста карта возвращается к SVG.
+ * Режим: по умолчанию WebGL (решение владельца 05.11 после теста на стенде: «с этой штукой работает просто шикарно»);
+ * `?map=svg` — прежний SVG (запоминается на устройстве в localStorage `lotw.map`, `?map=gl` возвращает). Без WebGL или при
+ * потере контекста карта сама возвращается к SVG.
  */
 import { parseColor, type Pt, type RGBA } from "./glLines";
 
@@ -11,8 +12,8 @@ export function worldMode(): "gl" | "svg" {
   const m = /[?&]map=(gl|svg)/.exec(location.search)?.[1];
   try {
     if (m) { localStorage.setItem("lotw.map", m); return m as "gl" | "svg"; }
-    return localStorage.getItem("lotw.map") === "gl" ? "gl" : "svg";
-  } catch { return m === "gl" ? "gl" : "svg"; }
+    return localStorage.getItem("lotw.map") === "svg" ? "svg" : "gl";
+  } catch { return m === "svg" ? "svg" : "gl"; }
 }
 
 /** Путь берега `M x,y Q cx,cy x,y …` (несколько петель) → ломаные; каждая кривая — STEPS отрезков. */
