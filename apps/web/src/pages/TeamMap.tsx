@@ -1,9 +1,10 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactElement, type PointerEvent } from "react";
 import { reportAction, reportPage } from "../lib/perf";
-import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routePathD, routeArrow, pixelToHex } from "@lotw/domain";
+import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routeArrow, pixelToHex } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
-import { perfMark } from "../lib/perfHud";
+import { perfExpose, perfMark } from "../lib/perfHud";
+import { hitTest, mapPoint, stylesK, type HitModel } from "../lib/mapHit";
 import type { DailyBirdDto, EdgeTaskStatus, MapHexDto, MapMarkDto, MyMapDto } from "../lib/api";
 import { CoastOver, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
@@ -227,10 +228,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     return map.tasks.filter((tk) => tk.sea && tk.status === "APPROVED" && !tk.toKey.startsWith("sea:")).map((tk) => {
       const pts = routeCurve(seaRoute(landKeys, tk.fromKey, tk.toKey, size, undefined, obstacles), landKeys, size, obstacles);
       const arrow = routeArrow(pts, size * 1.1);
-      return { tk, pts, d: routePathD(pts), end: { x: arrow.x, y: arrow.y }, heading: arrow.heading };
+      return { tk, pts, end: { x: arrow.x, y: arrow.y }, heading: arrow.heading };
     });
   }, [map.tasks, landKeys, islets, size]);
-  // Видимая линия переправы рисуется слоем живности между зверями и кораблями (решение владельца 06.10); в SVG остаётся только область нажатия.
+  // Видимая линия переправы рисуется слоем живности между зверями и кораблями (решение владельца 06.10); нажатие по ней считает код (hitModel).
   // Концы линии укорочены, чтобы не заходить под знак порта и города (замечание владельца 06.10: города выше маршрута).
   // Чужая высадка (решение владельца 12.10, вместо точек команд в подписи): у города виден только хвост маршрута
   // корабля другой команды — последний отрезок длиной около гекса, в её цвете и со стрелкой к месту высадки.
@@ -274,6 +275,28 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const showMarkers = k >= 0.9, fullLabels = k >= 1.6, showForks = k >= 0.7;
   // Город масштабируется с картой: сидит на перекрёстке и занимает место до середины трёх сторон.
   const CITY = size * 0.77, START = size * 0.9; // решение владельца 16.09: знаки городов и стартов в полтора раза меньше прежних (1,15 и 1,35)
+  // Нажатия в коде (этап Э1 плана ускорения карты): области те же, что были у невидимых линий SVG — взятая или пройденная
+  // сторона и морской путь полосой 22 экранных пикселя, город — прямоугольником картинки; приоритет — как в SVG:
+  // город выше пути, путь выше стороны, последний в списке выше. Подписи, значки и метки — по-прежнему элементы верхнего SVG.
+  const hitModel = useMemo<HitModel<{ task: string } | { city: string }>>(() => ({
+    rects: map.revealed.filter((n) => n.kind === "CITY").map((n) => { const p = positions.get(n.key)!; return { x: p.x - CITY / 2, y: p.y - CITY * 0.6, w: CITY, h: CITY, id: { city: n.key } }; }),
+    routes: seaRoutes.map((r) => ({ pts: r.pts, id: { task: r.tk.id } })),
+    edges: map.edges.flatMap((e) => { const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|")); return tk ? [{ pts: [positions.get(e.aKey)!, positions.get(e.bKey)!], id: { task: tk.id } }] : []; }),
+  }), [map.revealed, map.edges, positions, seaRoutes, taskByEdge, CITY]);
+  useEffect(() => { perfExpose("scene", { edges: hitModel.edges.length, routes: hitModel.routes.length, model: hitModel }); }, [hitModel]);
+  const hitAt = (svg: SVGSVGElement, clientX: number, clientY: number) => {
+    const host = svg.parentElement; if (!host) return null;
+    const view = vp.viewRef.current;
+    return hitTest(mapPoint(host, view, clientX, clientY), hitModel, 22, stylesK(svg, view.k));
+  };
+  const onWorldClick = (e: MouseEvent<SVGSVGElement>) => {
+    if (vp.wasDrag()) return;
+    const hit = hitAt(e.currentTarget, e.clientX, e.clientY);
+    if (!hit) return;
+    if ("city" in hit) clickCity(hit.city); else click(hit.task);
+  };
+  // Курсор-рука над областью нажатия (мышь): раньше её давали невидимые линии.
+  const onWorldPointerMove = (e: PointerEvent<SVGSVGElement>) => { if (e.pointerType === "mouse") e.currentTarget.style.cursor = hitAt(e.currentTarget, e.clientX, e.clientY) ? "pointer" : ""; };
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста), extra — после масштаба. */
   const sc = (x: number, y: number, extra = "") => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))${extra ? " " + extra : ""}` });
 
@@ -319,9 +342,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
           const from = done ? 0.5 : 0, span = (1 - from) / Math.max(1, others.length);
           const pt = (tt: number) => ({ x: a.x + (b.x - a.x) * tt, y: a.y + (b.y - a.y) * tt });
           return (
-            <g key={e.aKey + e.bKey} className={"m-edge " + cls} onClick={() => (active || done) && click(tk.id)}>
-              {/* Пройденная сторона тоже нажимается: открывает дело и его отчёт (решение владельца 30.09). */}
-              {(active || done) && <line className="hit" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
+            <g key={e.aKey + e.bKey} className={"m-edge " + cls}>
+              {/* Нажатие по взятой или пройденной стороне (решение владельца 30.09) — считает код (hitModel), невидимой линии нет. */}
               {/* Пройденные стороны: светлая подложка и осветлённый цвет команды, чтобы маршрут не сливался с местностью (решение владельца 30.09). */}
               {(done || others.length > 0) && <line className="halo" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
               <line className={active && !sel ? "dashed" : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={done ? { stroke: routeColor(map.team.color) } : undefined} />
@@ -329,18 +351,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             </g>
           );
         })}
-        {seaRoutes.map(({ tk, d }) => (
-          <g key={"sea" + tk.id} className={"m-edge done sea-route" + (tk.id === selectedTaskId ? " sel" : "")} onClick={() => click(tk.id)}>
-            <path className="hit" d={d} />
-          </g>
-        ))}
         {map.revealed.map((n) => {
           const p = positions.get(n.key)!;
           if (n.kind === "START") return <image key={"s" + n.key} href={IMG.start(teamIndex, imgPhase)} x={p.x - START / 2} y={p.y - START * 0.58} width={START} height={START} />;
           if (n.kind === "CITY") {
             const c = cityByKey.get(n.key);
             return (
-              <g key={"c" + n.key} className="m-city" onClick={() => clickCity(n.key)}>
+              <g key={"c" + n.key} className="m-city">
                 <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : "url(#outline-free)"} />
                 {/* Свой город — по признаку captured, а не по индексу владельца: у администратора «глазами команды» индексы
                     могли расходиться, и шатров не было (замечание владельца 04.11). */}
@@ -551,7 +568,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dts} />
       <TilesLayer vp={vp} hexes={tileHexes} size={size} skipWater={liveWater} daytime={dts} />
       {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dts} />}
-      <WorldSvg vp={vp} bounds={bounds}>
+      <WorldSvg vp={vp} bounds={bounds} onClick={onWorldClick} onPointerMove={onWorldPointerMove}>
         <MapSymbols />
         <OutlineDefs colors={owners} k={vp.view.k} />
         <HexTiles hexes={tileHexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />

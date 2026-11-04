@@ -12,7 +12,7 @@ export interface GestureStats { n: number; avg: number; p50: number; p95: number
 /** Для замеров автоматикой (Playwright): с ?perf=1 всё доступно как window.__perf (и __perfSamples, как раньше). */
 /** Полный журнал меток для автоматики (экранные `samples` обнуляются каждую секунду): по 600 последних на имя. */
 const log = new Map<string, number[]>();
-const perf = { samples, log, gesture: null as GestureStats | null, gestures: [] as GestureStats[], counts: { svg: 0, edges: 0, routes: 0 }, view: null as unknown };
+const perf = { samples, log, gesture: null as GestureStats | null, gestures: [] as GestureStats[], counts: { svg: 0, edges: 0, routes: 0 }, view: null as unknown, scene: null as { edges: number; routes: number } | null };
 if (on && typeof window !== "undefined") { const w = window as unknown as Record<string, unknown>; w.__perf = perf; w.__perfSamples = samples; }
 export function perfMark(name: string, ms: number): void {
   if (!on) return;
@@ -20,7 +20,7 @@ export function perfMark(name: string, ms: number): void {
   const all = log.get(name) ?? []; all.push(ms); if (all.length > 600) all.shift(); log.set(name, all);
 }
 /** Показать объект автоматике (window.__perf[name]); без ?perf=1 ничего не делает. */
-export function perfExpose(name: "view", value: unknown): void { if (on) (perf as Record<string, unknown>)[name] = value; }
+export function perfExpose(name: "view" | "scene", value: unknown): void { if (on) (perf as Record<string, unknown>)[name] = value; }
 let gestureFrames: number[] | null = null;
 /** Начало и конец жеста: пока жест идёт, цикл ниже копит длительности кадров; в конце считается итог. */
 export function perfGesture(phase: "start" | "end"): void {
@@ -44,7 +44,8 @@ if (on && typeof document !== "undefined") {
   document.body.appendChild(box);
   let last = performance.now(), worst = 0, frames = 0, tick = last;
   const count = () => {
-    perf.counts = { svg: document.querySelectorAll(".map-svg *").length, edges: document.querySelectorAll(".m-edge, .adm-edge").length, routes: document.querySelectorAll(".sea-route, .adm-sea-route").length };
+    // Стороны и пути: с Э1 их области нажатия не в SVG — карта сообщает числа сама (perfExpose("scene")).
+    perf.counts = { svg: document.querySelectorAll(".map-svg *").length, edges: perf.scene?.edges ?? document.querySelectorAll(".m-edge, .adm-edge").length, routes: perf.scene?.routes ?? 0 };
     return perf.counts;
   };
   const loop = (now: number) => {

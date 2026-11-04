@@ -10,7 +10,7 @@
  * Ники и пароль — только из переменных окружения. Нужен Playwright (devDependencies) и Chromium (PW_CHROMIUM).
  *
  * Чтобы снимки повторялись: часы страницы остановлены (`page.clock.setFixedTime`) — живность, время суток и костры у
- * всех прогонов одни; `?tod=day`; море, озёра и салют скрыты (они живут по своим часам, и план их не трогает); подсказки,
+ * всех прогонов одни; `?tod=day`; море, озёра, туман и салют скрыты (они живут по своим часам, и план их не трогает); подсказки,
  * плашки и панель `?perf=1` скрыты. Профили: телефон 390×844 ×3 и компьютер 1280×900 ×2; карты команды и администратора;
  * масштабы 0,6 / 1 / 1,6 / 2,4 / 4 / 8 от «вся карта» вокруг центра карты; плюс кадры посреди щипка от масштаба 1,6:
  * ×1,3 (до ступеньки фиксации) и ×1,55 (сразу после неё) — для проверки ступенек толщин.
@@ -40,7 +40,8 @@ for (const [profile, game, map] of RUNS) {
   await page.goto(`/games/${GAMES[game]}${map === "team" ? "/team" : ""}?perf=1&tod=day`);
   const host = map === "team" ? ".map-canvas" : ".admin-map-area .mapwrap";
   await page.waitForSelector(`${host} .map-svg`, { timeout: 60000 });
-  await page.addStyleTag({ content: ".toasts,#perf-hud,.fx-layer.sea,.fx-layer.lakes,.fx-layer.fireworks{visibility:hidden!important}" });
+  // Туман (холст сразу после мирового SVG) тоже скрыт: его облака плывут по часам кадра, а не по Date, и снимки не повторялись бы.
+  await page.addStyleTag({ content: ".toasts,#perf-hud,.fx-layer.sea,.fx-layer.lakes,.fx-layer.fireworks,.map-svg.world+canvas.fx-layer:not(.fauna){visibility:hidden!important}" });
   await page.waitForTimeout(4000); // догон живности до остановленной секунды
   const name = `${profile}-${game}-${map}`;
   // Центр карты — тот, что у «вся карта»: вокруг него все масштабы.
