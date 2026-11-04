@@ -60,7 +60,8 @@ for (const [profile, map, variant] of RUNS) {
   await page.waitForSelector(`${host} .map-svg`, { state: "attached", timeout: 60000 });
   await page.addStyleTag({ content: ".toasts{display:none!important}" });
   await page.waitForTimeout(6000); // догон живности и первая фиксация
-  const counts = await page.evaluate(() => ({ svg: [...document.querySelectorAll(".map-svg")].map((s) => s.querySelectorAll("*").length), edges: document.querySelectorAll(".m-edge, .adm-edge").length, routes: document.querySelectorAll(".sea-route, .adm-sea-route").length, cityFilters: document.querySelectorAll("image[filter]").length, canvases: [...document.querySelectorAll("canvas")].map((c) => `${c.className}:${c.width}×${c.height}`) }));
+  // Стороны и пути — из модели попадания карты (с Э1 их областей нажатия в SVG нет): window.__perf.scene.
+  const counts = await page.evaluate(() => ({ svg: [...document.querySelectorAll(".map-svg")].map((s) => s.querySelectorAll("*").length), edges: window.__perf?.scene?.edges ?? document.querySelectorAll(".m-edge, .adm-edge").length, routes: window.__perf?.scene?.routes ?? 0, cityFilters: document.querySelectorAll("image[filter]").length, canvases: [...document.querySelectorAll("canvas")].map((c) => `${c.className}:${c.width}×${c.height}`) }));
   const cdp = await ctx.newCDPSession(page);
   await cdp.send("Emulation.setCPUThrottlingRate", { rate: CPU });
   const idle = await page.evaluate(() => new Promise((res) => { const f = []; let last = 0; const t0 = performance.now(); const step = (now) => { if (last) f.push(now - last); last = now; if (now - t0 < 2500) requestAnimationFrame(step); else res(f); }; requestAnimationFrame(step); }));
