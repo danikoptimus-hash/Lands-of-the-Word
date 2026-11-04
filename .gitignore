@@ -6,3 +6,6 @@ dist/
 docs/review/*.html
 docs/review/*.pdf
 __pycache__/
+
+# Рабочие копии помощников (git worktree) — не часть репозитория
+.claude/worktrees/
