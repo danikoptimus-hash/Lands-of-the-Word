@@ -1,6 +1,9 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useState, type MouseEvent, type PointerEvent } from "react";
 import { hitTest, mapPoint, stylesK, type HitModel } from "../lib/mapHit";
 import { perfExpose } from "../lib/perfHud";
+import { RoutesGL } from "./RoutesGL";
+// Пробный переключатель Э3 (пока пути на WebGL поверх живности; окончательная раскладка слоёв — после разделения холста живности).
+const GL_ROUTES = /[?&]routes=gl/.test(location.search);
 import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, routeCurve, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
@@ -358,7 +361,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             ); })()}
           </WorldSvg>
           {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
-          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={GL_ROUTES ? [] : routeSpecs} />
+          {GL_ROUTES && <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => {}} />}
           {fireworkSites.length > 0 && <FireworksLayer vp={vp} sites={fireworkSites} clock={Date.now} timeZone={timeZone ?? "Asia/Tashkent"} />}
           {stormSt.t > 0 && <StormLayer t={stormSt.t} />}
           {/* Подписи городов и метки — отдельным слоем над живностью и маршрутами: название города выше линии корабля (решение владельца 06.10). */}

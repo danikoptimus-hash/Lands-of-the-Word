@@ -5,6 +5,9 @@ import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfExpose, perfMark } from "../lib/perfHud";
 import { hitTest, mapPoint, stylesK, type HitModel } from "../lib/mapHit";
+import { RoutesGL } from "./RoutesGL";
+// Пробный переключатель Э3 (пока пути на WebGL поверх живности; окончательная раскладка слоёв — после разделения холста живности).
+const GL_ROUTES = /[?&]routes=gl/.test(location.search);
 import type { DailyBirdDto, EdgeTaskStatus, MapHexDto, MapMarkDto, MyMapDto } from "../lib/api";
 import { CoastOver, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
@@ -585,7 +588,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={light} hole={hole} />}
       {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); рисует слой живности: киты под буквами,
           корабли над ними (решение владельца 05.10). */}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} labels={islandLabels} routes={routeSpecs} />
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} labels={islandLabels} routes={GL_ROUTES ? [] : routeSpecs} />
+      {GL_ROUTES && <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => {}} />}
       {fireworkSites.length > 0 && <FireworksLayer vp={vp} sites={fireworkSites} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} />}
       {storm && storm.t > 0 && <StormLayer t={storm.t} />}
       <WorldSvg vp={vp} bounds={bounds} overlay>
