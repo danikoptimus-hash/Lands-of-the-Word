@@ -35,6 +35,9 @@ for (const [profile, game, map] of RUNS) {
   if (!PROFILES[profile] || !GAMES[game] || !USERS[map]) { console.warn("пропуск:", profile, game, map); continue; }
   const ctx = await browser.newContext({ baseURL: BASE, locale: "ru-RU", ...PROFILES[profile] });
   await ctx.request.post("/api/auth/login", { data: { nickname: USERS[map], password: PASS } });
+  // Часы сервера в ответе карты (`now`) тоже закрепляем: по ним слой живности считает секунду мира, иначе звери и корабли
+  // в двух прогонах стояли бы в разных местах и сравнение шумело бы.
+  await ctx.route(/\/api\/games\/[^/]+\/(my-map|teams\/[^/]+\/map)(\?|$)/, async (route) => { const r = await route.fetch(); const b = await r.json(); if (typeof b.now === "number") b.now = TIME.getTime(); if (b.daytime && typeof b.daytime.now === "number") b.daytime.now = TIME.getTime(); await route.fulfill({ response: r, json: b }); });
   const page = await ctx.newPage();
   await page.clock.setFixedTime(TIME);
   await page.goto(`/games/${GAMES[game]}${map === "team" ? "/team" : ""}?perf=1&tod=${process.env.MAP_TOD ?? "day"}${process.env.MAP_QUERY ? "&" + process.env.MAP_QUERY : ""}`); // MAP_QUERY — доп. параметры адреса (переключатели вариантов), MAP_TOD — время суток предпросмотра
