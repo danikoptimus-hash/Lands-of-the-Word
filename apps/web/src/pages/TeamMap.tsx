@@ -5,6 +5,10 @@ import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfExpose, perfMark, perfOff } from "../lib/perfHud";
 import { hitTest, mapPoint, stylesK, type HitModel } from "../lib/mapHit";
+import { WorldGL, type WorldScene } from "./WorldGL";
+import { coastLoops, rgb, themeColor, worldMode } from "../lib/worldScene";
+import { parseColor } from "../lib/glLines";
+import { FOG_COLOR } from "../lib/hexmap";
 import { RoutesGL } from "./RoutesGL";
 // Пробный переключатель Э3 (пока пути на WebGL поверх живности; окончательная раскладка слоёв — после разделения холста живности).
 const GL_ROUTES = /[?&]routes=gl/.test(location.search);
@@ -203,6 +207,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const islets = useIslets(map.hexes, size, bounds);
   const bed = useSeabed(map.hexes, islets, size, bounds);
   const [liveWater, setLiveWater] = useState(true);
+  // Мир на WebGL (этап Э2): по `?map=gl`; без WebGL или при потере контекста — обратно к SVG.
+  const [glWorld, setGlWorld] = useState(() => worldMode() === "gl");
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   // Входы тумана считает общая функция (`teamFogInputs`): ею же пользуется заготовка карты на главной.
   const fog = useMemo(() => teamFogInputs(map, size), [map.hexes, map.revealed, map.edges, map.frontier, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -309,6 +315,16 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   };
   // Курсор-рука над областью нажатия (мышь): раньше её давали невидимые линии.
   const onWorldPointerMove = (e: PointerEvent<SVGSVGElement>) => { if (e.pointerType === "mouse") e.currentTarget.style.cursor = hitAt(e.currentTarget, e.clientX, e.clientY) ? "pointer" : ""; };
+  // Мир на WebGL: мирового SVG нет, нажатие приходит контейнеру; значки и подписи верхнего SVG и кнопки — не наши.
+  const hostHit = (host: HTMLElement, clientX: number, clientY: number) => { const view = vp.viewRef.current; return hitTest(mapPoint(host, view, clientX, clientY), hitModel, 22, view.k); };
+  const foreignTarget = (t: EventTarget | null) => Boolean((t as Element | null)?.closest?.(".map-svg, button, .map-controls, .overlay-backdrop, .toasts"));
+  const onHostClick = (e: MouseEvent<HTMLDivElement>) => {
+    if (!glWorld || vp.wasDrag() || foreignTarget(e.target)) return;
+    const hit = hostHit(e.currentTarget, e.clientX, e.clientY);
+    if (!hit) return;
+    if ("city" in hit) clickCity(hit.city); else click(hit.task);
+  };
+  const onHostPointerMove = (e: PointerEvent<HTMLDivElement>) => { if (glWorld && e.pointerType === "mouse") e.currentTarget.style.cursor = !foreignTarget(e.target) && hostHit(e.currentTarget, e.clientX, e.clientY) ? "pointer" : ""; };
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста), extra — после масштаба. */
   const sc = (x: number, y: number, extra = "") => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))${extra ? " " + extra : ""}` });
 
@@ -340,6 +356,54 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   // Шатёр не ставится на воду (замечание владельца 03.11): суша — гексы карты без озёр.
   const tentLand = useMemo(() => new Set(map.hexes.filter((h) => h.terrain !== "water").map((h) => `${h.q},${h.r}`)), [map.hexes]);
   const tentOnLand = (x: number, y: number) => { const h = pixelToHex({ x, y }, size); return tentLand.has(`${h.q},${h.r}`); };
+  /** Шатры у ворот своего города: опорная точка на дороге (единицы карты) и сдвиг в экранных пикселях — общий расчёт для SVG и WebGL. */
+  const campSpots = (key: string, p: { x: number; y: number }) => {
+    const out: Array<{ key: string; bx: number; by: number; dx: number; dy: number; color: string }> = [], used = new Map<string, number>();
+    for (const g of campsAt.get(key) ?? []) {
+      const roadKey = `${Math.round(g.ux * 10)},${Math.round(g.uy * 10)}`;
+      const i = used.get(roadKey) ?? 0; used.set(roadKey, i + 1);
+      const down = g.uy > 0.9, along = 0.55 * CITY + 0.45 * CITY * Math.floor(i / 2), push = down ? 20 : 8, side = down ? 16 : 14;
+      const bx = p.x + g.ux * along, by = p.y + g.uy * along;
+      const nx = -g.uy, ny = g.ux;
+      let sgn = (ny <= 0 ? 1 : -1) * (i % 2 === 0 ? 1 : -1);
+      if (!tentOnLand(bx + nx * sgn * 0.3 * CITY, by + ny * sgn * 0.3 * CITY) && tentOnLand(bx - nx * sgn * 0.3 * CITY, by - ny * sgn * 0.3 * CITY)) sgn = -sgn;
+      out.push({ key: g.color + roadKey, bx, by, dx: g.ux * push + nx * sgn * side, dy: g.uy * push + ny * sgn * side, color: g.color });
+    }
+    return out;
+  };
+  // Сцена для мира на WebGL — из тех же данных и по тем же правилам, что SVG ниже (туман, контуры, берег, стороны, города, шатры).
+  const worldScene = useMemo<WorldScene>(() => {
+    const text = themeColor("--text", "#1F1B16"), paper = themeColor("--map-paper", "#FFF6E3"), surface = themeColor("--surface", "#FFFFFF");
+    const teamLine = parseColor(routeColor(map.team.color));
+    const edges: WorldScene["edges"] = map.edges.map((e) => {
+      const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
+      const key = [e.aKey, e.bKey].sort().join("|");
+      const tk = taskByEdge.get(key), done = tk?.status === "APPROVED", active = tk && !done, sel = tk?.id === selectedTaskId;
+      const others = foreignByEdge.get(key) ?? [];
+      const from = done ? 0.5 : 0, span = (1 - from) / Math.max(1, others.length);
+      const pt = (tt: number) => ({ x: a.x + (b.x - a.x) * tt, y: a.y + (b.y - a.y) * tt });
+      const line: NonNullable<WorldScene["edges"][number]["line"]> = done ? { color: teamLine, px: 6, scale: "max16" } : sel ? { color: surface, px: 5, scale: "max16" } : active ? { color: paper, px: 3, scale: "max16", dash: true } : { color: [1, 1, 1, 0.25], px: 3, scale: "max16" };
+      return { a, b, halo: done || others.length > 0 ? { color: [1, 250 / 255, 240 / 255, 0.85], px: 10 } : undefined, line, extra: others.map((o, i) => { const c = parseColor(routeColor(o.color)); return { a: pt(from + span * i), b: pt(from + span * (i + 1)), color: [c[0], c[1], c[2], 0.85] as [number, number, number, number], px: 3 }; }) };
+    });
+    const images: WorldScene["images"] = [], camps: WorldScene["camps"] = [];
+    for (const n of map.revealed) {
+      const p = positions.get(n.key)!;
+      if (n.kind === "START") images.push({ src: IMG.start(teamIndex, imgPhase), x: p.x - START / 2, y: p.y - START * 0.58, w: START, h: START });
+      if (n.kind === "CITY") {
+        const c = cityByKey.get(n.key);
+        images.push({ src: IMG.city(n.cityType, imgPhase), x: p.x - CITY / 2, y: p.y - CITY * 0.6, w: CITY, h: CITY, ring: c?.owner ? { color: parseColor(c.owner.color), owned: true } : { color: [1, 1, 1, 0.85], owned: false } });
+        if (c?.owner && c.captured) for (const g of campSpots(n.key, p)) camps.push({ x: g.bx, y: g.by, dx: g.dx, dy: g.dy, color: parseColor(g.color) });
+      }
+    }
+    return {
+      size,
+      fog: tileHexes.filter((h) => !h.lit && h.lit !== undefined).map((h) => hexCenter(h, size)),
+      grid: tileHexes.filter((h) => h.lit || h.lit === undefined).map((h) => hexCenter(h, size)),
+      fogColor: parseColor(FOG_COLOR), gridColor: [text[0], text[1], text[2], 0.28],
+      coast: coastLoops(coast), sand: rgb(light.sand), wet: rgb(light.wet),
+      edges, images, camps,
+    };
+  }, [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, campsAt, tentLand, imgPhase, tileHexes, coast, light]); // eslint-disable-line react-hooks/exhaustive-deps
   const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -380,18 +444,11 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                   // карты: при сильном приближении шатёр оставался бы у соседнего узла (замечание владельца 03.11: «синий шатёр
                   // у узла, а не города»). Сторона сдвига — где суша (выше дороги в первую очередь); второй шатёр на той же дороге —
                   // с другой стороны, третий — дальше по дороге. Размер 9px, постоянный на экране (scale(--inv)).
-                  const out: ReactElement[] = [], used = new Map<string, number>();
-                  for (const g of campsAt.get(n.key) ?? []) {
-                    const roadKey = `${Math.round(g.ux * 10)},${Math.round(g.uy * 10)}`;
-                    const i = used.get(roadKey) ?? 0; used.set(roadKey, i + 1);
-                    const down = g.uy > 0.9, along = 0.55 * CITY + 0.45 * CITY * Math.floor(i / 2), push = down ? 20 : 8, side = down ? 16 : 14;
-                    const bx = p.x + g.ux * along, by = p.y + g.uy * along;
-                    const nx = -g.uy, ny = g.ux;
-                    let sgn = (ny <= 0 ? 1 : -1) * (i % 2 === 0 ? 1 : -1);
-                    if (!tentOnLand(bx + nx * sgn * 0.3 * CITY, by + ny * sgn * 0.3 * CITY) && tentOnLand(bx - nx * sgn * 0.3 * CITY, by - ny * sgn * 0.3 * CITY)) sgn = -sgn;
+                  const out: ReactElement[] = [];
+                  for (const g of campSpots(n.key, p)) {
                     out.push(
-                      <g key={g.color + roadKey} className="camp" style={{ transform: `translate(${bx.toFixed(2)}px, ${by.toFixed(2)}px) scale(var(--inv, 1))` }}>
-                        <g transform={`translate(${(g.ux * push + nx * sgn * side).toFixed(1)}, ${(g.uy * push + ny * sgn * side).toFixed(1)})`}>
+                      <g key={g.key} className="camp" style={{ transform: `translate(${g.bx.toFixed(2)}px, ${g.by.toFixed(2)}px) scale(var(--inv, 1))` }}>
+                        <g transform={`translate(${g.dx.toFixed(1)}, ${g.dy.toFixed(1)})`}>
                           {/* Вдвое меньше прежнего (решение владельца 03.11: «значки шатров сделаем в два раза меньше»). */}
                           <path d="M-4.75,4 L0,-4.75 L4.75,4 Z" style={{ fill: g.color }} />
                           <path className="door" d="M-1.35,4 L0,0.8 L1.35,4 Z" />
@@ -408,6 +465,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
         })}
   </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, campsAt, tentLand, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
   // Каменоломня (решение владельца 04.10): скалистый островок с подписью, нажимается — открывает лист общих дел.
+  const flashEl = flash && (
+    <g className="adm-flash" pointerEvents="none">
+      {flash.b && <><line x1={flash.a.x} y1={flash.a.y} x2={flash.b.x} y2={flash.b.y} /><line x1={flash.a.x} y1={flash.a.y} x2={flash.b.x} y2={flash.b.y} /></>}
+      <circle className="pulse" cx={flash.x} cy={flash.y} r={size * 0.5} />
+      <circle className="dot" cx={flash.x} cy={flash.y} r={size * 0.12} />
+    </g>
+  );
   const quarry = islets.find((i) => i.quarry) ?? null;
   const quarryMarker = quarry && (() => {
     const name = t("Каменоломня"), fs = fullLabels ? 12 : 10, w = Math.ceil(name.length * fs * 0.62) + 34, h = fs + 12;
@@ -575,25 +639,20 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   </>), [map.revealed, map.edges, map.peeked, map.frontier, map.tasks, map.marks, onMarkTap, onFrontierTap, taskByEdge, selectedTaskId, positions, cityByKey, fullLabels, showMarkers, showForks, R, ships, landing, ripple, islandCenters, revealed, map.team.color, size]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   return (
-    <div ref={vp.ref} onPointerDown={onPressDown} onPointerMove={onPressMove} onPointerUp={cancelPress} onPointerCancel={cancelPress} onPointerLeave={cancelPress} onClickCapture={onClickCapture} onContextMenu={(e) => { if (onMark) e.preventDefault(); }} className={"map-canvas" + (storm?.active ? " storm" : "")} style={{ background: css(light.bg) }}>
+    <div ref={vp.ref} onPointerDown={onPressDown} onPointerMove={(e) => { onPressMove(e); onHostPointerMove(e); }} onClick={onHostClick} onPointerUp={cancelPress} onPointerCancel={cancelPress} onPointerLeave={cancelPress} onClickCapture={onClickCapture} onContextMenu={(e) => { if (onMark) e.preventDefault(); }} className={"map-canvas" + (storm?.active ? " storm" : "")} style={{ background: css(light.bg) }}>
       <SeaLayer vp={vp} bed={bed} light={light} storm={storm?.t ?? 0} />
       <IsletsLayer vp={vp} islets={islets} size={size} coast={coast} daytime={dts} />
       <TilesLayer vp={vp} hexes={tileHexes} size={size} skipWater={liveWater} daytime={dts} />
       {liveWater && <LakesLayer vp={vp} hexes={map.hexes} size={size} onUnsupported={() => setLiveWater(false)} daytime={dts} />}
-      <WorldSvg vp={vp} bounds={bounds} onClick={onWorldClick} onPointerMove={onWorldPointerMove}>
-        <MapSymbols />
-        <OutlineDefs colors={owners} k={vp.view.k} />
-        <HexTiles hexes={tileHexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
-        <CoastOver d={coast} size={size} light={light} />
-        {worldBody}
-        {flash && (
-          <g className="adm-flash" pointerEvents="none">
-            {flash.b && <><line x1={flash.a.x} y1={flash.a.y} x2={flash.b.x} y2={flash.b.y} /><line x1={flash.a.x} y1={flash.a.y} x2={flash.b.x} y2={flash.b.y} /></>}
-            <circle className="pulse" cx={flash.x} cy={flash.y} r={size * 0.5} />
-            <circle className="dot" cx={flash.x} cy={flash.y} r={size * 0.12} />
-          </g>
-        )}
-      </WorldSvg>
+      {glWorld
+        ? <WorldGL vp={vp} scene={worldScene} onUnsupported={() => setGlWorld(false)} />
+        : <WorldSvg vp={vp} bounds={bounds} onClick={onWorldClick} onPointerMove={onWorldPointerMove}>
+            <OutlineDefs colors={owners} k={vp.view.k} />
+            <HexTiles hexes={tileHexes} size={size} clipId="hexclip-team" liveWater={liveWater} fills={false} />
+            <CoastOver d={coast} size={size} light={light} />
+            {worldBody}
+            {flashEl}
+          </WorldSvg>}
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={light} hole={hole} />}
       {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); рисует слой живности: киты под буквами,
           корабли над ними (решение владельца 05.10). */}
@@ -602,6 +661,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       {fireworkSites.length > 0 && !perfOff("fireworks") && <FireworksLayer vp={vp} sites={fireworkSites} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} />}
       {storm && storm.t > 0 && <StormLayer t={storm.t} />}
       <WorldSvg vp={vp} bounds={bounds} overlay>
+        {/* Символы (корабль, якорь…) нужны верхнему слою; подсветка «показать на карте» при мире на WebGL живёт здесь же. */}
+        <MapSymbols />
+        {glWorld && flashEl}
         {scoutShown && (() => {
           const p = nodePos(scoutShown.key, size);
           const book = scoutShown.bookCode ? BOOK_BY_CODE.get(scoutShown.bookCode) : undefined;
@@ -635,8 +697,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const title = (map.wrecks ?? []).find((x) => x.id === w.id)?.title ?? "";
             return (
               <g key={"wreck" + w.id} data-id={w.id} className="m-deed sea wreck" role="button" aria-label={t("Срочное задание: {title}", { title })} onClick={open}>
-                <circle className="wreck-hit" cx={w.x} cy={w.y} r={size * 1.15} />
-                <g style={sc(w.x, w.y - size * 0.95)}>
+                <circle className="wreck-hit" cx={w.x} cy={w.y} r={size * 1.9} />
+                <g style={sc(w.x, w.y - size * 0.6, "translate(0, -24px)")}>
                   <circle r={r} />
                   <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
                   <g className="urgent" transform={`translate(${(r * 0.72).toFixed(1)}, ${(-r * 0.72).toFixed(1)})`}><circle r={6.5} /><text textAnchor="middle" dy="0.36em" fontSize={9.5} fontWeight={800}>!</text></g>
