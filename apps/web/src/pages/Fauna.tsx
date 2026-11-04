@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
+import { perfMark } from "../lib/perfHud";
 import { DAY_LIGHT, type Light } from "../lib/daytime";
 import { HEX_SIZE, hexCenter } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
@@ -1677,7 +1678,7 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
       if (document.hidden || catching) return;
       if (!sync(8)) { catching = true; clear(); catchUp(); return; }
       if (!dirty && t - lastDraw < 1000 / 24) return;
-      dirty = false; lastDraw = t; draw();
+      dirty = false; lastDraw = t; const t0 = performance.now(); draw(); perfMark("живность кадр", performance.now() - t0);
     };
     raf = requestAnimationFrame(loop);
     return () => { cancelAnimationFrame(raf); clearTimeout(timer); ro.disconnect(); unsub(); };
