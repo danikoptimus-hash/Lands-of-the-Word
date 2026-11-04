@@ -1464,10 +1464,12 @@ function paintShip(g: CanvasRenderingContext2D, sp: ShipSpec): void {
   const brace = 0.35; // реи обрасоплены под ветер с кормы-правого борта: нормаль рея смотрит вперёд и на −y
   const rope = () => { g.strokeStyle = "rgba(30,20,12,0.55)"; g.lineWidth = dk * 0.9; };
   // штаги: от мачт к бушприту и между мачтами
+  // Без мачт (корпус разбитого корабля, 05.11) такелажа нет.
+  if (!masts.length) return;
   rope(); g.beginPath();
   g.moveTo(masts[0]!, 0); g.lineTo(L * 0.68, 0);
   for (let i = 1; i < masts.length; i++) { g.moveTo(masts[i - 1]!, 0); g.lineTo(masts[i]!, 0); }
-  if (masts.length) { g.moveTo(masts[masts.length - 1]!, 0); g.lineTo(-L * 0.47, 0); }
+  g.moveTo(masts[masts.length - 1]!, 0); g.lineTo(-L * 0.47, 0);
   g.stroke();
   const sailGrad = (x: number, hw: number, belly: number) => { const gr = g.createLinearGradient(x, 0, x + belly, 0); gr.addColorStop(0, "rgb(255,252,244)"); gr.addColorStop(0.55, sp.sail); gr.addColorStop(1, sp.sailShade); return gr; };
   const squareSail = (mx: number, hw: number, belly: number) => {
@@ -1602,7 +1604,8 @@ export interface WreckSpec { id: string; x: number; y: number; kind: 0 | 1 | 2; 
 let WRECKS: readonly WreckSpec[] = [];
 /** Пояс моря вокруг поля: к его ближайшему краю уходит починенный корабль. */
 let SEA: Bounds | null = null;
-const WRECK_KINDS: ShipKind[] = ["sloop", "cog", "ship"];
+/** Разбитый корабль — всегда самый большой парусник живности (решение владельца 05.11); kind 0–2 — варианты повреждений. */
+const WRECK_KINDS: ShipKind[] = ["ship", "ship", "ship"];
 const REPAIR_S = 5, SINK_S = 9, ROCKET_LIFE = 4.6, ROCKET_RISE = 1.1;
 /** Куда уходит починенный корабль: к ближайшему краю пояса моря; расстояние до края и курс. */
 function wreckExit(w: WreckSpec, size: number): { h: number; dist: number } {
@@ -1652,20 +1655,21 @@ function makeDeparture(spec: WreckSpec, w: World): Ship {
   const sp: ShipSpec = { ...base, speed: base.speed * 2 };
   const off = size * 2.6, wob = size * 0.3;
   const car: Carrot = { off, wob, seed: rnd(0, 100), x: spec.x, y: spec.y, h: 0, x0: spec.x, y0: spec.y, x1: spec.x, y1: spec.y, len: 1, t: 0, wait: 0 };
-  // Хорда от места крушения в открытое море: наружу от центра острова, не режет острова и островки; из 32 попыток —
-  // первая подходящая, иначе та, что дальше всего от островков.
+  // Хорда от места крушения в открытое море: длинная, наружу от центра острова (как у кораблей живности — из-за края
+  // за край, чтобы корабль с его радиусом циркуляции шёл ровно, а не кружил у поводка), не режет острова и островки;
+  // из 32 попыток — первая подходящая, иначе та, что дальше всего от островков.
   const R = farR(p, size), ang0 = Math.atan2(spec.y - p.cy, spec.x - p.cx);
   let bx = spec.x + Math.cos(ang0) * R, by = spec.y + Math.sin(ang0) * R, bestGap = -1;
   for (let i = 0; i < 32; i++) {
-    const b = ang0 + rnd(-1.1, 1.1), x1 = p.cx + Math.cos(b) * R, y1 = p.cy + Math.sin(b) * R;
+    const b = ang0 + rnd(-0.9, 0.9), x1 = spec.x + Math.cos(b) * R, y1 = spec.y + Math.sin(b) * R;
     const cuts = p.parts.some((part) => segDist(part.cx, part.cy, spec.x, spec.y, x1, y1) < part.maxR * 0.7 + off);
     const gap = Math.min(Infinity, ...p.isles.map((isl) => segDist(isl.x, isl.y, spec.x, spec.y, x1, y1) - isl.r));
     if (!cuts && !crossesIsle(p, spec.x, spec.y, x1, y1, off + wob + size)) { bx = x1; by = y1; break; }
     if (!cuts && gap > bestGap) { bestGap = gap; bx = x1; by = y1; }
   }
   car.x1 = bx; car.y1 = by; car.len = Math.hypot(bx - spec.x, by - spec.y); car.h = Math.atan2(by - spec.y, bx - spec.x);
-  const h0 = (spec.seed % 360) * (Math.PI / 180);
-  const sh: Ship = { rng: mulberry32((rng() * 4294967296) >>> 0), spec: sp, car, x: spec.x, y: spec.y, h: h0, v: 0, om: 0, seed: rnd(0, 100), trail: makeTrail(), pass: new Map() };
+  // Курс — вдоль хорды: пока корабль чинится, он на месте доворачивает с курса крушения на этот курс (см. drawWrecks).
+  const sh: Ship = { rng: mulberry32((rng() * 4294967296) >>> 0), spec: sp, car, x: spec.x, y: spec.y, h: car.h, v: sp.speed * 0.5, om: 0, seed: rnd(0, 100), trail: makeTrail(), pass: new Map() };
   rand = w.rng;
   return sh;
 }
@@ -1673,16 +1677,18 @@ function stepDepartures(w: World, dt: number, T: number): void {
   const worldNow = w.epochStart + T;
   for (const spec of WRECKS) {
     if (spec.repairedAt == null) continue;
-    const start = spec.repairedAt / 1000 + REPAIR_S;
-    if (worldNow < start || worldNow > start + DEPART_S + 1) continue;
+    const repairAt = spec.repairedAt / 1000, start = repairAt + REPAIR_S;
+    if (worldNow < repairAt || worldNow > start + DEPART_S + 1) continue;
     let d = w.departs.get(spec.id);
     if (!d) {
+      // Маршрут известен с начала починки: за это время корабль на месте доворачивает на курс ухода.
       d = { sh: makeDeparture(spec, w), start };
       w.departs.set(spec.id, d);
       // Мир создан позже старта (карта открыта позже, новая эпоха): догоняем корабль теми же шагами, одного, без встречных.
       const lag = Math.floor((worldNow - start) / dt);
       for (let i = 0; i < Math.min(lag, 4000); i++) { stepShip(d.sh, w.p, w.size, dt, T, []); if (d.sh.car.t >= 1) d.sh.car.wait = 1e9; }
     }
+    if (worldNow < start) continue;
     stepShip(d.sh, w.p, w.size, dt, T, w.ships);
     // Хорда пройдена: дальше прямо за край, нового маршрута не нужно.
     if (d.sh.car.t >= 1) d.sh.car.wait = 1e9;
@@ -1701,57 +1707,150 @@ export function traceDeparture(hexes: MapHexDto[], size: number, islets: Islet[]
   return out;
 }
 const wreckCache = new Map<string, { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number }>();
-/** Спрайт разбитого корабля: корпус с пробоинами и водой, сломанная мачта, обрывок паруса. Кеш по виду и разрешению. */
-function wreckSprite(sp: ShipSpec, pxPerUnit: number): { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number } {
+/**
+ * Спрайт разбитого корабля (решение владельца 05.11: «у нас по карте в живности плавает уже существующий самый большой
+ * корабль. Вот его возьми за основу и сделай разбитый»): тот же трёхмачтовый `ship` живности — корпус, палуба и размеры
+ * из `paintShip`, — но без целого такелажа: поверх — повреждения одного из трёх наборов (`variant`). Кеш по варианту
+ * и разрешению, как у целых кораблей; поле спрайта шире корпуса — под упавшие мачты и обломки.
+ */
+function wreckSprite(sp: ShipSpec, variant: number, pxPerUnit: number): { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number } {
   const res = SPR_LEVELS.find((r) => r >= pxPerUnit) ?? SPR_LEVELS[SPR_LEVELS.length - 1]!;
-  const key = `${sp.kind}:${res}`;
+  const key = `${sp.kind}:${variant}:${res}`;
   const hit = wreckCache.get(key); if (hit) return hit;
-  const L = sp.L, w = L * 1.5, h = L * 1.1, ox = L * 0.7, oy = L * 0.55;
+  const L = sp.L, w = L * 1.6, h = L * 1.3, ox = L * 0.75, oy = L * 0.65;
   const c = document.createElement("canvas"); c.width = Math.ceil(w * res); c.height = Math.ceil(h * res);
   const g = c.getContext("2d")!; g.scale(res, res); g.translate(ox, oy);
-  paintWreck(g, sp);
+  paintWreck(g, sp, variant);
   const out = { c, w, h, ox, oy }; wreckCache.set(key, out); return out;
 }
-function paintWreck(g: CanvasRenderingContext2D, sp: ShipSpec): void {
-  const L = sp.L, W = L * sp.W, big = sp.kind === "ship", dk = L * 0.006;
+/** Обрывок паруса: рваный многоугольник от точки a к b шириной w, с зазубренной кромкой. */
+function tornSail(g: CanvasRenderingContext2D, ax: number, ay: number, bx: number, by: number, w: number, seed: number, fill: string): void {
+  const dx = bx - ax, dy = by - ay, len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
+  const p = new Path2D(); p.moveTo(ax, ay);
+  const n = 6;
+  for (let i = 1; i <= n; i++) { const t = i / n, rip = (0.55 + 0.45 * fract(Math.sin(seed + i * 7.3) * 4321.1)) * w * (i === n ? 0.3 : 1); p.lineTo(ax + dx * t + nx * rip, ay + dy * t + ny * rip); }
+  p.lineTo(bx, by); p.closePath();
+  g.fillStyle = fill; g.fill(p); g.strokeStyle = "rgba(90,70,48,0.75)"; g.lineWidth = Math.max(0.3, w * 0.03); g.stroke(p);
+  g.strokeStyle = "rgba(120,100,70,0.35)"; g.beginPath();
+  for (let i = 1; i < 4; i++) { const t = i / 4; g.moveTo(ax + dx * t, ay + dy * t); g.lineTo(ax + dx * t + nx * w * 0.7, ay + dy * t + ny * w * 0.7); }
+  g.stroke();
+}
+/** Рея: тёмная перекладина через точку (x,y) под углом ang. */
+function yard(g: CanvasRenderingContext2D, x: number, y: number, ang: number, half: number, dk: number): void {
+  g.strokeStyle = "rgb(44,28,16)"; g.lineWidth = dk * 2; g.beginPath(); g.moveTo(x - Math.cos(ang) * half, y - Math.sin(ang) * half); g.lineTo(x + Math.cos(ang) * half, y + Math.sin(ang) * half); g.stroke();
+}
+/** Пробоина: тёмный провал с рваным краем и трещинами досок вокруг. */
+function hole(g: CanvasRenderingContext2D, x: number, y: number, rx: number, ry: number, rot: number, seed: number, dk: number): void {
+  const p = new Path2D(); const n = 9;
+  for (let i = 0; i < n; i++) { const a = (i / n) * TAU, r = 0.75 + 0.35 * fract(Math.sin(seed + i * 3.7) * 1234.5); const px = Math.cos(a) * rx * r, py = Math.sin(a) * ry * r; const cx = x + px * Math.cos(rot) - py * Math.sin(rot), cy = y + px * Math.sin(rot) + py * Math.cos(rot); if (i === 0) p.moveTo(cx, cy); else p.lineTo(cx, cy); }
+  p.closePath();
+  g.fillStyle = "rgb(16,10,6)"; g.fill(p);
+  g.strokeStyle = "rgba(30,18,10,0.9)"; g.lineWidth = dk * 1.2; g.stroke(p);
+  g.strokeStyle = "rgba(40,24,12,0.7)"; g.lineWidth = dk; g.beginPath();
+  for (let i = 0; i < 4; i++) { const a = rot + (i / 4) * TAU + 0.4; g.moveTo(x + Math.cos(a) * rx * 0.9, y + Math.sin(a) * ry * 0.9); g.lineTo(x + Math.cos(a) * rx * 1.9, y + Math.sin(a) * ry * 1.9); }
+  g.stroke();
+}
+/** Доска или бочка в воде у борта. */
+function debris(g: CanvasRenderingContext2D, x: number, y: number, len: number, wid: number, rot: number, barrel: boolean): void {
+  g.save(); g.translate(x, y); g.rotate(rot);
+  if (barrel) { g.fillStyle = "rgb(118,84,52)"; g.beginPath(); g.ellipse(0, 0, len, wid, 0, 0, TAU); g.fill(); g.strokeStyle = "rgba(40,24,12,0.8)"; g.lineWidth = wid * 0.18; g.beginPath(); g.moveTo(-len * 0.45, -wid); g.lineTo(-len * 0.45, wid); g.moveTo(len * 0.45, -wid); g.lineTo(len * 0.45, wid); g.stroke(); }
+  else { g.fillStyle = "rgb(132,96,60)"; g.fillRect(-len, -wid, len * 2, wid * 2); g.strokeStyle = "rgba(40,24,12,0.7)"; g.lineWidth = wid * 0.25; g.strokeRect(-len, -wid, len * 2, wid * 2); }
+  g.restore();
+}
+/**
+ * Разбитый трёхмачтовый корабль: корпус и палуба — как у целого (`paintShip` без такелажа), поверх — залитая водой
+ * палуба, пробоины, крен тенью по борту, обломки у борта, мачты по варианту (пенёк, наклонённая с реями и обрывками
+ * парусов, рухнувшая за борт, стоящая с рваным парусом) и рваные ванты. Три варианта — три набора повреждений одного корабля.
+ */
+function paintWreck(g: CanvasRenderingContext2D, sp: ShipSpec, variant: number): void {
+  const L = sp.L, W = L * sp.W, dk = L * 0.006, k = ((variant % 3) + 3) % 3;
   g.lineJoin = "round"; g.lineCap = "round";
   const hull = hullPath(L, W);
-  // Корпус потемнел от воды: те же борта, палуба серее.
-  const hg = g.createLinearGradient(0, -W * 0.5, 0, W * 0.5);
-  hg.addColorStop(0, "rgb(40,26,18)"); hg.addColorStop(0.16, sp.hull); hg.addColorStop(0.34, "rgb(132,112,86)"); hg.addColorStop(0.66, "rgb(128,108,82)"); hg.addColorStop(0.84, sp.hull); hg.addColorStop(1, "rgb(36,22,14)");
-  g.fillStyle = hg; g.fill(hull);
+  // Борт, в который рухнула мачта / где пробоина: там пена и мутная вода.
+  const side = k === 2 ? -1 : 1;
+  g.fillStyle = "rgba(236,249,252,0.32)"; g.beginPath(); g.ellipse(L * 0.02, side * W * 0.5, L * 0.6, W * 1.1, 0, 0, TAU); g.fill();
+  g.fillStyle = "rgba(120,160,150,0.26)"; g.beginPath(); g.ellipse(k === 1 ? L * 0.2 : -L * 0.25, side * W * 0.55, L * 0.28, W * 0.8, 0.2, 0, TAU); g.fill();
+  // Обломки вокруг (у каждого варианта свои).
+  const dl = L * 0.07, dw = L * 0.011;
+  const pieces: Array<[number, number, number, boolean]> = k === 0
+    ? [[-0.55, 0.8, 0.3, false], [0.3, -0.75, -0.5, false], [-0.2, 1.0, 1.2, false], [0.15, 0.9, 0.1, true], [-0.62, -0.5, 0.8, false]]
+    : k === 1 ? [[0.55, 0.65, 0.2, false], [0.62, -0.5, -0.6, false], [0.0, 0.95, 1.0, true], [-0.6, 0.6, 2.0, false], [0.4, -0.9, 0.4, false]]
+    : [[-0.5, -0.95, 0.5, false], [-0.65, -0.3, 1.3, false], [0.25, -1.05, -0.2, true], [0.55, -0.45, 0.7, false], [-0.2, 0.9, 0.3, false]];
+  for (const [px, py, rot, barrel] of pieces) debris(g, L * px, W * py * 1.1, barrel ? dl * 0.55 : dl, barrel ? dw * 2.2 : dw, rot, barrel);
+  // Корпус и палуба того же корабля, без такелажа.
+  paintShip(g, { ...sp, masts: [] });
   g.save(); g.clip(hull);
-  g.strokeStyle = "rgba(60,38,20,0.4)"; g.lineWidth = dk;
-  for (let i = -3; i <= 3; i++) { if (i === 0) continue; const y = i * W * 0.11; g.beginPath(); g.moveTo(-L * 0.5, y * 1.1); g.quadraticCurveTo(L * 0.05, y, L * 0.46, y * 0.25); g.stroke(); }
-  // Вода в трюме у кормы и пробоины в борту.
-  g.fillStyle = "rgba(60,110,140,0.75)"; g.beginPath(); g.ellipse(-L * 0.22, W * 0.05, L * 0.2, W * 0.34, 0.1, 0, TAU); g.fill();
-  g.fillStyle = "rgba(20,12,8,0.85)";
-  g.beginPath(); g.ellipse(L * 0.12, W * 0.42, L * 0.07, W * 0.12, 0.3, 0, TAU); g.fill();
-  g.beginPath(); g.ellipse(-L * 0.36, -W * 0.4, L * 0.05, W * 0.1, -0.2, 0, TAU); g.fill();
-  // Сломанные доски у пробоины.
-  g.strokeStyle = "rgba(90,60,36,0.9)"; g.lineWidth = dk * 1.4;
-  g.beginPath(); g.moveTo(L * 0.05, W * 0.5); g.lineTo(L * 0.14, W * 0.62); g.moveTo(L * 0.17, W * 0.48); g.lineTo(L * 0.26, W * 0.58); g.stroke();
+  // Палуба потемнела от воды; крен — подветренный борт в тени, наветренный на свету.
+  g.fillStyle = "rgba(40,30,22,0.22)"; g.fillRect(-L * 0.55, -W * 0.6, L * 1.1, W * 1.2);
+  const tilt = g.createLinearGradient(0, -W * 0.5 * side, 0, W * 0.5 * side);
+  tilt.addColorStop(0, "rgba(255,240,210,0.12)"); tilt.addColorStop(0.5, "rgba(0,0,0,0)"); tilt.addColorStop(1, "rgba(10,6,4,0.4)");
+  g.fillStyle = tilt; g.fillRect(-L * 0.55, -W * 0.6, L * 1.1, W * 1.2);
+  // Вода в трюме у повреждённого места, с бликом.
+  const flood = new Path2D();
+  if (k === 0) flood.ellipse(-L * 0.26, W * 0.1, L * 0.2, W * 0.4, 0.1, 0, TAU);
+  else if (k === 1) flood.ellipse(L * 0.18, W * 0.12, L * 0.2, W * 0.4, 0, 0, TAU);
+  else flood.ellipse(-L * 0.3, -W * 0.08, L * 0.18, W * 0.42, -0.1, 0, TAU);
+  g.fillStyle = "rgba(52,104,136,0.8)"; g.fill(flood);
+  g.fillStyle = "rgba(200,230,240,0.3)"; g.beginPath(); g.ellipse(k === 1 ? L * 0.14 : -L * 0.28, side * W * 0.05, L * 0.06, W * 0.1, 0.4, 0, TAU); g.fill();
+  // Пробоины.
+  if (k === 0) { hole(g, L * 0.16, W * 0.44, L * 0.07, W * 0.14, 0.25, 1, dk); hole(g, -L * 0.4, -W * 0.38, L * 0.045, W * 0.12, -0.3, 2, dk); }
+  else if (k === 1) { hole(g, L * 0.3, W * 0.42, L * 0.09, W * 0.16, 0.1, 3, dk); hole(g, -L * 0.1, -W * 0.44, L * 0.04, W * 0.1, 0.5, 4, dk); }
+  else { hole(g, -L * 0.3, -W * 0.46, L * 0.09, W * 0.15, -0.15, 5, dk); hole(g, L * 0.3, W * 0.42, L * 0.04, W * 0.1, 0.6, 6, dk); }
   g.restore();
-  g.strokeStyle = "rgba(20,12,6,0.8)"; g.lineWidth = dk * 1.8; g.stroke(hull);
-  // Бушприт обломан.
-  g.strokeStyle = "rgb(58,38,24)"; g.lineWidth = L * 0.014; g.beginPath(); g.moveTo(L * 0.4, 0); g.lineTo(L * 0.56, -L * 0.02); g.stroke();
+  // Раскол корпуса через планширь.
+  g.strokeStyle = "rgba(16,10,6,0.95)"; g.lineWidth = dk * 1.6; g.beginPath();
+  if (k === 2) { g.moveTo(-L * 0.38, -W * 0.48); g.lineTo(-L * 0.33, -W * 0.2); g.lineTo(-L * 0.36, W * 0.05); }
+  else if (k === 0) { g.moveTo(L * 0.12, W * 0.5); g.lineTo(L * 0.18, W * 0.3); }
+  else { g.moveTo(L * 0.26, W * 0.5); g.lineTo(L * 0.32, W * 0.3); g.lineTo(L * 0.38, W * 0.5); }
+  g.stroke();
+  // Обломанный бушприт (у варианта 1).
+  if (k === 1) { g.strokeStyle = "rgb(58,38,24)"; g.lineWidth = L * 0.01; g.beginPath(); g.moveTo(L * 0.56, 0); g.lineTo(L * 0.64, L * 0.06); g.stroke(); }
+  // ── мачты ──
   const masts = sp.masts.map((m) => L * m);
-  const rope = () => { g.strokeStyle = "rgba(30,20,12,0.5)"; g.lineWidth = dk * 0.9; };
-  // Главная мачта сломана и лежит поперёк борта в воду; на ней обрывок паруса. Остальные — голые пеньки с обрывками вант.
-  const main = masts[big ? 1 : 0]!;
-  const mx = main, ex = main - L * 0.3, ey = -W * 1.15;
-  rope(); g.beginPath(); g.moveTo(mx, 0); g.lineTo(mx - L * 0.12, W * 0.44); g.moveTo(mx, 0); g.lineTo(ex * 0.6, ey * 0.5); g.stroke();
-  g.strokeStyle = "rgb(48,30,18)"; g.lineWidth = L * 0.016; g.beginPath(); g.moveTo(mx, 0); g.lineTo(ex, ey); g.stroke();
-  const sail = new Path2D(); sail.moveTo(mx - L * 0.05, -W * 0.2); sail.lineTo(ex + L * 0.04, ey + W * 0.1); sail.lineTo(ex + L * 0.16, ey + W * 0.55); sail.lineTo(mx - L * 0.1, -W * 0.05); sail.lineTo(mx + L * 0.02, -W * 0.35); sail.closePath();
-  g.fillStyle = "rgba(214,204,186,0.85)"; g.fill(sail); g.strokeStyle = "rgba(90,70,48,0.7)"; g.lineWidth = dk; g.stroke(sail);
-  g.strokeStyle = "rgba(120,100,70,0.5)"; g.beginPath(); g.moveTo(mx - L * 0.04, -W * 0.3); g.lineTo(ex + L * 0.1, ey + W * 0.35); g.stroke();
-  for (const m of masts) {
-    g.fillStyle = "rgb(40,26,16)"; g.beginPath(); g.arc(m, 0, L * 0.024, 0, TAU); g.fill();
-    if (m !== main) { g.fillStyle = "rgb(120,90,60)"; g.beginPath(); g.arc(m, 0, L * 0.012, 0, TAU); g.fill(); rope(); g.beginPath(); g.moveTo(m, 0); g.lineTo(m - L * 0.08, W * 0.3); g.moveTo(m, 0); g.lineTo(m + L * 0.05, -W * 0.25); g.stroke(); }
-  }
-  // Обломки рядом с бортом.
-  g.fillStyle = "rgb(110,78,48)"; g.beginPath(); g.ellipse(-L * 0.55, W * 0.7, L * 0.08, W * 0.07, 0.4, 0, TAU); g.fill();
-  g.beginPath(); g.ellipse(L * 0.3, -W * 0.85, L * 0.06, W * 0.06, -0.5, 0, TAU); g.fill();
+  const rope = () => { g.strokeStyle = "rgba(30,20,12,0.55)"; g.lineWidth = dk * 0.9; };
+  const sailFill = "rgba(222,212,192,0.9)";
+  const stump = (mx: number) => { g.fillStyle = "rgb(36,22,14)"; g.beginPath(); g.arc(mx, 0, L * 0.026, 0, TAU); g.fill(); g.fillStyle = "rgb(128,96,60)"; g.beginPath(); g.arc(mx, 0, L * 0.012, 0, TAU); g.fill(); rope(); g.beginPath(); g.moveTo(mx, 0); g.lineTo(mx - L * 0.07, W * 0.45); g.moveTo(mx, 0); g.lineTo(mx - L * 0.07, -W * 0.45); g.moveTo(mx, 0); g.lineTo(mx - L * 0.11, W * 0.42); g.stroke(); };
+  /** Наклонённая мачта: от основания под углом ang длиной len, с реями и повисшими парусами. */
+  const leaning = (mx: number, ang: number, len: number, yards: number[], seed: number) => {
+    const ex = mx + Math.cos(ang) * len, ey = Math.sin(ang) * len;
+    rope(); g.beginPath(); g.moveTo(mx, 0); g.lineTo(mx - L * 0.1, -W * 0.46); g.moveTo(mx, 0); g.lineTo(mx - L * 0.1, W * 0.46); g.moveTo(ex, ey); g.lineTo(mx + L * 0.16, W * 0.3 * Math.sign(ey || 1)); g.stroke();
+    for (const t of yards) {
+      const yx = mx + Math.cos(ang) * len * t, yy = Math.sin(ang) * len * t, half = W * (0.95 - 0.3 * t);
+      tornSail(g, yx - Math.sin(ang) * half * 0.9, yy + Math.cos(ang) * half * 0.9, yx + Math.sin(ang) * half * 0.9, yy - Math.cos(ang) * half * 0.9, L * 0.13 * (1 - t * 0.4), seed + t * 10, sailFill);
+      yard(g, yx, yy, ang + Math.PI / 2, half, dk);
+    }
+    g.strokeStyle = "rgb(44,28,16)"; g.lineWidth = L * 0.014; g.beginPath(); g.moveTo(mx, 0); g.lineTo(ex, ey); g.stroke();
+    g.fillStyle = "rgb(36,22,14)"; g.beginPath(); g.arc(mx, 0, L * 0.022, 0, TAU); g.fill();
+  };
+  /** Рухнувшая за борт мачта: лежит поперёк борта в воду, реи и обрывки парусов на воде, расщеплённое основание. */
+  const fallen = (mx: number, sideSign: number, seed: number) => {
+    const ang = sideSign * (Math.PI / 2 - 0.35), len = L * 0.6;
+    const ex = mx + Math.cos(ang) * len, ey = Math.sin(ang) * len;
+    tornSail(g, mx + Math.cos(ang) * len * 0.25 + Math.sin(ang) * W * 0.5, Math.sin(ang) * len * 0.25 - Math.cos(ang) * W * 0.5, ex - Math.sin(ang) * W * 0.15, ey + Math.cos(ang) * W * 0.15, L * 0.2, seed, "rgba(214,206,190,0.82)");
+    rope(); g.beginPath(); g.moveTo(mx, 0); g.lineTo(mx - L * 0.12, -sideSign * W * 0.45); g.moveTo(ex, ey); g.lineTo(mx - L * 0.25, sideSign * W * 0.5); g.moveTo(mx + Math.cos(ang) * len * 0.5, Math.sin(ang) * len * 0.5); g.lineTo(mx + L * 0.3, sideSign * W * 0.52); g.stroke();
+    yard(g, mx + Math.cos(ang) * len * 0.45, Math.sin(ang) * len * 0.45, ang + Math.PI / 2, W * 1.0, dk);
+    yard(g, mx + Math.cos(ang) * len * 0.8, Math.sin(ang) * len * 0.8, ang + Math.PI / 2 + 0.2, W * 0.65, dk);
+    g.strokeStyle = "rgb(44,28,16)"; g.lineWidth = L * 0.016; g.beginPath(); g.moveTo(mx, 0); g.lineTo(ex, ey); g.stroke();
+    g.strokeStyle = "rgb(150,112,74)"; g.lineWidth = dk * 1.5; g.beginPath(); g.moveTo(mx + L * 0.01, -L * 0.012); g.lineTo(mx - L * 0.03, L * 0.02); g.moveTo(mx - L * 0.01, -L * 0.02); g.lineTo(mx - L * 0.04, L * 0.005); g.stroke();
+    g.fillStyle = "rgb(36,22,14)"; g.beginPath(); g.arc(mx, 0, L * 0.022, 0, TAU); g.fill();
+  };
+  /** Стоящая мачта с рваным парусом: рея на месте, полотно висит клочьями. */
+  const standing = (mx: number, seed: number) => {
+    const brace = 0.35, hw = W * 1.15, yx = Math.sin(brace) * hw, yy = Math.cos(brace) * hw;
+    const nx = Math.cos(brace), ny = -Math.sin(brace);
+    tornSail(g, mx - yx, -yy, mx + yx, yy, L * 0.16, seed, sailFill);
+    tornSail(g, mx - yx * 0.4 + nx * L * 0.03, -yy * 0.4 + ny * L * 0.03, mx + yx * 0.7 + nx * L * 0.03, yy * 0.7 + ny * L * 0.03, L * 0.1, seed + 3, "rgba(230,222,204,0.75)");
+    g.strokeStyle = "rgb(48,30,18)"; g.lineWidth = L * 0.012; g.beginPath(); g.moveTo(mx - yx, -yy); g.lineTo(mx + yx, yy); g.stroke();
+    rope(); g.beginPath(); g.moveTo(mx, 0); g.lineTo(mx - L * 0.07, -W * 0.46); g.moveTo(mx, 0); g.lineTo(mx - L * 0.07, W * 0.46); g.moveTo(mx - yx, -yy); g.lineTo(mx - L * 0.16, -W * 0.45); g.stroke();
+    g.fillStyle = "rgb(40,26,16)"; g.beginPath(); g.arc(mx, 0, L * 0.024, 0, TAU); g.fill();
+    g.fillStyle = "rgb(150,112,74)"; g.beginPath(); g.arc(mx, 0, L * 0.012, 0, TAU); g.fill();
+  };
+  const [fore, main, mizzen] = [masts[0]!, masts[1] ?? masts[0]!, masts[2] ?? masts[0]!];
+  if (k === 0) { leaning(fore, 0.9, L * 0.4, [0.45, 0.85], 1); fallen(main, 1, 2); stump(mizzen); }
+  else if (k === 1) { stump(fore); standing(main, 3); fallen(mizzen, 1, 4); }
+  else { fallen(fore, -1, 5); leaning(main, -2.1, L * 0.44, [0.4, 0.75], 6); standing(mizzen, 7); }
+  // Спущенный флаг на корме — потемневший вымпел.
+  g.fillStyle = "rgb(120,40,34)"; g.beginPath(); g.moveTo(-L * 0.46, 0); g.lineTo(-L * 0.58, -L * 0.03); g.lineTo(-L * 0.6, 0.01 * L); g.closePath(); g.fill();
 }
 /** Дымок над кормой: три-четыре серых клуба, поднимаются и сносятся ветром, тают с починкой (на холсте моря, под подписями). */
 function drawSmoke(ctx: CanvasRenderingContext2D, x: number, y: number, h: number, L: number, T: number, seed: number, level: number): void {
@@ -1781,6 +1880,11 @@ function drawWrecks(ctx: CanvasRenderingContext2D, size: number, T: number, now:
       pose = { ...pose, x: dep.sh.x, y: dep.sh.y, h: dep.sh.h, alpha };
       if (world) drawTrail(ctx, dep.sh.trail, world.T, dep.sh.spec.L, 9, px, vis, true);
     } else if (pose.moving && world) continue; // мир ещё не довёл до старта ухода (догоняет) — не рисуем на старом месте
+    else if (pose.repair > 0 && pose.repair < 1 && w.repairedAt != null) {
+      // Починка: с третьей секунды корабль на месте доворачивает с курса крушения на курс ухода.
+      const route = world?.departs.get(w.id);
+      if (route) { const t = (now - w.repairedAt) / 1000; pose = { ...pose, h: pose.h + wrapAngle(route.sh.car.h - pose.h) * smooth((t - 1.5) / 3.5) }; }
+    }
     if (!inView(vis, pose.x, pose.y)) continue;
     const sp = shipSpec(WRECK_KINDS[w.kind]!, size), L = sp.L, W = L * sp.W;
     const rock = 0.02 * Math.sin(T * 0.7 + w.seed) * (1 - pose.sink);
@@ -1806,7 +1910,7 @@ function drawWrecks(ctx: CanvasRenderingContext2D, size: number, T: number, now:
     // Корпус: тонущий уходит под воду — уменьшается, синеет, бледнеет.
     ctx.rotate(pose.h + rock); ctx.scale(1 - 0.35 * depth, heel * (1 - 0.35 * depth));
     const pxPerUnit = Math.hypot(ctx.getTransform().a, ctx.getTransform().b);
-    const spr = wreckSprite(sp, pxPerUnit);
+    const spr = wreckSprite(sp, w.kind, pxPerUnit);
     const sunkAlpha = pose.alpha * (1 - Math.pow(depth, 1.6));
     if (pose.repair < 1) { ctx.globalAlpha = sunkAlpha * (1 - pose.repair); ctx.drawImage(spr.c, -spr.ox, -spr.oy, spr.w, spr.h); }
     if (pose.repair > 0) { const ok = shipSprite(sp, pxPerUnit); ctx.globalAlpha = pose.alpha * pose.repair; ctx.drawImage(ok.c, -ok.ox, -ok.oy, ok.w, ok.h); }
@@ -1843,7 +1947,8 @@ function drawRockets(ctx: CanvasRenderingContext2D, size: number, now: number, p
     for (const at of launches) {
       const age = sec - at; if (age < 0 || age > ROCKET_LIFE) continue;
       const idx = Math.floor(at), drift = (fract(Math.sin(idx * 12.9898 + w.seed) * 43758.5453) - 0.5) * size * 0.6;
-      const H = size * 2.3, x0 = w.x, y0 = w.y - size * 0.15;
+      // Высота подъёма — на 20 % выше первой версии (решение владельца 05.11).
+      const H = size * 2.3 * 1.2, x0 = w.x, y0 = w.y - size * 0.15;
       if (age < ROCKET_RISE) {
         const u = age / ROCKET_RISE, e = 1 - (1 - u) * (1 - u);
         const x = x0 + drift * e, y = y0 - H * e;

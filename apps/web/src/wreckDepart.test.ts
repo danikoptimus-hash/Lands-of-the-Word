@@ -36,6 +36,6 @@ describe("уход починенного корабля", () => {
     const last = trace[trace.length - 1]!;
     expect(Math.hypot(last[0] - wreck.x, last[1] - wreck.y)).toBeGreaterThan(size * 12);
     // Тот же корабль — тот же путь (у всех игроков одинаково).
-    expect(traceDeparture(hexes, size, [islet], wreck, 20, 0.05)).toEqual(trace.slice(0, 300)); // первые 5 с — починка на месте
+    expect(traceDeparture(hexes, size, [islet], wreck, 20, 0.05)).toEqual(trace.slice(0, 400));
   });
 });
