@@ -7,6 +7,7 @@ import { Icon } from "./Icon";
 import { AwardBadge, AwardSheet, preloadAwardImages } from "../pages/Awards";
 import { AvatarUploader } from "./AvatarUploader";
 import { InviteButtons } from "./InviteButtons";
+import { PeaceActions } from "./PeaceActions";
 import { useAuth } from "../lib/auth";
 import type { AwardGrantDto } from "../lib/api";
 
@@ -51,8 +52,10 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
           {teamCard && (teamCard.awards.length
             ? <div className="awards-row">{teamCard.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" eager onClick={() => setPick(g)} />)}</div>
             : <div className="none">{t("Наград пока нет")}</div>)}
-          {teamCard?.canInvite && gameId && teamId && <InviteButtons gameId={gameId} teamId={teamId} />}
-          <button type="button" className="secondary sm" onClick={onClose}>{t("Закрыть")}</button>
+          {/* Приглашения: администратору — капитана и участников, капитану — участников (решение владельца 04.11). Кнопки «Закрыть» нет: закрывается нажатием мимо карточки или Esc. */}
+          {gameId && teamId && (teamCard?.canInvite ? <InviteButtons gameId={gameId} teamId={teamId} /> : teamCard?.canEdit ? <InviteButtons gameId={gameId} teamId={teamId} roles={["MEMBER"]} /> : null)}
+          {/* Мир с другой командой — отсюда (решение владельца 04.11); у своей команды компонент ничего не показывает. */}
+          {gameId && teamId && !teamCard?.canEdit && <PeaceActions gameId={gameId} teamId={teamId} />}
         </div>
         {pick && <AwardSheet code={pick.code} grant={pick} onClose={() => setPick(null)} />}
       </div>,
@@ -64,7 +67,6 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
       <div className="avatar-lightbox" role="dialog" aria-label={name} onClick={(e) => { e.stopPropagation(); onClose(); }}>
         {photo}
         <div className="name">{name}</div>
-        <button type="button" className="secondary" onClick={onClose}>{t("Закрыть")}</button>
       </div>,
       document.body,
     );
@@ -79,7 +81,6 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
         {card && (card.awards.length
           ? <div className="awards-row">{card.awards.map((g) => <AwardBadge key={g.code} code={g.code} earned count={g.count} size="sm" eager onClick={() => setPick(g)} />)}</div>
           : <div className="none">{t("Наград пока нет")}</div>)}
-        <button type="button" className="secondary sm" onClick={onClose}>{t("Закрыть")}</button>
       </div>
       {pick && <AwardSheet code={pick.code} grant={pick} onClose={() => setPick(null)} />}
     </div>,

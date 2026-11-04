@@ -1,5 +1,11 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Предложить или расторгнуть мир теперь можно в профиле другой команды (нажмите на её аватарку); меню «⋯» в рейтинге убрано.": "Offering or breaking peace is now done in the other team’s profile (tap its avatar); the “⋯” menu in the rating is gone.",
+  "Администратору: в списке команд нет плашки «лидер», место видно по номеру.": "For the administrator: the team list has no “leader” chip; the place is shown by the number.",
+  "На карте подписи городов и пленов лежат поверх значков дел.": "On the map, city and captivity labels lie above the deed markers.",
+  "Капитану: ссылка «Пригласить участника» — в профиле команды (нажмите на аватарку); из состава кнопка убрана.": "For the captain: the “Invite a member” link is in the team profile (tap the avatar); the button is gone from the roster.",
+  "В профилях участников и команд нет кнопки «Закрыть»: карточка закрывается нажатием мимо неё.": "Member and team profiles have no “Close” button: the card closes with a tap outside it.",
+  "Администратору: в составе команды заместитель отмечен маленькой звёздочкой на значке роли, как у участников.": "For the administrator: in the team roster the deputy is marked with a small star on the role badge, as members see it.",
   "На подписи закрытого для прохода города вместо слов «проход закрыт» — белый знак: кольцо с чертой.": "On the label of a city closed to passage, a white sign — a ring with a bar — replaces the words “passage closed”.",
   "Ночные предупреждения в городе, у дел, разведки и испытаний свёрнуты в знак месяца: текст открывается по нажатию.": "Night notices in the city, on deeds, scouting and trials are folded into a moon sign: tap it to read the text.",
   "В карточке своего города больше нет чипов других команд, дошедших до него.": "Your own city’s card no longer shows chips of other teams that reached it.",

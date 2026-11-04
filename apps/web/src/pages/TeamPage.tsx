@@ -61,11 +61,9 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
         const mine = st.teamId === teamId;
         const pc = !mine ? peace?.teams.find((p) => p.team.id === st.teamId) ?? null : null;
         const canPeace = Boolean(peace?.canSpeak && onPeace && pc && pc.team.status !== "defeated" && st.status !== "defeated");
-        // Меню «⋯» напротив чужой команды (решение владельца 24.10 вместо отдельных кнопок): мир, расторжение. Обмен городами —
-        // из карточки своего города (решение владельца 04.11).
+        // Меню «⋯» напротив чужой команды больше нет: мир и расторжение — в профиле команды по нажатию на аватарку, обмен
+        // городами — из карточки своего города (решения владельца 04.11). Здесь остались принять/отклонить входящее предложение.
         const actions: MenuItem[] = [];
-        if (canPeace && pc?.state === "none") actions.push({ label: t("Предложить мир"), icon: "handshake", onSelect: () => onPeace!(pc!, "offer") });
-        if (canPeace && pc?.state === "peace" && pc.breakable) actions.push({ label: t("Расторгнуть мир"), icon: "x", danger: true, onSelect: () => onPeace!(pc!, "break") });
         const details = st.citiesOnPath.length > 0 || (mine && Boolean(roster)) || (canPeace && pc?.state === "peace");
         const opened = open ?? teamId;
         const shown = details && opened === st.teamId;
@@ -255,9 +253,6 @@ export function TeamPage() {
   /** Точка на краю тумана без дороги с делом: лист с разведкой (решение владельца 02.10). */
   const [frontierKey, setFrontierKey] = useState<string | null>(null);
   const [markNote, setMarkNote] = useState("");
-  const [inviteBusy, setInviteBusy] = useState(false);
-  const [inviteDone, setInviteDone] = useState(false);
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const seenBattles = useRef<Map<string, string> | null>(null);
   /** Описание дела свёрнуто до двух строк («Подробнее»), пока дело не взято мной; при смене дела сворачивается снова. */
   const [descOpen, setDescOpen] = useState(false);
@@ -484,21 +479,6 @@ export function TeamPage() {
    * Ссылка для участников от капитана (решение владельца 22.09): одна кнопка, ссылка сразу в буфере.
    * В Safari буфер доступен только из жеста — ссылка передаётся обещанием через ClipboardItem; где его нет, ждём ответ и пишем текст.
    */
-  async function inviteCopy() {
-    setInviteBusy(true); setInviteUrl(null);
-    const url = api<{ invite: { path: string } }>(`/api/games/${id}/teams/${team!.id}/invites`, { method: "POST", body: JSON.stringify({ role: "MEMBER" }) }).then((r) => window.location.origin + r.invite.path);
-    try {
-      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
-        await navigator.clipboard.write([new ClipboardItem({ "text/plain": url.then((u) => new Blob([u], { type: "text/plain" })) })]);
-      } else {
-        await navigator.clipboard.writeText(await url);
-      }
-      notify(t("Ссылка для участников скопирована: действует 14 дней, до 20 человек")); setInviteDone(true); setTimeout(() => setInviteDone(false), 1500);
-    } catch (e) {
-      if (e instanceof ApiError) { notify(e.message, "bad"); return; }
-      try { setInviteUrl(await url); notify(t("Не удалось скопировать: выделите ссылку вручную"), "bad"); } catch (e2) { notify(e2 instanceof ApiError ? e2.message : t("Ошибка сети"), "bad"); }
-    } finally { setInviteBusy(false); }
-  }
   async function putMark() {
     if (!markAt) return;
     setBusy(true);
@@ -608,7 +588,7 @@ export function TeamPage() {
             <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} roster={<Roster embedded team={team} isCaptain={false} onRole={setGameRole} onDeputy={setDeputy} />} />
           </div>
         )}
-        {map.status !== "FINISHED" && <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} /></div>}
+        {map.status !== "FINISHED" && <div className="card"><Roster team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} /></div>}
       </main>
     );
   }
@@ -837,7 +817,7 @@ export function TeamPage() {
                 empty={t("Наград пока нет.")}
                 rows={awards.teams.map((tm) => ({ key: tm.id, name: tm.name, awards: tm.awards, me: tm.id === awards.teamId, tag: tm.id === awards.teamId ? t("ваша команда") : tm.out ? t("выбыла") : undefined, muted: tm.out, who: <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" title={tm.name} teamId={tm.id} /> }))} />
             </>))}
-            {standingsTab === "rating" && <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} onInvite={isCaptain ? () => void inviteCopy() : undefined} inviteBusy={inviteBusy} inviteDone={inviteDone} inviteUrl={inviteUrl} />} />}
+            {standingsTab === "rating" && <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} />} />}
 
             {peaceOffer && (
               <Sheet size="sm" title={t("Предложить мир команде «{team}»", { team: peaceOffer.team.name })} onClose={() => setPeaceOffer(null)}>
@@ -1111,7 +1091,7 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
 
 /** Состав команды: роль — пилюля с объяснением по нажатию; капитан назначает роли выбором. */
 /** embedded — внутри строки таблицы команд: без заголовка (численность — значком в строке команды, решение владельца 24.10), только кнопка приглашения. */
-function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite, inviteBusy, inviteDone, inviteUrl, onShowOnMap }: { /** «Посмотреть на карте» у дела на руках участника (просьба владельца 10.10). */ onShowOnMap?: (taskId: string) => void; team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; /** Капитан: кнопка «Пригласить участника» кладёт ссылку в буфер (решение владельца 22.09). */ onInvite?: () => void; inviteBusy?: boolean; inviteDone?: boolean; inviteUrl?: string | null }) {
+function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onShowOnMap }: { /** «Посмотреть на карте» у дела на руках участника (просьба владельца 10.10). */ onShowOnMap?: (taskId: string) => void; team: TeamDto; isCaptain: boolean; onRole: (userId: string, role: GameRole) => void; onDeputy: (userId: string, on: boolean) => void; embedded?: boolean; }) {
   // Таймеры «следующее дело через…» тикают раз в полминуты.
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i); }, []);
@@ -1120,13 +1100,10 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onInvite,
   const [pick, setPick] = useState<string | null>(null);
   // Лимит смены роли — на каждого участника (решение владельца 19.10): в подсказке перечислены те, кому роль пока не сменить.
   const GAME_ROLES = (Object.keys(ROLE).filter((k) => k !== "CAPTAIN" && k !== "DEPUTY" && k !== "NONE") as GameRole[]);
-  const invite = onInvite && <button type="button" className="secondary sm roster-invite" disabled={inviteBusy} title={t("Скопировать ссылку для участников")} onClick={onInvite}><Icon name={inviteDone ? "check" : "link"} />{t("Пригласить участника")}</button>;
+  // Кнопки «Пригласить участника» здесь нет: ссылка — в профиле команды по нажатию на аватарку (решение владельца 04.11).
   return (
     <>
-      {embedded
-        ? (invite ? <div className="meta roster-head">{invite}</div> : null)
-        : <div className="roster-title"><h2><Icon name="users" />{team.name}<span className="count">{team.members.length}</span></h2>{invite}</div>}
-      {inviteUrl && <p className="hint invite-fallback"><a href={inviteUrl}>{inviteUrl}</a></p>}
+      {!embedded && <div className="roster-title"><h2><Icon name="users" />{team.name}<span className="count">{team.members.length}</span></h2></div>}
       <ul className="list roster">
         {team.members.map((m) => {
           const name = m.user.displayName ?? m.user.nickname;

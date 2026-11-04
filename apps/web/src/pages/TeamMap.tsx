@@ -391,8 +391,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     );
   })();
   const screenBody = useMemo(() => (<>
-          {/* Слои (решение владельца 03.11: «чтобы точка узла не перекрывала название города или плена»): точки узлов — метка
-              старта, перекрёстки, цели дел и край тумана — снизу; над ними подписи городов и пленов; сверху значки дел и метки. */}
+          {/* Слои: точки узлов (старт, перекрёстки, цели дел, край тумана) — снизу (решение владельца 03.11: «чтобы точка узла не
+              перекрывала название города или плена»); над ними значки дел, разведки и кораблей; над ними подписи городов и
+              пленов (решение владельца 04.11: «плашки с названиями городов должны быть выше слоя значков свитков дел»); сверху метки команды. */}
           {map.revealed.map((n) => {
             const p = positions.get(n.key)!;
             if (n.kind === "START") return <g key={n.key} style={sc(p.x, p.y)}><circle className="m-start" r={6} fill={map.team.color} /></g>;
@@ -422,52 +423,6 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               );
             });
           })()}
-          {map.revealed.map((n) => {
-            const p = positions.get(n.key)!;
-            const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
-            if (n.kind === "START") {
-              // Стартовая точка подписана как «плен», из которого команда выходит (решение владельца 16.09).
-              const name = startName(n.teamIndex ?? teamIndex, getLocale()), fs = fullLabels ? 11 : 9, w = Math.ceil(name.length * fs * 0.62) + 16, h = fs + 9;
-              // Подпись справа от метки: по горизонтали из перекрёстка стороны не выходят (они идут вверх/вниз и наискось), метки дел не мешают.
-              // Подпись плена ничего не открывает: нажатия проходят сквозь неё к точкам края тумана под ней.
-              return (
-                <g key={n.key} className={"m-label start" + (fullLabels ? "" : " sm")} style={{ ...sc(p.x, p.y), pointerEvents: "none" }}>
-                  <rect x={12} y={-h / 2} width={w} height={h} rx={h / 2} />
-                  <text x={12 + w / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{name}</text>
-                </g>
-              );
-            }
-            if (n.kind === "CITY") {
-              const c = cityByKey.get(n.key);
-              const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;
-              const status = c?.ruined ? t("руины") : c?.blocked && c.passage === "PENDING" ? t("ждём прохода") : "";
-              // «Проход закрыт» — запрещающий знак справа в подписи вместо слов (решение владельца 04.11).
-              const noEntry = Boolean(c?.blocked && c.passage !== "PENDING" && !c?.ruined);
-              const fs = fullLabels ? 11 : 9;
-              const text = fullLabels ? [book?.nameRu ?? "", progress, status].filter(Boolean).join(" · ") : book?.nameRu ?? "";
-              const iconW = c?.isCapital ? fs + 4 : 0;
-              // Городская стена (решение владельца 01.11): значок у подписи виден всем, толщину знают только хранители.
-              const wallW = (c?.wall ? fs + 4 : 0) + (noEntry ? fs + 5 : 0);
-              const w = textWidth(text, fs) + iconW + wallW + 14, h = fs + 9;
-              // Подпись стоит под картинкой города (сдвиг в единицах карты), а масштабируется через --inv на каждый кадр.
-              return (
-                <g key={n.key} data-key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))` }} onClick={() => clickCity(n.key)}>
-                  {c?.battle && (
-                    <g className={"m-battle " + (c.battle === "ATTACK" ? "att" : "def")} transform="translate(18,-30)">
-                      <circle r={10} />
-                      <use href="#m-wave" x={-7} y={-7} width={14} height={14} />
-                    </g>
-                  )}
-                  <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
-                  {c?.isCapital && <use href="#m-crown" x={-w / 2 + 6} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
-                  {c?.wall && <use href="#m-wall" x={w / 2 - fs - 5 - (noEntry ? fs + 5 : 0)} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
-                  {noEntry && <g className="no-entry" transform={`translate(${w / 2 - (fs + 2) / 2 - 5}, 0)`}><circle r={(fs + 2) / 2 - 0.8} /><rect x={-(fs + 2) / 2 + 2.6} y={-1.2} width={fs + 2 - 5.2} height={2.4} rx={0.6} /></g>}
-                  <text x={(iconW - wallW) / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{text}</text>
-                </g>
-              );
-            }
-            return null;
-          })}
           {showMarkers && (map.peeked ?? []).map((pk) => {
             // Координаты из ключа: у разведанного угла без дороги к открытой части карты записи в positions нет (жалоба участника 31.10: метка стояла только через сторону с делом).
             const pos = positions.get(pk.key) ?? nodePos(pk.key, size);
@@ -518,6 +473,53 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                 <use href="#m-anchor" x={-5} y={-5} width={10} height={10} />
               </g>
             );
+          })}
+          {/* Подписи городов и пленов — над значками дел (решение владельца 04.11: «плашки с названиями городов должны быть выше слоя значков свитков дел»), но под метками команды. */}
+          {map.revealed.map((n) => {
+            const p = positions.get(n.key)!;
+            const book = n.bookCode ? BOOK_BY_CODE.get(n.bookCode) : undefined;
+            if (n.kind === "START") {
+              // Стартовая точка подписана как «плен», из которого команда выходит (решение владельца 16.09).
+              const name = startName(n.teamIndex ?? teamIndex, getLocale()), fs = fullLabels ? 11 : 9, w = Math.ceil(name.length * fs * 0.62) + 16, h = fs + 9;
+              // Подпись справа от метки: по горизонтали из перекрёстка стороны не выходят (они идут вверх/вниз и наискось), метки дел не мешают.
+              // Подпись плена ничего не открывает: нажатия проходят сквозь неё к точкам края тумана под ней.
+              return (
+                <g key={n.key} className={"m-label start" + (fullLabels ? "" : " sm")} style={{ ...sc(p.x, p.y), pointerEvents: "none" }}>
+                  <rect x={12} y={-h / 2} width={w} height={h} rx={h / 2} />
+                  <text x={12 + w / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{name}</text>
+                </g>
+              );
+            }
+            if (n.kind === "CITY") {
+              const c = cityByKey.get(n.key);
+              const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;
+              const status = c?.ruined ? t("руины") : c?.blocked && c.passage === "PENDING" ? t("ждём прохода") : "";
+              // «Проход закрыт» — запрещающий знак справа в подписи вместо слов (решение владельца 04.11).
+              const noEntry = Boolean(c?.blocked && c.passage !== "PENDING" && !c?.ruined);
+              const fs = fullLabels ? 11 : 9;
+              const text = fullLabels ? [book?.nameRu ?? "", progress, status].filter(Boolean).join(" · ") : book?.nameRu ?? "";
+              const iconW = c?.isCapital ? fs + 4 : 0;
+              // Городская стена (решение владельца 01.11): значок у подписи виден всем, толщину знают только хранители.
+              const wallW = (c?.wall ? fs + 4 : 0) + (noEntry ? fs + 5 : 0);
+              const w = textWidth(text, fs) + iconW + wallW + 14, h = fs + 9;
+              // Подпись стоит под картинкой города (сдвиг в единицах карты), а масштабируется через --inv на каждый кадр.
+              return (
+                <g key={n.key} data-key={n.key} className={"m-label" + (c?.owner ? " owned" : "") + (c?.ruined ? " ruined" : "") + (fullLabels ? "" : " sm")} style={{ ...(c?.owner ? { ["--team" as string]: c.owner.color } : {}), transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))` }} onClick={() => clickCity(n.key)}>
+                  {c?.battle && (
+                    <g className={"m-battle " + (c.battle === "ATTACK" ? "att" : "def")} transform="translate(18,-30)">
+                      <circle r={10} />
+                      <use href="#m-wave" x={-7} y={-7} width={14} height={14} />
+                    </g>
+                  )}
+                  <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
+                  {c?.isCapital && <use href="#m-crown" x={-w / 2 + 6} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
+                  {c?.wall && <use href="#m-wall" x={w / 2 - fs - 5 - (noEntry ? fs + 5 : 0)} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
+                  {noEntry && <g className="no-entry" transform={`translate(${w / 2 - (fs + 2) / 2 - 5}, 0)`}><circle r={(fs + 2) / 2 - 0.8} /><rect x={-(fs + 2) / 2 + 2.6} y={-1.2} width={fs + 2 - 5.2} height={2.4} rx={0.6} /></g>}
+                  <text x={(iconW - wallW) / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{text}</text>
+                </g>
+              );
+            }
+            return null;
           })}
           {ripple && <g style={sc(ripple.x, ripple.y)}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
           {showMarkers && (map.marks ?? []).map((mk) => {
