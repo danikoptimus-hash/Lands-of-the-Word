@@ -124,7 +124,8 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
             <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} teamId={tm.id} />
             <div className="body">
               <div className="name">{tm.name}
-                {st?.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : standings?.leaderTeamId === tm.id ? <Chip tone="accent">{t("лидер")}</Chip> : null}
+                {/* Чипа «лидер» нет (решение владельца 04.11): место видно по номеру в списке. */}
+                {st?.status === "defeated" ? <Chip tone="bad">{t("выбыла")}</Chip> : null}
                 <span className="team-menu" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
               <ActionMenu label={t("Ещё")} items={[
                 { label: t("Переименовать"), icon: "edit", onSelect: () => { setRenameError(null); setRenaming({ id: tm.id, name: tm.name }); } },
@@ -157,12 +158,16 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                       {/* Значок лимита дел справа, у ролей (решение владельца 04.10); дела на руках спрятаны в значок: нажатие открывает окошко
                           со списком — взятые с датой, сданные «на проверке», возвращённые. */}
                       <DeedBadgePopup limit={m.deedLimit} now={now} deeds={m.activeDeeds} frozenUntil={m.deedsFrozenUntil} frozenReason={m.deedsFrozenReason} onShowOnMap={onShowOnMap ? (d) => onShowOnMap({ teamId: tm.id, taskId: d.id, fromKey: d.fromKey!, toKey: d.toKey! }) : undefined} />
-                      {(m.role === "CAPTAIN" || m.role === "DEPUTY") && <Chip tone="accent" icon={m.role === "CAPTAIN" ? "crown" : "star"} title={TEAM_ROLE_LABEL[m.role]}><span className="sr-only">{TEAM_ROLE_LABEL[m.role]}</span></Chip>}
-                      {/* Только значок роли, без слова (решение владельца 04.10): название — в подсказке и для читалок; нажатие открывает ряд ролей. */}
+                      {m.role === "CAPTAIN" && <Chip tone="accent" icon="crown" title={TEAM_ROLE_LABEL[m.role]}><span className="sr-only">{TEAM_ROLE_LABEL[m.role]}</span></Chip>}
+                      {/* Только значок роли, без слова (решение владельца 04.10): название — в подсказке и для читалок; нажатие открывает ряд ролей.
+                          Заместитель — маленькая звезда над значком роли, как у участников в составе (решение владельца 04.11). */}
                       {m.role !== "CAPTAIN" && (
-                        <button type="button" className={"chip-btn role-pick icon-only" + (m.gameRole === "NONE" ? " none" : "")} aria-label={m.gameRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.gameRole]} title={m.gameRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.gameRole]} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>
-                          <Chip tone={m.gameRole === "NONE" ? "neutral" : "info"} icon={m.gameRole === "NONE" ? "user" : GAME_ROLE_ICON[m.gameRole]}><Icon name="chevron" className="chev" /></Chip>
-                        </button>
+                        <span className="role-slot">
+                          {m.role === "DEPUTY" && <span className="deputy-star" title={TEAM_ROLE_LABEL.DEPUTY}><Icon name="star" /><span className="sr-only">{TEAM_ROLE_LABEL.DEPUTY}</span></span>}
+                          <button type="button" className={"chip-btn role-pick icon-only" + (m.gameRole === "NONE" ? " none" : "")} aria-label={m.gameRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.gameRole]} title={m.gameRole === "NONE" ? t("без роли") : GAME_ROLE_LABEL[m.gameRole]} aria-expanded={picking} onClick={() => setPick(picking ? null : m.user.id)}>
+                            <Chip tone={m.gameRole === "NONE" ? "neutral" : "info"} icon={m.gameRole === "NONE" ? "user" : GAME_ROLE_ICON[m.gameRole]}><Icon name="chevron" className="chev" /></Chip>
+                          </button>
+                        </span>
                       )}
                       <ActionMenu label={t("Ещё")} items={[
                         m.role === "CAPTAIN"
