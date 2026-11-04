@@ -57,7 +57,7 @@ describe("Разбитые бурей корабли", () => {
   let deedId = "", wreckId = "";
 
   it("срочное дело → корабль на воде в 2–6 гексах от суши, в поясе моря; команды видят его с грузом", async () => {
-    const r = await post(`/api/games/${gameId}/deeds`, adminCookie, deedBody("Помочь людям с разбитого корабля", { wreck: true }));
+    const r = await post(`/api/games/${gameId}/deeds`, adminCookie, deedBody("Помочь людям с разбитого корабля", { wreck: true, wreckStones: 4, wreckBlocks: 1 }));
     expect(r.statusCode).toBe(201);
     deedId = r.json().deed.id;
     expect(r.json().deed.wreck).toBe(true);
@@ -79,10 +79,15 @@ describe("Разбитые бурей корабли", () => {
     expect(deeds.find((x) => x.id === deedId)?.wreckId).toBe(wreckId);
     // Команды видят корабль: дело, возможный груз по правилам (3 камня или 2 блока), своей сдачи нет.
     const w = (await myWrecks(capCookie)).find((x) => x.id === wreckId)!;
-    expect(w).toBeTruthy(); expect(w.title).toBe("Помочь людям с разбитого корабля"); expect(w.cargo).toEqual({ stones: 3, blocks: 2 }); expect(w.mine).toBeNull(); expect(w.q).toBe(wreck.q);
+    expect(w).toBeTruthy(); expect(w.title).toBe("Помочь людям с разбитого корабля"); expect(w.cargo).toEqual({ stones: 4, blocks: 1 }); expect(w.mine).toBeNull(); expect(w.q).toBe(wreck.q);
     expect((await myWrecks(cap2Cookie)).some((x) => x.id === wreckId)).toBe(true);
     // Новость всем командам.
     expect(await prisma.journal.count({ where: { gameId, kind: "wreck_appeared", everyone: true } })).toBe(1);
+    // Груз правится в деле (решение владельца 05.11): открытый корабль подхватывает новые числа, команды видят свежие.
+    expect((await put(`/api/games/${gameId}/deeds/${deedId}`, adminCookie, { wreckStones: 3, wreckBlocks: 2 })).statusCode).toBe(200);
+    expect((await prisma.wreck.findUniqueOrThrow({ where: { id: wreckId } })).stones).toBe(3);
+    expect((await myWrecks(capCookie)).find((x) => x.id === wreckId)?.cargo).toEqual({ stones: 3, blocks: 2 });
+    expect((await get(`/api/games/${gameId}/wrecks`, adminCookie)).json().wrecks.find((x: { id: string }) => x.id === wreckId).cargo).toEqual({ stones: 3, blocks: 2 });
   });
 
   it("срочное дело не попадает на дороги и в Каменоломню", async () => {
@@ -112,6 +117,8 @@ describe("Разбитые бурей корабли", () => {
   });
 
   it("решение: 50/50 — камни одной команде, блоки другой; корабль у одобренной команды чинится, у остальных остаётся", async () => {
+    // Числа груза — из дела, не из правил игры (05.11): у дела 3 камня и 2 блока.
+    expect(await prisma.deed.findUniqueOrThrow({ where: { id: deedId } })).toMatchObject({ wreckStones: 3, wreckBlocks: 2 });
     const queue = (await get(`/api/games/${gameId}/wrecks/submissions`, adminCookie)).json().works as Array<{ id: string; team: { id: string } }>;
     const mine = queue.find((w) => w.team.id === teamId)!, other = queue.find((w) => w.team.id === team2Id)!;
     setWreckRandom(() => 0.1); // < 0.5 — камни
