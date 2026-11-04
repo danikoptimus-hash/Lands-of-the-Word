@@ -333,13 +333,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
               {city.team.capitalMovedAt ? <span className="hint">{t("уже использован")}</span> : <Help>{t("Один раз за игру. Пока на столицу брошен вызов или стоит очередь, перенести её нельзя.")}</Help>}
             </div>
           )}
-          {/* Обмен городами — из карточки своего города (решение владельца 04.11: «перенести этот раздел в сами города»); столицу не обменивают. */}
-          {city.state.capturedAt && !city.state.isCapital && onTrade && (
-            <div className="row mt-2">
-              <button type="button" className="secondary" disabled={busy} onClick={onTrade}><Icon name="handshake" />{t("Обменять город")}</button>
-              <Help>{t("Посол выставляет этот город другой команде; её посол предлагает свой город взамен. Сделки — в «Командах».")}</Help>
-            </div>
-          )}
+
         </section>
       )}
 
@@ -355,6 +349,14 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
         <details className="disclose">
           <summary><Icon name="wall" />{t("Стена")}<Icon name="chevron-down" className="chev" /></summary>
           <WallSection gameId={gameId} nodeKey={nodeKey} version={version} asleep={night || Boolean(city.daytime?.storm?.active)} onChanged={onChanged} />
+        </details>
+      )}
+      {/* Обмен городами — такая же свёрнутая секция, как «Стена» и «Испытание» (решение владельца 04.11: «перенести этот раздел в сами города… расположить именно в такую же штуку»); столицу не обменивают. */}
+      {city?.content && !task && city.state.capturedAt && !city.state.isCapital && onTrade && (
+        <details className="disclose">
+          <summary><Icon name="handshake" />{t("Обмен")}<Icon name="chevron-down" className="chev" /></summary>
+          <p className="muted small">{t("Посол выставляет этот город другой команде; её посол предлагает свой город взамен. Сделки — в «Командах».")}</p>
+          <div className="actions"><button type="button" className="secondary" disabled={busy} onClick={onTrade}><Icon name="handshake" />{t("Обменять город")}</button></div>
         </details>
       )}
       {city?.content && !task && (city.owner || city.state.capturedAt) && (

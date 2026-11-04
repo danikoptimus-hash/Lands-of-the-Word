@@ -774,7 +774,7 @@ export const PLAYER: Record<string, string> = {
   "переснимите и прикрепите заново": "re-record and attach again",
   "Блок стены возвращён · {city} · {ref}": "Wall block returned · {city} · {ref}",
   "сдайте блок заново": "submit the block again",
-  "Обменять город": "Trade the city",
+  "Обменять город": "Trade the city", "Обмен": "Trade",
   "Посол выставляет этот город другой команде; её посол предлагает свой город взамен. Сделки — в «Командах».": "The ambassador offers this city to another team; their ambassador proposes a city in return. Deals are in “Teams”.",
   "Выберите команду": "Choose a team",
   "Загружаем…": "Loading…",
