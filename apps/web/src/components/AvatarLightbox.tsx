@@ -36,6 +36,9 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+  // Пока карточка открыта, листы и окна подтверждения из её кнопок (мир, фото, награда) поднимаются над ней
+  // (замечание владельца 04.11: «нажимаю предложить мир, окно вылетает под профилем»): класс на body, правило в components.css.
+  useEffect(() => { document.body.classList.add("has-lightbox"); return () => document.body.classList.remove("has-lightbox"); }, []);
   useEffect(() => { if (url) apiReady<MemberCardDto>(url).then((d) => { setCard(d); preloadAwardImages(d.awards.map((g) => g.code)); }).catch(() => {}); }, [url]);
   const photo = avatarId ? <img src={`/api/avatars/${avatarId}`} alt={name} /> : <span className="letter" aria-hidden="true" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{name.slice(0, 1).toUpperCase()}</span>;
   if (teamUrl) {
