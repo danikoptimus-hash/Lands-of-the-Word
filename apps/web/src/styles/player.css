@@ -40,6 +40,9 @@
 .help-pop-wrap > .night-sign { appearance: none; width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; border: 1px solid rgba(220, 227, 245, .35); background: rgba(24, 28, 52, .9); color: #DCE3F5; display: inline-flex; align-items: center; justify-content: center; box-shadow: none; cursor: pointer; }
 .help-pop-wrap > .night-sign.warn { background: var(--amber-soft, var(--warn-soft)); color: var(--amber-ink, var(--warn)); border-color: transparent; }
 .help-pop-wrap > .night-sign .i { width: 18px; height: 18px; }
+.help-pop-wrap > .night-sign.sm { width: 26px; height: 26px; }
+.help-pop-wrap > .night-sign.sm .i { width: 14px; height: 14px; }
+.city-head .status .help-pop-wrap { display: inline-flex; vertical-align: middle; }
 .hud-team .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (min-width: 1024px) { .hud-team { cursor: default; } }
 .map-area .map-controls { position: absolute; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; flex-direction: column; gap: var(--sp-2); }
