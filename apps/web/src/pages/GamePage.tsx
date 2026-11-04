@@ -162,15 +162,16 @@ export function GamePage() {
   if (!game || !painted) return <div className="admin-screen"><div className="admin-empty"><div className="admin-loading"><LoadingState rows={3} /></div></div></div>;
   const active = game.status === "ACTIVE";
   const draft = game.status === "DRAFT";
-  const reviewCount = counts.submissions + counts.quarry + counts.battles;
+  // Испытания на проверке — отдельным значком с волной, а не в кружке дел (замечание владельца 04.11: «показывается значок дела, а не значок испытания»).
+  const reviewCount = counts.submissions + counts.quarry;
   const hasMap = hexes.length > 0;
   const refresh = () => { void load(); void loadProgress(); };
 
-  const sections: Array<{ key: Tab; label: string; icon: string; count?: number; hot?: boolean; /** Второй счётчик в правом нижнем углу плитки: отчёты о визитах. */ count2?: number; count2Label?: string; /** Третий счётчик в левом нижнем углу: блоки стен на проверке (решение владельца 02.11: «отдельный красный значок стены»). */ count3?: number; count3Label?: string }> = [
+  const sections: Array<{ key: Tab; label: string; icon: string; count?: number; hot?: boolean; /** Второй счётчик в правом нижнем углу плитки: отчёты о визитах. */ count2?: number; count2Label?: string; /** Третий счётчик в левом нижнем углу: блоки стен на проверке (решение владельца 02.11: «отдельный красный значок стены»). */ count3?: number; count3Label?: string; /** Четвёртый счётчик в левом верхнем углу: испытания с записями на проверке (решение владельца 04.11). */ count4?: number; count4Label?: string }> = [
     { key: "overview", label: t("Летопись"), icon: "feather" },
     { key: "teams", label: t("Команды"), icon: "users", count: counts.teams },
     { key: "deeds", label: t("Дела"), icon: "scroll", count: counts.deeds },
-    { key: "review", label: t("Проверка"), icon: "check", count: reviewCount, hot: true, count2: counts.visits, count2Label: t("Отчёты о визитах на проверке: {n}", { n: counts.visits }), count3: counts.walls, count3Label: t("Блоки стен на проверке: {n}", { n: counts.walls }) },
+    { key: "review", label: t("Проверка"), icon: "check", count: reviewCount, hot: true, count2: counts.visits, count2Label: t("Отчёты о визитах на проверке: {n}", { n: counts.visits }), count3: counts.walls, count3Label: t("Блоки стен на проверке: {n}", { n: counts.walls }), count4: counts.battles, count4Label: t("Испытаний с записями на проверке: {n}", { n: counts.battles }) },
     { key: "analytics", label: t("Аналитика"), icon: "chart" },
     { key: "awards", label: t("Награды"), icon: "trophy" },
     { key: "settings", label: t("Настройки"), icon: "settings" },
@@ -216,6 +217,7 @@ export function GamePage() {
             {s.count ? <span className={"badge" + (s.hot ? " hot" : "") + (s.count2 !== undefined ? " deeds" : "")}>{s.count2 !== undefined && <Icon name="scroll" />}{s.count}</span> : null}
             {s.count2 ? <span className="badge hot visits" title={s.count2Label} aria-label={s.count2Label}><Icon name="city" />{s.count2}</span> : null}
             {s.count3 ? <span className="badge hot walls" title={s.count3Label} aria-label={s.count3Label}><Icon name="wall" />{s.count3}</span> : null}
+            {s.count4 ? <span className="badge hot trials" title={s.count4Label} aria-label={s.count4Label}><Icon name="wave" />{s.count4}</span> : null}
           </button>
         ))}
       </nav>

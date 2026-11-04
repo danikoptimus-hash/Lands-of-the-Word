@@ -10,6 +10,7 @@ import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtLeft , plural } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { NightNote } from "../components/NightNote";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
@@ -211,7 +212,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
           {city?.wall?.canScout && <button type="button" className="secondary icon sm" aria-label={t("Разведать стену")} title={city.wall.nextScoutAt ? t("Следующая разведка стен — {d}", { d: fmtDate(city.wall.nextScoutAt, { time: false }) }) : t("Разведать стену")} disabled={busy || night || Boolean(city.wall.nextScoutAt)} onClick={() => void scoutWall()}><Icon name="telescope" /></button>}
           {city?.content && <ProphetCandle availableAt={city.state.hintAvailableAt} now={now} />}</div>
         {/* Кто ещё дошёл до города (решение владельца 12.10): точки команд в подписи на карте, здесь — с названиями и датой. */}
-        {city?.visitors && city.visitors.length > 0 && (
+        {/* В своём городе чипы других команд не нужны (решение владельца 04.11: «зачем тут это? нужно убрать»). */}
+        {city?.visitors && city.visitors.length > 0 && !city.state.capturedAt && (
           <div className="status visitors">{city.visitors.map((v) => <Chip key={v.id} tone="team" color={v.color} icon={v.sea ? "ship" : "users"} title={v.at ? t("Пришла {d}", { d: fmtDate(v.at, { time: false }) }) : undefined}>{v.name}</Chip>)}</div>
         )}
       </div>
@@ -224,8 +226,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       {error && <p className="error" role="alert">{error}</p>}
       {!city && !error && <LoadingState rows={4} />}
       {city && !city.content && <div className="note warn"><Icon name="alert" /><span>{t("Задания для книги «{book}» ещё готовятся. Город пока нельзя взять.", { book: book?.nameRu ?? "" })}</span></div>}
-      {city?.content && sleeping && <div className="note info night-note"><Icon name="moon" /><span>{t("Город спит до 7:00 по местному времени. Ночью задания, знаки шифра и конверт закрыты; утром всё откроется.")}</span></div>}
-      {city?.content && night && !sleeping && <div className="note info night-note"><Icon name="moon" /><span>{t("До 0:00 можно расставлять районы и решать задания. Знаки шифра и конверт закрыты до 7:00 по местному времени.")}</span></div>}
+      {city?.content && sleeping && <NightNote>{t("Город спит до 7:00 по местному времени. Ночью задания, знаки шифра и конверт закрыты; утром всё откроется.")}</NightNote>}
+      {city?.content && night && !sleeping && <NightNote>{t("До 0:00 можно расставлять районы и решать задания. Знаки шифра и конверт закрыты до 7:00 по местному времени.")}</NightNote>}
 
       {!sleeping && city?.content && !task && (
         <ol className="steps" aria-label={t("Шаги")}>

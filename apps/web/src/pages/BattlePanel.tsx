@@ -4,6 +4,7 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtLeft, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { NightNote } from "../components/NightNote";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Help } from "../components/Help";
 import { TrialFlow } from "./TrialFlow";
@@ -274,7 +275,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
           {passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn || night} onChanged={onChanged} />}
           {isCaptain && myTurn && !ally && sum < need && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
           {/* Времена суток (решение владельца 03.10) и шторм (24.10): ночью и в шторм стихи не отправляют. Утреннего окна для вызова нет (01.11). */}
-          {myTurn && night && <div className="note warn"><Icon name="moon" /><span>{t("Ночь: испытание ждёт утра. С 7:00 по местному времени можно отмечать стихи и отправлять на проверку.")}</span></div>}
+          {myTurn && night && <NightNote tone="warn">{t("Ночь: испытание ждёт утра. С 7:00 по местному времени можно отмечать стихи и отправлять на проверку.")}</NightNote>}
           {myTurn && storm && !night && <div className="note warn"><Icon name="clock" /><span>{t("Шторм: отправить на проверку можно, когда буря пройдёт.")}</span></div>}
           <div className="actions">
             {isCaptain && myTurn && !ally && <button type="button" disabled={sum < need || !canSend} onClick={() => void submit()}><Icon name="send" />{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}</button>}

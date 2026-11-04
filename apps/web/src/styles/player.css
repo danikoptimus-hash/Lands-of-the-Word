@@ -35,6 +35,11 @@
 .hud-tod .i { width: 15px; height: 15px; }
 .hud-tod.morning { background: rgba(120, 86, 30, .78); color: #FFF4D6; }
 .note.night-note { background: rgba(24, 28, 52, .9); color: #DCE3F5; }
+/* Знак ночи вместо плашки с текстом (решение владельца 04.11): круглый месяц, текст — окошком по нажатию. */
+.night-sign-row { display: flex; margin: var(--sp-2) 0; }
+.help-pop-wrap > .night-sign { appearance: none; width: 36px; height: 36px; min-height: 0; padding: 0; border-radius: 50%; border: 1px solid rgba(220, 227, 245, .35); background: rgba(24, 28, 52, .9); color: #DCE3F5; display: inline-flex; align-items: center; justify-content: center; box-shadow: none; cursor: pointer; }
+.help-pop-wrap > .night-sign.warn { background: var(--amber-soft, var(--warn-soft)); color: var(--amber-ink, var(--warn)); border-color: transparent; }
+.help-pop-wrap > .night-sign .i { width: 18px; height: 18px; }
 .hud-team .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (min-width: 1024px) { .hud-team { cursor: default; } }
 .map-area .map-controls { position: absolute; right: calc(var(--sp-3) + var(--safe-right)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; flex-direction: column; gap: var(--sp-2); }
@@ -878,7 +883,9 @@
 .brick-grid .brick-btn.cracked { background: var(--warn-soft, var(--accent-soft)); color: var(--warn); border-style: dashed; }
 /* Карта книги хранителей (02.11): плашки участников, сетка по главам, клетка — стих. */
 .book-map { margin-top: var(--sp-2); }
-.bm-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+/* Легенда: каждый пункт с новой строки (решение владельца 04.11: «а то так не очень понятно»); кирпич «закрыто у всех» — светлее (brick-umber). */
+.bm-legend { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.bm-legend > span { display: inline-flex; align-items: center; gap: 8px; }
 .bm-legend .sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--border-strong, var(--muted)); vertical-align: -2px; margin-right: 4px; background: var(--surface, #fff); }
 .bm-grid { margin-top: var(--sp-2); }
 .bm-row { display: flex; align-items: flex-start; gap: 6px; margin-top: 3px; }
@@ -893,7 +900,7 @@
 .look-bricks .bm-cell.free { background: url("/img/props/brick-chalk.webp") center / 100% 100% no-repeat; opacity: .45; }
 .look-bricks .bm-cell.others { background: url("/img/props/brick-sand.webp") center / 100% 100% no-repeat; }
 .look-bricks .bm-cell.others.odd { background: url("/img/props/brick-sand2.webp") center / 100% 100% no-repeat; }
-.look-bricks .bm-cell.learned { background: url("/img/props/brick-dark.webp") center / 100% 100% no-repeat; }
+.look-bricks .bm-cell.learned { background: url("/img/props/brick-umber.webp") center / 100% 100% no-repeat; }
 .look-bricks .bm-cell.marked { background: url("/img/props/brick-slate.webp") center / 100% 100% no-repeat; }
 .look-stones .bm-cell.free { background: url("/img/props/stone-chalk.webp") center / 100% 100% no-repeat; opacity: .45; }
 .look-stones .bm-cell.others { background: url("/img/props/stone-granite.webp") center / 100% 100% no-repeat; }
@@ -910,7 +917,7 @@
 .bm-legend.look-stones .sw { width: 14px; height: 14px; }
 .bm-legend.look-bricks .sw.free { background: url("/img/props/brick-chalk.webp") center / 100% 100% no-repeat; opacity: .45; }
 .bm-legend.look-bricks .sw.others { background: url("/img/props/brick-sand.webp") center / 100% 100% no-repeat; }
-.bm-legend.look-bricks .sw.learned { background: url("/img/props/brick-dark.webp") center / 100% 100% no-repeat; }
+.bm-legend.look-bricks .sw.learned { background: url("/img/props/brick-umber.webp") center / 100% 100% no-repeat; }
 .bm-legend.look-bricks .sw.marked { background: url("/img/props/brick-slate.webp") center / 100% 100% no-repeat; }
 .bm-legend.look-stones .sw.free { background: url("/img/props/stone-chalk.webp") center / 100% 100% no-repeat; opacity: .45; }
 .bm-legend.look-stones .sw.others { background: url("/img/props/stone-granite.webp") center / 100% 100% no-repeat; }

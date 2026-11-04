@@ -46,13 +46,13 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
   const approved = bricksOf("APPROVED"), pending = bricksOf("SUBMITTED");
   const shown = approved.slice(0, PER * MAXROWS);
   const rows = Math.max(1, Math.ceil(shown.length / PER));
-  const merlon = 8, ground = 4;
+  // Зубцов над кладкой нет (решение владельца 04.11: «маленькие декоративные блоки нужно убрать, они без стихов»).
+  const merlon = 0, ground = 4;
   const wallW = PER * (BW + GAP) + GAP;
   const pileShown = pending.slice(0, PILE * 3);
   const pileRows = Math.ceil(pileShown.length / PILE);
   const W = wallW + (pending.length ? (BW + GAP) * PILE + GAP * 3 : 0);
   const H = Math.max(rows * (BH + GAP), pileRows * (BH + GAP)) + merlon + ground + 2;
-  const topRow = rows - 1, filledTop = shown.length - topRow * PER;
   const shiftOf = (r: number) => (r % 2 === 1 ? (BW + GAP) / 2 : 0);
   const placed = shown.map((b, i) => { const r = Math.floor(i / PER), c = i % PER; return { b, x: GAP + c * (BW + GAP) + shiftOf(r), y: H - ground - (r + 1) * (BH + GAP), r, c }; });
   const pile = pileShown.map((b, i) => { const r = Math.floor(i / PILE), c = i % PILE; return { b, x: wallW + GAP * 2 + c * (BW + GAP) + (r % 2 ? (BW + GAP) / 4 : 0), y: H - ground - (r + 1) * (BH + GAP) }; });
@@ -92,8 +92,6 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
       </defs>
       {placed.map(({ b, x, y, r, c }) => brick(b, x, y, "brick" + ((r + c) % 3 === 1 ? " alt" : "") + (b.mine ? " mine" : "") + (fresh.has(b.id) ? " new" : "")))}
       {approved.length === 0 && Array.from({ length: PER }, (_, c) => <rect key={"g" + c} className="brick ghost" x={GAP + c * (BW + GAP)} y={H - ground - (BH + GAP)} width={BW} height={BH} rx={1.5} />)}
-      {/* зубцы — над заполненными колонками верхнего ряда */}
-      {approved.length > 0 && Array.from({ length: Math.ceil(PER / 2) }, (_, i) => (2 * i < filledTop ? <rect key={"m" + i} className="brick merlon" x={GAP + i * 2 * (BW + GAP) + shiftOf(topRow)} y={H - ground - rows * (BH + GAP) - merlon} width={BW * 0.6} height={merlon} rx={1} /> : null))}
       {/* камни на проверке — рядом со стеной */}
       {pile.map(({ b, x, y }) => brick(b, x, y, "brick pending" + (b.mine ? " mine" : "")))}
       <line className="ground" x1={0} x2={W} y1={H - ground + 1} y2={H - ground + 1} />
