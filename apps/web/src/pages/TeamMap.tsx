@@ -397,8 +397,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     }
     return {
       size,
-      fog: tileHexes.filter((h) => !h.lit && h.lit !== undefined).map((h) => hexCenter(h, size)),
-      grid: tileHexes.filter((h) => h.lit || h.lit === undefined).map((h) => hexCenter(h, size)),
+      hexes: tileHexes.map((h) => ({ ...hexCenter(h, size), fog: !h.lit && h.lit !== undefined })),
       fogColor: parseColor(FOG_COLOR), gridColor: [text[0], text[1], text[2], 0.28],
       coast: coastLoops(coast), sand: rgb(light.sand), wet: rgb(light.wet),
       edges, images, camps,
@@ -697,8 +696,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const title = (map.wrecks ?? []).find((x) => x.id === w.id)?.title ?? "";
             return (
               <g key={"wreck" + w.id} data-id={w.id} className="m-deed sea wreck" role="button" aria-label={t("Срочное задание: {title}", { title })} onClick={open}>
-                <circle className="wreck-hit" cx={w.x} cy={w.y} r={size * 1.9} />
-                <g style={sc(w.x, w.y - size * 0.6, "translate(0, -24px)")}>
+                <circle className="wreck-hit" cx={w.x} cy={w.y} r={size * 1.15} />
+                <g style={sc(w.x, w.y - size * 0.95)}>
                   <circle r={r} />
                   <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
                   <g className="urgent" transform={`translate(${(r * 0.72).toFixed(1)}, ${(-r * 0.72).toFixed(1)})`}><circle r={6.5} /><text textAnchor="middle" dy="0.36em" fontSize={9.5} fontWeight={800}>!</text></g>

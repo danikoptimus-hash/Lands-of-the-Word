@@ -41,7 +41,7 @@ for (const [profile, game, map] of RUNS) {
   const host = map === "team" ? ".map-canvas" : ".admin-map-area .mapwrap";
   await page.waitForSelector(`${host} .map-svg`, { timeout: 60000 });
   // Туман (холст сразу после мирового SVG) тоже скрыт: его облака плывут по часам кадра, а не по Date, и снимки не повторялись бы.
-  await page.addStyleTag({ content: ".toasts,#perf-hud,.fx-layer.sea,.fx-layer.lakes,.fx-layer.fireworks,.map-svg.world+canvas.fx-layer:not(.fauna){visibility:hidden!important}" });
+  await page.addStyleTag({ content: ".toasts,#perf-hud,.fx-layer.sea,.fx-layer.lakes,.fx-layer.fireworks,.fx-layer.fog,.map-svg.world:not(.passthrough)+canvas.fx-layer:not(.fauna){visibility:hidden!important}" });
   await page.waitForTimeout(4000); // догон живности до остановленной секунды
   const name = `${profile}-${game}-${map}`;
   // Центр карты — тот, что у «вся карта»: вокруг него все масштабы.

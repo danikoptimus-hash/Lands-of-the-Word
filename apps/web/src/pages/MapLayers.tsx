@@ -444,7 +444,7 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
     return () => { cancelAnimationFrame(raf); ro.disconnect(); unsub(); };
   }, [size, vp.subscribe, vp.viewRef]);
 
-  return <canvas ref={ref} className="fx-layer" aria-hidden />;
+  return <canvas ref={ref} className="fx-layer fog" aria-hidden />;
 }
 
 /**

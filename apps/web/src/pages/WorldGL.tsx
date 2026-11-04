@@ -17,13 +17,14 @@ import { compileProgram, createLineProgram, lineMesh, type LineBuffer, type Line
  * трафарета, и их наложения складываются, как в SVG; ломаные из многих отрезков (берег) — через трафарет, один раз.
  * Без WebGL или при потере контекста — `onUnsupported`, и карта возвращается к SVG.
  */
-export interface WorldEdge { a: Pt; b: Pt; /** Светлая подложка (10·k/max(1.6,ks) у команды, 9 у администратора). */ halo?: { color: RGBA; px: number }; line?: { color: RGBA; px: number; /** "max16": X·k/max(1.6,ks); "k": X·k/ks. */ scale: "max16" | "k"; dash?: boolean; cap?: "round" | "butt" }; /** Чужие отрезки поверх линии. */ extra?: Array<{ a: Pt; b: Pt; color: RGBA; px: number }> }
+export interface WorldEdge { a: Pt; b: Pt; /** Линия только до этой точки (сторона, пройденная двумя командами у администратора: вторая половина — в extra). */ halfLine?: Pt; /** Светлая подложка (10·k/max(1.6,ks) у команды, 9 у администратора). */ halo?: { color: RGBA; px: number }; line?: { color: RGBA; px: number; /** "max16": X·k/max(1.6,ks); "k": X·k/ks. */ scale: "max16" | "k"; dash?: boolean; cap?: "round" | "butt" }; /** Чужие отрезки поверх линии. */ extra?: Array<{ a: Pt; b: Pt; color: RGBA; px: number }> }
 export interface WorldImage { src: string; x: number; y: number; w: number; h: number; /** Обводка: цвет и «взятый» (толще). */ ring?: { color: RGBA; owned: boolean } }
 export interface WorldCamp { x: number; y: number; dx: number; dy: number; color: RGBA }
 export interface WorldScene {
   size: number;
-  /** Центры гексов тумана (многоугольник 1.03) и гексов с контуром (0.995). */
-  fog: Pt[]; grid: Pt[];
+  /** Гексы в порядке SVG: туман (многоугольник 1.03 без контура) или контур (0.995). Порядок важен: туман, нарисованный
+   *  позже соседа, накрывает его контур по общему ребру — как в SVG. */
+  hexes: Array<{ x: number; y: number; fog: boolean }>;
   fogColor: RGBA; gridColor: RGBA;
   /** Берег: ломаные в единицах карты (кривые уже разбиты на отрезки), цвета песка и мокрой кромки. */
   coast: Pt[][]; sand: RGBA; wet: RGBA;
@@ -32,6 +33,8 @@ export interface WorldScene {
   camps: WorldCamp[];
 }
 export const VAR_MS = 120;
+/** Отладка точности (только с ?perf=1): `&gloff=fog,grid,coast,edges,images,camps` — не рисовать часть сцены. */
+const OFF = new Set(typeof location !== "undefined" && /[?&]perf=1/.test(location.search) ? (/[?&]gloff=([^&]+)/.exec(location.search)?.[1] ?? "").split(",") : []);
 const PAD = 24, MAX_D = 24;
 
 const FILL_VERT = `attribute vec2 aP; uniform float uK; uniform vec2 uT; uniform vec2 uRes; void main(){ vec2 P = aP * uK + uT; gl_Position = vec4((P / uRes * 2.0 - 1.0) * vec2(1.0, -1.0), 0.0, 1.0); }`;
@@ -104,7 +107,7 @@ function fanTriangles(polys: Pt[][]): Float32Array {
 const sig = (e: WorldEdge) => (e.halo || e.extra?.length ? "" : `${e.line?.color.join(",")}|${e.line?.px}|${e.line?.scale}|${e.line?.dash ? 1 : 0}|${e.line?.cap ?? "round"}`);
 
 interface Run { buf: LineBuffer; line: NonNullable<WorldEdge["line"]> }
-interface Single { buf: LineBuffer; edge: WorldEdge; extras: LineBuffer[] }
+interface Single { buf: LineBuffer; lineBuf: LineBuffer | null; edge: WorldEdge; extras: LineBuffer[] }
 
 export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: WorldScene; onUnsupported: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -136,17 +139,29 @@ export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: Wor
 
     const textures = new Map<string, Tex>();
     const tex = (src: string) => { let t = textures.get(src); if (!t) { t = loadTex(gl, src, () => { dirty = true; }); textures.set(src, t); } return t; };
-    const quadVbo = gl.createBuffer()!, fogVbo = gl.createBuffer()!, campVbo = gl.createBuffer()!;
-    let fogCount = 0, gridBuf: LineBuffer | null = null, coastBuf: LineBuffer | null = null;
+    const quadVbo = gl.createBuffer()!, campVbo = gl.createBuffer()!;
+    let coastBuf: LineBuffer | null = null;
+    type HexRun = { fog: true; vbo: WebGLBuffer; count: number } | { fog: false; buf: LineBuffer };
+    let hexRuns: HexRun[] = [];
     let items: Array<Run | Single> = [];
     const campBuf = lines.upload(lineMesh([[{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }]], true), true);
-    const drop = () => { for (const it of items) { lines.free(it.buf); if ("extras" in it) for (const b of it.extras) lines.free(b); } items = []; if (gridBuf) lines.free(gridBuf); if (coastBuf) lines.free(coastBuf); gridBuf = coastBuf = null; };
+    const drop = () => {
+      for (const it of items) { lines.free(it.buf); if ("extras" in it) { for (const b of it.extras) lines.free(b); if (it.lineBuf) lines.free(it.lineBuf); } } items = [];
+      for (const r of hexRuns) { if (r.fog) gl.deleteBuffer(r.vbo); else lines.free(r.buf); } hexRuns = [];
+      if (coastBuf) lines.free(coastBuf); coastBuf = null;
+    };
     rebuild.current = () => {
       drop();
       const s = sceneRef.current;
-      const fogTris = fanTriangles(s.fog.map((c) => hexPoly(c, s.size, 1.03)));
-      gl.bindBuffer(gl.ARRAY_BUFFER, fogVbo); gl.bufferData(gl.ARRAY_BUFFER, fogTris, gl.STATIC_DRAW); fogCount = fogTris.length / 2;
-      if (s.grid.length) gridBuf = lines.upload(lineMesh(s.grid.map((c) => hexPoly(c, s.size, 0.995)), true));
+      // Гексы — пачками подряд идущих одного вида, в порядке SVG.
+      let i = 0;
+      while (i < s.hexes.length) {
+        const fog = s.hexes[i]!.fog; let j = i; while (j < s.hexes.length && s.hexes[j]!.fog === fog) j++;
+        const polys = s.hexes.slice(i, j).map((c) => hexPoly(c, s.size, fog ? 1.03 : 0.995));
+        if (fog) { const tris = fanTriangles(polys); const vbo = gl.createBuffer()!; gl.bindBuffer(gl.ARRAY_BUFFER, vbo); gl.bufferData(gl.ARRAY_BUFFER, tris, gl.STATIC_DRAW); hexRuns.push({ fog: true, vbo, count: tris.length / 2 }); }
+        else hexRuns.push({ fog: false, buf: lines.upload(lineMesh(polys, true)) });
+        i = j;
+      }
       if (s.coast.length) coastBuf = lines.upload(lineMesh(s.coast));
       // Стороны: подряд идущие одинаковые без подложки — одним буфером (их наложения складываются, как в SVG);
       // с подложкой или чужими отрезками — по одной, в порядке SVG (подложка следующей ложится на конец предыдущей).
@@ -156,7 +171,7 @@ export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: Wor
         const key = sig(e);
         if (key && e.line) { if (!run || run.key !== key) { flush(); run = { key, pts: [], line: e.line }; } run.pts.push([e.a, e.b]); continue; }
         flush();
-        items.push({ buf: lines.upload(lineMesh([[e.a, e.b]])), edge: e, extras: (e.extra ?? []).map((x) => lines.upload(lineMesh([[x.a, x.b]]))) });
+        items.push({ buf: lines.upload(lineMesh([[e.a, e.b]])), lineBuf: e.halfLine ? lines.upload(lineMesh([[e.a, e.halfLine]])) : null, edge: e, extras: (e.extra ?? []).map((x) => lines.upload(lineMesh([[x.a, x.b]]))) });
       }
       flush();
       for (const im of s.images) tex(im.src);
@@ -179,13 +194,15 @@ export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: Wor
       const pad = 40 / k, vx0 = -tx / k - pad, vy0 = -ty / k - pad, vx1 = (sw - tx) / k + pad, vy1 = (sh - ty) / k + pad;
       const visible = (b: { x0: number; y0: number; x1: number; y1: number }) => !(b.x1 < vx0 || b.x0 > vx1 || b.y1 < vy0 || b.y0 > vy1);
       // 1. Туман и контуры гексов.
-      if (fogCount) {
-        gl.useProgram(fill); gl.uniform2f(F.uRes, sw, sh); gl.uniform1f(F.uK, k); gl.uniform2f(F.uT, tx, ty); gl.uniform4f(F.uColor, s.fogColor[0], s.fogColor[1], s.fogColor[2], s.fogColor[3]);
-        gl.bindBuffer(gl.ARRAY_BUFFER, fogVbo); gl.enableVertexAttribArray(F.aP); gl.vertexAttribPointer(F.aP, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLES, 0, fogCount); gl.disableVertexAttribArray(F.aP);
+      for (const r of hexRuns) {
+        if (r.fog) {
+          if (OFF.has("fog")) continue;
+          gl.useProgram(fill); gl.uniform2f(F.uRes, sw, sh); gl.uniform1f(F.uK, k); gl.uniform2f(F.uT, tx, ty); gl.uniform4f(F.uColor, s.fogColor[0], s.fogColor[1], s.fogColor[2], s.fogColor[3]);
+          gl.bindBuffer(gl.ARRAY_BUFFER, r.vbo); gl.enableVertexAttribArray(F.aP); gl.vertexAttribPointer(F.aP, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLES, 0, r.count); gl.disableVertexAttribArray(F.aP);
+        } else if (!OFF.has("grid")) lines.draw(r.buf, { k, tx, ty, halfPx: 0.5 * k / ks, color: s.gridColor });
       }
-      if (gridBuf) lines.draw(gridBuf, { k, tx, ty, halfPx: 0.5 * k / ks, color: s.gridColor });
       // 2. Берег: широкая песчаная кайма 13 слоями с угасающей прозрачностью и мокрая кромка (как CoastOver).
-      if (coastBuf) {
+      if (coastBuf && !OFF.has("coast")) {
         const N = 12;
         lines.draw(coastBuf, { k, tx, ty, halfPx: s.size * 0.25 * k, color: s.sand, stencil: 1 });
         for (let i = 0; i < N; i++) { const t = (i + 1) / N; const a = 0.55 * (1 - t) * (1 - t) + 0.06; lines.draw(coastBuf, { k, tx, ty, halfPx: s.size * (0.5 + 0.65 * t) * 0.5 * k, color: [s.sand[0], s.sand[1], s.sand[2], s.sand[3] * a], stencil: 2 + i }); }
@@ -194,12 +211,12 @@ export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: Wor
       // 3. Стороны.
       const widthPx = (px: number, scale: "max16" | "k") => (scale === "max16" ? px * k / m16 : px * k / ks);
       const dash: [number, number] = [7 * ui * k / ks, 6 * ui * k / ks];
-      for (const it of items) {
+      for (const it of OFF.has("edges") ? [] : items) {
         if (!visible(it.buf.box)) continue;
         if ("line" in it) { lines.draw(it.buf, { k, tx, ty, halfPx: widthPx(it.line.px, it.line.scale) / 2, color: it.line.color, dash: it.line.dash ? dash : undefined }); continue; }
         const e = it.edge;
         if (e.halo) lines.draw(it.buf, { k, tx, ty, halfPx: widthPx(e.halo.px, "max16") / 2, color: e.halo.color });
-        if (e.line) lines.draw(it.buf, { k, tx, ty, halfPx: widthPx(e.line.px, e.line.scale) / 2, color: e.line.color, dash: e.line.dash ? dash : undefined });
+        if (e.line) lines.draw(it.lineBuf ?? it.buf, { k, tx, ty, halfPx: widthPx(e.line.px, e.line.scale) / 2, color: e.line.color, dash: e.line.dash ? dash : undefined });
         e.extra?.forEach((x, i) => { const b = it.extras[i]; if (b) lines.draw(b, { k, tx, ty, halfPx: widthPx(x.px, "max16") / 2, color: x.color }); });
       }
       // 4. Картинки стартов и городов с обводкой.
@@ -207,7 +224,7 @@ export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: Wor
       gl.bindBuffer(gl.ARRAY_BUFFER, quadVbo);
       gl.enableVertexAttribArray(I.aP); gl.enableVertexAttribArray(I.aUV);
       const quad = new Float32Array(24);
-      for (const im of s.images) {
+      for (const im of OFF.has("images") ? [] : s.images) {
         if (im.x + im.w < vx0 || im.x > vx1 || im.y + im.h < vy0 || im.y > vy1) continue;
         const t = tex(im.src); if (!t.ready) continue;
         // Квадрат текстуры (с полями) в единицах карты: картинка занимает [PAD, PAD+w] текселей.
@@ -225,7 +242,7 @@ export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: Wor
       }
       gl.disableVertexAttribArray(I.aP); gl.disableVertexAttribArray(I.aUV);
       // 5. Шатры: треугольник цвета команды с белой обводкой 1px и тёмной дверью, 9.5px·ui на экране, у сдвига в экранных пикселях.
-      for (const c of s.camps) {
+      for (const c of OFF.has("camps") ? [] : s.camps) {
         if (c.x < vx0 || c.x > vx1 || c.y < vy0 || c.y > vy1) continue;
         const cx = c.x * k + tx + c.dx * ui, cy = c.y * k + ty + c.dy * ui;
         const P = [[-4.75, 4], [0, -4.75], [4.75, 4]] as const, D = [[-1.35, 4], [0, 0.8], [1.35, 4]] as const;
