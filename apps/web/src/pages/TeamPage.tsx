@@ -13,6 +13,7 @@ import { TimelineDock } from "./Timeline";
 import { mapAt, teamMoves } from "./TeamHistory";
 import { CityPopup } from "./CityPopup";
 import { QuarrySheet } from "./QuarrySheet";
+import { WreckSheet } from "./WreckSheet";
 import { BATTLE_STATUS, BattleCard, battleTone, isLaunching, isMyTurn, leftText } from "./BattlePanel";
 import { TrialFlow } from "./TrialFlow";
 import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
@@ -201,6 +202,8 @@ export function TeamPage() {
   const [cityKey, setCityKey] = useState<string | null>(null);
   /** Каменоломня (решение владельца 04.10): лист общих дел и камней. */
   const [quarryOpen, setQuarryOpen] = useState(false);
+  /** Открытый лист разбитого корабля (решение владельца 04.11). */
+  const [wreckId, setWreckId] = useState<string | null>(null);
   const [cityVersion, setCityVersion] = useState(0);
   /** Лента, «Моё служение» и мир перезагружаются по событиям журнала, дел, городов и испытаний. */
   const [feedVersion, setFeedVersion] = useState(0);
@@ -411,7 +414,7 @@ export function TeamPage() {
     if (e.type === "teams" || e.type === "game" || e.type === "tasks") teamLater(); // tasks: таймеры дел у участников в составе
     // Сама карта приходит разницей (map-patch); здесь перечитываем только то, что к карте добавляет маршрут:
     // статус игры, камни Каменоломни в шапке, визиты, заморозку дел.
-    if (e.type === "game" || e.type === "quarry" || e.type === "cities" || e.type === "teams") mapLater();
+    if (e.type === "game" || e.type === "quarry" || e.type === "cities" || e.type === "teams" || e.type === "wrecks") mapLater();
     if (e.type === "cities" || e.type === "game" || e.type === "battles") { cityLater(); passagesLater(); }
     if (e.type === "battles" || e.type === "game" || e.type === "submissions") battlesLater();
     if (e.type === "game" || e.type === "cities" || e.type === "battles" || e.type === "teams") standingsLater();
@@ -855,9 +858,15 @@ export function TeamPage() {
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
-          onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} scout={scout} />
+          onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} scout={scout}
+          onSelectWreck={(wid) => { setWreckId(wid); setQuarryOpen(false); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} />
         )}
         {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
+        {wreckId && !storm.active && (() => {
+          const w = (map.wrecks ?? []).find((x) => x.id === wreckId);
+          if (!w) return null;
+          return <WreckSheet gameId={id} wreck={w} container={mapEl} canWork={isLeader || me?.gameRole === "CHRONICLER"} asleep={phase === "night"} members={(team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))} onClose={() => setWreckId(null)} onChanged={() => void loadMap()} />;
+        })()}
         {!storm.active && (
           <nav className="admin-dock team-dock" aria-label={t("Разделы")}>
             {dockItems.map((m) => { const n = menuCounts[m.key] ?? 0; return (

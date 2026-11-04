@@ -45,7 +45,7 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
     const [deeds, works, team, members, coast] = await Promise.all([
-      prisma.deed.findMany({ where: { gameId: id, quarry: true, disabled: false }, select: quarryDeedSelect, orderBy: { createdAt: "asc" } }),
+      prisma.deed.findMany({ where: { gameId: id, quarry: true, wreck: false, disabled: false }, select: quarryDeedSelect, orderBy: { createdAt: "asc" } }),
       prisma.quarryWork.findMany({ where: { teamId: m.team.id }, orderBy: { submittedAt: "desc" }, take: 30, include: { deed: { select: { title: true } } } }),
       prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } }),
       teamMembers(m.team.id),

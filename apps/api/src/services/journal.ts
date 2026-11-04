@@ -33,7 +33,9 @@ export type JournalKind =
   | "support_answered" | "ship_ready" | "deed_released" | "deeds_frozen" | "deeds_unfrozen"
   | "member_left" | "member_joined" | "member_moved"
   // Городская стена (решение владельца 01.11).
-  | "wall_block_submitted" | "wall_block_approved" | "wall_block_returned" | "wall_applied" | "wall_scouted" | "wall_repair_submitted" | "wall_block_repaired";
+  | "wall_block_submitted" | "wall_block_approved" | "wall_block_returned" | "wall_applied" | "wall_scouted" | "wall_repair_submitted" | "wall_block_repaired"
+  // Разбитые бурей корабли (решение владельца 04.11).
+  | "wreck_appeared" | "wreck_submitted" | "wreck_rewarded" | "wreck_returned" | "wreck_sunk" | "wall_cargo_laid";
 
 export type JournalVars = Record<string, string | number>;
 
@@ -74,6 +76,12 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   quarry_approved: "Каменоломня: дело «{deed}» принято, команда получила камней: {n}",
   quarry_returned: "Каменоломня: дело «{deed}» возвращено на доработку{comment}",
   paved: "{user} вымостил(а) дорогу камнем из Каменоломни",
+  wreck_appeared: "Разбитый бурей корабль просит помощи: срочное задание «{deed}»",
+  wreck_submitted: "{user} сдал(а) срочное задание «{deed}» с разбитого корабля",
+  wreck_rewarded: "Капитан корабля отблагодарил команду за «{deed}»: {cargo}",
+  wreck_returned: "Срочное задание «{deed}» возвращено на доработку{comment}",
+  wreck_sunk: "Корабль затонул, не дождавшись помощи: срочное задание «{deed}» закрыто",
+  wall_cargo_laid: "{user} положил(а) в стену города {book} блок из груза корабля. Толщина стены — {n} стихов",
   peace_offered: "Команда «{team}» предложила мир команде «{other}»{term}",
   peace_made: "Команды «{team}» и «{other}» заключили мир{term}",
   peace_declined: "Команда «{other}» отклонила предложение мира",
@@ -195,7 +203,7 @@ export async function serviceStats(gameId: string, userId: string, teamId: strin
     // Зачтённые копии (carried) — те же стихи ещё раз: не считаются. Блоки стены (01.11) — выученные стихи, считаются.
     prisma.battleEntry.findMany({ where: { userId, teamId, status: "APPROVED", carried: false, battle: { gameId } }, select: { startIdx: true, endIdx: true } }),
     prisma.journal.findMany({ where: { gameId, userId }, select: { kind: true, createdAt: true } }),
-    prisma.wallBlock.findMany({ where: { gameId, userId, teamId, status: "APPROVED" }, select: { startIdx: true, endIdx: true } }),
+    prisma.wallBlock.findMany({ where: { gameId, userId, teamId, status: "APPROVED", cargo: false }, select: { startIdx: true, endIdx: true } }),
   ]);
   const count = (k: JournalKind) => rows.filter((r) => r.kind === k).length;
   // Записи о действиях администратора над участником — не его активность.

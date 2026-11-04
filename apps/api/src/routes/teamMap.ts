@@ -130,7 +130,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       const book = await loadBook(r.bookCode);
       returnedBlocks.push({ id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, ref: (book ? brickRef(book, r.startIdx, r.endIdx) : "") + (r.repairOfId ? " (починка)" : ""), comment: r.adminComment, at: (r.decidedAt ?? r.createdAt).toISOString() });
     }
-    return { returnedBlocks, status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, stones: (await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } })).stones }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    return { returnedBlocks, status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, ...(await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true, cargoBlocks: true } })) }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */

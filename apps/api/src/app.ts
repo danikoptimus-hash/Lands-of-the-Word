@@ -38,6 +38,7 @@ import { adminUserRoutes } from "./routes/adminUsers.js";
 import { recomputeActiveGames } from "./services/awards.js";
 import { quarryRoutes } from "./routes/quarry.js";
 import { tradeRoutes } from "./routes/trades.js";
+import { wreckRoutes } from "./routes/wrecks.js";
 
 declare module "fastify" {
   interface FastifyInstance {
@@ -95,6 +96,7 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   await app.register(diplomacyRoutes);
   await app.register(quarryRoutes);
   await app.register(tradeRoutes);
+  await app.register(wreckRoutes);
   await app.register(recipientRoutes);
   await app.register(journalRoutes);
   await app.register(awardRoutes);

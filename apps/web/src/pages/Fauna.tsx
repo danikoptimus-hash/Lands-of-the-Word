@@ -4,7 +4,7 @@ import { DAY_LIGHT, type Light } from "../lib/daytime";
 import { HEX_SIZE, hexCenter } from "../lib/hexmap";
 import type { MapHexDto } from "../lib/api";
 import type { Viewport } from "./MapLayers";
-import type { Islet } from "@lotw/domain";
+import { fieldBoundsOf, rocketLaunches, seaField, type Bounds, type Islet } from "@lotw/domain";
 
 /**
  * Живность на карте: горбатый кит, косатка и стайка дельфинов плывут вокруг острова по воде (по профилю берега),
@@ -1587,12 +1587,236 @@ export function renderWorldSnapshot(ctx: CanvasRenderingContext2D, hexes: MapHex
   drawWorld(ctx, w, k, { x0: -1e9, y0: -1e9, x1: 1e9, y1: 1e9 });
 }
 
+// ───────────────────────────── Разбитые бурей корабли ─────────────────────────────
+/**
+ * Разбитый бурей корабль (решение владельца 04.11): срочное задание на карте. Три модели — те же три парусника, но с
+ * креном, сломанной мачтой, рваным парусом, пробоинами и дымком. Стоит на водном гексе у берега (место от сервера).
+ * Сигнальные ракеты — раз в 7±2 с, детерминированно от семени и часов сервера (`rocketLaunches` в домене): у всех
+ * игроков ракета взлетает в одну секунду. «Починка и уход» от `repairedAt`: 5 с корпус выравнивается, мачта встаёт,
+ * паруса проявляются, дым тает; затем корабль идёт к ближайшему краю пояса моря вдвое быстрее обычного и растворяется у
+ * края; ракет в это время нет. «Тонет» от `sunkAt` (дело удалено или флажок снят): крен растёт, корабль уходит под воду с
+ * кругами и пузырями, ракет нет. Всё — чистые функции времени: без состояния, у всех игроков одинаково.
+ */
+export interface WreckSpec { id: string; x: number; y: number; kind: 0 | 1 | 2; seed: number; /** Мс часов сервера, когда задание принято у этой команды; null — ещё разбит. */ repairedAt: number | null; /** Мс часов сервера, когда корабль затонул; null — на плаву. */ sunkAt: number | null }
+let WRECKS: readonly WreckSpec[] = [];
+/** Пояс моря вокруг поля: к его ближайшему краю уходит починенный корабль. */
+let SEA: Bounds | null = null;
+const WRECK_KINDS: ShipKind[] = ["sloop", "cog", "ship"];
+const REPAIR_S = 5, SINK_S = 9, ROCKET_LIFE = 4.6, ROCKET_RISE = 1.1;
+/** Куда уходит починенный корабль: к ближайшему краю пояса моря; расстояние до края и курс. */
+function wreckExit(w: WreckSpec, size: number): { h: number; dist: number } {
+  const b = SEA;
+  if (!b) return { h: 0, dist: size * 30 };
+  const opts: Array<[number, number]> = [[w.x - b.minX, Math.PI], [b.minX + b.width - w.x, 0], [w.y - b.minY, -Math.PI / 2], [b.minY + b.height - w.y, Math.PI / 2]];
+  let best = opts[0]!;
+  for (const o of opts) if (o[0] < best[0]) best = o;
+  return { h: best[1], dist: best[0] + size * 1.5 };
+}
+/** Состояние корабля в момент времени now (мс сервера): где он, крен, доля починки, прозрачность, фаза. */
+function wreckPose(w: WreckSpec, size: number, now: number): { x: number; y: number; h: number; repair: number; sink: number; alpha: number; moving: boolean } | null {
+  const spec = shipSpec(WRECK_KINDS[w.kind]!, size);
+  const exit = wreckExit(w, size);
+  // Разбитый корабль стоит носом вдоль берега, чуть к морю: курс от семени.
+  const h0 = (w.seed % 360) * (Math.PI / 180);
+  if (w.sunkAt != null && w.repairedAt == null) {
+    const t = (now - w.sunkAt) / 1000;
+    if (t < 0) return { x: w.x, y: w.y, h: h0, repair: 0, sink: 0, alpha: 1, moving: false };
+    if (t > SINK_S) return null;
+    return { x: w.x, y: w.y, h: h0, repair: 0, sink: smooth(t / SINK_S), alpha: 1, moving: false };
+  }
+  if (w.repairedAt == null) return { x: w.x, y: w.y, h: h0, repair: 0, sink: 0, alpha: 1, moving: false };
+  const t = (now - w.repairedAt) / 1000;
+  if (t < 0) return { x: w.x, y: w.y, h: h0, repair: 0, sink: 0, alpha: 1, moving: false };
+  if (t <= REPAIR_S) return { x: w.x, y: w.y, h: h0, repair: smooth(t / REPAIR_S), sink: 0, alpha: 1, moving: false };
+  // Поворот на курс ухода за две секунды, затем ход вдвое быстрее обычного корабля этого вида.
+  const turn = smooth((t - REPAIR_S) / 2);
+  const h = h0 + wrapAngle(exit.h - h0) * turn;
+  const dist = Math.max(0, t - REPAIR_S - 1) * spec.speed * 2;
+  const fadeLen = size * 3;
+  const alpha = 1 - clamp((dist - (exit.dist - fadeLen)) / fadeLen, 0, 1);
+  if (alpha <= 0) return null;
+  return { x: w.x + Math.cos(exit.h) * dist, y: w.y + Math.sin(exit.h) * dist, h, repair: 1, sink: 0, alpha, moving: true };
+}
+const wreckCache = new Map<string, { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number }>();
+/** Спрайт разбитого корабля: корпус с пробоинами и водой, сломанная мачта, обрывок паруса. Кеш по виду и разрешению. */
+function wreckSprite(sp: ShipSpec, pxPerUnit: number): { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number } {
+  const res = SPR_LEVELS.find((r) => r >= pxPerUnit) ?? SPR_LEVELS[SPR_LEVELS.length - 1]!;
+  const key = `${sp.kind}:${res}`;
+  const hit = wreckCache.get(key); if (hit) return hit;
+  const L = sp.L, w = L * 1.5, h = L * 1.1, ox = L * 0.7, oy = L * 0.55;
+  const c = document.createElement("canvas"); c.width = Math.ceil(w * res); c.height = Math.ceil(h * res);
+  const g = c.getContext("2d")!; g.scale(res, res); g.translate(ox, oy);
+  paintWreck(g, sp);
+  const out = { c, w, h, ox, oy }; wreckCache.set(key, out); return out;
+}
+function paintWreck(g: CanvasRenderingContext2D, sp: ShipSpec): void {
+  const L = sp.L, W = L * sp.W, big = sp.kind === "ship", dk = L * 0.006;
+  g.lineJoin = "round"; g.lineCap = "round";
+  const hull = hullPath(L, W);
+  // Корпус потемнел от воды: те же борта, палуба серее.
+  const hg = g.createLinearGradient(0, -W * 0.5, 0, W * 0.5);
+  hg.addColorStop(0, "rgb(40,26,18)"); hg.addColorStop(0.16, sp.hull); hg.addColorStop(0.34, "rgb(132,112,86)"); hg.addColorStop(0.66, "rgb(128,108,82)"); hg.addColorStop(0.84, sp.hull); hg.addColorStop(1, "rgb(36,22,14)");
+  g.fillStyle = hg; g.fill(hull);
+  g.save(); g.clip(hull);
+  g.strokeStyle = "rgba(60,38,20,0.4)"; g.lineWidth = dk;
+  for (let i = -3; i <= 3; i++) { if (i === 0) continue; const y = i * W * 0.11; g.beginPath(); g.moveTo(-L * 0.5, y * 1.1); g.quadraticCurveTo(L * 0.05, y, L * 0.46, y * 0.25); g.stroke(); }
+  // Вода в трюме у кормы и пробоины в борту.
+  g.fillStyle = "rgba(60,110,140,0.75)"; g.beginPath(); g.ellipse(-L * 0.22, W * 0.05, L * 0.2, W * 0.34, 0.1, 0, TAU); g.fill();
+  g.fillStyle = "rgba(20,12,8,0.85)";
+  g.beginPath(); g.ellipse(L * 0.12, W * 0.42, L * 0.07, W * 0.12, 0.3, 0, TAU); g.fill();
+  g.beginPath(); g.ellipse(-L * 0.36, -W * 0.4, L * 0.05, W * 0.1, -0.2, 0, TAU); g.fill();
+  // Сломанные доски у пробоины.
+  g.strokeStyle = "rgba(90,60,36,0.9)"; g.lineWidth = dk * 1.4;
+  g.beginPath(); g.moveTo(L * 0.05, W * 0.5); g.lineTo(L * 0.14, W * 0.62); g.moveTo(L * 0.17, W * 0.48); g.lineTo(L * 0.26, W * 0.58); g.stroke();
+  g.restore();
+  g.strokeStyle = "rgba(20,12,6,0.8)"; g.lineWidth = dk * 1.8; g.stroke(hull);
+  // Бушприт обломан.
+  g.strokeStyle = "rgb(58,38,24)"; g.lineWidth = L * 0.014; g.beginPath(); g.moveTo(L * 0.4, 0); g.lineTo(L * 0.56, -L * 0.02); g.stroke();
+  const masts = sp.masts.map((m) => L * m);
+  const rope = () => { g.strokeStyle = "rgba(30,20,12,0.5)"; g.lineWidth = dk * 0.9; };
+  // Главная мачта сломана и лежит поперёк борта в воду; на ней обрывок паруса. Остальные — голые пеньки с обрывками вант.
+  const main = masts[big ? 1 : 0]!;
+  const mx = main, ex = main - L * 0.3, ey = -W * 1.15;
+  rope(); g.beginPath(); g.moveTo(mx, 0); g.lineTo(mx - L * 0.12, W * 0.44); g.moveTo(mx, 0); g.lineTo(ex * 0.6, ey * 0.5); g.stroke();
+  g.strokeStyle = "rgb(48,30,18)"; g.lineWidth = L * 0.016; g.beginPath(); g.moveTo(mx, 0); g.lineTo(ex, ey); g.stroke();
+  const sail = new Path2D(); sail.moveTo(mx - L * 0.05, -W * 0.2); sail.lineTo(ex + L * 0.04, ey + W * 0.1); sail.lineTo(ex + L * 0.16, ey + W * 0.55); sail.lineTo(mx - L * 0.1, -W * 0.05); sail.lineTo(mx + L * 0.02, -W * 0.35); sail.closePath();
+  g.fillStyle = "rgba(214,204,186,0.85)"; g.fill(sail); g.strokeStyle = "rgba(90,70,48,0.7)"; g.lineWidth = dk; g.stroke(sail);
+  g.strokeStyle = "rgba(120,100,70,0.5)"; g.beginPath(); g.moveTo(mx - L * 0.04, -W * 0.3); g.lineTo(ex + L * 0.1, ey + W * 0.35); g.stroke();
+  for (const m of masts) {
+    g.fillStyle = "rgb(40,26,16)"; g.beginPath(); g.arc(m, 0, L * 0.024, 0, TAU); g.fill();
+    if (m !== main) { g.fillStyle = "rgb(120,90,60)"; g.beginPath(); g.arc(m, 0, L * 0.012, 0, TAU); g.fill(); rope(); g.beginPath(); g.moveTo(m, 0); g.lineTo(m - L * 0.08, W * 0.3); g.moveTo(m, 0); g.lineTo(m + L * 0.05, -W * 0.25); g.stroke(); }
+  }
+  // Обломки рядом с бортом.
+  g.fillStyle = "rgb(110,78,48)"; g.beginPath(); g.ellipse(-L * 0.55, W * 0.7, L * 0.08, W * 0.07, 0.4, 0, TAU); g.fill();
+  g.beginPath(); g.ellipse(L * 0.3, -W * 0.85, L * 0.06, W * 0.06, -0.5, 0, TAU); g.fill();
+}
+/** Дымок над кормой: три-четыре серых клуба, поднимаются и сносятся ветром, тают с починкой (на холсте моря, под подписями). */
+function drawSmoke(ctx: CanvasRenderingContext2D, x: number, y: number, h: number, L: number, T: number, seed: number, level: number): void {
+  if (level <= 0.01) return;
+  const sx = x + Math.cos(h) * -L * 0.25, sy = y + Math.sin(h) * -L * 0.25;
+  ctx.save(); ctx.fillStyle = "rgb(92,92,96)";
+  for (let i = 0; i < 4; i++) {
+    const u = fract(T / 6 + i * 0.25 + seed * 0.013);
+    const dx = WIND_X * u * L * 0.5 + noise1(T * 0.9 + i, seed + i * 3) * L * 0.08, dy = -u * L * 1.1 + WIND_Y * u * L * 0.2;
+    ctx.globalAlpha = 0.42 * level * (1 - u) * (1 - u) * (0.6 + 0.4 * noise1(T + i, seed));
+    ctx.beginPath(); ctx.arc(sx + dx, sy + dy, L * (0.08 + 0.22 * u), 0, TAU); ctx.fill();
+  }
+  ctx.restore();
+}
+/** Разбитые корабли на холсте моря: корпус с креном, починка (наложение целого спрайта), уход, погружение; дым. */
+function drawWrecks(ctx: CanvasRenderingContext2D, size: number, T: number, now: number, px: number, vis: Vis, live: boolean): void {
+  for (const w of WRECKS) {
+    const pose = wreckPose(w, size, now);
+    if (!pose || !inView(vis, pose.x, pose.y)) continue;
+    const sp = shipSpec(WRECK_KINDS[w.kind]!, size), L = sp.L, W = L * sp.W;
+    const rock = 0.02 * Math.sin(T * 0.7 + w.seed) * (1 - pose.sink);
+    // Крен: сломанный — 0,78 ширины, целый — 1; тонущий — к 0,45 и уходит в воду.
+    const heel = lerp(lerp(0.78, 1, pose.repair), 0.45, pose.sink);
+    const depth = pose.sink; // 0 — на плаву, 1 — под водой
+    ctx.save(); ctx.translate(pose.x, pose.y);
+    // Круги на воде вокруг корпуса: у разбитого — слабая пена, у тонущего — расходящиеся кольца; починенный идёт без них.
+    if (pose.repair < 1) {
+    ctx.save(); ctx.rotate(pose.h);
+    ctx.globalAlpha = (0.3 + 0.5 * depth) * pose.alpha; ctx.strokeStyle = "rgb(236,249,252)"; ctx.lineWidth = Math.max(px * 1.1, L * 0.02);
+    const rings = depth > 0 ? 3 : 1;
+    for (let i = 0; i < rings; i++) {
+      const u = depth > 0 ? fract(T / 2.5 + i / rings) : 0.5 + 0.1 * Math.sin(T * 0.8 + w.seed);
+      ctx.globalAlpha = (depth > 0 ? 0.55 * (1 - u) : 0.28) * pose.alpha * (1 - pose.repair);
+      ctx.beginPath(); ctx.ellipse(0, 0, L * (0.62 + 0.5 * u), W * (0.9 + 1.2 * u), 0, 0, TAU); ctx.stroke();
+    }
+    ctx.restore();
+    }
+    // Тень на воде — от светила, как у обычных кораблей; тонущий тени не отбрасывает.
+    const lt = LIGHT, lx = lt.sun > 0.01 ? -lt.sunX : -SUN_X, ly = lt.sun > 0.01 ? -lt.sunY : SUN_Y;
+    if (depth < 0.3) { ctx.save(); ctx.globalAlpha = 0.2 * lt.shadow * pose.alpha * (1 - depth / 0.3); ctx.fillStyle = "rgb(10,24,40)"; ctx.translate(lx * L * 0.09 * lt.shadowLen, ly * L * 0.09 * lt.shadowLen); ctx.rotate(pose.h); ctx.fill(hullPath(L * 1.02, W * 1.15)); ctx.restore(); }
+    // Корпус: тонущий уходит под воду — уменьшается, синеет, бледнеет.
+    ctx.rotate(pose.h + rock); ctx.scale(1 - 0.35 * depth, heel * (1 - 0.35 * depth));
+    const pxPerUnit = Math.hypot(ctx.getTransform().a, ctx.getTransform().b);
+    const spr = wreckSprite(sp, pxPerUnit);
+    const sunkAlpha = pose.alpha * (1 - Math.pow(depth, 1.6));
+    if (pose.repair < 1) { ctx.globalAlpha = sunkAlpha * (1 - pose.repair); ctx.drawImage(spr.c, -spr.ox, -spr.oy, spr.w, spr.h); }
+    if (pose.repair > 0) { const ok = shipSprite(sp, pxPerUnit); ctx.globalAlpha = pose.alpha * pose.repair; ctx.drawImage(ok.c, -ok.ox, -ok.oy, ok.w, ok.h); }
+    if (depth > 0) { ctx.globalAlpha = 0.7 * depth; ctx.fillStyle = rgb(DEEP); ctx.fill(hullPath(L * 1.02, W * 1.1)); }
+    ctx.restore();
+    // Пузыри тонущего: всплывают над корпусом.
+    if (depth > 0.15 && depth < 1) {
+      ctx.save(); ctx.fillStyle = "rgb(236,249,252)";
+      for (let i = 0; i < 7; i++) {
+        const u = fract(T / 1.6 + i * 0.37 + w.seed * 0.01);
+        const bx = pose.x + noise1(i * 1.7, w.seed + i) * L * 0.5, by = pose.y + W * 0.3 - u * L * 0.5;
+        ctx.globalAlpha = 0.6 * (1 - u) * Math.min(1, depth * 3) * (1 - depth) * 2;
+        ctx.beginPath(); ctx.arc(bx, by, Math.max(px, L * 0.018 * (0.6 + u)), 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+    }
+    // Кильватер уходящего.
+    if (pose.moving) { ctx.save(); ctx.translate(pose.x, pose.y); ctx.rotate(pose.h); ctx.globalAlpha = 0.45 * pose.alpha; ctx.strokeStyle = "rgb(236,249,252)"; ctx.lineWidth = Math.max(px * 1.2, L * 0.02); ctx.beginPath(); ctx.moveTo(L * 0.5, 0); ctx.quadraticCurveTo(L * 0.3, -W * 0.7, -L * 0.1, -W * 0.95); ctx.moveTo(L * 0.5, 0); ctx.quadraticCurveTo(L * 0.3, W * 0.7, -L * 0.1, W * 0.95); ctx.stroke(); ctx.restore(); }
+    if (live) drawSmoke(ctx, pose.x, pose.y, pose.h, L, T, w.seed, (1 - pose.repair) * (1 - depth) * pose.alpha);
+  }
+  ctx.globalAlpha = 1;
+}
+/**
+ * Сигнальные ракеты на холсте неба (над подписями, как птицы): красная ракета с дымным следом взлетает с корабля,
+ * вспыхивает яркой звездой с ореолом и медленно опускается ~3 с, затухая; искры — короткие штрихи, как в салюте.
+ * Моменты пусков — `rocketLaunches` от семени и часов сервера; пока корабль чинится или тонет, ракет нет.
+ */
+function drawRockets(ctx: CanvasRenderingContext2D, size: number, now: number, px: number, vis: Vis): void {
+  const sec = now / 1000;
+  ctx.save(); ctx.globalCompositeOperation = "lighter"; ctx.lineCap = "round";
+  for (const w of WRECKS) {
+    if (w.repairedAt != null || w.sunkAt != null || !inView(vis, w.x, w.y)) continue;
+    const launches = rocketLaunches(w.seed, sec - ROCKET_LIFE, sec);
+    for (const at of launches) {
+      const age = sec - at; if (age < 0 || age > ROCKET_LIFE) continue;
+      const idx = Math.floor(at), drift = (fract(Math.sin(idx * 12.9898 + w.seed) * 43758.5453) - 0.5) * size * 0.6;
+      const H = size * 2.3, x0 = w.x, y0 = w.y - size * 0.15;
+      if (age < ROCKET_RISE) {
+        const u = age / ROCKET_RISE, e = 1 - (1 - u) * (1 - u);
+        const x = x0 + drift * e, y = y0 - H * e;
+        // Дымный след: клубы вдоль пройденного пути, старые шире и бледнее.
+        ctx.fillStyle = "rgb(150,150,150)";
+        for (let i = 0; i < 9; i++) { const v = (i / 9) * e; const sx = x0 + drift * v, sy = y0 - H * v; ctx.globalAlpha = 0.28 * (0.3 + 0.7 * (v / Math.max(e, 0.01))) * (1 - u * 0.5); ctx.beginPath(); ctx.arc(sx + noise1(i * 2.1, w.seed) * size * 0.03, sy, size * (0.03 + 0.05 * (1 - v / Math.max(e, 0.01))), 0, TAU); ctx.fill(); }
+        // Головка: яркая красная точка с ореолом.
+        const g = ctx.createRadialGradient(x, y, 0, x, y, size * 0.22);
+        g.addColorStop(0, "rgba(255,120,80,0.9)"); g.addColorStop(0.4, "rgba(255,60,40,0.45)"); g.addColorStop(1, "rgba(255,40,30,0)");
+        ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, size * 0.22, 0, TAU); ctx.fill();
+        ctx.fillStyle = "rgba(255,230,210,0.95)"; ctx.beginPath(); ctx.arc(x, y, Math.max(px * 1.4, size * 0.035), 0, TAU); ctx.fill();
+        continue;
+      }
+      // Звезда: вспышка в первые 0,3 с, затем медленно опускается ~3 с и гаснет; ореол дрожит.
+      const a2 = age - ROCKET_RISE, fall = ROCKET_LIFE - ROCKET_RISE;
+      const u = a2 / fall, flash = clamp(1 - a2 / 0.3, 0, 1);
+      const x = x0 + drift, y = y0 - H + a2 * size * 0.22 + 0.5 * (a2 * a2) * size * 0.02;
+      const fade = Math.pow(1 - u, 1.4), fl = 0.85 + 0.15 * noise1(age * 9, w.seed);
+      const R = size * (0.55 + 0.9 * flash) * (0.8 + 0.2 * fl);
+      const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+      g.addColorStop(0, `rgba(255,170,140,${(0.9 * fade).toFixed(3)})`); g.addColorStop(0.25, `rgba(255,70,50,${(0.5 * fade).toFixed(3)})`); g.addColorStop(1, "rgba(255,40,30,0)");
+      ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, TAU); ctx.fill();
+      ctx.fillStyle = `rgba(255,245,235,${(0.95 * fade).toFixed(3)})`; ctx.beginPath(); ctx.arc(x, y, Math.max(px * 1.6, size * (0.05 + 0.08 * flash)), 0, TAU); ctx.fill();
+      // Искры: разлетаются при вспышке и падают, короткими штрихами.
+      ctx.lineWidth = Math.max(px * 1.2, size * 0.02);
+      for (let i = 0; i < 10; i++) {
+        const ang = (i / 10) * TAU + fract(Math.sin(idx * 7.3 + i) * 1234.5) * 0.5, sp = size * (0.4 + 0.5 * fract(Math.sin(idx * 3.1 + i * 5.7) * 987.6));
+        const d = (1 - Math.exp(-a2 * 2.2)) / 2.2 * sp, sx = x + Math.cos(ang) * d, sy = y + Math.sin(ang) * d + a2 * a2 * size * 0.12;
+        const al = clamp(1 - a2 / 1.6, 0, 1) * 0.9;
+        if (al <= 0) break;
+        ctx.strokeStyle = `rgba(255,${120 + 60 * al | 0},90,${al.toFixed(3)})`; ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(sx - Math.cos(ang) * size * 0.05, sy - Math.sin(ang) * size * 0.05 - size * 0.02); ctx.stroke();
+      }
+      // Дымок от звезды тянется вверх-вбок.
+      ctx.fillStyle = "rgb(150,150,150)"; ctx.globalAlpha = 0.18 * fade;
+      for (let i = 0; i < 4; i++) { const v = i / 4; ctx.beginPath(); ctx.arc(x + WIND_X * v * size * 0.25, y - v * size * 0.35, size * (0.05 + 0.08 * v), 0, TAU); ctx.fill(); }
+    }
+  }
+  ctx.restore();
+}
+
 // ───────────────────────────── Слой ─────────────────────────────
 const NO_ISLETS: Islet[] = [];
 const NO_FIRES: FireSite[] = [];
 const NO_LABELS: IslandLabelSpec[] = [];
 const NO_ROUTES: RouteSpec[] = [];
-export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, labels = NO_LABELS, routes = NO_ROUTES }: { /** Морские маршруты: рисуются между зверями и кораблями (решение владельца 06.10). */ routes?: RouteSpec[]; /** Подписи островов: рисуются между зверями и кораблями (решение владельца 05.10). */ labels?: IslandLabelSpec[]; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
+const NO_WRECKS: WreckSpec[] = [];
+export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, labels = NO_LABELS, routes = NO_ROUTES, wrecks = NO_WRECKS }: { /** Разбитые бурей корабли (решение владельца 04.11): место, модель, семя ракет, время починки или гибели. */ wrecks?: WreckSpec[]; /** Морские маршруты: рисуются между зверями и кораблями (решение владельца 06.10). */ routes?: RouteSpec[]; /** Подписи островов: рисуются между зверями и кораблями (решение владельца 05.10). */ labels?: IslandLabelSpec[]; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
   const ref = useRef<HTMLCanvasElement>(null);
   // Второй холст — небо: птицы летят над подписями городов и метками карты (решение владельца 06.10).
   const skyRef = useRef<HTMLCanvasElement>(null);
@@ -1602,6 +1826,13 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
   const firesRef = useRef(fires); firesRef.current = fires;
   const labelsRef = useRef(labels); labelsRef.current = labels;
   const routesRef = useRef(routes); routesRef.current = routes;
+  const wrecksRef = useRef(wrecks); wrecksRef.current = wrecks;
+  // Пояс моря вокруг поля: к его краю уходит починенный корабль.
+  const seaRef = useRef<Bounds | null>(null);
+  seaRef.current = useMemo(() => (hexes.length ? seaField(fieldBoundsOf(hexes, size)) : null), [hexes, size]);
+  /** Статичная перерисовка при «уменьшить движение»: только корабли, без ракет. */
+  const staticRedraw = useRef<(() => void) | null>(null);
+  useEffect(() => { staticRedraw.current?.(); }, [wrecks]);
   // Ключ профиля — весь состав гексов: у разных карт одинаковое число гексов и часто совпадает первый, и при переходе
   // между партиями внутри приложения живность продолжала обходить берег прежней карты, то есть плыла по суше новой (01.10).
   const key = hexes.map((h) => `${h.q},${h.r},${h.island ?? ""}`).join(";");
@@ -1614,13 +1845,27 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
   useEffect(() => {
     const canvas = ref.current, sky = skyRef.current, host = canvas?.parentElement, profile = profileRef.current;
     if (!canvas || !sky || !host || !profile) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const ctx = canvas.getContext("2d"), sctx = sky.getContext("2d");
     if (!ctx || !sctx) return;
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let W = 0, H = 0;
     const resize = () => { W = Math.round(host.clientWidth * dpr); H = Math.round(host.clientHeight * dpr); for (const c of [canvas, sky]) if (c.width !== W || c.height !== H) { c.width = W; c.height = H; } };
     resize();
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      // «Уменьшить движение»: живности нет, разбитые корабли — статичной картинкой без ракет и дыма (перерисовка по жесту).
+      const drawStatic = () => {
+        const { k, tx, ty } = vpRef.current.viewRef.current;
+        ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, W, H);
+        ctx.setTransform(k * dpr, 0, 0, k * dpr, tx * dpr, ty * dpr);
+        WRECKS = wrecksRef.current; SEA = seaRef.current; LIGHT = lightRef.current;
+        drawWrecks(ctx, size, 0, clockRef.current(), 1 / k, { x0: -tx / k - size * 3, y0: -ty / k - size * 3, x1: (W / dpr - tx) / k + size * 3, y1: (H / dpr - ty) / k + size * 3 }, false);
+      };
+      staticRedraw.current = drawStatic;
+      drawStatic();
+      const unsubStatic = vpRef.current.subscribe(drawStatic);
+      const roStatic = new ResizeObserver(() => { resize(); drawStatic(); }); roStatic.observe(host);
+      return () => { staticRedraw.current = null; unsubStatic(); roStatic.disconnect(); };
+    }
     const ro = new ResizeObserver(resize); ro.observe(host);
     // Миры по эпохам: текущий и, на время растворения, предыдущий.
     interface Live { w: World; epoch: number }
@@ -1657,13 +1902,17 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
       // Видимая область с запасом в три гекса: звери чуть за краем ещё видны хвостом или следом.
       vis.x0 = -tx / k - size * 3; vis.y0 = -ty / k - size * 3; vis.x1 = (W / dpr - tx) / k + size * 3; vis.y1 = (H / dpr - ty) / k + size * 3;
       const a = prev ? Math.min(1, cur.w.T / FADE) : 1;
-      LIGHT = lightRef.current; LABELS = labelsRef.current; ROUTES = routesRef.current;
+      LIGHT = lightRef.current; LABELS = labelsRef.current; ROUTES = routesRef.current; WRECKS = wrecksRef.current; SEA = seaRef.current;
+      const now = clockRef.current();
       if (prev) drawWorld(ctx, prev.w, k, vis, 1 - a, "sea");
       drawWorld(ctx, cur.w, k, vis, a, "sea");
       ctx.globalAlpha = 1;
+      // Разбитые корабли — поверх живности и подписей островов, по часам сервера (не по времени мира: эпохи их не трогают).
+      drawWrecks(ctx, size, now / 1000, now, 1 / k, vis, true);
       drawFires(ctx, firesRef.current, cur.w.T, 1 / k, vis, LIGHT.fire);
       if (prev) drawWorld(sctx, prev.w, k, vis, 1 - a, "sky");
       drawWorld(sctx, cur.w, k, vis, a, "sky");
+      drawRockets(sctx, size, now, 1 / k, vis);
     };
     // Догон (открыли карту, вернулись во вкладку): кусками по 30 мс через setTimeout, не завися от частоты кадров;
     // до конца догона слой пуст — звери «всплывают», когда мир дошёл до текущей секунды.

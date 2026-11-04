@@ -139,6 +139,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
                 <Chip icon="users" title={t("Участников")}>{tm.members.length}</Chip>
                 {st && <><Chip icon="city" title={t("Городов")}>{st.cities}</Chip><Chip icon="scroll" title={t("Принятых дел")}>{st.deedsApproved}</Chip></>}
                 <Chip icon="stone" title={t("Тёсаные камни Каменоломни")}>{tm.stones ?? 0}</Chip>
+                {(tm.cargoBlocks ?? 0) > 0 && <Chip icon="wall" title={t("Блоки для стен из груза корабля")}>{tm.cargoBlocks}</Chip>}
                 {st && <><Chip icon="trophy" title={t("Испытаний выиграли")}>{st.battlesWon}</Chip><Chip icon="shield" title={t("Испытаний устояли")}>{st.battlesRepelled}</Chip><Chip icon="flag" title={t("Испытаний потеряли")}>{st.battlesLost}</Chip></>}
               </div>
             </div>

@@ -15,7 +15,7 @@ import { t, getLocale } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { AdminQuarrySheet } from "./QuarrySheet";
 import { Icon, iconPath } from "../components/Icon";
-import { FaunaLayer, trimRoute, type FireSite } from "./Fauna";
+import { FaunaLayer, trimRoute, type FireSite, type WreckSpec } from "./Fauna";
 import { css, stormLight, useDaytime, useStormPicture } from "../lib/daytime";
 import { StormLayer } from "./StormLayer";
 import { FireworksLayer, type FireworkSite } from "./FireworksLayer";
@@ -92,6 +92,12 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const vp = useViewport(bounds);
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
   const [quarryOpen, setQuarryOpen] = useState(false);
+  // Разбитые бурей корабли (решение владельца 04.11): на карте администратора — те же корабли, без листа сдачи; по нажатию — короткая карточка.
+  interface AdminWreck { id: string; title: string; model: number; q: number; r: number; seed: number; sunkAt: string | null; doneTeams: number; pending: number; cargo: { stones: number; blocks: number } }
+  const [wrecks, setWrecks] = useState<AdminWreck[]>([]);
+  const [wreckCard, setWreckCard] = useState<string | null>(null);
+  useEffect(() => { let alive = true; api<{ wrecks: AdminWreck[] }>(`/api/games/${gameId}/wrecks`).then((r) => { if (alive) setWrecks(r.wrecks); }).catch(() => {}); return () => { alive = false; }; }, [gameId, version]);
+  const wreckSpecs = useMemo<WreckSpec[]>(() => wrecks.map((w) => { const c = hexCenter(w, size); return { id: w.id, x: c.x, y: c.y, kind: (w.model % 3) as 0 | 1 | 2, seed: w.seed, repairedAt: null, sunkAt: w.sunkAt ? Date.parse(w.sunkAt) : null }; }), [wrecks, size]);
   /** Нажатие на дорогу: дела всех команд на этой стороне; нажатие на дело — отчёт (решение владельца 30.09). */
   const [edgeSel, setEdgeSel] = useState<{ aKey: string; bKey: string } | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
@@ -313,7 +319,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           <div className="mapwrap team-view" key={viewAs}>
             {teamView?.error ? <div className="map-state"><ErrorState text={teamView.error} onRetry={() => setViewAs((v) => v)} /></div>
               : !teamView?.map ? <div className="map-state"><LoadingState /></div>
-              : <TeamMap map={viewMap ?? teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={teamTaskId} onSelect={(tid) => { setTeamTaskId(tid); if (tid) setSelected(null); }} onSelectCity={(key) => { const n = nodeByKey.get(key); if (n) { setSelected(n); setTeamTaskId(null); } }} storm={stormPic}
+              : <TeamMap map={viewMap ?? teamView.map} teamIndex={teamView.map.teamIndex} selectedTaskId={teamTaskId} onSelect={(tid) => { setTeamTaskId(tid); if (tid) setSelected(null); }} onSelectCity={(key) => { const n = nodeByKey.get(key); if (n) { setSelected(n); setTeamTaskId(null); } }} storm={stormPic} onSelectWreck={(wid) => setWreckCard(wid)}
                   onMarkTap={(mk) => notify((mk.note ? t("Метка «{note}»", { note: mk.note }) : t("Метка")) + (mk.by?.name ? ` · ${mk.by.name}` : "") + (mk.createdAt ? ` · ${fmtDate(mk.createdAt)}` : ""), "info")} />}
             {teamView?.map && teamTaskId && wrapEl && (() => { const task = teamView.map!.tasks.find((tk) => tk.id === teamTaskId); return task ? <TeamTaskSheet gameId={gameId} task={task} members={teamView.map!.members ?? []} container={wrapEl} onClose={() => setTeamTaskId(null)} onReview={onReview} /> : null; })()}
           </div>
@@ -338,13 +344,26 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             ); })()}
           </WorldSvg>
           {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
-          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} />
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={routeSpecs} wrecks={wreckSpecs} />
           {fireworkSites.length > 0 && <FireworksLayer vp={vp} sites={fireworkSites} clock={Date.now} timeZone={timeZone ?? "Asia/Tashkent"} />}
           {stormSt.t > 0 && <StormLayer t={stormSt.t} />}
           {/* Подписи городов и метки — отдельным слоем над живностью и маршрутами: название города выше линии корабля (решение владельца 06.10). */}
           <WorldSvg vp={vp} bounds={bounds} overlay>
             <g className="screen-items">
               {quarryMarker}
+              {wreckSpecs.filter((w) => !(w.sunkAt != null && Date.now() - w.sunkAt > 9500)).map((w) => {
+                const r = 13, title = wrecks.find((x) => x.id === w.id)?.title ?? "";
+                return (
+                  <g key={"wreck" + w.id} className="m-deed sea wreck" role="button" aria-label={t("Срочное задание: {title}", { title })} onClick={() => { if (!vp.wasDrag()) setWreckCard(w.id); }}>
+                    <circle className="wreck-hit" cx={w.x} cy={w.y} r={size * 1.15} />
+                    <g style={sc(w.x, w.y - size * 0.95)}>
+                      <circle r={r} />
+                      <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
+                      <g className="urgent" transform={`translate(${(r * 0.72).toFixed(1)}, ${(-r * 0.72).toFixed(1)})`}><circle r={6.5} /><text textAnchor="middle" dy="0.36em" fontSize={9.5} fontWeight={800}>!</text></g>
+                    </g>
+                  </g>
+                );
+              })}
               {screenBody}
             </g>
           </WorldSvg>
@@ -356,6 +375,17 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
         {edgeSel && wrapEl && !reportId && <EdgeTasksSheet gameId={gameId} aKey={edgeSel.aKey} bKey={edgeSel.bKey} container={wrapEl} onClose={() => setEdgeSel(null)} onOpenTask={setReportId} />}
         {reportId && wrapEl && <TaskReportSheet gameId={gameId} taskId={reportId} container={wrapEl} onClose={() => { setReportId(null); setEdgeSel(null); }} onReview={onReview} />}
         {quarryOpen && wrapEl && <AdminQuarrySheet gameId={gameId} container={wrapEl} onClose={() => setQuarryOpen(false)} onReview={() => { setQuarryOpen(false); onReview?.(); }} />}
+        {wreckCard && wrapEl && (() => {
+          const w = wrecks.find((x) => x.id === wreckCard);
+          if (!w) return null;
+          return (
+            <Sheet size="sm" container={wrapEl} onClose={() => setWreckCard(null)} head={<div className="sheet-title"><h2><Icon name="ship" />{w.title}</h2><Chip tone="bad" icon="alert">{t("Срочное задание")}</Chip></div>}>
+              {w.sunkAt ? <p className="note warn"><Icon name="alert" /><span>{t("Корабль затонул")}</span></p> : <p className="muted small">{t("Разбитый бурей корабль: груз — {s} тёсаных камней или {b} блоков для стен (50/50 при приёме).", { s: w.cargo.stones, b: w.cargo.blocks })}</p>}
+              <p className="row wrap gap-2"><Chip tone="ok" icon="check">{t("Выручили команд: {n}", { n: w.doneTeams })}</Chip>{w.pending > 0 && <Chip tone="warn" icon="clock">{t("На проверке: {n}", { n: w.pending })}</Chip>}</p>
+              {w.pending > 0 && onReview && <div className="actions mt-2"><button type="button" className="secondary sm" onClick={() => { setWreckCard(null); onReview(); }}><Icon name="check" />{t("К проверке")}</button></div>}
+            </Sheet>
+          );
+        })()}
         {selected && wrapEl && (selected.kind === "CITY"
           ? <CitySheet gameId={gameId} node={selected} version={version} container={wrapEl} revealed={revealedBy.get(selected.key) ?? []} battle={battleAt.get(selected.key) ?? null} teamById={teamById} onClose={close} onReview={onReview} />
           : <NodeSheet gameId={gameId} node={selected} container={wrapEl} teams={progress ?? []} revealed={revealedBy.get(selected.key) ?? []} onClose={close} />)}

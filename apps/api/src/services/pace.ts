@@ -50,7 +50,7 @@ export async function paceForecast(gameId: string) {
     prisma.siege.findMany({ where: { gameId, status: "WON", resolvedAt: { not: null } }, select: { attackerId: true, defenderId: true, resolvedAt: true } }),
     // Стихи: принятые записи испытаний без перенесённых из прошлого вызова и принятые блоки стены (сгоревшие и починки тоже).
     prisma.battleEntry.findMany({ where: { battle: { gameId }, status: "APPROVED", carried: false }, select: { userId: true, teamId: true, startIdx: true, endIdx: true, decidedAt: true, createdAt: true, battle: { select: { bookCode: true } } } }),
-    prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED" }, select: { userId: true, teamId: true, bookCode: true, startIdx: true, endIdx: true, decidedAt: true, createdAt: true } }),
+    prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED", cargo: false }, select: { userId: true, teamId: true, bookCode: true, startIdx: true, endIdx: true, decidedAt: true, createdAt: true } }),
   ]);
   // Взятие города — выполнением заданий (и руин тоже). Переход города по испытанию или осаде (замечание владельца 01.11:
   // «отвоевал 2 города, а на графике это не отобразилось») общий счёт не меняет, а линии команд — да: минус у хранителей, плюс у претендентов.
