@@ -48,7 +48,9 @@ for (const [profile, map, variant] of RUNS) {
     const orig = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (type, opts) {
       const fauna = this.classList.contains("fauna");
-      if ((v === "nofauna" && fauna) || (!all && this.classList.contains("fx-layer") && !fauna)) return null;
+      // Слои плана (пути и мир на WebGL) — предмет замера, их не выключаем; выключаются только постоянные слои.
+      const planned = this.classList.contains("routes") || this.classList.contains("world-gl");
+      if ((v === "nofauna" && fauna) || (!all && this.classList.contains("fx-layer") && !fauna && !planned)) return null;
       return orig.call(this, type, opts);
     };
     const css = (v === "nosvg" ? ".map-svg.world{display:none!important}\n" : "") + (extra ?? "");
