@@ -1107,7 +1107,7 @@ interface Pod { rng: () => number; dolphins: Cet[]; car: Carrot; next: number }
  * to — точка города в координатах карты. Клин шагает своим потоком случайностей, поэтому остальные звери у команд совпадают.
  */
 export interface DailyBird { at: number; to: { x: number; y: number } }
-interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[]; /** Начало эпохи мира, секунды сервера. */ epochStart: number; daily: () => DailyBird | null; dailyDone: boolean; /** Генератор случайностей этого мира (семя игры и эпохи). */ rng: () => number }
+interface World { p: Profile; size: number; T: number; solos: Cet[]; pods: Pod[]; /** Порядок рисования: от глубоких к мелким. */ cets: Cet[]; gulls: Gull[]; flock: Flock; fx: Fx; ships: Ship[]; /** Начало эпохи мира, секунды сервера. */ epochStart: number; daily: () => DailyBird | null; dailyDone: boolean; /** Генератор случайностей этого мира (семя игры и эпохи). */ rng: () => number; /** Починенные разбитые корабли, уходящие в море по правилам живности (решение владельца 05.11). */ departs: Map<string, Departure> }
 /**
  * Ход мира по времени сервера (решение владельца 29.09): время делится на эпохи по EPOCH секунд; в начале эпохи мир
  * создаётся заново с семенем «игра + номер эпохи» и идёт фиксированным шагом STEP. Любой игрок, открыв карту, догоняет
@@ -1146,7 +1146,7 @@ function createWorld(p: Profile, size: number, seed = 1, epochStart = 0, daily: 
   const solo = (kind: CetKind, L: number, off: [number, number], wob: number) => { const car = makeCarrot(p, size, size * rnd(off[0], off[1]), size * wob); return makeCet(cetSpec(kind, L, size), car, car.x, car.y, car.h); };
   const solos = [solo("whale", size * 1.8, [2.8, 4], 0.7), solo("whale", size * 1.6, [3, 4.4], 0.7), solo("orca", size * 1.1, [2.4, 3.4], 0.6), solo("orca", size * 1.0, [2.6, 3.6], 0.6)];
   const pods = [makePod(p, size, 3), makePod(p, size, 4)];
-  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), epochStart, daily, dailyDone: false, rng, ships: (["sloop", "cog", "ship", "sloop", "cog"] as const).reduce<Ship[]>((acc, kind) => [...acc, makeShip(kind, p, size, acc)], []) };
+  return { p, size, T: 0, solos, pods, cets: [...solos, ...pods.flatMap((pd) => pd.dolphins)], gulls: Array.from({ length: 5 }, () => makeGull(p, size)), flock: makeFlock(p, size, 0), fx: makeFx(), epochStart, daily, dailyDone: false, rng, departs: new Map(), ships: (["sloop", "cog", "ship", "sloop", "cog"] as const).reduce<Ship[]>((acc, kind) => [...acc, makeShip(kind, p, size, acc)], []) };
 }
 function stepWorld(w: World, dt: number): void {
   rand = w.rng;
@@ -1169,6 +1169,7 @@ function stepWorld(w: World, dt: number): void {
   }
   for (const g of w.gulls) stepGull(g, w.p, w.size, dt, T);
   for (const sh of w.ships) stepShip(sh, w.p, w.size, dt, T, w.ships);
+  stepDepartures(w, dt, T);
   stepFlock(w.flock, w.p, w.size, dt, T);
   // Порядок рисования — от глубоких к мелким (вставками, массив короткий).
   const cs = w.cets;
@@ -1628,14 +1629,76 @@ function wreckPose(w: WreckSpec, size: number, now: number): { x: number; y: num
   const t = (now - w.repairedAt) / 1000;
   if (t < 0) return { x: w.x, y: w.y, h: h0, repair: 0, sink: 0, alpha: 1, moving: false };
   if (t <= REPAIR_S) return { x: w.x, y: w.y, h: h0, repair: smooth(t / REPAIR_S), sink: 0, alpha: 1, moving: false };
-  // Поворот на курс ухода за две секунды, затем ход вдвое быстрее обычного корабля этого вида.
-  const turn = smooth((t - REPAIR_S) / 2);
-  const h = h0 + wrapAngle(exit.h - h0) * turn;
-  const dist = Math.max(0, t - REPAIR_S - 1) * spec.speed * 2;
-  const fadeLen = size * 3;
-  const alpha = 1 - clamp((dist - (exit.dist - fadeLen)) / fadeLen, 0, 1);
-  if (alpha <= 0) return null;
-  return { x: w.x + Math.cos(exit.h) * dist, y: w.y + Math.sin(exit.h) * dist, h, repair: 1, sink: 0, alpha, moving: true };
+  // Дальше корабль ведёт мир живности (`stepDepartures`): здесь — только целый корабль на месте крушения (без мира, «уменьшить движение»).
+  void spec; void exit;
+  if (t > DEPART_S) return null;
+  return { x: w.x, y: w.y, h: h0, repair: 1, sink: 0, alpha: 1, moving: true };
+}
+/**
+ * Уход починенного корабля (замечание владельца 05.11: «восстановленный корабль пошёл по каменоломне… сделай ему такие же
+ * правила движения, как и у других кораблей живности»): после починки корабль становится обычным кораблём мира — идёт за
+ * «морковкой» по хорде от места крушения в открытое море и за край (`carrotStep` обходит профиль островов и островки,
+ * `keepInWater` держит от берега, `shipsAhead` расходится с другими кораблями), вдвое быстрее обычного. Ведётся внутри
+ * `stepWorld` фиксированными шагами от момента `repairedAt + REPAIR_S`: у всех игроков партии путь одинаков (семя — id
+ * корабля); если мир создан позже (карта открыта после, новая эпоха) — корабль догоняется теми же шагами. Через DEPART_S
+ * секунд и у края пояса моря растворяется.
+ */
+interface Departure { sh: Ship; start: number }
+const DEPART_S = 90, DEPART_FADE_S = 15;
+function makeDeparture(spec: WreckSpec, w: World): Ship {
+  const p = w.p, size = w.size;
+  const rng = mulberry32(hashSeed(`wreck:${spec.id}`)); rand = rng;
+  const base = shipSpec(WRECK_KINDS[spec.kind]!, size);
+  const sp: ShipSpec = { ...base, speed: base.speed * 2 };
+  const off = size * 2.6, wob = size * 0.3;
+  const car: Carrot = { off, wob, seed: rnd(0, 100), x: spec.x, y: spec.y, h: 0, x0: spec.x, y0: spec.y, x1: spec.x, y1: spec.y, len: 1, t: 0, wait: 0 };
+  // Хорда от места крушения в открытое море: наружу от центра острова, не режет острова и островки; из 32 попыток —
+  // первая подходящая, иначе та, что дальше всего от островков.
+  const R = farR(p, size), ang0 = Math.atan2(spec.y - p.cy, spec.x - p.cx);
+  let bx = spec.x + Math.cos(ang0) * R, by = spec.y + Math.sin(ang0) * R, bestGap = -1;
+  for (let i = 0; i < 32; i++) {
+    const b = ang0 + rnd(-1.1, 1.1), x1 = p.cx + Math.cos(b) * R, y1 = p.cy + Math.sin(b) * R;
+    const cuts = p.parts.some((part) => segDist(part.cx, part.cy, spec.x, spec.y, x1, y1) < part.maxR * 0.7 + off);
+    const gap = Math.min(Infinity, ...p.isles.map((isl) => segDist(isl.x, isl.y, spec.x, spec.y, x1, y1) - isl.r));
+    if (!cuts && !crossesIsle(p, spec.x, spec.y, x1, y1, off + wob + size)) { bx = x1; by = y1; break; }
+    if (!cuts && gap > bestGap) { bestGap = gap; bx = x1; by = y1; }
+  }
+  car.x1 = bx; car.y1 = by; car.len = Math.hypot(bx - spec.x, by - spec.y); car.h = Math.atan2(by - spec.y, bx - spec.x);
+  const h0 = (spec.seed % 360) * (Math.PI / 180);
+  const sh: Ship = { rng: mulberry32((rng() * 4294967296) >>> 0), spec: sp, car, x: spec.x, y: spec.y, h: h0, v: 0, om: 0, seed: rnd(0, 100), trail: makeTrail(), pass: new Map() };
+  rand = w.rng;
+  return sh;
+}
+function stepDepartures(w: World, dt: number, T: number): void {
+  const worldNow = w.epochStart + T;
+  for (const spec of WRECKS) {
+    if (spec.repairedAt == null) continue;
+    const start = spec.repairedAt / 1000 + REPAIR_S;
+    if (worldNow < start || worldNow > start + DEPART_S + 1) continue;
+    let d = w.departs.get(spec.id);
+    if (!d) {
+      d = { sh: makeDeparture(spec, w), start };
+      w.departs.set(spec.id, d);
+      // Мир создан позже старта (карта открыта позже, новая эпоха): догоняем корабль теми же шагами, одного, без встречных.
+      const lag = Math.floor((worldNow - start) / dt);
+      for (let i = 0; i < Math.min(lag, 4000); i++) { stepShip(d.sh, w.p, w.size, dt, T, []); if (d.sh.car.t >= 1) d.sh.car.wait = 1e9; }
+    }
+    stepShip(d.sh, w.p, w.size, dt, T, w.ships);
+    // Хорда пройдена: дальше прямо за край, нового маршрута не нужно.
+    if (d.sh.car.t >= 1) d.sh.car.wait = 1e9;
+  }
+  for (const id of w.departs.keys()) if (!WRECKS.some((x) => x.id === id)) w.departs.delete(id);
+}
+/** Стенд (тесты): уход починенного корабля с места крушения — трек положений; острова и островки задаются как у карты. */
+export function traceDeparture(hexes: MapHexDto[], size: number, islets: Islet[], spec: Omit<WreckSpec, "repairedAt" | "sunkAt">, seconds: number, step = STEP): Array<[number, number]> {
+  const p = islandProfile(hexes, size, islets); if (!p) return [];
+  const w = createWorld(p, size, 7, 0);
+  const saved = WRECKS;
+  WRECKS = [{ ...spec, repairedAt: 0, sunkAt: null }];
+  const out: Array<[number, number]> = [];
+  for (let t = 0; t < seconds; t += step) { stepWorld(w, step); const d = w.departs.get(spec.id); if (d) out.push([d.sh.x, d.sh.y]); }
+  WRECKS = saved;
+  return out;
 }
 const wreckCache = new Map<string, { c: HTMLCanvasElement; w: number; h: number; ox: number; oy: number }>();
 /** Спрайт разбитого корабля: корпус с пробоинами и водой, сломанная мачта, обрывок паруса. Кеш по виду и разрешению. */
@@ -1704,10 +1767,21 @@ function drawSmoke(ctx: CanvasRenderingContext2D, x: number, y: number, h: numbe
   ctx.restore();
 }
 /** Разбитые корабли на холсте моря: корпус с креном, починка (наложение целого спрайта), уход, погружение; дым. */
-function drawWrecks(ctx: CanvasRenderingContext2D, size: number, T: number, now: number, px: number, vis: Vis, live: boolean): void {
+function drawWrecks(ctx: CanvasRenderingContext2D, size: number, T: number, now: number, px: number, vis: Vis, live: boolean, world: World | null = null): void {
   for (const w of WRECKS) {
-    const pose = wreckPose(w, size, now);
-    if (!pose || !inView(vis, pose.x, pose.y)) continue;
+    let pose = wreckPose(w, size, now);
+    if (!pose) continue;
+    // Уходящий корабль: положение и курс — из мира живности; растворяется к концу ухода и у края пояса моря.
+    const dep = pose.moving && w.repairedAt != null ? world?.departs.get(w.id) : undefined;
+    if (dep) {
+      const age = now / 1000 - dep.start, b = SEA;
+      const out = b ? Math.max(0, b.minX - dep.sh.x, dep.sh.x - (b.minX + b.width), b.minY - dep.sh.y, dep.sh.y - (b.minY + b.height)) : 0;
+      const alpha = Math.min(1 - clamp((age - (DEPART_S - DEPART_FADE_S)) / DEPART_FADE_S, 0, 1), 1 - clamp(out / (size * 3), 0, 1));
+      if (alpha <= 0) continue;
+      pose = { ...pose, x: dep.sh.x, y: dep.sh.y, h: dep.sh.h, alpha };
+      if (world) drawTrail(ctx, dep.sh.trail, world.T, dep.sh.spec.L, 9, px, vis, true);
+    } else if (pose.moving && world) continue; // мир ещё не довёл до старта ухода (догоняет) — не рисуем на старом месте
+    if (!inView(vis, pose.x, pose.y)) continue;
     const sp = shipSpec(WRECK_KINDS[w.kind]!, size), L = sp.L, W = L * sp.W;
     const rock = 0.02 * Math.sin(T * 0.7 + w.seed) * (1 - pose.sink);
     // Крен: сломанный — 0,78 ширины, целый — 1; тонущий — к 0,45 и уходит в воду.
@@ -1908,7 +1982,7 @@ export function FaunaLayer({ vp, hexes, islets = NO_ISLETS, size = HEX_SIZE, dai
       drawWorld(ctx, cur.w, k, vis, a, "sea");
       ctx.globalAlpha = 1;
       // Разбитые корабли — поверх живности и подписей островов, по часам сервера (не по времени мира: эпохи их не трогают).
-      drawWrecks(ctx, size, now / 1000, now, 1 / k, vis, true);
+      drawWrecks(ctx, size, now / 1000, now, 1 / k, vis, true, cur.w);
       drawFires(ctx, firesRef.current, cur.w.T, 1 / k, vis, LIGHT.fire);
       if (prev) drawWorld(sctx, prev.w, k, vis, 1 - a, "sky");
       drawWorld(sctx, cur.w, k, vis, a, "sky");
