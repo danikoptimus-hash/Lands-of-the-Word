@@ -5,8 +5,8 @@ import { coastLoops, rgb, themeColor, worldMode } from "../lib/worldScene";
 import { parseColor } from "../lib/glLines";
 import { perfExpose, perfOff } from "../lib/perfHud";
 import { RoutesGL } from "./RoutesGL";
-// Пробный переключатель Э3 (пока пути на WebGL поверх живности; окончательная раскладка слоёв — после разделения холста живности).
-const GL_ROUTES = /[?&]routes=gl/.test(location.search);
+/** Морские пути на WebGL (Э3) — по умолчанию; `?routes=canvas` — прежний способ на холсте живности (и запасной путь без WebGL). */
+const GL_ROUTES_DEFAULT = typeof location === "undefined" || !/[?&]routes=canvas/.test(location.search);
 import { BOOKS, startName, hexCorners as cornersOf, vertexKey as keyOf, seaRoute, routeCurve, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos, TEAM_COLORS } from "../lib/hexmap";
 import { CoastOver, islandGeometry, HexTiles, IMG, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, MapSymbols } from "./MapLayers";
@@ -157,6 +157,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const [liveWater, setLiveWater] = useState(true);
   // Мир на WebGL (этап Э2): по `?map=gl`; без WebGL или при потере контекста — обратно к SVG.
   const [glWorld, setGlWorld] = useState(() => worldMode() === "gl");
+  const [glRoutes, setGlRoutes] = useState(GL_ROUTES_DEFAULT);
   const dt0 = useDaytime(timeZone);
   // Шторм у администратора — только картинка: та же буря, что у команд, кнопки и действия остаются.
   const stormSt = useStormPicture(storms, timeZone);
@@ -409,8 +410,8 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 {flashEl}
               </WorldSvg>}
           {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
-          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={GL_ROUTES ? [] : routeSpecs} wrecks={wreckSpecs} />
-          {GL_ROUTES && <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => {}} />}
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={glRoutes ? [] : routeSpecs} wrecks={wreckSpecs}
+            between={glRoutes ? <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => setGlRoutes(false)} /> : null} />
           {fireworkSites.length > 0 && !perfOff("fireworks") && <FireworksLayer vp={vp} sites={fireworkSites} clock={Date.now} timeZone={timeZone ?? "Asia/Tashkent"} />}
           {stormSt.t > 0 && <StormLayer t={stormSt.t} />}
           {/* Подписи городов и метки — отдельным слоем над живностью и маршрутами: название города выше линии корабля (решение владельца 06.10). */}

@@ -10,8 +10,8 @@ import { coastLoops, rgb, themeColor, worldMode } from "../lib/worldScene";
 import { parseColor } from "../lib/glLines";
 import { FOG_COLOR } from "../lib/hexmap";
 import { RoutesGL } from "./RoutesGL";
-// Пробный переключатель Э3 (пока пути на WebGL поверх живности; окончательная раскладка слоёв — после разделения холста живности).
-const GL_ROUTES = /[?&]routes=gl/.test(location.search);
+/** Морские пути на WebGL (Э3) — по умолчанию; `?routes=canvas` — прежний способ на холсте живности (и запасной путь без WebGL). */
+const GL_ROUTES_DEFAULT = typeof location === "undefined" || !/[?&]routes=canvas/.test(location.search);
 import type { DailyBirdDto, EdgeTaskStatus, MapHexDto, MapMarkDto, MyMapDto } from "../lib/api";
 import { CoastOver, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
@@ -209,6 +209,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const [liveWater, setLiveWater] = useState(true);
   // Мир на WebGL (этап Э2): по `?map=gl`; без WebGL или при потере контекста — обратно к SVG.
   const [glWorld, setGlWorld] = useState(() => worldMode() === "gl");
+  const [glRoutes, setGlRoutes] = useState(GL_ROUTES_DEFAULT);
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   // Входы тумана считает общая функция (`teamFogInputs`): ею же пользуется заготовка карты на главной.
   const fog = useMemo(() => teamFogInputs(map, size), [map.hexes, map.revealed, map.edges, map.frontier, size]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -655,8 +656,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={light} hole={hole} />}
       {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); рисует слой живности: киты под буквами,
           корабли над ними (решение владельца 05.10). */}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} labels={islandLabels} routes={GL_ROUTES ? [] : routeSpecs} wrecks={wreckSpecs} />
-      {GL_ROUTES && <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => {}} />}
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} labels={islandLabels} routes={glRoutes ? [] : routeSpecs} wrecks={wreckSpecs}
+        between={glRoutes ? <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => setGlRoutes(false)} /> : null} />
       {fireworkSites.length > 0 && !perfOff("fireworks") && <FireworksLayer vp={vp} sites={fireworkSites} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} />}
       {storm && storm.t > 0 && <StormLayer t={storm.t} />}
       <WorldSvg vp={vp} bounds={bounds} overlay>
