@@ -421,14 +421,15 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
             <g className="screen-items">
               {quarryMarker}
               {wreckSpecs.filter((w) => !(w.sunkAt != null && Date.now() - w.sunkAt > 9500)).map((w) => {
-                const r = 13, title = wrecks.find((x) => x.id === w.id)?.title ?? "";
+                const wd = wrecks.find((x) => x.id === w.id), r = 13, title = wd?.title ?? "", pending = wd?.pending ?? 0;
+                // Есть сдачи на проверке — знак часов и их число (замечание владельца 05.11: таймер нужен и у администратора); иначе корабль с «!».
                 return (
-                  <g key={"wreck" + w.id} className="m-deed sea wreck" role="button" aria-label={t("Срочное задание: {title}", { title })} onClick={() => { if (!vp.wasDrag()) setWreckCard(w.id); }}>
+                  <g key={"wreck" + w.id} className={"m-deed sea wreck" + (pending ? " submitted" : "")} role="button" aria-label={t("Срочное задание: {title}", { title })} onClick={() => { if (!vp.wasDrag()) setWreckCard(w.id); }}>
                     <circle className="wreck-hit" cx={w.x} cy={w.y} r={size * 1.15} />
                     <g style={sc(w.x, w.y - size * 0.95)}>
                       <circle r={r} />
-                      <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
-                      <g className="urgent" transform={`translate(${(r * 0.72).toFixed(1)}, ${(-r * 0.72).toFixed(1)})`}><circle r={6.5} /><text textAnchor="middle" dy="0.36em" fontSize={9.5} fontWeight={800}>!</text></g>
+                      <use href={pending ? "#m-clock" : "#m-ship"} x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
+                      <g className="urgent" transform={`translate(${(r * 0.72).toFixed(1)}, ${(-r * 0.72).toFixed(1)})`}><circle r={6.5} /><text textAnchor="middle" dy="0.36em" fontSize={9.5} fontWeight={800}>{pending || "!"}</text></g>
                     </g>
                   </g>
                 );
