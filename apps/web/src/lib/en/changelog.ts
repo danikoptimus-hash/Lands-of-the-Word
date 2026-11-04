@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Администратору: в «Проходах» по умолчанию открыта вкладка «Открытые»; в «Визитах» вкладка «Решённые» называется «Закрытые».": "For the administrator: “Passages” opens on the “Open” tab by default; in “Visits” the “Decided” tab is now called “Closed”.",
   "Предложить или расторгнуть мир теперь можно в профиле другой команды (нажмите на её аватарку); меню «⋯» в рейтинге убрано.": "Offering or breaking peace is now done in the other team’s profile (tap its avatar); the “⋯” menu in the rating is gone.",
   "Администратору: в списке команд нет плашки «лидер», место видно по номеру.": "For the administrator: the team list has no “leader” chip; the place is shown by the number.",
   "На карте подписи городов и пленов лежат поверх значков дел.": "On the map, city and captivity labels lie above the deed markers.",

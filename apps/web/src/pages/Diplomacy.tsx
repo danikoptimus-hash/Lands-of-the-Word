@@ -152,7 +152,8 @@ export function PassagesBlock({ gameId, version = 0 }: { gameId: string; version
   useEffect(() => { apiReady<{ passages: PassageDto[] }>(`/api/games/${gameId}/passages`).then((r) => setRows(r.passages)).catch(() => setRows([])); }, [gameId, version]);
   const all = rows ?? [];
   const open = all.filter((r) => r.status === "PENDING"), closed = all.filter((r) => r.status !== "PENDING");
-  const shownTab: "open" | "closed" = filter ?? (open.length > 0 ? "open" : "closed");
+  // По умолчанию — «Открытые», даже если открытых нет (решение владельца 04.11).
+  const shownTab: "open" | "closed" = filter ?? "open";
   const shown = shownTab === "open" ? open : closed;
   const toggle = (id: string) => setExpanded((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   return (
