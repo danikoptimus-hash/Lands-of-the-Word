@@ -315,6 +315,14 @@ details.legend .items span { display: inline-flex; align-items: center; gap: var
 /* Настройки (25.10): строки «подпись — значение», строка открывает лист; в идущей игре настройки «до старта» не показываются. */
 .settings .settings-group h3 { display: flex; align-items: center; gap: var(--sp-2); }
 .settings .settings-group h3 .add { margin-left: auto; }
+/* Разделы настроек свёрнуты (решение владельца 05.11): заголовок — summary, раскрывается нажатием; кнопки в заголовке (справка, «+») раздел не переключают. */
+details.settings-group > summary { list-style: none; display: flex; align-items: center; gap: var(--sp-2); min-height: var(--touch); cursor: pointer; }
+details.settings-group > summary::-webkit-details-marker { display: none; }
+details.settings-group > summary h3 { flex: 1 1 auto; margin: 0; }
+details.settings-group > summary .tools { display: inline-flex; align-items: center; gap: var(--sp-1); }
+details.settings-group > summary .chev { flex: none; color: var(--muted); transition: transform var(--dur-fast); }
+details.settings-group[open] > summary .chev { transform: rotate(180deg); }
+details.settings-group > summary + * { margin-top: var(--sp-1); }
 .set-row { appearance: none; display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--touch); padding: var(--sp-1) 0; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font: inherit; font-size: var(--fs-md); text-align: left; line-height: var(--lh-ui); white-space: normal; justify-content: flex-start; cursor: pointer; }
 .set-row:hover { background: none; }
 /* Без заливки при нажатии (владелец 30.10: «появляется светлая заливка, убрать»). */

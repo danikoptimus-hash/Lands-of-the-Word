@@ -150,6 +150,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     }
     return {
       daytime,
+      // Часы сервера (мс): паузы отмычки и печати клиент считает по ним, а не по часам устройства (05.11).
+      now: Date.now(),
       visitors,
       wall,
       node: { key: node.key, bookCode: node.bookCode, cityType: node.cityType, ruined: node.ruined },

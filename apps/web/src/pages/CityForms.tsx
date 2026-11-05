@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { t } from "../lib/i18n";
-import { fmtDate, fmtLeft } from "../lib/format";
+import { fmtDate, fmtPause } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Help } from "../components/Help";
 import type { CrosswordWordDto } from "../lib/api";
@@ -344,7 +344,7 @@ export function PickCooling({ until, now, label, total }: { until: number; now: 
         <circle className="heat" cx="18" cy="18" r="14" strokeDasharray={C} strokeDashoffset={C * (1 - frac)} />
         <path className="pick" d="M13 23l7-7m0 0 2-2m-2 2 1.5 1.5M20 16l-1.5-1.5" />
       </svg>
-      <span className="small">{label}: <b>{fmtLeft(left)}</b></span>
+      <span className="small">{label}: <b>{fmtPause(left)}</b></span>
     </span>
   );
 }

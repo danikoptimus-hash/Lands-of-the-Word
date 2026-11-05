@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type PeaceTeamDto } from "../lib/api";
 import { t } from "../lib/i18n";
+import { fmtDate } from "../lib/format";
 import { useUi } from "../lib/ui";
 import { Icon } from "./Icon";
 import { Sheet } from "./Sheet";
 
 type PeaceData = { canSpeak: boolean; teams: PeaceTeamDto[] };
 
+/** Срок мира словами (решение владельца 22.10): «до 29 окт.», «до конца игры»; у предложения — «на 7 дн.». */
+export function peaceTerm(p: PeaceTeamDto): string {
+  if (p.days === null || p.days === undefined) return "";
+  if (p.days === 0) return t("до конца игры");
+  if (p.state === "peace" && p.until) return t("до {d}", { d: fmtDate(p.until, { time: false }) });
+  return t("на {n} дн.", { n: p.days });
+}
+
 /**
  * Мир с другой командой — из её профиля (решение владельца 04.11: «кнопка „Предложить мир“ должна также переехать в профиль
  * команды»; до того — меню «⋯» в рейтинге). Капитану, заместителю или послу: «Предложить мир» (со сроком в днях, решение
  * владельца 22.10) или «Расторгнуть мир» (только старый мир без срока). Принять или отклонить входящее предложение —
- * по-прежнему в «Командах».
+ * тоже здесь (решение владельца 05.11: «убрать отсюда эти кнопки, они должны появляться в профиле команды»); в ряду
+ * команд остался только знак «предлагает мир».
  */
 export function PeaceActions({ gameId, teamId }: { gameId: string; teamId: string }) {
   const { notify, confirm } = useUi();
@@ -38,6 +48,13 @@ export function PeaceActions({ gameId, teamId }: { gameId: string; teamId: strin
       {p.state === "none" && <button type="button" className="secondary sm" disabled={busy} onClick={() => setOffer(true)}><Icon name="handshake" />{t("Предложить мир")}</button>}
       {p.state === "peace" && p.breakable && <button type="button" className="secondary sm" disabled={busy} onClick={() => void breakPeace()}><Icon name="x" />{t("Расторгнуть мир")}</button>}
       {p.state === "offered" && <span className="muted small"><Icon name="handshake" />{t("мир предложен")}</span>}
+      {p.state === "incoming" && (
+        <>
+          <span className="muted small peace-incoming"><Icon name="handshake" />{peaceTerm(p) ? `${t("предлагает мир")} ${peaceTerm(p)}` : t("предлагает мир")}</span>
+          <button type="button" className="sm" disabled={busy} onClick={() => void call(`/api/games/${gameId}/peace/${p.peaceId}/accept`, {}, t("Мир заключён"))}><Icon name="check" />{t("Принять")}</button>
+          <button type="button" className="secondary sm" disabled={busy} onClick={() => void call(`/api/games/${gameId}/peace/${p.peaceId}/decline`, {}, t("Предложение отклонено"))}>{t("Отклонить")}</button>
+        </>
+      )}
       {offer && (
         <Sheet size="sm" title={t("Предложить мир команде «{team}»", { team: p.team.name })} onClose={() => setOffer(false)}>
           <p className="hint">{t("Пока мир действует, команды не бросают вызов городам друг друга и не объявляют осад. Расторгнуть мир раньше срока нельзя.")}</p>

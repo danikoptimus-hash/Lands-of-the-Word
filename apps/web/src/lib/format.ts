@@ -48,3 +48,14 @@ export function fmtLeft(ms: number): string {
   if (h > 0) return t("{h} ч {m} мин", { h, m: mm });
   return t("{m} мин", { m: mm });
 }
+
+/**
+ * Пауза отмычки и печати (решение владельца 05.11: пауза короче минуты выглядела как «1 мин»): секунды, пока меньше минуты,
+ * дальше минуты с секундами («4 мин 59 с»); ровные минуты и часы — как fmtLeft.
+ */
+export function fmtPause(ms: number): string {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  if (s < 60) return t("{n} с", { n: s });
+  if (s >= 3600 || s % 60 === 0) return fmtLeft(ms);
+  return t("{m} мин {s} с", { m: Math.floor(s / 60), s: s % 60 });
+}
