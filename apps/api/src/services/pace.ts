@@ -39,9 +39,27 @@ export function versesByDay(recited: Recited[], days: string[], tz: string): Map
  * за партию всеми командами — стих, принятый у нескольких участников или команд, считается один раз.
  */
 export function uniqueVerses(recited: Recited[]): number {
-  const seen = new Set<string>();
-  for (const e of recited) for (let i = e.startIdx; i <= e.endIdx; i++) seen.add(`${e.bookCode}:${i}`);
-  return seen.size;
+  return uniqueVersesByTeam(recited).total;
+}
+
+/**
+ * Уникальные стихи по командам (решение владельца 05.11: «фактоиды пересчитывались в зависимости от выбранных легенд»):
+ * каждому стиху — номер, у каждой команды — список номеров её стихов; клиент берёт объединение по включённым командам.
+ */
+export function uniqueVersesByTeam(recited: Recited[]): { total: number; byTeam: Record<string, number[]> } {
+  const ids = new Map<string, number>();
+  const byTeam = new Map<string, Set<number>>();
+  for (const e of recited) {
+    let set = byTeam.get(e.teamId);
+    if (!set) { set = new Set(); byTeam.set(e.teamId, set); }
+    for (let i = e.startIdx; i <= e.endIdx; i++) {
+      const key = `${e.bookCode}:${i}`;
+      let id = ids.get(key);
+      if (id === undefined) { id = ids.size; ids.set(key, id); }
+      set.add(id);
+    }
+  }
+  return { total: ids.size, byTeam: Object.fromEntries([...byTeam].map(([teamId, s]) => [teamId, [...s].sort((a, b) => a - b)])) };
 }
 
 export async function paceForecast(gameId: string) {
@@ -51,7 +69,7 @@ export async function paceForecast(gameId: string) {
   const end = game.finishedAt ?? new Date();
   const T = Math.max((end.getTime() - start.getTime()) / DAY, 0.5);
   const dayOf = (d: Date) => (d.getTime() - start.getTime()) / DAY;
-  const [K, teams, rows, states, wonBattles, wonSieges, entries, blocks] = await Promise.all([
+  const [K, teams, rows, states, wonBattles, wonSieges, entries, blocks, memberRows] = await Promise.all([
     prisma.mapNode.count({ where: { gameId, kind: "CITY" } }),
     prisma.team.findMany({ where: { gameId }, select: { id: true, name: true, color: true, avatarId: true }, orderBy: { index: "asc" } }),
     prisma.journal.findMany({ where: { gameId, kind: { in: ["city_captured", "ruins_taken", "task_solved", "deed_approved", "quarry_approved"] } }, select: { kind: true, teamId: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
@@ -61,7 +79,10 @@ export async function paceForecast(gameId: string) {
     // Стихи: принятые записи испытаний без перенесённых из прошлого вызова и принятые блоки стены (сгоревшие и починки тоже).
     prisma.battleEntry.findMany({ where: { battle: { gameId }, status: "APPROVED", carried: false }, select: { userId: true, teamId: true, startIdx: true, endIdx: true, decidedAt: true, createdAt: true, battle: { select: { bookCode: true } } } }),
     prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED", cargo: false }, select: { userId: true, teamId: true, bookCode: true, startIdx: true, endIdx: true, decidedAt: true, createdAt: true } }),
+    // Участников в командах — для «дел на участника» (решение владельца 05.11).
+    prisma.membership.groupBy({ by: ["teamId"], where: { team: { gameId } }, _count: { _all: true } }),
   ]);
+  const membersOf = new Map(memberRows.map((r) => [r.teamId, r._count._all]));
   // Взятие города — выполнением заданий (и руин тоже). Переход города по испытанию или осаде (замечание владельца 01.11:
   // «отвоевал 2 города, а на графике это не отобразилось») общий счёт не меняет, а линии команд — да: минус у хранителей, плюс у претендентов.
   const caps = rows.filter((r) => r.kind === "city_captured" || r.kind === "ruins_taken").map((r) => ({ day: dayOf(r.createdAt), at: r.createdAt, teamId: r.teamId }));
@@ -116,15 +137,15 @@ export async function paceForecast(gameId: string) {
     ...blocks.map((b) => ({ userId: b.userId, teamId: b.teamId, bookCode: b.bookCode, startIdx: b.startIdx, endIdx: b.endIdx, at: b.decidedAt ?? b.createdAt })),
   ];
   const verses = versesByDay(recited, days, tz);
-  const versesUnique = uniqueVerses(recited);
+  const uniq = uniqueVersesByTeam(recited);
   const logistic: Pt[] = []; for (let d = 0; d <= T + horizon; d += 1) logistic.push({ day: d, value: best.K / (1 + Math.exp(-best.r * (d - best.t0))) });
   return {
     tz, startedAt: start, now: end, T, K, n, rate, rampDay, dailyTasksAvg, dailyDeedsAvg, milestones,
-    teams,
+    teams: teams.map((t) => ({ ...t, members: membersOf.get(t.id) ?? 0 })),
     fact: caps.map((c, i) => ({ day: c.day, value: i + 1, teamId: c.teamId })),
     transfers,
     deeds: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => deedsByDay.get(d)?.get(t.id) ?? 0) })), fitDays },
-    verses: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => verses.get(d)?.get(t.id) ?? 0) })), fitDays, unique: versesUnique },
+    verses: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => verses.get(d)?.get(t.id) ?? 0) })), fitDays, unique: uniq.total, uniqueIds: uniq.byTeam },
     logistic: { K: best.K, r: best.r, t0: best.t0, curve: logistic, finish: Object.fromEntries(milestones.map((m) => [m, m <= n ? null : logisticAt(m)])) },
   };
 }
