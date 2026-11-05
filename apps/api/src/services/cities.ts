@@ -12,7 +12,8 @@ import { gridLetters, layoutCrossword } from "./crossword.js";
  * Ответы на клиент никогда не уходят: проверка только здесь.
  */
 
-const taskBase = { scope: z.enum(["district", "group", "book"]), groupDistricts: z.array(z.number().int().min(1)).optional(), prompt: z.string().min(1) };
+/** reveal — стих-подтверждение (решение владельца 05.11: «при выборе правильного ответа должен показаться стих»): команда видит его только после верного ответа. */
+const taskBase = { scope: z.enum(["district", "group", "book"]), groupDistricts: z.array(z.number().int().min(1)).optional(), prompt: z.string().min(1), reveal: z.string().min(1).optional() };
 const taskSchema = z.discriminatedUnion("type", [
   z.object({ ...taskBase, type: z.literal("number"), answer: z.number() }),
   z.object({ ...taskBase, type: z.literal("text"), answers: z.array(z.string().min(1)).min(1) }),

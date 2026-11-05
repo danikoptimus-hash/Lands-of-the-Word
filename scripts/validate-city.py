@@ -133,7 +133,8 @@ def check(path):
                     if len(grid_letters(alt)) != len(g): errs.append(f"задание {i}: alt «{alt}» другой длины, чем «{a}»")
                 if not w.get("clue"): errs.append(f"задание {i}: слово «{a}» без вопроса")
                 if len(g) < 2 or not re.fullmatch(r"[А-Я]+", g): errs.append(f"задание {i}: слово «{a}» — только буквы, не короче двух")
-                if norm(a) not in scope_text: errs.append(f"задание {i}: слово «{a}» не найдено в стихах района")
+                # Слово из другого места Писания — с пометкой источника (решение владельца 05.11: «дьявол» по 1 Ин. 3:12).
+                if norm(a) not in scope_text and not w.get("ref"): errs.append(f"задание {i}: слово «{a}» не найдено в стихах района")
                 if len(norm(a)) >= 4 and re.search(r"\b" + re.escape(norm(a)) + r"\b", leak): errs.append(f"задание {i}: слово «{a}» видно в названии/пересказе района")
             lay = layout_crossword(answers)
             if lay["rows"] > 14 or lay["cols"] > 14: warns.append(f"задание {i}: сетка кроссворда {lay['rows']}×{lay['cols']} крупная для телефона")
