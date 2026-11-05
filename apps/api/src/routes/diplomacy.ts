@@ -12,7 +12,7 @@ import { days, rulesOf } from "../services/rules.js";
 import { notifyTeam } from "../services/notify.js";
 import { err, fmtDay, msg, toLocale } from "../services/i18n.js";
 import { loadBook, verseText, formatRange, parseDistrictRange } from "../services/bible.js";
-import { loadCityContent } from "../services/cities.js";
+import { chiasmHint, loadCityContent } from "../services/cities.js";
 import { BOOKS, hexCorners, parseVertexKey, vertexHexes, vertexKey } from "@lotw/domain";
 import { journal, teamNames } from "../services/journal.js";
 
@@ -49,14 +49,18 @@ export async function expirePassages(gameId?: string): Promise<void> {
  * Дипломатия (2.14 А): запрос прохода через чужой город, ответ владельца (отзыва нет — дал, значит дал; разрешение
  * сбрасывается со сменой владельца города: решение владельца 18.09); роли (2.15): разведчик, пророк; перенос столицы (2.9).
  */
-/** Текст подсказки пророка: стихи района задания (для группы — районов группы, для всей книги — первого района), не больше 60 стихов. */
-async function buildHint(gameId: string, nodeKey: string, i: number): Promise<{ verses: string; text: string[] } | null> {
+/**
+ * Текст подсказки пророка: стихи района задания (для группы — районов группы, для всей книги — первого района), не больше 60 стихов.
+ * К хиазму — не текст, а одна зеркальная пара строк (`pair`, решение владельца 05.11): текст истории команда и так видит в районе.
+ */
+async function buildHint(gameId: string, nodeKey: string, i: number): Promise<{ verses: string; text: string[]; pair?: ReturnType<typeof chiasmHint> } | null> {
   const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: nodeKey } } });
   const [content, book] = await Promise.all([loadCityContent(node.bookCode ?? ""), loadBook(node.bookCode ?? "")]);
   const task = content?.tasks[i];
   if (!content || !task || !book) return null;
   // Районы подсказки: свой район; для группы — районы группы; для всей книги — первый район (направление, не вся книга).
   const idx = task.scope === "district" ? [i] : task.scope === "group" ? (task.groupDistricts ?? []).map((n) => n - 1) : [0];
+  if (task.type === "chiasm") return { verses: idx.map((di) => content.districts[di]?.verses ?? "").filter(Boolean).join("; "), text: [], pair: chiasmHint(task) };
   const HINT_MAX = 60;
   const text: string[] = [];
   let verses = "";
@@ -245,7 +249,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     return { kind: node.kind, bookCode: node.bookCode, cityType: node.cityType, hexes: around.map((h) => ({ q: h.q, r: h.r, terrain: h.terrain, rotation: h.rotation })) };
   });
 
-  /** Пророк: раз в неделю открыть подсказку к любому заданию города — текст стихов района (или районов группы). Показывается один раз, только пророку. */
+  /** Пророк: раз в неделю открыть подсказку к любому заданию города — текст стихов района (или районов группы), к хиазму — одна пара строк. Показывается один раз, только пророку. */
   app.post("/api/games/:id/my-city/:nodeKey/hint", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const m = await requireActiveMember(request, reply, id);
@@ -273,7 +277,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
       prisma.membership.update({ where: { teamId_userId: { teamId: m.team.id, userId: request.user!.id } }, data: { hintedAt: new Date() } }),
     ]);
     publish(id, { type: "cities", teamId: m.team.id });
-    return { ok: true, verses: hint.verses, text: hint.text };
+    return { ok: true, verses: hint.verses, text: hint.text, pair: hint.pair ?? null };
   });
 
   /** Капитан переносит столицу на другой свой город: один раз за игру, тайно, но не пока на столицу брошен вызов (решение владельца 18.09). Вторую столицу переносить нельзя. */
