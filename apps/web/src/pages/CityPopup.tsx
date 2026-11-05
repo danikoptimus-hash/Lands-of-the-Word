@@ -59,6 +59,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   const [order, setOrder] = useState<string[] | null>(null);
   const [orderResult, setOrderResult] = useState<number | null>(null);
   const [taskIndex, setTaskIndex] = useState<number | null>(null);
+  useEffect(() => { setRevealOnce(null); }, [taskIndex]);
   /** Письмо пророка: показывается один раз сразу после открытия подсказки (решение владельца 22.09), после закрытия исчезает. */
   const [letter, setLetter] = useState<{ verses: string; text: string[]; /** Хиазм: вместо текста района — одна зеркальная пара строк (решение владельца 05.11). */ pair: ChiasmPairDto | null } | null>(null);
   /** «К районам» возвращает к тому району, из которого ушли (решение владельца 22.09): запоминаем индекс и после
@@ -84,6 +85,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   /** Сцены форм: замок открылся/заклинило, районы только что встали по порядку, какой сектор печати выбит, сургуч. */
   const [lockState, setLockState] = useState<"idle" | "open" | "jam">("idle");
   const [justSolved, setJustSolved] = useState(false);
+  /** Стих-подтверждение приходит один раз, в ответ на верный ответ, и не хранится: ответы решённых заданий не показываются (решение владельца 05.11). */
+  const [revealOnce, setRevealOnce] = useState<{ index: number; text: string } | null>(null);
   const [struck, setStruck] = useState<number | null>(null);
   const [capResult, setCapResult] = useState<"ok" | "bad" | null>(null);
 
@@ -141,6 +144,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
     setBusy(true); setError(null);
     try {
       const r = await api<{ correct: boolean; fragment?: string; retryAt?: number | null; wrong?: number; personal?: boolean; reveal?: string | null }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
+      setRevealOnce(r.correct && r.reveal ? { index, text: r.reveal } : null);
       if (r.correct && r.personal) notify(t("Верно: задание засчитано вам. Решено вами: {a} из {b}", { a: mine.length + 1, b: total }));
       else if (r.correct) { setStruck(index); notify(t("Верно. Знак шифра: {f}", { f: r.fragment ?? "" })); await sleep(900); }
       else notify(t("Неверно. Отмычка остывает: следующая попытка через {t}", { t: r.retryAt ? fmtPause(r.retryAt - Date.now() - skew.current) : "" }), "bad");
@@ -389,7 +393,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       )}
       {!sleeping && city?.content && task && (
         <TaskView key={task.index} task={task} onPrev={prevTask != null ? () => setTaskIndex(prevTask) : null} onNext={nextTask != null ? () => setTaskIndex(nextTask) : null} teamDone={done.includes(task.index)} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={mine.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
-          hintsUsed={city.state.hintTasks.filter((x) => x === task.index).length} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} draft={city.state.taskDrafts?.[String(task.index)]}
+          reveal={revealOnce?.index === task.index ? revealOnce.text : null} hintsUsed={city.state.hintTasks.filter((x) => x === task.index).length} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} draft={city.state.taskDrafts?.[String(task.index)]}
           lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} pauseSteps={city.state.pauseSteps} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />
       )}
       {letter && (
@@ -421,7 +425,7 @@ const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.som
 /** Пара строк хиазма в письме пророка: буква места (Б), строки первой и второй половины, номер пары от начала, число пар и номер письма. */
 type ChiasmPairDto = { mark: string; first: string; second: string; place: number; n: number; step: number };
 
-function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintsUsed, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Соседние задания: кнопки «назад/вперёд» в шапке задания (15.10); null — края списка. */ onPrev: (() => void) | null; onNext: (() => void) | null; /** Команда уже открыла знак этого задания, а я ещё не решал: решаю для своего зачёта (решение владельца 05.10). */ teamDone?: boolean; /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; /** Сколько писем пророка к заданию уже открыто: обычно 0 или 1, к хиазму — по паре на свечу (05.11). */ hintsUsed: number; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
+function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, reveal = null, hintsUsed, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Соседние задания: кнопки «назад/вперёд» в шапке задания (15.10); null — края списка. */ onPrev: (() => void) | null; onNext: (() => void) | null; /** Команда уже открыла знак этого задания, а я ещё не решал: решаю для своего зачёта (решение владельца 05.10). */ teamDone?: boolean; /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; /** Стих-подтверждение, один раз сразу после верного ответа (05.11); сервер его не хранит. */ reveal?: string | null; /** Сколько писем пророка к заданию уже открыто: обычно 0 или 1, к хиазму — по паре на свечу (05.11). */ hintsUsed: number; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
   /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
   useAwayCounter(done ? null : `/api/games/${gameId}/my-city/${nodeKey}/tasks/${task.index}/focus`);
@@ -478,8 +482,8 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
         </details>
       )}
       {!(task.type === "text" && gap && !done) && <p className="prompt no-copy" onCopy={(e) => e.preventDefault()}>{task.prompt}</p>}
-      {/* Стих-подтверждение (решение владельца 05.11): сервер отдаёт его только у решённого задания. */}
-      {task.reveal && <div className="note info reveal"><Icon name="book" /><span>{task.reveal}</span></div>}
+      {/* Стих-подтверждение (решение владельца 05.11): только в момент верного ответа; после перезахода ответы решённых заданий не показываются. */}
+      {reveal && <div className="note info reveal"><Icon name="book" /><span>{reveal}</span></div>}
       {!done && !locked && (lock?.wrong ?? 0) > 0 && <p className="muted small">{t("Ошибок подряд: {n} · следующая пауза {t}", { n: lock!.wrong, t: fmtPause(nextPause * 1000) })}</p>}
       {locked && lock && (
         <div className="note bad lock-note">
@@ -505,7 +509,7 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
       {hintsUsed > 0 && <p className="note info"><Icon name="sparkle" /><span>{task.type === "chiasm" ? t("Пророк открыл пар хиазма: {k} из {n}.", { k: hintsUsed, n: task.n }) + (hintsUsed < task.n ? " " + t("Следующую откроет новая свеча.") : "") : t("Подсказка пророка к этому заданию уже показана: она видна один раз.")}</span></p>}
       {hintsUsed < (task.type === "chiasm" ? task.n : 1) && !done && canHint && <p className="mt-2 row nowrap"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Свеча пророка")}</button><Help>{task.type === "chiasm" ? t("Каждая свеча, раз в неделю, открывает новую пару строк хиазма. Видит только пророк.") : t("Раз в неделю открывает текст района. Видит только пророк.")}</Help></p>}
       {done ? (<>
-        {task.type === "chiasm" && task.solution && <ChiasmBoard items={task.items} slots={[]} n={task.n} center={task.center} look={task.look} onChange={() => undefined} disabled state="open" solution={task.solution} />}
+        {/* Ответ решённого задания не показывается (решение владельца 05.11): только «выполнено» и знак шифра. */}
         <div className="note ok"><Icon name="check" /><span>{t("Выполнено. Знак шифра: {f}", { f: fragment ?? "" })}</span></div></>
       ) : (
         <div className="answer">

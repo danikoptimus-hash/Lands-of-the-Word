@@ -96,7 +96,7 @@ export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWro
  * место (первое свободное или выбранное нажатием); нажатие на занятое место возвращает строку в кучу. До ответа сервера
  * доска ничем не выдаёт правильность; неверно — доску встряхивает, дальше работает та же остывающая отмычка.
  */
-export function ChiasmBoard({ items, slots, n, center, look, onChange, disabled, state, solution }: { items: Array<{ id: string; text: string }>; slots: Array<string | null>; n: number; center: string; look: "tower" | "mirror"; onChange: (slots: Array<string | null>) => void; disabled?: boolean; state: "idle" | "open" | "jam"; /** Решённое задание: строки по порядку прочтения — доска собрана. */ solution?: string[] | null }) {
+export function ChiasmBoard({ items, slots, n, center, look, onChange, disabled, state }: { items: Array<{ id: string; text: string }>; slots: Array<string | null>; n: number; center: string; look: "tower" | "mirror"; onChange: (slots: Array<string | null>) => void; disabled?: boolean; state: "idle" | "open" | "jam" }) {
   const [active, setActive] = useState<number | null>(null);
   const text = (id: string | null) => (id ? items.find((x) => x.id === id)?.text ?? "" : "");
   const placed = new Set(slots.filter(Boolean) as string[]);
@@ -108,10 +108,10 @@ export function ChiasmBoard({ items, slots, n, center, look, onChange, disabled,
   const letters = ["А", "Б", "В", "Г", "Д", "Е", "Ж", "З"];
   const mark = (k: number) => (k < n ? letters[k] ?? String(k + 1) : (letters[2 * n - 1 - k] ?? String(2 * n - k)) + "′");
   const slot = (k: number) => {
-    const txt = solution ? solution[k] ?? "" : text(slots[k] ?? null);
-    const cls = "ch-slot " + (k < n ? "man" : "god") + (txt ? " filled" : " empty") + (!solution && target === k ? " active" : "");
+    const txt = text(slots[k] ?? null);
+    const cls = "ch-slot " + (k < n ? "man" : "god") + (txt ? " filled" : " empty") + (target === k ? " active" : "");
     return (
-      <button key={k} type="button" className={cls} disabled={disabled || Boolean(solution)} onClick={() => tap(k)} aria-label={txt ? t("Место {m}: {v}", { m: mark(k), v: txt }) : t("Место {m}, свободно", { m: mark(k) })}>
+      <button key={k} type="button" className={cls} disabled={disabled} onClick={() => tap(k)} aria-label={txt ? t("Место {m}: {v}", { m: mark(k), v: txt }) : t("Место {m}, свободно", { m: mark(k) })}>
         <b className="ch-mark" aria-hidden="true">{mark(k)}</b><span>{txt || "…"}</span>
       </button>
     );
@@ -134,13 +134,11 @@ export function ChiasmBoard({ items, slots, n, center, look, onChange, disabled,
         </div>
       )}
       <div className="ch-legend"><span className="man">{t("Замысел человека")}</span><span className="god">{t("Ответ Бога")}</span></div>
-      {!solution && (
-        <div className="ch-pile" role="group" aria-label={t("Строки")}>
-          {pile.length === 0
-            ? <p className="hint">{t("Все строки на местах. Проверьте порядок и сложите хиазм.")}</p>
-            : pile.map((x) => <button key={x.id} type="button" className="ch-chip" disabled={disabled || target === null} onClick={() => put(x.id)}>{x.text}</button>)}
-        </div>
-      )}
+      <div className="ch-pile" role="group" aria-label={t("Строки")}>
+        {pile.length === 0
+          ? <p className="hint">{t("Все строки на местах. Проверьте порядок и сложите хиазм.")}</p>
+          : pile.map((x) => <button key={x.id} type="button" className="ch-chip" disabled={disabled || target === null} onClick={() => put(x.id)}>{x.text}</button>)}
+      </div>
       {state === "jam" && <p className="small ch-bad" role="status">{t("Порядок не тот: строки стоят не на своих местах.")}</p>}
     </div>
   );

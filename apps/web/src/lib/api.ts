@@ -83,12 +83,12 @@ export interface StormSlot { weekday: number; from: string; to: string }
 /** Город глазами команды: районы (сцены книги), задания без ответов, буквы шифра, состояние. */
 export interface CityDistrictDto { id: string; verses: string; title: string; summary: string; index: number | null }
 export type CityTaskDto =
-  | { index: number; scope: string; groupDistricts: number[] | null; /** Стих-подтверждение (05.11): есть только у решённого задания. */ reveal?: string; type: "number" | "text"; prompt: string }
-  | { index: number; scope: string; groupDistricts: number[] | null; /** Стих-подтверждение (05.11): есть только у решённого задания. */ reveal?: string; type: "choice"; prompt: string; options: string[] }
-  | { index: number; scope: string; groupDistricts: number[] | null; /** Стих-подтверждение (05.11): есть только у решённого задания. */ reveal?: string; type: "order"; prompt: string; items: Array<{ id: string; text: string }> }
-  | { index: number; scope: string; groupDistricts: number[] | null; /** Стих-подтверждение (05.11): есть только у решённого задания. */ reveal?: string; type: "crossword"; prompt: string; rows: number; cols: number; words: CrosswordWordDto[] }
-  /** Хиазм (решение владельца 05.11): перетасованные строки, центр, вид доски; solution — строки по порядку, только у решённого. */
-  | { index: number; scope: string; groupDistricts: number[] | null; reveal?: string; type: "chiasm"; prompt: string; intro: string; center: string; look: "tower" | "mirror"; n: number; items: Array<{ id: string; text: string }>; solution?: string[] };
+  | { index: number; scope: string; groupDistricts: number[] | null; type: "number" | "text"; prompt: string }
+  | { index: number; scope: string; groupDistricts: number[] | null; type: "choice"; prompt: string; options: string[] }
+  | { index: number; scope: string; groupDistricts: number[] | null; type: "order"; prompt: string; items: Array<{ id: string; text: string }> }
+  | { index: number; scope: string; groupDistricts: number[] | null; type: "crossword"; prompt: string; rows: number; cols: number; words: CrosswordWordDto[] }
+  /** Хиазм (решение владельца 05.11): перетасованные строки, центр, вид доски. Ответы решённых заданий (собранный хиазм, стих-подтверждение) сервер не отдаёт (05.11). */
+  | { index: number; scope: string; groupDistricts: number[] | null; type: "chiasm"; prompt: string; intro: string; center: string; look: "tower" | "mirror"; n: number; items: Array<{ id: string; text: string }> };
 /** Слово кроссворда без букв: номер, клетка начала, направление, длина и вопрос. Ответ — слова в порядке этого списка. */
 export interface CrosswordWordDto { n: number; row: number; col: number; dir: "across" | "down"; len: number; clue: string }
 /** Растущая пауза задания после неверных ответов: сколько ошибок подряд и до какого момента ответ не принимается. */

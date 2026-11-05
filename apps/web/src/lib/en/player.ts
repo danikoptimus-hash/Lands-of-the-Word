@@ -712,7 +712,7 @@ export const PLAYER: Record<string, string> = {
   "Стих сдаётся один раз: что человек сдал в испытаниях или стеной, второй раз ему не засчитывается. Нажмите на стих или проведите пальцем по ряду — увидите, кому эти стихи ещё можно поручить.": "A verse is submitted once: what a person has submitted in trials or as a wall block does not count for them again. Tap a verse or swipe along a row to see who can still take these verses.",
   "Итог сверху: отмечено в этом испытании плюс поручено по плану; стихи воина считаются вдвое.": "The total above: marked in this trial plus assigned in the plan; a warrior’s verses count double.",
   "Эти стихи уже некому поручить целиком: у каждого в команде часть из них сдана.": "Nobody can take all of these verses: everyone in the team has submitted some of them.",
-  "Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажмите на блок — увидите имена; капитан поручает блок.": "The number on a brick is how many team members can still take it; “all” means the block is completely free. Tap a block to see the names; the captain assigns the block.",
+  "Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажатие выбирает блок; удержание показывает имена, капитан поручает блок.": "The number on a brick is how many team members can still take it; “all” means the block is completely free. A tap selects the block; press and hold to see the names, the captain assigns the block.",
   "Могут взять: {n}": "Can take: {n}",
   "Поручен: {n}": "Assigned: {n}",
   "все": "all",
