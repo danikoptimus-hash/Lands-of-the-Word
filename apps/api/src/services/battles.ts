@@ -12,6 +12,7 @@ import { onCityOwned, returnStaleTasks } from "./teamMap.js";
 import { layWallBeforeDeadline, wallOf } from "./wall.js";
 import { days, rulesOf, type Rules } from "./rules.js";
 import { sweepSieges } from "./siege.js";
+import { sinkDueWrecks } from "./wrecks.js";
 import { BOOKS } from "@lotw/domain";
 
 const bookName = (code: string) => BOOKS.find((b) => b.code === code)?.nameRu ?? code;
@@ -466,6 +467,7 @@ export async function sweep(gameId?: string): Promise<void> {
   const lost = await prisma.battle.findMany({ where: { ...(gameId ? { gameId } : {}), status: "DEFENSE", defenseDeadline: { lt: now }, defenseDoneAt: null } });
   for (const b of lost) await resolveWon(b);
   await sweepSieges(gameId, now);
+  await sinkDueWrecks(gameId, now);
   // Еженедельная летопись не рассылается (решение владельца 25.10: «у команд и так летопись ведётся»).
   if (!gameId) await sweepDigests(now);
   // Усталость городов и возврат зависших дел — по идущим играм.

@@ -76,6 +76,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     if (!(await requireGameAdmin(request, reply, id))) return;
     const body = deedBody.parse(request.body);
+    if (body.wreckSinkAt && Date.parse(body.wreckSinkAt) <= Date.now()) return reply.code(400).send({ error: "validation", message: err(request, "Срок затопления корабля должен быть в будущем") });
     // Срочное задание (04.11) — не дело Каменоломни: один из двух признаков.
     const deed = await prisma.deed.create({ data: { ...body, quarry: body.wreck ? false : body.quarry, gameId: id } });
     // Срочное задание — на карте появляется разбитый корабль (решение владельца 04.11).
@@ -94,6 +95,8 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const { disabled } = z.object({ disabled: z.boolean().optional() }).parse(request.body);
     const exists = await prisma.deed.findFirst({ where: { id: deedId, gameId: id } });
     if (!exists) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
+    // Новый срок затопления (05.11) — только в будущем; прежний прошедший срок при правке других полей не мешает.
+    if (body.wreckSinkAt && Date.parse(body.wreckSinkAt) <= Date.now() && exists.wreckSinkAt?.getTime() !== Date.parse(body.wreckSinkAt)) return reply.code(400).send({ error: "validation", message: err(request, "Срок затопления корабля должен быть в будущем") });
     const deed = await prisma.deed.update({ where: { id: deedId }, data: { ...body, ...(body.wreck ? { quarry: false } : {}), ...(disabled === undefined ? {} : { disabled }) } });
     // Дело перевели в Каменоломню (решение владельца 20.10) или сделали срочным (04.11): свободные стороны с ним получают другие дела.
     if ((body.quarry && !exists.quarry) || (body.wreck && !exists.wreck)) await reassignOpenSides(id, deedId);

@@ -6,6 +6,7 @@ import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "
 import { pickDeed } from "./services/teamMap.js";
 import { setWreckRandom } from "./routes/wrecks.js";
 import { HEX_SIZE } from "./services/wrecks.js";
+import { sweep } from "./services/battles.js";
 
 /**
  * Разбитые бурей корабли (решение владельца 04.11): срочное дело → корабль на карте у берега; сдача любой команды,
@@ -22,7 +23,7 @@ const del = (url: string, cookie: string) => app.inject({ method: "DELETE", url,
 const get = (url: string, cookie: string) => app.inject({ method: "GET", url, headers: { cookie } });
 const register = async (nickname: string) => (await registerVerified(app, { nickname, password: "secret123" })).headers["set-cookie"] as string;
 const deedBody = (title: string, extra: Record<string, unknown> = {}) => ({ title, description: "Отвезти людям с корабля еду и одеяла", direction: "Посещение", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: null, donationMin: null, quarry: false, stones: 1, quorumPct: null, ...extra });
-interface WreckDto { id: string; deedId: string | null; title: string; q: number; r: number; model: number; cargo: { stones: number; blocks: number }; mine: null | { status: string; cargo: string | null; amount: number | null; adminComment: string; decidedAt: string | null }; doneTeams: number; sunkAt: string | null }
+interface WreckDto { id: string; deedId: string | null; title: string; q: number; r: number; model: number; sinkAt?: string | null; appearedAt?: string; cargo: { stones: number; blocks: number }; mine: null | { status: string; cargo: string | null; amount: number | null; adminComment: string; decidedAt: string | null }; doneTeams: number; sunkAt: string | null }
 const myWrecks = async (cookie: string) => ((await get(`/api/games/${gameId}/my-map`, cookie)).json().wrecks ?? []) as WreckDto[];
 
 beforeAll(async () => {
@@ -46,6 +47,7 @@ beforeAll(async () => {
   expect((await post(`/api/games/${gameId}/start`, adminCookie)).statusCode).toBe(200);
 });
 afterAll(async () => {
+  await prisma.teamEdgeTask.deleteMany({ where: { gameId } });
   setWreckRandom(null);
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, capNick, memNick, cap2Nick] } } });
@@ -206,5 +208,38 @@ describe("Разбитые бурей корабли", () => {
     expect(map.team.cargoBlocks).toBe(0);
     expect((map.cities as Array<{ nodeKey: string; wall: boolean }>).find((c) => c.nodeKey === city.key)?.wall).toBe(true);
     expect(await prisma.journal.count({ where: { gameId, kind: "wall_cargo_laid" } })).toBe(2);
+  });
+});
+
+/** Срок затопления (решение владельца 05.11): задаётся в деле, команды видят таймер, по сроку корабль тонет сам. */
+describe("Срок затопления разбитого корабля", () => {
+  it("срок в деле → таймер у команд; прошлое не принимается; по сроку корабль тонет сам и не поднимается при правке дела", async () => {
+    const past = new Date(Date.now() - 60_000).toISOString();
+    expect((await post(`/api/games/${gameId}/deeds`, adminCookie, deedBody("Снять людей с тонущего корабля", { wreck: true, wreckSinkAt: past }))).statusCode).toBe(400);
+    const soon = new Date(Date.now() + 3_600_000).toISOString();
+    const r = await post(`/api/games/${gameId}/deeds`, adminCookie, deedBody("Снять людей с тонущего корабля", { wreck: true, wreckSinkAt: soon }));
+    expect(r.statusCode).toBe(201);
+    const deedId2 = r.json().deed.id as string;
+    const w = await prisma.wreck.findFirstOrThrow({ where: { gameId, deedId: deedId2, closedAt: null } });
+    expect(w.sinkAt?.toISOString()).toBe(soon);
+    const mine = (await myWrecks(capCookie)).find((x) => x.id === w.id);
+    expect(mine?.sinkAt).toBe(soon);
+    expect(mine?.appearedAt).toBeTruthy();
+    // Правка: срок в прошлое — отказ; новый срок подхватывает открытый корабль.
+    expect((await put(`/api/games/${gameId}/deeds/${deedId2}`, adminCookie, { wreckSinkAt: past })).statusCode).toBe(400);
+    const later = new Date(Date.now() + 7_200_000).toISOString();
+    expect((await put(`/api/games/${gameId}/deeds/${deedId2}`, adminCookie, { wreckSinkAt: later })).statusCode).toBe(200);
+    expect((await prisma.wreck.findUniqueOrThrow({ where: { id: w.id } })).sinkAt?.toISOString()).toBe(later);
+    // Срок вышел (ставим в прошлое мимо проверки маршрута): общий обход топит корабль.
+    await prisma.wreck.update({ where: { id: w.id }, data: { sinkAt: new Date(Date.now() - 1000) } });
+    await prisma.deed.update({ where: { id: deedId2 }, data: { wreckSinkAt: new Date(Date.now() - 1000) } });
+    await sweep(gameId);
+    const sunk = await prisma.wreck.findUniqueOrThrow({ where: { id: w.id } });
+    expect(sunk.sunk).toBe(true);
+    expect(sunk.closedAt).not.toBeNull();
+    expect((await myWrecks(capCookie)).find((x) => x.id === w.id)?.sunkAt).not.toBeNull();
+    // Правка других полей дела с прошедшим сроком не поднимает корабль заново.
+    expect((await put(`/api/games/${gameId}/deeds/${deedId2}`, adminCookie, { wreckStones: 5 })).statusCode).toBe(200);
+    expect(await prisma.wreck.count({ where: { gameId, deedId: deedId2, closedAt: null } })).toBe(0);
   });
 });

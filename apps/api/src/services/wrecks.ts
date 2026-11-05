@@ -49,18 +49,21 @@ export async function wreckSite(gameId: string, seed: number): Promise<{ q: numb
 }
 
 /** Открыть корабль по срочному делу: если открытого ещё нет. Уведомляет все команды, пишет новость, рассылает событие. */
-export async function openWreck(gameId: string, deed: { id: string; title: string; wreckStones: number; wreckBlocks: number }): Promise<{ id: string } | null> {
-  const open = await prisma.wreck.findFirst({ where: { gameId, deedId: deed.id, closedAt: null }, select: { id: true, stones: true, blocks: true, title: true } });
+export async function openWreck(gameId: string, deed: { id: string; title: string; wreckStones: number; wreckBlocks: number; wreckSinkAt: Date | null }): Promise<{ id: string } | null> {
+  const open = await prisma.wreck.findFirst({ where: { gameId, deedId: deed.id, closedAt: null }, select: { id: true, stones: true, blocks: true, title: true, sinkAt: true } });
+  const sinkMs = deed.wreckSinkAt?.getTime() ?? null;
   if (open) {
     // Числа груза и название правят в деле — открытый корабль подхватывает их, чтобы команды видели свежие.
-    if (open.stones !== deed.wreckStones || open.blocks !== deed.wreckBlocks || open.title !== deed.title) { await prisma.wreck.update({ where: { id: open.id }, data: { stones: deed.wreckStones, blocks: deed.wreckBlocks, title: deed.title } }); publish(gameId, { type: "wrecks" }); publish(gameId, { type: "map" }); }
+    if (open.stones !== deed.wreckStones || open.blocks !== deed.wreckBlocks || open.title !== deed.title || (open.sinkAt?.getTime() ?? null) !== sinkMs) { await prisma.wreck.update({ where: { id: open.id }, data: { stones: deed.wreckStones, blocks: deed.wreckBlocks, title: deed.title, sinkAt: deed.wreckSinkAt } }); publish(gameId, { type: "wrecks" }); publish(gameId, { type: "map" }); }
     return null;
   }
+  // Срок затопления уже прошёл (05.11): корабль не поднимается заново при правке дела.
+  if (sinkMs !== null && sinkMs <= Date.now()) return null;
   const n = await prisma.wreck.count({ where: { gameId } });
   const seed = fnv(`${gameId}:${deed.id}:${n}`);
   const site = await wreckSite(gameId, seed);
   if (!site) return null;
-  const wreck = await prisma.wreck.create({ data: { gameId, deedId: deed.id, title: deed.title, q: site.q, r: site.r, model: seed % MODELS, seed: seed % 2_000_000_000, stones: deed.wreckStones, blocks: deed.wreckBlocks } });
+  const wreck = await prisma.wreck.create({ data: { gameId, deedId: deed.id, title: deed.title, q: site.q, r: site.r, model: seed % MODELS, seed: seed % 2_000_000_000, stones: deed.wreckStones, blocks: deed.wreckBlocks, sinkAt: deed.wreckSinkAt } });
   journal(gameId, "wreck_appeared", { everyone: true, vars: { deed: deed.title } });
   const teams = await prisma.team.findMany({ where: { gameId, status: "active" }, select: { id: true } });
   for (const t of teams) notifyTeam(gameId, t.id, "Разбитый бурей корабль просит помощи", (locale) => msg(locale, "У берега разбитый бурей корабль. Срочное задание «{deed}»: выполните его — капитан корабля и команда отблагодарят вас чем-то из груза. Корабль на карте, нажмите на него.", { deed: deed.title }));
@@ -96,6 +99,15 @@ export async function sinkWreck(gameId: string, where: { wreckId?: string; deedI
   return wrecks.length;
 }
 
+/**
+ * Срок затопления вышел (решение владельца 05.11: «поставить таймер заранее, когда корабль утонет»): корабль тонет сам,
+ * как при снятом флажке. Зовётся из общего обхода раз в минуту.
+ */
+export async function sinkDueWrecks(gameId?: string, now = new Date()): Promise<void> {
+  const due = await prisma.wreck.findMany({ where: { ...(gameId ? { gameId } : {}), closedAt: null, sinkAt: { lte: now } }, select: { id: true, gameId: true } });
+  for (const w of due) await sinkWreck(w.gameId, { wreckId: w.id });
+}
+
 /** Корабли на карте команды: открытые — всем; одобренный для этой команды и затонувший — ещё две минуты, на анимацию. */
 export async function wrecksForTeam(gameId: string, teamId: string) {
   const since = new Date(Date.now() - WRECK_LINGER_MS);
@@ -118,6 +130,8 @@ export async function wrecksForTeam(gameId: string, teamId: string) {
       mine: mine ? { status: mine.status, submittedAt: mine.submittedAt.toISOString(), adminComment: mine.adminComment, cargo: mine.cargo, amount: mine.amount, decidedAt: mine.decidedAt?.toISOString() ?? null } : null,
       doneTeams: new Set(w.works.filter((x) => x.status === "APPROVED").map((x) => x.teamId)).size,
       sunkAt: w.sunk && w.closedAt && !approved ? w.closedAt.toISOString() : null,
+      // Срок затопления и появление (05.11): по ним у команды тикает таймер и растёт вода в силуэте корабля.
+      sinkAt: w.sinkAt?.toISOString() ?? null, appearedAt: w.createdAt.toISOString(),
     });
   }
   return out;

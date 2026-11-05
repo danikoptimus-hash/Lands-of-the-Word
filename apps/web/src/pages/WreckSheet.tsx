@@ -9,6 +9,7 @@ import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
 import { LinksField } from "../components/LinksField";
 import { PeoplePicker } from "../components/PeoplePicker";
+import { SinkingShip } from "../components/SinkingShip";
 
 /**
  * Лист срочного задания с разбитого бурей корабля (решение владельца 04.11): описание дела, возможный груз (команда
@@ -44,6 +45,8 @@ export function WreckSheet({ gameId, wreck, members, canWork, asleep = false, co
       ) : (
         <p className="muted small"><Icon name="ship" /> {t("Разбитый бурей корабль у берега просит помощи. Его могут выручить несколько команд.")}<Help>{t("Сдаёт капитан, заместитель или летописец. Администратор проверяет; за принятое задание команда получает что-то одно из груза — что именно, решает жребий. Корабль уходит, когда задание принято.")}</Help></p>
       )}
+      {/* Срок затопления (решение владельца 05.11): обратный отсчёт и корабль, наполняющийся водой. */}
+      {wreck.sinkAt && !approved && !sunk && <SinkingShip sinkAt={wreck.sinkAt} appearedAt={wreck.appearedAt} />}
       {wreck.description && <p className="deed-text">{wreck.description}</p>}
       <p className="meta"><Chip icon="camera">{PROOF_LABEL[wreck.proofType]}</Chip>{wreck.doneTeams > 0 && <span className="muted small"> · {t("уже выручили команд: {n}", { n: wreck.doneTeams })}</span>}</p>
       {/* Груз: команда знает, что на борту, но не знает, что выпадет (решение владельца 04.11). */}
