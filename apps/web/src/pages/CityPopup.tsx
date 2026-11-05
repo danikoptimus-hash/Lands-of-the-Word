@@ -140,7 +140,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   async function answer(index: number, value: unknown): Promise<boolean> {
     setBusy(true); setError(null);
     try {
-      const r = await api<{ correct: boolean; fragment?: string; retryAt?: number | null; wrong?: number; personal?: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
+      const r = await api<{ correct: boolean; fragment?: string; retryAt?: number | null; wrong?: number; personal?: boolean; reveal?: string | null }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
       if (r.correct && r.personal) notify(t("Верно: задание засчитано вам. Решено вами: {a} из {b}", { a: mine.length + 1, b: total }));
       else if (r.correct) { setStruck(index); notify(t("Верно. Знак шифра: {f}", { f: r.fragment ?? "" })); await sleep(900); }
       else notify(t("Неверно. Отмычка остывает: следующая попытка через {t}", { t: r.retryAt ? fmtPause(r.retryAt - Date.now() - skew.current) : "" }), "bad");
@@ -455,6 +455,8 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
         </details>
       )}
       {!(task.type === "text" && gap && !done) && <p className="prompt no-copy" onCopy={(e) => e.preventDefault()}>{task.prompt}</p>}
+      {/* Стих-подтверждение (решение владельца 05.11): сервер отдаёт его только у решённого задания. */}
+      {task.reveal && <div className="note info reveal"><Icon name="book" /><span>{task.reveal}</span></div>}
       {!done && !locked && (lock?.wrong ?? 0) > 0 && <p className="muted small">{t("Ошибок подряд: {n} · следующая пауза {t}", { n: lock!.wrong, t: fmtPause(nextPause * 1000) })}</p>}
       {locked && lock && (
         <div className="note bad lock-note">

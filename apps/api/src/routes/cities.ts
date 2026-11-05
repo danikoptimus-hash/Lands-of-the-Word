@@ -168,7 +168,8 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
             translation: content.translation,
             codeRule: content.codeRule,
             districts: publicDistricts(content, secret, scopeKey, solved),
-            tasks: solved && tasksOpen ? content.tasks.map((t, i) => publicTask(t, i, secret, scopeKey)) : [],
+            // Стих-подтверждение (05.11) — только у решённых заданий: командой или мной.
+            tasks: solved && tasksOpen ? content.tasks.map((t, i) => ({ ...publicTask(t, i, secret, scopeKey), ...(t.reveal && (done.includes(i) || mine.includes(i)) ? { reveal: t.reveal } : {}) })) : [],
             fragments: content.tasks.map((_, i) => (done.includes(i) && !night ? node.cityCode?.[i] ?? null : null)),
           }
         : null,
@@ -312,13 +313,13 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     }
     publish(id, { type: "cities", teamId: c.m.team.id });
     // Личное решение уже открытого командой задания: знак известен, в летопись и к руинам не идёт.
-    if (correct && teamDone) return { correct: true, fragment: c.node.cityCode?.[index] ?? null, personal: true };
+    if (correct && teamDone) return { correct: true, fragment: c.node.cityCode?.[index] ?? null, personal: true, reveal: task.reveal ?? null };
     if (correct) {
       scheduleAwards(id);
       journal(id, "task_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), n: index + 1, book: c.node.bookCode ?? "" } });
       // Руины с сокровищем (решение владельца 18.09): первая команда, решившая все задания руин, получает знак шифра соседнего города.
       if (c.node.ruined && !c.node.treasureTeamId && c.content.tasks.every((_, i) => i === index || c.state.doneTasks.includes(i))) await ruinsTreasure(id, c.m.team.id, c.node.key, c.node.bookCode ?? "");
-      return { correct: true, fragment: c.node.cityCode?.[index] ?? null };
+      return { correct: true, fragment: c.node.cityCode?.[index] ?? null, reveal: task.reveal ?? null };
     }
     return { correct: false, retryAt, wrong: (lock?.wrong ?? 0) + 1 };
   });
