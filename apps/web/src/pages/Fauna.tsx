@@ -25,7 +25,7 @@ interface Isle { x: number; y: number; r: number }
 /** Профиль одного острова: центр и радиус берега по секторам угла. */
 interface Part { cx: number; cy: number; r: number[]; maxR: number }
 /** Мир живности: общий центр и охват (для маршрутов из-за края) плюс профили островов (их несколько: Ветхий и Новый Завет). */
-interface Profile extends Part { parts: Part[]; isles: Isle[]; /** Гексы суши «q,r»: точная проверка берега вдобавок к радиальному профилю (08.10). */ land: Set<string>; hex: number }
+interface Profile extends Part { parts: Part[]; isles: Isle[]; /** Разбитые корабли как круглые препятствия (замечание владельца 05.11: корабль живности прошёл под разбитым); список обновляется каждый шаг мира из WRECKS. */ wrecks: Isle[]; /** Гексы суши «q,r»: точная проверка берега вдобавок к радиальному профилю (08.10). */ land: Set<string>; hex: number }
 
 function partProfile(cs: Array<{ x: number; y: number }>, size: number): Part {
   const cx = cs.reduce((a, c) => a + c.x, 0) / cs.length, cy = cs.reduce((a, c) => a + c.y, 0) / cs.length;
@@ -48,7 +48,7 @@ function islandProfile(hexes: MapHexDto[], size: number, islets: Islet[]): Profi
   const parts = [...groups.values()].map((cs) => partProfile(cs, size));
   const all = partProfile(hexes.map((h) => hexCenter(h, size)), size);
   const isles = islets.map((i) => ({ x: i.x, y: i.y, r: i.cover }));
-  return { ...all, parts, isles, land: new Set(hexes.map((h) => `${h.q},${h.r}`)), hex: size };
+  return { ...all, parts, isles, wrecks: [], land: new Set(hexes.map((h) => `${h.q},${h.r}`)), hex: size };
 }
 /**
  * Точная проверка суши (замечание владельца 08.10: корабль прошёл по мысу у города). Радиальный профиль — это максимум
@@ -326,7 +326,7 @@ function polyGap(a: Array<[number, number]>, b: Array<[number, number]>): number
   return best;
 }
 /** Прямая маршрута не должна проходить сквозь островки (с запасом на отмель и меандр): иначе выбираем другую. */
-const crossesIsle = (p: Profile, x0: number, y0: number, x1: number, y1: number, off: number) => p.isles.some((i) => segDist(i.x, i.y, x0, y0, x1, y1) < i.r + off);
+const crossesIsle = (p: Profile, x0: number, y0: number, x1: number, y1: number, off: number) => p.isles.some((i) => segDist(i.x, i.y, x0, y0, x1, y1) < i.r + off) || p.wrecks.some((i) => segDist(i.x, i.y, x0, y0, x1, y1) < i.r + off);
 /**
  * avoid/sep — чужие маршруты (поводки других кораблей, решение владельца 21.10: корабли упирались друг в друга):
  * из кандидатов берётся хорда, самая далёкая от чужих, и перебор останавливается, как только зазор не меньше sep.
@@ -485,6 +485,10 @@ function coastPen(p: Profile, x: number, y: number, clearance: number): number {
     const dx = x - i.x, dy = y - i.y, d = Math.hypot(dx, dy) || 1e-6, pen = i.r + clearance * 0.8 - d;
     if (pen > best) { best = pen; CNX = dx / d; CNY = dy / d; }
   }
+  for (const i of p.wrecks) { // разбитые корабли — как островки (05.11)
+    const dx = x - i.x, dy = y - i.y, d = Math.hypot(dx, dy) || 1e-6, pen = i.r + clearance * 0.8 - d;
+    if (pen > best) { best = pen; CNX = dx / d; CNY = dy / d; }
+  }
   const lp = landPen(p, x, y, clearance * 0.6);
   if (lp > best) { best = lp; CNX = LNX; CNY = LNY; }
   return best;
@@ -511,6 +515,10 @@ function keepInWater(c: Mover, p: Profile, clearance: number, dt: number, omMax:
     if (pen > 0) { c.x = part.cx + Math.cos(ang) * minR; c.y = part.cy + Math.sin(ang) * minR; if (pen > deep) { deep = pen; nx = Math.cos(ang); ny = Math.sin(ang); } }
   }
   for (const i of p.isles) { // островки — то же правило, круг вместо профиля
+    const dx = c.x - i.x, dy = c.y - i.y, d = Math.hypot(dx, dy) || 1e-6, ir = i.r + clearance * 0.8, pen = ir - d;
+    if (pen > 0) { c.x = i.x + dx / d * ir; c.y = i.y + dy / d * ir; if (pen > deep) { deep = pen; nx = dx / d; ny = dy / d; } }
+  }
+  for (const i of p.wrecks) { // разбитые корабли — как островки (замечание владельца 05.11: корабль прошёл под разбитым)
     const dx = c.x - i.x, dy = c.y - i.y, d = Math.hypot(dx, dy) || 1e-6, ir = i.r + clearance * 0.8, pen = ir - d;
     if (pen > 0) { c.x = i.x + dx / d * ir; c.y = i.y + dy / d * ir; if (pen > deep) { deep = pen; nx = dx / d; ny = dy / d; } }
   }
@@ -1151,6 +1159,7 @@ function createWorld(p: Profile, size: number, seed = 1, epochStart = 0, daily: 
 function stepWorld(w: World, dt: number): void {
   rand = w.rng;
   w.T += dt; const T = w.T;
+  w.p.wrecks = wreckObstacles(w.size, w.epochStart + T);
   // Суточный полёт клина: в назначенную сервером секунду (если она в этой эпохе) клин от своего места летит к городу.
   const d = w.dailyDone ? null : w.daily();
   if (d) {
@@ -1578,9 +1587,12 @@ export function drawShipsPreview(ctx: CanvasRenderingContext2D, size: number, T:
   });
 }
 /** Стенд (scripts): прогон мира живности без экрана — треки положений и курсов для проверки физики движения. */
-export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, step: number, daily: DailyBird | null = null, seed = 1): Array<{ kind: string; samples: Array<[number, number, number, number]> }> {
+export function traceWorld(hexes: MapHexDto[], size: number, seconds: number, step: number, daily: DailyBird | null = null, seed = 1, wrecks: readonly WreckSpec[] = []): Array<{ kind: string; samples: Array<[number, number, number, number]> }> {
   const p = islandProfile(hexes, size, []); if (!p) return [];
-  const w = createWorld(p, size, seed, 0, () => daily);
+  const saved = WRECKS; WRECKS = wrecks;
+  try { return traceWith(createWorld(p, size, seed, 0, () => daily), seconds, step); } finally { WRECKS = saved; }
+}
+function traceWith(w: World, seconds: number, step: number): Array<{ kind: string; samples: Array<[number, number, number, number]> }> {
   const movers: Array<{ kind: string; m: { x: number; y: number; h: number }; car: Carrot | null }> = [...w.cets.map((c) => ({ kind: c.spec.kind, m: c, car: c.car })), ...w.ships.map((sh) => ({ kind: sh.spec.kind, m: sh, car: sh.car })), { kind: "flock", m: w.flock, car: null }];
   const out = movers.map((mv) => ({ kind: mv.kind, samples: [] as Array<[number, number, number, number]> }));
   for (let t = 0; t < seconds; t += step) { stepWorld(w, step); movers.forEach((mv, i) => out[i]!.samples.push([mv.m.x, mv.m.y, mv.m.h, mv.car ? mv.car.wait : -1])); }
@@ -1612,6 +1624,20 @@ let SEA: Bounds | null = null;
 /** Разбитый корабль — всегда самый большой парусник живности (решение владельца 05.11); kind 0–2 — варианты повреждений. */
 const WRECK_KINDS: ShipKind[] = ["ship", "ship", "ship"];
 const REPAIR_S = 5, SINK_S = 9, ROCKET_LIFE = 4.6, ROCKET_RISE = 1.1;
+/**
+ * Разбитые корабли как препятствия для живности (замечание владельца 05.11: «корабль проплыл под разбитым»): круг радиусом
+ * полтора гекса вокруг корпуса, пока корабль стоит разбитым или чинится; ушедший с места крушения (починка кончилась) и
+ * скрывшийся под водой (SINK_S после гибели) препятствием не считаются. Считается на каждый шаг мира по часам сервера.
+ */
+function wreckObstacles(size: number, worldNow: number): Isle[] {
+  const out: Isle[] = [];
+  for (const s of WRECKS) {
+    if (s.repairedAt != null && worldNow >= s.repairedAt / 1000 + REPAIR_S) continue;
+    if (s.sunkAt != null && worldNow >= s.sunkAt / 1000 + SINK_S) continue;
+    out.push({ x: s.x, y: s.y, r: size * 1.5 });
+  }
+  return out;
+}
 /** Куда уходит починенный корабль: к ближайшему краю пояса моря; расстояние до края и курс. */
 function wreckExit(w: WreckSpec, size: number): { h: number; dist: number } {
   const b = SEA;
@@ -2109,13 +2135,13 @@ export function FaunaLayer({ vp, hexes, between = null, islets = NO_ISLETS, size
     let catching = false, timer = 0;
     const catchUp = () => {
       timer = 0;
-      if (document.hidden || sync(30)) { catching = false; dirty = true; return; }
+      WRECKS = wrecksRef.current; if (document.hidden || sync(30)) { catching = false; dirty = true; return; }
       timer = window.setTimeout(catchUp, 0);
     };
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden || catching) return;
-      if (!sync(8)) { catching = true; clear(); catchUp(); return; }
+      WRECKS = wrecksRef.current; if (!sync(8)) { catching = true; clear(); catchUp(); return; }
       if (!dirty && t - lastDraw < 1000 / 24) return;
       dirty = false; lastDraw = t; const t0 = performance.now(); draw(); perfMark("живность кадр", performance.now() - t0);
     };

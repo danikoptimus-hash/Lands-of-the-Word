@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Корабли и морские звери обходят разбитый бурей корабль стороной: раньше корабль мог пройти прямо под ним.": "Ships and sea creatures now steer around a storm-wrecked ship: before, a ship could sail right under it.",
   "Принять или отклонить предложение мира теперь можно в профиле команды, которая его предлагает: нажмите на её аватарку в «Командах» или на строку «предлагает мир» в разделе «Внимание». Кнопок в списке команд больше нет.": "Accepting or declining a peace offer is now done in the profile of the team that offers it: tap its avatar in “Teams” or the “offers peace” line in “Attention”. The buttons are gone from the team list.",
   "В форме сдачи дела с отчётом одно поле «Что сделал и кому?» вместо двух.": "The deed report form has a single field, “What did you do, and for whom?”, instead of two.",
   "Администратору: разделы настроек игры свёрнуты и раскрываются нажатием на заголовок.": "For the administrator: the game settings sections are collapsed and open with a tap on the heading.",

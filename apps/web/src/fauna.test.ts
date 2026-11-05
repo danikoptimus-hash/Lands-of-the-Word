@@ -84,3 +84,24 @@ describe("корабли расходятся", () => {
     expect(bad.slice(0, 6)).toEqual([]);
   });
 });
+
+/** Разбитый бурей корабль — препятствие (замечание владельца 05.11: «корабль проплыл под разбитым»). */
+describe("корабли обходят разбитый корабль", () => {
+  it("там, где без разбитого корабль проходил, с разбитым никто не подходит ближе трёх гексов", () => {
+    const size = 26, hexes = crescent();
+    const ships = (tr: { kind: string }) => tr.kind === "sloop" || tr.kind === "cog" || tr.kind === "ship";
+    // Без препятствия: берём точку, через которую корабль прошёл в открытом море на 300-й секунде.
+    const free = traceWorld(hexes, size, 400, 0.25).filter(ships);
+    const probe = free.map((tr) => tr.samples[1200]).find((s) => s && s[3] <= 0);
+    expect(probe).toBeDefined();
+    const [wx, wy] = probe!;
+    const wrecks = [{ id: "w1", x: wx, y: wy, kind: 0 as const, seed: 1, repairedAt: null, sunkAt: null }];
+    const traces = traceWorld(hexes, size, 4000, 0.25, null, 1, wrecks).filter(ships);
+    let closest = Infinity;
+    for (const tr of traces) for (const [x, y] of tr.samples) closest = Math.min(closest, Math.hypot(x - wx, y - wy));
+    // Круг препятствия 1,5 гекса плюс зазор корабля 0,8·2,4 гекса: ближе 3,3 размера гекса центр корабля не бывает.
+    expect(closest).toBeGreaterThan(size * 3.3);
+    // Корабли при этом не стоят: каждый прошёл заметный путь.
+    for (const tr of traces) { const a = tr.samples[0]!, b = tr.samples[tr.samples.length - 1]!; expect(Math.hypot(a[0] - b[0], a[1] - b[1]) + tr.samples.length).toBeGreaterThan(size); }
+  });
+});
