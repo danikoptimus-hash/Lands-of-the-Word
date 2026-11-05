@@ -278,6 +278,7 @@ const EN: Record<string, string> = {
   "Разведка доступна раз в неделю: следующая — {date}": "Scouting is available once a week: next on {date}",
   "Подсказку открывает только пророк команды": "Only the team's prophet can open a hint",
   "Подсказка к этому заданию уже открыта": "The hint for this task is already open",
+  "Все пары этого хиазма уже открыты": "All pairs of this chiasm are already open",
   "Подсказка доступна раз в неделю: следующая — {date}": "A hint is available once a week: next on {date}",
   "Перенести столицу может только капитан": "Only the captain can move the capital",
   "Столицу можно перенести только один раз за игру, и это уже сделано": "The capital can be moved only once per game, and that has already been done",

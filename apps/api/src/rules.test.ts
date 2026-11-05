@@ -411,7 +411,20 @@ describe("штраф, роли, пророк", () => {
     const chiasm = await post(`/api/games/${gameId}/my-city/${genKey}/hint`, p3Cookie, { index: ci });
     expect(chiasm.statusCode).toBe(200);
     expect(chiasm.json().text).toEqual([]);
-    expect(chiasm.json().pair).toMatchObject({ mark: "Б", place: 2, n: 5, first: "Поселились там", second: "Рассеял их оттуда" });
+    expect(chiasm.json().pair).toMatchObject({ mark: "Б", place: 2, n: 5, step: 1, first: "Поселились там", second: "Рассеял их оттуда" });
+    // Новая пара — только с новой свечой: до конца недели — 429; каждая следующая свеча открывает следующую пару (05.11).
+    expect((await post(`/api/games/${gameId}/my-city/${genKey}/hint`, p3Cookie, { index: ci })).statusCode).toBe(429);
+    for (const [step, mark] of [[2, "А"], [3, "В"], [4, "Г"], [5, "Д"]] as const) {
+      await prisma.membership.update({ where: { teamId_userId: { teamId: team2, userId: p3.id } }, data: { hintedAt: null } });
+      const next = await post(`/api/games/${gameId}/my-city/${genKey}/hint`, p3Cookie, { index: ci });
+      expect(next.statusCode).toBe(200);
+      expect(next.json().pair).toMatchObject({ mark, step, n: 5 });
+    }
+    await prisma.membership.update({ where: { teamId_userId: { teamId: team2, userId: p3.id } }, data: { hintedAt: null } });
+    expect((await post(`/api/games/${gameId}/my-city/${genKey}/hint`, p3Cookie, { index: ci })).statusCode).toBe(409); // все пары открыты
+    expect((await get(`/api/games/${gameId}/my-city/${genKey}`, p3Cookie)).json().state.hintTasks.filter((x: number) => x === ci)).toHaveLength(5);
+    // Обычное задание — по-прежнему одно письмо.
+    expect((await post(`/api/games/${gameId}/my-city/${rutKey}/hint`, p3Cookie, { index: 0 })).statusCode).toBe(409);
     // Заместитель капитана может бросить вызов.
     const dep = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${p3.id}`, headers: { cookie: p2Cookie }, payload: { role: "DEPUTY" } });
     expect(dep.json().member.role).toBe("DEPUTY");

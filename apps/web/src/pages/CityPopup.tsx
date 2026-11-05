@@ -389,7 +389,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       )}
       {!sleeping && city?.content && task && (
         <TaskView key={task.index} task={task} onPrev={prevTask != null ? () => setTaskIndex(prevTask) : null} onNext={nextTask != null ? () => setTaskIndex(nextTask) : null} teamDone={done.includes(task.index)} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={mine.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
-          hintOpen={city.state.hintTasks.includes(task.index)} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} draft={city.state.taskDrafts?.[String(task.index)]}
+          hintsUsed={city.state.hintTasks.filter((x) => x === task.index).length} canHint={city.team.gameRole === "PROPHET"} onHint={() => hint(task.index)} gameId={gameId} nodeKey={nodeKey} draft={city.state.taskDrafts?.[String(task.index)]}
           lock={city.state.locks.find((l) => l.index === task.index) ?? null} support={city.state.support.filter((r) => r.taskIndex === task.index)} pauseSteps={city.state.pauseSteps} now={now} onSupport={(m) => support(task.index, m)} notify={notify} />
       )}
       {letter && (
@@ -403,6 +403,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
                 <p><b className="ch-mark god">{`${letter.pair.mark}′`}</b><span>{letter.pair.second}</span></p>
               </div>
               <p>{t("{a} — {k}-я строка от начала, {b} — {k}-я от конца: вторая половина отражает первую. Так же стоят и остальные пары.", { a: letter.pair.mark, b: `${letter.pair.mark}′`, k: String(letter.pair.place) })}</p>
+              <p className="small">{t("Пара {k} из {n}.", { k: letter.pair.step, n: letter.pair.n })} {letter.pair.step < letter.pair.n ? t("Следующую пару откроет новая свеча.") : t("Это последняя пара.")}</p>
             </>) : (<>
               <div className="letter-head"><Icon name="mail" /><span className="strong">{t("текст района {verses}", { verses: letter.verses })}</span></div>
               {letter.text.map((x, i) => <p key={i}>{x}</p>)}
@@ -417,10 +418,10 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
 
 const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.some((l) => l.index === index && l.lockedUntil != null && l.lockedUntil > now);
 
-/** Пара строк хиазма в письме пророка: буква места (Г), строки первой и второй половины, номер пары от начала и число пар. */
-type ChiasmPairDto = { mark: string; first: string; second: string; place: number; n: number };
+/** Пара строк хиазма в письме пророка: буква места (Б), строки первой и второй половины, номер пары от начала, число пар и номер письма. */
+type ChiasmPairDto = { mark: string; first: string; second: string; place: number; n: number; step: number };
 
-function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Соседние задания: кнопки «назад/вперёд» в шапке задания (15.10); null — края списка. */ onPrev: (() => void) | null; onNext: (() => void) | null; /** Команда уже открыла знак этого задания, а я ещё не решал: решаю для своего зачёта (решение владельца 05.10). */ teamDone?: boolean; /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
+function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintsUsed, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Соседние задания: кнопки «назад/вперёд» в шапке задания (15.10); null — края списка. */ onPrev: (() => void) | null; onNext: (() => void) | null; /** Команда уже открыла знак этого задания, а я ещё не решал: решаю для своего зачёта (решение владельца 05.10). */ teamDone?: boolean; /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; /** Сколько писем пророка к заданию уже открыто: обычно 0 или 1, к хиазму — по паре на свечу (05.11). */ hintsUsed: number; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
   /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
   const locked = lock?.lockedUntil != null && lock.lockedUntil > now;
   useAwayCounter(done ? null : `/api/games/${gameId}/my-city/${nodeKey}/tasks/${task.index}/focus`);
@@ -500,8 +501,9 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
           </div>
         </div>
       )}
-      {hintOpen && <p className="note info"><Icon name="sparkle" /><span>{t("Подсказка пророка к этому заданию уже показана: она видна один раз.")}</span></p>}
-      {!hintOpen && !done && canHint && <p className="mt-2 row nowrap"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Свеча пророка")}</button><Help>{task.type === "chiasm" ? t("Раз в неделю открывает одну пару строк хиазма. Видит только пророк.") : t("Раз в неделю открывает текст района. Видит только пророк.")}</Help></p>}
+      {/* Хиазм: каждая свеча открывает новую пару, пока не откроются все (решение владельца 05.11); обычное задание — одно письмо. */}
+      {hintsUsed > 0 && <p className="note info"><Icon name="sparkle" /><span>{task.type === "chiasm" ? t("Пророк открыл пар хиазма: {k} из {n}.", { k: hintsUsed, n: task.n }) + (hintsUsed < task.n ? " " + t("Следующую откроет новая свеча.") : "") : t("Подсказка пророка к этому заданию уже показана: она видна один раз.")}</span></p>}
+      {hintsUsed < (task.type === "chiasm" ? task.n : 1) && !done && canHint && <p className="mt-2 row nowrap"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Свеча пророка")}</button><Help>{task.type === "chiasm" ? t("Каждая свеча, раз в неделю, открывает новую пару строк хиазма. Видит только пророк.") : t("Раз в неделю открывает текст района. Видит только пророк.")}</Help></p>}
       {done ? (<>
         {task.type === "chiasm" && task.solution && <ChiasmBoard items={task.items} slots={[]} n={task.n} center={task.center} look={task.look} onChange={() => undefined} disabled state="open" solution={task.solution} />}
         <div className="note ok"><Icon name="check" /><span>{t("Выполнено. Знак шифра: {f}", { f: fragment ?? "" })}</span></div></>
