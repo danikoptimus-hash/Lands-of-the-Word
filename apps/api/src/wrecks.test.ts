@@ -243,3 +243,42 @@ describe("Срок затопления разбитого корабля", () =
     expect(await prisma.wreck.count({ where: { gameId, deedId: deedId2, closedAt: null } })).toBe(0);
   });
 });
+
+describe("Взять срочное задание (решение владельца 05.11: как обычное дело)", () => {
+  it("любой участник берёт задание; команда и администратор «глазами команды» видят «взял»; сдаёт взявший; отказ; затопление закрывает взятое", async () => {
+    const r = await post(`/api/games/${gameId}/deeds`, adminCookie, deedBody("Снять людей с разбитого корабля", { wreck: true, wreckStones: 2, wreckBlocks: 2 }));
+    expect(r.statusCode).toBe(201);
+    const wreck = await prisma.wreck.findFirstOrThrow({ where: { gameId, deedId: r.json().deed.id, closedAt: null } });
+    const memId = (await prisma.user.findUniqueOrThrow({ where: { nickname: memNick }, select: { id: true } })).id;
+    await setGamePhase(app, gameId, adminCookie, "day");
+    // Рядовой участник без взятия сдать не может, взять — может; второе взятие в той же команде — 409.
+    expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/submit`, memCookie, { links: ["https://photos.example/t1"] })).statusCode).toBe(403);
+    const take = await post(`/api/games/${gameId}/wrecks/${wreck.id}/take`, memCookie);
+    expect(take.statusCode).toBe(200); expect(take.json().work.status).toBe("TAKEN");
+    expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/take`, capCookie)).statusCode).toBe(409);
+    const w = (await myWrecks(capCookie)).find((x) => x.id === wreck.id)!;
+    expect(w.mine).toMatchObject({ status: "TAKEN", userId: memId });
+    // Администратор «глазами команды» видит то же; другой команде взятие не видно.
+    const tv = (await get(`/api/games/${gameId}/teams/${teamId}/map`, adminCookie)).json();
+    expect((tv.wrecks as WreckDto[]).find((x) => x.id === wreck.id)?.mine).toMatchObject({ status: "TAKEN", userId: memId });
+    expect((await myWrecks(cap2Cookie)).find((x) => x.id === wreck.id)?.mine).toBeNull();
+    // Отказаться: у второй команды не взято — 409; взявший — можно; потом берёт снова.
+    expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/release`, cap2Cookie)).statusCode).toBe(409);
+    expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/release`, memCookie)).statusCode).toBe(200);
+    expect((await myWrecks(capCookie)).find((x) => x.id === wreck.id)?.mine).toBeNull();
+    expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/take`, memCookie)).statusCode).toBe(200);
+    // Сдаёт взявший: та же запись становится сдачей, «взял» остаётся за ним.
+    const sub = await post(`/api/games/${gameId}/wrecks/${wreck.id}/submit`, memCookie, { links: ["https://photos.example/t2"], note: "Сняли людей" });
+    expect(sub.statusCode).toBe(201);
+    const rows = await prisma.wreckWork.findMany({ where: { wreckId: wreck.id, teamId } });
+    expect(rows.length).toBe(1); expect(rows[0]!.status).toBe("SUBMITTED"); expect(rows[0]!.userId).toBe(memId); expect(rows[0]!.takenAt).not.toBeNull();
+    expect((await myWrecks(capCookie)).find((x) => x.id === wreck.id)?.mine?.status).toBe("SUBMITTED");
+    expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/release`, memCookie)).statusCode).toBe(409);
+    // Вторая команда взяла, но не сдала; корабль отпущен — взятое закрыто вместе со сдачей.
+    expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/take`, cap2Cookie)).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/close`, adminCookie)).statusCode).toBe(200);
+    const closed = await prisma.wreckWork.findMany({ where: { wreckId: wreck.id }, select: { status: true, adminComment: true } });
+    expect(closed.length).toBe(2);
+    expect(closed.every((x) => x.status === "REJECTED" && x.adminComment === "Корабль затонул")).toBe(true);
+  });
+});
