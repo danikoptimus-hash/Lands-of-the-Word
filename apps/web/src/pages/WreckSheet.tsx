@@ -14,11 +14,11 @@ import { SinkingShip } from "../components/SinkingShip";
 /**
  * Лист срочного задания с разбитого бурей корабля (решение владельца 04.11): описание дела, возможный груз (команда
  * знает, что на борту, но не знает, что выпадет), форма сдачи как у Каменоломни (ссылки, отчёт, кто участвовал).
- * Берётся как обычное дело (решение владельца 05.11): «Взять задание» — любой участник, после этого «Взял: имя»;
- * форма сдачи и отказ — у взявшего, капитана, заместителя и летописца.
+ * Берётся как обычное дело (решение владельца 05.11): «Взять задание», после этого «Взял: имя». Берут, сдают и отказываются
+ * только капитан, заместитель или летописец, задание одно на команду (откат владельца 05.11 вечером).
  * Состояния: взято; на проверке; возвращено с комментарием (взять и сдать снова); принято — что выпало, корабль уходит; затонул.
  */
-export function WreckSheet({ gameId, wreck, members, canWork, userId = null, canTake = true, asleep = false, container, onClose, onChanged }: { gameId: string; wreck: WreckDto; members: Array<{ id: string; name: string }>; /** Капитан, заместитель или летописец: могут сдать и отказаться. */ canWork: boolean; /** Кто смотрит: взявший тоже может сдать. */ userId?: string | null; /** Взять можно до полуночи, как обычное дело. */ canTake?: boolean; /** Ночь или шторм: сдать нельзя. */ asleep?: boolean; container: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
+export function WreckSheet({ gameId, wreck, members, canWork, canTake = true, asleep = false, container, onClose, onChanged }: { gameId: string; wreck: WreckDto; members: Array<{ id: string; name: string }>; /** Капитан, заместитель или летописец: могут взять, сдать и отказаться. */ canWork: boolean; /** Взять можно до полуночи, как обычное дело. */ canTake?: boolean; /** Ночь или шторм: сдать нельзя. */ asleep?: boolean; container: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
   const { notify, confirm } = useUi();
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
@@ -27,10 +27,9 @@ export function WreckSheet({ gameId, wreck, members, canWork, userId = null, can
   const mine = wreck.mine;
   const pending = mine?.status === "SUBMITTED", approved = mine?.status === "APPROVED", returned = mine?.status === "REJECTED", taken = mine?.status === "TAKEN";
   const sunk = Boolean(wreck.sunkAt) && !approved;
-  const mineTaken = taken && Boolean(userId) && mine?.userId === userId;
   const takerName = taken ? members.find((x) => x.id === mine?.userId)?.name ?? t("участник") : "";
-  // Сдача — после взятия, как у обычного дела: взявший, капитан, заместитель или летописец.
-  const canSubmit = taken && (canWork || mineTaken) && !sunk;
+  // Сдача — после взятия, как у обычного дела; только капитан, заместитель или летописец (откат владельца 05.11).
+  const canSubmit = taken && canWork && !sunk;
   const canTakeNow = !taken && !pending && !approved && !sunk;
   const linksNeeded = wreck.proofType !== "REPORT" && wreck.proofType !== "WITNESS";
   async function submit() {
@@ -62,7 +61,7 @@ export function WreckSheet({ gameId, wreck, members, canWork, userId = null, can
       {sunk ? (
         <p className="note warn"><Icon name="alert" /><span>{t("Корабль затонул, не дождавшись помощи: задание закрыто.")}</span></p>
       ) : (
-        <p className="muted small"><Icon name="ship" /> {t("Разбитый бурей корабль у берега просит помощи. Его могут выручить несколько команд.")}<Help>{t("Взять задание может любой участник; сдаёт тот, кто взял, капитан, заместитель или летописец. Администратор проверяет; за принятое задание команда получает что-то одно из груза — что именно, решает жребий. Корабль уходит, когда задание принято.")}</Help></p>
+        <p className="muted small"><Icon name="ship" /> {t("Разбитый бурей корабль у берега просит помощи. Его могут выручить несколько команд.")}<Help>{t("Взять и сдать задание может капитан, заместитель или летописец; задание одно на команду. Администратор проверяет; за принятое задание команда получает что-то одно из груза — что именно, решает жребий. Корабль уходит, когда задание принято.")}</Help></p>
       )}
       {/* Срок затопления (решение владельца 05.11): обратный отсчёт и корабль, наполняющийся водой. */}
       {wreck.sinkAt && !approved && !sunk && <SinkingShip sinkAt={wreck.sinkAt} appearedAt={wreck.appearedAt} />}
@@ -84,8 +83,8 @@ export function WreckSheet({ gameId, wreck, members, canWork, userId = null, can
           <span><b>{cargoLine}</b><br />{mine.cargo === "STONES" ? t("Камень мостит одну свободную дорогу на карте.") : t("Блок кладётся в стену своего города: откройте город → «Стена».")} {t("Корабль починен и уходит в море.")}</span>
         </div>
       )}
-      {/* Взять — как обычное дело (решение владельца 05.11): любой участник, до полуночи. */}
-      {canTakeNow && (
+      {/* Взять — как обычное дело (решение владельца 05.11), но только капитан, заместитель или летописец, до полуночи. */}
+      {canTakeNow && canWork && (
         <div className="actions">
           <button type="button" disabled={busy || !canTake} onClick={() => void take()}><Icon name="scroll" />{t("Взять задание")}</button>
           {!canTake && <p className="hint">{t("Ночью с 0:00 до 7:00 по местному времени взять задание нельзя.")}</p>}
@@ -108,8 +107,8 @@ export function WreckSheet({ gameId, wreck, members, canWork, userId = null, can
           {asleep && <p className="hint">{t("Ночью и в шторм задания ждут утра.")}</p>}
         </div>
       )}
-      {canTakeNow && <p className="hint">{t("Взять задание может любой участник; сдаёт тот, кто взял, капитан, заместитель или летописец.")}</p>}
-      {taken && !canSubmit && !sunk && <p className="hint"><Icon name="user" />{t("Задание у другого участника: сдать или отказаться может тот, кто взял, капитан, заместитель или летописец.")}</p>}
+      {canTakeNow && <p className="hint">{t("Взять и сдать задание может капитан, заместитель или летописец; оно одно на команду.")}</p>}
+      {taken && !canSubmit && !sunk && <p className="hint"><Icon name="user" />{t("Задание взято: сдать или отказаться может капитан, заместитель или летописец.")}</p>}
     </Sheet>
   );
 }
