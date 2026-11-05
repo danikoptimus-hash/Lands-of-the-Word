@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import bcrypt from "bcryptjs";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { rulesOf } from "./services/rules.js";
 
 /**
  * Тестовый вход за бота (решение владельца 03.11). Главное — защита: на проде (голый домен) маршрутов /api/dev/* нет;
@@ -59,5 +60,34 @@ describe("тестовый вход за бота", () => {
     expect((await local.inject({ method: "POST", url: "/api/dev/become", payload: { nickname: person } })).statusCode).toBe(404);
     expect((await local.inject({ method: "POST", url: "/api/dev/become", payload: { nickname: superBot } })).statusCode).toBe(404);
     expect((await local.inject({ method: "POST", url: "/api/dev/become", payload: { nickname: `tg_nope${tag}` } })).statusCode).toBe(404);
+  });
+
+  it("время суток на стенде: перевод часов меняет пояс игры, «как было» возвращает исходный; на проде маршрута нет", async () => {
+    const become = await local.inject({ method: "POST", url: "/api/dev/become", payload: { nickname: bot } });
+    const sc = become.headers["set-cookie"];
+    const cookie = (Array.isArray(sc) ? sc : [sc]).map((c) => String(c).split(";")[0]).join("; ");
+    const g = await local.inject({ method: "POST", url: "/api/games", headers: { cookie }, payload: { name: "Часы стенда", teamCount: 2 } });
+    expect(g.statusCode).toBe(201);
+    const gameId = g.json().game.id as string;
+    try {
+      expect((await prod.inject({ method: "GET", url: `/api/dev/daytime?game=${gameId}` })).statusCode).toBe(404);
+      expect((await prod.inject({ method: "POST", url: "/api/dev/daytime", payload: { gameId, phase: "night" } })).statusCode).toBe(404);
+      const before = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone;
+      // Часы не переводились — «как было» ничего не меняет.
+      expect((await local.inject({ method: "POST", url: "/api/dev/daytime", payload: { gameId, phase: "auto" } })).json().timeZone).toBe(before);
+      const night = await local.inject({ method: "POST", url: "/api/dev/daytime", payload: { gameId, phase: "night" } });
+      expect(night.statusCode).toBe(200); expect(night.json().phase).toBe("night"); expect(night.json().origTimeZone).toBe(before);
+      const late = await local.inject({ method: "POST", url: "/api/dev/daytime", payload: { gameId, phase: "late" } });
+      expect(late.json().phase).toBe("night"); expect(late.json().local.startsWith("02")).toBe(true);
+      const day = await local.inject({ method: "POST", url: "/api/dev/daytime", payload: { gameId, phase: "day" } });
+      expect(day.json().phase).toBe("day"); expect(day.json().origTimeZone).toBe(before); // исходный пояс помнится с первого перевода
+      expect((await local.inject({ method: "GET", url: `/api/dev/daytime?game=${gameId}` })).json().phase).toBe("day");
+      expect(rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone).not.toBe(before);
+      const back = await local.inject({ method: "POST", url: "/api/dev/daytime", payload: { gameId, phase: "auto" } });
+      expect(back.json().timeZone).toBe(before); expect(back.json().origTimeZone).toBeNull();
+      expect(rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone).toBe(before);
+    } finally {
+      await prisma.game.deleteMany({ where: { id: gameId } });
+    }
   });
 });

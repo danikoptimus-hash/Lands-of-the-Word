@@ -1,13 +1,16 @@
 import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
-import type { User } from "@prisma/client";
+import type { Prisma, User } from "@prisma/client";
 import { prisma } from "../db.js";
 import { activeSessionId, createSession, destroyAllSessions, destroySession, publicUser, readParked, requireUser, setActiveCookie, writeParked, MAX_ACCOUNTS } from "../auth.js";
 import { createHash, randomBytes } from "node:crypto";
 import { describeMailError, mailEnabled, sendMail, verifyMail } from "../services/mail.js";
 import { err, msg, toLocale } from "../services/i18n.js";
 import { devLoginEnabled } from "../env.js";
+import { rulesOf } from "../services/rules.js";
+import { gameDaytime } from "../services/daytime.js";
+import { publish } from "../services/events.js";
 import { platformMetrics } from "../services/metrics.js";
 import { analytics } from "../services/activity.js";
 
@@ -127,6 +130,55 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     // Паркуем прежнюю активную сессию (владельца или прежнего бота), только если она есть; анонимный вход — одной сессией.
     await createSession(reply, target.id, secure, request.user ? { request } : undefined);
     return { user: publicUser(target) };
+  });
+
+  /**
+   * Время суток на стенде (решение владельца 05.11: «добавь сюда на тестовый стенд управление временем суток»).
+   * Правила времени суток считаются по поясу игры (`rules.timeZone`), поэтому «перевести часы» — поставить партии пояс,
+   * в котором сейчас нужный час (как `setGamePhase` в тестах): сервер и клиент видят одно и то же, отметки времени
+   * остаются настоящими. Исходный пояс хранится в `settings.devOrigTimeZone`, «Как было» возвращает его. Маршруты есть
+   * только там, где включён тестовый вход (стенд и локальная разработка).
+   */
+  const DEV_HOURS = { morning: 7, day: 12, evening: 19, night: 23, late: 2 } as const;
+  const zoneForLocalHour = (hour: number, now = new Date()): string => {
+    let n = ((hour - now.getUTCHours()) % 24 + 24) % 24; // смещение UTC+n
+    if (n > 14) n -= 24;
+    return n === 0 ? "Etc/GMT" : n > 0 ? `Etc/GMT-${n}` : `Etc/GMT+${-n}`;
+  };
+  const devDaytime = async (gameId: string) => {
+    const g = await prisma.game.findUnique({ where: { id: gameId }, select: { settings: true } });
+    if (!g) return null;
+    const settings = (g.settings ?? {}) as Record<string, unknown>;
+    const dt = await gameDaytime(gameId);
+    const local = new Intl.DateTimeFormat("ru-RU", { timeZone: dt.timeZone, hour: "2-digit", minute: "2-digit" }).format(new Date(dt.now));
+    return { phase: dt.phase, timeZone: dt.timeZone, local, origTimeZone: typeof settings.devOrigTimeZone === "string" ? settings.devOrigTimeZone : null, settings };
+  };
+  app.get("/api/dev/daytime", async (request, reply) => {
+    if (!devLoginEnabled(app.config)) return reply.code(404).send({ error: "not_found" });
+    const { game } = z.object({ game: z.string().trim().min(1) }).parse(request.query ?? {});
+    const d = await devDaytime(game);
+    if (!d) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
+    const { settings: _s, ...out } = d;
+    return out;
+  });
+  app.post("/api/dev/daytime", { config: { rateLimit: { max: 60, timeWindow: "1 minute" } } }, async (request, reply) => {
+    if (!devLoginEnabled(app.config)) return reply.code(404).send({ error: "not_found" });
+    const body = z.object({ gameId: z.string().trim().min(1), phase: z.enum(["morning", "day", "evening", "night", "late", "auto"]) }).parse(request.body ?? {});
+    const d = await devDaytime(body.gameId);
+    if (!d) return reply.code(404).send({ error: "not_found", message: err(request, "Игра не найдена") });
+    const rules = rulesOf(d.settings);
+    let next: Record<string, unknown>;
+    if (body.phase === "auto") {
+      if (!d.origTimeZone) { const { settings: _s, ...out } = d; return out; } // часы не переводились — нечего возвращать
+      const { devOrigTimeZone: _o, ...rest } = d.settings;
+      next = { ...rest, rules: { ...rules, timeZone: d.origTimeZone } };
+    } else {
+      next = { ...d.settings, devOrigTimeZone: d.origTimeZone ?? rules.timeZone, rules: { ...rules, timeZone: zoneForLocalHour(DEV_HOURS[body.phase]) } };
+    }
+    await prisma.game.update({ where: { id: body.gameId }, data: { settings: next as Prisma.InputJsonValue } });
+    publish(body.gameId, { type: "map" });
+    const { settings: _s, ...out } = (await devDaytime(body.gameId))!;
+    return out;
   });
 
   app.post("/api/auth/register", { config: { rateLimit: { max: 10, timeWindow: "1 minute" } } }, async (request, reply) => {
