@@ -39,7 +39,7 @@ export async function wreckRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     const since = new Date(Date.now() - 120_000);
     const rows = await prisma.wreck.findMany({ where: { gameId: id, OR: [{ closedAt: null }, { closedAt: { gte: since } }] }, orderBy: { createdAt: "asc" }, include: { works: { select: { teamId: true, status: true } } } });
-    return { wrecks: rows.map((w) => ({ id: w.id, deedId: w.deedId, title: w.title, model: w.model, q: w.q, r: w.r, seed: w.seed, createdAt: w.createdAt, closedAt: w.closedAt, sunkAt: w.sunk ? w.closedAt : null, cargo: { stones: w.stones, blocks: w.blocks }, doneTeams: new Set(w.works.filter((x) => x.status === "APPROVED").map((x) => x.teamId)).size, pending: w.works.filter((x) => x.status === "SUBMITTED").length })) };
+    return { wrecks: rows.map((w) => ({ id: w.id, deedId: w.deedId, title: w.title, model: w.model, q: w.q, r: w.r, seed: w.seed, createdAt: w.createdAt, sinkAt: w.sinkAt, closedAt: w.closedAt, sunkAt: w.sunk ? w.closedAt : null, cargo: { stones: w.stones, blocks: w.blocks }, doneTeams: new Set(w.works.filter((x) => x.status === "APPROVED").map((x) => x.teamId)).size, pending: w.works.filter((x) => x.status === "SUBMITTED").length })) };
   });
 
   /** Сдать срочное задание: капитан, заместитель или летописец, не ночью. */

@@ -16,6 +16,7 @@ import { reportPage } from "../lib/perf";
 import { api, ApiError, PROOF_LABEL, type AdminCityDto, type EdgeTaskDto, type MapEdgeDto, type MapHexDto, type MapNodeDto, type MyMapDto } from "../lib/api";
 import { deedStatus } from "./TeamPage";
 import { Chip } from "../components/Chip";
+import { SinkingShip } from "../components/SinkingShip";
 import { fmtDate } from "../lib/format";
 import { TeamMap, routeColor } from "./TeamMap";
 import { useUi } from "../lib/ui";
@@ -101,7 +102,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
   const [selected, setSelected] = useState<MapNodeDto | null>(null);
   const [quarryOpen, setQuarryOpen] = useState(false);
   // Разбитые бурей корабли (решение владельца 04.11): на карте администратора — те же корабли, без листа сдачи; по нажатию — короткая карточка.
-  interface AdminWreck { id: string; title: string; model: number; q: number; r: number; seed: number; sunkAt: string | null; doneTeams: number; pending: number; cargo: { stones: number; blocks: number } }
+  interface AdminWreck { id: string; title: string; model: number; q: number; r: number; seed: number; createdAt: string; /** Срок затопления (05.11). */ sinkAt?: string | null; sunkAt: string | null; doneTeams: number; pending: number; cargo: { stones: number; blocks: number } }
   const [wrecks, setWrecks] = useState<AdminWreck[]>([]);
   const [wreckCard, setWreckCard] = useState<string | null>(null);
   useEffect(() => { let alive = true; api<{ wrecks: AdminWreck[] }>(`/api/games/${gameId}/wrecks`).then((r) => { if (alive) setWrecks(r.wrecks); }).catch(() => {}); return () => { alive = false; }; }, [gameId, version]);
@@ -452,6 +453,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
           return (
             <Sheet size="sm" container={wrapEl} onClose={() => setWreckCard(null)} head={<div className="sheet-title"><h2><Icon name="ship" />{w.title}</h2><Chip tone="bad" icon="alert">{t("Срочное задание")}</Chip></div>}>
               {w.sunkAt ? <p className="note warn"><Icon name="alert" /><span>{t("Корабль затонул")}</span></p> : <p className="muted small">{t("Разбитый бурей корабль: груз — {s} тёсаных камней или {b} блоков для стен (50/50 при приёме).", { s: w.cargo.stones, b: w.cargo.blocks })}</p>}
+              {!w.sunkAt && w.sinkAt && <SinkingShip sinkAt={w.sinkAt} appearedAt={w.createdAt} compact />}
               <p className="row wrap gap-2"><Chip tone="ok" icon="check">{t("Выручили команд: {n}", { n: w.doneTeams })}</Chip>{w.pending > 0 && <Chip tone="warn" icon="clock">{t("На проверке: {n}", { n: w.pending })}</Chip>}</p>
               {w.pending > 0 && onReview && <div className="actions mt-2"><button type="button" className="secondary sm" onClick={() => { setWreckCard(null); onReview(); }}><Icon name="check" />{t("К проверке")}</button></div>}
             </Sheet>

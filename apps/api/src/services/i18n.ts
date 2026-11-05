@@ -227,6 +227,7 @@ const EN: Record<string, string> = {
   "Эти стихи вы уже сдавали в прошлом испытании: второй раз они не засчитываются": "You already submitted these verses in a past trial: they do not count a second time",
   "Запись не найдена": "Recording not found",
   "Ход сейчас не идёт": "No turn is in progress now",
+  "Срок затопления корабля должен быть в будущем": "The ship’s sinking time must be in the future",
   "вызов городу {book}: время вышло": "challenge to the city of {book}: time is up", "ответ города {book}: время вышло": "answer of the city of {book}: time is up",
   "Администратор закрыл ваш ход как просроченный.": "The administrator closed your turn as expired.", "Администратор закрыл ваш ход как просроченный. Комментарий: {comment}": "The administrator closed your turn as expired. Comment: {comment}",
   "Принятую запись убрать нельзя": "An accepted recording cannot be removed",

@@ -54,6 +54,8 @@ export const deedBody = z.object({
   /** Груз корабля (решение владельца 05.11): у каждого срочного дела свои числа камней и блоков; выпадает одно из двух, 50/50. */
   wreckStones: z.number().int().min(0).max(50).default(3),
   wreckBlocks: z.number().int().min(0).max(50).default(2),
+  /** Срок затопления корабля (решение владельца 05.11): ISO-время; null — без срока. */
+  wreckSinkAt: z.string().datetime({ offset: true }).nullable().default(null),
 });
 export type DeedFields = z.infer<typeof deedBody>;
 const setItem = deedBody.extend({ replaces: z.array(z.string().trim().min(2)).default([]), donationMin: z.number().int().min(0).max(100_000_000).nullable().optional() });
@@ -102,7 +104,7 @@ export function deedTextHash(d: DeedLike): string {
 }
 /** Ценник (donationMin) набор переносит в игру, только если он в наборе задан; иначе остаётся тот, что выставил администратор игры. */
 /** Срочность (wreck, 04.11) — настройка администратора игры: набор её не задаёт и не сбрасывает. */
-const fields = (d: DefaultDeed): Omit<DeedFields, "donationMin" | "wreck" | "wreckStones" | "wreckBlocks"> & { donationMin?: number | null } => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, chance: d.chance, secret: d.secret, remote: d.remote, siegePoints: d.siegePoints, quarry: d.quarry, stones: d.stones, quorumPct: d.quorumPct, ...(d.donationMin !== undefined ? { donationMin: d.donationMin } : {}) });
+const fields = (d: DefaultDeed): Omit<DeedFields, "donationMin" | "wreck" | "wreckStones" | "wreckBlocks" | "wreckSinkAt"> & { donationMin?: number | null } => ({ title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes, chance: d.chance, secret: d.secret, remote: d.remote, siegePoints: d.siegePoints, quarry: d.quarry, stones: d.stones, quorumPct: d.quorumPct, ...(d.donationMin !== undefined ? { donationMin: d.donationMin } : {}) });
 const lc = (s: string) => s.trim().toLowerCase();
 
 export interface SyncResult { added: number; updated: number; removed: number }

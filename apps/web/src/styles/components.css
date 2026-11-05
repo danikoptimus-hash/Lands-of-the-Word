@@ -300,6 +300,19 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar-lightbox .team-photo-edit .avatar-btn .badge { right: 6%; bottom: 6%; width: 36px; height: 36px; }
 .avatar-lightbox .team-photo-edit .avatar-btn .badge svg { width: 18px; height: 18px; }
 .avatar-lightbox .card .team-invites { justify-content: center; margin: var(--sp-2) 0 0; gap: var(--sp-2); flex-wrap: wrap; }
+/* Корабль наполняется водой (решение владельца 05.11): силуэт и уровень воды по сроку затопления, обратный отсчёт рядом. */
+.sinking { display: flex; align-items: center; gap: var(--sp-3); margin: var(--sp-2) 0; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface-2); color: var(--text); }
+.sinking svg { flex: none; width: 150px; height: 90px; overflow: hidden; }
+.sinking .ship { fill: currentColor; opacity: .86; }
+.sinking .mast { stroke: currentColor; stroke-width: 3; stroke-linecap: round; opacity: .86; }
+.sinking .rig { stroke: currentColor; stroke-width: 1.1; opacity: .6; fill: none; }
+.sinking .water { fill: rgba(52, 120, 180, .78); animation: sink-wave 2.4s linear infinite; }
+.sinking.sunk .water { fill: rgba(36, 86, 136, .9); }
+.sinking .txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sinking.compact { gap: var(--sp-2); padding: var(--sp-1) var(--sp-2); }
+.sinking.compact svg { width: 110px; height: 66px; }
+@keyframes sink-wave { to { transform: translateX(-40px); } }
+@media (prefers-reduced-motion: reduce) { .sinking .water { animation: none; } }
 /* Входящее предложение мира (05.11): строка «предлагает мир на N дн.» на всю ширину, кнопки «Принять» и «Отклонить» под ней рядом. */
 .avatar-lightbox .card .peace-incoming { flex-basis: 100%; display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-1); }
 .avatar-lightbox .card .invite-btns { display: inline-flex; gap: var(--sp-1); }
