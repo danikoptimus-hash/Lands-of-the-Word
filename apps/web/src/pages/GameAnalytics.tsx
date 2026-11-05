@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ApiError, apiReady, ready } from "../lib/api";
+import { plural } from "../lib/format";
 import { t, getLocale } from "../lib/i18n";
 import { Chart, baseOption, chartColors } from "../components/Chart";
 import { ErrorState, LoadingState } from "../components/State";
@@ -89,7 +90,7 @@ export function GameAnalytics({ gameId, version = 0 }: { gameId: string; /** Р�
         <Chart option={option} height={380} />
       </div>
       <DailyBars data={p.deeds} title={t("Дел в день")} help={t("Принятые администратором дела за каждый день партии: дела на сторонах и общие дела Каменоломни. Столбик — день, цвета — команды. Пунктир — прямая тренда по полным дням для включённых в легенде команд.")} />
-      {p.verses && <DailyBars data={p.verses} title={t("Стихов в день")} help={t("Выученные стихи, принятые администратором за каждый день партии: записи испытаний и блоки стены. Каждый участник считается отдельно: если двое выучили один и тот же стих, это два стиха. Свой стих второй раз и стихи, перенесённые из прошлого вызова, не считаются. Столбик — день, цвета — команды. Пунктир — прямая тренда по полным дням для включённых в легенде команд.")} />}
+      {p.verses && <DailyBars data={p.verses} title={t("Стихов в день")} total={{ icon: "book", label: t("стихов выучено за всю партию, все команды"), format: (n) => plural(n, ["стих", "стиха", "стихов"]) }} help={t("Выученные стихи, принятые администратором за каждый день партии: записи испытаний и блоки стены. Каждый участник считается отдельно: если двое выучили один и тот же стих, это два стиха. Свой стих второй раз и стихи, перенесённые из прошлого вызова, не считаются. Столбик — день, цвета — команды. Пунктир — прямая тренда по полным дням для включённых в легенде команд.")} />}
     </>
   );
 }
@@ -99,7 +100,7 @@ export function GameAnalytics({ gameId, version = 0 }: { gameId: string; /** Р�
  * «вот точно такой же, в таком же виде, только по выученным стихам»). Легенда у каждого графика своя: тренд пересчитывается
  * под включённые команды («тренд должен пересчитываться под выбранную комбинацию команд»).
  */
-function DailyBars({ data, title, help }: { data: Daily; title: string; help: string }) {
+function DailyBars({ data, title, help, total }: { data: Daily; title: string; help: string; /** Значок с суммой за всю партию по всем командам (решение владельца 05.11: «фактоид общего накопленного кол-ва стихов»). */ total?: { icon: string; label: string; format: (n: number) => string } }) {
   const c = useMemo(chartColors, []);
   const [sel, setSel] = useState<Record<string, boolean>>({});
   const option = useMemo(() => {
@@ -120,6 +121,11 @@ function DailyBars({ data, title, help }: { data: Daily; title: string; help: st
   return (
     <div className="card">
       <div className="card-head"><h2>{title}<Help>{help}</Help></h2></div>
+      {total && (() => {
+        // Сумма за все дни партии и все команды — независимо от выбора в легенде и от видимого отрезка графика.
+        const all = data.teams.reduce((a, tm) => a + tm.values.reduce((x, y) => x + y, 0), 0);
+        return <div className="meta chips pace-chips mt-2"><StatChip icon={total.icon} label={total.label} value={total.format(all)} /></div>;
+      })()}
       <Chart option={option} height={320} onLegend={setSel} />
     </div>
   );
