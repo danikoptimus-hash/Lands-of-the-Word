@@ -133,6 +133,12 @@ def check(path):
             if hp is not None and (not isinstance(hp, int) or hp < 1 or hp > len(pairs)): errs.append(f"задание {i}: hintPair вне 1..{len(pairs)}")
             missing = [x for x in flat if norm(x) not in scope_text]
             if missing: warns.append(f"задание {i}: строк хиазма нет дословно в тексте (пересказ): {len(missing)} из {len(flat)}")
+        elif typ == "orders":
+            # Несколько расстановок в одном задании (05.11): группы с заголовком и пунктами; порядок дословно не проверяем.
+            groups = t.get("groups") or []
+            if len(groups) < 2 or any(not isinstance(g, dict) or not g.get("title") or not isinstance(g.get("items"), list) or len(g["items"]) < 2 for g in groups): errs.append(f"задание {i}: orders — не меньше двух групп, у каждой заголовок и не меньше двух пунктов"); continue
+            for g in groups:
+                if len(set(g["items"])) != len(g["items"]): errs.append(f"задание {i}: повтор пунктов в группе «{g['title']}»")
         elif typ == "crossword":
             words = t.get("words") or []
             if not (3 <= len(words) <= 8): errs.append(f"задание {i}: кроссворд — от 3 до 8 слов"); continue
