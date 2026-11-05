@@ -129,7 +129,7 @@ export function ChiasmBoard({ items, slots, n, center, look, onChange, disabled,
       ) : (
         <div className="ch-mirror">
           {Array.from({ length: n }, (_, k) => <div key={k} className="ch-row" style={{ ["--d" as string]: k }}>{slot(k)}</div>)}
-          <div className="ch-row center">{centerEl}</div>
+          <div className="ch-row center" style={{ ["--d" as string]: n }}>{centerEl}</div>
           {Array.from({ length: n }, (_, j) => n + j).map((k) => <div key={k} className="ch-row" style={{ ["--d" as string]: 2 * n - 1 - k }}>{slot(k)}</div>)}
         </div>
       )}
