@@ -14,18 +14,24 @@ import { SinkingShip } from "../components/SinkingShip";
 /**
  * Лист срочного задания с разбитого бурей корабля (решение владельца 04.11): описание дела, возможный груз (команда
  * знает, что на борту, но не знает, что выпадет), форма сдачи как у Каменоломни (ссылки, отчёт, кто участвовал).
- * Состояния: на проверке; возвращено с комментарием (сдать снова); принято — что выпало, корабль уходит; затонул.
+ * Берётся как обычное дело (решение владельца 05.11): «Взять задание» — любой участник, после этого «Взял: имя»;
+ * форма сдачи и отказ — у взявшего, капитана, заместителя и летописца.
+ * Состояния: взято; на проверке; возвращено с комментарием (взять и сдать снова); принято — что выпало, корабль уходит; затонул.
  */
-export function WreckSheet({ gameId, wreck, members, canWork, asleep = false, container, onClose, onChanged }: { gameId: string; wreck: WreckDto; members: Array<{ id: string; name: string }>; /** Капитан, заместитель или летописец: могут сдать. */ canWork: boolean; /** Ночь или шторм: сдать нельзя. */ asleep?: boolean; container: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
-  const { notify } = useUi();
+export function WreckSheet({ gameId, wreck, members, canWork, userId = null, canTake = true, asleep = false, container, onClose, onChanged }: { gameId: string; wreck: WreckDto; members: Array<{ id: string; name: string }>; /** Капитан, заместитель или летописец: могут сдать и отказаться. */ canWork: boolean; /** Кто смотрит: взявший тоже может сдать. */ userId?: string | null; /** Взять можно до полуночи, как обычное дело. */ canTake?: boolean; /** Ночь или шторм: сдать нельзя. */ asleep?: boolean; container: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
+  const { notify, confirm } = useUi();
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const mine = wreck.mine;
-  const pending = mine?.status === "SUBMITTED", approved = mine?.status === "APPROVED", returned = mine?.status === "REJECTED";
+  const pending = mine?.status === "SUBMITTED", approved = mine?.status === "APPROVED", returned = mine?.status === "REJECTED", taken = mine?.status === "TAKEN";
   const sunk = Boolean(wreck.sunkAt) && !approved;
-  const canSubmit = canWork && !pending && !approved && !sunk;
+  const mineTaken = taken && Boolean(userId) && mine?.userId === userId;
+  const takerName = taken ? members.find((x) => x.id === mine?.userId)?.name ?? t("участник") : "";
+  // Сдача — после взятия, как у обычного дела: взявший, капитан, заместитель или летописец.
+  const canSubmit = taken && (canWork || mineTaken) && !sunk;
+  const canTakeNow = !taken && !pending && !approved && !sunk;
   const linksNeeded = wreck.proofType !== "REPORT" && wreck.proofType !== "WITNESS";
   async function submit() {
     if (linksNeeded && links.length === 0) { notify(t("Приложите ссылку на фото или видео"), "bad"); return; }
@@ -37,13 +43,26 @@ export function WreckSheet({ gameId, wreck, members, canWork, asleep = false, co
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
+  async function take() {
+    setBusy(true);
+    try { await api(`/api/games/${gameId}/wrecks/${wreck.id}/take`, { method: "POST", body: JSON.stringify({}) }); notify(t("Задание взято")); onChanged(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  }
+  async function release() {
+    if (!(await confirm(t("Отказаться от задания?"), { title: t("Отказаться от задания") }))) return;
+    setBusy(true);
+    try { await api(`/api/games/${gameId}/wrecks/${wreck.id}/release`, { method: "POST", body: JSON.stringify({}) }); notify(t("Задание отпущено")); onChanged(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusy(false); }
+  }
   const cargoLine = approved && mine ? (mine.cargo === "STONES" ? t("Капитан отблагодарил: {n} тёсаных камней", { n: mine.amount ?? 0 }) : t("Капитан отблагодарил: {n} блоков для стен", { n: mine.amount ?? 0 })) : "";
   return (
     <Sheet size="md" container={container} onClose={onClose} className="deed-sheet wreck-sheet" head={<div className="sheet-title"><h2><Icon name="ship" />{wreck.title}</h2><Chip tone="bad" icon="alert">{t("Срочное задание")}</Chip></div>}>
       {sunk ? (
         <p className="note warn"><Icon name="alert" /><span>{t("Корабль затонул, не дождавшись помощи: задание закрыто.")}</span></p>
       ) : (
-        <p className="muted small"><Icon name="ship" /> {t("Разбитый бурей корабль у берега просит помощи. Его могут выручить несколько команд.")}<Help>{t("Сдаёт капитан, заместитель или летописец. Администратор проверяет; за принятое задание команда получает что-то одно из груза — что именно, решает жребий. Корабль уходит, когда задание принято.")}</Help></p>
+        <p className="muted small"><Icon name="ship" /> {t("Разбитый бурей корабль у берега просит помощи. Его могут выручить несколько команд.")}<Help>{t("Взять задание может любой участник; сдаёт тот, кто взял, капитан, заместитель или летописец. Администратор проверяет; за принятое задание команда получает что-то одно из груза — что именно, решает жребий. Корабль уходит, когда задание принято.")}</Help></p>
       )}
       {/* Срок затопления (решение владельца 05.11): обратный отсчёт и корабль, наполняющийся водой. */}
       {wreck.sinkAt && !approved && !sunk && <SinkingShip sinkAt={wreck.sinkAt} appearedAt={wreck.appearedAt} />}
@@ -56,12 +75,20 @@ export function WreckSheet({ gameId, wreck, members, canWork, asleep = false, co
           <span>{t("На борту: тёсаные камни и блоки для стен. Выполните это задание — капитан корабля и команда отблагодарят вас чем-то из груза: {stones} тёсаных камней или {blocks} блоков стен. Что именно — узнаете после проверки.", { stones: wreck.cargo.stones, blocks: wreck.cargo.blocks })}</span>
         </div>
       )}
+      {taken && mine && <p className="meta-line"><Icon name="user" />{t("Взял: {name}", { name: takerName })}{mine.takenAt ? ` · ${fmtDate(mine.takenAt)}` : ""}</p>}
       {pending && mine && <p className="note"><Icon name="clock" /><span>{t("На проверке у администратора")} · {fmtDate(mine.submittedAt)}</span></p>}
       {returned && mine && <p className="note warn"><Icon name="back" /><span>{t("Возвращено администратором")}{mine.adminComment ? `: ${mine.adminComment}` : ""}. {t("Можно сдать снова.")}</span></p>}
       {approved && mine && (
         <div className="note ok">
           <Icon name={mine.cargo === "STONES" ? "stone" : "wall"} />
           <span><b>{cargoLine}</b><br />{mine.cargo === "STONES" ? t("Камень мостит одну свободную дорогу на карте.") : t("Блок кладётся в стену своего города: откройте город → «Стена».")} {t("Корабль починен и уходит в море.")}</span>
+        </div>
+      )}
+      {/* Взять — как обычное дело (решение владельца 05.11): любой участник, до полуночи. */}
+      {canTakeNow && (
+        <div className="actions">
+          <button type="button" disabled={busy || !canTake} onClick={() => void take()}><Icon name="scroll" />{t("Взять задание")}</button>
+          {!canTake && <p className="hint">{t("Ночью с 0:00 до 7:00 по местному времени взять задание нельзя.")}</p>}
         </div>
       )}
       {canSubmit && (
@@ -76,11 +103,13 @@ export function WreckSheet({ gameId, wreck, members, canWork, asleep = false, co
           )}
           <div className="actions row">
             <button type="button" disabled={busy || asleep} title={asleep ? t("Ночью и в шторм задания ждут утра") : undefined} onClick={() => void submit()}><Icon name="send" />{t("Сдать на проверку")}</button>
+            <button type="button" className="secondary" disabled={busy} onClick={() => void release()}>{t("Отказаться от задания")}</button>
           </div>
           {asleep && <p className="hint">{t("Ночью и в шторм задания ждут утра.")}</p>}
         </div>
       )}
-      {!canWork && !pending && !approved && !sunk && <p className="hint">{t("Сдаёт капитан, заместитель или летописец.")}</p>}
+      {canTakeNow && <p className="hint">{t("Взять задание может любой участник; сдаёт тот, кто взял, капитан, заместитель или летописец.")}</p>}
+      {taken && !canSubmit && !sunk && <p className="hint"><Icon name="user" />{t("Задание у другого участника: сдать или отказаться может тот, кто взял, капитан, заместитель или летописец.")}</p>}
     </Sheet>
   );
 }

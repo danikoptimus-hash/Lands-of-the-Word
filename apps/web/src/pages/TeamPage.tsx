@@ -825,7 +825,7 @@ export function TeamPage() {
         {wreckId && !storm.active && (() => {
           const w = (map.wrecks ?? []).find((x) => x.id === wreckId);
           if (!w) return null;
-          return <WreckSheet gameId={id} wreck={w} container={mapEl} canWork={isLeader || me?.gameRole === "CHRONICLER"} asleep={phase === "night"} members={(team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))} onClose={() => setWreckId(null)} onChanged={() => void loadMap()} />;
+          return <WreckSheet gameId={id} wreck={w} container={mapEl} canWork={isLeader || me?.gameRole === "CHRONICLER"} userId={user?.id ?? null} canTake={phase !== "night" || Boolean(map?.daytime?.tasksOpen)} asleep={phase === "night"} members={(team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))} onClose={() => setWreckId(null)} onChanged={() => void loadMap()} />;
         })()}
         {!storm.active && (
           <nav className="admin-dock team-dock" aria-label={t("Разделы")}>

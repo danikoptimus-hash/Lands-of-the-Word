@@ -74,23 +74,24 @@ export async function openWreck(gameId: string, deed: { id: string; title: strin
 
 /**
  * Корабль тонет (решение владельца 04.11): дело удалено, флажок срочности снят или корабль отпущен. Открытые сдачи
- * закрываются как возвращённые с комментарием «Корабль затонул», командам — уведомление; команды с одобренной сдачей
- * уже видели, как он уплыл.
+ * и взятые, но не сданные задания закрываются как возвращённые с комментарием «Корабль затонул», командам — уведомление;
+ * команды с одобренной сдачей уже видели, как он уплыл.
  */
 export async function sinkWreck(gameId: string, where: { wreckId?: string; deedId?: string }): Promise<number> {
   const wrecks = await prisma.wreck.findMany({ where: { gameId, closedAt: null, ...(where.wreckId ? { id: where.wreckId } : {}), ...(where.deedId ? { deedId: where.deedId } : {}) }, select: { id: true, title: true } });
   if (!wrecks.length) return 0;
   const now = new Date();
   for (const w of wrecks) {
-    const pending = await prisma.wreckWork.findMany({ where: { wreckId: w.id, status: "SUBMITTED" }, select: { id: true, teamId: true, userId: true } });
+    const pending = await prisma.wreckWork.findMany({ where: { wreckId: w.id, status: { in: ["SUBMITTED", "TAKEN"] } }, select: { id: true, teamId: true, userId: true, status: true } });
     await prisma.$transaction([
       prisma.wreck.update({ where: { id: w.id }, data: { closedAt: now, sunk: true } }),
       ...(pending.length ? [prisma.wreckWork.updateMany({ where: { id: { in: pending.map((p) => p.id) } }, data: { status: "REJECTED", decidedAt: now, adminComment: "Корабль затонул" } })] : []),
     ]);
     journal(gameId, "wreck_sunk", { everyone: true, vars: { deed: w.title } });
     for (const p of pending) {
-      journal(gameId, "wreck_returned", { teamId: p.teamId, userId: p.userId, vars: { deed: w.title, comment: ": корабль затонул" } });
-      notifyTeam(gameId, p.teamId, "Корабль затонул, не дождавшись помощи", (locale) => msg(locale, "Разбитый корабль с срочным заданием «{deed}» затонул: сдача команды закрыта, груз пропал вместе с ним.", { deed: w.title }));
+      // Взятое, но не сданное задание — не сдача: в летопись о возврате не пишем, команде только уведомление.
+      if (p.status === "SUBMITTED") journal(gameId, "wreck_returned", { teamId: p.teamId, userId: p.userId, vars: { deed: w.title, comment: ": корабль затонул" } });
+      notifyTeam(gameId, p.teamId, "Корабль затонул, не дождавшись помощи", (locale) => msg(locale, p.status === "SUBMITTED" ? "Разбитый корабль с срочным заданием «{deed}» затонул: сдача команды закрыта, груз пропал вместе с ним." : "Разбитый корабль с срочным заданием «{deed}» затонул: взятое задание закрыто, груз пропал вместе с ним.", { deed: w.title }));
       publish(gameId, { type: "submissions", teamId: p.teamId });
     }
   }
@@ -112,7 +113,7 @@ export async function sinkDueWrecks(gameId?: string, now = new Date()): Promise<
 export async function wrecksForTeam(gameId: string, teamId: string) {
   const since = new Date(Date.now() - WRECK_LINGER_MS);
   const [rows] = await Promise.all([
-    prisma.wreck.findMany({ where: { gameId, OR: [{ closedAt: null }, { closedAt: { gte: since } }] }, orderBy: { createdAt: "asc" }, include: { deed: { select: { description: true, proofType: true, disabled: true } }, works: { where: { OR: [{ status: { in: ["SUBMITTED", "REJECTED"] } }, { status: "APPROVED" }] }, orderBy: { submittedAt: "desc" }, select: { teamId: true, status: true, submittedAt: true, decidedAt: true, adminComment: true, cargo: true, amount: true } } } }),
+    prisma.wreck.findMany({ where: { gameId, OR: [{ closedAt: null }, { closedAt: { gte: since } }] }, orderBy: { createdAt: "asc" }, include: { deed: { select: { description: true, proofType: true, disabled: true } }, works: { where: { OR: [{ status: { in: ["TAKEN", "SUBMITTED", "REJECTED"] } }, { status: "APPROVED" }] }, orderBy: { submittedAt: "desc" }, select: { teamId: true, status: true, userId: true, takenAt: true, submittedAt: true, decidedAt: true, adminComment: true, cargo: true, amount: true } } } }),
   ]);
   const out = [];
   for (const w of rows) {
@@ -127,7 +128,8 @@ export async function wrecksForTeam(gameId: string, teamId: string) {
       id: w.id, deedId: w.deedId, title: w.title, description: w.deed?.description ?? "", proofType: w.deed?.proofType ?? "PHOTO_LINK",
       model: w.model, q: w.q, r: w.r, seed: w.seed,
       cargo: { stones: w.stones, blocks: w.blocks },
-      mine: mine ? { status: mine.status, submittedAt: mine.submittedAt.toISOString(), adminComment: mine.adminComment, cargo: mine.cargo, amount: mine.amount, decidedAt: mine.decidedAt?.toISOString() ?? null } : null,
+      // Кто взял или сдал (решение владельца 05.11): по userId клиент пишет «Взял: имя», как у обычного дела.
+      mine: mine ? { status: mine.status, userId: mine.userId, takenAt: mine.takenAt?.toISOString() ?? null, submittedAt: mine.submittedAt.toISOString(), adminComment: mine.adminComment, cargo: mine.cargo, amount: mine.amount, decidedAt: mine.decidedAt?.toISOString() ?? null } : null,
       doneTeams: new Set(w.works.filter((x) => x.status === "APPROVED").map((x) => x.teamId)).size,
       sunkAt: w.sunk && w.closedAt && !approved ? w.closedAt.toISOString() : null,
       // Срок затопления и появление (05.11): по ним у команды тикает таймер и растёт вода в силуэте корабля.

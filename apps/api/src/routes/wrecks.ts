@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
-import { assertAwake } from "../services/daytime.js";
+import { assertAwake, assertTasksOpen } from "../services/daytime.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
@@ -14,9 +14,11 @@ import { rollCargo, sinkWreck } from "../services/wrecks.js";
 
 /**
  * Разбитые бурей корабли (решение владельца 04.11): сдача срочного задания командой, очередь и решение администратора.
- * Шага «взять» нет — любая команда может сдать; у команды не больше одной незакрытой сдачи на корабль. Права и ночь —
- * как у Каменоломни: сдаёт капитан, заместитель или летописец, не ночью и не в шторм. Груз считает сервер: 50/50 при
- * одобрении, числа из правил игры на момент решения.
+ * Задание берут, как обычное дело (решение владельца 05.11: «как это с обычным делом происходит»): любой участник
+ * нажимает «Взять задание» — у команды и у администратора «глазами команды» над кораблём знак человека, в листе «Взял: имя».
+ * Сдаёт тот, кто взял, капитан, заместитель или летописец (капитан, заместитель и летописец могут сдать и без взятия);
+ * у команды не больше одной незакрытой сдачи на корабль. Взять можно до полуночи, как обычное дело; сдать — не ночью
+ * и не в шторм, как в Каменоломне. Груз считает сервер: 50/50 при одобрении, числа из дела на момент решения.
  */
 const canWork = (m: { role: string; gameRole: string }) => isLeader(m) || m.gameRole === "CHRONICLER";
 const workBody = z.object({ links: z.array(z.string().trim().url().max(500)).max(10).default([]), note: z.string().trim().max(2000).default(""), participants: z.array(z.string().min(1)).max(60).default([]) });
@@ -42,12 +44,44 @@ export async function wreckRoutes(app: FastifyInstance): Promise<void> {
     return { wrecks: rows.map((w) => ({ id: w.id, deedId: w.deedId, title: w.title, model: w.model, q: w.q, r: w.r, seed: w.seed, createdAt: w.createdAt, sinkAt: w.sinkAt, closedAt: w.closedAt, sunkAt: w.sunk ? w.closedAt : null, cargo: { stones: w.stones, blocks: w.blocks }, doneTeams: new Set(w.works.filter((x) => x.status === "APPROVED").map((x) => x.teamId)).size, pending: w.works.filter((x) => x.status === "SUBMITTED").length })) };
   });
 
-  /** Сдать срочное задание: капитан, заместитель или летописец, не ночью. */
+  /** Взять срочное задание (решение владельца 05.11): любой участник, до полуночи, как обычное дело; одно взятие на команду. */
+  app.post("/api/games/:id/wrecks/:wreckId/take", async (request, reply) => {
+    const { id, wreckId } = request.params as { id: string; wreckId: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    if (!(await assertTasksOpen(request, reply, id))) return;
+    const wreck = await prisma.wreck.findFirst({ where: { id: wreckId, gameId: id, closedAt: null }, include: { deed: { select: { id: true, disabled: true } } } });
+    if (!wreck || !wreck.deed || wreck.deed.disabled) return reply.code(404).send({ error: "not_found", message: err(request, "Корабля уже нет: он уплыл или затонул") });
+    const busy = await prisma.wreckWork.count({ where: { wreckId, teamId: m.team.id, status: { in: ["TAKEN", "SUBMITTED", "APPROVED"] } } });
+    if (busy > 0) return reply.code(409).send({ error: "conflict", message: err(request, "Задание уже взято или сдано") });
+    const now = new Date();
+    const work = await prisma.wreckWork.create({ data: { gameId: id, wreckId, deedId: wreck.deed.id, teamId: m.team.id, userId: request.user!.id, status: "TAKEN", takenAt: now, submittedAt: now } });
+    publish(id, { type: "wrecks", teamId: m.team.id });
+    publish(id, { type: "map", teamId: m.team.id });
+    return { work: { id: work.id, status: work.status } };
+  });
+
+  /** Отказаться от взятого срочного задания: тот, кто взял, капитан, заместитель или летописец — как у обычного дела. */
+  app.post("/api/games/:id/wrecks/:wreckId/release", async (request, reply) => {
+    const { id, wreckId } = request.params as { id: string; wreckId: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    const taken = await prisma.wreckWork.findFirst({ where: { wreckId, gameId: id, teamId: m.team.id, status: "TAKEN" }, select: { id: true, userId: true } });
+    if (!taken) return reply.code(409).send({ error: "conflict", message: err(request, "Задание не взято: отказываться нечего") });
+    if (taken.userId !== request.user!.id && !canWork(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Отказаться может тот, кто взял, капитан, заместитель или летописец") });
+    await prisma.wreckWork.delete({ where: { id: taken.id } });
+    publish(id, { type: "wrecks", teamId: m.team.id });
+    publish(id, { type: "map", teamId: m.team.id });
+    return { ok: true };
+  });
+
+  /** Сдать срочное задание: тот, кто взял, капитан, заместитель или летописец; не ночью. Взятое задание становится сдачей. */
   app.post("/api/games/:id/wrecks/:wreckId/submit", async (request, reply) => {
     const { id, wreckId } = request.params as { id: string; wreckId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
-    if (!canWork(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Срочное задание сдаёт капитан, заместитель или летописец") });
+    const taken = await prisma.wreckWork.findFirst({ where: { wreckId, gameId: id, teamId: m.team.id, status: "TAKEN" }, select: { id: true, userId: true } });
+    if (!canWork(m) && taken?.userId !== request.user!.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Срочное задание сдаёт тот, кто взял, капитан, заместитель или летописец") });
     if (!(await assertAwake(request, reply, id))) return;
     const wreck = await prisma.wreck.findFirst({ where: { id: wreckId, gameId: id, closedAt: null }, include: { deed: { select: { id: true, disabled: true } } } });
     if (!wreck || !wreck.deed || wreck.deed.disabled) return reply.code(404).send({ error: "not_found", message: err(request, "Корабля уже нет: он уплыл или затонул") });
@@ -56,7 +90,10 @@ export async function wreckRoutes(app: FastifyInstance): Promise<void> {
     if (open > 0) return reply.code(409).send({ error: "conflict", message: err(request, "Это задание уже сдано: дождитесь решения администратора") });
     const members = new Set((await prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true } })).map((x) => x.userId));
     const participants = [...new Set(body.participants.filter((u) => members.has(u)))];
-    const work = await prisma.wreckWork.create({ data: { gameId: id, wreckId, deedId: wreck.deed.id, teamId: m.team.id, userId: request.user!.id, participants, links: body.links, note: body.note } });
+    // Взятое задание становится сдачей той же записью: «Взял» остаётся за взявшим, как у обычного дела.
+    const work = taken
+      ? await prisma.wreckWork.update({ where: { id: taken.id }, data: { status: "SUBMITTED", submittedAt: new Date(), participants, links: body.links, note: body.note } })
+      : await prisma.wreckWork.create({ data: { gameId: id, wreckId, deedId: wreck.deed.id, teamId: m.team.id, userId: request.user!.id, participants, links: body.links, note: body.note } });
     journal(id, "wreck_submitted", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: wreck.title } });
     publish(id, { type: "submissions", teamId: m.team.id });
     publish(id, { type: "wrecks", teamId: m.team.id });

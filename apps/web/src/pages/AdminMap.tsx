@@ -425,13 +425,18 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               {wreckSpecs.filter((w) => !(w.sunkAt != null && Date.now() - w.sunkAt > 9500)).map((w) => {
                 const wd = wrecks.find((x) => x.id === w.id), r = 13, title = wd?.title ?? "", pending = wd?.pending ?? 0;
                 // Есть сдачи на проверке — знак часов и их число (замечание владельца 05.11: таймер нужен и у администратора); иначе корабль с «!».
+                // «Глазами команды» (решение владельца 05.11): как у неё — знак человека, если задание взято, часы — если сдано.
+                const tv = viewAs ? teamView?.map?.wrecks?.find((x) => x.id === w.id)?.mine?.status ?? null : null;
+                const clock = viewAs ? tv === "SUBMITTED" : pending > 0;
+                const icon = clock ? "#m-clock" : viewAs && tv === "TAKEN" ? "#m-user" : "#m-ship";
+                const badge = viewAs ? (clock ? "" : "!") : pending || "!";
                 return (
-                  <g key={"wreck" + w.id} className={"m-deed sea wreck" + (pending ? " submitted" : "")} role="button" aria-label={t("Срочное задание: {title}", { title })} onClick={() => { if (!vp.wasDrag()) setWreckCard(w.id); }}>
+                  <g key={"wreck" + w.id} className={"m-deed sea wreck" + (clock ? " submitted" : "")} role="button" aria-label={t("Срочное задание: {title}", { title })} onClick={() => { if (!vp.wasDrag()) setWreckCard(w.id); }}>
                     <circle className="wreck-hit" cx={w.x} cy={w.y} r={size * 1.15} />
                     <g style={sc(w.x, w.y - size * 0.95)}>
                       <circle r={r} />
-                      <use href={pending ? "#m-clock" : "#m-ship"} x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
-                      <g className="urgent" transform={`translate(${(r * 0.72).toFixed(1)}, ${(-r * 0.72).toFixed(1)})`}><circle r={6.5} /><text textAnchor="middle" dy="0.36em" fontSize={9.5} fontWeight={800}>{pending || "!"}</text></g>
+                      <use href={icon} x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
+                      {badge !== "" && <g className="urgent" transform={`translate(${(r * 0.72).toFixed(1)}, ${(-r * 0.72).toFixed(1)})`}><circle r={6.5} /><text textAnchor="middle" dy="0.36em" fontSize={9.5} fontWeight={800}>{badge}</text></g>}
                     </g>
                   </g>
                 );
@@ -455,6 +460,14 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
               {w.sunkAt ? <p className="note warn"><Icon name="alert" /><span>{t("Корабль затонул")}</span></p> : <p className="muted small">{t("Разбитый бурей корабль: груз — {s} тёсаных камней или {b} блоков для стен (50/50 при приёме).", { s: w.cargo.stones, b: w.cargo.blocks })}</p>}
               {!w.sunkAt && w.sinkAt && <SinkingShip sinkAt={w.sinkAt} appearedAt={w.createdAt} compact />}
               <p className="row wrap gap-2"><Chip tone="ok" icon="check">{t("Выручили команд: {n}", { n: w.doneTeams })}</Chip>{w.pending > 0 && <Chip tone="warn" icon="clock">{t("На проверке: {n}", { n: w.pending })}</Chip>}</p>
+              {/* «Глазами команды» (решение владельца 05.11): кто взял, сдано ли — как в карточке дела. */}
+              {viewAs && (() => {
+                const tw = teamView?.map?.wrecks?.find((x) => x.id === w.id), st = tw?.mine?.status;
+                if (!st) return null;
+                const u = tw?.mine?.userId ? (teamView?.map?.members ?? []).find((mm) => mm.id === tw.mine?.userId) : null;
+                const who = u ? u.displayName ?? u.nickname : t("участник");
+                return <p className="meta-line mt-2"><Icon name={st === "TAKEN" ? "user" : st === "SUBMITTED" ? "clock" : st === "APPROVED" ? "check" : "back"} />{st === "TAKEN" ? t("Взял: {name}", { name: who }) : st === "SUBMITTED" ? t("На проверке у администратора") : st === "APPROVED" ? t("Команда выручила корабль") : t("Возвращено администратором")}</p>;
+              })()}
               {w.pending > 0 && onReview && <div className="actions mt-2"><button type="button" className="secondary sm" onClick={() => { setWreckCard(null); onReview(); }}><Icon name="check" />{t("К проверке")}</button></div>}
             </Sheet>
           );

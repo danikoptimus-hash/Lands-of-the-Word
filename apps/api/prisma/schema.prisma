@@ -1206,7 +1206,10 @@ model WreckWork {
   participants String[]  @default([])
   links        String[]  @default([])
   note         String    @default("")
+  /** TAKEN — задание взято участником, но не сдано (решение владельца 05.11: как у обычного дела); дальше SUBMITTED → APPROVED/REJECTED. */
   status       String    @default("SUBMITTED")
+  /** Когда задание взято (статус TAKEN); у сдачи без взятия пусто. */
+  takenAt      DateTime?
   submittedAt  DateTime  @default(now())
   decidedAt    DateTime?
   decidedById  String?

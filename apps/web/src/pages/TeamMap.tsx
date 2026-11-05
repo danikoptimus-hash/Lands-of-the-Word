@@ -695,14 +695,15 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             if ((w.repairedAt != null && now - w.repairedAt > 9000) || (w.sunkAt != null && w.repairedAt == null && now - w.sunkAt > 9500)) return null;
             const r = R + 2, open = () => { if (!vp.wasDrag()) onSelectWreck?.(w.id); };
             const wd = (map.wrecks ?? []).find((x) => x.id === w.id), title = wd?.title ?? "";
-            // После сдачи на проверку — знак часов, как у других дел (решение владельца 05.11); до этого — корабль с «!».
-            const submitted = wd?.mine?.status === "SUBMITTED";
+            // После сдачи на проверку — знак часов, взято участником — знак человека, как у других дел (решения владельца 05.11);
+            // до этого — корабль с «!».
+            const submitted = wd?.mine?.status === "SUBMITTED", taken = wd?.mine?.status === "TAKEN";
             return (
               <g key={"wreck" + w.id} data-id={w.id} className={"m-deed sea wreck" + (submitted ? " submitted" : "")} role="button" aria-label={t("Срочное задание: {title}", { title })} onClick={open}>
                 <circle className="wreck-hit" cx={w.x} cy={w.y} r={size * 1.15} />
                 <g style={sc(w.x, w.y - size * 0.95)}>
                   <circle r={r} />
-                  <use href={submitted ? "#m-clock" : "#m-ship"} x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
+                  <use href={submitted ? "#m-clock" : taken ? "#m-user" : "#m-ship"} x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
                   {!submitted && <g className="urgent" transform={`translate(${(r * 0.72).toFixed(1)}, ${(-r * 0.72).toFixed(1)})`}><circle r={6.5} /><text textAnchor="middle" dy="0.36em" fontSize={9.5} fontWeight={800}>!</text></g>}
                 </g>
               </g>
