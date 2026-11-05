@@ -60,7 +60,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   const [orderResult, setOrderResult] = useState<number | null>(null);
   const [taskIndex, setTaskIndex] = useState<number | null>(null);
   /** Письмо пророка: показывается один раз сразу после открытия подсказки (решение владельца 22.09), после закрытия исчезает. */
-  const [letter, setLetter] = useState<{ verses: string; text: string[] } | null>(null);
+  const [letter, setLetter] = useState<{ verses: string; text: string[]; /** Хиазм: вместо текста района — одна зеркальная пара строк (решение владельца 05.11). */ pair: ChiasmPairDto | null } | null>(null);
   /** «К районам» возвращает к тому району, из которого ушли (решение владельца 22.09): запоминаем индекс и после
    *  возврата подводим список к его карточке. */
   const lastTask = useRef<number | null>(null);
@@ -169,8 +169,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   async function hint(index: number) {
     setBusy(true); setError(null);
     try {
-      const r = await api<{ ok: boolean; verses: string; text: string[] }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/hint`, { method: "POST", body: JSON.stringify({ index }) });
-      setLetter({ verses: r.verses, text: r.text });
+      const r = await api<{ ok: boolean; verses: string; text: string[]; pair?: ChiasmPairDto | null }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/hint`, { method: "POST", body: JSON.stringify({ index }) });
+      setLetter({ verses: r.verses, text: r.text, pair: r.pair ?? null });
       await load();
     }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
@@ -395,8 +395,18 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       {letter && (
         <Sheet title={t("Письмо пророка")} onClose={() => setLetter(null)} size="md" foot={<button type="button" onClick={() => setLetter(null)}>{t("Прочитал")}</button>}>
           <div className="hint-box prophet-letter no-copy">
-            <div className="letter-head"><Icon name="mail" /><span className="strong">{t("текст района {verses}", { verses: letter.verses })}</span></div>
-            {letter.text.map((x, i) => <p key={i}>{x}</p>)}
+            {letter.pair ? (<>
+              {/* Хиазм: письмо показывает одну зеркальную пару строк с буквами мест, чтобы команда поняла принцип (решение владельца 05.11). */}
+              <div className="letter-head"><Icon name="mail" /><span className="strong">{t("хиазм: пара {a} и {b}", { a: letter.pair.mark, b: `${letter.pair.mark}′` })}</span></div>
+              <div className="letter-pair">
+                <p><b className="ch-mark man">{letter.pair.mark}</b><span>{letter.pair.first}</span></p>
+                <p><b className="ch-mark god">{`${letter.pair.mark}′`}</b><span>{letter.pair.second}</span></p>
+              </div>
+              <p>{t("{a} — {k}-я строка от начала, {b} — {k}-я от конца: вторая половина отражает первую. Так же стоят и остальные пары.", { a: letter.pair.mark, b: `${letter.pair.mark}′`, k: String(letter.pair.place) })}</p>
+            </>) : (<>
+              <div className="letter-head"><Icon name="mail" /><span className="strong">{t("текст района {verses}", { verses: letter.verses })}</span></div>
+              {letter.text.map((x, i) => <p key={i}>{x}</p>)}
+            </>)}
             <div className="muted small letter-sign">{t("Письмо показывается один раз и исчезает: перепишите нужное и расскажите команде.")}</div>
           </div>
         </Sheet>
@@ -406,6 +416,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
 }
 
 const isLocked = (locks: TaskLockDto[], index: number, now: number) => locks.some((l) => l.index === index && l.lockedUntil != null && l.lockedUntil > now);
+
+/** Пара строк хиазма в письме пророка: буква места (Г), строки первой и второй половины, номер пары от начала и число пар. */
+type ChiasmPairDto = { mark: string; first: string; second: string; place: number; n: number };
 
 function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district, groupTitles, done, fragment, busy, onBack, onAnswer, hintOpen, canHint, onHint, gameId, nodeKey, lock, support, pauseSteps, now, onSupport, notify, draft }: { /** Соседние задания: кнопки «назад/вперёд» в шапке задания (15.10); null — края списка. */ onPrev: (() => void) | null; onNext: (() => void) | null; /** Команда уже открыла знак этого задания, а я ещё не решал: решаю для своего зачёта (решение владельца 05.10). */ teamDone?: boolean; /** Черновик расстановки для задания «по порядку» (общий для команды). */ draft?: string[]; task: CityTaskDto; fragments: Array<string | null>; district?: { title: string; verses: string; summary?: string }; groupTitles: string[] | null; done: boolean; fragment: string | null; busy: boolean; cooldown: number; onBack: () => void; onAnswer: (v: unknown) => Promise<boolean>; hintOpen: boolean; canHint: boolean; onHint: () => void; gameId: string; nodeKey: string; lock: TaskLockDto | null; support: SupportItemDto[]; pauseSteps: number[]; now: number; onSupport: (message: string) => Promise<boolean>; notify: (text: string, tone?: "bad") => void }) {
   /** Отмычка остывает: растущая пауза на это задание после неверного ответа (решение владельца 18.09). */
@@ -488,7 +501,7 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
         </div>
       )}
       {hintOpen && <p className="note info"><Icon name="sparkle" /><span>{t("Подсказка пророка к этому заданию уже показана: она видна один раз.")}</span></p>}
-      {!hintOpen && !done && canHint && <p className="mt-2 row nowrap"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Свеча пророка")}</button><Help>{t("Раз в неделю открывает текст района. Видит только пророк.")}</Help></p>}
+      {!hintOpen && !done && canHint && <p className="mt-2 row nowrap"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Свеча пророка")}</button><Help>{task.type === "chiasm" ? t("Раз в неделю открывает одну пару строк хиазма. Видит только пророк.") : t("Раз в неделю открывает текст района. Видит только пророк.")}</Help></p>}
       {done ? (<>
         {task.type === "chiasm" && task.solution && <ChiasmBoard items={task.items} slots={[]} n={task.n} center={task.center} look={task.look} onChange={() => undefined} disabled state="open" solution={task.solution} />}
         <div className="note ok"><Icon name="check" /><span>{t("Выполнено. Знак шифра: {f}", { f: fragment ?? "" })}</span></div></>

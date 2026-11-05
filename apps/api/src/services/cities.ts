@@ -21,7 +21,7 @@ const taskSchema = z.discriminatedUnion("type", [
   z.object({ ...taskBase, type: z.literal("order"), items: z.array(z.string().min(1)).min(2) }),
   // Хиазм (решение владельца 05.11): пары зеркальных строк вокруг центральной мысли; порядок прочтения — А…Д, Д′…А′.
   // Вид доски: «башня» (зиккурат) или «зеркало» (схема с отступом к середине).
-  z.object({ ...taskBase, type: z.literal("chiasm"), intro: z.string().min(1), center: z.string().min(1), pairs: z.array(z.tuple([z.string().min(1), z.string().min(1)])).min(2).max(8), look: z.enum(["tower", "mirror"]).default("tower") }),
+  z.object({ ...taskBase, type: z.literal("chiasm"), intro: z.string().min(1), center: z.string().min(1), pairs: z.array(z.tuple([z.string().min(1), z.string().min(1)])).min(2).max(8), look: z.enum(["tower", "mirror"]).default("tower"), hintPair: z.number().int().min(1).optional() }),
   // Кроссворд по району (решение владельца 18.09): 4–8 слов из текста района, подсказки — вопросы к ним.
   z.object({ ...taskBase, type: z.literal("crossword"), words: z.array(z.object({ clue: z.string().min(1), answer: z.string().min(2), /** Допустимые написания той же длины (разные издания Синодального текста: «домы» / «дома»). */ alt: z.array(z.string().min(2)).optional() })).min(3).max(8) }),
 ]);
@@ -99,6 +99,20 @@ export function choicePermutation(secret: string, scopeKey: string, index: numbe
 /** Строки хиазма в порядке прочтения: левая половина пар сверху вниз, затем правая снизу вверх (А…Д, Д′…А′). */
 export function chiasmOrder(pairs: ReadonlyArray<readonly [string, string]>): string[] {
   return [...pairs.map((p) => p[0]), ...pairs.slice().reverse().map((p) => p[1])];
+}
+
+/** Буквы мест хиазма: А…З у первой половины, те же со штрихом у второй — та же азбука, что на доске команды (`CityForms.tsx`). */
+const CHIASM_MARKS = "АБВГДЕЖЗ";
+/**
+ * Подсказка пророка к хиазму: не текст района, а одна зеркальная пара строк — чтобы команда поняла принцип (решение
+ * владельца 05.11: «показать не текст, а два ответа, например Г и Г′»). Пара — `hintPair` из содержания (с единицы),
+ * по умолчанию предпоследняя: близко к середине, но не самая внутренняя, так зеркало виднее (для пяти пар — Г и Г′).
+ */
+export function chiasmHint(task: Extract<CityTask, { type: "chiasm" }>): { mark: string; first: string; second: string; place: number; n: number } {
+  const n = task.pairs.length;
+  const place = Math.min(Math.max(task.hintPair ?? n - 1, 1), n);
+  const [first, second] = task.pairs[place - 1]!;
+  return { mark: CHIASM_MARKS[place - 1] ?? String(place), first, second, place, n };
 }
 
 /** Задание без ответа — то, что видит команда. Пункты «по порядку» и варианты выбора перетасованы. */

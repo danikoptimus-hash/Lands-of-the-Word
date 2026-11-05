@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkAnswer, chiasmOrder, loadCityContent, publicTask } from "./services/cities.js";
+import { checkAnswer, chiasmHint, chiasmOrder, loadCityContent, publicTask } from "./services/cities.js";
 
 /**
  * Стих-подтверждение у задания города (решение владельца 05.11): в Бытии задание о вере Авеля показывает Евр. 11:4
@@ -45,5 +45,15 @@ describe("Бытие: задание о вере и кроссворд о Каи
     expect(checkAnswer(task, 4, "secret", "team|node", right)).toBe(true);
     expect(checkAnswer(task, 4, "secret", "team|node", [...right].reverse())).toBe(false);
     expect(checkAnswer(task, 4, "secret", "team|node", right.slice(0, 9))).toBe(false);
+  });
+
+  it("письмо пророка к хиазму — одна пара строк: по умолчанию предпоследняя (Г и Г′), hintPair выбирает другую (решение владельца 05.11)", async () => {
+    const c = await loadCityContent("gen");
+    const task = c!.tasks[4]!;
+    if (task.type !== "chiasm") throw new Error("ожидался хиазм");
+    expect(chiasmHint(task)).toEqual({ mark: "Г", first: "Наделаем кирпичей", second: "Сойдём и смешаем", place: 4, n: 5 });
+    expect(chiasmHint({ ...task, hintPair: 1 })).toMatchObject({ mark: "А", first: "Вся земля имела один язык", second: "Смешал язык всей земли", place: 1 });
+    expect(chiasmHint({ ...task, hintPair: 99 })).toMatchObject({ mark: "Д", place: 5 }); // за пределами — последняя пара
+    expect(chiasmHint({ ...task, pairs: task.pairs.slice(0, 2) })).toMatchObject({ mark: "А", place: 1, n: 2 });
   });
 });

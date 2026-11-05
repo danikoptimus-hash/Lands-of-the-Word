@@ -129,6 +129,8 @@ def check(path):
             flat = [x for pr in pairs for x in pr]
             if len(set(flat)) != len(flat): errs.append(f"задание {i}: повтор строк хиазма")
             if not t.get("intro") or not t.get("center"): errs.append(f"задание {i}: chiasm без intro или center")
+            hp = t.get("hintPair")  # пара для письма пророка (с единицы); нет — предпоследняя
+            if hp is not None and (not isinstance(hp, int) or hp < 1 or hp > len(pairs)): errs.append(f"задание {i}: hintPair вне 1..{len(pairs)}")
             missing = [x for x in flat if norm(x) not in scope_text]
             if missing: warns.append(f"задание {i}: строк хиазма нет дословно в тексте (пересказ): {len(missing)} из {len(flat)}")
         elif typ == "crossword":

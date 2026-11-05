@@ -7,6 +7,7 @@ import { cleanupFixtures, readyForStart, registerVerified, setGamePhase, zoneFor
 import { orderQueue, sumVerses } from "./services/battles.js";
 import { nearZone } from "./services/teamMap.js";
 import { pauseAfter, rulesOf } from "./services/rules.js";
+import { loadCityContent } from "./services/cities.js";
 
 /**
  * Решения владельца 18.09 по экспертному заключению: вызов только капитаном, стоп-часы на проверке,
@@ -400,6 +401,15 @@ describe("штраф, роли, пророк", () => {
     const captainView = await get(`/api/games/${gameId}/my-city/${rutKey}`, p2Cookie);
     expect(captainView.json().state.hintTasks).toEqual([]);
     expect((await get(`/api/games/${gameId}/my-city/${rutKey}/hint/0`, p3Cookie)).statusCode).toBe(404);
+    expect(hint.json().pair).toBeNull();
+    // Хиазм: письмо пророка — одна зеркальная пара строк, а не текст района (решение владельца 05.11: «два ответа, например Г и Г′»).
+    await prisma.membership.update({ where: { teamId_userId: { teamId: team2, userId: p3.id } }, data: { hintedAt: null } });
+    const ci = (await loadCityContent("gen"))!.tasks.findIndex((t) => t.type === "chiasm");
+    expect(ci).toBeGreaterThanOrEqual(0);
+    const chiasm = await post(`/api/games/${gameId}/my-city/${genKey}/hint`, p3Cookie, { index: ci });
+    expect(chiasm.statusCode).toBe(200);
+    expect(chiasm.json().text).toEqual([]);
+    expect(chiasm.json().pair).toMatchObject({ mark: "Г", place: 4, n: 5, first: "Наделаем кирпичей", second: "Сойдём и смешаем" });
     // Заместитель капитана может бросить вызов.
     const dep = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${p3.id}`, headers: { cookie: p2Cookie }, payload: { role: "DEPUTY" } });
     expect(dep.json().member.role).toBe("DEPUTY");
