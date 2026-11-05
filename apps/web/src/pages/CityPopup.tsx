@@ -441,16 +441,18 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
   const [text, setText] = useState("");
   const [choice, setChoice] = useState<number | null>(null);
   const [order, setOrder] = useState<string[]>(task.type === "order" ? validDraft(draft, task.items.map((i) => i.id)) : []);
+  /** Несколько расстановок (05.11): порядок id в каждой группе; черновик — общий плоский список. */
+  const [groups, setGroups] = useState<string[][]>(task.type === "orders" ? ordersDraft(draft, task.groups.map((g) => g.items.map((i) => i.id))) : []);
   /** Хиазм (05.11): строки по местам прочтения, пустое место — null; черновик хранит «-» вместо пустого. */
   const [slots, setSlots] = useState<Array<string | null>>(task.type === "chiasm" ? chiasmDraft(draft, task.items.map((i) => i.id), task.n * 2) : []);
   const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`);
   const [words, setWords] = useState<string[] | null>(null);
   /** Итог последней отправки — для сцены формы (весы выравниваются, замок заклинивает); сбрасывается при смене ответа. */
   const [result, setResult] = useState<"ok" | "bad" | null>(null);
-  const itemText = useMemo(() => (task.type === "order" ? new Map(task.items.map((i) => [i.id, i.text])) : new Map<string, string>()), [task]);
+  const itemText = useMemo(() => (task.type === "order" ? new Map(task.items.map((i) => [i.id, i.text])) : task.type === "orders" ? new Map(task.groups.flatMap((g) => g.items.map((i) => [i.id, i.text] as [string, string]))) : new Map<string, string>()), [task]);
   const gap = useMemo(() => (task.type === "text" ? findGap(task.prompt) : null), [task]);
-  const value = task.type === "choice" ? choice ?? 0 : task.type === "order" ? order : task.type === "chiasm" ? slots : task.type === "crossword" ? words : text.trim();
-  const filled = task.type === "choice" ? true : task.type === "order" ? order.length > 0 : task.type === "chiasm" ? slots.every(Boolean) : task.type === "crossword" ? words != null : text.trim().length > 0;
+  const value = task.type === "choice" ? choice ?? 0 : task.type === "order" ? order : task.type === "orders" ? groups.flat() : task.type === "chiasm" ? slots : task.type === "crossword" ? words : text.trim();
+  const filled = task.type === "choice" ? true : task.type === "order" ? order.length > 0 : task.type === "orders" ? groups.length > 0 : task.type === "chiasm" ? slots.every(Boolean) : task.type === "crossword" ? words != null : text.trim().length > 0;
   const canSend = !done && !busy && cooldown === 0 && !locked && filled;
   const send = async () => { const ok = await onAnswer(value); setResult(ok ? "ok" : "bad"); if (!ok) setTimeout(() => setResult(null), 900); };
   const scope = task.scope === "book" ? t("По всей книге") : task.scope === "group" ? t("По районам: {list}", { list: groupTitles?.join(", ") ?? "" }) : t("По этому району");
@@ -519,11 +521,14 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
           {task.type === "text" && !gap && <div className="field"><label htmlFor="answer-text">{t("Ответ")}</label><input id="answer-text" className="full" value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" autoCorrect="off" spellCheck={false} onPaste={noPaste} onDrop={noPaste} /></div>}
           {task.type === "choice" && <LockChoice options={task.options} choice={choice} onPick={(i) => { setChoice(i); setResult(null); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} />}
           {task.type === "order" && <LockRings ids={order} labels={itemText} onChange={(ids) => { setOrder(ids); setResult(null); saveDraft({ taskIndex: task.index, ids }); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} pinsWrong={result === "bad" ? -1 : null} strips />}
+          {task.type === "orders" && task.groups.map((g, gi) => (
+            <LockRings key={gi} title={g.title} compact strips ids={groups[gi] ?? []} labels={itemText} onChange={(ids) => { const next = groups.map((x, j) => (j === gi ? ids : x)); setGroups(next); setResult(null); saveDraft({ taskIndex: task.index, ids: next.flat() }); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} pinsWrong={result === "bad" && gi === task.groups.length - 1 ? -1 : null} />
+          ))}
           {task.type === "crossword" && <Crossword rows={task.rows} cols={task.cols} words={task.words} onChange={setWords} disabled={locked || busy} onPaste={noPaste} />}
           {task.type === "chiasm" && <ChiasmBoard items={task.items} slots={slots} n={task.n} center={task.center} look={task.look} onChange={(s) => { setSlots(s); setResult(null); saveDraft({ taskIndex: task.index, ids: s.map((x) => x ?? "-") }); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} />}
           {why && <p className="hint" aria-live="polite">{why}</p>}
           <div className="actions">
-            <button type="button" disabled={!canSend} onClick={() => void send()}><Icon name={task.type === "choice" || task.type === "order" ? "lock" : task.type === "chiasm" ? "check" : "send"} />{task.type === "choice" || task.type === "order" ? t("Провернуть замок") : task.type === "chiasm" ? t("Сложить хиазм") : t("Ответить")}</button>
+            <button type="button" disabled={!canSend} onClick={() => void send()}><Icon name={task.type === "choice" || task.type === "order" || task.type === "orders" ? "lock" : task.type === "chiasm" ? "check" : "send"} />{task.type === "choice" || task.type === "order" || task.type === "orders" ? t("Провернуть замок") : task.type === "chiasm" ? t("Сложить хиазм") : t("Ответить")}</button>
           </div>
         </div>
       )}
@@ -540,6 +545,11 @@ function chiasmDraft(draft: string[] | undefined, ids: string[], len: number): A
   const used = draft.filter((x) => x !== "-");
   if (!used.every((x) => set.has(x)) || new Set(used).size !== used.length) return empty;
   return draft.map((x) => (x === "-" ? null : x));
+}
+/** Черновик нескольких расстановок (05.11): общий плоский список id делится по группам, у каждой — проверка полноты. */
+function ordersDraft(draft: string[] | undefined, groups: string[][]): string[][] {
+  if (!draft || draft.length !== groups.reduce((n, g) => n + g.length, 0)) return groups;
+  return groups.map((g) => { const set = new Set(g); return validDraft(draft.filter((x) => set.has(x)), g); });
 }
 function validDraft(draft: string[] | undefined, ids: string[]): string[] {
   if (!draft || draft.length !== ids.length) return ids;

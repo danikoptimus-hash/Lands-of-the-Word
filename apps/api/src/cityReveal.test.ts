@@ -10,14 +10,14 @@ describe("Бытие: задание о вере и кроссворд о Каи
   it("контент читается по схеме; стих есть в контенте, но не в публичном задании", async () => {
     const c = await loadCityContent("gen");
     expect(c).not.toBeNull();
-    const faith = c!.tasks[1]!;
+    const faith = c!.tasks.find((t) => t.type === "choice" && t.options.includes("вера"))!; // задание о вере — дополнительное, в конце списка (05.11)
     expect(faith.type).toBe("choice");
     if (faith.type !== "choice") return;
     expect(faith.options).toEqual(["вера", "кровная жертва", "хорошее воспитание", "самообладание"]);
     expect(faith.correct).toBe(0);
     expect(faith.reveal).toContain("Евр. 11:4");
     expect(faith.groupDistricts).toEqual([3]);
-    const pub = publicTask(faith, 1, "secret", "scope") as Record<string, unknown>;
+    const pub = publicTask(faith, c!.tasks.indexOf(faith), "secret", "scope") as Record<string, unknown>;
     expect(pub).not.toHaveProperty("reveal");
     expect((pub.options as string[]).slice().sort()).toEqual([...faith.options].sort());
     const cw = c!.tasks[2]!;
@@ -45,6 +45,22 @@ describe("Бытие: задание о вере и кроссворд о Каи
     expect(checkAnswer(task, 4, "secret", "team|node", right)).toBe(true);
     expect(checkAnswer(task, 4, "secret", "team|node", [...right].reverse())).toBe(false);
     expect(checkAnswer(task, 4, "secret", "team|node", right.slice(0, 9))).toBe(false);
+  });
+
+  it("три расстановки в одном задании (Бытие 3, решение владельца 05.11): группы перетасованы отдельно, ответ верен только целиком", async () => {
+    const c = await loadCityContent("gen");
+    const task = c!.tasks[1]!;
+    if (task.type !== "orders") throw new Error("ожидались расстановки");
+    expect(task.groups.map((g) => g.title)).toEqual(["Порядок греха", "Порядок допроса", "Порядок приговора"]);
+    const pub = publicTask(task, 1, "secret", "team|node") as { groups: Array<{ title: string; items: Array<{ id: string; text: string }> }> };
+    expect(pub.groups).toHaveLength(3);
+    expect(new Set(pub.groups.flatMap((g) => g.items.map((x) => x.id))).size).toBe(9); // «Змей» в первой и третьей группе — разные id
+    const right = pub.groups.flatMap((g, gi) => task.groups[gi]!.items.map((text) => g.items.find((x) => x.text === text)!.id));
+    expect(checkAnswer(task, 1, "secret", "team|node", right)).toBe(true);
+    const swapped = right.slice(); [swapped[0], swapped[1]] = [swapped[1]!, swapped[0]!];
+    expect(checkAnswer(task, 1, "secret", "team|node", swapped)).toBe(false);
+    expect(checkAnswer(task, 1, "secret", "team|node", right.slice(0, 8))).toBe(false);
+    expect(c!.tasks.some((t) => t.scope === "book")).toBe(false); // «найдите стих 12:2» убрано (05.11)
   });
 
   it("письма пророка к хиазму — по паре на свечу: сначала Б и Б′, затем А, В, Г, Д; hintPair выбирает первую (решения владельца 05.11)", async () => {

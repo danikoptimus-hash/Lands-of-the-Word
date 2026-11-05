@@ -39,7 +39,7 @@ function Shackle() {
 }
 
 /** hint — короткая строка состояния под шапкой замка; help — инструкция «за кнопкой» рядом со словом «Замок»; tools — кнопки справа (переключатель пересказа). */
-export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWrong, strips, hint, help, tools }: { ids: string[]; labels: Map<string, string>; sub?: Map<string, string>; onChange: (ids: string[]) => void; disabled?: boolean; state: "idle" | "open" | "jam"; pinsWrong: number | null; strips?: boolean; hint?: string; help?: string; tools?: ReactNode }) {
+export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWrong, strips, hint, help, tools, title, compact }: { /** Заголовок вместо «Замок» и без дужки: несколько замков в одном задании (05.11). */ title?: string; compact?: boolean; ids: string[]; labels: Map<string, string>; sub?: Map<string, string>; onChange: (ids: string[]) => void; disabled?: boolean; state: "idle" | "open" | "jam"; pinsWrong: number | null; strips?: boolean; hint?: string; help?: string; tools?: ReactNode }) {
   const [spin, setSpin] = useState<{ k: number; dir: 1 | -1 } | null>(null);
   const n = ids.length;
   /** Стрелка двигает саму строку: вверх — меняется местами с соседом выше, вниз — с соседом ниже (решение владельца 22.09:
@@ -56,11 +56,11 @@ export function LockRings({ ids, labels, sub, onChange, disabled, state, pinsWro
   useEffect(() => { if (!spin) return; const tm = setTimeout(() => setSpin(null), 220); return () => clearTimeout(tm); }, [spin]);
   const label = (id: string) => labels.get(id) ?? "";
   return (
-    <div className={"lock" + (state === "open" ? " open" : state === "jam" ? " jam" : "") + (strips ? " strips" : "")}>
-      <Shackle />
+    <div className={"lock" + (state === "open" ? " open" : state === "jam" ? " jam" : "") + (strips ? " strips" : "") + (compact ? " compact" : "")}>
+      {!compact && <Shackle />}
       <div className="lock-body">
         <div className="row between lock-top">
-          <span className="strong"><Icon name="lock" />{t("Замок")}{help && <Help>{help}</Help>}</span>
+          <span className="strong"><Icon name="lock" />{title ?? t("Замок")}{help && <Help>{help}</Help>}</span>
           {tools && <span className="row nowrap lock-tools">{tools}</span>}
         </div>
         {hint && <p className="hint">{hint}</p>}
