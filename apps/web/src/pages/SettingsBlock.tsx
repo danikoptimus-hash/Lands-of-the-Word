@@ -30,6 +30,20 @@ const RULE_FIELDS: Record<NumKey, { short: () => string; label: () => string; mi
   siegeDays: { short: () => t("Осада делами"), label: () => t("Осада делами · дней"), min: 1, max: 60 },
   siegeDeedPoints: { short: () => t("Баллов за дело в осаде"), label: () => t("Баллов за дело в осаде"), min: 0, max: 100 },
 };
+/**
+ * Раздел настроек (решение владельца 05.11: «разделы по умолчанию закрытыми, и чтобы их можно было нажатием раскрывать»):
+ * заголовок — summary, свёрнут, раскрывается нажатием. tools — кнопки в строке заголовка (справка, «добавить»): их нажатие
+ * раздел не переключает (preventDefault отменяет переключение summary).
+ */
+function Group({ title, tools, children }: { title: string; tools?: ReactNode; children: ReactNode }) {
+  return (
+    <details className="settings-group">
+      <summary><h3>{title}</h3>{tools && <span className="tools" onClick={(e) => e.preventDefault()}>{tools}</span>}<Icon name="chevron-down" className="chev" /></summary>
+      {children}
+    </details>
+  );
+}
+
 const RULE_GROUPS: Array<{ title: () => string; keys: RuleKey[]; /** Строка «Родословия» (только до старта) живёт в группе испытаний. */ genealogies?: boolean }> = [
   { title: () => t("Испытания"), keys: ["attackDays", "timeZone", "minAnswerSeconds", "wallBlockVerses"], genealogies: true },
   { title: () => t("Дела и роли"), keys: ["deedReturnDays", "maxDeedsPerDay", "roleChangeDays", "roleCooldownDays"] },
@@ -227,39 +241,33 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     <div className="card settings">
       {draftGame && (
         <>
-          <div className="settings-group">
-            <h3>{t("Игра")}</h3>
+          <Group title={t("Игра")}>
             {row("name", t("Название"), game.name, { name: game.name })}
             {row("teamCount", t("Команд"), game.teamCount, { teamCount: game.teamCount })}
-          </div>
-          <div className="settings-group">
-            <h3>{t("Карта и старты")}</h3>
+          </Group>
+          <Group title={t("Карта и старты")}>
             {row("nodeCount", t("Перекрёстков на карте"), s.nodeCount ?? 250, { nodeCount: s.nodeCount ?? 250 })}
             {row("cityGap", t("Расстояние между городами"), plural(s.cityGap ?? 2, [t("сторона"), t("стороны"), t("сторон")]), { cityGap: s.cityGap ?? 2 })}
             {row("starts", t("Старты"), s.equidistantStarts ? `${t("выровнены")} · ±${s.maxStartDistanceDiff ?? 3}` : t("как получится"), { equidistant: s.equidistantStarts ?? false, maxDiff: s.maxStartDistanceDiff ?? 3 })}
-          </div>
+          </Group>
         </>
       )}
-      <div className="settings-group">
-        <h3>{t("Пожертвование вместо дела")}</h3>
+      <Group title={t("Пожертвование вместо дела")}>
         {row("currency", t("Валюта"), s.donationCurrency || "—", { currency: s.donationCurrency ?? "" })}
-      </div>
-      <div className="settings-group">
-        <h3>{t("Шторм")}<Help popup>{t("Пока идёт шторм, участники видят только карту с бурей: кнопок нет, дела не берутся, города не открываются; сервер действия не принимает. Администраторов шторм не касается. Время по поясу игры; конец раньше начала — интервал через полночь. Можно менять в идущей игре.")}</Help>
-          {storms.length < 21 && <button type="button" className="ghost icon sm add" onClick={() => open({ storm: null }, { weekday: 0, from: "10:00", hours: 2 })} aria-label={t("Добавить интервал")} title={t("Добавить интервал")}><Icon name="plus" /></button>}
-        </h3>
+      </Group>
+      <Group title={t("Шторм")} tools={<><Help popup>{t("Пока идёт шторм, участники видят только карту с бурей: кнопок нет, дела не берутся, города не открываются; сервер действия не принимает. Администраторов шторм не касается. Время по поясу игры; конец раньше начала — интервал через полночь. Можно менять в идущей игре.")}</Help>
+          {storms.length < 21 && <button type="button" className="ghost icon sm add" onClick={() => open({ storm: null }, { weekday: 0, from: "10:00", hours: 2 })} aria-label={t("Добавить интервал")} title={t("Добавить интервал")}><Icon name="plus" /></button>}</>}>
         {storms.map((x, i) => (
           <button key={i} type="button" className="set-row" onClick={() => open({ storm: i }, { weekday: x.weekday, from: x.from, hours: hoursOf(x) })}><span className="k strong">{slotLine(x)}</span><Icon name="chevron-down" className="chev right" /></button>
         ))}
         {storms.length === 0 && <p className="hint">{t("Интервалов нет: штормов не будет.")}</p>}
         {stormNow && <p className="hint">{stormNow.active ? t("По сохранённым настройкам шторм идёт сейчас, до: {when}", { when: stormNow.when }) : t("По сохранённым настройкам ближайший шторм: {when}", { when: stormNow.when })}</p>}
-      </div>
+      </Group>
       {RULE_GROUPS.map((g) => (
-        <div key={g.title()} className="settings-group">
-          <h3>{g.title()}</h3>
+        <Group key={g.title()} title={g.title()}>
           {g.genealogies && draftGame && row("genealogies", t("Родословия"), s.includeGenealogies ? t("да") : t("нет"), { genealogies: s.includeGenealogies ?? false })}
           {g.keys.map((k) => row(k, k === "timeZone" ? t("Часовой пояс игры") : k === "adminDigest" ? t("Письма о сдачах") : RULE_FIELDS[k as NumKey].short(), k === "adminDigest" ? digestLabel : ruleValue(k, rule(k)), k === "timeZone" ? { timeZone: tz } : k === "adminDigest" ? { adminDigest: rule("adminDigest") } : { value: rule(k) }))}
-        </div>
+        </Group>
       ))}
       {sh && (
         <Sheet size="sm" onClose={close} head={<div className="sheet-title"><h2>{sh.title}</h2>{sh.help && <Help popup>{sh.help}</Help>}</div>}

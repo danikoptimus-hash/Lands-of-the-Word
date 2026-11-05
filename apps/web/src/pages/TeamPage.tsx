@@ -35,6 +35,8 @@ import { StatChip } from "../components/StatChip";
 import { DeedBadgePopup, untilText } from "../components/DeedBadge";
 import { FeedSection, MyServiceSection, type ServiceTab } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
+import { AvatarLightbox } from "../components/AvatarLightbox";
+import { peaceTerm } from "../components/PeaceActions";
 import { Tabs } from "../components/Tabs";
 import { UserAvatar } from "../components/UserAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
@@ -42,16 +44,8 @@ import { EmptyState, ErrorState, LoadingState } from "../components/State";
 /** Положение команд (меню и итоги): строка раскрывается, если есть испытания или города на пути. */
 /** Таблица команд; у своей команды в раскрытой строке — состав (решение владельца 21.09: один раздел, а не два). */
 type PeaceData = { canSpeak: boolean; teams: PeaceTeamDto[] };
-type PeaceAction = "offer" | "accept" | "decline" | "break";
-/** Срок мира словами (решение владельца 22.10): «до 29 окт.», «до конца игры»; у предложения — «на 7 дней». */
-function peaceTerm(p: PeaceTeamDto): string {
-  if (p.days === null || p.days === undefined) return "";
-  if (p.days === 0) return t("до конца игры");
-  if (p.state === "peace" && p.until) return t("до {d}", { d: fmtDate(p.until, { time: false }) });
-  return t("на {n} дн.", { n: p.days });
-}
 
-function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeace }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void; roster?: React.ReactNode; /** Мир: знак напротив каждой чужой команды (решение владельца 21.09) */ peace?: PeaceData | null; onPeace?: (p: PeaceTeamDto, action: PeaceAction) => void }) {
+function StandingsList({ standings, teamId, open, setOpen, roster, peace }: { standings: StandingsDto | null; teamId: string; open: string | null; setOpen: (v: string) => void; roster?: React.ReactNode; /** Мир: знак напротив каждой чужой команды (решение владельца 21.09); принять или отклонить — в профиле команды (решение владельца 05.11). */ peace?: PeaceData | null }) {
   const stop = { onClick: (e: React.SyntheticEvent) => e.stopPropagation(), onKeyDown: (e: React.SyntheticEvent) => e.stopPropagation() };
   if (!standings) return <LoadingState rows={2} />;
   if (standings.standings.length === 0) return <EmptyState inline icon="crown" text={t("Пока нечего показать.")} />;
@@ -61,9 +55,9 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
         const trials = st.battlesWon + st.battlesRepelled + st.battlesLost;
         const mine = st.teamId === teamId;
         const pc = !mine ? peace?.teams.find((p) => p.team.id === st.teamId) ?? null : null;
-        const canPeace = Boolean(peace?.canSpeak && onPeace && pc && pc.team.status !== "defeated" && st.status !== "defeated");
-        // Меню «⋯» напротив чужой команды больше нет: мир и расторжение — в профиле команды по нажатию на аватарку, обмен
-        // городами — из карточки своего города (решения владельца 04.11). Здесь остались принять/отклонить входящее предложение.
+        const canPeace = Boolean(peace?.canSpeak && pc && pc.team.status !== "defeated" && st.status !== "defeated");
+        // Меню «⋯» напротив чужой команды больше нет: мир, расторжение, принять и отклонить предложение — в профиле команды
+        // по нажатию на аватарку (решения владельца 04.11 и 05.11), обмен городами — из карточки своего города (04.11).
         const actions: MenuItem[] = [];
         const details = st.citiesOnPath.length > 0 || (mine && Boolean(roster)) || (canPeace && pc?.state === "peace");
         const opened = open ?? teamId;
@@ -88,12 +82,6 @@ function StandingsList({ standings, teamId, open, setOpen, roster, peace, onPeac
               <div className="meta chips" {...stop}>{st.members !== undefined && <StatChip icon="users" label={t("Участников")} value={st.members} />}<StatChip icon="city" label={t("Городов")} value={st.cities} /><StatChip icon="scroll" label={t("Принятых дел")} value={st.deedsApproved} /><StatChip icon="pin" label={t("Открытых перекрёстков")} value={st.nodesRevealed} />
                 {/* Испытания значками, как у администратора (решение владельца 24.10): выиграли, устояли, потеряли. */}
                 {trials > 0 && <><StatChip icon="trophy" label={t("Испытаний выиграли")} value={st.battlesWon} /><StatChip icon="shield" label={t("Испытаний устояли")} value={st.battlesRepelled} /><StatChip icon="flag" label={t("Испытаний потеряли")} value={st.battlesLost} /></>}</div>
-              {canPeace && pc?.state === "incoming" && (
-                <div className="row peace-row" {...stop}>
-                  <button type="button" className="sm" onClick={() => onPeace!(pc!, "accept")}><Icon name="check" />{t("Принять")}</button>
-                  <button type="button" className="secondary sm" onClick={() => onPeace!(pc!, "decline")}>{t("Отклонить")}</button>
-                </div>
-              )}
               {shown && st.citiesOnPath.length > 0 && <div className="meta">{t("Города")}: {st.citiesOnPath.map((c) => c.name + (c.current ? "" : ` (${t("потерян")})`)).join(", ")}</div>}
               {/* Мир на срок расторгнуть нельзя (решение владельца 22.10): кнопка «Расторгнуть» только у старого мира без срока. */}
               {shown && canPeace && pc?.state === "peace" && <div className="meta">{pc.since ? t("мир с {d}", { d: fmtDate(pc.since, { time: false }) }) : ""}{peaceTerm(pc) ? ` · ${peaceTerm(pc)}` : ""}</div>}
@@ -322,30 +310,10 @@ export function TeamPage() {
   const [peace, setPeace] = useState<PeaceData | null>(null);
   const loadPeace = useCallback(() => api<PeaceData>(`/api/games/${id}/peace`).then(setPeace).catch(() => {}), [id]);
   /** Мир из строки команды: предложение — только после подтверждения «Да / Нет» (решение владельца 21.09). */
-  /** Предложение мира — с выбором срока (решение владельца 22.10): шторка с вариантами вместо «Да / Нет». */
-  const [peaceOffer, setPeaceOffer] = useState<PeaceTeamDto | null>(null);
-  /** Срок в днях выбирает сама команда (уточнение владельца 22.10), не из готовых кнопок. */
-  const [peaceDays, setPeaceDays] = useState(7);
-  const offerPeace = useCallback(async (p: PeaceTeamDto, days: number) => {
-    setPeaceOffer(null);
-    try { await api(`/api/games/${id}/peace`, { method: "POST", body: JSON.stringify({ teamId: p.team.id, days }) }); notify(t("Мир предложен")); await loadPeace(); }
-    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-  }, [id, notify, loadPeace]);
+  /** Профиль команды из «Внимания» (решение владельца 05.11): предложение мира принимают или отклоняют в нём. */
+  const [profileTeam, setProfileTeam] = useState<PeaceTeamDto["team"] | null>(null);
   /** Обмен городами из карточки своего города (решение владельца 04.11): ключ города, выставляемого на обмен. */
   const [tradeCity, setTradeCity] = useState<string | null>(null);
-  const onPeace = useCallback(async (p: PeaceTeamDto, action: PeaceAction) => {
-    const name = p.team.name;
-    let path = `/api/games/${id}/peace`, body: unknown = { teamId: p.team.id }, ok = t("Мир предложен");
-    if (action === "offer") { setPeaceOffer(p); return; }
-    else if (action === "accept") { path = `/api/games/${id}/peace/${p.peaceId}/accept`; body = {}; ok = t("Мир заключён"); }
-    else if (action === "decline") { path = `/api/games/${id}/peace/${p.peaceId}/decline`; body = {}; ok = t("Предложение отклонено"); }
-    else {
-      if (!(await confirm(t("Расторжение вступает в силу сразу, об этом узнают все команды."), { title: t("Расторгнуть мир с «{team}»?", { team: name }), okLabel: t("Расторгнуть") }))) return;
-      path = `/api/games/${id}/peace/${p.peaceId}/break`; body = {}; ok = t("Мир расторгнут");
-    }
-    try { await api(path, { method: "POST", body: JSON.stringify(body) }); notify(ok); await loadPeace(); }
-    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
-  }, [id, confirm, notify, loadPeace]);
   const loadBattles = useCallback(() => api<{ battles: BattleDto[] }>(`/api/games/${id}/my-battles`).then((r) => {
     // Живые оповещения: новый вызов нашему городу, старт ответа, итог испытания.
     const prev = seenBattles.current;
@@ -689,6 +657,7 @@ export function TeamPage() {
   return (
     <div className="map-screen" ref={screenRef} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       {menuOpen && <div className="side-backdrop" onClick={closeMenu} />}
+      {profileTeam && <AvatarLightbox avatarId={profileTeam.avatarId ?? null} name={profileTeam.name} teamId={profileTeam.id} color={profileTeam.color} onClose={() => setProfileTeam(null)} />}
       {/* На компьютере (решение владельца 05.10, вечер): колонка плиток висит полупрозрачно над картой; нажатие открывает панель
           раздела рядом, повторное нажатие на ту же плитку или нажатие на карту закрывает её. */}
       {menuOpen && (
@@ -717,9 +686,10 @@ export function TeamPage() {
                         <div className="main"><span className="title">{t("Запрос прохода через {book}", { book: r.bookName })}</span><span className="meta">{t("от команды «{team}»", { team: r.requester.name })}</span></div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
+                    {/* Открывает профиль команды: принять или отклонить — там (решение владельца 05.11). */}
                     {peaceOffers.map((p) => (
-                      <li key={p.team.id} role="button" tabIndex={0} onClick={() => setMenuView("standings")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMenuView("standings"); } }}>
-                        <div className="main"><span className="title">{t("Команда «{team}» предлагает мир", { team: p.team.name })}</span></div><Icon name="chevron" className="chev" />
+                      <li key={p.team.id} role="button" tabIndex={0} onClick={() => setProfileTeam(p.team)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setProfileTeam(p.team); } }}>
+                        <div className="main"><span className="title">{t("Команда «{team}» предлагает мир", { team: p.team.name })}</span>{peaceTerm(p) && <span className="meta">{peaceTerm(p)}</span>}</div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
                     {myTurnBattles.map((b) => (
@@ -820,18 +790,8 @@ export function TeamPage() {
                 empty={t("Наград пока нет.")}
                 rows={awards.teams.map((tm) => ({ key: tm.id, name: tm.name, awards: tm.awards, me: tm.id === awards.teamId, tag: tm.id === awards.teamId ? t("ваша команда") : tm.out ? t("выбыла") : undefined, muted: tm.out, who: <TeamAvatar name={tm.name} color={tm.color} avatarId={tm.avatarId} size="sm" title={tm.name} teamId={tm.id} /> }))} />
             </>))}
-            {standingsTab === "rating" && <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} onPeace={(p, a) => void onPeace(p, a)} roster={<Roster onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} />} />}
+            {standingsTab === "rating" && <StandingsList standings={standings} teamId={team.id} open={openStanding} setOpen={setOpenStanding} peace={peace} roster={<Roster onShowOnMap={showOnMap} embedded team={team} isCaptain={isCaptain} onRole={setGameRole} onDeputy={setDeputy} />} />}
 
-            {peaceOffer && (
-              <Sheet size="sm" title={t("Предложить мир команде «{team}»", { team: peaceOffer.team.name })} onClose={() => setPeaceOffer(null)}>
-                <p className="hint">{t("Пока мир действует, команды не бросают вызов городам друг друга и не объявляют осад. Расторгнуть мир раньше срока нельзя.")}</p>
-                <form className="peace-terms" onSubmit={(e) => { e.preventDefault(); if (peaceDays >= 1 && peaceDays <= 365) void offerPeace(peaceOffer, peaceDays); }}>
-                <label htmlFor="peace-days">{t("На сколько дней")}</label>
-                <input id="peace-days" type="number" inputMode="numeric" min={1} max={365} value={peaceDays} onChange={(e) => setPeaceDays(Number(e.target.value))} autoFocus />
-                <button type="submit" disabled={!(peaceDays >= 1 && peaceDays <= 365)}><Icon name="handshake" />{t("Предложить мир на {n} дн.", { n: peaceDays })}</button>
-              </form>
-              </Sheet>
-            )}
             </section>
           )}
           {menuView === "standings" && standingsTab === "rating" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
@@ -1023,13 +983,14 @@ export function TeamPage() {
 }
 
 /**
- * Форма сдачи дела. Живёт под key=task.id: у каждого дела свой набранный текст. Отчёт — три вопроса вместо «сделано»
- * (решение владельца 18.09); участники дела группой отмечаются галочками, каждому засчитывается в личное служение.
+ * Форма сдачи дела. Живёт под key=task.id: у каждого дела свой набранный текст. Отчёт — одно поле «Что сделал и кому?»
+ * (решение владельца 05.11: «объединить в одно поле… убрать „как“»; до того два вопроса, с 18.09 — три); участники дела
+ * группой отмечаются галочками, каждому засчитывается в личное служение.
  */
 function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRelease }: { /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; donationCfg: { min: number; currency: string } | null; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; donation: boolean; donationAmount?: number; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [q, setQ] = useState({ what: "", who: "" });
+  const [what, setWhat] = useState("");
   const [donation, setDonation] = useState(false);
   const [amount, setAmount] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
@@ -1039,7 +1000,7 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
   const report = proofType === "REPORT" && !donation;
   // Свидетель (решение владельца 04.10): дело подтверждает человек, который это видел; ссылки не нужны.
   const byWitness = proofType === "WITNESS" && !donation;
-  const noteOut = report ? [q.what && `${t("Что сделал")}: ${q.what}`, q.who && `${t("Кому и как")}: ${q.who}`].filter(Boolean).join("\n")
+  const noteOut = report ? what.trim()
     : byWitness ? [witness.trim() && `${t("Свидетель")}: ${witness.trim()}`, note.trim()].filter(Boolean).join("\n") : note;
   return (
     <>
@@ -1079,10 +1040,7 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
         </div>
       )}
       {report ? (
-        <>
-          <div className="field"><label htmlFor="deed-q1">{t("Что сделал?")}</label><textarea id="deed-q1" rows={2} value={q.what} onChange={(e) => setQ({ ...q, what: e.target.value })} /></div>
-          <div className="field"><label htmlFor="deed-q2">{t("Кому и как?")}</label><textarea id="deed-q2" rows={2} value={q.who} onChange={(e) => setQ({ ...q, who: e.target.value })} /></div>
-        </>
+        <div className="field"><label htmlFor="deed-q1">{t("Что сделал и кому?")}</label><textarea id="deed-q1" rows={3} value={what} onChange={(e) => setWhat(e.target.value)} /></div>
       ) : (
         <div className="field">
           <label htmlFor="deed-note">{donation ? t("Комментарий") : t("Что сделали")}</label>

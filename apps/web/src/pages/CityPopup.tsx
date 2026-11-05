@@ -8,7 +8,7 @@ import { WarSection } from "./BattlePanel";
 import { WallSection } from "./Wall";
 import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
-import { fmtDate, fmtLeft , plural } from "../lib/format";
+import { fmtDate, fmtPause, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { NightNote } from "../components/NightNote";
 import { Chip } from "../components/Chip";
@@ -77,6 +77,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   }, [taskIndex]);
   const [busy, setBusy] = useState(false);
   const [key, setKey] = useState("");
+  /** Разница часов сервера и устройства (мс): паузы отмычки и печати сравниваются по часам сервера (05.11: при сбитых часах
+   *  телефона кнопка «Ответить» оживала раньше, чем сервер принимал ответ, а счётчик ошибок не рос — ответы отбивались как 429). */
+  const skew = useRef(0);
   const [now, setNow] = useState(Date.now());
   /** Сцены форм: замок открылся/заклинило, районы только что встали по порядку, какой сектор печати выбит, сургуч. */
   const [lockState, setLockState] = useState<"idle" | "open" | "jam">("idle");
@@ -94,9 +97,9 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
-  const load = useCallback(() => api<MyCityDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`).then((c) => { setCity(c); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [gameId, nodeKey]);
+  const load = useCallback(() => api<MyCityDto>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}`).then((c) => { if (typeof c.now === "number") skew.current = c.now - Date.now(); setCity(c); setNow(Date.now() + skew.current); setError(null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [gameId, nodeKey]);
   useEffect(() => { void load(); }, [load, version]);
-  useEffect(() => { const tm = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(tm); }, []);
+  useEffect(() => { const tm = setInterval(() => setNow(Date.now() + skew.current), 1000); return () => clearInterval(tm); }, []);
   // Начальная расстановка — черновик команды, если он содержит ровно эти районы; иначе порядок, в котором пришли районы.
   useEffect(() => { if (city?.content && !city.state.orderSolved && !order) setOrder(validDraft(city.state.orderDraft, city.content.districts.map((d) => d.id))); }, [city, order]);
   const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`);
@@ -136,7 +139,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       const r = await api<{ correct: boolean; fragment?: string; retryAt?: number | null; wrong?: number; personal?: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/tasks/${index}/answer`, { method: "POST", body: JSON.stringify({ answer: value }) });
       if (r.correct && r.personal) notify(t("Верно: задание засчитано вам. Решено вами: {a} из {b}", { a: mine.length + 1, b: total }));
       else if (r.correct) { setStruck(index); notify(t("Верно. Знак шифра: {f}", { f: r.fragment ?? "" })); await sleep(900); }
-      else notify(t("Неверно. Отмычка остывает: следующая попытка через {t}", { t: r.retryAt ? fmtLeft(r.retryAt - Date.now()) : "" }), "bad");
+      else notify(t("Неверно. Отмычка остывает: следующая попытка через {t}", { t: r.retryAt ? fmtPause(r.retryAt - Date.now() - skew.current) : "" }), "bad");
       await load(); onChanged();
       return r.correct;
     } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); if (e instanceof ApiError && e.status === 429) void load(); return false; }
@@ -436,11 +439,11 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
         </details>
       )}
       {!(task.type === "text" && gap && !done) && <p className="prompt no-copy" onCopy={(e) => e.preventDefault()}>{task.prompt}</p>}
-      {!done && !locked && (lock?.wrong ?? 0) > 0 && <p className="muted small">{t("Ошибок подряд: {n} · следующая пауза {t}", { n: lock!.wrong, t: fmtLeft(nextPause * 1000) })}</p>}
+      {!done && !locked && (lock?.wrong ?? 0) > 0 && <p className="muted small">{t("Ошибок подряд: {n} · следующая пауза {t}", { n: lock!.wrong, t: fmtPause(nextPause * 1000) })}</p>}
       {locked && lock && (
         <div className="note bad lock-note">
           <div className="row nowrap"><PickCooling until={lock.lockedUntil!} now={now} label={t("Отмычка остывает")} total={(pauseSteps[Math.min(Math.max(lock.wrong - 1, 0), pauseSteps.length - 1)] ?? 20) * 1000} /></div>
-          <span className="small">{t("Следующая попытка через {t}.", { t: fmtLeft(lock.lockedUntil! - now) })}</span>
+          <span className="small">{t("Следующая попытка через {t}.", { t: fmtPause(lock.lockedUntil! - now) })}</span>
         </div>
       )}
       {openRequest && <div className="note info"><Icon name="send" /><span>{t("Обращение в поддержку отправлено {d}. Ждём ответа.", { d: fmtDate(new Date(openRequest.createdAt).toISOString()) })}</span></div>}

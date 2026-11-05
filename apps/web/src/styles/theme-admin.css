@@ -114,7 +114,7 @@ details.legend > summary { font-family: var(--font-ui); }
 /* ---------- Настройки: подзаголовки групп, шеврон свёртки — бронза ---------- */
 .settings-group { border-top-color: var(--paper-edge); }
 .settings-group h3 { font-family: var(--font-display); font-size: var(--fs-lg); }
-details.settings-group summary::after { content: ""; width: 20px; height: 20px; background: var(--bronze); -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") center / contain no-repeat; mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='m6 9 6 6 6-6'/></svg>") center / contain no-repeat; }
+details.settings-group > summary .chev { color: var(--bronze); }
 .rule-group { margin: var(--sp-4) 0 var(--sp-1); font: 700 var(--fs-xs)/1.2 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; color: var(--bronze-ink); }
 .set-row { border-bottom-color: var(--paper-edge); }
 .set-row .k { font-family: var(--font-ui); }

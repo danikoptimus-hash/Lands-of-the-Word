@@ -300,6 +300,8 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar-lightbox .team-photo-edit .avatar-btn .badge { right: 6%; bottom: 6%; width: 36px; height: 36px; }
 .avatar-lightbox .team-photo-edit .avatar-btn .badge svg { width: 18px; height: 18px; }
 .avatar-lightbox .card .team-invites { justify-content: center; margin: var(--sp-2) 0 0; gap: var(--sp-2); flex-wrap: wrap; }
+/* Входящее предложение мира (05.11): строка «предлагает мир на N дн.» на всю ширину, кнопки «Принять» и «Отклонить» под ней рядом. */
+.avatar-lightbox .card .peace-incoming { flex-basis: 100%; display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-1); }
 .avatar-lightbox .card .invite-btns { display: inline-flex; gap: var(--sp-1); }
 .avatar-lightbox .card .invite-fallback { word-break: break-all; font-size: var(--fs-sm); }
 .avatar-lightbox .letter { width: min(60vw, 220px); height: min(60vw, 220px); border-radius: 50%; display: grid; place-items: center; font-family: var(--font-display); font-size: 72px; font-weight: 700; color: var(--accent-ink); background: var(--paper-2); box-shadow: 0 0 0 4px var(--surface), 0 12px 40px rgba(0, 0, 0, 0.5); }

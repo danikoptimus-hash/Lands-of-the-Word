@@ -95,6 +95,8 @@ export interface TaskLockDto { index: number; wrong: number; lockedUntil: number
 export interface SupportItemDto { id: string; taskIndex: number | null; createdAt: number; status: "OPEN" | "CLOSED"; reply: string | null }
 export interface MyCityDto {
   daytime?: DaytimeDto;
+  /** Часы сервера (мс): паузы отмычки и печати считаются по ним, чтобы сбитые часы телефона не открывали кнопку раньше времени (05.11). */
+  now?: number;
   /** Городская стена: хранителям — толщина; чужим — снимок разведчика (02.11): разведано ли, есть ли, когда, можно ли разведать. */
   wall?: { exists?: boolean; verses?: number; blocks?: number; pending?: number; scouted?: boolean; scoutedAt?: string; canScout?: boolean; nextScoutAt?: string | null } | null;
   node: { key: string; bookCode: string; cityType: string | null; ruined: boolean };
