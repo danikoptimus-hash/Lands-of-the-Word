@@ -181,7 +181,7 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
         <summary><Icon name="book" />{t("Книга")}<Icon name="chevron-down" className="chev" /></summary>
         <BookMap gameId={gameId} bookCode={d.bookCode} version={version + d.blocks.length} look="bricks" />
       </details>
-      {build && <BuildSheet gameId={gameId} nodeKey={nodeKey} bookCode={d.bookCode} bricks={d.bricks} members={d.members} canPlan={d.canPlan} n={d.blockVerses} mineCount={mine.length} onClose={() => setBuild(false)} onDone={() => { setBuild(false); void load(); onChanged(); }} />}
+      {build && <BuildSheet gameId={gameId} nodeKey={nodeKey} bookCode={d.bookCode} bricks={d.bricks} members={d.members} canPlan={d.canPlan} canFor={Boolean(d.canSubmitFor)} me={d.me ?? ""} n={d.blockVerses} mineCount={mine.length} onClose={() => setBuild(false)} onDone={() => { setBuild(false); void load(); onChanged(); }} />}
     </div>
   );
 }
@@ -191,45 +191,64 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
  * на каждом — сколько человек в команде могут его взять (решение владельца 02.11: «чтобы капитан понимал, сколько
  * человек может взять, какие полностью свободны»), полностью свободные выделены. Выбранный блок показывает имена,
  * капитан поручает блок чипами (план заучивания). Ссылка на видео — для своей сдачи.
+ * Сдача за хранителя (решение владельца 05.11: «чтобы капитан, заместитель или летописец мог сдавать стихи хранителей
+ * (но не при нападении)»): выбор «Сдать за» — участник команды; блоки показаны как свободные для него; ссылка на его видео.
  */
-function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, n, mineCount, onClose, onDone }: { gameId: string; nodeKey: string; bookCode: string; bricks: WallBrickDto[]; members: WallDto["members"]; canPlan: boolean; n: number; mineCount: number; onClose: () => void; onDone: () => void }) {
+function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, canFor = false, me = "", n, mineCount, onClose, onDone }: { gameId: string; nodeKey: string; bookCode: string; bricks: WallBrickDto[]; members: WallDto["members"]; canPlan: boolean; /** Капитан, заместитель или летописец: может сдать блок за другого участника. */ canFor?: boolean; me?: string; n: number; mineCount: number; onClose: () => void; onDone: () => void }) {
   const { notify } = useUi();
   const [k, setK] = useState<number | null>(null);
+  /** За кого сдаётся блок: пусто — за себя. */
+  const [forId, setForId] = useState("");
   /** Блок, для которого открыт лист «кто учил» (решение владельца 03.11; 04.11 — без отметок, просто кто сдал и кто нет). */
   const [who, setWho] = useState<WallBrickDto | null>(null);
   const [links, setLinks] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const chosen = useMemo(() => bricks.find((b) => b.k === k) ?? null, [bricks, k]);
-  const repair = chosen?.state === "cracked" ? chosen : null;
-  const canSubmit = chosen != null && (chosen.state === "free" || chosen.state === "cracked");
-  const urls = links.split(/\s+/).filter(Boolean);
   const nameOf = (id: string) => members.find((m) => m.userId === id)?.name ?? "?";
+  const forName = forId ? nameOf(forId) : "";
+  /** Свободен ли блок для того, за кого сдаём: у него нет своей строки и стихов блока в испытаниях. */
+  const okFor = (b: WallBrickDto) => !forId || b.takers.includes(forId);
+  const repair = !forId && chosen?.state === "cracked" ? chosen : null;
+  const canSubmit = chosen != null && (forId ? okFor(chosen) : chosen.state === "free" || chosen.state === "cracked");
+  const urls = links.split(/\s+/).filter(Boolean);
   async function send() {
     if (k === null || !canSubmit) return;
     setBusy(true); setError(null);
     try {
-      const r = await api<{ ref: string; repair?: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/wall`, { method: "POST", body: JSON.stringify({ block: k, links: urls }) });
-      notify(r.repair ? t("Починка {ref} сдана на проверку", { ref: r.ref }) : t("Блок {ref} сдан на проверку", { ref: r.ref })); onDone();
+      const r = await api<{ ref: string; repair?: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/wall`, { method: "POST", body: JSON.stringify({ block: k, links: urls, ...(forId ? { forUserId: forId } : {}) }) });
+      notify(forId ? t("Блок {ref} сдан на проверку за участника {name}", { ref: r.ref, name: forName }) : r.repair ? t("Починка {ref} сдана на проверку", { ref: r.ref }) : t("Блок {ref} сдан на проверку", { ref: r.ref })); onDone();
     } catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
   const stateTitle = (b: WallBrickDto) => b.state === "approved" ? t("принят") : b.state === "submitted" ? t("на проверке") : b.state === "learned" ? t("стихи сданы в испытании") : b.state === "used" ? t("сгорел в испытании") : b.state === "cracked" ? t("надломлен: не хватает {n} стихов", { n: b.missing ?? 0 }) : "";
   const all = members.length;
   return (
-    <Sheet size="md" title={t("Блок стены")} onClose={onClose} foot={<button type="button" disabled={busy || !canSubmit || urls.length === 0} onClick={() => void send()}><Icon name="check" />{repair ? t("Починить {ref}", { ref: repair.ref }) : chosen && canSubmit ? t("Сдать {ref}", { ref: chosen.ref }) : t("Сдать блок")}</button>}>
-      <p className="hint">{repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}<Help>{t("Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажмите на блок — увидите имена; капитан поручает блок.")}</Help></p>
+    <Sheet size="md" title={t("Блок стены")} onClose={onClose} foot={<button type="button" disabled={busy || !canSubmit || urls.length === 0} onClick={() => void send()}><Icon name="check" />{repair ? t("Починить {ref}", { ref: repair.ref }) : chosen && canSubmit && forId ? t("Сдать {ref} за {name}", { ref: chosen.ref, name: forName }) : chosen && canSubmit ? t("Сдать {ref}", { ref: chosen.ref }) : t("Сдать блок")}</button>}>
+      {/* Сдача за хранителя (решение владельца 05.11): капитан, заместитель или летописец. */}
+      {canFor && members.some((m) => m.userId !== me) && (
+        <div className="field">
+          <label htmlFor="wall-for">{t("Сдать за")}</label>
+          <select id="wall-for" value={forId} onChange={(e) => { setForId(e.target.value); setK(null); setError(null); }}>
+            <option value="">{t("себя")}</option>
+            {members.filter((m) => m.userId !== me).map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
+          </select>
+        </div>
+      )}
+      <p className="hint">{forId ? t("Сдаёте за участника {name}: выберите блок, который он выучил заранее, и прикрепите ссылку на его видео. Блок засчитается ему; во время ответа хранителей стену не строят.", { name: forName }) : repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}<Help>{t("Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажмите на блок — увидите имена; капитан поручает блок.")}</Help></p>
       <div className="brick-grid bricks-tex" role="radiogroup" aria-label={t("Блоки книги")}>
         {bricks.map((b) => {
           const takers = b.takers.length;
           return (
-            <button key={b.k} type="button" role="radio" aria-checked={k === b.k} className={"brick-btn " + b.state + (k === b.k ? " on" : "") + (takers === all && all > 0 ? " whole" : takers === 0 ? " none" : "")} disabled={!canPlan && b.state !== "free" && b.state !== "cracked"} title={stateTitle(b)} onClick={() => { setK(b.k); if (canPlan) setWho(b); }}>
+            <button key={b.k} type="button" role="radio" aria-checked={k === b.k} className={"brick-btn " + (forId ? (okFor(b) ? "free" : "learned") : b.state) + (k === b.k ? " on" : "") + (takers === all && all > 0 ? " whole" : takers === 0 ? " none" : "")} disabled={!canPlan && (forId ? !okFor(b) : b.state !== "free" && b.state !== "cracked")} title={forId ? (okFor(b) ? t("Можно сдать за {name}", { name: forName }) : t("У участника этот блок уже сдан или стихи сданы в испытании")) : stateTitle(b)} onClick={() => { setK(b.k); if (canPlan) setWho(b); }}>
               <span className="ref">{b.ref}</span>
-              {b.state === "approved" && <Icon name="check" />}
-              {b.state === "submitted" && <Icon name="clock" />}
-              {b.state === "learned" && <Icon name="lock" />}
-              {b.state === "used" && <Icon name="wave" />}
-              {b.state === "cracked" && <Icon name="alert" />}
+              {forId ? (!okFor(b) && <Icon name="lock" />) : (<>
+                {b.state === "approved" && <Icon name="check" />}
+                {b.state === "submitted" && <Icon name="clock" />}
+                {b.state === "learned" && <Icon name="lock" />}
+                {b.state === "used" && <Icon name="wave" />}
+                {b.state === "cracked" && <Icon name="alert" />}
+              </>)}
               <span className="cnt" title={t("Могут взять: {n}", { n: takers })}>{takers === all && all > 0 ? t("все") : takers}</span>
             </button>
           );

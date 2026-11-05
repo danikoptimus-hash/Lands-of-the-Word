@@ -151,6 +151,34 @@ describe("городская стена", () => {
     expect(city1.json().wall.verses).toBeUndefined();
   });
 
+  it("за хранителя блок сдаёт капитан, заместитель или летописец (решение владельца 05.11): блок засчитан хранителю; рядовой — нет; чужой — нет", async () => {
+    const keeper2Id = (await prisma.user.findUniqueOrThrow({ where: { nickname: keeper2Nick }, select: { id: true } })).id;
+    const keeperId = (await prisma.user.findUniqueOrThrow({ where: { nickname: keeperNick }, select: { id: true } })).id;
+    const attackerId = (await prisma.user.findUniqueOrThrow({ where: { nickname: attackerNick }, select: { id: true } })).id;
+    // Рядовой участник за капитана сдать не может; капитан за чужого — нет.
+    expect((await post(wallUrl(), keeper2Cookie, { block: 5, links: ["https://example.com/for1"], forUserId: keeperId })).statusCode).toBe(403);
+    expect((await post(wallUrl(), keeperCookie, { block: 5, links: ["https://example.com/for1"], forUserId: attackerId })).statusCode).toBe(404);
+    const w0 = await get(wallUrl(), keeperCookie);
+    expect(w0.json()).toMatchObject({ me: keeperId, canSubmitFor: true });
+    expect((await get(wallUrl(), keeper2Cookie)).json().canSubmitFor).toBe(false);
+    // Капитан сдаёт блок за хранителя: строка на хранителе, пометка, кто сдал; второй раз за него тот же блок — 409.
+    const t0 = new Date();
+    const res = await post(wallUrl(), keeperCookie, { block: 5, links: ["https://example.com/for1"], forUserId: keeper2Id, note: "выучил вчера" });
+    expect(res.statusCode).toBe(201);
+    const row = await prisma.wallBlock.findUniqueOrThrow({ where: { id: res.json().id } });
+    expect(row.userId).toBe(keeper2Id); expect(row.note.startsWith("Сдал(а) за хранителя: ")).toBe(true); expect(row.note.endsWith("выучил вчера")).toBe(true);
+    expect((await post(wallUrl(), keeperCookie, { block: 5, links: ["https://example.com/for2"], forUserId: keeper2Id })).statusCode).toBe(409);
+    // У хранителя блок «на проверке», у капитана этот же блок по-прежнему свободен; в списке блок записан на хранителя.
+    expect((await get(wallUrl(), keeper2Cookie)).json().bricks[5].state).toBe("submitted");
+    const w1 = await get(wallUrl(), keeperCookie);
+    expect(w1.json().bricks[5].state).toBe("free");
+    expect(w1.json().bricks[5].takers).not.toContain(keeper2Id);
+    expect(w1.json().blocks.find((b: { id: string }) => b.id === row.id)).toMatchObject({ userId: keeper2Id, status: "SUBMITTED" });
+    // Не трогаем стену и летопись для следующих проверок: убираем строку и запись о сдаче.
+    await prisma.wallBlock.delete({ where: { id: row.id } });
+    await prisma.journal.deleteMany({ where: { gameId, kind: "wall_block_submitted", createdAt: { gte: t0 } } });
+  });
+
   it("стена ложится в ответ за минуту до конца времени ответа, а не при «Испытать»: ставка покрыта — город устоял без единого нового стиха", async () => {
     const declared = await post(`/api/games/${gameId}/my-city/${rutKey}/war`, attackerCookie, { bid: 10 });
     expect(declared.statusCode).toBe(201);

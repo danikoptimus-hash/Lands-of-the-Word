@@ -19,6 +19,8 @@ const buildBody = z.object({
   block: z.number().int().min(0).max(10_000),
   links: z.array(z.string().trim().url().max(500)).min(1).max(5),
   note: z.string().trim().max(500).default(""),
+  /** За кого сдаётся блок (решение владельца 05.11): капитан, заместитель или летописец прикрепляет видео хранителя. */
+  forUserId: z.string().trim().min(1).max(64).optional(),
 });
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
 
@@ -101,6 +103,8 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
       // Груз разбитого корабля (04.11): сколько блоков у команды и может ли этот участник положить блок (капитан, заместитель, летописец).
       cargoBlocks: teamRow.cargoBlocks, canCargo: teamRow.cargoBlocks > 0 && !defense && (isLeader(m) || m.gameRole === "CHRONICLER"),
       canPlan: isLeader(m), members: members.map((x) => ({ userId: x.userId, name: names.get(x.userId) ?? "?", role: x.role })),
+      // Сдача за хранителя (решение владельца 05.11): капитан, заместитель или летописец.
+      me: userId, canSubmitFor: isLeader(m) || m.gameRole === "CHRONICLER",
       canBuild: !why, why: why ? err(request, why) : null,
       bricks,
       blocks: live.map((r) => ({ id: r.id, k: r.cargo ? -1 : Math.floor(r.startIdx / n), ref: r.cargo ? "груз корабля" : brickRef(book, r.startIdx, r.endIdx), cargo: r.cargo, verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, missing: r.missing, repairPending: repairPending.has(r.id), adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),
@@ -123,8 +127,20 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     const defense = await prisma.battle.findFirst({ where: { gameId: id, nodeKey, defenderId: m.team.id, status: "DEFENSE" }, select: { id: true } });
     if (defense) return reply.code(409).send({ error: "conflict", message: err(request, "Идёт ответ хранителей: стена строится в мирное время") });
     const { start, end } = brickRange(body.block, n, book.total);
-    const userId = request.user!.id;
+    // Сдача за хранителя (решение владельца 05.11: «чтобы капитан, заместитель или летописец мог сдавать стихи хранителей
+    // (но не при нападении)»): хранители учат заранее, руководство прикрепляет их видео, блок засчитывается хранителю.
+    // Во время ответа хранителей стена не строится вовсе (проверка выше), так что при нападении это не работает.
+    let userId = request.user!.id, weightRole: string | null = m.gameRole, byNote = "";
+    if (body.forUserId && body.forUserId !== request.user!.id) {
+      if (!(isLeader(m) || m.gameRole === "CHRONICLER")) return reply.code(403).send({ error: "forbidden", message: err(request, "Сдать блок за другого участника может капитан, заместитель или летописец") });
+      const target = await prisma.membership.findUnique({ where: { teamId_userId: { teamId: m.team.id, userId: body.forUserId } }, select: { userId: true, gameRole: true } });
+      if (!target) return reply.code(404).send({ error: "not_found", message: err(request, "Такого участника нет в команде") });
+      userId = target.userId; weightRole = target.gameRole;
+      byNote = `Сдал(а) за хранителя: ${await nick(request.user!.id)}`;
+    }
     const dup = await prisma.wallBlock.findFirst({ where: { teamId: m.team.id, nodeKey, userId, startIdx: start, status: { not: "REJECTED" }, repairOfId: null }, select: { id: true, status: true, missing: true, endIdx: true, weight: true } });
+    // За другого — только новый блок: починку надломленного досдаёт сам хранитель.
+    if (dup && byNote) return reply.code(409).send({ error: "conflict", message: err(request, "У этого участника блок уже сдан или принят") });
     if (dup && dup.status === "APPROVED" && dup.missing > 0) {
       // Починка надломленного блока (решение владельца 02.11): хозяин досдаёт недостающие стихи с конца блока, администратор проверяет.
       const pending = await prisma.wallBlock.findFirst({ where: { repairOfId: dup.id, status: "SUBMITTED" }, select: { id: true } });
@@ -142,8 +158,9 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     // Стих сдаётся один раз (решение владельца 03.10): стихи, отмеченные в испытаниях этой книги, в блок не входят.
     const overlap = await prisma.battleEntry.findFirst({ where: { userId, status: { not: "REJECTED" }, startIdx: { lte: end }, endIdx: { gte: start }, battle: { gameId: id, bookCode: city.bookCode } }, select: { id: true } });
     if (overlap) return reply.code(409).send({ error: "conflict", message: err(request, "Стихи этого блока вы уже сдавали в испытании: второй раз они не засчитываются") });
-    const weight = m.gameRole === "WARRIOR" ? 2 : 1;
-    const row = await prisma.wallBlock.create({ data: { gameId: id, teamId: m.team.id, nodeKey, bookCode: city.bookCode, userId, startIdx: start, endIdx: end, links: body.links, note: body.note, weight } });
+    const weight = weightRole === "WARRIOR" ? 2 : 1;
+    const note = byNote ? (body.note ? `${byNote}. ${body.note}` : byNote) : body.note;
+    const row = await prisma.wallBlock.create({ data: { gameId: id, teamId: m.team.id, nodeKey, bookCode: city.bookCode, userId, startIdx: start, endIdx: end, links: body.links, note, weight } });
     const ref = brickRef(book, start, end);
     journal(id, "wall_block_submitted", { teamId: m.team.id, userId, vars: { user: await nick(userId), book: city.bookCode, ref } });
     publish(id, { type: "cities", teamId: m.team.id });
