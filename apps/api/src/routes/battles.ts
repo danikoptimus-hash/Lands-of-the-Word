@@ -27,6 +27,7 @@ const entryBody = z.object({
 });
 const passageBody = z.object({ from: z.string().trim().min(3).max(12), to: z.string().trim().min(3).max(12) });
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
+const expireBody = z.object({ comment: z.string().trim().max(1000).default("") });
 
 const teamSelect = { select: { id: true, index: true, name: true, color: true, avatarId: true } } as const;
 const include = { entries: { orderBy: { createdAt: "asc" as const } }, attacker: teamSelect, defender: teamSelect, allies: true } as const;
@@ -573,5 +574,33 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     // Личная запись летописи (решение владельца 01.11): возврат виден тому, чья запись, с причиной администратора.
     if (!body.approve) { const book = await loadBook(e.battle.bookCode); journal(id, "trial_entry_returned", { personal: true, userId: e.userId, teamId: e.teamId, vars: { side: e.side === "ATTACK" ? "вызова" : "ответа", book: e.battle.bookCode, ref: book ? formatRange(book, e.startIdx, e.endIdx) : "", comment: body.comment ? `: ${body.comment}` : "" } }); }
     return { ok: true, status: full.status };
+  });
+
+  /**
+   * «Время вышло» (решение владельца 05.11): команды выигрывали время на заучивание, сдавая нерабочую ссылку или подменяя
+   * сообщение в Телеграме — пока запись лежит на проверке, стоп-часы стоят. Администратор закрывает ход стороны как
+   * просроченный: претендентам — как сгоревший вызов (штраф к ставке), хранителям — как истёкшее время ответа (город
+   * потерян; стена, если есть, ложится в ответ, как при обычном истечении). Записи стороны на проверке возвращаются с
+   * комментарием администратора, он же уходит команде уведомлением. Делается через общий обход sweep: тот же путь,
+   * что при настоящем истечении срока.
+   */
+  app.post("/api/games/:id/battles/:battleId/expire", async (request, reply) => {
+    const { id, battleId } = request.params as { id: string; battleId: string };
+    if (!(await requireAdmin(request, reply, id))) return;
+    const body = expireBody.parse(request.body ?? {});
+    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id } });
+    if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
+    if (b.status !== "ATTACK" && b.status !== "DEFENSE") return reply.code(409).send({ error: "conflict", message: err(request, "Ход сейчас не идёт") });
+    const now = new Date(), past = new Date(now.getTime() - 1000);
+    const side = b.status, teamId = side === "ATTACK" ? b.attackerId : b.defenderId;
+    await prisma.battleEntry.updateMany({ where: { battleId: b.id, side, status: "SUBMITTED" }, data: { status: "REJECTED", adminComment: body.comment || "Время вышло", decidedAt: now } });
+    if (side === "ATTACK") await prisma.battle.update({ where: { id: b.id }, data: { attackDoneAt: null, attackApprovedAt: null, attackDeadline: past } });
+    else await prisma.battle.update({ where: { id: b.id }, data: { defenseDoneAt: null, defenseBid: null, defenseDeadline: past } });
+    await sweep(id);
+    const after = await prisma.battle.findUniqueOrThrow({ where: { id: b.id } });
+    notifyTeam(id, teamId, side === "ATTACK" ? "вызов городу {book}: время вышло" : "ответ города {book}: время вышло",
+      body.comment ? "Администратор закрыл ваш ход как просроченный. Комментарий: {comment}" : "Администратор закрыл ваш ход как просроченный.", { book: b.bookCode, comment: body.comment });
+    publish(id, { type: "submissions" });
+    return { ok: true, status: after.status };
   });
 }

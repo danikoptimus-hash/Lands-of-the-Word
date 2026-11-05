@@ -5,6 +5,7 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { Help } from "../components/Help";
 import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { Tabs } from "../components/Tabs";
@@ -36,11 +37,13 @@ function TrialArrow() {
  * Счётчик карточки — все записи на проверке. В листе отрывка сверху — часы стороны (решение владельца 03.11).
  */
 export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
-  const { notify } = useUi();
+  const { notify, confirm } = useUi();
   const [rows, setRows] = useState<BattleDto[] | null>(() => ready<{ battles: BattleDto[] }>(`/api/games/${gameId}/battles`)?.battles ?? null);
   const [loadError, setLoadError] = useState(false);
   const [filter, setFilter] = useState<"active" | "done">("active");
   const [returning, setReturning] = useState<string | null>(null);
+  /** «Время вышло» (решение владельца 05.11): открыт ящик комментария для этого испытания. */
+  const [expiring, setExpiring] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null); // гаснут кнопки только у решаемой записи (04.10)
   const [sheet, setSheet] = useState<{ battleId: string; step: StepKey } | null>(null);
   const load = useCallback(() => apiReady<{ battles: BattleDto[] }>(`/api/games/${gameId}/battles`).then((r) => { setRows(r.battles); setLoadError(false); }).catch(() => setLoadError(true)), [gameId]);
@@ -49,6 +52,16 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
   async function decide(battleId: string, entryId: string, approve: boolean, comment = "") {
     setBusyId(entryId);
     try { await api(`/api/games/${gameId}/battles/${battleId}/entries/${entryId}/decide`, { method: "POST", body: JSON.stringify({ approve, comment }) }); notify(approve ? t("Запись принята") : t("Запись возвращена")); setReturning(null); await load(); onDecided(); }
+    catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setBusyId(null); }
+  }
+  /** Закрыть ход стороны как просроченный: претендентам — сгоревший вызов, хранителям — потерянный город. */
+  async function expire(b: BattleDto, comment: string) {
+    const attack = b.status === "ATTACK";
+    const ok = await confirm(attack ? t("Ход претендентов закроется как просроченный: вызов сгорит, к ставке команды добавится штраф. Отменить нельзя.") : t("Ход хранителей закроется как просроченный: город будет потерян, если стена не закроет ответ. Отменить нельзя."), { title: t("Время вышло?"), okLabel: t("Время вышло") });
+    if (!ok) return;
+    setBusyId(b.id);
+    try { await api(`/api/games/${gameId}/battles/${b.id}/expire`, { method: "POST", body: JSON.stringify({ comment }) }); notify(t("Ход закрыт как просроченный")); setExpiring(null); setSheet(null); await load(); onDecided(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusyId(null); }
   }
@@ -97,6 +110,17 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
       )}
       {open && sheet && (sheet.step === "check1" || sheet.step === "check2") && (
         <Sheet size="md" onClose={() => setSheet(null)} title={`${t("Проверка")} · ${sheetSide === "ATTACK" ? t("вызов") : t("ответ")} · ${bookName(open.bookCode)}`}>
+          {/* Ход стороны идёт: «Время вышло» закрывает его как просроченный (решение владельца 05.11), с комментарием команде. */}
+          {open.status === sheetSide && (
+            <div className="expire-row">
+              <div className="row nowrap">
+                <span className="small muted">{t("Нерабочая ссылка или подменённое сообщение?")}</span>
+                <Help popup>{t("Пока запись лежит на проверке, часы стороны стоят, и команда может выигрывать время на заучивание: сдать ссылку, которая не открывается («вы не состоите в чате»), или подменить сообщение в Телеграме после сдачи. Признаки: ссылка не открывается; сообщение помечено «изменено» или отправлено позже времени сдачи, показанного у записи. Такую запись можно вернуть, а при явном обмане нажать «Время вышло»: ход стороны закрывается как просроченный. Претендентам это сгоревший вызов со штрафом к ставке, хранителям — потерянный город (стена, если есть, ложится в ответ). Комментарий увидит команда.")}</Help>
+                {expiring !== open.id && <button type="button" className="secondary danger sm" onClick={() => setExpiring(open.id)} disabled={busyId === open.id}><Icon name="clock" />{t("Время вышло")}</button>}
+              </div>
+              {expiring === open.id && <ReturnBox placeholder={t("Комментарий команде: почему ход закрыт")} okLabel={t("Время вышло")} busy={busyId === open.id} onOk={(text) => void expire(open, text)} onCancel={() => setExpiring(null)} />}
+            </div>
+          )}
           <ul className="list">
             {open.entries.filter((e) => e.side === sheetSide).map((e) => (
               <li key={e.id} className="review-item">

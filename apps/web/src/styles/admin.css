@@ -323,6 +323,10 @@ details.settings-group > summary .tools { display: inline-flex; align-items: cen
 details.settings-group > summary .chev { flex: none; color: var(--muted); transition: transform var(--dur-fast); }
 details.settings-group[open] > summary .chev { transform: rotate(180deg); }
 details.settings-group > summary + * { margin-top: var(--sp-1); }
+/* «Время вышло» в листе проверки испытания (05.11): подпись со знаком «?» и кнопка справа, под ними ящик комментария. */
+.expire-row { display: flex; flex-direction: column; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.expire-row > .row { justify-content: space-between; align-items: center; gap: var(--sp-2); }
+.expire-row > .row > .small { flex: 1 1 auto; min-width: 0; }
 .set-row { appearance: none; display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--touch); padding: var(--sp-1) 0; margin: 0; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: none; box-shadow: none; color: var(--text); font: inherit; font-size: var(--fs-md); text-align: left; line-height: var(--lh-ui); white-space: normal; justify-content: flex-start; cursor: pointer; }
 .set-row:hover { background: none; }
 /* Без заливки при нажатии (владелец 30.10: «появляется светлая заливка, убрать»). */
