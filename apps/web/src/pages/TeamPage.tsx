@@ -949,8 +949,9 @@ export function TeamPage() {
               {canTake && (task.status === "OPEN" || task.status === "REJECTED") && (
                 <div className="actions">
                   <button type="button" disabled={busy || limitFull(map) || Boolean(map?.deedsFrozenUntil)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
-                  {/* Каменоломня (решение владельца 04.10): камень мостит свободную сухопутную сторону — капитан, заместитель или летописец. */}
-                  {task.status === "OPEN" && !task.sea && (map?.team.stones ?? 0) > 0 && (isCaptain || me?.role === "DEPUTY" || me?.gameRole === "CHRONICLER") && (
+                  {/* Каменоломня (решение владельца 04.10): камень мостит свободную сухопутную сторону — капитан, заместитель или летописец.
+                      Возвращённое дело — тоже (решение владельца 05.11: участник не нашёл кнопку у возвращённого дела). */}
+                  {(task.status === "OPEN" || task.status === "REJECTED") && !task.sea && (map?.team.stones ?? 0) > 0 && (isCaptain || me?.role === "DEPUTY" || me?.gameRole === "CHRONICLER") && (
                     <button type="button" className="secondary" disabled={busy} onClick={() => void pave(task.id)}><Icon name="stone" />{t("Вымостить дорогу")}<span className="count-chip">{map?.team.stones}</span></button>
                   )}
                   {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}

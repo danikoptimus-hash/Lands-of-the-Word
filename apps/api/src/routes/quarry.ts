@@ -130,7 +130,11 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, stones };
   });
 
-  /** Вымостить дорогу: камень списывается, свободная сторона открывается как пройденная (без дела). */
+  /**
+   * Вымостить дорогу: камень списывается, свободная сторона открывается как пройденная (без дела).
+   * Возвращённое администратором дело тоже можно вымостить (решение владельца 05.11 по вопросу участника
+   * «почему здесь не могу нажать „вымостить дорогу“»): старая сдача стирается, сторона считается вымощенной.
+   */
   app.post("/api/games/:id/edge-tasks/:taskId/pave", async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
     const m = await requireActiveMember(request, reply, id);
@@ -139,13 +143,13 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     if (!(await assertAwake(request, reply, id))) return;
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id }, include: { deed: { select: { title: true } } } });
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
-    if (task.status !== "OPEN" || task.sea) return reply.code(409).send({ error: "conflict", message: err(request, "Камнем мостят только свободную сухопутную сторону") });
+    if ((task.status !== "OPEN" && task.status !== "REJECTED") || task.sea) return reply.code(409).send({ error: "conflict", message: err(request, "Камнем мостят только свободную сухопутную сторону") });
     const team = await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true } });
     if (team.stones < 1) return reply.code(409).send({ error: "conflict", message: err(request, "У команды нет камней: сдайте общее дело в Каменоломне") });
     const now = new Date();
     await prisma.$transaction([
       prisma.team.update({ where: { id: m.team.id }, data: { stones: { decrement: 1 } } }),
-      prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "APPROVED", paved: true, takenById: request.user!.id, takenAt: now, submittedAt: now, decidedAt: now, note: "Вымощено камнем из Каменоломни", adminComment: "" } }),
+      prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "APPROVED", paved: true, takenById: request.user!.id, takenAt: now, submittedAt: now, decidedAt: now, note: "Вымощено камнем из Каменоломни", adminComment: "", links: [], participants: [], donation: false, donationAmount: null } }),
     ]);
     await revealNode(id, m.team.id, task.toKey);
     journal(id, "paved", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: task.deed.title, taskId: task.id } });

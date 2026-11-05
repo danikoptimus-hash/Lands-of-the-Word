@@ -39,6 +39,8 @@ beforeAll(async () => {
   expect((await post(`/api/games/${gameId}/start`, adminCookie)).statusCode).toBe(200);
 });
 afterAll(async () => {
+  // Стороны с делами удаляем до игры: внешний ключ TeamEdgeTask_deedId_fkey не даёт удалить дела, пока на них есть стороны.
+  await prisma.teamEdgeTask.deleteMany({ where: { gameId } });
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, capNick, memNick, cap2Nick] } } });
   await cleanupFixtures(gameId);
@@ -104,6 +106,26 @@ describe("Каменоломня", () => {
     expect(mine?.deedsApproved ?? 0).toBe(0);
     // Повторно ту же сторону не вымостить.
     expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/pave`, capCookie)).statusCode).toBe(409);
+  });
+
+  it("возвращённое администратором дело тоже можно вымостить: старая сдача стирается (решение владельца 05.11)", async () => {
+    const map0 = (await get(`/api/games/${gameId}/my-map`, capCookie)).json();
+    const open = (map0.tasks as Array<{ id: string; status: string; sea: boolean; toKey: string }>).find((t) => t.status === "OPEN" && !t.sea)!;
+    expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/take`, capCookie)).statusCode).toBe(200);
+    // Взятое дело камнем не мостят: сначала сдача.
+    expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/pave`, capCookie)).statusCode).toBe(409);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/submit`, capCookie, { links: ["https://example.com/dead-link"], note: "сделано, ссылка приложена", participants: [] })).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/pave`, capCookie)).statusCode).toBe(409);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/decide`, adminCookie, { approve: false, comment: "ссылка не работает" })).statusCode).toBe(200);
+    expect((await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: open.id } })).status).toBe("REJECTED");
+    const paved = await post(`/api/games/${gameId}/edge-tasks/${open.id}/pave`, capCookie);
+    expect(paved.statusCode).toBe(200); expect(paved.json().stones).toBe(1);
+    const task = await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: open.id } });
+    expect(task.status).toBe("APPROVED"); expect(task.paved).toBe(true);
+    expect(task.links).toEqual([]); expect(task.adminComment).toBe(""); expect(task.note).toBe("Вымощено камнем из Каменоломни");
+    const map1 = (await get(`/api/games/${gameId}/my-map`, capCookie)).json();
+    expect((map1.revealed as Array<{ key: string }>).some((n) => n.key === open.toKey)).toBe(true);
+    expect(map1.team.stones).toBe(1);
   });
 
   it("камни — настройка администратора: текст дела из набора обновляется, число камней остаётся (решение владельца 07.10)", async () => {
