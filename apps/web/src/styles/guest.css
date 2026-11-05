@@ -81,5 +81,8 @@
 .join-form { display: flex; flex-direction: column; gap: var(--sp-3); }
 .join-form .hint, .join-form .error { margin: 0; }
 .join-form .actions { display: flex; justify-content: flex-end; }
+.join-row { display: flex; align-items: stretch; gap: var(--sp-2); }
+.join-row input { flex: 1 1 auto; min-width: 0; }
+.join-row .join-paste { flex: none; width: var(--touch); min-height: var(--touch); padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 .home-foot { display: flex; justify-content: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-4); }
 
