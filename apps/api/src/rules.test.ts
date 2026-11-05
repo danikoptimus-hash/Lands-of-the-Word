@@ -66,6 +66,8 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Участки пути ссылаются на дела: удаляем их до игры, иначе каскад упирается во внешний ключ (как в quarry/cities/locks).
+  await prisma.teamEdgeTask.deleteMany({ where: { gameId } });
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, p1Nick, p2Nick, p3Nick] } } });
   await cleanupFixtures(gameId);
@@ -402,14 +404,14 @@ describe("штраф, роли, пророк", () => {
     expect(captainView.json().state.hintTasks).toEqual([]);
     expect((await get(`/api/games/${gameId}/my-city/${rutKey}/hint/0`, p3Cookie)).statusCode).toBe(404);
     expect(hint.json().pair).toBeNull();
-    // Хиазм: письмо пророка — одна зеркальная пара строк, а не текст района (решение владельца 05.11: «два ответа, например Г и Г′»).
+    // Хиазм: письмо пророка — одна зеркальная пара строк, а не текст района (решения владельца 05.11: «два ответа», пара Б и Б′).
     await prisma.membership.update({ where: { teamId_userId: { teamId: team2, userId: p3.id } }, data: { hintedAt: null } });
     const ci = (await loadCityContent("gen"))!.tasks.findIndex((t) => t.type === "chiasm");
     expect(ci).toBeGreaterThanOrEqual(0);
     const chiasm = await post(`/api/games/${gameId}/my-city/${genKey}/hint`, p3Cookie, { index: ci });
     expect(chiasm.statusCode).toBe(200);
     expect(chiasm.json().text).toEqual([]);
-    expect(chiasm.json().pair).toMatchObject({ mark: "Г", place: 4, n: 5, first: "Наделаем кирпичей", second: "Сойдём и смешаем" });
+    expect(chiasm.json().pair).toMatchObject({ mark: "Б", place: 2, n: 5, first: "Поселились там", second: "Рассеял их оттуда" });
     // Заместитель капитана может бросить вызов.
     const dep = await app.inject({ method: "PATCH", url: `/api/games/${gameId}/teams/${team2}/members/${p3.id}`, headers: { cookie: p2Cookie }, payload: { role: "DEPUTY" } });
     expect(dep.json().member.role).toBe("DEPUTY");

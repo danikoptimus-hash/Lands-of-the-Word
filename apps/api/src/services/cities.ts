@@ -105,12 +105,12 @@ export function chiasmOrder(pairs: ReadonlyArray<readonly [string, string]>): st
 const CHIASM_MARKS = "АБВГДЕЖЗ";
 /**
  * Подсказка пророка к хиазму: не текст района, а одна зеркальная пара строк — чтобы команда поняла принцип (решение
- * владельца 05.11: «показать не текст, а два ответа, например Г и Г′»). Пара — `hintPair` из содержания (с единицы),
- * по умолчанию предпоследняя: близко к середине, но не самая внутренняя, так зеркало виднее (для пяти пар — Г и Г′).
+ * владельца 05.11: «показать не текст, а два ответа»). Пара — `hintPair` из содержания (с единицы), по умолчанию
+ * вторая — Б и Б′ (уточнение владельца 05.11: «не Г и Г′, а Б и Б′»).
  */
 export function chiasmHint(task: Extract<CityTask, { type: "chiasm" }>): { mark: string; first: string; second: string; place: number; n: number } {
   const n = task.pairs.length;
-  const place = Math.min(Math.max(task.hintPair ?? n - 1, 1), n);
+  const place = Math.min(Math.max(task.hintPair ?? 2, 1), n);
   const [first, second] = task.pairs[place - 1]!;
   return { mark: CHIASM_MARKS[place - 1] ?? String(place), first, second, place, n };
 }
