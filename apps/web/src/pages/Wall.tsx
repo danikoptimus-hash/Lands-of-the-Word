@@ -201,6 +201,12 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, canFo
   const [forId, setForId] = useState("");
   /** Блок, для которого открыт лист «кто учил» (решение владельца 03.11; 04.11 — без отметок, просто кто сдал и кто нет). */
   const [who, setWho] = useState<WallBrickDto | null>(null);
+  /** Простое нажатие только выбирает блок, имена открывает долгое нажатие (замечание игрока 05.11: список имён выскакивал при каждом выборе; решение владельца). */
+  const longTimer = useRef<number | null>(null);
+  const longFired = useRef(false);
+  const cancelLong = () => { if (longTimer.current !== null) { window.clearTimeout(longTimer.current); longTimer.current = null; } };
+  const startLong = (b: WallBrickDto) => { cancelLong(); longFired.current = false; if (!canPlan) return; longTimer.current = window.setTimeout(() => { longFired.current = true; setWho(b); }, 450); };
+  useEffect(() => cancelLong, []);
   const [links, setLinks] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -235,12 +241,12 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, canFo
           </select>
         </div>
       )}
-      <p className="hint">{forId ? t("Сдаёте за участника {name}: выберите блок, который он выучил заранее, и прикрепите ссылку на его видео. Блок засчитается ему; во время ответа хранителей стену не строят.", { name: forName }) : repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}<Help>{t("Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажмите на блок — увидите имена; капитан поручает блок.")}</Help></p>
+      <p className="hint">{forId ? t("Сдаёте за участника {name}: выберите блок, который он выучил заранее, и прикрепите ссылку на его видео. Блок засчитается ему; во время ответа хранителей стену не строят.", { name: forName }) : repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}<Help>{t("Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажатие выбирает блок; удержание показывает имена, капитан поручает блок.")}</Help></p>
       <div className="brick-grid bricks-tex" role="radiogroup" aria-label={t("Блоки книги")}>
         {bricks.map((b) => {
           const takers = b.takers.length;
           return (
-            <button key={b.k} type="button" role="radio" aria-checked={k === b.k} className={"brick-btn " + (forId ? (okFor(b) ? "free" : "learned") : b.state) + (k === b.k ? " on" : "") + (takers === all && all > 0 ? " whole" : takers === 0 ? " none" : "")} disabled={!canPlan && (forId ? !okFor(b) : b.state !== "free" && b.state !== "cracked")} title={forId ? (okFor(b) ? t("Можно сдать за {name}", { name: forName }) : t("У участника этот блок уже сдан или стихи сданы в испытании")) : stateTitle(b)} onClick={() => { setK(b.k); if (canPlan) setWho(b); }}>
+            <button key={b.k} type="button" role="radio" aria-checked={k === b.k} className={"brick-btn " + (forId ? (okFor(b) ? "free" : "learned") : b.state) + (k === b.k ? " on" : "") + (takers === all && all > 0 ? " whole" : takers === 0 ? " none" : "")} disabled={!canPlan && (forId ? !okFor(b) : b.state !== "free" && b.state !== "cracked")} title={forId ? (okFor(b) ? t("Можно сдать за {name}", { name: forName }) : t("У участника этот блок уже сдан или стихи сданы в испытании")) : stateTitle(b)} onClick={() => { if (longFired.current) { longFired.current = false; return; } setK(b.k); }} onPointerDown={(e) => { if (e.button === 0) startLong(b); }} onPointerUp={cancelLong} onPointerLeave={cancelLong} onPointerCancel={cancelLong} onContextMenu={(e) => e.preventDefault()}>
               <span className="ref">{b.ref}</span>
               {forId ? (!okFor(b) && <Icon name="lock" />) : (<>
                 {b.state === "approved" && <Icon name="check" />}

@@ -8,7 +8,7 @@ import { requireActiveMember, requireAdmin, requireMember, requireSuperadmin } f
 import { pauseAfter, rulesOf, days } from "../services/rules.js";
 import { isLocked, minBidFor, sweep } from "../services/battles.js";
 import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
-import { checkAnswer, checkOrder, chiasmOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask, stripAnswers } from "../services/cities.js";
+import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask, stripAnswers } from "../services/cities.js";
 import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
 import { wallOf } from "../services/wall.js";
@@ -168,12 +168,10 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
             translation: content.translation,
             codeRule: content.codeRule,
             districts: publicDistricts(content, secret, scopeKey, solved),
-            // Стих-подтверждение (05.11) — только у решённых заданий: командой или мной.
-            tasks: solved && tasksOpen ? content.tasks.map((t, i) => {
-              const open = done.includes(i) || mine.includes(i);
-              // Решённый хиазм (05.11) показывается собранным: строки в порядке прочтения.
-              return { ...publicTask(t, i, secret, scopeKey), ...(t.reveal && open ? { reveal: t.reveal } : {}), ...(t.type === "chiasm" && open ? { solution: chiasmOrder(t.pairs) } : {}) };
-            }) : [],
+            // Ответы решённых заданий не отдаются (решение владельца 05.11: «ответ вообще не показывается: выбрал верный
+            // вариант, нажал, ответ принят — всё»): ни собранного хиазма, ни стиха-подтверждения. Стих приходит один раз —
+            // в ответе на верный ответ (POST …/answer) — и нигде не хранится; игравший раньше отвечает по памяти.
+            tasks: solved && tasksOpen ? content.tasks.map((t, i) => publicTask(t, i, secret, scopeKey)) : [],
             fragments: content.tasks.map((_, i) => (done.includes(i) && !night ? node.cityCode?.[i] ?? null : null)),
           }
         : null,

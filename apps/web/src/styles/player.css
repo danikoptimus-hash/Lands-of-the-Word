@@ -896,6 +896,8 @@
 .brick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: var(--sp-2); }
 .brick-grid .brick-btn { min-height: 44px; padding: 4px 6px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: var(--fs-sm); font-weight: 600; border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); color: var(--text); }
 .brick-grid .brick-btn .i { width: 14px; height: 14px; color: var(--muted); }
+/* Удержание открывает имена (05.11): без выделения текста и меню долгого нажатия. */
+.brick-grid .brick-btn { -webkit-touch-callout: none; user-select: none; touch-action: manipulation; }
 .brick-grid .brick-btn.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
 .brick-grid .brick-btn:disabled { opacity: .55; cursor: not-allowed; }
 .brick-grid .brick-btn.approved { background: var(--success-soft); color: var(--success); }

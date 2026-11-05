@@ -190,6 +190,8 @@ describe("город на перекрёстке", () => {
     const node0 = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
     expect(node0.cityCode).toMatch(new RegExp(`^[А-Я2-9]{${content.tasks.length}}$`));
     expect((done.json().content.fragments as string[]).join("")).toBe(node0.cityCode);
+    // Ответы решённых заданий не показываются (решение владельца 05.11): в выдаче нет ни reveal, ни solution.
+    expect((done.json().content.tasks as Array<Record<string, unknown>>).every((x) => !("reveal" in x) && !("solution" in x))).toBe(true);
     // Личный зачёт в карточке города у администратора (10.10): решивший всё участник — все задания, его сокомандник — 0.
     const admCity = await app.inject({ method: "GET", url: `/api/games/${gameId}/cities/${rutKey}`, headers: { cookie: adminCookie } });
     const t1 = (admCity.json().teams as Array<{ id: string; members: Array<{ name: string; solved: number }> }>).find((t) => t.id === team1)!;

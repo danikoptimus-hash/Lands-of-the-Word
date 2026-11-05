@@ -423,6 +423,10 @@ describe("штраф, роли, пророк", () => {
     await prisma.membership.update({ where: { teamId_userId: { teamId: team2, userId: p3.id } }, data: { hintedAt: null } });
     expect((await post(`/api/games/${gameId}/my-city/${genKey}/hint`, p3Cookie, { index: ci })).statusCode).toBe(409); // все пары открыты
     expect((await get(`/api/games/${gameId}/my-city/${genKey}`, p3Cookie)).json().state.hintTasks.filter((x: number) => x === ci)).toHaveLength(5);
+    // Ответы решённых заданий не отдаются (решение владельца 05.11): у решённого командой хиазма нет solution, у задания о вере — reveal.
+    const genView = (await get(`/api/games/${gameId}/my-city/${genKey}`, p3Cookie)).json();
+    expect(genView.state.doneTasks.length).toBeGreaterThan(0);
+    expect((genView.content.tasks as Array<Record<string, unknown>>).some((x) => "solution" in x || "reveal" in x)).toBe(false);
     // Обычное задание — по-прежнему одно письмо.
     expect((await post(`/api/games/${gameId}/my-city/${rutKey}/hint`, p3Cookie, { index: 0 })).statusCode).toBe(409);
     // Заместитель капитана может бросить вызов.
