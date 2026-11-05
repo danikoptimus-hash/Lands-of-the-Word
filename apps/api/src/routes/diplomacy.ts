@@ -12,7 +12,7 @@ import { days, rulesOf } from "../services/rules.js";
 import { notifyTeam } from "../services/notify.js";
 import { err, fmtDay, msg, toLocale } from "../services/i18n.js";
 import { loadBook, verseText, formatRange, parseDistrictRange } from "../services/bible.js";
-import { chiasmHint, loadCityContent } from "../services/cities.js";
+import { chiasmHint, hintLimit, loadCityContent } from "../services/cities.js";
 import { BOOKS, hexCorners, parseVertexKey, vertexHexes, vertexKey } from "@lotw/domain";
 import { journal, teamNames } from "../services/journal.js";
 
@@ -51,16 +51,20 @@ export async function expirePassages(gameId?: string): Promise<void> {
  */
 /**
  * Текст подсказки пророка: стихи района задания (для группы — районов группы, для всей книги — первого района), не больше 60 стихов.
- * К хиазму — не текст, а одна зеркальная пара строк (`pair`, решение владельца 05.11): текст истории команда и так видит в районе.
+ * К хиазму — не текст, а одна зеркальная пара строк (`pair`, решение владельца 05.11): текст истории команда и так видит в районе;
+ * `opened` — сколько пар команда уже получила, письмо несёт следующую.
  */
-async function buildHint(gameId: string, nodeKey: string, i: number): Promise<{ verses: string; text: string[]; pair?: ReturnType<typeof chiasmHint> } | null> {
+async function buildHint(gameId: string, nodeKey: string, i: number, opened: number): Promise<{ verses: string; text: string[]; pair?: NonNullable<ReturnType<typeof chiasmHint>> } | null> {
   const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: nodeKey } } });
   const [content, book] = await Promise.all([loadCityContent(node.bookCode ?? ""), loadBook(node.bookCode ?? "")]);
   const task = content?.tasks[i];
   if (!content || !task || !book) return null;
   // Районы подсказки: свой район; для группы — районы группы; для всей книги — первый район (направление, не вся книга).
   const idx = task.scope === "district" ? [i] : task.scope === "group" ? (task.groupDistricts ?? []).map((n) => n - 1) : [0];
-  if (task.type === "chiasm") return { verses: idx.map((di) => content.districts[di]?.verses ?? "").filter(Boolean).join("; "), text: [], pair: chiasmHint(task) };
+  if (task.type === "chiasm") {
+    const pair = chiasmHint(task, opened);
+    return pair ? { verses: idx.map((di) => content.districts[di]?.verses ?? "").filter(Boolean).join("; "), text: [], pair } : null;
+  }
   const HINT_MAX = 60;
   const text: string[] = [];
   let verses = "";
@@ -249,7 +253,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     return { kind: node.kind, bookCode: node.bookCode, cityType: node.cityType, hexes: around.map((h) => ({ q: h.q, r: h.r, terrain: h.terrain, rotation: h.rotation })) };
   });
 
-  /** Пророк: раз в неделю открыть подсказку к любому заданию города — текст стихов района (или районов группы), к хиазму — одна пара строк. Показывается один раз, только пророку. */
+  /** Пророк: раз в неделю открыть подсказку к любому заданию города — текст стихов района (или районов группы), к хиазму — новая пара строк на каждую свечу. Показывается один раз, только пророку. */
   app.post("/api/games/:id/my-city/:nodeKey/hint", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     const m = await requireActiveMember(request, reply, id);
@@ -259,10 +263,13 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     const body = z.object({ index: z.number().int().min(0) }).parse(request.body);
     const state = await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: m.team.id, nodeKey } } });
     if (!state?.orderSolved) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала расставьте районы по порядку") });
-    if (state.hintTasks.includes(body.index)) return reply.code(409).send({ error: "conflict", message: err(request, "Подсказка к этому заданию уже открыта") });
     const node0 = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId: id, key: nodeKey } } });
     const content0 = await loadCityContent(node0.bookCode ?? "");
-    if (!content0 || !content0.tasks[body.index]) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
+    const task0 = content0?.tasks[body.index];
+    if (!task0) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
+    // Сколько писем к заданию уже открыто: номер задания лежит в hintTasks столько раз (к хиазму — по паре на свечу, 05.11).
+    const opened = state.hintTasks.filter((x) => x === body.index).length;
+    if (opened >= hintLimit(task0)) return reply.code(409).send({ error: "conflict", message: err(request, task0.type === "chiasm" ? "Все пары этого хиазма уже открыты" : "Подсказка к этому заданию уже открыта") });
     const rules = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } })).settings);
     // Лимит — на каждого пророка, не на команду (решение владельца 22.10, как у разведчиков).
     if (m.hintedAt && Date.now() - m.hintedAt.getTime() < days(rules.roleCooldownDays)) {
@@ -270,7 +277,7 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(429).send({ error: "cooldown", message: err(request, "Подсказка доступна раз в неделю: следующая — {date}", { date: fmtDay(next, toLocale(request.user?.locale)) }) });
     }
     // Подсказка показывается один раз (решение владельца 22.09): текст уходит в ответе и нигде больше не отдаётся.
-    const hint = await buildHint(id, nodeKey, body.index);
+    const hint = await buildHint(id, nodeKey, body.index, opened);
     if (!hint) return reply.code(404).send({ error: "not_found", message: err(request, "Задание не найдено") });
     await prisma.$transaction([
       prisma.teamCityState.update({ where: { id: state.id }, data: { hintTasks: { push: body.index } } }),

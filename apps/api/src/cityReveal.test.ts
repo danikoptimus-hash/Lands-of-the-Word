@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkAnswer, chiasmHint, chiasmOrder, loadCityContent, publicTask } from "./services/cities.js";
+import { checkAnswer, chiasmHint, chiasmHintOrder, chiasmOrder, hintLimit, loadCityContent, publicTask } from "./services/cities.js";
 
 /**
  * Стих-подтверждение у задания города (решение владельца 05.11): в Бытии задание о вере Авеля показывает Евр. 11:4
@@ -47,13 +47,18 @@ describe("Бытие: задание о вере и кроссворд о Каи
     expect(checkAnswer(task, 4, "secret", "team|node", right.slice(0, 9))).toBe(false);
   });
 
-  it("письмо пророка к хиазму — одна пара строк: по умолчанию вторая (Б и Б′), hintPair выбирает другую (решения владельца 05.11)", async () => {
+  it("письма пророка к хиазму — по паре на свечу: сначала Б и Б′, затем А, В, Г, Д; hintPair выбирает первую (решения владельца 05.11)", async () => {
     const c = await loadCityContent("gen");
     const task = c!.tasks[4]!;
     if (task.type !== "chiasm") throw new Error("ожидался хиазм");
-    expect(chiasmHint(task)).toEqual({ mark: "Б", first: "Поселились там", second: "Рассеял их оттуда", place: 2, n: 5 });
-    expect(chiasmHint({ ...task, hintPair: 1 })).toMatchObject({ mark: "А", first: "Вся земля имела один язык", second: "Смешал язык всей земли", place: 1 });
-    expect(chiasmHint({ ...task, hintPair: 99 })).toMatchObject({ mark: "Д", place: 5 }); // за пределами — последняя пара
-    expect(chiasmHint({ ...task, pairs: task.pairs.slice(0, 2) })).toMatchObject({ mark: "Б", place: 2, n: 2 });
+    expect(hintLimit(task)).toBe(5);
+    expect(hintLimit(c!.tasks[0]!)).toBe(1);
+    expect(chiasmHint(task)).toEqual({ mark: "Б", first: "Поселились там", second: "Рассеял их оттуда", place: 2, n: 5, step: 1 });
+    expect([1, 2, 3, 4].map((k) => chiasmHint(task, k)?.mark)).toEqual(["А", "В", "Г", "Д"]);
+    expect(chiasmHint(task, 4)).toMatchObject({ first: "Построим себе город и башню", second: "Город и башню, которые строили", step: 5 });
+    expect(chiasmHint(task, 5)).toBeNull(); // все пары открыты
+    expect(chiasmHintOrder({ ...task, hintPair: 1 })).toEqual([1, 2, 3, 4, 5]);
+    expect(chiasmHintOrder({ ...task, hintPair: 99 })).toEqual([5, 1, 2, 3, 4]); // за пределами — последняя пара
+    expect(chiasmHintOrder({ ...task, pairs: task.pairs.slice(0, 2) })).toEqual([2, 1]);
   });
 });

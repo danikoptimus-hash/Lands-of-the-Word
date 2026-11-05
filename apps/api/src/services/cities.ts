@@ -104,15 +104,32 @@ export function chiasmOrder(pairs: ReadonlyArray<readonly [string, string]>): st
 /** Буквы мест хиазма: А…З у первой половины, те же со штрихом у второй — та же азбука, что на доске команды (`CityForms.tsx`). */
 const CHIASM_MARKS = "АБВГДЕЖЗ";
 /**
- * Подсказка пророка к хиазму: не текст района, а одна зеркальная пара строк — чтобы команда поняла принцип (решение
- * владельца 05.11: «показать не текст, а два ответа»). Пара — `hintPair` из содержания (с единицы), по умолчанию
- * вторая — Б и Б′ (уточнение владельца 05.11: «не Г и Г′, а Б и Б′»).
+ * Сколько писем пророка можно открыть к заданию: обычно одно, к хиазму — по паре на свечу, пока не откроются все пары
+ * (решение владельца 05.11: «с каждой новой свечой пророку открывалась новая пара; он может делать это раз в неделю»).
  */
-export function chiasmHint(task: Extract<CityTask, { type: "chiasm" }>): { mark: string; first: string; second: string; place: number; n: number } {
+export function hintLimit(task: CityTask): number {
+  return task.type === "chiasm" ? task.pairs.length : 1;
+}
+
+/** Порядок пар в письмах пророка: первой — `hintPair` (по умолчанию вторая, Б и Б′), затем остальные по порядку: А, В, Г, Д… */
+export function chiasmHintOrder(task: Extract<CityTask, { type: "chiasm" }>): number[] {
   const n = task.pairs.length;
-  const place = Math.min(Math.max(task.hintPair ?? 2, 1), n);
+  const start = Math.min(Math.max(task.hintPair ?? 2, 1), n);
+  return [start, ...Array.from({ length: n }, (_, i) => i + 1).filter((p) => p !== start)];
+}
+
+/**
+ * Подсказка пророка к хиазму: не текст района, а одна зеркальная пара строк — чтобы команда поняла принцип (решение
+ * владельца 05.11: «показать не текст, а два ответа»). Первое письмо — Б и Б′ (уточнение владельца 05.11: «не Г и Г′,
+ * а Б и Б′»), каждое следующее — новая пара по `chiasmHintOrder`. `opened` — сколько пар команда уже получила;
+ * `step` — номер этого письма. Все пары открыты — null.
+ */
+export function chiasmHint(task: Extract<CityTask, { type: "chiasm" }>, opened = 0): { mark: string; first: string; second: string; place: number; n: number; step: number } | null {
+  const order = chiasmHintOrder(task);
+  const place = order[opened];
+  if (place === undefined) return null;
   const [first, second] = task.pairs[place - 1]!;
-  return { mark: CHIASM_MARKS[place - 1] ?? String(place), first, second, place, n };
+  return { mark: CHIASM_MARKS[place - 1] ?? String(place), first, second, place, n: order.length, step: opened + 1 };
 }
 
 /** Задание без ответа — то, что видит команда. Пункты «по порядку» и варианты выбора перетасованы. */
