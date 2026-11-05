@@ -17,7 +17,7 @@ import { StatChip } from "../components/StatChip";
  */
 interface Pt { day: number; value: number }
 /** Столбики по дням стеком по командам; fitDays — сколько полных дней идёт в прямую тренда. */
-interface Daily { days: string[]; teams: Array<{ id: string; name: string; color: string; values: number[] }>; fitDays: number }
+interface Daily { days: string[]; teams: Array<{ id: string; name: string; color: string; values: number[] }>; fitDays: number; /** Разных стихов за партию (05.11): стих у нескольких участников считается один раз. */ unique?: number }
 interface Pace {
   tz: string; startedAt: string; now: string; T: number; K: number; n: number; rate: number; rampDay: number; dailyTasksAvg: number; dailyDeedsAvg: number; milestones: number[];
   teams: Array<{ id: string; name: string; color: string }>;
@@ -90,7 +90,7 @@ export function GameAnalytics({ gameId, version = 0 }: { gameId: string; /** Р�
         <Chart option={option} height={380} />
       </div>
       <DailyBars data={p.deeds} title={t("Дел в день")} help={t("Принятые администратором дела за каждый день партии: дела на сторонах и общие дела Каменоломни. Столбик — день, цвета — команды. Пунктир — прямая тренда по полным дням для включённых в легенде команд.")} />
-      {p.verses && <DailyBars data={p.verses} title={t("Стихов в день")} total={{ icon: "book", label: t("стихов выучено за всю партию, все команды"), format: (n) => plural(n, ["стих", "стиха", "стихов"]) }} help={t("Выученные стихи, принятые администратором за каждый день партии: записи испытаний и блоки стены. Каждый участник считается отдельно: если двое выучили один и тот же стих, это два стиха. Свой стих второй раз и стихи, перенесённые из прошлого вызова, не считаются. Столбик — день, цвета — команды. Пунктир — прямая тренда по полным дням для включённых в легенде команд.")} />}
+      {p.verses && <DailyBars data={p.verses} title={t("Стихов в день")} facts={versesFacts(p.verses)} help={t("Выученные стихи, принятые администратором за каждый день партии: записи испытаний и блоки стены. Каждый участник считается отдельно: если двое выучили один и тот же стих, это два стиха. Свой стих второй раз и стихи, перенесённые из прошлого вызова, не считаются. Столбик — день, цвета — команды. Пунктир — прямая тренда по полным дням для включённых в легенде команд.")} />}
     </>
   );
 }
@@ -100,7 +100,17 @@ export function GameAnalytics({ gameId, version = 0 }: { gameId: string; /** Р�
  * «вот точно такой же, в таком же виде, только по выученным стихам»). Легенда у каждого графика своя: тренд пересчитывается
  * под включённые команды («тренд должен пересчитываться под выбранную комбинацию команд»).
  */
-function DailyBars({ data, title, help, total }: { data: Daily; title: string; help: string; /** Значок с суммой за всю партию по всем командам (решение владельца 05.11: «фактоид общего накопленного кол-ва стихов»). */ total?: { icon: string; label: string; format: (n: number) => string } }) {
+/** Значки над «Стихов в день» (решения владельца 05.11: «фактоид общего накопленного кол-ва стихов», «метрику уникальных стихов»). */
+function versesFacts(d: Daily): Array<{ icon: string; label: string; value: string }> {
+  // Сумма за все дни партии и все команды — независимо от выбора в легенде и видимого отрезка графика.
+  const all = d.teams.reduce((a, tm) => a + tm.values.reduce((x, y) => x + y, 0), 0);
+  return [
+    { icon: "book", label: t("стихов выучено за всю партию, все команды: каждый участник считается отдельно"), value: plural(all, ["стих", "стиха", "стихов"]) },
+    ...(d.unique != null ? [{ icon: "sparkle", label: t("разных стихов за всю партию: стих, выученный несколькими участниками или командами, считается один раз"), value: plural(d.unique, ["уникальный стих", "уникальных стиха", "уникальных стихов"]) }] : []),
+  ];
+}
+
+function DailyBars({ data, title, help, facts }: { data: Daily; title: string; help: string; /** Значки-фактоиды над графиком. */ facts?: Array<{ icon: string; label: string; value: string }> }) {
   const c = useMemo(chartColors, []);
   const [sel, setSel] = useState<Record<string, boolean>>({});
   const option = useMemo(() => {
@@ -121,11 +131,7 @@ function DailyBars({ data, title, help, total }: { data: Daily; title: string; h
   return (
     <div className="card">
       <div className="card-head"><h2>{title}<Help>{help}</Help></h2></div>
-      {total && (() => {
-        // Сумма за все дни партии и все команды — независимо от выбора в легенде и от видимого отрезка графика.
-        const all = data.teams.reduce((a, tm) => a + tm.values.reduce((x, y) => x + y, 0), 0);
-        return <div className="meta chips pace-chips mt-2"><StatChip icon={total.icon} label={total.label} value={total.format(all)} /></div>;
-      })()}
+      {facts && facts.length > 0 && <div className="meta chips pace-chips mt-2">{facts.map((f) => <StatChip key={f.label} icon={f.icon} label={f.label} value={f.value} />)}</div>}
       <Chart option={option} height={320} onLegend={setSel} />
     </div>
   );

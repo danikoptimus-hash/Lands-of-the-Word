@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { versesByDay, type Recited } from "./services/pace.js";
+import { uniqueVerses, versesByDay, type Recited } from "./services/pace.js";
 
 const TZ = "Asia/Tashkent";
 const at = (day: string) => new Date(`${day}T10:00:00Z`);
@@ -24,5 +24,8 @@ describe("стихов в день (решение владельца 04.11)", (
       "2026-11-02": { A: 3 },
       "2026-11-03": { B: 11 },
     });
+    // Уникальные стихи (решение владельца 05.11): один стих у разных участников и команд — один; PSA 0–7, JHN 0–9, ROM 0, MRK 0–2.
+    expect(uniqueVerses(rows)).toBe(8 + 10 + 1 + 3);
+    expect(uniqueVerses([])).toBe(0);
   });
 });
