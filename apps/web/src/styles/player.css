@@ -995,3 +995,42 @@
 .brick-grid.bricks-tex .brick-btn .pl { position: absolute; left: 3px; top: 3px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--text, var(--ink)); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px; text-shadow: none; }
 .brick-grid .brick-btn.cracked .i { color: var(--warn); }
 .feed li.me .ico { background: var(--accent-soft); color: var(--accent); }
+
+/* ---------- Хиазм (решение владельца 05.11): доска «башня» и «зеркало» ---------- */
+.chiasm { --man: #A9553A; --god: #4F7C99; display: flex; flex-direction: column; gap: var(--sp-2); }
+.chiasm.jam { animation: lockJam .5s var(--ease-out); }
+.ch-slot { display: flex; align-items: center; gap: 6px; min-height: 42px; padding: 4px 8px; border: 1.5px dashed var(--border-strong); border-radius: 8px; background: var(--paper-light); color: var(--text); font: 500 var(--fs-sm)/1.2 var(--font-ui); text-align: left; min-width: 0; }
+.ch-slot, .ch-chip { white-space: normal; }
+.ch-slot span { min-width: 0; overflow-wrap: anywhere; }
+.ch-slot.empty span { color: var(--muted); }
+.ch-slot.filled { border-style: solid; }
+.ch-slot.man.filled { border-color: var(--man); background: rgba(169, 85, 58, .14); }
+.ch-slot.god.filled { border-color: var(--god); background: rgba(79, 124, 153, .16); }
+.ch-slot.active { border-color: var(--bronze); border-style: dashed; box-shadow: 0 0 0 2px rgba(168, 114, 46, .35); }
+.ch-slot:disabled { cursor: default; }
+.ch-mark { flex: none; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; font: 700 11px/1 var(--font-ui); color: #fff; background: var(--man); }
+.ch-slot.god .ch-mark { background: var(--god); }
+.ch-center { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 12px; border-radius: 10px; border: 1.5px solid var(--bronze); background: linear-gradient(180deg, #F7E7BF, #E9CF93); color: var(--accent-ink); font: 700 var(--fs-md)/1.2 var(--font-ui); text-align: center; }
+.ch-center .i { width: 16px; height: 16px; color: var(--bronze); flex: none; }
+/* Башня: уровни сужаются кверху, слева замысел человека, справа ответ Бога, наверху поворот. */
+.ch-tower { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.ch-tower .ch-top { width: 78%; margin-bottom: 2px; }
+.ch-tower .ch-level { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; width: calc(100% - var(--lvl) * 5%); }
+.ch-tower .ch-slot { min-height: 46px; border-radius: 4px; border-width: 1px; background-image: linear-gradient(rgba(255, 250, 240, .84), rgba(255, 250, 240, .84)), url("/img/props/brick-sand.webp"); background-size: cover; }
+.ch-tower .ch-slot.god { background-image: linear-gradient(rgba(240, 246, 250, .84), rgba(240, 246, 250, .84)), url("/img/props/brick-slate.webp"); }
+.ch-tower .ch-slot.empty { background-image: none; background: var(--paper-2); }
+/* Зеркало: отступ растёт к середине и спадает после неё, как на схеме. */
+.ch-mirror { display: flex; flex-direction: column; gap: 4px; }
+.ch-mirror .ch-row { padding-left: calc(var(--d, 0) * 14px); }
+.ch-mirror .ch-row.center { padding: 4px 0 4px calc(var(--d, 0) * 0px); }
+.ch-mirror .ch-slot { width: 100%; }
+.ch-legend { display: flex; gap: var(--sp-3); justify-content: center; font-size: var(--fs-xs); color: var(--muted); }
+.ch-legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; background: var(--man); }
+.ch-legend span.god::before { background: var(--god); }
+.ch-pile { display: flex; flex-wrap: wrap; gap: 6px; padding: var(--sp-2); border-radius: 10px; background: var(--paper-2); }
+.ch-pile .hint { margin: 0; }
+.ch-chip { padding: 6px 10px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--paper-light); font: 500 var(--fs-sm)/1.2 var(--font-ui); color: var(--text); text-align: left; min-height: 0; }
+.ch-chip:disabled { opacity: .55; }
+.ch-bad { color: var(--danger); margin: 0; }
+.chiasm-intro p { margin: var(--sp-1) 0 0; }
+

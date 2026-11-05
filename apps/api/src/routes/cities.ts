@@ -8,7 +8,7 @@ import { requireActiveMember, requireAdmin, requireMember, requireSuperadmin } f
 import { pauseAfter, rulesOf, days } from "../services/rules.js";
 import { isLocked, minBidFor, sweep } from "../services/battles.js";
 import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
-import { checkAnswer, checkOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask, stripAnswers } from "../services/cities.js";
+import { checkAnswer, checkOrder, chiasmOrder, loadCityContent, makeCityCode, makeCityKey, publicDistricts, publicTask, stripAnswers } from "../services/cities.js";
 import { ensureFrontier, onCityOwned } from "../services/teamMap.js";
 import { notifyAdmins, notifyTeam } from "../services/notify.js";
 import { wallOf } from "../services/wall.js";
@@ -169,7 +169,11 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
             codeRule: content.codeRule,
             districts: publicDistricts(content, secret, scopeKey, solved),
             // Стих-подтверждение (05.11) — только у решённых заданий: командой или мной.
-            tasks: solved && tasksOpen ? content.tasks.map((t, i) => ({ ...publicTask(t, i, secret, scopeKey), ...(t.reveal && (done.includes(i) || mine.includes(i)) ? { reveal: t.reveal } : {}) })) : [],
+            tasks: solved && tasksOpen ? content.tasks.map((t, i) => {
+              const open = done.includes(i) || mine.includes(i);
+              // Решённый хиазм (05.11) показывается собранным: строки в порядке прочтения.
+              return { ...publicTask(t, i, secret, scopeKey), ...(t.reveal && open ? { reveal: t.reveal } : {}), ...(t.type === "chiasm" && open ? { solution: chiasmOrder(t.pairs) } : {}) };
+            }) : [],
             fragments: content.tasks.map((_, i) => (done.includes(i) && !night ? node.cityCode?.[i] ?? null : null)),
           }
         : null,

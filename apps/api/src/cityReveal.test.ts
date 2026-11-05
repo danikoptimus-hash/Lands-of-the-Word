@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadCityContent, publicTask } from "./services/cities.js";
+import { checkAnswer, chiasmOrder, loadCityContent, publicTask } from "./services/cities.js";
 
 /**
  * Стих-подтверждение у задания города (решение владельца 05.11): в Бытии задание о вере Авеля показывает Евр. 11:4
@@ -25,5 +25,25 @@ describe("Бытие: задание о вере и кроссворд о Каи
     if (cw.type !== "crossword") return;
     expect(cw.words.map((w) => w.answer)).toEqual(["всемеро", "земледелец", "знамение", "изгнанник", "тук", "дьявол", "восток"]);
     expect(cw.words.find((w) => w.answer === "дьявол")?.alt).toEqual(["диавол"]);
+  });
+
+  it("хиазм «Вавилонская башня» (05.11): строки перетасованы, центр виден, верный порядок — А…Д, Д′…А′", async () => {
+    const c = await loadCityContent("gen");
+    const task = c!.tasks[4]!;
+    expect(task.type).toBe("chiasm");
+    if (task.type !== "chiasm") return;
+    expect(task.pairs).toHaveLength(5);
+    expect(task.center).toBe("И сошёл Господь посмотреть");
+    const order = chiasmOrder(task.pairs);
+    expect(order[0]).toBe("Вся земля имела один язык"); expect(order[4]).toBe("Построим себе город и башню");
+    expect(order[5]).toBe("Город и башню, которые строили"); expect(order[9]).toBe("Смешал язык всей земли");
+    const pub = publicTask(task, 4, "secret", "team|node") as { items: Array<{ id: string; text: string }>; n: number; center: string; intro: string };
+    expect(pub.n).toBe(5); expect(pub.items).toHaveLength(10); expect(pub).not.toHaveProperty("pairs"); expect(pub.intro).toContain("Хиазм");
+    expect(pub.items.map((x) => x.text)).not.toEqual(order); // перетасовано
+    const byText = new Map(pub.items.map((x) => [x.text, x.id]));
+    const right = order.map((text) => byText.get(text)!);
+    expect(checkAnswer(task, 4, "secret", "team|node", right)).toBe(true);
+    expect(checkAnswer(task, 4, "secret", "team|node", [...right].reverse())).toBe(false);
+    expect(checkAnswer(task, 4, "secret", "team|node", right.slice(0, 9))).toBe(false);
   });
 });

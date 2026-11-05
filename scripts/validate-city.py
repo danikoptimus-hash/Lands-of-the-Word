@@ -122,6 +122,15 @@ def check(path):
             if all(x >= 0 for x in pos): pass
             elif all(scope_text.find(norm(x)) >= 0 for x in items): errs.append(f"задание {i}: пункты order встречаются в тексте не в этом порядке")
             else: warns.append(f"задание {i}: не все пункты order найдены дословно (перефраз?) — порядок не проверен")
+        elif typ == "chiasm":
+            # Хиазм (решение владельца 05.11): пары зеркальных строк вокруг центральной мысли; строки — пересказ, дословно не ищем.
+            pairs = t.get("pairs") or []
+            if len(pairs) < 2 or any(not isinstance(pr, list) or len(pr) != 2 or not all(isinstance(x, str) and x.strip() for x in pr) for pr in pairs): errs.append(f"задание {i}: chiasm — пары из двух строк, не меньше двух"); continue
+            flat = [x for pr in pairs for x in pr]
+            if len(set(flat)) != len(flat): errs.append(f"задание {i}: повтор строк хиазма")
+            if not t.get("intro") or not t.get("center"): errs.append(f"задание {i}: chiasm без intro или center")
+            missing = [x for x in flat if norm(x) not in scope_text]
+            if missing: warns.append(f"задание {i}: строк хиазма нет дословно в тексте (пересказ): {len(missing)} из {len(flat)}")
         elif typ == "crossword":
             words = t.get("words") or []
             if not (3 <= len(words) <= 8): errs.append(f"задание {i}: кроссворд — от 3 до 8 слов"); continue

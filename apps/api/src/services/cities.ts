@@ -19,6 +19,9 @@ const taskSchema = z.discriminatedUnion("type", [
   z.object({ ...taskBase, type: z.literal("text"), answers: z.array(z.string().min(1)).min(1) }),
   z.object({ ...taskBase, type: z.literal("choice"), options: z.array(z.string().min(1)).min(2), correct: z.number().int().min(0) }),
   z.object({ ...taskBase, type: z.literal("order"), items: z.array(z.string().min(1)).min(2) }),
+  // Хиазм (решение владельца 05.11): пары зеркальных строк вокруг центральной мысли; порядок прочтения — А…Д, Д′…А′.
+  // Вид доски: «башня» (зиккурат) или «зеркало» (схема с отступом к середине).
+  z.object({ ...taskBase, type: z.literal("chiasm"), intro: z.string().min(1), center: z.string().min(1), pairs: z.array(z.tuple([z.string().min(1), z.string().min(1)])).min(2).max(8), look: z.enum(["tower", "mirror"]).default("tower") }),
   // Кроссворд по району (решение владельца 18.09): 4–8 слов из текста района, подсказки — вопросы к ним.
   z.object({ ...taskBase, type: z.literal("crossword"), words: z.array(z.object({ clue: z.string().min(1), answer: z.string().min(2), /** Допустимые написания той же длины (разные издания Синодального текста: «домы» / «дома»). */ alt: z.array(z.string().min(2)).optional() })).min(3).max(8) }),
 ]);
@@ -93,6 +96,11 @@ export function choicePermutation(secret: string, scopeKey: string, index: numbe
   return seededShuffle(`${secret.slice(0, 12)}|${scopeKey}|choice|${index}`, Array.from({ length: n }, (_, i) => i));
 }
 
+/** Строки хиазма в порядке прочтения: левая половина пар сверху вниз, затем правая снизу вверх (А…Д, Д′…А′). */
+export function chiasmOrder(pairs: ReadonlyArray<readonly [string, string]>): string[] {
+  return [...pairs.map((p) => p[0]), ...pairs.slice().reverse().map((p) => p[1])];
+}
+
 /** Задание без ответа — то, что видит команда. Пункты «по порядку» и варианты выбора перетасованы. */
 export function publicTask(task: CityTask, index: number, secret: string, scopeKey: string) {
   const base = { index, scope: task.scope, groupDistricts: task.groupDistricts ?? null, type: task.type, prompt: task.prompt };
@@ -105,6 +113,11 @@ export function publicTask(task: CityTask, index: number, secret: string, scopeK
     // Сетка без букв: номера, позиции, направления, длины и вопросы. Ответ — слова в этом же порядке.
     const l = layoutCrossword(task.words);
     return { ...base, rows: l.rows, cols: l.cols, words: l.words.map(({ src: _src, ...w }) => w) };
+  }
+  if (task.type === "chiasm") {
+    // Строки перетасованы, порядок прочтения скрыт в id; центр показан сразу — он не часть ответа.
+    const items = chiasmOrder(task.pairs).map((text, i) => ({ id: opaqueId(secret, scopeKey, "task", index, i), text }));
+    return { ...base, intro: task.intro, center: task.center, look: task.look, n: task.pairs.length, items: seededShuffle(`${scopeKey}|task|${index}`, items) };
   }
   return base;
 }
@@ -129,6 +142,12 @@ export function checkAnswer(task: CityTask, index: number, secret: string, scope
     case "order": {
       if (!Array.isArray(answer) || answer.length !== task.items.length) return false;
       return task.items.every((_, i) => answer[i] === opaqueId(secret, scopeKey, "task", index, i));
+    }
+    case "chiasm": {
+      // Ответ — id строк по местам прочтения: А…Д, затем Д′…А′.
+      const n = task.pairs.length * 2;
+      if (!Array.isArray(answer) || answer.length !== n) return false;
+      return Array.from({ length: n }, (_, i) => answer[i] === opaqueId(secret, scopeKey, "task", index, i)).every(Boolean);
     }
     case "crossword": {
       // Все слова разом: сравниваются буквы сетки (регистр, ё/е, пробелы и дефисы не важны).
@@ -166,7 +185,7 @@ export function stripAnswers(content: CityContent) {
     ...content,
     tasks: content.tasks.map((t) => {
       const base = { scope: t.scope, groupDistricts: t.groupDistricts ?? null, type: t.type, prompt: t.prompt };
-      return t.type === "choice" ? { ...base, options: t.options } : t.type === "crossword" ? { ...base, words: t.words.map((w) => ({ clue: w.clue, len: gridLetters(w.answer).length })) } : base;
+      return t.type === "choice" ? { ...base, options: t.options } : t.type === "crossword" ? { ...base, words: t.words.map((w) => ({ clue: w.clue, len: gridLetters(w.answer).length })) } : t.type === "chiasm" ? { ...base, intro: t.intro, center: t.center, pairs: t.pairs } : base;
     }),
   };
 }

@@ -3,7 +3,7 @@ import { BOOKS } from "@lotw/domain";
 import { api, ApiError, type CityTaskDto, type MyCityDto, type SupportItemDto, type TaskLockDto, type VisitDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
-import { BurntScroll, CipherSeal, Crossword, LockChoice, LockRings, PickCooling, ProphetCandle, WaxEnvelope, findGap } from "./CityForms";
+import { BurntScroll, CipherSeal, Crossword, LockChoice, LockRings, PickCooling, ProphetCandle, WaxEnvelope, findGap, ChiasmBoard } from "./CityForms";
 import { WarSection } from "./BattlePanel";
 import { WallSection } from "./Wall";
 import { PassageSection } from "./Diplomacy";
@@ -423,14 +423,16 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
   const [text, setText] = useState("");
   const [choice, setChoice] = useState<number | null>(null);
   const [order, setOrder] = useState<string[]>(task.type === "order" ? validDraft(draft, task.items.map((i) => i.id)) : []);
+  /** Хиазм (05.11): строки по местам прочтения, пустое место — null; черновик хранит «-» вместо пустого. */
+  const [slots, setSlots] = useState<Array<string | null>>(task.type === "chiasm" ? chiasmDraft(draft, task.items.map((i) => i.id), task.n * 2) : []);
   const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`);
   const [words, setWords] = useState<string[] | null>(null);
   /** Итог последней отправки — для сцены формы (весы выравниваются, замок заклинивает); сбрасывается при смене ответа. */
   const [result, setResult] = useState<"ok" | "bad" | null>(null);
   const itemText = useMemo(() => (task.type === "order" ? new Map(task.items.map((i) => [i.id, i.text])) : new Map<string, string>()), [task]);
   const gap = useMemo(() => (task.type === "text" ? findGap(task.prompt) : null), [task]);
-  const value = task.type === "choice" ? choice ?? 0 : task.type === "order" ? order : task.type === "crossword" ? words : text.trim();
-  const filled = task.type === "choice" ? true : task.type === "order" ? order.length > 0 : task.type === "crossword" ? words != null : text.trim().length > 0;
+  const value = task.type === "choice" ? choice ?? 0 : task.type === "order" ? order : task.type === "chiasm" ? slots : task.type === "crossword" ? words : text.trim();
+  const filled = task.type === "choice" ? true : task.type === "order" ? order.length > 0 : task.type === "chiasm" ? slots.every(Boolean) : task.type === "crossword" ? words != null : text.trim().length > 0;
   const canSend = !done && !busy && cooldown === 0 && !locked && filled;
   const send = async () => { const ok = await onAnswer(value); setResult(ok ? "ok" : "bad"); if (!ok) setTimeout(() => setResult(null), 900); };
   const scope = task.scope === "book" ? t("По всей книге") : task.scope === "group" ? t("По районам: {list}", { list: groupTitles?.join(", ") ?? "" }) : t("По этому району");
@@ -452,6 +454,13 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
         <details className="disclose sm">
           <summary><Icon name="book" />{t("Пересказ района")}<Icon name="chevron-down" className="chev" /></summary>
           <p className="small muted">{district.summary}</p>
+        </details>
+      )}
+      {/* Хиазм (05.11): краткое объяснение, что это такое, — над вопросом. */}
+      {task.type === "chiasm" && (
+        <details className="disclose sm chiasm-intro" open>
+          <summary><Icon name="info" />{t("Что такое хиазм")}<Icon name="chevron-down" className="chev" /></summary>
+          <p className="small muted">{task.intro}</p>
         </details>
       )}
       {!(task.type === "text" && gap && !done) && <p className="prompt no-copy" onCopy={(e) => e.preventDefault()}>{task.prompt}</p>}
@@ -480,8 +489,9 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
       )}
       {hintOpen && <p className="note info"><Icon name="sparkle" /><span>{t("Подсказка пророка к этому заданию уже показана: она видна один раз.")}</span></p>}
       {!hintOpen && !done && canHint && <p className="mt-2 row nowrap"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Свеча пророка")}</button><Help>{t("Раз в неделю открывает текст района. Видит только пророк.")}</Help></p>}
-      {done ? (
-        <div className="note ok"><Icon name="check" /><span>{t("Выполнено. Знак шифра: {f}", { f: fragment ?? "" })}</span></div>
+      {done ? (<>
+        {task.type === "chiasm" && task.solution && <ChiasmBoard items={task.items} slots={[]} n={task.n} center={task.center} look={task.look} onChange={() => undefined} disabled state="open" solution={task.solution} />}
+        <div className="note ok"><Icon name="check" /><span>{t("Выполнено. Знак шифра: {f}", { f: fragment ?? "" })}</span></div></>
       ) : (
         <div className="answer">
           {teamDone && <div className="note info"><Icon name="users" /><span>{t("Команда уже открыла знак этого задания: {f}. Решите его сами, чтобы оно пошло в ваш зачёт для ключа.", { f: fragment ?? "" })}</span></div>}
@@ -491,9 +501,10 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
           {task.type === "choice" && <LockChoice options={task.options} choice={choice} onPick={(i) => { setChoice(i); setResult(null); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} />}
           {task.type === "order" && <LockRings ids={order} labels={itemText} onChange={(ids) => { setOrder(ids); setResult(null); saveDraft({ taskIndex: task.index, ids }); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} pinsWrong={result === "bad" ? -1 : null} strips />}
           {task.type === "crossword" && <Crossword rows={task.rows} cols={task.cols} words={task.words} onChange={setWords} disabled={locked || busy} onPaste={noPaste} />}
+          {task.type === "chiasm" && <ChiasmBoard items={task.items} slots={slots} n={task.n} center={task.center} look={task.look} onChange={(s) => { setSlots(s); setResult(null); saveDraft({ taskIndex: task.index, ids: s.map((x) => x ?? "-") }); }} disabled={locked || busy} state={result === "ok" ? "open" : result === "bad" ? "jam" : "idle"} />}
           {why && <p className="hint" aria-live="polite">{why}</p>}
           <div className="actions">
-            <button type="button" disabled={!canSend} onClick={() => void send()}><Icon name={task.type === "choice" || task.type === "order" ? "lock" : "send"} />{task.type === "choice" || task.type === "order" ? t("Провернуть замок") : t("Ответить")}</button>
+            <button type="button" disabled={!canSend} onClick={() => void send()}><Icon name={task.type === "choice" || task.type === "order" ? "lock" : task.type === "chiasm" ? "check" : "send"} />{task.type === "choice" || task.type === "order" ? t("Провернуть замок") : task.type === "chiasm" ? t("Сложить хиазм") : t("Ответить")}</button>
           </div>
         </div>
       )}
@@ -502,6 +513,15 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
 }
 
 /** Черновик годится, если это перестановка ровно тех же id; иначе исходный порядок. */
+/** Черновик хиазма: длина по числу мест, «-» — пусто, остальные — id строк без повторов; иначе пустая доска. */
+function chiasmDraft(draft: string[] | undefined, ids: string[], len: number): Array<string | null> {
+  const empty = Array.from({ length: len }, () => null);
+  if (!draft || draft.length !== len) return empty;
+  const set = new Set(ids);
+  const used = draft.filter((x) => x !== "-");
+  if (!used.every((x) => set.has(x)) || new Set(used).size !== used.length) return empty;
+  return draft.map((x) => (x === "-" ? null : x));
+}
 function validDraft(draft: string[] | undefined, ids: string[]): string[] {
   if (!draft || draft.length !== ids.length) return ids;
   const set = new Set(ids);
