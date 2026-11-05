@@ -729,6 +729,8 @@ export const PLAYER: Record<string, string> = {
   "Убрать блок {ref} с проверки?": "Withdraw block {ref} from review?",
   "Блок — {n} стихов книги подряд, которые выучил один участник. Принятые блоки сами ложатся в ответ за минуту до конца времени ответа: до этого хранители отвечают сами. В ответ из блока берутся только недостающие стихи: такой блок надломлен, пока хозяин не досдаст их. Другие команды видят стену, но не её толщину.": "A block is {n} consecutive verses of the book learned by one member. Accepted blocks go into the answer by themselves one minute before the answer time runs out; until then the keepers answer on their own. Only the missing verses are taken from a block: such a block stays cracked until its owner submits them again. Other teams see the wall but not its thickness.",
   "Блоки стены": "Wall blocks",
+  "Сдать за": "Submit for", "себя": "myself", "Блок {ref} сдан на проверку за участника {name}": "Block {ref} submitted for review on behalf of {name}", "Сдать {ref} за {name}": "Submit {ref} for {name}", "Можно сдать за {name}": "Can be submitted for {name}", "У участника этот блок уже сдан или стихи сданы в испытании": "This member has already submitted this block, or its verses in a trial",
+  "Сдаёте за участника {name}: выберите блок, который он выучил заранее, и прикрепите ссылку на его видео. Блок засчитается ему; во время ответа хранителей стену не строят.": "Submitting for {name}: choose the block they learned in advance and attach a link to their video. The block is credited to them; the wall is not built during the guardians’ response.",
   "Сдать блок стены": "Submit a wall block",
   "Блок {ref} возвращён": "Block {ref} returned",
   "принят": "accepted",
