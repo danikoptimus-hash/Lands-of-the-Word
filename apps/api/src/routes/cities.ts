@@ -29,6 +29,8 @@ const captureBody = z.object({ key: z.string().trim().min(1).max(32) });
  * ступени из правил игры (20 с, 1 мин, 5 мин, 15 мин, 1 ч, дальше по часу), считается на задание,
  * сбрасывается при верном ответе. Двух попыток и блокировки на сутки больше нет.
  */
+/** Замок районов (решение владельца 05.11: «при расстановке районов… отмычки не остывают, и их там вообще нет») — та же пауза, ключ-индекс −1. */
+const ORDER_LOCK = -1;
 function publicLock(l: { taskIndex: number; wrong: number; lockedUntil: Date | null }, now: number) {
   const locked = l.lockedUntil && l.lockedUntil.getTime() > now;
   return { index: l.taskIndex, wrong: l.wrong, lockedUntil: locked ? l.lockedUntil!.getTime() : null };
@@ -190,7 +192,9 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
         ...solvers,
         mySolved: mine,
         pauseSteps: rules.pauseSteps,
-        locks: locks.map((l) => publicLock(l, Date.now())),
+        locks: locks.filter((l) => l.taskIndex >= 0).map((l) => publicLock(l, Date.now())),
+        // Отмычка замка районов (05.11): пауза и счёт ошибок подряд, как у заданий.
+        orderLock: (() => { const l = locks.find((x) => x.taskIndex === ORDER_LOCK); return l ? publicLock(l, Date.now()) : null; })(),
         support: support.map((r) => ({ id: r.id, taskIndex: r.taskIndex, createdAt: r.createdAt.getTime(), status: r.status, reply: r.reply })),
       },
     };
@@ -243,15 +247,31 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!c) return;
     if (c.state.orderSolved) return reply.code(409).send({ error: "conflict", message: err(request, "Порядок районов уже собран") });
     const body = orderBody.parse(request.body);
+    // Отмычка остывает и на замке районов (решение владельца 05.11): та же растущая пауза, что у заданий района,
+    // считается на команду и город, сбрасывается верным порядком.
+    const now = Date.now();
+    const lockWhere = { teamId_nodeKey_taskIndex: { teamId: c.m.team.id, nodeKey, taskIndex: ORDER_LOCK } };
+    const lock = await prisma.teamTaskLock.findUnique({ where: lockWhere });
+    if (lock?.lockedUntil && lock.lockedUntil.getTime() > now) {
+      return reply.code(429).send({ error: "cooldown", message: err(request, "Отмычка остывает: подождите перед следующей попыткой"), retryAt: lock.lockedUntil.getTime() });
+    }
     const wrong = checkOrder(c.content, secret, c.scopeKey, body.ids);
     if (wrong === null) return reply.code(400).send({ error: "validation", message: err(request, "Расставьте все районы, каждый по одному разу") });
+    let retryAt: number | null = null;
+    if (wrong === 0) { if (lock) await prisma.teamTaskLock.update({ where: { id: lock.id }, data: { wrong: 0, lockedUntil: null } }); }
+    else {
+      const n = (lock?.wrong ?? 0) + 1;
+      retryAt = now + pauseAfter(c.rules, n);
+      const data = { wrong: n, lockedUntil: new Date(retryAt) };
+      await prisma.teamTaskLock.upsert({ where: lockWhere, create: { gameId: id, teamId: c.m.team.id, nodeKey, taskIndex: ORDER_LOCK, ...data }, update: data });
+    }
     // Черновик: при верном порядке больше не нужен, при неверном хранит последнюю расстановку.
     await prisma.teamCityState.update({ where: { id: c.state.id }, data: { orderAttempts: { increment: 1 }, orderSolved: wrong === 0, orderDraft: wrong === 0 ? [] : body.ids } });
     void taskEvent(id, c.m.team.id, request.user!.id, nodeKey, null, wrong === 0 ? "ok" : "wrong");
     if (wrong === 0) scheduleAwards(id);
     if (wrong === 0) journal(id, "order_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), book: c.node.bookCode ?? "" } });
     publish(id, { type: "cities", teamId: c.m.team.id });
-    return { correct: wrong === 0, wrong };
+    return { correct: wrong === 0, wrong, retryAt };
   });
 
   /** Ответ на задание района. Верный ответ открывает букву шифра. */

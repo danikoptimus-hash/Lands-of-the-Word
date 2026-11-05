@@ -122,15 +122,19 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
     if (!order) return;
     setBusy(true); setError(null);
     try {
-      const r = await api<{ correct: boolean; wrong: number }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/order`, { method: "POST", body: JSON.stringify({ ids: order }) });
+      const r = await api<{ correct: boolean; wrong: number; retryAt?: number | null }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/order`, { method: "POST", body: JSON.stringify({ ids: order }) });
       setOrderResult(r.wrong);
       if (r.correct) {
         // Дужка открывается, затем районы окрашиваются и застывают по порядку книги.
         setLockState("open"); await sleep(900);
         notify(t("Порядок верный: районы открыты")); setOrder(null); setJustSolved(true);
-      } else { setLockState("jam"); setTimeout(() => setLockState("idle"), 700); }
+      } else {
+        setLockState("jam"); setTimeout(() => setLockState("idle"), 700);
+        // Отмычка остывает и здесь (решение владельца 05.11): пауза растёт с каждой неверной расстановкой, как у заданий.
+        notify(t("Неверно. Отмычка остывает: следующая попытка через {t}", { t: r.retryAt ? fmtPause(r.retryAt - Date.now() - skew.current) : "" }), "bad");
+      }
       await load(); onChanged();
-    } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
+    } catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); if (e instanceof ApiError && e.status === 429) void load(); }
     finally { setBusy(false); }
   }
   async function answer(index: number, value: unknown): Promise<boolean> {
@@ -243,15 +247,27 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
         </ol>
       )}
 
-      {!sleeping && city?.content && step === 1 && order && (
+      {!sleeping && city?.content && step === 1 && order && (() => {
+        // Отмычка остывает и на замке районов (решение владельца 05.11): пока пауза не прошла, замок не провернуть.
+        const olock = city.state.orderLock ?? null, steps = city.state.pauseSteps;
+        const olocked = olock?.lockedUntil != null && olock.lockedUntil > now;
+        const onext = steps[Math.min(olock?.wrong ?? 0, steps.length - 1)] ?? 20;
+        return (
         <section className="step-body">
           <h3>{t("Расставьте районы по порядку книги")}</h3>
           <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
-            hint={city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Стрелки двигают район вверх и вниз. Готово — проверните замок.")}
+            hint={olock && olock.wrong > 0 && !olocked ? t("Ошибок подряд: {n} · следующая пауза {t}", { n: olock.wrong, t: fmtPause(onext * 1000) }) : city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Стрелки двигают район вверх и вниз. Готово — проверните замок.")}
             help={t("Замок скажет, сколько штифтов не село, но не каких.")} />
-          <div className="actions"><button type="button" disabled={busy || lockState === "open"} onClick={() => void checkOrder()}><Icon name="lock" />{t("Провернуть замок")}</button></div>
+          {olocked && olock && (
+            <div className="note bad lock-note">
+              <div className="row nowrap"><PickCooling until={olock.lockedUntil!} now={now} label={t("Отмычка остывает")} total={(steps[Math.min(Math.max(olock.wrong - 1, 0), steps.length - 1)] ?? 20) * 1000} /></div>
+              <span className="small">{t("Следующая попытка через {t}.", { t: fmtPause(olock.lockedUntil! - now) })}</span>
+            </div>
+          )}
+          <div className="actions"><button type="button" disabled={busy || lockState === "open" || olocked} onClick={() => void checkOrder()}><Icon name="lock" />{t("Провернуть замок")}</button></div>
         </section>
-      )}
+        );
+      })()}
 
       {!sleeping && city?.content && step >= 2 && !task && (
         <section className="step-body">

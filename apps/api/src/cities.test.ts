@@ -55,6 +55,8 @@ beforeAll(async () => {
 
 
 afterAll(async () => {
+  // Стороны с делами удаляем до игры: внешний ключ TeamEdgeTask_deedId_fkey не даёт удалить дела, пока на них есть стороны.
+  await prisma.teamEdgeTask.deleteMany({ where: { gameId } });
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, p1Nick, p2Nick] } } });
   await cleanupFixtures(gameId);
@@ -97,6 +99,14 @@ describe("город на перекрёстке", () => {
     expect(wrong.statusCode).toBe(200);
     expect(wrong.json().correct).toBe(false);
     expect(wrong.json().wrong).toBeGreaterThan(0);
+    // Отмычка остывает и на замке районов (решение владельца 05.11): пауза после неверного порядка, сразу снова — 429.
+    expect(wrong.json().retryAt).toBeGreaterThan(Date.now() - 1000);
+    const tooSoon = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/order`, headers: { cookie: p1Cookie }, payload: { ids: districts.map((d) => d.id) } });
+    expect(tooSoon.statusCode).toBe(429); expect(tooSoon.json().error).toBe("cooldown"); expect(tooSoon.json().retryAt).toBe(wrong.json().retryAt);
+    const cooling = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
+    expect(cooling.json().state.orderLock).toMatchObject({ wrong: 1, lockedUntil: wrong.json().retryAt });
+    expect(cooling.json().state.locks).toEqual([]); // замок районов не попадает в список замков заданий
+    await prisma.teamTaskLock.updateMany({ where: { nodeKey: rutKey, taskIndex: -1 }, data: { lockedUntil: null } }); // пауза прошла
 
     // Черновик расстановки: сохраняется для команды и отдаётся при следующем открытии; после неверной попытки хранит её.
     const half = [...districts.map((d) => d.id)].reverse();
@@ -107,9 +117,10 @@ describe("город на перекрёстке", () => {
 
     const byTitle = new Map(districts.map((d) => [d.title, d.id]));
     const right = await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/order`, headers: { cookie: p1Cookie }, payload: { ids: content.districts.map((d) => byTitle.get(d.title)) } });
-    expect(right.json()).toEqual({ correct: true, wrong: 0 });
+    expect(right.json()).toEqual({ correct: true, wrong: 0, retryAt: null });
     const solved = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p1Cookie } });
     expect(solved.json().state.orderSolved).toBe(true);
+    expect(solved.json().state.orderLock).toMatchObject({ wrong: 0, lockedUntil: null }); // верный порядок сбрасывает счёт ошибок
     expect(solved.json().state.orderDraft).toEqual([]);
     expect(solved.json().content.districts.map((d: { title: string }) => d.title)).toEqual(content.districts.map((d) => d.title));
     expect(solved.json().content.tasks).toHaveLength(content.tasks.length);
