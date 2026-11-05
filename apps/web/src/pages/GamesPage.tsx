@@ -9,6 +9,7 @@ import { ActionMenu } from "../components/ActionMenu";
 import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { Sheet } from "../components/Sheet";
 import { Chip, type ChipTone } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
@@ -130,9 +131,8 @@ export function GamesPage() {
         <EmptyState icon="users" text={t("Вас ещё не пригласили в команду. Попросите у капитана ссылку-приглашение.")} />
       )}
 
-      <JoinByLink />
 
-      <div className="home-foot"><Link to="/games/new" className="btn ghost"><Icon name="plus" />{t("Создать игру")}</Link><Link to="/how-to-play" className="btn ghost"><Icon name="help" />{t("Как играть?")}</Link><Link to="/whats-new" className="btn ghost"><Icon name="sparkle" />{t("Что нового")}</Link><a href="https://t.me/the_Word_was_God" target="_blank" rel="noopener noreferrer" className="btn ghost"><Icon name="send" />Telegram</a><Link to="/donate" className="btn ghost"><Icon name="star" />{t("Поддержать развитие игры")}</Link></div>
+      <div className="home-foot"><JoinByLink /><Link to="/games/new" className="btn ghost"><Icon name="plus" />{t("Создать игру")}</Link><Link to="/how-to-play" className="btn ghost"><Icon name="help" />{t("Как играть?")}</Link><Link to="/whats-new" className="btn ghost"><Icon name="sparkle" />{t("Что нового")}</Link><a href="https://t.me/the_Word_was_God" target="_blank" rel="noopener noreferrer" className="btn ghost"><Icon name="send" />Telegram</a><Link to="/donate" className="btn ghost"><Icon name="star" />{t("Поддержать развитие игры")}</Link></div>
     </>
   );
 }
@@ -147,25 +147,36 @@ export function inviteToken(raw: string): string | null {
 
 /**
  * Вступить по приглашению прямо в приложении (решение владельца 03.11 по сообщению участника: ссылка из мессенджера
- * открывается в браузере, а не в сохранённом на экран приложении, и там приходится входить заново). Вставьте ссылку или
- * код — откроется та же страница приглашения, но внутри приложения, где вы уже вошли.
+ * открывается в браузере, а не в сохранённом на экран приложении, и там приходится входить заново). Кнопка в ряду
+ * кнопок главной (решение владельца 05.11: «кнопку „войти по приглашению“, стиль как у соседних… рамку вокруг значка
+ * строки и кнопки вставить убрать»), по ней лист с полем: вставьте ссылку или код — откроется та же страница
+ * приглашения, но внутри приложения, где вы уже вошли.
  */
 function JoinByLink() {
   const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   function go(e: FormEvent) {
     e.preventDefault();
     const token = inviteToken(value);
     if (!token) { setError(t("Не похоже на приглашение: вставьте ссылку от капитана целиком")); return; }
+    setOpen(false);
     navigate(`/join/${token}`);
   }
   return (
-    <form className="home-join" onSubmit={go}>
-      <Icon name="link" />
-      <input id="join-invite" value={value} onChange={(e) => { setValue(e.target.value); setError(null); }} placeholder={t("Ссылка-приглашение или код")} aria-label={t("Ссылка-приглашение или код")} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" />
-      <button type="submit" className="sm" disabled={!value.trim()}>{t("Вступить")}</button>
-      {error && <p className="error">{error}</p>}
-    </form>
+    <>
+      <button type="button" className="btn ghost" onClick={() => { setError(null); setOpen(true); }}><Icon name="link" />{t("Войти по приглашению")}</button>
+      {open && (
+        <Sheet size="sm" title={t("Войти по приглашению")} onClose={() => setOpen(false)}>
+          <form className="join-form" onSubmit={go}>
+            <p className="hint">{t("Вставьте ссылку-приглашение от капитана или код из неё: страница приглашения откроется прямо в приложении.")}</p>
+            <input id="join-invite" value={value} onChange={(e) => { setValue(e.target.value); setError(null); }} placeholder={t("Ссылка-приглашение или код")} aria-label={t("Ссылка-приглашение или код")} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" autoFocus />
+            {error && <p className="error">{error}</p>}
+            <div className="actions"><button type="submit" disabled={!value.trim()}><Icon name="check" />{t("Вступить")}</button></div>
+          </form>
+        </Sheet>
+      )}
+    </>
   );
 }

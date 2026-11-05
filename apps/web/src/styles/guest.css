@@ -77,9 +77,9 @@
 .donate-qr img { display: block; width: 180px; height: 180px; }
 .donate-row .stack { flex: 1 1 260px; min-width: 0; }
 /* Вступить по приглашению из приложения (решение владельца 03.11). */
-.home-join { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; max-width: 520px; margin: var(--sp-4) auto 0; padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--surface); }
-.home-join > .i { flex: none; width: 20px; height: 20px; color: var(--accent); }
-.home-join input { flex: 1 1 180px; min-width: 0; }
-.home-join .error { flex-basis: 100%; margin: 0; }
+/* Лист «Войти по приглашению» (решение владельца 05.11): поле без рамок и значков, кнопка справа. */
+.join-form { display: flex; flex-direction: column; gap: var(--sp-3); }
+.join-form .hint, .join-form .error { margin: 0; }
+.join-form .actions { display: flex; justify-content: flex-end; }
 .home-foot { display: flex; justify-content: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-4); }
 

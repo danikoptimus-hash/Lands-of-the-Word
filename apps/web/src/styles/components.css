@@ -290,7 +290,14 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 
 /* Крупный показ аватарки по нажатию (решение владельца 24.10). */
 .avatar.zoomable { cursor: zoom-in; }
-.avatar-lightbox { position: fixed; inset: 0; z-index: var(--z-modal, 1000); background: rgba(20, 14, 6, 0.72); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--sp-3); padding: var(--sp-4); cursor: zoom-out; }
+.avatar-lightbox { position: fixed; inset: 0; z-index: var(--z-modal, 1000); background: rgba(20, 14, 6, 0.72); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; gap: var(--sp-3); padding: var(--sp-4); cursor: zoom-out; overflow-y: auto; }
+/* Центровка через авто-отступы, а не justify-content: center — иначе высокая карточка с наградами обрезалась бы сверху (05.11). */
+.avatar-lightbox > :first-child { margin-top: auto; }
+.avatar-lightbox > :last-child { margin-bottom: auto; }
+/* Много наград (решение владельца 05.11): аватарка меньше, карточка начинается выше, окно прокручивается целиком. */
+.avatar-lightbox.many > img, .avatar-lightbox.many > .letter, .avatar-lightbox.many > .team-photo-edit img, .avatar-lightbox.many > .team-photo-edit .letter { width: min(36vw, 140px); height: min(36vw, 140px); }
+.avatar-lightbox.many > .letter, .avatar-lightbox.many > .team-photo-edit .letter { font-size: 48px; }
+.avatar-lightbox.many .team-photo-edit .avatar-btn .badge { width: 30px; height: 30px; }
 .avatar-lightbox img { width: min(80vw, 320px); height: min(80vw, 320px); border-radius: 50%; object-fit: cover; box-shadow: 0 0 0 4px var(--surface), 0 12px 40px rgba(0, 0, 0, 0.5); }
 .avatar-lightbox .name { color: #fff; font-weight: 600; font-size: var(--fs-lg); text-align: center; }
 .avatar-lightbox .name, .avatar-lightbox button { cursor: pointer; }
@@ -321,7 +328,7 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar-lightbox .card { width: min(92vw, 420px); padding: var(--sp-3) var(--sp-3) var(--sp-2); border-radius: var(--r-lg); background: var(--paper); color: var(--text); text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); box-shadow: 0 16px 48px rgba(0, 0, 0, .45); }
 .avatar-lightbox .card .sub { color: var(--muted); font-size: var(--fs-sm); display: flex; align-items: center; gap: 6px; }
 .avatar-lightbox .card .sub .i { width: 14px; height: 14px; }
-.avatar-lightbox .card .awards-row { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-1) var(--sp-2); margin-top: var(--sp-1); max-height: 46vh; overflow: auto; }
+.avatar-lightbox .card .awards-row { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-1) var(--sp-2); margin-top: var(--sp-1); }
 .avatar-lightbox .card .awards-row .award { width: 76px; }
 .avatar-lightbox .card .none { color: var(--muted); font-size: var(--fs-sm); margin: var(--sp-1) 0; }
 /* Лист награды из карточки участника (30.10): выше карточки (у неё z-index 1000). */

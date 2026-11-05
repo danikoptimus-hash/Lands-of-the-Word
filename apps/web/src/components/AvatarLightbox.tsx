@@ -40,13 +40,17 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
   // (замечание владельца 04.11: «нажимаю предложить мир, окно вылетает под профилем»): класс на body, правило в components.css.
   useEffect(() => { document.body.classList.add("has-lightbox"); return () => document.body.classList.remove("has-lightbox"); }, []);
   useEffect(() => { if (url) apiReady<MemberCardDto>(url).then((d) => { setCard(d); preloadAwardImages(d.awards.map((g) => g.code)); }).catch(() => {}); }, [url]);
+  // Много наград (замечание владельца 05.11: «полоса начинается низко… чтобы туда награды влезли»): аватарка меньше, карточка
+  // начинается выше, а всё окно прокручивается — ни одна награда не обрезается.
+  const many = ((teamUrl ? teamCard?.awards.length : card?.awards.length) ?? 0) >= 8;
+  const boxClass = "avatar-lightbox" + (many ? " many" : "");
   const photo = avatarId ? <img src={`/api/avatars/${avatarId}`} alt={name} /> : <span className="letter" aria-hidden="true" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{name.slice(0, 1).toUpperCase()}</span>;
   if (teamUrl) {
     // Свежая аватарка — из карточки (после замены родитель узнаёт о ней позже, по событию «состав»).
     const teamAvatarId = teamCard ? teamCard.team.avatarId ?? null : avatarId;
     const teamPhoto = teamAvatarId ? <img src={`/api/avatars/${teamAvatarId}`} alt={name} /> : <span className="letter" aria-hidden="true" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{name.slice(0, 1).toUpperCase()}</span>;
     return createPortal(
-      <div className="avatar-lightbox" role="dialog" aria-label={name} onClick={(e) => { e.stopPropagation(); onClose(); }}>
+      <div className={boxClass} role="dialog" aria-label={name} onClick={(e) => { e.stopPropagation(); onClose(); }}>
         {teamCard?.canEdit && gameId && teamId
           ? <div className="team-photo-edit" onClick={(e) => e.stopPropagation()}><AvatarUploader preview={teamPhoto} url={`/api/games/${gameId}/teams/${teamId}/avatar`} hasAvatar={Boolean(teamAvatarId)} blocked={user?.avatarBlocked} onChanged={loadTeam} label={teamAvatarId ? t("Заменить фото команды") : t("Поставить фото команды")} /></div>
           : teamPhoto}
@@ -67,7 +71,7 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
   }
   if (!gameId || !userId) {
     return createPortal(
-      <div className="avatar-lightbox" role="dialog" aria-label={name} onClick={(e) => { e.stopPropagation(); onClose(); }}>
+      <div className={boxClass} role="dialog" aria-label={name} onClick={(e) => { e.stopPropagation(); onClose(); }}>
         {photo}
         <div className="name">{name}</div>
       </div>,
@@ -75,7 +79,7 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
     );
   }
   return createPortal(
-    <div className="avatar-lightbox" role="dialog" aria-label={name} onClick={(e) => { e.stopPropagation(); onClose(); }}>
+    <div className={boxClass} role="dialog" aria-label={name} onClick={(e) => { e.stopPropagation(); onClose(); }}>
       {photo}
       <div className="card" onClick={(e) => e.stopPropagation()}>
         <div className="name" style={{ color: "inherit" }}>{card?.name ?? name}</div>

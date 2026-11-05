@@ -297,9 +297,23 @@ export function Crossword({ rows, cols, words, onChange, disabled, onPaste }: { 
     const i = cs.findIndex((x) => x.r === r && x.c === c);
     if (i > 0) { e.preventDefault(); const p = cs[i - 1]!; setCells((m) => ({ ...m, [key(p.r, p.c)]: "" })); focusCell(p.r, p.c); }
   };
+  /**
+   * Какое слово активно (сообщение участника 05.11: нажал на цифру 2, а выделялось первое, вертикальное слово; нажал на
+   * вопрос — перебрасывало на другое слово, и буквы уходили не туда). Правила: активное слово держится, пока клетка ему
+   * принадлежит; иначе — слово, которое начинается в этой клетке (её номер), иначе первое из слов клетки. Решение по
+   * предыдущему значению, а не по замыканию: при нажатии на вопрос фокус срабатывает раньше, чем обновится active.
+   */
   const onFocus = (r: number, c: number) => {
     const ws = cellWords.get(key(r, c)) ?? [];
-    if (ws.length && !ws.includes(active)) setActive(ws[0]!);
+    if (!ws.length) return;
+    setActive((prev) => { if (ws.includes(prev)) return prev; const here = ws.find((wi) => words[wi]!.row === r && words[wi]!.col === c); return here ?? ws[0]!; });
+  };
+  /** Повторное нажатие на уже выбранную клетку пересечения переключает направление (по горизонтали ↔ по вертикали). */
+  const wasFocused = useRef(false);
+  const onCellClick = (r: number, c: number) => {
+    if (!wasFocused.current) return;
+    const ws = cellWords.get(key(r, c)) ?? [];
+    if (ws.length > 1) setActive((prev) => ws[(ws.indexOf(prev) + 1) % ws.length]!);
   };
   const activeCells = new Set((coords[active] ?? []).map(({ r, c }) => key(r, c)));
   const grid: Array<Array<{ k: string; n?: number } | null>> = Array.from({ length: rows }, (_, r) => Array.from({ length: cols }, (_, c) => (cellWords.has(key(r, c)) ? { k: key(r, c), n: starts.get(key(r, c)) } : null)));
@@ -311,7 +325,7 @@ export function Crossword({ rows, cols, words, onChange, disabled, onPaste }: { 
           <div key={cell.k} className={"cw-cell" + (activeCells.has(cell.k) ? " active" : "")}>
             {cell.n != null && <span className="cw-n" aria-hidden="true">{cell.n}</span>}
             <input data-cell={cell.k} value={cells[cell.k] ?? ""} maxLength={2} disabled={disabled} autoComplete="off" autoCorrect="off" autoCapitalize="characters" spellCheck={false} inputMode="text" aria-label={t("Клетка {r}:{c}", { r: r + 1, c: c + 1 })}
-              onChange={(e) => onInput(r, c, e.target.value)} onKeyDown={(e) => onKeyDown(r, c, e)} onFocus={() => onFocus(r, c)} onPaste={onPaste} onDrop={onPaste} />
+              onChange={(e) => onInput(r, c, e.target.value)} onKeyDown={(e) => onKeyDown(r, c, e)} onFocus={() => onFocus(r, c)} onPointerDown={(e) => { wasFocused.current = document.activeElement === e.currentTarget; }} onClick={() => onCellClick(r, c)} onPaste={onPaste} onDrop={onPaste} />
           </div>
         ) : <div key={`${r},${c}`} className="cw-cell empty" aria-hidden="true" />))}
       </div>
@@ -320,7 +334,7 @@ export function Crossword({ rows, cols, words, onChange, disabled, onPaste }: { 
           <div key={g.title}>
             <div className="strong small">{g.title}</div>
             <ol className="cw-list">
-              {g.list.map(({ w, i }) => <li key={i} className={i === active ? "active" : ""}><button type="button" className="ghost sm" onClick={() => { setActive(i); focusCell(w.row, w.col); }}><b>{w.n}.</b> {w.clue} <span className="muted">({w.len})</span></button></li>)}
+              {g.list.map(({ w, i }) => <li key={i} className={i === active ? "active" : ""}><button type="button" className="ghost sm" onClick={() => { focusCell(w.row, w.col); setActive(i); }}><b>{w.n}.</b> {w.clue} <span className="muted">({w.len})</span></button></li>)}
             </ol>
           </div>
         ))}
