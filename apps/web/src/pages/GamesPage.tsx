@@ -164,6 +164,13 @@ function JoinByLink() {
     setOpen(false);
     navigate(`/join/${token}`);
   }
+  /** Квадратная кнопка справа от поля (решение владельца 05.11): ссылка берётся из буфера обмена сама, как в поле ссылок у дел. */
+  const paste = async () => {
+    let text: string | null = null;
+    try { text = (await navigator.clipboard.readText()).trim(); } catch { text = null; }
+    if (!text) { setError(t("Не удалось прочитать буфер обмена: вставьте ссылку вручную")); return; }
+    setValue(text); setError(null);
+  };
   return (
     <>
       <button type="button" className="btn ghost" onClick={() => { setError(null); setOpen(true); }}><Icon name="link" />{t("Войти по приглашению")}</button>
@@ -171,7 +178,10 @@ function JoinByLink() {
         <Sheet size="sm" title={t("Войти по приглашению")} onClose={() => setOpen(false)}>
           <form className="join-form" onSubmit={go}>
             <p className="hint">{t("Вставьте ссылку-приглашение от капитана или код из неё: страница приглашения откроется прямо в приложении.")}</p>
-            <input id="join-invite" value={value} onChange={(e) => { setValue(e.target.value); setError(null); }} placeholder={t("Ссылка-приглашение или код")} aria-label={t("Ссылка-приглашение или код")} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" autoFocus />
+            <div className="join-row">
+              <input id="join-invite" value={value} onChange={(e) => { setValue(e.target.value); setError(null); }} placeholder={t("Ссылка-приглашение или код")} aria-label={t("Ссылка-приглашение или код")} autoComplete="off" autoCapitalize="off" autoCorrect="off" spellCheck={false} enterKeyHint="go" autoFocus />
+              <button type="button" className="secondary icon join-paste" onClick={() => void paste()} aria-label={t("Вставить из буфера")} title={t("Вставить из буфера")}><Icon name="paste" /></button>
+            </div>
             {error && <p className="error">{error}</p>}
             <div className="actions"><button type="submit" disabled={!value.trim()}><Icon name="check" />{t("Вступить")}</button></div>
           </form>
