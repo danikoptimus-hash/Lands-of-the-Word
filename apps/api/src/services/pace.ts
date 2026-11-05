@@ -34,6 +34,16 @@ export function versesByDay(recited: Recited[], days: string[], tz: string): Map
   return out;
 }
 
+/**
+ * Уникальные стихи (решение владельца 05.11: «добавь ещё метрику уникальных стихов»): сколько разных стихов выучено
+ * за партию всеми командами — стих, принятый у нескольких участников или команд, считается один раз.
+ */
+export function uniqueVerses(recited: Recited[]): number {
+  const seen = new Set<string>();
+  for (const e of recited) for (let i = e.startIdx; i <= e.endIdx; i++) seen.add(`${e.bookCode}:${i}`);
+  return seen.size;
+}
+
 export async function paceForecast(gameId: string) {
   const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId }, select: { startedAt: true, createdAt: true, settings: true, status: true, finishedAt: true } });
   const tz = rulesOf(game.settings).timeZone;
@@ -101,10 +111,12 @@ export async function paceForecast(gameId: string) {
   // Дел в сутки для плитки (владелец 23.10: «мне нужны здесь только дела»): среднее принятых дел по полным дням, все команды.
   let deedsTotal = 0; for (let i = 0; i < fitDays; i++) for (const v of deedsByDay.get(days[i]!)?.values() ?? []) deedsTotal += v;
   const dailyDeedsAvg = fitDays > 0 ? deedsTotal / fitDays : 0;
-  const verses = versesByDay([
+  const recited: Recited[] = [
     ...entries.map((e) => ({ userId: e.userId, teamId: e.teamId, bookCode: e.battle.bookCode, startIdx: e.startIdx, endIdx: e.endIdx, at: e.decidedAt ?? e.createdAt })),
     ...blocks.map((b) => ({ userId: b.userId, teamId: b.teamId, bookCode: b.bookCode, startIdx: b.startIdx, endIdx: b.endIdx, at: b.decidedAt ?? b.createdAt })),
-  ], days, tz);
+  ];
+  const verses = versesByDay(recited, days, tz);
+  const versesUnique = uniqueVerses(recited);
   const logistic: Pt[] = []; for (let d = 0; d <= T + horizon; d += 1) logistic.push({ day: d, value: best.K / (1 + Math.exp(-best.r * (d - best.t0))) });
   return {
     tz, startedAt: start, now: end, T, K, n, rate, rampDay, dailyTasksAvg, dailyDeedsAvg, milestones,
@@ -112,7 +124,7 @@ export async function paceForecast(gameId: string) {
     fact: caps.map((c, i) => ({ day: c.day, value: i + 1, teamId: c.teamId })),
     transfers,
     deeds: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => deedsByDay.get(d)?.get(t.id) ?? 0) })), fitDays },
-    verses: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => verses.get(d)?.get(t.id) ?? 0) })), fitDays },
+    verses: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => verses.get(d)?.get(t.id) ?? 0) })), fitDays, unique: versesUnique },
     logistic: { K: best.K, r: best.r, t0: best.t0, curve: logistic, finish: Object.fromEntries(milestones.map((m) => [m, m <= n ? null : logisticAt(m)])) },
   };
 }
