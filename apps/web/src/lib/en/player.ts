@@ -123,6 +123,8 @@ export const PLAYER: Record<string, string> = {
   "Узел откроется, и с него пойдут дела по другому острову. Вернуться назад можно только с портом.": "The fork opens and deeds on the other island start from it. You can only sail back from a port.",
   "Высадиться здесь?": "Land here?", "Высадиться": "Land", "Команда высадилась на другом острове": "The team has landed on the other island",
   "Выберите береговой узел другого острова: где там город, заранее не видно": "Choose a coastal node of the other island: which one is a city is not visible in advance", "Кормчий выбирает место высадки": "The helmsman is choosing where to land", "Позже": "Later",
+  "Что такое хиазм": "What a chiasm is", "Замысел человека": "Man’s plan", "Ответ Бога": "God’s answer", "Сложить хиазм": "Assemble the chiasm", "Строки": "Lines", "Место {m}: {v}": "Slot {m}: {v}", "Место {m}, свободно": "Slot {m}, empty",
+  "Порядок не тот: строки стоят не на своих местах.": "Wrong order: the lines are not in their places.", "Все строки на местах. Проверьте порядок и сложите хиазм.": "All lines are placed. Check the order and assemble the chiasm.",
   "Взять дело": "Take the deed", "Разведать · раз в неделю": "Scout · once a week", "Сдано на проверку": "Submitted for review",
   "Вместо дела — пожертвование в кассу церкви (от {min} {cur})": "Instead of the deed — a donation to the church (from {min} {cur})",
   "Взять задание": "Take the task", "Задание взято": "Task taken", "Отказаться от задания": "Give up the task", "Отказаться от задания?": "Give up the task?", "Задание отпущено": "Task released",

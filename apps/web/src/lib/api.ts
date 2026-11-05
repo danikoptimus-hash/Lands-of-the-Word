@@ -86,7 +86,9 @@ export type CityTaskDto =
   | { index: number; scope: string; groupDistricts: number[] | null; /** Стих-подтверждение (05.11): есть только у решённого задания. */ reveal?: string; type: "number" | "text"; prompt: string }
   | { index: number; scope: string; groupDistricts: number[] | null; /** Стих-подтверждение (05.11): есть только у решённого задания. */ reveal?: string; type: "choice"; prompt: string; options: string[] }
   | { index: number; scope: string; groupDistricts: number[] | null; /** Стих-подтверждение (05.11): есть только у решённого задания. */ reveal?: string; type: "order"; prompt: string; items: Array<{ id: string; text: string }> }
-  | { index: number; scope: string; groupDistricts: number[] | null; /** Стих-подтверждение (05.11): есть только у решённого задания. */ reveal?: string; type: "crossword"; prompt: string; rows: number; cols: number; words: CrosswordWordDto[] };
+  | { index: number; scope: string; groupDistricts: number[] | null; /** Стих-подтверждение (05.11): есть только у решённого задания. */ reveal?: string; type: "crossword"; prompt: string; rows: number; cols: number; words: CrosswordWordDto[] }
+  /** Хиазм (решение владельца 05.11): перетасованные строки, центр, вид доски; solution — строки по порядку, только у решённого. */
+  | { index: number; scope: string; groupDistricts: number[] | null; reveal?: string; type: "chiasm"; prompt: string; intro: string; center: string; look: "tower" | "mirror"; n: number; items: Array<{ id: string; text: string }>; solution?: string[] };
 /** Слово кроссворда без букв: номер, клетка начала, направление, длина и вопрос. Ответ — слова в порядке этого списка. */
 export interface CrosswordWordDto { n: number; row: number; col: number; dir: "across" | "down"; len: number; clue: string }
 /** Растущая пауза задания после неверных ответов: сколько ошибок подряд и до какого момента ответ не принимается. */
@@ -112,7 +114,7 @@ export interface MyCityDto {
   state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; /** Свеча пророка: когда подсказка снова доступна (0 — сейчас); не пророку null. */ hintAvailableAt: number | null; keyLockedUntil: number | null; keyWrong: number; /** Ключ после половины команды (решение владельца 05.10): сколько участников решали задания этого города, сколько в команде и сколько нужно для ключа. */ solvers?: number; members?: number; needSolvers?: number; /** Сколько заданий города участник должен решить сам, чтобы считаться; и какие решил я. */ needTasks?: number; mySolved?: number[]; pauseSteps: number[]; locks: TaskLockDto[]; /** Отмычка замка районов (решение владельца 05.11): та же пауза, что у заданий. */ orderLock?: TaskLockDto | null; support: SupportItemDto[]; /** Черновики расстановки (общие для команды): районов и заданий «по порядку» по номеру задания. */ orderDraft: string[]; taskDrafts: Record<string, string[]> };
 }
 /** Город глазами админа: контент с ответами, ключ конверта, прогресс команд. */
-export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order" | "crossword"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[]; words?: Array<{ clue: string; answer?: string; len?: number }> }
+export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order" | "crossword" | "chiasm"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[]; words?: Array<{ clue: string; answer?: string; len?: number }>; intro?: string; center?: string; pairs?: Array<[string, string]> }
 export interface AdminCityDto {
   node: { key: string; bookCode: string; cityType: string | null; cityKey: string | null; cityCode: string | null };
   /** Адресат конверта этого города (семья, вдова, старица) или null, если список адресатов не ведётся. */
