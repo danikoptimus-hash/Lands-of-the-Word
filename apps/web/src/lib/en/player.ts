@@ -132,6 +132,7 @@ export const PLAYER: Record<string, string> = {
   // Карта
   "ждём прохода": "awaiting passage", "проход закрыт": "passage closed",
   // Попап города
+  "Войти по приглашению": "Join by invitation", "Вставьте ссылку-приглашение от капитана или код из неё: страница приглашения откроется прямо в приложении.": "Paste the invitation link from your captain or the code from it: the invitation page opens right in the app.",
   "Ваш город": "Your city", "Город команды «{team}»": "City of team “{team}”", "Столица команды «{team}»": "Capital of team “{team}”", "Ссылка-приглашение или код": "Invite link or code", "Вступить": "Join", "Не похоже на приглашение: вставьте ссылку от капитана целиком": "This doesn’t look like an invite: paste the whole link from the captain", "Город в руинах": "City in ruins", "Свободный город": "Free city", "Столица": "Capital",
   "Шаги": "Steps", "Порядок": "Order", "Конверт": "Envelope",
   "Расставьте районы по порядку книги": "Arrange the districts in the order of the book", "Тяните за ручку или пользуйтесь стрелками.": "Drag by the handle or use the arrows.",
