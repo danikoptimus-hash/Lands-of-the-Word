@@ -54,6 +54,8 @@ beforeAll(async () => {
   expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/my-city/${rutKey}/order`, headers: { cookie: p1Cookie }, payload: { ids } })).json().correct).toBe(true);
 });
 afterAll(async () => {
+  // Стороны с делами удаляем до игры: внешний ключ TeamEdgeTask_deedId_fkey не даёт удалить дела, пока на них есть стороны.
+  await prisma.teamEdgeTask.deleteMany({ where: { gameId } });
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, p1Nick, p2Nick] } } });
   await cleanupFixtures(gameId);
