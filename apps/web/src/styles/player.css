@@ -367,7 +367,8 @@
 .trial-steps .step.current .medal::before { content: ""; position: absolute; inset: -14%; border-radius: 50%; background: radial-gradient(circle, rgba(242, 193, 78, .55), rgba(242, 193, 78, 0) 70%); z-index: -1; animation: streakGlow 2.2s ease-in-out infinite; }
 .trial-steps .step.current .medal::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--bronze); animation: wdPulse 1.6s ease-in-out infinite; }
 .trial-steps .step.failed .medal img { filter: saturate(.6); }
-.trial-steps .mark { position: absolute; right: -3px; bottom: -3px; width: var(--mark); height: var(--mark); border-radius: 50%; display: grid; place-items: center; color: var(--paper-light); border: 2px solid var(--paper-light); box-sizing: content-box; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); }
+/* Отметки лежат поверх кольца текущего этапа (замечание владельца 05.11: песочные часы пересекались с кольцом). */
+.trial-steps .mark { position: absolute; z-index: 2; right: -3px; bottom: -3px; width: var(--mark); height: var(--mark); border-radius: 50%; display: grid; place-items: center; color: var(--paper-light); border: 2px solid var(--paper-light); box-sizing: content-box; box-shadow: 0 1px 2px rgba(0, 0, 0, .25); }
 .trial-steps .mark.ok { background: var(--success); }
 .trial-steps .mark.bad { background: var(--danger); }
 .trial-steps .mark.count { top: -5px; right: -6px; bottom: auto; min-width: var(--mark); width: auto; padding: 0 4px; background: var(--wax); color: var(--paper-light); font: 700 10px/var(--mark) var(--font-ui); border-radius: 999px; }
