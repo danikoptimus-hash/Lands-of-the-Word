@@ -82,7 +82,7 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
                           <div className="field"><label htmlFor={"q-note-" + d.id}>{t("Коротко")} <span className="opt">{t("необязательно")}</span></label><AutoGrow id={"q-note-" + d.id} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Что было на встрече")} /></div>
                           <div className="actions row">
                             <button type="button" disabled={busy} onClick={() => void submit(d.id)}><Icon name="send" />{t("Сдать на проверку")}</button>
-                            <button type="button" className="secondary" disabled={busy} onClick={() => setOpen(null)}>{t("Отмена")}</button>
+                            <button type="button" className="secondary icon" aria-label={t("Отмена")} title={t("Отмена")} disabled={busy} onClick={() => setOpen(null)}><Icon name="x" /></button>
                           </div>
                         </div>
                       )}

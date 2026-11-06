@@ -212,7 +212,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
       )}
       {freezing && (
         <Sheet title={t("Закрыть взятие дел: {nick}", { nick: freezing.nick })} onClose={() => setFreezing(null)} size="sm"
-          foot={<><button type="button" className="secondary" onClick={() => setFreezing(null)}>{t("Отмена")}</button><button type="submit" form="member-freeze" disabled={busy || !(freezing.days >= 1 && freezing.days <= 365)}><Icon name="lock" />{t("Закрыть")}</button></>}>
+          foot={<><button type="button" className="secondary icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={() => setFreezing(null)}><Icon name="x" /></button><button type="submit" form="member-freeze" disabled={busy || !(freezing.days >= 1 && freezing.days <= 365)}><Icon name="lock" />{t("Закрыть")}</button></>}>
           <form id="member-freeze" onSubmit={freeze}>
             <label htmlFor="freeze-days">{t("На сколько дней")}</label>
             <input id="freeze-days" type="number" inputMode="numeric" min={1} max={365} value={freezing.days} onChange={(e) => setFreezing({ ...freezing, days: Number(e.target.value) })} autoFocus />
@@ -224,7 +224,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
       )}
       {renaming && (
         <Sheet title={t("Переименовать команду")} onClose={() => setRenaming(null)} size="sm"
-          foot={<><button type="button" className="secondary" onClick={() => setRenaming(null)}>{t("Отмена")}</button><button type="submit" form="team-rename" disabled={busy || renaming.name.trim().length < 2}>{t("Сохранить")}</button></>}>
+          foot={<><button type="button" className="secondary icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={() => setRenaming(null)}><Icon name="x" /></button><button type="submit" form="team-rename" disabled={busy || renaming.name.trim().length < 2}>{t("Сохранить")}</button></>}>
           <form id="team-rename" onSubmit={rename}>
             <label htmlFor="tm-rename">{t("Название команды")}</label>
             <input id="tm-rename" value={renaming.name} onChange={(e) => setRenaming({ ...renaming, name: e.target.value })} required minLength={2} maxLength={40} autoFocus />
@@ -234,7 +234,7 @@ export function TeamsBlock({ gameId, teamCount, status, version = 0, onChange, g
       )}
       {open && (
         <Sheet title={t("Новая команда")} onClose={close} size="sm"
-          foot={<><button type="button" className="secondary" onClick={close}>{t("Отмена")}</button><button type="submit" form="team-form" disabled={busy || name.trim().length < 2}>{t("Добавить")}</button></>}>
+          foot={<><button type="button" className="secondary icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={close}><Icon name="x" /></button><button type="submit" form="team-form" disabled={busy || name.trim().length < 2}>{t("Добавить")}</button></>}>
           <form id="team-form" onSubmit={create}>
             <label htmlFor="tm-name">{t("Название команды")}</label>
             <input id="tm-name" value={name} onChange={(e) => setName(e.target.value)} required minLength={2} maxLength={40} autoFocus />

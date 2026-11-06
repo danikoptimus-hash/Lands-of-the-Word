@@ -271,7 +271,7 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
       ))}
       {sh && (
         <Sheet size="sm" onClose={close} head={<div className="sheet-title"><h2>{sh.title}</h2>{sh.help && <Help popup>{sh.help}</Help>}</div>}
-          foot={<><button type="button" className="ghost" onClick={close} disabled={busy}>{t("Отмена")}</button><button type="button" onClick={sh.onSave} disabled={!dirty || !sh.valid || busy}>{t("Готово")}</button></>}>
+          foot={<><button type="button" className="ghost icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={close} disabled={busy}><Icon name="x" /></button><button type="button" onClick={sh.onSave} disabled={!dirty || !sh.valid || busy}>{t("Готово")}</button></>}>
           <div className="set-sheet">{sh.body}{error && <p className="error">{error}</p>}</div>
         </Sheet>
       )}

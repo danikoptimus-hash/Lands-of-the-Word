@@ -100,7 +100,7 @@ export function FinishBlock({ gameId, status, version, onChanged, between, part 
                 {error && <p className="error">{error}</p>}
                 <div className="actions">
                   {endsAt && endsAt !== (data.endsAt ?? "") && <button type="button" onClick={() => void saveDeadline()} disabled={busy}>{t("Сохранить")}</button>}
-                  {data.endsAt && <button type="button" className="ghost" onClick={() => { setEndsAt(data.endsAt ?? ""); setEditing(false); }}>{t("Отмена")}</button>}
+                  {data.endsAt && <button type="button" className="ghost icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={() => { setEndsAt(data.endsAt ?? ""); setEditing(false); }}><Icon name="x" /></button>}
                 </div>
               </>
             )}

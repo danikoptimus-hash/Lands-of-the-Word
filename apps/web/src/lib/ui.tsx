@@ -47,7 +47,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
             <h2 id="confirm-title">{dialog.options.title ?? t("Подтвердите")}</h2>
             <p id="confirm-text">{dialog.message}</p>
             <div className="actions end">
-              <button className="secondary" onClick={() => close(false)}>{dialog.options.cancelLabel ?? t("Отмена")}</button>
+              <button className="secondary icon" aria-label={dialog.options.cancelLabel ?? t("Отмена")} title={dialog.options.cancelLabel ?? t("Отмена")} onClick={() => close(false)}><Icon name="x" /></button>
               <button ref={okRef} className={dialog.options.danger ? "danger" : ""} onClick={() => close(true)}>{dialog.options.okLabel ?? t("Да")}</button>
             </div>
           </div>
