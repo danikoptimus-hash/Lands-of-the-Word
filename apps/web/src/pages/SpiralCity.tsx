@@ -39,7 +39,7 @@ const LAND_IMG = { w: 1024, h: 1536, cx: 0.5, cy: 0.47, rx: 0.31 }, LAND_FIT = 2
 const LAND_S = LAND_FIT / (LAND_IMG.rx * LAND_IMG.w), LAND_W = LAND_IMG.w * LAND_S, LAND_H = LAND_IMG.h * LAND_S, LAND_X = C - LAND_IMG.cx * LAND_W, LAND_Y = C - LAND_IMG.cy * LAND_H;
 /** Стена — сгенерированный отрезок из песчаника (вид сверху, зубцы по краям, 311×96, бесшовный), выложенный по кругу
  *  WALL_N сегментами шириной WALL_BAND; ворота — отдельный спрайт поверх стены внизу. */
-const WALL_SEG = "/img/city-plan/wall-seg.webp", WALL_BAND = 14, WALL_N = Math.round((2 * Math.PI * WALL_R) / (WALL_BAND * 311 / 96));
+const WALL_SEG = "/img/city-plan/wall-seg.webp", WALL_BAND = 14, WALL_AR = 3.24, WALL_N = Math.round((2 * Math.PI * WALL_R) / (WALL_BAND * WALL_AR));
 const GATE = "/img/city-plan/gate.webp", VERGE = "/img/city-plan/grass.webp";
 /** Подъездная дорога (замечания владельца 06.11: в пейзаже шла мимо ворот; прямая выглядела топорно): рисуется в плане —
  *  из ворот строго вниз, дальше петляет; пыльная размытая обочина и колеи, чтобы вписаться в пейзаж. */
@@ -93,6 +93,33 @@ function arcPath(p: Plot, rad: number, reverse: boolean): string {
   const n = 8, pts: [number, number][] = [];
   for (let i = 0; i <= n; i++) { const th = reverse ? p.b - (p.b - p.a) * i / n : p.a + (p.b - p.a) * i / n; pts.push(pt(th, rad)); }
   return "M " + pts.map(fmt).join(" L ");
+}
+const KMAX = 4;
+type Win = { x: number; y: number; w: number; h: number };
+/** Вписать окно в новые границы, сохранив центр и масштаб (контейнер поменял размер — карусель открылась). */
+function fitWin(prev: Win, bs: Win): Win {
+  const zoom = Math.min(KMAX, Math.max(1, prev.w > 0 ? bs.w / prev.w : 1));
+  const w = bs.w / zoom, h = bs.h / zoom;
+  const cx = prev.x + prev.w / 2, cy = prev.y + prev.h / 2;
+  const x = Math.min(bs.x + bs.w - w, Math.max(bs.x, cx - w / 2)), y = Math.min(bs.y + bs.h - h, Math.max(bs.y, cy - h / 2));
+  return { x, y, w, h };
+}
+/** Одна строка подписи: кегль до 5.2, если не влезает даже 3.4 — обрезаем по словам с многоточием. */
+function oneLine(title: string, usable: number, fmax = 5.2): { f: number; text: string } {
+  for (let f = fmax; f >= 3.4; f -= 0.2) if (textW(title) * f <= usable) return { f, text: title };
+  const words = title.split(" "); let cut = "";
+  for (const w of words) { const t = (cut ? cut + " " : "") + w; if (textW(t + "…") * 3.4 > usable) break; cut = t; }
+  return { f: 3.4, text: (cut || title.slice(0, 8)) + "…" };
+}
+/** Короткое имя района: первые слова до 14 знаков. */
+function shortTitle(title: string): string {
+  const words = title.replace(/[.:,;].*$/, "").split(" "); let out = "";
+  for (const w of words) { const t = (out ? out + " " : "") + w; if (t.length > 14 && out) break; out = t; }
+  return out;
+}
+/** Вариант подписи района — владелец выбирает из десяти (06.11): `?label=1..10`. */
+function labelStyleFromQuery(): number {
+  try { const n = Number(new URLSearchParams(window.location.search).get("label")); return n >= 1 && n <= 10 ? n : 1; } catch { return 1; }
 }
 /** Детерминированный «случайный» ряд для деревьев и полей — одинаковый на всех устройствах. */
 function rnd(seed: number): () => number { let h = seed >>> 0 || 1; return () => { h ^= h << 13; h >>>= 0; h ^= h >>> 17; h ^= h << 5; h >>>= 0; return h / 4294967296; }; }
@@ -179,6 +206,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     return out;
   }, [n]);
   const motion = useMemo(() => { try { return !window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return true; } }, []);
+  const LABEL = useMemo(() => labelStyleFromQuery(), []);
 
   // Окно плана на весь экран (решение владельца 06.11): видовое окно повторяет пропорции контейнера, город по центру,
   // сверху и снизу (или по бокам) — пейзаж, а не пустые поля.
@@ -188,33 +216,71 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     const ro = new ResizeObserver((es) => { const r = es[0]?.contentRect; if (r && r.width > 0 && r.height > 0) setAspect(Math.round((r.height / r.width) * 100) / 100); });
     ro.observe(el); return () => ro.disconnect();
   }, []);
-  const vb = aspect >= 1 ? { x: 0, y: C - (VB * aspect) / 2, w: VB, h: VB * aspect } : { x: C - VB / aspect / 2, y: 0, w: VB / aspect, h: VB };
+  const base = useMemo(() => (aspect >= 1 ? { x: 0, y: C - (VB * aspect) / 2, w: VB, h: VB * aspect } : { x: C - VB / aspect / 2, y: 0, w: VB / aspect, h: VB }), [aspect]);
+  const vb = base;
 
   // Приближение и перетаскивание: один палец — двигает, два — масштаб, колесо — масштаб у курсора.
+  // Во время жеста план двигает CSS-трансформация (быстро), по окончании масштаб и сдвиг «запекаются» в видовое окно SVG
+  // (win) — тогда браузер рисует векторы и текстуры в полном разрешении, а не растягивает растр (замечание владельца 06.11:
+  // при самом сильном приближении всё было размыто).
   const view = useRef<HTMLDivElement>(null);
   const [cam, setCam] = useState({ k: 1, tx: 0, ty: 0 });
   const camRef = useRef(cam); camRef.current = cam;
+  const [win, setWin] = useState(base);
+  const winRef = useRef(win); winRef.current = win;
+  const baseRef = useRef(base); baseRef.current = base;
+  useEffect(() => { setWin((prev) => fitWin(prev, base)); }, [base]);
   const ptrs = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ k: number; tx: number; ty: number; mx: number; my: number; dist: number; moved: boolean } | null>(null);
   const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
   const tapTimer = useRef<number | null>(null);
+  const holdTimer = useRef<number | null>(null);
+  const held = useRef(false);
+  const bakeTimer = useRef<number | null>(null);
+  const boxPx = () => { const b = view.current?.getBoundingClientRect(); return { w: b?.width ?? 1, h: b?.height ?? 1 }; };
   const clampCam = (c: { k: number; tx: number; ty: number }) => {
-    const box = view.current?.getBoundingClientRect(); const w = box?.width ?? 1, h = box?.height ?? 1;
-    const k = Math.min(4, Math.max(1, c.k));
-    return { k, tx: Math.min(0, Math.max(w * (1 - k), c.tx)), ty: Math.min(0, Math.max(h * (1 - k), c.ty)) };
+    const { w } = boxPx(); const wn = winRef.current, bs = baseRef.current; const sc = w / wn.w;
+    const kMin = wn.w / bs.w, kMax = (KMAX * wn.w) / bs.w;
+    const k = Math.min(kMax, Math.max(kMin, c.k));
+    const txMax = (wn.x - bs.x) * k * sc, txMin = -(bs.x + bs.w - wn.x - wn.w / k) * k * sc;
+    const tyMax = (wn.y - bs.y) * k * sc, tyMin = -(bs.y + bs.h - wn.y - wn.h / k) * k * sc;
+    return { k, tx: Math.min(txMax, Math.max(txMin, c.tx)), ty: Math.min(tyMax, Math.max(tyMin, c.ty)) };
   };
+  /** Запечь трансформацию в видовое окно: картинка не меняется, но дальше рисуется в полном разрешении. */
+  const bake = () => {
+    const c = camRef.current; if (c.k === 1 && c.tx === 0 && c.ty === 0) return;
+    const { w } = boxPx(); const wn = winRef.current; const sc = w / wn.w;
+    const next = { x: wn.x - c.tx / (c.k * sc), y: wn.y - c.ty / (c.k * sc), w: wn.w / c.k, h: wn.h / c.k };
+    setWin(fitWin(next, baseRef.current)); setCam({ k: 1, tx: 0, ty: 0 });
+  };
+  const scheduleBake = (ms = 90) => { if (bakeTimer.current) window.clearTimeout(bakeTimer.current); bakeTimer.current = window.setTimeout(() => { bakeTimer.current = null; if (ptrs.current.size === 0) bake(); }, ms); };
+  const zoom = (baseRef.current.w / win.w) * cam.k; // общий масштаб относительно «весь город»
   const zoomAt = (factor: number, px: number, py: number) => {
-    const c = camRef.current; const k = Math.min(4, Math.max(1, c.k * factor)); const f = k / c.k;
-    setCam(clampCam({ k, tx: px - (px - c.tx) * f, ty: py - (py - c.ty) * f }));
+    const c = camRef.current; const next = clampCam({ k: c.k * factor, tx: 0, ty: 0 }); const f = next.k / c.k;
+    setCam(clampCam({ k: next.k, tx: px - (px - c.tx) * f, ty: py - (py - c.ty) * f })); scheduleBake();
   };
   const local = (e: { clientX: number; clientY: number }) => { const b = view.current!.getBoundingClientRect(); return { x: e.clientX - b.left, y: e.clientY - b.top }; };
+  const cancelHold = () => { if (holdTimer.current) { window.clearTimeout(holdTimer.current); holdTimer.current = null; } };
   const onDown = (e: React.PointerEvent) => {
     if (e.button !== 0 && e.pointerType === "mouse") return;
     view.current?.setPointerCapture(e.pointerId);
     const p = local(e); ptrs.current.set(e.pointerId, p);
     const all = [...ptrs.current.values()]; const c = camRef.current;
-    if (all.length === 1) gesture.current = { ...c, mx: p.x, my: p.y, dist: 0, moved: false };
-    else if (all.length === 2) { const [a, b] = all as [{ x: number; y: number }, { x: number; y: number }]; gesture.current = { ...c, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, dist: Math.hypot(a.x - b.x, a.y - b.y), moved: true }; }
+    if (bakeTimer.current) { window.clearTimeout(bakeTimer.current); bakeTimer.current = null; }
+    cancelHold(); held.current = false;
+    if (all.length === 1) {
+      gesture.current = { ...c, mx: p.x, my: p.y, dist: 0, moved: false };
+      // Долгое нажатие на занятый участок возвращает район в кучу (решение владельца 06.11).
+      const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.("[data-plot]") as HTMLElement | null;
+      if (el && !disabled) {
+        const idx = Number(el.dataset.plot);
+        holdTimer.current = window.setTimeout(() => {
+          holdTimer.current = null; if (!gesture.current || gesture.current.moved || slots[idx] == null) return;
+          held.current = true; const out = slots.slice(); out[idx] = null; onChange(out); setPick(null);
+          try { navigator.vibrate?.(30); } catch { /* не везде есть */ }
+        }, 550);
+      }
+    } else if (all.length === 2) { const [a, b] = all as [{ x: number; y: number }, { x: number; y: number }]; gesture.current = { ...c, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2, dist: Math.hypot(a.x - b.x, a.y - b.y), moved: true }; }
   };
   const onMove = (e: React.PointerEvent) => {
     if (!ptrs.current.has(e.pointerId) || !gesture.current) return;
@@ -222,31 +288,34 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     const all = [...ptrs.current.values()]; const g = gesture.current;
     if (all.length === 1) {
       const dx = p.x - g.mx, dy = p.y - g.my;
-      if (Math.hypot(dx, dy) > 6) g.moved = true;
+      if (Math.hypot(dx, dy) > 6) { g.moved = true; cancelHold(); }
       if (g.moved) setCam(clampCam({ k: g.k, tx: g.tx + dx, ty: g.ty + dy }));
     } else if (all.length >= 2) {
+      cancelHold();
       const [a, b] = all as [{ x: number; y: number }, { x: number; y: number }];
       const dist = Math.hypot(a.x - b.x, a.y - b.y); const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
-      const k = Math.min(4, Math.max(1, g.k * (dist / Math.max(1, g.dist)))); const f = k / g.k;
-      setCam(clampCam({ k, tx: mx - (g.mx - g.tx) * f, ty: my - (g.my - g.ty) * f }));
+      const next = clampCam({ k: g.k * (dist / Math.max(1, g.dist)), tx: 0, ty: 0 }); const f = next.k / g.k;
+      setCam(clampCam({ k: next.k, tx: mx - (g.mx - g.tx) * f, ty: my - (g.my - g.ty) * f }));
     }
   };
   const onUp = (e: React.PointerEvent) => {
-    const g = gesture.current; ptrs.current.delete(e.pointerId);
+    const g = gesture.current; ptrs.current.delete(e.pointerId); cancelHold();
     if (ptrs.current.size === 0) {
       gesture.current = null;
+      if (held.current) { held.current = false; scheduleBake(); return; }
       if (g && !g.moved) {
         // Двойное нажатие приближает (кнопок нет — решение владельца 06.11), одиночное открывает участок после короткой паузы.
         const p = local(e); const now = Date.now(); const last = lastTap.current;
         if (last && now - last.t < 320 && Math.hypot(p.x - last.x, p.y - last.y) < 24) {
           lastTap.current = null; if (tapTimer.current) { window.clearTimeout(tapTimer.current); tapTimer.current = null; }
-          const c = camRef.current; if (c.k > 1.5) setCam({ k: 1, tx: 0, ty: 0 }); else zoomAt(2.4 / c.k, p.x, p.y);
+          const z = (baseRef.current.w / winRef.current.w) * camRef.current.k;
+          if (z > 1.5) { setWin(baseRef.current); setCam({ k: 1, tx: 0, ty: 0 }); } else zoomAt(2.4 / z, p.x, p.y);
         } else {
           lastTap.current = { t: now, x: p.x, y: p.y };
           const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.("[data-plot]") as HTMLElement | null;
           if (el && !disabled) { const idx = Number(el.dataset.plot); tapTimer.current = window.setTimeout(() => { tapTimer.current = null; setPick(idx); setFilter(""); }, 280); }
         }
-      }
+      } else scheduleBake();
     } else if (ptrs.current.size === 1) { const [p] = [...ptrs.current.values()] as [{ x: number; y: number }]; const c = camRef.current; gesture.current = { ...c, mx: p.x, my: p.y, dist: 0, moved: true }; }
   };
   useEffect(() => {
@@ -265,8 +334,8 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
   return (
     <div className="plan-wrap">
       {hint && <p className="hint">{hint}{help && <Help>{help}</Help>}</p>}
-      <div ref={view} className={"plan-view" + (state === "jam" ? " jam" : state === "open" ? " open" : "")} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} role="group" aria-label={t("План города: участки по спирали от ворот к площади")}>
-        <svg viewBox={`${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`} style={{ transform: `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.k})` }} aria-hidden="true">
+      <div ref={view} className={"plan-view" + (state === "jam" ? " jam" : state === "open" ? " open" : "")} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onContextMenu={(e) => e.preventDefault()} role="group" aria-label={t("План города: участки по спирали от ворот к площади")}>
+        <svg viewBox={`${win.x.toFixed(2)} ${win.y.toFixed(2)} ${win.w.toFixed(2)} ${win.h.toFixed(2)}`} style={{ transform: `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.k})` }} aria-hidden="true">
           <defs>
             {/* Текстуры 1024 px (сгенерированы, вид строго сверху): тайлы крупные, чтобы при приближении ×4 не мылились */}
             <pattern id={ids.verge} patternUnits="userSpaceOnUse" width="40" height="40"><image href={VERGE} width="40" height="40" /></pattern>
@@ -278,6 +347,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             <filter id="sc-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="1.2" dy="1.8" stdDeviation="1.2" floodColor="#2a1d10" floodOpacity=".45" /></filter>
             <filter id="sc-soft" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#2a1d10" floodOpacity=".35" /></filter>
             <filter id="sc-dust" x="-60%" y="-5%" width="220%" height="110%"><feGaussianBlur stdDeviation="3.2" /></filter>
+            <filter id="sc-glow" x="-20%" y="-40%" width="140%" height="180%"><feDropShadow dx="0" dy="0" stdDeviation="1.1" floodColor="#1a0f06" floodOpacity=".95" /></filter>
             <filter id="sc-edge" x="-60%" y="-5%" width="220%" height="110%"><feGaussianBlur stdDeviation=".6" /></filter>
             <radialGradient id="sc-vignette" cx="50%" cy="50%" r="50%"><stop offset=".75" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".18" /></radialGradient>
           </defs>
@@ -288,6 +358,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
           {vb.y + vb.h > LAND_Y + LAND_H && <image href={st.outside} x={LAND_X} y={-LAND_Y - 2 * LAND_H} width={LAND_W} height={LAND_H} transform="scale(1 -1)" preserveAspectRatio="none" />}
           {vb.x < LAND_X && <image href={st.outside} x={-LAND_X} y={LAND_Y} width={LAND_W} height={LAND_H} transform="scale(-1 1)" preserveAspectRatio="none" />}
           {vb.x + vb.w > LAND_X + LAND_W && <image href={st.outside} x={-LAND_X - 2 * LAND_W} y={LAND_Y} width={LAND_W} height={LAND_H} transform="scale(-1 1)" preserveAspectRatio="none" />}
+          <rect x={vb.x} y={vb.y} width={vb.w} height={vb.h} fill={`url(#${ids.verge})`} opacity=".16" pointerEvents="none" />
           {/* Подъездная дорога от ворот вниз: начало под воротами, дальше — за край окна */}
           <g transform={`translate(0 ${WALL_R + C - 8})`} pointerEvents="none">
             <path d={APPROACH} fill="none" stroke="#c9ad6e" strokeWidth={ROAD + 16} strokeLinecap="round" opacity=".45" filter="url(#sc-dust)" />
@@ -336,19 +407,49 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
                   : <path d={plotPath(p, r)} fill={`url(#${ids.earth})`} stroke={active ? "#e0a64a" : "#8a7048"} strokeWidth={active ? 2.4 : 1.1} strokeDasharray={active ? undefined : "3 2"} />}
                 {d && active && <path d={plotPath(p, r)} fill="none" stroke="#e0a64a" strokeWidth="2.4" />}
                 {d && fit ? (<>
-                  {fit.lines.map((line, li) => {
-                    const L = fit.lines.length, lh = fit.f * 1.12, c = bottom ? rm - ((L - 1) / 2 - li) * lh : rm + ((L - 1) / 2 - li) * lh;
-                    const rho = bottom ? c + fit.f * 0.35 : c - fit.f * 0.35, w = textW(line) * fit.f, usable = span * rho;
-                    const band = Math.min(100, ((Math.min(w, usable) + 3) / ((p.b - p.a) * c)) * 100);
-                    return (<g key={li}>
-                      {/* Тёмная подложка под строкой — подпись читается на фактуре домов */}
-                      <path d={arcPath(p, c, bottom)} pathLength={100} fill="none" stroke="rgba(30,18,8,.5)" strokeWidth={fit.f * 1.22} strokeLinecap="round" strokeDasharray={`${band.toFixed(1)} ${(100 - band).toFixed(1)}`} strokeDashoffset={-(off - band / 2)} />
-                      <path id={`sc-t${i}-${li}`} d={arcPath(p, rho, bottom)} fill="none" />
-                      <text fontSize={fit.f} fontFamily="Georgia, serif" fill={st.label} style={{ paintOrder: "stroke" }} stroke="rgba(40,25,10,.6)" strokeWidth=".9" {...(w > usable ? { textLength: usable, lengthAdjust: "spacingAndGlyphs" as const } : {})}><textPath href={`#sc-t${i}-${li}`} startOffset={`${off.toFixed(1)}%`} textAnchor="middle">{line}</textPath></text>
-                    </g>);
-                  })}
-                  <circle cx={nx} cy={ny} r="2.7" fill={st.number} stroke="#fff6e6" strokeWidth=".5" />
-                  <text x={nx} y={ny + 1.1} textAnchor="middle" fontSize="3.1" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff">{i + 1}</text>
+                  {LABEL === 10 && <path d={plotPath(p, r)} fill="#1a0f06" opacity=".32" pointerEvents="none" />}
+                  {(() => {
+                    const L = fit.lines.length, lh = fit.f * 1.12;
+                    const lineR = (li: number) => (bottom ? rm - ((L - 1) / 2 - li) * lh : rm + ((L - 1) / 2 - li) * lh);
+                    const outline = { stroke: "rgba(40,25,10,.6)", strokeWidth: ".9", style: { paintOrder: "stroke" as const } };
+                    const arcText = (text: string, f: number, rho: number, key: string, extra: Record<string, unknown> = {}, fill: string = st.label) => (
+                      <g key={key}><path id={`sc-t${i}-${key}`} d={arcPath(p, rho, bottom)} fill="none" />
+                        <text fontSize={f} fontFamily="Georgia, serif" fill={fill} {...extra}><textPath href={`#sc-t${i}-${key}`} startOffset="50%" textAnchor="middle">{text}</textPath></text></g>);
+                    const bandOf = (w: number, c: number) => Math.min(100, ((w + 3) / ((p.b - p.a) * c)) * 100);
+                    const rhoOf = (c: number, f: number) => (bottom ? c + f * 0.35 : c - f * 0.35);
+                    if (LABEL === 3) { // табличка у наружного края: светлая полоса, тёмный текст, одна строка
+                      const c = r(mid) + W - 3.4, one = oneLine(d.title, span * c, 4.4), w = textW(one.text) * one.f, band = bandOf(w, c);
+                      return (<g key="l3"><path d={arcPath(p, c, bottom)} pathLength={100} fill="none" stroke="#f3e6c4" opacity=".9" strokeWidth={one.f * 1.3} strokeLinecap="round" strokeDasharray={`${band.toFixed(1)} ${(100 - band).toFixed(1)}`} strokeDashoffset={-(50 - band / 2)} />
+                        {arcText(one.text, one.f, rhoOf(c, one.f), "a", {}, "#3a2a14")}</g>);
+                    }
+                    if (LABEL === 4) { // свиток по центру: пергаментный прямоугольник по касательной, строки прямые
+                      const [cx, cy] = pt(mid, rm); let deg = (mid * 180) / Math.PI + 90; while (deg > 90) deg -= 180; while (deg <= -90) deg += 180;
+                      const lines = fit.lines, f = Math.min(fit.f, 4.6), lw = Math.max(...lines.map((l) => textW(l) * f)), bw = lw + 4, bh = lines.length * f * 1.15 + 2.2;
+                      return (<g key="l4" transform={`translate(${cx.toFixed(1)} ${cy.toFixed(1)}) rotate(${deg.toFixed(1)})`}>
+                        <rect x={-bw / 2} y={-bh / 2} width={bw} height={bh} rx="1.4" fill="#f3e6c4" stroke="#8a6a3a" strokeWidth=".5" opacity=".93" />
+                        {lines.map((l, li) => <text key={li} x="0" y={-bh / 2 + 1.1 + f * 0.95 + li * f * 1.15} textAnchor="middle" fontSize={f} fontFamily="Georgia, serif" fill="#3a2a14">{l}</text>)}</g>);
+                    }
+                    if (LABEL === 5 && zoom < 1.8) return null; // только при приближении: вблизи — контур, вдали — лишь номер
+                    if (LABEL === 6) { // имя на улице: вдоль дороги снаружи участка, участок не тронут
+                      const c = r(mid) + W + GAP / 2, one = oneLine(d.title, (p.b - p.a) * c - 4, 4.2);
+                      return arcText(one.text, one.f, rhoOf(c, one.f), "s", { stroke: "rgba(243,230,196,.85)", strokeWidth: ".8", style: { paintOrder: "stroke" as const } }, "#2b1d10");
+                    }
+                    if (LABEL === 8) { // короткое имя одной строкой
+                      const one = oneLine(shortTitle(d.title), span * rm, 5.2);
+                      return arcText(one.text, one.f, rhoOf(rm, one.f), "k", outline);
+                    }
+                    return fit.lines.map((line, li) => {
+                      const c = lineR(li), rho = rhoOf(c, fit.f), w = textW(line) * fit.f;
+                      if (LABEL === 1) return (<g key={li}>
+                        <path d={arcPath(p, c, bottom)} pathLength={100} fill="none" stroke="rgba(30,18,8,.5)" strokeWidth={fit.f * 1.22} strokeLinecap="round" strokeDasharray={`${bandOf(w, c).toFixed(1)} ${(100 - bandOf(w, c)).toFixed(1)}`} strokeDashoffset={-(50 - bandOf(w, c) / 2)} />
+                        {arcText(line, fit.f, rho, `${li}`, outline)}</g>);
+                      if (LABEL === 7) return arcText(line, fit.f, rho, `${li}`, { filter: "url(#sc-glow)" }, "#fff6e6");
+                      if (LABEL === 9) return (<g key={li}>{arcText(line, fit.f, rho, `${li}d`, { transform: "translate(.45 .55)" }, "#2a170a")}{arcText(line, fit.f, rho, `${li}`, {}, "#fff3dc")}</g>);
+                      return arcText(line, fit.f, rho, `${li}`, outline); // 2, 5 (вблизи), 10
+                    });
+                  })()}
+                  <circle cx={nx} cy={ny} r={LABEL === 5 && zoom < 1.8 ? 3.6 : 2.7} fill={st.number} stroke="#fff6e6" strokeWidth=".5" />
+                  <text x={nx} y={ny + (LABEL === 5 && zoom < 1.8 ? 1.4 : 1.1)} textAnchor="middle" fontSize={LABEL === 5 && zoom < 1.8 ? 4 : 3.1} fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff">{i + 1}</text>
                 </>) : (<>
                   <circle cx={nx} cy={ny} r="2.7" fill={active ? "#e0a64a" : "#a89270"} stroke="#fff6e6" strokeWidth=".5" />
                   <text x={nx} y={ny + 1.1} textAnchor="middle" fontSize="3.1" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff">{i + 1}</text>
