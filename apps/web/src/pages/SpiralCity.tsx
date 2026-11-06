@@ -13,18 +13,22 @@ import type { CityDistrictDto } from "../lib/api";
  * Проверка — та же кнопка «Провернуть замок» снаружи; ответ сервера «не на месте: N» показан под картой.
  */
 
-/** Наборы текстур на выбор (владелец смотрит варианты на стенде: `?cityStyle=a|b|c`). */
+const LAND_PRE = "/img/city-plan/landscape.webp";
+/** Наборы текстур на выбор (владелец смотрит варианты на стенде: `?cityStyle=a|b|c`); окрестности — один цельный пейзаж (06.11). */
 export const CITY_STYLES = {
-  a: { name: "Пергамент", ground: "/img/props/parchment.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-tiles.webp", wall: "/img/props/brick-sand.webp", outside: "/img/terrain/meadow.webp", field: "/img/terrain/hills.webp", tree: "/img/props/olive.webp", square: "/img/props/well.webp", roofEdge: "#6e3a26", label: "#fff6e6", number: "#b5583c" },
-  b: { name: "Оазис", ground: "/img/terrain/oasis.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-flat.webp", wall: "/img/props/brick-chalk.webp", outside: "/img/terrain/meadow.webp", field: "/img/terrain/desert.webp", tree: "/img/props/palm.webp", square: "/img/props/well.webp", roofEdge: "#7a5a36", label: "#3a2d1f", number: "#7a5226" },
-  c: { name: "Глина", ground: "/img/terrain/desert.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-slate.webp", wall: "/img/props/brick-umber.webp", outside: "/img/terrain/desert.webp", field: "/img/terrain/mountains.webp", tree: "/img/props/olive.webp", square: "/img/props/well.webp", roofEdge: "#2f343c", label: "#f4f6f8", number: "#4f5a66" },
+  a: { name: "Пергамент", ground: "/img/props/parchment.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-tiles.webp", wall: "/img/props/brick-sand.webp", outside: LAND_PRE, field: "/img/terrain/hills.webp", tree: "/img/props/olive.webp", square: "/img/props/well.webp", roofEdge: "#6e3a26", label: "#fff6e6", number: "#b5583c" },
+  b: { name: "Оазис", ground: "/img/terrain/oasis.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-flat.webp", wall: "/img/props/brick-chalk.webp", outside: LAND_PRE, field: "/img/terrain/desert.webp", tree: "/img/props/palm.webp", square: "/img/props/well.webp", roofEdge: "#7a5a36", label: "#3a2d1f", number: "#7a5226" },
+  c: { name: "Глина", ground: "/img/terrain/desert.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-slate.webp", wall: "/img/props/brick-umber.webp", outside: LAND_PRE, field: "/img/terrain/mountains.webp", tree: "/img/props/olive.webp", square: "/img/props/well.webp", roofEdge: "#2f343c", label: "#f4f6f8", number: "#4f5a66" },
 } as const;
 export type CityStyle = keyof typeof CITY_STYLES;
 export function cityStyleFromQuery(): CityStyle {
   try { const s = new URLSearchParams(window.location.search).get("cityStyle"); return s && s in CITY_STYLES ? (s as CityStyle) : "a"; } catch { return "a"; }
 }
 
-const VB = 560, C = VB / 2, R0 = 182, W = 30, GAP = 11, PITCH = W + GAP, GAPLEN = 7, RMIN = 40, T0 = Math.PI / 2;
+/** Геометрия: участок глубиной W, между витками GAP — обочины с травой и дорога шириной ROAD посередине. */
+const VB = 560, C = VB / 2, R0 = 182, W = 30, GAP = 15, ROAD = 7, PITCH = W + GAP, GAPLEN = 7, RMIN = 38, T0 = Math.PI / 2;
+const LAND = "/img/city-plan/landscape.webp", GATE = "/img/city-plan/gate.webp", VERGE = "/img/terrain/meadow.webp";
+const PLANTS = ["/img/city-plan/tree-green.webp", "/img/city-plan/tree-green2.webp", "/img/props/olive.webp", "/img/city-plan/bush.webp"];
 type Plot = { a: number; b: number };
 
 /** Спираль Архимеда: шаг витка — глубина участка плюс дорога; длина участка подбирается так, чтобы вместить все районы. */
@@ -92,21 +96,21 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
   const [filter, setFilter] = useState("");
   const nextFree = slots.findIndex((x) => x === null);
 
-  // Декорации: деревья вдоль дороги и за стеной, поля снаружи — по фиксированному зерну.
-  const deco = useMemo(() => {
+  // Озеленение улиц (замечание владельца 06.11): трава на обочинах, кусты и деревья вдоль дороги, по фиксированному зерну.
+  const plants = useMemo(() => {
     const g = rnd(47 + n);
     const k = PITCH / (2 * Math.PI);
-    const inner: Array<[number, number, number]> = [];
-    for (let th = T0; R0 - k * (th - T0) + W + GAP / 2 > RMIN; th += 0.24) {
-      if (g() < 0.5) { const rad = R0 - k * (th - T0) + W + GAP / 2 + (g() - 0.5) * 3; const [x, y] = pt(th, rad); inner.push([x, y, 7 + g() * 4]); }
+    const out: Array<{ x: number; y: number; s: number; kind: number }> = [];
+    for (let th = T0 + 0.1; R0 - k * (th - T0) + W + GAP / 2 > RMIN + 2; th += 0.11) {
+      if (g() > 0.62) continue;
+      const side = g() < 0.5 ? -1 : 1;
+      const rad = R0 - k * (th - T0) + W + GAP / 2 + side * (GAP / 2 - 1.2);
+      const [x, y] = pt(th, rad);
+      const tree = g() < 0.3;
+      out.push({ x, y, s: tree ? 8 + g() * 4 : 4.5 + g() * 2.5, kind: tree ? Math.floor(g() * 3) : 3 });
     }
-    const outer: Array<[number, number, number]> = [];
-    for (let i = 0; i < 90; i++) {
-      const th = g() * Math.PI * 2, rad = R0 + W + 22 + g() * 60; const [x, y] = pt(th, rad);
-      if (x > 4 && x < VB - 4 && y > 4 && y < VB - 4 && Math.abs(th - T0) > 0.25) outer.push([x, y, 10 + g() * 9]);
-    }
-    const fields = [0, 1, 2, 3].map((q) => { const th = q * Math.PI / 2 + Math.PI / 4 + (g() - 0.5) * 0.3; const [x, y] = pt(th, R0 + W + 75); return { x, y, rx: 70 + g() * 30, ry: 40 + g() * 20, rot: (th * 180) / Math.PI }; });
-    return { inner, outer, fields };
+    for (let i = 0; i < 5; i++) { const th = g() * Math.PI * 2; const [x, y] = pt(th, RMIN - 14 + g() * 4); out.push({ x, y, s: 5 + g() * 3, kind: 3 }); }
+    return out;
   }, [n]);
 
   // Приближение и перетаскивание: один палец — двигает, два — масштаб, колесо — масштаб у курсора.
@@ -115,6 +119,8 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
   const camRef = useRef(cam); camRef.current = cam;
   const ptrs = useRef(new Map<number, { x: number; y: number }>());
   const gesture = useRef<{ k: number; tx: number; ty: number; mx: number; my: number; dist: number; moved: boolean } | null>(null);
+  const lastTap = useRef<{ t: number; x: number; y: number } | null>(null);
+  const tapTimer = useRef<number | null>(null);
   const clampCam = (c: { k: number; tx: number; ty: number }) => {
     const box = view.current?.getBoundingClientRect(); const w = box?.width ?? 1, h = box?.height ?? 1;
     const k = Math.min(4, Math.max(1, c.k));
@@ -152,9 +158,17 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     const g = gesture.current; ptrs.current.delete(e.pointerId);
     if (ptrs.current.size === 0) {
       gesture.current = null;
-      if (g && !g.moved && !disabled) {
-        const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.("[data-plot]") as HTMLElement | null;
-        if (el) { setPick(Number(el.dataset.plot)); setFilter(""); }
+      if (g && !g.moved) {
+        // Двойное нажатие приближает (кнопок нет — решение владельца 06.11), одиночное открывает участок после короткой паузы.
+        const p = local(e); const now = Date.now(); const last = lastTap.current;
+        if (last && now - last.t < 320 && Math.hypot(p.x - last.x, p.y - last.y) < 24) {
+          lastTap.current = null; if (tapTimer.current) { window.clearTimeout(tapTimer.current); tapTimer.current = null; }
+          const c = camRef.current; if (c.k > 1.5) setCam({ k: 1, tx: 0, ty: 0 }); else zoomAt(2.4 / c.k, p.x, p.y);
+        } else {
+          lastTap.current = { t: now, x: p.x, y: p.y };
+          const el = document.elementFromPoint(e.clientX, e.clientY)?.closest?.("[data-plot]") as HTMLElement | null;
+          if (el && !disabled) { const idx = Number(el.dataset.plot); tapTimer.current = window.setTimeout(() => { tapTimer.current = null; setPick(idx); setFilter(""); }, 280); }
+        }
       }
     } else if (ptrs.current.size === 1) { const [p] = [...ptrs.current.values()] as [{ x: number; y: number }]; const c = camRef.current; gesture.current = { ...c, mx: p.x, my: p.y, dist: 0, moved: true }; }
   };
@@ -168,7 +182,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
   const clear = () => { if (pick === null) return; const out = slots.slice(); out[pick] = null; onChange(out); setPick(null); };
   const current = pick !== null ? slots[pick] ?? null : null;
   const shown = pile.filter((d) => !filter.trim() || d.title.toLowerCase().includes(filter.trim().toLowerCase()));
-  const ids = { ground: "sc-ground", road: "sc-road", earth: "sc-earth", roof: "sc-roof", wall: "sc-wall", outside: "sc-outside", field: "sc-field" };
+  const ids = { ground: "sc-ground", road: "sc-road", earth: "sc-earth", roof: "sc-roof", wall: "sc-wall", verge: "sc-verge" };
   const gateXY = pt(T0, R0 + W + 10);
 
   return (
@@ -177,8 +191,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
       <div ref={view} className={"plan-view" + (state === "jam" ? " jam" : state === "open" ? " open" : "")} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} role="group" aria-label={t("План города: участки по спирали от ворот к площади")}>
         <svg viewBox={`0 0 ${VB} ${VB}`} style={{ transform: `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.k})` }} aria-hidden="true">
           <defs>
-            <pattern id={ids.outside} patternUnits="userSpaceOnUse" width="200" height="200"><image href={st.outside} width="200" height="200" /></pattern>
-            <pattern id={ids.field} patternUnits="userSpaceOnUse" width="180" height="180"><image href={st.field} width="180" height="180" /></pattern>
+            <pattern id={ids.verge} patternUnits="userSpaceOnUse" width="120" height="120"><image href={VERGE} width="120" height="120" /></pattern>
             <pattern id={ids.ground} patternUnits="userSpaceOnUse" width="220" height="220"><image href={st.ground} width="220" height="220" /></pattern>
             <pattern id={ids.road} patternUnits="userSpaceOnUse" width="56" height="56"><image href={st.road} width="56" height="56" /></pattern>
             <pattern id={ids.earth} patternUnits="userSpaceOnUse" width="56" height="56"><image href={st.earth} width="56" height="56" /></pattern>
@@ -188,18 +201,19 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             <filter id="sc-soft" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#2a1d10" floodOpacity=".35" /></filter>
             <radialGradient id="sc-vignette" cx="50%" cy="50%" r="50%"><stop offset=".75" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".18" /></radialGradient>
           </defs>
-          {/* Окрестности: луга, поля и опушка */}
-          <rect width={VB} height={VB} fill={`url(#${ids.outside})`} />
-          {deco.fields.map((f, i) => <ellipse key={i} cx={f.x} cy={f.y} rx={f.rx} ry={f.ry} transform={`rotate(${f.rot.toFixed(1)} ${f.x.toFixed(1)} ${f.y.toFixed(1)})`} fill={`url(#${ids.field})`} opacity=".9" />)}
-          {deco.outer.map(([x, y, s], i) => <image key={i} href={st.tree} x={x - s / 2} y={y - s} width={s} height={s} filter="url(#sc-soft)" />)}
+          {/* Окрестности — один цельный пейзаж (06.11): луга, поля, лес, река; дорога от ворот к краю нарисована в нём. */}
+          <image href={st.outside} x="0" y="0" width={VB} height={VB} preserveAspectRatio="xMidYMid slice" />
           {/* Город: земля, стена, дорога-спираль */}
           <circle cx={C} cy={C} r={R0 + W + 8} fill={`url(#${ids.ground})`} />
           <circle cx={C} cy={C} r={R0 + W + 8} fill="url(#sc-vignette)" />
           <circle cx={C} cy={C} r={R0 + W + 10} fill="none" stroke="#3b2a1b" strokeWidth="14" opacity=".55" />
           <circle cx={C} cy={C} r={R0 + W + 10} fill="none" stroke={`url(#${ids.wall})`} strokeWidth="11" />
           <circle cx={C} cy={C} r={R0 + W + 10} fill="none" stroke="#2a1d10" strokeWidth="1" opacity=".7" />
-          <path d={(() => { const k = PITCH / (2 * Math.PI); const pts: [number, number][] = []; for (let th = T0 - 0.4; R0 - k * (th - T0) + W + GAP / 2 > RMIN - 8; th += 0.05) pts.push(pt(th, R0 - k * (th - T0) + W + GAP / 2)); return "M " + pts.map(fmt).join(" L "); })()} fill="none" stroke={`url(#${ids.road})`} strokeWidth={GAP + 1} strokeLinecap="round" />
-          {deco.inner.map(([x, y, s], i) => <image key={i} href={st.tree} x={x - s / 2} y={y - s * 0.9} width={s} height={s} filter="url(#sc-soft)" />)}
+          {(() => { const k = PITCH / (2 * Math.PI); const pts: [number, number][] = []; for (let th = T0 - 0.4; R0 - k * (th - T0) + W + GAP / 2 > RMIN - 8; th += 0.05) pts.push(pt(th, R0 - k * (th - T0) + W + GAP / 2)); const d = "M " + pts.map(fmt).join(" L "); return (<>
+            <path d={d} fill="none" stroke={`url(#${ids.verge})`} strokeWidth={GAP + 2} strokeLinecap="round" />
+            <path d={d} fill="none" stroke="#6b5a3a" strokeWidth={ROAD + 1.2} strokeLinecap="round" opacity=".35" />
+            <path d={d} fill="none" stroke={`url(#${ids.road})`} strokeWidth={ROAD} strokeLinecap="round" />
+          </>); })()}
           {/* Участки */}
           {plots.map((p, i) => {
             const id = slots[i] ?? null; const d = id ? byId.get(id) : undefined;
@@ -232,18 +246,11 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             );
           })}
           {/* Ворота и площадь */}
-          <rect x={gateXY[0] - 13} y={gateXY[1] - 8} width="26" height="16" rx="2" fill={`url(#${ids.wall})`} stroke="#2a1d10" strokeWidth=".8" />
-          <path d={`M ${gateXY[0] - 5} ${gateXY[1] + 8} v -7 a 5 5 0 0 1 10 0 v 7 z`} fill="#3b2a1b" />
-          <text x={gateXY[0]} y={gateXY[1] + 17} textAnchor="middle" fontSize="6" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff6e6" stroke="rgba(40,25,10,.6)" strokeWidth=".8" style={{ paintOrder: "stroke" }}>{t("Ворота")}</text>
-          <circle cx={C} cy={C} r={RMIN - 5} fill={`url(#${ids.road})`} stroke="#7a5a36" strokeWidth="1.2" />
-          <image href={st.square} x={C - 12} y={C - 17} width="24" height="24" filter="url(#sc-soft)" />
-          <text x={C} y={C + 15} textAnchor="middle" fontSize="6" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#3a2d1f">{t("Площадь")}</text>
+          <image href={GATE} x={gateXY[0] - 30} y={gateXY[1] - 30} width="60" height="41.5" filter="url(#sc-soft)" pointerEvents="none" />
+          <image href={st.square} x={C - 12} y={C - 17} width="24" height="24" filter="url(#sc-soft)" pointerEvents="none" />
+          <text x={C} y={C + 15} textAnchor="middle" fontSize="6" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff6e6" stroke="rgba(40,25,10,.55)" strokeWidth=".8" style={{ paintOrder: "stroke" }} pointerEvents="none">{t("Площадь")}</text>
+          {plants.map((q, i) => <image key={i} href={PLANTS[q.kind]} x={q.x - q.s / 2} y={q.y - q.s * 0.85} width={q.s} height={q.s} filter="url(#sc-soft)" pointerEvents="none" />)}
         </svg>
-        <div className="plan-tools">
-          <button type="button" className="secondary" aria-label={t("Приблизить")} onClick={() => { const b = view.current!.getBoundingClientRect(); zoomAt(1.4, b.width / 2, b.height / 2); }}><Icon name="plus" /></button>
-          <button type="button" className="secondary" aria-label={t("Отдалить")} onClick={() => { const b = view.current!.getBoundingClientRect(); zoomAt(1 / 1.4, b.width / 2, b.height / 2); }}><Icon name="minus" /></button>
-          <button type="button" className="secondary" aria-label={t("Весь город")} onClick={() => setCam({ k: 1, tx: 0, ty: 0 })}><Icon name="map" /></button>
-        </div>
       </div>
       <div className="plan-foot">
         <span className="small muted">{pile.length ? t("Осталось районов: {n}", { n: pile.length }) : t("Все районы на местах. Проверните замок.")}</span>
