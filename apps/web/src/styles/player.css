@@ -609,6 +609,18 @@
 .prophet-letter .letter-sign { margin-top: var(--sp-2); text-align: right; font-family: var(--font); }
 /* Круглый город (06.11): замок порядка для книг с планом spiral. */
 .plan-wrap { display: flex; flex-direction: column; gap: var(--sp-2); }
+/* Город на весь экран (решение владельца 06.11): шапка компактнее, заголовок шага скрыт, план занимает всю оставшуюся высоту. */
+.city-sheet.plan-full .overlay-body { display: flex; flex-direction: column; overflow: hidden; padding: var(--sp-2) var(--sp-2) var(--sp-2); }
+.city-sheet.plan-full .city-head { padding: var(--sp-2) 56px var(--sp-2) var(--sp-3); }
+.city-sheet.plan-full .city-head img { width: 40px; height: 40px; }
+.city-sheet.plan-full .city-head h2 { font-size: var(--fs-lg); }
+.city-sheet.plan-full .steps { margin-bottom: var(--sp-2); }
+.city-sheet.plan-full .step-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.city-sheet.plan-full .step-body > h3 { display: none; }
+.city-sheet.plan-full .plan-wrap { flex: 1 1 auto; min-height: 0; }
+.city-sheet.plan-full .plan-view { flex: 1 1 auto; min-height: 0; aspect-ratio: auto; max-height: none; }
+.city-sheet.plan-full .actions { margin-top: var(--sp-2); }
+.city-sheet.plan-full .lock-note { margin-top: var(--sp-2); }
 .plan-wrap > .hint { margin: 0; }
 .plan-view { position: relative; overflow: hidden; width: 100%; aspect-ratio: 1 / 1; max-height: 74vh; border-radius: 14px; border: 1px solid var(--border-strong); background: #cdb98f; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; box-shadow: inset 0 0 40px rgba(60, 40, 20, .25); }
 .plan-view > svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform; }

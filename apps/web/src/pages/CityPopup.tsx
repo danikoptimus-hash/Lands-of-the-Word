@@ -236,9 +236,11 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
     </div>
   );
 
+  // Круглый план (решение владельца 06.11): экран города на весь экран, окно плана — вся оставшаяся высота.
+  const planFull = Boolean(!sleeping && city?.content && city.content.plan === "spiral" && step === 1 && order && !task);
   // Текст заданий города не выделяется и не копируется ни мышью, ни долгим нажатием (решение владельца 02.10): поля ввода — исключение.
   return (
-    <Sheet size="md" container={container} onClose={onClose} head={head} className="city-sheet no-copy">
+    <Sheet size={planFull ? "full" : "md"} container={container} onClose={onClose} head={head} className={"city-sheet no-copy" + (planFull ? " plan-full" : "")}>
       {error && <p className="error" role="alert">{error}</p>}
       {!city && !error && <LoadingState rows={4} />}
       {city && !city.content && <div className="note warn"><Icon name="alert" /><span>{t("Задания для книги «{book}» ещё готовятся. Город пока нельзя взять.", { book: book?.nameRu ?? "" })}</span></div>}
@@ -263,8 +265,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
           <h3>{t("Расставьте районы по порядку книги")}</h3>
           {city.content.plan === "spiral" ? (
             <SpiralCity districts={districts} slots={order.map((x) => (x === "-" ? null : x))} style={cityStyleFromQuery()} onChange={(s) => { const ids = s.map((x) => x ?? "-"); setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
-              hint={olock && olock.wrong > 0 && !olocked ? t("Ошибок подряд: {n} · следующая пауза {t}", { n: olock.wrong, t: fmtPause(onext * 1000) }) : city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Нажмите участок — выберите для него район. Город можно приближать и двигать. Готово — проверните замок.")}
-              help={t("Замок скажет, сколько районов не на месте, но не каких.")} />
+              hint={olock && olock.wrong > 0 && !olocked ? t("Ошибок подряд: {n} · следующая пауза {t}", { n: olock.wrong, t: fmtPause(onext * 1000) }) : city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Расставьте районы по порядку книги: нажмите участок и выберите для него район.")}
+              help={t("Город можно приближать щипком или двойным нажатием и двигать пальцем. Когда все участки заняты — проверните замок: он скажет, сколько районов не на месте, но не каких.")} />
           ) : <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
             hint={olock && olock.wrong > 0 && !olocked ? t("Ошибок подряд: {n} · следующая пауза {t}", { n: olock.wrong, t: fmtPause(onext * 1000) }) : city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Стрелки двигают район вверх и вниз. Готово — проверните замок.")}
             help={t("Замок скажет, сколько штифтов не село, но не каких.")} />}

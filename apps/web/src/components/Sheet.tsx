@@ -12,7 +12,7 @@ import { t } from "../lib/i18n";
 const openSheets: symbol[] = [];
 
 export function Sheet({ title, head, onClose, onDismiss, children, size = "md", foot, container, className, closeLabel }: {
-  title?: ReactNode; head?: ReactNode; onClose: () => void; children: ReactNode; size?: "sm" | "md" | "lg"; foot?: ReactNode;
+  title?: ReactNode; head?: ReactNode; onClose: () => void; children: ReactNode; size?: "sm" | "md" | "lg" | "full"; foot?: ReactNode;
   /** Закрытие ведёт назад (например, в список дел): кнопка — стрелка с этой подписью вместо крестика «Закрыть». */ closeLabel?: string;
   /** Нажатие по фону и Esc: если задано, зовётся вместо onClose (лист дела: стрелка ведёт в список, фон — сразу на карту; жалоба участника 31.10). */ onDismiss?: () => void;
   /** Куда монтировать: по умолчанию в body (fixed). Для карты — контейнер карты (absolute). */
