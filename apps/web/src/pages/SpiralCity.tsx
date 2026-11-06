@@ -17,9 +17,9 @@ const LAND_PRE = "/img/city-plan/landscape.webp";
 /** Наборы текстур на выбор (владелец смотрит варианты на стенде: `?cityStyle=a|b|c`); окрестности — один цельный сгенерированный пейзаж,
  *  стена и ворота из песчаника, деревья и черепица — тоже из генератора (06.11, `scripts/img-gen`). */
 export const CITY_STYLES = {
-  a: { name: "Пергамент", ground: "/img/props/parchment.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-tiles.webp", outside: LAND_PRE, field: "/img/terrain/hills.webp", tree: "/img/props/olive.webp", square: "/img/props/well.webp", roofEdge: "#6e3a26", label: "#fff6e6", number: "#b5583c" },
-  b: { name: "Оазис", ground: "/img/terrain/oasis.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-flat.webp", outside: LAND_PRE, field: "/img/terrain/desert.webp", tree: "/img/props/palm.webp", square: "/img/props/well.webp", roofEdge: "#7a5a36", label: "#3a2d1f", number: "#7a5226" },
-  c: { name: "Глина", ground: "/img/terrain/desert.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-slate.webp", outside: LAND_PRE, field: "/img/terrain/mountains.webp", tree: "/img/props/olive.webp", square: "/img/props/well.webp", roofEdge: "#2f343c", label: "#f4f6f8", number: "#4f5a66" },
+  a: { name: "Пергамент", ground: "/img/props/parchment.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-tiles.webp", outside: LAND_PRE, roofEdge: "#6e3a26", label: "#fff6e6", number: "#b5583c" },
+  b: { name: "Оазис", ground: "/img/terrain/oasis.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-flat.webp", outside: LAND_PRE, roofEdge: "#7a5a36", label: "#3a2d1f", number: "#7a5226" },
+  c: { name: "Глина", ground: "/img/terrain/desert.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-slate.webp", outside: LAND_PRE, roofEdge: "#2f343c", label: "#f4f6f8", number: "#4f5a66" },
 } as const;
 export type CityStyle = keyof typeof CITY_STYLES;
 export function cityStyleFromQuery(): CityStyle {
@@ -28,19 +28,29 @@ export function cityStyleFromQuery(): CityStyle {
 
 /** Геометрия: участок глубиной W, между витками GAP — обочины с травой и дорога шириной ROAD посередине.
  *  Стена стоит за первым витком улицы (WALL_R); ворота внизу, первый участок начинается через GATE_ARC после них. */
-const VB = 560, C = VB / 2, R0 = 182, W = 30, GAP = 15, ROAD = 7, PITCH = W + GAP, GAPLEN = 7, RMIN = 38, T0 = Math.PI / 2, GATE_ARC = 0.3;
+const VB = 560, C = VB / 2, R0 = 182, W = 30, GAP = 15, ROAD = 7, PITCH = W + GAP, GAPLEN = 9, RMIN = 38, T0 = Math.PI / 2, GATE_ARC = 0.3;
+/** Поперечные дороги между соседними районами (замечание владельца 06.11): дорога и травяная обочина в просвете GAPLEN. */
+const LANE = 4.5, LANE_VERGE = 8;
 const WALL_R = R0 + W + GAP + 6;
 /** Стена — сгенерированный отрезок из песчаника (вид сверху, зубцы по краям, 311×96, бесшовный), выложенный по кругу
  *  WALL_N сегментами шириной WALL_BAND; ворота — отдельный спрайт поверх стены внизу. */
 const WALL_SEG = "/img/city-plan/wall-seg.webp", WALL_BAND = 14, WALL_N = Math.round((2 * Math.PI * WALL_R) / (WALL_BAND * 311 / 96));
-const LAND = "/img/city-plan/landscape.webp", GATE = "/img/city-plan/gate.webp", VERGE = "/img/terrain/meadow.webp";
-/** Спрайты у дороги (сгенерированы, см. docs): w/h — доли размера s, чтобы кипарис был узким и высоким, а куст — приземистым. */
-const PLANTS = [
-  { href: "/img/city-plan/tree-green.webp", w: 1, h: 1 },
-  { href: "/img/city-plan/tree-green2.webp", w: 0.5, h: 1.4 },
-  { href: "/img/props/olive.webp", w: 1, h: 1 },
-  { href: "/img/city-plan/bush.webp", w: 1, h: 0.875 },
-];
+const GATE = "/img/city-plan/gate.webp", VERGE = "/img/terrain/meadow.webp";
+/** Спрайты города (сгенерированы, см. docs): h — высота в единицах плана при масштабе 1, ar — высота/ширина файла. */
+const P = "/img/city-plan/";
+const SPR = {
+  tree: { href: P + "tree-green.webp", h: 9, ar: 1.01 }, cypress: { href: P + "tree-green2.webp", h: 11, ar: 2.8 }, olive: { href: "/img/props/olive.webp", h: 8, ar: 0.99 }, bush: { href: P + "bush.webp", h: 4.5, ar: 0.875 },
+  "woman-jug": { href: P + "woman-jug.webp", h: 5.2, ar: 2.97 }, shepherd: { href: P + "shepherd.webp", h: 5, ar: 1.96 }, merchant: { href: P + "merchant.webp", h: 5, ar: 2.28 }, child: { href: P + "child.webp", h: 4, ar: 2.71 }, elder: { href: P + "elder.webp", h: 5, ar: 2.25 }, "man-basket": { href: P + "man-basket.webp", h: 5.1, ar: 2.19 },
+  donkey: { href: P + "donkey.webp", h: 4.6, ar: 1.06 }, camel: { href: P + "camel.webp", h: 6.2, ar: 1.04 }, sheep: { href: P + "sheep.webp", h: 3, ar: 1.07 }, goat: { href: P + "goat.webp", h: 3.4, ar: 1.23 }, dog: { href: P + "dog.webp", h: 2.8, ar: 0.94 }, hen: { href: P + "hen.webp", h: 1.7, ar: 1.31 },
+  stall: { href: P + "stall.webp", h: 7.5, ar: 1.06 }, cart: { href: P + "cart.webp", h: 5, ar: 0.864 }, amphorae: { href: P + "amphorae.webp", h: 4, ar: 1.01 }, tent: { href: P + "tent.webp", h: 6.5, ar: 0.807 }, haystack: { href: P + "haystack.webp", h: 4.5, ar: 1.12 }, "palm-pot": { href: P + "palm-pot.webp", h: 5.5, ar: 1.13 },
+  fountain: { href: P + "fountain.webp", h: 23, ar: 0.957 },
+} as const;
+type SprKey = keyof typeof SPR;
+type Decor = { x: number; y: number; k: SprKey; s: number };
+const FOLK: SprKey[] = ["woman-jug", "shepherd", "merchant", "child", "elder", "man-basket"], BEASTS: SprKey[] = ["donkey", "camel", "sheep", "goat", "dog", "hen"];
+/** Путники, идущие по улице от ворот к площади и обратно (SMIL animateMotion по дороге); при prefers-reduced-motion стоят. */
+const MOVERS: Array<{ k: SprKey; dur: number; begin: number }> = [{ k: "camel", dur: 170, begin: -30 }, { k: "donkey", dur: 140, begin: -95 }, { k: "shepherd", dur: 200, begin: -150 }, { k: "sheep", dur: 200, begin: -147 }, { k: "sheep", dur: 200, begin: -145 }, { k: "woman-jug", dur: 120, begin: -20 }];
+function Sprite({ d }: { d: Decor }) { const q = SPR[d.k]; const h = q.h * d.s, w = h / q.ar; return <image href={q.href} x={d.x - w / 2} y={d.y - h * 0.9} width={w} height={h} filter="url(#sc-soft)" pointerEvents="none" />; }
 type Plot = { a: number; b: number };
 
 /** Спираль Архимеда: шаг витка — глубина участка плюс дорога; длина участка подбирается так, чтобы вместить все районы. */
@@ -78,11 +88,31 @@ function arcPath(p: Plot, rad: number, reverse: boolean): string {
 }
 /** Детерминированный «случайный» ряд для деревьев и полей — одинаковый на всех устройствах. */
 function rnd(seed: number): () => number { let h = seed >>> 0 || 1; return () => { h ^= h << 13; h >>>= 0; h ^= h >>> 17; h ^= h << 5; h >>>= 0; return h / 4294967296; }; }
-function twoLines(s: string, limit = 16): [string, string] {
-  if (s.length <= limit) return [s, ""];
-  const w = s.split(" "); const a: string[] = []; const b: string[] = [];
-  for (const x of w) { if (!b.length && [...a, x].join(" ").length <= Math.max(limit, Math.ceil(s.length / 2))) a.push(x); else b.push(x); }
-  return [a.join(" "), b.join(" ")];
+/** Ширина строки при кегле 1 — замер тем же шрифтом через canvas (подписи раньше обрезались по оценке «0,62 на букву»). */
+let measurer: CanvasRenderingContext2D | null | undefined;
+function textW(s: string): number {
+  if (measurer === undefined) { try { measurer = document.createElement("canvas").getContext("2d"); if (measurer) measurer.font = "100px Georgia, serif"; } catch { measurer = null; } }
+  return measurer ? measurer.measureText(s).width / 100 : s.length * 0.58;
+}
+/** Подпись района: один кегль на все строки, до четырёх строк; строки выровнены по ширине (минимальная самая длинная). */
+function fitTitle(title: string, usable: number, depth: number): { f: number; lines: string[] } {
+  const words = title.split(" ");
+  const split = (L: number, f: number): string[] | null => {
+    if (L === 1) return textW(title) * f <= usable ? [title] : null;
+    let best: string[] | null = null, bestW = Infinity;
+    const rec = (from: number, left: number, acc: string[]) => {
+      if (left === 1) { const line = words.slice(from).join(" "); const w = Math.max(...acc.map((l) => textW(l)), textW(line)) * f; if (w <= usable && w < bestW) { bestW = w; best = [...acc, line]; } return; }
+      for (let i = from + 1; i <= words.length - left + 1; i++) { const line = words.slice(from, i).join(" "); if (textW(line) * f > usable) break; rec(i, left - 1, [...acc, line]); }
+    };
+    rec(0, L, []); return best;
+  };
+  for (let f = 7.2; f >= 3.4; f -= 0.2) {
+    for (let L = 1; L <= Math.min(4, words.length); L++) {
+      if (L * f * 1.12 > depth - 5) break;
+      const lines = split(L, f); if (lines) return { f, lines };
+    }
+  }
+  return { f: 3.4, lines: [title] };
 }
 
 export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWrong, hint, help, style }: {
@@ -108,22 +138,39 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
   const [filter, setFilter] = useState("");
   const nextFree = slots.findIndex((x) => x === null);
 
-  // Озеленение улиц (замечание владельца 06.11): трава на обочинах, кусты и деревья вдоль дороги, по фиксированному зерну.
-  const plants = useMemo(() => {
+  // Озеленение и жизнь улиц (замечания владельца 06.11): трава на обочинах, кусты и деревья, жители и животные на дороге,
+  // телеги, амфоры и стога у обочин, лотки, шатёр и фонтан на площади — всё по фиксированному зерну, одинаково на всех устройствах.
+  const decor = useMemo(() => {
     const g = rnd(47 + n);
     const k = PITCH / (2 * Math.PI);
-    const out: Array<{ x: number; y: number; s: number; kind: number }> = [];
-    for (let th = T0 + 0.1; R0 - k * (th - T0) + W + GAP / 2 > RMIN + 2; th += 0.11) {
+    const roadR = (th: number) => R0 - k * (th - T0) + W + GAP / 2;
+    const out: Decor[] = [];
+    const put = (th: number, rad: number, kind: SprKey, s = 0.85 + g() * 0.3) => { const [x, y] = pt(th, rad); out.push({ x, y, k: kind, s }); };
+    for (let th = T0 + 0.1; roadR(th) > RMIN + 2; th += 0.11) {
       if (g() > 0.62) continue;
       const side = g() < 0.5 ? -1 : 1;
-      const rad = R0 - k * (th - T0) + W + GAP / 2 + side * (GAP / 2 - 1.2);
-      const [x, y] = pt(th, rad);
       const tree = g() < 0.3;
-      out.push({ x, y, s: tree ? 8 + g() * 4 : 4.5 + g() * 2.5, kind: tree ? Math.floor(g() * 3) : 3 });
+      put(th, roadR(th) + side * (GAP / 2 - 1.2), tree ? (["tree", "cypress", "olive"] as const)[Math.floor(g() * 3)]! : "bush");
     }
-    for (let i = 0; i < 5; i++) { const th = g() * Math.PI * 2; const [x, y] = pt(th, RMIN - 14 + g() * 4); out.push({ x, y, s: 5 + g() * 3, kind: 3 }); }
+    for (let th = T0 + 0.4; roadR(th) > RMIN + 4; th += 0.19) {
+      if (g() > 0.42) continue;
+      const kind = g() < 0.55 ? FOLK[Math.floor(g() * FOLK.length)]! : BEASTS[Math.floor(g() * BEASTS.length)]!;
+      put(th, roadR(th) + (g() - 0.5) * (ROAD - 2.5), kind);
+      if (kind === "sheep" || kind === "goat") for (let j = 0, m = 1 + Math.floor(g() * 2); j < m; j++) put(th + (g() - 0.5) * 0.06, roadR(th) + (g() - 0.5) * (ROAD - 2), kind);
+    }
+    for (let th = T0 + 0.6; roadR(th) > RMIN + 6; th += 0.33) {
+      if (g() > 0.3) continue;
+      const side = g() < 0.5 ? -1 : 1;
+      put(th, roadR(th) + side * (GAP / 2 - 1.6), (["cart", "amphorae", "haystack", "palm-pot"] as const)[Math.floor(g() * 4)]!);
+    }
+    // площадь: фонтан в центре, вокруг — лотки, шатёр, пальма, амфоры и люди
+    out.push({ x: C, y: C + 9, k: "fountain", s: 1 });
+    put(0.45, 20, "stall", 1); put(2.5, 20, "stall", 1); put(4.1, 19, "tent", 1); put(5.35, 19, "palm-pot", 1); put(1.55, 20, "amphorae", 1); put(3.3, 18, "haystack", 0.9);
+    for (let i = 0; i < 7; i++) put(g() * Math.PI * 2, 13.5 + g() * 4, i < 5 ? FOLK[Math.floor(g() * FOLK.length)]! : (["dog", "hen"] as const)[i - 5]!);
+    out.sort((a, b) => a.y - b.y);
     return out;
   }, [n]);
+  const motion = useMemo(() => { try { return !window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return true; } }, []);
 
   // Приближение и перетаскивание: один палец — двигает, два — масштаб, колесо — масштаб у курсора.
   const view = useRef<HTMLDivElement>(null);
@@ -223,46 +270,75 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             return <image key={i} href={WALL_SEG} x={-len / 2} y={-WALL_BAND / 2} width={len} height={WALL_BAND} preserveAspectRatio="none" transform={`translate(${x.toFixed(1)} ${y.toFixed(1)}) rotate(${((th * 180) / Math.PI + 90).toFixed(1)})`} pointerEvents="none" />;
           })}
           {(() => { const k = PITCH / (2 * Math.PI); const pts: [number, number][] = []; for (let th = T0 - 0.05; R0 - k * (th - T0) + W + GAP / 2 > RMIN - 8; th += 0.05) pts.push(pt(th, R0 - k * (th - T0) + W + GAP / 2)); const d = "M " + pts.map(fmt).join(" L "); return (<>
-            <path d={d} fill="none" stroke={`url(#${ids.verge})`} strokeWidth={GAP + 2} strokeLinecap="round" />
+            <path id="sc-roadpath" d={d} fill="none" stroke={`url(#${ids.verge})`} strokeWidth={GAP + 2} strokeLinecap="round" />
             <path d={d} fill="none" stroke="#6b5a3a" strokeWidth={ROAD + 1.2} strokeLinecap="round" opacity=".35" />
             <path d={d} fill="none" stroke={`url(#${ids.road})`} strokeWidth={ROAD} strokeLinecap="round" />
           </>); })()}
+          {/* Переулки между соседними районами: от улицы снаружи к улице внутри, под участками */}
+          {plots.slice(0, -1).map((p, i) => {
+            const th = (p.b + plots[i + 1]!.a) / 2, a = pt(th, r(th) - GAP / 2 + 1), b = pt(th, r(th) + W + GAP / 2 - 1);
+            return (<g key={i} pointerEvents="none">
+              <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={`url(#${ids.verge})`} strokeWidth={LANE_VERGE} />
+              <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#6b5a3a" strokeWidth={LANE + 1} opacity=".3" />
+              <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={`url(#${ids.road})`} strokeWidth={LANE} />
+            </g>);
+          })}
           {/* Участки */}
           {plots.map((p, i) => {
             const id = slots[i] ?? null; const d = id ? byId.get(id) : undefined;
             const mid = (p.a + p.b) / 2; const rm = r(mid) + W / 2; const bottom = Math.sin(mid) > 0;
-            const arcLen = (p.b - p.a) * rm;
             const active = !disabled && (pick === i || (pick === null && i === nextFree));
-            const [l1, l2] = d ? twoLines(d.title) : ["", ""];
-            const fs = (s: string) => Math.max(4.2, Math.min(7.2, arcLen / (Math.max(6, s.length) * 0.62)));
-            const f1 = fs(l1), f2 = l2 ? fs(l2) : 0;
-            const r1 = l2 ? (bottom ? rm - W * 0.08 + f1 * 0.35 : rm - W * 0.22 - 0) : (bottom ? rm + f1 * 0.35 : rm - f1 * 0.35);
-            const r2 = bottom ? rm + W * 0.22 + f2 * 0.35 : rm + W * 0.08 - 0;
-            const [nx, ny] = pt(p.a + (p.b - p.a) * 0.14, r(p.a) + W * 0.5);
+            // Подпись: значок номера занимает начало дуги (у p.a), текст — по центру остатка; строки одним кеглем, замер шириной.
+            const phiB = 9 / rm, phiM = 2 / rm, span = p.b - p.a - phiB - 2 * phiM;
+            const fit = d ? fitTitle(d.title, span * (rm - 6), W) : null;
+            const thC = p.a + phiM + phiB + span / 2, off = ((bottom ? p.b - thC : thC - p.a) / (p.b - p.a)) * 100;
+            const [nx, ny] = pt(p.a + phiM + phiB / 2, rm);
+            const houses = Math.max(2, Math.round(((p.b - p.a) * rm) / 13));
             return (
               <g key={i} data-plot={i} className="plot">
                 {d
                   ? <path d={plotPath(p, r)} fill={`url(#${ids.roof})`} stroke={st.roofEdge} strokeWidth="1.6" filter="url(#sc-shadow)" />
                   : <path d={plotPath(p, r)} fill={`url(#${ids.earth})`} stroke={active ? "#e0a64a" : "#7a6342"} strokeWidth={active ? 2.4 : 1} strokeDasharray={active ? undefined : "3 2"} opacity={active ? 1 : 0.92} />}
+                {d && (<g pointerEvents="none">
+                  {/* Ряд домов: конёк крыши вдоль участка и перегородки между домами */}
+                  <path d={arcPath(p, rm, false)} fill="none" stroke="#4a2114" strokeWidth=".8" opacity=".5" />
+                  <path d={arcPath(p, rm + 1, false)} fill="none" stroke="#ffd9a0" strokeWidth=".6" opacity=".35" />
+                  {Array.from({ length: houses - 1 }, (_, j) => { const th = p.a + ((p.b - p.a) * (j + 1)) / houses; const a = pt(th, r(th) + 1), b = pt(th, r(th) + W - 1); return <line key={j} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#4a2114" strokeWidth=".7" opacity=".45" />; })}
+                </g>)}
                 {d && active && <path d={plotPath(p, r)} fill="none" stroke="#e0a64a" strokeWidth="2.4" />}
-                {d ? (<>
-                  <path id={`sc-t${i}a`} d={arcPath(p, r1, bottom)} fill="none" />
-                  {l2 && <path id={`sc-t${i}b`} d={arcPath(p, r2, bottom)} fill="none" />}
-                  <text fontSize={f1} fontFamily="Georgia, serif" fill={st.label} style={{ paintOrder: "stroke" }} stroke="rgba(40,25,10,.55)" strokeWidth=".9"><textPath href={`#sc-t${i}a`} startOffset="54%" textAnchor="middle">{l1}</textPath></text>
-                  {l2 && <text fontSize={f2} fontFamily="Georgia, serif" fill={st.label} style={{ paintOrder: "stroke" }} stroke="rgba(40,25,10,.55)" strokeWidth=".9"><textPath href={`#sc-t${i}b`} startOffset="54%" textAnchor="middle">{l2}</textPath></text>}
-                  <circle cx={nx} cy={ny} r="4.6" fill={st.number} stroke="#fff6e6" strokeWidth=".8" />
-                  <text x={nx} y={ny + 1.9} textAnchor="middle" fontSize="5.4" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff">{i + 1}</text>
+                {d && fit ? (<>
+                  {fit.lines.map((line, li) => {
+                    const L = fit.lines.length, lh = fit.f * 1.12, c = bottom ? rm - ((L - 1) / 2 - li) * lh : rm + ((L - 1) / 2 - li) * lh;
+                    const rho = bottom ? c + fit.f * 0.35 : c - fit.f * 0.35, w = textW(line) * fit.f, usable = span * rho;
+                    return (<g key={li}>
+                      <path id={`sc-t${i}-${li}`} d={arcPath(p, rho, bottom)} fill="none" />
+                      <text fontSize={fit.f} fontFamily="Georgia, serif" fill={st.label} style={{ paintOrder: "stroke" }} stroke="rgba(40,25,10,.6)" strokeWidth=".9" {...(w > usable ? { textLength: usable, lengthAdjust: "spacingAndGlyphs" as const } : {})}><textPath href={`#sc-t${i}-${li}`} startOffset={`${off.toFixed(1)}%`} textAnchor="middle">{line}</textPath></text>
+                    </g>);
+                  })}
+                  <circle cx={nx} cy={ny} r="4" fill={st.number} stroke="#fff6e6" strokeWidth=".8" />
+                  <text x={nx} y={ny + 1.7} textAnchor="middle" fontSize="4.8" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff">{i + 1}</text>
                 </>) : (<>
                   <text x={pt(mid, rm)[0]} y={pt(mid, rm)[1] + 2.6} textAnchor="middle" fontSize={active ? 8 : 7} fontWeight="700" fontFamily="system-ui, sans-serif" fill={active ? "#a8722e" : "#6e5a3e"}>{i + 1}</text>
                 </>)}
               </g>
             );
           })}
-          {/* Ворота (сгенерированы, 520×566) стоят на стене внизу: основание чуть снаружи, башни — над стеной; и площадь */}
-          <image href={GATE} x={gateXY[0] - 30} y={gateXY[1] - 57} width="60" height="65.3" filter="url(#sc-soft)" pointerEvents="none" />
-          <image href={st.square} x={C - 12} y={C - 17} width="24" height="24" filter="url(#sc-soft)" pointerEvents="none" />
-          <text x={C} y={C + 15} textAnchor="middle" fontSize="6" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff6e6" stroke="rgba(40,25,10,.55)" strokeWidth=".8" style={{ paintOrder: "stroke" }} pointerEvents="none">{t("Площадь")}</text>
-          {plants.map((q, i) => { const sp = PLANTS[q.kind]!; const w = q.s * sp.w, h = q.s * sp.h; return <image key={i} href={sp.href} x={q.x - w / 2} y={q.y - h * 0.85} width={w} height={h} filter="url(#sc-soft)" pointerEvents="none" />; })}
+          {/* Жизнь города: растения, жители, животные, предметы, фонтан — по порядку сверху вниз, чтобы ближние перекрывали дальних */}
+          {decor.map((q, i) => <Sprite key={i} d={q} />)}
+          <text x={C} y={C + 16} textAnchor="middle" fontSize="6" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff6e6" stroke="rgba(40,25,10,.55)" strokeWidth=".8" style={{ paintOrder: "stroke" }} pointerEvents="none">{t("Площадь")}</text>
+          {/* Ворота (сгенерированы, фронтально, 640×459) стоят на стене внизу: основание чуть снаружи стены, башни над ней */}
+          <image href={GATE} x={gateXY[0] - 32} y={gateXY[1] - 37} width="64" height="45.9" filter="url(#sc-soft)" pointerEvents="none" />
+          {/* Путники идут по улице от ворот к площади и обратно; птицы кружат над городом */}
+          {motion && MOVERS.map((m, i) => { const q = SPR[m.k]; const h = q.h, w = h / q.ar; return (
+            <g key={i} pointerEvents="none">
+              <image href={q.href} x={-w / 2} y={-h * 0.9} width={w} height={h} filter="url(#sc-soft)" />
+              <animateMotion dur={`${m.dur}s`} begin={`${m.begin}s`} repeatCount="indefinite" keyPoints="0;1;0" keyTimes="0;0.5;1" calcMode="linear"><mpath href="#sc-roadpath" /></animateMotion>
+            </g>); })}
+          {motion && [[0, 118, 76, 52], [0.9, 150, 95, 67], [2.1, 96, 62, 44]].map(([ph, rx, ry, dur], i) => (
+            <g key={i} pointerEvents="none" opacity=".75">
+              <path d="M-1.3 -2.2 Q0 -0.9 0.1 0 Q0 0.9 -1.3 2.2" fill="none" stroke="#2b2118" strokeWidth=".6" strokeLinecap="round" />
+              <animateMotion dur={`${dur}s`} begin={`${-ph! * 10}s`} repeatCount="indefinite" rotate="auto" path={`M ${C - rx!} ${C} A ${rx} ${ry} 0 1 1 ${C + rx!} ${C} A ${rx} ${ry} 0 1 1 ${C - rx!} ${C}`} />
+            </g>))}
         </svg>
       </div>
       <div className="plan-foot">
