@@ -12,13 +12,12 @@ import type { CityDistrictDto } from "../lib/api";
  * Проверка — та же кнопка «Провернуть замок» снаружи; ответ сервера «не на месте: N» показан под картой.
  */
 
-const LAND_PRE = "/img/city-plan/landscape.webp";
 /** Наборы текстур на выбор (владелец смотрит варианты на стенде: `?cityStyle=a|b|c`); окрестности — один цельный сгенерированный пейзаж,
  *  стена и ворота из песчаника, деревья и черепица — тоже из генератора (06.11, `scripts/img-gen`). */
 export const CITY_STYLES = {
-  a: { name: "Пергамент", ground: "/img/city-plan/pavement.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/vacant.webp", roof: "/img/city-plan/district.webp", outside: LAND_PRE, roofEdge: "#6e3a26", label: "#fff6e6", number: "#b5583c" },
-  b: { name: "Оазис", ground: "/img/terrain/oasis.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/vacant.webp", roof: "/img/city-plan/roof-flat.webp", outside: LAND_PRE, roofEdge: "#7a5a36", label: "#3a2d1f", number: "#7a5226" },
-  c: { name: "Глина", ground: "/img/terrain/desert.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/vacant.webp", roof: "/img/city-plan/roof-slate.webp", outside: LAND_PRE, roofEdge: "#2f343c", label: "#f4f6f8", number: "#4f5a66" },
+  a: { name: "Пергамент", ground: "/img/city-plan/pavement.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/vacant.webp", roof: "/img/city-plan/district.webp", roofEdge: "#6e3a26", label: "#fff6e6", number: "#b5583c" },
+  b: { name: "Оазис", ground: "/img/terrain/oasis.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/vacant.webp", roof: "/img/city-plan/roof-flat.webp", roofEdge: "#7a5a36", label: "#3a2d1f", number: "#7a5226" },
+  c: { name: "Глина", ground: "/img/terrain/desert.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/vacant.webp", roof: "/img/city-plan/roof-slate.webp", roofEdge: "#2f343c", label: "#f4f6f8", number: "#4f5a66" },
 } as const;
 export type CityStyle = keyof typeof CITY_STYLES;
 export function cityStyleFromQuery(): CityStyle {
@@ -35,8 +34,13 @@ const WALL_R = R0 + W + GAP + 6;
  *  ширине — доли ширины/высоты файла). Картинка масштабируется так, чтобы площадка легла под город (LAND_FIT — радиус в единицах
  *  плана, чуть меньше стены), и центрируется по площадке; окно плана бывает выше или шире картинки — тогда по краям её зеркальное
  *  продолжение (площадка далеко от краёв, в отражении не видна). */
-const LAND_IMG = { w: 1024, h: 1536, cx: 0.5, cy: 0.47, rx: 0.31 }, LAND_FIT = 226;
-const LAND_S = LAND_FIT / (LAND_IMG.rx * LAND_IMG.w), LAND_W = LAND_IMG.w * LAND_S, LAND_H = LAND_IMG.h * LAND_S, LAND_X = C - LAND_IMG.cx * LAND_W, LAND_Y = C - LAND_IMG.cy * LAND_H;
+const LAND_FIT = 226;
+type LandImg = { href: string; w: number; h: number; cx: number; cy: number; rx: number };
+/** Портретный пейзаж — для высоких окон (телефон), широкий — для компьютера (замечание владельца 06.11: на компьютере были видны
+ *  швы зеркального продолжения). Замеры площадки — по картинкам. */
+const LAND_TALL: LandImg = { href: "/img/city-plan/landscape.webp", w: 1024, h: 1536, cx: 0.5, cy: 0.47, rx: 0.31 };
+const LAND_WIDE: LandImg = { href: "/img/city-plan/landscape-wide.webp", w: 1536, h: 1024, cx: 0.486, cy: 0.502, rx: 0.18 };
+function landBox(img: LandImg) { const sc = LAND_FIT / (img.rx * img.w), w = img.w * sc, h = img.h * sc; return { href: img.href, w, h, x: C - img.cx * w, y: C - img.cy * h }; }
 /** Стена — сгенерированный отрезок из песчаника (вид сверху, зубцы по краям, 311×96, бесшовный), выложенный по кругу
  *  WALL_N сегментами шириной WALL_BAND; ворота — отдельный спрайт поверх стены внизу. */
 const WALL_SEG = "/img/city-plan/wall-seg.webp", WALL_BAND = 14, WALL_AR = 3.24, WALL_N = Math.round((2 * Math.PI * WALL_R) / (WALL_BAND * WALL_AR));
@@ -56,8 +60,6 @@ const SPR = {
 type SprKey = keyof typeof SPR;
 type Decor = { x: number; y: number; k: SprKey; s: number };
 const FOLK: SprKey[] = ["woman-jug", "shepherd", "merchant", "child", "elder", "man-basket"], BEASTS: SprKey[] = ["donkey", "camel", "sheep", "goat", "dog", "hen"];
-/** Путники, идущие по улице от ворот к площади и обратно (SMIL animateMotion по дороге); при prefers-reduced-motion стоят. */
-const MOVERS: Array<{ k: SprKey; dur: number; begin: number }> = [{ k: "camel", dur: 170, begin: -30 }, { k: "donkey", dur: 140, begin: -95 }, { k: "shepherd", dur: 200, begin: -150 }, { k: "sheep", dur: 200, begin: -147 }, { k: "sheep", dur: 200, begin: -145 }, { k: "woman-jug", dur: 120, begin: -20 }];
 function Sprite({ d }: { d: Decor }) { const q = SPR[d.k]; const h = q.h * d.s, w = h / q.ar; return <image href={q.href} x={d.x - w / 2} y={d.y - h * 0.9} width={w} height={h} filter="url(#sc-soft)" pointerEvents="none" />; }
 type Plot = { a: number; b: number };
 
@@ -188,7 +190,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
       put(th, roadR(th) + side * (GAP / 2 - 1.2), tree ? (["tree", "cypress", "olive"] as const)[Math.floor(g() * 3)]! : "bush");
     }
     for (let th = T0 + 0.4; roadR(th) > RMIN + 4; th += 0.19) {
-      if (g() > 0.42) continue;
+      if (g() > 0.5) continue; // жители и животные стоят на улице (анимации убраны по решению владельца 06.11)
       const kind = g() < 0.55 ? FOLK[Math.floor(g() * FOLK.length)]! : BEASTS[Math.floor(g() * BEASTS.length)]!;
       put(th, roadR(th) + (g() - 0.5) * (ROAD - 2.5), kind);
       if (kind === "sheep" || kind === "goat") for (let j = 0, m = 1 + Math.floor(g() * 2); j < m; j++) put(th + (g() - 0.5) * 0.06, roadR(th) + (g() - 0.5) * (ROAD - 2), kind);
@@ -205,7 +207,6 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     out.sort((a, b) => a.y - b.y);
     return out;
   }, [n]);
-  const motion = useMemo(() => { try { return !window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return true; } }, []);
   const LABEL = useMemo(() => labelStyleFromQuery(), []);
 
   // Окно плана на весь экран (решение владельца 06.11): видовое окно повторяет пропорции контейнера, город по центру,
@@ -218,6 +219,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
   }, []);
   const base = useMemo(() => (aspect >= 1 ? { x: 0, y: C - (VB * aspect) / 2, w: VB, h: VB * aspect } : { x: C - VB / aspect / 2, y: 0, w: VB / aspect, h: VB }), [aspect]);
   const vb = base;
+  const land = useMemo(() => landBox(aspect < 1 ? LAND_WIDE : LAND_TALL), [aspect]);
 
   // Приближение и перетаскивание: один палец — двигает, два — масштаб, колесо — масштаб у курсора.
   // Во время жеста план двигает CSS-трансформация (быстро), по окончании масштаб и сдвиг «запекаются» в видовое окно SVG
@@ -247,12 +249,13 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     return { k, tx: Math.min(txMax, Math.max(txMin, c.tx)), ty: Math.min(tyMax, Math.max(tyMin, c.ty)) };
   };
   /** Запечь трансформацию в видовое окно: картинка не меняется, но дальше рисуется в полном разрешении. */
-  const bake = () => {
-    const c = camRef.current; if (c.k === 1 && c.tx === 0 && c.ty === 0) return;
+  const bakeCam = (c: { k: number; tx: number; ty: number }) => {
+    if (c.k === 1 && c.tx === 0 && c.ty === 0) return;
     const { w } = boxPx(); const wn = winRef.current; const sc = w / wn.w;
-    const next = { x: wn.x - c.tx / (c.k * sc), y: wn.y - c.ty / (c.k * sc), w: wn.w / c.k, h: wn.h / c.k };
-    setWin(fitWin(next, baseRef.current)); setCam({ k: 1, tx: 0, ty: 0 });
+    const next = fitWin({ x: wn.x - c.tx / (c.k * sc), y: wn.y - c.ty / (c.k * sc), w: wn.w / c.k, h: wn.h / c.k }, baseRef.current);
+    winRef.current = next; camRef.current = { k: 1, tx: 0, ty: 0 }; setWin(next); setCam({ k: 1, tx: 0, ty: 0 });
   };
+  const bake = () => bakeCam(camRef.current);
   const scheduleBake = (ms = 90) => { if (bakeTimer.current) window.clearTimeout(bakeTimer.current); bakeTimer.current = window.setTimeout(() => { bakeTimer.current = null; if (ptrs.current.size === 0) bake(); }, ms); };
   const zoom = (baseRef.current.w / win.w) * cam.k; // общий масштаб относительно «весь город»
   const zoomAt = (factor: number, px: number, py: number) => {
@@ -289,13 +292,20 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     if (all.length === 1) {
       const dx = p.x - g.mx, dy = p.y - g.my;
       if (Math.hypot(dx, dy) > 6) { g.moved = true; cancelHold(); }
-      if (g.moved) setCam(clampCam({ k: g.k, tx: g.tx + dx, ty: g.ty + dy }));
+      if (g.moved) {
+        const c = clampCam({ k: g.k, tx: g.tx + dx, ty: g.ty + dy }); const { w, h } = boxPx();
+        // Ушли дальше трети окна — запечь на ходу и считать жест заново, чтобы запас сцены не кончился.
+        if (Math.abs(c.tx) > w * 0.35 || Math.abs(c.ty) > h * 0.35) { bakeCam(c); gesture.current = { k: 1, tx: 0, ty: 0, mx: p.x, my: p.y, dist: 0, moved: true }; }
+        else { camRef.current = c; setCam(c); }
+      }
     } else if (all.length >= 2) {
       cancelHold();
       const [a, b] = all as [{ x: number; y: number }, { x: number; y: number }];
       const dist = Math.hypot(a.x - b.x, a.y - b.y); const mx = (a.x + b.x) / 2, my = (a.y + b.y) / 2;
       const next = clampCam({ k: g.k * (dist / Math.max(1, g.dist)), tx: 0, ty: 0 }); const f = next.k / g.k;
-      setCam(clampCam({ k: next.k, tx: mx - (g.mx - g.tx) * f, ty: my - (g.my - g.ty) * f }));
+      const c = clampCam({ k: next.k, tx: mx - (g.mx - g.tx) * f, ty: my - (g.my - g.ty) * f });
+      if (c.k > 1.6 || c.k < 0.65) { bakeCam(c); gesture.current = { k: 1, tx: 0, ty: 0, mx, my, dist, moved: true }; }
+      else { camRef.current = c; setCam(c); }
     }
   };
   const onUp = (e: React.PointerEvent) => {
@@ -324,7 +334,27 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     el.addEventListener("wheel", onWheel, { passive: false }); return () => el.removeEventListener("wheel", onWheel);
   });
 
-  const put = (id: string) => { if (pick === null) return; const out = slots.slice(); const prev = out.indexOf(id); if (prev >= 0) out[prev] = null; out[pick] = id; onChange(out); setPick(null); };
+  const putAt = (idx: number, id: string) => { const out = slots.slice(); const prev = out.indexOf(id); if (prev >= 0) out[prev] = null; out[idx] = id; onChange(out); setPick(null); };
+  const put = (id: string) => { if (pick !== null) putAt(pick, id); };
+  // На компьютере плитку района можно утащить мышью прямо на участок (решение владельца 06.11); на телефоне — только нажатием.
+  const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
+  const [dragOver, setDragOver] = useState<number | null>(null);
+  const dragMoved = useRef(false);
+  const startDrag = (e: React.PointerEvent, id: string) => {
+    if (e.pointerType !== "mouse" || e.button !== 0 || disabled) return;
+    const sx = e.clientX, sy = e.clientY; dragMoved.current = false;
+    const onMv = (ev: PointerEvent) => {
+      if (!dragMoved.current && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+      dragMoved.current = true; setDrag({ id, x: ev.clientX, y: ev.clientY });
+      const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.("[data-plot]") as HTMLElement | null; setDragOver(el ? Number(el.dataset.plot) : null);
+    };
+    const onEnd = (ev: PointerEvent) => {
+      window.removeEventListener("pointermove", onMv); window.removeEventListener("pointerup", onEnd); window.removeEventListener("pointercancel", onEnd);
+      if (dragMoved.current) { const el = document.elementFromPoint(ev.clientX, ev.clientY)?.closest?.("[data-plot]") as HTMLElement | null; if (el) putAt(Number(el.dataset.plot), id); }
+      setDrag(null); setDragOver(null);
+    };
+    window.addEventListener("pointermove", onMv); window.addEventListener("pointerup", onEnd); window.addEventListener("pointercancel", onEnd);
+  };
   const clear = () => { if (pick === null) return; const out = slots.slice(); out[pick] = null; onChange(out); setPick(null); };
   const current = pick !== null ? slots[pick] ?? null : null;
   const shown = pile.filter((d) => !filter.trim() || d.title.toLowerCase().includes(filter.trim().toLowerCase()));
@@ -335,7 +365,10 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     <div className="plan-wrap">
       {hint && <p className="hint">{hint}{help && <Help>{help}</Help>}</p>}
       <div ref={view} className={"plan-view" + (state === "jam" ? " jam" : state === "open" ? " open" : "")} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} onContextMenu={(e) => e.preventDefault()} role="group" aria-label={t("План города: участки по спирали от ворот к площади")}>
-        <svg viewBox={`${win.x.toFixed(2)} ${win.y.toFixed(2)} ${win.w.toFixed(2)} ${win.h.toFixed(2)}`} style={{ transform: `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.k})` }} aria-hidden="true">
+        {/* Сцена с запасом: svg вдвое больше окна во все стороны, чтобы при перетаскивании за краем уже было нарисовано
+            (замечание владельца 06.11: «пока держу палец — не прогружается»); трансформация жеста — на обёртке. */}
+        <div className="plan-stage" style={{ transform: `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.k})` }}>
+        <svg viewBox={`${(win.x - win.w / 2).toFixed(2)} ${(win.y - win.h / 2).toFixed(2)} ${(2 * win.w).toFixed(2)} ${(2 * win.h).toFixed(2)}`} aria-hidden="true">
           <defs>
             {/* Текстуры 1024 px (сгенерированы, вид строго сверху): тайлы крупные, чтобы при приближении ×4 не мылились */}
             <pattern id={ids.verge} patternUnits="userSpaceOnUse" width="40" height="40"><image href={VERGE} width="40" height="40" /></pattern>
@@ -353,11 +386,11 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
           </defs>
           {/* Окрестности — один цельный пейзаж (06.11): в центре пустая площадка под город, вокруг луга, рощи, поля, холмы;
               дорога к воротам нарисована в нём. За краями картинки — её зеркальное продолжение. */}
-          <image href={st.outside} x={LAND_X} y={LAND_Y} width={LAND_W} height={LAND_H} preserveAspectRatio="none" />
-          {vb.y < LAND_Y && <image href={st.outside} x={LAND_X} y={-LAND_Y} width={LAND_W} height={LAND_H} transform="scale(1 -1)" preserveAspectRatio="none" />}
-          {vb.y + vb.h > LAND_Y + LAND_H && <image href={st.outside} x={LAND_X} y={-LAND_Y - 2 * LAND_H} width={LAND_W} height={LAND_H} transform="scale(1 -1)" preserveAspectRatio="none" />}
-          {vb.x < LAND_X && <image href={st.outside} x={-LAND_X} y={LAND_Y} width={LAND_W} height={LAND_H} transform="scale(-1 1)" preserveAspectRatio="none" />}
-          {vb.x + vb.w > LAND_X + LAND_W && <image href={st.outside} x={-LAND_X - 2 * LAND_W} y={LAND_Y} width={LAND_W} height={LAND_H} transform="scale(-1 1)" preserveAspectRatio="none" />}
+          <image href={land.href} x={land.x} y={land.y} width={land.w} height={land.h} preserveAspectRatio="none" />
+          {vb.y < land.y && <image href={land.href} x={land.x} y={-land.y} width={land.w} height={land.h} transform="scale(1 -1)" preserveAspectRatio="none" />}
+          {vb.y + vb.h > land.y + land.h && <image href={land.href} x={land.x} y={-land.y - 2 * land.h} width={land.w} height={land.h} transform="scale(1 -1)" preserveAspectRatio="none" />}
+          {vb.x < land.x && <image href={land.href} x={-land.x} y={land.y} width={land.w} height={land.h} transform="scale(-1 1)" preserveAspectRatio="none" />}
+          {vb.x + vb.w > land.x + land.w && <image href={land.href} x={-land.x - 2 * land.w} y={land.y} width={land.w} height={land.h} transform="scale(-1 1)" preserveAspectRatio="none" />}
           <rect x={vb.x} y={vb.y} width={vb.w} height={vb.h} fill={`url(#${ids.verge})`} opacity=".16" pointerEvents="none" />
           {/* Подъездная дорога от ворот вниз: начало под воротами, дальше — за край окна */}
           <g transform={`translate(0 ${WALL_R + C - 8})`} pointerEvents="none">
@@ -393,7 +426,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
           {plots.map((p, i) => {
             const id = slots[i] ?? null; const d = id ? byId.get(id) : undefined;
             const mid = (p.a + p.b) / 2; const rm = r(mid) + W / 2; const bottom = Math.sin(mid) > 0;
-            const active = !disabled && (pick === i || (pick === null && i === nextFree));
+            const active = !disabled && (pick === i || dragOver === i || (pick === null && dragOver === null && i === nextFree));
             // Подпись: значок номера занимает начало дуги (у p.a), текст — по центру остатка; строки одним кеглем, замер шириной.
             const phiM = 3 / rm, span = p.b - p.a - 2 * phiM;
             const fit = d ? fitTitle(d.title, span * (rm - 6), W) : null;
@@ -461,18 +494,9 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
           {decor.map((q, i) => <Sprite key={i} d={q} />)}
           {/* Ворота (сгенерированы, фронтально, 640×459) стоят на стене внизу: основание чуть снаружи стены, башни над ней */}
           <image href={GATE} x={gateXY[0] - 32} y={gateXY[1] - 37} width="64" height="45.9" filter="url(#sc-soft)" pointerEvents="none" />
-          {/* Путники идут по улице от ворот к площади и обратно; птицы кружат над городом */}
-          {motion && MOVERS.map((m, i) => { const q = SPR[m.k]; const h = q.h, w = h / q.ar; return (
-            <g key={i} pointerEvents="none">
-              <image href={q.href} x={-w / 2} y={-h * 0.9} width={w} height={h} filter="url(#sc-soft)" />
-              <animateMotion dur={`${m.dur}s`} begin={`${m.begin}s`} repeatCount="indefinite" keyPoints="0;1;0" keyTimes="0;0.5;1" calcMode="linear"><mpath href="#sc-roadpath" /></animateMotion>
-            </g>); })}
-          {motion && [[0, 118, 76, 52], [0.9, 150, 95, 67], [2.1, 96, 62, 44]].map(([ph, rx, ry, dur], i) => (
-            <g key={i} pointerEvents="none" opacity=".75">
-              <path d="M-1.3 -2.2 Q0 -0.9 0.1 0 Q0 0.9 -1.3 2.2" fill="none" stroke="#2b2118" strokeWidth=".6" strokeLinecap="round" />
-              <animateMotion dur={`${dur}s`} begin={`${-ph! * 10}s`} repeatCount="indefinite" rotate="auto" path={`M ${C - rx!} ${C} A ${rx} ${ry} 0 1 1 ${C + rx!} ${C} A ${rx} ${ry} 0 1 1 ${C - rx!} ${C}`} />
-            </g>))}
         </svg>
+        </div>
+        {drag && <div className="plan-drag-ghost" style={{ left: drag.x, top: drag.y }}>{byId.get(drag.id)?.title}</div>}
       </div>
       <div className="plan-foot">
         <span className="small muted">{pile.length ? t("Осталось районов: {n}", { n: pile.length }) : t("Все районы на местах. Проверните замок.")}</span>
@@ -486,7 +510,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             <input id="plan-find" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("Найти район")} aria-label={t("Найти район")} autoComplete="off" />
             <button type="button" className="ghost icon sm" onClick={() => setPick(null)} aria-label={t("Закрыть")}><Icon name="x" /></button>
           </div>
-          <div className="plan-pile" role="list">
+          <div className="plan-pile" role="list" onWheel={(e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) e.currentTarget.scrollLeft += e.deltaY; }}>
             {current && byId.get(current) && (
               <div className="tile current" role="listitem">
                 <b>{byId.get(current)!.title}</b><span className="muted">{byId.get(current)!.verses}</span>
@@ -494,7 +518,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
               </div>
             )}
             {shown.map((d) => (
-              <button key={d.id} type="button" className="secondary tile pick" role="listitem" onClick={() => put(d.id)}>
+              <button key={d.id} type="button" className="secondary tile pick" role="listitem" onPointerDown={(e) => startDrag(e, d.id)} onClick={() => { if (!dragMoved.current) put(d.id); dragMoved.current = false; }}>
                 <b>{d.title}</b><span className="muted">{d.verses}</span>
               </button>
             ))}
