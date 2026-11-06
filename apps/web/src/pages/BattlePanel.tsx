@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { NightNote } from "../components/NightNote";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Help } from "../components/Help";
+import { LinksField } from "../components/LinksField";
 import { TrialFlow } from "./TrialFlow";
 import { BookMap } from "./BookMap";
 
@@ -298,7 +299,7 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
   // Стих сдаётся один раз (решение владельца 03.10): принятые в прошлых испытаниях этой книги отмечать нельзя.
   const learned = useMemo(() => new Set((b.learnedVerses ?? []).filter((i) => !b.myVerses.includes(i))), [b.learnedVerses, b.myVerses]);
   const [sel, setSel] = useState<Set<number>>(new Set());
-  const [links, setLinks] = useState("");
+  const [links, setLinks] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toggle = (idx: number) => { if (locked || mine.has(idx) || learned.has(idx)) return; setSel((s) => { const n = new Set(s); if (n.has(idx)) n.delete(idx); else n.add(idx); return n; }); };
@@ -306,8 +307,8 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
   async function send() {
     setBusy(true); setError(null);
     try {
-      const r = await api<{ added: number; sum: number }>(`/api/games/${gameId}/battles/${b.id}/entries`, { method: "POST", body: JSON.stringify({ verses: [...sel], links: links.split(/\s+/).filter(Boolean) }) });
-      notify(t("Засчитано {a}. Команда выучила {s}", { a: verses(r.added), s: r.sum })); setSel(new Set()); setLinks(""); onChanged();
+      const r = await api<{ added: number; sum: number }>(`/api/games/${gameId}/battles/${b.id}/entries`, { method: "POST", body: JSON.stringify({ verses: [...sel], links }) });
+      notify(t("Засчитано {a}. Команда выучила {s}", { a: verses(r.added), s: r.sum })); setSel(new Set()); setLinks([]); onChanged();
     } catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
@@ -334,12 +335,10 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
       </ul>
       {!locked && (
         <div className="entry-form">
-          <div className="field">
-            <label htmlFor={"links-" + b.id}>{t("Ссылки на видео")}</label>
-            <textarea id={"links-" + b.id} rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} />
-          </div>
+          {/* Ссылки — кнопкой «Вставить ссылку», как в сдаче дела (решение владельца 06.11). */}
+          <LinksField label={t("Ссылки на видео")} links={links} onChange={setLinks} />
           {error && <p className="error" role="alert">{error}</p>}
-          <div className="actions"><button type="button" disabled={busy || sel.size === 0 || !links.trim()} onClick={() => void send()}><Icon name="check" />{sel.size ? t("Засчитать {n}", { n: verses(sel.size) }) : t("Засчитать")}</button></div>
+          <div className="actions"><button type="button" disabled={busy || sel.size === 0 || links.length === 0} onClick={() => void send()}><Icon name="check" />{sel.size ? t("Засчитать {n}", { n: verses(sel.size) }) : t("Засчитать")}</button></div>
         </div>
       )}
       {entries.length > 0 && (
