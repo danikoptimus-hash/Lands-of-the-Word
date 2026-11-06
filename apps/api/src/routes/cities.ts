@@ -167,6 +167,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
             title: content.title,
             translation: content.translation,
             codeRule: content.codeRule,
+            plan: content.plan,
             districts: publicDistricts(content, secret, scopeKey, solved),
             // Ответы решённых заданий не отдаются (решение владельца 05.11: «ответ вообще не показывается: выбрал верный
             // вариант, нажал, ответ принят — всё»): ни собранного хиазма, ни стиха-подтверждения. Стих приходит один раз —

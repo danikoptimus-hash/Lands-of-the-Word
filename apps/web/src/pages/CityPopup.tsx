@@ -9,6 +9,7 @@ import { WallSection } from "./Wall";
 import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtPause, plural } from "../lib/format";
+import { SpiralCity, cityStyleFromQuery } from "./SpiralCity";
 import { Icon } from "../components/Icon";
 import { NightNote } from "../components/NightNote";
 import { Chip } from "../components/Chip";
@@ -104,7 +105,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   useEffect(() => { void load(); }, [load, version]);
   useEffect(() => { const tm = setInterval(() => setNow(Date.now() + skew.current), 1000); return () => clearInterval(tm); }, []);
   // Начальная расстановка — черновик команды, если он содержит ровно эти районы; иначе порядок, в котором пришли районы.
-  useEffect(() => { if (city?.content && !city.state.orderSolved && !order) setOrder(validDraft(city.state.orderDraft, city.content.districts.map((d) => d.id))); }, [city, order]);
+  // Круглый город (06.11): черновик — участки с «-» на пустых местах; кольца замка — полная перестановка.
+  useEffect(() => { if (city?.content && !city.state.orderSolved && !order) setOrder(city.content.plan === "spiral" ? spiralDraft(city.state.orderDraft, city.content.districts.map((d) => d.id)) : validDraft(city.state.orderDraft, city.content.districts.map((d) => d.id))); }, [city, order]);
   const saveDraft = useDraftSaver(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/draft`);
 
   const book = city ? BOOK_BY_CODE.get(city.node.bookCode) : undefined;
@@ -259,16 +261,20 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
         return (
         <section className="step-body">
           <h3>{t("Расставьте районы по порядку книги")}</h3>
-          <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
+          {city.content.plan === "spiral" ? (
+            <SpiralCity districts={districts} slots={order.map((x) => (x === "-" ? null : x))} style={cityStyleFromQuery()} onChange={(s) => { const ids = s.map((x) => x ?? "-"); setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
+              hint={olock && olock.wrong > 0 && !olocked ? t("Ошибок подряд: {n} · следующая пауза {t}", { n: olock.wrong, t: fmtPause(onext * 1000) }) : city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Нажмите участок — выберите для него район. Город можно приближать и двигать. Готово — проверните замок.")}
+              help={t("Замок скажет, сколько районов не на месте, но не каких.")} />
+          ) : <LockRings ids={order} labels={new Map(districts.map((d) => [d.id, d.title]))} sub={new Map(districts.map((d) => [d.id, d.summary]))} onChange={(ids) => { setOrder(ids); setOrderResult(null); saveDraft({ order: ids }); }} disabled={busy || lockState === "open"} state={lockState} pinsWrong={orderResult}
             hint={olock && olock.wrong > 0 && !olocked ? t("Ошибок подряд: {n} · следующая пауза {t}", { n: olock.wrong, t: fmtPause(onext * 1000) }) : city.state.orderAttempts > 0 ? t("Попыток: {k}", { k: city.state.orderAttempts }) : t("Стрелки двигают район вверх и вниз. Готово — проверните замок.")}
-            help={t("Замок скажет, сколько штифтов не село, но не каких.")} />
+            help={t("Замок скажет, сколько штифтов не село, но не каких.")} />}
           {olocked && olock && (
             <div className="note bad lock-note">
               <div className="row nowrap"><PickCooling until={olock.lockedUntil!} now={now} label={t("Отмычка остывает")} total={(steps[Math.min(Math.max(olock.wrong - 1, 0), steps.length - 1)] ?? 20) * 1000} /></div>
               <span className="small">{t("Следующая попытка через {t}.", { t: fmtPause(olock.lockedUntil! - now) })}</span>
             </div>
           )}
-          <div className="actions"><button type="button" disabled={busy || lockState === "open" || olocked} onClick={() => void checkOrder()}><Icon name="lock" />{t("Провернуть замок")}</button></div>
+          <div className="actions"><button type="button" disabled={busy || lockState === "open" || olocked || order.includes("-")} onClick={() => void checkOrder()}><Icon name="lock" />{t("Провернуть замок")}</button></div>
         </section>
         );
       })()}
@@ -289,7 +295,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
                   <li key={d.id} data-task-index={i} className={justSolved ? "reveal" : ""} style={{ ["--d-hue" as string]: hue, animationDelay: justSolved ? `${i * 90}ms` : undefined }}>
                     <button type="button" className={"district set" + (ok ? " done" : "") + (teamOk ? " team-done" : "") + (locked ? " locked" : "") + (lit ? " lit" : "")} onClick={() => setTaskIndex(i)} aria-label={`${i + 1}. ${d.title} · ${ok ? t("выполнено") : teamOk ? t("решено командой, вами ещё нет") : locked ? t("закрыто") : t("не выполнено")}`}>
                       <span className="num">{i + 1}</span>
-                      <span className="body"><span className="d-title">{d.title} <span className="muted">{d.verses}</span></span><span className="d-sum muted">{d.summary}</span></span>
+                      <span className="body"><span className="d-title">{d.title} <span className="muted">{d.verses}</span>{city?.content?.tasks[i]?.type === "todo" && <span className="muted small"> · {t("задание готовится")}</span>}</span><span className="d-sum muted">{d.summary}</span></span>
                       {lit && <span className="window" title={t("Подсказка пророка открыта")} aria-hidden="true" />}
                       <span className={"check" + (ok ? " on" : "") + (teamOk ? " half" : "")}><Icon name={ok || teamOk ? "check" : locked ? "lock" : "chevron"} /></span>
                     </button>
@@ -509,10 +515,12 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
       )}
       {/* Хиазм: каждая свеча открывает новую пару, пока не откроются все (решение владельца 05.11); обычное задание — одно письмо. */}
       {hintsUsed > 0 && <p className="note info"><Icon name="sparkle" /><span>{task.type === "chiasm" ? t("Пророк открыл пар хиазма: {k} из {n}.", { k: hintsUsed, n: task.n }) + (hintsUsed < task.n ? " " + t("Следующую откроет новая свеча.") : "") : t("Подсказка пророка к этому заданию уже показана: она видна один раз.")}</span></p>}
-      {hintsUsed < (task.type === "chiasm" ? task.n : 1) && !done && canHint && <p className="mt-2 row nowrap"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Свеча пророка")}</button><Help>{task.type === "chiasm" ? t("Каждая свеча, раз в неделю, открывает новую пару строк хиазма. Видит только пророк.") : t("Раз в неделю открывает текст района. Видит только пророк.")}</Help></p>}
+      {task.type !== "todo" && hintsUsed < (task.type === "chiasm" ? task.n : 1) && !done && canHint && <p className="mt-2 row nowrap"><button type="button" className="secondary" disabled={busy} onClick={onHint}><Icon name="sparkle" />{t("Свеча пророка")}</button><Help>{task.type === "chiasm" ? t("Каждая свеча, раз в неделю, открывает новую пару строк хиазма. Видит только пророк.") : t("Раз в неделю открывает текст района. Видит только пророк.")}</Help></p>}
       {done ? (<>
         {/* Ответ решённого задания не показывается (решение владельца 05.11): только «выполнено» и знак шифра. */}
         <div className="note ok"><Icon name="check" /><span>{t("Выполнено. Знак шифра: {f}", { f: fragment ?? "" })}</span></div></>
+      ) : task.type === "todo" ? (
+        <div className="note info"><Icon name="clock" /><span>{t("Задание для этого района ещё готовится: район уже можно поставить на место, а ответить — позже.")}</span></div>
       ) : (
         <div className="answer">
           {teamDone && <div className="note info"><Icon name="users" /><span>{t("Команда уже открыла знак этого задания: {f}. Решите его сами, чтобы оно пошло в ваш зачёт для ключа.", { f: fragment ?? "" })}</span></div>}
@@ -550,6 +558,13 @@ function chiasmDraft(draft: string[] | undefined, ids: string[], len: number): A
 function ordersDraft(draft: string[] | undefined, groups: string[][]): string[][] {
   if (!draft || draft.length !== groups.reduce((n, g) => n + g.length, 0)) return groups;
   return groups.map((g) => { const set = new Set(g); return validDraft(draft.filter((x) => set.has(x)), g); });
+}
+/** Черновик круглого города (06.11): участки по порядку, «-» — пустой; битый черновик — все участки пусты. */
+function spiralDraft(draft: string[] | undefined, ids: string[]): string[] {
+  const empty = ids.map(() => "-");
+  if (!draft || draft.length !== ids.length) return empty;
+  const set = new Set(ids); const used = draft.filter((x) => x !== "-");
+  return used.every((x) => set.has(x)) && new Set(used).size === used.length ? draft : empty;
 }
 function validDraft(draft: string[] | undefined, ids: string[]): string[] {
   if (!draft || draft.length !== ids.length) return ids;

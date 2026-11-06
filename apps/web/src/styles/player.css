@@ -607,6 +607,20 @@
 .prophet-letter .letter-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-2); font-family: var(--font); }
 .prophet-letter .letter-head .i { color: var(--accent); }
 .prophet-letter .letter-sign { margin-top: var(--sp-2); text-align: right; font-family: var(--font); }
+/* Круглый город (06.11): замок порядка для книг с планом spiral. */
+.plan-wrap { display: flex; flex-direction: column; gap: var(--sp-2); }
+.plan-wrap > .hint { margin: 0; }
+.plan-view { position: relative; overflow: hidden; width: 100%; aspect-ratio: 1 / 1; max-height: 74vh; border-radius: 14px; border: 1px solid var(--border-strong); background: #cdb98f; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; box-shadow: inset 0 0 40px rgba(60, 40, 20, .25); }
+.plan-view > svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform-origin: 0 0; will-change: transform; }
+.plan-tools button .i { width: 20px; height: 20px; }
+.plan-view.jam { animation: lockJam .5s var(--ease-out); }
+.plan-view .plot { cursor: pointer; }
+.plan-tools { position: absolute; right: 8px; top: 8px; display: flex; flex-direction: column; gap: 6px; z-index: 2; }
+.plan-tools button { width: 36px; height: 36px; min-height: 36px; padding: 0; border-radius: 9px; display: grid; place-items: center; }
+.plan-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.plan-pile { display: flex; flex-direction: column; gap: 6px; }
+.plan-pile .pick { text-align: left; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border-radius: 10px; min-height: 0; white-space: normal; }
+.plan-pile .pick small { color: var(--muted); font-weight: 400; }
 /* Письмо к хиазму: две строки пары с буквами мест, как на доске (05.11). */
 .prophet-letter .letter-pair { --man: #A9553A; --god: #4F7C99; display: flex; flex-direction: column; gap: var(--sp-1); margin: var(--sp-2) 0; }
 .prophet-letter .letter-pair p { display: flex; align-items: center; gap: 8px; margin: 0; }
