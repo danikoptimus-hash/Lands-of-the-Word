@@ -9,6 +9,8 @@ import { DIRECTIONS, deedBody, reassignOpenSides, syncGameDeeds } from "../servi
 import { adminOrObserver } from "../services/access.js";
 import { peopleOf, rebalancePeople } from "../services/people.js";
 import { openWreck, sinkWreck } from "../services/wrecks.js";
+import { notifyTeam } from "../services/notify.js";
+import { msg } from "../services/i18n.js";
 
 export { DIRECTIONS } from "../services/defaultDeeds.js";
 
@@ -35,6 +37,22 @@ export function effectiveNodeCount(settings: { nodeCount?: number; cityGap?: num
 
 export function recommendedDeedCount(nodeCount: number): number {
   return Math.max(30, Math.round(nodeCount / 8));
+}
+
+/**
+ * Новое общее дело в Каменоломне (решение владельца 06.11): всем командам идущей игры — уведомление и push, как при
+ * появлении разбитого корабля; в «Внимание» оно попадает через `quarryNew` в my-map. Черновик и завершённая игра — молча.
+ */
+async function announceQuarry(gameId: string, titles: string[]): Promise<void> {
+  if (!titles.length) return;
+  const game = await prisma.game.findUnique({ where: { id: gameId }, select: { status: true } });
+  if (game?.status !== "ACTIVE") return;
+  const teams = await prisma.team.findMany({ where: { gameId, status: "active" }, select: { id: true } });
+  for (const t of teams) {
+    if (titles.length === 1) notifyTeam(gameId, t.id, "В Каменоломне новое дело", (locale) => msg(locale, "В Каменоломне появилось новое общее дело «{deed}». Его сдаёт капитан, заместитель или летописец, а камни мостят дороги. Каменоломня — на карте.", { deed: titles[0]! }));
+    else notifyTeam(gameId, t.id, "В Каменоломне новые дела", (locale) => msg(locale, "В Каменоломне появились новые общие дела: {n}. Их сдаёт капитан, заместитель или летописец, а камни мостят дороги. Каменоломня — на карте.", { n: titles.length }));
+  }
+  publish(gameId, { type: "map" });
 }
 
 export async function deedRoutes(app: FastifyInstance): Promise<void> {
@@ -81,6 +99,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const deed = await prisma.deed.create({ data: { ...body, quarry: body.wreck ? false : body.quarry, gameId: id } });
     // Срочное задание — на карте появляется разбитый корабль (решение владельца 04.11).
     if (deed.wreck && !deed.disabled) await openWreck(id, deed);
+    if (deed.quarry && !deed.disabled) await announceQuarry(id, [deed.title]);
     publish(id, { type: "deeds" });
     // Решение владельца 05.10: дело, которое уже появилось на стороне, не подменяется. Новое дело попадает
     // только на новые стороны (до 05.10 добавление дела перераздавало свободные стороны всех команд).
@@ -103,6 +122,8 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     // Разбитый корабль (решение владельца 04.11): срочное и включённое дело держит корабль открытым; снятый флажок или
     // выключение — корабль тонет у тех, кто не успел.
     if (deed.wreck && !deed.disabled) await openWreck(id, deed); else await sinkWreck(id, { deedId });
+    // Дело стало общим или общее дело включили обратно — для команд оно новое.
+    if (deed.quarry && !deed.disabled && (!exists.quarry || exists.disabled)) await announceQuarry(id, [deed.title]);
     publish(id, { type: "deeds" });
     // Новые вероятность и книги действуют только на новые стороны: дела, которые уже видны на карте, остаются (решение владельца 05.10).
     return { deed };
@@ -174,7 +195,11 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     if (!(await requireGameAdmin(request, reply, id))) return;
     const mode = z.object({ mode: z.enum(["add", "replace"]).default("add") }).parse(request.body ?? {}).mode;
-    return syncGameDeeds(id, mode);
+    const before = new Set((await prisma.deed.findMany({ where: { gameId: id, quarry: true }, select: { id: true } })).map((d) => d.id));
+    const res = await syncGameDeeds(id, mode);
+    const added = await prisma.deed.findMany({ where: { gameId: id, quarry: true, disabled: false, id: { notIn: [...before] } }, select: { title: true } });
+    await announceQuarry(id, added.map((d) => d.title));
+    return res;
   });
 
 }

@@ -3,6 +3,7 @@ import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { cleanupFixtures, readyForStart, registerVerified } from "./testAuth.js";
 import { deedTextHash, FORCE_TEXT_TITLES, syncGameDeeds } from "./services/defaultDeeds.js";
+import { pushOutbox } from "./services/push.js";
 
 /**
  * Каменоломня (решение владельца 04.10): общие дела команды сдаёт капитан, заместитель или летописец; администратор
@@ -48,6 +49,23 @@ afterAll(async () => {
 });
 
 describe("Каменоломня", () => {
+  it("новое общее дело в идущей игре → push командам и пункт «Внимание» (quarryNew в my-map), пока команда его не сдала (06.11)", async () => {
+    pushOutbox.length = 0;
+    const r = await post(`/api/games/${gameId}/deeds`, adminCookie, { title: "Убрать двор дома молитвы", description: "Все вместе", direction: "Посещение", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: null, donationMin: null, quarry: true, stones: 2, quorumPct: null });
+    expect(r.statusCode).toBe(201);
+    for (let i = 0; i < 50 && pushOutbox.length < 2; i++) await new Promise((x) => setTimeout(x, 20));
+    const p = pushOutbox.find((x) => x.payload.title.includes("Каменоломне") || x.payload.title.includes("Quarry"));
+    expect(p).toBeTruthy(); expect(p!.payload.body).toContain("Убрать двор дома молитвы");
+    const map = (await get(`/api/games/${gameId}/my-map`, capCookie)).json();
+    expect(map.quarryNew.map((d: { title: string }) => d.title)).toContain("Убрать двор дома молитвы");
+    // Команда сдала — для неё дело уже не новое.
+    const deedId = r.json().deed.id as string;
+    const cap = (await get("/api/auth/me", capCookie)).json().user.id as string;
+    await prisma.quarryWork.create({ data: { gameId, teamId, deedId, byId: cap, participants: [], links: ["https://photos.example/q"], note: "", stones: 2 } });
+    expect((await get(`/api/games/${gameId}/my-map`, capCookie)).json().quarryNew.some((d: { id: string }) => d.id === deedId)).toBe(false);
+    await prisma.quarryWork.deleteMany({ where: { deedId } }); await prisma.deed.delete({ where: { id: deedId } });
+  });
+
   it("общие дела из набора не попадают на дороги и видны в листе Каменоломни", async () => {
     const map = (await get(`/api/games/${gameId}/my-map`, capCookie)).json();
     const ids = new Set((map.tasks as Array<{ deedId: string }>).map((t) => t.deedId));
