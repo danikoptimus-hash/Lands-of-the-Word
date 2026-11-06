@@ -17,7 +17,7 @@ const LAND_PRE = "/img/city-plan/landscape.webp";
 /** Наборы текстур на выбор (владелец смотрит варианты на стенде: `?cityStyle=a|b|c`); окрестности — один цельный сгенерированный пейзаж,
  *  стена и ворота из песчаника, деревья и черепица — тоже из генератора (06.11, `scripts/img-gen`). */
 export const CITY_STYLES = {
-  a: { name: "Пергамент", ground: "/img/props/parchment.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-tiles.webp", outside: LAND_PRE, roofEdge: "#6e3a26", label: "#fff6e6", number: "#b5583c" },
+  a: { name: "Пергамент", ground: "/img/city-plan/pavement.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-tiles.webp", outside: LAND_PRE, roofEdge: "#6e3a26", label: "#fff6e6", number: "#b5583c" },
   b: { name: "Оазис", ground: "/img/terrain/oasis.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-flat.webp", outside: LAND_PRE, roofEdge: "#7a5a36", label: "#3a2d1f", number: "#7a5226" },
   c: { name: "Глина", ground: "/img/terrain/desert.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-slate.webp", outside: LAND_PRE, roofEdge: "#2f343c", label: "#f4f6f8", number: "#4f5a66" },
 } as const;
@@ -36,12 +36,14 @@ const WALL_R = R0 + W + GAP + 6;
  *  ширине — доли ширины/высоты файла). Картинка масштабируется так, чтобы площадка легла под город (LAND_FIT — радиус в единицах
  *  плана, чуть меньше стены), и центрируется по площадке; окно плана бывает выше или шире картинки — тогда по краям её зеркальное
  *  продолжение (площадка далеко от краёв, в отражении не видна). */
-const LAND_IMG = { w: 1024, h: 1536, cx: 0.506, cy: 0.42, rx: 0.303 }, LAND_FIT = 226;
+const LAND_IMG = { w: 1024, h: 1536, cx: 0.5, cy: 0.47, rx: 0.31 }, LAND_FIT = 226;
 const LAND_S = LAND_FIT / (LAND_IMG.rx * LAND_IMG.w), LAND_W = LAND_IMG.w * LAND_S, LAND_H = LAND_IMG.h * LAND_S, LAND_X = C - LAND_IMG.cx * LAND_W, LAND_Y = C - LAND_IMG.cy * LAND_H;
 /** Стена — сгенерированный отрезок из песчаника (вид сверху, зубцы по краям, 311×96, бесшовный), выложенный по кругу
  *  WALL_N сегментами шириной WALL_BAND; ворота — отдельный спрайт поверх стены внизу. */
 const WALL_SEG = "/img/city-plan/wall-seg.webp", WALL_BAND = 14, WALL_N = Math.round((2 * Math.PI * WALL_R) / (WALL_BAND * 311 / 96));
-const GATE = "/img/city-plan/gate.webp", VERGE = "/img/terrain/meadow.webp";
+const GATE = "/img/city-plan/gate.webp", VERGE = "/img/city-plan/grass.webp";
+/** Подъездная дорога (замечание владельца 06.11: дорога в пейзаже шла мимо ворот): рисуется в плане от ворот строго вниз, с лёгким изгибом ниже. */
+const APPROACH = `M ${C} ${0} V 60 C ${C} 150 ${C - 12} 210 ${C - 10} 290 S ${C + 4} 450 ${C} 1200`;
 /** Спрайты города (сгенерированы, см. docs): h — высота в единицах плана при масштабе 1, ar — высота/ширина файла. */
 const P = "/img/city-plan/";
 const SPR = {
@@ -266,10 +268,11 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
       <div ref={view} className={"plan-view" + (state === "jam" ? " jam" : state === "open" ? " open" : "")} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} role="group" aria-label={t("План города: участки по спирали от ворот к площади")}>
         <svg viewBox={`${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`} style={{ transform: `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.k})` }} aria-hidden="true">
           <defs>
-            <pattern id={ids.verge} patternUnits="userSpaceOnUse" width="120" height="120"><image href={VERGE} width="120" height="120" /></pattern>
-            <pattern id={ids.ground} patternUnits="userSpaceOnUse" width="220" height="220"><image href={st.ground} width="220" height="220" /></pattern>
-            <pattern id={ids.road} patternUnits="userSpaceOnUse" width="56" height="56"><image href={st.road} width="56" height="56" /></pattern>
-            <pattern id={ids.earth} patternUnits="userSpaceOnUse" width="56" height="56"><image href={st.earth} width="56" height="56" /></pattern>
+            {/* Текстуры 1024 px (сгенерированы, вид строго сверху): тайлы крупные, чтобы при приближении ×4 не мылились */}
+            <pattern id={ids.verge} patternUnits="userSpaceOnUse" width="40" height="40"><image href={VERGE} width="40" height="40" /></pattern>
+            <pattern id={ids.ground} patternUnits="userSpaceOnUse" width="80" height="80"><image href={st.ground} width="80" height="80" /></pattern>
+            <pattern id={ids.road} patternUnits="userSpaceOnUse" width="30" height="30"><image href={st.road} width="30" height="30" /></pattern>
+            <pattern id={ids.earth} patternUnits="userSpaceOnUse" width="48" height="48"><image href={st.earth} width="48" height="48" /></pattern>
             <pattern id={ids.roof} patternUnits="userSpaceOnUse" width="26" height="26"><image href={st.roof} width="26" height="26" /></pattern>
             <filter id="sc-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="1.2" dy="1.8" stdDeviation="1.2" floodColor="#2a1d10" floodOpacity=".45" /></filter>
             <filter id="sc-soft" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#2a1d10" floodOpacity=".35" /></filter>
@@ -282,6 +285,11 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
           {vb.y + vb.h > LAND_Y + LAND_H && <image href={st.outside} x={LAND_X} y={-LAND_Y - 2 * LAND_H} width={LAND_W} height={LAND_H} transform="scale(1 -1)" preserveAspectRatio="none" />}
           {vb.x < LAND_X && <image href={st.outside} x={-LAND_X} y={LAND_Y} width={LAND_W} height={LAND_H} transform="scale(-1 1)" preserveAspectRatio="none" />}
           {vb.x + vb.w > LAND_X + LAND_W && <image href={st.outside} x={-LAND_X - 2 * LAND_W} y={LAND_Y} width={LAND_W} height={LAND_H} transform="scale(-1 1)" preserveAspectRatio="none" />}
+          {/* Подъездная дорога от ворот вниз: начало под воротами, дальше — за край окна */}
+          <g transform={`translate(0 ${WALL_R + C - 8})`} pointerEvents="none">
+            <path d={APPROACH} fill="none" stroke="#4e3f28" strokeWidth={ROAD + 5} strokeLinecap="round" opacity=".22" />
+            <path d={APPROACH} fill="none" stroke={`url(#${ids.road})`} strokeWidth={ROAD + 2} strokeLinecap="round" />
+          </g>
           {/* Город: земля, стена, дорога-спираль */}
           <circle cx={C} cy={C} r={WALL_R + 2} fill={`url(#${ids.ground})`} />
           <circle cx={C} cy={C} r={WALL_R + 2} fill="url(#sc-vignette)" />
@@ -346,7 +354,6 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
           })}
           {/* Жизнь города: растения, жители, животные, предметы, фонтан — по порядку сверху вниз, чтобы ближние перекрывали дальних */}
           {decor.map((q, i) => <Sprite key={i} d={q} />)}
-          <text x={C} y={C + 16} textAnchor="middle" fontSize="6" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff6e6" stroke="rgba(40,25,10,.55)" strokeWidth=".8" style={{ paintOrder: "stroke" }} pointerEvents="none">{t("Площадь")}</text>
           {/* Ворота (сгенерированы, фронтально, 640×459) стоят на стене внизу: основание чуть снаружи стены, башни над ней */}
           <image href={GATE} x={gateXY[0] - 32} y={gateXY[1] - 37} width="64" height="45.9" filter="url(#sc-soft)" pointerEvents="none" />
           {/* Путники идут по улице от ворот к площади и обратно; птицы кружат над городом */}
