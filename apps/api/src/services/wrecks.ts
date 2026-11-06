@@ -105,8 +105,15 @@ export async function sinkWreck(gameId: string, where: { wreckId?: string; deedI
  * как при снятом флажке. Зовётся из общего обхода раз в минуту.
  */
 export async function sinkDueWrecks(gameId?: string, now = new Date()): Promise<void> {
-  const due = await prisma.wreck.findMany({ where: { ...(gameId ? { gameId } : {}), closedAt: null, sinkAt: { lte: now } }, select: { id: true, gameId: true } });
-  for (const w of due) await sinkWreck(w.gameId, { wreckId: w.id });
+  const due = await prisma.wreck.findMany({ where: { ...(gameId ? { gameId } : {}), closedAt: null, sinkAt: { lte: now } }, select: { id: true, gameId: true, deedId: true } });
+  for (const w of due) {
+    await sinkWreck(w.gameId, { wreckId: w.id });
+    // Корабль утонул по сроку — дело удаляется само (решение владельца 06.11); строка корабля остаётся с названием для истории.
+    if (w.deedId) {
+      const deed = await prisma.deed.findUnique({ where: { id: w.deedId }, select: { wreck: true } });
+      if (deed?.wreck) { await prisma.deed.delete({ where: { id: w.deedId } }); publish(w.gameId, { type: "deeds" }); }
+    }
+  }
 }
 
 /** Корабли на карте команды: открытые — всем; одобренный для этой команды и затонувший — ещё две минуты, на анимацию. */

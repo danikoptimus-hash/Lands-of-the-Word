@@ -35,7 +35,12 @@ function withBook(text: string) {
 }
 
 /** mode — раздел без переключателя: «roads» в разделе «Дела», «quarry» в листе Каменоломни у администратора (решение владельца 05.10). */
-export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }: { gameId: string; version?: number; onChange?: () => void; mode?: "roads" | "quarry"; /** «Посмотреть на карте» у стороны человека из списка (просьба владельца 21.10). */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
+/**
+ * Дела администратора. В разделе «Дела» две вкладки (решение владельца 06.11): «Дела на суше» — обычные дела дорог, и
+ * «Разбитый корабль» — дела срочных заданий с короткой формой (название, описание, направление, что сдать, груз, срок).
+ * Дела Каменоломни — отдельный блок в листе Каменоломни (`mode="quarry"`).
+ */
+export function DeedsBlock({ gameId, version = 0, onChange, mode = "roads", onShowOnMap }: { gameId: string; version?: number; onChange?: () => void; mode?: "roads" | "quarry"; /** «Посмотреть на карте» у стороны человека из списка (просьба владельца 21.10). */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   type DeedsResp = { deeds: DeedDto[]; directions: string[]; recommendedMin: number };
   const first = ready<DeedsResp>(`/api/games/${gameId}/deeds`);
   const [deeds, setDeeds] = useState<DeedDto[] | null>(first?.deeds ?? null);
@@ -48,8 +53,9 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
   /** Открытая форма: null — закрыта; { id: null } — новое дело; { id } — изменение. */
   const [sheet, setSheet] = useState<{ id: string | null; form: Form } | null>(null);
   /** Два раздела (решение владельца 04.10): обычные дела дорог и общие дела Каменоломни; переключатель вверху. */
-  const [section, setSection] = useState<"roads" | "quarry">(mode ?? "roads");
-  const inQuarry = (mode ?? section) === "quarry";
+  const [section, setSection] = useState<"roads" | "wreck">("roads");
+  const inQuarry = mode === "quarry";
+  const inWreck = !inQuarry && section === "wreck";
   const form = sheet?.form ?? EMPTY;
   const setForm = (patch: Partial<Form>) => setSheet((s) => (s ? { ...s, form: { ...s.form, ...patch } } : s));
   /** Описание дела в списке свёрнуто в одну строку; полностью — по нажатию на строку (решение владельца 18.09). */
@@ -63,7 +69,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
   const reload = async () => { await load(); onChange?.(); };
   useEffect(() => { void load(); }, [load, version]);
 
-  const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, quarry: inQuarry, direction: directions[0] ?? "" } }); };
+  const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, quarry: inQuarry, wreck: inWreck, direction: directions[0] ?? "" } }); };
   const formOf = (d: DeedDto): Form => ({ wreck: d.wreck ?? false, wreckStones: d.wreckStones ?? 3, wreckBlocks: d.wreckBlocks ?? 2, wreckSinkAt: d.wreckSinkAt ? toLocalInput(d.wreckSinkAt) : "", quarry: d.quarry ?? false, stones: d.stones ?? 1, title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 60, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" });
   const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: formOf(d) }); };
   /** Дубликат дела (решение владельца 04.10): форма нового дела, заполненная полями исходного; сохраняется как отдельное дело. */
@@ -74,7 +80,9 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
     e.preventDefault(); if (!sheet) return;
     setError(null); setBusy(true);
     try {
-      const f = sheet.form.quarry ? { ...sheet.form, wreck: false, canRepeat: true, bookCodes: [], secret: false, remote: false, siegePoints: "" as const, donationMin: "" as const } : sheet.form;
+      // Дело для корабля (06.11): короткая форма — остальные поля дорожного дела не нужны и уходят значениями по умолчанию.
+      const f = sheet.form.quarry ? { ...sheet.form, wreck: false, canRepeat: true, bookCodes: [], secret: false, remote: false, siegePoints: "" as const, donationMin: "" as const }
+        : sheet.form.wreck ? { ...sheet.form, quarry: false, canRepeat: true, bookCodes: [], secret: false, remote: false, chance: 60, siegePoints: "" as const, donationMin: "" as const } : sheet.form;
       const body = JSON.stringify({ ...f, stones: f.stones === "" ? 1 : f.stones, wreckStones: f.wreckStones === "" ? 0 : f.wreckStones, wreckBlocks: f.wreckBlocks === "" ? 0 : f.wreckBlocks, wreckSinkAt: f.wreck && f.wreckSinkAt ? new Date(f.wreckSinkAt).toISOString() : null, siegePoints: f.siegePoints === "" ? null : Number(f.siegePoints), donationMin: f.donationMin === "" ? null : Number(f.donationMin) });
       if (sheet.id) { await api(`/api/games/${gameId}/deeds/${sheet.id}`, { method: "PUT", body }); notify(t("Дело сохранено")); }
       else { await api(`/api/games/${gameId}/deeds`, { method: "POST", body }); notify(t("Дело добавлено")); }
@@ -99,61 +107,59 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
     try { await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "PUT", body: JSON.stringify({ disabled: !d.disabled }) }); notify(d.disabled ? t("Дело включено: снова может попасть на новые дороги") : t("Дело выключено: на новые дороги больше не попадёт")); await reload(); }
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
   }
-  /** Отпустить корабль (решение владельца 04.11): корабль тонет у команд, которые не успели, открытые сдачи закрываются. */
-  async function releaseWreck(d: DeedDto) {
-    if (!d.wreckId) return;
-    if (!(await confirm(t("Корабль затонет: команды, не успевшие сдать задание, его потеряют, открытые сдачи закроются. Дело останется срочным — снимите флажок, если корабль больше не нужен."), { title: t("Отпустить корабль?"), okLabel: t("Отпустить"), danger: true }))) return;
-    try { await api(`/api/games/${gameId}/wrecks/${d.wreckId}/close`, { method: "POST" }); notify(t("Корабль затонул")); await reload(); }
-    catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
-  }
+  // Кнопки «Отпустить корабль» больше нет (решение владельца 06.11): корабль тонет, когда дело удаляют, а по сроку — дело удаляется само.
   async function remove(d: DeedDto) {
-    if (!(await confirm(t("Дело «{title}» будет удалено из списка.", { title: d.title }), { title: t("Удалить дело?"), okLabel: t("Удалить"), danger: true }))) return;
+    if (!(await confirm(d.wreck ? t("Дело «{title}» будет удалено, корабль затонет: команды, не успевшие сдать задание, его потеряют, открытые сдачи закроются.", { title: d.title }) : t("Дело «{title}» будет удалено из списка.", { title: d.title }), { title: t("Удалить дело?"), okLabel: t("Удалить"), danger: true }))) return;
     try { await api(`/api/games/${gameId}/deeds/${d.id}`, { method: "DELETE" }); notify(t("Дело удалено")); await reload(); }
     catch (err) { notify(err instanceof ApiError ? err.message : t("Ошибка сети"), "bad"); }
   }
 
-  const roads = deeds?.filter((d) => !d.quarry) ?? null;
+  const roads = deeds?.filter((d) => !d.quarry && !d.wreck) ?? null;
+  const wrecks = deeds?.filter((d) => d.wreck) ?? null;
   const quarry = deeds?.filter((d) => d.quarry) ?? null;
-  const shown = inQuarry ? quarry : roads;
-  // Свайп по блоку переключает «Обычные дела» и «Дела Каменоломни» (решение владельца 30.10), как у вкладок Tabs.
+  const shown = inQuarry ? quarry : inWreck ? wrecks : roads;
+  // Свайп по блоку переключает «Дела на суше» и «Разбитый корабль» (как у вкладок Tabs, 30.10).
   const [root, setRoot] = useState<HTMLElement | null>(null);
-  useSwipeTabs(mode ? null : root, ["roads", "quarry"] as const, inQuarry ? "quarry" : "roads", (k) => setSection(k));
+  useSwipeTabs(inQuarry ? null : root, ["roads", "wreck"] as const, section, (k) => setSection(k));
   return (
     <div className="card" ref={setRoot}>
       <div className="card-head">
         <h2><span className="ico"><Icon name={inQuarry ? "stone" : "scroll"} /></span>{inQuarry ? t("Дела Каменоломни") : t("Дела")} {shown && <span className="count">{shown.length}</span>}</h2>
         <div className="row">
-          {deeds && deeds.length > 0 && <ActionMenu label={t("Стандартный набор")} items={[
+          {deeds && deeds.length > 0 && !inWreck && <ActionMenu label={t("Стандартный набор")} items={[
             { label: t("Добавить недостающие из стандартного набора"), icon: "sparkle", onSelect: () => void importDefault("add") },
             { label: t("Заменить список стандартным набором"), icon: "refresh", danger: true, onSelect: () => void importDefault("replace") },
           ]} />}
           <button type="button" className="sm" onClick={openNew} disabled={!deeds}><Icon name="plus" />{t("Новое дело")}</button>
         </div>
       </div>
-      {!mode && <div className="tabs deed-sections mt-2" role="tablist">
-        <button type="button" role="tab" aria-selected={!inQuarry} className={inQuarry ? undefined : "active"} onClick={() => setSection("roads")}><Icon name="scroll" /><span>{t("Обычные дела")}</span>{roads && <span className="count-chip">{roads.length}</span>}</button>
-        <button type="button" role="tab" aria-selected={inQuarry} className={inQuarry ? "active" : undefined} onClick={() => setSection("quarry")}><Icon name="stone" /><span>{t("Дела Каменоломни")}</span>{quarry && <span className="count-chip">{quarry.length}</span>}</button>
+      {!inQuarry && <div className="tabs deed-sections mt-2" role="tablist">
+        <button type="button" role="tab" aria-selected={!inWreck} className={inWreck ? undefined : "active"} onClick={() => setSection("roads")}><Icon name="scroll" /><span>{t("Дела на суше")}</span>{roads && <span className="count-chip">{roads.length}</span>}</button>
+        <button type="button" role="tab" aria-selected={inWreck} className={inWreck ? "active" : undefined} onClick={() => setSection("wreck")}><Icon name="ship" /><span>{t("Разбитый корабль")}</span>{wrecks && <span className="count-chip">{wrecks.length}</span>}</button>
       </div>}
+      {inWreck && <p className="hint mt-2">{t("Дело для разбитого корабля: на карте всех команд у берега появляется корабль с этим заданием, его могут сдать несколько команд, за принятое задание капитан благодарит грузом. Удалите дело — корабль затонет; когда корабль тонет по сроку, дело удаляется само.")}</p>}
       {inQuarry && <p className="hint mt-2">{t("Общие дела всей команды: сдаёт капитан, заместитель или летописец в Каменоломне на карте, всегда доступны. Принятое дело даёт камни, камень мостит одну свободную дорогу — куда, решает команда.")}</p>}
-      {!inQuarry && roads && roads.length > 0 && roads.length < recommended && <p className="note warn"><Icon name="alert" /><span>{t("Рекомендуется не меньше {n} дел, иначе они начнут повторяться.", { n: recommended })}</span></p>}
+      {!inQuarry && !inWreck && roads && roads.length > 0 && roads.length < recommended && <p className="note warn"><Icon name="alert" /><span>{t("Рекомендуется не меньше {n} дел, иначе они начнут повторяться.", { n: recommended })}</span></p>}
       {loadError ? <ErrorState onRetry={() => void load()} /> : !shown ? <LoadingState /> : shown.length === 0 ? (
         inQuarry
           ? <EmptyState icon="stone" text={t("Общих дел пока нет. Они есть в стандартном наборе, или добавьте свои.")} action={<button type="button" className="secondary" onClick={() => void importDefault()} disabled={busy}><Icon name="sparkle" />{t("Стандартный набор")}</button>} />
+          : inWreck
+          ? <EmptyState icon="ship" text={t("Дел для разбитого корабля пока нет. Добавьте дело — на карте всех команд появится корабль.")} action={<button type="button" className="secondary" onClick={openNew}><Icon name="plus" />{t("Новое дело")}</button>} />
           : <EmptyState icon="scroll" text={t("Дел пока нет. Возьмите стандартный набор как заготовку или добавьте свои.")} action={<button type="button" className="secondary" onClick={() => void importDefault()} disabled={busy}><Icon name="sparkle" />{t("Стандартный набор")}</button>} />
       ) : (
         <ul className="list">
           {shown.map((d) => { const open = expanded.has(d.id); return (
             <li key={d.id} className={"deed-row" + (open ? " open" : "") + (d.disabled ? " off" : "")}>
               <div className="main" onClick={() => toggle(d.id)}>
-                <span className="title">{withBook(d.title)} {d.wreck && <Chip tone="bad" icon="ship" title={t("Срочное задание: разбитый бурей корабль на карте")}>{t("срочное")}</Chip>} {d.wreck && <Chip icon="stone" title={t("Груз корабля")}>{t("{s} камня / {b} блока", { s: d.wreckStones ?? 3, b: d.wreckBlocks ?? 2 })}</Chip>} {d.wreck && d.wreckSinkAt && <Chip tone={Date.parse(d.wreckSinkAt) <= Date.now() ? "warn" : "info"} icon="clock" title={t("Срок затопления корабля")}>{Date.parse(d.wreckSinkAt) <= Date.now() ? t("затонул") : t("утонет {d}", { d: fmtDate(d.wreckSinkAt) })}</Chip>} {d.quarry && <Chip tone="accent" icon="stone" title={t("Камней за дело")}>{d.stones ?? 1}</Chip>} {d.disabled && <Chip tone="warn" icon="x">{t("выключено")}</Chip>} {(d.peopleCount ?? 0) > 0 && <Chip icon="users" title={t("Людей в списке «кому звонить»")}>{d.peopleCount}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
+                <span className="title">{withBook(d.title)} {d.wreck && (d.wreckId ? <Chip tone="info" icon="ship" title={t("Корабль с этим заданием сейчас на карте")}>{t("на карте")}</Chip> : <Chip tone="warn" icon="ship">{t("корабля нет")}</Chip>)} {d.wreck && <Chip icon="stone" title={t("Груз корабля")}>{t("{s} камня / {b} блока", { s: d.wreckStones ?? 3, b: d.wreckBlocks ?? 2 })}</Chip>} {d.wreck && d.wreckSinkAt && <Chip tone={Date.parse(d.wreckSinkAt) <= Date.now() ? "warn" : "info"} icon="clock" title={t("Срок затопления корабля")}>{Date.parse(d.wreckSinkAt) <= Date.now() ? t("затонул") : t("утонет {d}", { d: fmtDate(d.wreckSinkAt) })}</Chip>} {d.quarry && <Chip tone="accent" icon="stone" title={t("Камней за дело")}>{d.stones ?? 1}</Chip>} {d.disabled && <Chip tone="warn" icon="x">{t("выключено")}</Chip>} {(d.peopleCount ?? 0) > 0 && <Chip icon="users" title={t("Людей в списке «кому звонить»")}>{d.peopleCount}</Chip>} {!d.canRepeat && <Chip>{t("одно на игру")}</Chip>} {d.secret && <Chip icon="lock">{t("тайное")}</Chip>} {d.remote && <Chip icon="send">{t("издалека")}</Chip>}</span>
                 {d.description && <span className={"deed-desc small" + (open ? " open" : "")}>{withBook(d.description)}</span>}
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
                   {d.siegePoints != null && <span>· {t("осада: {n} б.", { n: d.siegePoints })}</span>}
                   {d.donationMin != null && <span>· {t("пожертвование от {n}", { n: d.donationMin })}</span>}
-                  {!d.quarry && <span title={t("Вероятность появления на новой дороге")}>· {d.chance}%</span>}
+                  {!d.quarry && !d.wreck && <span title={t("Вероятность появления на новой дороге")}>· {d.chance}%</span>}
                   {/* Две цифры по делу (решение владельца 04.10): сколько таких дел сейчас свободно на картах команд и сколько взято в работу. */}
-                  {!d.quarry && d.onMap && <span className="on-map" title={t("На картах команд: свободных {a}, в работе {b}", { a: d.onMap.free, b: d.onMap.taken }) + (d.onMap.sea ? ` · ${t("из них в море (корабль у порта): {n}", { n: d.onMap.sea })}` : "")}>· <Icon name="scroll" />{d.onMap.free} <Icon name="user" />{d.onMap.taken}{d.onMap.sea ? <> <Icon name="ship" />{d.onMap.sea}</> : null}</span>}
+                  {!d.quarry && !d.wreck && d.onMap && <span className="on-map" title={t("На картах команд: свободных {a}, в работе {b}", { a: d.onMap.free, b: d.onMap.taken }) + (d.onMap.sea ? ` · ${t("из них в море (корабль у порта): {n}", { n: d.onMap.sea })}` : "")}>· <Icon name="scroll" />{d.onMap.free} <Icon name="user" />{d.onMap.taken}{d.onMap.sea ? <> <Icon name="ship" />{d.onMap.sea}</> : null}</span>}
                   {d.bookCodes.length > 0 && <span>· <Chip icon="book" title={d.bookCodes.map(bookName).join(", ")}>{plural(d.bookCodes.length, [t("книга"), t("книги"), t("книг")])}</Chip></span>}
                   {/* Направление в списке не показывается (решение владельца 05.10): поле остаётся в форме и в данных. */}
                 </span>
@@ -172,7 +178,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
         </ul>
       )}
       {sheet && (
-        <Sheet title={form.quarry ? (sheet.id ? t("Изменить дело Каменоломни") : t("Новое дело Каменоломни")) : sheet.id ? t("Изменить дело") : t("Новое дело")} onClose={close} size="md"
+        <Sheet title={form.quarry ? (sheet.id ? t("Изменить дело Каменоломни") : t("Новое дело Каменоломни")) : form.wreck ? (sheet.id ? t("Изменить дело для корабля") : t("Новое дело для корабля")) : sheet.id ? t("Изменить дело") : t("Новое дело")} onClose={close} size="md"
           foot={<><button type="button" className="secondary" onClick={close}>{t("Отмена")}</button><button type="submit" form="deed-form" disabled={busy}>{sheet.id ? t("Сохранить") : t("Добавить дело")}</button></>}>
           <form id="deed-form" onSubmit={save}>
             {sheet.id && <p className="hint">{t("Изменения увидят команды, у которых дело ещё не сдано.")}</p>}
@@ -196,21 +202,21 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
                   <p className="hint">{t("Один камень мостит одну свободную дорогу. Вся команда вместе; сдаёт капитан, заместитель или летописец; на дороги такое дело не ставится.")}</p>
                 </div>
               )}
-              {!form.quarry && <div>
+              {!form.quarry && !form.wreck && <div>
                 <label htmlFor="d-siege">{t("Баллы при осаде")} <span className="opt">{t("(пусто — по правилам)")}</span></label>
                 <input id="d-siege" type="number" min={0} max={100} value={form.siegePoints} onChange={(e) => setForm({ siegePoints: e.target.value === "" ? "" : Number(e.target.value) })} />
               </div>}
-              {!form.quarry && <div>
+              {!form.quarry && !form.wreck && <div>
                 <label htmlFor="d-don">{t("Пожертвование вместо дела, от")} <span className="opt">{t("(пусто — нельзя)")}</span></label>
                 <input id="d-don" type="number" inputMode="numeric" min={0} value={form.donationMin} onChange={(e) => setForm({ donationMin: e.target.value === "" ? "" : Number(e.target.value) })} />
               </div>}
-              {!form.quarry && <div>
+              {!form.quarry && !form.wreck && <div>
                 <label htmlFor="d-chance">{t("Вероятность появления на новой дороге")}</label>
                 <select id="d-chance" value={form.chance} onChange={(e) => setForm({ chance: Number(e.target.value) })}>{CHANCES.map((n) => <option key={n} value={n}>{n}%</option>)}</select>
                 <p className="hint">{t("Вес при розыгрыше: дело на 100% выпадает в пять раз чаще дела на 20%. Дела до 60% не ставятся рядом с таким же делом, от 80% — могут.")}</p>
               </div>}
             </div>
-            {!form.quarry && <>
+            {!form.quarry && !form.wreck && <>
             <div className="with-help">
               <label htmlFor="d-book">{t("Книги по теме")} <span className="opt">{t("(необязательно)")}</span></label>
               <Help>{t("Из взятого города сначала выпадают дела с его книгой. Напишите [Книга] в названии или описании — подставится книга города.")}</Help>
@@ -227,31 +233,25 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode, onShowOnMap }:
             <div className="with-help mt-3"><label className="check"><input type="checkbox" checked={form.canRepeat} onChange={(e) => setForm({ canRepeat: e.target.checked })} />{t("Повторяемое")}</label><Help>{t("Можно выдавать нескольким командам.")}</Help></div>
             <div className="with-help mt-2"><label className="check"><input type="checkbox" checked={form.secret} onChange={(e) => setForm({ secret: e.target.checked })} />{t("Тайное")}</label><Help>{t("Сдачу видит только проверяющий — сюрприз без раскрытия адресата.")}</Help></div>
             <div className="with-help mt-2"><label className="check"><input type="checkbox" checked={form.remote} onChange={(e) => setForm({ remote: e.target.checked })} />{t("Можно издалека")}</label><Help>{t("Для уехавших и болеющих. Такое дело всегда есть среди свободных сторон.")}</Help></div>
-            {/* Срочное задание — разбитый бурей корабль (решение владельца 04.11). */}
-            <div className="with-help mt-2"><label className="check"><input type="checkbox" checked={form.wreck} onChange={(e) => setForm({ wreck: e.target.checked })} /><Icon name="ship" />{t("Срочное задание — разбитый бурей корабль")}</label><Help>{t("На карте всех команд у берега появится разбитый корабль с этим заданием. Его могут сдать несколько команд; за принятое задание капитан корабля благодарит грузом — тёсаными камнями или блоками для стен, что выпадет (числа — ниже). На дороги такое дело не ставится. Снимите флажок или удалите дело — корабль затонет.")}</Help></div>
-            {/* Груз — в самом деле (решение владельца 05.11: «для каждого дела индивидуально должна быть возможность настроить»). */}
-            {form.wreck && (
+            </>}
+            {/* Дело для корабля (решение владельца 06.11): груз и срок — всё, что нужно сверх названия, описания, направления и «что сдать». */}
+            {form.wreck && (<>
               <div className="row gap-2 mt-2 wreck-cargo">
                 <div className="field grow"><label htmlFor="d-wstones">{t("Тёсаных камней")}</label><input id="d-wstones" type="number" inputMode="numeric" min={0} max={50} value={form.wreckStones} onChange={(e) => setForm({ wreckStones: e.target.value === "" ? "" : Math.max(0, Math.min(50, Number(e.target.value))) })} /></div>
                 <div className="field grow"><label htmlFor="d-wblocks">{t("Блоков для стен")}</label><input id="d-wblocks" type="number" inputMode="numeric" min={0} max={50} value={form.wreckBlocks} onChange={(e) => setForm({ wreckBlocks: e.target.value === "" ? "" : Math.max(0, Math.min(50, Number(e.target.value))) })} /></div>
               </div>
-            )}
-            {form.wreck && <p className="hint">{t("Груз корабля: команде выпадет одно из двух, 50/50.")}</p>}
-            {/* Срок затопления (решение владельца 05.11): к этому времени корабль тонет сам; команды видят таймер и воду в силуэте. */}
-            {form.wreck && (
+              <p className="hint">{t("Груз корабля: команде выпадет одно из двух, 50/50.")}</p>
               <div className="field mt-2">
                 <label htmlFor="d-wsink">{t("Корабль утонет")} <span className="opt">{t("необязательно")}</span></label>
                 <input id="d-wsink" type="datetime-local" value={form.wreckSinkAt} min={toLocalInput(new Date().toISOString())} onChange={(e) => setForm({ wreckSinkAt: e.target.value })} />
-                <p className="hint">{t("К этому времени корабль утонет сам, задание закроется. Команды видят обратный отсчёт и корабль, наполняющийся водой. Пусто — корабль ждёт, пока дело не закроют.")}</p>
+                <p className="hint">{t("К этому времени корабль утонет сам, а дело удалится. Команды видят обратный отсчёт и корабль, наполняющийся водой. Пусто — корабль ждёт, пока дело не удалят.")}</p>
               </div>
-            )}
-            {form.wreck && sheet.id && (() => { const cur = deeds?.find((x) => x.id === sheet.id); return cur?.wreckId ? <p className="hint row wrap"><span><Icon name="ship" />{t("Корабль на карте.")}</span><button type="button" className="secondary sm" onClick={() => void releaseWreck(cur)}><Icon name="x" />{t("Отпустить корабль")}</button></p> : null; })()}
-            </>}
+            </>)}
             {error && <p className="error">{error}</p>}
           </form>
           {/* Список людей — в самой настройке дела (замечание владельца 21.10: «а не через три точки»); у нового дела появится после сохранения. */}
-          {!form.quarry && sheet.id && <PeopleSection gameId={gameId} deedId={sheet.id} onChange={() => void load()} onShowOnMap={onShowOnMap ? (f) => { close(); onShowOnMap(f); } : undefined} />}
-          {!form.quarry && !sheet.id && <p className="hint mt-3"><Icon name="users" />{t("Список людей («кому звонить») можно заполнить после сохранения дела.")}</p>}
+          {!form.quarry && !form.wreck && sheet.id && <PeopleSection gameId={gameId} deedId={sheet.id} onChange={() => void load()} onShowOnMap={onShowOnMap ? (f) => { close(); onShowOnMap(f); } : undefined} />}
+          {!form.quarry && !form.wreck && !sheet.id && <p className="hint mt-3"><Icon name="users" />{t("Список людей («кому звонить») можно заполнить после сохранения дела.")}</p>}
         </Sheet>
       )}
     </div>

@@ -45,7 +45,7 @@ export async function deedRoutes(app: FastifyInstance): Promise<void> {
     const game = await requireGameAdmin(request, reply, id);
     if (!game) return;
     const rows = await prisma.deed.findMany({ where: { gameId: id }, orderBy: { createdAt: "asc" }, include: { _count: { select: { people: true } } } });
-    // Открытый корабль у срочного дела (решение владельца 04.11): в редакторе — кнопка «Отпустить корабль».
+    // Открытый корабль у дела для корабля (04.11): в списке — чип «на карте» / «корабля нет».
     const openWrecks = new Map((await prisma.wreck.findMany({ where: { gameId: id, closedAt: null, deedId: { not: null } }, select: { id: true, deedId: true } })).map((w) => [w.deedId!, w.id]));
     // Сколько таких дел сейчас на картах всех команд: свободных (OPEN) и в работе (взято, на проверке, возвращено) — решение владельца 04.10.
     // Цифры «на карте» — по всем командам сразу; чтобы сверять с картой «глазами команды», отдаётся и разбивка по командам,
