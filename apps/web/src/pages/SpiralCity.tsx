@@ -32,6 +32,8 @@ const VB = 560, C = VB / 2, R0 = 182, W = 30, GAP = 15, ROAD = 7, PITCH = W + GA
 /** Поперечные дороги между соседними районами (замечание владельца 06.11): дорога и травяная обочина в просвете GAPLEN. */
 const LANE = 4.5, LANE_VERGE = 8;
 const WALL_R = R0 + W + GAP + 6;
+/** Подгонка пейзажа под план: масштаб и сдвиг (дорога в картинке на 49 % ширины, площадка — центр 50 %/48 %, радиус 39 %). */
+const LAND_SCALE = 1.03, LAND_DX = -3, LAND_DY = 0;
 /** Стена — сгенерированный отрезок из песчаника (вид сверху, зубцы по краям, 311×96, бесшовный), выложенный по кругу
  *  WALL_N сегментами шириной WALL_BAND; ворота — отдельный спрайт поверх стены внизу. */
 const WALL_SEG = "/img/city-plan/wall-seg.webp", WALL_BAND = 14, WALL_N = Math.round((2 * Math.PI * WALL_R) / (WALL_BAND * 311 / 96));
@@ -259,8 +261,10 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             <filter id="sc-soft" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#2a1d10" floodOpacity=".35" /></filter>
             <radialGradient id="sc-vignette" cx="50%" cy="50%" r="50%"><stop offset=".75" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".18" /></radialGradient>
           </defs>
-          {/* Окрестности — один цельный пейзаж (06.11): луга, поля, лес, река; дорога от ворот к краю нарисована в нём. */}
-          <image href={st.outside} x="0" y="0" width={VB} height={VB} preserveAspectRatio="xMidYMid slice" />
+          {/* Окрестности — один цельный пейзаж (06.11): в центре пустая площадка под город, вокруг луга, рощи, поля, холмы, вода у
+              края; дорога к воротам нарисована в нём. LAND_* подгоняют картинку так, чтобы дорога пришла к воротам, а вода не
+              заходила под город (замечание владельца 06.11: город лёг на реку). */}
+          <image href={st.outside} x={LAND_DX} y={LAND_DY} width={VB * LAND_SCALE} height={VB * LAND_SCALE} preserveAspectRatio="xMidYMid slice" />
           {/* Город: земля, стена, дорога-спираль */}
           <circle cx={C} cy={C} r={WALL_R + 2} fill={`url(#${ids.ground})`} />
           <circle cx={C} cy={C} r={WALL_R + 2} fill="url(#sc-vignette)" />
