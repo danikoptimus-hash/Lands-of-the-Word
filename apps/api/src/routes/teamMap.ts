@@ -123,6 +123,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     // пока тот же блок не сдан заново; записи испытаний клиент берёт из my-battles.
     const since = new Date(Date.now() - 14 * 86_400_000);
     const rejected = await prisma.wallBlock.findMany({ where: { teamId: m.team.id, userId: request.user!.id, status: "REJECTED", decidedAt: { gte: since } }, orderBy: { decidedAt: "desc" }, select: { id: true, nodeKey: true, bookCode: true, startIdx: true, endIdx: true, adminComment: true, decidedAt: true, createdAt: true, repairOfId: true } });
+    // Новые дела Каменоломни (решение владельца 06.11: уведомление в «Внимание»): появились за трое суток, команда их ещё не сдавала.
+    const quarryNew = (await prisma.deed.findMany({ where: { gameId: id, quarry: true, disabled: false, createdAt: { gte: new Date(Date.now() - 3 * 86_400_000) }, quarryWorks: { none: { teamId: m.team.id, status: { in: ["SUBMITTED", "APPROVED"] } } } }, orderBy: { createdAt: "desc" }, select: { id: true, title: true, createdAt: true } }))
+      .map((d) => ({ id: d.id, title: d.title, createdAt: d.createdAt.toISOString() }));
     const returnedBlocks: Array<{ id: string; nodeKey: string; bookCode: string; ref: string; comment: string; at: string }> = [];
     for (const r of rejected) {
       const redone = await prisma.wallBlock.count({ where: { teamId: m.team.id, userId: request.user!.id, nodeKey: r.nodeKey, startIdx: r.startIdx, status: { not: "REJECTED" }, createdAt: { gt: r.createdAt } } });
@@ -130,7 +133,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       const book = await loadBook(r.bookCode);
       returnedBlocks.push({ id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, ref: (book ? brickRef(book, r.startIdx, r.endIdx) : "") + (r.repairOfId ? " (починка)" : ""), comment: r.adminComment, at: (r.decidedAt ?? r.createdAt).toISOString() });
     }
-    return { returnedBlocks, status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, ...(await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true, cargoBlocks: true } })) }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    return { returnedBlocks, quarryNew, status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, ...(await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true, cargoBlocks: true } })) }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */

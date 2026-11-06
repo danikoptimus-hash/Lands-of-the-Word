@@ -588,7 +588,11 @@ export function TeamPage() {
   // блоки стены, пока блок не сдан заново (с сервера, my-map).
   const returnedEntries = activeBattles.flatMap((b) => b.entries.filter((e) => e.userId === user?.id && e.status === "REJECTED" && e.side === b.mySide && (e.side === "ATTACK" ? !b.attackDoneAt : !b.defenseDoneAt)).map((e) => ({ battle: b, entry: e })));
   const returnedBlocks = map.returnedBlocks ?? [];
-  const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length;
+  // Новый разбитый корабль и новое дело Каменоломни (решение владельца 06.11: «чтобы приходило в плитку „Внимание“»):
+  // корабль — пока открыт, команда его не брала и не прошло трёх суток; дело — из my-map (quarryNew).
+  const newWrecks = (map.wrecks ?? []).filter((w) => !w.sunkAt && !w.mine && w.appearedAt && Date.now() - Date.parse(w.appearedAt) < 3 * 86_400_000);
+  const newQuarry = map.quarryNew ?? [];
+  const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length + newWrecks.length + newQuarry.length;
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
   // Две вкладки испытаний (решение владельца 31.10: «вместо того, чтобы писать, кто претендент, а кто хранитель, — две табы»):
@@ -674,9 +678,19 @@ export function TeamPage() {
             </div>
           </div>
           {view === "attention" && (
-            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 || returnedEntries.length > 0 || returnedBlocks.length > 0 ? (
+            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 || returnedEntries.length > 0 || returnedBlocks.length > 0 || newWrecks.length > 0 || newQuarry.length > 0 ? (
                 <section className="section attention">
                   <ul className="list interactive">
+                    {newWrecks.map((w) => (
+                      <li key={"wreck-" + w.id} role="button" tabIndex={0} onClick={() => { setWreckId(w.id); setQuarryOpen(false); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setWreckId(w.id); setMenu(false); } }}>
+                        <div className="main"><span className="title">{t("Разбитый корабль просит помощи: {title}", { title: w.title })}</span><span className="meta">{w.sinkAt ? t("утонет {d}", { d: fmtDate(w.sinkAt) }) : t("срочное задание на карте, груз — тому, кто поможет")}</span></div><Icon name="chevron" className="chev" />
+                      </li>
+                    ))}
+                    {newQuarry.map((d) => (
+                      <li key={"quarry-" + d.id} role="button" tabIndex={0} onClick={() => { setQuarryOpen(true); setWreckId(null); setSelectedId(null); setCityKey(null); setMenu(false); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setQuarryOpen(true); setMenu(false); } }}>
+                        <div className="main"><span className="title">{t("Новое дело в Каменоломне: {title}", { title: d.title })}</span><span className="meta">{t("сдаёт капитан, заместитель или летописец")}</span></div><Icon name="chevron" className="chev" />
+                      </li>
+                    ))}
                     {rejectedTasks.map((tk) => (
                       <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
                         <div className="main"><span className="title">{t("Дело возвращено: {title}", { title: tk.deed.title })}</span>{tk.adminComment && <span className="meta">{tk.adminComment}</span>}</div><Icon name="chevron" className="chev" />
