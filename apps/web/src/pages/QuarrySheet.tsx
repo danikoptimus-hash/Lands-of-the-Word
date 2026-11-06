@@ -4,6 +4,7 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { AutoGrow } from "../components/AutoGrow";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
@@ -76,8 +77,8 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
                               ))}
                             </ul>
                           </fieldset>
-                          <div className="field"><label htmlFor={"q-links-" + d.id}>{t("Ссылки на фото команды")}</label><textarea id={"q-links-" + d.id} rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} /></div>
-                          <div className="field"><label htmlFor={"q-note-" + d.id}>{t("Коротко")} <span className="opt">{t("необязательно")}</span></label><textarea id={"q-note-" + d.id} rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Что было на встрече")} /></div>
+                          <div className="field"><label htmlFor={"q-links-" + d.id}>{t("Ссылки на фото команды")}</label><AutoGrow id={"q-links-" + d.id} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} /></div>
+                          <div className="field"><label htmlFor={"q-note-" + d.id}>{t("Коротко")} <span className="opt">{t("необязательно")}</span></label><AutoGrow id={"q-note-" + d.id} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Что было на встрече")} /></div>
                           <div className="actions row">
                             <button type="button" disabled={busy} onClick={() => void submit(d.id)}><Icon name="send" />{t("Сдать на проверку")}</button>
                             <button type="button" className="secondary" disabled={busy} onClick={() => setOpen(null)}>{t("Отмена")}</button>

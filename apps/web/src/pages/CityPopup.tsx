@@ -10,6 +10,7 @@ import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtPause, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { AutoGrow } from "../components/AutoGrow";
 import { NightNote } from "../components/NightNote";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
@@ -616,7 +617,7 @@ function VisitSection({ gameId, visit, captured, isCaptain, onChanged }: { gameI
           </div>
           <div className="field">
             <label htmlFor={"visit-text-" + visit.id}>{t("Что сделали")}</label>
-            <textarea id={"visit-text-" + visit.id} rows={3} value={text} onChange={(e) => setText(e.target.value)} placeholder={t("Что сделали у адресата: помощь по дому, молитва, общение, угощение. Сколько были.")} maxLength={4000} />
+            <AutoGrow id={"visit-text-" + visit.id} value={text} onChange={(e) => setText(e.target.value)} placeholder={t("Что сделали у адресата: помощь по дому, молитва, общение, угощение. Сколько были.")} maxLength={4000} />
           </div>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="actions">

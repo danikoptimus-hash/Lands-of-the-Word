@@ -4,6 +4,7 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { AutoGrow } from "../components/AutoGrow";
 import { Chip, type ChipTone } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { Help } from "../components/Help";
@@ -55,7 +56,7 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
             <>
               <div className="field">
                 <label htmlFor="passage-msg">{t("Сообщение владельцу")} <span className="opt">{t("необязательно")}</span></label>
-                <input id="passage-msg" className="full" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} />
+                <AutoGrow id="passage-msg" className="full" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} />
               </div>
               <div className="actions"><button type="button" disabled={busy} onClick={() => void request()}><Icon name="handshake" />{t("Запросить проход")}</button></div>
             </>

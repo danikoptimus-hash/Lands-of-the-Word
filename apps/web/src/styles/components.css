@@ -30,6 +30,8 @@ label:first-child { margin-top: 0; }
 label .opt { color: var(--muted); font-weight: 400; }
 input, select, textarea { width: 100%; min-height: var(--control-h); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); font: 400 var(--fs-md)/var(--lh-ui) var(--font); color: var(--text); transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
 textarea { resize: vertical; min-height: calc(var(--control-h) * 2); }
+/* Поле, растущее по тексту (06.11): одна строка в высоту, без ручки и полосы прокрутки — высоту задаёт AutoGrow. */
+textarea.autogrow { resize: none; overflow: hidden; min-height: var(--control-h); }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
 input::placeholder, textarea::placeholder { color: var(--muted); opacity: .75; }
 input:read-only:not([type=checkbox]):not([type=radio]) { background: var(--surface-2); }
