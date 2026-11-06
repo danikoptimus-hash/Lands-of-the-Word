@@ -14,6 +14,9 @@ export function Layout() {
   const name = user?.displayName ?? user?.nickname ?? "";
   const path = useLocation().pathname;
   const superadmin = user?.platformRole === "SUPERADMIN";
+  // Суперадмину — переход между продом и тестовым стендом из этого же меню (решение владельца 06.11: «запарило переходить по ссылкам»).
+  const onStand = typeof window !== "undefined" && window.location.hostname.startsWith("test.");
+  const otherSide = onStand ? "https://landsoftheword.com/" : "https://test.landsoftheword.com/";
   // Открытые обращения в поддержку: красный кружок на аватаре и у пункта меню; обновляется при смене страницы,
   // раз в минуту и после закрытия обращения (событие lotw:support).
   const [openSupport, setOpenSupport] = useState(0);
@@ -39,7 +42,7 @@ export function Layout() {
               trigger={<button type="button" className="user-menu"><span className={"avatar" + (user.avatarId ? " photo" : "")}>{user.avatarId ? <img src={`/api/avatars/${user.avatarId}`} alt="" /> : name.slice(0, 1).toUpperCase()}{openSupport > 0 && <span className="user-badge" aria-label={t("Открытых обращений: {n}", { n: openSupport })}>{openSupport}</span>}</span><span className="name">{name}</span><Icon name="chevron-down" className="i-sm" /></button>}
               items={[
                 { label: others.length ? `${t("Аккаунт")} · ${name}` : t("Аккаунт"), icon: "user", onSelect: () => navigate("/account") },
-                ...(superadmin ? [{ label: t("Все игры"), icon: "map", onSelect: () => navigate("/admin/games") }, { label: t("Люди"), icon: "users", onSelect: () => navigate("/admin/users") }, { label: t("Аналитика"), icon: "eye", onSelect: () => navigate("/admin") }, { label: t("Обращения"), icon: "send", badge: openSupport, onSelect: () => navigate("/admin/support") }] : []),
+                ...(superadmin ? [{ label: t("Все игры"), icon: "map", onSelect: () => navigate("/admin/games") }, { label: t("Люди"), icon: "users", onSelect: () => navigate("/admin/users") }, { label: t("Аналитика"), icon: "eye", onSelect: () => navigate("/admin") }, { label: t("Обращения"), icon: "send", badge: openSupport, onSelect: () => navigate("/admin/support") }, { label: onStand ? t("Продовый стенд") : t("Тестовый стенд"), icon: "link", onSelect: () => window.location.assign(otherSide) }] : []),
                 // Смена аккаунта (решение владельца 05.10): другие аккаунты устройства одним нажатием, «Добавить аккаунт» — вход без выхода из текущего.
                 ...others.map((a, i) => ({ label: a.displayName || a.nickname, icon: "user", onSelect: () => void switchAccount(a.id), sep: i === 0 })),
                 { label: t("Добавить аккаунт"), icon: "plus", onSelect: () => navigate("/login?add=1"), sep: others.length === 0 },
