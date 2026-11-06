@@ -317,8 +317,8 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
   const [error, setError] = useState<string | null>(null);
   const toggle = (idx: number) => { if (locked || mine.has(idx) || learned.has(idx)) return; setSel((s) => { const n = new Set(s); if (n.has(idx)) n.delete(idx); else n.add(idx); return n; }); };
   const selectAll = () => setSel(new Set((passage.verses ?? []).map((v) => v.idx).filter((i) => !mine.has(i) && !learned.has(i))));
-  /** В вызове участник сдаёт не меньше двух стихов (решение владельца 06.11): сколько ещё отметить, чтобы «Засчитать» стало доступно. */
-  const needMore = b.mySide === "ATTACK" ? Math.max(0, 2 - mine.size - sel.size) : 0;
+  /** В вызове участник сдаёт не меньше двух стихов подряд (решение владельца 06.11): среди своих и отмеченных должны быть два соседних. */
+  const hasRun = b.mySide !== "ATTACK" || [...mine, ...sel].some((v) => (mine.has(v + 1) || sel.has(v + 1)));
   async function send() {
     setBusy(true); setError(null);
     try {
@@ -331,7 +331,7 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
   return (
     <div className="passage mt-3">
       <div className="row between"><span className="strong">{t("Отрывок {ref}", { ref: passage.ref })}{!locked && mine.size > 0 && <Help>{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}</Help>}</span><span className="muted small">{t("вы выучили {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 })}</span></div>
-      {!locked && mine.size === 0 && <p className="hint">{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}{b.mySide === "ATTACK" ? ` ${t("В вызове каждый сдаёт не меньше двух стихов.")}` : ""}</p>}
+      {!locked && mine.size === 0 && <p className="hint">{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}{b.mySide === "ATTACK" ? ` ${t("В вызове каждый сдаёт не меньше двух стихов подряд.")}` : ""}</p>}
       {!locked && <button type="button" className="ghost sm" onClick={selectAll}>{t("Выбрать все оставшиеся")}</button>}
       {learned.size > 0 && <p className="hint">{t("Стихов, которые вы уже сдавали в прошлых испытаниях этой книги: {n}. Второй раз они не засчитываются, их учат другие.", { n: learned.size })}</p>}
       <ul className="verses">
@@ -352,9 +352,9 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
         <div className="entry-form">
           {/* Ссылки — кнопкой «Вставить ссылку», как в сдаче дела (решение владельца 06.11). */}
           <LinksField label={t("Ссылки на видео")} links={links} onChange={setLinks} />
-          {sel.size > 0 && needMore > 0 && <p className="hint">{t("В вызове участник сдаёт не меньше двух стихов: отметьте ещё {n}", { n: verses(needMore) })}</p>}
+          {sel.size > 0 && !hasRun && <p className="hint">{t("В вызове участник сдаёт не меньше двух стихов подряд: отметьте и соседний стих.")}</p>}
           {error && <p className="error" role="alert">{error}</p>}
-          <div className="actions"><button type="button" disabled={busy || sel.size === 0 || needMore > 0 || links.length === 0} onClick={() => void send()}><Icon name="check" />{sel.size ? t("Засчитать {n}", { n: verses(sel.size) }) : t("Засчитать")}</button></div>
+          <div className="actions"><button type="button" disabled={busy || sel.size === 0 || !hasRun || links.length === 0} onClick={() => void send()}><Icon name="check" />{sel.size ? t("Засчитать {n}", { n: verses(sel.size) }) : t("Засчитать")}</button></div>
         </div>
       )}
       {entries.length > 0 && (
