@@ -5,6 +5,7 @@ import { t } from "../lib/i18n";
 import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { AutoGrow } from "../components/AutoGrow";
+import { LinksField } from "../components/LinksField";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
@@ -23,7 +24,7 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
   const [data, setData] = useState<QuarryDto | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
-  const [links, setLinks] = useState("");
+  const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [present, setPresent] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -32,13 +33,12 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
   useGameEvents(gameId, (e) => { if (e.type === "quarry" || e.type === "teams" || e.type === "deeds") void load(); });
 
   async function submit(deedId: string) {
-    const ls = links.split(/\s+/).filter(Boolean);
-    if (ls.length === 0) { notify(t("Приложите ссылку на фото команды"), "bad"); return; }
+    if (links.length === 0) { notify(t("Приложите ссылку на фото команды"), "bad"); return; }
     if (present.length === 0) { notify(t("Отметьте, кто был: им дело пойдёт в зачёт"), "bad"); return; }
     setBusy(true);
     try {
-      await api(`/api/games/${gameId}/quarry/${deedId}/submit`, { method: "POST", body: JSON.stringify({ links: ls, note, participants: present }) });
-      notify(t("Сдано на проверку")); setOpen(null); setLinks(""); setNote(""); setPresent([]); await load();
+      await api(`/api/games/${gameId}/quarry/${deedId}/submit`, { method: "POST", body: JSON.stringify({ links, note, participants: present }) });
+      notify(t("Сдано на проверку")); setOpen(null); setLinks([]); setNote(""); setPresent([]); await load();
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
@@ -77,7 +77,8 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
                               ))}
                             </ul>
                           </fieldset>
-                          <div className="field"><label htmlFor={"q-links-" + d.id}>{t("Ссылки на фото команды")}</label><AutoGrow id={"q-links-" + d.id} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} /></div>
+                          {/* Ссылки — той же кнопкой «Вставить ссылку», что и в сдаче обычного дела (решение владельца 06.11): из буфера обмена, а если браузер его не даёт — поле для ввода. */}
+                          <LinksField label={t("Ссылки на фото команды")} links={links} onChange={setLinks} />
                           <div className="field"><label htmlFor={"q-note-" + d.id}>{t("Коротко")} <span className="opt">{t("необязательно")}</span></label><AutoGrow id={"q-note-" + d.id} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Что было на встрече")} /></div>
                           <div className="actions row">
                             <button type="button" disabled={busy} onClick={() => void submit(d.id)}><Icon name="send" />{t("Сдать на проверку")}</button>
@@ -86,7 +87,7 @@ export function QuarrySheet({ gameId, container, onClose }: { gameId: string; co
                         </div>
                       )}
                     </div>
-                    {data.canWork && data.coastReached !== false && !pending && !picking && <div className="side"><button type="button" className="sm" onClick={() => { setOpen(d.id); setLinks(""); setNote(""); setPresent(data.members.map((x) => x.id)); }}><Icon name="camera" />{t("Сдать")}</button></div>}
+                    {data.canWork && data.coastReached !== false && !pending && !picking && <div className="side"><button type="button" className="sm" onClick={() => { setOpen(d.id); setLinks([]); setNote(""); setPresent(data.members.map((x) => x.id)); }}><Icon name="camera" />{t("Сдать")}</button></div>}
                   </li>
                 );
               })}
