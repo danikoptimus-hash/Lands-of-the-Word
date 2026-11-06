@@ -103,7 +103,7 @@ export function WreckSheet({ gameId, wreck, members, canWork, canTake = true, as
           )}
           <div className="actions row">
             <button type="button" disabled={busy || asleep} title={asleep ? t("Ночью и в шторм задания ждут утра") : undefined} onClick={() => void submit()}><Icon name="send" />{t("Сдать на проверку")}</button>
-            <button type="button" className="secondary" disabled={busy} onClick={() => void release()}>{t("Отказаться от задания")}</button>
+            <button type="button" className="secondary icon" aria-label={t("Отказаться от задания")} title={t("Отказаться от задания")} disabled={busy} onClick={() => void release()}><Icon name="x" /></button>
           </div>
           {asleep && <p className="hint">{t("Ночью и в шторм задания ждут утра.")}</p>}
         </div>

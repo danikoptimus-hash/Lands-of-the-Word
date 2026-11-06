@@ -247,7 +247,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
             : (
               <div className="stack-sm">
                 <p className="muted small">{t("Кого позвать на защиту? Участники союзника будут учить стихи ответа вместе с вами.")}</p>
-                <div className="row">{candidates.map((c) => <button key={c.id} type="button" className="secondary" onClick={() => void askAlly(c)}><Icon name="shield" />{c.name}</button>)}<button type="button" className="ghost" onClick={() => setAsking(false)}>{t("Отмена")}</button></div>
+                <div className="row">{candidates.map((c) => <button key={c.id} type="button" className="secondary" onClick={() => void askAlly(c)}><Icon name="shield" />{c.name}</button>)}<button type="button" className="ghost icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={() => setAsking(false)}><Icon name="x" /></button></div>
               </div>
             )}
         </div>
@@ -298,7 +298,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
       )}
       {/* Отмена вызова капитаном на любом шаге нападения (решение владельца 01.11); с 03.11 со штрафом: минимальная ставка на этот город растёт на 5 стихов. */}
       {attacker && isCaptain && (b.status === "QUEUED" || b.status === "ATTACK") && (
-        <div className="actions mt-2"><button type="button" className="ghost" onClick={() => void cancel()}><Icon name="x" />{t("Отменить вызов")}</button></div>
+        <div className="actions mt-2"><button type="button" className="ghost icon" aria-label={t("Отменить вызов")} title={t("Отменить вызов")} onClick={() => void cancel()}><Icon name="x" /></button></div>
       )}
     </div>
   );

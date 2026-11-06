@@ -502,7 +502,7 @@ function TaskView({ task, onPrev, onNext, teamDone = false, fragments, district,
           <textarea id="support-text" value={supportText} onChange={(e) => setSupportText(e.target.value)} maxLength={1000} rows={3} autoFocus placeholder={t("Что не так? Город и задание подставятся сами.")} />
           <div className="actions row mt-2">
             <button type="button" disabled={busy || supportText.trim().length < 5} onClick={() => void onSupport(supportText.trim()).then((ok) => { if (ok) { setSupportForm(false); setSupportText(""); } })}><Icon name="send" />{t("Отправить")}</button>
-            <button type="button" className="secondary" onClick={() => setSupportForm(false)}>{t("Отмена")}</button>
+            <button type="button" className="secondary icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={() => setSupportForm(false)}><Icon name="x" /></button>
           </div>
         </div>
       )}
@@ -622,7 +622,7 @@ function VisitSection({ gameId, visit, captured, isCaptain, onChanged }: { gameI
           {error && <p className="error" role="alert">{error}</p>}
           <div className="actions">
             <button type="button" disabled={busy || went.length < visit.need || !text.trim() || links.length === 0} onClick={() => void send()}><Icon name="send" />{visit.status === "SUBMITTED" ? t("Сдать заново") : t("Сдать отчёт")}</button>
-            {editing && <button type="button" className="ghost" onClick={() => setEditing(false)}>{t("Отмена")}</button>}
+            {editing && <button type="button" className="ghost icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={() => setEditing(false)}><Icon name="x" /></button>}
           </div>
         </div>
       )}

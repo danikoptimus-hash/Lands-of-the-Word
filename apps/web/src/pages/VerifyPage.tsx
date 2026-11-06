@@ -105,7 +105,7 @@ export function VerifyPendingPage() {
             <input id="v-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required autoFocus />
             <div className="actions">
               <button type="submit" disabled={busy}>{t("Сохранить и выслать письмо")}</button>
-              <button type="button" className="ghost" onClick={() => { setEditing(false); setEmail(user?.email ?? ""); }}>{t("Отмена")}</button>
+              <button type="button" className="ghost icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={() => { setEditing(false); setEmail(user?.email ?? ""); }}><Icon name="x" /></button>
             </div>
           </form>
         ) : (

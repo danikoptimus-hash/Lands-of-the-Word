@@ -180,7 +180,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode = "roads", onSh
       )}
       {sheet && (
         <Sheet title={form.quarry ? (sheet.id ? t("Изменить дело Каменоломни") : t("Новое дело Каменоломни")) : form.wreck ? (sheet.id ? t("Изменить дело для корабля") : t("Новое дело для корабля")) : sheet.id ? t("Изменить дело") : t("Новое дело")} onClose={close} size="md"
-          foot={<><button type="button" className="secondary" onClick={close}>{t("Отмена")}</button><button type="submit" form="deed-form" disabled={busy}>{sheet.id ? t("Сохранить") : t("Добавить дело")}</button></>}>
+          foot={<><button type="button" className="secondary icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={close}><Icon name="x" /></button><button type="submit" form="deed-form" disabled={busy}>{sheet.id ? t("Сохранить") : t("Добавить дело")}</button></>}>
           <form id="deed-form" onSubmit={save}>
             {sheet.id && <p className="hint">{t("Изменения увидят команды, у которых дело ещё не сдано.")}</p>}
             <label htmlFor="d-title">{t("Название")}</label>

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Sheet } from "./Sheet";
 import { t } from "../lib/i18n";
+import { Icon } from "./Icon";
 
 /**
  * Кадрирование аватарки (решение владельца 24.10: «центрировать фото в круге и увеличить, как на Ютубе»): фото
@@ -87,7 +88,7 @@ export function AvatarCropper({ file, onDone, onCancel }: { file: File; onDone: 
   }
 
   return (
-    <Sheet title={t("Фото")} onClose={onCancel} size="sm" foot={<div className="actions"><button type="button" className="ghost" onClick={onCancel}>{t("Отмена")}</button><button type="button" className="primary" disabled={!img} onClick={() => void done()}>{t("Готово")}</button></div>}>
+    <Sheet title={t("Фото")} onClose={onCancel} size="sm" foot={<div className="actions"><button type="button" className="ghost icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={onCancel}><Icon name="x" /></button><button type="button" className="primary" disabled={!img} onClick={() => void done()}>{t("Готово")}</button></div>}>
       <div className="avatar-crop">
         <canvas ref={canvas} style={{ width: VIEW, height: VIEW }} onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp} />
         <label className="zoom"><span className="sr-only">{t("Масштаб")}</span><input type="range" min={1} max={3} step={0.01} value={zoom} onChange={(e) => setZoomKeepCenter(Number(e.target.value))} aria-label={t("Масштаб")} /></label>
