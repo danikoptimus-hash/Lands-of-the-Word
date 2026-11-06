@@ -95,6 +95,20 @@ export async function checkLastTeam(gameId: string): Promise<void> {
   if (alive.length <= 1) await finishGame(gameId, "last_team", alive[0]?.id ?? null);
 }
 
+/**
+ * Стирает игру целиком (черновик по кнопке администратора, тестовые партии). Остальное стирается каскадом от Game,
+ * но стороны команд (TeamEdgeTask) ссылаются на дела без каскада — нарочно: дело нельзя удалить из-под стороны,
+ * маршрут удаления дела сначала подбирает замену. Postgres запускает каскады от Game в порядке своих триггеров, и
+ * если дела стираются раньше команд, это ограничение срабатывает и удаление игры падает (порядок зависит от базы).
+ * Поэтому стороны убираются первыми, в одной транзакции с игрой.
+ */
+export async function deleteGame(gameId: string): Promise<void> {
+  await prisma.$transaction([
+    prisma.teamEdgeTask.deleteMany({ where: { gameId } }),
+    prisma.game.delete({ where: { id: gameId } }),
+  ]);
+}
+
 /** Срок игры из настроек (settings.endsAt): по истечении побеждает команда с наибольшим числом городов. */
 export async function checkTimeLimits(gameId?: string): Promise<void> {
   const games = await prisma.game.findMany({ where: { ...(gameId ? { id: gameId } : {}), status: "ACTIVE" }, select: { id: true, settings: true } });

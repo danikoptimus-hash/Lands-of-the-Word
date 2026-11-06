@@ -24,9 +24,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await cleanupFixtures(gameId);
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, playerNick, otherNick, otherNick + "_3"] } } });
-  await cleanupFixtures(gameId);
   await app.close();
   await prisma.$disconnect();
 });
@@ -455,9 +455,9 @@ describe("администраторы игры", () => {
     expect(fin.json().winnerTeamId).toBe(tids[1]);
     const after = await app.inject({ method: "GET", url: `/api/games/${gid}/standings`, headers: { cookie: c2 } });
     expect(after.json()).toMatchObject({ status: "FINISHED", finishReason: "manual", winnerTeamId: tids[1] });
+    await cleanupFixtures(gid);
     await prisma.game.deleteMany({ where: { id: gid } });
     await prisma.user.deleteMany({ where: { nickname: { in: [`fadm_${stampF}`, `fc1_${stampF}`, `fc2_${stampF}`] } } });
-    await cleanupFixtures(gid);
   }, 20_000);
 
   it("вход по почте", async () => {

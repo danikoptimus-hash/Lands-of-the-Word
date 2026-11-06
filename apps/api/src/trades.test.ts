@@ -47,9 +47,9 @@ beforeAll(async () => {
   ] });
 });
 afterAll(async () => {
+  await cleanupFixtures(gameId);
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: Object.values(nicks) } } });
-  await cleanupFixtures(gameId);
   await app.close(); await prisma.$disconnect();
 });
 

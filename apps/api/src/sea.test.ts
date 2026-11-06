@@ -46,9 +46,9 @@ beforeAll(async () => {
   expect((await app.inject({ method: "POST", url: `/api/games/${gameId}/start`, headers: { cookie: adminCookie } })).statusCode).toBe(200);
 });
 afterAll(async () => {
+  await cleanupFixtures(gameId);
   await prisma.game.deleteMany({ where: { id: gameId } });
   await prisma.user.deleteMany({ where: { nickname: { in: [adminNick, capNick, memNick, p2Nick] } } });
-  await cleanupFixtures(gameId);
   await app.close(); await prisma.$disconnect();
 });
 

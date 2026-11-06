@@ -6,6 +6,7 @@ import { buildApp } from "../app.js";
 import { prisma } from "../db.js";
 import { SESSION_COOKIE } from "../auth.js";
 import { readyForStart } from "../testAuth.js";
+import { deleteGame } from "../services/game.js";
 
 /**
  * Нагрузочный прогон стенда (решение владельца 23.10: «давай замерим на стенде, потом сделаем выводы»).
@@ -24,12 +25,8 @@ async function clean(): Promise<void> {
   const admin = await prisma.user.findFirst({ where: { nickname: ADMIN }, select: { id: true } });
   if (admin) {
     const games = await prisma.game.findMany({ where: { createdById: admin.id }, select: { id: true } });
-    for (const g of games) {
-      // Стороны и общие дела ссылаются на дела без каскада в базе стенда: убираем их до удаления партии.
-      await prisma.teamEdgeTask.deleteMany({ where: { gameId: g.id } });
-      await prisma.quarryWork.deleteMany({ where: { gameId: g.id } });
-      await prisma.game.delete({ where: { id: g.id } });
-    }
+    // Стороны ссылаются на дела без каскада: deleteGame убирает их до удаления партии.
+    for (const g of games) await deleteGame(g.id);
     console.error(`games removed: ${games.length}`);
   }
   const u = await prisma.user.deleteMany({ where: { nickname: { startsWith: PREFIX } } });

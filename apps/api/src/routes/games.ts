@@ -8,7 +8,7 @@ import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { effectiveNodeCount, recommendedDeedCount } from "./deeds.js";
-import { finishGame, leader, standings } from "../services/game.js";
+import { deleteGame, finishGame, leader, standings } from "../services/game.js";
 import { ensureFrontier } from "../services/teamMap.js";
 import { assignRecipients, ensureCityCodes } from "../services/recipients.js";
 import { rulesOf, rulesPatchSchema } from "../services/rules.js";
@@ -147,7 +147,7 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     // Завершённая игра — история участников: летопись, награды, города (решение владельца 03.11: «если админ удаляет
     // завершённую игру, у участников она остаётся»). Удаляется только для администраторов; черновик стирается целиком.
     if (game.status === "FINISHED") await prisma.game.update({ where: { id }, data: { deletedAt: new Date() } });
-    else await prisma.game.delete({ where: { id } });
+    else await deleteGame(id);
     return reply.code(204).send();
   });
 

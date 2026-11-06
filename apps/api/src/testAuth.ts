@@ -21,7 +21,7 @@ export async function registerVerified(app: FastifyInstance, payload: { nickname
 /**
  * Чек-лист старта (решение владельца 3.18): в каждой команде капитан и не меньше двух участников, у каждого города адресат конверта.
  * Добавляет в каждую команду с одним участником рядового (ник fx_<хвост id игры>_<n>, создаётся прямо в базе — регистрация
- * ограничена десятью в минуту) и одного адресата, если адресатов нет. Убрать созданных участников после теста — cleanupFixtures(gameId).
+ * ограничена десятью в минуту) и одного адресата, если адресатов нет. Подчистить после теста — cleanupFixtures(gameId) до удаления игры.
  */
 /**
  * Часовой пояс (IANA «Etc/GMT±N»), в котором сейчас местный час равен hour: тесты ставят игре такой пояс, чтобы
@@ -58,7 +58,12 @@ export async function readyForStart(app: FastifyInstance, gameId: string, adminC
   }
 }
 const fixturePrefix = (gameId: string) => `fx_${gameId.slice(-6)}_`;
-/** Удаляет участников, созданных readyForStart для этой игры. */
+/**
+ * Подчищает после теста, чтобы игру можно было стереть одним prisma.game.deleteMany: убирает стороны команд (они
+ * ссылаются на дела без каскада, и если Postgres сотрёт дела раньше команд, удаление игры падает — см. deleteGame
+ * в services/game.ts) и участников, созданных readyForStart. Вызывать до удаления игры.
+ */
 export async function cleanupFixtures(gameId: string): Promise<void> {
+  await prisma.teamEdgeTask.deleteMany({ where: { gameId } });
   await prisma.user.deleteMany({ where: { nickname: { startsWith: fixturePrefix(gameId) } } });
 }
