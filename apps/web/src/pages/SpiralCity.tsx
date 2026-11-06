@@ -117,9 +117,9 @@ function shortTitle(title: string): string {
   for (const w of words) { const t = (out ? out + " " : "") + w; if (t.length > 14 && out) break; out = t; }
   return out;
 }
-/** Вариант подписи района — владелец выбирает из десяти (06.11): `?label=1..10`. */
+/** Подпись района: владелец выбрал из десяти вариант 4 — пергаментный свиток по центру (06.11); остальные доступны по `?label=1..10`. */
 function labelStyleFromQuery(): number {
-  try { const n = Number(new URLSearchParams(window.location.search).get("label")); return n >= 1 && n <= 10 ? n : 1; } catch { return 1; }
+  try { const n = Number(new URLSearchParams(window.location.search).get("label")); return n >= 1 && n <= 10 ? n : 4; } catch { return 4; }
 }
 /** Детерминированный «случайный» ряд для деревьев и полей — одинаковый на всех устройствах. */
 function rnd(seed: number): () => number { let h = seed >>> 0 || 1; return () => { h ^= h << 13; h >>>= 0; h ^= h >>> 17; h ^= h << 5; h >>>= 0; return h / 4294967296; }; }
