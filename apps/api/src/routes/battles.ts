@@ -8,7 +8,7 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
 import { formatRange, loadBook, refToIndex, parseRef, verseText, type BibleBook } from "../services/bible.js";
-import { afterReject, approveAttack, ATTACK_MIN_PER_PERSON, CANCEL_PENALTY, cancelAttack, defenseNeed, gameRules, launchAttack, maybeRepel, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
+import { afterReject, approveAttack, ATTACK_MIN_RUN, CANCEL_PENALTY, cancelAttack, defenseNeed, gameRules, hasRun, launchAttack, maybeRepel, minBidFor, startAttack, submitAttack, submitDefense, sumVerses, sweep, toRanges, userVerses, warOptions, type BattleWithEntries } from "../services/battles.js";
 import type { Rules } from "../services/rules.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { declareSiege, siegeOptions } from "../services/siege.js";
@@ -412,10 +412,11 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
       if (body.verses.some((v) => learned.has(v) && !mine.has(v))) return reply.code(409).send({ error: "conflict", message: err(request, "Эти стихи вы уже сдавали в прошлом испытании: второй раз они не засчитываются") });
       return reply.code(409).send({ error: "conflict", message: err(request, "Эти стихи вы уже отметили") });
     }
-    // В вызове участник сдаёт не меньше двух стихов (решение владельца 06.11): считаем его стихи в этом вызове без возвращённых.
+    // В вызове участник сдаёт не меньше двух стихов подряд (решение владельца 06.11): среди его стихов в этом вызове
+    // (без возвращённых записей) вместе с новыми должен быть отрезок из двух соседних.
     if (side === "ATTACK") {
-      const own = b.entries.filter((e) => e.side === "ATTACK" && e.userId === request.user!.id && e.status !== "REJECTED").reduce((n, e) => n + e.endIdx - e.startIdx + 1, 0);
-      if (own + fresh.length < ATTACK_MIN_PER_PERSON) return reply.code(400).send({ error: "validation", message: err(request, "В вызове участник сдаёт не меньше {n} стихов: отметьте ещё хотя бы один", { n: ATTACK_MIN_PER_PERSON }) });
+      const own = b.entries.filter((e) => e.side === "ATTACK" && e.userId === request.user!.id && e.status !== "REJECTED").flatMap((e) => Array.from({ length: e.endIdx - e.startIdx + 1 }, (_, i) => e.startIdx + i));
+      if (!hasRun([...own, ...fresh], ATTACK_MIN_RUN)) return reply.code(400).send({ error: "validation", message: err(request, "В вызове участник сдаёт не меньше {n} стихов подряд: отметьте и соседний стих", { n: ATTACK_MIN_RUN }) });
     }
     const ranges = toRanges(fresh);
     // Воин (решение владельца 22.09): его стихи считаются вдвое — вес фиксируется на момент отметки.
