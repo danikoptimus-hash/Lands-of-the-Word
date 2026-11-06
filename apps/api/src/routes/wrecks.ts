@@ -10,7 +10,7 @@ import { journal, nick } from "../services/journal.js";
 import { gameRules } from "../services/battles.js";
 import { scheduleAwards } from "../services/awards.js";
 import { isLeader, requireActiveMember, requireAdmin } from "./teamMap.js";
-import { rollCargo, sinkWreck } from "../services/wrecks.js";
+import { rollCargo } from "../services/wrecks.js";
 
 /**
  * Разбитые бурей корабли (решение владельца 04.11): сдача срочного задания командой, очередь и решение администратора.
@@ -144,12 +144,6 @@ export async function wreckRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true, cargo: roll.cargo, amount: roll.amount };
   });
 
-  /** Отпустить корабль (администратор): он тонет у тех, кто не успел, открытые сдачи закрываются. */
-  app.post("/api/games/:id/wrecks/:wreckId/close", async (request, reply) => {
-    const { id, wreckId } = request.params as { id: string; wreckId: string };
-    if (!(await requireAdmin(request, reply, id))) return;
-    const n = await sinkWreck(id, { wreckId });
-    if (!n) return reply.code(404).send({ error: "not_found", message: err(request, "Открытого корабля нет") });
-    return { ok: true };
-  });
+  // Маршрута «Отпустить корабль» больше нет (решение владельца 06.11): после него корабль всплывал заново при правке дела.
+  // Корабль тонет, когда дело удаляют; по сроку — тонет сам, и дело удаляется (`sinkDueWrecks`).
 }
