@@ -1047,3 +1047,9 @@
 .ch-bad { color: var(--danger); margin: 0; }
 .chiasm-intro p { margin: var(--sp-1) 0 0; }
 
+
+/* Стена в расчёте ответа хранителей (решение владельца 06.11): строка под шкалой. */
+.def-calc { display: flex; gap: var(--sp-2); align-items: flex-start; margin: var(--sp-2) 0 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-sm); line-height: 1.35; }
+.def-calc > .i { flex: 0 0 auto; margin-top: 2px; }
+.def-calc.ok { background: var(--success-soft); color: var(--success); }
+.def-calc.warn { background: var(--warn-soft); color: var(--warn); }

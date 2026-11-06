@@ -172,6 +172,8 @@ export interface BattleDto {
   attackSum: number; attackApproved: number; defenseSum: number; defenseApproved: number; entries: BattleEntryDto[]; myVerses: number[]; /** Стихи, уже принятые у меня в прошлых испытаниях этой книги: второй раз не сдаются. */ learnedVerses?: number[]; bookTotal: number | null;
   /** Часы вызова (претендентам и администратору) и ответа (хранителям и администратору), 03.11. */
   attackClock?: ClockDto | null; defenseClock?: ClockDto | null;
+  /** Стена хранителей в этом городе во время ответа (решение владельца 06.11): только своей стороне, чтобы видеть заранее, хватит ли её. */
+  wall?: { verses: number; blocks: number } | null;
 }
 export interface BookTextDto { code: string; name: string; verseCounts: number[]; chapters: string[][] | null; total: number }
 /** Карта книги (02.11): по участнику своей команды — стихи, сданные раньше (второй раз не считаются), отмеченные в испытании, и план заучивания. */

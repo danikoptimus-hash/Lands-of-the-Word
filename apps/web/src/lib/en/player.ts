@@ -233,6 +233,8 @@ export const PLAYER: Record<string, string> = {
   "Ставка: {n}": "Bid: {n}", "вызов: {n} за {time}": "challenge: {n} in {time}", "вызов на проверке": "challenge under review", "ответ на проверке": "response under review",
   "Претенденты учат отрывок. Когда администратор примет их записи, у вас будет столько же времени на ответ.": "The challengers are learning the passage. When the administrator accepts their recordings, you will have the same amount of time to respond.",
   "Выучено {a} из {b} · принято {c}": "Learned {a} of {b} · accepted {c}", "Не хватает {n}": "{n} short",
+  "Выучено {a} + стена {w} = {s} из {n}": "Learned {a} + wall {w} = {s} of {n}", "в стене {n}": "{n} in the wall", "хватает": "enough", "не хватает ещё {n}": "{n} still short",
+  "Стена ляжет в ответ сама за минуту до конца времени ответа: из блоков возьмутся только недостающие стихи, остальное останется в стене. Если выученного вместе со стеной хватает, ответ засчитается без нажатия. Записи на проверке считаются выученными.": "The wall lays itself into the answer one minute before the answer time ends: only the missing verses are taken from the blocks, the rest stays in the wall. If what you learned plus the wall is enough, the answer counts without pressing anything. Entries under review count as learned.",
   "Отправить вызов на проверку?": "Send the challenge for review?", "Отправить ответ на проверку?": "Send the response for review?",
   "Выучено {a} из {b}. После отправки добавлять стихи нельзя; время вызова остановится.": "Learned {a} of {b}. After sending, no verses can be added; challenge time stops.",
   "Выучено {a} из {b}. После отправки добавлять стихи нельзя.": "Learned {a} of {b}. After sending, no verses can be added.",

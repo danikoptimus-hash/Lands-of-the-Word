@@ -15,7 +15,7 @@ import { declareSiege, siegeOptions } from "../services/siege.js";
 import { activeMsBetween, awakeMsBetween, BOOKS, dayLight, stormState } from "@lotw/domain";
 import { journal } from "../services/journal.js";
 import { violatePeace } from "../services/peace.js";
-import { wallVersesOf } from "../services/wall.js";
+import { wallOf, wallVersesOf } from "../services/wall.js";
 import { battleVisibleTo } from "../services/visibility.js";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -100,6 +100,10 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
   const teams = shown.length || (b.violation && live && forTeamId === b.defenderId) ? await aliveTeams(b.gameId) : [];
   const allies = shown.map((a) => ({ id: a.id, status: a.status, team: teams.find((t) => t.id === a.allyId) ?? { id: a.allyId, index: 0, name: "?", color: "#888" } }));
   const allyCandidates = b.violation && live && forTeamId === b.defenderId && teams.length >= 3 ? teams.filter((t) => t.id !== b.attackerId && t.id !== b.defenderId && !shown.some((a) => a.allyId === t.id)) : [];
+  // Стена в расчёте ответа (вопрос игрока, решение владельца 06.11): хранителям и действующему союзнику во время ответа —
+  // толщина стены этого города, чтобы видеть заранее, хватит ли её. Претендентам толщина стены не показывается.
+  const keeperSide = forTeamId !== null && (forTeamId === b.defenderId || myAlliance?.status === "ACTIVE");
+  const wall = keeperSide && b.status === "DEFENSE" && !b.defenseDoneAt ? await wallOf(b.defenderId, b.nodeKey) : null;
   return {
     id: b.id, nodeKey: b.nodeKey, bookCode: b.bookCode, bookName: BOOK_BY_CODE.get(b.bookCode)?.nameRu ?? b.bookCode, status: b.status, sumMode: b.sumMode, bid: b.bid, defenseBid: hideDefense ? null : b.defenseBid,
     violation: b.violation, defenseFactor: b.defenseFactor, defenseNeed: defenseNeed(b), cancelPenalty: CANCEL_PENALTY, allies, allyCandidates, myAlliance: myAlliance ? { id: myAlliance.id, status: myAlliance.status } : null,
@@ -111,6 +115,7 @@ async function view(b: Full, users: Map<string, string>, forTeamId: string | nul
     entries, myVerses: my, learnedVerses: learned, bookTotal: book?.total ?? null,
     attackClock: forTeamId === null || mySide === "ATTACK" ? attackClockOf(b, rules, now, storm) : null,
     defenseClock: forTeamId === null || mySide === "DEFENSE" ? defenseClockOf(b, rules, now, storm, night) : null,
+    wall: wall ? { verses: wall.verses, blocks: wall.blocks } : null,
   };
 }
 
