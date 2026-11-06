@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
+import { LinksField } from "../components/LinksField";
 import { BookMap, WhoSheet } from "./BookMap";
 
 /**
@@ -207,7 +208,7 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, canFo
   const cancelLong = () => { if (longTimer.current !== null) { window.clearTimeout(longTimer.current); longTimer.current = null; } };
   const startLong = (b: WallBrickDto) => { cancelLong(); longFired.current = false; if (!canPlan) return; longTimer.current = window.setTimeout(() => { longFired.current = true; setWho(b); }, 450); };
   useEffect(() => cancelLong, []);
-  const [links, setLinks] = useState("");
+  const [links, setLinks] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const chosen = useMemo(() => bricks.find((b) => b.k === k) ?? null, [bricks, k]);
@@ -217,12 +218,11 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, canFo
   const okFor = (b: WallBrickDto) => !forId || b.takers.includes(forId);
   const repair = !forId && chosen?.state === "cracked" ? chosen : null;
   const canSubmit = chosen != null && (forId ? okFor(chosen) : chosen.state === "free" || chosen.state === "cracked");
-  const urls = links.split(/\s+/).filter(Boolean);
   async function send() {
     if (k === null || !canSubmit) return;
     setBusy(true); setError(null);
     try {
-      const r = await api<{ ref: string; repair?: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/wall`, { method: "POST", body: JSON.stringify({ block: k, links: urls, ...(forId ? { forUserId: forId } : {}) }) });
+      const r = await api<{ ref: string; repair?: boolean }>(`/api/games/${gameId}/my-city/${encodeURIComponent(nodeKey)}/wall`, { method: "POST", body: JSON.stringify({ block: k, links, ...(forId ? { forUserId: forId } : {}) }) });
       notify(forId ? t("Блок {ref} сдан на проверку за участника {name}", { ref: r.ref, name: forName }) : r.repair ? t("Починка {ref} сдана на проверку", { ref: r.ref }) : t("Блок {ref} сдан на проверку", { ref: r.ref })); onDone();
     } catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : t("Ошибка сети")); }
     finally { setBusy(false); }
@@ -230,7 +230,7 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, canFo
   const stateTitle = (b: WallBrickDto) => b.state === "approved" ? t("принят") : b.state === "submitted" ? t("на проверке") : b.state === "learned" ? t("стихи сданы в испытании") : b.state === "used" ? t("сгорел в испытании") : b.state === "cracked" ? t("надломлен: не хватает {n} стихов", { n: b.missing ?? 0 }) : "";
   const all = members.length;
   return (
-    <Sheet size="md" title={t("Блок стены")} onClose={onClose} foot={<button type="button" disabled={busy || !canSubmit || urls.length === 0} onClick={() => void send()}><Icon name="check" />{repair ? t("Починить {ref}", { ref: repair.ref }) : chosen && canSubmit && forId ? t("Сдать {ref} за {name}", { ref: chosen.ref, name: forName }) : chosen && canSubmit ? t("Сдать {ref}", { ref: chosen.ref }) : t("Сдать блок")}</button>}>
+    <Sheet size="md" title={t("Блок стены")} onClose={onClose} foot={<button type="button" disabled={busy || !canSubmit || links.length === 0} onClick={() => void send()}><Icon name="check" />{repair ? t("Починить {ref}", { ref: repair.ref }) : chosen && canSubmit && forId ? t("Сдать {ref} за {name}", { ref: chosen.ref, name: forName }) : chosen && canSubmit ? t("Сдать {ref}", { ref: chosen.ref }) : t("Сдать блок")}</button>}>
       {/* Сдача за хранителя (решение владельца 05.11): капитан, заместитель или летописец. */}
       {canFor && members.some((m) => m.userId !== me) && (
         <div className="field">
@@ -261,9 +261,9 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, canFo
         })}
       </div>
       {canSubmit && (
-        <div className="field mt-3">
-          <label htmlFor="wall-links">{t("Ссылки на видео")}</label>
-          <textarea id="wall-links" rows={2} value={links} onChange={(e) => setLinks(e.target.value)} placeholder={t("https://… — по одной на строку")} />
+        <div className="mt-3">
+          {/* Ссылки — кнопкой «Вставить ссылку», как в сдаче дела (решение владельца 06.11). */}
+          <LinksField label={t("Ссылки на видео")} links={links} onChange={setLinks} />
         </div>
       )}
       {error && <p className="error" role="alert">{error}</p>}
