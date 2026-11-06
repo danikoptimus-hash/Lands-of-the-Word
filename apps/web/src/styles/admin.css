@@ -481,3 +481,29 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 .admin-users .chip-link > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-users .chip-link.admin { padding-left: 8px; }
 .admin-users .chip-link:hover { border-color: var(--accent); }
+
+/* МАКЕТ 06.11: варианты карточки визита в проверке (?visits=1..4). */
+.visit-card { align-items: flex-start; }
+.visit-card .v-pic { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; flex: none; border: 2px solid var(--paper-edge); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.visit-card .v-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.visit-card .v-city, .visit-row .v-city, .visit-letter .l-city { font-family: var(--font-display, inherit); font-weight: 700; font-size: var(--fs-lg); line-height: 1.15; }
+.visit-card .v-facts, .visit-row .v-line { display: flex; align-items: center; gap: var(--sp-1) var(--sp-3); flex-wrap: wrap; font-size: var(--fs-sm); color: var(--ink-2); }
+.visit-card .fact, .visit-row .fact, .visit-letter .l-foot span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.visit-card .fact .i, .visit-row .fact .i, .visit-letter .l-foot .i { width: 15px; height: 15px; color: var(--bronze-ink); }
+.visit-card .v-quote { margin: 2px 0 0; padding: var(--sp-1) var(--sp-3); border-left: 3px solid var(--bronze-light); font-style: italic; font-size: var(--fs-md); white-space: pre-wrap; }
+.visit-card .v-squad { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
+.visit-card .pip { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; font-size: 11px; font-weight: 700; background: var(--paper-2); color: var(--ink-3); border: 1px solid var(--paper-edge); opacity: .55; }
+.visit-card .pip.went { background: var(--bronze); color: var(--on-accent); border-color: var(--bronze-deep); opacity: 1; }
+.visit-card .v-squad .small { margin-left: var(--sp-2); }
+.visit-row .v-line .v-city { margin-right: 2px; }
+.visit-row .v-sub { margin-top: 2px; } .visit-row .v-q { font-style: italic; }
+.visit-letter { display: flex; }
+.visit-letter .letter { flex: 1 1 320px; min-width: 0; padding: var(--sp-3) var(--sp-4); border: 1px solid var(--paper-edge); border-radius: 4px; background: var(--paper-light); box-shadow: 0 1px 0 var(--paper-edge), 0 2px 6px rgba(60,40,10,.08); display: flex; flex-direction: column; gap: var(--sp-2); position: relative; }
+.visit-letter .l-head { display: flex; align-items: center; gap: var(--sp-3); }
+.visit-letter .l-pic { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex: none; border: 2px solid var(--paper-edge); }
+.visit-letter .l-titles { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.visit-letter .l-from { font-size: var(--fs-sm); color: var(--ink-2); display: inline-flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; }
+.visit-letter .l-stamp { align-self: flex-start; padding: 3px 10px; border: 2px solid currentColor; border-radius: 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; transform: rotate(-6deg); opacity: .85; }
+.visit-letter .l-stamp.info { color: var(--info); } .visit-letter .l-stamp.ok { color: var(--success); } .visit-letter .l-stamp.bad { color: var(--danger); } .visit-letter .l-stamp.warn { color: var(--warn); } .visit-letter .l-stamp.neutral { color: var(--ink-3); }
+.visit-letter .l-body { margin: 0; font-size: var(--fs-md); line-height: 1.4; white-space: pre-wrap; font-style: italic; }
+.visit-letter .l-foot { display: flex; align-items: center; gap: var(--sp-1) var(--sp-3); flex-wrap: wrap; font-size: var(--fs-sm); color: var(--ink-2); border-top: 1px dashed var(--paper-edge); padding-top: var(--sp-2); }
