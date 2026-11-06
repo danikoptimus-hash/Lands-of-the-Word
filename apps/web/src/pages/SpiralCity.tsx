@@ -42,8 +42,9 @@ const LAND_S = LAND_FIT / (LAND_IMG.rx * LAND_IMG.w), LAND_W = LAND_IMG.w * LAND
  *  WALL_N сегментами шириной WALL_BAND; ворота — отдельный спрайт поверх стены внизу. */
 const WALL_SEG = "/img/city-plan/wall-seg.webp", WALL_BAND = 14, WALL_N = Math.round((2 * Math.PI * WALL_R) / (WALL_BAND * 311 / 96));
 const GATE = "/img/city-plan/gate.webp", VERGE = "/img/city-plan/grass.webp";
-/** Подъездная дорога (замечание владельца 06.11: дорога в пейзаже шла мимо ворот): рисуется в плане от ворот строго вниз, с лёгким изгибом ниже. */
-const APPROACH = `M ${C} ${0} V 60 C ${C} 150 ${C - 12} 210 ${C - 10} 290 S ${C + 4} 450 ${C} 1200`;
+/** Подъездная дорога (замечания владельца 06.11: в пейзаже шла мимо ворот; прямая выглядела топорно): рисуется в плане —
+ *  из ворот строго вниз, дальше петляет; пыльная размытая обочина и колеи, чтобы вписаться в пейзаж. */
+const APPROACH = `M ${C} 0 V 40 C ${C} 90 ${C + 10} 120 ${C + 4} 170 S ${C - 24} 250 ${C - 14} 320 S ${C + 18} 420 ${C + 6} 500 S ${C - 20} 640 ${C - 8} 760 S ${C + 12} 920 ${C} 1300`;
 /** Спрайты города (сгенерированы, см. docs): h — высота в единицах плана при масштабе 1, ar — высота/ширина файла. */
 const P = "/img/city-plan/";
 const SPR = {
@@ -276,6 +277,8 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             <pattern id={ids.roof} patternUnits="userSpaceOnUse" width="26" height="26"><image href={st.roof} width="26" height="26" /></pattern>
             <filter id="sc-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="1.2" dy="1.8" stdDeviation="1.2" floodColor="#2a1d10" floodOpacity=".45" /></filter>
             <filter id="sc-soft" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#2a1d10" floodOpacity=".35" /></filter>
+            <filter id="sc-dust" x="-60%" y="-5%" width="220%" height="110%"><feGaussianBlur stdDeviation="3.2" /></filter>
+            <filter id="sc-edge" x="-60%" y="-5%" width="220%" height="110%"><feGaussianBlur stdDeviation=".6" /></filter>
             <radialGradient id="sc-vignette" cx="50%" cy="50%" r="50%"><stop offset=".75" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".18" /></radialGradient>
           </defs>
           {/* Окрестности — один цельный пейзаж (06.11): в центре пустая площадка под город, вокруг луга, рощи, поля, холмы;
@@ -287,8 +290,11 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
           {vb.x + vb.w > LAND_X + LAND_W && <image href={st.outside} x={-LAND_X - 2 * LAND_W} y={LAND_Y} width={LAND_W} height={LAND_H} transform="scale(-1 1)" preserveAspectRatio="none" />}
           {/* Подъездная дорога от ворот вниз: начало под воротами, дальше — за край окна */}
           <g transform={`translate(0 ${WALL_R + C - 8})`} pointerEvents="none">
-            <path d={APPROACH} fill="none" stroke="#4e3f28" strokeWidth={ROAD + 5} strokeLinecap="round" opacity=".22" />
-            <path d={APPROACH} fill="none" stroke={`url(#${ids.road})`} strokeWidth={ROAD + 2} strokeLinecap="round" />
+            <path d={APPROACH} fill="none" stroke="#c9ad6e" strokeWidth={ROAD + 16} strokeLinecap="round" opacity=".45" filter="url(#sc-dust)" />
+            <path d={APPROACH} fill="none" stroke="#5a4628" strokeWidth={ROAD + 4} strokeLinecap="round" opacity=".2" filter="url(#sc-edge)" />
+            <path d={APPROACH} fill="none" stroke={`url(#${ids.road})`} strokeWidth={ROAD + 2} strokeLinecap="round" filter="url(#sc-edge)" />
+            <path d={APPROACH} fill="none" stroke="#4a3a22" strokeWidth="5" strokeLinecap="round" opacity=".16" />
+            <path d={APPROACH} fill="none" stroke="#d8bf84" strokeWidth="2.4" strokeLinecap="round" opacity=".3" />
           </g>
           {/* Город: земля, стена, дорога-спираль */}
           <circle cx={C} cy={C} r={WALL_R + 2} fill={`url(#${ids.ground})`} />
