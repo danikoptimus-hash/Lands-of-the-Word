@@ -33,14 +33,6 @@ export function leftText(deadline: string | null, now: number): string {
   return ms <= 0 ? t("время вышло") : fmtLeft(ms);
 }
 const verses = (n: number) => plural(n, ["стих", "стиха", "стихов"]);
-/** МАКЕТ (06.11): вариант показа стены в ответе и подменные числа из адреса: ?defview=1..4&wall=стихи,блоки&need=N&sum=N. */
-function defMock(): { view: number; wall: { verses: number; blocks: number } | null; need: number | null; sum: number | null } {
-  const q = new URLSearchParams(window.location.search);
-  const view = Number(q.get("defview") ?? 0) || 0;
-  const w = q.get("wall")?.split(",").map(Number);
-  return { view, wall: w && w.length >= 1 && w[0]! > 0 ? { verses: w[0]!, blocks: w[1] ?? 1 } : null, need: q.get("need") ? Number(q.get("need")) : null, sum: q.get("sum") ? Number(q.get("sum")) : null };
-}
-const blocksWord = (n: number) => plural(n, ["блок", "блока", "блоков"]);
 
 /**
  * Испытание города в попапе: уровень испытания, вызов (ставка — сколько стихов команда выучит
@@ -153,14 +145,8 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
   const [bid, setBid] = useState(b.bid);
   const [asking, setAsking] = useState(false);
   const live = b.status === "QUEUED" || b.status === "ATTACK" || b.status === "DEFENSE";
-  const mock = defMock();
-  const need = mock.need ?? (attacker ? b.bid : b.defenseNeed ?? b.bid);
-  const sum = mock.sum ?? (attacker ? b.attackSum : b.defenseSum);
-  /** Стена хранителей в этом городе (макет: из адреса). */
-  const wall = !attacker && b.status === "DEFENSE" ? mock.wall : null;
-  const wallUse = wall ? Math.min(wall.verses, Math.max(0, need - sum)) : 0;
-  const gap = Math.max(0, need - sum - (wall?.verses ?? 0));
-  const enough = sum < need && wall != null && gap === 0;
+  const need = attacker ? b.bid : b.defenseNeed ?? b.bid;
+  const sum = attacker ? b.attackSum : b.defenseSum;
   const approved = attacker ? b.attackApproved : b.defenseApproved;
   const passage = attacker ? b.passage : b.defensePassage;
   const night = daytime?.phase === "night", storm = Boolean(daytime?.storm?.active);
@@ -277,43 +263,6 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
         <>
           <div className="progress mt-2"><span style={{ width: `${Math.min(100, need ? (sum / need) * 100 : 0)}%` }} /></div>
           <div className="muted small mt-1">{t("Выучено {a} из {b} · принято {c}", { a: sum, b: need, c: approved })}{!attacker && b.entries.some((e) => e.carried) ? ` · ${t("зачтено ранее: {n}", { n: b.entries.filter((e) => e.carried).reduce((s, e) => s + e.verses, 0) })}` : ""}</div>
-          {/* МАКЕТ 06.11: стена в расчёте ответа — четыре варианта показа. */}
-          {wall && mock.view === 1 && sum < need && (
-            <p className={"def-calc " + (gap === 0 ? "ok" : "warn")}>
-              <Icon name="wall" />
-              <span>{t("Стена закроет {n}", { n: verses(wallUse) })} ({blocksWord(wall.blocks)} · {verses(wall.verses)}) → {gap === 0 ? t("хватает: город устоит") : t("не хватает ещё {n}", { n: verses(gap) })}</span>
-            </p>
-          )}
-          {wall && mock.view === 2 && (
-            <>
-              <div className="progress stacked mt-2" role="img" aria-label={t("Выучено {a}, стена {w}, нужно {b}", { a: sum, w: wallUse, b: need })}>
-                <span className="learned" style={{ width: `${Math.min(100, (sum / need) * 100)}%` }} />
-                <span className="wall" style={{ width: `${Math.min(100 - Math.min(100, (sum / need) * 100), (wallUse / need) * 100)}%` }} />
-              </div>
-              <div className="muted small mt-1 def-legend">
-                <span><i className="sw learned" />{t("выучено {n}", { n: sum })}</span>
-                <span><i className="sw wall" />{t("стена {n}", { n: wallUse })}{wall.verses > wallUse ? ` ${t("из {n}", { n: wall.verses })}` : ""}</span>
-                <span className={gap > 0 ? "warn-ink" : "ok-ink"}><i className={"sw " + (gap > 0 ? "gap" : "ok")} />{gap > 0 ? t("не хватает {n}", { n: gap }) : t("хватает")}</span>
-              </div>
-            </>
-          )}
-          {wall && mock.view === 3 && sum < need && (
-            <div className={"forecast mt-2 " + (gap === 0 ? "ok" : "warn")}>
-              <div className="fc-head"><Icon name="shield" /><b>{gap === 0 ? t("Город устоит") : t("Не хватает {n}", { n: verses(gap) })}</b></div>
-              <dl>
-                <div><dt>{t("Нужно отразить")}</dt><dd>{verses(need)}</dd></div>
-                <div><dt>{t("Выучено")}</dt><dd>{verses(sum)}{approved < sum ? <span className="muted"> · {t("на проверке {n}", { n: sum - approved })}</span> : null}</dd></div>
-                <div><dt>{t("Стена закроет")}</dt><dd>{verses(wallUse)}<span className="muted"> · {t("в стене {n}", { n: wall.verses })} ({blocksWord(wall.blocks)})</span></dd></div>
-              </dl>
-              <p className="muted small">{t("Стена ляжет сама за минуту до конца времени ответа: из блока возьмутся только недостающие стихи, остальное останется в стене.")}</p>
-            </div>
-          )}
-          {wall && mock.view === 4 && sum < need && (
-            <p className={"def-calc " + (gap === 0 ? "ok" : "warn")}>
-              <Icon name="wall" />
-              <span>{t("Выучено {a} + стена {w} = {s} из {n}", { a: sum, w: wallUse, s: sum + wallUse, n: need })} · {gap === 0 ? t("хватает") : t("не хватает ещё {n}", { n: verses(gap) })}</span>
-            </p>
-          )}
           {/* Карта книги (решение владельца 02.11): своя сторона видит всю книгу и чьи стихи уже закрыты, прежде чем брать отрывок — хранители в ответе, претенденты в вызове. */}
           {!ally && ((attacker && b.status === "ATTACK" && !b.attackDoneAt) || (!attacker && b.status === "DEFENSE" && !b.defenseDoneAt)) && (
             <details className="disclose sm book-map-fold" open>
@@ -325,14 +274,12 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
             isCaptain && !ally ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Ждём: капитан выбирает отрывок ответа.")}</span></div>
           )}
           {passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn || night} onChanged={onChanged} />}
-          {isCaptain && myTurn && !ally && sum < need && !(wall && mock.view > 0) && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
+          {isCaptain && myTurn && !ally && sum < need && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
           {/* Времена суток (решение владельца 03.10) и шторм (24.10): ночью и в шторм стихи не отправляют. Утреннего окна для вызова нет (01.11). */}
           {myTurn && night && <NightNote tone="warn">{t("Ночь: испытание ждёт утра. С 7:00 по местному времени можно отмечать стихи и отправлять на проверку.")}</NightNote>}
           {myTurn && storm && !night && <div className="note warn"><Icon name="clock" /><span>{t("Шторм: отправить на проверку можно, когда буря пройдёт.")}</span></div>}
           <div className="actions">
-            {isCaptain && myTurn && !ally && (wall && mock.view === 4 && sum < need
-              ? <button type="button" className={enough ? "" : "secondary"} disabled={!enough || !canSend} title={enough ? t("Стена ляжет в ответ сейчас, не дожидаясь последней минуты") : undefined}><Icon name="wall" />{enough ? t("Ответить со стеной: {a} + {w}", { a: sum, w: wallUse }) : t("Со стеной не хватает {n}", { n: verses(gap) })}</button>
-              : <button type="button" disabled={sum < need || !canSend} onClick={() => void submit()}><Icon name="send" />{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}</button>)}
+            {isCaptain && myTurn && !ally && <button type="button" disabled={sum < need || !canSend} onClick={() => void submit()}><Icon name="send" />{attacker ? t("Отправить вызов на проверку") : t("Отправить ответ на проверку")}</button>}
           </div>
         </>
       )}

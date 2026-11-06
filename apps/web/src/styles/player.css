@@ -1083,28 +1083,3 @@
 .ch-bad { color: var(--danger); margin: 0; }
 .chiasm-intro p { margin: var(--sp-1) 0 0; }
 
-
-/* МАКЕТ 06.11: стена в расчёте ответа хранителей. */
-.def-calc { display: flex; gap: var(--sp-2); align-items: flex-start; margin: var(--sp-2) 0 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-sm); font-size: var(--fs-sm); line-height: 1.35; }
-.def-calc > .i { flex: 0 0 auto; margin-top: 2px; }
-.def-calc.ok { background: var(--success-soft); color: var(--success); }
-.def-calc.warn { background: var(--warn-soft); color: var(--warn); }
-.progress.stacked { display: flex; height: 10px; }
-.progress.stacked span { display: block; height: 100%; }
-.progress.stacked .learned { background: var(--bronze); }
-.progress.stacked .wall { background: repeating-linear-gradient(135deg, var(--stone) 0 6px, var(--stone-dark) 6px 8px); }
-.def-legend { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); }
-.def-legend .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-.def-legend .sw.learned { background: var(--bronze); }
-.def-legend .sw.wall { background: repeating-linear-gradient(135deg, var(--stone) 0 3px, var(--stone-dark) 3px 4px); }
-.def-legend .sw.gap { background: var(--warn-soft); border: 1px dashed var(--warn); }
-.def-legend .sw.ok { background: var(--success-soft); border: 1px solid var(--success); }
-.def-legend .warn-ink { color: var(--warn); } .def-legend .ok-ink { color: var(--success); }
-.forecast { border: 1px solid var(--paper-edge); border-radius: var(--r-sm); padding: var(--sp-2) var(--sp-3); background: var(--paper-light); }
-.forecast .fc-head { display: flex; gap: var(--sp-2); align-items: center; font-size: var(--fs-md); }
-.forecast.ok .fc-head { color: var(--success); } .forecast.warn .fc-head { color: var(--warn); }
-.forecast dl { margin: var(--sp-2) 0 0; display: grid; gap: 4px; }
-.forecast dl > div { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2); font-size: var(--fs-sm); }
-.forecast dt { color: var(--ink-2); flex: 0 0 auto; white-space: nowrap; } .forecast dd { margin: 0; font-weight: 600; text-align: right; flex: 1 1 auto; } .forecast dd .muted { font-weight: 400; }
-.forecast .fc-head + dl { border-top: 1px dashed var(--border); padding-top: var(--sp-2); }
-.forecast p { margin: var(--sp-2) 0 0; }
