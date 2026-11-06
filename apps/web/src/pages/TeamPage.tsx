@@ -23,6 +23,7 @@ import { useMediaQuery } from "../lib/media";
 import { t } from "../lib/i18n";
 import { fmtDate, plural, setDisplayTimeZone } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { AutoGrow } from "../components/AutoGrow";
 import { NightNote } from "../components/NightNote";
 import { LinksField } from "../components/LinksField";
 import { PeoplePicker } from "../components/PeoplePicker";
@@ -1041,11 +1042,11 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
         </div>
       )}
       {report ? (
-        <div className="field"><label htmlFor="deed-q1">{t("Что сделал и кому?")}</label><textarea id="deed-q1" rows={3} value={what} onChange={(e) => setWhat(e.target.value)} /></div>
+        <div className="field"><label htmlFor="deed-q1">{t("Что сделал и кому?")}</label><AutoGrow id="deed-q1" value={what} onChange={(e) => setWhat(e.target.value)} /></div>
       ) : (
         <div className="field">
           <label htmlFor="deed-note">{donation ? t("Комментарий") : t("Что сделали")}</label>
-          <textarea id="deed-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+          <AutoGrow id="deed-note" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
       )}
       {/* «Отказаться» слева, «Сдать» справа, в один ряд (решение владельца 16.10). */}

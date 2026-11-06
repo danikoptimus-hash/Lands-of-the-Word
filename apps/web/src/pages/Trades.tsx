@@ -4,6 +4,7 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { AutoGrow } from "../components/AutoGrow";
 import { Chip } from "../components/Chip";
 import { Help } from "../components/Help";
 import { Sheet } from "../components/Sheet";
@@ -136,7 +137,7 @@ export function TradeProposeSheet({ gameId, offerKey, container, onClose, onDone
           <p className="trade-offer"><Icon name="city" /><b>{city.bookName}</b> · {words(city.words)}</p>
           <label htmlFor="trade-team">{t("Команда")}</label>
           <select id="trade-team" value={toTeamId} onChange={(e) => setToTeamId(e.target.value)}><option value="">{t("Выберите команду…")}</option>{data.teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
-          <div className="field mt-2"><label htmlFor="trade-msg">{t("Сообщение послу")} <span className="opt">{t("необязательно")}</span></label><input id="trade-msg" className="full" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} /></div>
+          <div className="field mt-2"><label htmlFor="trade-msg">{t("Сообщение послу")} <span className="opt">{t("необязательно")}</span></label><AutoGrow id="trade-msg" className="full" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} /></div>
           <p className="hint">{t("Посол другой команды увидит город и число слов в его книге и предложит свой город взамен.")}</p>
         </>
       )}
