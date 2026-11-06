@@ -149,6 +149,10 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
   const sum = attacker ? b.attackSum : b.defenseSum;
   const approved = attacker ? b.attackApproved : b.defenseApproved;
   const passage = attacker ? b.passage : b.defensePassage;
+  /** Стена в расчёте ответа (решение владельца 06.11): пока выученного меньше ставки, строка «выучено + стена = … из …». */
+  const wall = !attacker && b.status === "DEFENSE" && !b.defenseDoneAt && b.wall && b.wall.verses > 0 ? b.wall : null;
+  const wallUse = wall ? Math.min(wall.verses, Math.max(0, need - sum)) : 0;
+  const wallGap = Math.max(0, need - sum - (wall?.verses ?? 0));
   const night = daytime?.phase === "night", storm = Boolean(daytime?.storm?.active);
   /** Отправить на проверку и начать атаку: ночью и в шторм нельзя (утреннего окна для вызова больше нет — решение владельца 01.11). */
   const canSend = !night && !storm;
@@ -263,6 +267,15 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
         <>
           <div className="progress mt-2"><span style={{ width: `${Math.min(100, need ? (sum / need) * 100 : 0)}%` }} /></div>
           <div className="muted small mt-1">{t("Выучено {a} из {b} · принято {c}", { a: sum, b: need, c: approved })}{!attacker && b.entries.some((e) => e.carried) ? ` · ${t("зачтено ранее: {n}", { n: b.entries.filter((e) => e.carried).reduce((s, e) => s + e.verses, 0) })}` : ""}</div>
+          {wall && sum < need && (
+            <p className={"def-calc " + (wallGap === 0 ? "ok" : "warn")}>
+              <Icon name="wall" />
+              <span>
+                {t("Выучено {a} + стена {w} = {s} из {n}", { a: sum, w: wallUse, s: sum + wallUse, n: need })}{wall.verses > wallUse ? ` (${t("в стене {n}", { n: wall.verses })})` : ""} · {wallGap === 0 ? t("хватает") : t("не хватает ещё {n}", { n: verses(wallGap) })}
+                <Help>{t("Стена ляжет в ответ сама за минуту до конца времени ответа: из блоков возьмутся только недостающие стихи, остальное останется в стене. Если выученного вместе со стеной хватает, ответ засчитается без нажатия. Записи на проверке считаются выученными.")}</Help>
+              </span>
+            </p>
+          )}
           {/* Карта книги (решение владельца 02.11): своя сторона видит всю книгу и чьи стихи уже закрыты, прежде чем брать отрывок — хранители в ответе, претенденты в вызове. */}
           {!ally && ((attacker && b.status === "ATTACK" && !b.attackDoneAt) || (!attacker && b.status === "DEFENSE" && !b.defenseDoneAt)) && (
             <details className="disclose sm book-map-fold" open>
@@ -274,7 +287,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
             isCaptain && !ally ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Ждём: капитан выбирает отрывок ответа.")}</span></div>
           )}
           {passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn || night} onChanged={onChanged} />}
-          {isCaptain && myTurn && !ally && sum < need && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
+          {isCaptain && myTurn && !ally && sum < need && !wall && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
           {/* Времена суток (решение владельца 03.10) и шторм (24.10): ночью и в шторм стихи не отправляют. Утреннего окна для вызова нет (01.11). */}
           {myTurn && night && <NightNote tone="warn">{t("Ночь: испытание ждёт утра. С 7:00 по местному времени можно отмечать стихи и отправлять на проверку.")}</NightNote>}
           {myTurn && storm && !night && <div className="note warn"><Icon name="clock" /><span>{t("Шторм: отправить на проверку можно, когда буря пройдёт.")}</span></div>}

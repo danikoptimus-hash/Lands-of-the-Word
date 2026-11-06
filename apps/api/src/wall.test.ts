@@ -200,6 +200,14 @@ describe("городская стена", () => {
     // При «Испытать» стена ещё не ложится (решение владельца 02.11): хранители отвечают сами, блоки целы.
     expect(launched.json().status).toBe("DEFENSE");
     expect(await prisma.battleEntry.count({ where: { battleId, side: "DEFENSE" } })).toBe(0);
+    // Стена в расчёте ответа (решение владельца 06.11): хранителям карточка испытания отдаёт толщину стены, претендентам — нет.
+    const wallNow = (await get(wallUrl(), keeperCookie)).json() as { verses: number; blockCount: number };
+    type View = { id: string; wall: { verses: number; blocks: number } | null };
+    const keepersView = ((await get(`/api/games/${gameId}/my-battles`, keeperCookie)).json().battles as View[]).find((x) => x.id === battleId);
+    expect(keepersView?.wall).toEqual({ verses: wallNow.verses, blocks: wallNow.blockCount });
+    expect(wallNow.verses).toBeGreaterThanOrEqual(10);
+    const attackersView = ((await get(`/api/games/${gameId}/my-battles`, attackerCookie)).json().battles as View[]).find((x) => x.id === battleId);
+    expect(attackersView?.wall ?? null).toBeNull();
     await sweep(gameId);
     expect(await prisma.battleEntry.count({ where: { battleId, side: "DEFENSE" } })).toBe(0);
     // За минуту до конца времени ответа обход кладёт стену: в ответ лёг только нужный блок — самый старый (10 стихов)
