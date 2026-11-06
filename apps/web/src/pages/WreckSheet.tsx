@@ -4,6 +4,7 @@ import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { AutoGrow } from "../components/AutoGrow";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
@@ -93,7 +94,7 @@ export function WreckSheet({ gameId, wreck, members, canWork, canTake = true, as
       {canSubmit && (
         <div className="stack-sm mt-2">
           {linksNeeded && <LinksField label={wreck.proofType === "VIDEO_LINK" ? t("Ссылки на видео") : wreck.proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />}
-          <div className="field"><label htmlFor="wreck-note">{t("Коротко")} {linksNeeded && <span className="opt">{t("необязательно")}</span>}</label><textarea id="wreck-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Что сделали")} /></div>
+          <div className="field"><label htmlFor="wreck-note">{t("Коротко")} {linksNeeded && <span className="opt">{t("необязательно")}</span>}</label><AutoGrow id="wreck-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("Что сделали")} /></div>
           {members.length > 0 && (
             <div className="field">
               <label className="label" htmlFor="wreck-people">{t("Кто участвовал")} <span className="opt">{t("им дело пойдёт в зачёт")}</span></label>
