@@ -47,6 +47,8 @@ export async function gameRules(gameId: string): Promise<Rules> {
 export const LEVEL_STEP = 5;
 /** Штраф за отмену вызова (решение владельца 03.11: «отмена испытания удорожала атаку на 5 стихов, а не на 1»): минимальная ставка команды на этот город растёт, как при сгоревшем вызове. */
 export const CANCEL_PENALTY = 5;
+/** В вызове участник сдаёт не меньше двух стихов (решение владельца 06.11): один стих с человека не принимается. */
+export const ATTACK_MIN_PER_PERSON = 2;
 /** Минимальная ставка команды на город: max(минимум + штраф за сгоревшие вызовы этой команды, уровень защиты + 5). */
 export function minBidFor(defenseLevel: number, penalty: number, rules: Rules): number {
   return Math.max(rules.minBid + penalty, defenseLevel > 0 ? defenseLevel + LEVEL_STEP : 0);
