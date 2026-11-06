@@ -32,8 +32,12 @@ const VB = 560, C = VB / 2, R0 = 182, W = 30, GAP = 15, ROAD = 7, PITCH = W + GA
 /** Поперечные дороги между соседними районами (замечание владельца 06.11): дорога и травяная обочина в просвете GAPLEN. */
 const LANE = 4.5, LANE_VERGE = 8;
 const WALL_R = R0 + W + GAP + 6;
-/** Подгонка пейзажа под план: масштаб и сдвиг (дорога в картинке на 49 % ширины, площадка — центр 50 %/48 %, радиус 39 %). */
-const LAND_SCALE = 1.03, LAND_DX = -3, LAND_DY = 0;
+/** Пейзаж — портретная картинка 1024×1536 с пустой площадкой под город (замеры по картинке: центр площадки и её полуось по
+ *  ширине — доли ширины/высоты файла). Картинка масштабируется так, чтобы площадка легла под город (LAND_FIT — радиус в единицах
+ *  плана, чуть меньше стены), и центрируется по площадке; окно плана бывает выше или шире картинки — тогда по краям её зеркальное
+ *  продолжение (площадка далеко от краёв, в отражении не видна). */
+const LAND_IMG = { w: 1024, h: 1536, cx: 0.506, cy: 0.42, rx: 0.303 }, LAND_FIT = 226;
+const LAND_S = LAND_FIT / (LAND_IMG.rx * LAND_IMG.w), LAND_W = LAND_IMG.w * LAND_S, LAND_H = LAND_IMG.h * LAND_S, LAND_X = C - LAND_IMG.cx * LAND_W, LAND_Y = C - LAND_IMG.cy * LAND_H;
 /** Стена — сгенерированный отрезок из песчаника (вид сверху, зубцы по краям, 311×96, бесшовный), выложенный по кругу
  *  WALL_N сегментами шириной WALL_BAND; ворота — отдельный спрайт поверх стены внизу. */
 const WALL_SEG = "/img/city-plan/wall-seg.webp", WALL_BAND = 14, WALL_N = Math.round((2 * Math.PI * WALL_R) / (WALL_BAND * 311 / 96));
@@ -174,6 +178,16 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
   }, [n]);
   const motion = useMemo(() => { try { return !window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch { return true; } }, []);
 
+  // Окно плана на весь экран (решение владельца 06.11): видовое окно повторяет пропорции контейнера, город по центру,
+  // сверху и снизу (или по бокам) — пейзаж, а не пустые поля.
+  const [aspect, setAspect] = useState(1);
+  useEffect(() => {
+    const el = view.current; if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((es) => { const r = es[0]?.contentRect; if (r && r.width > 0 && r.height > 0) setAspect(Math.round((r.height / r.width) * 100) / 100); });
+    ro.observe(el); return () => ro.disconnect();
+  }, []);
+  const vb = aspect >= 1 ? { x: 0, y: C - (VB * aspect) / 2, w: VB, h: VB * aspect } : { x: C - VB / aspect / 2, y: 0, w: VB / aspect, h: VB };
+
   // Приближение и перетаскивание: один палец — двигает, два — масштаб, колесо — масштаб у курсора.
   const view = useRef<HTMLDivElement>(null);
   const [cam, setCam] = useState({ k: 1, tx: 0, ty: 0 });
@@ -250,7 +264,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     <div className="plan-wrap">
       {hint && <p className="hint">{hint}{help && <Help>{help}</Help>}</p>}
       <div ref={view} className={"plan-view" + (state === "jam" ? " jam" : state === "open" ? " open" : "")} onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp} role="group" aria-label={t("План города: участки по спирали от ворот к площади")}>
-        <svg viewBox={`0 0 ${VB} ${VB}`} style={{ transform: `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.k})` }} aria-hidden="true">
+        <svg viewBox={`${vb.x.toFixed(1)} ${vb.y.toFixed(1)} ${vb.w.toFixed(1)} ${vb.h.toFixed(1)}`} style={{ transform: `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.k})` }} aria-hidden="true">
           <defs>
             <pattern id={ids.verge} patternUnits="userSpaceOnUse" width="120" height="120"><image href={VERGE} width="120" height="120" /></pattern>
             <pattern id={ids.ground} patternUnits="userSpaceOnUse" width="220" height="220"><image href={st.ground} width="220" height="220" /></pattern>
@@ -261,10 +275,13 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             <filter id="sc-soft" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#2a1d10" floodOpacity=".35" /></filter>
             <radialGradient id="sc-vignette" cx="50%" cy="50%" r="50%"><stop offset=".75" stopColor="#000" stopOpacity="0" /><stop offset="1" stopColor="#000" stopOpacity=".18" /></radialGradient>
           </defs>
-          {/* Окрестности — один цельный пейзаж (06.11): в центре пустая площадка под город, вокруг луга, рощи, поля, холмы, вода у
-              края; дорога к воротам нарисована в нём. LAND_* подгоняют картинку так, чтобы дорога пришла к воротам, а вода не
-              заходила под город (замечание владельца 06.11: город лёг на реку). */}
-          <image href={st.outside} x={LAND_DX} y={LAND_DY} width={VB * LAND_SCALE} height={VB * LAND_SCALE} preserveAspectRatio="xMidYMid slice" />
+          {/* Окрестности — один цельный пейзаж (06.11): в центре пустая площадка под город, вокруг луга, рощи, поля, холмы;
+              дорога к воротам нарисована в нём. За краями картинки — её зеркальное продолжение. */}
+          <image href={st.outside} x={LAND_X} y={LAND_Y} width={LAND_W} height={LAND_H} preserveAspectRatio="none" />
+          {vb.y < LAND_Y && <image href={st.outside} x={LAND_X} y={-LAND_Y} width={LAND_W} height={LAND_H} transform="scale(1 -1)" preserveAspectRatio="none" />}
+          {vb.y + vb.h > LAND_Y + LAND_H && <image href={st.outside} x={LAND_X} y={-LAND_Y - 2 * LAND_H} width={LAND_W} height={LAND_H} transform="scale(1 -1)" preserveAspectRatio="none" />}
+          {vb.x < LAND_X && <image href={st.outside} x={-LAND_X} y={LAND_Y} width={LAND_W} height={LAND_H} transform="scale(-1 1)" preserveAspectRatio="none" />}
+          {vb.x + vb.w > LAND_X + LAND_W && <image href={st.outside} x={-LAND_X - 2 * LAND_W} y={LAND_Y} width={LAND_W} height={LAND_H} transform="scale(-1 1)" preserveAspectRatio="none" />}
           {/* Город: земля, стена, дорога-спираль */}
           <circle cx={C} cy={C} r={WALL_R + 2} fill={`url(#${ids.ground})`} />
           <circle cx={C} cy={C} r={WALL_R + 2} fill="url(#sc-vignette)" />
