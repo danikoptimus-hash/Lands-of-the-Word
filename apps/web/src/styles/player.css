@@ -627,9 +627,18 @@
 .plan-view.jam { animation: lockJam .5s var(--ease-out); }
 .plan-view .plot { cursor: pointer; }
 .plan-foot { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
-.plan-pile { display: flex; flex-direction: column; gap: 6px; }
-.plan-pile .pick { text-align: left; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 10px; border-radius: 10px; min-height: 0; white-space: normal; }
-.plan-pile .pick small { color: var(--muted); font-weight: 400; }
+/* Карусель плиток районов под картой (решение владельца 06.11): узкая полоса, прокрутка вбок, плитка — название и главы. */
+.plan-strip { flex: none; display: flex; flex-direction: column; gap: 6px; padding-top: 4px; }
+.plan-strip .strip-head { display: flex; align-items: center; gap: var(--sp-2); }
+.plan-strip .strip-head b { flex: none; font-size: var(--fs-sm); }
+.plan-strip .strip-head input { flex: 1 1 auto; min-width: 0; height: 32px; padding: 0 10px; font-size: var(--fs-sm); }
+.plan-pile { display: flex; flex-direction: row; gap: 6px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; padding: 2px 2px 6px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.plan-pile .tile { flex: none; width: 124px; height: 70px; scroll-snap-align: start; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 2px; padding: 6px 8px; border-radius: 10px; min-height: 0; white-space: normal; text-align: left; font-size: 12px; line-height: 1.15; }
+.plan-pile .tile b { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font-weight: 600; }
+.plan-pile .tile .muted { font-size: 11px; }
+.plan-pile .tile.current { border: 1px solid var(--accent); background: var(--accent-soft); color: var(--accent-ink); }
+.plan-pile .tile.current button { padding: 0; min-height: 0; font-size: 11px; }
+.plan-pile > p { flex: none; align-self: center; margin: 0; padding: 0 var(--sp-2); }
 /* Письмо к хиазму: две строки пары с буквами мест, как на доске (05.11). */
 .prophet-letter .letter-pair { --man: #A9553A; --god: #4F7C99; display: flex; flex-direction: column; gap: var(--sp-1); margin: var(--sp-2) 0; }
 .prophet-letter .letter-pair p { display: flex; align-items: center; gap: 8px; margin: 0; }
