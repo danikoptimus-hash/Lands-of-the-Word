@@ -166,21 +166,19 @@ describe("Разбитые бурей корабли", () => {
     expect(await prisma.journal.count({ where: { gameId, kind: "wreck_sunk" } })).toBe(1);
   });
 
-  it("снятый флажок — корабль тонет; «Отпустить корабль» — то же; одобренной команде он уплывает, а не тонет", async () => {
+  it("снятый флажок — корабль тонет; одобренной команде он уплывает, а не тонет; маршрута «Отпустить корабль» нет (06.11)", async () => {
     expect((await put(`/api/games/${gameId}/deeds/${deedId}`, adminCookie, { wreck: false })).statusCode).toBe(200);
     const w = await prisma.wreck.findUniqueOrThrow({ where: { id: wreckId } });
     expect(w.closedAt).not.toBeNull(); expect(w.sunk).toBe(true);
     // Обе команды спасли корабль: им он чинится и уходит (sunkAt нет).
     expect((await myWrecks(capCookie)).find((x) => x.id === wreckId)?.sunkAt).toBeNull();
     expect((await myWrecks(cap2Cookie)).find((x) => x.id === wreckId)?.sunkAt).toBeNull();
-    // Флажок снова — новый корабль; «Отпустить корабль» закрывает его.
+    // Флажок снова — новый корабль; «Отпустить корабль» убран: маршрута нет, корабль закрывает только удаление дела или срок.
     expect((await put(`/api/games/${gameId}/deeds/${deedId}`, adminCookie, { wreck: true })).statusCode).toBe(200);
     const w2 = await prisma.wreck.findFirstOrThrow({ where: { gameId, deedId, closedAt: null } });
     expect(w2.id).not.toBe(wreckId);
-    expect((await post(`/api/games/${gameId}/wrecks/${w2.id}/close`, capCookie)).statusCode).toBe(403);
-    expect((await post(`/api/games/${gameId}/wrecks/${w2.id}/close`, adminCookie)).statusCode).toBe(200);
     expect((await post(`/api/games/${gameId}/wrecks/${w2.id}/close`, adminCookie)).statusCode).toBe(404);
-    expect((await myWrecks(capCookie)).find((x) => x.id === w2.id)?.sunkAt).not.toBeNull();
+    expect(await prisma.wreck.count({ where: { gameId, deedId, closedAt: null } })).toBe(1);
     expect((await get(`/api/games/${gameId}/wrecks`, adminCookie)).json().wrecks.some((x: { id: string }) => x.id === w2.id)).toBe(true);
   });
 
@@ -213,7 +211,7 @@ describe("Разбитые бурей корабли", () => {
 
 /** Срок затопления (решение владельца 05.11): задаётся в деле, команды видят таймер, по сроку корабль тонет сам. */
 describe("Срок затопления разбитого корабля", () => {
-  it("срок в деле → таймер у команд; прошлое не принимается; по сроку корабль тонет сам и не поднимается при правке дела", async () => {
+  it("срок в деле → таймер у команд; прошлое не принимается; по сроку корабль тонет сам, а дело удаляется (06.11)", async () => {
     const past = new Date(Date.now() - 60_000).toISOString();
     expect((await post(`/api/games/${gameId}/deeds`, adminCookie, deedBody("Снять людей с тонущего корабля", { wreck: true, wreckSinkAt: past }))).statusCode).toBe(400);
     const soon = new Date(Date.now() + 3_600_000).toISOString();
@@ -238,9 +236,11 @@ describe("Срок затопления разбитого корабля", () =
     expect(sunk.sunk).toBe(true);
     expect(sunk.closedAt).not.toBeNull();
     expect((await myWrecks(capCookie)).find((x) => x.id === w.id)?.sunkAt).not.toBeNull();
-    // Правка других полей дела с прошедшим сроком не поднимает корабль заново.
-    expect((await put(`/api/games/${gameId}/deeds/${deedId2}`, adminCookie, { wreckStones: 5 })).statusCode).toBe(200);
-    expect(await prisma.wreck.count({ where: { gameId, deedId: deedId2, closedAt: null } })).toBe(0);
+    // Дело удалилось само (решение владельца 06.11); корабль в истории остаётся с названием.
+    expect(await prisma.deed.findUnique({ where: { id: deedId2 } })).toBeNull();
+    expect((await get(`/api/games/${gameId}/deeds`, adminCookie)).json().deeds.some((d: { id: string }) => d.id === deedId2)).toBe(false);
+    expect((await prisma.wreck.findUniqueOrThrow({ where: { id: w.id } })).title).toBe("Снять людей с тонущего корабля");
+    expect((await put(`/api/games/${gameId}/deeds/${deedId2}`, adminCookie, { wreckStones: 5 })).statusCode).toBe(404);
   });
 });
 
@@ -281,9 +281,9 @@ describe("Взять срочное задание (решения владел�
     // Второй приз той же команде не получить: пока сдача не рассмотрена, ни взять, ни сдать снова.
     expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/take`, capCookie)).statusCode).toBe(409);
     expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/submit`, capCookie, { links: ["https://photos.example/t3"] })).statusCode).toBe(409);
-    // Вторая команда взяла, но не сдала; корабль отпущен — взятое закрыто вместе со сдачей.
+    // Вторая команда взяла, но не сдала; дело удалено — корабль тонет, взятое закрывается «Корабль затонул» (06.11: кнопки «Отпустить» нет).
     expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/take`, cap2Cookie)).statusCode).toBe(200);
-    expect((await post(`/api/games/${gameId}/wrecks/${wreck.id}/close`, adminCookie)).statusCode).toBe(200);
+    expect((await del(`/api/games/${gameId}/deeds/${r.json().deed.id}`, adminCookie)).statusCode).toBe(200);
     const closed = await prisma.wreckWork.findMany({ where: { wreckId: wreck.id }, select: { status: true, adminComment: true } });
     expect(closed.length).toBe(2);
     expect(closed.every((x) => x.status === "REJECTED" && x.adminComment === "Корабль затонул")).toBe(true);
