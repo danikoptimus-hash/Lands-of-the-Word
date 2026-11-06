@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { t } from "../lib/i18n";
 import { Icon } from "../components/Icon";
-import { Sheet } from "../components/Sheet";
 import { Help } from "../components/Help";
 import type { CityDistrictDto } from "../lib/api";
 
@@ -17,9 +16,9 @@ const LAND_PRE = "/img/city-plan/landscape.webp";
 /** Наборы текстур на выбор (владелец смотрит варианты на стенде: `?cityStyle=a|b|c`); окрестности — один цельный сгенерированный пейзаж,
  *  стена и ворота из песчаника, деревья и черепица — тоже из генератора (06.11, `scripts/img-gen`). */
 export const CITY_STYLES = {
-  a: { name: "Пергамент", ground: "/img/city-plan/pavement.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-tiles.webp", outside: LAND_PRE, roofEdge: "#6e3a26", label: "#fff6e6", number: "#b5583c" },
-  b: { name: "Оазис", ground: "/img/terrain/oasis.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-flat.webp", outside: LAND_PRE, roofEdge: "#7a5a36", label: "#3a2d1f", number: "#7a5226" },
-  c: { name: "Глина", ground: "/img/terrain/desert.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/plot-earth.webp", roof: "/img/city-plan/roof-slate.webp", outside: LAND_PRE, roofEdge: "#2f343c", label: "#f4f6f8", number: "#4f5a66" },
+  a: { name: "Пергамент", ground: "/img/city-plan/pavement.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/vacant.webp", roof: "/img/city-plan/district.webp", outside: LAND_PRE, roofEdge: "#6e3a26", label: "#fff6e6", number: "#b5583c" },
+  b: { name: "Оазис", ground: "/img/terrain/oasis.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/vacant.webp", roof: "/img/city-plan/roof-flat.webp", outside: LAND_PRE, roofEdge: "#7a5a36", label: "#3a2d1f", number: "#7a5226" },
+  c: { name: "Глина", ground: "/img/terrain/desert.webp", road: "/img/city-plan/road-gravel.webp", earth: "/img/city-plan/vacant.webp", roof: "/img/city-plan/roof-slate.webp", outside: LAND_PRE, roofEdge: "#2f343c", label: "#f4f6f8", number: "#4f5a66" },
 } as const;
 export type CityStyle = keyof typeof CITY_STYLES;
 export function cityStyleFromQuery(): CityStyle {
@@ -260,7 +259,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
   const clear = () => { if (pick === null) return; const out = slots.slice(); out[pick] = null; onChange(out); setPick(null); };
   const current = pick !== null ? slots[pick] ?? null : null;
   const shown = pile.filter((d) => !filter.trim() || d.title.toLowerCase().includes(filter.trim().toLowerCase()));
-  const ids = { ground: "sc-ground", road: "sc-road", earth: "sc-earth", roof: "sc-roof", verge: "sc-verge" };
+  const ids = { ground: "sc-ground", road: "sc-road", earth: "sc-earth", verge: "sc-verge" };
   const gateXY = pt(T0, WALL_R);
 
   return (
@@ -274,7 +273,8 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             <pattern id={ids.ground} patternUnits="userSpaceOnUse" width="80" height="80"><image href={st.ground} width="80" height="80" /></pattern>
             <pattern id={ids.road} patternUnits="userSpaceOnUse" width="30" height="30"><image href={st.road} width="30" height="30" /></pattern>
             <pattern id={ids.earth} patternUnits="userSpaceOnUse" width="48" height="48"><image href={st.earth} width="48" height="48" /></pattern>
-            <pattern id={ids.roof} patternUnits="userSpaceOnUse" width="26" height="26"><image href={st.roof} width="26" height="26" /></pattern>
+            {/* Квартал (дома и улочки, вид сверху) на каждом занятом участке повёрнут вдоль участка, чтобы улочки шли по дуге и по радиусу */}
+            {plots.map((p, i) => slots[i] ? <pattern key={i} id={`sc-dist-${i}`} patternUnits="userSpaceOnUse" width="60" height="60" patternTransform={`rotate(${((((p.a + p.b) / 2) * 180) / Math.PI + 90).toFixed(1)})`}><image href={st.roof} width="60" height="60" /></pattern> : null)}
             <filter id="sc-shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="1.2" dy="1.8" stdDeviation="1.2" floodColor="#2a1d10" floodOpacity=".45" /></filter>
             <filter id="sc-soft" x="-10%" y="-10%" width="120%" height="120%"><feDropShadow dx="0" dy="1" stdDeviation="1" floodColor="#2a1d10" floodOpacity=".35" /></filter>
             <filter id="sc-dust" x="-60%" y="-5%" width="220%" height="110%"><feGaussianBlur stdDeviation="3.2" /></filter>
@@ -324,36 +324,34 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             const mid = (p.a + p.b) / 2; const rm = r(mid) + W / 2; const bottom = Math.sin(mid) > 0;
             const active = !disabled && (pick === i || (pick === null && i === nextFree));
             // Подпись: значок номера занимает начало дуги (у p.a), текст — по центру остатка; строки одним кеглем, замер шириной.
-            const phiB = 9 / rm, phiM = 2 / rm, span = p.b - p.a - phiB - 2 * phiM;
+            const phiM = 3 / rm, span = p.b - p.a - 2 * phiM;
             const fit = d ? fitTitle(d.title, span * (rm - 6), W) : null;
-            const thC = p.a + phiM + phiB + span / 2, off = ((bottom ? p.b - thC : thC - p.a) / (p.b - p.a)) * 100;
-            const [nx, ny] = pt(p.a + phiM + phiB / 2, rm);
-            const houses = Math.max(2, Math.round(((p.b - p.a) * rm) / 13));
+            const off = 50;
+            // Номер — мелко в наружном уголке у начала участка (решение владельца 06.11: не засорять вид, пусть приближают)
+            const [nx, ny] = pt(p.a + 4.2 / (r(p.a) + W), r(p.a) + W - 4.2);
             return (
               <g key={i} data-plot={i} className="plot">
                 {d
-                  ? <path d={plotPath(p, r)} fill={`url(#${ids.roof})`} stroke={st.roofEdge} strokeWidth="1.6" filter="url(#sc-shadow)" />
-                  : <path d={plotPath(p, r)} fill={`url(#${ids.earth})`} stroke={active ? "#e0a64a" : "#7a6342"} strokeWidth={active ? 2.4 : 1} strokeDasharray={active ? undefined : "3 2"} opacity={active ? 1 : 0.92} />}
-                {d && (<g pointerEvents="none">
-                  {/* Ряд домов: конёк крыши вдоль участка и перегородки между домами */}
-                  <path d={arcPath(p, rm, false)} fill="none" stroke="#4a2114" strokeWidth=".8" opacity=".5" />
-                  <path d={arcPath(p, rm + 1, false)} fill="none" stroke="#ffd9a0" strokeWidth=".6" opacity=".35" />
-                  {Array.from({ length: houses - 1 }, (_, j) => { const th = p.a + ((p.b - p.a) * (j + 1)) / houses; const a = pt(th, r(th) + 1), b = pt(th, r(th) + W - 1); return <line key={j} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#4a2114" strokeWidth=".7" opacity=".45" />; })}
-                </g>)}
+                  ? <path d={plotPath(p, r)} fill={`url(#sc-dist-${i})`} stroke={st.roofEdge} strokeWidth="1.4" filter="url(#sc-shadow)" />
+                  : <path d={plotPath(p, r)} fill={`url(#${ids.earth})`} stroke={active ? "#e0a64a" : "#8a7048"} strokeWidth={active ? 2.4 : 1.1} strokeDasharray={active ? undefined : "3 2"} />}
                 {d && active && <path d={plotPath(p, r)} fill="none" stroke="#e0a64a" strokeWidth="2.4" />}
                 {d && fit ? (<>
                   {fit.lines.map((line, li) => {
                     const L = fit.lines.length, lh = fit.f * 1.12, c = bottom ? rm - ((L - 1) / 2 - li) * lh : rm + ((L - 1) / 2 - li) * lh;
                     const rho = bottom ? c + fit.f * 0.35 : c - fit.f * 0.35, w = textW(line) * fit.f, usable = span * rho;
+                    const band = Math.min(100, ((Math.min(w, usable) + 3) / ((p.b - p.a) * c)) * 100);
                     return (<g key={li}>
+                      {/* Тёмная подложка под строкой — подпись читается на фактуре домов */}
+                      <path d={arcPath(p, c, bottom)} pathLength={100} fill="none" stroke="rgba(30,18,8,.5)" strokeWidth={fit.f * 1.22} strokeLinecap="round" strokeDasharray={`${band.toFixed(1)} ${(100 - band).toFixed(1)}`} strokeDashoffset={-(off - band / 2)} />
                       <path id={`sc-t${i}-${li}`} d={arcPath(p, rho, bottom)} fill="none" />
                       <text fontSize={fit.f} fontFamily="Georgia, serif" fill={st.label} style={{ paintOrder: "stroke" }} stroke="rgba(40,25,10,.6)" strokeWidth=".9" {...(w > usable ? { textLength: usable, lengthAdjust: "spacingAndGlyphs" as const } : {})}><textPath href={`#sc-t${i}-${li}`} startOffset={`${off.toFixed(1)}%`} textAnchor="middle">{line}</textPath></text>
                     </g>);
                   })}
-                  <circle cx={nx} cy={ny} r="4" fill={st.number} stroke="#fff6e6" strokeWidth=".8" />
-                  <text x={nx} y={ny + 1.7} textAnchor="middle" fontSize="4.8" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff">{i + 1}</text>
+                  <circle cx={nx} cy={ny} r="2.7" fill={st.number} stroke="#fff6e6" strokeWidth=".5" />
+                  <text x={nx} y={ny + 1.1} textAnchor="middle" fontSize="3.1" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff">{i + 1}</text>
                 </>) : (<>
-                  <text x={pt(mid, rm)[0]} y={pt(mid, rm)[1] + 2.6} textAnchor="middle" fontSize={active ? 8 : 7} fontWeight="700" fontFamily="system-ui, sans-serif" fill={active ? "#a8722e" : "#6e5a3e"}>{i + 1}</text>
+                  <circle cx={nx} cy={ny} r="2.7" fill={active ? "#e0a64a" : "#a89270"} stroke="#fff6e6" strokeWidth=".5" />
+                  <text x={nx} y={ny + 1.1} textAnchor="middle" fontSize="3.1" fontWeight="700" fontFamily="system-ui, sans-serif" fill="#fff">{i + 1}</text>
                 </>)}
               </g>
             );
@@ -380,26 +378,28 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
         {pinsWrong != null && pinsWrong !== 0 && <span className="small ch-bad" role="status">{pinsWrong < 0 ? t("Заклинило: порядок не тот.") : t("Не на своём месте: {n}.", { n: pinsWrong })}</span>}
       </div>
       {pick !== null && (
-        <Sheet size="md" title={t("Участок {n}", { n: pick + 1 })} onClose={() => setPick(null)}>
-          {current && byId.get(current) && (
-            <div className="card flat mb-2">
-              <p className="small muted">{t("На участке")}</p>
-              <p><b>{byId.get(current)!.title}</b> <span className="muted">{byId.get(current)!.verses}</span></p>
-              <p className="small muted">{byId.get(current)!.summary}</p>
-              <div className="actions"><button type="button" className="secondary" onClick={clear}><Icon name="x" />{t("Вернуть в кучу")}</button></div>
-            </div>
-          )}
-          {pile.length > 8 && <div className="field"><label htmlFor="plan-find">{t("Найти район")}</label><input id="plan-find" value={filter} onChange={(e) => setFilter(e.target.value)} autoComplete="off" /></div>}
+        <div className="plan-strip" role="region" aria-label={t("Участок {n}", { n: pick + 1 })}>
+          {/* Карусель плиток (решение владельца 06.11): миниатюрная, под картой, а не лист на полэкрана */}
+          <div className="strip-head">
+            <b>{t("Участок {n}", { n: pick + 1 })}</b>
+            <input id="plan-find" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={t("Найти район")} aria-label={t("Найти район")} autoComplete="off" />
+            <button type="button" className="ghost icon sm" onClick={() => setPick(null)} aria-label={t("Закрыть")}><Icon name="x" /></button>
+          </div>
           <div className="plan-pile" role="list">
+            {current && byId.get(current) && (
+              <div className="tile current" role="listitem">
+                <b>{byId.get(current)!.title}</b><span className="muted">{byId.get(current)!.verses}</span>
+                <button type="button" className="ghost sm" onClick={clear}>{t("Вернуть в кучу")}</button>
+              </div>
+            )}
             {shown.map((d) => (
-              <button key={d.id} type="button" className="secondary pick" role="listitem" onClick={() => put(d.id)}>
-                <b>{d.title} <span className="muted">{d.verses}</span></b>
-                <small>{d.summary}</small>
+              <button key={d.id} type="button" className="secondary tile pick" role="listitem" onClick={() => put(d.id)}>
+                <b>{d.title}</b><span className="muted">{d.verses}</span>
               </button>
             ))}
             {!shown.length && <p className="muted small">{pile.length ? t("Ничего не найдено") : t("Все районы уже стоят на участках.")}</p>}
           </div>
-        </Sheet>
+        </div>
       )}
     </div>
   );
