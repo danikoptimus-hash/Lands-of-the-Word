@@ -44,7 +44,8 @@ def check(path):
     counts = bible["verseCounts"]; whole = norm(text_of(bible, [(c, v) for c in range(1, len(counts) + 1) for v in range(1, counts[c - 1] + 1)]))
     ds, ts = d.get("districts", []), d.get("tasks", [])
     if len(ds) < 2: errs.append("меньше двух районов")
-    if len(ds) > 16: errs.append(f"районов {len(ds)} > 16")
+    if len(ds) > 60: errs.append(f"районов {len(ds)} > 60")
+    elif len(ds) > 16 and d.get("plan") != "spiral": warns.append(f"районов {len(ds)} > 16: для колец замка много, нужен план spiral")
     if len(ts) < len(ds): errs.append(f"заданий {len(ts)} меньше районов {len(ds)}")
     for i, t in enumerate(ts):
         if i >= len(ds) and t.get("scope") == "district": errs.append(f"задание {i + 1}: сверх районов допустимы только book/group")
@@ -133,6 +134,8 @@ def check(path):
             if hp is not None and (not isinstance(hp, int) or hp < 1 or hp > len(pairs)): errs.append(f"задание {i}: hintPair вне 1..{len(pairs)}")
             missing = [x for x in flat if norm(x) not in scope_text]
             if missing: warns.append(f"задание {i}: строк хиазма нет дословно в тексте (пересказ): {len(missing)} из {len(flat)}")
+        elif typ == "todo":
+            pass  # заглушка (06.11): задание добавим потом
         elif typ == "orders":
             # Несколько расстановок в одном задании (05.11): группы с заголовком и пунктами; порядок дословно не проверяем.
             groups = t.get("groups") or []

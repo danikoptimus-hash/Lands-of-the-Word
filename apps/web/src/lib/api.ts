@@ -84,6 +84,8 @@ export interface StormSlot { weekday: number; from: string; to: string }
 export interface CityDistrictDto { id: string; verses: string; title: string; summary: string; index: number | null }
 export type CityTaskDto =
   | { index: number; scope: string; groupDistricts: number[] | null; type: "number" | "text"; prompt: string }
+  /** Заглушка (06.11): район есть, задание добавим потом. */
+  | { index: number; scope: string; groupDistricts: number[] | null; type: "todo"; prompt: string }
   | { index: number; scope: string; groupDistricts: number[] | null; type: "choice"; prompt: string; options: string[] }
   | { index: number; scope: string; groupDistricts: number[] | null; type: "order"; prompt: string; items: Array<{ id: string; text: string }> }
   /** Несколько расстановок в одном задании (05.11): каждая группа перетасована отдельно; ответ — плоский список id. */
@@ -112,11 +114,11 @@ export interface MyCityDto {
   visit?: VisitDto | null;
   /** Владелец города; isCapital — его ли это столица (решение владельца 03.11). */ owner: { id: string; index: number; name: string; color: string; avatarId?: string | null; isCapital?: boolean } | null;
   team: { capitalMovedAt: string | null; gameRole: GameRole; role: TeamRole };
-  content: { title: string; translation: string; codeRule: string; districts: CityDistrictDto[]; tasks: CityTaskDto[]; fragments: Array<string | null> } | null;
+  content: { title: string; translation: string; codeRule: string; /** Замок порядка: кольца или круглый город спиралью (06.11). */ plan?: "rings" | "spiral"; districts: CityDistrictDto[]; tasks: CityTaskDto[]; fragments: Array<string | null> } | null;
   state: { orderSolved: boolean; orderAttempts: number; doneTasks: number[]; capturedAt: string | null; isCapital: boolean; secondCapital: boolean; hintTasks: number[]; /** Свеча пророка: когда подсказка снова доступна (0 — сейчас); не пророку null. */ hintAvailableAt: number | null; keyLockedUntil: number | null; keyWrong: number; /** Ключ после половины команды (решение владельца 05.10): сколько участников решали задания этого города, сколько в команде и сколько нужно для ключа. */ solvers?: number; members?: number; needSolvers?: number; /** Сколько заданий города участник должен решить сам, чтобы считаться; и какие решил я. */ needTasks?: number; mySolved?: number[]; pauseSteps: number[]; locks: TaskLockDto[]; /** Отмычка замка районов (решение владельца 05.11): та же пауза, что у заданий. */ orderLock?: TaskLockDto | null; support: SupportItemDto[]; /** Черновики расстановки (общие для команды): районов и заданий «по порядку» по номеру задания. */ orderDraft: string[]; taskDrafts: Record<string, string[]> };
 }
 /** Город глазами админа: контент с ответами, ключ конверта, прогресс команд. */
-export interface AdminCityTask { scope: string; type: "number" | "text" | "choice" | "order" | "orders" | "crossword" | "chiasm"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[]; groups?: Array<{ title: string; items: string[] }>; words?: Array<{ clue: string; answer?: string; len?: number }>; intro?: string; center?: string; pairs?: Array<[string, string]> }
+export interface AdminCityTask { scope: string; type: "number" | "text" | "todo" | "choice" | "order" | "orders" | "crossword" | "chiasm"; prompt: string; answer?: number; answers?: string[]; options?: string[]; correct?: number; items?: string[]; groups?: Array<{ title: string; items: string[] }>; words?: Array<{ clue: string; answer?: string; len?: number }>; intro?: string; center?: string; pairs?: Array<[string, string]> }
 export interface AdminCityDto {
   node: { key: string; bookCode: string; cityType: string | null; cityKey: string | null; cityCode: string | null };
   /** Адресат конверта этого города (семья, вдова, старица) или null, если список адресатов не ведётся. */

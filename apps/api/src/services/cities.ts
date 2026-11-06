@@ -16,6 +16,8 @@ import { gridLetters, layoutCrossword } from "./crossword.js";
 const taskBase = { scope: z.enum(["district", "group", "book"]), groupDistricts: z.array(z.number().int().min(1)).optional(), prompt: z.string().min(1), reveal: z.string().min(1).optional() };
 const taskSchema = z.discriminatedUnion("type", [
   z.object({ ...taskBase, type: z.literal("number"), answer: z.number() }),
+  // Заглушка (решение владельца 06.11): район есть, задание добавим потом; ответа нет, решить нельзя.
+  z.object({ ...taskBase, type: z.literal("todo") }),
   z.object({ ...taskBase, type: z.literal("text"), answers: z.array(z.string().min(1)).min(1) }),
   z.object({ ...taskBase, type: z.literal("choice"), options: z.array(z.string().min(1)).min(2), correct: z.number().int().min(0) }),
   z.object({ ...taskBase, type: z.literal("order"), items: z.array(z.string().min(1)).min(2) }),
@@ -33,6 +35,8 @@ const contentSchema = z.object({
   translation: z.string().default(""),
   codeRule: z.string().default("Каждое задание даёт один знак шифра. Знаки по порядку заданий — это шифр города."),
   districts: z.array(z.object({ verses: z.string(), title: z.string().min(1), summary: z.string().min(1) })).min(2),
+  /** Замок порядка: «rings» — кольца замка (как было); «spiral» — круглый город спиралью от ворот к площади (решение владельца 06.11, Бытие). */
+  plan: z.enum(["rings", "spiral"]).default("rings"),
   tasks: z.array(taskSchema).min(1),
 }).refine((c) => c.tasks.length >= c.districts.length && c.tasks.every((t, i) => i < c.districts.length || t.scope !== "district"), { message: "На каждый район — одно задание; дополнительные задания могут быть только по книге или по группе районов" });
 
@@ -200,6 +204,8 @@ export function checkAnswer(task: CityTask, index: number, secret: string, scope
         return got.length === want.length && got.every((x, i) => x === want[i]);
       });
     }
+    case "todo":
+      return false;
     case "chiasm": {
       // Ответ — id строк по местам прочтения: А…Д, затем Д′…А′.
       const n = task.pairs.length * 2;

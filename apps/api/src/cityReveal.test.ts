@@ -29,7 +29,7 @@ describe("Бытие: задание о вере и кроссворд о Каи
 
   it("хиазм «Вавилонская башня» (05.11): строки перетасованы, центр виден, верный порядок — А…Д, Д′…А′", async () => {
     const c = await loadCityContent("gen");
-    const task = c!.tasks[4]!;
+    const task = c!.tasks.find((x) => x.type === "chiasm" && x.center === "И сошёл Господь посмотреть")!; // Вавилонская башня — район 8 (06.11)
     expect(task.type).toBe("chiasm");
     if (task.type !== "chiasm") return;
     expect(task.pairs).toHaveLength(5);
@@ -37,14 +37,15 @@ describe("Бытие: задание о вере и кроссворд о Каи
     const order = chiasmOrder(task.pairs);
     expect(order[0]).toBe("Вся земля имела один язык"); expect(order[4]).toBe("Построим себе город и башню");
     expect(order[5]).toBe("Город и башню, которые строили"); expect(order[9]).toBe("Смешал язык всей земли");
-    const pub = publicTask(task, 4, "secret", "team|node") as { items: Array<{ id: string; text: string }>; n: number; center: string; intro: string };
+    const ti = c!.tasks.indexOf(task);
+    const pub = publicTask(task, ti, "secret", "team|node") as { items: Array<{ id: string; text: string }>; n: number; center: string; intro: string };
     expect(pub.n).toBe(5); expect(pub.items).toHaveLength(10); expect(pub).not.toHaveProperty("pairs"); expect(pub.intro).toContain("Хиазм");
     expect(pub.items.map((x) => x.text)).not.toEqual(order); // перетасовано
     const byText = new Map(pub.items.map((x) => [x.text, x.id]));
     const right = order.map((text) => byText.get(text)!);
-    expect(checkAnswer(task, 4, "secret", "team|node", right)).toBe(true);
-    expect(checkAnswer(task, 4, "secret", "team|node", [...right].reverse())).toBe(false);
-    expect(checkAnswer(task, 4, "secret", "team|node", right.slice(0, 9))).toBe(false);
+    expect(checkAnswer(task, ti, "secret", "team|node", right)).toBe(true);
+    expect(checkAnswer(task, ti, "secret", "team|node", [...right].reverse())).toBe(false);
+    expect(checkAnswer(task, ti, "secret", "team|node", right.slice(0, 9))).toBe(false);
   });
 
   it("три расстановки в одном задании (Бытие 3, решение владельца 05.11): группы перетасованы отдельно, ответ верен только целиком", async () => {
@@ -63,9 +64,21 @@ describe("Бытие: задание о вере и кроссворд о Каи
     expect(c!.tasks.some((t) => t.scope === "book")).toBe(false); // «найдите стих 12:2» убрано (05.11)
   });
 
+  it("Бытие: 47 районов по методике владельца (06.11), план «круглый город», заглушки там, где задания ещё нет", async () => {
+    const c = await loadCityContent("gen");
+    expect(c!.districts).toHaveLength(47);
+    expect(c!.plan).toBe("spiral");
+    expect(c!.districts[0]!.verses).toBe("1–2"); expect(c!.districts[46]!.verses).toBe("50");
+    const todo = c!.tasks.filter((x) => x.type === "todo");
+    expect(todo.length).toBeGreaterThan(30);
+    expect(checkAnswer(todo[0]!, c!.tasks.indexOf(todo[0]!), "secret", "scope", "что угодно")).toBe(false);
+    expect(c!.tasks.filter((x) => x.type === "chiasm")).toHaveLength(2); // башня и потоп
+    expect(c!.tasks.length).toBeGreaterThanOrEqual(c!.districts.length);
+  });
+
   it("письма пророка к хиазму — по паре на свечу: сначала Б и Б′, затем А, В, Г, Д; hintPair выбирает первую (решения владельца 05.11)", async () => {
     const c = await loadCityContent("gen");
-    const task = c!.tasks[4]!;
+    const task = c!.tasks.find((x) => x.type === "chiasm" && x.center === "И сошёл Господь посмотреть")!;
     if (task.type !== "chiasm") throw new Error("ожидался хиазм");
     expect(hintLimit(task)).toBe(5);
     expect(hintLimit(c!.tasks[0]!)).toBe(1);
