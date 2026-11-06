@@ -884,7 +884,7 @@ export function TeamPage() {
         )}
 
         {markAt && (
-          <Sheet size="sm" container={mapEl} title={t("Метка на карте")} onClose={() => setMarkAt(null)} foot={<><button type="button" className="ghost" onClick={() => setMarkAt(null)}>{t("Отмена")}</button><button type="button" disabled={busy} onClick={() => void putMark()}><Icon name="pin" />{t("Поставить")}</button></>}>
+          <Sheet size="sm" container={mapEl} title={t("Метка на карте")} onClose={() => setMarkAt(null)} foot={<><button type="button" className="ghost icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={() => setMarkAt(null)}><Icon name="x" /></button><button type="button" disabled={busy} onClick={() => void putMark()}><Icon name="pin" />{t("Поставить")}</button></>}>
             <p className="muted">{t("Метку увидят все в команде, с вашим именем. Изменить подпись или убрать её сможете только вы, нажатием на флажок.")}</p>
             <div className="field"><label htmlFor="mark-note">{t("Подпись")} <span className="opt">{t("необязательно")}</span></label><input id="mark-note" maxLength={40} value={markNote} onChange={(e) => setMarkNote(e.target.value)} placeholder={t("птицы сели здесь")} /></div>
           </Sheet>
@@ -1065,7 +1065,7 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
       )}
       {/* «Отказаться» слева, «Сдать» справа, в один ряд (решение владельца 16.10). */}
       <div className="actions deed-actions">
-        <button type="button" className="secondary" disabled={busy} onClick={onRelease}>{t("Отказаться от дела")}</button>
+        <button type="button" className="secondary icon" aria-label={t("Отказаться от дела")} title={t("Отказаться от дела")} disabled={busy} onClick={onRelease}><Icon name="x" /></button>
         <button type="button" disabled={busy || (donation && !amount) || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links, note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants, mainId: main ? mainId : undefined })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
       </div>
     </>

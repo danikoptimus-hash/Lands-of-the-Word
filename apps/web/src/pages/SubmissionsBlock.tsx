@@ -53,7 +53,7 @@ export function ReturnBox({ placeholder, okLabel, onOk, onCancel, busy }: { plac
       <input autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={placeholder} maxLength={500} aria-label={placeholder} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onOk(text); } }} />
       <div className="row">
         <button type="button" className="secondary sm" onClick={() => onOk(text)} disabled={busy}><Icon name="x" />{okLabel}</button>
-        <button type="button" className="ghost sm" onClick={onCancel}>{t("Отмена")}</button>
+        <button type="button" className="ghost sm icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={onCancel}><Icon name="x" /></button>
       </div>
     </div>
   );

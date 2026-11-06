@@ -3,13 +3,13 @@ import { BOOKS } from "@lotw/domain";
 import { api, ApiError, apiReady, ready, type VisitDto, type VisitStatus } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
-import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { Tabs } from "../components/Tabs";
 import { EmptyState } from "../components/State";
-import { LinkList, ReturnBox, ReviewCard, useAutoRefresh } from "./SubmissionsBlock";
+import { ReturnBox, ReviewCard, useAutoRefresh } from "./SubmissionsBlock";
+import { HelpPopup } from "../components/Help";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
 type Row = VisitDto & { team: { id: string; index: number; name: string; color: string; avatarId?: string | null } };
@@ -59,21 +59,32 @@ export function VisitsBlock({ gameId, version = 0, onDecided }: { gameId: string
             <ul className="list">
               {shown.map((v) => {
                 const st = STATUS[v.status];
+                const city = BOOK_BY_CODE.get(v.bookCode)?.nameRu ?? v.bookCode;
+                const who = v.members.map((id) => nameOf(v, id));
+                // Карточка без лишнего (решение владельца 06.11): без слова «Визит», без дат взятия и сдачи — автоматика
+                // сама закроет визит по сроку; кто ездил — число, список по нажатию; фото — квадратная кнопка перед «Принять».
                 return (
-                  <li key={v.id} className="review-item">
+                  <li key={v.id} className="review-item visit-item">
                     <div className="main">
                       <span className="row nowrap"><TeamAvatar name={v.team.name} color={v.team.color} avatarId={v.team.avatarId} size="sm" withName teamId={v.team.id} /><Chip tone={st.tone}>{st.text}</Chip></span>
-                      <span className="title">{t("Визит · {city}", { city: BOOK_BY_CODE.get(v.bookCode)?.nameRu ?? v.bookCode })}</span>
-                      <span className="meta">{t("город взят {date}", { date: fmtDate(v.createdAt) })}{v.status === "PENDING" ? ` · ${t("сдать до {time}", { time: fmtDate(v.dueAt) })}` : ""}{v.submittedAt ? ` · ${t("сдан {date}", { date: fmtDate(v.submittedAt) })}` : ""}{v.decidedAt && v.status !== "EXPIRED" ? ` · ${t("решено {date}", { date: fmtDate(v.decidedAt) })}` : ""}</span>
-                      {v.members.length > 0 && <span className="meta"><Icon name="users" />{t("Ездили {n} из {m}", { n: v.members.length, m: v.people.length })}: {v.members.map((id) => nameOf(v, id)).join(", ")}</span>}
-                      {v.text && <span className="report"><span className="muted">{t("Что сделали")}: </span>{v.text}</span>}
-                      <LinkList links={v.links} kind="photo" />
+                      <span className="title">{city}</span>
+                      {v.members.length > 0 && (
+                        <HelpPopup name={t("Кто ездил")} className="who-pop" buttonClassName="fact-btn" trigger={<><Icon name="users" />{t("{a} из {b}", { a: v.members.length, b: v.people.length })}</>}>
+                          <ul className="who-list">{who.map((n, i) => <li key={i}>{n}</li>)}</ul>
+                        </HelpPopup>
+                      )}
+                      {v.text && <span className="report">{v.text}</span>}
                       {v.adminComment && <span className="meta">{t("Комментарий: {c}", { c: v.adminComment })}</span>}
                     </div>
-                    {v.status === "SUBMITTED" && (
+                    {(v.links.length > 0 || v.status === "SUBMITTED") && (
                       <div className="side">
-                        <button type="button" className="sm" onClick={() => void decide(v, true)} disabled={busyId === v.id}><Icon name="check" />{t("Принять")}</button>
-                        {rejecting !== v.id && <button type="button" className="secondary sm" onClick={() => setRejecting(v.id)} disabled={busyId === v.id}><Icon name="x" />{t("Не принять")}</button>}
+                        {v.links.map((l, i) => (
+                          <a key={l + i} className="btn secondary sm icon photo-btn" href={l} target="_blank" rel="noopener noreferrer" aria-label={v.links.length > 1 ? `${t("Фото")} ${i + 1}` : t("Фото")} title={v.links.length > 1 ? `${t("Фото")} ${i + 1}` : t("Фото")}>
+                            <Icon name="camera" />{v.links.length > 1 && <i className="n">{i + 1}</i>}
+                          </a>
+                        ))}
+                        {v.status === "SUBMITTED" && <button type="button" className="sm" onClick={() => void decide(v, true)} disabled={busyId === v.id}><Icon name="check" />{t("Принять")}</button>}
+                        {v.status === "SUBMITTED" && rejecting !== v.id && <button type="button" className="secondary sm icon" aria-label={t("Не принять")} title={t("Не принять")} onClick={() => setRejecting(v.id)} disabled={busyId === v.id}><Icon name="x" /></button>}
                       </div>
                     )}
                     {rejecting === v.id && <ReturnBox placeholder={t("Причина: команда её увидит")} okLabel={t("Не принять")} busy={busyId === v.id} onOk={(text) => void decide(v, false, text)} onCancel={() => setRejecting(null)} />}

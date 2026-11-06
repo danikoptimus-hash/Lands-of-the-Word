@@ -69,10 +69,10 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
               <div className="actions">
                 <button type="button" disabled={busy === x.id} onClick={() => void accept(x)}><Icon name="handshake" />{t("Обменять")}</button>
                 <button type="button" className="secondary" disabled={busy === x.id} onClick={() => void call(x.id, `/api/games/${gameId}/trades/${x.id}/decline`, {}, t("Отклонено: ждём другой город"))}>{t("Не подходит")}</button>
-                <button type="button" className="ghost" disabled={busy === x.id} onClick={() => void cancel(x)}>{t("Отменить сделку")}</button>
+                <button type="button" className="ghost icon" aria-label={t("Отменить сделку")} title={t("Отменить сделку")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button>
               </div>
             )}
-            {x.mine && x.status === "OPEN" && <div className="actions"><span className="hint">{t("Ждём, какой город предложат взамен.")}</span><button type="button" className="ghost" disabled={busy === x.id} onClick={() => void cancel(x)}>{t("Отменить сделку")}</button></div>}
+            {x.mine && x.status === "OPEN" && <div className="actions"><span className="hint">{t("Ждём, какой город предложат взамен.")}</span><button type="button" className="ghost icon" aria-label={t("Отменить сделку")} title={t("Отменить сделку")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button></div>}
             {!x.mine && x.status === "OPEN" && (
               <>
                 <div className="field">
@@ -84,11 +84,11 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
                 </div>
                 <div className="actions">
                   <button type="button" disabled={busy === x.id || !counter[x.id]} onClick={() => void call(x.id, `/api/games/${gameId}/trades/${x.id}/counter`, { nodeKey: counter[x.id] }, t("Встречный город предложен"))}><Icon name="send" />{t("Предложить взамен")}</button>
-                  <button type="button" className="ghost" disabled={busy === x.id} onClick={() => void cancel(x)}>{t("Отказаться от сделки")}</button>
+                  <button type="button" className="ghost icon" aria-label={t("Отказаться от сделки")} title={t("Отказаться от сделки")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button>
                 </div>
               </>
             )}
-            {!x.mine && x.status === "COUNTERED" && <div className="actions"><span className="hint">{t("Ждём решения посла команды «{team}».", { team: other.name })}</span><button type="button" className="ghost" disabled={busy === x.id} onClick={() => void cancel(x)}>{t("Отменить сделку")}</button></div>}
+            {!x.mine && x.status === "COUNTERED" && <div className="actions"><span className="hint">{t("Ждём решения посла команды «{team}».", { team: other.name })}</span><button type="button" className="ghost icon" aria-label={t("Отменить сделку")} title={t("Отменить сделку")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button></div>}
           </div>
         );
       })}
@@ -131,7 +131,7 @@ export function TradeProposeSheet({ gameId, offerKey, container, onClose, onDone
   const can = Boolean(data?.canTrade && city && !city.reason && !open && data.teams.length > 0);
   return (
     <Sheet size="sm" title={t("Обменять город")} container={container} onClose={onClose} className="trade-form"
-      foot={<><button type="button" className="secondary" onClick={onClose}>{t("Отмена")}</button><button type="button" disabled={busy || !can || !toTeamId} onClick={() => void propose()}><Icon name="handshake" />{t("Предложить обмен")}</button></>}>
+      foot={<><button type="button" className="secondary icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={onClose}><Icon name="x" /></button><button type="button" disabled={busy || !can || !toTeamId} onClick={() => void propose()}><Icon name="handshake" />{t("Предложить обмен")}</button></>}>
       {error ? <p className="error" role="alert">{error}</p> : !data ? <p className="muted small">{t("Загружаем…")}</p> : !data.canTrade ? <p className="hint">{t("Обмен городами ведёт посол команды.")}</p> : !city ? <p className="hint">{t("Этот город обменять нельзя: он не ваш.")}</p> : city.reason ? <p className="hint">{city.reason}</p> : open ? <p className="hint">{t("Этот город уже выставлен на обмен команде «{team}»: сделка в «Командах».", { team: open.to.name })}</p> : data.teams.length === 0 ? <p className="hint">{t("Других команд в игре нет.")}</p> : (
         <>
           <p className="trade-offer"><Icon name="city" /><b>{city.bookName}</b> · {words(city.words)}</p>

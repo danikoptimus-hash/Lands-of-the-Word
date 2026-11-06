@@ -84,7 +84,7 @@ export function RecipientsBlock({ gameId, status, version = 0 }: { gameId: strin
       )}
       {open && (
         <Sheet title={t("Новый адресат")} onClose={close} size="sm"
-          foot={<><button type="button" className="secondary" onClick={close}>{t("Отмена")}</button><button type="submit" form="recipient-form" disabled={busy || label.trim().length < 2}>{t("Добавить")}</button></>}>
+          foot={<><button type="button" className="secondary icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={close}><Icon name="x" /></button><button type="submit" form="recipient-form" disabled={busy || label.trim().length < 2}>{t("Добавить")}</button></>}>
           <form id="recipient-form" onSubmit={add}>
             <label htmlFor="rc-label">{t("Подпись")}</label>
             <input id="rc-label" value={label} onChange={(e) => setLabel(e.target.value)} placeholder={t("Например «семья у рынка»")} maxLength={60} required minLength={2} autoFocus />

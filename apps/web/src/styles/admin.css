@@ -481,3 +481,12 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 .admin-users .chip-link > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-users .chip-link.admin { padding-left: 8px; }
 .admin-users .chip-link:hover { border-color: var(--accent); }
+
+/* Визиты в проверке (решение владельца 06.11): кто ездил — число, список по нажатию; фото — квадратная кнопка в ряду действий. */
+.visit-item .fact-btn { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: none; box-shadow: none; min-height: 0; font: inherit; font-size: var(--fs-sm); color: var(--ink-2); cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.visit-item .fact-btn .i { width: 15px; height: 15px; color: var(--bronze-ink); }
+.visit-item .fact-btn:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; border-radius: 2px; }
+.visit-item .report { white-space: pre-wrap; }
+.visit-item .photo-btn { position: relative; text-decoration: none; }
+.visit-item .photo-btn .n { position: absolute; right: -4px; top: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--bronze); color: var(--on-accent); font: 700 10px/16px var(--font); font-style: normal; text-align: center; }
+.help-pop .who-list { margin: 0; padding-left: 18px; }

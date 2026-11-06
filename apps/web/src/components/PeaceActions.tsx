@@ -52,7 +52,7 @@ export function PeaceActions({ gameId, teamId }: { gameId: string; teamId: strin
         <>
           <span className="muted small peace-incoming"><Icon name="handshake" />{peaceTerm(p) ? `${t("предлагает мир")} ${peaceTerm(p)}` : t("предлагает мир")}</span>
           <button type="button" className="sm" disabled={busy} onClick={() => void call(`/api/games/${gameId}/peace/${p.peaceId}/accept`, {}, t("Мир заключён"))}><Icon name="check" />{t("Принять")}</button>
-          <button type="button" className="secondary sm" disabled={busy} onClick={() => void call(`/api/games/${gameId}/peace/${p.peaceId}/decline`, {}, t("Предложение отклонено"))}>{t("Отклонить")}</button>
+          <button type="button" className="secondary sm icon" aria-label={t("Отклонить")} title={t("Отклонить")} disabled={busy} onClick={() => void call(`/api/games/${gameId}/peace/${p.peaceId}/decline`, {}, t("Предложение отклонено"))}><Icon name="x" /></button>
         </>
       )}
       {offer && (
