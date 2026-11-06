@@ -224,6 +224,7 @@ const EN: Record<string, string> = {
   "Сначала капитан должен выбрать отрывок ответа": "The captain must pick the answer passage first",
   "Отмечать можно только стихи из отрывка {range}": "Only verses from the passage {range} can be marked",
   "Эти стихи вы уже отметили": "You have already marked these verses",
+  "В вызове участник сдаёт не меньше {n} стихов: отметьте ещё хотя бы один": "In a challenge each member submits at least {n} verses: mark at least one more",
   "Эти стихи вы уже сдавали в прошлом испытании: второй раз они не засчитываются": "You already submitted these verses in a past trial: they do not count a second time",
   "Запись не найдена": "Recording not found",
   "Ход сейчас не идёт": "No turn is in progress now",

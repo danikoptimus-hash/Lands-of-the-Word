@@ -107,6 +107,10 @@ describe("битва за город", () => {
     expect(verses[0]!.text.length).toBeGreaterThan(5);
     const outside = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { verses: [start === 0 ? end + 1 : start - 1], links: ["https://example.com/v1"] });
     expect(outside.statusCode).toBe(400);
+    // В вызове участник сдаёт не меньше двух стихов (решение владельца 06.11): один стих с человека не принимается.
+    const single = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { verses: [start], links: ["https://example.com/v0"] });
+    expect(single.statusCode).toBe(400);
+    expect(single.json().message).toContain("не меньше 2 стихов");
     const first = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p2Cookie, { verses: [start, start + 1, start + 2, start + 5], links: ["https://example.com/v1"] });
     expect(first.statusCode).toBe(201);
     expect(first.json()).toMatchObject({ added: 4, sum: 4 });
