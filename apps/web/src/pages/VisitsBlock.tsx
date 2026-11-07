@@ -79,8 +79,8 @@ export function VisitsBlock({ gameId, version = 0, onDecided }: { gameId: string
                     {(v.links.length > 0 || v.status === "SUBMITTED") && (
                       <div className="side">
                         <LinkList links={v.links} kind="photo" />
-                        {v.status === "SUBMITTED" && <button type="button" className="sm" onClick={() => void decide(v, true)} disabled={busyId === v.id}><Icon name="check" />{t("Принять")}</button>}
                         {v.status === "SUBMITTED" && rejecting !== v.id && <button type="button" className="secondary sm icon" aria-label={t("Не принять")} title={t("Не принять")} onClick={() => setRejecting(v.id)} disabled={busyId === v.id}><Icon name="x" /></button>}
+                        {v.status === "SUBMITTED" && <button type="button" className="sm" onClick={() => void decide(v, true)} disabled={busyId === v.id}><Icon name="check" />{t("Принять")}</button>}
                       </div>
                     )}
                     {rejecting === v.id && <ReturnBox placeholder={t("Причина: команда её увидит")} okLabel={t("Не принять")} busy={busyId === v.id} onOk={(text) => void decide(v, false, text)} onCancel={() => setRejecting(null)} />}
