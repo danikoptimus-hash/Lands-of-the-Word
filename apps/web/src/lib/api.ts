@@ -119,8 +119,8 @@ export interface AdminCityDto {
   node: { key: string; bookCode: string; cityType: string | null; cityKey: string | null; cityCode: string | null };
   /** Адресат конверта этого города (семья, вдова, старица) или null, если список адресатов не ведётся. */
   recipient?: { label: string; kind: "FAMILY" | "WIDOW" | "ELDER" | "OTHER" } | null;
-  /** Защита города (только у взятого кем-то города): уровень, режим суммы, закрепление, когда уровень растает на fatigueStep. */
-  defense?: { level: number; sumMode: boolean; lockedUntil: string | null; fatigueNextAt: string | null; fatigueStep: number; /** Городская стена хранителей (01.11): толщина. */ wall?: { verses: number; blocks: number } | null } | null;
+  /** Защита города (только у взятого кем-то города): уровень, режим суммы, закрепление. */
+  defense?: { level: number; sumMode: boolean; lockedUntil: string | null; /** Городская стена хранителей (01.11): толщина. */ wall?: { verses: number; blocks: number } | null } | null;
   content: { title: string; translation: string; codeRule: string; districts: Array<{ verses: string; title: string; summary: string }>; tasks: AdminCityTask[] } | null;
   teams: Array<{ id: string; index: number; name: string; color: string; avatarId?: string | null; orderSolved: boolean; orderAttempts: number; doneTasks: number[]; answerAttempts: number; capturedAt: string | null; isCapital: boolean; /** Минимальная ставка этой команды для вызова (null — вызов невозможен: нет владельца, сама владеет или город закреплён). */ minBid?: number | null; penalty?: number; /** Участники команды и сколько заданий этого города каждый решил сам. */ members: Array<{ id: string; name: string; solved: number }> }>;
   /** Ответы видит только администратор платформы; администратору игры приходят задания без ответов. */
