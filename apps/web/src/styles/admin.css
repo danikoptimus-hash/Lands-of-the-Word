@@ -487,6 +487,8 @@ details.fold-card[open] > summary .chev { transform: rotate(180deg); }
 .visit-item .fact-btn .i { width: 15px; height: 15px; color: var(--bronze-ink); }
 .visit-item .fact-btn:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; border-radius: 2px; }
 .visit-item .report { white-space: pre-wrap; }
+/* Ряд действий в проверке (решение владельца 07.11): у правого края, «Принять» — крайняя правая. */
+.review-item > .side { margin-left: auto; justify-content: flex-end; }
 /* Ссылки сдачи в проверке (решение владельца 06.11): квадратные кнопки со значком и номером в ряду действий. */
 .review-item .proof-btn { position: relative; text-decoration: none; }
 .review-item .proof-btn .n { position: absolute; right: -4px; top: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--bronze); color: var(--on-accent); font: 700 10px/16px var(--font); font-style: normal; text-align: center; }
