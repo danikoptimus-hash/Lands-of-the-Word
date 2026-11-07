@@ -58,8 +58,15 @@ describe("Каменоломня", () => {
     expect(p).toBeTruthy(); expect(p!.payload.body).toContain("Убрать двор дома молитвы");
     const map = (await get(`/api/games/${gameId}/my-map`, capCookie)).json();
     expect(map.quarryNew.map((d: { title: string }) => d.title)).toContain("Убрать двор дома молитвы");
-    // Команда сдала — для неё дело уже не новое.
     const deedId = r.json().deed.id as string;
+    // Прочитал капитан (решение владельца 07.11) — пункт исчез у него, но не у участника той же команды.
+    expect((await post(`/api/games/${gameId}/attention/seen`, capCookie, { kind: "quarry", refId: deedId })).statusCode).toBe(200);
+    expect((await get(`/api/games/${gameId}/my-map`, capCookie)).json().quarryNew.some((d: { id: string }) => d.id === deedId)).toBe(false);
+    expect((await get(`/api/games/${gameId}/my-map`, memCookie)).json().quarryNew.some((d: { id: string }) => d.id === deedId)).toBe(true);
+    expect((await post(`/api/games/${gameId}/attention/seen`, capCookie, { kind: "wreck", refId: "w-test" })).statusCode).toBe(200);
+    expect((await get(`/api/games/${gameId}/my-map`, capCookie)).json().seenWrecks).toContain("w-test");
+    await prisma.attentionSeen.deleteMany({ where: { gameId } });
+    // Команда сдала — для неё дело уже не новое.
     const cap = (await get("/api/auth/me", capCookie)).json().user.id as string;
     await prisma.quarryWork.create({ data: { gameId, teamId, deedId, byId: cap, participants: [], links: ["https://photos.example/q"], note: "", stones: 2 } });
     expect((await get(`/api/games/${gameId}/my-map`, capCookie)).json().quarryNew.some((d: { id: string }) => d.id === deedId)).toBe(false);

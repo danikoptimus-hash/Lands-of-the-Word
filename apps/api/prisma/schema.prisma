@@ -58,6 +58,7 @@ model User {
   /** Суперадмин запретил ставить аватарки (неуместное фото). */
   avatarBlocked Boolean     @default(false)
   uploadedAvatars Avatar[]  @relation("AvatarUploader")
+  attentionSeen AttentionSeen[]
 }
 
 /**
@@ -178,6 +179,7 @@ model Game {
   learnPlans  LearnPlan[]
   wrecks      Wreck[]
   wreckWorks  WreckWork[]
+  attentionSeen AttentionSeen[]
 }
 
 model GameAdmin {
@@ -1220,4 +1222,23 @@ model WreckWork {
 
   @@index([gameId, status])
   @@index([wreckId, teamId])
+}
+
+/**
+ * Прочитанные пункты «Внимание» (решение владельца 07.11): у каждого участника свои — нажал на уведомление о новом деле
+ * Каменоломни или о разбитом корабле, и оно исчезло только у него, а не у всей команды.
+ */
+model AttentionSeen {
+  id     String   @id @default(cuid())
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameId String
+  game   Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  /** Вид пункта: quarry — дело Каменоломни, wreck — разбитый корабль. */
+  kind   String
+  refId  String
+  seenAt DateTime @default(now())
+
+  @@unique([userId, kind, refId])
+  @@index([gameId, userId])
 }
