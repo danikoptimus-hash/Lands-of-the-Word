@@ -41,7 +41,8 @@ export function WallsBlock({ gameId, version = 0, onDecided }: { gameId: string;
           {shown.map((r) => (
             <li key={r.id} className="review-item">
               <div className="main">
-                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName teamId={r.team.id} /><span className="muted small">· <Icon name="city" /> {r.bookName}</span></span>
+                {/* Город первым и крупно, как в испытаниях, затем команда на той же строке (решение владельца 07.11). */}
+                <span className="trial-head"><span className="city"><Icon name="city" />{r.bookName}</span><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName teamId={r.team.id} /></span>
                 <span className="title">{r.repair && <Chip tone="warn" icon="alert">{t("починка")}</Chip>}{r.ref} <span className="muted small">· {verses(r.verses)}</span>{r.weight > 1 && <Chip tone="accent" icon="sword">{t("воин ×{k}", { k: r.weight })}</Chip>}</span>
                 <span className="meta"><span>{r.nickname}</span><span>· {fmtDate(r.createdAt)}</span></span>
                 {r.note && <span className="report">{r.note}</span>}
