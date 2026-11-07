@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent, type ReactElement, type PointerEvent } from "react";
 import { reportAction, reportPage } from "../lib/perf";
-import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routeArrow, pixelToHex } from "@lotw/domain";
+import { BOOKS, startName, vertexHexes, parseVertexKey, hexCorners, vertexToPixel, seaRoute, routeCurve, routeArrow } from "@lotw/domain";
 import { HEX_SIZE, fieldBounds, hexCenter, nodePos } from "../lib/hexmap";
 import { useViewport } from "../lib/useViewport";
 import { perfExpose, perfMark, perfOff } from "../lib/perfHud";
@@ -351,41 +351,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     for (const f of map.foreign ?? []) { const k = [f.aKey, f.bKey].sort().join("|"); const list = m.get(k) ?? []; if (!list.some((x) => x.color === f.color)) list.push({ color: f.color }); m.set(k, list); }
     return m;
   }, [map.foreign]);
-  // Шатёр у ворот (решение владельца 03.11: сначала «кольцо под городом», затем «давай переделаем с дуг на вариант шатёр
-  // у ворот»): у своего города на каждой пройденной чужой стороне — шатёр цвета той команды, по одному на команду и дорогу.
-  // Косая дорога — шатёр у бока картинки с её стороны, вертикальная — над картинкой или у её основания: так он не прячется
-  // под подписью и значками дел ни при каком масштабе.
-  const campsAt = useMemo(() => {
-    const m = new Map<string, Array<{ color: string; ux: number; uy: number }>>();
-    for (const f of map.foreign ?? []) for (const [k, o] of [[f.aKey, f.bKey], [f.bKey, f.aKey]] as const) {
-      // Дальний конец (порт за морем, неразведанный угол) может не иметь записи в positions — координаты из ключа.
-      const p = positions.get(k) ?? nodePos(k, size), q = positions.get(o) ?? nodePos(o, size);
-      const l = Math.hypot(q.x - p.x, q.y - p.y) || 1, ux = (q.x - p.x) / l, uy = (q.y - p.y) / l;
-      const list = m.get(k) ?? [];
-      if (!list.some((c) => c.color === f.color && Math.abs(c.ux - ux) < 0.2 && Math.abs(c.uy - uy) < 0.2)) list.push({ color: f.color, ux, uy });
-      m.set(k, list);
-    }
-    return m;
-  }, [map.foreign, positions, size]);
-  // Шатёр не ставится на воду (замечание владельца 03.11): суша — гексы карты без озёр.
-  const tentLand = useMemo(() => new Set(map.hexes.filter((h) => h.terrain !== "water").map((h) => `${h.q},${h.r}`)), [map.hexes]);
-  const tentOnLand = (x: number, y: number) => { const h = pixelToHex({ x, y }, size); return tentLand.has(`${h.q},${h.r}`); };
-  /** Шатры у ворот своего города: опорная точка на дороге (единицы карты) и сдвиг в экранных пикселях — общий расчёт для SVG и WebGL. */
-  const campSpots = (key: string, p: { x: number; y: number }) => {
-    const out: Array<{ key: string; bx: number; by: number; dx: number; dy: number; color: string }> = [], used = new Map<string, number>();
-    for (const g of campsAt.get(key) ?? []) {
-      const roadKey = `${Math.round(g.ux * 10)},${Math.round(g.uy * 10)}`;
-      const i = used.get(roadKey) ?? 0; used.set(roadKey, i + 1);
-      const down = g.uy > 0.9, along = 0.55 * CITY + 0.45 * CITY * Math.floor(i / 2), push = down ? 20 : 8, side = down ? 16 : 14;
-      const bx = p.x + g.ux * along, by = p.y + g.uy * along;
-      const nx = -g.uy, ny = g.ux;
-      let sgn = (ny <= 0 ? 1 : -1) * (i % 2 === 0 ? 1 : -1);
-      if (!tentOnLand(bx + nx * sgn * 0.3 * CITY, by + ny * sgn * 0.3 * CITY) && tentOnLand(bx - nx * sgn * 0.3 * CITY, by - ny * sgn * 0.3 * CITY)) sgn = -sgn;
-      out.push({ key: g.color + roadKey, bx, by, dx: g.ux * push + nx * sgn * side, dy: g.uy * push + ny * sgn * side, color: g.color });
-    }
-    return out;
-  };
-  // Сцена для мира на WebGL — из тех же данных и по тем же правилам, что SVG ниже (туман, контуры, берег, стороны, города, шатры).
+  // Сцена для мира на WebGL — из тех же данных и по тем же правилам, что SVG ниже (туман, контуры, берег, стороны, города).
   const worldScene = useMemo<WorldScene>(() => {
     const text = themeColor("--text", "#1F1B16"), paper = themeColor("--map-paper", "#FFF6E3"), surface = themeColor("--surface", "#FFFFFF");
     const teamLine = parseColor(routeColor(map.team.color));
@@ -399,14 +365,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       const line: NonNullable<WorldScene["edges"][number]["line"]> = done ? { color: teamLine, px: 6, scale: "max16" } : sel ? { color: surface, px: 5, scale: "max16" } : active ? { color: paper, px: 3, scale: "max16", dash: true } : { color: [1, 1, 1, 0.25], px: 3, scale: "max16" };
       return { a, b, halo: done || others.length > 0 ? { color: [1, 250 / 255, 240 / 255, 0.85], px: 10 } : undefined, line, extra: others.map((o, i) => { const c = parseColor(routeColor(o.color)); return { a: pt(from + span * i), b: pt(from + span * (i + 1)), color: [c[0], c[1], c[2], 0.85] as [number, number, number, number], px: 3 }; }) };
     });
-    const images: WorldScene["images"] = [], camps: WorldScene["camps"] = [];
+    const images: WorldScene["images"] = [];
     for (const n of map.revealed) {
       const p = positions.get(n.key)!;
       if (n.kind === "START") images.push({ src: IMG.start(teamIndex, imgPhase), x: p.x - START / 2, y: p.y - START * 0.58, w: START, h: START });
       if (n.kind === "CITY") {
         const c = cityByKey.get(n.key);
         images.push({ src: IMG.city(n.cityType, imgPhase), x: p.x - CITY / 2, y: p.y - CITY * 0.6, w: CITY, h: CITY, ring: c?.owner ? { color: parseColor(c.owner.color), owned: true } : { color: [1, 1, 1, 0.85], owned: false } });
-        if (c?.owner && c.captured) for (const g of campSpots(n.key, p)) camps.push({ x: g.bx, y: g.by, dx: g.dx, dy: g.dy, color: parseColor(g.color) });
       }
     }
     return {
@@ -414,9 +379,9 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       hexes: tileHexes.map((h) => ({ ...hexCenter(h, size), fog: !h.lit && h.lit !== undefined })),
       fogColor: parseColor(FOG_COLOR), gridColor: [text[0], text[1], text[2], 0.28],
       coast: coastLoops(coast), sand: rgb(light.sand), wet: rgb(light.wet),
-      edges, images, camps,
+      edges, images,
     };
-  }, [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, campsAt, tentLand, imgPhase, tileHexes, coast, light]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase, tileHexes, coast, light]); // eslint-disable-line react-hooks/exhaustive-deps
   const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -448,35 +413,12 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             return (
               <g key={"c" + n.key} className="m-city">
                 <image className="city-hit" href={IMG.city(n.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter={c?.owner ? `url(#outline-${c.owner.color.slice(1)})` : "url(#outline-free)"} />
-                {/* Свой город — по признаку captured, а не по индексу владельца: у администратора «глазами команды» индексы
-                    могли расходиться, и шатров не было (замечание владельца 04.11). */}
-                {c?.owner && c.captured && (() => {
-                  // Шатёр стоит у своей дороги (требование владельца 03.11: «ВСЕГДА возле дороги, с которой подошли»): опорная точка
-                  // на дороге у края картинки города (единицы карты), от неё — сдвиг в пикселях экрана: вдоль дороги 8px (у
-                  // вертикальной вниз 20px — мимо подписи) и вбок 14px — мимо значка дела. Сдвиг экранный, а не в единицах
-                  // карты: при сильном приближении шатёр оставался бы у соседнего узла (замечание владельца 03.11: «синий шатёр
-                  // у узла, а не города»). Сторона сдвига — где суша (выше дороги в первую очередь); второй шатёр на той же дороге —
-                  // с другой стороны, третий — дальше по дороге. Размер 9px, постоянный на экране (scale(--inv)).
-                  const out: ReactElement[] = [];
-                  for (const g of campSpots(n.key, p)) {
-                    out.push(
-                      <g key={g.key} className="camp" style={{ transform: `translate(${g.bx.toFixed(2)}px, ${g.by.toFixed(2)}px) scale(var(--inv, 1))` }}>
-                        <g transform={`translate(${g.dx.toFixed(1)}, ${g.dy.toFixed(1)})`}>
-                          {/* Вдвое меньше прежнего (решение владельца 03.11: «значки шатров сделаем в два раза меньше»). */}
-                          <path d="M-4.75,4 L0,-4.75 L4.75,4 Z" style={{ fill: g.color }} />
-                          <path className="door" d="M-1.35,4 L0,0.8 L1.35,4 Z" />
-                        </g>
-                      </g>,
-                    );
-                  }
-                  return out;
-                })()}
               </g>
             );
           }
           return null;
         })}
-  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, campsAt, tentLand, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
   // Каменоломня (решение владельца 04.10): скалистый островок с подписью, нажимается — открывает лист общих дел.
   const flashEl = flash && (
     <g className="adm-flash" pointerEvents="none">

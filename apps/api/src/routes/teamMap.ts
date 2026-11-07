@@ -8,7 +8,7 @@ import { requireUser } from "../auth.js";
 import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey, deedLimitsFor, birdFor, type DeedLimit } from "../services/teamMap.js";
 import { loadCityContent } from "../services/cities.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
-import { err, msg, fmtDay, toLocale } from "../services/i18n.js";
+import { bookName, err, msg, fmtDay, toLocale } from "../services/i18n.js";
 import { journal, nick } from "../services/journal.js";
 import { gameRules } from "../services/battles.js";
 import { adminOrObserver } from "../services/access.js";
@@ -109,7 +109,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    const body = z.object({ kind: z.enum(["quarry", "wreck"]), refId: z.string().min(1).max(64) }).parse(request.body);
+    const body = z.object({ kind: z.enum(["quarry", "wreck", "arrival"]), refId: z.string().min(1).max(64) }).parse(request.body);
     await prisma.attentionSeen.upsert({ where: { userId_kind_refId: { userId: request.user!.id, kind: body.kind, refId: body.refId } }, update: {}, create: { userId: request.user!.id, gameId: id, kind: body.kind, refId: body.refId } });
     return { ok: true };
   });
@@ -138,6 +138,13 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const seen = await prisma.attentionSeen.findMany({ where: { userId: request.user!.id, gameId: id }, select: { kind: true, refId: true } });
     const seenQuarry = new Set(seen.filter((x) => x.kind === "quarry").map((x) => x.refId));
     const seenWrecks = seen.filter((x) => x.kind === "wreck").map((x) => x.refId);
+    // К своему городу подошла чужая команда (решение владельца 07.11: вместо шатров на карте — push, уведомление и пункт
+    // «Внимание»): чужие одобренные дела, ведущие в наш взятый город, за трое суток; прочитанный пункт исчезает у прочитавшего.
+    const seenArrivals = new Set(seen.filter((x) => x.kind === "arrival").map((x) => x.refId));
+    const myCities = (await prisma.teamCityState.findMany({ where: { teamId: m.team.id, capturedAt: { not: null } }, select: { nodeKey: true } })).map((c) => c.nodeKey);
+    const arrivalRows = myCities.length === 0 ? [] : (await prisma.teamEdgeTask.findMany({ where: { gameId: id, status: "APPROVED", NOT: { teamId: m.team.id }, toKey: { in: myCities }, decidedAt: { gte: new Date(Date.now() - 3 * 86_400_000) } }, orderBy: { decidedAt: "desc" }, select: { id: true, toKey: true, sea: true, decidedAt: true, team: { select: { id: true, name: true, color: true, avatarId: true } } } })).filter((a) => !seenArrivals.has(a.id));
+    const arrivalBooks = new Map((await prisma.mapNode.findMany({ where: { gameId: id, key: { in: [...new Set(arrivalRows.map((a) => a.toKey))] } }, select: { key: true, bookCode: true } })).map((n) => [n.key, n.bookCode ?? ""]));
+    const arrivals = arrivalRows.map((a) => ({ id: a.id, nodeKey: a.toKey, bookCode: arrivalBooks.get(a.toKey) ?? "", book: bookName(arrivalBooks.get(a.toKey) ?? ""), sea: a.sea, at: (a.decidedAt ?? new Date()).toISOString(), team: a.team }));
     const quarryNew = (await prisma.deed.findMany({ where: { gameId: id, quarry: true, disabled: false, createdAt: { gte: new Date(Date.now() - 3 * 86_400_000) }, quarryWorks: { none: { teamId: m.team.id, status: { in: ["SUBMITTED", "APPROVED"] } } } }, orderBy: { createdAt: "desc" }, select: { id: true, title: true, createdAt: true } }))
       .filter((d) => !seenQuarry.has(d.id))
       .map((d) => ({ id: d.id, title: d.title, createdAt: d.createdAt.toISOString() }));
@@ -148,7 +155,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       const book = await loadBook(r.bookCode);
       returnedBlocks.push({ id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, ref: (book ? brickRef(book, r.startIdx, r.endIdx) : "") + (r.repairOfId ? " (починка)" : ""), comment: r.adminComment, at: (r.decidedAt ?? r.createdAt).toISOString() });
     }
-    return { returnedBlocks, quarryNew, seenWrecks, status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, ...(await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true, cargoBlocks: true } })) }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    return { returnedBlocks, quarryNew, seenWrecks, arrivals, status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, ...(await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true, cargoBlocks: true } })) }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
@@ -299,6 +306,21 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
   });
 
   /** Решение по сдаче: одобрить (узел за ребром открывается) или вернуть на доработку. Общее для одиночного и пакетного решения. */
+  /**
+   * К чужому городу подошли (решение владельца 07.11: «шатры были для того, чтобы показывать, что к городу подошли; теперь
+   * сделаем это через раздел „Внимание“»): после открытия узла, если это чужой взятый город, хранители получают push,
+   * уведомление и запись летописи; пункт «Внимание» строится в my-map из одобренного дела и уходит после прочтения.
+   */
+  async function approached(id: string, teamId: string, nodeKey: string): Promise<void> {
+    const node = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId: id, key: nodeKey } }, select: { kind: true, bookCode: true } });
+    if (!node || node.kind !== "CITY") return;
+    const owner = await prisma.teamCityState.findFirst({ where: { gameId: id, nodeKey, capturedAt: { not: null }, NOT: { teamId } }, select: { teamId: true } });
+    if (!owner) return;
+    const team = await prisma.team.findUnique({ where: { id: teamId }, select: { name: true } });
+    journal(id, "city_approached", { teamId: owner.teamId, vars: { team: team?.name ?? "?", book: node.bookCode ?? "" } });
+    notifyTeam(id, owner.teamId, "к городу {book} подошла команда «{team}»", "Команда «{team}» подошла к вашему городу {book}: теперь она может бросить ему вызов.", { team: team?.name ?? "?", book: node.bookCode ?? "" });
+    publish(id, { type: "map", teamId: owner.teamId });
+  }
   async function decideTask(id: string, taskId: string, body: { approve: boolean; comment: string }, adminId: string): Promise<{ ok: true; task: unknown } | { ok: false; code: 404 | 409; message: string }> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, gameId: id } });
     if (!task) return { ok: false, code: 404, message: "Сдача не найдена" };
@@ -318,6 +340,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (body.approve && task.sea) { journal(id, "ship_ready", { teamId: task.teamId, vars: { deed: updated.deed.title } }); notifyTeam(id, task.teamId, "корабль готов к отплытию", (locale) => msg(locale, "Дело «{deed}» одобрено. Капитан или кормчий может выбрать на карте, куда высадиться на другом острове.", { deed: updated.deed.title })); }
     else if (body.approve) {
       await revealNode(id, task.teamId, task.toKey);
+      await approached(id, task.teamId, task.toKey);
       // Уведомление об одобрении дела (решение владельца 18.09): раньше команда узнавала о зачёте, только открыв карту.
       notifyTeam(id, task.teamId, "дело одобрено: открыт перекрёсток", (locale) => msg(locale, "Дело «{deed}» принято. Перекрёсток за стороной открыт: на карте новые стороны и дела.", { deed: updated.deed.title }));
     }
@@ -360,6 +383,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (!candidates.includes(body.nodeKey)) return reply.code(409).send({ error: "conflict", message: err(request, "Высадиться можно только на одну из предложенных пристаней другого острова") });
     await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { toKey: body.nodeKey } });
     await revealNode(id, m.team.id, body.nodeKey);
+    await approached(id, m.team.id, body.nodeKey);
     journal(id, "sea_landed", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id) } });
     scheduleAwards(id);
     publish(id, { type: "map", teamId: m.team.id });
