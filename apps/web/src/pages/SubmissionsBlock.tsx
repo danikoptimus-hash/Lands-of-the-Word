@@ -198,7 +198,7 @@ export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string
  * Разбитые бурей корабли (решение владельца 04.11): сдачи срочных заданий. Принято — груз по жребию сервера (камни или
  * блоки для стен), после решения видно, что выпало; возвращено — с комментарием, команда может сдать снова.
  */
-interface WreckRow { id: string; wreckId: string; team: { id: string; name: string; color: string; avatarId?: string | null; stones: number; cargoBlocks: number }; title: string; description: string; proofType: EdgeTaskDto["deed"]["proofType"]; by: string; participants: string[]; links: string[]; note: string; status: "SUBMITTED" | "APPROVED" | "REJECTED"; submittedAt: string; decidedAt: string | null; adminComment: string; cargo: "STONES" | "BLOCKS" | null; amount: number | null; sunk: boolean }
+interface WreckRow { id: string; wreckId: string; team: { id: string; name: string; color: string; avatarId?: string | null; stones: number; cargoBlocks: number }; title: string; description: string; proofType: EdgeTaskDto["deed"]["proofType"]; by: string; participants: string[]; links: string[]; note: string; status: "SUBMITTED" | "APPROVED" | "REJECTED"; submittedAt: string; decidedAt: string | null; /** Кто принял или вернул (07.11). */ decidedBy?: string; adminComment: string; cargo: "STONES" | "BLOCKS" | null; amount: number | null; sunk: boolean }
 export function WrecksBlock({ gameId, version = 0, onDecided }: { gameId: string; version?: number; onDecided: () => void }) {
   const { notify } = useUi();
   const [rows, setRows] = useState<WreckRow[] | null>(() => ready<{ works: WreckRow[] }>(`/api/games/${gameId}/wrecks/submissions`)?.works ?? null);
@@ -258,7 +258,7 @@ export function WrecksBlock({ gameId, version = 0, onDecided }: { gameId: string
                 <div className="main">
                   <span className="row nowrap"><TeamAvatar name={w.team.name} color={w.team.color} avatarId={w.team.avatarId} size="sm" withName teamId={w.team.id} />{w.status === "APPROVED" ? <Chip tone="ok" icon="check">{t("принято")}</Chip> : <Chip tone="bad" icon="alert">{w.sunk && w.adminComment === "Корабль затонул" ? t("корабль затонул") : t("возвращено")}</Chip>}</span>
                   <span className="title">{w.title}</span>
-                  <span className="meta">{w.decidedAt && <span>{fmtDate(w.decidedAt)}</span>}{w.status === "APPROVED" && <span>· <Icon name={w.cargo === "STONES" ? "stone" : "wall"} />{cargoText(w)}</span>}{w.status === "REJECTED" && w.adminComment && w.adminComment !== "Корабль затонул" && <span>· {w.adminComment}</span>}</span>
+                  <span className="meta">{w.decidedAt && <span>{fmtDate(w.decidedAt)}</span>}{w.decidedBy && <span>· {w.status === "APPROVED" ? t("принял(а): {name}", { name: w.decidedBy }) : t("вернул(а): {name}", { name: w.decidedBy })}</span>}{w.status === "APPROVED" && <span>· <Icon name={w.cargo === "STONES" ? "stone" : "wall"} />{cargoText(w)}</span>}{w.status === "REJECTED" && w.adminComment && w.adminComment !== "Корабль затонул" && <span>· {w.adminComment}</span>}</span>
                 </div>
               </li>
             ))}
