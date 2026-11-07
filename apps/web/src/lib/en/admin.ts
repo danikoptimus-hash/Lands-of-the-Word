@@ -348,7 +348,6 @@ export const ADMIN: Record<string, string> = {
   "выпало: тёсаных камней {n}": "fell out: hewn stones {n}",
   "выпало: блоков для стен {n}": "fell out: wall blocks {n}",
   "у команды: камней {a}, блоков {b}": "the team has: stones {a}, blocks {b}",
-  "Блоки для стен из груза корабля": "Wall blocks from the ship’s cargo",
   "Разбитый бурей корабль: груз — {s} тёсаных камней или {b} блоков для стен (50/50 при приёме).": "A storm-wrecked ship: cargo — {s} hewn stones or {b} wall blocks (50/50 on acceptance).",
   "Выручили команд: {n}": "Teams that helped: {n}",
   "К проверке": "To review",
