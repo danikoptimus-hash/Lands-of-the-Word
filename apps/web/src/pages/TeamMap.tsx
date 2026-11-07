@@ -363,7 +363,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
       const from = done ? 0.5 : 0, span = (1 - from) / Math.max(1, others.length);
       const pt = (tt: number) => ({ x: a.x + (b.x - a.x) * tt, y: a.y + (b.y - a.y) * tt });
       const line: NonNullable<WorldScene["edges"][number]["line"]> = done ? { color: teamLine, px: 6, scale: "max16" } : sel ? { color: surface, px: 5, scale: "max16" } : active ? { color: paper, px: 3, scale: "max16", dash: true } : { color: [1, 1, 1, 0.25], px: 3, scale: "max16" };
-      return { a, b, halo: done || others.length > 0 ? { color: [1, 250 / 255, 240 / 255, 0.85], px: 10 } : undefined, line, extra: others.map((o, i) => { const c = parseColor(routeColor(o.color)); return { a: pt(from + span * i), b: pt(from + span * (i + 1)), color: [c[0], c[1], c[2], 0.85] as [number, number, number, number], px: 3 }; }) };
+      // Сторона, пройденная и нами, и другими (замечание владельца 07.11: «цвета вражеской команды тусклые на половине стороны»):
+      // своя линия — только до середины, чужая половина — той же толщины и без прозрачности, иначе под тонкой чужой линией
+      // просвечивали своя и подложка.
+      return { a, b, halfLine: done && others.length > 0 ? pt(0.5) : undefined, halo: done || others.length > 0 ? { color: [1, 250 / 255, 240 / 255, 0.85], px: 10 } : undefined, line, extra: others.map((o, i) => { const c = parseColor(routeColor(o.color)); return { a: pt(from + span * i), b: pt(from + span * (i + 1)), color: [c[0], c[1], c[2], 1] as [number, number, number, number], px: 6 }; }) };
     });
     const images: WorldScene["images"] = [];
     for (const n of map.revealed) {
@@ -400,7 +403,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               {/* Нажатие по взятой или пройденной стороне (решение владельца 30.09) — считает код (hitModel), невидимой линии нет. */}
               {/* Пройденные стороны: светлая подложка и осветлённый цвет команды, чтобы маршрут не сливался с местностью (решение владельца 30.09). */}
               {(done || others.length > 0) && <line className="halo" x1={a.x} y1={a.y} x2={b.x} y2={b.y} />}
-              <line className={active && !sel ? "dashed" : undefined} x1={a.x} y1={a.y} x2={b.x} y2={b.y} style={done ? { stroke: routeColor(map.team.color) } : undefined} />
+              {/* Своя линия на стороне, пройденной и другими, — только до середины (замечание владельца 07.11: чужая половина выглядела тусклой, потому что своя линия и подложка просвечивали из-под более тонкой чужой). */}
+              <line className={active && !sel ? "dashed" : undefined} x1={a.x} y1={a.y} x2={done && others.length > 0 ? pt(0.5).x : b.x} y2={done && others.length > 0 ? pt(0.5).y : b.y} style={done ? { stroke: routeColor(map.team.color) } : undefined} />
               {others.map((o, i) => { const p1 = pt(from + span * i), p2 = pt(from + span * (i + 1)); return <line key={o.color} className="foreign" x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} style={{ stroke: routeColor(o.color) }} />; })}
             </g>
           );
