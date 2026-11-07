@@ -595,12 +595,14 @@ export function TeamPage() {
   // корабль — пока открыт, команда его не брала и не прошло трёх суток; дело — из my-map (quarryNew).
   const newWrecks = (map.wrecks ?? []).filter((w) => !w.sunkAt && !w.mine && w.appearedAt && Date.now() - Date.parse(w.appearedAt) < 3 * 86_400_000 && !(map.seenWrecks ?? []).includes(w.id));
   const newQuarry = map.quarryNew ?? [];
+  // К нашему городу подошла чужая команда (решение владельца 07.11: вместо шатров на карте — пункт «Внимание», push и уведомление).
+  const arrivals = map.arrivals ?? [];
   /** Пункт прочитан (решение владельца 07.11): исчезает сразу и только у меня; отметка хранится на сервере. */
-  const markSeen = (kind: "quarry" | "wreck", refId: string) => {
-    setMap((m) => (m ? { ...m, quarryNew: kind === "quarry" ? (m.quarryNew ?? []).filter((d) => d.id !== refId) : m.quarryNew, seenWrecks: kind === "wreck" ? [...(m.seenWrecks ?? []), refId] : m.seenWrecks } : m));
+  const markSeen = (kind: "quarry" | "wreck" | "arrival", refId: string) => {
+    setMap((m) => (m ? { ...m, quarryNew: kind === "quarry" ? (m.quarryNew ?? []).filter((d) => d.id !== refId) : m.quarryNew, seenWrecks: kind === "wreck" ? [...(m.seenWrecks ?? []), refId] : m.seenWrecks, arrivals: kind === "arrival" ? (m.arrivals ?? []).filter((a) => a.id !== refId) : m.arrivals } : m));
     void api(`/api/games/${id}/attention/seen`, { method: "POST", body: JSON.stringify({ kind, refId }) }).catch(() => {});
   };
-  const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length + newWrecks.length + newQuarry.length;
+  const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length + newWrecks.length + newQuarry.length + arrivals.length;
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
   // Две вкладки испытаний (решение владельца 31.10: «вместо того, чтобы писать, кто претендент, а кто хранитель, — две табы»):
@@ -686,9 +688,14 @@ export function TeamPage() {
             </div>
           </div>
           {view === "attention" && (
-            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 || returnedEntries.length > 0 || returnedBlocks.length > 0 || newWrecks.length > 0 || newQuarry.length > 0 ? (
+            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 || returnedEntries.length > 0 || returnedBlocks.length > 0 || newWrecks.length > 0 || newQuarry.length > 0 || arrivals.length > 0 ? (
                 <section className="section attention">
                   <ul className="list interactive">
+                    {arrivals.map((a) => (
+                      <li key={"arr-" + a.id} role="button" tabIndex={0} onClick={() => { markSeen("arrival", a.id); openCity(a.nodeKey); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); markSeen("arrival", a.id); openCity(a.nodeKey); } }}>
+                        <div className="main"><span className="title">{t("К городу {book} подошла команда «{team}»", { book: a.book, team: a.team.name })}</span><span className="meta">{a.sea ? t("морем") : t("по дороге")} · {fmtDate(a.at)}</span></div><Icon name="chevron" className="chev" />
+                      </li>
+                    ))}
                     {newWrecks.map((w) => (
                       <li key={"wreck-" + w.id} role="button" tabIndex={0} onClick={() => { markSeen("wreck", w.id); setWreckId(w.id); setQuarryOpen(false); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); markSeen("wreck", w.id); setWreckId(w.id); setMenu(false); } }}>
                         <div className="main"><span className="title">{t("Разбитый корабль просит помощи: {title}", { title: w.title })}</span><span className="meta">{w.sinkAt ? t("утонет {d}", { d: fmtDate(w.sinkAt) }) : t("срочное задание на карте, груз — тому, кто поможет")}</span></div><Icon name="chevron" className="chev" />

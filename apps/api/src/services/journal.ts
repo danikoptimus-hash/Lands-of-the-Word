@@ -28,7 +28,7 @@ export type JournalKind =
   | "chronicle" | "game_finished"
   // Полнота летописи (решение владельца 01.11: «добавь туда события, которые проходят через уведомления»).
   | "trial_submitted" | "answer_submitted" | "trial_approved" | "trial_entry_returned" | "trial_dropped" | "defense_doubled"
-  | "city_fatigue" | "city_locked"
+  | "city_fatigue" | "city_locked" | "city_approached"
   | "passage_requested" | "passage_given" | "passage_refused" | "passage_expired" | "trade_rejected"
   | "support_answered" | "ship_ready" | "deed_released" | "deeds_frozen" | "deeds_unfrozen"
   | "member_left" | "member_joined" | "member_moved"
@@ -106,6 +106,7 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   // Усталость города отменена 07.11; текст нужен старым записям летописи.
   city_fatigue: "Город {book} слабеет: из города давно не делали дел, уровень испытания снизился на {n}",
   city_locked: "Город {book} закреплён до {date}: каждый хранитель выучил всю книгу",
+  city_approached: "К городу {book} подошла команда «{team}»",
   passage_requested: "Команда «{team}» просит проход через город {book} команды «{other}»{message}",
   passage_given: "Проход через город {book} для команды «{team}» разрешён",
   passage_refused: "В проходе через город {book} команде «{team}» отказано",
