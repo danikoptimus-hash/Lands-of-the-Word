@@ -19,7 +19,6 @@ import { compileProgram, createLineProgram, lineMesh, type LineBuffer, type Line
  */
 export interface WorldEdge { a: Pt; b: Pt; /** Линия только до этой точки (сторона, пройденная двумя командами у администратора: вторая половина — в extra). */ halfLine?: Pt; /** Светлая подложка (10·k/max(1.6,ks) у команды, 9 у администратора). */ halo?: { color: RGBA; px: number }; line?: { color: RGBA; px: number; /** "max16": X·k/max(1.6,ks); "k": X·k/ks. */ scale: "max16" | "k"; dash?: boolean; cap?: "round" | "butt" }; /** Чужие отрезки поверх линии. */ extra?: Array<{ a: Pt; b: Pt; color: RGBA; px: number }> }
 export interface WorldImage { src: string; x: number; y: number; w: number; h: number; /** Обводка: цвет и «взятый» (толще). */ ring?: { color: RGBA; owned: boolean } }
-export interface WorldCamp { x: number; y: number; dx: number; dy: number; color: RGBA }
 export interface WorldScene {
   size: number;
   /** Гексы в порядке SVG: туман (многоугольник 1.03 без контура) или контур (0.995). Порядок важен: туман, нарисованный
@@ -30,10 +29,9 @@ export interface WorldScene {
   coast: Pt[][]; sand: RGBA; wet: RGBA;
   edges: WorldEdge[];
   images: WorldImage[];
-  camps: WorldCamp[];
 }
 export const VAR_MS = 120;
-/** Отладка точности (только с ?perf=1): `&gloff=fog,grid,coast,edges,images,camps` — не рисовать часть сцены. */
+/** Отладка точности (только с ?perf=1): `&gloff=fog,grid,coast,edges,images` — не рисовать часть сцены. */
 const OFF = new Set(typeof location !== "undefined" && /[?&]perf=1/.test(location.search) ? (/[?&]gloff=([^&]+)/.exec(location.search)?.[1] ?? "").split(",") : []);
 const PAD = 24, MAX_D = 24;
 
@@ -139,12 +137,11 @@ export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: Wor
 
     const textures = new Map<string, Tex>();
     const tex = (src: string) => { let t = textures.get(src); if (!t) { t = loadTex(gl, src, () => { dirty = true; }); textures.set(src, t); } return t; };
-    const quadVbo = gl.createBuffer()!, campVbo = gl.createBuffer()!;
+    const quadVbo = gl.createBuffer()!;
     let coastBuf: LineBuffer | null = null;
     type HexRun = { fog: true; vbo: WebGLBuffer; count: number } | { fog: false; buf: LineBuffer };
     let hexRuns: HexRun[] = [];
     let items: Array<Run | Single> = [];
-    const campBuf = lines.upload(lineMesh([[{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }]], true), true);
     const drop = () => {
       for (const it of items) { lines.free(it.buf); if ("extras" in it) { for (const b of it.extras) lines.free(b); if (it.lineBuf) lines.free(it.lineBuf); } } items = [];
       for (const r of hexRuns) { if (r.fog) gl.deleteBuffer(r.vbo); else lines.free(r.buf); } hexRuns = [];
@@ -179,12 +176,6 @@ export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: Wor
     };
     rebuild.current();
 
-    const tri = new Float32Array(6), door = new Float32Array(6), outline = [{ x: 0, y: 0 }, { x: 0, y: 0 }, { x: 0, y: 0 }];
-    const fillTris = (vbo: WebGLBuffer, data: Float32Array, color: RGBA, k: number, tx: number, ty: number, sw: number, sh: number) => {
-      gl.useProgram(fill); gl.uniform2f(F.uRes, sw, sh); gl.uniform1f(F.uK, k); gl.uniform2f(F.uT, tx, ty); gl.uniform4f(F.uColor, color[0], color[1], color[2], color[3]);
-      gl.bindBuffer(gl.ARRAY_BUFFER, vbo); gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-      gl.enableVertexAttribArray(F.aP); gl.vertexAttribPointer(F.aP, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLES, 0, data.length / 2); gl.disableVertexAttribArray(F.aP);
-    };
     const draw = () => {
       const t0 = performance.now();
       const s = sceneRef.current, { k, tx, ty } = vpRef.current.viewRef.current;
@@ -241,16 +232,6 @@ export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: Wor
         gl.drawArrays(gl.TRIANGLES, 0, 6);
       }
       gl.disableVertexAttribArray(I.aP); gl.disableVertexAttribArray(I.aUV);
-      // 5. Шатры: треугольник цвета команды с белой обводкой 1px и тёмной дверью, 9.5px·ui на экране, у сдвига в экранных пикселях.
-      for (const c of OFF.has("camps") ? [] : s.camps) {
-        if (c.x < vx0 || c.x > vx1 || c.y < vy0 || c.y > vy1) continue;
-        const cx = c.x * k + tx + c.dx * ui, cy = c.y * k + ty + c.dy * ui;
-        const P = [[-4.75, 4], [0, -4.75], [4.75, 4]] as const, D = [[-1.35, 4], [0, 0.8], [1.35, 4]] as const;
-        for (let i = 0; i < 3; i++) { tri[i * 2] = cx + P[i]![0] * ui; tri[i * 2 + 1] = cy + P[i]![1] * ui; door[i * 2] = cx + D[i]![0] * ui; door[i * 2 + 1] = cy + D[i]![1] * ui; outline[i]!.x = tri[i * 2]!; outline[i]!.y = tri[i * 2 + 1]!; }
-        fillTris(campVbo, tri, c.color, 1, 0, 0, sw, sh);
-        lines.update(campBuf, lineMesh([outline], true)); lines.draw(campBuf, { k: 1, tx: 0, ty: 0, halfPx: 0.5 * ui, color: [1, 1, 1, 1] });
-        fillTris(campVbo, door, [0, 0, 0, 0.45], 1, 0, 0, sw, sh);
-      }
       perfMark("мир (gl)", performance.now() - t0);
     };
     let raf = 0;
@@ -259,7 +240,7 @@ export function WorldGL({ vp, scene, onUnsupported }: { vp: Viewport; scene: Wor
     const onLost = (e: Event) => { e.preventDefault(); fail(); };
     canvas.addEventListener("webglcontextlost", onLost);
     resize(); raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); canvas.removeEventListener("webglcontextlost", onLost); drop(); lines.free(campBuf); lines.dispose(); for (const t of textures.values()) { gl.deleteTexture(t.img); gl.deleteTexture(t.dist); } gl.getExtension("WEBGL_lose_context")?.loseContext(); };
+    return () => { cancelAnimationFrame(raf); unsub(); ro.disconnect(); canvas.removeEventListener("webglcontextlost", onLost); drop(); lines.dispose(); for (const t of textures.values()) { gl.deleteTexture(t.img); gl.deleteTexture(t.dist); } gl.getExtension("WEBGL_lose_context")?.loseContext(); };
   }, [vp.subscribe, vp.viewRef]); // eslint-disable-line react-hooks/exhaustive-deps
   if (failed) return null;
   return <canvas ref={ref} className="fx-layer world-gl" aria-hidden="true" />;

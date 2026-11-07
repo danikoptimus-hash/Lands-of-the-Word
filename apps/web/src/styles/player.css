@@ -62,8 +62,6 @@
 .m-edge.sel line { stroke: var(--surface); stroke-width: calc(5px / max(1.6, var(--k, 1))); }
 .m-edge.done line { stroke-width: calc(6px / max(1.6, var(--k, 1))); }
 /* Шатёр у ворот своего города (решение владельца 03.11): цвета команды, подошедшей по этой дороге; 9px на экране при любом масштабе. */
-.m-city .camp path { stroke: #fff; stroke-width: 1; stroke-linejoin: round; pointer-events: none; }
-.m-city .camp path.door { fill: rgba(0, 0, 0, .45); stroke: none; }
 /* Светлая подложка под пройденной стороной и чужими проходами (решение владельца 30.09): маршрут не сливается с местностью. */
 .m-edge line.halo, .m-edge.done line.halo, .m-edge.idle line.halo, .m-edge.active line.halo { stroke: rgba(255, 250, 240, .85); stroke-width: calc(10px / max(1.6, var(--k, 1))); stroke-dasharray: none; opacity: 1; pointer-events: none; }
 .m-edge.active, .m-edge.sel, .m-edge.done, .m-city, .m-label, .m-deed { cursor: pointer; }

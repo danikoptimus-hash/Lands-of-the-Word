@@ -335,6 +335,7 @@ const EN: Record<string, string> = {
   "{user} положил(а) в стену города {book} блок из груза корабля. Толщина стены — {n} стихов": "{user} laid a block from the ship’s cargo into the wall of {book}. Wall thickness — {n} verses",
   "тёсаных камней: {n}": "hewn stones: {n}", "блоков для стен: {n}": "wall blocks: {n}",
   "Разбитый бурей корабль просит помощи": "A storm-wrecked ship asks for help",
+  "к городу {book} подошла команда «{team}»": "team “{team}” has approached the city of {book}", "Команда «{team}» подошла к вашему городу {book}: теперь она может бросить ему вызов.": "Team “{team}” has approached your city of {book}: it can now challenge it.",
   "В Каменоломне новое дело": "A new deed in the Quarry", "В Каменоломне новые дела": "New deeds in the Quarry",
   "В Каменоломне появилось новое общее дело «{deed}». Его сдаёт капитан, заместитель или летописец, а камни мостят дороги. Каменоломня — на карте.": "A new team deed “{deed}” has appeared in the Quarry. The captain, deputy or chronicler submits it, and the stones pave roads. The Quarry is on the map.",
   "В Каменоломне появились новые общие дела: {n}. Их сдаёт капитан, заместитель или летописец, а камни мостят дороги. Каменоломня — на карте.": "New team deeds have appeared in the Quarry: {n}. The captain, deputy or chronicler submits them, and the stones pave roads. The Quarry is on the map.",
