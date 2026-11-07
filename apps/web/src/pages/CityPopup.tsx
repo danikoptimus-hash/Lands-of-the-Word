@@ -4,7 +4,7 @@ import { api, ApiError, type CityTaskDto, type MyCityDto, type SupportItemDto, t
 import { useUi } from "../lib/ui";
 import { IMG } from "./MapLayers";
 import { BurntScroll, CipherSeal, Crossword, LockChoice, LockRings, PickCooling, ProphetCandle, WaxEnvelope, findGap, ChiasmBoard } from "./CityForms";
-import { WarSection } from "./BattlePanel";
+import { WarSection, type ForMember } from "./BattlePanel";
 import { WallSection } from "./Wall";
 import { PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
@@ -49,7 +49,7 @@ function useAwayCounter(url: string | null) {
   }, [url]);
 }
 
-export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version, container, onClose, onChanged, onTrade }: { /** Послу: выставить этот свой город на обмен (решение владельца 04.11: обмен — из карточки города). */ onTrade?: () => void; gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Капитан, заместитель или посол: защитный союз. */ canAlly?: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
+export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version, container, onClose, onChanged, onTrade, members, meId, canFor }: { /** Отметка стихов испытания за участника (решение владельца 07.11): состав команды, кто я, можно ли. */ members?: ForMember[]; meId?: string; canFor?: boolean; /** Послу: выставить этот свой город на обмен (решение владельца 04.11: обмен — из карточки города). */ onTrade?: () => void; gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Капитан, заместитель или посол: защитный союз. */ canAlly?: boolean; version: number; container?: HTMLElement | null; onClose: () => void; onChanged: () => void }) {
   const { notify, confirm } = useUi();
 
   const confirmMove = () => confirm(t("Это единственный перенос за игру."), { title: t("Перенести столицу в этот город?"), okLabel: t("Перенести") });
@@ -389,7 +389,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
       {city?.content && !task && (city.owner || city.state.capturedAt) && (
         <details className="disclose">
           <summary><Icon name="wave" />{t("Испытание")}<Icon name="chevron-down" className="chev" /></summary>
-          <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} canAlly={canAlly} version={version} onChanged={onChanged} />
+          <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} canAlly={canAlly} version={version} onChanged={onChanged} members={members} meId={meId} canFor={canFor} />
         </details>
       )}
       {!sleeping && city?.content && task && (

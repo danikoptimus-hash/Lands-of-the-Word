@@ -13,7 +13,7 @@ import type { Rules } from "../services/rules.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { declareSiege, siegeOptions } from "../services/siege.js";
 import { activeMsBetween, awakeMsBetween, BOOKS, dayLight, stormState } from "@lotw/domain";
-import { journal } from "../services/journal.js";
+import { journal, nick } from "../services/journal.js";
 import { violatePeace } from "../services/peace.js";
 import { wallOf, wallVersesOf } from "../services/wall.js";
 import { battleVisibleTo } from "../services/visibility.js";
@@ -24,6 +24,8 @@ const entryBody = z.object({
   verses: z.array(z.number().int().min(0)).min(1).max(3000),
   links: z.array(z.string().trim().url().max(500)).min(1).max(20),
   note: z.string().trim().max(500).default(""),
+  /** Отметка за участника своей команды (решение владельца 07.11): капитан, заместитель или летописец. */
+  forUserId: z.string().trim().min(1).max(64).optional(),
 });
 const passageBody = z.object({ from: z.string().trim().min(3).max(12), to: z.string().trim().min(3).max(12) });
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
@@ -399,34 +401,66 @@ export async function battleRoutes(app: FastifyInstance): Promise<void> {
     if (side === "DEFENSE" && b.defenseDeadline && b.defenseDeadline.getTime() < Date.now()) return reply.code(409).send({ error: "conflict", message: err(request, "Время ответа вышло") });
     if (side === "DEFENSE" && (b.defenseStart == null || b.defenseEnd == null)) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала капитан должен выбрать отрывок ответа") });
     const body = entryBody.parse(request.body);
+    // Отметка за участника (решение владельца 07.11 по просьбе капитана: «утром напали, кто спит, кто на работе, кто в школе…
+    // чтобы я сам загружал ссылки видео и отмечал»): капитан, заместитель или летописец отмечают стихи и прикрепляют видео
+    // за участника своей команды; стихи засчитываются ему (вес по его роли), в записи пометка, кто отметил — как блок стены
+    // за хранителя (05.11). Проверки «уже отмечено» и «сдано раньше» — по участнику, за которого отмечают.
+    let target = { userId: request.user!.id, gameRole: m.gameRole as string | null }, byNote = "";
+    if (body.forUserId && body.forUserId !== request.user!.id) {
+      if (!(isLeader(m) || m.gameRole === "CHRONICLER")) return reply.code(403).send({ error: "forbidden", message: err(request, "Отметить стихи за другого участника может капитан, заместитель или летописец") });
+      const other = await prisma.membership.findUnique({ where: { teamId_userId: { teamId: m.team.id, userId: body.forUserId } }, select: { userId: true, gameRole: true } });
+      if (!other) return reply.code(404).send({ error: "not_found", message: err(request, "Такого участника нет в команде") });
+      target = other; byNote = `Отметил(а) за участника: ${await nick(request.user!.id)}`;
+    }
     const book = await loadBook(b.bookCode);
     if (!book) return reply.code(409).send({ error: "conflict", message: err(request, "Текст этой книги ещё не загружен") });
     const lo = side === "ATTACK" ? b.passageStart! : b.defenseStart!, hi = side === "ATTACK" ? b.passageEnd! : b.defenseEnd!;
     if (body.verses.some((v) => v < lo || v > hi)) return reply.code(400).send({ error: "validation", message: err(request, "Отмечать можно только стихи из отрывка {range}", { range: formatRange(book, lo, hi) }) });
-    const mine = userVerses(b.entries, side, request.user!.id);
+    const mine = userVerses(b.entries, side, target.userId);
     // Стих сдаётся один раз (решение владельца 03.10): то, что участник уже сдал и что принято в прошлых испытаниях
     // этой книги, второй раз не засчитывается ни в вызове, ни в ответе.
-    const learned = await learnedVerses(id, b.id, b.bookCode, request.user!.id);
+    const learned = await learnedVerses(id, b.id, b.bookCode, target.userId);
     const fresh = body.verses.filter((v) => !mine.has(v) && !learned.has(v));
     if (fresh.length === 0) {
-      if (body.verses.some((v) => learned.has(v) && !mine.has(v))) return reply.code(409).send({ error: "conflict", message: err(request, "Эти стихи вы уже сдавали в прошлом испытании: второй раз они не засчитываются") });
-      return reply.code(409).send({ error: "conflict", message: err(request, "Эти стихи вы уже отметили") });
+      if (body.verses.some((v) => learned.has(v) && !mine.has(v))) return reply.code(409).send({ error: "conflict", message: err(request, byNote ? "Эти стихи участник уже сдавал в прошлом испытании: второй раз они не засчитываются" : "Эти стихи вы уже сдавали в прошлом испытании: второй раз они не засчитываются") });
+      return reply.code(409).send({ error: "conflict", message: err(request, byNote ? "Эти стихи у участника уже отмечены" : "Эти стихи вы уже отметили") });
     }
     // В вызове участник сдаёт не меньше двух стихов подряд (решение владельца 06.11): среди его стихов в этом вызове
     // (без возвращённых записей) вместе с новыми должен быть отрезок из двух соседних.
     if (side === "ATTACK") {
-      const own = b.entries.filter((e) => e.side === "ATTACK" && e.userId === request.user!.id && e.status !== "REJECTED").flatMap((e) => Array.from({ length: e.endIdx - e.startIdx + 1 }, (_, i) => e.startIdx + i));
+      const own = b.entries.filter((e) => e.side === "ATTACK" && e.userId === target.userId && e.status !== "REJECTED").flatMap((e) => Array.from({ length: e.endIdx - e.startIdx + 1 }, (_, i) => e.startIdx + i));
       if (!hasRun([...own, ...fresh], ATTACK_MIN_RUN)) return reply.code(400).send({ error: "validation", message: err(request, "В вызове участник сдаёт не меньше {n} стихов подряд: отметьте и соседний стих", { n: ATTACK_MIN_RUN }) });
     }
     const ranges = toRanges(fresh);
     // Воин (решение владельца 22.09): его стихи считаются вдвое — вес фиксируется на момент отметки.
-    const weight = m.gameRole === "WARRIOR" ? 2 : 1;
-    await prisma.battleEntry.createMany({ data: ranges.map((r) => ({ battleId: b.id, side, teamId: m.team.id, userId: request.user!.id, startIdx: r.start, endIdx: r.end, links: body.links, note: body.note, weight })) });
+    const weight = target.gameRole === "WARRIOR" ? 2 : 1;
+    const note = byNote ? (body.note ? `${byNote}. ${body.note}` : byNote) : body.note;
+    await prisma.battleEntry.createMany({ data: ranges.map((r) => ({ battleId: b.id, side, teamId: m.team.id, userId: target.userId, startIdx: r.start, endIdx: r.end, links: body.links, note, weight })) });
     const full = (await prisma.battle.findUniqueOrThrow({ where: { id: b.id }, include: { entries: true } })) as BattleWithEntries;
     publish(id, { type: "battles", teamId: m.team.id });
     publish(id, { type: "submissions" });
     // Письмо администратору на каждую отметку стиха отменено (решение владельца 18.09, A-13): сдача стороны приходит одним письмом.
     return reply.code(201).send({ ok: true, added: fresh.length, sum: sumVerses(full.entries, side, false) });
+  });
+
+  /**
+   * Стихи участника команды в этом испытании и сданные им раньше (решение владельца 07.11): капитану, заместителю или
+   * летописцу, когда они отмечают стихи за него, — чтобы в списке были видны уже отмеченные и «сдано раньше». О себе — любому.
+   */
+  app.get("/api/games/:id/battles/:battleId/verses-of/:userId", async (request, reply) => {
+    const { id, battleId, userId } = request.params as { id: string; battleId: string; userId: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    if (userId !== request.user!.id && !(isLeader(m) || m.gameRole === "CHRONICLER")) return reply.code(403).send({ error: "forbidden", message: err(request, "Отметить стихи за другого участника может капитан, заместитель или летописец") });
+    const other = await prisma.membership.findUnique({ where: { teamId_userId: { teamId: m.team.id, userId } }, select: { userId: true } });
+    if (!other) return reply.code(404).send({ error: "not_found", message: err(request, "Такого участника нет в команде") });
+    const b = await prisma.battle.findFirst({ where: { id: battleId, gameId: id }, include: { entries: true, allies: true } });
+    if (!b) return reply.code(404).send({ error: "not_found", message: err(request, "Испытание не найдено") });
+    const side = sideOf(b, m.team.id);
+    if (!side) return reply.code(403).send({ error: "forbidden", message: err(request, "Ваша команда не участвует в этом испытании") });
+    const mine = [...userVerses(b.entries, side, userId)];
+    const learned = [...(await learnedVerses(id, b.id, b.bookCode, userId))].filter((v) => !mine.includes(v));
+    return { mine, learned };
   });
 
   /** Убрать свою запись, пока она не проверена и сторона не отправлена. */
