@@ -8,7 +8,7 @@ import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { Tabs } from "../components/Tabs";
 import { EmptyState } from "../components/State";
-import { ReturnBox, ReviewCard, useAutoRefresh } from "./SubmissionsBlock";
+import { LinkList, ReturnBox, ReviewCard, useAutoRefresh } from "./SubmissionsBlock";
 import { HelpPopup } from "../components/Help";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -78,11 +78,7 @@ export function VisitsBlock({ gameId, version = 0, onDecided }: { gameId: string
                     </div>
                     {(v.links.length > 0 || v.status === "SUBMITTED") && (
                       <div className="side">
-                        {v.links.map((l, i) => (
-                          <a key={l + i} className="btn secondary sm icon photo-btn" href={l} target="_blank" rel="noopener noreferrer" aria-label={v.links.length > 1 ? `${t("Фото")} ${i + 1}` : t("Фото")} title={v.links.length > 1 ? `${t("Фото")} ${i + 1}` : t("Фото")}>
-                            <Icon name="camera" />{v.links.length > 1 && <i className="n">{i + 1}</i>}
-                          </a>
-                        ))}
+                        <LinkList links={v.links} kind="photo" />
                         {v.status === "SUBMITTED" && <button type="button" className="sm" onClick={() => void decide(v, true)} disabled={busyId === v.id}><Icon name="check" />{t("Принять")}</button>}
                         {v.status === "SUBMITTED" && rejecting !== v.id && <button type="button" className="secondary sm icon" aria-label={t("Не принять")} title={t("Не принять")} onClick={() => setRejecting(v.id)} disabled={busyId === v.id}><Icon name="x" /></button>}
                       </div>
