@@ -290,6 +290,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     onSelectCity(key);
   };
   const R = k >= 1.6 ? 12 : 9;
+  /** Радиус знаков дел и кораблей: постоянный, масштаб задаёт --inv-mark (решение владельца 07.11: без скачков 9/12). */
+  const RM = 10;
   // Уровни детализации: при отдалении метки дел прячутся, подписи городов становятся короче и мельче.
   const showMarkers = k >= 0.9, fullLabels = k >= 1.6, showForks = k >= 0.7;
   // Город масштабируется с картой: сидит на перекрёстке и занимает место до середины трёх сторон.
@@ -328,6 +330,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const onHostPointerMove = (e: PointerEvent<HTMLDivElement>) => { if (glWorld && e.pointerType === "mouse") e.currentTarget.style.cursor = !foreignTarget(e.target) && hostHit(e.currentTarget, e.clientX, e.clientY) ? "pointer" : ""; };
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста), extra — после масштаба. */
   const sc = (x: number, y: number, extra = "") => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))${extra ? " " + extra : ""}` });
+  /** Знак дела, разведки или корабля: плавный множитель --inv-mark (MapLayers) — при отдалении знаки мельчают быстрее карты. */
+  const scm = (x: number, y: number, extra = "") => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv-mark, var(--inv, 1)))${extra ? " " + extra : ""}` });
 
   // Мир и экранные элементы — мемо по данным: фиксация масштаба (vp.view) не должна заново строить сотни SVG-элементов;
   // масштаб деталей идёт через CSS-переменные, пороги детализации — через флаги.
@@ -520,7 +524,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             // Координаты из ключа: у разведанного угла без дороги к открытой части карты записи в positions нет (жалоба участника 31.10: метка стояла только через сторону с делом).
             const pos = positions.get(pk.key) ?? nodePos(pk.key, size);
             return (
-              <g key={"pk" + pk.key} className="m-peek" style={sc(pos.x, pos.y, "translate(0, -16px)")}>
+              <g key={"pk" + pk.key} className="m-peek" style={scm(pos.x, pos.y, "translate(0, -16px)")}>
                 <circle r={10} />
                 <use href={pk.kind === "CITY" ? "#m-city" : "#m-telescope"} x={-7} y={-7} width={14} height={14} />
               </g>
@@ -530,15 +534,13 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
             if (!tk || tk.status === "APPROVED") return null;
             const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
-            // Метка дела стоит на двух третях стороны от известного перекрёстка, чтобы не наезжать на город.
-            const farKey = revealed.has(e.aKey) ? e.bKey : e.aKey;
-            const far = farKey === e.bKey ? b : a, near = far === b ? a : b;
-            const m = { x: near.x + (far.x - near.x) * 0.66, y: near.y + (far.y - near.y) * 0.66 };
+            // Метка дела стоит ровно посередине стороны (решение владельца 07.11: со сдвигом на две трети она наезжала на город).
+            const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
             const sel = tk.id === selectedTaskId;
-            const r = sel ? R + 2 : R;
+            const r = sel ? RM + 2 : RM;
             return (
               <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "")} onClick={() => click(tk.id)}>
-                <g style={sc(m.x, m.y)}>
+                <g style={scm(m.x, m.y)}>
                   <circle r={r} />
                   <use href={`#m-${DEED_SYMBOL[tk.status]}`} x={-r * 0.6} y={-r * 0.6} width={r * 1.2} height={r * 1.2} />
                 </g>
@@ -546,11 +548,11 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             );
           })}
           {ships.map(({ tk, x, y, port }) => {
-            const sel = tk.id === selectedTaskId, r = (sel ? R + 2 : R) + 2;
+            const sel = tk.id === selectedTaskId, r = (sel ? RM + 2 : RM) + 2;
             return (
               <g key={"ship" + tk.id} data-id={tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
                 <line className="mooring" x1={port.x} y1={port.y} x2={x} y2={y} />
-                <g style={sc(x, y)}>
+                <g style={scm(x, y)}>
                   <circle r={r} />
                   <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
                 </g>
@@ -693,7 +695,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             void wreckTick;
             const now = serverClock();
             if ((w.repairedAt != null && now - w.repairedAt > 9000) || (w.sunkAt != null && w.repairedAt == null && now - w.sunkAt > 9500)) return null;
-            const r = R + 2, open = () => { if (!vp.wasDrag()) onSelectWreck?.(w.id); };
+            const r = RM + 2, open = () => { if (!vp.wasDrag()) onSelectWreck?.(w.id); };
             const wd = (map.wrecks ?? []).find((x) => x.id === w.id), title = wd?.title ?? "";
             // После сдачи на проверку — знак часов, взято участником — знак человека, как у других дел (решения владельца 05.11);
             // до этого — корабль с «!».
@@ -701,7 +703,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             return (
               <g key={"wreck" + w.id} data-id={w.id} className={"m-deed sea wreck" + (submitted ? " submitted" : "")} role="button" aria-label={t("Срочное задание: {title}", { title })} onClick={open}>
                 <circle className="wreck-hit" cx={w.x} cy={w.y} r={size * 1.15} />
-                <g style={sc(w.x, w.y - size * 0.95)}>
+                <g style={scm(w.x, w.y - size * 0.95)}>
                   <circle r={r} />
                   <use href={submitted ? "#m-clock" : taken ? "#m-user" : "#m-ship"} x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
                   {!submitted && <g className="urgent" transform={`translate(${(r * 0.72).toFixed(1)}, ${(-r * 0.72).toFixed(1)})`}><circle r={6.5} /><text textAnchor="middle" dy="0.36em" fontSize={9.5} fontWeight={800}>!</text></g>}
