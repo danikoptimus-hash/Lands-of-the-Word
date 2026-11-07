@@ -1,5 +1,7 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Проходы: по умолчанию открыты вкладки «К нам» и «Открытые», а не те, где больше записей.": "Passages: the “To us” and “Open” tabs are selected by default, not the ones with more entries.",
+  "Пункты «Внимание» о новом деле Каменоломни и о разбитом корабле исчезают после нажатия, и только у того, кто нажал: у остальных участников команды они остаются.": "The “Attention” items about a new Quarry deed and a shipwreck disappear once tapped, and only for the person who tapped them: the rest of the team still sees them.",
   "Суперадмину: на странице «Все игры» убраны кнопка «Люди» и знак вопроса; раздел «Люди» по-прежнему открывается из меню пользователя.": "For the superadmin: the “People” button and the question mark are removed from the “All games” page; the “People” section still opens from the user menu.",
   "Администратору: в проверке стен город написан первым и крупно, как в испытаниях, команда — рядом на той же строке.": "For the admin: in wall review the city comes first and large, as in trials, with the team next to it on the same line.",
   "Администратору: в проверке кнопки действий прижаты к правому краю, «Принять» всегда крайняя правая, левее — ×, затем ссылки сдачи, затем «Посмотреть на карте».": "For the admin: action buttons in review sit at the right edge, “Accept” is always the rightmost, with × to its left, then the submission links, then “Show on the map”.",
