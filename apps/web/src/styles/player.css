@@ -888,7 +888,8 @@
 
 /* Телефон по схеме администратора (решение владельца 29.10): панель раздела — лист снизу над картой, док из шести плиток внизу. */
 @media (max-width: 1023px) {
-  .side-menu { top: auto; left: 0; right: 0; bottom: 0; width: auto; max-height: calc(100% - var(--safe-top) - 64px); border-radius: var(--r-lg) var(--r-lg) 0 0; padding-left: 0; padding-top: 0; animation: sheetUp var(--dur-slow) var(--ease-out); }
+  /* Лист разделов на телефоне всегда полной высоты, а не по длине списка (решение владельца 07.11). */
+  .side-menu { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: calc(100% - var(--safe-top) - 64px); max-height: calc(100% - var(--safe-top) - 64px); border-radius: var(--r-lg) var(--r-lg) 0 0; padding-left: 0; padding-top: 0; animation: sheetUp var(--dur-slow) var(--ease-out); }
   .side-menu .menu-sub { padding-top: 6px; }
   /* Плитки один в один как у администратора на телефоне: те же правила, что admin.css + theme-admin.css при ≤767px
      (владелец 29.10: «размер, прозрачность и т. д.»). Подписи в одну строку с обрезкой, высота 52px, ширина поровну. */
