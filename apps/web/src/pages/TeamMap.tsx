@@ -292,6 +292,15 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
   const R = k >= 1.6 ? 12 : 9;
   /** Радиус знаков дел и кораблей при полном размере (масштаб ≥ 5): ниже --inv-mark уменьшает его вместе с картой (решение владельца 07.11). */
   const RM = 12;
+  /** Радиус знака в единицах карты в рабочем диапазоне масштабов (2,4 px на единицу k, см. --inv-mark) и зазор до картинки города. */
+  const MARK_R = 2.6, MARK_GAP = 1.6;
+  /** Расстояние от точки до прямоугольника картинки города (как в rects: ширина CITY, от −0,6·CITY сверху до +0,4·CITY снизу). */
+  const cityClearance = (m: { x: number; y: number }, p: { x: number; y: number }) => {
+    const dx = Math.max(0, Math.abs(m.x - p.x) - CITY / 2);
+    const top = p.y - CITY * 0.6, bottom = p.y + CITY * 0.4;
+    const dy = m.y < top ? top - m.y : m.y > bottom ? m.y - bottom : 0;
+    return Math.hypot(dx, dy);
+  };
   // Уровни детализации: при отдалении метки дел прячутся, подписи городов становятся короче и мельче.
   const showMarkers = k >= 0.9, fullLabels = k >= 1.6, showForks = k >= 0.7;
   // Город масштабируется с картой: сидит на перекрёстке и занимает место до середины трёх сторон.
@@ -534,8 +543,16 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
             if (!tk || tk.status === "APPROVED") return null;
             const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
-            // Метка дела стоит ровно посередине стороны (решение владельца 07.11: со сдвигом на две трети она наезжала на город).
-            const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            // Метка дела стоит посередине стороны (решение владельца 07.11: со сдвигом на две трети она наезжала на город).
+            // Если её кружок всё же задевает картинку города на конце стороны (у вертикальной стороны картинка почти
+            // доходит до середины), метка отъезжает от города ровно настолько, чтобы его не касаться, но не дальше 0,7
+            // стороны (уточнение владельца 07.11: «чтобы на город свиток своим кружочком не залазил»).
+            const cityA = cityByKey.has(e.aKey), cityB = cityByKey.has(e.bKey);
+            let m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+            if (cityA !== cityB) {
+              const city = cityA ? a : b, other = cityA ? b : a;
+              for (let t = 0.5; t < 0.7 && cityClearance(m, city) < MARK_R + MARK_GAP; t += 0.025) m = { x: city.x + (other.x - city.x) * t, y: city.y + (other.y - city.y) * t };
+            }
             const sel = tk.id === selectedTaskId;
             const r = sel ? RM + 2 : RM;
             return (
