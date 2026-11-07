@@ -132,11 +132,12 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onS
                 {returned && <span className="meta"><Icon name="alert" />{t("Возвращено {when}", { when: fmtDate(r.decidedAt) })}{r.adminComment ? ` · ${r.adminComment}` : ""}</span>}
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
               </div>
+              {/* Порядок кнопок (решение владельца 07.11): «Принять» всегда у правого края, левее — ×, затем ссылки, затем карта. */}
               <div className="side">
-                <LinkList links={r.links} kind={linkKind(r.deed.proofType)} />
-                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id || busyId === "batch"}><Icon name="check" />{returned ? t("Принять после пересмотра") : t("Принять")}</button>
-                {!returned && returning !== r.id && <button type="button" className="secondary sm icon" aria-label={t("Вернуть")} title={t("Вернуть")} onClick={() => setReturning(r.id)} disabled={busyId === r.id || busyId === "batch"}><Icon name="x" /></button>}
                 {onShowOnMap && <button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => onShowOnMap({ teamId: r.team.id, taskId: r.id, fromKey: r.fromKey, toKey: r.toKey })}><Icon name="map" /></button>}
+                <LinkList links={r.links} kind={linkKind(r.deed.proofType)} />
+                {!returned && returning !== r.id && <button type="button" className="secondary sm icon" aria-label={t("Вернуть")} title={t("Вернуть")} onClick={() => setReturning(r.id)} disabled={busyId === r.id || busyId === "batch"}><Icon name="x" /></button>}
+                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id || busyId === "batch"}><Icon name="check" />{returned ? t("Принять после пересмотра") : t("Принять")}</button>
               </div>
               {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
             </li>
@@ -180,8 +181,8 @@ export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string
               </div>
               <div className="side">
                 <LinkList links={r.links} kind="photo" />
-                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id}><Icon name="check" />{t("Принять")}</button>
                 {returning !== r.id && <button type="button" className="secondary sm icon" aria-label={t("Вернуть")} title={t("Вернуть")} onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" /></button>}
+                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id}><Icon name="check" />{t("Принять")}</button>
               </div>
               {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
             </li>
@@ -240,8 +241,8 @@ export function WrecksBlock({ gameId, version = 0, onDecided }: { gameId: string
               </div>
               <div className="side">
                 <LinkList links={r.links} kind={linkKind(r.proofType)} />
-                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id}><Icon name="check" />{t("Принять")}</button>
                 {returning !== r.id && <button type="button" className="secondary sm icon" aria-label={t("Вернуть")} title={t("Вернуть")} onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" /></button>}
+                <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id}><Icon name="check" />{t("Принять")}</button>
               </div>
               {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
             </li>
