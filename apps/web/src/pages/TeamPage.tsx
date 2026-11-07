@@ -590,8 +590,13 @@ export function TeamPage() {
   const returnedBlocks = map.returnedBlocks ?? [];
   // Новый разбитый корабль и новое дело Каменоломни (решение владельца 06.11: «чтобы приходило в плитку „Внимание“»):
   // корабль — пока открыт, команда его не брала и не прошло трёх суток; дело — из my-map (quarryNew).
-  const newWrecks = (map.wrecks ?? []).filter((w) => !w.sunkAt && !w.mine && w.appearedAt && Date.now() - Date.parse(w.appearedAt) < 3 * 86_400_000);
+  const newWrecks = (map.wrecks ?? []).filter((w) => !w.sunkAt && !w.mine && w.appearedAt && Date.now() - Date.parse(w.appearedAt) < 3 * 86_400_000 && !(map.seenWrecks ?? []).includes(w.id));
   const newQuarry = map.quarryNew ?? [];
+  /** Пункт прочитан (решение владельца 07.11): исчезает сразу и только у меня; отметка хранится на сервере. */
+  const markSeen = (kind: "quarry" | "wreck", refId: string) => {
+    setMap((m) => (m ? { ...m, quarryNew: kind === "quarry" ? (m.quarryNew ?? []).filter((d) => d.id !== refId) : m.quarryNew, seenWrecks: kind === "wreck" ? [...(m.seenWrecks ?? []), refId] : m.seenWrecks } : m));
+    void api(`/api/games/${id}/attention/seen`, { method: "POST", body: JSON.stringify({ kind, refId }) }).catch(() => {});
+  };
   const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length + newWrecks.length + newQuarry.length;
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
@@ -682,12 +687,12 @@ export function TeamPage() {
                 <section className="section attention">
                   <ul className="list interactive">
                     {newWrecks.map((w) => (
-                      <li key={"wreck-" + w.id} role="button" tabIndex={0} onClick={() => { setWreckId(w.id); setQuarryOpen(false); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setWreckId(w.id); setMenu(false); } }}>
+                      <li key={"wreck-" + w.id} role="button" tabIndex={0} onClick={() => { markSeen("wreck", w.id); setWreckId(w.id); setQuarryOpen(false); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); markSeen("wreck", w.id); setWreckId(w.id); setMenu(false); } }}>
                         <div className="main"><span className="title">{t("Разбитый корабль просит помощи: {title}", { title: w.title })}</span><span className="meta">{w.sinkAt ? t("утонет {d}", { d: fmtDate(w.sinkAt) }) : t("срочное задание на карте, груз — тому, кто поможет")}</span></div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
                     {newQuarry.map((d) => (
-                      <li key={"quarry-" + d.id} role="button" tabIndex={0} onClick={() => { setQuarryOpen(true); setWreckId(null); setSelectedId(null); setCityKey(null); setMenu(false); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setQuarryOpen(true); setMenu(false); } }}>
+                      <li key={"quarry-" + d.id} role="button" tabIndex={0} onClick={() => { markSeen("quarry", d.id); setQuarryOpen(true); setWreckId(null); setSelectedId(null); setCityKey(null); setMenu(false); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); markSeen("quarry", d.id); setQuarryOpen(true); setMenu(false); } }}>
                         <div className="main"><span className="title">{t("Новое дело в Каменоломне: {title}", { title: d.title })}</span><span className="meta">{t("сдаёт капитан, заместитель или летописец")}</span></div><Icon name="chevron" className="chev" />
                       </li>
                     ))}

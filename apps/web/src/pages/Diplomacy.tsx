@@ -71,7 +71,8 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
 /**
  * В боковом меню «Проходы» — две вкладки (решение владельца 01.11: «разделить наши запросы и запросы других команд»):
  * «К нам» — запросы других команд через наши города (ответить, можно текстом) и выданные разрешения (безотзывные);
- * «Наши» — наши запросы через чужие города с их состоянием. Открывается та, где есть что решать.
+ * «Наши» — наши запросы через чужие города с их состоянием. По умолчанию открыты «К нам» и «Открытые» (решение владельца 07.11:
+ * «это самые важные вкладки»), а не та, где больше записей.
  * Внутри каждой — «Открытые» и «Закрытые» (решение владельца 03.11).
  */
 export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; data: PassagesDto | null; onChanged: () => void }) {
@@ -94,9 +95,9 @@ export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; dat
   // Пока запросов нет, блока нет вовсе (решение владельца 21.09): появляется вместе с первым запросом.
   if (incoming.length === 0 && outAll.length === 0) return null;
   const inCount = incoming.length, outCount = outOpen.length + outClosed.length;
-  const shown: "in" | "out" = tab ?? (inOpen.length > 0 || (inCount > 0 && outCount === 0) ? "in" : outCount > 0 ? "out" : "in");
+  const shown: "in" | "out" = tab ?? "in";
   const open = shown === "in" ? inOpen : outOpen, closed = shown === "in" ? inClosed : outClosed;
-  const phaseShown: "open" | "closed" = phase ?? (open.length > 0 ? "open" : "closed");
+  const phaseShown: "open" | "closed" = phase ?? "open";
   const row = (r: PassageDto, title: string, meta: string) => (
     <li key={r.id}>
       <div className="main"><span className="title">{title}</span><span className="meta">{meta}</span>{r.message && <span className="meta">«{r.message}»</span>}{r.answer && <span className="meta">{t("Ответ: «{a}»", { a: r.answer })}</span>}</div>
