@@ -163,6 +163,11 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .tabs.stacked > button { flex-direction: column; gap: 2px; min-height: 52px; font-size: var(--fs-xs); }
 @media (min-width: 640px) { .tabs.stacked > button { flex-direction: row; gap: var(--sp-1); min-height: 40px; font-size: var(--fs-sm); } }
 .tabs.sticky { position: sticky; top: calc(var(--topbar-h) + var(--sp-2)); z-index: var(--z-sticky); margin-bottom: var(--sp-4); background: var(--surface-2); }
+/* Вкладки внутри листов и панелей разделов прилипают к верху области прокрутки (решение владельца 07.11: «когда листаю вниз,
+   табы уходят из поля зрения… чтобы переключиться, нужно вернуться вверх»). Липкость ограничена родителем: в «Проверке»
+   наверху держатся только вкладки той карточки, которую сейчас смотрят. Второй ряд вкладок (проходы) встаёт под первым. */
+.overlay-body .tabs, .side-menu .tabs { position: sticky; top: 0; z-index: var(--z-sticky); }
+.overlay-body .tabs + .tabs, .side-menu .tabs + .tabs { top: 50px; }
 .tabs .count-chip { margin-left: 2px; }
 .tabs.stacked .count-chip { position: absolute; top: 4px; right: 50%; transform: translateX(18px); margin: 0; }
 @media (min-width: 640px) { .tabs.stacked .count-chip { position: static; transform: none; } }
@@ -172,6 +177,10 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .overlay-backdrop.absolute { position: absolute; }
 /* max-height дважды: vh — запасное для старых браузеров (без dvh шторка росла выше экрана и верх не листался, 02.10), dvh — для новых. */
 .overlay { background: var(--surface); width: 100%; max-height: 92vh; max-height: 92dvh; display: flex; flex-direction: column; border-radius: var(--r-lg) var(--r-lg) 0 0; box-shadow: var(--shadow-3); animation: rise var(--dur-slow) var(--ease-out); padding-bottom: var(--safe-bottom); }
+/* Листы с содержимым (md, lg, full) всегда открываются на полную высоту, а не по размеру списка (решение владельца 07.11:
+   «никакие окна не должны открываться в маленьком размере, только в полном — что на телефоне, что на компьютере»);
+   маленькие формы (sm) и окна подтверждения остаются по содержимому. */
+.overlay.md, .overlay.lg, .overlay.full { height: 92vh; height: 92dvh; }
 .overlay .overlay-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-3) var(--sp-2) var(--sp-4); border-bottom: 1px solid var(--border); flex: none; }
 .overlay .overlay-head h2 { flex: 1; min-width: 0; font-size: var(--fs-lg); }
 .overlay .overlay-body { overflow: auto; padding: var(--sp-4); flex: 1 1 auto; -webkit-overflow-scrolling: touch; }
@@ -181,6 +190,7 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
   .overlay-backdrop { align-items: center; padding: var(--sp-4); }
   .overlay { border-radius: var(--r-lg); max-height: 90vh; animation: scaleIn var(--dur-base) var(--ease-out); padding-bottom: 0; }
   .overlay.sm { max-width: 440px; } .overlay.md { max-width: 640px; } .overlay.lg { max-width: 880px; }
+  .overlay.md, .overlay.lg, .overlay.full { height: 90vh; }
   .overlay .grabber { display: none; }
 }
 /* Окно подтверждения всегда над листами (замечание владельца 05.11: «Отпустить корабль» из редактора дела открывалось под ним). */
