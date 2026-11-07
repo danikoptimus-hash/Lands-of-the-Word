@@ -9,10 +9,10 @@ import { Help } from "../components/Help";
 import { Stepper } from "../components/Stepper";
 import { Sheet } from "../components/Sheet";
 
-export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; wallBlockVerses: number; passageDays: number; lockWeeks: number; fatigueAfterDays: number; fatigueStepDays: number; fatigueStep: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily"; /** Штормы (решение владельца 24.10): интервалы недели по поясу игры. */ storms?: StormSlot[] }
+export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; wallBlockVerses: number; passageDays: number; lockWeeks: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily"; /** Штормы (решение владельца 24.10): интервалы недели по поясу игры. */ storms?: StormSlot[] }
 interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string; rules?: RulesDto } }
-/** Правила, зашитые глобально и убранные из настроек (решение владельца 03.10): минимальная ставка, штраф за сгоревший вызов, закрепление города, усталость, паузы после ошибок. Сервер хранит их значения по умолчанию. */
-type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "fatigueAfterDays" | "fatigueStepDays" | "fatigueStep" | "pauseSteps" | "storms" | "chronicleWeekday" | "chronicleHourUtc";
+/** Правила, зашитые глобально и убранные из настроек (решение владельца 03.10): минимальная ставка, штраф за сгоревший вызов, закрепление города, паузы после ошибок. Сервер хранит их значения по умолчанию. Усталость города отменена 07.11. */
+type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "pauseSteps" | "storms" | "chronicleWeekday" | "chronicleHourUtc";
 type NumKey = Exclude<keyof RulesDto, FixedKey | "adminDigest" | "timeZone">;
 type RuleKey = Exclude<keyof RulesDto, FixedKey>;
 /** Числа правил (решение владельца 18.09): короткая подпись строки, подпись поля с единицей, границы. */

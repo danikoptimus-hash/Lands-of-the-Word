@@ -33,7 +33,7 @@ const cookies = new Map();
 const S = { gameId: "", nodes: [], edges: [], teams: new Map(), users: new Map(), skipCities: new Set() };
 
 function zoneForLocalHour(hour, now = new Date()) { let n = ((hour - now.getUTCHours()) % 24 + 24) % 24; if (n > 14) n -= 24; return n === 0 ? "Etc/GMT" : n > 0 ? `Etc/GMT-${n}` : `Etc/GMT+${-n}`; }
-const rulesFast = { timeZone: zoneForLocalHour(7), minBid: 10, attackDays: 0.02, burnPenalty: 5, minAnswerSeconds: 120, passageDays: 0.02, lockWeeks: 0.002, fatigueAfterDays: 0.05, fatigueStepDays: 0.01, fatigueStep: 1, deedReturnDays: 0.02, roleChangeDays: 0, roleCooldownDays: 0.001, pauseSteps: [3, 5, 10], siegeDays: 0.02, siegeDeedPoints: 1, chronicleWeekday: 0, chronicleHourUtc: 0, adminDigest: "instant",
+const rulesFast = { timeZone: zoneForLocalHour(7), minBid: 10, attackDays: 0.02, burnPenalty: 5, minAnswerSeconds: 120, passageDays: 0.02, lockWeeks: 0.002, deedReturnDays: 0.02, roleChangeDays: 0, roleCooldownDays: 0.001, pauseSteps: [3, 5, 10], siegeDays: 0.02, siegeDeedPoints: 1, chronicleWeekday: 0, chronicleHourUtc: 0, adminDigest: "instant",
   // Ключ города — когда задания решила доля состава (решение владельца 05.10): для быстрого прохода достаточно одного решившего.
   keySolversPct: 10, keyTasksPct: 10 };
 

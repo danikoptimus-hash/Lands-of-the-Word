@@ -85,6 +85,7 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   trial_entry_returned: "Запись {side} за город {book} возвращена администратором: {ref}{comment}",
   trial_dropped: "Вызов городу {book} снят из очереди: {why}",
   defense_doubled: "Защита города {book} удвоена: мир нарушен в игре из двух команд, хранителям нужно {need} стихов",
+  // Усталость отменена 07.11; текст — для старых записей.
   city_fatigue: "Город {book} слабеет: из города давно не делали дел, уровень испытания снизился на {n}",
   city_locked: "Город {book} закреплён до {date}: каждый хранитель выучил всю книгу",
   passage_requested: "Команда «{team}» просит проход через город {book} команды «{other}»{message}",

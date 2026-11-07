@@ -443,7 +443,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
   app.get("/api/games/:id/cities/:nodeKey", async (request, reply) => {
     const { id, nodeKey } = request.params as { id: string; nodeKey: string };
     if (!(await requireAdmin(request, reply, id))) return;
-    // Перед чтением — метла: усталость и сроки применяются, чтобы уровень защиты и дата таяния были свежими.
+    // Перед чтением — метла: сроки испытаний применяются, чтобы уровень защиты был свежим.
     await sweep(id);
     const node = await loadCityNode(id, nodeKey);
     if (!node) return reply.code(404).send({ error: "not_found", message: err(request, "Город не найден") });
@@ -461,23 +461,12 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     const byTeam = new Map(states.map((s) => [s.teamId, s]));
     const solvedBy = new Map<string, number>();
     for (const e of solved) { const k = `${e.teamId}:${e.userId}`; solvedBy.set(k, (solvedBy.get(k) ?? 0) + 1); }
-    // Защита города и ставка для вызова по каждой команде (решение владельца 04.10): уровень тает усталостью, если
-    // хранители не делают дел из города, и администратору нужно видеть, сколько стихов сейчас нужно каждой команде.
+    // Защита города и ставка для вызова по каждой команде (решение владельца 04.10): администратору нужно видеть,
+    // сколько стихов сейчас нужно каждой команде. Усталости (таяния уровня без дел) больше нет — решение владельца 07.11.
     const rules = rulesOf(game?.settings);
     const owner = states.find((s) => s.capturedAt) ?? null;
-    let fatigueNextAt: Date | null = null;
-    if (owner && node.defenseLevel > 0 && rules.fatigueStep > 0) {
-      const [open, lastDeed] = await Promise.all([
-        prisma.teamEdgeTask.count({ where: { teamId: owner.teamId, fromKey: nodeKey, status: { in: ["OPEN", "TAKEN", "SUBMITTED", "REJECTED"] } } }),
-        prisma.teamEdgeTask.findFirst({ where: { teamId: owner.teamId, fromKey: nodeKey, status: "APPROVED" }, orderBy: { decidedAt: "desc" }, select: { decidedAt: true } }),
-      ]);
-      if (open > 0) {
-        const last = Math.max(owner.capturedAt!.getTime(), lastDeed?.decidedAt?.getTime() ?? 0);
-        fatigueNextAt = new Date(node.fatigueAt ? node.fatigueAt.getTime() + days(rules.fatigueStepDays) : last + days(rules.fatigueAfterDays));
-      }
-    }
     const wall = owner ? await wallOf(owner.teamId, nodeKey) : null;
-    const defense = owner ? { level: node.defenseLevel, sumMode: node.sumMode, lockedUntil: isLocked(node) ? node.lockedUntil : null, fatigueNextAt, fatigueStep: rules.fatigueStep, wall: wall && wall.blocks > 0 ? { verses: wall.verses, blocks: wall.blocks } : null } : null;
+    const defense = owner ? { level: node.defenseLevel, sumMode: node.sumMode, lockedUntil: isLocked(node) ? node.lockedUntil : null, wall: wall && wall.blocks > 0 ? { verses: wall.verses, blocks: wall.blocks } : null } : null;
     // Ответы на задания видит только администратор платформы (решение владельца): администратор игры — задания без ответов.
     const superadmin = request.user!.platformRole === "SUPERADMIN";
     return {

@@ -32,7 +32,8 @@ import { sweepDigests } from "./digest.js";
  * учат, сумма M ≥ N → отражено (ничья за хранителями), уровень = M. Выученные раньше стихи этой книги
  * хранителям засчитываются автоматически. Сгоревший вызов — штраф к минимальной ставке; сгоревшая команда
  * встаёт в очередь после всех, кто встал раньше. Закрепление — только после отбитого максимума (каждый
- * участник хранителей выучил всю книгу) и только на срок. Уровень защиты тает при бездействии (усталость).
+ * участник хранителей выучил всю книгу) и только на срок. Уровень защиты сам не убывает: усталость города отменена
+ * (решение владельца 07.11: «отменяем удешевление»).
  */
 
 export type BattleWithEntries = Battle & { entries: BattleEntry[] };
@@ -338,7 +339,7 @@ export async function maybeRepel(b: BattleWithEntries): Promise<BattleWithEntrie
   const prevPenalty = (await prisma.teamCityState.findUnique({ where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } }, select: { attackPenalty: true } }))?.attackPenalty ?? 0;
   const [upd] = await prisma.$transaction([
     prisma.battle.update({ where: { id: b.id }, data: { status: "REPELLED", defenseBid: M, resolvedAt: now }, include: { entries: true } }),
-    prisma.mapNode.update({ where: { gameId_key: { gameId: b.gameId, key: b.nodeKey } }, data: { defenseLevel: M, fatigueAt: null, ...(lockedUntil ? { lockedUntil, maxReachedAt: now } : {}) } }),
+    prisma.mapNode.update({ where: { gameId_key: { gameId: b.gameId, key: b.nodeKey } }, data: { defenseLevel: M, ...(lockedUntil ? { lockedUntil, maxReachedAt: now } : {}) } }),
   ]);
   publish(b.gameId, { type: "battles" });
   scheduleAwards(b.gameId);
@@ -382,7 +383,7 @@ export async function resolveWon(b: Battle): Promise<void> {
   const attackerHasCapital = (await prisma.teamCityState.count({ where: { teamId: b.attackerId, isCapital: true } })) > 0;
   const ops: Prisma.PrismaPromise<unknown>[] = [
     prisma.battle.update({ where: { id: b.id }, data: { status: "WON", resolvedAt: now } }),
-    prisma.mapNode.update({ where: { gameId_key: { gameId: b.gameId, key: b.nodeKey } }, data: { defenseLevel: level, fatigueAt: null, lockedUntil: null, maxReachedAt: null } }),
+    prisma.mapNode.update({ where: { gameId_key: { gameId: b.gameId, key: b.nodeKey } }, data: { defenseLevel: level, lockedUntil: null, maxReachedAt: null } }),
     prisma.teamCityState.updateMany({ where: { teamId: b.defenderId, nodeKey: b.nodeKey }, data: { capturedAt: null, isCapital: false, secondCapital: false } }),
     prisma.teamCityState.upsert({
       where: { teamId_nodeKey: { teamId: b.attackerId, nodeKey: b.nodeKey } },
@@ -416,32 +417,7 @@ export async function resolveWon(b: Battle): Promise<void> {
   if (wasCapital) await checkLastTeam(b.gameId);
 }
 
-/**
- * Усталость города (S-07, решение владельца 18.09): если из города владельца 28 дней не одобрено ни одного дела на
- * выходящих сторонах, уровень защиты уменьшается на 1 стих каждые 14 дней. Город без свободных сторон не устаёт.
- */
-export async function applyFatigue(gameId: string, rules: Rules, now = new Date()): Promise<void> {
-  if (rules.fatigueStep <= 0) return;
-  const owned = await prisma.teamCityState.findMany({ where: { gameId, capturedAt: { not: null } }, select: { teamId: true, nodeKey: true, capturedAt: true } });
-  for (const c of owned) {
-    const node = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId, key: c.nodeKey } }, select: { id: true, defenseLevel: true, fatigueAt: true, bookCode: true } });
-    if (!node || node.defenseLevel <= 0) continue;
-    const [open, lastDeed] = await Promise.all([
-      prisma.teamEdgeTask.count({ where: { teamId: c.teamId, fromKey: c.nodeKey, status: { in: ["OPEN", "TAKEN", "SUBMITTED", "REJECTED"] } } }),
-      prisma.teamEdgeTask.findFirst({ where: { teamId: c.teamId, fromKey: c.nodeKey, status: "APPROVED" }, orderBy: { decidedAt: "desc" }, select: { decidedAt: true } }),
-    ]);
-    if (open === 0) continue; // нечего делать — нет и усталости
-    const last = Math.max(c.capturedAt!.getTime(), lastDeed?.decidedAt?.getTime() ?? 0);
-    const nextAt = node.fatigueAt ? node.fatigueAt.getTime() + days(rules.fatigueStepDays) : last + days(rules.fatigueAfterDays);
-    if (now.getTime() < nextAt) continue;
-    await prisma.mapNode.update({ where: { id: node.id }, data: { defenseLevel: Math.max(0, node.defenseLevel - rules.fatigueStep), fatigueAt: now } });
-    publish(gameId, { type: "map", teamId: c.teamId });
-    notifyTeam(gameId, c.teamId, "город {book} слабеет", "Из города давно не делали дел: уровень испытания снизился на {n}. Одно одобренное дело на стороне из города остановит убыль.", { book: node.bookCode ?? "", n: rules.fatigueStep });
-    journal(gameId, "city_fatigue", { teamId: c.teamId, vars: { book: node.bookCode ?? "", n: rules.fatigueStep } });
-  }
-}
-
-/** Сгоревшие вызовы, просроченные ответы, усталость, возврат зависших дел. Вызывается по таймеру и перед чтением. */
+/** Сгоревшие вызовы, просроченные ответы, возврат зависших дел. Вызывается по таймеру и перед чтением. */
 /** За сколько до конца времени ответа стена ложится в ответ (решение владельца 02.11: «за минуту до конца таймера»). */
 export const WALL_LEAD_MS = 60_000;
 export async function sweep(gameId?: string): Promise<void> {
@@ -478,11 +454,11 @@ export async function sweep(gameId?: string): Promise<void> {
   await sinkDueWrecks(gameId, now);
   // Еженедельная летопись не рассылается (решение владельца 25.10: «у команд и так летопись ведётся»).
   if (!gameId) await sweepDigests(now);
-  // Усталость городов и возврат зависших дел — по идущим играм.
+  // Возврат зависших дел — по идущим играм. Усталости городов больше нет (решение владельца 07.11): уровень защиты
+  // не убывает, если из города не делают дел; старые записи летописи city_fatigue остаются.
   const games = await prisma.game.findMany({ where: { ...(gameId ? { id: gameId } : {}), status: "ACTIVE" }, select: { id: true, settings: true } });
   for (const g of games) {
     const rules = rulesOf(g.settings);
-    await applyFatigue(g.id, rules, now);
     await returnStaleTasks(g.id, rules, now);
   }
 }
