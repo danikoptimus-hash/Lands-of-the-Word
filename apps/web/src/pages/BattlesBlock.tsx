@@ -128,13 +128,13 @@ export function BattlesBlock({ gameId, version = 0, onDecided }: { gameId: strin
                   <span className="title">{e.ref}</span>
                   <span className="meta"><span>{verses(e.verses)}</span><span>· {e.nickname}</span><span>· {fmtDate(e.createdAt)}</span></span>
                   {e.note && <span className="report">{e.note}</span>}
-                  <LinkList links={e.links} kind="video" />
                 </div>
                 <div className="side">
+                  <LinkList links={e.links} kind="video" />
                   {e.status === "SUBMITTED" ? (
                     <>
                       <button type="button" className="sm" onClick={() => void decide(open.id, e.id, true)} disabled={busyId === e.id}><Icon name="check" />{t("Принять")}</button>
-                      {returning !== e.id && <button type="button" className="secondary sm" onClick={() => setReturning(e.id)} disabled={busyId === e.id}><Icon name="x" />{t("Вернуть")}</button>}
+                      {returning !== e.id && <button type="button" className="secondary sm icon" aria-label={t("Вернуть")} title={t("Вернуть")} onClick={() => setReturning(e.id)} disabled={busyId === e.id}><Icon name="x" /></button>}
                     </>
                   ) : <Chip tone={e.status === "APPROVED" ? "ok" : "bad"}>{e.status === "APPROVED" ? t("принято") : t("возвращено")}</Chip>}
                 </div>

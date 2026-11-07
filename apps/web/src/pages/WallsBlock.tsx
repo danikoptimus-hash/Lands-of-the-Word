@@ -46,13 +46,13 @@ export function WallsBlock({ gameId, version = 0, onDecided }: { gameId: string;
                 <span className="meta"><span>{r.nickname}</span><span>· {fmtDate(r.createdAt)}</span></span>
                 {r.note && <span className="report">{r.note}</span>}
                 {r.adminComment && <span className="meta">{t("Комментарий: {c}", { c: r.adminComment })}</span>}
-                <LinkList links={r.links} kind="video" />
               </div>
               <div className="side">
+                <LinkList links={r.links} kind="video" />
                 {r.status === "SUBMITTED" ? (
                   <>
                     <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id}><Icon name="check" />{t("Принять")}</button>
-                    {returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" />{t("Вернуть")}</button>}
+                    {returning !== r.id && <button type="button" className="secondary sm icon" aria-label={t("Вернуть")} title={t("Вернуть")} onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" /></button>}
                   </>
                 ) : r.usedAt ? <Chip tone="bad" icon="wave">{t("сгорел")}</Chip> : <Chip tone={r.status === "APPROVED" ? "ok" : "bad"}>{r.status === "APPROVED" ? t("принято") : t("возвращено")}</Chip>}
               </div>

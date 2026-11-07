@@ -35,14 +35,17 @@ export function ReviewCard({ icon, title, count, loading, error, onRetry, childr
   );
 }
 
-/** Ссылки сдачи подписями «Фото 1», «Видео», а не голыми адресами. */
+/**
+ * Ссылки сдачи — квадратные кнопки со значком (фото, видео, ссылка) и номером, если ссылок несколько; подпись «Фото 1»
+ * только во всплывающей подсказке. Стоят в ряду действий перед «Принять» (решение владельца 06.11: «убираем текст „фото“
+ * и ставим квадратную кнопку перед „Принять“»; до этого видео было значком с 31.10, фото — текстом).
+ */
 export function LinkList({ links, kind }: { links: string[]; kind: "photo" | "video" | "link" }) {
   if (links.length === 0) return null;
   const word = kind === "photo" ? t("Фото") : kind === "video" ? t("Видео") : t("Ссылка");
   const label = (i: number) => (links.length > 1 ? `${word} ${i + 1}` : word);
-  // Видео — только значок (решение владельца 31.10: «уберём надпись видео, оставим только значок»); номер, если видео несколько.
-  if (kind === "video") return <span className="links">{links.map((l, i) => <a key={l + i} className="vlink" href={l} target="_blank" rel="noopener noreferrer" aria-label={label(i)} title={label(i)}><Icon name="video" />{links.length > 1 ? i + 1 : ""}</a>)}</span>;
-  return <span className="links">{links.map((l, i) => <a key={l + i} href={l} target="_blank" rel="noopener noreferrer"><Icon name={kind === "photo" ? "camera" : "link"} />{label(i)}</a>)}</span>;
+  const icon = kind === "photo" ? "camera" : kind === "video" ? "video" : "link";
+  return <>{links.map((l, i) => <a key={l + i} className="btn secondary sm icon proof-btn" href={l} target="_blank" rel="noopener noreferrer" aria-label={label(i)} title={label(i)}><Icon name={icon} />{links.length > 1 && <i className="n">{i + 1}</i>}</a>)}</>;
 }
 
 /** Отрицательное решение: поле причины появляется только когда возвращают, с фокусом. */
@@ -128,11 +131,11 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onS
                 <span className="meta"><span>{PROOF_LABEL[r.deed.proofType]}</span>{r.takenBy && <span>· {r.takenBy.displayName ?? r.takenBy.nickname}</span>}{r.takenAt && <span>· {t("взято {date}", { date: fmtDate(r.takenAt) })}</span>}{r.participantNames && r.participantNames.length > 0 && <span className="participants">· <Icon name="users" />{t("с участниками: {names}", { names: r.participantNames.join(", ") })}</span>}{r.submittedAt && <span>· {t("сдано {date}", { date: fmtDate(r.submittedAt) })} · {ageOf(r.submittedAt)}</span>}</span>
                 {returned && <span className="meta"><Icon name="alert" />{t("Возвращено {when}", { when: fmtDate(r.decidedAt) })}{r.adminComment ? ` · ${r.adminComment}` : ""}</span>}
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
-                <LinkList links={r.links} kind={linkKind(r.deed.proofType)} />
               </div>
               <div className="side">
+                <LinkList links={r.links} kind={linkKind(r.deed.proofType)} />
                 <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id || busyId === "batch"}><Icon name="check" />{returned ? t("Принять после пересмотра") : t("Принять")}</button>
-                {!returned && returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id || busyId === "batch"}><Icon name="x" />{t("Вернуть")}</button>}
+                {!returned && returning !== r.id && <button type="button" className="secondary sm icon" aria-label={t("Вернуть")} title={t("Вернуть")} onClick={() => setReturning(r.id)} disabled={busyId === r.id || busyId === "batch"}><Icon name="x" /></button>}
                 {onShowOnMap && <button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => onShowOnMap({ teamId: r.team.id, taskId: r.id, fromKey: r.fromKey, toKey: r.toKey })}><Icon name="map" /></button>}
               </div>
               {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
@@ -174,11 +177,11 @@ export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string
                 <span className="meta"><span>{t("фото")}</span><span>· {r.by}</span><span>· {fmtDate(r.submittedAt)}</span></span>
                 <span className={"small" + (r.deed.quorumPct != null && r.participants.length < Math.ceil((r.teamSize * r.deed.quorumPct) / 100) ? " warn" : "")}>{t("Были")} ({t("{a} из {b}", { a: r.participants.length, b: r.teamSize })}): {r.participants.join(", ") || "—"}{r.deed.quorumPct != null && <span className="muted"> · {t("нужно не меньше {n}", { n: Math.ceil((r.teamSize * r.deed.quorumPct) / 100) })}</span>}</span>
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
-                <LinkList links={r.links} kind="photo" />
               </div>
               <div className="side">
+                <LinkList links={r.links} kind="photo" />
                 <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id}><Icon name="check" />{t("Принять")}</button>
-                {returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" />{t("Вернуть")}</button>}
+                {returning !== r.id && <button type="button" className="secondary sm icon" aria-label={t("Вернуть")} title={t("Вернуть")} onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" /></button>}
               </div>
               {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
             </li>
@@ -234,11 +237,11 @@ export function WrecksBlock({ gameId, version = 0, onDecided }: { gameId: string
                 {r.description && descOpen.has(r.id) && <span className="deed-desc open small muted">{r.description}</span>}
                 <span className="meta"><span>{PROOF_LABEL[r.proofType]}</span><span>· {r.by}</span><span>· {fmtDate(r.submittedAt)}</span>{r.participants.length > 0 && <span className="participants">· <Icon name="users" />{t("с участниками: {names}", { names: r.participants.join(", ") })}</span>}</span>
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
-                <LinkList links={r.links} kind={linkKind(r.proofType)} />
               </div>
               <div className="side">
+                <LinkList links={r.links} kind={linkKind(r.proofType)} />
                 <button type="button" className="sm" onClick={() => void decide(r.id, true)} disabled={busyId === r.id}><Icon name="check" />{t("Принять")}</button>
-                {returning !== r.id && <button type="button" className="secondary sm" onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" />{t("Вернуть")}</button>}
+                {returning !== r.id && <button type="button" className="secondary sm icon" aria-label={t("Вернуть")} title={t("Вернуть")} onClick={() => setReturning(r.id)} disabled={busyId === r.id}><Icon name="x" /></button>}
               </div>
               {returning === r.id && <ReturnBox placeholder={t("Причина возврата: команда её увидит")} okLabel={t("Вернуть")} busy={busyId === r.id} onOk={(text) => void decide(r.id, false, text)} onCancel={() => setReturning(null)} />}
             </li>
