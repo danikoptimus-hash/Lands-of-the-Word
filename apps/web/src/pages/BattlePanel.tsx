@@ -330,7 +330,6 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged, members = [], m
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const toggle = (idx: number) => { if (locked || loading || mine.has(idx) || learned.has(idx)) return; setSel((s) => { const n = new Set(s); if (n.has(idx)) n.delete(idx); else n.add(idx); return n; }); };
-  const selectAll = () => setSel(new Set((passage.verses ?? []).map((v) => v.idx).filter((i) => !mine.has(i) && !learned.has(i))));
   /** В вызове участник сдаёт не меньше двух стихов подряд (решение владельца 06.11): среди своих и отмеченных должны быть два соседних. */
   const hasRun = b.mySide !== "ATTACK" || [...mine, ...sel].some((v) => (mine.has(v + 1) || sel.has(v + 1)));
   async function send() {
@@ -344,7 +343,7 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged, members = [], m
   const entries = b.entries.filter((e) => e.side === (b.mySide ?? "ATTACK"));
   return (
     <div className="passage mt-3">
-      <div className="row between"><span className="strong">{t("Отрывок {ref}", { ref: passage.ref })}{!locked && mine.size > 0 && <Help>{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}</Help>}</span><span className="muted small">{forId ? t("участник выучил {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 }) : t("вы выучили {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 })}</span></div>
+      <div className="row between"><span className="strong">{t("Отрывок {ref}", { ref: passage.ref })}{!locked && <Help>{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}{b.mySide === "ATTACK" ? ` ${t("В вызове каждый сдаёт не меньше двух стихов подряд.")}` : ""}</Help>}</span><span className="muted small">{forId ? t("участник выучил {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 }) : t("вы выучили {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 })}</span></div>
       {/* Отметка за участника (решение владельца 07.11): капитан, заместитель или летописец выбирают, за кого отмечают. */}
       {!locked && canFor && members.some((x) => x.userId !== meId) && (
         <div className="field">
@@ -355,10 +354,6 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged, members = [], m
           </select>
         </div>
       )}
-      {!locked && forId && <p className="hint">{t("Отмечаете за участника {name}: отметьте стихи, которые он выучил, и прикрепите ссылку на его видео. Стихи засчитаются ему.", { name: forName })}</p>}
-      {!locked && mine.size === 0 && <p className="hint">{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}{b.mySide === "ATTACK" ? ` ${t("В вызове каждый сдаёт не меньше двух стихов подряд.")}` : ""}</p>}
-      {!locked && <button type="button" className="ghost sm" onClick={selectAll}>{t("Выбрать все оставшиеся")}</button>}
-      {learned.size > 0 && <p className="hint">{forId ? t("Стихов, которые участник уже сдавал в прошлых испытаниях этой книги: {n}. Второй раз они не засчитываются.", { n: learned.size }) : t("Стихов, которые вы уже сдавали в прошлых испытаниях этой книги: {n}. Второй раз они не засчитываются, их учат другие.", { n: learned.size })}</p>}
       <ul className="verses">
         {(passage.verses ?? []).map((v) => {
           const done = mine.has(v.idx), on = sel.has(v.idx), was = learned.has(v.idx);
