@@ -193,7 +193,24 @@ describe("битва за город", () => {
     const p3 = await register(`bp3_${stamp}`);
     const inv = await app.inject({ method: "POST", url: `/api/games/${gameId}/teams/${team1}/invites`, headers: { cookie: adminCookie }, payload: { role: "MEMBER" } });
     await app.inject({ method: "POST", url: `/api/invites/${inv.json().invite.token}/accept`, headers: { cookie: p3 } });
-    const more = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p3, { verses: [22, 23, 24, 25, 26, 27], links: ["https://example.com/d2"] });
+    // Отметка за участника (решение владельца 07.11): рядовой участник за капитана не может; капитан за участника — может,
+    // стихи засчитываются участнику с пометкой, кто отметил; капитан видит его отмеченное и сданное раньше.
+    const p1Id = (await prisma.user.findFirstOrThrow({ where: { nickname: p1Nick } })).id;
+    const p3Id = (await prisma.user.findFirstOrThrow({ where: { nickname: `bp3_${stamp}` } })).id;
+    const notAllowed = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p3, { verses: [22, 23], links: ["https://example.com/x"], forUserId: p1Id });
+    expect(notAllowed.statusCode).toBe(403);
+    const forP3 = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p1Cookie, { verses: [22, 23, 24], links: ["https://example.com/d2"], forUserId: p3Id });
+    expect(forP3.statusCode).toBe(201);
+    expect(forP3.json().sum).toBe(9);
+    const marked = await prisma.battleEntry.findFirstOrThrow({ where: { battleId, userId: p3Id } });
+    expect(marked.note).toContain("Отметил(а) за участника");
+    const of = await get(`/api/games/${gameId}/battles/${battleId}/verses-of/${p3Id}`, p1Cookie);
+    expect(of.statusCode).toBe(200);
+    expect(of.json().mine).toEqual([22, 23, 24]);
+    expect((await get(`/api/games/${gameId}/battles/${battleId}/verses-of/${p1Id}`, p3)).statusCode).toBe(403);
+    const again = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p1Cookie, { verses: [22, 23], links: ["https://example.com/d2"], forUserId: p3Id });
+    expect(again.statusCode).toBe(409);
+    const more = await post(`/api/games/${gameId}/battles/${battleId}/entries`, p3, { verses: [25, 26, 27], links: ["https://example.com/d3"] });
     expect(more.json().sum).toBe(12);
     const memberSubmit = await post(`/api/games/${gameId}/battles/${battleId}/submit`, p3);
     expect(memberSubmit.statusCode).toBe(403);

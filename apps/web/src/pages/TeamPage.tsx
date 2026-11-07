@@ -407,6 +407,9 @@ export function TeamPage() {
   const canLand = me?.gameRole === "HELMSMAN" || (isLeader && !hasHelmsman);
   const task = useMemo(() => (map?.tasks ?? []).find((tk) => tk.id === selectedId) ?? null, [map, selectedId]);
   const memberName = (userId: string | null) => { const m = team?.members.find((mm) => mm.user.id === userId); return m ? m.user.displayName ?? m.user.nickname : ""; };
+  /** Состав для «Отметить за» в испытании (решение владельца 07.11); отмечать за других могут капитан, заместитель и летописец. */
+  const forMembers = useMemo(() => (team?.members ?? []).map((mm) => ({ userId: mm.user.id, name: mm.user.displayName ?? mm.user.nickname })), [team?.members]);
+  const canMarkFor = isLeader || me?.gameRole === "CHRONICLER";
 
   async function act(path: string, body?: unknown): Promise<boolean> {
     setBusy(true); setError(null);
@@ -781,7 +784,7 @@ export function TeamPage() {
                   const deadline = b.status === "ATTACK" && (!b.attackDoneAt || isLaunching(b)) ? b.attackDeadline : b.status === "DEFENSE" && !b.defenseDoneAt ? b.defenseDeadline : null;
                   const meta = [deadline ? t("осталось {t}", { t: leftText(deadline, now) }) : "", isMyTurn(b, team.id) ? t("ваш ход") : "", !deadline && b.resolvedAt ? fmtDate(b.resolvedAt, { time: false }) : ""].filter(Boolean).join(" · ");
                   // Союзник хранителей: до чужого города команда могла не дойти, поэтому карточка испытания — прямо здесь.
-                  if (b.myAlliance && !attacker && b.defender.id !== team.id) return <li key={b.id} className="plain"><BattleCard gameId={id} b={b} teamId={team.id} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} now={now} daytime={map.daytime} onChanged={() => void loadBattles()} /></li>;
+                  if (b.myAlliance && !attacker && b.defender.id !== team.id) return <li key={b.id} className="plain"><BattleCard gameId={id} b={b} teamId={team.id} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} now={now} daytime={map.daytime} members={forMembers} meId={user?.id} canFor={canMarkFor} onChanged={() => void loadBattles()} /></li>;
                   return (
                     <li key={b.id} role="button" tabIndex={0} onClick={() => openCity(b.nodeKey)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCity(b.nodeKey); } }}>
                       <div className="main">
@@ -913,7 +916,7 @@ export function TeamPage() {
             </Sheet>
           );
         })()}
-        {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} onTrade={me?.gameRole === "AMBASSADOR" && map.status === "ACTIVE" ? () => setTradeCity(cityKey) : undefined} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} version={cityVersion} container={mapEl} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); void loadPassages(); }} />}
+        {cityKey && <CityPopup gameId={id} nodeKey={cityKey} teamId={team.id} onTrade={me?.gameRole === "AMBASSADOR" && map.status === "ACTIVE" ? () => setTradeCity(cityKey) : undefined} isCaptain={isCaptain || me?.role === "DEPUTY"} canAlly={isLeader || me?.gameRole === "AMBASSADOR"} members={forMembers} meId={user?.id} canFor={canMarkFor} version={cityVersion} container={mapEl} onClose={() => setCityKey(null)} onChanged={() => { void loadMap(); void loadBattles(); void loadPassages(); }} />}
         {tradeCity && <TradeProposeSheet gameId={id} offerKey={tradeCity} container={mapEl} onClose={() => setTradeCity(null)} onDone={() => { void loadMap(); void loadStandings(); }} />}
 
         {task && (() => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, ApiError, type BattleDto, type BattleStatus, type BookTextDto, type DaytimeDto, type PassageDto, type WarDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
@@ -13,6 +13,9 @@ import { BookMap } from "./BookMap";
 
 /** Статусы испытания: средний род, единая палитра (DESIGN.md §1, §3). */
 export const BATTLE_STATUS: Record<BattleStatus, string> = { get QUEUED() { return t("в очереди"); }, get ATTACK() { return t("вызов"); }, get DEFENSE() { return t("ответ"); }, get WON() { return t("город перешёл"); }, get REPELLED() { return t("город устоял"); }, get EXPIRED() { return t("вызов не завершён"); }, get CANCELLED() { return t("отменено"); } };
+/** Участник команды для выбора «Отметить за» (решение владельца 07.11). */
+export interface ForMember { userId: string; name: string }
+
 export function battleTone(s: BattleStatus, attacker: boolean): ChipTone {
   switch (s) {
     case "ATTACK": return "info";
@@ -38,7 +41,7 @@ const verses = (n: number) => plural(n, ["стих", "стиха", "стихов
  * Испытание города в попапе: уровень испытания, вызов (ставка — сколько стихов команда выучит
  * в сумме по участникам), карточки идущих испытаний, прошлые.
  */
-export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCaptain, version, onChanged }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Кто просит о защитном союзе и отвечает на просьбу: капитан, заместитель, посол. */ canAlly?: boolean; version: number; onChanged: () => void }) {
+export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCaptain, version, onChanged, members, meId, canFor }: { gameId: string; nodeKey: string; teamId: string; isCaptain: boolean; /** Отметка стихов за участника (07.11): состав команды, кто я, можно ли (капитан, заместитель, летописец). */ members?: ForMember[]; meId?: string; canFor?: boolean; /** Кто просит о защитном союзе и отвечает на просьбу: капитан, заместитель, посол. */ canAlly?: boolean; version: number; onChanged: () => void }) {
   const { confirm, notify } = useUi();
   const [war, setWar] = useState<WarDto | null>(null);
   const [bid, setBid] = useState<number | "">("");
@@ -121,7 +124,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
           <p className="muted small mt-2">{t("Баллы за одобренные дела: претенденты {a} · хранители {d}. Осталось {t}.", { a: activeSiege.attackerPoints, d: activeSiege.defenderPoints, t: leftText(activeSiege.endsAt, now) })}</p>
         </div>
       )}
-      {active.map((b) => <BattleCard key={b.id} gameId={gameId} b={b} teamId={teamId} isCaptain={isCaptain} canAlly={canAlly} now={now} daytime={war.daytime} onChanged={() => { void load(); onChanged(); }} />)}
+      {active.map((b) => <BattleCard key={b.id} gameId={gameId} b={b} teamId={teamId} isCaptain={isCaptain} canAlly={canAlly} now={now} daytime={war.daytime} members={members} meId={meId} canFor={canFor} onChanged={() => { void load(); onChanged(); }} />)}
       {past.length > 0 && (
         <ul className="list mt-3">
           {past.map((b) => <li key={b.id} className="past"><div className="main"><span className="muted small">{fmtDate(b.declaredAt, { time: false })} · {b.attacker.name} → {b.defender.name} · {verses(b.bid)}</span><TrialFlow b={b} teamId={teamId} compact /></div><Chip tone={battleTone(b.status, b.attacker.id === teamId)}>{BATTLE_STATUS[b.status]}</Chip></li>)}
@@ -132,7 +135,7 @@ export function WarSection({ gameId, nodeKey, teamId, isCaptain, canAlly = isCap
 }
 
 /** Карточка идущего испытания: отрывок с отметками по стихам, ссылки, суммы, отправка капитаном. */
-export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, now, daytime, onChanged }: { gameId: string; b: BattleDto; teamId: string; isCaptain: boolean; /** Капитан, заместитель или посол: просит о защитном союзе и отвечает на просьбу. */ canAlly?: boolean; now: number; /** Время суток игры (решение владельца 03.10): ночью испытание ждёт утра, вызов отправляют только утром. */ daytime?: DaytimeDto; onChanged: () => void }) {
+export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, now, daytime, onChanged, members, meId, canFor }: { gameId: string; b: BattleDto; teamId: string; isCaptain: boolean; /** Отметка стихов за участника (07.11). */ members?: ForMember[]; meId?: string; canFor?: boolean; /** Капитан, заместитель или посол: просит о защитном союзе и отвечает на просьбу. */ canAlly?: boolean; now: number; /** Время суток игры (решение владельца 03.10): ночью испытание ждёт утра, вызов отправляют только утром. */ daytime?: DaytimeDto; onChanged: () => void }) {
   const { confirm, notify } = useUi();
   const attacker = b.attacker.id === teamId;
   // Союзник хранителей (решение владельца 22.10): третья команда, которую позвали после нарушения мира. Учит стихи ответа, но не отправляет его.
@@ -286,7 +289,7 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
           {!attacker && !passage && b.status === "DEFENSE" && !b.defenseDoneAt && (
             isCaptain && !ally ? <PassagePicker gameId={gameId} battleId={b.id} need={need} onChosen={onChanged} /> : <div className="note warn"><Icon name="clock" /><span>{t("Ждём: капитан выбирает отрывок ответа.")}</span></div>
           )}
-          {passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn || night} onChanged={onChanged} />}
+          {passage && <VerseChecklist gameId={gameId} b={b} passage={passage} locked={!myTurn || night} onChanged={onChanged} members={members} meId={meId} canFor={canFor} />}
           {isCaptain && myTurn && !ally && sum < need && !wall && <p className="hint">{t("Не хватает {n}", { n: verses(need - sum) })}</p>}
           {/* Времена суток (решение владельца 03.10) и шторм (24.10): ночью и в шторм стихи не отправляют. Утреннего окна для вызова нет (01.11). */}
           {myTurn && night && <NightNote tone="warn">{t("Ночь: испытание ждёт утра. С 7:00 по местному времени можно отмечать стихи и отправлять на проверку.")}</NightNote>}
@@ -306,40 +309,62 @@ export function BattleCard({ gameId, b, teamId, isCaptain, canAlly = isCaptain, 
 
 
 /** Отрывок с отметками: участник отмечает выученные стихи и прикрепляет ссылку на видео. */
-function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: string; b: BattleDto; passage: PassageDto; locked: boolean; onChanged: () => void }) {
+function VerseChecklist({ gameId, b, passage, locked, onChanged, members = [], meId = "", canFor = false }: { gameId: string; b: BattleDto; passage: PassageDto; locked: boolean; onChanged: () => void; /** Отметка за участника (решение владельца 07.11): капитан, заместитель или летописец отмечают стихи и прикрепляют видео за того, кто не может зайти сам. */ members?: ForMember[]; meId?: string; canFor?: boolean }) {
   const { notify } = useUi();
-  const mine = useMemo(() => new Set(b.myVerses), [b.myVerses]);
+  /** За кого отмечаются стихи: пусто — за себя. */
+  const [forId, setForId] = useState("");
+  /** Стихи выбранного участника в этом испытании и сданные им раньше — с сервера, чтобы список показывал их как свои. */
+  const [other, setOther] = useState<{ mine: number[]; learned: number[] } | null>(null);
+  const forName = members.find((x) => x.userId === forId)?.name ?? "";
+  const loadOther = useCallback(async (uid: string) => {
+    try { setOther(await api<{ mine: number[]; learned: number[] }>(`/api/games/${gameId}/battles/${b.id}/verses-of/${encodeURIComponent(uid)}`)); }
+    catch { setOther({ mine: [], learned: [] }); }
+  }, [gameId, b.id]);
+  useEffect(() => { if (forId) void loadOther(forId); else setOther(null); }, [forId, loadOther, b.entries.length]);
+  const loading = Boolean(forId) && other === null;
+  const mine = useMemo(() => new Set(forId ? other?.mine ?? [] : b.myVerses), [forId, other, b.myVerses]);
   // Стих сдаётся один раз (решение владельца 03.10): принятые в прошлых испытаниях этой книги отмечать нельзя.
-  const learned = useMemo(() => new Set((b.learnedVerses ?? []).filter((i) => !b.myVerses.includes(i))), [b.learnedVerses, b.myVerses]);
+  const learned = useMemo(() => forId ? new Set(other?.learned ?? []) : new Set((b.learnedVerses ?? []).filter((i) => !b.myVerses.includes(i))), [forId, other, b.learnedVerses, b.myVerses]);
   const [sel, setSel] = useState<Set<number>>(new Set());
   const [links, setLinks] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const toggle = (idx: number) => { if (locked || mine.has(idx) || learned.has(idx)) return; setSel((s) => { const n = new Set(s); if (n.has(idx)) n.delete(idx); else n.add(idx); return n; }); };
+  const toggle = (idx: number) => { if (locked || loading || mine.has(idx) || learned.has(idx)) return; setSel((s) => { const n = new Set(s); if (n.has(idx)) n.delete(idx); else n.add(idx); return n; }); };
   const selectAll = () => setSel(new Set((passage.verses ?? []).map((v) => v.idx).filter((i) => !mine.has(i) && !learned.has(i))));
   /** В вызове участник сдаёт не меньше двух стихов подряд (решение владельца 06.11): среди своих и отмеченных должны быть два соседних. */
   const hasRun = b.mySide !== "ATTACK" || [...mine, ...sel].some((v) => (mine.has(v + 1) || sel.has(v + 1)));
   async function send() {
     setBusy(true); setError(null);
     try {
-      const r = await api<{ added: number; sum: number }>(`/api/games/${gameId}/battles/${b.id}/entries`, { method: "POST", body: JSON.stringify({ verses: [...sel], links }) });
-      notify(t("Засчитано {a}. Команда выучила {s}", { a: verses(r.added), s: r.sum })); setSel(new Set()); setLinks([]); onChanged();
+      const r = await api<{ added: number; sum: number }>(`/api/games/${gameId}/battles/${b.id}/entries`, { method: "POST", body: JSON.stringify({ verses: [...sel], links, ...(forId ? { forUserId: forId } : {}) }) });
+      notify(forId ? t("Засчитано {a} за участника {name}. Команда выучила {s}", { a: verses(r.added), name: forName, s: r.sum }) : t("Засчитано {a}. Команда выучила {s}", { a: verses(r.added), s: r.sum })); setSel(new Set()); setLinks([]); onChanged(); if (forId) void loadOther(forId);
     } catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : t("Ошибка сети")); }
     finally { setBusy(false); }
   }
   const entries = b.entries.filter((e) => e.side === (b.mySide ?? "ATTACK"));
   return (
     <div className="passage mt-3">
-      <div className="row between"><span className="strong">{t("Отрывок {ref}", { ref: passage.ref })}{!locked && mine.size > 0 && <Help>{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}</Help>}</span><span className="muted small">{t("вы выучили {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 })}</span></div>
+      <div className="row between"><span className="strong">{t("Отрывок {ref}", { ref: passage.ref })}{!locked && mine.size > 0 && <Help>{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}</Help>}</span><span className="muted small">{forId ? t("участник выучил {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 }) : t("вы выучили {a} из {b}", { a: mine.size, b: passage.end - passage.start + 1 })}</span></div>
+      {/* Отметка за участника (решение владельца 07.11): капитан, заместитель или летописец выбирают, за кого отмечают. */}
+      {!locked && canFor && members.some((x) => x.userId !== meId) && (
+        <div className="field">
+          <label htmlFor={`for-${b.id}`}>{t("Отметить за")}</label>
+          <select id={`for-${b.id}`} value={forId} onChange={(e) => { setForId(e.target.value); setSel(new Set()); setError(null); }}>
+            <option value="">{t("себя")}</option>
+            {members.filter((x) => x.userId !== meId).map((x) => <option key={x.userId} value={x.userId}>{x.name}</option>)}
+          </select>
+        </div>
+      )}
+      {!locked && forId && <p className="hint">{t("Отмечаете за участника {name}: отметьте стихи, которые он выучил, и прикрепите ссылку на его видео. Стихи засчитаются ему.", { name: forName })}</p>}
       {!locked && mine.size === 0 && <p className="hint">{t("Отметьте выученные стихи, вставьте ссылку на видео и нажмите «Засчитать». Можно частями.")}{b.mySide === "ATTACK" ? ` ${t("В вызове каждый сдаёт не меньше двух стихов подряд.")}` : ""}</p>}
       {!locked && <button type="button" className="ghost sm" onClick={selectAll}>{t("Выбрать все оставшиеся")}</button>}
-      {learned.size > 0 && <p className="hint">{t("Стихов, которые вы уже сдавали в прошлых испытаниях этой книги: {n}. Второй раз они не засчитываются, их учат другие.", { n: learned.size })}</p>}
+      {learned.size > 0 && <p className="hint">{forId ? t("Стихов, которые участник уже сдавал в прошлых испытаниях этой книги: {n}. Второй раз они не засчитываются.", { n: learned.size }) : t("Стихов, которые вы уже сдавали в прошлых испытаниях этой книги: {n}. Второй раз они не засчитываются, их учат другие.", { n: learned.size })}</p>}
       <ul className="verses">
         {(passage.verses ?? []).map((v) => {
           const done = mine.has(v.idx), on = sel.has(v.idx), was = learned.has(v.idx);
           return (
             <li key={v.idx} className={done ? "done" : was ? "was" : on ? "on" : ""}>
-              <button type="button" role="checkbox" aria-checked={done || on} disabled={locked || done || was} onClick={() => toggle(v.idx)} title={was ? t("Вы уже сдавали этот стих раньше") : undefined}>
+              <button type="button" role="checkbox" aria-checked={done || on} disabled={locked || loading || done || was} onClick={() => toggle(v.idx)} title={was ? (forId ? t("Участник уже сдавал этот стих раньше") : t("Вы уже сдавали этот стих раньше")) : undefined}>
                 <span className="box">{(done || on) && <Icon name="check" />}</span>
                 <span className="ref">{v.ref}{was && <span className="muted small"> · {t("сдано раньше")}</span>}</span>
                 <span className="text">{v.text ?? ""}</span>
@@ -354,7 +379,7 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged }: { gameId: str
           <LinksField label={t("Ссылки на видео")} links={links} onChange={setLinks} />
           {sel.size > 0 && !hasRun && <p className="hint">{t("В вызове участник сдаёт не меньше двух стихов подряд: отметьте и соседний стих.")}</p>}
           {error && <p className="error" role="alert">{error}</p>}
-          <div className="actions"><button type="button" disabled={busy || sel.size === 0 || !hasRun || links.length === 0} onClick={() => void send()}><Icon name="check" />{sel.size ? t("Засчитать {n}", { n: verses(sel.size) }) : t("Засчитать")}</button></div>
+          <div className="actions"><button type="button" disabled={busy || loading || sel.size === 0 || !hasRun || links.length === 0} onClick={() => void send()}><Icon name="check" />{sel.size ? t("Засчитать {n}", { n: verses(sel.size) }) : t("Засчитать")}</button></div>
         </div>
       )}
       {entries.length > 0 && (
