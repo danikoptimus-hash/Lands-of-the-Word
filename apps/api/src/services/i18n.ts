@@ -501,8 +501,6 @@ const EN: Record<string, string> = {
   "Этот стих участник уже сдавал": "This member has already submitted this verse",
   "Часть этих стихов участник уже сдавал": "The member has already submitted some of these verses",
   " Каждый участник выучил всю книгу: город закреплён до {date}.": " Every member has learned the whole book: the city is locked until {date}.",
-  "город {book} слабеет": "the city of {book} is weakening",
-  "Из города давно не делали дел: уровень испытания снизился на {n}. Одно одобренное дело на стороне из города остановит убыль.": "No deeds have been done from the city for a long time: its trial level dropped by {n}. One approved deed on a side out of the city stops the decline.",
   "вызов вашему городу {book} сгорел": "the challenge to your city of {book} expired",
   "Претенденты не уложились в срок: вызов снят, город остаётся вашим.": "The challengers missed the deadline: the challenge is withdrawn and the city stays yours.",
   "Город закреплён: хранители выучили всю книгу каждым участником. После срока закрепления город берётся осадой делами": "The city is locked: the keepers learned the whole book by every member. After the lock expires the city is taken by a siege of deeds",

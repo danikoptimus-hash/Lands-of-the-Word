@@ -63,7 +63,7 @@ export async function transferCity(gameId: string, nodeKey: string, fromTeamId: 
   const wasCapital = fromState?.isCapital ?? false;
   const toHasCapital = (await prisma.teamCityState.count({ where: { teamId: toTeamId, isCapital: true } })) > 0;
   const ops: Prisma.PrismaPromise<unknown>[] = [
-    prisma.mapNode.update({ where: { gameId_key: { gameId, key: nodeKey } }, data: { defenseLevel: level, fatigueAt: null, lockedUntil: null, maxReachedAt: null, sumMode: false } }),
+    prisma.mapNode.update({ where: { gameId_key: { gameId, key: nodeKey } }, data: { defenseLevel: level, lockedUntil: null, maxReachedAt: null, sumMode: false } }),
     prisma.teamCityState.updateMany({ where: { teamId: fromTeamId, nodeKey }, data: { capturedAt: null, isCapital: false, secondCapital: false } }),
     prisma.teamCityState.upsert({
       where: { teamId_nodeKey: { teamId: toTeamId, nodeKey } },

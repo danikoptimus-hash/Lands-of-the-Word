@@ -51,7 +51,7 @@ export async function freeCity(gameId: string, teamId: string, nodeKey: string):
     prisma.teamCityState.updateMany({ where: { teamId, nodeKey }, data: { capturedAt: null, isCapital: false, secondCapital: false } }),
     prisma.passageRequest.updateMany({ where: { gameId, nodeKey, status: { in: ["APPROVED", "PENDING"] } }, data: { status: "REVOKED", decidedAt: now } }),
     prisma.battle.updateMany({ where: { gameId, nodeKey, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } }, data: { status: "CANCELLED", resolvedAt: now } }),
-    prisma.mapNode.updateMany({ where: { gameId, key: nodeKey }, data: { lockedUntil: null, maxReachedAt: null, fatigueAt: null } }),
+    prisma.mapNode.updateMany({ where: { gameId, key: nodeKey }, data: { lockedUntil: null, maxReachedAt: null } }),
   ];
   await prisma.$transaction(ops);
   publish(gameId, { type: "cities" });
