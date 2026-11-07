@@ -110,8 +110,9 @@ export async function wreckRoutes(app: FastifyInstance): Promise<void> {
     if (!(await requireAdmin(request, reply, id))) return;
     const status = ((request.query as { status?: string }).status ?? "SUBMITTED") as string;
     const works = await prisma.wreckWork.findMany({ where: { gameId: id, ...(status === "DECIDED" ? { status: { in: ["APPROVED", "REJECTED"] } } : { status }) }, orderBy: status === "DECIDED" ? { decidedAt: "desc" } : { submittedAt: "asc" }, take: 100, include: { wreck: { select: { title: true, closedAt: true, sunk: true } }, deed: { select: { description: true, proofType: true } }, team: { select: { id: true, name: true, color: true, avatarId: true, stones: true, cargoBlocks: true } } } });
-    const names = await nameOf([...works.map((w) => w.userId), ...works.flatMap((w) => w.participants)]);
-    return { works: works.map((w) => ({ id: w.id, wreckId: w.wreckId, team: w.team, title: w.wreck.title, description: w.deed?.description ?? "", proofType: w.deed?.proofType ?? "PHOTO_LINK", by: names.get(w.userId) ?? "", participants: w.participants.map((u) => names.get(u) ?? "").filter(Boolean), links: w.links, note: w.note, status: w.status, submittedAt: w.submittedAt, decidedAt: w.decidedAt, adminComment: w.adminComment, cargo: w.cargo, amount: w.amount, sunk: w.wreck.sunk })) };
+    // Кто принял или вернул (вопрос владельца 07.11: «как капитан мог отблагодарить, если я не принимал?») — имя администратора в списке решённых.
+    const names = await nameOf([...works.map((w) => w.userId), ...works.flatMap((w) => w.participants), ...works.map((w) => w.decidedById).filter((x): x is string => Boolean(x))]);
+    return { works: works.map((w) => ({ id: w.id, wreckId: w.wreckId, team: w.team, title: w.wreck.title, description: w.deed?.description ?? "", proofType: w.deed?.proofType ?? "PHOTO_LINK", by: names.get(w.userId) ?? "", participants: w.participants.map((u) => names.get(u) ?? "").filter(Boolean), links: w.links, note: w.note, status: w.status, submittedAt: w.submittedAt, decidedAt: w.decidedAt, decidedBy: w.decidedById ? names.get(w.decidedById) ?? "" : "", adminComment: w.adminComment, cargo: w.cargo, amount: w.amount, sunk: w.wreck.sunk })) };
   });
 
   /** Решение администратора: принято — груз по жребию команде, корабль у неё чинится и уплывает; возвращено — с комментарием. */

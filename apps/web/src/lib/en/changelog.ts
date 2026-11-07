@@ -1,5 +1,6 @@
 /** EN-строки раздела «Что нового». Ключ — русская строка из content/changelog.ts. */
 export const CHANGELOG_EN: Record<string, string> = {
+  "Администратору: в решённых сдачах с разбитого корабля видно, кто из администраторов принял или вернул задание.": "For the admin: decided shipwreck submissions now show which admin accepted or returned the task.",
   "Знаки на карте: свиток дела стоит ровно посередине стороны гекса, а не со сдвигом к городу; при отдалении знаки дел, разведки и кораблей плавно мельчают вместе с картой, без скачков и не нависая над остальным.": "Map marks: the deed scroll sits exactly at the middle of the hex side instead of shifted towards the city; when zooming out, the marks of deeds, scouting and ships shrink smoothly with the map, without jumps and without looming over everything else.",
   "Проходы: по умолчанию открыты вкладки «К нам» и «Открытые», а не те, где больше записей.": "Passages: the “To us” and “Open” tabs are selected by default, not the ones with more entries.",
   "Пункты «Внимание» о новом деле Каменоломни и о разбитом корабле исчезают после нажатия, и только у того, кто нажал: у остальных участников команды они остаются.": "The “Attention” items about a new Quarry deed and a shipwreck disappear once tapped, and only for the person who tapped them: the rest of the team still sees them.",
