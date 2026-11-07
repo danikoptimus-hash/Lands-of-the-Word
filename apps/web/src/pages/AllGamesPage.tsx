@@ -8,7 +8,6 @@ import { Icon } from "../components/Icon";
 import { Back } from "../components/Back";
 import { Chip } from "../components/Chip";
 import { Tabs } from "../components/Tabs";
-import { Help } from "../components/Help";
 import { EmptyState, ErrorState, LoadingState } from "../components/State";
 
 /**
@@ -53,10 +52,9 @@ export function AllGamesPage() {
   return (
     <div className="page admin-dashboard all-games">
       <Back to="/" label={t("Мои игры")} />
+      {/* Кнопки «Люди» и подсказки «?» в шапке нет (решение владельца 07.11): «Люди» открываются из меню пользователя. */}
       <div className="page-head">
         <h1><span className="ico"><Icon name="eye" /></span>{t("Все игры")}</h1>
-        <Link to="/admin/users" className="btn secondary sm"><Icon name="users" />{t("Люди")}</Link>
-        <Help>{t("Каждая игра открывается глазами её администратора, но только для просмотра: изменить ничего нельзя, участники и администраторы вашего присутствия не видят. Сверху самые живые игры: активность — записи летописи и сдачи дел за 7 дней.")}</Help>
       </div>
       <Tabs<Filter> value={filter} onChange={setFilter} ariaLabel={t("Состояние")} items={[
         { key: "all", label: `${t("Все")} · ${n("all")}` }, { key: "ACTIVE", label: `${t("Идут")} · ${n("ACTIVE")}` }, { key: "DRAFT", label: `${t("Черновики")} · ${n("DRAFT")}` }, { key: "FINISHED", label: `${t("Завершены")} · ${n("FINISHED")}` },
