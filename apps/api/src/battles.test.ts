@@ -276,6 +276,13 @@ describe("битва за город", () => {
     const mine = await prisma.teamCityState.findUniqueOrThrow({ where: { teamId_nodeKey: { teamId: team2, nodeKey: rutKey } } });
     expect(mine.capturedAt).toBeTruthy();
     expect(mine.isCapital).toBe(true);
+    // Победа (решение владельца 08.11): у команды, взявшей чужую столицу, отмечен момент победы, и карта отдаёт его на каждом её городе — салют до конца дня.
+    const winner = await prisma.team.findUniqueOrThrow({ where: { id: team2 } });
+    expect(winner.triumphAt).toBeTruthy();
+    const map2 = await get(`/api/games/${gameId}/my-map`, p2Cookie);
+    const ownCities = (map2.json().cities as Array<{ captured: boolean; triumphAt: string | null }>).filter((c) => c.captured);
+    expect(ownCities.length).toBeGreaterThan(0);
+    expect(ownCities.every((c) => c.triumphAt)).toBe(true);
     const lost = await prisma.teamCityState.findUniqueOrThrow({ where: { teamId_nodeKey: { teamId: team1, nodeKey: rutKey } } });
     expect(lost.capturedAt).toBeNull();
     const defeated = await prisma.team.findUniqueOrThrow({ where: { id: team1 } });

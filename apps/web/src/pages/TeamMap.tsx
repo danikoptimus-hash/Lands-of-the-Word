@@ -139,7 +139,8 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
     document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')?.setAttribute("content", color);
   }, [light]);
   // Салют над городами, взятыми сегодня (решение владельца 24.10): точка запуска — над значком города.
-  const fireworkSites = useMemo<FireworkSite[]>(() => (map.cities ?? []).filter((c) => c.takenAt).map((c) => { const p = nodePos(c.nodeKey, size); return { key: c.nodeKey, x: p.x, y: p.y - size * 0.3, at: Date.parse(c.takenAt!) }; }), [map.cities, size]);
+  // Салют: день взятия города (24.10) или день победы владельца над другой командой — над всеми его городами (08.11); берётся позднейший момент.
+  const fireworkSites = useMemo<FireworkSite[]>(() => (map.cities ?? []).filter((c) => c.takenAt || c.triumphAt).map((c) => { const p = nodePos(c.nodeKey, size); return { key: c.nodeKey, x: p.x, y: p.y - size * 0.3, at: Math.max(c.takenAt ? Date.parse(c.takenAt) : 0, c.triumphAt ? Date.parse(c.triumphAt) : 0) }; }), [map.cities, size]);
   const fires = useMemo<FireSite[]>(() => map.revealed.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [map.revealed, size]);
   const revealed = useMemo(() => new Set(map.revealed.map((n) => n.key)), [map.revealed]);
   // Разбитые бурей корабли (решение владельца 04.11): место — гекс от сервера; починка от момента одобрения, гибель — от closedAt.
