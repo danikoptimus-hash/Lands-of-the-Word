@@ -111,7 +111,11 @@ if "voice" in STAGES and not voice_id:
 if voice_id: json.dump({"voice_id": voice_id, "model_id": MODEL}, open(f"{OUT}/voice.json", "w"))
 
 # 2. Строки
-lines = json.load(open(LINES, encoding="utf-8")) if "tts" in STAGES and voice_id else []
+# Файл строк — список строк или объект {"lines": [...], "music": [[имя, описание, мс]], "sfx": [[имя, описание, с]]}:
+# у каждого ролика свои музыка и звуки (ролик об «Осени», 08.11); без них — набор по умолчанию.
+SPEC = json.load(open(LINES, encoding="utf-8")) if os.path.exists(LINES) else []
+SPEC_LINES = SPEC.get("lines", []) if isinstance(SPEC, dict) else SPEC
+lines = SPEC_LINES if "tts" in STAGES and voice_id else []
 settings = {"stability": 0.5, "similarity_boost": 0.8, "style": 0.15, "use_speaker_boost": True}
 MODE = os.environ.get("KEEP_ACCENTS", "both")  # 1 — с пометками ударений, 0 — без, both — оба варианта
 variants = [("mine", True), ("mine-plain", False)] if MODE == "both" else [("mine", MODE == "1")]
@@ -145,6 +149,7 @@ if os.environ.get("SFX", "0") == "1" and "sfx" in STAGES:
         ("coin", "Small bright chime, medal awarded", 1.5),
         ("pop", "Soft pop, bubble", 1),
     ]
+    if isinstance(SPEC, dict) and SPEC.get("sfx"): SFX = [tuple(x) for x in SPEC["sfx"]]
     for name, prompt, dur in SFX:
         payload = json.dumps({"text": prompt, "duration_seconds": dur, "prompt_influence": 0.3}).encode()
         try:
@@ -165,6 +170,7 @@ if os.environ.get("MUSIC", "0") == "1" and "music" in STAGES:
                      "grand strategy game atmosphere, instrumental only, no vocals, no lyrics, steady dynamics without sudden peaks", 150000),
         ("storm", "Short dramatic orchestral swell with thunder-like low drums and rising strings, tense, no vocals", 15000),
     ]
+    if isinstance(SPEC, dict) and SPEC.get("music"): TRACKS = [tuple(x) for x in SPEC["music"]]
     for name, prompt, ms in TRACKS:
         payload = json.dumps({"prompt": prompt, "music_length_ms": ms}).encode()
         try:
