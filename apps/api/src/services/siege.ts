@@ -75,6 +75,8 @@ export async function transferCity(gameId: string, nodeKey: string, fromTeamId: 
   ];
   if (wasCapital) {
     ops.push(prisma.team.update({ where: { id: fromTeamId }, data: { status: "defeated" } }));
+    // Победа (решение владельца 08.11): салют над всеми городами команды, взявшей чужую столицу, до конца дня.
+    ops.push(prisma.team.update({ where: { id: toTeamId }, data: { triumphAt: now } }));
     const others = await prisma.teamCityState.findMany({ where: { teamId: fromTeamId, capturedAt: { not: null }, NOT: { nodeKey } }, select: { nodeKey: true } });
     if (others.length) ops.push(prisma.mapNode.updateMany({ where: { gameId, key: { in: others.map((o) => o.nodeKey) } }, data: { ruined: true, defenseLevel: 0, lockedUntil: null, maxReachedAt: null } }));
     ops.push(prisma.teamCityState.updateMany({ where: { teamId: fromTeamId, capturedAt: { not: null } }, data: { capturedAt: null, isCapital: false, secondCapital: false } }));

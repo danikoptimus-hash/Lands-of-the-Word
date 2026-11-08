@@ -395,6 +395,8 @@ export async function resolveWon(b: Battle): Promise<void> {
   ];
   if (wasCapital) {
     ops.push(prisma.team.update({ where: { id: b.defenderId }, data: { status: "defeated" } }));
+    // Победа (решение владельца 08.11): над всеми городами команды, взявшей чужую столицу, до конца дня салют.
+    ops.push(prisma.team.update({ where: { id: b.attackerId }, data: { triumphAt: now } }));
     // Остальные города выбывшей команды — руины: их берут выполнением заданий, без ключа и без испытания.
     const others = await prisma.teamCityState.findMany({ where: { teamId: b.defenderId, capturedAt: { not: null }, NOT: { nodeKey: b.nodeKey } }, select: { nodeKey: true } });
     if (others.length) ops.push(prisma.mapNode.updateMany({ where: { gameId: b.gameId, key: { in: others.map((o) => o.nodeKey) } }, data: { ruined: true, defenseLevel: 0, lockedUntil: null } }));

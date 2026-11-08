@@ -630,11 +630,11 @@ async function computeTeamMap(gameId: string, teamId: string) {
   for (const pr of passages) if (!passageByKey.has(pr.nodeKey)) passageByKey.set(pr.nodeKey, pr.status);
   const [cityStates, owners, battles] = await Promise.all([
     prisma.teamCityState.findMany({ where: { teamId, nodeKey: { in: cityNodes.map((n) => n.key) } } }),
-    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, teamId: true, capturedAt: true, isCapital: true, team: { select: { index: true, name: true, color: true, avatarId: true } } } }),
+    prisma.teamCityState.findMany({ where: { gameId, nodeKey: { in: cityNodes.map((n) => n.key) }, capturedAt: { not: null } }, select: { nodeKey: true, teamId: true, capturedAt: true, isCapital: true, team: { select: { index: true, name: true, color: true, avatarId: true, triumphAt: true } } } }),
     prisma.battle.findMany({ where: { gameId, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] }, OR: [{ attackerId: teamId }, { defenderId: teamId }] }, select: { nodeKey: true, attackerId: true, defenderId: true, status: true, violation: true, defenseFactor: true, attackLaunchedAt: true } }),
   ]);
   const stateByKey = new Map(cityStates.map((s) => [s.nodeKey, s]));
-  const ownerByKey = new Map(owners.map((o) => [o.nodeKey, o.team]));
+  const ownerByKey = new Map(owners.map((o) => [o.nodeKey, { index: o.team.index, name: o.team.name, color: o.team.color, avatarId: o.team.avatarId }]));
   // Столица — по владельцу города (решение владельца 03.11: «команды видели на городах, которые они открыли, знак, столица ли
   // это другой команды»); раньше признак брался из состояния своей команды, и чужие столицы выглядели обычными городами.
   const capitalByKey = new Map(owners.map((o) => [o.nodeKey, o.isCapital]));
@@ -645,6 +645,9 @@ async function computeTeamMap(gameId: string, teamId: string) {
   const scoutedWall = new Map((await prisma.teamWallScout.findMany({ where: { teamId }, select: { nodeKey: true, hasWall: true } })).map((s) => [s.nodeKey, s.hasWall]));
   // Когда город взят нынешним владельцем (любой командой): салют над городом в день взятия (решение владельца 24.10).
   const takenAtByKey = new Map(owners.map((o) => [o.nodeKey, o.capturedAt?.toISOString() ?? null]));
+  // Победа владельца (решение владельца 08.11: «если команда захватит столицу другой, то у неё в каждом её городе бил бы салют»):
+  // момент взятия чужой столицы — салют над всеми городами этой команды до конца того дня, как над взятым городом.
+  const triumphAtByKey = new Map(owners.map((o) => [o.nodeKey, o.team.triumphAt?.toISOString() ?? null]));
   // Роль команды в активной битве за город: претендент (синий знак) или хранитель (красный). Тайна вызова (замечание
   // владельца 01.11: «значки при вызове до сих пор отображаются у хранителей»): хранителям знак — только с «Испытать».
   const battleByKey = new Map(battles.filter((b) => battleVisibleTo(b, teamId)).map((b) => [b.nodeKey, b.attackerId === teamId ? "ATTACK" : "DEFENSE"]));
@@ -661,6 +664,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
       captured: s?.capturedAt != null,
       capturedAt: s?.capturedAt?.toISOString() ?? null,
       takenAt: takenAtByKey.get(n.key) ?? null,
+      triumphAt: triumphAtByKey.get(n.key) ?? null,
       isCapital: capitalByKey.get(n.key) ?? false,
       battle: battleByKey.get(n.key) ?? null,
       ruined: n.ruined,
