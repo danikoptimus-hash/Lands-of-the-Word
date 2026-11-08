@@ -182,11 +182,17 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     const roadR = (th: number) => R0 - k * (th - T0) + W + GAP / 2;
     const out: Decor[] = [];
     const put = (th: number, rad: number, kind: SprKey, s = 0.85 + g() * 0.3) => { const [x, y] = pt(th, rad); out.push({ x, y, k: kind, s }); };
+    // Значки номеров стоят на наружных уголках участков — зелень рядом с ними не сажаем (замечание владельца 08.11: «дерево попадает на цифру»).
+    const badges = plots.map((p) => pt(p.a, r(p.a) + W));
+    const nearBadge = (x: number, y: number) => badges.some(([bx, by]) => (bx - x) ** 2 + (by - y) ** 2 < 8 * 8);
     for (let th = T0 + 0.1; roadR(th) > RMIN + 2; th += 0.11) {
       if (g() > 0.62) continue;
       const side = g() < 0.5 ? -1 : 1;
       const tree = g() < 0.3;
-      put(th, roadR(th) + side * (GAP / 2 - 1.2), tree ? (g() < 0.5 ? "tree" : "cypress") : "bush");
+      const kind: SprKey = tree ? (g() < 0.5 ? "tree" : "cypress") : "bush";
+      const [x, y] = pt(th, roadR(th) + side * (GAP / 2 - 1.2));
+      if (nearBadge(x, y)) continue;
+      put(th, roadR(th) + side * (GAP / 2 - 1.2), kind);
     }
     // Площадь: фонтан чашей в самом центре (08.11: «поднять выше, как бы в центр площади»), вокруг — торговые ряды и зелень.
     out.push({ x: C, y: C + SPR.fountain.h * (0.9 - 0.58), k: "fountain", s: 1 });
@@ -194,7 +200,7 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
     put(1.4, 26, "tree", 1); put(3.4, 27, "bush", 1); put(5.3, 26, "tree", 0.9); put(5.9, 24, "bush", 0.9);
     out.sort((a, b) => a.y - b.y);
     return out;
-  }, [n]);
+  }, [n, plots, r]);
   const LABEL = useMemo(() => labelStyleFromQuery(), []);
 
   // Окно плана на весь экран (решение владельца 06.11): видовое окно повторяет пропорции контейнера, город по центру,
@@ -444,19 +450,25 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
                         {arcText(one.text, one.f, rhoOf(c, one.f), "a", {}, "#3a2a14")}</g>);
                     }
                     if (LABEL === 4) { // свиток по дуге участка (08.11): подложка повторяет форму трапеции, строки идут по её дугам
-                      // Верх букв — наружу или внутрь, смотря что ближе к «вверх-влево» на экране: сверху и слева читается как обычно,
-                      // снизу — по дуге, не вверх ногами, а вертикальные подписи справа и слева — снизу вверх (замечание владельца 08.11:
-                      // «шрифт должен быть наоборот, на 180 градусов»).
-                      const fwd = Math.cos(mid) + Math.sin(mid) < 0;
+                      // Разворот — правило владельца 08.11: прямая через середины двух прямых (радиальных) сторон участка, текст идёт вдоль неё
+                      // и никогда не вверх ногами. Наклон «\» — низ букв влево-вниз, верх вправо-вверх (читается сверху вниз);
+                      // наклон «/» — верх влево-вверх (снизу вверх); почти вертикаль (±10°) — верх влево, читается снизу вверх.
+                      // При ходе a→b верх букв смотрит наружу от центра, при b→a — внутрь.
+                      const tx = -Math.sin(mid), ty = Math.cos(mid);
+                      const fwd = Math.abs(tx) < Math.sin(Math.PI / 18) ? ty < 0 : tx > 0;
                       const lines = fit.lines, f = Math.min(fit.f, 4.6), lh = f * 1.15, L = lines.length;
                       const lw = Math.max(...lines.map((l) => textW(l) * f)), bh = L * lh + 2.2;
-                      const half = Math.min((lw / 2 + 2) / rm, (p.b - p.a) / 2 - phiM * 0.6), r0 = rm - bh / 2, r1 = rm + bh / 2;
+                      const half = Math.min((lw / 2 + 2) / rm, (p.b - p.a) / 2 - phiM * 0.6);
                       const band: Plot = { a: mid - half, b: mid + half };
-                      const sector = (() => { const m = 8, pts: [number, number][] = []; for (let j = 0; j <= m; j++) pts.push(pt(band.a + (2 * half * j) / m, r1)); for (let j = 0; j <= m; j++) pts.push(pt(band.b - (2 * half * j) / m, r0)); return "M " + pts.map(fmt).join(" L ") + " Z"; })();
-                      const rho = (li: number) => { const dy = 1.1 + f * 0.95 + li * lh; return fwd ? r1 - dy : r0 + dy; };
+                      // Дуги свитка и строк идут по спирали, как края самого участка (замечание владельца 08.11: «дуги не параллельны»):
+                      // радиус в каждой точке — r(th) + W/2 + смещение, а не постоянный.
+                      const sPts = (off: number, reverse: boolean) => { const m = 8, pts: [number, number][] = []; for (let j = 0; j <= m; j++) { const th = reverse ? band.b - (2 * half * j) / m : band.a + (2 * half * j) / m; pts.push(pt(th, r(th) + W / 2 + off)); } return pts; };
+                      const sArc = (off: number, reverse: boolean) => "M " + sPts(off, reverse).map(fmt).join(" L ");
+                      const sector = "M " + [...sPts(bh / 2, false), ...sPts(-bh / 2, true)].map(fmt).join(" L ") + " Z";
+                      const rho = (li: number) => { const dy = 1.1 + f * 0.95 + li * lh; return fwd ? bh / 2 - dy : -bh / 2 + dy; };
                       return (<g key="l4">
                         <path d={sector} fill="#f3e6c4" stroke="#8a6a3a" strokeWidth=".5" strokeLinejoin="round" opacity=".93" />
-                        {lines.map((l, li) => (<g key={li}><path id={`sc-t${i}-l${li}`} d={arcPath(band, rho(li), !fwd)} fill="none" />
+                        {lines.map((l, li) => (<g key={li}><path id={`sc-t${i}-l${li}`} d={sArc(rho(li), !fwd)} fill="none" />
                           <text fontSize={f} fontFamily="Georgia, serif" fill="#3a2a14"><textPath href={`#sc-t${i}-l${li}`} startOffset="50%" textAnchor="middle">{l}</textPath></text></g>))}
                       </g>);
                     }
