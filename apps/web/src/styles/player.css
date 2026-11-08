@@ -608,6 +608,9 @@
 /* Круглый город (06.11): замок порядка для книг с планом spiral. */
 .plan-wrap { display: flex; flex-direction: column; gap: var(--sp-2); }
 /* Город на весь экран (решение владельца 06.11): шапка компактнее, заголовок шага скрыт, план занимает всю оставшуюся высоту. */
+/* Ночью в городе показывать нечего (решение владельца 08.11): только шапка города с заметкой о ночи, без пустого листа. */
+.overlay.city-sheet.night-only { height: auto; }
+.overlay.city-sheet.night-only .overlay-body { display: none; }
 .city-sheet.plan-full .overlay-body { display: flex; flex-direction: column; overflow: hidden; padding: var(--sp-2) var(--sp-2) var(--sp-2); }
 .city-sheet.plan-full .city-head { padding: var(--sp-2) 56px var(--sp-2) var(--sp-3); }
 .city-sheet.plan-full .city-head img { width: 40px; height: 40px; }

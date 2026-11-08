@@ -51,15 +51,13 @@ const APPROACH = `M ${C} 0 V 40 C ${C} 90 ${C + 10} 120 ${C + 4} 170 S ${C - 24}
 /** Спрайты города (сгенерированы, см. docs): h — высота в единицах плана при масштабе 1, ar — высота/ширина файла. */
 const P = "/img/city-plan/";
 const SPR = {
-  tree: { href: P + "tree-green.webp", h: 9, ar: 1.01 }, cypress: { href: P + "tree-green2.webp", h: 11, ar: 2.8 }, olive: { href: "/img/props/olive.webp", h: 8, ar: 0.99 }, bush: { href: P + "bush.webp", h: 4.5, ar: 0.875 },
-  "woman-jug": { href: P + "woman-jug.webp", h: 5.2, ar: 2.97 }, shepherd: { href: P + "shepherd.webp", h: 5, ar: 1.96 }, merchant: { href: P + "merchant.webp", h: 5, ar: 2.28 }, child: { href: P + "child.webp", h: 4, ar: 2.71 }, elder: { href: P + "elder.webp", h: 5, ar: 2.25 }, "man-basket": { href: P + "man-basket.webp", h: 5.1, ar: 2.19 },
-  donkey: { href: P + "donkey.webp", h: 4.6, ar: 1.06 }, camel: { href: P + "camel.webp", h: 6.2, ar: 1.04 }, sheep: { href: P + "sheep.webp", h: 3, ar: 1.07 }, goat: { href: P + "goat.webp", h: 3.4, ar: 1.23 }, dog: { href: P + "dog.webp", h: 2.8, ar: 0.94 }, hen: { href: P + "hen.webp", h: 1.7, ar: 1.31 },
-  stall: { href: P + "stall.webp", h: 7.5, ar: 1.06 }, cart: { href: P + "cart.webp", h: 5, ar: 0.864 }, amphorae: { href: P + "amphorae.webp", h: 4, ar: 1.01 }, tent: { href: P + "tent.webp", h: 6.5, ar: 0.807 }, haystack: { href: P + "haystack.webp", h: 4.5, ar: 1.12 }, "palm-pot": { href: P + "palm-pot.webp", h: 5.5, ar: 1.13 },
+  tree: { href: P + "tree-green.webp", h: 9, ar: 1.01 }, cypress: { href: P + "tree-green2.webp", h: 11, ar: 2.8 }, bush: { href: P + "bush.webp", h: 4.5, ar: 0.875 },
+  stall: { href: P + "stall.webp", h: 7.5, ar: 1.06 },
+  /** Центр чаши фонтана — на 0,58 высоты картинки (сверху брызги): это учитывается при постановке на площадь. */
   fountain: { href: P + "fountain.webp", h: 23, ar: 0.957 },
 } as const;
 type SprKey = keyof typeof SPR;
 type Decor = { x: number; y: number; k: SprKey; s: number };
-const FOLK: SprKey[] = ["woman-jug", "shepherd", "merchant", "child", "elder", "man-basket"], BEASTS: SprKey[] = ["donkey", "camel", "sheep", "goat", "dog", "hen"];
 function Sprite({ d }: { d: Decor }) { const q = SPR[d.k]; const h = q.h * d.s, w = h / q.ar; return <image href={q.href} x={d.x - w / 2} y={d.y - h * 0.9} width={w} height={h} filter="url(#sc-soft)" pointerEvents="none" />; }
 type Plot = { a: number; b: number };
 
@@ -175,8 +173,9 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
   const [filter, setFilter] = useState("");
   const nextFree = slots.findIndex((x) => x === null);
 
-  // Озеленение и жизнь улиц (замечания владельца 06.11): трава на обочинах, кусты и деревья, жители и животные на дороге,
-  // телеги, амфоры и стога у обочин, лотки, шатёр и фонтан на площади — всё по фиксированному зерну, одинаково на всех устройствах.
+  // Озеленение (замечания владельца 06.11; 08.11: «людей, животных и т. д. убрать из города, оставить фонтан, торговые ряды
+  // и деревья с кустарниками», олива с насыпью «не вписывается в газон»): трава на обочинах, кусты и деревья у дороги,
+  // лотки и фонтан на площади — всё по фиксированному зерну, одинаково на всех устройствах.
   const decor = useMemo(() => {
     const g = rnd(47 + n);
     const k = PITCH / (2 * Math.PI);
@@ -187,23 +186,12 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
       if (g() > 0.62) continue;
       const side = g() < 0.5 ? -1 : 1;
       const tree = g() < 0.3;
-      put(th, roadR(th) + side * (GAP / 2 - 1.2), tree ? (["tree", "cypress", "olive"] as const)[Math.floor(g() * 3)]! : "bush");
+      put(th, roadR(th) + side * (GAP / 2 - 1.2), tree ? (g() < 0.5 ? "tree" : "cypress") : "bush");
     }
-    for (let th = T0 + 0.4; roadR(th) > RMIN + 4; th += 0.19) {
-      if (g() > 0.5) continue; // жители и животные стоят на улице (анимации убраны по решению владельца 06.11)
-      const kind = g() < 0.55 ? FOLK[Math.floor(g() * FOLK.length)]! : BEASTS[Math.floor(g() * BEASTS.length)]!;
-      put(th, roadR(th) + (g() - 0.5) * (ROAD - 2.5), kind);
-      if (kind === "sheep" || kind === "goat") for (let j = 0, m = 1 + Math.floor(g() * 2); j < m; j++) put(th + (g() - 0.5) * 0.06, roadR(th) + (g() - 0.5) * (ROAD - 2), kind);
-    }
-    for (let th = T0 + 0.6; roadR(th) > RMIN + 6; th += 0.33) {
-      if (g() > 0.3) continue;
-      const side = g() < 0.5 ? -1 : 1;
-      put(th, roadR(th) + side * (GAP / 2 - 1.6), (["cart", "amphorae", "haystack", "palm-pot"] as const)[Math.floor(g() * 4)]!);
-    }
-    // площадь: фонтан в центре, вокруг — лотки, шатёр, пальма, амфоры и люди
-    out.push({ x: C, y: C + 9, k: "fountain", s: 1 });
-    put(0.45, 20, "stall", 1); put(2.5, 20, "stall", 1); put(4.1, 19, "tent", 1); put(5.35, 19, "palm-pot", 1); put(1.55, 20, "amphorae", 1); put(3.3, 18, "haystack", 0.9);
-    for (let i = 0; i < 7; i++) put(g() * Math.PI * 2, 13.5 + g() * 4, i < 5 ? FOLK[Math.floor(g() * FOLK.length)]! : (["dog", "hen"] as const)[i - 5]!);
+    // Площадь: фонтан чашей в самом центре (08.11: «поднять выше, как бы в центр площади»), вокруг — торговые ряды и зелень.
+    out.push({ x: C, y: C + SPR.fountain.h * (0.9 - 0.58), k: "fountain", s: 1 });
+    put(0.45, 22, "stall", 1); put(2.4, 22, "stall", 1); put(4.3, 22, "stall", 1);
+    put(1.4, 26, "tree", 1); put(3.4, 27, "bush", 1); put(5.3, 26, "tree", 0.9); put(5.9, 24, "bush", 0.9);
     out.sort((a, b) => a.y - b.y);
     return out;
   }, [n]);
@@ -431,12 +419,12 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
             const phiM = 3 / rm, span = p.b - p.a - 2 * phiM;
             const fit = d ? fitTitle(d.title, span * (rm - 6), W) : null;
             const off = 50;
-            // Номер — мелко в наружном уголке у начала участка (решение владельца 06.11: не засорять вид, пусть приближают)
-            const [nx, ny] = pt(p.a + 4.2 / (r(p.a) + W), r(p.a) + W - 4.2);
+            // Номер — мелко, центром прямо на наружном уголке у начала участка (решения владельца 06.11 и 08.11)
+            const [nx, ny] = pt(p.a, r(p.a) + W);
             return (
               <g key={i} data-plot={i} className="plot">
                 {d
-                  ? <path d={plotPath(p, r)} fill={`url(#sc-dist-${i})`} stroke={st.roofEdge} strokeWidth="1.4" filter="url(#sc-shadow)" />
+                  ? <path d={plotPath(p, r)} fill={`url(#sc-dist-${i})`} filter="url(#sc-shadow)" />
                   : <path d={plotPath(p, r)} fill={`url(#${ids.earth})`} stroke={active ? "#e0a64a" : "#8a7048"} strokeWidth={active ? 2.4 : 1.1} strokeDasharray={active ? undefined : "3 2"} />}
                 {d && active && <path d={plotPath(p, r)} fill="none" stroke="#e0a64a" strokeWidth="2.4" />}
                 {d && fit ? (<>
@@ -455,12 +443,22 @@ export function SpiralCity({ districts, slots, onChange, disabled, state, pinsWr
                       return (<g key="l3"><path d={arcPath(p, c, bottom)} pathLength={100} fill="none" stroke="#f3e6c4" opacity=".9" strokeWidth={one.f * 1.3} strokeLinecap="round" strokeDasharray={`${band.toFixed(1)} ${(100 - band).toFixed(1)}`} strokeDashoffset={-(50 - band / 2)} />
                         {arcText(one.text, one.f, rhoOf(c, one.f), "a", {}, "#3a2a14")}</g>);
                     }
-                    if (LABEL === 4) { // свиток по центру: пергаментный прямоугольник по касательной, строки прямые
-                      const [cx, cy] = pt(mid, rm); let deg = (mid * 180) / Math.PI + 90; while (deg > 90) deg -= 180; while (deg <= -90) deg += 180;
-                      const lines = fit.lines, f = Math.min(fit.f, 4.6), lw = Math.max(...lines.map((l) => textW(l) * f)), bw = lw + 4, bh = lines.length * f * 1.15 + 2.2;
-                      return (<g key="l4" transform={`translate(${cx.toFixed(1)} ${cy.toFixed(1)}) rotate(${deg.toFixed(1)})`}>
-                        <rect x={-bw / 2} y={-bh / 2} width={bw} height={bh} rx="1.4" fill="#f3e6c4" stroke="#8a6a3a" strokeWidth=".5" opacity=".93" />
-                        {lines.map((l, li) => <text key={li} x="0" y={-bh / 2 + 1.1 + f * 0.95 + li * f * 1.15} textAnchor="middle" fontSize={f} fontFamily="Georgia, serif" fill="#3a2a14">{l}</text>)}</g>);
+                    if (LABEL === 4) { // свиток по дуге участка (08.11): подложка повторяет форму трапеции, строки идут по её дугам
+                      // Верх букв — наружу или внутрь, смотря что ближе к «вверх-влево» на экране: сверху и слева читается как обычно,
+                      // снизу — по дуге, не вверх ногами, а вертикальные подписи справа и слева — снизу вверх (замечание владельца 08.11:
+                      // «шрифт должен быть наоборот, на 180 градусов»).
+                      const fwd = Math.cos(mid) + Math.sin(mid) < 0;
+                      const lines = fit.lines, f = Math.min(fit.f, 4.6), lh = f * 1.15, L = lines.length;
+                      const lw = Math.max(...lines.map((l) => textW(l) * f)), bh = L * lh + 2.2;
+                      const half = Math.min((lw / 2 + 2) / rm, (p.b - p.a) / 2 - phiM * 0.6), r0 = rm - bh / 2, r1 = rm + bh / 2;
+                      const band: Plot = { a: mid - half, b: mid + half };
+                      const sector = (() => { const m = 8, pts: [number, number][] = []; for (let j = 0; j <= m; j++) pts.push(pt(band.a + (2 * half * j) / m, r1)); for (let j = 0; j <= m; j++) pts.push(pt(band.b - (2 * half * j) / m, r0)); return "M " + pts.map(fmt).join(" L ") + " Z"; })();
+                      const rho = (li: number) => { const dy = 1.1 + f * 0.95 + li * lh; return fwd ? r1 - dy : r0 + dy; };
+                      return (<g key="l4">
+                        <path d={sector} fill="#f3e6c4" stroke="#8a6a3a" strokeWidth=".5" strokeLinejoin="round" opacity=".93" />
+                        {lines.map((l, li) => (<g key={li}><path id={`sc-t${i}-l${li}`} d={arcPath(band, rho(li), !fwd)} fill="none" />
+                          <text fontSize={f} fontFamily="Georgia, serif" fill="#3a2a14"><textPath href={`#sc-t${i}-l${li}`} startOffset="50%" textAnchor="middle">{l}</textPath></text></g>))}
+                      </g>);
                     }
                     if (LABEL === 5 && zoom < 1.8) return null; // только при приближении: вблизи — контур, вдали — лишь номер
                     if (LABEL === 6) { // имя на улице: вдоль дороги снаружи участка, участок не тронут
