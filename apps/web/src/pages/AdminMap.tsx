@@ -44,7 +44,7 @@ export interface BattleProgress { id: string; nodeKey: string; status: string; a
 /** Просьба «Посмотреть на карте» (владелец 10.10): сторона дела, на которой карта центрируется и приближается; nonce — чтобы повтор той же стороны снова сработал. */
 export interface MapFocus { teamId?: string | null; taskId?: string; fromKey: string; toKey: string; nonce: number }
 
-export interface TeamProgress { id: string; /** Индекс команды в игре (как в owner.index и foreign.teamIndex карты команды). */ index?: number; name: string; color: string; avatarId?: string | null; startNodeKey: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
+export interface TeamProgress { id: string; /** Индекс команды в игре (как в owner.index и foreign.teamIndex карты команды). */ index?: number; name: string; color: string; avatarId?: string | null; startNodeKey: string | null; /** Когда команда взяла чужую столицу — салют во всех её городах до конца дня. */ triumphAt?: string | null; revealed: string[]; revealedAt?: string[]; traversed: Array<{ fromKey: string; toKey: string; at?: string }> }
 type TeamLite = { id: string; name: string; color: string; avatarId?: string | null };
 
 /**
@@ -129,7 +129,12 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     return () => clearTimeout(timer);
   }, [focus?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
   /** Салют над взятыми сегодня городами и у администратора (просьба владельца 25.10); в режиме истории (ползунок) салюта нет. */
-  const fireworkSites = useMemo<FireworkSite[]>(() => (at ? [] : (cities ?? []).filter((c) => c.capturedAt).map((c) => { const p = nodePos(c.nodeKey, size); return { key: c.nodeKey, x: p.x, y: p.y - size * 0.3, at: Date.parse(c.capturedAt!) }; })), [cities, size, at]);
+  // Команда, взявшая чужую столицу, салютует во всех своих городах до конца дня (triumphAt) — как на карте команды (замечание владельца 08.11).
+  const fireworkSites = useMemo<FireworkSite[]>(() => {
+    if (at) return [];
+    const triumph = new Map((progress ?? []).map((t) => [t.id, t.triumphAt ? Date.parse(t.triumphAt) : 0]));
+    return (cities ?? []).filter((c) => c.capturedAt).map((c) => { const p = nodePos(c.nodeKey, size); return { key: c.nodeKey, x: p.x, y: p.y - size * 0.3, at: Math.max(Date.parse(c.capturedAt!), triumph.get(c.teamId) ?? 0) }; });
+  }, [cities, progress, size, at]);
   const nodeByKey = useMemo(() => new Map(nodes.map((n) => [n.key, n])), [nodes]);
   const positions = useMemo(() => new Map(nodes.map((n) => [n.key, nodePos(n.key, size)])), [nodes, size]);
   const traversedBy = useMemo(() => {
