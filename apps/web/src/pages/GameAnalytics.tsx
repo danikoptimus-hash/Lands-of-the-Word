@@ -22,7 +22,8 @@ interface Pace {
   tz: string; startedAt: string; now: string; T: number; K: number; n: number; rate: number; rampDay: number; dailyTasksAvg: number; dailyDeedsAvg: number; milestones: number[];
   teams: Array<{ id: string; name: string; color: string; /** Участников в команде (05.11): для «дел на участника». */ members?: number }>;
   fact: Array<Pt & { teamId: string | null }>;
-  /** Переходы городов по испытаниям и осадам: день, кто отдал, кто взял. */ transfers?: Array<{ day: number; from: string; to: string }>;
+  /** Движение городов между командами без изменения общего счёта: переходы по испытаниям и осадам (кто отдал, кто взял), руины выбывшей
+   *  команды (отдала — выбывшая, взяла — никто) и их занятие (взяла — команда, отдал — никто) (08.11). */ transfers?: Array<{ day: number; from: string | null; to: string | null }>;
   deeds: Daily;
   /** Выученные стихи в день: у каждого участника стих один раз, один стих у двоих — два (решение владельца 04.11). */
   verses?: Daily;

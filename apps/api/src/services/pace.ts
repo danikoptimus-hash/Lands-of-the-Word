@@ -62,6 +62,35 @@ export function uniqueVersesByTeam(recited: Recited[]): { total: number; byTeam:
   return { total: ids.size, byTeam: Object.fromEntries([...byTeam].map(([teamId, s]) => [teamId, [...s].sort((a, b) => a - b)])) };
 }
 
+export interface CityEvent { kind: "city_captured" | "ruins_taken"; teamId: string | null; at: Date }
+export interface CityWin { attackerId: string; defenderId: string; resolvedAt: Date }
+export interface CityTransfer { day: number; from: string | null; to: string | null }
+/** Серии графика городов. Общий счёт («факт») — только первые взятия (`city_captured`): руины выбывшей команды уже были
+ *  посчитаны, их занятие (`ruins_taken`) общий счёт не меняет (замечание владельца 08.11: «они просто занимают руины, городов
+ *  больше не стало»), а линию занявшей команды поднимает — как переход без отдавшей стороны. Переход по испытанию или осаде —
+ *  минус у отдавшей, плюс у взявшей. При потере столицы остальные города команды становятся руинами — по минусу у выбывшей
+ *  за каждый (сама столица уже в переходах). */
+export function citySeries(events: CityEvent[], wins: CityWin[], defeated: Set<string>, dayOf: (d: Date) => number): { caps: Array<{ day: number; at: Date; teamId: string | null }>; transfers: CityTransfer[] } {
+  const caps = events.filter((e) => e.kind === "city_captured").map((e) => ({ day: dayOf(e.at), at: e.at, teamId: e.teamId }));
+  const transfers: Array<CityTransfer & { at: number }> = [
+    ...wins.map((w) => ({ day: dayOf(w.resolvedAt), from: w.defenderId as string | null, to: w.attackerId as string | null, at: w.resolvedAt.getTime() })),
+    ...events.filter((e) => e.kind === "ruins_taken").map((e) => ({ day: dayOf(e.at), from: null, to: e.teamId, at: e.at.getTime() })),
+  ];
+  for (const teamId of defeated) {
+    // Момент поражения — последняя проигранная битва или осада (столица).
+    const lost = wins.filter((w) => w.defenderId === teamId).map((w) => w.resolvedAt.getTime());
+    if (!lost.length) continue;
+    const t = Math.max(...lost);
+    let held = 0;
+    for (const e of events) if (e.teamId === teamId && e.at.getTime() < t) held += 1;
+    for (const w of wins) { if (w.resolvedAt.getTime() >= t) continue; if (w.attackerId === teamId) held += 1; if (w.defenderId === teamId) held -= 1; }
+    const day = dayOf(new Date(t));
+    for (let i = 0; i < Math.max(0, held - 1); i++) transfers.push({ day, from: teamId, to: null, at: t });
+  }
+  transfers.sort((a, b) => a.at - b.at);
+  return { caps, transfers: transfers.map(({ at: _a, ...x }) => x) };
+}
+
 export async function paceForecast(gameId: string) {
   const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId }, select: { startedAt: true, createdAt: true, settings: true, status: true, finishedAt: true } });
   const tz = rulesOf(game.settings).timeZone;
@@ -71,7 +100,7 @@ export async function paceForecast(gameId: string) {
   const dayOf = (d: Date) => (d.getTime() - start.getTime()) / DAY;
   const [K, teams, rows, states, wonBattles, wonSieges, entries, blocks, memberRows] = await Promise.all([
     prisma.mapNode.count({ where: { gameId, kind: "CITY" } }),
-    prisma.team.findMany({ where: { gameId }, select: { id: true, name: true, color: true, avatarId: true }, orderBy: { index: "asc" } }),
+    prisma.team.findMany({ where: { gameId }, select: { id: true, name: true, color: true, avatarId: true, status: true }, orderBy: { index: "asc" } }),
     prisma.journal.findMany({ where: { gameId, kind: { in: ["city_captured", "ruins_taken", "task_solved", "deed_approved", "quarry_approved"] } }, select: { kind: true, teamId: true, createdAt: true }, orderBy: { createdAt: "asc" } }),
     prisma.teamCityState.findMany({ where: { gameId, capturedAt: { not: null } }, select: { doneTasks: true, isCapital: true } }),
     prisma.battle.findMany({ where: { gameId, status: "WON", resolvedAt: { not: null } }, select: { attackerId: true, defenderId: true, resolvedAt: true } }),
@@ -83,10 +112,14 @@ export async function paceForecast(gameId: string) {
     prisma.membership.groupBy({ by: ["teamId"], where: { team: { gameId } }, _count: { _all: true } }),
   ]);
   const membersOf = new Map(memberRows.map((r) => [r.teamId, r._count._all]));
-  // Взятие города — выполнением заданий (и руин тоже). Переход города по испытанию или осаде (замечание владельца 01.11:
-  // «отвоевал 2 города, а на графике это не отобразилось») общий счёт не меняет, а линии команд — да: минус у хранителей, плюс у претендентов.
-  const caps = rows.filter((r) => r.kind === "city_captured" || r.kind === "ruins_taken").map((r) => ({ day: dayOf(r.createdAt), at: r.createdAt, teamId: r.teamId }));
-  const transfers = [...wonBattles, ...wonSieges].map((x) => ({ day: dayOf(x.resolvedAt!), from: x.defenderId, to: x.attackerId })).sort((a, b) => a.day - b.day);
+  // Общий счёт — первые взятия городов; переходы по испытаниям и осадам (замечание владельца 01.11: «отвоевал 2 города,
+  // а на графике это не отобразилось») и занятые руины (08.11) двигают только линии команд — см. citySeries.
+  const { caps, transfers } = citySeries(
+    rows.filter((r) => r.kind === "city_captured" || r.kind === "ruins_taken").map((r) => ({ kind: r.kind as CityEvent["kind"], teamId: r.teamId, at: r.createdAt })),
+    [...wonBattles, ...wonSieges].map((x) => ({ attackerId: x.attackerId, defenderId: x.defenderId, resolvedAt: x.resolvedAt! })),
+    new Set(teams.filter((t) => t.status === "defeated").map((t) => t.id)),
+    dayOf,
+  );
   const n = caps.length;
   // Дни партии по поясу игры: задания по дням и командам, взятия по дням.
   const days: string[] = []; for (let t = start.getTime(); t <= end.getTime(); t += DAY) days.push(dayKey(new Date(t), tz));
@@ -99,7 +132,7 @@ export async function paceForecast(gameId: string) {
     const d = dayKey(r.createdAt, tz);
     if (r.kind === "task_solved" && r.teamId) bump(tasksByDay, d, r.teamId);
     else if ((r.kind === "deed_approved" || r.kind === "quarry_approved") && r.teamId) bump(deedsByDay, d, r.teamId);
-    else if (r.kind === "city_captured" || r.kind === "ruins_taken") capsByDay.set(d, (capsByDay.get(d) ?? 0) + 1);
+    else if (r.kind === "city_captured") capsByDay.set(d, (capsByDay.get(d) ?? 0) + 1);
   }
   // Разгон: с первого дня, когда взяли не меньше двух городов; иначе с начала.
   let rampDay = 0; for (const d of days) if ((capsByDay.get(d) ?? 0) >= 2) { rampDay = Math.max(0, days.indexOf(d)); break; }
@@ -141,7 +174,7 @@ export async function paceForecast(gameId: string) {
   const logistic: Pt[] = []; for (let d = 0; d <= T + horizon; d += 1) logistic.push({ day: d, value: best.K / (1 + Math.exp(-best.r * (d - best.t0))) });
   return {
     tz, startedAt: start, now: end, T, K, n, rate, rampDay, dailyTasksAvg, dailyDeedsAvg, milestones,
-    teams: teams.map((t) => ({ ...t, members: membersOf.get(t.id) ?? 0 })),
+    teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, avatarId: t.avatarId, members: membersOf.get(t.id) ?? 0 })),
     fact: caps.map((c, i) => ({ day: c.day, value: i + 1, teamId: c.teamId })),
     transfers,
     deeds: { days, teams: teams.map((t) => ({ id: t.id, name: t.name, color: t.color, values: days.map((d) => deedsByDay.get(d)?.get(t.id) ?? 0) })), fitDays },
