@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { uniqueVerses, uniqueVersesByTeam, versesByDay, type Recited } from "./services/pace.js";
+import { citySeries, uniqueVerses, uniqueVersesByTeam, versesByDay, type Recited } from "./services/pace.js";
 
 const TZ = "Asia/Tashkent";
 const at = (day: string) => new Date(`${day}T10:00:00Z`);
@@ -31,5 +31,44 @@ describe("стихов в день (решение владельца 04.11)", (
     const by = uniqueVersesByTeam(rows);
     expect(by.total).toBe(22); expect(by.byTeam.A).toHaveLength(8); expect(by.byTeam.B).toHaveLength(14);
     expect(new Set([...by.byTeam.A!, ...by.byTeam.B!]).size).toBe(22);
+  });
+});
+
+describe("серии городов: руины не растят общий счёт (замечание владельца 08.11)", () => {
+  const day = (n: number) => new Date(Date.UTC(2026, 9, 1 + n, 10));
+  const dayOf = (d: Date) => (d.getTime() - day(0).getTime()) / 86_400_000;
+  // Линия команды — как её строит клиент: плюс за взятие, плюс за переход к ней, минус за переход от неё.
+  const line = (teamId: string, r: ReturnType<typeof citySeries>) =>
+    r.caps.filter((c) => c.teamId === teamId).length + r.transfers.filter((x) => x.to === teamId).length - r.transfers.filter((x) => x.from === teamId).length;
+
+  it("занятые руины — переход к команде, общий счёт прежний; выбывшая теряет все города в момент поражения", () => {
+    const events = [
+      { kind: "city_captured" as const, teamId: "A", at: day(1) },
+      { kind: "city_captured" as const, teamId: "A", at: day(2) },
+      { kind: "city_captured" as const, teamId: "A", at: day(3) },
+      { kind: "city_captured" as const, teamId: "B", at: day(4) },
+      { kind: "ruins_taken" as const, teamId: "B", at: day(6) },
+    ];
+    // День 5: B берёт столицу A — A выбывает, два других её города становятся руинами.
+    const wins = [{ attackerId: "B", defenderId: "A", resolvedAt: day(5) }];
+    const r = citySeries(events, wins, new Set(["A"]), dayOf);
+    expect(r.caps.length).toBe(4); // три города A и один B; руины шестого дня — не новый город
+    expect(r.transfers).toEqual([
+      { day: 5, from: "A", to: "B" },
+      { day: 5, from: "A", to: null },
+      { day: 5, from: "A", to: null },
+      { day: 6, from: null, to: "B" },
+    ]);
+    expect(line("A", r)).toBe(0);
+    expect(line("B", r)).toBe(3);
+  });
+
+  it("без поражений — только переходы по испытаниям", () => {
+    const events = [{ kind: "city_captured" as const, teamId: "A", at: day(1) }, { kind: "city_captured" as const, teamId: "B", at: day(2) }];
+    const r = citySeries(events, [{ attackerId: "B", defenderId: "A", resolvedAt: day(3) }], new Set(), dayOf);
+    expect(r.caps.length).toBe(2);
+    expect(r.transfers).toEqual([{ day: 3, from: "A", to: "B" }]);
+    expect(line("A", r)).toBe(0);
+    expect(line("B", r)).toBe(2);
   });
 });
