@@ -10,7 +10,7 @@
 #   4. Если переданы файлы (запись экрана и т. п.), кладёт их вместе с дампом во временную папку со случайным
 #      именем на тестовом стенде и печатает адреса для скачивания. Папка удаляется сама через 12 часов
 #      (или сразу: команда печатается в конце).
-# Запуск:  bash /root/video-export.sh "Осень" /root/video1.mp4 /root/video2.mp4
+# Запуск:  bash /root/video-export.sh "Бич народов" /root/video1.mp4 /root/video2.mp4   (имя партии, её id или название команды)
 set -euo pipefail
 GAME="${1:-Осень}"; shift || true
 STAMP="$(date +%F-%H%M)"
@@ -18,9 +18,14 @@ OUT="/root/lotw-video-$STAMP.sql.gz"
 DB=lotw_video
 PG="docker exec -i lotw-db psql -U lotw -v ON_ERROR_STOP=1 -q"
 
-GID="$(docker exec lotw-db psql -U lotw -d lotw -At -c "SELECT id FROM \"Game\" WHERE name = '$GAME' AND \"deletedAt\" IS NULL ORDER BY (status = 'ACTIVE') DESC, (status = 'FINISHED') DESC, \"createdAt\" DESC LIMIT 1")"
+# Партию можно указать именем, id или названием любой её команды. Одноимённых партий бывает несколько (тестовые) —
+# сначала совпадение по команде, затем самая активная (больше записей в летописи).
+echo "==> Партии на сервере (имя | статус | старт | команды | записей в летописи):"
+docker exec lotw-db psql -U lotw -d lotw -At -F ' | ' -c "SELECT g.name, g.status, g.\"startedAt\"::date, (SELECT string_agg(t.name, ', ' ORDER BY t.index) FROM \"Team\" t WHERE t.\"gameId\" = g.id), (SELECT count(*) FROM \"Journal\" j WHERE j.\"gameId\" = g.id) FROM \"Game\" g WHERE g.\"deletedAt\" IS NULL ORDER BY g.\"createdAt\"" | sed 's/^/    /'
+BYTEAM="EXISTS (SELECT 1 FROM \"Team\" t WHERE t.\"gameId\" = g.id AND t.name = '$GAME')"
+GID="$(docker exec lotw-db psql -U lotw -d lotw -At -c "SELECT g.id FROM \"Game\" g WHERE g.\"deletedAt\" IS NULL AND (g.id = '$GAME' OR g.name = '$GAME' OR $BYTEAM) ORDER BY ($BYTEAM) DESC, (SELECT count(*) FROM \"Journal\" j WHERE j.\"gameId\" = g.id) DESC LIMIT 1")"
 [ -n "$GID" ] || { echo "Партия «$GAME» не найдена"; exit 1; }
-echo "==> Партия «$GAME»: $GID"
+echo "==> Выгружаю: $(docker exec lotw-db psql -U lotw -d lotw -At -c "SELECT name || ' (' || id || '), команды: ' || (SELECT string_agg(t.name, ', ' ORDER BY t.index) FROM \"Team\" t WHERE t.\"gameId\" = g.id) FROM \"Game\" g WHERE id = '$GID'")"
 
 echo "==> Временная копия базы"
 docker exec lotw-db dropdb -U lotw --if-exists "$DB"
@@ -84,5 +89,5 @@ done
 docker exec -u root lotw-app-test chmod -R a+rX "$DIR"
 nohup sh -c "sleep 43200; docker exec -u root lotw-app-test rm -rf '$DIR'" > /dev/null 2>&1 &
 echo "==> Готово. Пришлите в чат эту строку:"
-echo "    ВЫГРУЗКА: https://test.landsoftheword.com/$TOKEN/  файлы: $(basename "$OUT") $(for f in "$@"; do printf '%s ' "$(basename "$f")"; done)"
+echo "    ВЫГРУЗКА: https://test.landsoftheword.com/$TOKEN/  файлы: $(basename "$OUT") $(for f in "$@"; do [ -f "$f" ] && printf '%s ' "$(basename "$f")"; done)"
 echo "    Папка удалится сама через 12 часов. Удалить сразу:  docker exec -u root lotw-app-test rm -rf '$DIR'"
