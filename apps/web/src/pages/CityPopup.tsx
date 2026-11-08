@@ -239,9 +239,11 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
 
   // Круглый план (решение владельца 06.11): экран города на весь экран, окно плана — вся оставшаяся высота.
   const planFull = Boolean(!sleeping && city?.content && city.content.plan === "spiral" && step === 1 && order && !task);
+  // Ночью в свободном городе без владельца лист пуст — показываем только шапку (решение владельца 08.11); у взятого или чужого города остаются стена, проход, обмен, испытание.
+  const nightEmpty = Boolean(sleeping && city?.content && (task || !(foreign || city.owner || city.state.capturedAt)));
   // Текст заданий города не выделяется и не копируется ни мышью, ни долгим нажатием (решение владельца 02.10): поля ввода — исключение.
   return (
-    <Sheet size={planFull ? "full" : "md"} container={container} onClose={onClose} head={head} className={"city-sheet no-copy" + (planFull ? " plan-full" : "")}>
+    <Sheet size={planFull ? "full" : "md"} container={container} onClose={onClose} head={head} className={"city-sheet no-copy" + (planFull ? " plan-full" : "") + (nightEmpty ? " night-only" : "")}>
       {error && <p className="error" role="alert">{error}</p>}
       {!city && !error && <LoadingState rows={4} />}
       {city && !city.content && <div className="note warn"><Icon name="alert" /><span>{t("Задания для книги «{book}» ещё готовятся. Город пока нельзя взять.", { book: book?.nameRu ?? "" })}</span></div>}
