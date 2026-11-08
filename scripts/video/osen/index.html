@@ -74,7 +74,7 @@ body { font-family: "Literata", Georgia, serif; color: var(--paper); }
 <body>
 <div id="stage">
   <div id="grain"></div>
-  <div id="mapcard"><div id="mapinner"><img id="mapA"><img id="mapB"></div><div id="mapshade"></div><div id="mapdim"></div>
+  <div id="mapcard"><div id="mapinner"><img id="mapA"><img id="mapB"></div><div id="mapshade"></div><div id="mapdim"></div><div id="esther" style="position:absolute;left:520px;top:249px;width:200px;height:200px;border-radius:50%;border:5px solid #f1d595;box-shadow:0 0 40px rgba(241,213,149,.8), inset 0 0 30px rgba(241,213,149,.5);opacity:0"></div>
     <div id="mapdate" class="chip"><span class="dot" style="background:var(--gold)"></span><span id="mapdatetxt"></span></div></div>
   <div id="fx"><img id="fxA"><img id="fxB"><div class="vignette"></div></div>
   <div id="chapters"></div>
@@ -110,7 +110,7 @@ body { font-family: "Literata", Georgia, serif; color: var(--paper); }
       <div class="eyebrow">Дела</div>
       <div class="h1">Каждая дорога — <b>доброе дело</b></div>
       <div class="counter goldtext" id="pd-n">0</div>
-      <div class="counter-label">добрых дела за осень</div>
+      <div class="counter-label">добрых дела за 40 дней</div>
       <div class="rows" style="margin-top:34px;flex-direction:row;flex-wrap:wrap;gap:12px">
         <span class="chip" id="pd-1">помогали</span><span class="chip" id="pd-2">навещали</span><span class="chip" id="pd-3">служили</span>
       </div>
@@ -214,7 +214,7 @@ body { font-family: "Literata", Georgia, serif; color: var(--paper); }
   </div>
 
   <div class="scene" id="sc-totals">
-    <div class="abs eyebrow" style="left:0;right:0;top:110px;text-align:center">Итоги осени</div>
+    <div class="abs eyebrow" style="left:0;right:0;top:110px;text-align:center">Итоги 40 дней</div>
     <div class="abs h1" style="left:0;right:0;top:152px;text-align:center;font-size:72px">Сорок дней <b>«Земель Слова»</b></div>
     <div id="metrics"></div>
   </div>
@@ -286,14 +286,14 @@ $("pru").innerHTML = RU.map((r, i) => `<div class="ruin" id="ru-${i}" style="lef
 /* Итоги */
 const ICO = "file:///home/user/Lands-of-the-Word/apps/web/public/img/";
 const MET = [
-  { n: 27, cap: "участников", at: 1.7, ico: "awards/p_team_pillar.webp" },
-  { n: 370, cap: "разных стихов", sub: "452 — если считать каждого, кто выучил", at: 3.3, sub_at: 5.7, ico: "trial/learn.webp" },
-  { n: 41, cap: "блок стены", sub: "329 стихов в стенах", at: 8.6, ico: "trial/answer.webp" },
-  { n: 434, cap: "добрых дела", sub: "в том числе 26 морских", at: 10.7, ico: "awards/p_first_deed.webp" },
-  { n: 1369, cap: "решённых заданий", at: 12.0, ico: "trial/check.webp" },
-  { n: 60, cap: "городов из 66", at: 12.2, ico: "trial/taken.webp" },
-  { n: 28, cap: "вызовов за 9 дней", at: 12.4, ico: "trial/call.webp" },
-  { n: 11, cap: "опустевших городов занято за 3 часа", at: 12.6, ico: "trial/burnt.webp" },
+  { n: 27, cap: "участников", at: 1.8, ico: "awards/p_team_pillar.webp" },
+  { n: 370, cap: "разных стихов", sub: "452 — если считать каждого, кто выучил", at: 3.4, sub_at: 5.8, ico: "trial/learn.webp" },
+  { n: 41, cap: "блок стены", sub: "329 стихов в стенах", at: 9.2, sub_at: 11.1, ico: "trial/answer.webp" },
+  { n: 434, cap: "добрых дела", sub: "в том числе 26 морских", at: 13.6, sub_at: 15.7, ico: "awards/p_first_deed.webp" },
+  { n: 1369, cap: "решённых заданий", at: 18.6, ico: "trial/check.webp" },
+  { n: 60, cap: "городов из 66", at: 21.0, ico: "trial/taken.webp" },
+  { n: 28, cap: "вызовов за 9 дней", at: 23.8, ico: "trial/call.webp" },
+  { n: 11, cap: "опустевших городов занято за 3 часа", at: 26.5, ico: "trial/burnt.webp" },
 ];
 $("metrics").innerHTML = MET.map((m, i) => `<div class="metric card" id="m-${i}" style="left:${150 + (i % 4) * 418}px;top:${300 + Math.floor(i / 4) * 330}px">
   <img src="${ICO + m.ico}"><div class="num goldtext" id="mn-${i}">0</div><div class="cap">${m.cap}</div>${m.sub ? `<div class="sub" id="ms-${i}">${m.sub}</div>` : ""}</div>`).join("");
@@ -317,7 +317,7 @@ const fr = FRAMES; // [{k, ts}]
 const kAt = (ts) => { let lo = 0; for (let i = 0; i < fr.length; i++) if (fr[i].ts <= ts) lo = i; return lo; };
 const D = (s) => Date.parse(s + "+05:00");
 const MAPSEG = [
-  ["start", 0, kAt(D("2026-09-30T12:00:00"))],
+  ["start", 0, 4], // кадр 4 — Есфирь уже столица «Бича народов»
   ["deeds", null, kAt(D("2026-10-04T00:00:00"))],
   ["sea", null, kAt(D("2026-10-12T00:00:00"))],
   ["cities", null, kAt(D("2026-10-31T00:00:00"))],
@@ -328,7 +328,7 @@ const MAPSEG = [
 ];
 for (let i = 0; i < MAPSEG.length; i++) if (MAPSEG[i][1] === null) MAPSEG[i][1] = MAPSEG[i - 1][2];
 function mapFrameAt(t) {
-  for (const [id, a, b] of MAPSEG) { const s = SC[id]; if (t >= s.start && t < s.end) { const k = clamp((t - s.start) / (s.end - s.start)); return lerp(a, b, k); } }
+  for (const [id, a, b] of MAPSEG) { const s = SC[id]; if (t >= s.start && t < s.end) { const e = id === "start" ? W("start", 9.6) : s.end; const k = clamp((t - s.start) / (e - s.start)); return lerp(a, b, k); } }
   return fr.length - 1;
 }
 const MON = { "сент.": "сентября", "окт.": "октября", "нояб.": "ноября" };
@@ -364,7 +364,13 @@ async function render(t) {
     waits.push(setSrc("mapA", `../tl/f${String(fr[a].k).padStart(4, "0")}.jpg`), setSrc("mapB", `../tl/f${String(fr[b].k).padStart(4, "0")}.jpg`));
     $("mapB").style.opacity = k;
     const z = inScene("ruins", t) ? lerp(1.14, 1.22, pr(t, SC.ruins.start, SC.ruins.end - SC.ruins.start)) : lerp(1.1, 1.18, clamp((t - SC.start.start) / (SC.repel.end - SC.start.start)));
-    $("mapinner").style.transform = `scale(${z})`;
+    // Приближение к Есфири (просьба владельца 08.11): на «…книгу Есфирь» карта наезжает и ставит город в центр, в начале «Дел» отъезжает.
+    const CW = 1240, CH2 = 698, PX = .288 * CW, PY = .282 * CH2, Z1 = 2.3;
+    const zin = eio(pr(t, W("start", 9.3), 1.5)) * (1 - eio(pr(t, SC.deeds.start + .1, 1.3)));
+    const zz = lerp(z, Z1, zin), tx = lerp(CW / 2 * (1 - z), CW / 2 - PX * Z1, zin), ty = lerp(CH2 / 2 * (1 - z), CH2 / 2 - PY * Z1, zin);
+    $("mapinner").style.transformOrigin = "0 0"; $("mapinner").style.transform = `translate(${tx}px, ${ty}px) scale(${zz})`;
+    const kr = pr(t, W("start", 10.7), .5) * (1 - pr(t, SC.deeds.start - .2, .4)); $("esther").style.opacity = kr;
+    $("esther").style.transform = `scale(${1 + .06 * Math.sin(t * 5)})`;
     const war = ["war", "chronicle", "repel"].some((id) => inScene(id, t));
     $("mapdim").style.opacity = war ? .42 : 0;
     $("mapdatetxt").textContent = dateLabel(Math.round(f));
@@ -379,7 +385,7 @@ async function render(t) {
 
   // панель справа
   const PB = [["p-start", "start", (tt) => { show($("ps-0"), pr(tt, 1.2, .5)); show($("ps-1"), pr(tt, 2.6, .5)); show($("ps-2"), pr(tt, 3.8, .5)); pop($("ps-3"), pr(tt, 9.4, .6)); }],
-    ["p-deeds", "deeds", (tt) => { $("pd-n").textContent = fmtN(434 * eo(pr(tt, 3.6, 1.8))); show($("pd-1"), pr(tt, 6.1, .45)); show($("pd-2"), pr(tt, 6.8, .45)); show($("pd-3"), pr(tt, 7.8, .45)); }],
+    ["p-deeds", "deeds", (tt) => { $("pd-n").textContent = fmtN(434 * eo(pr(tt, 3.6, 1.8))); show($("pd-1"), pr(tt, 5.6, .45)); show($("pd-2"), pr(tt, 6.2, .45)); show($("pd-3"), pr(tt, 7.0, .45)); }],
     ["p-sea", "sea", (tt) => { show($("pe-1"), pr(tt, 1.3, .5)); show($("pe-2"), pr(tt, 2.2, .5)); show($("pe-3"), pr(tt, 4.8, .5)); }],
     ["p-cities", "cities", (tt) => { $("pc-n").textContent = fmtN(1369 * eo(pr(tt, 1.0, 1.7))); $("pc-c").textContent = fmtN(60 * eo(pr(tt, 4.2, 1.4))); $("pc-bar").style.width = (60 / 66 * 100 * eo(pr(tt, 4.2, 1.4))) + "%"; }],
     ["p-war", "war", (tt) => { pop($("pw-title"), pr(tt, 1.3, .5)); show($("pw-1"), pr(tt, 2.5, .5)); show($("pw-2"), pr(tt, 5.7, .5)); show($("pw-3"), pr(tt, 8.5, .5)); }],

@@ -18,8 +18,8 @@ for m in meta:
     lab = re.sub(r"сегодня.*", "8 нояб.", re.sub(r"вчера.*", "7 нояб.", label))
     frames.append({"k": m["k"], "dt": ts, "label": lab})
 out = [{"k": f["k"], "ts": int(f["dt"].timestamp() * 1000), "label": f["label"]} for f in frames]
-fx = sorted(glob.glob(os.path.join(R, "fw", "f*.jpg"))); fxz = sorted(glob.glob(os.path.join(R, "fwz", "f*.jpg")))
+fx = sorted(glob.glob(os.path.join(R, "fw2", "f*.jpg"))); fxz = sorted(glob.glob(os.path.join(R, "fwz2", "f*.jpg")))
 open(os.path.join(D, "data.js"), "w").write(
     "const TL = " + json.dumps(TL, ensure_ascii=False) + ";\nconst FRAMES = " + json.dumps(out, ensure_ascii=False) +
-    ";\nconst FX = " + json.dumps({"dir": "../fw", "n": max(1, len(fx))}) + ";\nconst FXZ = " + json.dumps({"dir": "../fwz", "n": max(1, len(fxz))}) + ";\n")
+    ";\nconst FX = " + json.dumps({"dir": "../fw2", "n": max(1, len(fx))}) + ";\nconst FXZ = " + json.dumps({"dir": "../fwz2", "n": max(1, len(fxz))}) + ";\n")
 print("кадров карты", len(out), "салюта", len(fx), out[0], out[-1])

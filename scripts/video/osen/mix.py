@@ -10,16 +10,16 @@ music = [  # файл, начало, конец, вход, выход, гром�
     ("osen-main", 0.0, SC["war"]["start"] + 0.4, 0.3, 1.6, 0.55),
     ("osen-war", SC["war"]["start"] - 0.6, SC["war"]["start"] - 0.6 + 55.0, 0.8, 2.5, 0.5),
     ("osen-war", SC["war"]["start"] - 0.6 + 53.5, FALL_START - 0.7, 1.5, 1.2, 0.32),  # тихое начало темы под рассказом о стене
-    ("osen-fall", FALL_START, FALL_START + 39.5, 0.01, 3.0, 0.62),
+    ("osen-fall", FALL_START, min(FALL_START + 39.5, SC["totals"]["start"] + 2.5), 0.01, 3.0, 0.62),  # уходит под тему итогов
     ("osen-outro", SC["totals"]["start"] - 1.0, END, 3.0, 2.5, 0.55),
 ]
 sfx = []
 for sc in ["deeds", "sea", "cities", "chronicle", "repel", "ruins", "totals", "standing"]: sfx.append(("whoosh", SC[sc]["start"] - 0.3, 0.22))
-sfx += [("impact", W("war", 1.3), 0.55), ("bricks", W("war", 5.8), 0.3), ("coin", W("deeds", 5.3), 0.25),
+sfx += [("impact", W("war", 1.3), 0.55), ("bricks", W("war", 5.8), 0.3), ("coin", W("deeds", 4.8), 0.25),
         ("bricks", W("wall", 2.7), 0.45), ("stamp", W("wall", 10.88), 0.85), ("crumble", W("wall", 11.5), 0.6),
         ("impact", W("fall", 1.3), 0.85), ("fireworks", W("fall", 8.35), 0.85), ("fireworks", W("fall", 8.35) + 8.5, 0.6),
         ("coin", W("repel", 7.5), 0.35), ("coin", W("repel", 7.7), 0.3)]
-for w in [1.6, 3.2, 8.5, 10.6, 11.9, 12.1, 12.3, 12.5]: sfx.append(("coin", W("totals", w), 0.22))
+for w in [1.7, 3.3, 9.1, 13.5, 18.5, 20.9, 23.7, 26.4]: sfx.append(("coin", W("totals", w), 0.22))
 for w in [1.4, 4.2]: sfx.append(("coin", W("standing", w), 0.25))
 war_end = SC["war"]["start"] - 0.6 + 55.0
 t = max(war_end, FALL_START - 6.0); k = 0

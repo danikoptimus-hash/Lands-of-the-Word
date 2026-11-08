@@ -8,9 +8,11 @@ await ctx.addInitScript(() => { try { localStorage.setItem("lotw.intro.seen", "1
 const p = await ctx.newPage();
 await p.clock.install({ time: new Date("2026-11-08T11:40:00Z") });
 await p.goto(`http://localhost:3001/games/cmucujbgq0008s301ran0fnt4?tod=${tod}`, { waitUntil: "domcontentloaded" });
-await p.clock.runFor(4000);
 await p.waitForLoadState("networkidle");
-await p.clock.runFor(3000);
+await p.waitForTimeout(3000);
+// Часы на паузу: без неё время в браузере идёт само, и за секунды съёмки одного кадра салют улетает вперёд (ускорение).
+await p.clock.pauseAt(new Date("2026-11-08T11:42:00Z"));
+await p.clock.runFor(1500);
 await p.addStyleTag({ content: ".admin-top,.admin-dock,.view-as,.admin-timeline{opacity:0!important;pointer-events:none!important}" });
 if (+zoom > 0) {
   await p.mouse.move(1920 * +zx, 1080 * +zy);
