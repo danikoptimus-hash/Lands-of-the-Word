@@ -428,7 +428,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const teams = await prisma.team.findMany({
       where: { gameId: id },
       orderBy: { index: "asc" },
-      select: { id: true, index: true, name: true, color: true, avatarId: true, startNodeKey: true, nodeStates: { select: { nodeKey: true, revealedAt: true } }, edgeTasks: { where: { status: "APPROVED" }, select: { fromKey: true, toKey: true, decidedAt: true, createdAt: true } } },
+      select: { id: true, index: true, name: true, color: true, avatarId: true, startNodeKey: true, triumphAt: true, nodeStates: { select: { nodeKey: true, revealedAt: true } }, edgeTasks: { where: { status: "APPROVED" }, select: { fromKey: true, toKey: true, decidedAt: true, createdAt: true } } },
     });
     const [pending, game] = await Promise.all([
       prisma.teamEdgeTask.count({ where: { gameId: id, status: "SUBMITTED" } }),
@@ -444,6 +444,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       cities: cityStates.map((s) => ({ teamId: s.teamId, nodeKey: s.nodeKey, orderSolved: s.orderSolved, done: s.doneTasks.length, capturedAt: s.capturedAt?.toISOString() ?? null, isCapital: s.isCapital })),
       teams: teams.map((t) => ({
         id: t.id, index: t.index, name: t.name, color: t.color, avatarId: t.avatarId, startNodeKey: t.startNodeKey,
+        // Салют над всеми городами команды, взявшей чужую столицу, — и у администратора тоже (замечание владельца 08.11).
+        triumphAt: t.triumphAt?.toISOString() ?? null,
         revealed: t.nodeStates.map((n) => n.nodeKey),
         revealedAt: t.nodeStates.map((n) => n.revealedAt.toISOString()),
         // Морское дело до высадки ведёт «в море» — такой отрезок не рисуем.
