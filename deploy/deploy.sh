@@ -47,5 +47,6 @@ else
   echo "crontab не установлен: бэкап по расписанию не настроен (apt install cron)"
 fi
 
-docker image prune -f >/dev/null
+# Чистка старых образов не должна ронять выкладку: контейнер уже поднят, а параллельная чистка отвечает «a prune operation is already running».
+docker image prune -f >/dev/null 2>&1 || true
 echo "==> Готово: $(git rev-parse --short HEAD)"
