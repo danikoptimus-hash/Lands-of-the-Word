@@ -16,7 +16,7 @@ sfx = []
 for sc in ["deeds", "sea", "cities", "chronicle", "repel", "ruins", "totals", "standing"]: sfx.append(("whoosh", SC[sc]["start"] - 0.3, 0.22))
 sfx += [("impact", W("war", 1.0), 0.55), ("bricks", W("war", 5.9), 0.3), ("coin", W("deeds", 5.3), 0.25),
         ("bricks", W("wall", 1.6), 0.45), ("stamp", W("wall", 10.33), 0.85), ("crumble", W("wall", 11.0), 0.6),
-        ("impact", W("fall", 1.3), 0.85), ("fireworks", W("fall", 8.0), 0.75), ("fireworks", W("fall", 8.0) + 9.0, 0.55),
+        ("impact", W("fall", 1.3), 0.85), ("fireworks", W("fall", 8.35), 0.85), ("fireworks", W("fall", 8.35) + 8.5, 0.6),
         ("coin", W("repel", 7.5), 0.35), ("coin", W("repel", 7.7), 0.3)]
 for w in [1.6, 3.2, 8.5, 10.6, 11.9, 12.1, 12.3, 12.5]: sfx.append(("coin", W("totals", w), 0.22))
 for w in [1.4, 4.2]: sfx.append(("coin", W("standing", w), 0.25))

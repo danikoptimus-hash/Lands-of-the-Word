@@ -68,7 +68,7 @@ body { font-family: "Literata", Georgia, serif; color: var(--paper); }
 .ruin { position: absolute; display: flex; align-items: center; gap: 12px; opacity: 0; font: 400 25px/1 "Literata", serif; }
 .ruin .tick { width: 16px; height: 16px; border-radius: 50%; }
 #fx { position: absolute; inset: 0; opacity: 0; }
-#fx img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#fx img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.3) contrast(1.08) brightness(1.06); }
 #flash { position: absolute; inset: 0; background: #fff6df; opacity: 0; mix-blend-mode: screen; }
 </style></head>
 <body>
@@ -338,7 +338,7 @@ async function render(t) {
   // главы
   const chOn = CH.findIndex(([, ids]) => ids.some((id) => inScene(id, t)));
   const chK = Math.max(...["start", "deeds", "sea", "cities", "war", "chronicle", "repel", "capital", "wall", "fall", "ruins", "totals", "standing"].map((id) => sceneK(id, t)));
-  $("chapters").style.opacity = clamp(chK) * (inScene("fall", t) && t > W("fall", 8) ? 0 : 1);
+  $("chapters").style.opacity = clamp(chK) * (inScene("fall", t) ? 1 - pr(t, W("fall", 7.8), .55) : 1);
   [...$("chapters").children].forEach((el, i) => el.classList.toggle("on", i === chOn));
 
   // карта
@@ -409,15 +409,15 @@ async function render(t) {
   // Падение
   { const k = sceneK("fall", t); $("sc-fall").style.opacity = k;
     if (k > 0) { const tt = t - SC.fall.lineStart;
-      const kc = pr(tt, 1.3, .25); $("f-clock").style.opacity = kc * (1 - pr(tt, 8.1, .6)); $("f-clock").style.transform = `scale(${lerp(1.4, 1, eo(kc))})`;
-      show($("f-h"), pr(tt, 3.0, .45)); $("f-h").style.opacity = pr(tt, 3.0, .45) * (1 - pr(tt, 8.1, .6));
-      show($("f-out"), pr(tt, 4.9, .6)); $("f-out").style.opacity = pr(tt, 4.9, .6) * (1 - pr(tt, 8.1, .6));
+      const kc = pr(tt, 1.3, .25); $("f-clock").style.opacity = kc * (1 - pr(tt, 7.8, .55)); $("f-clock").style.transform = `scale(${lerp(1.4, 1, eo(kc))})`;
+      show($("f-h"), pr(tt, 3.0, .45)); $("f-h").style.opacity = pr(tt, 3.0, .45) * (1 - pr(tt, 7.8, .55));
+      show($("f-out"), pr(tt, 4.9, .6)); $("f-out").style.opacity = pr(tt, 4.9, .6) * (1 - pr(tt, 7.8, .55));
       $("f-crest").style.filter = `grayscale(${pr(tt, 5.1, .8)}) brightness(${1 - .4 * pr(tt, 5.1, .8)})`;
       $("flash").style.opacity = .55 * (1 - pr(tt, 1.35, .5)) * (tt > 1.3 ? 1 : 0);
       $("f-cap").style.opacity = pr(tt, 9.2, .6) * (1 - pr(t, SC.fall.end - .8, .6));
     } else $("flash").style.opacity = 0; }
   // огни
-  { const s0 = W("fall", 8.0); const on = t >= s0 && inScene("fall", t);
+  { const s0 = W("fall", 8.45); const on = t >= s0 && inScene("fall", t);
     $("fx").style.opacity = on ? pr(t, s0, .7) * (1 - pr(t, SC.fall.end - .6, .6)) : 0;
     if (on) { const f = Math.floor((t - s0) * 30), cut = 75; // общий план 2,5 с, затем крупный
       waits.push(setSrc("fxA", `${FX.dir}/f${String(Math.min(f, FX.n - 1)).padStart(4, "0")}.jpg`));
@@ -425,7 +425,7 @@ async function render(t) {
       if (FXZ.n > 1 && kz > 0) waits.push(setSrc("fxB", `${FXZ.dir}/f${String(Math.min(Math.max(0, f - cut + 24), FXZ.n - 1)).padStart(4, "0")}.jpg`));
       $("fxB").style.opacity = FXZ.n > 1 ? kz : 0;
       $("fxA").style.transform = `scale(${lerp(1.0, 1.12, pr(t, s0, 3))})`; $("fxA").style.transformOrigin = "30% 50%";
-      $("fxB").style.transform = `scale(${lerp(1.0, 1.05, pr(t, s0 + 2.2, 6))})`; } }
+      $("fxB").style.transformOrigin = "54% 56%"; $("fxB").style.transform = `scale(${lerp(1.18, 1.3, pr(t, s0 + 2.2, 6))})`; } }
 
   // Итоги
   { const k = sceneK("totals", t); $("sc-totals").style.opacity = k;
