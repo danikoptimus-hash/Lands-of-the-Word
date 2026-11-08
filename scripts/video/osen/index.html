@@ -153,7 +153,7 @@ body { font-family: "Literata", Georgia, serif; color: var(--paper); }
     </div>
     <div class="panel-block" id="p-ruins">
       <div class="eyebrow" style="color:#e07a5c">8 ноября · 16:33 — 19:29</div>
-      <div class="h1" style="font-size:54px;margin-bottom:20px">Руины <b>легиона</b></div>
+      <div class="h1" style="font-size:50px;margin-bottom:20px">Опустевшие <b>города</b></div>
       <div id="pru" style="position:relative;height:560px"></div>
     </div>
   </div>
@@ -182,14 +182,25 @@ body { font-family: "Literata", Georgia, serif; color: var(--paper); }
 
   <div class="scene" id="sc-wall">
     <div class="abs eyebrow" style="left:0;right:0;top:175px;text-align:center">Стена хранителей</div>
-    <div class="abs h1" id="w-h" style="left:0;right:0;top:222px;text-align:center;font-size:84px">Один блок <b>воина</b></div>
+    <div class="abs h1" id="w-h" style="left:0;right:0;top:222px;text-align:center;font-size:84px">Один блок <b>стены</b></div>
     <div id="stones"></div>
-    <div class="abs" id="w-eq" style="left:0;right:0;top:575px;text-align:center;font:700 76px/1 Philosopher,serif;color:var(--paper)">
-      <span id="w-e1">10 стихов</span> <span id="w-e2" style="color:var(--gold)">× 2</span> <span id="w-e3">= 20</span> <span id="w-e4" style="color:var(--gold)">= ставка</span></div>
-    <div class="abs card" id="w-quote" style="left:460px;width:1000px;top:740px;padding:30px 40px;text-align:center">
-      <div class="eyebrow" style="font-size:20px;color:#e07a5c">Замечание администратора</div>
-      <div style="font:400 40px/1.3 Literata,serif;margin-top:14px">«Ссылка ведёт на видео с другим участником»</div></div>
-    <div id="stamp">Возвращён</div>
+    <div class="abs" id="w-l1" style="left:328px;width:938px;top:500px;text-align:center;font:400 30px/1 Literata,serif;color:var(--paper)">капитан · <b style="color:var(--gold)">6 стихов</b></div>
+    <div class="abs" id="w-l2" style="left:1276px;width:306px;top:500px;text-align:center;font:400 30px/1 Literata,serif;color:var(--paper)">воин · <b style="color:var(--gold)">2 × 2</b></div>
+    <div class="abs" id="w-eq" style="left:0;right:0;top:590px;text-align:center;font:700 76px/1 Philosopher,serif;color:var(--paper)">
+      <span id="w-e1">6 + 2 × 2</span> <span id="w-e2" style="color:var(--gold)">= 10 стихов</span></div>
+    <div class="abs card" id="w-quote" style="left:460px;width:1000px;top:590px;padding:30px 40px;text-align:center">
+      <div class="eyebrow" style="font-size:20px;color:#e07a5c">Проверка администратора</div>
+      <div style="font:400 40px/1.3 Literata,serif;margin-top:14px">Стихи сданы неверно — блок отклонён</div></div>
+    <div class="abs" id="w-cmp" style="left:410px;width:1100px;top:430px">
+      <div id="w-b1" style="display:flex;align-items:center;gap:26px"><span style="width:250px;text-align:right;font:400 34px/1 Literata,serif">блок стены</span>
+        <div style="flex:1;height:54px;border-radius:12px;background:rgba(230,194,122,.1);position:relative"><i id="w-b1i" style="position:absolute;left:0;top:0;bottom:0;width:0;border-radius:12px;background:linear-gradient(90deg,#8d5a3c,#c46a4c)"></i></div>
+        <span class="goldtext" style="width:110px;font:700 64px/1 Philosopher,serif">10</span></div>
+      <div id="w-b2" style="display:flex;align-items:center;gap:26px;margin-top:34px"><span style="width:250px;text-align:right;font:400 34px/1 Literata,serif">ставка</span>
+        <div style="flex:1;height:54px;border-radius:12px;background:rgba(230,194,122,.1);position:relative"><i id="w-b2i" style="position:absolute;left:0;top:0;bottom:0;width:0;border-radius:12px;background:linear-gradient(90deg,#b8893e,#f1d595)"></i></div>
+        <span class="goldtext" style="width:110px;font:700 64px/1 Philosopher,serif">20</span></div>
+      <div id="w-not" style="margin-top:44px;text-align:center;font:700 56px/1 Philosopher,serif;color:#e07a5c">не хватило бы в любом случае</div>
+    </div>
+    <div id="stamp">Отклонён</div>
   </div>
 
   <div class="scene" id="sc-fall">
@@ -235,6 +246,7 @@ const eo = (k) => 1 - Math.pow(1 - clamp(k), 3);
 const eio = (k) => { k = clamp(k); return k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; };
 const pr = (t, a, d = .6) => clamp((t - a) / d);
 const SC = Object.fromEntries(TL.scenes.map((s) => [s.id, s]));
+const WC = typeof WALLCUES !== "undefined" ? WALLCUES : { cap: 2.7, war: 4.2, x2: 6.2, sum: 7.2, wrong: 9.0, rej: 10.9, cmp: 12.5, not: 14.7 };
 const W = (scene, w) => SC[scene].lineStart + w; // время слова от начала фразы сцены
 const fmtN = (n) => Math.round(n).toLocaleString("ru-RU").replace(/ /g, " ");
 function show(el, k, dy = 24) { el.style.opacity = k; el.style.transform = `translateY(${(1 - eo(k)) * dy}px)`; }
@@ -243,7 +255,7 @@ function sceneK(id, t) { const s = SC[id]; const fi = pr(t, s.start, .55), fo = 
 const inScene = (id, t) => t >= SC[id].start - .01 && t < SC[id].end + .01;
 
 /* Главы */
-const CH = [["Старт", ["start"]], ["Дела", ["deeds"]], ["Море", ["sea"]], ["Города", ["cities"]], ["Испытания", ["war", "chronicle", "repel"]], ["Столица", ["capital", "wall", "fall"]], ["Руины", ["ruins"]], ["Итоги", ["totals", "standing"]]];
+const CH = [["Старт", ["start"]], ["Дела", ["deeds"]], ["Море", ["sea"]], ["Города", ["cities"]], ["Испытания", ["war", "chronicle", "repel"]], ["Столица", ["capital", "wall", "fall"]], ["Запустение", ["ruins"]], ["Итоги", ["totals", "standing"]]];
 $("chapters").innerHTML = CH.map(([n]) => `<span>${n}</span>`).join("");
 
 /* Хроника испытаний */
@@ -267,7 +279,7 @@ $("pr").innerHTML = ["Тит", "Иаков"].map((b, i) => `<div class="card" id
   <img id="rps-${i}" src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/held.webp" style="margin-left:auto;width:110px;height:110px;border-radius:50%;opacity:0">
   </div>`).join("") + `<div id="rp-txt" style="position:absolute;left:0;top:630px;font:700 44px/1 Philosopher,serif;color:var(--gold);opacity:0">Оба вызова отбиты</div>`;
 
-/* Руины */
+/* Опустевшие города легиона */
 const RU = [["16:33", 0, "Амос"], ["16:34", 0, "Числа"], ["17:06", 1, "Софония"], ["17:06", 1, "Псалтирь"], ["17:06", 1, "Второзаконие"], ["17:06", 1, "Притчи"], ["17:10", 1, "2 Тимофею", 1], ["17:11", 1, "2 Коринфянам"], ["17:19", 0, "Ефесянам"], ["17:31", 0, "2 Фессалоникийцам", 1], ["19:29", 0, "1 Иоанна", 1]];
 $("pru").innerHTML = RU.map((r, i) => `<div class="ruin" id="ru-${i}" style="left:0;top:${i * 47}px;white-space:nowrap"><span style="color:var(--muted);font-size:22px;width:72px">${r[0]}</span><span class="tick" style="background:${TC[r[1]]}"></span><span>${r[2]}</span><span id="rk-${i}" style="color:var(--gold);font-size:22px;opacity:0">${r[3] ? "✦ знак шифра" : ""}</span></div>`).join("");
 
@@ -281,7 +293,7 @@ const MET = [
   { n: 1369, cap: "решённых заданий", at: 12.0, ico: "trial/check.webp" },
   { n: 60, cap: "городов из 66", at: 12.2, ico: "trial/taken.webp" },
   { n: 28, cap: "вызовов за 9 дней", at: 12.4, ico: "trial/call.webp" },
-  { n: 11, cap: "руин занято за 3 часа", at: 12.6, ico: "trial/burnt.webp" },
+  { n: 11, cap: "опустевших городов занято за 3 часа", at: 12.6, ico: "trial/burnt.webp" },
 ];
 $("metrics").innerHTML = MET.map((m, i) => `<div class="metric card" id="m-${i}" style="left:${150 + (i % 4) * 418}px;top:${300 + Math.floor(i / 4) * 330}px">
   <img src="${ICO + m.ico}"><div class="num goldtext" id="mn-${i}">0</div><div class="cap">${m.cap}</div>${m.sub ? `<div class="sub" id="ms-${i}">${m.sub}</div>` : ""}</div>`).join("");
@@ -297,7 +309,7 @@ $("bars").innerHTML = BARS.map((b, k) => `<div id="b-${k}" style="position:absol
   <div id="bn-${k}" class="goldtext" style="font:700 96px/1 Philosopher,serif;width:150px;text-align:right">0</div></div>`).join("");
 
 /* Камни стены */
-let sh = ""; for (let i = 0; i < 10; i++) sh += `<div class="stone" id="stn-${i}" style="left:${178 + i * 158}px;top:400px">17:${i + 1}</div>`;
+let sh = ""; for (let i = 0; i < 8; i++) sh += `<div class="stone" id="stn-${i}" style="left:${328 + i * 158}px;top:380px;${i > 5 ? "box-shadow: inset 0 0 0 3px #e6c27a, 0 8px 18px rgba(0,0,0,.55)" : ""}">${i > 5 ? "×2" : ""}</div>`;
 $("stones").innerHTML = sh;
 
 /* Карта: кадры по времени ролика */
@@ -373,7 +385,7 @@ async function render(t) {
     ["p-war", "war", (tt) => { pop($("pw-title"), pr(tt, 1.3, .5)); show($("pw-1"), pr(tt, 2.5, .5)); show($("pw-2"), pr(tt, 5.7, .5)); show($("pw-3"), pr(tt, 8.5, .5)); }],
     ["p-chron", "chronicle", (tt, T) => { CHRON.forEach((c, i) => { const k = pr(T, c.at - .1, .5); const el = $("ch-" + i); el.style.opacity = k; el.style.transform = `translateX(${(1 - eo(k)) * 80}px)`; }); }],
     ["p-repel", "repel", (tt) => { show($("rp-0"), pr(tt, 3.3, .5)); show($("rp-1"), pr(tt, 4.1, .5)); pop($("rps-0"), pr(tt, 7.5, .35)); pop($("rps-1"), pr(tt, 7.7, .35)); show($("rp-txt"), pr(tt, 7.9, .5)); }],
-    ["p-ruins", "ruins", (tt) => { RU.forEach((r, i) => { const at = 2.6 + i * (4.2 / RU.length); const k = pr(tt, at, .35); const el = $("ru-" + i); el.style.opacity = k; el.style.transform = `translateX(${(1 - eo(k)) * 40}px)`; const kk = $("rk-" + i); if (r[3]) kk.style.opacity = pr(tt, 8.6 + (i > 8 ? .25 : 0) + (i > 9 ? .25 : 0), .4); }); }],
+    ["p-ruins", "ruins", (tt) => { RU.forEach((r, i) => { const at = 2.6 + i * (4.2 / RU.length); const k = pr(tt, at, .35); const el = $("ru-" + i); el.style.opacity = k; el.style.transform = `translateX(${(1 - eo(k)) * 40}px)`; const kk = $("rk-" + i); if (r[3]) kk.style.opacity = pr(tt, 9.4 + (i > 8 ? .25 : 0) + (i > 9 ? .25 : 0), .4); }); }],
   ];
   for (const [pid, sid, fn] of PB) { const k = sceneK(sid, t); const el = $(pid); el.style.opacity = k; el.style.transform = `translateY(${(1 - eo(k)) * 20}px)`; if (k > 0) fn(t - SC[sid].lineStart, t); }
 
@@ -393,17 +405,23 @@ async function render(t) {
       show($("strip"), pr(tt, 2.4, .6), 30);
     } }
 
-  // Стена
+  // Стена: тайминг по словам фразы (WC — секунды от начала фразы)
   { const k = sceneK("wall", t); $("sc-wall").style.opacity = k;
-    if (k > 0) { const tt = t - SC.wall.lineStart;
+    if (k > 0) { const tt = t - SC.wall.lineStart, c = WC;
       show($("w-h"), pr(tt, 0, .6));
-      for (let i = 0; i < 10; i++) { const el = $("stn-" + i); const kin = pr(tt, 1.6 + i * .08, .35); const fall = pr(tt, 11.0 + (i % 5) * .05, 1.4);
-        const y = (1 - eo(kin)) * -160 + fall * fall * 520; const rot = fall * ((i % 2 ? 1 : -1) * (20 + i * 4));
-        el.style.opacity = kin * (1 - pr(tt, 11.9, .6)); el.style.transform = `translateY(${y}px) rotate(${rot}deg)`; el.style.filter = tt > 7.7 ? `grayscale(${pr(tt, 7.7, .8)}) brightness(${1 - .35 * pr(tt, 7.7, .8)})` : "none"; }
-      show($("w-e1"), pr(tt, 3.0, .4), 10); show($("w-e2"), pr(tt, 4.3, .4), 10); show($("w-e3"), pr(tt, 5.3, .4), 10); show($("w-e4"), pr(tt, 6.6, .4), 10);
-      $("w-eq").style.opacity = 1 - pr(tt, 11.0, .6);
-      show($("w-quote"), pr(tt, 7.8, .6), 30);
-      const ks = pr(tt, 10.35, .18); $("stamp").style.opacity = ks; $("stamp").style.transform = `translate(-50%,-50%) rotate(-9deg) scale(${lerp(2.2, 1, eo(ks))})`;
+      for (let i = 0; i < 8; i++) { const el = $("stn-" + i); const kin = pr(tt, (i < 6 ? c.cap + i * .08 : c.war + (i - 6) * .1), .35); const fall = pr(tt, c.rej + .6 + (i % 4) * .05, 1.3);
+        const y = (1 - eo(kin)) * -160 + fall * fall * 560; const rot = fall * ((i % 2 ? 1 : -1) * (20 + i * 5));
+        el.style.opacity = kin * (1 - pr(tt, c.rej + 1.4, .5)); el.style.transform = `translateY(${y}px) rotate(${rot}deg)`;
+        el.style.filter = tt > c.wrong ? `grayscale(${pr(tt, c.wrong, .8)}) brightness(${1 - .35 * pr(tt, c.wrong, .8)})` : "none"; }
+      const lo = 1 - pr(tt, c.rej + .6, .5);
+      $("w-l1").style.opacity = pr(tt, c.cap + .2, .5) * lo; $("w-l2").style.opacity = pr(tt, c.x2, .5) * lo;
+      show($("w-e1"), pr(tt, c.x2 + .2, .4), 10); show($("w-e2"), pr(tt, c.sum, .4), 10);
+      $("w-eq").style.opacity = 1 - pr(tt, c.wrong - .2, .4);
+      show($("w-quote"), pr(tt, c.wrong, .5), 30); $("w-quote").style.opacity = pr(tt, c.wrong, .5) * (1 - pr(tt, c.cmp - .3, .4));
+      const ks = pr(tt, c.rej, .18); $("stamp").style.opacity = ks * (1 - pr(tt, c.cmp - .3, .4)); $("stamp").style.transform = `translate(-50%,-50%) rotate(-9deg) scale(${lerp(2.2, 1, eo(ks))})`;
+      const kc = pr(tt, c.cmp, .5); $("w-cmp").style.opacity = kc; $("w-cmp").style.transform = `translateY(${(1 - eo(kc)) * 30}px)`;
+      $("w-b1i").style.width = (50 * eo(pr(tt, c.cmp + .2, .9))) + "%"; $("w-b2i").style.width = (100 * eo(pr(tt, c.cmp + .8, 1.0))) + "%";
+      show($("w-not"), pr(tt, c.not, .5));
     } }
 
   // Падение
