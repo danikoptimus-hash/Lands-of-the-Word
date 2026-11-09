@@ -5,7 +5,6 @@ import { prisma } from "./db.js";
 import { closeTrialsForAllPeaces } from "./services/peace.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
 import { chronicleLines, sendChronicle } from "./services/journal.js";
-import { ruinsTreasure } from "./services/treasure.js";
 
 /**
  * Этап 4 решений владельца 18.09: журнал событий → лента команды и новости для всех (без ставок), «Моё служение»,
@@ -174,22 +173,5 @@ describe("журнал событий: лента, новости, служен�
     expect(b.teams[0].members[0].deeds).toBe(1);
     expect(b.events.some((e: { kind: string }) => e.kind === "trial_declared")).toBe(true);
     expect((await get(`/api/games/${gameId}/season-book`, p1Cookie)).statusCode).toBe(403);
-  });
-
-  it("руины с сокровищем: первая команда, изучившая руины, получает район ближайшего города", async () => {
-    // Руфь — руины (владелец снят), «Берег» решил все задания: находка — район ближайшего города, второй раз не выдаётся.
-    await prisma.mapNode.update({ where: { gameId_key: { gameId, key: rutKey } }, data: { ruined: true } });
-    await ruinsTreasure(gameId, team2, rutKey, "rut");
-    await ruinsTreasure(gameId, team2, rutKey, "rut");
-    await feedUntil(gameId, p2Cookie, "treasure");
-    const found = await prisma.teamCityState.findMany({ where: { teamId: team2, NOT: { nodeKey: rutKey } } });
-    expect(found.length).toBe(1);
-    expect(found[0]!.doneTasks).toEqual([0]);
-    const node = await prisma.mapNode.findUniqueOrThrow({ where: { gameId_key: { gameId, key: rutKey } } });
-    expect(node.treasureTeamId).toBe(team2);
-    const feed = (await get(`/api/games/${gameId}/feed`, p2Cookie)).json().items as Array<{ kind: string; vars: Record<string, string | number> }>;
-    const tr = feed.filter((f) => f.kind === "treasure");
-    expect(tr.length).toBe(1);
-    expect(tr[0]!.vars.n).toBe(1);
   });
 });

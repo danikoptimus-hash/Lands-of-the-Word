@@ -397,7 +397,7 @@ export async function resolveWon(b: Battle): Promise<void> {
     ops.push(prisma.team.update({ where: { id: b.defenderId }, data: { status: "defeated" } }));
     // Победа (решение владельца 08.11): над всеми городами команды, взявшей чужую столицу, до конца дня салют.
     ops.push(prisma.team.update({ where: { id: b.attackerId }, data: { triumphAt: now } }));
-    // Остальные города выбывшей команды — руины: их берут выполнением заданий, без ключа и без испытания.
+    // Остальные города выбывшей команды пустеют (в интерфейсе «опустевший город», в коде ruined): их берут выполнением заданий, без ключа и без испытания.
     const others = await prisma.teamCityState.findMany({ where: { teamId: b.defenderId, capturedAt: { not: null }, NOT: { nodeKey: b.nodeKey } }, select: { nodeKey: true } });
     if (others.length) ops.push(prisma.mapNode.updateMany({ where: { gameId: b.gameId, key: { in: others.map((o) => o.nodeKey) } }, data: { ruined: true, defenseLevel: 0, lockedUntil: null } }));
     ops.push(prisma.teamCityState.updateMany({ where: { teamId: b.defenderId, capturedAt: { not: null } }, data: { capturedAt: null, isCapital: false, secondCapital: false } }));
@@ -485,7 +485,7 @@ export async function warOptions(gameId: string, teamId: string, nodeKey: string
   const studied = Boolean(content && state?.orderSolved && content.tasks.every((_, i) => state!.doneTasks.includes(i)));
   const locked = isLocked(node);
   let reason: string | null = null;
-  if (node.ruined) reason = "Это руины: город берут, решив задания, без ключа и без испытания";
+  if (node.ruined) reason = "Город опустел: его берут, решив задания, без ключа и без испытания";
   else if (!owner) reason = "Город свободен: его берут ключом из конверта, а не испытанием";
   else if (owner.teamId === teamId) reason = "Это ваш город";
   else if (team.status === "defeated") reason = "Ваша команда выбыла из игры";

@@ -244,59 +244,55 @@ model MapHex {
  * Узел — перекрёсток (вершина гекса): развилка, город или старт.
  */
 model MapNode {
-  id             String     @id @default(cuid())
-  gameId         String
-  game           Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  key            String
-  corner         String     @default("N")
-  q              Int
-  r              Int
-  kind           NodeKind
-  bookCode       String?
-  cityType       String?
-  teamIndex      Int?
-  island         String     @default("OT")
+  id           String     @id @default(cuid())
+  gameId       String
+  game         Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  key          String
+  corner       String     @default("N")
+  q            Int
+  r            Int
+  kind         NodeKind
+  bookCode     String?
+  cityType     String?
+  teamIndex    Int?
+  island       String     @default("OT")
   /**
    * Береговой узел: хотя бы один гекс вокруг — море. Береговой город — порт: из него команда может уплыть на другой остров.
    */
-  coastal        Boolean    @default(false)
+  coastal      Boolean    @default(false)
   /**
    * Ключ конверта города (генерируется при старте игры, виден только админу).
    */
-  cityKey        String?
+  cityKey      String?
   /**
    * Шифр города: случайные буквы и цифры, по знаку на район; команда собирает его заданиями. Свой в каждой игре.
    */
-  cityCode       String?
+  cityCode     String?
   /**
    * Адресат конверта этого города (семья, вдова, старица), назначается по кругу из списка игры.
    */
-  recipientId    String?
-  recipient      Recipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  recipientId  String?
+  recipient    Recipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
   /**
    * Уровень защиты города: сколько стихов надо, чтобы его взять (следующая атака ≥ level + 1).
    */
-  defenseLevel   Int        @default(0)
+  defenseLevel Int        @default(0)
   /**
    * Книга исчерпана: ставки считаются суммой стихов по участникам.
    */
-  sumMode        Boolean    @default(false)
+  sumMode      Boolean    @default(false)
   /**
    * Закреплён до этой даты: хранители отбились с максимумом (каждый участник выучил всю книгу). Решение владельца 18.09: навечно — никогда.
    */
-  lockedUntil    DateTime?
+  lockedUntil  DateTime?
   /**
    * Хранители достигли максимума: после закрепления город берётся только осадой делами. Сбрасывается со сменой владельца.
    */
-  maxReachedAt   DateTime?
+  maxReachedAt DateTime?
   /**
-   * Руины: город выбывшей команды. Берётся выполнением заданий, без ключа и без битвы.
+   * Опустевший город (в интерфейсе; до 09.11 — «руины»): город выбывшей команды. Берётся выполнением заданий, без ключа и без битвы.
    */
-  ruined         Boolean    @default(false)
-  /**
-   * Руины с сокровищем (решение владельца 18.09): какая команда первой изучила руины и получила находку — знак шифра соседнего города.
-   */
-  treasureTeamId String?
+  ruined       Boolean    @default(false)
 
   @@unique([gameId, key])
 }
@@ -519,6 +515,7 @@ model Deed {
    * Частота появления: 1 — редко, 2 — обычно, 3 — часто (веса 1 : 3 : 6 при выборе дела).
    */
   /**
+   * /**
    * /** Вероятность появления на новой дороге, % с шагом 20 (решение владельца 04.10): вес при выборе дела; до 60% — не рядом с таким же делом.
    */
   chance      Int            @default(60)
@@ -559,6 +556,7 @@ model Deed {
    * Тайное дело: ссылки и описание сдачи видит только проверяющий администратор, не команда (сюрприз без раскрытия адресата).
    */
   /**
+   * /**
    * /** Выключенное дело (решение владельца 06.10): на новые дороги и в Каменоломню не попадает, уже выданные стороны не трогаются; можно включить обратно.
    */
   disabled    Boolean        @default(false)

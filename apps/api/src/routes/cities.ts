@@ -16,7 +16,6 @@ import type { CityContent } from "../services/cities.js";
 import { err, msg } from "../services/i18n.js";
 import { journal, nick } from "../services/journal.js";
 import { taskEvent } from "../services/behavior.js";
-import { ruinsTreasure } from "../services/treasure.js";
 import { expireVisits, openVisit, visitView } from "../services/visits.js";
 
 const orderBody = z.object({ ids: z.array(z.string().min(1).max(32)).min(2).max(64) });
@@ -315,13 +314,11 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
       await prisma.teamTaskLock.upsert({ where: lockWhere, create: { gameId: id, teamId: c.m.team.id, nodeKey, taskIndex: index, ...data }, update: data });
     }
     publish(id, { type: "cities", teamId: c.m.team.id });
-    // Личное решение уже открытого командой задания: знак известен, в летопись и к руинам не идёт.
+    // Личное решение уже открытого командой задания: знак известен, в летопись не идёт.
     if (correct && teamDone) return { correct: true, fragment: c.node.cityCode?.[index] ?? null, personal: true, reveal: task.reveal ?? null };
     if (correct) {
       scheduleAwards(id);
       journal(id, "task_solved", { teamId: c.m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), n: index + 1, book: c.node.bookCode ?? "" } });
-      // Руины с сокровищем (решение владельца 18.09): первая команда, решившая все задания руин, получает знак шифра соседнего города.
-      if (c.node.ruined && !c.node.treasureTeamId && c.content.tasks.every((_, i) => i === index || c.state.doneTasks.includes(i))) await ruinsTreasure(id, c.m.team.id, c.node.key, c.node.bookCode ?? "");
       return { correct: true, fragment: c.node.cityCode?.[index] ?? null, reveal: task.reveal ?? null };
     }
     return { correct: false, retryAt, wrong: (lock?.wrong ?? 0) + 1 };
@@ -350,7 +347,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (c.state.capturedAt) return reply.code(409).send({ error: "conflict", message: err(request, "Город уже ваш") });
     const allDone = c.content.tasks.every((_, i) => c.state.doneTasks.includes(i));
     if (!allDone) return reply.code(409).send({ error: "conflict", message: err(request, "Сначала решите задания всех районов") });
-    // Ключ конверта — только когда задания решили не меньше доли состава (решение владельца 05.10); руины берутся без ключа и без этого.
+    // Ключ конверта — только когда задания решили не меньше доли состава (решение владельца 05.10); опустевший город берётся без ключа и без этого.
     if (!c.node.ruined) {
       const s = await solversOf(id, c.m.team.id, nodeKey, c.node.bookCode ?? "", c.content.tasks.length, c.rules);
       if (s.solvers < s.needSolvers) return reply.code(409).send({ error: "conflict", message: err(request, "Ключ можно ввести, когда не меньше {pct}% команды решат каждый хотя бы {tasks} заданий города: таких {a} из {b}, нужно {c}", { pct: c.rules.keySolversPct, tasks: s.needTasks, a: s.solvers, b: s.members, c: s.needSolvers }) });
@@ -360,7 +357,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     if (!c.node.ruined && c.state.keyLockedUntil && c.state.keyLockedUntil.getTime() > Date.now()) {
       return reply.code(429).send({ error: "cooldown", message: err(request, "Печать остывает: подождите перед следующей попыткой"), retryAt: c.state.keyLockedUntil.getTime() });
     }
-    // Руины берутся без ключа: достаточно решённых заданий.
+    // Опустевший город берётся без ключа: достаточно решённых заданий.
     if (!c.node.ruined && (!c.node.cityKey || body.key.toUpperCase().replace(/[\s-]/g, "") !== c.node.cityKey)) {
       const wrong = c.state.keyWrong + 1;
       const retryAt = Date.now() + pauseAfter(c.rules, wrong);
@@ -375,7 +372,7 @@ export async function cityRoutes(app: FastifyInstance): Promise<void> {
     await onCityOwned(id, nodeKey, c.m.team.id);
     scheduleAwards(id);
     journal(id, c.node.ruined ? "ruins_taken" : "city_captured", { everyone: true, teamId: c.m.team.id, userId: request.user!.id, vars: { team: c.m.team.name, book: c.node.bookCode ?? "", capital: updated.isCapital ? " (столица)" : "" } });
-    // Город взят ключом от адресата: в тот же день нужен отчёт о визите (решение владельца 22.10). Руины берутся без адресата.
+    // Город взят ключом от адресата: в тот же день нужен отчёт о визите (решение владельца 22.10). Опустевший город берётся без адресата.
     const visit = c.node.ruined ? null : await openVisit(id, c.m.team.id, nodeKey, c.node.bookCode ?? "");
     publish(id, { type: "cities", teamId: c.m.team.id });
     publish(id, { type: "map", teamId: c.m.team.id });

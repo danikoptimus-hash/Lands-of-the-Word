@@ -269,7 +269,7 @@ export function WaxEnvelope(p: EnvelopeProps) {
             </div>
           )}
           {p.ruined ? (
-            <div className="actions"><button type="button" disabled={p.busy} onClick={p.onBreak}><Icon name="city" />{t("Занять руины")}</button></div>
+            <div className="actions"><button type="button" disabled={p.busy} onClick={p.onBreak}><Icon name="city" />{t("Занять город")}</button></div>
           ) : (
             <div className="field">
               <label htmlFor="city-key">{t("Ключ из конверта")}</label>
