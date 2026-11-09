@@ -555,7 +555,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               const status = c?.blocked && c.passage === "PENDING" ? t("ждём прохода") : "";
               // «Проход закрыт» — запрещающий знак справа в подписи вместо слов (решение владельца 04.11).
               const noEntry = Boolean(c?.blocked && c.passage !== "PENDING" && !c?.ruined);
-              // Опустевший город (решение владельца 09.11: «не текстом, а символом») — знак пустого дома справа в подписи; подложка серая.
+              // Опустевший город (решение владельца 09.11: «не текстом, а символом») — контур города пунктиром справа в подписи; подложка серая.
               const empty = Boolean(c?.ruined);
               const fs = fullLabels ? 11 : 9;
               const text = fullLabels ? [book?.nameRu ?? "", progress, status].filter(Boolean).join(" · ") : book?.nameRu ?? "";
