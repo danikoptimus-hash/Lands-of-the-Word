@@ -32,6 +32,14 @@ export function brickRange(k: number, n: number, total: number): { start: number
   return { start: k * n, end: Math.min(total - 1, k * n + n - 1) };
 }
 
+/**
+ * Блоки, которые держит команда в городе: свои (без перешедших другим) и перешедшие ей вместе с городом при обмене
+ * (решение владельца 09.11). `teamId` блока всегда остаётся командой, построившей его: её стихи в статистике и наградах.
+ */
+export const heldBy = (teamId: string): Prisma.WallBlockWhereInput => ({ OR: [{ teamId, holderId: null }, { holderId: teamId }] });
+/** Блок считается и без построившего в команде: груз корабля (04.11) и блок, перешедший с городом (09.11). */
+const teamBlock = (r: { cargo: boolean; holderId: string | null }): boolean => r.cargo || r.holderId !== null;
+
 /** Участники команды сейчас: блоки ушедших не считаются (как и их стихи из прошлых испытаний). */
 async function memberIds(teamId: string): Promise<Set<string>> {
   return new Set((await prisma.membership.findMany({ where: { teamId }, select: { userId: true } })).map((m) => m.userId));
@@ -40,13 +48,13 @@ async function memberIds(teamId: string): Promise<Set<string>> {
 /** Толщина стены команды в городе: стихи принятых и не сгоревших блоков нынешних участников и число блоков; блок воина — два (02.11). */
 export async function wallOf(teamId: string, nodeKey: string): Promise<{ verses: number; blocks: number; pending: number }> {
   const [rows, members] = await Promise.all([
-    prisma.wallBlock.findMany({ where: { teamId, nodeKey, status: { in: ["APPROVED", "SUBMITTED"] }, usedAt: null }, select: { userId: true, startIdx: true, endIdx: true, weight: true, status: true, missing: true, repairOfId: true, cargo: true } }),
+    prisma.wallBlock.findMany({ where: { ...heldBy(teamId), nodeKey, status: { in: ["APPROVED", "SUBMITTED"] }, usedAt: null }, select: { userId: true, startIdx: true, endIdx: true, weight: true, status: true, missing: true, repairOfId: true, cargo: true, holderId: true } }),
     memberIds(teamId),
   ]);
   let verses = 0, blocks = 0, pending = 0;
   for (const r of rows) {
-    // Блок из груза корабля (04.11) — командный: не зависит от того, кто его положил.
-    if (!r.cargo && !members.has(r.userId)) continue;
+    // Блок из груза корабля (04.11) и блок, перешедший с городом (09.11), — командные: не зависят от того, кто их положил.
+    if (!teamBlock(r) && !members.has(r.userId)) continue;
     if (r.status === "SUBMITTED") { pending += r.weight; continue; }
     if (r.repairOfId) continue; // принятая починка уже вернула стихи исходному блоку
     blocks += r.weight;
@@ -58,14 +66,33 @@ export async function wallOf(teamId: string, nodeKey: string): Promise<{ verses:
 /** Есть ли стена у хранителей каждого из городов (для карты: без толщины). */
 export async function wallsAt(gameId: string, owners: Array<{ nodeKey: string; teamId: string }>): Promise<Set<string>> {
   if (owners.length === 0) return new Set();
-  const rows = await prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED", usedAt: null, repairOfId: null, nodeKey: { in: owners.map((o) => o.nodeKey) } }, select: { nodeKey: true, teamId: true, userId: true, cargo: true } });
+  const rows = await prisma.wallBlock.findMany({ where: { gameId, status: "APPROVED", usedAt: null, repairOfId: null, nodeKey: { in: owners.map((o) => o.nodeKey) } }, select: { nodeKey: true, teamId: true, userId: true, cargo: true, holderId: true } });
   if (rows.length === 0) return new Set();
   const members = await prisma.membership.findMany({ where: { teamId: { in: [...new Set(rows.map((r) => r.teamId))] } }, select: { teamId: true, userId: true } });
   const inTeam = new Set(members.map((m) => `${m.teamId}|${m.userId}`));
   const ownerOf = new Map(owners.map((o) => [o.nodeKey, o.teamId]));
   const out = new Set<string>();
-  for (const r of rows) if (ownerOf.get(r.nodeKey) === r.teamId && (r.cargo || inTeam.has(`${r.teamId}|${r.userId}`))) out.add(r.nodeKey);
+  for (const r of rows) if (ownerOf.get(r.nodeKey) === (r.holderId ?? r.teamId) && (teamBlock(r) || inTeam.has(`${r.teamId}|${r.userId}`))) out.add(r.nodeKey);
   return out;
+}
+
+/**
+ * Стена при обмене городов (решение владельца 09.11: «перед выставлением города посол решает, сгорит ли стена при обмене
+ * или перейдёт к другой команде вместе с городом»). `pass` — блоки (принятые и на проверке) переходят новой команде
+ * (`holderId`), построившая команда остаётся в `teamId`, и её стихи остаются в статистике и наградах. Иначе стена сгорает
+ * навсегда: блоки помечены сгоревшими (`usedAt`, как после ответа), стихи у участников остаются сданными; если город потом
+ * вернётся, стена не вернётся. Возвращает толщину стены до обмена (для писем).
+ */
+export async function moveWallWithCity(nodeKey: string, fromId: string, toId: string, pass: boolean): Promise<{ blocks: number; verses: number }> {
+  const before = await wallOf(fromId, nodeKey);
+  const rows = await prisma.wallBlock.findMany({ where: { ...heldBy(fromId), nodeKey, status: { in: ["APPROVED", "SUBMITTED"] }, usedAt: null, repairOfId: null }, select: { id: true, startIdx: true, endIdx: true } });
+  if (rows.length === 0) return before;
+  if (pass) await prisma.wallBlock.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { holderId: toId } });
+  else {
+    const now = new Date();
+    await prisma.$transaction(rows.map((r) => prisma.wallBlock.update({ where: { id: r.id }, data: { usedAt: now, missing: r.endIdx - r.startIdx + 1 } })));
+  }
+  return before;
 }
 
 /** Стихи книги, которые участник уже сдал блоками стены (кроме возвращённых): в испытании второй раз не засчитываются. */
@@ -90,7 +117,7 @@ export async function applyWall(b: BattleWithEntries): Promise<{ battle: BattleW
   let entries = b.entries;
   if (sumVerses(entries, "DEFENSE", true) >= need) return none;
   const [blocks, members] = await Promise.all([
-    prisma.wallBlock.findMany({ where: { teamId: b.defenderId, nodeKey: b.nodeKey, status: "APPROVED", usedAt: null, repairOfId: null }, orderBy: { createdAt: "asc" } }),
+    prisma.wallBlock.findMany({ where: { ...heldBy(b.defenderId), nodeKey: b.nodeKey, status: "APPROVED", usedAt: null, repairOfId: null }, orderBy: { createdAt: "asc" } }),
     memberIds(b.defenderId),
   ]);
   const now = new Date();
@@ -98,7 +125,7 @@ export async function applyWall(b: BattleWithEntries): Promise<{ battle: BattleW
   const updates: Prisma.PrismaPromise<unknown>[] = [];
   let burnt = 0, cracked = 0, added = 0;
   for (const w of blocks) {
-    if (!w.cargo && !members.has(w.userId)) continue;
+    if (!teamBlock(w) && !members.has(w.userId)) continue;
     const have = sumVerses(entries, "DEFENSE", true);
     if (have >= need) break;
     const intactEnd = w.endIdx - w.missing, avail = intactEnd - w.startIdx + 1;
