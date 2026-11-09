@@ -1,15 +1,16 @@
 import { useId } from "react";
 import { t } from "../lib/i18n";
+import { Help } from "./Help";
 
 /**
  * Значки соцсетей внизу главной (решения владельца 09.11): плитки в стиле игры — та же полупрозрачная пергаментная
- * подложка, что у кнопок главной, логотип бронзой; узнаваемые формы — самолётик Telegram и камера Instagram.
- * Порядок: два канала Telegram рядом (канал игры, «В начале было Слово»), правее — Instagram игры.
+ * подложка, что у кнопок главной, логотип бронзой, высота плитки равна высоте кнопок выше. Подписи спрятаны в «?»
+ * в уголке плитки. Порядок: два канала Telegram рядом (канал игры, «В начале было Слово»), правее — Instagram игры.
  */
 export const SOCIAL = [
-  { key: "tg-game", href: "https://t.me/landsoftheword", kind: "telegram" as const, label: () => t("Канал игры") },
-  { key: "tg-word", href: "https://t.me/the_Word_was_God", kind: "telegram" as const, label: () => t("В начале было Слово") },
-  { key: "ig", href: "https://www.instagram.com/zemli_slova", kind: "instagram" as const, label: () => t("Instagram игры") },
+  { key: "tg-game", href: "https://t.me/landsoftheword", kind: "telegram" as const, label: () => t("Канал игры"), about: () => t("Telegram: официальный канал игры «Земли Слова» — новости, обновления и итоги сезонов.") },
+  { key: "tg-word", href: "https://t.me/the_Word_was_God", kind: "telegram" as const, label: () => t("В начале было Слово"), about: () => t("Telegram: канал «В начале было Слово» — проповеди и материалы для изучения Библии.") },
+  { key: "ig", href: "https://www.instagram.com/zemli_slova", kind: "instagram" as const, label: () => t("Instagram игры"), about: () => t("Instagram: «Земли Слова» глазами участника.") },
 ];
 
 /** Самолётик Telegram цветом текста (currentColor): вырез из фирменного знака, увеличенный на всю плитку. */
@@ -44,10 +45,12 @@ export function SocialLinks() {
   return (
     <nav className="home-social" aria-label={t("Мы в соцсетях")}>
       {SOCIAL.map((s) => (
-        <a key={s.key} href={s.href} target="_blank" rel="noopener noreferrer" title={s.label()}>
-          <span className="social-tile">{s.kind === "telegram" ? <TelegramMark /> : <InstagramMark />}</span>
-          <span className="cap">{s.label()}</span>
-        </a>
+        <span key={s.key} className="social-item">
+          <a className="social-tile" href={s.href} target="_blank" rel="noopener noreferrer" aria-label={s.label()} title={s.label()}>
+            {s.kind === "telegram" ? <TelegramMark size={24} /> : <InstagramMark size={22} />}
+          </a>
+          <Help className="social-help" label={s.label()}>{s.about()}</Help>
+        </span>
       ))}
     </nav>
   );

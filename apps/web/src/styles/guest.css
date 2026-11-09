@@ -86,12 +86,12 @@
 .join-row .join-paste { flex: none; width: var(--touch); min-height: var(--touch); padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 .home-foot { display: flex; justify-content: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-4); }
 /* Соцсети под всеми кнопками главной (решения владельца 09.11): плитки в стиле игры — та же пергаментная подложка,
-   что у кнопок главной, логотип бронзой; подпись снизу. */
-.home-social { display: flex; justify-content: center; gap: var(--sp-4); margin: var(--sp-5) 0 var(--sp-3); }
-.home-social a { display: flex; flex-direction: column; align-items: center; gap: 8px; width: 100px; text-decoration: none; color: var(--bronze-ink); font-size: 13px; line-height: 1.2; text-align: center; }
-.home-social .social-tile { width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; color: var(--bronze); background: rgba(255,250,236,.46); border: 1px solid rgba(255,250,236,.7); border-radius: var(--r-md); box-shadow: 0 6px 20px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(14px) saturate(1.05); backdrop-filter: blur(14px) saturate(1.05); transition: transform .15s ease, background .15s ease, box-shadow .15s ease; }
-.home-social a:hover .social-tile, .home-social a:focus-visible .social-tile { transform: translateY(-2px); background: rgba(255,250,236,.6); border-color: rgba(255,250,236,.85); box-shadow: 0 8px 24px rgba(59,36,21,.14); color: var(--bronze-ink); }
-.home-social a:focus-visible { outline: none; }
-.home-social a:focus-visible .cap { text-decoration: underline; }
-.home-social .cap { background: rgba(255,250,236,.55); border-radius: 6px; padding: 2px 6px; }
+   что у кнопок главной, логотип бронзой; квадрат высотой с кнопки выше; подпись — в «?» в уголке плитки. */
+.home-social { display: flex; justify-content: center; gap: var(--sp-3); margin-top: var(--sp-3); }
+.home-social .social-item { position: relative; display: inline-flex; }
+.home-social .social-tile { width: var(--social-h, var(--control-h)); height: var(--social-h, var(--control-h)); display: inline-flex; align-items: center; justify-content: center; color: var(--bronze); background: rgba(255,250,236,.46); border: 1px solid rgba(255,250,236,.7); border-radius: var(--r-md); box-shadow: 0 6px 20px rgba(59,36,21,.10); -webkit-backdrop-filter: blur(14px) saturate(1.05); backdrop-filter: blur(14px) saturate(1.05); transition: background .15s ease, box-shadow .15s ease, color .15s ease; }
+.home-social .social-tile:hover, .home-social .social-tile:focus-visible { background: rgba(255,250,236,.6); border-color: rgba(255,250,236,.85); box-shadow: 0 8px 24px rgba(59,36,21,.14); color: var(--bronze-ink); }
+.home-social .social-help { position: absolute; top: -7px; right: -7px; }
+.home-social .social-help .help-btn { width: 17px; height: 17px; background: rgba(255,250,236,.9); border-radius: 50%; box-shadow: 0 1px 4px rgba(59,36,21,.18); }
+.home-social .social-help .help-btn .i { width: 15px; height: 15px; }
 
