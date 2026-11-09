@@ -61,6 +61,14 @@ afterAll(async () => {
 
 let battleId = "";
 
+
+/** Записи летописи пишутся в фоне (journal() не ждёт create): ждём нужное число до секунды, иначе на медленной машине CI тест сбоит гонкой. */
+async function journalCount(where: Record<string, unknown>, want: number): Promise<number> {
+  let n = 0;
+  for (let i = 0; i < 20; i++) { n = await prisma.journal.count({ where }); if (n >= want) break; await new Promise((r) => setTimeout(r, 50)); }
+  return n;
+}
+
 describe("битва за город", () => {
   it("владелец и не изучившие город войну объявить не могут; минимальная ставка 10", async () => {
     const own = await get(`/api/games/${gameId}/my-city/${rutKey}/war`, p1Cookie);
@@ -162,7 +170,7 @@ describe("битва за город", () => {
     // Только теперь хранители видят испытание (решение владельца 31.10), а новость о начале атаки идёт всем.
     expect(((await get(`/api/games/${gameId}/my-battles`, p1Cookie)).json().battles as Array<{ id: string; status: string }>).find((x) => x.id === battleId)?.status).toBe("DEFENSE");
     expect(((await get(`/api/games/${gameId}/my-map`, p1Cookie)).json().cities as Array<{ nodeKey: string; battle: string | null }>).find((c) => c.nodeKey === rutKey)?.battle).toBe("DEFENSE");
-    expect(await prisma.journal.count({ where: { gameId, kind: "trial_defense", everyone: true } })).toBe(1);
+    expect(await journalCount({ gameId, kind: "trial_defense", everyone: true }, 1)).toBe(1);
     // T претендентов — по часам от старта до отправки (01.11, вечер), пауза только шторм; хранителям — T дневного времени:
     // ночью и в шторм их таймер стоит (01.11, ночь).
     const tz = rulesOf((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).settings).timeZone;
