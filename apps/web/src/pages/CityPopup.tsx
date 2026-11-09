@@ -212,7 +212,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
   // адресат и конверт спят до 7:00. С 0:00 до 7:00 город спит целиком.
   const tasksOpen = city?.daytime?.tasksOpen ?? !night;
   const sleeping = night && !tasksOpen;
-  const statusLine = !city ? "" : city.state.capturedAt ? t("Ваш город") : city.owner ? (city.owner.isCapital ? t("Столица команды «{team}»", { team: city.owner.name }) : t("Город команды «{team}»", { team: city.owner.name })) : city.node.ruined ? t("Город в руинах") : t("Свободный город");
+  const statusLine = !city ? "" : city.state.capturedAt ? t("Ваш город") : city.owner ? (city.owner.isCapital ? t("Столица команды «{team}»", { team: city.owner.name }) : t("Город команды «{team}»", { team: city.owner.name })) : city.node.ruined ? t("Опустевший город") : t("Свободный город");
 
   const head = (
     <div className="city-head" style={{ ["--city-img" as string]: `url(${IMG.city(city?.node.cityType)})` }}>
@@ -355,7 +355,7 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
           )}
           {allDone && !night && (enoughSolvers || city.node.ruined || Boolean(city.state.capturedAt) || foreign) && (
             <div className="capture">
-              {city.node.ruined && !city.owner && !city.state.capturedAt && <div className="note warn"><Icon name="info" /><span>{t("Город в руинах: его можно занять без конверта.")}</span></div>}
+              {city.node.ruined && !city.owner && !city.state.capturedAt && <div className="note warn"><Icon name="info" /><span>{t("Город опустел: его можно занять без конверта.")}</span></div>}
               <WaxEnvelope fragments={city.content.fragments} cipher={city.content.fragments.map((f) => f ?? "·").join("")}
                 recipientText={(city.recipient ? t("Кому: «{label}» ({kind}). Назовите шифр — получите конверт.", { label: city.recipient.label, kind: kindLabel(city.recipient.kind) }) : t("Назовите шифр тому, к кому вас направили, — получите конверт.")) + (city.state.capturedAt ? "" : " " + t("После визита капитан в тот же день сдаёт отчёт: кто ездил, что сделали, фото."))}
                 codeRule={city.content.codeRule} keyValue={key} onKey={setKey} onBreak={() => void capture()} busy={busy} cooldown={cooldown} ruined={city.node.ruined && !city.owner} result={capResult}

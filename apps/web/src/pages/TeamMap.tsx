@@ -552,14 +552,16 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             if (n.kind === "CITY") {
               const c = cityByKey.get(n.key);
               const progress = c && c.total > 0 && !c.captured ? `${c.done}/${c.total}` : null;
-              const status = c?.ruined ? t("руины") : c?.blocked && c.passage === "PENDING" ? t("ждём прохода") : "";
+              const status = c?.blocked && c.passage === "PENDING" ? t("ждём прохода") : "";
               // «Проход закрыт» — запрещающий знак справа в подписи вместо слов (решение владельца 04.11).
               const noEntry = Boolean(c?.blocked && c.passage !== "PENDING" && !c?.ruined);
+              // Опустевший город (решение владельца 09.11: «не текстом, а символом») — знак пустого дома справа в подписи; подложка серая.
+              const empty = Boolean(c?.ruined);
               const fs = fullLabels ? 11 : 9;
               const text = fullLabels ? [book?.nameRu ?? "", progress, status].filter(Boolean).join(" · ") : book?.nameRu ?? "";
               const iconW = c?.isCapital ? fs + 4 : 0;
               // Городская стена (решение владельца 01.11): значок у подписи виден всем, толщину знают только хранители.
-              const wallW = (c?.wall ? fs + 4 : 0) + (noEntry ? fs + 5 : 0);
+              const wallW = (c?.wall ? fs + 4 : 0) + (noEntry ? fs + 5 : 0) + (empty ? fs + 4 : 0);
               const w = textWidth(text, fs) + iconW + wallW + 14, h = fs + 9;
               // Подпись стоит под картинкой города (сдвиг в единицах карты), а масштабируется через --inv на каждый кадр.
               return (
@@ -573,6 +575,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
                   <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
                   {c?.isCapital && <use href="#m-crown" x={-w / 2 + 6} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
                   {c?.wall && <use href="#m-wall" x={w / 2 - fs - 5 - (noEntry ? fs + 5 : 0)} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
+                  {empty && <use href="#m-empty" x={w / 2 - fs - 5} y={-(fs + 1) / 2} width={fs + 1} height={fs + 1} />}
                   {noEntry && <g className="no-entry" transform={`translate(${w / 2 - (fs + 2) / 2 - 5}, 0)`}><circle r={(fs + 2) / 2 - 0.8} /><rect x={-(fs + 2) / 2 + 2.6} y={-1.2} width={fs + 2 - 5.2} height={2.4} rx={0.6} /></g>}
                   <text x={(iconW - wallW) / 2} textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{text}</text>
                 </g>
