@@ -10,6 +10,7 @@ import { bookWords } from "../services/bookWords.js";
 import { notifyTeam } from "../services/notify.js";
 import { err, msg } from "../services/i18n.js";
 import { journal } from "../services/journal.js";
+import { moveWallWithCity, wallOf } from "../services/wall.js";
 import { BOOKS } from "@lotw/domain";
 
 /**
@@ -17,6 +18,9 @@ import { BOOKS } from "@lotw/domain";
  * (у города показано число слов в его книге), посол другой команды предлагает взамен свой город; первый либо меняется,
  * либо отклоняет встречный город и ждёт другого предложения; если переговоры зашли в тупик, любая сторона отменяет
  * сделку. Столицу и захваченную чужую столицу обменять нельзя; город в осаде или под вызовом — тоже.
+ * Стена (решение владельца 09.11): выставляя город (и предлагая встречный), посол отмечает, переходит ли стена вместе
+ * с городом. Если да — вторая команда видит толщину стены (блоки и стихи) и получает её с городом; если нет — для неё
+ * это город без стены, а стена при обмене сгорает навсегда (стихи в статистике и наградах остаются).
  */
 const BOOK_NAME = new Map(BOOKS.map((b) => [b.code, b.nameRu]));
 const teamSelect = { select: { id: true, name: true, color: true, avatarId: true } } as const;
@@ -44,10 +48,24 @@ async function tradable(gameId: string, teamId: string, nodeKey: string): Promis
   return null;
 }
 
-async function tradeView(gameId: string, teamId: string, t: { id: string; fromId: string; toId: string; offerKey: string; counterKey: string | null; declinedKeys: string[]; message: string; status: string; createdAt: Date; updatedAt: Date; closedAt: Date | null; closedById: string | null; from: { id: string; name: string; color: string }; to: { id: string; name: string; color: string } }) {
+/**
+ * Стена города в сделке глазами команды `teamId`: переходящая стена видна обеим сторонам (блоки и стихи), не переходящая —
+ * только хозяину города с пометкой «сгорит»; второй команде — ничего (город без стены). В закрытой сделке стены не показываем.
+ */
+async function wallView(ownerId: string, nodeKey: string, pass: boolean, viewerId: string, active: boolean): Promise<{ pass: boolean; blocks: number; verses: number } | null> {
+  if (!active || (!pass && ownerId !== viewerId)) return null;
+  const w = await wallOf(ownerId, nodeKey);
+  if (w.blocks === 0 && w.pending === 0) return null;
+  return { pass, blocks: w.blocks, verses: w.verses };
+}
+
+async function tradeView(gameId: string, teamId: string, t: { id: string; fromId: string; toId: string; offerKey: string; counterKey: string | null; declinedKeys: string[]; message: string; offerWall: boolean; counterWall: boolean; status: string; createdAt: Date; updatedAt: Date; closedAt: Date | null; closedById: string | null; from: { id: string; name: string; color: string }; to: { id: string; name: string; color: string } }) {
+  const active = t.status === "OPEN" || t.status === "COUNTERED";
   return {
     id: t.id, status: t.status, from: t.from, to: t.to, mine: t.fromId === teamId, message: t.message,
     offer: await cityRef(gameId, t.offerKey), counter: t.counterKey ? await cityRef(gameId, t.counterKey) : null,
+    offerWall: await wallView(t.fromId, t.offerKey, t.offerWall, teamId, active),
+    counterWall: t.counterKey ? await wallView(t.toId, t.counterKey, t.counterWall, teamId, active) : null,
     declined: await Promise.all(t.declinedKeys.map((k) => cityRef(gameId, k))),
     createdAt: t.createdAt, updatedAt: t.updatedAt, closedAt: t.closedAt, closedByMe: t.closedById === teamId,
   };
@@ -79,7 +97,8 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
     const active = rows.filter((r) => r.status === "OPEN" || r.status === "COUNTERED"), closed = rows.filter((r) => r.status === "DONE" || r.status === "CANCELLED").slice(0, 10);
     const owned = await prisma.teamCityState.findMany({ where: { teamId: m.team.id, capturedAt: { not: null } }, select: { nodeKey: true, isCapital: true, secondCapital: true } });
     const myCities = [];
-    for (const c of owned) myCities.push({ ...(await cityRef(id, c.nodeKey)), capital: c.isCapital || c.secondCapital, reason: await tradable(id, m.team.id, c.nodeKey) });
+    // Стена своего города (09.11): послу — чтобы решить, переходит ли она с городом.
+    for (const c of owned) myCities.push({ ...(await cityRef(id, c.nodeKey)), capital: c.isCapital || c.secondCapital, reason: await tradable(id, m.team.id, c.nodeKey), wall: await wallOf(m.team.id, c.nodeKey) });
     const teams = await prisma.team.findMany({ where: { gameId: id, NOT: { id: m.team.id }, status: { not: "defeated" } }, select: { id: true, name: true, color: true, avatarId: true }, orderBy: { index: "asc" } });
     return { canTrade: m.gameRole === "AMBASSADOR", teams, myCities, trades: await Promise.all([...active, ...closed].map((t) => tradeView(id, m.team.id, t))) };
   });
@@ -89,18 +108,19 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireAmbassador(request, reply, id);
     if (!m) return;
-    const body = z.object({ toTeamId: z.string().min(1), offerKey: z.string().min(1), message: z.string().trim().max(500).default("") }).parse(request.body ?? {});
+    const body = z.object({ toTeamId: z.string().min(1), offerKey: z.string().min(1), message: z.string().trim().max(500).default(""), withWall: z.boolean().default(false) }).parse(request.body ?? {});
     const other = await prisma.team.findFirst({ where: { id: body.toTeamId, gameId: id, NOT: { id: m.team.id } }, select: { id: true, name: true, status: true } });
     if (!other || other.status === "defeated") return reply.code(404).send({ error: "not_found", message: err(request, "Команда не найдена") });
     const why = await tradable(id, m.team.id, body.offerKey);
     if (why) return reply.code(409).send({ error: "conflict", message: err(request, why) });
     const dup = await prisma.cityTrade.findFirst({ where: { gameId: id, status: { in: [...ACTIVE] }, OR: [{ fromId: m.team.id, toId: other.id }, { fromId: other.id, toId: m.team.id }] } });
     if (dup) return reply.code(409).send({ error: "conflict", message: err(request, "С этой командой уже идёт сделка: закончите или отмените её") });
-    const t = await prisma.cityTrade.create({ data: { gameId: id, fromId: m.team.id, toId: other.id, offerKey: body.offerKey, message: body.message }, include: { from: teamSelect, to: teamSelect } });
+    const t = await prisma.cityTrade.create({ data: { gameId: id, fromId: m.team.id, toId: other.id, offerKey: body.offerKey, message: body.message, offerWall: body.withWall }, include: { from: teamSelect, to: teamSelect } });
     const offer = await cityRef(id, body.offerKey);
+    const wall = body.withWall ? await wallOf(m.team.id, body.offerKey) : null;
     journal(id, "trade_proposed", { teamId: m.team.id, vars: { team: m.team.name, other: other.name, book: offer.bookCode } });
     journal(id, "trade_proposed", { teamId: other.id, vars: { team: m.team.name, other: other.name, book: offer.bookCode } });
-    notifyTeam(id, other.id, "предложение обмена городами", (locale) => msg(locale, "Посол команды «{team}» предлагает обмен: отдаёт город {book} ({words} слов в книге) и ждёт, какой город вы предложите взамен.{message}", { team: m.team.name, book: offer.bookName, words: offer.words, message: body.message ? msg(locale, " Сообщение: «{m}»", { m: body.message }) : "" }));
+    notifyTeam(id, other.id, "предложение обмена городами", (locale) => msg(locale, "Посол команды «{team}» предлагает обмен: отдаёт город {book} ({words} слов в книге) и ждёт, какой город вы предложите взамен.{wall}{message}", { team: m.team.name, book: offer.bookName, words: offer.words, wall: wall && wall.blocks > 0 ? msg(locale, " Вместе с городом переходит стена: {n} блоков, {k} стихов.", { n: wall.blocks, k: wall.verses }) : "", message: body.message ? msg(locale, " Сообщение: «{m}»", { m: body.message }) : "" }));
     publish(id, { type: "trades", teamId: other.id });
     publish(id, { type: "trades", teamId: m.team.id });
     return reply.code(201).send({ trade: await tradeView(id, m.team.id, t) });
@@ -115,15 +135,16 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
     if (!t) return;
     if (t.toId !== m.team.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Встречный город предлагает посол второй команды") });
     if (t.status !== "OPEN") return reply.code(409).send({ error: "conflict", message: err(request, t.status === "COUNTERED" ? "Ваше предложение уже ждёт ответа" : "Сделка закрыта") });
-    const body = z.object({ nodeKey: z.string().min(1) }).parse(request.body ?? {});
+    const body = z.object({ nodeKey: z.string().min(1), withWall: z.boolean().default(false) }).parse(request.body ?? {});
     const why = await tradable(id, m.team.id, body.nodeKey);
     if (why) return reply.code(409).send({ error: "conflict", message: err(request, why) });
     if (t.declinedKeys.includes(body.nodeKey)) return reply.code(409).send({ error: "conflict", message: err(request, "Этот город уже отклонён: предложите другой") });
-    await prisma.cityTrade.update({ where: { id: t.id }, data: { counterKey: body.nodeKey, status: "COUNTERED", updatedAt: new Date() } });
+    await prisma.cityTrade.update({ where: { id: t.id }, data: { counterKey: body.nodeKey, counterWall: body.withWall, status: "COUNTERED", updatedAt: new Date() } });
     const counter = await cityRef(id, body.nodeKey);
+    const wall = body.withWall ? await wallOf(m.team.id, body.nodeKey) : null;
     journal(id, "trade_countered", { teamId: t.fromId, vars: { team: t.from.name, other: m.team.name, book: counter.bookCode } });
     journal(id, "trade_countered", { teamId: m.team.id, vars: { team: t.from.name, other: m.team.name, book: counter.bookCode } });
-    notifyTeam(id, t.fromId, "встречное предложение обмена", "Команда «{team}» предлагает взамен город {book} ({words} слов в книге). Посол может обменяться или отклонить.", { team: m.team.name, book: counter.bookName, words: counter.words });
+    notifyTeam(id, t.fromId, "встречное предложение обмена", (locale) => msg(locale, "Команда «{team}» предлагает взамен город {book} ({words} слов в книге).{wall} Посол может обменяться или отклонить.", { team: m.team.name, book: counter.bookName, words: counter.words, wall: wall && wall.blocks > 0 ? msg(locale, " Вместе с городом переходит стена: {n} блоков, {k} стихов.", { n: wall.blocks, k: wall.verses }) : "" }));
     publish(id, { type: "trades", teamId: t.fromId });
     publish(id, { type: "trades", teamId: m.team.id });
     return { ok: true };
@@ -145,6 +166,9 @@ export async function tradeRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(409).send({ error: "conflict", message: err(request, "Сделка отменена: {why}", { why: err(request, whyMine ?? whyTheirs ?? "") }) });
     }
     const offer = await cityRef(id, t.offerKey), counter = await cityRef(id, t.counterKey);
+    // Стена (09.11): переходит новой команде или сгорает — по отметке посла каждой стороны.
+    await moveWallWithCity(t.offerKey, t.fromId, t.toId, t.offerWall);
+    await moveWallWithCity(t.counterKey, t.toId, t.fromId, t.counterWall);
     await transferCity(id, t.offerKey, t.fromId, t.toId, 0);
     await transferCity(id, t.counterKey, t.toId, t.fromId, 0);
     await prisma.cityTrade.update({ where: { id: t.id }, data: { status: "DONE", closedAt: new Date(), closedById: m.team.id, updatedAt: new Date() } });

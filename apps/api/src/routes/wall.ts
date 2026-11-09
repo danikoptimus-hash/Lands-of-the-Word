@@ -11,7 +11,7 @@ import { learnedVerses } from "./battles.js";
 import { notifyAdmins, notifyUser } from "../services/notify.js";
 import { journal, nick } from "../services/journal.js";
 import { gameRules } from "../services/battles.js";
-import { brickRange, brickRef, cargoRange, CARGO_NOTE, layApprovedBlockIntoDefense, wallBook, wallOf } from "../services/wall.js";
+import { brickRange, brickRef, cargoRange, CARGO_NOTE, heldBy, layApprovedBlockIntoDefense, wallBook, wallOf } from "../services/wall.js";
 import { BOOKS } from "@lotw/domain";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
@@ -56,7 +56,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     if (!book) return reply.code(409).send({ error: "conflict", message: err(request, "Текст этой книги ещё не загружен") });
     const userId = request.user!.id;
     const [rows, mineEntries, defense, members] = await Promise.all([
-      prisma.wallBlock.findMany({ where: { teamId: m.team.id, nodeKey }, orderBy: { createdAt: "asc" } }),
+      prisma.wallBlock.findMany({ where: { ...heldBy(m.team.id), nodeKey }, orderBy: { createdAt: "asc" } }),
       prisma.battleEntry.findMany({ where: { userId, status: { not: "REJECTED" }, battle: { gameId: id, bookCode: city.bookCode } }, select: { startIdx: true, endIdx: true } }),
       prisma.battle.findFirst({ where: { gameId: id, nodeKey, defenderId: m.team.id, status: "DEFENSE" }, select: { id: true } }),
       prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true, role: true } }),
@@ -93,8 +93,8 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
       Object.assign(b, { takers, planned });
     }
     const names = await nicknames([...new Set([...rows.map((r) => r.userId), ...teamMembers])]);
-    // Блок из груза корабля (решение владельца 04.11) — командный: виден и после ухода положившего.
-    const live = rows.filter((r) => (r.cargo || inTeam.has(r.userId)) && r.status !== "REJECTED" && !r.repairOfId);
+    // Блок из груза корабля (решение владельца 04.11) и блок, перешедший с городом при обмене (09.11), — командные: видны и без положившего в команде.
+    const live = rows.filter((r) => (r.cargo || r.holderId || inTeam.has(r.userId)) && r.status !== "REJECTED" && !r.repairOfId);
     const wall = await wallOf(m.team.id, nodeKey);
     const teamRow = await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { cargoBlocks: true } });
     const why = defense ? "Идёт ответ хранителей: стена строится в мирное время" : bricks.every((b) => b.state !== "free" && b.state !== "cracked") ? "Все блоки книги вы уже сдали" : null;
@@ -107,7 +107,7 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
       me: userId, canSubmitFor: isLeader(m) || m.gameRole === "CHRONICLER",
       canBuild: !why, why: why ? err(request, why) : null,
       bricks,
-      blocks: live.map((r) => ({ id: r.id, k: r.cargo ? -1 : Math.floor(r.startIdx / n), ref: r.cargo ? "груз корабля" : brickRef(book, r.startIdx, r.endIdx), cargo: r.cargo, verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: names.get(r.userId) ?? "?", status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, missing: r.missing, repairPending: repairPending.has(r.id), adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),
+      blocks: live.map((r) => ({ id: r.id, k: r.cargo ? -1 : Math.floor(r.startIdx / n), ref: r.cargo ? "груз корабля" : brickRef(book, r.startIdx, r.endIdx), cargo: r.cargo, verses: r.endIdx - r.startIdx + 1, weight: r.weight, userId: r.userId, nickname: r.holderId ? "" : names.get(r.userId) ?? "?", gifted: r.holderId !== null, status: r.status, used: r.usedAt !== null, usedAt: r.usedAt, missing: r.missing, repairPending: repairPending.has(r.id), adminComment: r.adminComment, links: r.links, createdAt: r.createdAt, mine: r.userId === userId })),
       returned: rows.filter((r) => r.userId === userId && r.status === "REJECTED").slice(-3).map((r) => ({ id: r.id, ref: brickRef(book, r.startIdx, r.endIdx), repair: Boolean(r.repairOfId), adminComment: r.adminComment, decidedAt: r.decidedAt })),
     };
   });
@@ -283,10 +283,12 @@ export async function wallRoutes(app: FastifyInstance): Promise<void> {
     const { book } = await wallBook(id, row.bookCode);
     const ref = book ? brickRef(book, row.startIdx, row.endIdx) : "";
     if (body.approve) {
-      const wall = await wallOf(row.teamId, row.nodeKey);
+      // Блок, перешедший с городом при обмене (09.11), держит другая команда: стена и ответ — её, запись летописи — построившим.
+      const holder = row.holderId ?? row.teamId;
+      const wall = await wallOf(holder, row.nodeKey);
       if (orig) journal(id, "wall_block_repaired", { teamId: row.teamId, userId: row.userId, vars: { book: row.bookCode, ref: book ? brickRef(book, orig.startIdx, orig.endIdx) : ref, n: wall.verses } });
       else journal(id, "wall_block_approved", { teamId: row.teamId, userId: row.userId, vars: { book: row.bookCode, ref, n: wall.verses } });
-      await layApprovedBlockIntoDefense(id, row.teamId, row.nodeKey);
+      await layApprovedBlockIntoDefense(id, holder, row.nodeKey);
       // Стена видна на карте всем командам, дошедшим до города: событие без команды.
       publish(id, { type: "cities" });
     } else {

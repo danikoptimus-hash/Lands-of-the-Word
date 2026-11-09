@@ -688,6 +688,13 @@
 .trade-sides .label { display: block; font-size: var(--fs-xs); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 .trade-city { display: inline-flex; align-items: center; gap: 4px; }
 .trade-city .i { width: var(--icon-sm); height: var(--icon-sm); }
+/* Стена города в сделке (09.11): под строкой города; не переходящая — приглушённо, видна только хозяину. */
+.trade-wall { display: flex; align-items: center; gap: 4px; margin-top: 2px; font-size: var(--fs-sm); color: var(--text); }
+.trade-wall .i { width: var(--icon-sm); height: var(--icon-sm); flex: none; }
+.trade-wall.burn { color: var(--muted); }
+.trade-wall-check { margin-top: var(--sp-2); }
+.trade-wall-check .with-help { flex-wrap: nowrap; margin-top: 0; }
+.trade-wall-check .with-help > label.check { flex: 1 1 auto; min-width: 0; }
 .trade-new { margin-top: var(--sp-2); }
 @media (max-width: 420px) { .trade-sides { grid-template-columns: 1fr; } }
 
