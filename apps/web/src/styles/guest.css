@@ -85,4 +85,12 @@
 .join-row input { flex: 1 1 auto; min-width: 0; }
 .join-row .join-paste { flex: none; width: var(--touch); min-height: var(--touch); padding: 0; display: inline-flex; align-items: center; justify-content: center; }
 .home-foot { display: flex; justify-content: center; gap: var(--sp-3); flex-wrap: wrap; margin-top: var(--sp-4); }
+/* Соцсети под всеми кнопками главной (решение владельца 09.11): квадратные плитки в фирменных цветах, подпись снизу. */
+.home-social { display: flex; justify-content: center; gap: var(--sp-4); margin: var(--sp-5) 0 var(--sp-3); }
+.home-social a { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 96px; text-decoration: none; color: var(--ink-2); font-size: 13px; line-height: 1.2; text-align: center; }
+.home-social .social-mark { display: block; border-radius: 13px; box-shadow: 0 6px 16px rgba(59,36,21,.18); transition: transform .15s ease, box-shadow .15s ease; }
+.home-social a:hover .social-mark, .home-social a:focus-visible .social-mark { transform: translateY(-2px); box-shadow: 0 9px 22px rgba(59,36,21,.24); }
+.home-social a:focus-visible { outline: none; }
+.home-social a:focus-visible span { text-decoration: underline; }
+.home-social span { background: rgba(255,250,236,.55); border-radius: 6px; padding: 1px 6px; }
 
