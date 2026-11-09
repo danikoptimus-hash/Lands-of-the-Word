@@ -93,10 +93,10 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
               <div className="actions">
                 <button type="button" disabled={busy === x.id} onClick={() => void accept(x)}><Icon name="handshake" />{t("Обменять")}</button>
                 <button type="button" className="secondary" disabled={busy === x.id} onClick={() => void call(x.id, `/api/games/${gameId}/trades/${x.id}/decline`, {}, t("Отклонено: ждём другой город"))}>{t("Не подходит")}</button>
-                <button type="button" className="ghost icon" aria-label={t("Отменить сделку")} title={t("Отменить сделку")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button>
+                <button type="button" className="ghost icon trade-cancel" aria-label={t("Отменить сделку")} title={t("Отменить сделку")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button>
               </div>
             )}
-            {x.mine && x.status === "OPEN" && <div className="actions"><span className="hint">{t("Ждём, какой город предложат взамен.")}</span><button type="button" className="ghost icon" aria-label={t("Отменить сделку")} title={t("Отменить сделку")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button></div>}
+            {x.mine && x.status === "OPEN" && <div className="actions"><span className="hint">{t("Ждём, какой город предложат взамен.")}</span><button type="button" className="ghost icon trade-cancel" aria-label={t("Отменить сделку")} title={t("Отменить сделку")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button></div>}
             {!x.mine && x.status === "OPEN" && (
               <>
                 <div className="field">
@@ -107,11 +107,11 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
                 <WallCheck id={"trade-counter-wall-" + x.id} wall={tradable.find((c) => c.nodeKey === counter[x.id])?.wall} checked={Boolean(counterWall[x.id])} onChange={(v) => setCounterWall({ ...counterWall, [x.id]: v })} />
                 <div className="actions">
                   <button type="button" disabled={busy === x.id || !counter[x.id]} onClick={() => void call(x.id, `/api/games/${gameId}/trades/${x.id}/counter`, { nodeKey: counter[x.id], withWall: Boolean(counterWall[x.id]) }, t("Встречный город предложен"))}><Icon name="send" />{t("Предложить взамен")}</button>
-                  <button type="button" className="ghost icon" aria-label={t("Отказаться от сделки")} title={t("Отказаться от сделки")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button>
+                  <button type="button" className="ghost icon trade-cancel" aria-label={t("Отказаться от сделки")} title={t("Отказаться от сделки")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button>
                 </div>
               </>
             )}
-            {!x.mine && x.status === "COUNTERED" && <div className="actions"><span className="hint">{t("Ждём решения посла команды «{team}».", { team: other.name })}</span><button type="button" className="ghost icon" aria-label={t("Отменить сделку")} title={t("Отменить сделку")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button></div>}
+            {!x.mine && x.status === "COUNTERED" && <div className="actions"><span className="hint">{t("Ждём решения посла команды «{team}».", { team: other.name })}</span><button type="button" className="ghost icon trade-cancel" aria-label={t("Отменить сделку")} title={t("Отменить сделку")} disabled={busy === x.id} onClick={() => void cancel(x)}><Icon name="x" /></button></div>}
           </div>
         );
       })}
