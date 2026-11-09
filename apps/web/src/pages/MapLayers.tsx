@@ -615,14 +615,16 @@ const SYMBOLS: Record<string, string> = {
   wall: "M3 5h18v14H3ZM3 9.7h18M3 14.3h18M9 5v4.7M15 5v4.7M12 9.7v4.6M9 14.3V19M15 14.3V19",
   ship: "M2 15h20l-3 5H5l-3-5ZM12 15V3m0 1 7 8h-7M12 5 6 12h6",
   anchor: "M12 22V8m0-2a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5 12H2c0 6 4 10 10 10s10-4 10-10h-3",
-  /** Опустевший город (09.11): пустой дом — пролом в крыше, распахнутый проём, трещина в стене. */
-  empty: "M3 21h18M5 21V11l7-7 3 3M17.5 9.5 19 11v10M10 21v-6h4v6M7 17l1.5-2.5L7.5 12",
+  /** Опустевший город (выбор владельца 09.11 из четырёх вариантов): контур города пунктиром — «город был, остался след». */
+  empty: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4",
 };
+/** Знаки, рисуемые пунктиром. */
+const DASHED = new Set(["empty"]);
 export function MapSymbols() {
   return (
     <defs>
       {Object.entries(SYMBOLS).map(([name, d]) => (
-        <symbol key={name} id={`m-${name}`} viewBox="0 0 24 24"><path d={d} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></symbol>
+        <symbol key={name} id={`m-${name}`} viewBox="0 0 24 24"><path d={d} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={DASHED.has(name) ? "3 2.2" : undefined} /></symbol>
       ))}
     </defs>
   );
