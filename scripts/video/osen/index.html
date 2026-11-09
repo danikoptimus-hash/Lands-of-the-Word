@@ -1,0 +1,482 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Осень</title>
+<style>
+@font-face { font-family: "Philosopher"; font-weight: 700; src: url("file:///home/user/Lands-of-the-Word/apps/web/public/fonts/philosopher-700-cyrillic.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F; }
+@font-face { font-family: "Philosopher"; font-weight: 700; src: url("file:///home/user/Lands-of-the-Word/apps/web/public/fonts/philosopher-700-latin.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: "Philosopher"; font-weight: 400; src: url("file:///home/user/Lands-of-the-Word/apps/web/public/fonts/philosopher-cyrillic.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F; }
+@font-face { font-family: "Philosopher"; font-weight: 400; src: url("file:///home/user/Lands-of-the-Word/apps/web/public/fonts/philosopher-latin.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: "Literata"; font-weight: 400; src: url("file:///home/user/Lands-of-the-Word/apps/web/public/fonts/literata-400-cyrillic.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F; }
+@font-face { font-family: "Literata"; font-weight: 400; src: url("file:///home/user/Lands-of-the-Word/apps/web/public/fonts/literata-400-latin.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: "Literata"; font-weight: 600; src: url("file:///home/user/Lands-of-the-Word/apps/web/public/fonts/literata-600-cyrillic.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F; }
+@font-face { font-family: "Literata"; font-weight: 600; src: url("file:///home/user/Lands-of-the-Word/apps/web/public/fonts/literata-600-latin.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+:root { --gold: #e6c27a; --gold-2: #b8893e; --paper: #f2e6cb; --muted: #b9a888; --ink: #0c0a07; --line: rgba(230,194,122,.32);
+  --t0: #c46a4c; --t1: #6e9cbd; --t2: #9aab63; }
+* { box-sizing: border-box; }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0c0a07; }
+body { font-family: "Literata", Georgia, serif; color: var(--paper); }
+#stage { position: absolute; inset: 0; overflow: hidden;
+  background: radial-gradient(1200px 800px at 50% 42%, #2a231a 0%, #17130e 55%, #0b0907 100%); }
+#grain { position: absolute; inset: 0; background: url("file:///home/user/Lands-of-the-Word/apps/web/public/img/brand/bg-tile.webp"); opacity: .07; mix-blend-mode: screen; }
+.abs { position: absolute; }
+.scene { position: absolute; inset: 0; opacity: 0; }
+.eyebrow { font: 600 25px/1 "Literata", serif; letter-spacing: .3em; text-transform: uppercase; color: var(--gold); }
+.h1 { font: 700 70px/1.08 "Philosopher", serif; color: var(--paper); text-wrap: balance; }
+.h1 b { color: var(--gold); font-weight: 700; }
+.goldtext { background: linear-gradient(180deg, #fbe7b0 0%, #e6c27a 45%, #a9772f 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.chip { display: inline-flex; align-items: center; gap: 14px; padding: 13px 24px 13px 14px; border-radius: 999px;
+  background: rgba(20,16,11,.82); border: 1px solid var(--line); font: 400 29px/1 "Literata", serif; color: var(--paper); white-space: nowrap; }
+.chip img { width: 44px; height: 44px; border-radius: 50%; object-fit: cover; }
+.chip .dot { width: 18px; height: 18px; border-radius: 50%; margin: 0 6px; }
+.chip b { color: var(--gold); font-weight: 600; }
+/* Главы сверху, как в ролике о игре */
+#chapters { position: absolute; top: 34px; left: 0; right: 0; display: flex; justify-content: center; gap: 10px; opacity: 0; }
+#chapters span { font: 400 21px/1 "Literata", serif; color: var(--muted); padding: 10px 18px; border-radius: 999px; border: 1px solid rgba(230,194,122,.18); background: rgba(16,13,9,.6); }
+#chapters span.on { color: #1b140b; background: linear-gradient(180deg, #f1d595, #c99a4c); border-color: transparent; font-weight: 600; }
+/* Карта — карточка слева, как в ролике о игре */
+#mapcard { position: absolute; left: 70px; top: 128px; width: 1240px; height: 698px; border-radius: 24px; overflow: hidden; opacity: 0;
+  border: 1px solid var(--line); box-shadow: 0 30px 80px rgba(0,0,0,.55), 0 0 0 6px rgba(0,0,0,.25); background: #0e0c09; }
+#mapinner { position: absolute; inset: 0; transform-origin: 50% 50%; }
+#mapinner img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#mapshade { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.45) 100%); }
+#mapdim { position: absolute; inset: 0; background: #0b0907; opacity: 0; }
+#mapdate { position: absolute; left: 22px; bottom: 22px; }
+#panel { position: absolute; left: 1360px; top: 150px; width: 500px; height: 760px; }
+.panel-block { position: absolute; left: 0; top: 0; width: 500px; opacity: 0; }
+.panel-block .h1 { font-size: 58px; margin: 18px 0 30px; }
+.rows { display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+.counter { font: 700 150px/0.95 "Philosopher", serif; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+.counter-label { font: 400 32px/1.2 "Literata", serif; color: var(--paper); margin-top: 6px; }
+.medal { width: 120px; height: 120px; border-radius: 50%; box-shadow: 0 10px 30px rgba(0,0,0,.5), 0 0 0 3px rgba(230,194,122,.55); }
+.crest { width: 150px; height: 150px; border-radius: 22px; object-fit: cover; box-shadow: 0 16px 40px rgba(0,0,0,.6); border: 2px solid var(--line); }
+.card { background: linear-gradient(180deg, rgba(36,29,20,.95), rgba(22,18,12,.95)); border: 1px solid var(--line); border-radius: 20px; box-shadow: 0 18px 50px rgba(0,0,0,.45); }
+.vignette { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 45%, transparent 50%, rgba(0,0,0,.55) 100%); }
+/* Медальоны испытания */
+.strip { position: absolute; left: 160px; right: 160px; top: 680px; display: flex; justify-content: space-between; }
+.strip .st { width: 210px; text-align: center; }
+.strip .st img { width: 150px; height: 150px; border-radius: 50%; filter: grayscale(1) brightness(.5); box-shadow: 0 0 0 3px rgba(230,194,122,.25); }
+.strip .st .lbl { font: 600 27px/1.2 "Literata", serif; color: var(--muted); margin-top: 14px; }
+.strip .st .tm { font: 400 25px/1.2 "Literata", serif; color: var(--gold); margin-top: 6px; opacity: 0; }
+.strip .line { position: absolute; left: 85px; right: 85px; top: 75px; height: 3px; background: rgba(230,194,122,.18); z-index: -1; }
+.strip .line i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: linear-gradient(90deg, #e6c27a, #b8893e); }
+.stone { position: absolute; width: 148px; height: 98px; border-radius: 10px; background: url("file:///home/user/Lands-of-the-Word/apps/web/public/img/ui/stone-256.webp") center/cover; box-shadow: inset 0 0 0 2px rgba(0,0,0,.35), 0 8px 18px rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; font: 600 28px/1 "Literata", serif; color: #f7ecd2; text-shadow: 0 2px 4px rgba(0,0,0,.8); }
+#stamp { position: absolute; left: 50%; top: 455px; transform: translate(-50%,-50%) rotate(-9deg); font: 700 120px/1 "Philosopher", serif; color: #d2523e; letter-spacing: .08em; padding: 14px 40px; border: 8px solid #d2523e; border-radius: 18px; opacity: 0; text-shadow: 0 0 1px #d2523e; }
+.metric { position: absolute; width: 400px; height: 300px; padding: 30px 32px; opacity: 0; }
+.metric .num { font: 700 112px/1 "Philosopher", serif; font-variant-numeric: tabular-nums; }
+.metric .cap { font: 400 30px/1.25 "Literata", serif; color: var(--paper); margin-top: 14px; }
+.metric .sub { font: 400 24px/1.25 "Literata", serif; color: var(--muted); margin-top: 10px; }
+.metric img { position: absolute; right: 26px; top: 26px; width: 74px; height: 74px; border-radius: 50%; opacity: .9; }
+.ruin { position: absolute; display: flex; align-items: center; gap: 12px; opacity: 0; font: 400 25px/1 "Literata", serif; }
+.ruin .tick { width: 16px; height: 16px; border-radius: 50%; }
+#fx { position: absolute; inset: 0; opacity: 0; }
+#fx img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.3) contrast(1.08) brightness(1.06); }
+#flash { position: absolute; inset: 0; background: #fff6df; opacity: 0; mix-blend-mode: screen; }
+</style></head>
+<body>
+<div id="stage">
+  <div id="grain"></div>
+  <div id="mapcard"><div id="mapinner"><img id="mapA"><img id="mapB"></div><div id="mapshade"></div><div id="mapdim"></div><div id="esther" style="position:absolute;left:520px;top:249px;width:200px;height:200px;border-radius:50%;border:5px solid #f1d595;box-shadow:0 0 40px rgba(241,213,149,.8), inset 0 0 30px rgba(241,213,149,.5);opacity:0"></div>
+    <div id="mapdate" class="chip"><span class="dot" style="background:var(--gold)"></span><span id="mapdatetxt"></span></div></div>
+  <div id="fx"><img id="fxA"><img id="fxB"><div class="vignette"></div></div>
+  <div id="chapters"></div>
+
+  <!-- 0. Заставка -->
+  <div class="scene" id="sc-title">
+    <img id="t-bg" class="abs" style="inset:0;width:1920px;height:1080px;object-fit:cover">
+    <div class="abs" style="inset:0;background:radial-gradient(ellipse at 50% 45%, rgba(12,10,7,.35) 0%, rgba(12,10,7,.88) 70%)"></div>
+    <img id="t-logo" class="abs" src="file:///home/user/Lands-of-the-Word/apps/web/public/img/brand/logo-512.png" style="left:860px;top:170px;width:200px;height:200px">
+    <div id="t-name" class="abs goldtext" style="left:0;right:0;top:400px;text-align:center;font:700 150px/1 Philosopher,serif">Земли Слова</div>
+    <div id="t-osen" class="abs" style="left:0;right:0;top:585px;text-align:center;font:700 92px/1 Philosopher,serif;color:var(--paper);letter-spacing:.06em">Осень</div>
+    <div id="t-line" class="abs" style="left:810px;top:705px;width:300px;height:3px;background:linear-gradient(90deg,transparent,#e6c27a,transparent)"></div>
+    <div class="abs" style="left:0;right:0;top:760px;display:flex;justify-content:center;gap:22px">
+      <span class="chip" id="t-c1"><span class="dot" style="background:var(--gold)"></span><b>40</b> дней</span>
+      <span class="chip" id="t-c2"><span class="dot" style="background:var(--gold)"></span><b>3</b> команды</span>
+      <span class="chip" id="t-c3"><span class="dot" style="background:var(--gold)"></span><b>66</b> городов</span>
+    </div>
+  </div>
+
+  <!-- Правая панель для сцен с картой -->
+  <div id="panel">
+    <div class="panel-block" id="p-start">
+      <div class="eyebrow">Старт · 29 сентября</div>
+      <div class="h1">Три команды выходят <b>из плена</b></div>
+      <div class="rows">
+        <span class="chip" id="ps-0"><img src="assets/team0.webp">Бич народов</span>
+        <span class="chip" id="ps-1"><img src="assets/team1.webp">Живые камни</span>
+        <span class="chip" id="ps-2"><img src="assets/team2.webp">Небесный легион</span>
+        <span class="chip" id="ps-3" style="margin-top:22px"><span class="dot" style="background:var(--t0)"></span>Первый город — <b>Есфирь</b></span>
+      </div>
+    </div>
+    <div class="panel-block" id="p-deeds">
+      <div class="eyebrow">Дела</div>
+      <div class="h1">Каждая дорога — <b>доброе дело</b></div>
+      <div class="counter goldtext" id="pd-n">0</div>
+      <div class="counter-label">добрых дела за 40 дней</div>
+      <div class="rows" style="margin-top:34px;flex-direction:row;flex-wrap:wrap;gap:12px">
+        <span class="chip" id="pd-1">помогали</span><span class="chip" id="pd-2">навещали</span><span class="chip" id="pd-3">служили</span>
+      </div>
+    </div>
+    <div class="panel-block" id="p-sea">
+      <div class="eyebrow">Октябрь</div>
+      <div class="h1">Море <b>и мир</b></div>
+      <div class="rows">
+        <span class="chip" id="pe-1"><span class="dot" style="background:var(--t1)"></span><b>26</b> морских дел</span>
+        <span class="chip" id="pe-2"><span class="dot" style="background:var(--t1)"></span>Высадки на втором острове</span>
+        <span class="chip" id="pe-3"><span class="dot" style="background:var(--gold)"></span><b>3</b> мирных договора</span>
+      </div>
+    </div>
+    <div class="panel-block" id="p-cities">
+      <div class="eyebrow">Города</div>
+      <div class="h1">Город <b>за городом</b></div>
+      <div class="counter goldtext" id="pc-n" style="font-size:128px">0</div>
+      <div class="counter-label">решённых заданий</div>
+      <div style="margin-top:34px;display:flex;align-items:baseline;gap:16px"><span class="counter goldtext" id="pc-c" style="font-size:110px">0</span><span class="counter-label">из 66 городов</span></div>
+      <div style="margin-top:18px;width:470px;height:14px;border-radius:7px;background:rgba(230,194,122,.15);overflow:hidden"><i id="pc-bar" style="display:block;height:100%;width:0;background:linear-gradient(90deg,#b8893e,#f1d595)"></i></div>
+    </div>
+    <div class="panel-block" id="p-war">
+      <div class="eyebrow" style="color:#e07a5c">Конец октября</div>
+      <div id="pw-title" class="goldtext" style="font:700 88px/1 Philosopher,serif;margin:22px 0 34px;white-space:nowrap">Испытания</div>
+      <div class="rows">
+        <span class="chip" id="pw-1"><img src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/call.webp"><b>28</b> вызовов за 9 дней</span>
+        <span class="chip" id="pw-2"><img src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/answer.webp">Стены: <b>41</b> блок, <b>329</b> стихов</span>
+        <span class="chip" id="pw-3"><img src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/learn.webp">Отрывки — наизусть</span>
+      </div>
+    </div>
+    <div class="panel-block" id="p-chron">
+      <div class="eyebrow" style="color:#e07a5c">Хроника испытаний</div>
+      <div style="height:22px"></div>
+      <div id="pch"></div>
+    </div>
+    <div class="panel-block" id="p-repel">
+      <div class="eyebrow">Ответный вызов</div>
+      <div class="h1" style="font-size:54px">Легион вызывает <b>города «Бича»</b></div>
+      <div id="pr"></div>
+    </div>
+    <div class="panel-block" id="p-ruins">
+      <div class="eyebrow" style="color:#e07a5c">8 ноября · 16:33 — 19:29</div>
+      <div class="h1" style="font-size:50px;margin-bottom:20px">Опустевшие <b>города</b></div>
+      <div id="pru" style="position:relative;height:560px"></div>
+    </div>
+  </div>
+
+  <!-- Столица: вызов и стена -->
+  <div class="scene" id="sc-capital">
+    <div class="abs eyebrow" id="cap-eye" style="left:0;right:0;top:175px;text-align:center">8 ноября · 15:13</div>
+    <div class="abs h1" id="cap-h" style="left:0;right:0;top:222px;text-align:center;font-size:88px">Вызов <b>столице</b></div>
+    <img class="abs crest" id="cap-a" src="assets/team0.webp" style="left:400px;top:370px;width:180px;height:180px">
+    <img class="abs crest" id="cap-d" src="assets/team2.webp" style="left:1340px;top:370px;width:180px;height:180px">
+    <div class="abs" id="cap-mid" style="left:610px;width:700px;top:385px;text-align:center">
+      <div style="font:700 56px/1.1 Philosopher,serif;color:var(--paper)">3 Царств</div>
+      <div style="font:400 28px/1.3 Literata,serif;color:var(--muted);margin-top:8px">столица «Небесного легиона»</div>
+      <div class="chip" id="cap-bid" style="margin-top:22px"><img src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/learn.webp">Ставка — <b>20 стихов</b></div>
+    </div>
+    <div class="strip" id="strip">
+      <div class="line"><i id="strip-fill"></i></div>
+      <div class="st"><img src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/call.webp"><div class="lbl">Вызов</div><div class="tm">15:13</div></div>
+      <div class="st"><img src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/learn.webp"><div class="lbl">Стихи</div><div class="tm">15:38 · за 25 мин</div></div>
+      <div class="st"><img src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/check.webp"><div class="lbl">Проверка</div><div class="tm">15:39</div></div>
+      <div class="st"><img src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/attack.webp"><div class="lbl">Испытание</div><div class="tm">16:07</div></div>
+      <div class="st"><img src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/answer.webp"><div class="lbl">Ответ</div><div class="tm" id="tm-ans">стена</div></div>
+      <div class="st"><img src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/taken.webp"><div class="lbl">Итог</div><div class="tm">16:32</div></div>
+    </div>
+  </div>
+
+  <div class="scene" id="sc-wall">
+    <div class="abs eyebrow" style="left:0;right:0;top:175px;text-align:center">Стена хранителей</div>
+    <div class="abs h1" id="w-h" style="left:0;right:0;top:222px;text-align:center;font-size:84px">Один блок <b>стены</b></div>
+    <div id="stones"></div>
+    <div class="abs" id="w-l1" style="left:328px;width:938px;top:500px;text-align:center;font:400 30px/1 Literata,serif;color:var(--paper)">капитан · <b style="color:var(--gold)">6 стихов</b></div>
+    <div class="abs" id="w-l2" style="left:1276px;width:306px;top:500px;text-align:center;font:400 30px/1 Literata,serif;color:var(--paper)">воин · <b style="color:var(--gold)">2 × 2</b></div>
+    <div class="abs" id="w-eq" style="left:0;right:0;top:590px;text-align:center;font:700 76px/1 Philosopher,serif;color:var(--paper)">
+      <span id="w-e1">6 + 2 × 2</span> <span id="w-e2" style="color:var(--gold)">= 10 стихов</span></div>
+    <div class="abs card" id="w-quote" style="left:460px;width:1000px;top:590px;padding:30px 40px;text-align:center">
+      <div class="eyebrow" style="font-size:20px;color:#e07a5c">Проверка администратора</div>
+      <div style="font:400 40px/1.3 Literata,serif;margin-top:14px">Стихи сданы неверно — блок отклонён</div></div>
+    <div class="abs" id="w-cmp" style="left:410px;width:1100px;top:430px">
+      <div id="w-b1" style="display:flex;align-items:center;gap:26px"><span style="width:250px;text-align:right;font:400 34px/1 Literata,serif">блок стены</span>
+        <div style="flex:1;height:54px;border-radius:12px;background:rgba(230,194,122,.1);position:relative"><i id="w-b1i" style="position:absolute;left:0;top:0;bottom:0;width:0;border-radius:12px;background:linear-gradient(90deg,#8d5a3c,#c46a4c)"></i></div>
+        <span class="goldtext" style="width:110px;font:700 64px/1 Philosopher,serif">10</span></div>
+      <div id="w-b2" style="display:flex;align-items:center;gap:26px;margin-top:34px"><span style="width:250px;text-align:right;font:400 34px/1 Literata,serif">ставка</span>
+        <div style="flex:1;height:54px;border-radius:12px;background:rgba(230,194,122,.1);position:relative"><i id="w-b2i" style="position:absolute;left:0;top:0;bottom:0;width:0;border-radius:12px;background:linear-gradient(90deg,#b8893e,#f1d595)"></i></div>
+        <span class="goldtext" style="width:110px;font:700 64px/1 Philosopher,serif">20</span></div>
+      <div id="w-not" style="margin-top:44px;text-align:center;font:700 56px/1 Philosopher,serif;color:#e07a5c">не хватило бы в любом случае</div>
+    </div>
+    <div id="stamp">Отклонён</div>
+  </div>
+
+  <div class="scene" id="sc-fall">
+    <div class="abs" id="f-clock" style="left:0;right:0;top:250px;text-align:center;font:700 260px/1 Philosopher,serif" class="goldtext"><span class="goldtext">16:32</span></div>
+    <div class="abs h1" id="f-h" style="left:0;right:0;top:560px;text-align:center;font-size:96px">Столица <b>пала</b></div>
+    <div class="abs" id="f-out" style="left:0;right:0;top:720px;display:flex;justify-content:center;align-items:center;gap:26px">
+      <img id="f-crest" src="assets/team2.webp" style="width:120px;height:120px;border-radius:18px">
+      <span style="font:400 44px/1.2 Literata,serif">«Небесный легион» <span style="color:#e07a5c">выбыл из игры</span></span></div>
+    <div class="abs" id="f-cap" style="left:0;right:0;bottom:80px;text-align:center;opacity:0">
+      <span class="chip" style="font-size:32px"><img src="assets/team0.webp">Салют над всеми городами «Бича народов»</span></div>
+  </div>
+
+  <div class="scene" id="sc-totals">
+    <div class="abs eyebrow" style="left:0;right:0;top:110px;text-align:center">Итоги 40 дней</div>
+    <div class="abs h1" style="left:0;right:0;top:152px;text-align:center;font-size:72px">Сорок дней <b>«Земель Слова»</b></div>
+    <div id="metrics"></div>
+  </div>
+
+  <div class="scene" id="sc-standing">
+    <div class="abs eyebrow" style="left:0;right:0;top:120px;text-align:center">Сегодня</div>
+    <div class="abs h1" style="left:0;right:0;top:162px;text-align:center;font-size:72px">Кто <b>владеет землёй</b></div>
+    <div id="bars"></div>
+    <div class="abs" id="st-go" style="left:0;right:0;top:880px;text-align:center;font:700 54px/1 Philosopher,serif;color:var(--gold);opacity:0">Игра продолжается</div>
+  </div>
+
+  <div class="scene" id="sc-outro">
+    <img id="o-bg" class="abs" style="inset:0;width:1920px;height:1080px;object-fit:cover">
+    <div class="abs" style="inset:0;background:radial-gradient(ellipse at 50% 45%, rgba(12,10,7,.45) 0%, rgba(12,10,7,.92) 70%)"></div>
+    <div class="abs" id="o-ring" style="left:610px;top:190px;width:700px;height:700px;border-radius:50%;border:3px solid rgba(230,194,122,.55);box-shadow:0 0 80px rgba(230,194,122,.25), inset 0 0 80px rgba(230,194,122,.15)"></div>
+    <img id="o-logo" class="abs" src="file:///home/user/Lands-of-the-Word/apps/web/public/img/brand/logo-512.png" style="left:870px;top:290px;width:180px;height:180px">
+    <div id="o-name" class="abs goldtext" style="left:0;right:0;top:500px;text-align:center;font:700 136px/1 Philosopher,serif">Земли Слова</div>
+    <div id="o-tag" class="abs" style="left:0;right:0;top:665px;text-align:center;font:400 40px/1.3 Literata,serif;color:var(--paper)">Кто знает Слово — тот и владеет городом</div>
+    <div id="o-sub" class="abs eyebrow" style="left:0;right:0;top:770px;text-align:center;font-size:22px;color:var(--muted)">Осень · 29 сентября — 8 ноября · игра продолжается</div>
+  </div>
+  <div id="flash"></div>
+</div>
+<script src="data.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const lerp = (a, b, k) => a + (b - a) * k;
+const eo = (k) => 1 - Math.pow(1 - clamp(k), 3);
+const eio = (k) => { k = clamp(k); return k < .5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2; };
+const pr = (t, a, d = .6) => clamp((t - a) / d);
+const SC = Object.fromEntries(TL.scenes.map((s) => [s.id, s]));
+const WC = typeof WALLCUES !== "undefined" ? WALLCUES : { cap: 2.7, war: 4.2, x2: 6.2, sum: 7.2, wrong: 9.0, rej: 10.9, cmp: 12.5, not: 14.7 };
+const W = (scene, w) => SC[scene].lineStart + w; // время слова от начала фразы сцены
+const fmtN = (n) => Math.round(n).toLocaleString("ru-RU").replace(/ /g, " ");
+function show(el, k, dy = 24) { el.style.opacity = k; el.style.transform = `translateY(${(1 - eo(k)) * dy}px)`; }
+function pop(el, k) { el.style.opacity = clamp(k * 1.6); el.style.transform = `scale(${lerp(.7, 1, eo(k))})`; }
+function sceneK(id, t) { const s = SC[id]; const fi = pr(t, s.start, .55), fo = 1 - pr(t, s.end - .45, .45); return Math.min(fi, fo); }
+const inScene = (id, t) => t >= SC[id].start - .01 && t < SC[id].end + .01;
+
+/* Главы */
+const CH = [["Старт", ["start"]], ["Дела", ["deeds"]], ["Море", ["sea"]], ["Города", ["cities"]], ["Испытания", ["war", "chronicle", "repel"]], ["Столица", ["capital", "wall", "fall"]], ["Запустение", ["ruins"]], ["Итоги", ["totals", "standing"]]];
+$("chapters").innerHTML = CH.map(([n]) => `<span>${n}</span>`).join("");
+
+/* Хроника испытаний */
+const CHRON = [
+  { at: W("chronicle", 0.0), d: "1 ноября", a: 0, v: 2, books: "От Луки · Римлянам" },
+  { at: W("chronicle", 6.9), d: "3 ноября", a: 2, v: 1, books: "Псалтирь · Притчи" },
+  { at: W("chronicle", 11.3), d: "4 ноября", a: 0, v: 2, books: "Даниил" },
+  { at: W("chronicle", 13.8), d: "6 ноября", a: 1, v: 2, books: "Иов" },
+];
+const TN = ["Бич народов", "Живые камни", "Небесный легион"], TG = ["Бича народов", "Живых камней", "Небесного легиона"], TV = ["взял", "взяли", "взял"], TC = ["var(--t0)", "var(--t1)", "var(--t2)"];
+$("pch").innerHTML = CHRON.map((c, i) => `<div class="card" id="ch-${i}" style="position:absolute;left:0;top:${60 + i * 172}px;width:510px;height:160px;padding:16px 20px;opacity:0;display:flex;gap:18px;align-items:center">
+  <img src="assets/team${c.a}.webp" style="width:84px;height:84px;border-radius:14px;flex:none">
+  <div style="min-width:0"><div class="eyebrow" style="font-size:18px">${c.d}</div>
+  <div style="font:700 34px/1.15 Philosopher,serif;color:var(--gold);margin-top:8px;white-space:nowrap">${c.books}</div>
+  <div style="font:400 19px/1.25 Literata,serif;color:var(--muted);margin-top:6px">«${TN[c.a]}» ${TV[c.a]} у «${TG[c.v]}»</div></div></div>`).join("");
+
+/* Отбитые вызовы */
+$("pr").innerHTML = ["Тит", "Иаков"].map((b, i) => `<div class="card" id="rp-${i}" style="position:absolute;left:0;top:${230 + i * 190}px;width:500px;height:160px;padding:22px;display:flex;align-items:center;gap:18px;opacity:0">
+  <img src="assets/team2.webp" style="width:64px;height:64px;border-radius:12px"><div style="font:400 30px/1 Literata,serif;color:var(--muted)">→</div>
+  <div style="font:700 44px/1 Philosopher,serif">${b}</div>
+  <img id="rps-${i}" src="file:///home/user/Lands-of-the-Word/apps/web/public/img/trial/held.webp" style="margin-left:auto;width:110px;height:110px;border-radius:50%;opacity:0">
+  </div>`).join("") + `<div id="rp-txt" style="position:absolute;left:0;top:630px;font:700 44px/1 Philosopher,serif;color:var(--gold);opacity:0">Оба вызова отбиты</div>`;
+
+/* Опустевшие города легиона */
+const RU = [["16:33", 0, "Амос"], ["16:34", 0, "Числа"], ["17:06", 1, "Софония"], ["17:06", 1, "Псалтирь"], ["17:06", 1, "Второзаконие"], ["17:06", 1, "Притчи"], ["17:10", 1, "2 Тимофею", 1], ["17:11", 1, "2 Коринфянам"], ["17:19", 0, "Ефесянам"], ["17:31", 0, "2 Фессалоникийцам", 1], ["19:29", 0, "1 Иоанна", 1]];
+$("pru").innerHTML = RU.map((r, i) => `<div class="ruin" id="ru-${i}" style="left:0;top:${i * 47}px;white-space:nowrap"><span style="color:var(--muted);font-size:22px;width:72px">${r[0]}</span><span class="tick" style="background:${TC[r[1]]}"></span><span>${r[2]}</span><span id="rk-${i}" style="color:var(--gold);font-size:22px;opacity:0">${r[3] ? "✦ знак шифра" : ""}</span></div>`).join("");
+
+/* Итоги */
+const ICO = "file:///home/user/Lands-of-the-Word/apps/web/public/img/";
+const MET = [
+  { n: 27, cap: "участников", at: 1.8, ico: "awards/p_team_pillar.webp" },
+  { n: 370, cap: "разных стихов", sub: "452 — если считать каждого, кто выучил", at: 3.4, sub_at: 5.8, ico: "trial/learn.webp" },
+  { n: 41, cap: "блок стены", sub: "329 стихов в стенах", at: 9.2, sub_at: 11.1, ico: "trial/answer.webp" },
+  { n: 434, cap: "добрых дела", sub: "в том числе 26 морских", at: 13.6, sub_at: 15.7, ico: "awards/p_first_deed.webp" },
+  { n: 1369, cap: "решённых заданий", at: 18.6, ico: "trial/check.webp" },
+  { n: 60, cap: "городов из 66", at: 21.0, ico: "trial/taken.webp" },
+  { n: 28, cap: "вызовов за 9 дней", at: 23.8, ico: "trial/call.webp" },
+  { n: 11, cap: "опустевших городов занято за 3 часа", at: 26.5, ico: "trial/burnt.webp" },
+];
+$("metrics").innerHTML = MET.map((m, i) => `<div class="metric card" id="m-${i}" style="left:${150 + (i % 4) * 418}px;top:${300 + Math.floor(i / 4) * 330}px">
+  <img src="${ICO + m.ico}"><div class="num goldtext" id="mn-${i}">0</div><div class="cap">${m.cap}</div>${m.sub ? `<div class="sub" id="ms-${i}">${m.sub}</div>` : ""}</div>`).join("");
+
+/* Счёт сегодня */
+const BARS = [{ i: 0, n: 37, extra: "♛ ♛ две столицы", at: 1.5, ex_at: 3.0 }, { i: 1, n: 21, extra: "♛ столица", at: 4.3, ex_at: 5.0 }, { i: 2, n: 0, extra: "выбыл 8 ноября", at: 5.5, ex_at: 5.6 }];
+$("bars").innerHTML = BARS.map((b, k) => `<div id="b-${k}" style="position:absolute;left:260px;top:${330 + k * 170}px;width:1400px;height:140px;display:flex;align-items:center;gap:30px;opacity:0">
+  <img src="assets/team${b.i}.webp" style="width:130px;height:130px;border-radius:20px;${b.i === 2 ? "filter:grayscale(1) brightness(.6)" : ""}">
+  <div style="width:1100px"><div style="display:flex;align-items:baseline;gap:20px"><span style="font:700 46px/1 Philosopher,serif;${b.i === 2 ? "color:var(--muted);text-decoration:line-through" : ""}">${TN[b.i]}</span>
+  <span id="bx-${k}" style="font:400 28px/1 Literata,serif;color:${b.i === 2 ? "#e07a5c" : "var(--gold)"};opacity:0">${b.extra}</span></div>
+  <div style="margin-top:16px;height:34px;border-radius:17px;background:rgba(230,194,122,.12);position:relative">
+  <i id="bb-${k}" style="position:absolute;left:0;top:0;bottom:0;width:0;border-radius:17px;background:${TC[b.i]}"></i></div></div>
+  <div id="bn-${k}" class="goldtext" style="font:700 96px/1 Philosopher,serif;width:150px;text-align:right">0</div></div>`).join("");
+
+/* Камни стены */
+let sh = ""; for (let i = 0; i < 8; i++) sh += `<div class="stone" id="stn-${i}" style="left:${328 + i * 158}px;top:380px;${i > 5 ? "box-shadow: inset 0 0 0 3px #e6c27a, 0 8px 18px rgba(0,0,0,.55)" : ""}">${i > 5 ? "×2" : ""}</div>`;
+$("stones").innerHTML = sh;
+
+/* Карта: кадры по времени ролика */
+const fr = FRAMES; // [{k, ts}]
+const kAt = (ts) => { let lo = 0; for (let i = 0; i < fr.length; i++) if (fr[i].ts <= ts) lo = i; return lo; };
+const D = (s) => Date.parse(s + "+05:00");
+const MAPSEG = [
+  ["start", 0, 4], // кадр 4 — Есфирь уже столица «Бича народов»
+  ["deeds", null, kAt(D("2026-10-04T00:00:00"))],
+  ["sea", null, kAt(D("2026-10-12T00:00:00"))],
+  ["cities", null, kAt(D("2026-10-31T00:00:00"))],
+  ["war", null, kAt(D("2026-11-03T00:00:00"))],
+  ["chronicle", null, kAt(D("2026-11-07T00:00:00"))],
+  ["repel", null, kAt(D("2026-11-08T15:00:00"))],
+  ["ruins", kAt(D("2026-11-08T16:30:00")), fr.length - 1],
+];
+for (let i = 0; i < MAPSEG.length; i++) if (MAPSEG[i][1] === null) MAPSEG[i][1] = MAPSEG[i - 1][2];
+function mapFrameAt(t) {
+  for (const [id, a, b] of MAPSEG) { const s = SC[id]; if (t >= s.start && t < s.end) { const e = id === "start" ? W("start", 9.6) : s.end; const k = clamp((t - s.start) / (e - s.start)); return lerp(a, b, k); } }
+  return fr.length - 1;
+}
+const MON = { "сент.": "сентября", "окт.": "октября", "нояб.": "ноября" };
+const dateLabel = (i) => { const m = (fr[i].label || "").match(/(\d+)\s+(сент\.|окт\.|нояб\.)/); return m ? `${m[1]} ${MON[m[2]]}` : "29 сентября"; };
+
+const imgs = { mapA: $("mapA"), mapB: $("mapB"), fxA: $("fxA"), fxB: $("fxB") };
+const cur = {};
+function setSrc(id, src) { if (cur[id] === src) return null; cur[id] = src; imgs[id].src = src; return imgs[id].decode().catch(() => {}); }
+
+/* Огни: кадры салюта на карте и запись владельца */
+function fxFrameAt(t) { // секунды внутри сцены падения после слова «салют»
+  const s0 = W("fall", 8.0); if (t < s0) return null;
+  const k = Math.floor((t - s0) * 30);
+  return Math.min(k, FX.n - 1);
+}
+
+async function render(t) {
+  const waits = [];
+  // главы
+  const chOn = CH.findIndex(([, ids]) => ids.some((id) => inScene(id, t)));
+  const chK = Math.max(...["start", "deeds", "sea", "cities", "war", "chronicle", "repel", "capital", "wall", "fall", "ruins", "totals", "standing"].map((id) => sceneK(id, t)));
+  $("chapters").style.opacity = clamp(chK) * (inScene("fall", t) ? 1 - pr(t, W("fall", 7.8), .55) : 1);
+  [...$("chapters").children].forEach((el, i) => el.classList.toggle("on", i === chOn));
+
+  // карта
+  const mapScenes = ["start", "deeds", "sea", "cities", "war", "chronicle", "repel", "ruins"];
+  const mapK = Math.max(...mapScenes.map((id) => sceneK(id, t)));
+  const contMap = mapScenes.some((id) => inScene(id, t));
+  const rangeK = (a, b) => Math.min(pr(t, a, .6), 1 - pr(t, b - .45, .45));
+  $("mapcard").style.opacity = Math.max(rangeK(SC.start.start, SC.repel.end), rangeK(SC.ruins.start, SC.ruins.end));
+  if (contMap) {
+    const f = mapFrameAt(t), a = Math.floor(f), b = Math.min(fr.length - 1, a + 1), k = f - a;
+    waits.push(setSrc("mapA", `../tl/f${String(fr[a].k).padStart(4, "0")}.jpg`), setSrc("mapB", `../tl/f${String(fr[b].k).padStart(4, "0")}.jpg`));
+    $("mapB").style.opacity = k;
+    const z = inScene("ruins", t) ? lerp(1.14, 1.22, pr(t, SC.ruins.start, SC.ruins.end - SC.ruins.start)) : lerp(1.1, 1.18, clamp((t - SC.start.start) / (SC.repel.end - SC.start.start)));
+    // Приближение к Есфири (просьба владельца 08.11): на «…книгу Есфирь» карта наезжает и ставит город в центр, в начале «Дел» отъезжает.
+    const CW = 1240, CH2 = 698, PX = .288 * CW, PY = .282 * CH2, Z1 = 2.3;
+    const zin = eio(pr(t, W("start", 9.3), 1.5)) * (1 - eio(pr(t, SC.deeds.start + .1, 1.3)));
+    const zz = lerp(z, Z1, zin), tx = lerp(CW / 2 * (1 - z), CW / 2 - PX * Z1, zin), ty = lerp(CH2 / 2 * (1 - z), CH2 / 2 - PY * Z1, zin);
+    $("mapinner").style.transformOrigin = "0 0"; $("mapinner").style.transform = `translate(${tx}px, ${ty}px) scale(${zz})`;
+    const kr = pr(t, W("start", 10.7), .5) * (1 - pr(t, SC.deeds.start - .2, .4)); $("esther").style.opacity = kr;
+    $("esther").style.transform = `scale(${1 + .06 * Math.sin(t * 5)})`;
+    const war = ["war", "chronicle", "repel"].some((id) => inScene(id, t));
+    $("mapdim").style.opacity = war ? .42 : 0;
+    $("mapdatetxt").textContent = dateLabel(Math.round(f));
+  }
+
+  // 0. Заставка
+  { const k = sceneK("title", t); const el = $("sc-title"); el.style.opacity = k;
+    if (k > 0) { const tt = t - SC.title.lineStart;
+      $("t-bg").style.transform = `scale(${lerp(1.08, 1.0, eo(t / 7))})`;
+      pop($("t-logo"), pr(t, .2, .8)); show($("t-name"), pr(tt, .5, .9), 30); show($("t-osen"), pr(tt, 1.6, .8), 20);
+      $("t-line").style.transform = `scaleX(${eo(pr(tt, 1.9, 1))})`; show($("t-c1"), pr(tt, 2.6, .5)); show($("t-c2"), pr(tt, 3.0, .5)); show($("t-c3"), pr(tt, 3.9, .5)); } }
+
+  // панель справа
+  const PB = [["p-start", "start", (tt) => { show($("ps-0"), pr(tt, 1.2, .5)); show($("ps-1"), pr(tt, 2.6, .5)); show($("ps-2"), pr(tt, 3.8, .5)); pop($("ps-3"), pr(tt, 9.4, .6)); }],
+    ["p-deeds", "deeds", (tt) => { $("pd-n").textContent = fmtN(434 * eo(pr(tt, 3.6, 1.8))); show($("pd-1"), pr(tt, 5.6, .45)); show($("pd-2"), pr(tt, 6.2, .45)); show($("pd-3"), pr(tt, 7.0, .45)); }],
+    ["p-sea", "sea", (tt) => { show($("pe-1"), pr(tt, 1.3, .5)); show($("pe-2"), pr(tt, 2.2, .5)); show($("pe-3"), pr(tt, 4.8, .5)); }],
+    ["p-cities", "cities", (tt) => { $("pc-n").textContent = fmtN(1369 * eo(pr(tt, 1.0, 1.7))); $("pc-c").textContent = fmtN(60 * eo(pr(tt, 4.2, 1.4))); $("pc-bar").style.width = (60 / 66 * 100 * eo(pr(tt, 4.2, 1.4))) + "%"; }],
+    ["p-war", "war", (tt) => { pop($("pw-title"), pr(tt, 1.3, .5)); show($("pw-1"), pr(tt, 2.5, .5)); show($("pw-2"), pr(tt, 5.7, .5)); show($("pw-3"), pr(tt, 8.5, .5)); }],
+    ["p-chron", "chronicle", (tt, T) => { CHRON.forEach((c, i) => { const k = pr(T, c.at - .1, .5); const el = $("ch-" + i); el.style.opacity = k; el.style.transform = `translateX(${(1 - eo(k)) * 80}px)`; }); }],
+    ["p-repel", "repel", (tt) => { show($("rp-0"), pr(tt, 3.3, .5)); show($("rp-1"), pr(tt, 4.1, .5)); pop($("rps-0"), pr(tt, 7.5, .35)); pop($("rps-1"), pr(tt, 7.7, .35)); show($("rp-txt"), pr(tt, 7.9, .5)); }],
+    ["p-ruins", "ruins", (tt) => { RU.forEach((r, i) => { const at = 2.6 + i * (4.2 / RU.length); const k = pr(tt, at, .35); const el = $("ru-" + i); el.style.opacity = k; el.style.transform = `translateX(${(1 - eo(k)) * 40}px)`; const kk = $("rk-" + i); if (r[3]) kk.style.opacity = pr(tt, 9.4 + (i > 8 ? .25 : 0) + (i > 9 ? .25 : 0), .4); }); }],
+  ];
+  for (const [pid, sid, fn] of PB) { const k = sceneK(sid, t); const el = $(pid); el.style.opacity = k; el.style.transform = `translateY(${(1 - eo(k)) * 20}px)`; if (k > 0) fn(t - SC[sid].lineStart, t); }
+
+  // Столица
+  { const k = sceneK("capital", t), kw = sceneK("wall", t), kf = sceneK("fall", t);
+    const el = $("sc-capital"); el.style.opacity = Math.max(k, inScene("wall", t) ? 0 : 0);
+    if (k > 0) { const tt = t - SC.capital.lineStart;
+      show($("cap-eye"), pr(tt, -.4, .6)); show($("cap-h"), pr(tt, 0, .7));
+      const ka = pr(tt, 1.2, .7), kd = pr(tt, 3.6, .7);
+      $("cap-a").style.opacity = ka; $("cap-a").style.transform = `translateX(${(1 - eo(ka)) * -120}px)`;
+      $("cap-d").style.opacity = kd; $("cap-d").style.transform = `translateX(${(1 - eo(kd)) * 120}px)`;
+      show($("cap-mid"), pr(tt, 5.3, .6)); pop($("cap-bid"), pr(tt, 7.1, .5));
+      const sts = [...document.querySelectorAll("#strip .st")];
+      const lit = [2.8, 8.7, 9.6, 99, 99, 99];
+      sts.forEach((s, i) => { const kk = pr(tt, lit[i], .5); s.querySelector("img").style.filter = `grayscale(${1 - kk}) brightness(${.5 + .5 * kk})`; s.querySelector(".tm").style.opacity = kk; s.style.transform = `scale(${1 + .08 * Math.sin(Math.PI * clamp(kk))})`; });
+      $("strip-fill").style.width = (lerp(0, 40, eo(pr(tt, 2.8, 6.8)))) + "%";
+      show($("strip"), pr(tt, 2.4, .6), 30);
+    } }
+
+  // Стена: тайминг по словам фразы (WC — секунды от начала фразы)
+  { const k = sceneK("wall", t); $("sc-wall").style.opacity = k;
+    if (k > 0) { const tt = t - SC.wall.lineStart, c = WC;
+      show($("w-h"), pr(tt, 0, .6));
+      for (let i = 0; i < 8; i++) { const el = $("stn-" + i); const kin = pr(tt, (i < 6 ? c.cap + i * .08 : c.war + (i - 6) * .1), .35); const fall = pr(tt, c.rej + .6 + (i % 4) * .05, 1.3);
+        const y = (1 - eo(kin)) * -160 + fall * fall * 560; const rot = fall * ((i % 2 ? 1 : -1) * (20 + i * 5));
+        el.style.opacity = kin * (1 - pr(tt, c.rej + 1.4, .5)); el.style.transform = `translateY(${y}px) rotate(${rot}deg)`;
+        el.style.filter = tt > c.wrong ? `grayscale(${pr(tt, c.wrong, .8)}) brightness(${1 - .35 * pr(tt, c.wrong, .8)})` : "none"; }
+      const lo = 1 - pr(tt, c.rej + .6, .5);
+      $("w-l1").style.opacity = pr(tt, c.cap + .2, .5) * lo; $("w-l2").style.opacity = pr(tt, c.x2, .5) * lo;
+      show($("w-e1"), pr(tt, c.x2 + .2, .4), 10); show($("w-e2"), pr(tt, c.sum, .4), 10);
+      $("w-eq").style.opacity = 1 - pr(tt, c.wrong - .2, .4);
+      show($("w-quote"), pr(tt, c.wrong, .5), 30); $("w-quote").style.opacity = pr(tt, c.wrong, .5) * (1 - pr(tt, c.cmp - .3, .4));
+      const ks = pr(tt, c.rej, .18); $("stamp").style.opacity = ks * (1 - pr(tt, c.cmp - .3, .4)); $("stamp").style.transform = `translate(-50%,-50%) rotate(-9deg) scale(${lerp(2.2, 1, eo(ks))})`;
+      const kc = pr(tt, c.cmp, .5); $("w-cmp").style.opacity = kc; $("w-cmp").style.transform = `translateY(${(1 - eo(kc)) * 30}px)`;
+      $("w-b1i").style.width = (50 * eo(pr(tt, c.cmp + .2, .9))) + "%"; $("w-b2i").style.width = (100 * eo(pr(tt, c.cmp + .8, 1.0))) + "%";
+      show($("w-not"), pr(tt, c.not, .5));
+    } }
+
+  // Падение
+  { const k = sceneK("fall", t); $("sc-fall").style.opacity = k;
+    if (k > 0) { const tt = t - SC.fall.lineStart;
+      const kc = pr(tt, 1.3, .25); $("f-clock").style.opacity = kc * (1 - pr(tt, 7.8, .55)); $("f-clock").style.transform = `scale(${lerp(1.4, 1, eo(kc))})`;
+      show($("f-h"), pr(tt, 3.0, .45)); $("f-h").style.opacity = pr(tt, 3.0, .45) * (1 - pr(tt, 7.8, .55));
+      show($("f-out"), pr(tt, 4.9, .6)); $("f-out").style.opacity = pr(tt, 4.9, .6) * (1 - pr(tt, 7.8, .55));
+      $("f-crest").style.filter = `grayscale(${pr(tt, 5.1, .8)}) brightness(${1 - .4 * pr(tt, 5.1, .8)})`;
+      $("flash").style.opacity = .55 * (1 - pr(tt, 1.35, .5)) * (tt > 1.3 ? 1 : 0);
+      $("f-cap").style.opacity = pr(tt, 9.2, .6) * (1 - pr(t, SC.fall.end - .8, .6));
+    } else $("flash").style.opacity = 0; }
+  // огни
+  { const s0 = W("fall", 8.45); const on = t >= s0 && inScene("fall", t);
+    $("fx").style.opacity = on ? pr(t, s0, .7) * (1 - pr(t, SC.fall.end - .6, .6)) : 0;
+    if (on) { const f = Math.floor((t - s0) * 30), cut = 75; // общий план 2,5 с, затем крупный
+      waits.push(setSrc("fxA", `${FX.dir}/f${String(Math.min(f, FX.n - 1)).padStart(4, "0")}.jpg`));
+      const kz = pr(t, s0 + 2.2, .8);
+      if (FXZ.n > 1 && kz > 0) waits.push(setSrc("fxB", `${FXZ.dir}/f${String(Math.min(Math.max(0, f - cut + 24), FXZ.n - 1)).padStart(4, "0")}.jpg`));
+      $("fxB").style.opacity = FXZ.n > 1 ? kz : 0;
+      $("fxA").style.transform = `scale(${lerp(1.0, 1.12, pr(t, s0, 3))})`; $("fxA").style.transformOrigin = "30% 50%";
+      $("fxB").style.transformOrigin = "54% 56%"; $("fxB").style.transform = `scale(${lerp(1.18, 1.3, pr(t, s0 + 2.2, 6))})`; } }
+
+  // Итоги
+  { const k = sceneK("totals", t); $("sc-totals").style.opacity = k;
+    if (k > 0) { const tt = t - SC.totals.lineStart;
+      MET.forEach((m, i) => { const kk = pr(tt, m.at - .15, .5); const el = $("m-" + i); el.style.opacity = kk; el.style.transform = `translateY(${(1 - eo(kk)) * 40}px)`;
+        $("mn-" + i).textContent = fmtN(m.n * eo(pr(tt, m.at - .1, 1.1))); const s = $("ms-" + i); if (s) s.style.opacity = m.sub_at ? pr(tt, m.sub_at, .5) : kk; }); } }
+
+  // Сегодня
+  { const k = sceneK("standing", t); $("sc-standing").style.opacity = k;
+    if (k > 0) { const tt = t - SC.standing.lineStart;
+      BARS.forEach((b, i) => { const kk = pr(tt, b.at - .3, .5); show($("b-" + i), kk, 30); $("bb-" + i).style.width = (b.n / 40 * 100 * eo(pr(tt, b.at - .2, 1.0))) + "%"; $("bn-" + i).textContent = b.n ? fmtN(b.n * eo(pr(tt, b.at - .2, 1.0))) : "—"; $("bx-" + i).style.opacity = pr(tt, b.ex_at, .5); });
+      show($("st-go"), pr(tt, 6.5, .6)); } }
+
+  // Финал
+  { const k = sceneK("outro", t); $("sc-outro").style.opacity = k;
+    if (k > 0) { const tt = t - SC.outro.lineStart;
+      $("o-bg").style.transform = `scale(${lerp(1.0, 1.06, pr(t, SC.outro.start, 8))})`;
+      $("o-ring").style.transform = `scale(${lerp(.85, 1, eo(pr(tt, -.6, 1.6)))})`; $("o-ring").style.opacity = pr(tt, -.6, 1.2);
+      pop($("o-logo"), pr(tt, -.3, .8)); show($("o-name"), pr(tt, 0, .8), 30); show($("o-tag"), pr(tt, 1.4, .8)); show($("o-sub"), pr(tt, 3.6, .8));
+      $("stage").style.filter = `brightness(${1 - pr(t, TL.end - 1.2, 1.2)})`; } else $("stage").style.filter = "none"; }
+
+  await Promise.all(waits.filter(Boolean));
+  await new Promise((r) => requestAnimationFrame(() => r()));
+}
+window.render = render;
+// фоны заставки и финала — последний кадр карты, размытый
+$("t-bg").src = "assets/map-final-blur.jpg"; $("o-bg").src = "assets/map-final-blur.jpg";
+window.ready = Promise.all([document.fonts.ready, $("t-bg").decode().catch(() => {})]);
+</script>
+</body></html>

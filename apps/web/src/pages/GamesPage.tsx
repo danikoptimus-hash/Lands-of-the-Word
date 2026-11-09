@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { SocialLinks } from "../components/SocialLinks";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { reportPage } from "../lib/perf";
 import { api, ApiError, apiReady, prefetch, ready, type GameSummary, type MyMapDto, type MyTeamDto } from "../lib/api";
@@ -132,7 +133,8 @@ export function GamesPage() {
       )}
 
 
-      <div className="home-foot"><JoinByLink /><Link to="/games/new" className="btn ghost"><Icon name="plus" />{t("Создать игру")}</Link><Link to="/how-to-play" className="btn ghost"><Icon name="help" />{t("Как играть?")}</Link><Link to="/whats-new" className="btn ghost"><Icon name="sparkle" />{t("Что нового")}</Link><a href="https://t.me/the_Word_was_God" target="_blank" rel="noopener noreferrer" className="btn ghost"><Icon name="send" />Telegram</a><Link to="/donate" className="btn ghost"><Icon name="star" />{t("Поддержать развитие игры")}</Link></div>
+      <div className="home-foot"><JoinByLink /><Link to="/games/new" className="btn ghost"><Icon name="plus" />{t("Создать игру")}</Link><Link to="/how-to-play" className="btn ghost"><Icon name="help" />{t("Как играть?")}</Link><Link to="/whats-new" className="btn ghost"><Icon name="sparkle" />{t("Что нового")}</Link><Link to="/donate" className="btn ghost"><Icon name="star" />{t("Поддержать развитие игры")}</Link></div>
+      <SocialLinks />
     </>
   );
 }

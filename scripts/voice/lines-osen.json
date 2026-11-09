@@ -1,0 +1,128 @@
+{
+  "lines": [
+    {
+      "id": "s0",
+      "text": "«Зе́мли Сло́ва». О́сень. Сорок дней, три команды и шестьдесят шесть городо́в."
+    },
+    {
+      "id": "s1",
+      "text": "Двадцать девятого сентября «Бич наро́дов», «Живы́е ка́мни» и «Небе́сный легио́н» вышли из пле́на. И уже в первую ночь «Бич наро́дов» взял свой первый город — книгу Есфи́рь."
+    },
+    {
+      "id": "s2",
+      "text": "Каждая дорога — доброе дело. За сорок дней команды сделали четыреста тридцать четыре дела: помогали, навещали, служили — и шли дальше по ка́рте."
+    },
+    {
+      "id": "s3",
+      "text": "В октябре команды вышли в море, высадились на втором о́строве и заключили первые мирные договоры."
+    },
+    {
+      "id": "s4",
+      "text": "Город за городом: тысяча триста шестьдесят девять решённых заданий и шестьдесят городо́в из шестидесяти шести."
+    },
+    {
+      "id": "s5",
+      "text": "А в конце октября начали́сь испыта́ния: за девять дней — двадцать восемь вызовов. Хранители строили сте́ны из выученных стихо́в, претенденты учили отрывки наизусть."
+    },
+    {
+      "id": "s6",
+      "text": "Первого ноября «Бич наро́дов» забрал у легио́на Евангелие от Луки́ и Послание к Римлянам. Легио́н ответил — взял у «Живы́х камне́й» Псалти́рь и При́тчи. Потом «Бич» взял Дании́ла, а «Живы́е ка́мни» — Ио́ва."
+    },
+    {
+      "id": "s7",
+      "text": "Легио́н и сам вызвал два города «Бича́» — Ти́та и Иа́кова. Седьмого ноября оба вызова были отбиты."
+    },
+    {
+      "id": "s8",
+      "text": "Восьмое ноября. «Бич наро́дов» вызывает столицу «Небе́сного легио́на» — Третью книгу Ца́рств. Ставка — двадцать стихо́в. Претенденты сдали их за двадцать пять минут."
+    },
+    {
+      "id": "s9",
+      "text": "У хранителей — один блок стены́: шесть стихо́в капитана и два стиха́ во́ина, которые считаются вдво́е, — в сумме десять. Но стихи́ сданы неве́рно, и администратор откло́нил блок. Да и десяти́ против двадцати́ всё равно бы не хватило."
+    },
+    {
+      "id": "s10",
+      "text": "Ответа нет. В шестнадцать тридцать две столица па́ла. «Небе́сный легио́н» вы́был из игры́ — и над всеми городами победителя загорелся салют."
+    },
+    {
+      "id": "s11",
+      "text": "Города́ легио́на стали пусты́ми. За три часа «Бич наро́дов» и «Живы́е ка́мни» за́няли одиннадцать опусте́вших городо́в — и нашли в них три знака шифра."
+    },
+    {
+      "id": "s12",
+      "text": "Итоги сорока дней. Двадцать семь участников. Триста семьдесят разных стихо́в — четыреста пятьдесят два, если считать каждого, кто выучил. Сорок один блок стены́ — в них триста двадцать девять стихо́в. Четыреста тридцать четыре добрых дела, из них двадцать шесть — морски́х. Тысяча триста шестьдесят девять решённых заданий. Шестьдесят городо́в из шестидесяти шести. Двадцать восемь вызовов за девять дней. И одиннадцать опусте́вших городо́в, за́нятых за три часа."
+    },
+    {
+      "id": "s13",
+      "text": "Сегодня у «Бича́ наро́дов» тридцать семь городо́в и две столицы, у «Живы́х камне́й» — двадцать один. Игра́ продолжается."
+    },
+    {
+      "id": "s14",
+      "text": "«Зе́мли Сло́ва». Кто знает Слово — тот и владеет городом."
+    }
+  ],
+  "music": [
+    [
+      "osen-main",
+      "Warm majestic orchestral soundtrack for a story of an autumn journey across a biblical map: gentle harp and strings opening, rising French horns, steady adventurous pulse, builds gradually, hopeful, instrumental only, no vocals, no lyrics",
+      100000
+    ],
+    [
+      "osen-war",
+      "Tense cinematic orchestral underscore: low strings ostinato, war drums and taiko, brass stabs, suspense building steadily, strategy game battle theme, instrumental only, no vocals",
+      55000
+    ],
+    [
+      "osen-fall",
+      "Dramatic orchestral climax: silence then a huge timpani hit, a grave low choir pad, then a triumphant brass fanfare with soaring strings and celebratory bells, instrumental only, no lyrics",
+      40000
+    ],
+    [
+      "osen-outro",
+      "Noble reflective orchestral finale: warm strings and soft horns, gentle piano, hopeful and grateful, slowly resolving to a calm ending, instrumental only, no vocals",
+      60000
+    ]
+  ],
+  "sfx": [
+    [
+      "fireworks",
+      "Fireworks show at night: rockets whistling up and bursting with loud booms and crackling sparkles, distant and celebratory, no voices",
+      10
+    ],
+    [
+      "impact",
+      "Deep cinematic impact hit with a short low boom",
+      2
+    ],
+    [
+      "whoosh",
+      "Soft cinematic whoosh transition",
+      2
+    ],
+    [
+      "stamp",
+      "Heavy rubber stamp slam on a wooden desk",
+      1.5
+    ],
+    [
+      "bricks",
+      "Stone bricks placed one by one on a wall, soft heavy thuds",
+      4
+    ],
+    [
+      "crumble",
+      "Old stone wall crumbling and collapsing, rubble falling, short",
+      4
+    ],
+    [
+      "coin",
+      "Small bright chime, medal awarded",
+      1.5
+    ],
+    [
+      "tick",
+      "Single clock tick, crisp",
+      1
+    ]
+  ]
+}
