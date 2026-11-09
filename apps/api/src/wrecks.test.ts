@@ -55,6 +55,14 @@ afterAll(async () => {
   await app.close(); await prisma.$disconnect();
 });
 
+
+/** Записи летописи пишутся в фоне (journal() не ждёт create): ждём нужное число до секунды, иначе на медленной машине CI тест сбоит гонкой. */
+async function journalCount(where: Record<string, unknown>, want: number): Promise<number> {
+  let n = 0;
+  for (let i = 0; i < 20; i++) { n = await prisma.journal.count({ where }); if (n >= want) break; await new Promise((r) => setTimeout(r, 50)); }
+  return n;
+}
+
 describe("Разбитые бурей корабли", () => {
   let deedId = "", wreckId = "";
 
@@ -84,7 +92,7 @@ describe("Разбитые бурей корабли", () => {
     expect(w).toBeTruthy(); expect(w.title).toBe("Помочь людям с разбитого корабля"); expect(w.cargo).toEqual({ stones: 4, blocks: 1 }); expect(w.mine).toBeNull(); expect(w.q).toBe(wreck.q);
     expect((await myWrecks(cap2Cookie)).some((x) => x.id === wreckId)).toBe(true);
     // Новость всем командам.
-    expect(await prisma.journal.count({ where: { gameId, kind: "wreck_appeared", everyone: true } })).toBe(1);
+    expect(await journalCount({ gameId, kind: "wreck_appeared", everyone: true }, 1)).toBe(1);
     // Груз правится в деле (решение владельца 05.11): открытый корабль подхватывает новые числа, команды видят свежие.
     expect((await put(`/api/games/${gameId}/deeds/${deedId}`, adminCookie, { wreckStones: 3, wreckBlocks: 2 })).statusCode).toBe(200);
     expect((await prisma.wreck.findUniqueOrThrow({ where: { id: wreckId } })).stones).toBe(3);
@@ -137,7 +145,7 @@ describe("Разбитые бурей корабли", () => {
     const w = (await myWrecks(capCookie)).find((x) => x.id === wreckId)!;
     expect(w.mine).toMatchObject({ status: "APPROVED", cargo: "STONES", amount: 3 }); expect(w.doneTeams).toBe(2); expect(w.sunkAt).toBeNull();
     expect((await get(`/api/games/${gameId}/my-map`, cap2Cookie)).json().team.cargoBlocks).toBe(2);
-    expect(await prisma.journal.count({ where: { gameId, kind: "wreck_rewarded" } })).toBe(2);
+    expect(await journalCount({ gameId, kind: "wreck_rewarded" }, 2)).toBe(2);
     // Решённые сдачи — в истории администратора с грузом.
     const done = (await get(`/api/games/${gameId}/wrecks/submissions?status=DECIDED`, adminCookie)).json().works as Array<{ cargo: string }>;
     expect(done.map((x) => x.cargo).sort()).toEqual(["BLOCKS", "STONES"]);
@@ -163,7 +171,7 @@ describe("Разбитые бурей корабли", () => {
     const ws = (await myWrecks(capCookie)).find((x) => x.id === wreck2.id)!;
     expect(ws.sunkAt).not.toBeNull(); expect(ws.title).toBe("Вытащить ящики на берег");
     expect((await post(`/api/games/${gameId}/wrecks/${wreck2.id}/submit`, capCookie, { links: ["https://photos.example/6"] })).statusCode).toBe(404);
-    expect(await prisma.journal.count({ where: { gameId, kind: "wreck_sunk" } })).toBe(1);
+    expect(await journalCount({ gameId, kind: "wreck_sunk" }, 1)).toBe(1);
   });
 
   it("снятый флажок — корабль тонет; одобренной команде он уплывает, а не тонет; маршрута «Отпустить корабль» нет (06.11)", async () => {
@@ -205,7 +213,7 @@ describe("Разбитые бурей корабли", () => {
     const map = (await get(`/api/games/${gameId}/my-map`, cap2Cookie)).json();
     expect(map.team.cargoBlocks).toBe(0);
     expect((map.cities as Array<{ nodeKey: string; wall: boolean }>).find((c) => c.nodeKey === city.key)?.wall).toBe(true);
-    expect(await prisma.journal.count({ where: { gameId, kind: "wall_cargo_laid" } })).toBe(2);
+    expect(await journalCount({ gameId, kind: "wall_cargo_laid" }, 2)).toBe(2);
   });
 });
 
