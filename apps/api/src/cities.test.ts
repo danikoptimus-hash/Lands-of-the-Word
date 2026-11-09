@@ -432,7 +432,7 @@ describe("дипломатия, роли, столица, руины, пожер
     await prisma.user.deleteMany({ where: { nickname: nick } });
   });
 
-  it("руины берутся без ключа после решённых заданий", async () => {
+  it("опустевший город берётся без ключа после решённых заданий", async () => {
     await prisma.mapNode.update({ where: { gameId_key: { gameId, key: rutKey } }, data: { ruined: true } });
     await prisma.teamCityState.updateMany({ where: { nodeKey: rutKey, gameId }, data: { capturedAt: null, isCapital: false } });
     const info = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-city/${rutKey}`, headers: { cookie: p2Cookie } });

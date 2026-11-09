@@ -47,7 +47,8 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   order_solved: "{user} собрал(а) порядок районов города {book}",
   task_solved: "{user} решил(а) район {n} города {book}",
   city_captured: "Команда «{team}» взяла город {book}{capital}",
-  ruins_taken: "Команда «{team}» заняла руины города {book}",
+  ruins_taken: "Команда «{team}» заняла опустевший город {book}",
+  // Находка в руинах убрана (решение владельца 09.11); шаблон остаётся для записей прошлых партий.
   treasure: "Находка в руинах города {book}: знак шифра города {other}",
   trial_declared: "Команда «{team}» бросила вызов городу {book} команды «{other}»",
   trial_queued: "Команда «{team}» встала в очередь на город {book} команды «{other}»",

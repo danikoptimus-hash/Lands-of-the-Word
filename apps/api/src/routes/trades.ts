@@ -41,7 +41,7 @@ async function tradable(gameId: string, teamId: string, nodeKey: string): Promis
   if (st.isCapital || st.secondCapital) return "Столицу обменять нельзя";
   const node = await prisma.mapNode.findUnique({ where: { gameId_key: { gameId, key: nodeKey } }, select: { ruined: true } });
   if (!node) return "Город не найден";
-  if (node.ruined) return "Руины обменять нельзя";
+  if (node.ruined) return "Опустевший город обменять нельзя";
   const busy = await prisma.battle.count({ where: { gameId, nodeKey, status: { in: ["QUEUED", "ATTACK", "DEFENSE"] } } });
   const siege = await prisma.siege.count({ where: { gameId, nodeKey, status: "ACTIVE" } });
   if (busy || siege) return "Город под вызовом или в осаде: обмен после испытания";
