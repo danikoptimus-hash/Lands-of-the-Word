@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Picker } from "../components/Picker";
 import { api, ApiError, type WallBlockDto, type WallBrickDto, type WallDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
@@ -235,10 +236,7 @@ function BuildSheet({ gameId, nodeKey, bookCode, bricks, members, canPlan, canFo
       {canFor && members.some((m) => m.userId !== me) && (
         <div className="field">
           <label htmlFor="wall-for">{t("Сдать за")}</label>
-          <select id="wall-for" value={forId} onChange={(e) => { setForId(e.target.value); setK(null); setError(null); }}>
-            <option value="">{t("себя")}</option>
-            {members.filter((m) => m.userId !== me).map((m) => <option key={m.userId} value={m.userId}>{m.name}</option>)}
-          </select>
+          <Picker id="wall-for" value={forId} onChange={(v) => { setForId(v); setK(null); setError(null); }} placeholder={t("себя")} options={members.filter((m) => m.userId !== me).map((m) => ({ value: m.userId, label: m.name }))} />
         </div>
       )}
       <p className="hint">{forId ? t("Сдаёте за участника {name}: выберите блок, который он выучил заранее, и прикрепите ссылку на его видео. Блок засчитается ему; во время ответа хранителей стену не строят.", { name: forName }) : repair ? t("Починка {ref}: досдайте {n} стихов ({part}).", { ref: repair.ref, n: repair.missing ?? 0, part: repair.repairRef ?? "" }) : t("Выучите {n} стихов одного блока наизусть, запишите видео и прикрепите ссылку.", { n })}{!repair && mineCount > 0 ? ` ${t("Ваших блоков в стене: {n}.", { n: mineCount })}` : ""}<Help>{t("Число на кирпиче — сколько человек в команде ещё могут его взять; «все» — блок полностью свободен. Нажатие выбирает блок; удержание показывает имена, капитан поручает блок.")}</Help></p>

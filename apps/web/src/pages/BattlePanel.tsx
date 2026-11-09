@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Picker } from "../components/Picker";
 import { api, ApiError, type BattleDto, type BattleStatus, type BookTextDto, type DaytimeDto, type PassageDto, type WarDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
@@ -348,10 +349,7 @@ function VerseChecklist({ gameId, b, passage, locked, onChanged, members = [], m
       {!locked && canFor && members.some((x) => x.userId !== meId) && (
         <div className="field">
           <label htmlFor={`for-${b.id}`}>{t("Отметить за")}</label>
-          <select id={`for-${b.id}`} value={forId} onChange={(e) => { setForId(e.target.value); setSel(new Set()); setError(null); }}>
-            <option value="">{t("себя")}</option>
-            {members.filter((x) => x.userId !== meId).map((x) => <option key={x.userId} value={x.userId}>{x.name}</option>)}
-          </select>
+          <Picker id={`for-${b.id}`} value={forId} onChange={(v) => { setForId(v); setSel(new Set()); setError(null); }} placeholder={t("себя")} options={members.filter((x) => x.userId !== meId).map((x) => ({ value: x.userId, label: x.name }))} />
         </div>
       )}
       <ul className="verses">
@@ -424,9 +422,7 @@ function PassagePicker({ gameId, battleId, need, onChosen }: { gameId: string; b
       <p className="hint">{t("Нажмите первый и последний стих — не меньше {n}.", { n: verses(need) })}</p>
       <div className="field">
         <label htmlFor={"chapter-" + battleId}>{t("Глава")}</label>
-        <select id={"chapter-" + battleId} className="chapter-select" value={chapter} onChange={(e) => setChapter(Number(e.target.value))}>
-          {book.verseCounts.map((_, c) => <option key={c} value={c}>{c + 1}</option>)}
-        </select>
+        <Picker id={"chapter-" + battleId} className="chapter-select" value={String(chapter)} onChange={(v) => setChapter(Number(v))} options={book.verseCounts.map((n, c) => ({ value: String(c), label: String(c + 1), hint: t("{n} ст.", { n }) }))} />
       </div>
       <ul className="verses">
         {(book.chapters?.[chapter] ?? []).map((text, v) => {

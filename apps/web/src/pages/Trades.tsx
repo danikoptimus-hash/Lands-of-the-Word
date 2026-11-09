@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Picker } from "../components/Picker";
 import { api, ApiError, type TradeDto, type TradesDto } from "../lib/api";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
@@ -77,10 +78,8 @@ export function TradesSection({ gameId, onChanged }: { gameId: string; onChanged
               <>
                 <div className="field">
                   <label htmlFor={"trade-counter-" + x.id}>{t("Какой город предложить взамен")}</label>
-                  <select id={"trade-counter-" + x.id} value={counter[x.id] ?? ""} onChange={(e) => setCounter({ ...counter, [x.id]: e.target.value })}>
-                    <option value="">{t("Выберите город…")}</option>
-                    {tradable.filter((c) => !x.declined.some((d) => d.nodeKey === c.nodeKey)).map((c) => <option key={c.nodeKey} value={c.nodeKey}>{c.bookName} · {words(c.words)}</option>)}
-                  </select>
+                  <Picker id={"trade-counter-" + x.id} value={counter[x.id] ?? ""} onChange={(v) => setCounter({ ...counter, [x.id]: v })} placeholder={t("Выберите город…")}
+                    options={tradable.filter((c) => !x.declined.some((d) => d.nodeKey === c.nodeKey)).map((c) => ({ value: c.nodeKey, label: c.bookName, hint: words(c.words) }))} />
                 </div>
                 <div className="actions">
                   <button type="button" disabled={busy === x.id || !counter[x.id]} onClick={() => void call(x.id, `/api/games/${gameId}/trades/${x.id}/counter`, { nodeKey: counter[x.id] }, t("Встречный город предложен"))}><Icon name="send" />{t("Предложить взамен")}</button>
@@ -136,7 +135,7 @@ export function TradeProposeSheet({ gameId, offerKey, container, onClose, onDone
         <>
           <p className="trade-offer"><Icon name="city" /><b>{city.bookName}</b> · {words(city.words)}</p>
           <label htmlFor="trade-team">{t("Команда")}</label>
-          <select id="trade-team" value={toTeamId} onChange={(e) => setToTeamId(e.target.value)}><option value="">{t("Выберите команду…")}</option>{data.teams.map((tm) => <option key={tm.id} value={tm.id}>{tm.name}</option>)}</select>
+          <Picker id="trade-team" value={toTeamId} onChange={setToTeamId} placeholder={t("Выберите команду…")} options={data.teams.map((tm) => ({ value: tm.id, label: tm.name }))} />
           <div className="field mt-2"><label htmlFor="trade-msg">{t("Сообщение послу")} <span className="opt">{t("необязательно")}</span></label><AutoGrow id="trade-msg" className="full" value={message} onChange={(e) => setMessage(e.target.value)} maxLength={500} /></div>
           <p className="hint">{t("Посол другой команды увидит город и число слов в его книге и предложит свой город взамен.")}</p>
         </>
