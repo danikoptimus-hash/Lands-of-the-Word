@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Picker } from "../components/Picker";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, apiReady, prefetch, ready, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
@@ -1051,9 +1052,7 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
       {main && (
         <div className="field">
           <label htmlFor="deed-main">{t("На кого записать дело")} <span className="opt">{t("кто делал: идёт в его лимит")}</span></label>
-          <select id="deed-main" value={mainId} onChange={(e) => { setMainId(e.target.value); setParticipants((p) => p.filter((x) => x !== e.target.value)); }}>
-            {main.options.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
-          </select>
+          <Picker id="deed-main" value={mainId} onChange={(v) => { setMainId(v); setParticipants((p) => p.filter((x) => x !== v)); }} options={main.options.map((m) => ({ value: m.id, label: m.name }))} />
         </div>
       )}
       {/* Ссылки слева, участники справа — в один ряд (решение владельца 16.10: «не этажерка»). */}
