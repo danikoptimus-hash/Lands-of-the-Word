@@ -4,7 +4,7 @@ export const PLAYER: Record<string, string> = {
   "Закрытые": "Closed", "Какие проходы показывать": "Which passages to show", "Открытых запросов к вам нет.": "There are no open requests to you.", "Открытых запросов у вас нет.": "You have no open requests.", "Закрытых запросов к вам нет.": "There are no closed requests to you.", "Закрытых запросов у вас нет.": "You have no closed requests.",
   "Пришла {d}": "Arrived {d}",
   "Пожертвования": "Donations", "Поддержать развитие игры": "Support the game’s development",
-  "Канал игры": "Game channel", "В начале было Слово": "In the beginning was the Word", "Мы в соцсетях": "Follow us",
+  "Канал игры": "Game channel", "В начале было Слово": "In the beginning was the Word", "Instagram игры": "Game’s Instagram", "Мы в соцсетях": "Follow us",
   "Пожертвования идут на сервер, домен и развитие игры. Спасибо!": "Donations go to the server, the domain and the development of the game. Thank you!",
   "Из любой страны: Boosty": "From any country: Boosty",
   "Открыть страницу пожертвований в Boosty": "Open the donation page on Boosty",
