@@ -62,7 +62,7 @@ function Masonry({ blocks, fresh }: { blocks: WallBlockDto[]; fresh: Set<string>
     const total = b.verses, intact = total - b.missing;
     // Блок из груза разбитого корабля (решение владельца 04.11): без стихов, толщина как у обычного блока.
     if (b.cargo) return [t("Блок из груза корабля"), b.used ? t("сгорел") : t("толщина {n}", { n: verses(total) })];
-    const who = `${b.ref} · ${b.nickname}${b.weight > 1 ? ` · ${t("воин ×{k}", { k: b.weight })}` : ""}`;
+    const who = `${b.ref} · ${b.gifted ? t("перешёл с городом") : b.nickname}${b.weight > 1 ? ` · ${t("воин ×{k}", { k: b.weight })}` : ""}`;
     const what = b.missing > 0 ? `${t("{n} из {m} стихов", { n: intact, m: total })} · ${t("не хватает {n}", { n: b.missing })}` : b.status === "SUBMITTED" ? `${verses(total)} · ${t("на проверке")}` : b.repairPending ? `${verses(total)} · ${t("починка на проверке")}` : verses(total);
     return [who, what];
   };
@@ -167,7 +167,7 @@ export function WallSection({ gameId, nodeKey, version, asleep = false, onChange
         <ul className="list mt-2 wall-list">
           {[...d.blocks].reverse().map((b) => (
             <li key={b.id}>
-              <div className="main"><span className="title">{b.cargo ? t("Блок из груза корабля") : b.ref} <span className="muted small">· {b.nickname} · {b.cargo ? t("толщина {n}", { n: verses(b.verses) }) : b.missing > 0 && !b.used ? t("{n} из {m} стихов", { n: b.verses - b.missing, m: b.verses }) : verses(b.verses)}</span>{b.weight > 1 && <Chip tone="accent" icon="sword">{t("воин ×{k}", { k: b.weight })}</Chip>}</span>{b.adminComment && <span className="meta">{b.adminComment}</span>}</div>
+              <div className="main"><span className="title">{b.cargo ? t("Блок из груза корабля") : b.ref} <span className="muted small">· {b.gifted ? t("перешёл с городом") : b.nickname} · {b.cargo ? t("толщина {n}", { n: verses(b.verses) }) : b.missing > 0 && !b.used ? t("{n} из {m} стихов", { n: b.verses - b.missing, m: b.verses }) : verses(b.verses)}</span>{b.weight > 1 && <Chip tone="accent" icon="sword">{t("воин ×{k}", { k: b.weight })}</Chip>}</span>{b.adminComment && <span className="meta">{b.adminComment}</span>}</div>
               <span className="row nowrap">
                 {b.used ? <Chip tone="bad" icon="wave" title={b.usedAt ? t("Лёг в ответ {d}", { d: fmtDate(b.usedAt, { time: false }) }) : undefined}>{t("сгорел")}</Chip>
                   : b.status === "APPROVED" && b.missing > 0 ? <Chip tone="warn" icon={b.repairPending ? "clock" : "alert"}>{b.repairPending ? t("починка на проверке") : t("надломлен")}</Chip>

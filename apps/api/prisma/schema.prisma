@@ -25,40 +25,52 @@ enum NodeKind {
 }
 
 model User {
-  id           String       @id @default(cuid())
-  nickname     String       @unique
-  passwordHash String
-  email        String?      @unique
-  /** Почта подтверждена ссылкой из письма. Учётки, созданные до ввода подтверждения, считаются подтверждёнными. */
-  emailVerified Boolean     @default(false)
-  /** Идентификатор Google (sub) для входа через Google. Имя и фото из Google не хранятся. */
-  googleId     String?      @unique
-  displayName  String?
-  locale       String       @default("ru")
-  platformRole PlatformRole @default(USER)
-  createdAt    DateTime     @default(now())
-  /** Защита от подбора пароля (решение владельца 22.09): неверных попыток подряд; после 10 — вход закрыт до lockedUntil (15 минут),
-   *  владельцу уходит письмо один раз за блокировку. Успешный вход и смена пароля обнуляют. */
-  failedLogins Int          @default(0)
-  lockedUntil  DateTime?
-  /** Последняя активность (обновляется не чаще раза в 10 минут) — для DAU/WAU/MAU и удержания. */
-  lastSeenAt   DateTime?
-  sessions     Session[]
-  days         UserDay[]
-  gameAdmins   GameAdmin[]
-  createdGames Game[]       @relation("GameCreator")
-  memberships  Membership[]
-  resets       PasswordReset[]
-  verifications EmailVerification[]
+  id                String              @id @default(cuid())
+  nickname          String              @unique
+  passwordHash      String
+  email             String?             @unique
+  /**
+   * Почта подтверждена ссылкой из письма. Учётки, созданные до ввода подтверждения, считаются подтверждёнными.
+   */
+  emailVerified     Boolean             @default(false)
+  /**
+   * Идентификатор Google (sub) для входа через Google. Имя и фото из Google не хранятся.
+   */
+  googleId          String?             @unique
+  displayName       String?
+  locale            String              @default("ru")
+  platformRole      PlatformRole        @default(USER)
+  createdAt         DateTime            @default(now())
+  /**
+   * Защита от подбора пароля (решение владельца 22.09): неверных попыток подряд; после 10 — вход закрыт до lockedUntil (15 минут),
+   * владельцу уходит письмо один раз за блокировку. Успешный вход и смена пароля обнуляют.
+   */
+  failedLogins      Int                 @default(0)
+  lockedUntil       DateTime?
+  /**
+   * Последняя активность (обновляется не чаще раза в 10 минут) — для DAU/WAU/MAU и удержания.
+   */
+  lastSeenAt        DateTime?
+  sessions          Session[]
+  days              UserDay[]
+  gameAdmins        GameAdmin[]
+  createdGames      Game[]              @relation("GameCreator")
+  memberships       Membership[]
+  resets            PasswordReset[]
+  verifications     EmailVerification[]
   pushSubscriptions PushSubscription[]
-  supportRequests SupportRequest[]
-  /** Аватарка (решение владельца 24.10): сжатая картинка в базе, проверенная на уместность. */
-  avatarId     String?      @unique
-  avatar       Avatar?      @relation("UserAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
-  /** Суперадмин запретил ставить аватарки (неуместное фото). */
-  avatarBlocked Boolean     @default(false)
-  uploadedAvatars Avatar[]  @relation("AvatarUploader")
-  attentionSeen AttentionSeen[]
+  supportRequests   SupportRequest[]
+  /**
+   * Аватарка (решение владельца 24.10): сжатая картинка в базе, проверенная на уместность.
+   */
+  avatarId          String?             @unique
+  avatar            Avatar?             @relation("UserAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
+  /**
+   * Суперадмин запретил ставить аватарки (неуместное фото).
+   */
+  avatarBlocked     Boolean             @default(false)
+  uploadedAvatars   Avatar[]            @relation("AvatarUploader")
+  attentionSeen     AttentionSeen[]
 }
 
 /**
@@ -69,23 +81,31 @@ model Avatar {
   id           String   @id @default(cuid())
   data         Bytes
   mime         String   @default("image/webp")
-  /** Кто загрузил: для команды — капитан; ему и запрет, если фото неуместное. */
+  /**
+   * Кто загрузил: для команды — капитан; ему и запрет, если фото неуместное.
+   */
   uploadedById String?
   uploadedBy   User?    @relation("AvatarUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
-  /** Итог проверки OpenAI: категории и оценки — суперадмину для разбора. */
+  /**
+   * Итог проверки OpenAI: категории и оценки — суперадмину для разбора.
+   */
   moderation   Json?
   createdAt    DateTime @default(now())
   user         User?    @relation("UserAvatar")
   team         Team?    @relation("TeamAvatar")
 }
 
-/** Настройки платформы, которые сервер создаёт сам (например ключи VAPID для push-уведомлений). */
+/**
+ * Настройки платформы, которые сервер создаёт сам (например ключи VAPID для push-уведомлений).
+ */
 model AppSetting {
   key   String @id
   value String
 }
 
-/** Push-подписка браузера (одно устройство / один браузер). Endpoint и ключи выдаёт браузер; адресов и имён тут нет. */
+/**
+ * Push-подписка браузера (одно устройство / один браузер). Endpoint и ключи выдаёт браузер; адресов и имён тут нет.
+ */
 model PushSubscription {
   id        String   @id @default(cuid())
   userId    String
@@ -104,8 +124,12 @@ enum ResetKind {
   ADMIN
 }
 
-/** Одноразовая ссылка сброса пароля. id — SHA-256 от токена из ссылки; сам токен нигде не хранится. */
-/** Одноразовая ссылка подтверждения почты: id — хеш токена, письмо уходит на email на момент выпуска. */
+/**
+ * Одноразовая ссылка сброса пароля. id — SHA-256 от токена из ссылки; сам токен нигде не хранится.
+ */
+/**
+ * Одноразовая ссылка подтверждения почты: id — хеш токена, письмо уходит на email на момент выпуска.
+ */
 model EmailVerification {
   id        String    @id
   userId    String
@@ -142,44 +166,50 @@ model Session {
 }
 
 model Game {
-  id          String       @id @default(cuid())
-  name        String
-  status      GameStatus   @default(DRAFT)
-  teamCount   Int
-  settings    Json         @default("{}")
-  /** Свободные дела перекомпонованы при запуске сервера по правилу «одинаковые дела не рядом» (разово, решение владельца 04.10). */
+  id                String           @id @default(cuid())
+  name              String
+  status            GameStatus       @default(DRAFT)
+  teamCount         Int
+  settings          Json             @default("{}")
+  /**
+   * Свободные дела перекомпонованы при запуске сервера по правилу «одинаковые дела не рядом» (разово, решение владельца 04.10).
+   */
   deedsReshuffledAt DateTime?
-  mapSeed     Int?
-  createdById String
-  createdBy   User         @relation("GameCreator", fields: [createdById], references: [id])
-  createdAt   DateTime     @default(now())
-  admins      GameAdmin[]
-  hexes       MapHex[]
-  nodes       MapNode[]
-  edges       MapEdge[]
-  teams       Team[]
-  invites     Invite[]
-  deeds       Deed[]
-  startedAt   DateTime?
-  finishedAt   DateTime?
-  /** Удалена администратором после завершения (решение владельца 03.11): для администраторов игры нет, у участников остаётся. */
-  deletedAt    DateTime?
-  winnerTeamId String?
-  /** Почему завершена: last_team (осталась одна команда), time_limit (срок), manual (админ). */
-  finishReason String?
-  recipients  Recipient[]
-  taskEvents  TaskEvent[]
-  supportRequests SupportRequest[]
-  journal     Journal[]
-  peaces      Peace[]
-  visits      CityVisit[]
-  quarryWorks  QuarryWork[]
-  trades      CityTrade[]
-  wallBlocks  WallBlock[]
-  learnPlans  LearnPlan[]
-  wrecks      Wreck[]
-  wreckWorks  WreckWork[]
-  attentionSeen AttentionSeen[]
+  mapSeed           Int?
+  createdById       String
+  createdBy         User             @relation("GameCreator", fields: [createdById], references: [id])
+  createdAt         DateTime         @default(now())
+  admins            GameAdmin[]
+  hexes             MapHex[]
+  nodes             MapNode[]
+  edges             MapEdge[]
+  teams             Team[]
+  invites           Invite[]
+  deeds             Deed[]
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  /**
+   * Удалена администратором после завершения (решение владельца 03.11): для администраторов игры нет, у участников остаётся.
+   */
+  deletedAt         DateTime?
+  winnerTeamId      String?
+  /**
+   * Почему завершена: last_team (осталась одна команда), time_limit (срок), manual (админ).
+   */
+  finishReason      String?
+  recipients        Recipient[]
+  taskEvents        TaskEvent[]
+  supportRequests   SupportRequest[]
+  journal           Journal[]
+  peaces            Peace[]
+  visits            CityVisit[]
+  quarryWorks       QuarryWork[]
+  trades            CityTrade[]
+  wallBlocks        WallBlock[]
+  learnPlans        LearnPlan[]
+  wrecks            Wreck[]
+  wreckWorks        WreckWork[]
+  attentionSeen     AttentionSeen[]
 }
 
 model GameAdmin {
@@ -191,7 +221,9 @@ model GameAdmin {
   @@id([gameId, userId])
 }
 
-/** Гекс — местность (декорация и туман). */
+/**
+ * Гекс — местность (декорация и туман).
+ */
 model MapHex {
   id       String @id @default(cuid())
   gameId   String
@@ -200,46 +232,70 @@ model MapHex {
   r        Int
   terrain  String
   rotation Int    @default(0)
-  /** Остров: OT — Ветхий Завет, NT — Новый Завет (карты до сентября 2026 — один остров OT). */
+  /**
+   * Остров: OT — Ветхий Завет, NT — Новый Завет (карты до сентября 2026 — один остров OT).
+   */
   island   String @default("OT")
 
   @@unique([gameId, q, r])
 }
 
-/** Узел — перекрёсток (вершина гекса): развилка, город или старт. */
+/**
+ * Узел — перекрёсток (вершина гекса): развилка, город или старт.
+ */
 model MapNode {
-  id        String   @id @default(cuid())
-  gameId    String
-  game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  key       String
-  corner    String   @default("N")
-  q         Int
-  r         Int
-  kind      NodeKind
-  bookCode  String?
-  cityType  String?
-  teamIndex Int?
-  island    String   @default("OT")
-  /** Береговой узел: хотя бы один гекс вокруг — море. Береговой город — порт: из него команда может уплыть на другой остров. */
-  coastal   Boolean  @default(false)
-  /** Ключ конверта города (генерируется при старте игры, виден только админу). */
-  cityKey   String?
-  /** Шифр города: случайные буквы и цифры, по знаку на район; команда собирает его заданиями. Свой в каждой игре. */
-  cityCode  String?
-  /** Адресат конверта этого города (семья, вдова, старица), назначается по кругу из списка игры. */
-  recipientId String?
-  recipient   Recipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
-  /** Уровень защиты города: сколько стихов надо, чтобы его взять (следующая атака ≥ level + 1). */
-  defenseLevel  Int     @default(0)
-  /** Книга исчерпана: ставки считаются суммой стихов по участникам. */
-  sumMode       Boolean @default(false)
-  /** Закреплён до этой даты: хранители отбились с максимумом (каждый участник выучил всю книгу). Решение владельца 18.09: навечно — никогда. */
-  lockedUntil   DateTime?
-  /** Хранители достигли максимума: после закрепления город берётся только осадой делами. Сбрасывается со сменой владельца. */
-  maxReachedAt  DateTime?
-  /** Руины: город выбывшей команды. Берётся выполнением заданий, без ключа и без битвы. */
-  ruined        Boolean @default(false)
-  /** Руины с сокровищем (решение владельца 18.09): какая команда первой изучила руины и получила находку — знак шифра соседнего города. */
+  id             String     @id @default(cuid())
+  gameId         String
+  game           Game       @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  key            String
+  corner         String     @default("N")
+  q              Int
+  r              Int
+  kind           NodeKind
+  bookCode       String?
+  cityType       String?
+  teamIndex      Int?
+  island         String     @default("OT")
+  /**
+   * Береговой узел: хотя бы один гекс вокруг — море. Береговой город — порт: из него команда может уплыть на другой остров.
+   */
+  coastal        Boolean    @default(false)
+  /**
+   * Ключ конверта города (генерируется при старте игры, виден только админу).
+   */
+  cityKey        String?
+  /**
+   * Шифр города: случайные буквы и цифры, по знаку на район; команда собирает его заданиями. Свой в каждой игре.
+   */
+  cityCode       String?
+  /**
+   * Адресат конверта этого города (семья, вдова, старица), назначается по кругу из списка игры.
+   */
+  recipientId    String?
+  recipient      Recipient? @relation(fields: [recipientId], references: [id], onDelete: SetNull)
+  /**
+   * Уровень защиты города: сколько стихов надо, чтобы его взять (следующая атака ≥ level + 1).
+   */
+  defenseLevel   Int        @default(0)
+  /**
+   * Книга исчерпана: ставки считаются суммой стихов по участникам.
+   */
+  sumMode        Boolean    @default(false)
+  /**
+   * Закреплён до этой даты: хранители отбились с максимумом (каждый участник выучил всю книгу). Решение владельца 18.09: навечно — никогда.
+   */
+  lockedUntil    DateTime?
+  /**
+   * Хранители достигли максимума: после закрепления город берётся только осадой делами. Сбрасывается со сменой владельца.
+   */
+  maxReachedAt   DateTime?
+  /**
+   * Руины: город выбывшей команды. Берётся выполнением заданий, без ключа и без битвы.
+   */
+  ruined         Boolean    @default(false)
+  /**
+   * Руины с сокровищем (решение владельца 18.09): какая команда первой изучила руины и получила находку — знак шифра соседнего города.
+   */
   treasureTeamId String?
 
   @@unique([gameId, key])
@@ -257,7 +313,9 @@ model MapEdge {
 
 enum TeamRole {
   CAPTAIN
-  /** Заместитель капитана: назначает капитан; все права капитана, кроме назначения ролей. */
+  /**
+   * Заместитель капитана: назначает капитан; все права капитана, кроме назначения ролей.
+   */
   DEPUTY
   MEMBER
 }
@@ -268,13 +326,19 @@ enum GameRole {
   PROPHET
   AMBASSADOR
   CHRONICLER
-  /** Кормчий: морские переходы и выбор места высадки. */
+  /**
+   * Кормчий: морские переходы и выбор места высадки.
+   */
   HELMSMAN
-  /** Воин (решение владельца 22.09): его стихи в испытаниях считаются вдвое. */
+  /**
+   * Воин (решение владельца 22.09): его стихи в испытаниях считаются вдвое.
+   */
   WARRIOR
 }
 
-/** Сдача общего дела Каменоломни: вся команда вместе (спевка, собрание, стройка…); администратор принимает — команде камни. */
+/**
+ * Сдача общего дела Каменоломни: вся команда вместе (спевка, собрание, стройка…); администратор принимает — команде камни.
+ */
 model QuarryWork {
   id           String    @id @default(cuid())
   gameId       String
@@ -284,7 +348,9 @@ model QuarryWork {
   deedId       String
   deed         Deed      @relation(fields: [deedId], references: [id], onDelete: Cascade)
   byId         String
-  /** Кто был (решение владельца 07.10): отмечают при сдаче, принятое дело идёт им в зачёт «Моё служение». */
+  /**
+   * Кто был (решение владельца 07.10): отмечают при сдаче, принятое дело идёт им в зачёт «Моё служение».
+   */
   participants String[]  @default([])
   links        String[]  @default([])
   note         String    @default("")
@@ -300,82 +366,111 @@ model QuarryWork {
 }
 
 model Team {
-  id           String       @id @default(cuid())
-  gameId       String
-  game         Game         @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  index        Int
-  name         String
-  color        String
-  startNodeKey String?
-  status       String       @default("active")
-  /** Единственный перенос столицы за игру (2.9). */
-  capitalMovedAt DateTime?
-  /** Победа над командой (решение владельца 08.11): когда команда взяла чужую столицу; до конца этого дня по поясу игры над всеми её городами салют. */
-  triumphAt      DateTime?
-  /** Тёсаные камни Каменоломни (решение владельца 04.10): один камень мостит одну свободную сторону. */
-  stones         Int          @default(0)
-  quarryWorks    QuarryWork[]
-  /** Блоки для стен из груза разбитого корабля (решение владельца 04.11): блок ложится в стену своего города сразу принятым. */
-  cargoBlocks    Int          @default(0)
-  wreckWorks     WreckWork[]
-  /** Разведчик: последний «взгляд» за ребро (раз в неделю). */
-  lastPeekAt     DateTime?
-  /** Пророк: последняя подсказка к заданию города (раз в неделю). */
-  lastHintAt     DateTime?
-  /** Смена игровых ролей — не чаще раза в неделю и только с одобрения администратора (решение владельца 18.09). */
+  id               String           @id @default(cuid())
+  gameId           String
+  game             Game             @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  index            Int
+  name             String
+  color            String
+  startNodeKey     String?
+  status           String           @default("active")
+  /**
+   * Единственный перенос столицы за игру (2.9).
+   */
+  capitalMovedAt   DateTime?
+  /**
+   * Победа над командой (решение владельца 08.11): когда команда взяла чужую столицу; до конца этого дня по поясу игры над всеми её городами салют.
+   */
+  triumphAt        DateTime?
+  /**
+   * Тёсаные камни Каменоломни (решение владельца 04.10): один камень мостит одну свободную сторону.
+   */
+  stones           Int              @default(0)
+  quarryWorks      QuarryWork[]
+  /**
+   * Блоки для стен из груза разбитого корабля (решение владельца 04.11): блок ложится в стену своего города сразу принятым.
+   */
+  cargoBlocks      Int              @default(0)
+  wreckWorks       WreckWork[]
+  /**
+   * Разведчик: последний «взгляд» за ребро (раз в неделю).
+   */
+  lastPeekAt       DateTime?
+  /**
+   * Пророк: последняя подсказка к заданию города (раз в неделю).
+   */
+  lastHintAt       DateTime?
+  /**
+   * Смена игровых ролей — не чаще раза в неделю и только с одобрения администратора (решение владельца 18.09).
+   */
   lastRoleChangeAt DateTime?
-  penalties      TeamPenalty[]
-  peeks          TeamPeek[]
-  wallScouts     TeamWallScout[]
-  marks          TeamMark[]
-  /** Аватарка команды (ставит капитан, решение владельца 24.10). */
-  avatarId       String?      @unique
-  avatar         Avatar?      @relation("TeamAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
-  passageOut     PassageRequest[] @relation("requester")
-  passageIn      PassageRequest[] @relation("owner")
-  createdAt    DateTime     @default(now())
-  members      Membership[]
-  invites      Invite[]
-  nodeStates   TeamNodeState[]
-  edgeTasks    TeamEdgeTask[]
-  taskLocks    TeamTaskLock[]
-  cityStates   TeamCityState[]
-  attacks      Battle[]  @relation("attacker")
-  defenses     Battle[]  @relation("defender")
+  penalties        TeamPenalty[]
+  peeks            TeamPeek[]
+  wallScouts       TeamWallScout[]
+  marks            TeamMark[]
+  /**
+   * Аватарка команды (ставит капитан, решение владельца 24.10).
+   */
+  avatarId         String?          @unique
+  avatar           Avatar?          @relation("TeamAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
+  passageOut       PassageRequest[] @relation("requester")
+  passageIn        PassageRequest[] @relation("owner")
+  createdAt        DateTime         @default(now())
+  members          Membership[]
+  invites          Invite[]
+  nodeStates       TeamNodeState[]
+  edgeTasks        TeamEdgeTask[]
+  taskLocks        TeamTaskLock[]
+  cityStates       TeamCityState[]
+  attacks          Battle[]         @relation("attacker")
+  defenses         Battle[]         @relation("defender")
+  supportRequests  SupportRequest[]
+  tradeOut         CityTrade[]      @relation("tradeFrom")
+  tradeIn          CityTrade[]      @relation("tradeTo")
+  heldWalls        WallBlock[]      @relation("wallHolder")
+  peaceOut         Peace[]          @relation("peaceFrom")
+  peaceIn          Peace[]          @relation("peaceTo")
+  visits           CityVisit[]
+  wallBlocks       WallBlock[]
+  learnPlans       LearnPlan[]
 
   @@unique([gameId, index])
   @@unique([gameId, name])
-  supportRequests SupportRequest[]
-  tradeOut       CityTrade[] @relation("tradeFrom")
-  tradeIn        CityTrade[] @relation("tradeTo")
-  peaceOut       Peace[] @relation("peaceFrom")
-  peaceIn        Peace[] @relation("peaceTo")
-  visits         CityVisit[]
-  wallBlocks     WallBlock[]
-  learnPlans     LearnPlan[]
 }
 
 model Membership {
-  teamId   String
-  team     Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  userId   String
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role     TeamRole @default(MEMBER)
-  gameRole GameRole @default(NONE)
-  /** Роль, запрошенная капитаном и ждущая одобрения администратора. */
-  pendingRole GameRole?
-  /** Когда капитан в идущей игре в последний раз менял роль этому участнику: недельный лимит — на каждого (решение владельца 19.10). */
-  roleChangedAt DateTime?
-  /** До какого момента администратор закрыл участнику взятие дел (решение владельца 21.10); null — открыто. */
-  deedsFrozenUntil DateTime?
-  /** Причина заморозки, которую написал администратор (видят администратор и сам участник). */
+  teamId            String
+  team              Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId            String
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role              TeamRole  @default(MEMBER)
+  gameRole          GameRole  @default(NONE)
+  /**
+   * Роль, запрошенная капитаном и ждущая одобрения администратора.
+   */
+  pendingRole       GameRole?
+  /**
+   * Когда капитан в идущей игре в последний раз менял роль этому участнику: недельный лимит — на каждого (решение владельца 19.10).
+   */
+  roleChangedAt     DateTime?
+  /**
+   * До какого момента администратор закрыл участнику взятие дел (решение владельца 21.10); null — открыто.
+   */
+  deedsFrozenUntil  DateTime?
+  /**
+   * Причина заморозки, которую написал администратор (видят администратор и сам участник).
+   */
   deedsFrozenReason String?
-  /** Когда этот разведчик в последний раз разведывал и когда этот пророк открывал подсказку: недельный лимит — на каждого, не на команду (решение владельца 22.10). */
-  peekedAt DateTime?
-  hintedAt DateTime?
-  /** Разведка стен (решение владельца 02.11): свой недельный лимит, независимый от разведки перекрёстков. */
-  wallScoutedAt DateTime?
-  joinedAt DateTime @default(now())
+  /**
+   * Когда этот разведчик в последний раз разведывал и когда этот пророк открывал подсказку: недельный лимит — на каждого, не на команду (решение владельца 22.10).
+   */
+  peekedAt          DateTime?
+  hintedAt          DateTime?
+  /**
+   * Разведка стен (решение владельца 02.11): свой недельный лимит, независимый от разведки перекрёстков.
+   */
+  wallScoutedAt     DateTime?
+  joinedAt          DateTime  @default(now())
 
   @@id([teamId, userId])
   @@index([userId])
@@ -385,7 +480,9 @@ model Invite {
   id        String   @id
   gameId    String
   game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  /** Без команды — приглашение администратора игры (решение владельца 23.09): ссылка вместо поля с почтой. */
+  /**
+   * Без команды — приглашение администратора игры (решение владельца 23.09): ссылка вместо поля с почтой.
+   */
   teamId    String?
   team      Team?    @relation(fields: [teamId], references: [id], onDelete: Cascade)
   admin     Boolean  @default(false)
@@ -405,50 +502,80 @@ enum ProofType {
 }
 
 model Deed {
-  id          String    @id @default(cuid())
+  id          String         @id @default(cuid())
   gameId      String
-  game        Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  game        Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
   title       String
-  description String    @default("")
+  description String         @default("")
   direction   String
-  proofType   ProofType @default(PHOTO_LINK)
-  canRepeat   Boolean   @default(false)
-  /** Книги, к которым дело подходит по теме (коды); пусто — любая. Текст может содержать [Книга] — подставляется книга города. */
-  bookCodes   String[]  @default([])
-  difficulty  Int       @default(1)
-  /** Частота появления: 1 — редко, 2 — обычно, 3 — часто (веса 1 : 3 : 6 при выборе дела). */
-  /** Вероятность появления на новой дороге, % с шагом 20 (решение владельца 04.10): вес при выборе дела; до 60% — не рядом с таким же делом. */
-  chance      Int       @default(60)
-  /** Общее дело Каменоломни (вся команда вместе): не ставится на дороги, за него команда получает камни. */
-  quarry      Boolean   @default(false)
-  stones      Int       @default(1)
-  /** Общее дело: сколько процентов состава должно присутствовать (отмечается при сдаче); null — не проверяется. */
+  proofType   ProofType      @default(PHOTO_LINK)
+  canRepeat   Boolean        @default(false)
+  /**
+   * Книги, к которым дело подходит по теме (коды); пусто — любая. Текст может содержать [Книга] — подставляется книга города.
+   */
+  bookCodes   String[]       @default([])
+  difficulty  Int            @default(1)
+  /**
+   * Частота появления: 1 — редко, 2 — обычно, 3 — часто (веса 1 : 3 : 6 при выборе дела).
+   */
+  /**
+   * /** Вероятность появления на новой дороге, % с шагом 20 (решение владельца 04.10): вес при выборе дела; до 60% — не рядом с таким же делом.
+   */
+  chance      Int            @default(60)
+  /**
+   * Общее дело Каменоломни (вся команда вместе): не ставится на дороги, за него команда получает камни.
+   */
+  quarry      Boolean        @default(false)
+  stones      Int            @default(1)
+  /**
+   * Общее дело: сколько процентов состава должно присутствовать (отмечается при сдаче); null — не проверяется.
+   */
   quorumPct   Int?
   quarryWorks QuarryWork[]
-  /** Срочное задание — разбитый бурей корабль (решение владельца 04.11): на дороги не ставится, виден всем командам на карте; за него благодарят грузом. */
-  wreck       Boolean   @default(false)
-  /** Груз корабля этого дела (решение владельца 05.11: «для каждого дела индивидуально»): сколько тёсаных камней или блоков стен выпадает. */
-  wreckStones Int       @default(3)
-  wreckBlocks Int       @default(2)
-  /** Срок затопления корабля (решение владельца 05.11): к этому времени корабль тонет сам; null — без срока. */
+  /**
+   * Срочное задание — разбитый бурей корабль (решение владельца 04.11): на дороги не ставится, виден всем командам на карте; за него благодарят грузом.
+   */
+  wreck       Boolean        @default(false)
+  /**
+   * Груз корабля этого дела (решение владельца 05.11: «для каждого дела индивидуально»): сколько тёсаных камней или блоков стен выпадает.
+   */
+  wreckStones Int            @default(3)
+  wreckBlocks Int            @default(2)
+  /**
+   * Срок затопления корабля (решение владельца 05.11): к этому времени корабль тонет сам; null — без срока.
+   */
   wreckSinkAt DateTime?
   wrecks      Wreck[]
   wreckWorks  WreckWork[]
-  /** Список людей у дела (решение владельца 21.10): кому звонить; стороны с этим делом получают имя равномерно. */
+  /**
+   * Список людей у дела (решение владельца 21.10): кому звонить; стороны с этим делом получают имя равномерно.
+   */
   people      DeedPerson[]
-  /** Хеш версии стандартного набора, из которой взято дело; пока администратор дело не правил, совпадает с хешем содержимого — такие дела сервер обновляет сам при выходе новой версии набора. */
+  /**
+   * Хеш версии стандартного набора, из которой взято дело; пока администратор дело не правил, совпадает с хешем содержимого — такие дела сервер обновляет сам при выходе новой версии набора.
+   */
   sourceHash  String?
-  /** Тайное дело: ссылки и описание сдачи видит только проверяющий администратор, не команда (сюрприз без раскрытия адресата). */
-  /** Выключенное дело (решение владельца 06.10): на новые дороги и в Каменоломню не попадает, уже выданные стороны не трогаются; можно включить обратно. */
-  disabled    Boolean   @default(false)
-  secret      Boolean   @default(false)
-  /** Можно сделать издалека (уехал, болеет): среди свободных сторон команды всегда есть хотя бы одно такое дело. */
-  remote      Boolean   @default(false)
-  /** Баллы за это дело при осаде делами (пусто — значение по умолчанию из правил игры). */
+  /**
+   * Тайное дело: ссылки и описание сдачи видит только проверяющий администратор, не команда (сюрприз без раскрытия адресата).
+   */
+  /**
+   * /** Выключенное дело (решение владельца 06.10): на новые дороги и в Каменоломню не попадает, уже выданные стороны не трогаются; можно включить обратно.
+   */
+  disabled    Boolean        @default(false)
+  secret      Boolean        @default(false)
+  /**
+   * Можно сделать издалека (уехал, болеет): среди свободных сторон команды всегда есть хотя бы одно такое дело.
+   */
+  remote      Boolean        @default(false)
+  /**
+   * Баллы за это дело при осаде делами (пусто — значение по умолчанию из правил игры).
+   */
   siegePoints Int?
-  /** Минимальное пожертвование вместо этого дела; пусто — пожертвованием это дело заменить нельзя (решение владельца 02.10: ценник у каждого дела свой). */
+  /**
+   * Минимальное пожертвование вместо этого дела; пусто — пожертвованием это дело заменить нельзя (решение владельца 02.10: ценник у каждого дела свой).
+   */
   donationMin Int?
-  createdAt   DateTime  @default(now())
+  createdAt   DateTime       @default(now())
   edgeTasks   TeamEdgeTask[]
 
   @@index([gameId])
@@ -462,7 +589,9 @@ enum EdgeTaskStatus {
   REJECTED
 }
 
-/** Узел глазами команды: открыт (виден тип, название города). */
+/**
+ * Узел глазами команды: открыт (виден тип, название города).
+ */
 model TeamNodeState {
   id         String   @id @default(cuid())
   teamId     String
@@ -473,39 +602,53 @@ model TeamNodeState {
   @@unique([teamId, nodeKey])
 }
 
-/** Ребро глазами команды: назначенное дело и ход его выполнения. */
+/**
+ * Ребро глазами команды: назначенное дело и ход его выполнения.
+ */
 model TeamEdgeTask {
-  id            String         @id @default(cuid())
-  teamId        String
-  team          Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  gameId        String
-  fromKey       String
-  toKey         String
-  deedId        String
-  deed          Deed           @relation(fields: [deedId], references: [id])
-  status        EdgeTaskStatus @default(OPEN)
-  takenById     String?
-  /** Когда дело взято: не сданное за 14 дней возвращается в общий список само. */
-  takenAt       DateTime?
-  links         String[]       @default([])
-  note          String         @default("")
-  submittedAt   DateTime?
-  decidedAt     DateTime?
-  /** Дело заменено пожертвованием (сумма в валюте игры, чек — ссылкой). */
-  donation       Boolean   @default(false)
+  id             String         @id @default(cuid())
+  teamId         String
+  team           Team           @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  gameId         String
+  fromKey        String
+  toKey          String
+  deedId         String
+  deed           Deed           @relation(fields: [deedId], references: [id])
+  status         EdgeTaskStatus @default(OPEN)
+  takenById      String?
+  /**
+   * Когда дело взято: не сданное за 14 дней возвращается в общий список само.
+   */
+  takenAt        DateTime?
+  links          String[]       @default([])
+  note           String         @default("")
+  submittedAt    DateTime?
+  decidedAt      DateTime?
+  /**
+   * Дело заменено пожертвованием (сумма в валюте игры, чек — ссылкой).
+   */
+  donation       Boolean        @default(false)
   donationAmount Int?
-  /** Морская сторона: дело из взятого порта; после одобрения капитан выбирает узел высадки на другом острове (toKey до высадки — «sea:<порт>»). */
-  sea           Boolean        @default(false)
-  /** Сторона вымощена камнем Каменоломни, а не пройдена делом (в счёт дел не идёт). */
-  paved         Boolean        @default(false)
-  /** Кто участвовал в деле (группой): id пользователей; каждому засчитывается в личное служение, сторона одна. */
-  participants  String[]       @default([])
-  /** Человек из списка дела (кому звонить), назначен стороне равномерно по списку (решение владельца 21.10). */
-  personId      String?
-  person        DeedPerson?    @relation(fields: [personId], references: [id], onDelete: SetNull)
-  decidedById   String?
-  adminComment  String         @default("")
-  createdAt     DateTime       @default(now())
+  /**
+   * Морская сторона: дело из взятого порта; после одобрения капитан выбирает узел высадки на другом острове (toKey до высадки — «sea:<порт>»).
+   */
+  sea            Boolean        @default(false)
+  /**
+   * Сторона вымощена камнем Каменоломни, а не пройдена делом (в счёт дел не идёт).
+   */
+  paved          Boolean        @default(false)
+  /**
+   * Кто участвовал в деле (группой): id пользователей; каждому засчитывается в личное служение, сторона одна.
+   */
+  participants   String[]       @default([])
+  /**
+   * Человек из списка дела (кому звонить), назначен стороне равномерно по списку (решение владельца 21.10).
+   */
+  personId       String?
+  person         DeedPerson?    @relation(fields: [personId], references: [id], onDelete: SetNull)
+  decidedById    String?
+  adminComment   String         @default("")
+  createdAt      DateTime       @default(now())
 
   @@unique([teamId, fromKey, toKey])
   @@index([gameId, status])
@@ -532,9 +675,13 @@ model TaskEvent {
   teamId    String
   userId    String
   nodeKey   String
-  /** Номер задания района; null — расстановка районов. */
+  /**
+   * Номер задания района; null — расстановка районов.
+   */
   taskIndex Int?
-  /** open — открыл задание; away — выходил из приложения (awayMs — на сколько); ok / wrong — ответ. */
+  /**
+   * open — открыл задание; away — выходил из приложения (awayMs — на сколько); ok / wrong — ответ.
+   */
   kind      String
   awayMs    Int?
   createdAt DateTime @default(now())
@@ -550,11 +697,17 @@ model TeamTaskLock {
   team        Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
   nodeKey     String
   taskIndex   Int
-  /** Неверных ответов подряд (сбрасывается верным ответом). */
+  /**
+   * Неверных ответов подряд (сбрасывается верным ответом).
+   */
   wrong       Int       @default(0)
-  /** До какого момента ответ не принимается (текущая пауза). */
+  /**
+   * До какого момента ответ не принимается (текущая пауза).
+   */
   lockedUntil DateTime?
-  /** Не используется: «снятие блокировки» поддержкой убрано (решение владельца 3.19). Колонка оставлена, чтобы не делать миграцию. */
+  /**
+   * Не используется: «снятие блокировки» поддержкой убрано (решение владельца 3.19). Колонка оставлена, чтобы не делать миграцию.
+   */
   unlocked    Boolean   @default(false)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -563,35 +716,49 @@ model TeamTaskLock {
 }
 
 model TeamCityState {
-  id             String    @id @default(cuid())
-  gameId         String
-  teamId         String
-  team           Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  nodeKey        String
-  orderSolved    Boolean   @default(false)
-  orderAttempts  Int       @default(0)
-  doneTasks      Int[]     @default([])
-  answerAttempts Int       @default(0)
-  lastWrongAt    DateTime?
-  capturedAt     DateTime?
-  /** Когда команда впервые взяла этот город (не сбрасывается при потере — для итоговой статистики). */
+  id              String    @id @default(cuid())
+  gameId          String
+  teamId          String
+  team            Team      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  nodeKey         String
+  orderSolved     Boolean   @default(false)
+  orderAttempts   Int       @default(0)
+  doneTasks       Int[]     @default([])
+  answerAttempts  Int       @default(0)
+  lastWrongAt     DateTime?
+  capturedAt      DateTime?
+  /**
+   * Когда команда впервые взяла этот город (не сбрасывается при потере — для итоговой статистики).
+   */
   firstCapturedAt DateTime?
-  isCapital      Boolean   @default(false)
-  /** Захваченная чужая столица: вторая столица, переносить нельзя. */
-  secondCapital  Boolean   @default(false)
-  /** Черновик расстановки районов (id в выбранном порядке) — общий для команды, переживает закрытие приложения (решение владельца 01.10). */
-  orderDraft     String[]  @default([])
-  /** Черновики заданий «расставь по порядку» внутри районов: номер задания → id в выбранном порядке. */
-  taskDrafts     Json?
-  /** Штраф к минимальной ставке за сгоревшие атаки этой команды на этот город (+5 за каждую). */
-  attackPenalty  Int       @default(0)
-  /** Задания, к которым пророк открыл подсказку (текст стихов района). */
-  hintTasks      Int[]     @default([])
-  /** Неверные ключи конверта подряд и пауза до следующей попытки (растущая пауза, решение владельца 18.09). */
-  keyWrong       Int       @default(0)
-  keyLockedUntil DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  isCapital       Boolean   @default(false)
+  /**
+   * Захваченная чужая столица: вторая столица, переносить нельзя.
+   */
+  secondCapital   Boolean   @default(false)
+  /**
+   * Черновик расстановки районов (id в выбранном порядке) — общий для команды, переживает закрытие приложения (решение владельца 01.10).
+   */
+  orderDraft      String[]  @default([])
+  /**
+   * Черновики заданий «расставь по порядку» внутри районов: номер задания → id в выбранном порядке.
+   */
+  taskDrafts      Json?
+  /**
+   * Штраф к минимальной ставке за сгоревшие атаки этой команды на этот город (+5 за каждую).
+   */
+  attackPenalty   Int       @default(0)
+  /**
+   * Задания, к которым пророк открыл подсказку (текст стихов района).
+   */
+  hintTasks       Int[]     @default([])
+  /**
+   * Неверные ключи конверта подряд и пауза до следующей попытки (растущая пауза, решение владельца 18.09).
+   */
+  keyWrong        Int       @default(0)
+  keyLockedUntil  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([teamId, nodeKey])
   @@index([gameId, nodeKey])
@@ -623,53 +790,71 @@ enum EntryStatus {
  * T = от начала атаки до последней ссылки; после одобрения админом у защитников ровно T на ответ M ≥ N.
  */
 model Battle {
-  id                String       @id @default(cuid())
-  gameId            String
-  nodeKey           String
-  bookCode          String
-  attackerId        String
-  attacker          Team         @relation("attacker", fields: [attackerId], references: [id], onDelete: Cascade)
-  defenderId        String
-  defender          Team         @relation("defender", fields: [defenderId], references: [id], onDelete: Cascade)
-  status            BattleStatus @default(QUEUED)
-  sumMode           Boolean      @default(false)
-  bid               Int
-  defenseBid        Int?
-  passageStart      Int?
-  passageEnd        Int?
-  /** Отрывок обороны, выбранный капитаном защитников (последовательный, из всей книги). */
-  defenseStart      Int?
-  defenseEnd        Int?
-  declaredAt        DateTime     @default(now())
-  startedAt         DateTime?
-  attackDeadline    DateTime?
-  attackDoneAt      DateTime?
-  attackApprovedAt  DateTime?
-  /** Капитан претендентов нажал «Атаковать» после одобрения вызова (решение владельца 01.11): с этого момента хранители знают о вызове и идёт время ответа. */
-  attackLaunchedAt  DateTime?
-  defenseDeadline   DateTime?
-  defenseDoneAt     DateTime?
-  resolvedAt        DateTime?
-  /** Сколько времени вызов стоял на проверке у администратора (после возврата записи): в T не входит — стоп-часы. */
-  attackPausedMs    Int          @default(0)
-  /** Вызов объявлен после того, как предыдущий вызов этой команды этому городу сгорел: в очереди — после всех, кто встал раньше. */
-  afterBurn         Boolean      @default(false)
-  /** Предел ответа (решение владельца 31.10; до 01.11 звался «городской стеной», теперь стена — WallBlock): столько стихов хранители могут ответить физически (участники × стихи книги на момент вызова); ставка не выше, ответ не требует больше. */
-  defenseCap        Int?
-  /** Вызов нарушил мир (решение владельца 22.10): хранители могут просить третью команду о защитном союзе. */
-  violation         Boolean      @default(false)
-  /** Множитель защиты: 2, если мир нарушен в игре из двух команд — хранителям нужно вдвое больше стихов. */
-  defenseFactor     Int          @default(1)
-  /** Стена легла в ответ (решение владельца 02.11: «стена должна срабатывать только за минуту до конца таймера, а не в начале»): отметка, что блоки уже положены. */
-  wallAppliedAt     DateTime?
-  entries           BattleEntry[]
-  allies            DefenseAlliance[]
+  id               String            @id @default(cuid())
+  gameId           String
+  nodeKey          String
+  bookCode         String
+  attackerId       String
+  attacker         Team              @relation("attacker", fields: [attackerId], references: [id], onDelete: Cascade)
+  defenderId       String
+  defender         Team              @relation("defender", fields: [defenderId], references: [id], onDelete: Cascade)
+  status           BattleStatus      @default(QUEUED)
+  sumMode          Boolean           @default(false)
+  bid              Int
+  defenseBid       Int?
+  passageStart     Int?
+  passageEnd       Int?
+  /**
+   * Отрывок обороны, выбранный капитаном защитников (последовательный, из всей книги).
+   */
+  defenseStart     Int?
+  defenseEnd       Int?
+  declaredAt       DateTime          @default(now())
+  startedAt        DateTime?
+  attackDeadline   DateTime?
+  attackDoneAt     DateTime?
+  attackApprovedAt DateTime?
+  /**
+   * Капитан претендентов нажал «Атаковать» после одобрения вызова (решение владельца 01.11): с этого момента хранители знают о вызове и идёт время ответа.
+   */
+  attackLaunchedAt DateTime?
+  defenseDeadline  DateTime?
+  defenseDoneAt    DateTime?
+  resolvedAt       DateTime?
+  /**
+   * Сколько времени вызов стоял на проверке у администратора (после возврата записи): в T не входит — стоп-часы.
+   */
+  attackPausedMs   Int               @default(0)
+  /**
+   * Вызов объявлен после того, как предыдущий вызов этой команды этому городу сгорел: в очереди — после всех, кто встал раньше.
+   */
+  afterBurn        Boolean           @default(false)
+  /**
+   * Предел ответа (решение владельца 31.10; до 01.11 звался «городской стеной», теперь стена — WallBlock): столько стихов хранители могут ответить физически (участники × стихи книги на момент вызова); ставка не выше, ответ не требует больше.
+   */
+  defenseCap       Int?
+  /**
+   * Вызов нарушил мир (решение владельца 22.10): хранители могут просить третью команду о защитном союзе.
+   */
+  violation        Boolean           @default(false)
+  /**
+   * Множитель защиты: 2, если мир нарушен в игре из двух команд — хранителям нужно вдвое больше стихов.
+   */
+  defenseFactor    Int               @default(1)
+  /**
+   * Стена легла в ответ (решение владельца 02.11: «стена должна срабатывать только за минуту до конца таймера, а не в начале»): отметка, что блоки уже положены.
+   */
+  wallAppliedAt    DateTime?
+  entries          BattleEntry[]
+  allies           DefenseAlliance[]
 
   @@index([gameId, nodeKey, status])
   @@index([gameId, status])
 }
 
-/** Защитный союз (решение владельца 22.10): после нарушения мира хранители просят третью команду помочь стихами в ответе. */
+/**
+ * Защитный союз (решение владельца 22.10): после нарушения мира хранители просят третью команду помочь стихами в ответе.
+ */
 model DefenseAlliance {
   id        String         @id @default(cuid())
   gameId    String
@@ -704,9 +889,13 @@ model BattleEntry {
   note         String      @default("")
   status       EntryStatus @default(SUBMITTED)
   adminComment String      @default("")
-  /** Вес стихов: 2 у воина на момент отметки (решение владельца 22.09), иначе 1. */
+  /**
+   * Вес стихов: 2 у воина на момент отметки (решение владельца 22.09), иначе 1.
+   */
   weight       Int         @default(1)
-  /** Зачтено из прошлого испытания: выученные стихи хранителей засчитываются в новых вызовах автоматически. */
+  /**
+   * Зачтено из прошлого испытания: выученные стихи хранителей засчитываются в новых вызовах автоматически.
+   */
   carried      Boolean     @default(false)
   createdAt    DateTime    @default(now())
   decidedAt    DateTime?
@@ -726,22 +915,24 @@ enum SiegeStatus {
  * а делами — 14 дней обе команды делают дела, за каждое одобренное — баллы; у кого больше, тот владеет; при равенстве город остаётся.
  */
 model Siege {
-  id         String      @id @default(cuid())
-  gameId     String
-  nodeKey    String
-  attackerId String
-  defenderId String
-  status     SiegeStatus @default(ACTIVE)
-  startedAt  DateTime    @default(now())
-  endsAt     DateTime
-  attackerPoints Int     @default(0)
-  defenderPoints Int     @default(0)
-  resolvedAt DateTime?
+  id             String      @id @default(cuid())
+  gameId         String
+  nodeKey        String
+  attackerId     String
+  defenderId     String
+  status         SiegeStatus @default(ACTIVE)
+  startedAt      DateTime    @default(now())
+  endsAt         DateTime
+  attackerPoints Int         @default(0)
+  defenderPoints Int         @default(0)
+  resolvedAt     DateTime?
 
   @@index([gameId, nodeKey, status])
 }
 
-/** Штраф администратора (телефон на собрании): аннулирован концевой участок пути команды. */
+/**
+ * Штраф администратора (телефон на собрании): аннулирован концевой участок пути команды.
+ */
 model TeamPenalty {
   id        String   @id @default(cuid())
   gameId    String
@@ -788,22 +979,38 @@ model WallBlock {
   note         String      @default("")
   status       EntryStatus @default(SUBMITTED)
   adminComment String      @default("")
-  /** Вес стихов: 2 у воина на момент сдачи, иначе 1 (как в записях испытаний). */
+  /**
+   * Вес стихов: 2 у воина на момент сдачи, иначе 1 (как в записях испытаний).
+   */
   weight       Int         @default(1)
   createdAt    DateTime    @default(now())
   decidedAt    DateTime?
-  /** Блок лёг в ответ и сгорел (решение владельца 02.11): стена тает на использованные блоки; стихи у участника остаются сданными. */
+  /**
+   * Блок лёг в ответ и сгорел (решение владельца 02.11): стена тает на использованные блоки; стихи у участника остаются сданными.
+   */
   usedBattleId String?
   usedAt       DateTime?
-  /** Отколото с конца блока в ответ (решение владельца 02.11: «игра пусть возьмёт из блока только недостающие стихи»): пока не починен, блок надломлен и считается без этих стихов. */
+  /**
+   * Отколото с конца блока в ответ (решение владельца 02.11: «игра пусть возьмёт из блока только недостающие стихи»): пока не починен, блок надломлен и считается без этих стихов.
+   */
   missing      Int         @default(0)
-  /** Починка надломленного блока: сдача его недостающих стихов; после принятия исходный блок снова цел, эта строка остаётся историей. */
+  /**
+   * Починка надломленного блока: сдача его недостающих стихов; после принятия исходный блок снова цел, эта строка остаётся историей.
+   */
   repairOfId   String?
-  /** Блок из груза разбитого корабля (решение владельца 04.11): стихов за ним нет, диапазон условный (ниже нуля), ложится сразу принятым, толщина — как у обычного блока. */
+  /**
+   * Блок из груза разбитого корабля (решение владельца 04.11): стихов за ним нет, диапазон условный (ниже нуля), ложится сразу принятым, толщина — как у обычного блока.
+   */
   cargo        Boolean     @default(false)
+  /**
+   * Команда, которой блок перешёл вместе с городом при обмене (решение владельца 09.11: посол выбирает, переходит стена или сгорает); пусто — блок держит построившая команда (`teamId`), чьи и стихи в статистике.
+   */
+  holderId     String?
+  holder       Team?       @relation("wallHolder", fields: [holderId], references: [id], onDelete: SetNull)
 
   @@index([gameId, nodeKey, status])
   @@index([teamId, nodeKey])
+  @@index([holderId, nodeKey])
   @@index([userId])
 }
 
@@ -839,11 +1046,18 @@ model CityTrade {
   counterKey   String?
   declinedKeys String[]    @default([])
   message      String      @default("")
+  /**
+   * Стена переходит вместе с городом (решение владельца 09.11): иначе при обмене сгорает, а вторая команда её не видит. Для выставленного и для встречного города.
+   */
+  offerWall    Boolean     @default(false)
+  counterWall  Boolean     @default(false)
   status       TradeStatus @default(OPEN)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @default(now())
   closedAt     DateTime?
-  /** Кто закрыл сделку (команда): при обмене — принявший, при отмене — отменивший. */
+  /**
+   * Кто закрыл сделку (команда): при обмене — принявший, при отмене — отменивший.
+   */
   closedById   String?
 
   @@index([gameId, status])
@@ -859,7 +1073,9 @@ enum PassageStatus {
   REVOKED
 }
 
-/** Запрос прохода через чужой город (2.14 А): срок на ответ из правил, молчание = отказ; разрешение постоянное и безотзывное; REVOKED — сброс при смене владельца города (S-14). */
+/**
+ * Запрос прохода через чужой город (2.14 А): срок на ответ из правил, молчание = отказ; разрешение постоянное и безотзывное; REVOKED — сброс при смене владельца города (S-14).
+ */
 model PassageRequest {
   id          String        @id @default(cuid())
   gameId      String
@@ -880,8 +1096,12 @@ model PassageRequest {
   @@index([ownerId])
 }
 
-/** Разведчик заглянул за ребро: известно, город там или пустая развилка (без названия). */
-/** Разведка стены чужого города (решение владельца 02.11): что увидел разведчик — есть стена или нет, без толщины; снимок на момент разведки. */
+/**
+ * Разведчик заглянул за ребро: известно, город там или пустая развилка (без названия).
+ */
+/**
+ * Разведка стены чужого города (решение владельца 02.11): что увидел разведчик — есть стена или нет, без толщины; снимок на момент разведки.
+ */
 model TeamWallScout {
   id        String   @id @default(cuid())
   teamId    String
@@ -903,16 +1123,22 @@ model TeamPeek {
   @@unique([teamId, nodeKey])
 }
 
-/** Метка команды на карте (решение владельца 22.09): гекс, короткая подпись; видят все участники команды, убрать может любой из них. */
+/**
+ * Метка команды на карте (решение владельца 22.09): гекс, короткая подпись; видят все участники команды, убрать может любой из них.
+ */
 model TeamMark {
   id          String   @id @default(cuid())
   gameId      String
   teamId      String
   team        Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  /** Гекс, на который попала точка (проверка, что место на карте). */
+  /**
+   * Гекс, на который попала точка (проверка, что место на карте).
+   */
   q           Int
   r           Int
-  /** Точное место нажатия дробными осевыми координатами гекса (решение владельца 29.09: метка стоит там, куда ткнули, а не в центре гекса). */
+  /**
+   * Точное место нажатия дробными осевыми координатами гекса (решение владельца 29.09: метка стоит там, куда ткнули, а не в центре гекса).
+   */
   qf          Float
   rf          Float
   note        String   @default("")
@@ -926,14 +1152,16 @@ model TeamMark {
  * Адресат конверта: кому команда несёт шифр. Только короткая подпись и тип — без адресов и телефонов.
  * Список живёт в базе игры и стирается при её завершении.
  */
-/** Человек из списка дела (решение владельца 21.10): имя, которое подставляется на стороны с этим делом. Стирается при завершении игры. */
+/**
+ * Человек из списка дела (решение владельца 21.10): имя, которое подставляется на стороны с этим делом. Стирается при завершении игры.
+ */
 model DeedPerson {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   gameId    String
   deedId    String
-  deed      Deed     @relation(fields: [deedId], references: [id], onDelete: Cascade)
+  deed      Deed           @relation(fields: [deedId], references: [id], onDelete: Cascade)
   name      String
-  createdAt DateTime @default(now())
+  createdAt DateTime       @default(now())
   tasks     TeamEdgeTask[]
 
   @@index([gameId, deedId])
@@ -965,32 +1193,34 @@ enum RecipientKind {
 model UiMetric {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
-  page      String   // map | admin-map | other
-  device    String   // phone | desktop
-  browser   String   // chrome | safari | firefox | other
-  os        String   // android | ios | windows | mac | linux | other
+  page      String // map | admin-map | other
+  device    String // phone | desktop
+  browser   String // chrome | safari | firefox | other
+  os        String // android | ios | windows | mac | linux | other
   dpr       Float
   viewW     Int
   viewH     Int
-  ttfb      Int?     // мс до первого байта
-  fcp       Int?     // мс до первой отрисовки
-  lcp       Int?     // мс до самой крупной отрисовки
-  load      Int?     // мс до события load
-  fps       Float?   // средние кадры в секунду за замер на карте
-  jank      Float?   // доля кадров длиннее 50 мс, 0..1
-  longTasks Int?     // длинных задач (>50 мс) за время замера
-  memoryMb  Int?     // память устройства по navigator.deviceMemory, ГБ*1024, если известно
+  ttfb      Int? // мс до первого байта
+  fcp       Int? // мс до первой отрисовки
+  lcp       Int? // мс до самой крупной отрисовки
+  load      Int? // мс до события load
+  fps       Float? // средние кадры в секунду за замер на карте
+  jank      Float? // доля кадров длиннее 50 мс, 0..1
+  longTasks Int? // длинных задач (>50 мс) за время замера
+  memoryMb  Int? // память устройства по navigator.deviceMemory, ГБ*1024, если известно
 
   @@index([createdAt])
 }
 
-/** Нажатия кнопок карты (вопрос владельца 24.10: пользуются ли «Вся карта» и «К старту»): без пользователя, только что, где и когда. */
+/**
+ * Нажатия кнопок карты (вопрос владельца 24.10: пользуются ли «Вся карта» и «К старту»): без пользователя, только что, где и когда.
+ */
 model UiAction {
   id        String   @id @default(cuid())
   createdAt DateTime @default(now())
-  action    String   // map-fit | map-start | map-mark
-  page      String   // map | admin-map
-  device    String   // phone | desktop
+  action    String // map-fit | map-start | map-mark
+  page      String // map | admin-map
+  device    String // phone | desktop
 
   @@index([createdAt])
   @@index([action, createdAt])
@@ -1013,12 +1243,16 @@ model SupportRequest {
   bookCode   String?
   taskIndex  Int?
   message    String
-  /** Снимок состояния на момент обращения: текст задания, решённые задания, текущая пауза. Без ответов. */
+  /**
+   * Снимок состояния на момент обращения: текст задания, решённые задания, текущая пауза. Без ответов.
+   */
   context    Json
   status     SupportStatus @default(OPEN)
   reply      String?
   resolvedAt DateTime?
-  /** Не используется: «снятие блокировки» по обращению убрано (решение владельца 3.19). */
+  /**
+   * Не используется: «снятие блокировки» по обращению убрано (решение владельца 3.19).
+   */
   unlocked   Boolean       @default(false)
 
   @@index([status, createdAt])
@@ -1039,12 +1273,18 @@ model Journal {
   id        String   @id @default(cuid())
   gameId    String
   game      Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  /** Команда, к которой относится запись (лента команды); null — общая запись. */
+  /**
+   * Команда, к которой относится запись (лента команды); null — общая запись.
+   */
   teamId    String?
-  /** Участник, чьё это действие («Моё служение», доска активности). */
+  /**
+   * Участник, чьё это действие («Моё служение», доска активности).
+   */
   userId    String?
   kind      String
-  /** Новость для всех команд. */
+  /**
+   * Новость для всех команд.
+   */
   everyone  Boolean  @default(false)
   vars      Json     @default("{}")
   text      String   @default("")
@@ -1062,27 +1302,37 @@ enum PeaceStatus {
   ENDED
 }
 
-/** Мир между командами (решение владельца 18.09, B-12): пока действует, команды не бросают вызов городам друг друга; расторгается сразу, с новостью для всех. */
+/**
+ * Мир между командами (решение владельца 18.09, B-12): пока действует, команды не бросают вызов городам друг друга; расторгается сразу, с новостью для всех.
+ */
 model Peace {
-  id         String      @id @default(cuid())
-  gameId     String
-  game       Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  fromId     String
-  from       Team        @relation("peaceFrom", fields: [fromId], references: [id], onDelete: Cascade)
-  toId       String
-  to         Team        @relation("peaceTo", fields: [toId], references: [id], onDelete: Cascade)
-  status     PeaceStatus @default(PROPOSED)
-  /** Срок мира в днях (решение владельца 22.10): 0 — до конца игры; null — мир без срока из старых партий, его можно расторгнуть. */
-  days       Int?
-  /** Когда срочный мир кончается сам; до этого расторгнуть нельзя. */
-  until      DateTime?
-  createdAt  DateTime    @default(now())
-  decidedAt  DateTime?
-  endedAt    DateTime?
-  /** Кто расторг (команда). */
-  endedById  String?
-  /** Мир нарушен вызовом городу (решение владельца 22.10): endedById — нарушитель. */
-  violated   Boolean     @default(false)
+  id        String      @id @default(cuid())
+  gameId    String
+  game      Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  fromId    String
+  from      Team        @relation("peaceFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toId      String
+  to        Team        @relation("peaceTo", fields: [toId], references: [id], onDelete: Cascade)
+  status    PeaceStatus @default(PROPOSED)
+  /**
+   * Срок мира в днях (решение владельца 22.10): 0 — до конца игры; null — мир без срока из старых партий, его можно расторгнуть.
+   */
+  days      Int?
+  /**
+   * Когда срочный мир кончается сам; до этого расторгнуть нельзя.
+   */
+  until     DateTime?
+  createdAt DateTime    @default(now())
+  decidedAt DateTime?
+  endedAt   DateTime?
+  /**
+   * Кто расторг (команда).
+   */
+  endedById String?
+  /**
+   * Мир нарушен вызовом городу (решение владельца 22.10): endedById — нарушитель.
+   */
+  violated  Boolean     @default(false)
 
   @@index([gameId, status])
 }
@@ -1093,25 +1343,29 @@ model Peace {
  * администратором — город становится свободным. Города, взятые до появления правила, отчёта не требуют (строки нет).
  */
 model CityVisit {
-  id           String      @id @default(cuid())
-  gameId       String
-  game         Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  teamId       String
-  team         Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
-  nodeKey      String
-  bookCode     String
-  status       VisitStatus @default(PENDING)
-  /** До какого момента нужно сдать отчёт: полночь того же дня по поясу игры. */
-  dueAt        DateTime
-  /** Кто ездил: id участников. */
-  members      String[]    @default([])
-  text         String      @default("")
-  links        String[]    @default([])
-  adminComment String      @default("")
+  id            String      @id @default(cuid())
+  gameId        String
+  game          Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  teamId        String
+  team          Team        @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  nodeKey       String
+  bookCode      String
+  status        VisitStatus @default(PENDING)
+  /**
+   * До какого момента нужно сдать отчёт: полночь того же дня по поясу игры.
+   */
+  dueAt         DateTime
+  /**
+   * Кто ездил: id участников.
+   */
+  members       String[]    @default([])
+  text          String      @default("")
+  links         String[]    @default([])
+  adminComment  String      @default("")
   submittedById String?
-  submittedAt  DateTime?
-  decidedAt    DateTime?
-  createdAt    DateTime    @default(now())
+  submittedAt   DateTime?
+  decidedAt     DateTime?
+  createdAt     DateTime    @default(now())
 
   @@index([gameId, status])
   @@index([teamId, nodeKey, status])
@@ -1165,35 +1419,51 @@ model AwardGrant {
  * корабль отпущен. На дело — не больше одного открытого корабля.
  */
 model Wreck {
-  id        String    @id @default(cuid())
+  id        String      @id @default(cuid())
   gameId    String
-  game      Game      @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  /** Дело; после удаления дела корабль тонет, строка остаётся на две минуты анимации и в истории сдач. */
+  game      Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  /**
+   * Дело; после удаления дела корабль тонет, строка остаётся на две минуты анимации и в истории сдач.
+   */
   deedId    String?
-  deed      Deed?     @relation(fields: [deedId], references: [id], onDelete: SetNull)
-  /** Название дела на момент появления корабля (на случай удаления дела). */
-  title     String    @default("")
+  deed      Deed?       @relation(fields: [deedId], references: [id], onDelete: SetNull)
+  /**
+   * Название дела на момент появления корабля (на случай удаления дела).
+   */
+  title     String      @default("")
   q         Int
   r         Int
-  /** Модель корабля: 0 — шлюп, 1 — когг, 2 — трёхмачтовый. */
-  model     Int       @default(0)
-  /** Семя: место и ритм сигнальных ракет одинаковы у всех игроков. */
-  seed      Int       @default(0)
-  /** Возможный груз — снимок из дела при открытии (обновляется при правке дела, пока корабль открыт). */
-  stones    Int       @default(3)
-  blocks    Int       @default(2)
-  /** Снимок срока затопления из дела (05.11): по нему корабль тонет в обходе, а команды видят таймер и уровень воды. */
+  /**
+   * Модель корабля: 0 — шлюп, 1 — когг, 2 — трёхмачтовый.
+   */
+  model     Int         @default(0)
+  /**
+   * Семя: место и ритм сигнальных ракет одинаковы у всех игроков.
+   */
+  seed      Int         @default(0)
+  /**
+   * Возможный груз — снимок из дела при открытии (обновляется при правке дела, пока корабль открыт).
+   */
+  stones    Int         @default(3)
+  blocks    Int         @default(2)
+  /**
+   * Снимок срока затопления из дела (05.11): по нему корабль тонет в обходе, а команды видят таймер и уровень воды.
+   */
   sinkAt    DateTime?
-  createdAt DateTime  @default(now())
+  createdAt DateTime    @default(now())
   closedAt  DateTime?
-  /** Затонул (решение владельца 04.11: «если команда так и не взяла дело корабля, а админ уже удалил дело, то корабль тонет»): дело удалено, флажок снят или корабль отпущен. */
-  sunk      Boolean   @default(false)
+  /**
+   * Затонул (решение владельца 04.11: «если команда так и не взяла дело корабля, а админ уже удалил дело, то корабль тонет»): дело удалено, флажок снят или корабль отпущен.
+   */
+  sunk      Boolean     @default(false)
   works     WreckWork[]
 
   @@index([gameId, closedAt])
 }
 
-/** Сдача срочного задания командой (по образцу QuarryWork): принято — груз выпал (камни или блоки, 50/50). */
+/**
+ * Сдача срочного задания командой (по образцу QuarryWork): принято — груз выпал (камни или блоки, 50/50).
+ */
 model WreckWork {
   id           String    @id @default(cuid())
   gameId       String
@@ -1208,15 +1478,21 @@ model WreckWork {
   participants String[]  @default([])
   links        String[]  @default([])
   note         String    @default("")
-  /** TAKEN — задание взято участником, но не сдано (решение владельца 05.11: как у обычного дела); дальше SUBMITTED → APPROVED/REJECTED. */
+  /**
+   * TAKEN — задание взято участником, но не сдано (решение владельца 05.11: как у обычного дела); дальше SUBMITTED → APPROVED/REJECTED.
+   */
   status       String    @default("SUBMITTED")
-  /** Когда задание взято (статус TAKEN); у сдачи без взятия пусто. */
+  /**
+   * Когда задание взято (статус TAKEN); у сдачи без взятия пусто.
+   */
   takenAt      DateTime?
   submittedAt  DateTime  @default(now())
   decidedAt    DateTime?
   decidedById  String?
   adminComment String    @default("")
-  /** Что выпало при одобрении: STONES — тёсаные камни, BLOCKS — блоки для стен. */
+  /**
+   * Что выпало при одобрении: STONES — тёсаные камни, BLOCKS — блоки для стен.
+   */
   cargo        String?
   amount       Int?
 
@@ -1234,7 +1510,9 @@ model AttentionSeen {
   user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   gameId String
   game   Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
-  /** Вид пункта: quarry — дело Каменоломни, wreck — разбитый корабль. */
+  /**
+   * Вид пункта: quarry — дело Каменоломни, wreck — разбитый корабль.
+   */
   kind   String
   refId  String
   seenAt DateTime @default(now())
