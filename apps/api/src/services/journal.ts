@@ -1,4 +1,5 @@
 import { prisma } from "../db.js";
+import { byPerson } from "./membership.js";
 import { publish } from "./events.js";
 import { notifyTeam } from "./notify.js";
 import { msg, toLocale, type Locale } from "./i18n.js";
@@ -31,7 +32,7 @@ export type JournalKind =
   | "city_fatigue" | "city_locked" | "city_approached"
   | "passage_requested" | "passage_given" | "passage_refused" | "passage_expired" | "trade_rejected"
   | "support_answered" | "ship_ready" | "deed_released" | "deeds_frozen" | "deeds_unfrozen"
-  | "member_left" | "member_joined" | "member_moved"
+  | "member_left" | "member_joined" | "member_moved" | "member_rejoined"
   // Городская стена (решение владельца 01.11).
   | "wall_block_submitted" | "wall_block_approved" | "wall_block_returned" | "wall_applied" | "wall_scouted" | "wall_repair_submitted" | "wall_block_repaired"
   // Разбитые бурей корабли (решение владельца 04.11).
@@ -121,6 +122,7 @@ export const JOURNAL_TEXT: Record<JournalKind, string> = {
   member_left: "{user} переведён(а) администратором в команду «{team}»",
   member_joined: "{user} переведён(а) администратором из команды «{team}»",
   member_moved: "Администратор перевёл вас в команду «{team}»",
+  member_rejoined: "{user} из выбывшей команды «{team}» вступил(а) в команду по приглашению",
   wall_block_submitted: "{user} сдал(а) блок стены города {book}: {ref}",
   wall_block_approved: "Блок стены города {book} принят: {ref}. Толщина стены — {n} стихов",
   wall_block_returned: "Блок стены города {book} возвращён администратором: {ref}{comment}",
@@ -196,7 +198,9 @@ export async function journalTaskIds(gameId: string, rows: Array<{ kind: string;
 const PASSIVE_KINDS = new Set<string>(["trial_entry_returned", "deeds_frozen", "deeds_unfrozen", "member_moved", "wall_block_returned"]);
 /** Сводка участника: дела, районы, стихи, переправы (E-03 «Моё служение»). */
 export interface ServiceStats { deeds: number; deedsPending: number; tasks: number; orders: number; cities: number; verses: number; trips: number; lastActiveAt: number | null }
-export async function serviceStats(gameId: string, userId: string, teamId: string): Promise<ServiceStats> {
+/** teamIds — одна команда или все команды человека в игре (выбывшая и новая, решение владельца 10.11): тогда сводка за обе. */
+export async function serviceStats(gameId: string, userId: string, teamIds: string | string[]): Promise<ServiceStats> {
+  const teamId = Array.isArray(teamIds) ? { in: teamIds } : teamIds;
   // Общие дела Каменоломни (решение владельца 07.10): принятое дело идёт в зачёт тем, кого отметили при сдаче.
   const [deeds, deedsPending, quarryDone, quarryPending, entries, rows, wall] = await Promise.all([
     prisma.teamEdgeTask.count({ where: { gameId, teamId, status: "APPROVED", paved: false, OR: [{ takenById: userId }, { participants: { has: userId } }] } }),
@@ -205,7 +209,7 @@ export async function serviceStats(gameId: string, userId: string, teamId: strin
     prisma.quarryWork.count({ where: { gameId, teamId, status: "SUBMITTED", participants: { has: userId } } }),
     // Зачтённые копии (carried) — те же стихи ещё раз: не считаются. Блоки стены (01.11) — выученные стихи, считаются.
     prisma.battleEntry.findMany({ where: { userId, teamId, status: "APPROVED", carried: false, battle: { gameId } }, select: { startIdx: true, endIdx: true } }),
-    prisma.journal.findMany({ where: { gameId, userId }, select: { kind: true, createdAt: true } }),
+    prisma.journal.findMany({ where: { gameId, userId, OR: [{ teamId }, { teamId: null }] }, select: { kind: true, createdAt: true } }),
     prisma.wallBlock.findMany({ where: { gameId, userId, teamId, status: "APPROVED", cargo: false }, select: { startIdx: true, endIdx: true } }),
   ]);
   const count = (k: JournalKind) => rows.filter((r) => r.kind === k).length;
@@ -217,8 +221,9 @@ export async function serviceStats(gameId: string, userId: string, teamId: strin
 
 /** Доска активности для администратора: все участники игры с той же сводкой, самые активные сверху. */
 export async function activityBoard(gameId: string) {
-  const members = await prisma.membership.findMany({ where: { team: { gameId } }, select: { userId: true, teamId: true, role: true, gameRole: true, user: { select: { nickname: true, displayName: true, avatarId: true } }, team: { select: { name: true, color: true, avatarId: true } } } });
-  const rows = await Promise.all(members.map(async (m) => ({ userId: m.userId, teamId: m.teamId, nickname: m.user.nickname, displayName: m.user.displayName, team: m.team.name, color: m.team.color, avatarId: m.team.avatarId, userAvatarId: m.user.avatarId, role: m.role, gameRole: m.gameRole, ...(await serviceStats(gameId, m.userId, m.teamId)) })));
+  const all = await prisma.membership.findMany({ where: { team: { gameId } }, select: { userId: true, teamId: true, role: true, gameRole: true, joinedAt: true, user: { select: { nickname: true, displayName: true, avatarId: true } }, team: { select: { name: true, color: true, avatarId: true, status: true } } } });
+  // Один человек — одна строка (решение владельца 10.11): команда — та, что в строю, числа — за все его команды в игре.
+  const rows = await Promise.all(byPerson(all).map(async ({ main: m, teamIds }) => ({ userId: m.userId, teamId: m.teamId, nickname: m.user.nickname, displayName: m.user.displayName, team: m.team.name, color: m.team.color, avatarId: m.team.avatarId, userAvatarId: m.user.avatarId, role: m.role, gameRole: m.gameRole, ...(await serviceStats(gameId, m.userId, teamIds)) })));
   const score = (r: ServiceStats) => r.deeds * 3 + r.tasks + r.orders + r.cities * 2 + Math.ceil(r.verses / 5) + r.trips;
   return rows.sort((a, b) => score(b) - score(a) || (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0));
 }
@@ -276,7 +281,7 @@ export async function seasonBook(gameId: string) {
   const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
   const [table, teams, deeds, rows] = await Promise.all([
     standings(gameId),
-    prisma.team.findMany({ where: { gameId }, include: { members: { include: { user: { select: { id: true, nickname: true, displayName: true } } } }, cityStates: { where: { capturedAt: { not: null } } } }, orderBy: { index: "asc" } }),
+    prisma.team.findMany({ where: { gameId }, include: { members: { orderBy: { joinedAt: "asc" }, include: { user: { select: { id: true, nickname: true, displayName: true } } } }, cityStates: { where: { capturedAt: { not: null } } } }, orderBy: { index: "asc" } }),
     prisma.teamEdgeTask.findMany({ where: { gameId, status: "APPROVED", paved: false }, include: { deed: { select: { title: true, direction: true } } }, orderBy: { decidedAt: "asc" } }),
     prisma.journal.findMany({ where: { gameId, OR: [{ everyone: true }, { kind: { in: ["trial_declared", "trial_defense", "trial_repelled", "trial_won", "trial_burnt"] } }] }, orderBy: { createdAt: "asc" } }),
   ]);

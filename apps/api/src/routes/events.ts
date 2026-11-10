@@ -3,6 +3,7 @@ import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { subscribe } from "../services/events.js";
+import { gameMembership } from "../services/membership.js";
 
 export async function eventRoutes(app: FastifyInstance): Promise<void> {
   /** Поток событий игры для админов и участников. */
@@ -10,7 +11,8 @@ export async function eventRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const [admin, member] = await Promise.all([
       prisma.gameAdmin.findUnique({ where: { gameId_userId: { gameId: id, userId: request.user!.id } } }),
-      prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: id } } }),
+      // События «своей» команды: из двух (выбывшая и новая, 10.11) — той, что в строю.
+      gameMembership(request.user!.id, id),
     ]);
     // Наблюдатель (администратор платформы) тоже слушает события: поток только читает.
     if (!admin && !member && request.user!.platformRole !== "SUPERADMIN") return reply.code(403).send({ error: "forbidden", message: err(request, "Нет доступа к игре") });

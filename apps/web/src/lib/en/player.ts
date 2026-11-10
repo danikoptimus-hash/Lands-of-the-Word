@@ -703,6 +703,7 @@ export const PLAYER: Record<string, string> = {
   "Взятие дел снова открыто": "Taking deeds is open again",
   "{user} переведён(а) администратором в команду «{team}»": "{user} was moved by the administrator to team “{team}”",
   "{user} переведён(а) администратором из команды «{team}»": "{user} was moved by the administrator from team “{team}”",
+  "{user} из выбывшей команды «{team}» вступил(а) в команду по приглашению": "{user} from the defeated team “{team}” joined the team by invitation",
   "Администратор перевёл вас в команду «{team}»": "The administrator moved you to team “{team}”",
   "{user} сдал(а) блок стены города {book}: {ref}": "{user} submitted a wall block of the city of {book}: {ref}",
   "{user} сдал(а) починку блока стены города {book}: {part} из {ref}": "{user} submitted a repair of a wall block of the city of {book}: {part} of {ref}",

@@ -4,12 +4,13 @@ import { useAuth } from "../lib/auth";
 import { api } from "../lib/api";
 import { t } from "../lib/i18n";
 import { Chip } from "../components/Chip";
+import { Icon } from "../components/Icon";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { LoadingState } from "../components/State";
 import { GuestShell, errorText } from "./LoginPage";
 import { VerifyPendingPage } from "./VerifyPage";
 
-interface InviteInfo { invite: { admin: boolean; role: "CAPTAIN" | "MEMBER"; team: { id: string; name: string; color: string; avatarId?: string | null } | null; game: { id: string; name: string; org: { name: string } } }; alreadyIn: { id: string; name: string } | null; alreadyAdmin?: boolean }
+interface InviteInfo { invite: { admin: boolean; role: "CAPTAIN" | "MEMBER"; team: { id: string; name: string; color: string; avatarId?: string | null } | null; game: { id: string; name: string; org: { name: string } } }; alreadyIn: { id: string; name: string } | null; alreadyAdmin?: boolean; /** Своя выбывшая команда (10.11): вступление в новую — с пояснением. */ defeatedTeam?: { id: string; name: string } | null }
 
 /** Приглашение в команду по ссылке от капитана или администратора. Гостя сначала отправляем на вход. */
 export function JoinPage() {
@@ -76,7 +77,11 @@ export function JoinPage() {
               <div className="actions"><Link to={mapUrl} className="btn block">{t("Открыть карту")}</Link></div>
             </>
           ) : (
-            <div className="actions"><button type="button" className="block" onClick={() => void accept()} disabled={busy}>{t("Вступить в команду")}</button></div>
+            <>
+              {/* Из выбывшей команды (решение владельца 10.11): в её составе остаётся, играет за новую. */}
+              {info.defeatedTeam && <p className="note"><Icon name="info" /><span>{t("Ваша команда «{name}» выбыла. Вступив, вы будете играть за новую команду; в составе прежней вы останетесь, но действовать в ней уже нельзя.", { name: info.defeatedTeam.name })}</span></p>}
+              <div className="actions"><button type="button" className="block" onClick={() => void accept()} disabled={busy}>{t("Вступить в команду")}</button></div>
+            </>
           )}
         </div>
       )}

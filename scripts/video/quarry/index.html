@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><title>Каменоломня</title>
+<style>
+@font-face { font-family: "Philosopher"; font-weight: 700; src: url("../../../apps/web/public/fonts/philosopher-700-cyrillic.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "Philosopher"; font-weight: 700; src: url("../../../apps/web/public/fonts/philosopher-700-latin.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: "Literata"; font-weight: 400; src: url("../../../apps/web/public/fonts/literata-400-cyrillic.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "Literata"; font-weight: 400; src: url("../../../apps/web/public/fonts/literata-400-latin.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+@font-face { font-family: "Literata"; font-weight: 600; src: url("../../../apps/web/public/fonts/literata-600-cyrillic.woff2") format("woff2"); unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+@font-face { font-family: "Literata"; font-weight: 600; src: url("../../../apps/web/public/fonts/literata-600-latin.woff2") format("woff2"); unicode-range: U+0000-00FF, U+2000-206F; }
+:root { --gold: #e6c27a; --paper: #f2e6cb; --ink: #0c0a07; --line: rgba(230,194,122,.38); }
+html, body { margin: 0; width: 1920px; height: 1080px; overflow: hidden; background: #0c0a07; font-family: "Literata", Georgia, serif; color: var(--paper); }
+#stage { position: absolute; inset: 0; overflow: hidden; background: #0c0a07; }
+.layer { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; opacity: 0; will-change: transform, opacity; }
+.vig { position: absolute; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 50% 50%, transparent 62%, rgba(0,0,0,.32) 100%); }
+#tap { position: absolute; left: 0; top: 0; width: 0; height: 0; opacity: 0; }
+#tap .ring { position: absolute; left: -60px; top: -60px; width: 120px; height: 120px; border-radius: 50%; border: 5px solid #f3cf7c; box-shadow: 0 0 22px rgba(243,207,124,.75), inset 0 0 14px rgba(243,207,124,.45); }
+#tap .dot { position: absolute; left: -22px; top: -22px; width: 44px; height: 44px; border-radius: 50%; background: radial-gradient(circle, rgba(255,236,190,.95) 0%, rgba(243,207,124,.75) 55%, rgba(243,207,124,0) 72%); }
+#badge { position: absolute; left: 40px; bottom: 36px; display: flex; align-items: center; gap: 12px; padding: 10px 22px 10px 12px; border-radius: 999px;
+  background: rgba(18,14,9,.84); border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0,0,0,.45); font: 600 25px/1 "Literata", serif; color: var(--paper); opacity: 0; white-space: nowrap; }
+#badge .ico { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(180deg, #f1d595, #c99a4c); }
+#badge .ico svg { width: 21px; height: 21px; }
+#title { position: absolute; inset: 0; opacity: 0; background: linear-gradient(90deg, rgba(10,8,5,.86) 0%, rgba(10,8,5,.62) 42%, rgba(10,8,5,0) 72%); }
+#title .box { position: absolute; left: 120px; top: 330px; width: 900px; }
+.eyebrow { font: 600 28px/1 "Literata", serif; letter-spacing: .32em; text-transform: uppercase; color: var(--gold); }
+.h1 { font: 700 132px/1.02 "Philosopher", serif; margin: 26px 0 26px; background: linear-gradient(180deg, #fbe7b0 0%, #e6c27a 45%, #a9772f 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.sub { font: 400 40px/1.35 "Literata", serif; color: var(--paper); max-width: 820px; }
+#outro { position: absolute; inset: 0; opacity: 0; background: radial-gradient(1100px 700px at 50% 46%, rgba(26,21,14,.78) 0%, rgba(10,8,5,.92) 70%); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+#outro img { width: 190px; height: 190px; filter: drop-shadow(0 12px 30px rgba(0,0,0,.6)); }
+#outro .h1 { font-size: 104px; margin: 22px 0 14px; }
+#outro .sub { font-size: 40px; max-width: 1500px; }
+#black { position: absolute; inset: 0; background: #000; opacity: 1; }
+</style></head>
+<body><div id="stage">
+<img id="L0" class="layer"><img id="L1" class="layer">
+<div class="vig"></div>
+<div id="tap"><div class="ring"></div><div class="dot"></div></div>
+<div id="badge"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="#1b140b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path id="bpath" d=""/></svg></span><span id="btext"></span></div>
+<div id="title"><div class="box"><div class="eyebrow">Земли Слова · как это работает</div><div class="h1">Каменоломня</div><div class="sub">Тёсаные камни за общие дела всей команды — и дороги без дела</div></div></div>
+<div id="outro"><img src="../../../apps/web/public/img/brand/logo-512.png"><div class="h1">Каменоломня</div><div class="sub">Соберитесь всей командой — и мостите путь к новым городам</div></div>
+<div id="black"></div>
+</div>
+<script src="data.js"></script>
+<script>
+const CAP = window.CAP || "./cap/";
+const ICON = { admin: "M20 6 9 17l-5-5", team: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75", user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m12-14a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z" };
+const shots = TL.scenes.flatMap((s) => s.shots.map((x) => ({ ...x, scene: s.i })));
+const imgs = {};
+const L = [document.getElementById("L0"), document.getElementById("L1")];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = (p) => p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+const sm = (a, b, t) => { const x = clamp((t - a) / (b - a), 0, 1); return x * x * (3 - 2 * x); };
+function cam(s, p) {
+  const e = ease(clamp(p, 0, 1));
+  let w = s.from[2] + (s.to[2] - s.from[2]) * e; w = Math.min(1920, w); const h = w * 9 / 16;
+  let cx = s.from[0] + (s.to[0] - s.from[0]) * e, cy = s.from[1] + (s.to[1] - s.from[1]) * e;
+  cx = clamp(cx, w / 2, 1920 - w / 2); cy = clamp(cy, h / 2, 1080 - h / 2);
+  return { x0: cx - w / 2, y0: cy - h / 2, k: 1920 / w };
+}
+function place(el, s, p, op) {
+  const c = cam(s, p); const src = CAP + s.img + ".png";
+  if (el.dataset.src !== src) { el.src = src; el.dataset.src = src; }
+  el.style.transform = `scale(${c.k}) translate(${-c.x0}px, ${-c.y0}px)`; el.style.opacity = op; return c;
+}
+const XF = 0.32, TAP = 0.8;
+async function render(t) {
+  let i = shots.findIndex((s) => t >= s.t0 && t < s.t1); if (i < 0) i = t < 0 ? 0 : shots.length - 1;
+  const s = shots[i], p = (t - s.t0) / (s.t1 - s.t0);
+  const prev = shots[i - 1], into = t - s.t0;
+  let c;
+  if (prev && into < XF && prev.img !== s.img) { place(L[0], prev, 1, 1); c = place(L[1], s, p, sm(0, XF, into)); }
+  else { L[0].style.opacity = 0; c = place(L[1], s, p, 1); }
+  // нажатие в конце кадра
+  const tap = document.getElementById("tap");
+  if (s.tap && t > s.t1 - TAP) {
+    const q = (t - (s.t1 - TAP)) / TAP;
+    tap.style.left = ((s.tap[0] - c.x0) * c.k) + "px"; tap.style.top = ((s.tap[1] - c.y0) * c.k) + "px";
+    tap.style.opacity = q < 0.15 ? q / 0.15 : 1 - sm(0.55, 1, q);
+    tap.querySelector(".ring").style.transform = `scale(${0.35 + 0.75 * sm(0, 0.8, q)})`;
+    tap.querySelector(".dot").style.transform = `scale(${q < 0.35 ? 1 - q : 0.65})`;
+  } else tap.style.opacity = 0;
+  // плашка: кто на экране
+  const badge = document.getElementById("badge");
+  const showBadge = s.badge && s.scene !== 0 && s.scene !== 14;
+  if (showBadge) {
+    document.getElementById("btext").textContent = s.badge;
+    document.getElementById("bpath").setAttribute("d", s.badge.startsWith("Администратор") ? ICON.admin : s.badge.startsWith("Участник") ? ICON.user : ICON.team);
+    const sameBefore = prev && prev.badge === s.badge && prev.scene !== 0;
+    badge.style.opacity = sameBefore ? 1 : sm(0, 0.4, into);
+  } else badge.style.opacity = 0;
+  // заставка и концовка
+  const S0 = TL.scenes[0], SL = TL.scenes[TL.scenes.length - 1];
+  document.getElementById("title").style.opacity = sm(0.3, 1.2, t) * (1 - sm(S0.t1 - 1.3, S0.t1 - 0.2, t));
+  document.getElementById("outro").style.opacity = sm(SL.t0 + 0.6, SL.t0 + 1.6, t);
+  document.getElementById("black").style.opacity = 1 - sm(0, 0.7, t) + sm(TL.total - 0.9, TL.total, t);
+  await new Promise((r) => requestAnimationFrame(() => r()));
+  // дождаться загрузки картинок
+  await Promise.all(L.map((el) => el.complete ? null : new Promise((r) => { el.onload = r; el.onerror = r; })));
+}
+window.render = render;
+window.ready = (async () => { await document.fonts.ready; await Promise.all([...new Set(shots.map((s) => s.img))].map((n) => new Promise((r) => { const im = new Image(); im.onload = r; im.onerror = r; im.src = CAP + n + ".png"; imgs[n] = im; }))); })();
+</script></body></html>
