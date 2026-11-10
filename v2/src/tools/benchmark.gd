@@ -87,8 +87,12 @@ func _report(frames_ms: PackedFloat32Array, legs: PackedStringArray) -> String:
 	text.append("Память: %.1f ГБ" % memory_gb)
 	text.append("Видеокарта: %s" % RenderingServer.get_video_adapter_name())
 	text.append("Отрисовка: %s, %s" % [RenderingServer.get_current_rendering_driver_name(), RenderingServer.get_current_rendering_method()])
-	text.append("Экран: %d×%d, %d Гц; окно %d×%d" % [screen.x, screen.y, roundi(DisplayServer.screen_get_refresh_rate()), window.x, window.y])
-	text.append("Кадров в секунду: в среднем %d, 1%% худших %d, самый долгий кадр — %d" % [roundi(_fps(frames_ms)), roundi(low), roundi(slowest)])
+	var refresh := DisplayServer.screen_get_refresh_rate()
+	var screen_text := "%d×%d" % [screen.x, screen.y]
+	if is_finite(refresh) and refresh > 0.0:
+		screen_text += ", %d Гц" % roundi(refresh)
+	text.append("Экран: %s; окно %d×%d" % [screen_text, window.x, window.y])
+	text.append("Кадров в секунду: в среднем %d, в худшем 1%% кадров — %d, в самом медленном кадре — %d" % [roundi(_fps(frames_ms)), roundi(low), roundi(slowest)])
 	text.append("По участкам облёта:")
 	text.append_array(legs)
 	return "\n".join(text)
