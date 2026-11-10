@@ -62,6 +62,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	await _check_drag()
 	await _check_bounds()
 	await _check_flight()
+	await _check_sky()
 
 	# Замер скорости и снимок: проверяем, что клавиши F5 и F2 делают своё дело (сам замер здесь короткий).
 	benchmark.time_scale = 0.05
@@ -148,6 +149,48 @@ func _check_flight() -> void:
 	var miss := view.focus.distance_to(goal.focus)
 	_check("перелёт приходит в цель", miss < 2.0 and absf(view.distance - goal.distance) < 2.0,
 			"мимо на %.2f м, расстояние %.0f вместо %.0f" % [miss, view.distance, goal.distance])
+
+
+## Правая кнопка мыши: взгляд поднимается выше горизонта (видно небо) и опускается почти отвесно.
+func _check_sky() -> void:
+	_rig.set_view(CameraView.make(_world.land_rect.get_center(), 2600.0, 0.0, 0.0))
+	await _frames(2)
+	var size := get_viewport().get_visible_rect().size
+	var grip := size * 0.5
+	await _tilt_with_mouse(grip, -30.0, 40)
+	var up := _look_elevation()
+	_check("правая кнопка поднимает взгляд выше горизонта", up > 8.0, "взгляд на %.1f° выше горизонта" % up)
+	var edge := _rig.ground_point(Vector2(size.x * 0.5, size.y - 4.0))
+	_check("край земли остаётся в кадре", edge != StrategyCamera.NO_POINT, "у нижнего края кадра %s" % ("земля" if edge != StrategyCamera.NO_POINT else "небо"))
+
+	# У горизонта приближение не должно менять угол взгляда.
+	for i in 6:
+		_wheel(grip, true)
+		await _frames(1)
+	await _settle(1.6)
+	var after_zoom := _look_elevation()
+	_check("приближение не сбивает взгляд у горизонта", absf(after_zoom - up) < 1.5,
+			"было %.1f°, стало %.1f°, расстояние %.0f м" % [up, after_zoom, _rig.current_distance()])
+
+	await _tilt_with_mouse(grip, 30.0, 70)
+	var down := _look_elevation()
+	_check("правая кнопка опускает взгляд почти отвесно", down < -80.0, "взгляд на %.1f° ниже горизонта" % -down)
+
+
+## Тянем правой кнопкой по вертикали: шагов count по step точек.
+func _tilt_with_mouse(from: Vector2, step: float, count: int) -> void:
+	_mouse_button(from, MOUSE_BUTTON_RIGHT, true)
+	for i in count:
+		_mouse_motion(from + Vector2(0.0, step * float(i + 1)), Vector2(0.0, step), MOUSE_BUTTON_MASK_RIGHT)
+		await _frames(1)
+	_mouse_button(from, MOUSE_BUTTON_RIGHT, false)
+	await _settle(1.2)
+
+
+## На сколько градусов взгляд камеры выше горизонта (меньше нуля — ниже).
+func _look_elevation() -> float:
+	var forward := -_rig.camera.global_transform.basis.z
+	return rad_to_deg(asin(clampf(forward.y, -1.0, 1.0)))
 
 
 func _check(title: String, passed: bool, details: String) -> void:

@@ -14,7 +14,7 @@ const LOD_DISTANCE: Array[float] = [750.0, 1600.0, 3400.0]  ## до какого
 const LOD_HYSTERESIS := 1.08  ## чтобы уровни не мигали на границе
 const SKIRT := 24.0
 const DEEP_CUTOFF := -24.0  ## плитки глубже этого не строим: дно не видно сквозь воду
-const SEA_SIZE := 60000.0
+const SEA_SIZE := 200000.0  ## море уходит за горизонт: его край тонет в дымке
 
 
 class Chunk:

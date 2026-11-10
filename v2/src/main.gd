@@ -74,7 +74,10 @@ func _process(_delta: float) -> void:
 		return
 	_terrain.set_viewer(_rig.camera.global_position)
 	# Тени считаются только там, куда смотрит камера: вблизи они резче, издалека покрывают весь мир.
-	_sun.directional_shadow_max_distance = clampf(_rig.current_distance() * 2.6, 500.0, 9000.0)
+	# Чем ближе взгляд к горизонту, тем дальше видно — и тем дальше нужны тени.
+	var low := 1.0 - smoothstep(0.1, 0.5, _rig.view_angle())
+	var reach := maxf(_rig.current_distance() * lerpf(2.6, 7.0, low), lerpf(500.0, 4500.0, low))
+	_sun.directional_shadow_max_distance = minf(reach, 12000.0)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:

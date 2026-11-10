@@ -61,6 +61,12 @@ static func stops(world: WorldData, rig: StrategyCamera) -> Array[Stop]:
 
 	var centre := world.land_rect.get_center()
 	list.append(_stop("%02d-gorizont" % number, "Взгляд к горизонту через пролив", CameraView.make(centre + Vector2(-600.0, 0.0), 1100.0, -90.0, -26.0), 3.5))
+	number += 1
+	# Наклон −90° заведомо больше допустимого: камера опускается к земле и поднимает взгляд до предела.
+	list.append(_stop("%02d-nebo" % number, "Взгляд к небу: камера у земли, взгляд выше горизонта", CameraView.make(centre + Vector2(-600.0, 0.0), 1400.0, -90.0, -90.0), 3.0))
+	number += 1
+	if mountain != null:
+		list.append(_stop("%02d-nebo-nad-gorami" % number, "Горы на фоне неба, вблизи", CameraView.make(mountain.center(), 420.0, 105.0, -90.0), 3.0))
 	return list
 
 

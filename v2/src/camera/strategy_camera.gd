@@ -2,6 +2,8 @@ class_name StrategyCamera
 extends Node3D
 ## Камера стратегии (шаг 1.1). Смотрит на точку земли — «фокус» — с расстояния, под наклоном, с любой стороны.
 ## Чем ближе к земле, тем положе взгляд; издалека — почти как на карту. Всё движение сглажено.
+## Наклон свободный: от почти отвесного взгляда вниз до горизонта и неба. Когда камера уже опустилась к земле,
+## дальнейший наклон поднимает сам взгляд — выше горизонта, но так, чтобы край земли оставался в кадре.
 ##
 ## Управление: перетаскивание левой кнопкой — земля едет за курсором; колесо — приближение к месту под курсором;
 ## правая или средняя кнопка — поворот и наклон; клавиши — см. подсказку F1.
@@ -10,10 +12,10 @@ const FOV := 35.0
 const MIN_DISTANCE := 110.0
 const PITCH_NEAR_DEG := 34.0  ## наклон вблизи: смотрим вдоль земли
 const PITCH_FAR_DEG := 62.0  ## наклон издалека: почти сверху
-const PITCH_MIN_DEG := 12.0
-const PITCH_MAX_DEG := 86.0
-const TILT_MIN_DEG := -26.0
-const TILT_MAX_DEG := 30.0
+const PITCH_MAX_DEG := 86.0  ## самый крутой взгляд: почти отвесно вниз
+const ORBIT_MIN_DEG := 4.0  ## ниже камера к земле не опускается: дальше поднимается сам взгляд
+const LOOK_UP_MAX_DEG := 12.0  ## настолько взгляд поднимается выше горизонта: небо видно, край земли остаётся в кадре
+const OWN_ANGLE_FROM_DEG := 20.0  ## взгляд положе этого игрок выбрал сам: приближение его не меняет
 const ZOOM_STEP := 1.16  ## один щелчок колеса
 const FOLLOW_RATE := 11.0  ## скорость догона цели, 1/с
 const ZOOM_RATE := 9.0
@@ -73,7 +75,7 @@ var _flight_hop := 0.0
 func _ready() -> void:
 	camera = Camera3D.new()
 	camera.fov = FOV
-	camera.far = 40000.0
+	camera.far = 120000.0
 	add_child(camera)
 	camera.make_current()
 	_apply()
@@ -97,6 +99,11 @@ func current_distance() -> float:
 	return _distance
 
 
+## Угол взгляда вниз от горизонта, радианы: больше нуля — смотрим на землю, меньше — выше горизонта.
+func view_angle() -> float:
+	return _view_angle(_distance, _tilt)
+
+
 func get_view() -> CameraView:
 	var view := CameraView.new()
 	view.focus = _focus
@@ -112,7 +119,7 @@ func set_view(view: CameraView) -> void:
 	_t_focus = _clamp_focus(view.focus)
 	_t_distance = clampf(view.distance, MIN_DISTANCE, _max_distance)
 	_t_yaw = view.yaw
-	_t_tilt = clampf(view.tilt, deg_to_rad(TILT_MIN_DEG), deg_to_rad(TILT_MAX_DEG))
+	_t_tilt = _fit_tilt(view.tilt, _t_distance)
 	_focus = _t_focus
 	_distance = _t_distance
 	_yaw = _t_yaw
@@ -128,7 +135,7 @@ func fly_to(view: CameraView, seconds: float = -1.0) -> void:
 	_flight_to = view.copy()
 	_flight_to.focus = _clamp_focus(view.focus)
 	_flight_to.distance = clampf(view.distance, MIN_DISTANCE, _max_distance)
-	_flight_to.tilt = clampf(view.tilt, deg_to_rad(TILT_MIN_DEG), deg_to_rad(TILT_MAX_DEG))
+	_flight_to.tilt = _fit_tilt(view.tilt, _flight_to.distance)
 	var travel := _flight_from.focus.distance_to(_flight_to.focus)
 	var span := maxf(_flight_from.distance, _flight_to.distance)
 	var zoom_change := absf(log(_flight_to.distance / _flight_from.distance))
@@ -148,7 +155,7 @@ func view_for_rect(area: Rect2) -> CameraView:
 	var half_width := area.size.x * 0.5
 	var fit := 1000.0
 	for i in 4:
-		var pitch := _pitch_for(fit, 0.0)
+		var pitch := _auto_pitch(fit)
 		var by_depth := half_depth * (sin(pitch) / tan_vertical + cos(pitch))
 		var by_width := half_width / tan_horizontal + half_depth * cos(pitch)
 		fit = maxf(by_depth, by_width) * 1.08
@@ -251,15 +258,27 @@ func _step_flight(dt: float) -> void:
 func _apply() -> void:
 	if camera == null:
 		return
-	var pitch := _pitch_for(_distance, _tilt)
+	var orbit_min := deg_to_rad(ORBIT_MIN_DEG)
+	var angle := _view_angle(_distance, _tilt)
+	var pitch := maxf(angle, orbit_min)
 	var target := Vector3(_focus.x, _ground, _focus.y)
-	var offset := Vector3(sin(_yaw) * cos(pitch), sin(pitch), cos(_yaw) * cos(pitch)) * _distance
-	var eye := target + offset
+	var eye := target + Vector3(sin(_yaw) * cos(pitch), sin(pitch), cos(_yaw) * cos(pitch)) * _distance
+	var above := eye.y
 	if _height_map != null:
 		# Не даём камере уйти в склон: поднимаем её над землёй под собой.
-		eye.y = maxf(eye.y, maxf(_height_map.sample(Vector2(eye.x, eye.z)), 0.0) + CLEARANCE)
-	camera.global_transform = Transform3D(Basis.looking_at(target - eye, Vector3.UP), eye)
-	camera.near = clampf(_distance * 0.03, 1.0, 50.0)
+		var floor_level := maxf(_height_map.sample(Vector2(eye.x, eye.z)), 0.0)
+		eye.y = maxf(eye.y, floor_level + CLEARANCE)
+		above = eye.y - floor_level
+	var orientation := Basis.looking_at(target - eye, Vector3.UP)
+	if angle < orbit_min:
+		# Камера уже у земли: дальше поднимается только взгляд — к горизонту и небу.
+		var look_up_max := deg_to_rad(LOOK_UP_MAX_DEG)
+		var actual := asin(clampf((eye.y - target.y) / maxf(eye.distance_to(target), 0.001), -1.0, 1.0))
+		var raise := (orbit_min - angle) / (orbit_min + look_up_max)
+		orientation = orientation * Basis(Vector3.RIGHT, raise * (look_up_max + actual))
+	camera.global_transform = Transform3D(orientation, eye)
+	# Чем ниже камера над землёй, тем ближе передняя граница видимости: земля у нижнего края кадра не обрезается.
+	camera.near = clampf(minf(_distance * 0.03, above * 0.4), 0.5, 50.0)
 
 
 # ── Ввод ─────────────────────────────────────────────────────────────────────
@@ -312,14 +331,16 @@ func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 		var now := plane_point(event.position, _drag_anchor.y)
 		if now == NO_POINT:
 			return
-		# Точка земли, за которую взялись, остаётся под курсором.
-		_focus = _clamp_focus(_focus + Vector2(_drag_anchor.x - now.x, _drag_anchor.z - now.z))
+		# Точка земли, за которую взялись, остаётся под курсором. У горизонта малое движение мыши
+		# соответствует большому пути по земле, поэтому один шаг ограничен.
+		var shift := Vector2(_drag_anchor.x - now.x, _drag_anchor.z - now.z).limit_length(_distance * 0.6)
+		_focus = _clamp_focus(_focus + shift)
 		_t_focus = _focus
 		_drag_last_usec = Time.get_ticks_usec()
 		_apply()
 	elif _rotating:
 		_t_yaw -= event.relative.x * DRAG_TURN
-		_t_tilt = clampf(_t_tilt + event.relative.y * DRAG_TILT, deg_to_rad(TILT_MIN_DEG), deg_to_rad(TILT_MAX_DEG))
+		_t_tilt = _fit_tilt(_t_tilt + event.relative.y * DRAG_TILT, _t_distance)
 
 
 func _begin_drag(screen: Vector2) -> void:
@@ -351,6 +372,7 @@ func _fly_to_screen_point(screen: Vector2) -> void:
 	var view := get_view()
 	view.focus = Vector2(point.x, point.z)
 	view.distance = maxf(_t_distance * 0.55, MIN_DISTANCE)
+	view.tilt = _carry_tilt(view.tilt, _distance, view.distance)
 	fly_to(view)
 
 
@@ -360,7 +382,7 @@ func _zoom(factor: float, screen: Vector2) -> void:
 		return
 	_flight = false
 	_pan_velocity = Vector2.ZERO
-	_t_distance = target
+	_set_target_distance(target)
 	# Приближаемся к месту под курсором: оно остаётся на месте, пока идёт приближение.
 	var keep := _zoom_anchor_active and screen.distance_to(_zoom_anchor_screen) < 4.0
 	if not keep:
@@ -417,7 +439,7 @@ func _read_keys(dt: float) -> void:
 		tilt += 1.0
 	if tilt != 0.0:
 		_cancel_flight()
-		_t_tilt = clampf(_t_tilt + tilt * KEY_TILT_SPEED * dt, deg_to_rad(TILT_MIN_DEG), deg_to_rad(TILT_MAX_DEG))
+		_t_tilt = _fit_tilt(_t_tilt + tilt * KEY_TILT_SPEED * dt, _t_distance)
 
 	var zoom := 0.0
 	if _key(KEY_EQUAL) or _key(KEY_KP_ADD) or _key(KEY_PAGEUP):
@@ -427,7 +449,7 @@ func _read_keys(dt: float) -> void:
 	if zoom != 0.0:
 		_cancel_flight()
 		_zoom_anchor_active = false
-		_t_distance = clampf(_t_distance * exp(zoom * KEY_ZOOM_SPEED * fast * dt), MIN_DISTANCE, _max_distance)
+		_set_target_distance(clampf(_t_distance * exp(zoom * KEY_ZOOM_SPEED * fast * dt), MIN_DISTANCE, _max_distance))
 
 
 ## Движение карты от курсора у края экрана — только в полноэкранном режиме.
@@ -484,10 +506,34 @@ func _aspect() -> float:
 	return size.x / maxf(size.y, 1.0)
 
 
-func _pitch_for(distance: float, tilt: float) -> float:
+## Наклон, который камера выбирает сама: вблизи положе, издалека круче.
+func _auto_pitch(distance: float) -> float:
 	var t := clampf(inverse_lerp(log(MIN_DISTANCE), log(_max_distance), log(distance)), 0.0, 1.0)
-	var base := lerpf(deg_to_rad(PITCH_NEAR_DEG), deg_to_rad(PITCH_FAR_DEG), smoothstep(0.0, 1.0, t))
-	return clampf(base + tilt, deg_to_rad(PITCH_MIN_DEG), deg_to_rad(PITCH_MAX_DEG))
+	return lerpf(deg_to_rad(PITCH_NEAR_DEG), deg_to_rad(PITCH_FAR_DEG), smoothstep(0.0, 1.0, t))
+
+
+## Угол взгляда вниз от горизонта: собственный наклон камеры плюс добавка игрока, в допустимых пределах.
+func _view_angle(distance: float, tilt: float) -> float:
+	return clampf(_auto_pitch(distance) + tilt, -deg_to_rad(LOOK_UP_MAX_DEG), deg_to_rad(PITCH_MAX_DEG))
+
+
+## Добавка игрока, обрезанная по пределам взгляда на данном расстоянии.
+func _fit_tilt(tilt: float, distance: float) -> float:
+	return _view_angle(distance, tilt) - _auto_pitch(distance)
+
+
+## Добавка игрока при смене расстояния. Пока взгляд близок к собственному наклону камеры, он меняется
+## с расстоянием, как и раньше. Если же игрок сам опустил взгляд к горизонту, угол при приближении сохраняется.
+func _carry_tilt(tilt: float, from_distance: float, to_distance: float) -> float:
+	var before := _auto_pitch(from_distance)
+	var after := _auto_pitch(to_distance)
+	var own := 1.0 - smoothstep(deg_to_rad(OWN_ANGLE_FROM_DEG), deg_to_rad(PITCH_NEAR_DEG), before + tilt)
+	return _fit_tilt(tilt + (before - after) * own, to_distance)
+
+
+func _set_target_distance(value: float) -> void:
+	_t_tilt = _carry_tilt(_t_tilt, _t_distance, value)
+	_t_distance = value
 
 
 ## Высота, на которую смотрит камера: вблизи — высота земли под фокусом, издалека — уровень моря.
