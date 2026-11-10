@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { gameMembership, pickMembership } from "../services/membership.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -52,7 +53,10 @@ async function teamsPayload(gameId: string, isAdmin: boolean, teamId: string | n
   for (const r of rows) if (r.takenById) active.set(r.takenById, [...(active.get(r.takenById) ?? []), { id: r.id, title: r.deed.title, status: r.status, takenAt: r.takenAt, submittedAt: r.submittedAt, fromKey: r.fromKey, toKey: r.toKey }]);
   // Лимит смены роли — на каждого участника (решение владельца 19.10): у каждого своя дата, когда его роль можно сменить снова.
   const availableAt = (at: Date | null) => (at && rules.roleChangeDays > 0 ? new Date(at.getTime() + days(rules.roleChangeDays)) : null);
-  return { isAdmin, roleChangeDays: rules.roleChangeDays, teams: teams.map((t) => ({ ...t, members: t.members.map((m) => ({ ...m, deedLimit: limits.get(m.user.id) ?? null, activeDeeds: active.get(m.user.id) ?? [], roleChangeAvailableAt: availableAt(m.roleChangedAt), deedsFrozenUntil: m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenUntil : null, deedsFrozenReason: isAdmin && m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenReason : null })) })) };
+  // Участник выбывшей команды, вступивший в другую (решение владельца 10.11): администратор видит, за кого он теперь играет.
+  const playsFor = new Map<string, string>();
+  for (const t of teams) if (t.status !== "defeated") for (const m of t.members) playsFor.set(m.user.id, t.name);
+  return { isAdmin, roleChangeDays: rules.roleChangeDays, teams: teams.map((t) => ({ ...t, members: t.members.map((m) => ({ ...m, playsFor: t.status === "defeated" ? playsFor.get(m.user.id) ?? null : null, deedLimit: limits.get(m.user.id) ?? null, activeDeeds: active.get(m.user.id) ?? [], roleChangeAvailableAt: availableAt(m.roleChangedAt), deedsFrozenUntil: m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenUntil : null, deedsFrozenReason: isAdmin && m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now() ? m.deedsFrozenReason : null })) })) };
 }
 const teamsView = defineView("teams", { scope: "team", events: ["teams", "tasks", "submissions", "quarry", "map", "cities", "battles"], compute: (gameId, teamId) => teamsPayload(gameId, false, teamId) });
 
@@ -67,7 +71,7 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     const isAdmin = adminOrObserver(request, game.admins);
     if (isAdmin) return teamsPayload(id, true, null);
     // Участник видит только свою команду: ответ готовый, считается один раз после изменения (services/views.ts).
-    const m = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: id } }, select: { teamId: true } });
+    const m = await gameMembership(request.user!.id, id);
     if (!m) return reply.code(403).send({ error: "forbidden", message: err(request, "Вы не состоите в этой игре") });
     return teamsView(id, m.teamId);
   });
@@ -230,6 +234,8 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
     ]);
     if (!membership || membership.team.gameId !== id || !to) return reply.code(404).send({ error: "not_found", message: err(request, "Участник или команда не найдены") });
     if (to.id === teamId) return reply.code(409).send({ error: "conflict", message: err(request, "Участник уже в этой команде") });
+    // Участник выбывшей команды мог уже вступить в эту команду по приглашению (10.11).
+    if (await prisma.membership.findUnique({ where: { teamId_userId: { teamId: to.id, userId } } })) return reply.code(409).send({ error: "conflict", message: err(request, "Участник уже в этой команде") });
     if (to.status === "defeated") return reply.code(409).send({ error: "conflict", message: err(request, "Эта команда выбыла из игры") });
     await prisma.$transaction([
       prisma.teamEdgeTask.updateMany({ where: { teamId, takenById: userId, status: "TAKEN" }, data: { status: "OPEN", takenById: null, takenAt: null } }),
@@ -284,11 +290,18 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
       const isAdmin = await prisma.gameAdmin.findUnique({ where: { gameId_userId: { gameId: invite.gameId, userId: request.user!.id } } });
       return { invite: { admin: true, role: invite.role, team: null, game: invite.game }, alreadyIn: null, alreadyAdmin: Boolean(isAdmin) };
     }
-    const already = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: invite.gameId } }, include: { team: { select: { id: true, name: true } } } });
-    return { invite: { admin: false, role: invite.role, team: invite.team, game: invite.game }, alreadyIn: already ? already.team : null };
+    // Участник выбывшей команды может вступить в другую команду той же игры (решение владельца 10.11): «уже в команде» —
+    // только если он в команде, что ещё в строю, или уже в этой команде; выбывшая команда показывается отдельно.
+    const mine = await prisma.membership.findMany({ where: { userId: request.user!.id, team: { gameId: invite.gameId } }, include: { team: { select: { id: true, name: true, status: true } } } });
+    const blocking = mine.find((m) => m.teamId === invite.teamId) ?? mine.find((m) => m.team.status !== "defeated");
+    const out = !blocking ? mine.find((m) => m.team.status === "defeated") : undefined;
+    return { invite: { admin: false, role: invite.role, team: invite.team, game: invite.game }, alreadyIn: blocking ? { id: blocking.team.id, name: blocking.team.name } : null, defeatedTeam: out ? { id: out.team.id, name: out.team.name } : null };
   });
 
-  /** Принять приглашение: вступить в команду. Одна игра — одна команда на человека. */
+  /**
+   * Принять приглашение: вступить в команду. Одна игра — одна команда в строю на человека; участник выбывшей команды
+   * вступает в другую и остаётся в составе выбывшей (решение владельца 10.11), играет за новую.
+   */
   app.post("/api/invites/:token/accept", async (request, reply) => {
     const { token } = request.params as { token: string };
     const invite = await prisma.invite.findUnique({ where: { id: token } });
@@ -304,23 +317,38 @@ export async function teamRoutes(app: FastifyInstance): Promise<void> {
       return reply.code(201).send({ admin: true, gameId: invite.gameId });
     }
     if (!invite.teamId) return reply.code(404).send({ error: "not_found", message: err(request, "Приглашение не найдено или истекло") });
-    const already = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId: invite.gameId } } });
-    if (already) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже состоите в команде этой игры") });
+    const mine = await prisma.membership.findMany({ where: { userId: request.user!.id, team: { gameId: invite.gameId } }, include: { team: { select: { status: true } } } });
+    if (mine.some((m) => m.teamId === invite.teamId)) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже в этой команде") });
+    if (mine.some((m) => m.team.status !== "defeated")) return reply.code(409).send({ error: "conflict", message: err(request, "Вы уже состоите в команде этой игры") });
+    if (mine.length > 0) {
+      const target = await prisma.team.findUnique({ where: { id: invite.teamId }, select: { status: true } });
+      if (target?.status === "defeated") return reply.code(409).send({ error: "conflict", message: err(request, "Эта команда выбыла из игры") });
+    }
     const [membership] = await prisma.$transaction([
       prisma.membership.create({ data: { teamId: invite.teamId, userId: request.user!.id, role: invite.role }, include: { team: { select: { id: true, name: true, color: true, avatarId: true, gameId: true } } } }),
       prisma.invite.update({ where: { id: token }, data: { usesLeft: { decrement: 1 } } }),
     ]);
     publish(invite.gameId, { type: "teams", teamId: invite.teamId });
+    // Пришёл из выбывшей команды (10.11): запись в летопись новой команды; в составе выбывшей он остаётся.
+    if (mine.length > 0) {
+      const old = await prisma.team.findUnique({ where: { id: mine[0]!.teamId }, select: { name: true } });
+      journal(invite.gameId, "member_rejoined", { teamId: invite.teamId, userId: request.user!.id, vars: { user: await nick(request.user!.id), team: old?.name ?? "" } });
+      publish(invite.gameId, { type: "teams", teamId: mine[0]!.teamId });
+    }
     return reply.code(201).send({ admin: false, team: membership.team, role: membership.role });
   });
 
   /** Мои команды по всем играм (для главной страницы участника). */
   app.get("/api/me/teams", async (request) => {
-    const memberships = await prisma.membership.findMany({
+    const all = await prisma.membership.findMany({
       where: { userId: request.user!.id },
-      include: { team: { select: { id: true, name: true, color: true, avatarId: true, game: { select: { id: true, name: true, status: true } } } } },
+      include: { team: { select: { id: true, name: true, color: true, avatarId: true, status: true, game: { select: { id: true, name: true, status: true } } } } },
       orderBy: { joinedAt: "desc" },
     });
+    // По одной команде на игру: из выбывшей и новой (решение владельца 10.11) — та, что в строю.
+    const games = new Map<string, typeof all>();
+    for (const m of all) games.set(m.team.game.id, [...(games.get(m.team.game.id) ?? []), m]);
+    const memberships = all.filter((m) => pickMembership(games.get(m.team.game.id)!) === m);
     return { teams: memberships.map((m) => ({ role: m.role, gameRole: m.gameRole, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId }, game: m.team.game })) };
   });
 }

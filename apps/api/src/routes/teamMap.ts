@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { gameMembership } from "../services/membership.js";
 import { scheduleAwards } from "../services/awards.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
@@ -42,8 +43,9 @@ function untilText(request: Parameters<typeof err>[0], at: number): string {
   return h > 0 ? err(request, "{h} ч {m} мин", { h, m }) : err(request, "{m} мин", { m });
 }
 
+/** «Своя» команда участника в игре: из двух (выбывшая и новая, решение владельца 10.11) — та, что в строю (services/membership.ts). */
 export async function requireMember(request: FastifyRequest, reply: FastifyReply, gameId: string) {
-  const m = await prisma.membership.findFirst({ where: { userId: request.user!.id, team: { gameId } }, include: { team: true } });
+  const m = await gameMembership(request.user!.id, gameId);
   if (!m) { await reply.code(403).send({ error: "forbidden", message: err(request, "Вы не состоите в команде этой игры") }); return null; }
   return m;
 }
@@ -54,7 +56,7 @@ export const isLeader = (m: { role: string }) => m.role === "CAPTAIN" || m.role 
 export async function requireActiveMember(request: FastifyRequest, reply: FastifyReply, gameId: string) {
   const m = await requireMember(request, reply, gameId);
   if (!m) return null;
-  if (m.team.status === "defeated") { await reply.code(409).send({ error: "conflict", message: err(request, "Команда выбыла из игры: администратор переведёт вас в другую команду") }); return null; }
+  if (m.team.status === "defeated") { await reply.code(409).send({ error: "conflict", message: err(request, "Команда выбыла из игры: вступите в другую команду по её приглашению") }); return null; }
   return m;
 }
 export async function requireAdmin(request: FastifyRequest, reply: FastifyReply, gameId: string) {

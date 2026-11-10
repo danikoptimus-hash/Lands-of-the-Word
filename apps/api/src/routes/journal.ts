@@ -32,7 +32,9 @@ export async function journalRoutes(app: FastifyInstance): Promise<void> {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
-    return await serviceStats(id, request.user!.id, m.team.id);
+    // Сводка за все команды человека в игре: выбывшую и новую (решение владельца 10.11).
+    const teamIds = (await prisma.membership.findMany({ where: { userId: request.user!.id, team: { gameId: id } }, select: { teamId: true } })).map((x) => x.teamId);
+    return await serviceStats(id, request.user!.id, teamIds);
   });
 
   /** Администратор: доска активности участников. */

@@ -424,6 +424,8 @@ const EN: Record<string, string> = {
   "У капитана уже есть роль: игровые роли получают только участники": "The captain already has a role: game roles go to members only",
   "Приглашение не найдено или истекло": "The invitation was not found or has expired",
   "Вы уже состоите в команде этой игры": "You are already in a team of this game",
+  "Вы уже в этой команде": "You are already in this team",
+  "{user} из выбывшей команды «{team}» вступил(а) в команду по приглашению": "{user} from the defeated team “{team}” joined the team by invitation",
   // ответы API и уведомления, у которых раньше не было перевода (аудит 2026-09): осады, испытания, роли, мир, проходы, штраф
   "Осаду объявляет капитан": "Only the captain declares a siege",
   "Вызов бросает капитан": "Only the captain issues a challenge",
@@ -438,7 +440,7 @@ const EN: Record<string, string> = {
   "На столицу брошен вызов: сейчас не время для переезда": "The capital is under challenge: this is no time to move it",
   "Подсказку видит только пророк: спросите у него": "Only the prophet sees the hint: ask them",
   "Задание по всей книге: пророк показывает начало, остальное — в самой книге.": "A task on the whole book: the prophet shows the beginning, the rest is in the book itself.",
-  "Команда выбыла из игры: администратор переведёт вас в другую команду": "Your team is out of the game: the administrator will move you to another team",
+  "Команда выбыла из игры: вступите в другую команду по её приглашению": "Your team is out of the game: join another team with its invitation",
   "корабль готов к отплытию": "the ship is ready to sail",
   "дело одобрено: открыт перекрёсток": "deed approved: a crossing is open",
   "Дело «{deed}» принято. Перекрёсток за стороной открыт: на карте новые стороны и дела.": "The deed “{deed}” is approved. The crossing beyond the side is open: new sides and deeds are on the map.",
