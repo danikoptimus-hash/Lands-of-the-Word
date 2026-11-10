@@ -1,6 +1,9 @@
 # Версия 2 (клиент с объёмным миром, папка v2/): проверка, автоматические кадры и сборка для Windows.
 # Запускается при изменениях в v2/ на рабочей ветке. Сайт, стенд и прод этот конвейер не трогает.
 # Результат — ветка v2-out (кадры, журналы, сборка; каждый раз заново, без истории) и артефакт запуска.
+# Канал «тест» — ветка v2-test (описание latest.json и архив): из неё программа обновляет себя сама.
+# В канал сборка попадает, только когда все проверки прошли и номер версии в v2/project.godot новый:
+# промежуточные правки с тем же номером до тестировщика не доходят.
 name: v2
 
 on:
@@ -77,10 +80,14 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p out/log out/shots out/build
-          stamp="$(git rev-parse --short HEAD) от $(date -u +%d.%m.%Y)"
+          commit="$(git rev-parse --short HEAD)"
+          stamp="${commit} от $(date -u +%d.%m.%Y)"
           sed -i "s/^const BUILD := \".*\"/const BUILD := \"${stamp}\"/" v2/src/core/build_info.gd
-          grep -n "const BUILD" v2/src/core/build_info.gd
+          sed -i "s/^const COMMIT := \"[^\"]*\"/const COMMIT := \"${commit}\"/" v2/src/core/build_info.gd
+          grep -nE "const (BUILD|COMMIT)" v2/src/core/build_info.gd
           echo "$stamp" > out/build/sborka.txt
+          echo "BUILD_COMMIT=${commit}" >> "$GITHUB_ENV"
+          echo "BUILD_STAMP=${stamp}" >> "$GITHUB_ENV"
 
       - name: Импорт проекта и проверка скриптов
         run: |
@@ -125,8 +132,82 @@ jobs:
           test -s out/build/win/ZemliSlova-v2-test.exe
           cp v2/tools/KAK-ZAPUSTIT.txt out/build/win/
           (cd out/build/win && zip -q -9 ../ZemliSlova-v2-test-win64.zip ./*)
+          # Описание сборки для самообновления: версия, номер, контрольные суммы архива и программы.
+          python3 - <<'PY'
+          import hashlib, json, os, re
+
+          def sha256(path):
+              digest = hashlib.sha256()
+              with open(path, "rb") as file:
+                  for block in iter(lambda: file.read(1 << 20), b""):
+                      digest.update(block)
+              return digest.hexdigest()
+
+          version = re.search(r'config/version="([^"]+)"', open("v2/project.godot", encoding="utf-8").read()).group(1)
+          archive = "out/build/ZemliSlova-v2-test-win64.zip"
+          program = "out/build/win/ZemliSlova-v2-test.exe"
+          manifest = {
+              "format": 1,
+              "version": version,
+              "commit": os.environ["BUILD_COMMIT"],
+              "build": os.environ["BUILD_STAMP"],
+              "file": os.path.basename(archive),
+              "size": os.path.getsize(archive),
+              "sha256": sha256(archive),
+              "exe": os.path.basename(program),
+              "exe_sha256": sha256(program),
+              "notes": open("v2/data/chto_novogo.txt", encoding="utf-8").read().strip(),
+          }
+          with open("out/build/latest.json", "w", encoding="utf-8") as file:
+              json.dump(manifest, file, ensure_ascii=False, indent=2)
+          print(json.dumps({key: manifest[key] for key in ("version", "commit", "size")}, ensure_ascii=False))
+          PY
           rm -rf out/build/win
           ls -la out/build
+
+      - name: Проверка самообновления
+        run: |
+          set -uo pipefail
+          python3 -m http.server 8765 --bind 127.0.0.1 --directory out/build > out/log/http.log 2>&1 &
+          server=$!
+          sleep 1
+          timeout 300 godot --headless --path v2 -- "--update-test=http://127.0.0.1:8765/" "--update-target=$PWD/out/updtest/ZemliSlova-v2-test.exe" 2>&1 | tee out/log/update.log
+          code=${PIPESTATUS[0]}
+          kill "$server" || true
+          rm -rf out/updtest
+          if grep -nE "SCRIPT ERROR|Parse Error|НЕ ПРОЙДЕНА" out/log/update.log; then
+            echo "::error::Самообновление не прошло проверку"
+            exit 1
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Проверка самообновления завершилась с кодом $code"
+            exit 1
+          fi
+
+      - name: Канал «тест» — публикация при новой версии
+        run: |
+          set -uo pipefail
+          version=$(python3 -c "import json; print(json.load(open('out/build/latest.json', encoding='utf-8'))['version'])")
+          published="нет"
+          if git fetch -q --depth 1 origin v2-test 2>/dev/null; then
+            published=$(git show FETCH_HEAD:latest.json 2>/dev/null | python3 -c "import json, sys; print(json.load(sys.stdin)['version'])" 2>/dev/null || echo "нет")
+          fi
+          echo "В канале: ${published}; собрано: ${version}"
+          echo "$published -> $version" > out/build/kanal.txt
+          if [ "$published" = "$version" ]; then
+            echo "Версия та же — канал «тест» не меняется."
+            exit 0
+          fi
+          set -e
+          mkdir channel
+          cp out/build/latest.json out/build/ZemliSlova-v2-test-win64.zip channel/
+          cd channel
+          git init -q
+          git checkout -q -b v2-test
+          git add -A
+          git -c user.name="v2-workflow" -c user.email="v2-workflow@users.noreply.github.com" commit -qm "Канал «тест»: версия ${version}, сборка ${BUILD_STAMP}"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" v2-test
+          echo "Опубликована версия ${version}."
 
       - uses: actions/upload-artifact@v4
         if: always()

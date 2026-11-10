@@ -1,6 +1,8 @@
 extends Node3D
 ## Главный сценарий тестовой сборки: свет, мир, камера, служебные клавиши.
-## Ключи запуска (после «--»): --shots=папка — автоматические кадры и проверки; --view=x,z,d,поворот,наклон — добавить кадр места.
+## Ключи запуска (после «--»): --shots=папка — автоматические кадры и проверки; --view=x,z,d,поворот,наклон — добавить кадр места;
+## --update-test=адрес и --update-target=файл — проверка самообновления в конвейере. Ключи --finish-update и --updated
+## программа передаёт сама себе при обновлении (см. src/core/updater.gd).
 
 const WORLD_PATH := "res://data/world_osen.json"
 const WINDOW_TITLE := "Земли Слова — версия 2 (тест)"
@@ -13,6 +15,13 @@ var _hud: Hud
 var _sun: DirectionalLight3D
 var _markers: SiteMarkers
 var _benchmark: Benchmark
+var _updater: Updater
+var _updating := false
+var _update_notice := ""  ## что сказать об обновлении, когда мир построится
+var _finish_target := ""  ## второй запуск при обновлении: файл программы, на место которого встаём
+var _was_updated := false  ## третий запуск: программа только что обновилась
+var _update_test_url := ""
+var _update_test_target := ""
 var _shots_folder := ""
 var _extra_views := PackedStringArray()
 var _ready_to_play := false
@@ -21,6 +30,9 @@ var _ready_to_play := false
 func _ready() -> void:
 	_read_arguments()
 	DisplayServer.window_set_title(WINDOW_TITLE)
+	if not _update_test_url.is_empty():
+		await _run_update_test()
+		return
 	if _shots_folder.is_empty():
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_MAXIMIZED)
 
@@ -29,6 +41,18 @@ func _ready() -> void:
 	add_child(_hud)
 	_rig = StrategyCamera.new()
 	add_child(_rig)
+
+	_updater = Updater.new()
+	add_child(_updater)
+	_updater.progress.connect(_hud.set_loading)
+	if not _finish_target.is_empty():
+		var moved: bool = await _finish_update()
+		if moved:
+			return
+	elif _shots_folder.is_empty() and Updater.is_supported():
+		var replaced: bool = await _update_if_needed()
+		if replaced:
+			return
 
 	_world = WorldData.load_file(WORLD_PATH)
 	if _world == null:
@@ -65,6 +89,14 @@ func _ready() -> void:
 		var director := ShotDirector.new()
 		add_child(director)
 		director.run(_shots_folder, _world, _terrain, _rig, _hud, _extra_views, _benchmark, _take_snapshot)
+	elif not _update_notice.is_empty():
+		_hud.toast(_update_notice, 14.0)
+	elif not BuildInfo.COMMIT.is_empty() and Updater.seen_build() != BuildInfo.COMMIT:
+		# Первый запуск этой сборки: показываем записку «что нового».
+		Updater.mark_seen(BuildInfo.COMMIT)
+		var notes := BuildInfo.notes()
+		if not notes.is_empty():
+			_hud.show_report(notes)
 	else:
 		_hud.toast("F1 — управление камерой", 6.0)
 
@@ -94,6 +126,8 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_on_escape()
 		KEY_F1:
 			_hud.toggle_help()
+		KEY_F9:
+			_retry_update()
 		KEY_Q:
 			if key.ctrl_pressed:
 				get_tree().quit()
@@ -185,7 +219,9 @@ func _toggle_fullscreen() -> void:
 
 
 func _on_escape() -> void:
-	if _hud.is_report_open():
+	if _updating:
+		_updater.cancel()
+	elif _hud.is_report_open():
 		_hud.close_report()
 	elif _hud.is_help_open():
 		_hud.set_help_open(false)
@@ -225,12 +261,122 @@ func _on_benchmark_finished(report: String) -> void:
 	_hud.show_report(report + "\n\nОтчёт скопирован: вставьте его в чат (Ctrl+V).\nEsc — закрыть.")
 
 
+# ── Самообновление ───────────────────────────────────────────────────────────
+
+## Первый запуск: если в канале «тест» лежит другая сборка, скачиваем её и передаём ей управление.
+## true — программа закрывается, дальше работает новая сборка.
+func _update_if_needed() -> bool:
+	_updater.cleanup()
+	if _was_updated:
+		# Временный файл может быть ещё занят закрывающейся программой: уберём его чуть позже.
+		get_tree().create_timer(5.0).timeout.connect(_updater.cleanup)
+	_hud.set_loading("Проверяю, нет ли новой сборки…")
+	var newer: bool = await _updater.check()
+	if not newer:
+		return false  # сборка свежая или нет связи — просто запускаемся
+	if _was_updated or Updater.last_attempt() == _updater.available_commit:
+		_update_notice = "Есть новая сборка %s, но обновиться самой программе в прошлый раз не удалось.\nF9 — попробовать ещё раз." % _updater.available_version
+		return false
+	return await _apply_update()
+
+
+func _apply_update() -> bool:
+	_updating = true
+	Updater.remember_attempt(_updater.available_commit)
+	_hud.set_loading("Скачиваю новую сборку %s…" % _updater.available_version)
+	var staged: bool = await _updater.download_and_stage()
+	_updating = false
+	if staged and _updater.launch_staged():
+		_hud.set_loading("Запускаю новую сборку %s…" % _updater.available_version)
+		get_tree().quit()
+		return true
+	if _updater.error == "обновление пропущено":
+		Updater.remember_attempt("")
+		_update_notice = "Обновление пропущено: запущена прежняя сборка. Новая скачается при следующем запуске."
+	else:
+		_update_notice = "Обновиться не удалось: %s.\nЗапущена прежняя сборка. F9 — попробовать ещё раз." % _updater.error
+	return false
+
+
+## Второй запуск: новая программа встаёт на место прежней и запускается оттуда.
+func _finish_update() -> bool:
+	_hud.set_loading("Завершаю обновление…")
+	_updater.target_path = _finish_target
+	var done: bool = await _updater.finish_update()
+	if done and _updater.relaunch_target():
+		get_tree().quit()
+		return true
+	_update_notice = "Обновление не завершилось: %s.\nСейчас запущена новая сборка из временного файла." % _updater.error
+	return false
+
+
+## Клавиша F9: проверить и обновиться вручную.
+func _retry_update() -> void:
+	if _updating or not Updater.is_supported() or not _ready_to_play or _benchmark.running:
+		return
+	_hud.toast("Проверяю, нет ли новой сборки…", 3.0)
+	var newer: bool = await _updater.check()
+	if not newer:
+		_hud.toast("Новой сборки нет." if _updater.error.is_empty() else "Проверить не удалось: %s." % _updater.error, 5.0)
+		return
+	var replaced: bool = await _apply_update()
+	if not replaced:
+		_hud.set_loading("")
+		_hud.toast(_update_notice, 10.0)
+
+
+## Проверка самообновления в конвейере: скачать сборку с местного адреса, проверить, распаковать и заменить файл-пустышку.
+func _run_update_test() -> void:
+	var failed := 0
+	var updater := Updater.new()
+	updater.base_url = _update_test_url
+	updater.target_path = _update_test_target
+	updater.own_path = _update_test_target
+	add_child(updater)
+	DirAccess.make_dir_recursive_absolute(_update_test_target.get_base_dir())
+	var dummy := FileAccess.open(_update_test_target, FileAccess.WRITE)
+	dummy.store_string("прежняя сборка")
+	dummy.close()
+
+	var newer: bool = await updater.check(true)
+	failed += _report_check("описание сборки читается", newer, "версия %s, сборка %s %s" % [updater.available_version, updater.available_commit, updater.error])
+	var staged := false
+	if newer:
+		staged = await updater.download_and_stage()
+	failed += _report_check("новая сборка скачана, проверена и распакована", staged, updater.error if not staged else updater.staged_path().get_file())
+	var replaced := false
+	if staged:
+		var staged_hash := FileAccess.get_sha256(updater.staged_path())
+		updater.own_path = updater.staged_path()
+		replaced = await updater.finish_update()
+		replaced = replaced and FileAccess.get_sha256(_update_test_target) == staged_hash
+		updater.own_path = _update_test_target
+	failed += _report_check("новая программа встала на место прежней", replaced, updater.error if not replaced else "контрольные суммы совпали")
+	var clean := updater.cleanup() and not FileAccess.file_exists(updater.staged_path())
+	failed += _report_check("временный файл убран", clean, updater.staged_path().get_file())
+	print("ИТОГ САМООБНОВЛЕНИЯ: не прошло %d" % failed)
+	get_tree().quit(1 if failed > 0 else 0)
+
+
+func _report_check(title: String, passed: bool, details: String) -> int:
+	print("ПРОВЕРКА %s: %s (%s)" % ["пройдена" if passed else "НЕ ПРОЙДЕНА", title, details])
+	return 0 if passed else 1
+
+
 func _read_arguments() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--shots="):
 			_shots_folder = argument.trim_prefix("--shots=")
 		elif argument.begins_with("--view="):
 			_extra_views.append(argument.trim_prefix("--view="))
+		elif argument.begins_with("--finish-update="):
+			_finish_target = argument.trim_prefix("--finish-update=")
+		elif argument == "--updated":
+			_was_updated = true
+		elif argument.begins_with("--update-test="):
+			_update_test_url = argument.trim_prefix("--update-test=")
+		elif argument.begins_with("--update-target="):
+			_update_test_target = argument.trim_prefix("--update-target=")
 
 
 func _fail(message: String) -> void:
