@@ -102,8 +102,9 @@ float relief_desert(vec2 n, float mask) {
 // site: 0 у перекрёстка, 1 вдали от него. У перекрёстка остаётся ровная площадка на средней высоте местности:
 // в холмах — пологий увал, в горах — седловина между вершинами.
 float relief_hills(vec2 n, float mask, float site) {
-	float f = clamp(0.5 + 0.62 * fbm(n / 135.0 + vec2(5.0, 9.0), 4), 0.0, 1.0);
-	return mask * (1.5 + mix(8.0, 30.0 * pow(f, 1.5), site) + 2.2 * site * fbm(n / 38.0 + vec2(0.0, 20.0), 3));
+	float f = clamp(0.5 + 0.75 * fbm(n / 135.0 + vec2(5.0, 9.0), 4), 0.0, 1.0);
+	float knolls = 40.0 * pow(f, 1.6) + 5.0 * fbm(n / 62.0 + vec2(13.0, 0.0), 2);
+	return mask * (1.5 + mix(8.0, knolls, site) + 2.2 * site * fbm(n / 38.0 + vec2(0.0, 20.0), 3));
 }
 
 float relief_mountains(vec2 n, float rise, float valley, float site) {

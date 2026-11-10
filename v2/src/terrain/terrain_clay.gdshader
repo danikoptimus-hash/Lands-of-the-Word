@@ -7,7 +7,7 @@ render_mode world_vertex_coords;
 uniform sampler2D height_map : filter_linear, repeat_disable;
 uniform sampler2D normal_map : filter_linear_mipmap, repeat_disable; // та же текстура, со сглаживанием вдали
 uniform vec4 bake_rect;
-uniform vec3 clay_color : source_color = vec3(0.71, 0.66, 0.6);
+uniform vec3 clay_color : source_color = vec3(0.67, 0.62, 0.56);
 uniform float grid_strength : hint_range(0.0, 1.0) = 0.5;
 uniform float skirt_depth = 24.0;
 

@@ -64,7 +64,7 @@ func _ready() -> void:
 	if not _shots_folder.is_empty():
 		var director := ShotDirector.new()
 		add_child(director)
-		director.run(_shots_folder, _world, _terrain, _rig, _hud, _extra_views)
+		director.run(_shots_folder, _world, _terrain, _rig, _hud, _extra_views, _benchmark, _take_snapshot)
 	else:
 		_hud.toast("F1 — управление камерой", 6.0)
 
@@ -196,7 +196,10 @@ func _on_escape() -> void:
 func _take_snapshot() -> void:
 	await RenderingServer.frame_post_draw
 	var image := get_viewport().get_texture().get_image()
-	var folder := OS.get_system_dir(OS.SYSTEM_DIR_PICTURES).path_join(SHOTS_FOLDER)
+	var pictures := OS.get_system_dir(OS.SYSTEM_DIR_PICTURES)
+	if pictures.is_empty():
+		pictures = OS.get_user_data_dir()
+	var folder := pictures.path_join(SHOTS_FOLDER)
 	DirAccess.make_dir_recursive_absolute(folder)
 	var stamp := Time.get_datetime_string_from_system().replace(":", "-").replace("T", "_")
 	var path := folder.path_join("kadr_%s.png" % stamp)

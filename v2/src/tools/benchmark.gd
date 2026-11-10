@@ -8,6 +8,7 @@ signal finished(report: String)
 const WARMUP_FRAMES := 12
 
 var running := false
+var time_scale := 1.0  ## меньше единицы — короче облёт (так конвейер проверяет сам замер)
 
 
 ## Сопрограмма.
@@ -31,10 +32,11 @@ func run(world: WorldData, rig: StrategyCamera) -> void:
 		var from := stops[i - 1].view
 		var to := stops[i].view
 		var leg_ms := PackedFloat32Array()
+		var leg_seconds := stops[i].seconds * time_scale
 		var elapsed := 0.0
 		var last := Time.get_ticks_usec()
-		while elapsed < stops[i].seconds:
-			var weight := elapsed / stops[i].seconds
+		while elapsed < leg_seconds:
+			var weight := elapsed / leg_seconds
 			var eased := weight * weight * (3.0 - 2.0 * weight)
 			rig.set_view(CameraView.blend(from, to, eased))
 			await get_tree().process_frame
@@ -63,6 +65,8 @@ static func _fps(frames_ms: PackedFloat32Array) -> float:
 
 
 func _report(frames_ms: PackedFloat32Array, legs: PackedStringArray) -> String:
+	if frames_ms.is_empty():
+		return "Замер не удался: кадров нет."
 	var sorted := frames_ms.duplicate()
 	sorted.sort()
 	var worst_from := mini(floori(float(sorted.size()) * 0.99), sorted.size() - 1)

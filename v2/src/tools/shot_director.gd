@@ -19,7 +19,8 @@ func _process(delta: float) -> void:
 
 
 ## Сопрограмма: по окончании закрывает программу; код выхода 1, если какая-то проверка не прошла.
-func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyCamera, hud: Hud, extra_views: PackedStringArray) -> void:
+func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyCamera, hud: Hud, extra_views: PackedStringArray,
+		benchmark: Benchmark, snapshot: Callable) -> void:
 	_folder = folder
 	_world = world
 	_terrain = terrain
@@ -61,7 +62,22 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	await _check_drag()
 	await _check_bounds()
 	await _check_flight()
+
+	# Замер скорости и снимок: проверяем, что клавиши F5 и F2 делают своё дело (сам замер здесь короткий).
+	benchmark.time_scale = 0.05
+	benchmark.run(world, rig)
+	var report: String = await benchmark.finished
+	_check("замер скорости даёт отчёт", report.contains("Кадров в секунду"), "%d строк" % report.split("\n").size())
+	print("ОТЧЁТ ЗАМЕРА:\n" + report)
+	benchmark.time_scale = 1.0
 	get_viewport().scaling_3d_scale = 1.0
+	rig.set_view(stops[0].view)
+	await _frames(3)
+	await _capture("91-zamer")
+	hud.close_report()
+	await snapshot.call()
+	await _frames(2)
+	await _capture("92-snimok")
 
 	_write_report()
 	print("ИТОГ: проверок %d, не прошло %d" % [_checks.size(), _failed])
