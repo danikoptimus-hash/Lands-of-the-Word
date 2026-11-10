@@ -99,14 +99,23 @@ float relief_desert(vec2 n, float mask) {
 	return -1.0 + 2.0 * fbm(n / 260.0 + vec2(11.0, 0.0), 3) + 5.5 * ridge * ridge * ridge * mask * (0.35 + 0.65 * patches);
 }
 
-float relief_hills(vec2 n, float mask) {
+// site: 0 у перекрёстка, 1 вдали от него. У перекрёстка остаётся ровная площадка на средней высоте местности:
+// в холмах — пологий увал, в горах — седловина между вершинами.
+float relief_hills(vec2 n, float mask, float site) {
 	float f = clamp(0.5 + 0.62 * fbm(n / 135.0 + vec2(5.0, 9.0), 4), 0.0, 1.0);
-	return mask * (1.5 + 30.0 * pow(f, 1.5) + 2.2 * fbm(n / 38.0 + vec2(0.0, 20.0), 3));
+	return mask * (1.5 + mix(8.0, 30.0 * pow(f, 1.5), site) + 2.2 * site * fbm(n / 38.0 + vec2(0.0, 20.0), 3));
 }
 
-float relief_mountains(vec2 n, float rise, float valley) {
+float relief_mountains(vec2 n, float rise, float valley, float site) {
 	float rid = ridged(n / 200.0 + vec2(3.0, 1.0), 5);
-	return rise * (22.0 + (18.0 + 100.0 * rid) * valley + 3.0 * fbm(n / 26.0, 3));
+	return rise * (22.0 + (18.0 + 100.0 * rid * site) * valley + 3.0 * site * fbm(n / 26.0, 3));
+}
+
+// Расстояние до ближайшего угла гекса. В углах стоят города и сходятся дороги,
+// поэтому рядом с ними холмы и горы расступаются: городу нужна площадка.
+float corner_distance(vec2 p) {
+	vec2 d = abs(p - hex_center(hex_at(p)));
+	return min(length(d - vec2(0.0, HEX_SIZE)), length(d - vec2(HEX_APOTHEM, 0.5 * HEX_SIZE)));
 }
 
 // ── Высота ──────────────────────────────────────────────────────────────────
@@ -166,7 +175,9 @@ float world_height(vec2 p) {
 		coast = -min(same[T_SEA], FAR);
 	} else {
 		float land_hard = inside[T_SEA]; // для точки в море это расстояние до ближайшего гекса суши
-		coast = mix(land_hard, min(land_soft, FAR), smoothstep(0.0, 12.0, land_hard));
+		// Входящие углы берега заполняются плавно: у самой границы гексов заполнения нет, дальше оно нарастает.
+		float fill = max(land_hard - min(land_soft, FAR), 0.0);
+		coast = land_hard - fill * smoothstep(0.0, 60.0, land_hard);
 	}
 
 	// Общая высота суши: к середине острова чуть выше.
@@ -174,16 +185,17 @@ float world_height(vec2 p) {
 	float height = 7.0 + 7.0 * smoothstep(20.0, 240.0, inland) + 3.0 * fbm(n / 420.0 + vec2(0.0, 77.0), 3);
 
 	// Характер местностей с плавными весами.
+	float site = smoothstep(22.0, 62.0, corner_distance(p)); // 0 у перекрёстка, 1 вдали от него
 	float w_sum = 1.0e-5;
 	float relief = 0.0;
 	float w = smoothstep(-BLEND, BLEND, inside[T_DESERT]);
 	if (w > 0.001) {
-		relief += w * relief_desert(n, smoothstep(-20.0, 30.0, inside[T_DESERT]));
+		relief += w * relief_desert(n, smoothstep(-20.0, 30.0, inside[T_DESERT]) * mix(0.4, 1.0, site));
 		w_sum += w;
 	}
 	w = smoothstep(-BLEND, BLEND, inside[T_HILLS]);
 	if (w > 0.001) {
-		relief += w * relief_hills(n, smoothstep(-22.0, 72.0, inside[T_HILLS]));
+		relief += w * relief_hills(n, smoothstep(-22.0, 72.0, inside[T_HILLS]), site);
 		w_sum += w;
 	}
 	w = smoothstep(-BLEND, BLEND, inside[T_MEADOW]);
@@ -194,7 +206,7 @@ float world_height(vec2 p) {
 	w = smoothstep(-BLEND, BLEND, inside[T_MOUNTAINS]);
 	if (w > 0.001) {
 		float valley = 0.5 + 0.5 * smoothstep(0.0, 50.0, -s_own);
-		relief += w * relief_mountains(n, smoothstep(-15.0, 85.0, inside[T_MOUNTAINS]), valley);
+		relief += w * relief_mountains(n, smoothstep(-15.0, 85.0, inside[T_MOUNTAINS]), valley, site);
 		w_sum += w;
 	}
 	w = smoothstep(-BLEND, BLEND, inside[T_WATER]);

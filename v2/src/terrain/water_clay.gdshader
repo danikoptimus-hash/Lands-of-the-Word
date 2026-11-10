@@ -5,8 +5,8 @@ render_mode world_vertex_coords, cull_back, depth_draw_never;
 
 uniform sampler2D height_map : filter_linear, repeat_disable;
 uniform vec4 bake_rect;
-uniform vec3 shallow_color : source_color = vec3(0.47, 0.6, 0.63);
-uniform vec3 deep_color : source_color = vec3(0.1, 0.19, 0.27);
+uniform vec3 shallow_color : source_color = vec3(0.4, 0.62, 0.64);
+uniform vec3 deep_color : source_color = vec3(0.08, 0.2, 0.3);
 instance uniform float water_level = 0.0;
 
 varying vec3 world_position;
@@ -22,9 +22,9 @@ void fragment() {
 		bed = textureLod(height_map, uv, 0.0).r;
 	}
 	float depth = max(water_level - bed, 0.0);
-	float density = 1.0 - exp(-depth * 0.17);
-	ALBEDO = mix(shallow_color, deep_color, density);
-	ALPHA = mix(0.32, 1.0, smoothstep(0.0, 20.0, depth)) * smoothstep(0.0, 0.35, depth);
+	// Чем глубже, тем темнее и плотнее вода; у самого берега она сходит на нет.
+	ALBEDO = mix(shallow_color, deep_color, 1.0 - exp(-depth * 0.14));
+	ALPHA = mix(0.4, 1.0, 1.0 - exp(-depth * 0.28)) * smoothstep(0.0, 0.35, depth);
 	ROUGHNESS = 0.16;
 	SPECULAR = 0.5;
 	METALLIC = 0.0;

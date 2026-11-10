@@ -3,8 +3,8 @@ extends Node3D
 ## Вешки на местах городов и точек старта. Это не города, а разметка «в глине»:
 ## по ним видно масштаб мира и где будут стоять города (сами города — шаг 1.10).
 
-const CITY_RADIUS := 26.0
-const CITY_HEIGHT := 7.0
+const CITY_RADIUS := 22.0
+const CITY_HEIGHT := 6.0
 const START_RADIUS := 12.0
 const START_HEIGHT := 30.0
 
