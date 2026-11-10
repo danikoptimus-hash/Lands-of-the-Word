@@ -293,6 +293,9 @@ func _apply_update() -> bool:
 	if _updater.error == "обновление пропущено":
 		Updater.remember_attempt("")
 		_update_notice = "Обновление пропущено: запущена прежняя сборка. Новая скачается при следующем запуске."
+	elif _updater.retry_later:
+		Updater.remember_attempt("")
+		_update_notice = "Свежая сборка ещё выкладывается. Запущена прежняя; новая скачается при следующем запуске (или F9 через пару минут)."
 	else:
 		_update_notice = "Обновиться не удалось: %s.\nЗапущена прежняя сборка. F9 — попробовать ещё раз." % _updater.error
 	return false

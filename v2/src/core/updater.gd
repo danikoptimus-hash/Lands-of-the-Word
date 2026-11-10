@@ -3,6 +3,8 @@ extends Node
 ## Самообновление тестовой сборки (канал «тест»).
 ##
 ## Свежие сборки лежат в ветке v2-test репозитория: описание latest.json и архив с программой.
+## Раздача файлов по имени ветки отстаёт от выкладки до пяти минут, поэтому программа сначала узнаёт
+## точный номер последней выкладки и берёт описание и архив строго по нему: они всегда от одной сборки.
 ## Работающую программу Windows заменить не даёт, поэтому обновление идёт в три запуска:
 ##   1. старая сборка скачивает архив, проверяет его и кладёт рядом новую программу (…-new.exe), запускает её и закрывается;
 ##   2. новая программа копирует себя на место старой, запускает её и закрывается;
@@ -11,7 +13,10 @@ extends Node
 
 signal progress(text: String)
 
-const CHANNEL_URL := "https://raw.githubusercontent.com/danikoptimus-hash/Lands-of-the-Word/v2-test/"
+const REPOSITORY := "danikoptimus-hash/Lands-of-the-Word"
+const CHANNEL_BRANCH := "v2-test"
+const FILES_URL := "https://raw.githubusercontent.com/%s/%s/"  ## репозиторий и номер выкладки (или имя ветки)
+const LATEST_URL := "https://api.github.com/repos/%s/commits/%s"  ## отдаёт номер последней выкладки ветки
 const MANIFEST_NAME := "latest.json"
 const STATE_PATH := "user://sostoyanie.cfg"
 const ARCHIVE_PATH := "user://obnovlenie.zip"
@@ -20,13 +25,16 @@ const DOWNLOAD_TIMEOUT := 900.0
 const REPLACE_ATTEMPTS := 60  ## раз в 0,35 с: около 20 секунд ждём, пока прежняя программа закроется
 const REPLACE_PAUSE := 0.35
 
-var base_url := CHANNEL_URL
+var base_url := ""  ## если задан, сборка берётся отсюда (так самообновление проверяет конвейер)
 var target_path := ""  ## файл программы, который обновляем
 var own_path := ""  ## файл, из которого запущена эта программа
 var error := ""
 var available_version := ""
 var available_commit := ""
+var retry_later := false  ## сбой похож на «канал ещё выкладывается»: стоит попробовать позже, а не считать попытку неудачной
 
+var _files_url := ""
+var _exact := true  ## описание и архив берутся по точному номеру выкладки
 var _manifest := {}
 var _download: HTTPRequest
 var _cancelled := false
@@ -64,7 +72,12 @@ func staged_path() -> String:
 ## Сопрограмма. true — в канале лежит другая сборка (или force — для проверки в конвейере).
 func check(force: bool = false) -> bool:
 	error = ""
-	var url := "%s%s?t=%d" % [base_url, MANIFEST_NAME, int(Time.get_unix_time_from_system())]
+	retry_later = false
+	_exact = true
+	_files_url = base_url
+	if _files_url.is_empty():
+		_files_url = await _latest_files_url()
+	var url := "%s%s?t=%d" % [_files_url, MANIFEST_NAME, int(Time.get_unix_time_from_system())]
 	var body: PackedByteArray = await _fetch(url, CHECK_TIMEOUT)
 	if body.is_empty():
 		return false
@@ -96,7 +109,7 @@ func download_and_stage() -> bool:
 	_download.use_threads = true
 	_download.download_file = archive
 	add_child(_download)
-	var url := "%s%s?t=%s" % [base_url, str(_manifest["file"]), available_commit]
+	var url := "%s%s?t=%s" % [_files_url, str(_manifest["file"]), available_commit]
 	if _download.request(url) != OK:
 		_download.queue_free()
 		_download = null
@@ -110,13 +123,15 @@ func download_and_stage() -> bool:
 		return false
 	if int(result[0]) != HTTPRequest.RESULT_SUCCESS or int(result[1]) != 200:
 		error = "скачивание прервалось (код %d, ответ %d)" % [int(result[0]), int(result[1])]
+		retry_later = not _exact and int(result[1]) == 404
 		return false
 
 	progress.emit("Проверяю и распаковываю новую сборку %s…" % available_version)
 	await get_tree().process_frame
 	await get_tree().process_frame
 	if FileAccess.get_sha256(archive) != str(_manifest["sha256"]):
-		error = "скачанный архив повреждён"
+		error = "скачанный архив не сходится с описанием сборки"
+		retry_later = not _exact
 		return false
 	var zip := ZIPReader.new()
 	if zip.open(archive) != OK:
@@ -220,11 +235,22 @@ static func _state() -> ConfigFile:
 	return state
 
 
-func _fetch(url: String, timeout: float) -> PackedByteArray:
+## Адрес файлов последней выкладки канала. Если узнать её номер не удалось, берём по имени ветки.
+func _latest_files_url() -> String:
+	var body: PackedByteArray = await _fetch(LATEST_URL % [REPOSITORY, CHANNEL_BRANCH], CHECK_TIMEOUT, PackedStringArray(["Accept: application/vnd.github.sha"]))
+	var latest := body.get_string_from_utf8().strip_edges()
+	if latest.length() == 40 and latest.is_valid_hex_number():
+		return FILES_URL % [REPOSITORY, latest]
+	error = ""
+	_exact = false
+	return FILES_URL % [REPOSITORY, CHANNEL_BRANCH]
+
+
+func _fetch(url: String, timeout: float, headers: PackedStringArray = PackedStringArray()) -> PackedByteArray:
 	var http := HTTPRequest.new()
 	http.timeout = timeout
 	add_child(http)
-	if http.request(url) != OK:
+	if http.request(url, headers) != OK:
 		http.queue_free()
 		error = "не удалось начать запрос"
 		return PackedByteArray()

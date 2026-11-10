@@ -7,7 +7,7 @@ config_version=5
 
 config/name="Земли Слова"
 config/description="Версия 2: тот же мир и те же партии в объёме."
-config/version="0.1.3"
+config/version="0.1.4"
 run/main_scene="res://src/main.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 boot_splash/bg_color=Color(0.086, 0.078, 0.07, 1)
