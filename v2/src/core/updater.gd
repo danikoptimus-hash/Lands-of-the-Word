@@ -64,6 +64,11 @@ static func is_supported() -> bool:
 	return OS.has_feature("template") and OS.get_name() == "Windows" and not BuildInfo.COMMIT.is_empty()
 
 
+## true — последняя проверка взяла описание сборки по точному номеру выкладки, а не по имени ветки.
+func is_exact() -> bool:
+	return _exact
+
+
 ## Куда кладётся новая программа перед заменой.
 func staged_path() -> String:
 	return "%s-new.%s" % [target_path.get_basename(), target_path.get_extension()]

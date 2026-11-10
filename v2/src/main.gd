@@ -357,6 +357,14 @@ func _run_update_test() -> void:
 	failed += _report_check("новая программа встала на место прежней", replaced, updater.error if not replaced else "контрольные суммы совпали")
 	var clean := updater.cleanup() and not FileAccess.file_exists(updater.staged_path())
 	failed += _report_check("временный файл убран", clean, updater.staged_path().get_file())
+
+	# Настоящий канал «тест»: читается ли описание сборки так, как его будет читать программа у тестировщика.
+	# Это справка, а не проверка: сеть в конвейере может подвести, и сборку из-за этого не бракуем.
+	var channel := Updater.new()
+	add_child(channel)
+	var readable: bool = await channel.check(true)
+	print("КАНАЛ «ТЕСТ»: %s" % ("версия %s, сборка %s, по точному номеру выкладки: %s" % [
+		channel.available_version, channel.available_commit, "да" if channel.is_exact() else "нет"] if readable else "не читается — %s" % channel.error))
 	print("ИТОГ САМООБНОВЛЕНИЯ: не прошло %d" % failed)
 	get_tree().quit(1 if failed > 0 else 0)
 
