@@ -62,6 +62,9 @@ export const GUEST: Record<string, string> = {
   "Попросите у капитана новую ссылку-приглашение.": "Ask your captain for a new invitation link.",
   "На главную": "Home",
   "Вы уже в команде «{name}» этой игры.": "You are already in the team “{name}” of this game.",
+  "Вы уже в этой команде.": "You are already in this team.",
+  "Вы уже играете за команду «{name}» в этой игре, поэтому вступить в другую нельзя. Это можно, только когда ваша команда выбыла из игры.": "You already play for the team “{name}” in this game, so you cannot join another one. That is possible only once your team is out of the game.",
+  "Открыть карту своей команды": "Open your team's map",
   "Ваша команда «{name}» выбыла. Вступив, вы будете играть за новую команду; в составе прежней вы останетесь, но действовать в ней уже нельзя.": "Your team “{name}” is out of the game. After joining you will play for the new team; you stay on the old team's roster but can no longer act in it.",
   "Открыть карту": "Open the map",
   // Главная

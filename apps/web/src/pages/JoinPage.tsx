@@ -73,8 +73,12 @@ export function JoinPage() {
             )
           ) : info.alreadyIn ? (
             <>
-              <p className="muted">{t("Вы уже в команде «{name}» этой игры.", { name: info.alreadyIn.name })}</p>
-              <div className="actions"><Link to={mapUrl} className="btn block">{t("Открыть карту")}</Link></div>
+              {/* Заметно, а не мелким серым (замечание владельца 10.11: участник нажимал «Открыть карту» и попадал на карту своей
+                  команды, не поняв, что вступить не вышло). Из выбывшей команды вступить можно — тогда alreadyIn пуст. */}
+              {info.invite.team && info.alreadyIn.id === info.invite.team.id
+                ? <p className="note"><Icon name="check" /><span>{t("Вы уже в этой команде.")}</span></p>
+                : <p className="note warn" role="alert"><Icon name="alert" /><span>{t("Вы уже играете за команду «{name}» в этой игре, поэтому вступить в другую нельзя. Это можно, только когда ваша команда выбыла из игры.", { name: info.alreadyIn.name })}</span></p>}
+              <div className="actions"><Link to={mapUrl} className="btn secondary block">{t("Открыть карту своей команды")}</Link></div>
             </>
           ) : (
             <>
