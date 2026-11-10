@@ -1,4 +1,5 @@
 import type { FastifyInstance } from "fastify";
+import { byPerson, personalGrants, pickMembership } from "../services/membership.js";
 import { prisma } from "../db.js";
 import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
@@ -36,20 +37,21 @@ export async function awardRoutes(app: FastifyInstance) {
     if (!m) return;
     const userId = request.user!.id;
     const [grants, teams, members, streak] = await Promise.all([
-      prisma.awardGrant.findMany({ where: { gameId: id }, select: { teamId: true, userId: true, code: true, at: true } }),
+      prisma.awardGrant.findMany({ where: { gameId: id }, select: { teamId: true, userId: true, code: true, key: true, at: true } }),
       prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, name: true, color: true, avatarId: true, status: true } }),
-      prisma.membership.findMany({ where: { team: { gameId: id } }, select: { userId: true, teamId: true, user: { select: { nickname: true, displayName: true, avatarId: true } } } }),
+      prisma.membership.findMany({ where: { team: { gameId: id } }, select: { userId: true, teamId: true, joinedAt: true, team: { select: { status: true } }, user: { select: { nickname: true, displayName: true, avatarId: true } } } }),
       userStreak(id, userId),
     ]);
     const total = (rows: ReturnType<typeof summarize>) => rows.reduce((a, g) => a + g.count, 0);
     const byName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, "ru");
     const teamRows = teams.map((t) => ({ id: t.id, name: t.name, color: t.color, avatarId: t.avatarId, out: t.status !== "active", awards: summarize(grants.filter((g) => g.teamId === t.id && g.userId === "")) }));
-    const memberRows = members.map((mm) => ({ userId: mm.userId, teamId: mm.teamId, name: mm.user.displayName || mm.user.nickname, avatarId: mm.user.avatarId, awards: summarize(grants.filter((g) => g.userId === mm.userId)) }));
+    // Один человек — одна строка (решение владельца 10.11): команда — та, что в строю; одна и та же личная награда из двух команд — один раз.
+    const memberRows = byPerson(members).map(({ main: mm }) => ({ userId: mm.userId, teamId: mm.teamId, name: mm.user.displayName || mm.user.nickname, avatarId: mm.user.avatarId, awards: summarize(personalGrants(grants, mm.userId)) }));
     return {
       userId,
       teamId: m.team.id,
       team: teamRows.find((t) => t.id === m.team.id)?.awards ?? [],
-      mine: memberRows.find((r) => r.userId === userId)?.awards ?? summarize(grants.filter((g) => g.userId === userId)),
+      mine: memberRows.find((r) => r.userId === userId)?.awards ?? summarize(personalGrants(grants, userId)),
       streak,
       teams: [...teamRows].sort((a, b) => total(b.awards) - total(a.awards) || byName(a, b)),
       members: memberRows.sort((a, b) => total(b.awards) - total(a.awards) || byName(a, b)),
@@ -62,8 +64,8 @@ export async function awardRoutes(app: FastifyInstance) {
     if (!(await requireAdmin(request, reply, id))) return;
     const [teams, members, grants, streaks] = await Promise.all([
       prisma.team.findMany({ where: { gameId: id }, orderBy: { index: "asc" }, select: { id: true, name: true, color: true, avatarId: true } }),
-      prisma.membership.findMany({ where: { team: { gameId: id } }, select: { userId: true, teamId: true, role: true, gameRole: true, user: { select: { nickname: true, displayName: true, avatarId: true } } } }),
-      prisma.awardGrant.findMany({ where: { gameId: id }, select: { teamId: true, userId: true, code: true, at: true } }),
+      prisma.membership.findMany({ where: { team: { gameId: id } }, select: { userId: true, teamId: true, role: true, gameRole: true, joinedAt: true, team: { select: { status: true } }, user: { select: { nickname: true, displayName: true, avatarId: true } } } }).then((rows) => byPerson(rows).map((x) => x.main)),
+      prisma.awardGrant.findMany({ where: { gameId: id }, select: { teamId: true, userId: true, code: true, key: true, at: true } }),
       allStreaks(id),
     ]);
     const empty = streakOf(new Set(), "");
@@ -72,7 +74,7 @@ export async function awardRoutes(app: FastifyInstance) {
       teams: teams.map((t) => ({ ...t, awards: summarize(grants.filter((g) => g.teamId === t.id && g.userId === "")) })),
       members: members.map((m) => {
         const st = streaks.get(m.userId) ?? empty;
-        return { userId: m.userId, name: m.user.displayName || m.user.nickname, avatarId: m.user.avatarId, team: byTeam.get(m.teamId) ?? null, role: m.role, gameRole: m.gameRole, streak: { current: st.current, best: st.best }, awards: summarize(grants.filter((g) => g.userId === m.userId)) };
+        return { userId: m.userId, name: m.user.displayName || m.user.nickname, avatarId: m.user.avatarId, team: byTeam.get(m.teamId) ?? null, role: m.role, gameRole: m.gameRole, streak: { current: st.current, best: st.best }, awards: summarize(personalGrants(grants, m.userId)) };
       }).sort((a, b) => b.awards.reduce((x, g) => x + g.count, 0) - a.awards.reduce((x, g) => x + g.count, 0) || b.streak.current - a.streak.current),
     };
   });
@@ -96,10 +98,11 @@ export async function awardRoutes(app: FastifyInstance) {
   app.get("/api/games/:id/members/:userId/card", async (request, reply) => {
     const { id, userId } = request.params as { id: string; userId: string };
     if (!(await requireMemberOrAdmin(request, reply, id))) return;
-    const member = await prisma.membership.findFirst({ where: { userId, team: { gameId: id } }, select: { role: true, gameRole: true, user: { select: { nickname: true, displayName: true, avatarId: true } }, team: { select: { id: true, name: true, color: true } } } });
+    // Из двух команд человека (выбывшая и новая, 10.11) — та, что в строю.
+    const member = pickMembership(await prisma.membership.findMany({ where: { userId, team: { gameId: id } }, select: { role: true, gameRole: true, joinedAt: true, user: { select: { nickname: true, displayName: true, avatarId: true } }, team: { select: { id: true, name: true, color: true, status: true } } } }));
     if (!member) return reply.code(404).send({ error: "not_found", message: err(request, "Участник не найден") });
     const [rows, streak] = await Promise.all([
-      prisma.awardGrant.findMany({ where: { gameId: id, userId }, select: { code: true, at: true } }),
+      prisma.awardGrant.findMany({ where: { gameId: id, userId }, select: { userId: true, code: true, key: true, at: true } }).then((g) => personalGrants(g, userId)),
       userStreak(id, userId),
     ]);
     return {
