@@ -165,7 +165,7 @@ float world_height(vec2 p) {
 	if (t0 != T_SEA) {
 		coast = -min(same[T_SEA], FAR);
 	} else {
-		float land_hard = min(-inside[T_SEA], FAR);
+		float land_hard = inside[T_SEA]; // для точки в море это расстояние до ближайшего гекса суши
 		coast = mix(land_hard, min(land_soft, FAR), smoothstep(0.0, 12.0, land_hard));
 	}
 

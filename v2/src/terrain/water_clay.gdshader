@@ -19,7 +19,7 @@ void fragment() {
 	vec2 uv = (world_position.xz - bake_rect.xy) / bake_rect.zw;
 	float bed = -30.0;
 	if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) {
-		bed = texture(height_map, uv).r;
+		bed = textureLod(height_map, uv, 0.0).r;
 	}
 	float depth = max(water_level - bed, 0.0);
 	float density = 1.0 - exp(-depth * 0.17);
