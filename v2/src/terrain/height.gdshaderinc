@@ -422,9 +422,11 @@ vec2 world_surface(vec2 p0) {
 	float d_sea = BIG;
 	float d_hard = BIG;
 	float d_soft = BIG;
-	for (int dr = -2; dr <= 2; dr++) {
-		for (int dq = -2; dq <= 2; dq++) {
-			if (abs(dq + dr) > 2) {
+	// Три кольца клеток: заполнение входящих углов берега смотрит на сушу до 345 м, и клетка не должна
+	// появляться в расчёте скачком (иначе на дне остаётся ступенька).
+	for (int dr = -3; dr <= 3; dr++) {
+		for (int dq = -3; dq <= 3; dq++) {
+			if (abs(dq + dr) > 3) {
 				continue;
 			}
 			ivec2 c = c0 + ivec2(dq, dr);
@@ -518,6 +520,8 @@ vec2 world_surface(vec2 p0) {
 		relief += (w_meadow + w_water) * (1.5 * fbm(n / 200.0, 3) + 0.8 * fbm(n / 60.0 + vec2(40.0, 0.0), 2));
 	}
 	float h = ground + relief / w_sum + mountains(p, n);
+	// Суша не опускается ниже двух метров над морем: иначе в низине посреди острова проступило бы море.
+	h = smooth_max(h, 2.0, 3.0);
 
 	// Берег: высокая земля обрывается скалами, низкая сходит пляжем. Часть высоких берегов всё же пологая.
 	float bulge = noise01(n / 520.0 + vec2(71.0, 13.0));
@@ -529,7 +533,9 @@ vec2 world_surface(vec2 p0) {
 	float shore = offset - coast; // > 0 — метров вглубь суши от уреза воды
 	if (shore > 0.0) {
 		// Мысы и бухточки вдоль обрыва.
-		float rugged = cliff * (10.0 * gnoise(n / 70.0 + vec2(0.0, 3.0)) + 4.0 * gnoise(n / 27.0 + vec2(7.0, 0.0)));
+		// У самой воды они сходят на нет: суша начинается от уреза без ступеньки.
+		float rugged = cliff * (10.0 * gnoise(n / 70.0 + vec2(0.0, 3.0)) + 4.0 * gnoise(n / 27.0 + vec2(7.0, 0.0)))
+				* smoothstep(0.0, 12.0, shore);
 		float beach = 2.4 * (1.0 - exp(-shore / 14.0));
 		// Обрыв крутой, но не стена: чем выше берег, тем шире склон (гора сходит в море градусов под шестьдесят).
 		float foot = 4.0 - cliff;

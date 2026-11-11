@@ -1,7 +1,8 @@
 class_name WorldTerrain
 extends Node3D
 ## Земля и вода мира. Рельеф запекается один раз, рисуется плитками с уровнями детализации:
-## рядом с камерой сетка плотная, вдали — редкая.
+## рядом с камерой сетка плотная, вдали — редкая. Переход между уровнями плавный: перед сменой сетки
+## её точки сами съезжаются в положение более редкой (шейдер terrain_clay), поэтому рельеф не «перещёлкивает».
 
 const CLAY_SHADER := preload("res://src/terrain/terrain_clay.gdshader")
 const WATER_SHADER := preload("res://src/terrain/water_clay.gdshader")
@@ -10,8 +11,10 @@ const CHUNK := 256.0  ## сторона плитки, метры
 const TEXEL := 2.0  ## точность запекания, метров на точку
 const MARGIN := 520.0  ## запас моря вокруг суши
 const LOD_CELLS: Array[int] = [64, 32, 16]  ## клеток на сторону плитки по уровням: шаг сетки 4, 8 и 16 м
-const LOD_DISTANCE: Array[float] = [1100.0, 2600.0]  ## до какого расстояния держится уровень
-const LOD_HYSTERESIS := 1.08  ## чтобы уровни не мигали на границе
+## До какого расстояния от камеры держится уровень. Шаг сетки на экране остаётся в несколько точек.
+## Условие стыков без щелей: MORPH_START × второе расстояние − первое больше диагонали плитки.
+const LOD_DISTANCE: Array[float] = [2000.0, 4500.0]
+const MORPH_START := 0.7  ## с этой доли расстояния сетка начинает съезжаться к более редкой
 const SKIRT := 24.0
 const DEEP_CUTOFF := -24.0  ## плитки глубже этого не строим: дно не видно сквозь воду
 const SEA_SIZE := 200000.0  ## море уходит за горизонт: его край тонет в дымке
@@ -19,7 +22,7 @@ const SEA_SIZE := 200000.0  ## море уходит за горизонт: ег
 
 class Chunk:
 	var instance: MeshInstance3D
-	var center := Vector3.ZERO
+	var area := Rect2()  ## плитка на земле (x, z)
 	var lod := -1
 
 
@@ -67,6 +70,8 @@ func build(world: WorldData) -> bool:
 	_material.set_shader_parameter("bake_rect", rect_uniform)
 	_material.set_shader_parameter("skirt_depth", SKIRT)
 	_material.set_shader_parameter("grid_strength", 0.5 if _grid_visible else 0.0)
+	_material.set_shader_parameter("lod_distance", Vector2(LOD_DISTANCE[0], LOD_DISTANCE[1]))
+	_material.set_shader_parameter("morph_start", MORPH_START)
 
 	_water_material = ShaderMaterial.new()
 	_water_material.shader = WATER_SHADER
@@ -82,14 +87,19 @@ func build(world: WorldData) -> bool:
 	return true
 
 
-## Откуда смотрит камера: от этого зависит детализация плиток.
+## Откуда смотрит камера: от этого зависит детализация плиток. Шейдер получает ту же точку и по ней плавно
+## сводит сетку к более редкой; уровень плитки выбирается по её ближайшей к камере точке — так ко времени
+## смены сетки все точки плитки уже стоят в положении новой.
 func set_viewer(position_in_world: Vector3) -> void:
-	if _viewer_known and position_in_world.distance_squared_to(_viewer) < 16.0:
+	if _material == null or (_viewer_known and position_in_world.is_equal_approx(_viewer)):
 		return
 	_viewer = position_in_world
 	_viewer_known = true
+	_material.set_shader_parameter("viewer_position", _viewer)
 	for chunk in _chunks:
-		var lod := _pick_lod(_viewer.distance_to(chunk.center), chunk.lod)
+		var dx := maxf(maxf(chunk.area.position.x - _viewer.x, _viewer.x - chunk.area.end.x), 0.0)
+		var dz := maxf(maxf(chunk.area.position.y - _viewer.z, _viewer.z - chunk.area.end.y), 0.0)
+		var lod := _pick_lod(sqrt(dx * dx + dz * dz + _viewer.y * _viewer.y))
 		if lod != chunk.lod:
 			_set_lod(chunk, lod)
 
@@ -108,12 +118,9 @@ func chunk_count() -> int:
 	return _chunks.size()
 
 
-func _pick_lod(distance: float, current: int) -> int:
+func _pick_lod(distance: float) -> int:
 	for i in LOD_DISTANCE.size():
-		var limit := LOD_DISTANCE[i]
-		if current >= 0 and current <= i:
-			limit *= LOD_HYSTERESIS
-		if distance < limit:
+		if distance < LOD_DISTANCE[i]:
 			return i
 	return LOD_DISTANCE.size()
 
@@ -143,7 +150,7 @@ func _build_chunks(columns: int, rows: int) -> void:
 			add_child(instance)
 			var chunk := Chunk.new()
 			chunk.instance = instance
-			chunk.center = Vector3(origin.x + CHUNK * 0.5, (heights.x + heights.y) * 0.5, origin.y + CHUNK * 0.5)
+			chunk.area = Rect2(origin, Vector2(CHUNK, CHUNK))
 			_set_lod(chunk, coarsest)
 			_chunks.append(chunk)
 
@@ -226,16 +233,20 @@ func _find_water_level(baker: TerrainBaker, centre: Vector2) -> float:
 
 
 ## Плоская сетка плитки. Высоту точкам даёт шейдер; по краю — «юбка» (UV.x = 1), закрывающая щели.
+## UV2 — на сколько метров точка съезжает к ближайшей точке вдвое более редкой сетки (у чётных точек ноль):
+## когда все нечётные точки съехали, сетка совпадает с более редкой точь-в-точь.
 static func _make_grid(cells: int, size: float) -> ArrayMesh:
 	var side := cells + 1
 	var step := size / float(cells)
 	var vertices := PackedVector3Array()
 	var uvs := PackedVector2Array()
+	var slides := PackedVector2Array()
 	var indices := PackedInt32Array()
 	for z in side:
 		for x in side:
 			vertices.append(Vector3(float(x) * step, 0.0, float(z) * step))
 			uvs.append(Vector2.ZERO)
+			slides.append(Vector2(float(x % 2) * step, float(z % 2) * step))
 	for z in cells:
 		for x in cells:
 			var a := z * side + x
@@ -259,6 +270,7 @@ static func _make_grid(cells: int, size: float) -> ArrayMesh:
 		for index in border:
 			vertices.append(vertices[index])
 			uvs.append(Vector2(1.0, 0.0))
+			slides.append(slides[index])
 		for i in border.size() - 1:
 			var top_a := border[i]
 			var top_b := border[i + 1]
@@ -272,6 +284,7 @@ static func _make_grid(cells: int, size: float) -> ArrayMesh:
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
 	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_TEX_UV2] = slides
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)

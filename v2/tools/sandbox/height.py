@@ -15,6 +15,7 @@ CORNERS = [((0.0, -S), (0, 0, 0)), ((A, -S / 2), (1, -1, 1)), ((A, S / 2), (0, 1
 SIDES = [(1, -1), (1, 0), (0, 1), (-1, 1), (-1, 0), (0, -1)]
 RING1 = [(0, 0)] + SIDES
 RING2 = [(dq, dr) for dr in range(-2, 3) for dq in range(-2, 3) if abs(dq + dr) <= 2]
+RING3 = [(dq, dr) for dr in range(-3, 4) for dq in range(-3, 4) if abs(dq + dr) <= 3]
 
 def n01(px, py):
     return np.clip(0.5 + 0.625 * gnoise(px, py), 0.0, 1.0)
@@ -55,6 +56,7 @@ class World:
             eq, er, et = item.split(","); self.grid[int(er) - self.r0, int(eq) - self.q0] = TERR[et]
         self.seed = seed & 0x7FFFFFFF
         self.off = ((seed % 9973) * 3.7, ((seed // 9973) % 9973) * 2.9)
+        self._levels = None
 
     def _look(self, grid, q, r):
         tx = q - self.q0; ty = r - self.r0
@@ -109,7 +111,9 @@ class World:
         cy_ = py + 9.0 * gnoise(nx / 85.0 + 37.0, ny / 85.0) + 3.0 * gnoise(nx / 31.0, ny / 31.0 + 91.0)
         q0, r0 = hex_at(cx_, cy_); t0 = self.terrain_at(q0, r0)
         d_sea = np.full(px.shape, BIG); d_hard = np.full(px.shape, BIG); d_soft = np.full(px.shape, BIG)
-        for dq, dr in RING2:
+        # Три кольца клеток: заполнение входящих углов берега смотрит на сушу до 345 м, и клетка не должна
+        # появляться в расчёте скачком (иначе на дне остаётся ступенька).
+        for dq, dr in RING3:
             q = q0 + dq; r = r0 + dr; t = self.terrain_at(q, r); hx, hy = hex_center(q, r)
             s = sd_hex(cx_ - hx, cy_ - hy)
             d_sea = np.where(t == 0, np.minimum(d_sea, s), d_sea)
@@ -160,13 +164,16 @@ class World:
         h = E + relief / wsum
 
         h = h + self.mountains(px, py, nx, ny)
+        # Суша не опускается ниже двух метров над морем: иначе в низине посреди острова проступило бы море.
+        h = smax(h, 2.0, 3.0)
 
         # Берег: обрыв или пляж.
         bulge = n01(nx / 520.0 + 71.0, ny / 520.0 + 13.0)
         cliff = smoothstep(12.0, 30.0, E) * smoothstep(0.3, 0.55, n01(nx / 260.0 + 31.0, ny / 260.0 + 9.0)) * (1.0 - harbor) * (1.0 - smoothstep(120.0, 200.0, coast))
         off = smax(30.0 + 16.0 * cliff, 34.0 + 110.0 * bulge * bulge + 18.0 * gnoise(nx / 170.0, ny / 170.0 + 50.0) + 6.0 * gnoise(nx / 60.0 + 9.0, ny / 60.0), 12.0)
         shore = off - coast
-        rugged = cliff * (10.0 * gnoise(nx / 70.0, ny / 70.0 + 3.0) + 4.0 * gnoise(nx / 27.0 + 7.0, ny / 27.0))
+        # У самой воды мысы и бухточки сходят на нет: суша начинается от уреза без ступеньки.
+        rugged = cliff * (10.0 * gnoise(nx / 70.0, ny / 70.0 + 3.0) + 4.0 * gnoise(nx / 27.0 + 7.0, ny / 27.0)) * smoothstep(0.0, 12.0, shore)
         foot = 4.0 - cliff
         # Обрыв крутой, но не стена: чем выше берег, тем шире склон (гора сходит в море склоном градусов в шестьдесят).
         ramp = smoothstep(foot, np.maximum(95.0 - 77.0 * cliff, foot + 0.6 * h), shore + rugged)
@@ -240,7 +247,13 @@ class World:
     def wet_level(self, q, r):
         """Уровень воды клетки. Соседние водные клетки — одно озеро: уровень общий (по самой низкой из них).
         Уровни разных озёр по соседству не совпадают: к уровню добавлена «ячейка» от клетки — так вода одного озера
-        не рисуется в чаше другого."""
+        не рисуется в чаше другого. Уровень зависит только от клетки, поэтому считается один раз на карту."""
+        if self._levels is None:
+            rr, qq = np.meshgrid(np.arange(self.dims[1]) + self.r0, np.arange(self.dims[0]) + self.q0, indexing="ij")
+            self._levels = self._wet_level_of(qq.astype(np.int32), rr.astype(np.int32)).astype(np.float32)
+        return self._look(self._levels, q, r)
+
+    def _wet_level_of(self, q, r):
         ox, oy = self.off
         hx, hy = hex_center(q, r)
         low = self.macro(hx + ox, hy + oy); lq = q.copy(); lr = r.copy()

@@ -23,6 +23,7 @@ const HELP_ROWS := [
 	["N", "север вверху"],
 	["G", "сетка гексов"],
 	["C", "вешки городов"],
+	["M", "другая карта: «Осень» и карты, собранные генератором игры"],
 	["F2", "снимок экрана и код места"],
 	["F5", "замер скорости"],
 	["F9", "проверить, нет ли новой сборки"],
@@ -150,7 +151,7 @@ func _build_title() -> void:
 
 func _build_hint() -> void:
 	var box := _panel(Control.SIZE_SHRINK_BEGIN, Control.SIZE_SHRINK_END)
-	box.add_child(_label("F1 — управление  ·  F2 — снимок  ·  F5 — замер скорости  ·  G — сетка  ·  C — вешки  ·  F11 — во весь экран", _text_font, 13, INK_DIM))
+	box.add_child(_label("F1 — управление  ·  F2 — снимок  ·  F5 — замер скорости  ·  G — сетка  ·  C — вешки  ·  M — другая карта  ·  F11 — во весь экран", _text_font, 13, INK_DIM))
 
 
 func _build_fps() -> void:

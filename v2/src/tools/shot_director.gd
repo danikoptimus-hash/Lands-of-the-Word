@@ -20,7 +20,7 @@ func _process(delta: float) -> void:
 
 ## Сопрограмма: по окончании закрывает программу; код выхода 1, если какая-то проверка не прошла.
 func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyCamera, hud: Hud, extra_views: PackedStringArray,
-		benchmark: Benchmark, snapshot: Callable) -> void:
+		benchmark: Benchmark, snapshot: Callable, next_world: Callable) -> void:
 	_folder = folder
 	_world = world
 	_terrain = terrain
@@ -80,7 +80,42 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	await _frames(2)
 	await _capture("92-snimok")
 
-	_write_report()
+	# Отчёт — по первой карте («Осень»): по нему функция высот сверяется с песочницей. Проверки других карт
+	# дописываются в него же.
+	var report := _collect_report()
+
+	# Другие карты (клавиша M): каждая должна построиться, а перекрёстки — стоять на суше. Кадры — весь мир,
+	# острова, горы, озеро и обрыв.
+	while true:
+		var next: Dictionary = await next_world.call()
+		if next.is_empty():
+			_check("другая карта строится", false, "мир не построился")
+			break
+		var number: int = next["number"]
+		if number == 1:
+			break  # круг замкнулся: снова первая карта
+		_world = next["world"]
+		_terrain = next["terrain"]
+		await _frames(4)
+		var lowest := INF
+		var lowest_key := ""
+		for site in _world.sites:
+			var site_height := _terrain.height_map.sample(site.position)
+			if site_height < lowest:
+				lowest = site_height
+				lowest_key = site.key
+		_check("карта %d «%s»: перекрёстки на суше" % [number, _world.title], lowest > 0.5, "самый низкий %s — %.2f м" % [lowest_key, lowest])
+		var prefix := "k%d" % number
+		_terrain.height_map.to_preview().save_png(_folder.path_join("%s-vysoty.png" % prefix))
+		for stop in Tour.stops(_world, _rig, _terrain.height_map):
+			if not (stop.name.begins_with("01") or stop.name.contains("ostrov") or stop.name.contains("ozero") or stop.name.contains("obryv") or stop.name.contains("gory")):
+				continue
+			_rig.set_view(stop.view)
+			await _frames(5)
+			await _capture("%s-%s" % [prefix, stop.name])
+			print("КАДР %s-%s — %s — место %s" % [prefix, stop.name, stop.title, stop.view.to_code()])
+
+	_save_report(report)
 	print("ИТОГ: проверок %d, не прошло %d" % [_checks.size(), _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
@@ -261,8 +296,8 @@ func _site_heights() -> Dictionary:
 	return heights
 
 
-func _write_report() -> void:
-	var report := {
+func _collect_report() -> Dictionary:
+	return {
 		"build": BuildInfo.label(),
 		"world": _world.title,
 		"adapter": RenderingServer.get_video_adapter_name(),
@@ -273,9 +308,12 @@ func _write_report() -> void:
 		"lakes": _terrain.lakes,
 		# Высоты под перекрёстками: по ним функция высот в игре сверяется с песочницей разработчика.
 		"site_heights": _site_heights(),
-		"checks": _checks,
-		"failed": _failed,
 	}
+
+
+func _save_report(report: Dictionary) -> void:
+	report["checks"] = _checks
+	report["failed"] = _failed
 	var file := FileAccess.open(_folder.path_join("otchet.json"), FileAccess.WRITE)
 	if file != null:
 		file.store_string(JSON.stringify(report, "  "))

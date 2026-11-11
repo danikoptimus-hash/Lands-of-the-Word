@@ -1,6 +1,7 @@
 # Картинка рельефа из песочницы: вид сверху со светом, тенями и водой.
 # Запуск: python preview.py [метров на точку] [файл.png] [x0 x1 z0 z1] [--nogrid]
-import sys, time, math
+# Другая карта: WORLD=путь/к/миру.json (по умолчанию — «Осень»). Без границ берётся весь мир с запасом моря.
+import os, sys, time, math
 from pathlib import Path
 import numpy as np
 from PIL import Image
@@ -8,11 +9,15 @@ sys.path.insert(0, str(Path(__file__).parent))
 import height as H
 from base import hex_at, hex_center, sd_hex
 
-world = H.World(str(Path(__file__).parents[2] / 'data' / 'world_osen.json'))
-texel = float(sys.argv[1]) if len(sys.argv) > 1 else 4.0
-out = sys.argv[2] if len(sys.argv) > 2 else 'preview.png'
-x0, x1, z0, z1 = -1200.0, 3280.0, -1280.0, 1280.0
-if len(sys.argv) > 6: x0, x1, z0, z1 = map(float, sys.argv[3:7])
+world = H.World(os.environ.get('WORLD') or str(Path(__file__).parents[2] / 'data' / 'world_osen.json'))
+args = [a for a in sys.argv[1:] if not a.startswith('--')]
+texel = float(args[0]) if len(args) > 0 else 4.0
+out = args[1] if len(args) > 1 else 'preview.png'
+if len(args) > 5:
+    x0, x1, z0, z1 = map(float, args[2:6])
+else:
+    cx = [hex_center(h[0], h[1])[0] for h in world.w['hexes']]; cz = [hex_center(h[0], h[1])[1] for h in world.w['hexes']]
+    x0, x1, z0, z1 = min(cx) - 420.0, max(cx) + 420.0, min(cz) - 420.0, max(cz) + 420.0
 xs = np.arange(x0 + texel / 2, x1, texel, dtype=np.float32); zs = np.arange(z0 + texel / 2, z1, texel, dtype=np.float32)
 px, py = np.meshgrid(xs, zs)
 t = time.time(); h, level = world.height(px, py, True); print('высоты', h.shape, round(time.time() - t, 1), 'с', 'мин', float(h.min()), 'макс', float(h.max()))
