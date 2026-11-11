@@ -3,6 +3,8 @@ extends Node
 ## Автоматическая съёмка и проверки для конвейера сборки (запуск с ключом --shots=папка).
 ## Снимает кадры облёта, сохраняет картинку высот и проверяет камеру числами:
 ## место под курсором не уезжает при приближении, земля идёт за рукой при перетаскивании, границы держат.
+## Быстрые проверки (для разработчика, v2/tools/godot-local.sh): --quick — только первая карта, без замера скорости
+## и других карт; --stops=17,21 — только кадры облёта с этими номерами, без проверок.
 
 var _world: WorldData
 var _terrain: WorldTerrain
@@ -27,6 +29,13 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	_rig = rig
 	_hud = hud
 	DirAccess.make_dir_recursive_absolute(folder)
+	var quick := false
+	var only := PackedStringArray()
+	for argument in OS.get_cmdline_user_args():
+		if argument == "--quick":
+			quick = true
+		elif argument.begins_with("--stops="):
+			only = argument.trim_prefix("--stops=").split(",", false)
 	await _frames(4)
 
 	var preview := terrain.height_map.to_preview()
@@ -34,6 +43,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 
 	var stops := Tour.stops(world, rig, terrain.height_map)
 	for stop in stops:
+		if not only.is_empty() and not _listed(stop.name, only):
+			continue
 		rig.set_view(stop.view)
 		await _frames(5)
 		await _capture(stop.name)
@@ -50,6 +61,13 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _capture("mesto-%02d" % index)
 		index += 1
 
+	if not only.is_empty():
+		# Только выбранные кадры: проверки, замер и другие карты не нужны. Отчёт с высотами — для сверки с песочницей.
+		_save_report(_collect_report())
+		print("ИТОГ: только кадры (--stops), проверки пропущены")
+		get_tree().quit(0)
+		return
+
 	hud.set_help_open(true)
 	rig.set_view(stops[0].view)
 	await _frames(3)
@@ -64,6 +82,13 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	await _check_flight()
 	await _check_sky()
 	_check_islets("")
+
+	if quick:
+		get_viewport().scaling_3d_scale = 1.0
+		_save_report(_collect_report())
+		print("ИТОГ: проверок %d, не прошло %d (быстрая проверка: одна карта, без замера)" % [_checks.size(), _failed])
+		get_tree().quit(1 if _failed > 0 else 0)
+		return
 
 	# Замер скорости и снимок: проверяем, что клавиши F5 и F2 делают своё дело (сам замер здесь короткий).
 	benchmark.time_scale = 0.05
@@ -87,16 +112,17 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 
 	# Другие карты (клавиша M): каждая должна построиться, а перекрёстки — стоять на суше. Кадры — весь мир,
 	# острова, горы, озеро и обрыв.
+	var first_title := _world.title
 	while true:
 		var next: Dictionary = await next_world.call()
 		if next.is_empty():
 			_check("другая карта строится", false, "мир не построился")
 			break
 		var number: int = next["number"]
-		if number == 1:
-			break  # круг замкнулся: снова первая карта
 		_world = next["world"]
 		_terrain = next["terrain"]
+		if _world.title == first_title:
+			break  # круг замкнулся: снова первая карта
 		await _frames(4)
 		var lowest := INF
 		var lowest_key := ""
@@ -121,6 +147,14 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	_save_report(first_world)
 	print("ИТОГ: проверок %d, не прошло %d" % [_checks.size(), _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
+
+
+## Кадр облёта входит в список номеров: «17» подходит к «17-ves-okean».
+static func _listed(stop_name: String, numbers: PackedStringArray) -> bool:
+	for number in numbers:
+		if stop_name.begins_with(number.strip_edges() + "-"):
+			return true
+	return false
 
 
 # ── Проверки ─────────────────────────────────────────────────────────────────

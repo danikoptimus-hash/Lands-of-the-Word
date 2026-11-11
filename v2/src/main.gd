@@ -1,6 +1,8 @@
 extends Node3D
 ## Главный сценарий тестовой сборки: свет, мир, камера, служебные клавиши.
-## Ключи запуска (после «--»): --shots=папка — автоматические кадры и проверки; --view=x,z,d,поворот,наклон — добавить кадр места;
+## Ключи запуска (после «--»): --shots=папка — автоматические кадры и проверки (с ним же --quick и --stops=17,21 —
+## быстрые проверки, см. src/tools/shot_director.gd); --view=x,z,d,поворот,наклон — добавить кадр места;
+## --world=N — начать с карты номер N (1 — «Осень»);
 ## --update-test=адрес и --update-target=файл — проверка самообновления в конвейере. Ключи --finish-update и --updated
 ## программа передаёт сама себе при обновлении (см. src/core/updater.gd).
 
@@ -70,7 +72,7 @@ func _ready() -> void:
 	add_child(_benchmark)
 	_benchmark.finished.connect(_on_benchmark_finished)
 
-	var loaded: bool = await _load_world(WORLD_PATHS[0])
+	var loaded: bool = await _load_world(WORLD_PATHS[_world_index])
 	if not loaded:
 		return
 
@@ -452,6 +454,8 @@ func _read_arguments() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--shots="):
 			_shots_folder = argument.trim_prefix("--shots=")
+		elif argument.begins_with("--world="):
+			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
 		elif argument.begins_with("--view="):
 			_extra_views.append(argument.trim_prefix("--view="))
 		elif argument.begins_with("--finish-update="):
