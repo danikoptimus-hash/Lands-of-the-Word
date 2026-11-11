@@ -72,8 +72,21 @@ jobs:
       - name: Экран и программная видеокарта
         run: |
           set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb mesa-vulkan-drivers libvulkan1 vulkan-tools libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libfontconfig1 zip > /dev/null
+          packages="xvfb mesa-vulkan-drivers libvulkan1 vulkan-tools libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libfontconfig1 zip"
+          apt_options="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
+          # Зеркало пакетов Azure у машин GitHub иногда не находится по имени (11.11 — два запуска подряд упали
+          # ещё до проверок): тогда повтор через основные зеркала Ubuntu.
+          installed=0
+          for attempt in 1 2 3; do
+            if sudo apt-get $apt_options update -qq && sudo apt-get $apt_options install -y -qq $packages > /dev/null; then
+              installed=1
+              break
+            fi
+            echo "Пакеты не скачались (попытка $attempt) — повторяю через основные зеркала Ubuntu" >&2
+            printf 'http://archive.ubuntu.com/ubuntu/\tpriority:1\nhttp://security.ubuntu.com/ubuntu/\tpriority:2\n' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+            sleep $((attempt * 15))
+          done
+          [ "$installed" -eq 1 ]
           vulkaninfo --summary 2>/dev/null | grep -E "deviceName|driverName" || true
 
       - name: Номер сборки
