@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(v2/tools/godot-local.sh:*)"
+    ]
+  }
+}
