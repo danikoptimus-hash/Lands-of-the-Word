@@ -31,7 +31,7 @@ const DRAG_TILT := 0.003
 const INERTIA_FRICTION := 5.0
 const EDGE_SCROLL_MARGIN := 6.0
 const CLEARANCE := 14.0  ## камера не опускается к земле ближе этого
-const RAY_TOP := 260.0  ## выше этого рельефа нет
+const RAY_TOP := 340.0  ## выше этого рельефа нет
 const NO_POINT := Vector3.INF
 
 var camera: Camera3D

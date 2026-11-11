@@ -32,7 +32,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	var preview := terrain.height_map.to_preview()
 	preview.save_png(folder.path_join("vysoty.png"))
 
-	var stops := Tour.stops(world, rig)
+	var stops := Tour.stops(world, rig, terrain.height_map)
 	for stop in stops:
 		rig.set_view(stop.view)
 		await _frames(5)
@@ -66,7 +66,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 
 	# Замер скорости и снимок: проверяем, что клавиши F5 и F2 делают своё дело (сам замер здесь короткий).
 	benchmark.time_scale = 0.05
-	benchmark.run(world, rig)
+	benchmark.run(world, rig, terrain.height_map)
 	var report: String = await benchmark.finished
 	_check("замер скорости даёт отчёт", report.contains("Кадров в секунду"), "%d строк" % report.split("\n").size())
 	print("ОТЧЁТ ЗАМЕРА:\n" + report)
@@ -139,7 +139,7 @@ func _check_bounds() -> void:
 
 
 func _check_flight() -> void:
-	var stops := Tour.stops(_world, _rig)
+	var stops := Tour.stops(_world, _rig, _terrain.height_map)
 	_rig.set_view(stops[0].view)
 	await _frames(2)
 	var goal := stops[mini(3, stops.size() - 1)].view
@@ -254,6 +254,13 @@ func _send(event: InputEvent) -> void:
 	Input.flush_buffered_events()
 
 
+func _site_heights() -> Dictionary:
+	var heights := {}
+	for site in _world.sites:
+		heights[site.key] = snappedf(_terrain.height_map.sample(site.position), 0.01)
+	return heights
+
+
 func _write_report() -> void:
 	var report := {
 		"build": BuildInfo.label(),
@@ -263,6 +270,9 @@ func _write_report() -> void:
 		"bake_size": [_terrain.height_map.width, _terrain.height_map.height],
 		"height_range": [_terrain.height_map.lowest, _terrain.height_map.highest],
 		"chunks": _terrain.chunk_count(),
+		"lakes": _terrain.lakes,
+		# Высоты под перекрёстками: по ним функция высот в игре сверяется с песочницей разработчика.
+		"site_heights": _site_heights(),
 		"checks": _checks,
 		"failed": _failed,
 	}

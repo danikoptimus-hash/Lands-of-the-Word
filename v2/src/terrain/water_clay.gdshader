@@ -18,8 +18,16 @@ void vertex() {
 void fragment() {
 	vec2 uv = (world_position.xz - bake_rect.xy) / bake_rect.zw;
 	float bed = -30.0;
+	float lake = -999.0;
 	if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) {
-		bed = textureLod(height_map, uv, 0.0).r;
+		vec4 texel = textureLod(height_map, uv, 0.0);
+		bed = texel.r;
+		lake = texel.a;
+	}
+	// Вода озера рисуется только в своей котловине: там, где запечён именно её уровень.
+	// Иначе круг воды залил бы соседнюю низину. Море (уровень 0) рисуется везде.
+	if (water_level > 0.25 && abs(lake - water_level) > 0.05) {
+		discard;
 	}
 	float depth = max(water_level - bed, 0.0);
 	// Чем глубже, тем темнее и плотнее вода; у самого берега она сходит на нет.

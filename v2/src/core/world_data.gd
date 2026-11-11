@@ -36,6 +36,14 @@ class Site:
 	var island := ""
 	var coastal := false
 
+	## Что стоит в вершине, числом для шейдера рельефа: 1 — развилка, 2 — город, 3 — порт, 4 — точка старта.
+	func shader_kind() -> int:
+		if kind == "START":
+			return 4
+		if kind == "CITY":
+			return 3 if city_type == "port" else 2
+		return 1
+
 
 var title := ""
 var map_seed := 0
@@ -132,14 +140,30 @@ func noise_offset() -> Vector2:
 	return Vector2(float(a) * 3.7, float(b) * 2.9)
 
 
-## Текстура местностей для шейдеров: тексель (q − hex_origin.x, r − hex_origin.y), красный канал — номер местности.
+## Карта партии для шейдеров: тексель (q − hex_origin.x, r − hex_origin.y).
+## Красный канал — номер местности клетки; зелёный — что стоит в её северном углу, синий — в южном
+## (каждая вершина — северный или южный угол ровно одной клетки; числа — Site.shader_kind).
 func hex_texture() -> ImageTexture:
 	if _hex_texture != null:
 		return _hex_texture
-	var image := Image.create_empty(hex_dims.x, hex_dims.y, false, Image.FORMAT_R8)
-	image.fill(Color(0.0, 0.0, 0.0))
+	var image := Image.create_empty(hex_dims.x, hex_dims.y, false, Image.FORMAT_RGBA8)
+	image.fill(Color(0.0, 0.0, 0.0, 1.0))
 	for cell in cells:
-		image.set_pixel(cell.q - hex_origin.x, cell.r - hex_origin.y, Color(float(cell.terrain) / 255.0, 0.0, 0.0))
+		image.set_pixel(cell.q - hex_origin.x, cell.r - hex_origin.y, Color(float(cell.terrain) / 255.0, 0.0, 0.0, 1.0))
+	for site in sites:
+		var parts := site.key.substr(2).split(",")
+		if parts.size() != 2:
+			continue
+		var x := int(parts[0]) - hex_origin.x
+		var y := int(parts[1]) - hex_origin.y
+		if x < 0 or y < 0 or x >= hex_dims.x or y >= hex_dims.y:
+			continue
+		var texel := image.get_pixel(x, y)
+		if site.key.begins_with("N"):
+			texel.g = float(site.shader_kind()) / 255.0
+		else:
+			texel.b = float(site.shader_kind()) / 255.0
+		image.set_pixel(x, y, texel)
 	_hex_texture = ImageTexture.create_from_image(image)
 	return _hex_texture
 
@@ -148,6 +172,13 @@ func apply_hex_uniforms(material: ShaderMaterial) -> void:
 	material.set_shader_parameter("hex_map", hex_texture())
 	material.set_shader_parameter("hex_origin", hex_origin)
 	material.set_shader_parameter("hex_dims", hex_dims)
+
+
+## Всё, что нужно функции высот: карта партии, зерно и сдвиг шума.
+func apply_height_uniforms(material: ShaderMaterial) -> void:
+	apply_hex_uniforms(material)
+	material.set_shader_parameter("noise_offset", noise_offset())
+	material.set_shader_parameter("map_seed", map_seed & 0x7FFFFFFF)
 
 
 func _measure() -> void:

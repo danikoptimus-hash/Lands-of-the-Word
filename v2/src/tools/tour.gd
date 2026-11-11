@@ -11,7 +11,7 @@ class Stop:
 	var seconds := 3.0  ## сколько лететь сюда при замере
 
 
-static func stops(world: WorldData, rig: StrategyCamera) -> Array[Stop]:
+static func stops(world: WorldData, rig: StrategyCamera, height_map: HeightMap = null) -> Array[Stop]:
 	var list: Array[Stop] = []
 	list.append(_stop("01-ves-mir", "Весь мир", rig.view_for_rect(world.land_rect), 2.5))
 
@@ -54,6 +54,17 @@ static func stops(world: WorldData, rig: StrategyCamera) -> Array[Stop]:
 		list.append(_stop("%02d-veshka" % number, "Самое близкое приближение: вешка города", CameraView.make(port.position, StrategyCamera.MIN_DISTANCE, 30.0, 0.0), 2.5))
 		number += 1
 
+	var cliff := _highest_coast(world, height_map)
+	if cliff != null:
+		# Смотрим с моря на берег: камера со стороны от центра острова.
+		var island: Rect2 = world.island_rects.get(cliff.island, world.land_rect)
+		var outward := (cliff.position - island.get_center()).normalized()
+		var yaw := rad_to_deg(atan2(outward.x, outward.y))
+		list.append(_stop("%02d-obryv" % number, "Высокий берег: обрыв к морю", CameraView.make(cliff.position, 420.0, yaw, -16.0), 3.0))
+		number += 1
+		list.append(_stop("%02d-obryv-sverhu" % number, "Тот же берег с суши", CameraView.make(cliff.position, 520.0, yaw + 150.0, -4.0), 3.0))
+		number += 1
+
 	var meadow := _densest(world, WorldData.Terrain.MEADOW)
 	if meadow != null:
 		list.append(_stop("%02d-sverhu" % number, "Взгляд сверху: сетка гексов", CameraView.make(meadow.center(), 900.0, 0.0, 30.0), 3.0))
@@ -88,6 +99,22 @@ static func _densest(world: WorldData, terrain: WorldData.Terrain) -> WorldData.
 		if count > best_count:
 			best = cell
 			best_count = count
+	return best
+
+
+## Перекрёсток у берега на самой высокой земле: там берег обрывается к морю.
+static func _highest_coast(world: WorldData, height_map: HeightMap) -> WorldData.Site:
+	if height_map == null:
+		return null
+	var best: WorldData.Site = null
+	var best_height := 20.0
+	for site in world.sites:
+		if not site.coastal:
+			continue
+		var height := height_map.sample(site.position)
+		if height > best_height:
+			best = site
+			best_height = height
 	return best
 
 

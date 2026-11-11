@@ -155,7 +155,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_hud.close_report()
 			_hud.set_help_open(false)
 			_hud.toast("Идёт замер скорости: камера облетает мир…", 30.0)
-			_benchmark.run(_world, _rig)
+			_benchmark.run(_world, _rig, _terrain.height_map)
 
 
 # ── Сцена ────────────────────────────────────────────────────────────────────

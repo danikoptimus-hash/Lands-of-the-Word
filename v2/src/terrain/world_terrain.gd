@@ -24,6 +24,7 @@ class Chunk:
 
 
 var height_map: HeightMap
+var lakes: Array[Dictionary] = []  ## озёра и пруды: клетка и уровень воды
 var bake_rect := Rect2()
 var bake_ms := 0.0
 var error := ""
@@ -53,8 +54,8 @@ func build(world: WorldData) -> bool:
 	bake_ms = baker.bake_ms
 	height_map = baker.height_map
 	var texture := baker.texture
-	baker.queue_free()
 	if not ok:
+		baker.queue_free()
 		return false
 
 	var rect_uniform := Vector4(bake_rect.position.x, bake_rect.position.y, bake_rect.size.x, bake_rect.size.y)
@@ -76,7 +77,8 @@ func build(world: WorldData) -> bool:
 		_lod_meshes.append(_make_grid(cells, CHUNK))
 	_build_chunks(columns, rows)
 	_build_sea()
-	_build_lakes(world)
+	_build_lakes(world, baker)
+	baker.queue_free()
 	return true
 
 
@@ -154,23 +156,20 @@ func _build_sea() -> void:
 	add_child(sea)
 
 
-## Озёра и пруды оазисов: у каждого свой уровень воды — чуть ниже самого низкого берега.
-func _build_lakes(world: WorldData) -> void:
-	var lake_disc := _make_disc(HexMath.APOTHEM - 6.0)
-	var pond_disc := _make_disc(36.0)
+## Озёра и пруды оазисов. Форму и уровень воды задаёт функция высот: уровень запечён рядом с высотой.
+## Вода — плоский круг на этом уровне; шейдер рисует его только в котловине своего озера.
+func _build_lakes(world: WorldData, baker: TerrainBaker) -> void:
+	var lake_disc := _make_disc(HexMath.SIZE * 2.3)
+	var pond_disc := _make_disc(64.0)
+	lakes.clear()
 	for cell in world.cells:
 		if cell.terrain != WorldData.Terrain.WATER and cell.terrain != WorldData.Terrain.OASIS:
 			continue
 		var is_lake := cell.terrain == WorldData.Terrain.WATER
 		var centre := cell.center()
-		var ring := HexMath.APOTHEM - 8.0 if is_lake else 34.0
-		var shore := INF
-		for i in 32:
-			var angle := TAU * float(i) / 32.0
-			shore = minf(shore, height_map.sample(centre + Vector2(cos(angle), sin(angle)) * ring))
-		var level := shore - (1.0 if is_lake else 0.5)
-		if level <= height_map.sample(centre) + 0.3:
-			continue  # чаша не получилась (например, у самого берега моря) — воды нет
+		var level := _find_water_level(baker, centre)
+		if level <= TerrainBaker.NO_WATER + 1.0:
+			continue
 		var water := MeshInstance3D.new()
 		water.mesh = lake_disc if is_lake else pond_disc
 		water.material_override = _water_material
@@ -178,6 +177,19 @@ func _build_lakes(world: WorldData) -> void:
 		water.position = Vector3(centre.x, level, centre.y)
 		water.set_instance_shader_parameter("water_level", level)
 		add_child(water)
+		lakes.append({"q": cell.q, "r": cell.r, "lake": is_lake, "level": level})
+
+
+## Уровень воды озера клетки: ищем его рядом с центром гекса, расходясь кругами (чаша смещена от центра).
+func _find_water_level(baker: TerrainBaker, centre: Vector2) -> float:
+	for ring in 6:
+		var points := maxi(ring * 8, 1)
+		for i in points:
+			var angle := TAU * float(i) / float(points)
+			var level := baker.water_level_at(centre + Vector2(cos(angle), sin(angle)) * float(ring) * 9.0)
+			if level > TerrainBaker.NO_WATER + 1.0:
+				return level
+	return TerrainBaker.NO_WATER
 
 
 ## Плоская сетка плитки. Высоту точкам даёт шейдер; по краю — «юбка» (UV.x = 1), закрывающая щели.
