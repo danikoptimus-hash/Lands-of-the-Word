@@ -1,0 +1,59 @@
+# Картинка рельефа из песочницы: вид сверху со светом, тенями и водой.
+# Запуск: python preview.py [метров на точку] [файл.png] [x0 x1 z0 z1] [--nogrid]
+import sys, time, math
+from pathlib import Path
+import numpy as np
+from PIL import Image
+sys.path.insert(0, str(Path(__file__).parent))
+import height as H
+from base import hex_at, hex_center, sd_hex
+
+world = H.World(str(Path(__file__).parents[2] / 'data' / 'world_osen.json'))
+texel = float(sys.argv[1]) if len(sys.argv) > 1 else 4.0
+out = sys.argv[2] if len(sys.argv) > 2 else 'preview.png'
+x0, x1, z0, z1 = -1200.0, 3280.0, -1280.0, 1280.0
+if len(sys.argv) > 6: x0, x1, z0, z1 = map(float, sys.argv[3:7])
+xs = np.arange(x0 + texel / 2, x1, texel, dtype=np.float32); zs = np.arange(z0 + texel / 2, z1, texel, dtype=np.float32)
+px, py = np.meshgrid(xs, zs)
+t = time.time(); h, level = world.height(px, py, True); print('высоты', h.shape, round(time.time() - t, 1), 'с', 'мин', float(h.min()), 'макс', float(h.max()))
+surf = np.maximum(h, np.where(level > -900, level, 0.0))   # поверхность с водой
+gz, gx = np.gradient(h, texel)
+n = np.stack([-gx, np.ones_like(h), -gz], axis=-1); n /= np.linalg.norm(n, axis=-1, keepdims=True)
+L = np.array([0.78, 0.58, -0.22]) * np.array([-1, 1, -1]); L = L / np.linalg.norm(L)   # к солнцу: с запада, чуть с юга
+lam = np.clip((n * L).sum(-1), 0, 1)
+# тени: идём от точки к солнцу и смотрим, не выше ли рельеф луча
+shadow = np.zeros(h.shape, dtype=bool)
+step = max(texel, 3.0); sx = L[0] / math.hypot(L[0], L[2]); sz = L[2] / math.hypot(L[0], L[2]); rise = L[1] / math.hypot(L[0], L[2])
+ii, jj = np.meshgrid(np.arange(h.shape[0]), np.arange(h.shape[1]), indexing='ij')
+for k in range(1, 70):
+    d = k * step
+    i2 = np.clip(np.round(ii + sz * d / texel).astype(int), 0, h.shape[0] - 1); j2 = np.clip(np.round(jj + sx * d / texel).astype(int), 0, h.shape[1] - 1)
+    shadow |= h[i2, j2] > h + rise * d + 0.5
+shade = 0.34 + 0.76 * lam * np.where(shadow, 0.25, 1.0)
+clay = np.array([0.70, 0.65, 0.59])
+# высота подкрашивает: низины чуть холоднее, плато теплее — только для чтения уровней в песочнице
+tint = np.clip(h / 70.0, 0, 1)[..., None]
+img = shade[..., None] * (clay[None, None, :] * (0.9 + 0.2 * tint))
+water_level = np.where(level > -900, level, 0.0)
+depth = np.clip(water_level - h, 0, None)
+k = 1 - np.exp(-depth * 0.14)
+water = np.array([0.40, 0.62, 0.64])[None, None, :] * (1 - k[..., None]) + np.array([0.08, 0.2, 0.3])[None, None, :] * k[..., None]
+wet = (h < 0) | ((level > -900) & (h < level))
+alpha = np.where(wet, 0.4 + 0.6 * (1 - np.exp(-depth * 0.28)), 0.0)[..., None]
+img = img * (1 - alpha) + water * alpha
+q, r = hex_at(px, py); cx, cy = hex_center(q, r)
+edge = -sd_hex(px - cx, py - cy)
+land = world.terrain_at(q, r) != 0
+if '--nogrid' not in sys.argv:
+    img = np.where(((edge < max(1.0, texel * 0.5)) & land)[..., None], img * 0.78, img)
+# вешки перекрёстков: города и порты
+for key, kind, city, book, isl, coastal in world.w['nodes']:
+    if kind == 'EMPTY': continue
+    qq, rr = map(int, key[2:].split(','))
+    vx, vy = hex_center(qq, rr); vy += -H.S if key[0] == 'N' else H.S
+    i = int((vy - z0) / texel); j = int((vx - x0) / texel); rad = max(2, int(7 / texel))
+    if 0 <= i < h.shape[0] and 0 <= j < h.shape[1]:
+        img[max(i - rad, 0):i + rad + 1, max(j - rad, 0):j + rad + 1] = (0.75, 0.3, 0.2) if city == 'port' else (0.55, 0.4, 0.3)
+Image.fromarray((np.clip(img, 0, 1) * 255).astype(np.uint8)).save(out)
+np.save(out.replace('.png', '.npy'), h)
+print('сохранено', out)
