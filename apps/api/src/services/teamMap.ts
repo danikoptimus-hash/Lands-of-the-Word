@@ -158,6 +158,19 @@ export async function bookOfNodeKey(gameId: string, key: string): Promise<string
 /** Нарушение уникальности в Prisma (P2002): запись уже создал параллельный запрос. */
 const isUniqueViolation = (e: unknown): boolean => typeof e === "object" && e !== null && (e as { code?: string }).code === "P2002";
 
+/**
+ * Метки «убрать, когда здесь откроются облака» (решение владельца 11.11): метка, поставленная в туман, удаляется сама,
+ * как только её гекс открыт. Гекс открыт так же, как на карте команды: открыт хотя бы один его угол. Вызывается из
+ * ensureFrontier — он идёт после любого открытия перекрёстка (дело, высадка, город, проход, действия администратора).
+ */
+export async function dropOpenedMarks(teamId: string, revealed: ReadonlySet<string>): Promise<number> {
+  const marks = await prisma.teamMark.findMany({ where: { teamId, dropOnReveal: true }, select: { id: true, q: true, r: true } });
+  const opened = marks.filter((mk) => hexCorners(mk).some((c) => revealed.has(vertexKey(c))));
+  if (opened.length === 0) return 0;
+  await prisma.teamMark.deleteMany({ where: { id: { in: opened.map((mk) => mk.id) } } });
+  return opened.length;
+}
+
 export async function ensureFrontier(gameId: string, teamId: string): Promise<void> {
   const team = await prisma.team.findUniqueOrThrow({ where: { id: teamId } });
   if (!team.startNodeKey) return;
@@ -165,6 +178,7 @@ export async function ensureFrontier(gameId: string, teamId: string): Promise<vo
   if (revealedCount === 0) await prisma.teamNodeState.create({ data: { teamId, nodeKey: team.startNodeKey } });
 
   const revealed = new Set((await prisma.teamNodeState.findMany({ where: { teamId }, select: { nodeKey: true } })).map((n) => n.nodeKey));
+  await dropOpenedMarks(teamId, revealed);
   const edges = await prisma.mapEdge.findMany({ where: { gameId }, select: { aKey: true, bKey: true } });
   const existingTasks = await prisma.teamEdgeTask.findMany({ where: { teamId }, select: { fromKey: true, toKey: true, sea: true, createdAt: true } });
   const existing = new Set(existingTasks.map((t) => `${t.fromKey}>${t.toKey}`));
@@ -623,7 +637,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
   const [blocked, peeks, marks, passages] = await Promise.all([
     blockedCities(gameId, teamId),
     prisma.teamPeek.findMany({ where: { teamId }, select: { nodeKey: true } }),
-    prisma.teamMark.findMany({ where: { teamId }, orderBy: { createdAt: "asc" }, select: { id: true, q: true, r: true, qf: true, rf: true, note: true, createdById: true, createdAt: true } }),
+    prisma.teamMark.findMany({ where: { teamId }, orderBy: { createdAt: "asc" }, select: { id: true, q: true, r: true, qf: true, rf: true, note: true, dropOnReveal: true, createdById: true, createdAt: true } }),
     prisma.passageRequest.findMany({ where: { gameId, requesterId: teamId, status: { in: ["PENDING", "APPROVED", "DECLINED", "EXPIRED", "REVOKED"] } }, orderBy: { createdAt: "desc" }, select: { nodeKey: true, status: true } }),
   ]);
   const passageByKey = new Map<string, string>();

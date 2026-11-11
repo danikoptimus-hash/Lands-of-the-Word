@@ -243,6 +243,11 @@ export function TeamPage() {
   /** Своя метка по нажатию (решение владельца 16.10): лист с подписью — изменить или убрать. */
   const [editMark, setEditMark] = useState<MapMarkDto | null>(null);
   const [editNote, setEditNote] = useState("");
+  /** Флажок «убрать, когда здесь откроются облака» (решение владельца 11.11): у новой метки и у своей метки при правке. */
+  const [markDrop, setMarkDrop] = useState(false);
+  const [editDrop, setEditDrop] = useState(false);
+  /** Место под облаками: гекс ещё не открыт командой. Только там флажку есть чего ждать. */
+  const underClouds = (at: { q: number; r: number } | null) => Boolean(at && map?.hexes.some((h) => h.q === at.q && h.r === at.r && h.lit === false));
   /** Точка на краю тумана без дороги с делом: лист с разведкой (решение владельца 02.10). */
   const [frontierKey, setFrontierKey] = useState<string | null>(null);
   const [markNote, setMarkNote] = useState("");
@@ -459,27 +464,31 @@ export function TeamPage() {
     if (!markAt) return;
     setBusy(true);
     try {
-      await api(`/api/games/${id}/my-map/marks`, { method: "POST", body: JSON.stringify({ q: markAt.q, r: markAt.r, qf: markAt.qf, rf: markAt.rf, note: markNote.trim() }) });
-      setMarkAt(null); setMarkNote(""); notify(t("Метка поставлена: её видит вся команда"), "info"); await loadMap();
+      const drop = markDrop && underClouds(markAt);
+      await api(`/api/games/${id}/my-map/marks`, { method: "POST", body: JSON.stringify({ q: markAt.q, r: markAt.r, qf: markAt.qf, rf: markAt.rf, note: markNote.trim(), dropOnReveal: drop }) });
+      setMarkAt(null); setMarkNote(""); setMarkDrop(false);
+      notify(drop ? t("Метка поставлена: её видит вся команда. Она исчезнет сама, когда здесь откроются облака.") : t("Метка поставлена: её видит вся команда"), "info"); await loadMap();
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
   async function saveMark() {
     if (!editMark) return;
     setBusy(true);
-    try { await api(`/api/games/${id}/my-map/marks/${editMark.id}`, { method: "PATCH", body: JSON.stringify({ note: editNote.trim() }) }); setEditMark(null); notify(t("Подпись метки изменена"), "info"); await loadMap(); }
+    try { await api(`/api/games/${id}/my-map/marks/${editMark.id}`, { method: "PATCH", body: JSON.stringify({ note: editNote.trim(), dropOnReveal: editDrop && underClouds(editMark) }) }); setEditMark(null); notify(t("Метка изменена"), "info"); await loadMap(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(false); }
   }
   function tapMark(mk: MapMarkDto) {
-    if (mk.by && user && mk.by.id === user.id) { setEditMark(mk); setEditNote(mk.note); return; }
+    if (mk.by && user && mk.by.id === user.id) { setEditMark(mk); setEditNote(mk.note); setEditDrop(Boolean(mk.dropOnReveal)); return; }
     void removeMark(mk);
   }
   async function removeMark(mk: MapMarkDto) {
     const by = mk.by?.name ?? "";
     // Убрать метку может только автор (решение владельца 29.09): чужая метка по нажатию лишь подсказывает, чья она.
     const when = mk.createdAt ? fmtDate(mk.createdAt) : "";
-    if (mk.by && user && mk.by.id !== user.id) { notify(mk.note ? t("Метка «{note}» — её поставил {name} ({when}), убрать может только он.", { note: mk.note, name: by, when }) : t("Метку поставил {name} ({when}), убрать может только он.", { name: by, when }), "info"); return; }
+    // Метка с флажком «убрать, когда откроются облака» (решение владельца 11.11): команда видит, что она временная.
+    const auto = mk.dropOnReveal ? ` ${t("Она исчезнет сама, когда здесь откроются облака.")}` : "";
+    if (mk.by && user && mk.by.id !== user.id) { notify((mk.note ? t("Метка «{note}» — её поставил {name} ({when}), убрать может только он.", { note: mk.note, name: by, when }) : t("Метку поставил {name} ({when}), убрать может только он.", { name: by, when })) + auto, "info"); return; }
     const text = mk.note
       ? (by ? t("Метка «{note}» (автор {name}, {when}) исчезнет у всей команды.", { note: mk.note, name: by, when }) : t("Метка «{note}» исчезнет у всей команды.", { note: mk.note }))
       : (by ? t("Метка (автор {name}, {when}) исчезнет у всей команды.", { name: by, when }) : t("Метка исчезнет у всей команды."));
@@ -847,7 +856,7 @@ export function TeamPage() {
         ) : (
         <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask} storm={storm}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
-          onMark={(at) => { setMarkAt(at); setMarkNote(""); }} onMarkTap={tapMark}
+          onMark={(at) => { setMarkAt(at); setMarkNote(""); setMarkDrop(false); }} onMarkTap={tapMark}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
           onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} scout={scout}
           onSelectWreck={(wid) => { setWreckId(wid); setQuarryOpen(false); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} />
@@ -903,12 +912,14 @@ export function TeamPage() {
           <Sheet size="sm" container={mapEl} title={t("Метка на карте")} onClose={() => setMarkAt(null)} foot={<><button type="button" className="ghost icon" aria-label={t("Отмена")} title={t("Отмена")} onClick={() => setMarkAt(null)}><Icon name="x" /></button><button type="button" disabled={busy} onClick={() => void putMark()}><Icon name="pin" />{t("Поставить")}</button></>}>
             <p className="muted">{t("Метку увидят все в команде, с вашим именем. Изменить подпись или убрать её сможете только вы, нажатием на флажок.")}</p>
             <div className="field"><label htmlFor="mark-note">{t("Подпись")} <span className="opt">{t("необязательно")}</span></label><input id="mark-note" maxLength={40} value={markNote} onChange={(e) => setMarkNote(e.target.value)} placeholder={t("птицы сели здесь")} /></div>
+            {underClouds(markAt) && <label className="check mark-drop" htmlFor="mark-drop"><input id="mark-drop" type="checkbox" checked={markDrop} onChange={(e) => setMarkDrop(e.target.checked)} /><span>{t("Убрать метку, когда здесь откроются облака")}</span></label>}
           </Sheet>
         )}
         {editMark && (
           <Sheet size="sm" container={mapEl} title={t("Метка на карте")} onClose={() => setEditMark(null)} foot={<><button type="button" className="secondary" disabled={busy} onClick={() => { const mk = editMark; setEditMark(null); void removeMark(mk); }}><Icon name="trash" />{t("Убрать")}</button><button type="button" disabled={busy} onClick={() => void saveMark()}><Icon name="check" />{t("Сохранить")}</button></>}>
             <p className="muted">{editMark.createdAt ? t("Ваша метка, поставлена {when}.", { when: fmtDate(editMark.createdAt) }) : t("Ваша метка.")}</p>
             <div className="field"><label htmlFor="mark-edit-note">{t("Подпись")} <span className="opt">{t("необязательно")}</span></label><input id="mark-edit-note" maxLength={40} value={editNote} onChange={(e) => setEditNote(e.target.value)} placeholder={t("птицы сели здесь")} /></div>
+            {underClouds(editMark) && <label className="check mark-drop" htmlFor="mark-edit-drop"><input id="mark-edit-drop" type="checkbox" checked={editDrop} onChange={(e) => setEditDrop(e.target.checked)} /><span>{t("Убрать метку, когда здесь откроются облака")}</span></label>}
           </Sheet>
         )}
         {frontierKey && (() => {
