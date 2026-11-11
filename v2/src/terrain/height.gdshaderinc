@@ -127,8 +127,8 @@ int site_kind(ivec2 c, bool south) {
 	if (t.x < 0 || t.y < 0 || t.x >= hex_dims.x || t.y >= hex_dims.y) {
 		return 0;
 	}
-	vec4 texel = texelFetch(hex_map, t, 0);
-	return int((south ? texel.b : texel.g) * 255.0 + 0.5);
+	vec4 cell = texelFetch(hex_map, t, 0);
+	return int((south ? cell.b : cell.g) * 255.0 + 0.5);
 }
 
 // Площадка: у города, порта и точки старта земля ровная. Точка «стягивается» к вершине, и всё, что считается

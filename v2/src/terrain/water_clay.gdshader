@@ -20,9 +20,9 @@ void fragment() {
 	float bed = -30.0;
 	float lake = -999.0;
 	if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) {
-		vec4 texel = textureLod(height_map, uv, 0.0);
-		bed = texel.r;
-		lake = texel.a;
+		vec4 baked = textureLod(height_map, uv, 0.0);
+		bed = baked.r;
+		lake = baked.a;
 	}
 	// Вода озера рисуется только в своей котловине: там, где запечён именно её уровень.
 	// Иначе круг воды залил бы соседнюю низину. Море (уровень 0) рисуется везде.
