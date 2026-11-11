@@ -9,8 +9,8 @@ const WATER_SHADER := preload("res://src/terrain/water_clay.gdshader")
 const CHUNK := 256.0  ## сторона плитки, метры
 const TEXEL := 2.0  ## точность запекания, метров на точку
 const MARGIN := 520.0  ## запас моря вокруг суши
-const LOD_CELLS: Array[int] = [64, 32, 16, 8]  ## клеток на сторону плитки по уровням
-const LOD_DISTANCE: Array[float] = [750.0, 1600.0, 3400.0]  ## до какого расстояния держится уровень
+const LOD_CELLS: Array[int] = [64, 32, 16]  ## клеток на сторону плитки по уровням: шаг сетки 4, 8 и 16 м
+const LOD_DISTANCE: Array[float] = [1100.0, 2600.0]  ## до какого расстояния держится уровень
 const LOD_HYSTERESIS := 1.08  ## чтобы уровни не мигали на границе
 const SKIRT := 24.0
 const DEEP_CUTOFF := -24.0  ## плитки глубже этого не строим: дно не видно сквозь воду
@@ -91,8 +91,7 @@ func set_viewer(position_in_world: Vector3) -> void:
 	for chunk in _chunks:
 		var lod := _pick_lod(_viewer.distance_to(chunk.center), chunk.lod)
 		if lod != chunk.lod:
-			chunk.lod = lod
-			chunk.instance.mesh = _lod_meshes[lod]
+			_set_lod(chunk, lod)
 
 
 func set_grid_visible(visible_now: bool) -> void:
@@ -119,6 +118,13 @@ func _pick_lod(distance: float, current: int) -> int:
 	return LOD_DISTANCE.size()
 
 
+## Сетка плитки и сглаживание высот под её шаг: высоты берутся из уменьшенной копии запечённого рельефа.
+func _set_lod(chunk: Chunk, lod: int) -> void:
+	chunk.lod = lod
+	chunk.instance.mesh = _lod_meshes[lod]
+	chunk.instance.set_instance_shader_parameter("height_lod", float(lod))
+
+
 func _build_chunks(columns: int, rows: int) -> void:
 	var coarsest := _lod_meshes.size() - 1
 	for row in rows:
@@ -128,7 +134,6 @@ func _build_chunks(columns: int, rows: int) -> void:
 			if heights.y < DEEP_CUTOFF:
 				continue
 			var instance := MeshInstance3D.new()
-			instance.mesh = _lod_meshes[coarsest]
 			instance.material_override = _material
 			instance.position = Vector3(origin.x, 0.0, origin.y)
 			# Высоту точкам даёт шейдер, поэтому границы плитки для отсечения задаём сами.
@@ -139,7 +144,7 @@ func _build_chunks(columns: int, rows: int) -> void:
 			var chunk := Chunk.new()
 			chunk.instance = instance
 			chunk.center = Vector3(origin.x + CHUNK * 0.5, (heights.x + heights.y) * 0.5, origin.y + CHUNK * 0.5)
-			chunk.lod = coarsest
+			_set_lod(chunk, coarsest)
 			_chunks.append(chunk)
 
 
@@ -158,26 +163,54 @@ func _build_sea() -> void:
 
 ## Озёра и пруды оазисов. Форму и уровень воды задаёт функция высот: уровень запечён рядом с высотой.
 ## Вода — плоский круг на этом уровне; шейдер рисует его только в котловине своего озера.
+## Соседние водные клетки с общим уровнем — одно озеро: на них один круг, иначе вода легла бы в два слоя.
 func _build_lakes(world: WorldData, baker: TerrainBaker) -> void:
-	var lake_disc := _make_disc(HexMath.SIZE * 2.3)
-	var pond_disc := _make_disc(64.0)
 	lakes.clear()
+	var levels := {}  # клетка Vector2i(q, r) → уровень воды
+	var is_lake := {}
 	for cell in world.cells:
 		if cell.terrain != WorldData.Terrain.WATER and cell.terrain != WorldData.Terrain.OASIS:
 			continue
-		var is_lake := cell.terrain == WorldData.Terrain.WATER
-		var centre := cell.center()
-		var level := _find_water_level(baker, centre)
+		var level := _find_water_level(baker, cell.center())
 		if level <= TerrainBaker.NO_WATER + 1.0:
 			continue
+		var at := Vector2i(cell.q, cell.r)
+		levels[at] = level
+		is_lake[at] = cell.terrain == WorldData.Terrain.WATER
+		lakes.append({"q": cell.q, "r": cell.r, "lake": is_lake[at], "level": level})
+
+	var seen := {}
+	for start: Vector2i in levels:
+		if seen.has(start):
+			continue
+		var level: float = levels[start]
+		var group: Array[Vector2i] = [start]
+		seen[start] = true
+		var index := 0
+		while index < group.size():
+			var at := group[index]
+			index += 1
+			for step: Vector2i in [Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1)]:
+				var next := at + step
+				if levels.has(next) and not seen.has(next) and absf(float(levels[next]) - level) < 0.02:
+					seen[next] = true
+					group.append(next)
+		var centre := Vector2.ZERO
+		var with_lake := false
+		for at in group:
+			centre += HexMath.center(at.x, at.y)
+			with_lake = with_lake or bool(is_lake[at])
+		centre /= float(group.size())
+		var reach := 0.0
+		for at in group:
+			reach = maxf(reach, centre.distance_to(HexMath.center(at.x, at.y)))
 		var water := MeshInstance3D.new()
-		water.mesh = lake_disc if is_lake else pond_disc
+		water.mesh = _make_disc(reach + (HexMath.SIZE * 2.4 if with_lake else 70.0))
 		water.material_override = _water_material
 		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		water.position = Vector3(centre.x, level, centre.y)
 		water.set_instance_shader_parameter("water_level", level)
 		add_child(water)
-		lakes.append({"q": cell.q, "r": cell.r, "lake": is_lake, "level": level})
 
 
 ## Уровень воды озера клетки: ищем его рядом с центром гекса, расходясь кругами (чаша смещена от центра).

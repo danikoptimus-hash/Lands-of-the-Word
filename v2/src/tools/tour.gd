@@ -4,6 +4,9 @@ extends RefCounted
 ## Места выбираются по данным карты, поэтому облёт годится для любой партии.
 
 
+static var _coast_cache := {}  ## высоты мира → найденный обрыв (поиск небыстрый, облёт запрашивается не раз)
+
+
 class Stop:
 	var name := ""  ## имя файла кадра
 	var title := ""  ## что на кадре
@@ -44,7 +47,7 @@ static func stops(world: WorldData, rig: StrategyCamera, height_map: HeightMap =
 
 	var lakes := world.cells_of(WorldData.Terrain.WATER)
 	if not lakes.is_empty():
-		list.append(_stop("%02d-ozero" % number, "Озеро", CameraView.make(lakes[0].center(), 330.0, 15.0, 0.0), 3.0))
+		list.append(_stop("%02d-ozero" % number, "Озеро", CameraView.make(lakes[0].center(), 470.0, 15.0, 0.0), 3.0))
 		number += 1
 
 	var port := _first_site(world, "port")
@@ -54,15 +57,15 @@ static func stops(world: WorldData, rig: StrategyCamera, height_map: HeightMap =
 		list.append(_stop("%02d-veshka" % number, "Самое близкое приближение: вешка города", CameraView.make(port.position, StrategyCamera.MIN_DISTANCE, 30.0, 0.0), 2.5))
 		number += 1
 
-	var cliff := _highest_coast(world, height_map)
-	if cliff != null:
-		# Смотрим с моря на берег: камера со стороны от центра острова.
-		var island: Rect2 = world.island_rects.get(cliff.island, world.land_rect)
-		var outward := (cliff.position - island.get_center()).normalized()
-		var yaw := rad_to_deg(atan2(outward.x, outward.y))
-		list.append(_stop("%02d-obryv" % number, "Высокий берег: обрыв к морю", CameraView.make(cliff.position, 420.0, yaw, -16.0), 3.0))
+	var cliff := _steepest_coast(world, height_map)
+	if not cliff.is_empty():
+		# Смотрим с моря, чуть вдоль берега: так видна и стена обрыва, и кромка.
+		var edge: Vector2 = cliff["point"]
+		var seaward: Vector2 = cliff["seaward"]
+		var yaw := rad_to_deg(atan2(seaward.x, seaward.y))
+		list.append(_stop("%02d-obryv" % number, "Высокий берег: обрыв к морю", CameraView.make(edge, 300.0, yaw + 38.0, -18.0), 3.0))
 		number += 1
-		list.append(_stop("%02d-obryv-sverhu" % number, "Тот же берег с суши", CameraView.make(cliff.position, 520.0, yaw + 150.0, -4.0), 3.0))
+		list.append(_stop("%02d-obryv-sverhu" % number, "Тот же берег с суши", CameraView.make(edge, 520.0, yaw + 150.0, -4.0), 3.0))
 		number += 1
 
 	var meadow := _densest(world, WorldData.Terrain.MEADOW)
@@ -102,19 +105,35 @@ static func _densest(world: WorldData, terrain: WorldData.Terrain) -> WorldData.
 	return best
 
 
-## Перекрёсток у берега на самой высокой земле: там берег обрывается к морю.
-static func _highest_coast(world: WorldData, height_map: HeightMap) -> WorldData.Site:
+## Самый высокий обрыв: место, где ровная высокая земля круто падает к морю. Ищем по высотам мира, поэтому
+## годится для любой карты. Возвращает точку на кромке (point) и направление в море (seaward) или пустой словарь.
+static func _steepest_coast(world: WorldData, height_map: HeightMap) -> Dictionary:
 	if height_map == null:
-		return null
-	var best: WorldData.Site = null
-	var best_height := 20.0
-	for site in world.sites:
-		if not site.coastal:
-			continue
-		var height := height_map.sample(site.position)
-		if height > best_height:
-			best = site
-			best_height = height
+		return {}
+	var cache_key := height_map.get_instance_id()
+	if _coast_cache.has(cache_key):
+		return _coast_cache[cache_key]
+	var area := world.land_rect.grow(180.0)
+	var best := {}
+	var best_rise := 14.0
+	var z := area.position.y
+	while z < area.end.y:
+		var x := area.position.x
+		while x < area.end.x:
+			var point := Vector2(x, z)
+			var depth := height_map.sample(point)
+			if depth < 0.0 and depth > -12.0:
+				for i in 8:
+					var inland := Vector2.from_angle(TAU * float(i) / 8.0)
+					var rise := height_map.sample(point + inland * 36.0)
+					# Обрыв, а не склон горы: за кромкой земля ровная.
+					var behind := height_map.sample(point + inland * 90.0)
+					if rise > best_rise and absf(behind - rise) < 12.0:
+						best_rise = rise
+						best = {"point": point + inland * 24.0, "seaward": -inland}
+			x += 16.0
+		z += 16.0
+	_coast_cache = {cache_key: best}
 	return best
 
 

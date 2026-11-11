@@ -6,7 +6,8 @@
 //     где низкая — сходит пляжем и отмелью;
 //   • горы — хребты через несколько гексов: гребень идёт по цепочке горных клеток вдоль общего простирания,
 //     с перевалом там, где его пересекает дорога;
-//   • озёра свободной формы: вытянутая чаша со смещённым центром и заливами в соседние гексы.
+//   • озёра свободной формы: вытянутая чаша со смещённым центром и одним-двумя плёсами в соседних гексах;
+//     соседние водные клетки сливаются в одно озеро с общим уровнем воды.
 // Сетка гексов остаётся логикой игры. Обязательное одно: города, порты и точки старта стоят на суше, на ровной площадке.
 // Числа подобраны в песочнице и принимаются владельцем на шаге 1.2 дорожной карты.
 
@@ -265,15 +266,70 @@ float mountains(vec2 p, vec2 n) {
 
 // ── Озёра и пруды ───────────────────────────────────────────────────────────
 
-// Озеро — вытянутая чаша со смещённым центром; из неё в часть соседних гексов тянутся заливы, сужаясь к концу.
-// Пруд оазиса — маленькая чаша. Возвращает высоту с учётом чаши и берегов; level — уровень воды или NO_WATER.
+bool is_wet(ivec2 c) {
+	int t = terrain_at(c);
+	return t == T_WATER || t == T_OASIS;
+}
+
+// Уровень воды клетки. Соседние водные клетки — одно озеро: уровень у них общий, по самой низкой из них
+// (смотрим на два шага — хватает цепочки из трёх клеток). Уровни разных озёр по соседству не совпадают:
+// уровень идёт ступенями, и к нему добавлена «ячейка» от клетки — вода одного озера не рисуется в чаше другого.
+float wet_level(ivec2 c) {
+	float low = macro_height(hex_center(c) + noise_offset);
+	ivec2 lowest = c;
+	for (int k = 0; k < 6; k++) {
+		ivec2 c1 = c + SIDES[k];
+		if (!is_wet(c1)) {
+			continue;
+		}
+		float m1 = macro_height(hex_center(c1) + noise_offset);
+		if (m1 < low) {
+			low = m1;
+			lowest = c1;
+		}
+		for (int j = 0; j < 6; j++) {
+			ivec2 c2 = c1 + SIDES[j];
+			if (!is_wet(c2)) {
+				continue;
+			}
+			float m2 = macro_height(hex_center(c2) + noise_offset);
+			if (m2 < low) {
+				low = m2;
+				lowest = c2;
+			}
+		}
+	}
+	float slot = mod(float(lowest.x), 5.0) + 5.0 * mod(float(lowest.y), 5.0); // остаток от отрицательных — через mod
+	float raw = max(low - 2.0, 2.0);
+	return 2.0 + floor((raw - 2.0) / 3.125) * 3.125 + slot * 0.125;
+}
+
+// Озеро — вытянутая чаша со смещённым центром и одним-двумя плёсами за сторонами гекса: чаши поменьше, слитые
+// с главной широкой протокой. Пруд оазиса — маленькая чаша. Возвращает высоту с учётом чаши и берегов;
+// level — уровень воды или NO_WATER.
 float lakes(vec2 p, vec2 n, float d_site, float h, out float level) {
 	level = NO_WATER;
 	ivec2 c0 = hex_at(p);
+	bool found = false;
+	for (int dr = -2; dr <= 2; dr++) {
+		for (int dq = -2; dq <= 2; dq++) {
+			if (abs(dq + dr) <= 2 && is_wet(c0 + ivec2(dq, dr))) {
+				found = true;
+			}
+		}
+	}
+	if (!found) {
+		return h;
+	}
+	// Берег гуляет: точка сдвигается шумом, прямые протоки становятся извилистыми.
+	vec2 pl = p + vec2(
+			22.0 * gnoise(n / 150.0 + vec2(60.0, 0.0)) + 8.0 * gnoise(n / 52.0 + vec2(0.0, 33.0)),
+			22.0 * gnoise(n / 150.0 + vec2(0.0, 60.0)) + 8.0 * gnoise(n / 52.0 + vec2(33.0, 0.0)));
 	float dist = BIG;
 	float surface = 0.0;
-	float band = 26.0;
-	bool found = false;
+	float weights = 0.0;
+	float level_sum = 0.0;
+	float band_sum = 0.0;
 	for (int dr = -2; dr <= 2; dr++) {
 		for (int dq = -2; dq <= 2; dq++) {
 			if (abs(dq + dr) > 2) {
@@ -286,55 +342,62 @@ float lakes(vec2 p, vec2 n, float d_site, float h, out float level) {
 			}
 			bool lake = t == T_WATER;
 			vec2 centre = hex_center(c);
-			float cell_level = macro_height(centre + noise_offset) - (lake ? 2.5 : 1.0);
-			vec2 middle = centre + (vec2(cell_rand(c, 21), cell_rand(c, 22)) - 0.5) * (lake ? 40.0 : 36.0);
+			float cell_level = wet_level(c);
+			vec2 middle = centre + (vec2(cell_rand(c, 21), cell_rand(c, 22)) - 0.5) * (lake ? 44.0 : 36.0);
 			float turn = cell_rand(c, 23) * PI;
 			float ca = cos(turn);
 			float sa = sin(turn);
-			float ra = lake ? 58.0 + 16.0 * cell_rand(c, 24) : 20.0 + 6.0 * cell_rand(c, 24);
-			float rb = lake ? 40.0 + 12.0 * cell_rand(c, 25) : 15.0 + 5.0 * cell_rand(c, 25);
-			vec2 q = p - middle;
+			float ra = lake ? 52.0 + 20.0 * cell_rand(c, 24) : 20.0 + 6.0 * cell_rand(c, 24);
+			float rb = lake ? 36.0 + 14.0 * cell_rand(c, 25) : 15.0 + 5.0 * cell_rand(c, 25);
+			vec2 q = pl - middle;
 			vec2 u = vec2(q.x * ca + q.y * sa, -q.x * sa + q.y * ca);
 			float d = (length(u / vec2(ra, rb)) - 1.0) * rb;
 			if (lake) {
+				// Плёсов не больше двух: озеро остаётся цельным, а не «звездой». К соседнему озеру протока есть всегда.
+				int k1 = int(floor(cell_rand(c, 30) * 6.0));
+				int k2 = (k1 + 2 + int(floor(cell_rand(c, 31) * 3.0))) % 6;
+				bool second = cell_rand(c, 32) < 0.55;
 				for (int k = 0; k < 6; k++) {
 					int tn = terrain_at(c + SIDES[k]);
 					bool join = tn == T_WATER;
-					bool arm = (tn == T_DESERT || tn == T_HILLS || tn == T_MEADOW) && cell_rand(c, 30 + k) < 0.3;
+					bool arm = (tn == T_DESERT || tn == T_HILLS || tn == T_MEADOW) && (k == k1 || (k == k2 && second));
 					if (!arm && !join) {
 						continue;
 					}
 					vec2 v = normalize(hex_center(SIDES[k]));
-					float side = join ? 0.0 : (cell_rand(c, 40 + k) - 0.5) * 44.0;
-					float reach = join ? HEX_APOTHEM : HEX_APOTHEM + 24.0 + 46.0 * cell_rand(c, 50 + k);
+					float side = join ? 0.0 : (cell_rand(c, 40 + k) - 0.5) * 80.0;
+					float reach = join ? HEX_APOTHEM : HEX_APOTHEM - 14.0 + 52.0 * cell_rand(c, 50 + k);
 					vec2 tip_point = centre + v * reach + vec2(-v.y, v.x) * side;
-					vec2 dt = segment_distance(p, middle, tip_point);
-					float wide = 27.0 + 6.0 * cell_rand(c, 60 + k);
-					float tip = join ? wide : 15.0 + 14.0 * cell_rand(c, 70 + k);
-					d = smooth_min(d, dt.x - mix(wide, tip, dt.y), 24.0);
+					vec2 dt = segment_distance(pl, middle, tip_point);
+					float bulb = join ? 30.0 : 26.0 + 20.0 * cell_rand(c, 70 + k);
+					float neck = join ? 30.0 : bulb * (0.55 + 0.3 * cell_rand(c, 60 + k));
+					d = smooth_min(d, dt.x - mix(neck, bulb, smoothstep(0.5, 1.0, dt.y)), 34.0);
 				}
 			}
 			if (d < dist) {
 				dist = d;
 				surface = cell_level;
-				band = lake ? 26.0 : 14.0;
-				found = true;
 			}
+			// Между двумя близкими озёрами берег подстраивается под оба уровня плавно.
+			float weight = exp(-clamp(d, 0.0, 200.0) / 14.0);
+			weights += weight;
+			level_sum += weight * cell_level;
+			band_sum += weight * (lake ? 26.0 : 16.0);
 		}
 	}
-	if (!found) {
-		return h;
-	}
-	dist += 11.0 * gnoise(n / 64.0 + vec2(0.0, 4.0)) + 5.0 * gnoise(n / 27.0 + vec2(8.0, 0.0)) + 2.0 * gnoise(n / 11.0 + vec2(0.0, 5.0));
+	dist += 7.0 * gnoise(n / 64.0 + vec2(0.0, 4.0)) + 3.5 * gnoise(n / 27.0 + vec2(8.0, 0.0)) + 1.5 * gnoise(n / 11.0 + vec2(0.0, 5.0));
 	// Перекрёстки и города остаются на суше.
 	dist = smooth_max(dist, 16.0 - d_site, 8.0);
-	surface = max(surface, 2.0);
+	float soft = level_sum / max(weights, 1.0e-12);
+	float band = band_sum / max(weights, 1.0e-12);
 	float depth = min(min(0.22 * max(-dist, 0.0), 6.5), surface - 0.5);
-	float target = dist < 0.0 ? surface - depth : surface + 0.1 * dist;
-	float carve = 1.0 - smoothstep(0.0, band, dist);
+	float target = dist < 0.0 ? soft - depth : soft + 0.1 * dist;
 	// Берег не ниже уровня воды только рядом с озером; дальше земля свободна.
 	float bank = 1.0 - smoothstep(band, band + 45.0, dist);
-	float held = h + (max(h, surface + 1.5) - h) * bank;
+	float held = h + (max(h, soft + 1.5) - h) * bank;
+	// Высокий берег сходит к воде склоном, а не стеной: чем выше земля над водой, тем шире склон.
+	band = min(max(band, 2.4 * (held - soft)), 110.0);
+	float carve = 1.0 - smoothstep(0.0, band, dist);
 	if (dist < 4.0) {
 		level = surface;
 	}
@@ -414,7 +477,7 @@ vec2 world_surface(vec2 p0) {
 				// Земля вокруг озера выравнивается по его уровню: озеро лежит в своей котловине.
 				float influence = 1.0 - smoothstep(70.0, 220.0, length(p - centre) + 30.0 * gnoise(n / 120.0 + vec2(15.0, 0.0)));
 				lake_weight += influence;
-				lake_height += influence * macro_height(centre + noise_offset);
+				lake_height += influence * (wet_level(c) + 2.0);
 			}
 		}
 	}
@@ -458,15 +521,19 @@ vec2 world_surface(vec2 p0) {
 
 	// Берег: высокая земля обрывается скалами, низкая сходит пляжем. Часть высоких берегов всё же пологая.
 	float bulge = noise01(n / 520.0 + vec2(71.0, 13.0));
-	float cliff = smoothstep(14.0, 32.0, h) * smoothstep(0.3, 0.55, noise01(n / 260.0 + vec2(31.0, 9.0)))
+	// Обрыв — там, где высок сам материк (а не отдельный холм или бархан): берег рвётся скалой на сотни метров подряд.
+	float cliff = smoothstep(12.0, 30.0, ground) * smoothstep(0.3, 0.55, noise01(n / 260.0 + vec2(31.0, 9.0)))
 			* (1.0 - harbor) * (1.0 - smoothstep(120.0, 200.0, coast));
-	float offset = max(30.0 + 16.0 * cliff,
-			34.0 + 110.0 * bulge * bulge + 18.0 * gnoise(n / 170.0 + vec2(0.0, 50.0)) + 6.0 * gnoise(n / 60.0 + vec2(9.0, 0.0)));
+	float offset = smooth_max(30.0 + 16.0 * cliff,
+			34.0 + 110.0 * bulge * bulge + 18.0 * gnoise(n / 170.0 + vec2(0.0, 50.0)) + 6.0 * gnoise(n / 60.0 + vec2(9.0, 0.0)), 12.0);
 	float shore = offset - coast; // > 0 — метров вглубь суши от уреза воды
 	if (shore > 0.0) {
-		float rugged = cliff * (7.0 * gnoise(n / 28.0 + vec2(0.0, 3.0)) + 3.5 * gnoise(n / 11.0 + vec2(7.0, 0.0)));
+		// Мысы и бухточки вдоль обрыва.
+		float rugged = cliff * (10.0 * gnoise(n / 70.0 + vec2(0.0, 3.0)) + 4.0 * gnoise(n / 27.0 + vec2(7.0, 0.0)));
 		float beach = 2.4 * (1.0 - exp(-shore / 14.0));
-		h = mix(beach, h, smoothstep(4.0 - cliff, 95.0 - 77.0 * cliff, shore + rugged));
+		// Обрыв крутой, но не стена: чем выше берег, тем шире склон (гора сходит в море градусов под шестьдесят).
+		float foot = 4.0 - cliff;
+		h = mix(beach, h, smoothstep(foot, max(95.0 - 77.0 * cliff, foot + 0.6 * h), shore + rugged));
 	} else {
 		float out_sea = -shore;
 		// У обрыва глубоко сразу, у пляжа — широкая отмель.

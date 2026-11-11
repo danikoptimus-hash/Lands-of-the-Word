@@ -4,18 +4,20 @@ render_mode world_vertex_coords;
 
 #include "res://src/terrain/hex.gdshaderinc"
 
-uniform sampler2D height_map : filter_linear, repeat_disable;
+uniform sampler2D height_map : filter_linear_mipmap, repeat_disable;
 uniform sampler2D normal_map : filter_linear_mipmap, repeat_disable; // та же текстура, со сглаживанием вдали
 uniform vec4 bake_rect;
 uniform vec3 clay_color : source_color = vec3(0.67, 0.62, 0.56);
 uniform float grid_strength : hint_range(0.0, 1.0) = 0.5;
 uniform float skirt_depth = 24.0;
+// Уровень сглаживания высот под шаг сетки плитки: у редкой сетки вдали обрывы не идут «пилой».
+instance uniform float height_lod = 0.0;
 
 varying vec3 world_position;
 
 void vertex() {
 	vec2 uv = (VERTEX.xz - bake_rect.xy) / bake_rect.zw;
-	float h = textureLod(height_map, uv, 0.0).r;
+	float h = textureLod(height_map, uv, height_lod).r;
 	// «Юбка» по краю плитки закрывает щели между уровнями детализации.
 	VERTEX.y = h - UV.x * skirt_depth;
 	world_position = vec3(VERTEX.x, h, VERTEX.z);
