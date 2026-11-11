@@ -259,7 +259,8 @@ export function GamePage() {
             <div className="card"><EmptyState icon="check" text={draft ? t("Появится после старта игры.") : t("Игра завершена: проверять больше нечего.")} /></div>
           ))}
           {open === "awards" && <div key="awards"><AdminAwards gameId={game.id} version={version} /></div>}
-          {open === "analytics" && <div key="analytics">{Analytics ? <Analytics gameId={game.id} version={version} /> : <div className="card"><LoadingState /></div>}</div>}
+          {/* До старта графиков нет и код их не грузится: вместо вечной заглушки загрузки — понятная надпись (замечание 11.11). */}
+          {open === "analytics" && <div key="analytics">{draft ? <div className="card"><EmptyState icon="chart" text={t("Появится после старта игры: темп взятия городов, дела и стихи по дням.")} /></div> : Analytics ? <Analytics gameId={game.id} version={version} /> : <div className="card"><LoadingState /></div>}</div>}
           {open === "settings" && (
             <div key="settings">
               <SettingsBlock key={game.teamCount + ":" + game.name} game={game} onSaved={() => { void load(); bump(); }} />

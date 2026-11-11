@@ -32,6 +32,7 @@ export const ADMIN: Record<string, string> = {
   // Страница игры: шапка и вкладки
   "Разделы игры": "Game sections", "Карта": "Map", "Сейчас": "Now", "ждёт проверки": "awaiting review", "идёт испытаний": "trials in progress",
   "Карта ещё не создана.": "The map is not created yet.", "Карты нет.": "There is no map.", "Появится после старта игры.": "Appears after the game starts.",
+  "Появится после старта игры: темп взятия городов, дела и стихи по дням.": "Appears after the game starts: the pace of taking cities, deeds and verses per day.",
   "Города и старты будут расставлены заново.": "Cities and starts will be placed anew.", "Сгенерировать карту заново?": "Regenerate the map?", "Сгенерировать": "Generate", "Карта готова": "Map is ready",
   // Подготовка
   "После старта карту изменить нельзя. Команды получат стартовые точки и первые дела.": "The map cannot be changed after the start. Teams get their start points and first deeds.",

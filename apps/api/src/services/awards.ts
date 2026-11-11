@@ -1,5 +1,5 @@
 import { prisma } from "../db.js";
-import { AWARDS, STREAK_MILESTONES, VERSE_MILESTONES, hexCorners, vertexKey, nextStreakMilestone } from "@lotw/domain";
+import { AWARDS, BOOK_GROUPS, STREAK_MILESTONES, VERSE_MILESTONES, hexCorners, vertexKey, nextStreakMilestone } from "@lotw/domain";
 import { rulesOf } from "./rules.js";
 import { publish } from "./events.js";
 
@@ -107,7 +107,7 @@ export function computeAwards(data: {
   tz: string; now: Date;
   teams: Array<{ id: string; members: string[] }>;
   tasks: TaskRow[]; works: WorkRow[]; journal: JournalRow[];
-  nodes: Array<{ key: string; kind: string; island: string }>;
+  nodes: Array<{ key: string; kind: string; island: string; bookCode?: string | null }>;
   hexes: Array<{ q: number; r: number }>;
   nodeStates: Array<{ teamId: string; nodeKey: string; revealedAt: Date }>;
   cityStates: Array<{ teamId: string; nodeKey: string; capturedAt: Date | null; firstCapturedAt: Date | null }>;
@@ -125,6 +125,8 @@ export function computeAwards(data: {
   const todayKey = gameDayKey(now, tz);
   const nodeByKey = new Map(data.nodes.map((n) => [n.key, n]));
   const cityKeys = new Set(data.nodes.filter((n) => n.kind === "CITY").map((n) => n.key));
+  /** Город каждой книги (на карте все 66: город — книга). */
+  const cityOfBook = new Map(data.nodes.filter((n) => n.kind === "CITY" && n.bookCode).map((n) => [n.bookCode!, n.key]));
   const islandCities = new Map<string, Set<string>>();
   for (const n of data.nodes) if (n.kind === "CITY") { let s = islandCities.get(n.island); if (!s) { s = new Set(); islandCities.set(n.island, s); } s.add(n.key); }
   const returnedTasks = new Set<string>();
@@ -151,6 +153,14 @@ export function computeAwards(data: {
     for (const [island, keys] of islandCities) {
       const mine = held.filter((c) => keys.has(c.nodeKey));
       if (keys.size > 0 && mine.length === keys.size) team(tm.id, "t_island_lords", mine[mine.length - 1]!.at, island);
+    }
+    // Собранные группы книг (решение владельца 11.11): каждый город группы команда хотя бы раз брала за игру; потеря
+    // города по испытанию собранного не отнимает. Дата — взятие последнего недостающего города.
+    const takenOnce = new Map<string, Date>();
+    for (const c of data.cityStates) if (c.teamId === tm.id) { const at = c.firstCapturedAt ?? c.capturedAt; if (at) takenOnce.set(c.nodeKey, at); }
+    for (const g of BOOK_GROUPS) {
+      const dates = g.books.map((b) => { const key = cityOfBook.get(b); return key ? takenOnce.get(key) : undefined; });
+      if (dates.every(Boolean)) team(tm.id, g.code, new Date(Math.max(...dates.map((d) => d!.getTime()))));
     }
     const perIsland = [...islandCities.keys()].map((isl) => held.find((c) => nodeByKey.get(c.nodeKey)?.island === isl)?.at ?? null);
     if (perIsland.length >= 2 && perIsland.every(Boolean)) team(tm.id, "t_ot_nt", new Date(Math.max(...perIsland.map((d) => d!.getTime()))));
@@ -262,7 +272,7 @@ export async function recomputeAwards(gameId: string): Promise<number> {
     prisma.teamEdgeTask.findMany({ where: { gameId, status: { not: "OPEN" } }, select: { id: true, teamId: true, status: true, takenById: true, participants: true, takenAt: true, submittedAt: true, decidedAt: true, sea: true, paved: true, toKey: true } }),
     prisma.quarryWork.findMany({ where: { gameId }, select: { teamId: true, byId: true, participants: true, status: true, submittedAt: true, decidedAt: true } }),
     prisma.journal.findMany({ where: { gameId, kind: { in: ["task_solved", "order_solved", "city_captured", "ruins_taken", "deed_returned", "sea_landed", "paved"] } }, select: { teamId: true, userId: true, kind: true, vars: true, createdAt: true } }),
-    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, kind: true, island: true } }),
+    prisma.mapNode.findMany({ where: { gameId }, select: { key: true, kind: true, island: true, bookCode: true } }),
     prisma.mapHex.findMany({ where: { gameId }, select: { q: true, r: true } }),
     prisma.teamNodeState.findMany({ where: { team: { gameId } }, select: { teamId: true, nodeKey: true, revealedAt: true } }),
     prisma.teamCityState.findMany({ where: { gameId }, select: { teamId: true, nodeKey: true, capturedAt: true, firstCapturedAt: true } }),
