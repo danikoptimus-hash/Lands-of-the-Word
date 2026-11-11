@@ -55,13 +55,11 @@ void fragment() {
 	vec3 water = mix(shallow_color, deep_color, 1.0 - exp(-depth * (is_lake ? 0.14 : 0.045)));
 	// Плотность: у самого берега вода сходит на нет, на метре глубины уже читается как вода.
 	float cover = mix(0.55, 1.0, 1.0 - exp(-depth * 0.25)) * smoothstep(0.0, 0.35, depth);
-	if (open_sea) {
-		ALBEDO = mix(bed_color, water, cover);
-		ALPHA = 1.0;
-	} else {
-		ALBEDO = water;
-		ALPHA = cover;
-	}
+	// Глубже нескольких метров дна сквозь воду почти не видно: там море рисуется непрозрачным и по одной формуле —
+	// и над областями суши, и в открытом море, поэтому граница областей не видна. Озёра прозрачны всегда.
+	float solid = open_sea ? 1.0 : (is_lake ? 0.0 : smoothstep(2.0, 4.0, depth));
+	ALBEDO = mix(water, mix(bed_color, water, cover), solid);
+	ALPHA = mix(cover, 1.0, solid);
 	// Вода ровная: нормаль всегда вверх, какое бы полотно её ни рисовало.
 	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
 	ROUGHNESS = 0.16;

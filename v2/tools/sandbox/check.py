@@ -3,7 +3,9 @@
 #   • море посреди суши (земля ниже уровня моря вдали от берега);
 #   • города, порты и точки старта не на суше или не на ровной площадке;
 #   • перекрёсток под водой озера или моря;
-#   • малый остров, которого не видно над водой.
+#   • малый остров, которого не видно над водой;
+#   • мелкая вода на границе запечённой области с открытым морем (там вода областей должна быть уже непрозрачной,
+#     иначе граница видна): нужно не меньше 4 м глубины — см. water_clay.gdshader и world_terrain.gd.
 # Запуск: WORLD=путь/к/миру.json python check.py [сколько точек, по умолчанию 200000]
 import os, sys
 from pathlib import Path
@@ -72,3 +74,31 @@ for number, (ix, iz, ir, img, cover, quarry) in enumerate(world.islets):
     sea = float(world.height(row(np.array([ix + 1.05 * ir + 180.0])), row(np.array([iz])))[0, 0])
     note = '' if top > 1.5 and sea < 0.0 else '  ← НЕ ТАК'
     print('остров %d (картинка %d%s): вершина %.1f м, море рядом %.1f м%s' % (number, img, ', Каменоломня' if quarry else '', top, sea, note))
+
+# 5. Границы запечённых областей с открытым морем (как в world_terrain.gd: главная область — острова с запасом 520 м,
+#    у каждого малого острова — своя, с запасом 260 м; края по сетке плиток 256 м).
+import math
+CHUNK = 256.0
+def snap(x0, z0, x1, z1):
+    return (math.floor(x0 / CHUNK) * CHUNK, math.floor(z0 / CHUNK) * CHUNK, math.ceil(x1 / CHUNK) * CHUNK, math.ceil(z1 / CHUNK) * CHUNK)
+areas = [snap(cx.min() - 86.60254 - 520.0, cz.min() - 100.0 - 520.0, cx.max() + 86.60254 + 520.0, cz.max() + 100.0 + 520.0)]
+for ix, iz, ir, *_ in world.islets:
+    a = snap(ix - 1.05 * ir - 260.0, iz - 1.05 * ir - 260.0, ix + 1.05 * ir + 260.0, iz + 1.05 * ir + 260.0)
+    m = areas[0]
+    if not (a[0] >= m[0] and a[1] >= m[1] and a[2] <= m[2] and a[3] <= m[3]):
+        areas.append(a)
+shallowest = 1e9
+for index, (x0, z0, x1, z1) in enumerate(areas):
+    t = np.linspace(0.0, 1.0, 600)
+    bx = np.concatenate([x0 + (x1 - x0) * t, x0 + (x1 - x0) * t, np.full(600, x0), np.full(600, x1)])
+    bz = np.concatenate([np.full(600, z0), np.full(600, z1), z0 + (z1 - z0) * t, z0 + (z1 - z0) * t])
+    # Точка границы, лежащая внутри другой области, граничит не с открытым морем.
+    outside = np.ones(bx.shape, dtype=bool)
+    for other, (o0, p0, o1, p1) in enumerate(areas):
+        if other != index:
+            outside &= ~((bx > o0 + 1.0) & (bx < o1 - 1.0) & (bz > p0 + 1.0) & (bz < p1 - 1.0))
+    if outside.any():
+        depth = -world.height(row(bx[outside]), row(bz[outside]))[0]
+        shallowest = min(shallowest, float(depth.min()))
+note = '' if shallowest >= 4.0 else '  ← МЕЛКО: граница области будет видна'
+print('областей %d; самая малая глубина на границе с открытым морем: %.1f м%s' % (len(areas), shallowest, note))
