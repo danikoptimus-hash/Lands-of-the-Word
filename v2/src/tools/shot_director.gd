@@ -82,7 +82,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 
 	# Отчёт — по первой карте («Осень»): по нему функция высот сверяется с песочницей. Проверки других карт
 	# дописываются в него же.
-	var report := _collect_report()
+	var first_world := _collect_report()
 
 	# Другие карты (клавиша M): каждая должна построиться, а перекрёстки — стоять на суше. Кадры — весь мир,
 	# острова, горы, озеро и обрыв.
@@ -115,7 +115,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 			await _capture("%s-%s" % [prefix, stop.name])
 			print("КАДР %s-%s — %s — место %s" % [prefix, stop.name, stop.title, stop.view.to_code()])
 
-	_save_report(report)
+	_save_report(first_world)
 	print("ИТОГ: проверок %d, не прошло %d" % [_checks.size(), _failed])
 	get_tree().quit(1 if _failed > 0 else 0)
 
