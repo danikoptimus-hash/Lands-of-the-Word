@@ -413,7 +413,7 @@ def lake_basin(H, x, y, lake, salt):
     return H, water, level
 
 
-def fields(H, dx, R, hard, lake_level):
+def fields(H, dx, R, hard, lake_level, rocky_sea=0.0):
     """Поля штампа для игры: высота (м при опорном размере), расстояние до берега (в половинах стороны,
     внутри суши — отрицательное), «камень» (на суше: скалы и крутые склоны; в море: крутизна ближайшего берега),
     уровень воды озера."""
@@ -434,7 +434,15 @@ def fields(H, dx, R, hard, lake_level):
     # у каждой точки моря — крутизна ближайшего берега, сглаженная вдоль берега (иначе на дне видны лучи
     # от границ «чей берег ближе»)
     cliff_sea = ndimage.gaussian_filter(cliff_land[iy, ix], 9.0)
-    stone = np.where(land, rock, cliff_sea)
+    # у каменных островков (шхеры, утёс) дно вокруг каменистое
+    stone = np.where(land, rock, np.maximum(cliff_sea, rocky_sea))
+    # За краем штампа игра продолжает поле по кругу: к краю крутизна берега в море сходится к одному числу,
+    # иначе от острова по дну расходились бы лучи.
+    axis = (np.arange(N) + 0.5) / N * 2.0 * EXTENT - EXTENT
+    rad = np.hypot(*np.meshgrid(axis, axis))
+    ring = (rad > 0.92 * EXTENT) & (rad < EXTENT) & ~land
+    mean = float(stone[ring].mean()) if ring.any() else 0.0
+    stone = np.where(land, stone, stone + (mean - stone) * smoothstep(0.8 * EXTENT, EXTENT, rad))
     out = ndimage.distance_transform_edt(~land) * dx
     height = np.where(land, H, np.maximum(-0.4 - 0.12 * out, -20.0))
     return height, sd, stone, lake_level

@@ -47,7 +47,7 @@ def main():
         started = time.time()
         s = item["make"]()
         H, water, level = designs.build(s)
-        height, sd, stone, water = fields(H, s["dx"], s["R"], s["hard"], water)
+        height, sd, stone, water = fields(H, s["dx"], s["R"], s["hard"], water, s.get("rocky_sea", 0.0))
         land = sd < 0.0
         print(f"{item['id']:2d} {item['title']:<18} R={s['R']:.0f} м  высота до {H.max():.0f} м  суша {land.mean() * 100:.0f}%"
               f"  озеро {'нет' if level is None else f'{level:.1f} м'}  {time.time() - started:.1f} с")

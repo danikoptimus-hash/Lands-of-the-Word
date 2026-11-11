@@ -603,24 +603,21 @@ float shelf_warp(vec2 n) {
 	return 420.0 * gnoise(n / 1300.0 + vec2(12.0, 3.0)) + 30.0 * gnoise(n / 300.0 + vec2(5.0, 21.0));
 }
 
-// Дно по доле ширины отмели t (0 — берег, 1 — край отмели) и расстоянию от берега out_sea. Глубина растёт
-// постепенно: уступа и ровной полки нет, отмель переходит в глубину широким склоном. На отмели — песчаные банки
-// и протоки; на глубине — гряды и впадины, далеко за краем мира дно ровное.
-float seabed(float t, float out_sea, vec2 p, vec2 n) {
+// Дно по доле ширины отмели t (0 — берег, 1 — край отмели), расстоянию от берега out_sea и крутизне берега cliff —
+// как в природе (замечание владельца 11.11: «мазки кисточкой» под водой — вытянутые мели одного направления):
+//   • профиль отмели вогнутый, как у песчаных берегов: у берега дно уходит быстрее, дальше всё положе;
+//   • по отмели — пологие бугры и ложбины без общего направления (поле искажено шумом: ни полос, ни кругов);
+//   • у скал глубина подходит ближе, дно каменистое — пятна рифов на 1–3 м выше;
+//   • за краем отмели — широкий склон к глубине; на глубине плавные гряды и впадины, далеко за миром дно ровное.
+float seabed(float t, float out_sea, float cliff, vec2 p, vec2 n) {
 	float edge = 9.0 + 12.0 * noise01(n / 1400.0 + vec2(4.0, 44.0));
-	// Даже там, где отмель тянется далеко, дно понемногу уходит вниз от берега: ровного «стола» нет.
-	float shelf = edge * pow(min(t, 1.0), 0.8) + 2.0 * smoothstep(0.0, 220.0, out_sea);
-	// Банки — вытянутые мели вдоль общего для карты направления (как намывает течение).
-	float angle = float(map_seed % 314) / 100.0;
-	float ca = cos(angle);
-	float sa = sin(angle);
-	vec2 along = vec2((n.x * ca + n.y * sa) / 420.0 + 9.0, (-n.x * sa + n.y * ca) / 160.0 + 2.0);
-	float bank = smoothstep(0.5, 0.9, noise01(along)) * (1.0 - smoothstep(0.8, 1.2, t));
-	shelf *= 1.0 - 0.35 * bank;
-	float groove = pow(1.0 - abs(gnoise(n / 900.0 + vec2(33.0, 8.0))), 3.0) * smoothstep(0.25, 0.6, t) * (1.0 - smoothstep(0.9, 1.3, t));
-	shelf += 5.0 * groove;
+	float shelf = edge * pow(min(t, 1.0), 0.67) + 2.0 * smoothstep(0.0, 220.0, out_sea);
+	vec2 q = n + 140.0 * vec2(gnoise(n / 760.0 + vec2(3.0, 9.0)), gnoise(n / 760.0 + vec2(17.0, 2.0)));
+	shelf += 2.4 * fbm(q / 420.0 + vec2(8.0, 1.0), 3) * smoothstep(0.08, 0.4, t) * (1.0 - smoothstep(1.2, 2.0, t));
+	float reef = cliff * 2.6 * smoothstep(0.42, 0.78, noise01(q / 85.0 + vec2(5.0, 12.0))) * (1.0 - smoothstep(50.0, 240.0, out_sea));
+	shelf -= reef;
 	float slope = 1.0 + 0.8 * noise01(n / 1600.0 + vec2(17.0, 61.0));
-	float relief = (26.0 * fbm(n / 1500.0 + vec2(3.0, 3.0), 3) - 20.0 * (ridged(n / 900.0 + vec2(17.0, 5.0), 3) - 0.45)) * far_fade(p);
+	float relief = 24.0 * fbm(q / 1500.0 + vec2(3.0, 3.0), 3) * far_fade(p);
 	return shelf + max(70.0 + relief - edge, 4.0) * smoothstep(0.85, 1.0 + slope, t);
 }
 
@@ -628,9 +625,12 @@ float seabed(float t, float out_sea, vec2 p, vec2 n) {
 
 // Штамп острова в точке uv (в половинах стороны, x — на восток, y — на юг): x — высота, м при опорном размере;
 // y — расстояние до берега в половинах стороны (на суше меньше нуля); z — «камень»; w — 1, если здесь вода озера.
-// Между точками штампа — кубический B-сплайн: поверхность гладкая, без граней сетки. Дальше штампа — море.
+// Между точками штампа — кубический B-сплайн: поверхность гладкая, без граней сетки. Дальше круга радиусом extent —
+// море: расстояние до берега продолжается от края круга по прямой от центра (у квадрата были бы изломы по
+// диагоналям — по дну от острова шли лучи).
 vec4 stamp_at(int design, vec2 uv) {
-	vec2 q = clamp(uv, vec2(-stamp_extent), vec2(stamp_extent));
+	float radius = length(uv);
+	vec2 q = radius > stamp_extent ? uv * (stamp_extent / radius) : uv;
 	vec2 t = (q / stamp_extent * 0.5 + 0.5) * float(stamp_size) - 0.5;
 	vec2 base = floor(t);
 	vec2 f = t - base;
@@ -775,7 +775,7 @@ vec2 world_surface(vec2 p0) {
 	// Расстояние от берега для плавного уклона дна: непрерывное везде (в отличие от out_sea, которое вдали от главных
 	// островов не считается и скачет на границе расчёта, — там уклон уже набран не весь).
 	float far_shore = max(min(d_field, s_islet), 0.0);
-	float depth = near_shore(out_sea, cliff, n0) + seabed(t, far_shore, p0, n0) * smoothstep(0.0, 60.0, out_sea);
+	float depth = near_shore(out_sea, cliff, n0) + seabed(t, far_shore, cliff, p0, n0) * smoothstep(0.0, 60.0, out_sea);
 	float h = s_field < 0.0 ? land_field : (s_islet < 0.0 ? land_islet : -min(depth, cap));
 
 	if (near_field) {

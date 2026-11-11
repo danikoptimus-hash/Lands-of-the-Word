@@ -341,6 +341,14 @@ func _region_at(point: Vector2) -> Region:
 	return null
 
 
+## Область, в запечённом квадрате которой прямоугольник лежит целиком (иначе — та, где его середина).
+func _region_holding(rect: Rect2) -> Region:
+	for region in _regions:
+		if region.baked.encloses(rect):
+			return region
+	return _region_at(rect.get_center())
+
+
 ## Озёра и пруды оазисов. Форму и уровень воды задаёт функция высот: уровень запечён рядом с высотой.
 ## Вода — плоский круг на этом уровне; шейдер рисует его только в котловине своего озера.
 ## Соседние водные клетки с общим уровнем — одно озеро: на них один круг, иначе вода легла бы в два слоя.
@@ -397,13 +405,16 @@ func _build_islet_lakes(world: WorldData) -> void:
 			continue
 		var lake: Vector3 = WorldData.design_value(islet.design, "lake", Vector3.ZERO)
 		var centre := islet.to_world(Vector2(lake.x, lake.y))
-		var region := _region_at(centre)
+		var radius := lake.z * islet.radius * 1.2 + 30.0
+		# Вода озера берёт уровень и глубину из запечённой области, где озеро лежит целиком: у края области
+		# (озеро кратера на краю области главных островов) за краем уровня нет — вода обрывалась прямой линией.
+		var region := _region_holding(Rect2(centre - Vector2(radius, radius), Vector2(radius, radius) * 2.0))
 		if region == null:
 			continue
 		var level := _find_water_level(region.baker, centre)
 		if level <= TerrainBaker.NO_WATER + 1.0:
 			continue
-		_add_water_disc(region, centre, lake.z * islet.radius * 1.2 + 30.0, level)
+		_add_water_disc(region, centre, radius, level)
 		ponds.append({"islet": i, "level": level})
 
 

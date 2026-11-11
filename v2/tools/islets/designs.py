@@ -212,7 +212,7 @@ def skerries():
         H = np.maximum(H, slab(wx, wy, cx, cy, rx, ry, a, h, tilt, 3.0 * i))
     land = H > 0.3
     hard = np.full(x.shape, 0.8)
-    return spec("skerries", R, H, land, hard, dx, rivers=dict(iterations=12, k_dt=0.02), drops=0, talus=1.2)
+    return spec("skerries", R, H, land, hard, dx, rivers=dict(iterations=12, k_dt=0.02), drops=0, talus=1.2, rocky_sea=0.75)
 
 
 def stack():
@@ -228,7 +228,7 @@ def stack():
         H = np.maximum(H, slab(wx, wy, cx, cy, r, r * 0.8, 0.0, h, 0.0, 2.0))
     land = H > 0.3
     hard = np.full(x.shape, 0.85)
-    return spec("stack", R, H, land, hard, dx, rivers=dict(iterations=10, k_dt=0.015), drops=0, talus=1.4)
+    return spec("stack", R, H, land, hard, dx, rivers=dict(iterations=10, k_dt=0.015), drops=0, talus=1.4, rocky_sea=0.75)
 
 
 def crater():

@@ -97,7 +97,6 @@ class World:
             half = self.designs[design]["reach"] * ir * 1.03 + 12.0   # как Islet.area() в world_data.gd
             x0 = min(x0, ix - half); x1 = max(x1, ix + half); z0 = min(z0, iz - half); z1 = max(z1, iz + half)
         self.content = (x0, z0, x1, z1)
-        self.bank_angle = (self.seed % 314) / 100.0
 
     def _look(self, grid, q, r):
         tx = q - self.q0; ty = r - self.r0
@@ -262,7 +261,7 @@ class World:
         # Расстояние от берега для плавного уклона дна: непрерывное везде (в отличие от out, которое вдали от главных
         # островов не считается и скачет на границе расчёта, — там уклон уже набран не весь).
         far_shore = np.maximum(np.minimum(d_field, s_i), 0.0)
-        depth = self.near_shore(out, cliff, nx, ny) + self.seabed(t, far_shore, px0, py0, nx, ny) * smoothstep(0.0, 60.0, out)
+        depth = self.near_shore(out, cliff, nx, ny) + self.seabed(t, far_shore, cliff, px0, py0, nx, ny) * smoothstep(0.0, 60.0, out)
         sea = -np.minimum(depth, isl["cap"])
         h = np.where(s_f < 0.0, land_f, np.where(s_i < 0.0, isl["land"], sea)).astype(np.float32)
         level = isl["level"].astype(np.float32)
@@ -291,21 +290,18 @@ class World:
         # мель на сотни метров. Мелко: край отмели не ровный. Наклон сдвига везде меньше единицы.
         return 420.0 * gnoise(nx / 1300.0 + 12.0, ny / 1300.0 + 3.0) + 30.0 * gnoise(nx / 300.0 + 5.0, ny / 300.0 + 21.0)
 
-    def seabed(self, t, out, px, py, nx, ny):
-        """Дно по доле ширины отмели t (0 — берег, 1 — край отмели) и расстоянию от берега out. Глубина растёт
-        постепенно: уступа и ровной полки нет, отмель переходит в глубину широким склоном. На отмели — песчаные банки
-        и протоки; на глубине — гряды и впадины, далеко за краем мира дно ровное."""
+    def seabed(self, t, out, cliff, px, py, nx, ny):
+        """Дно по доле ширины отмели t (0 — берег, 1 — край отмели), расстоянию от берега out и крутизне берега cliff —
+        как в природе: вогнутый профиль отмели, пологие бугры и ложбины без общего направления, каменистые пятна рифов
+        у скал; за отмелью — широкий склон к глубине с плавными грядами и впадинами."""
         edge = 9.0 + 12.0 * n01(nx / 1400.0 + 4.0, ny / 1400.0 + 44.0)
-        # Даже там, где отмель тянется далеко, дно понемногу уходит вниз от берега: ровного «стола» нет.
-        shelf = edge * np.power(np.minimum(t, 1.0), 0.8) + 2.0 * smoothstep(0.0, 220.0, out)
-        # Банки — вытянутые мели вдоль общего для карты направления (как намывает течение).
-        ca, sa = math.cos(self.bank_angle), math.sin(self.bank_angle)
-        bank = smoothstep(0.5, 0.9, n01((nx * ca + ny * sa) / 420.0 + 9.0, (-nx * sa + ny * ca) / 160.0 + 2.0)) * (1.0 - smoothstep(0.8, 1.2, t))
-        shelf = shelf * (1.0 - 0.35 * bank)
-        groove = np.power(1.0 - np.abs(gnoise(nx / 900.0 + 33.0, ny / 900.0 + 8.0)), 3.0) * smoothstep(0.25, 0.6, t) * (1.0 - smoothstep(0.9, 1.3, t))
-        shelf = shelf + 5.0 * groove
+        shelf = edge * np.power(np.minimum(t, 1.0), 0.67) + 2.0 * smoothstep(0.0, 220.0, out)
+        qx = nx + 140.0 * gnoise(nx / 760.0 + 3.0, ny / 760.0 + 9.0); qy = ny + 140.0 * gnoise(nx / 760.0 + 17.0, ny / 760.0 + 2.0)
+        shelf = shelf + 2.4 * fbm(qx / 420.0 + 8.0, qy / 420.0 + 1.0, 3) * smoothstep(0.08, 0.4, t) * (1.0 - smoothstep(1.2, 2.0, t))
+        reef = cliff * 2.6 * smoothstep(0.42, 0.78, n01(qx / 85.0 + 5.0, qy / 85.0 + 12.0)) * (1.0 - smoothstep(50.0, 240.0, out))
+        shelf = shelf - reef
         slope = 1.0 + 0.8 * n01(nx / 1600.0 + 17.0, ny / 1600.0 + 61.0)
-        relief = (26.0 * fbm(nx / 1500.0 + 3.0, ny / 1500.0 + 3.0, 3) - 20.0 * (ridged(nx / 900.0 + 17.0, ny / 900.0 + 5.0, 3) - 0.45)) * self.far_fade(px, py)
+        relief = 24.0 * fbm(qx / 1500.0 + 3.0, qy / 1500.0 + 3.0, 3) * self.far_fade(px, py)
         return shelf + np.maximum(70.0 + relief - edge, 4.0) * smoothstep(0.85, 1.0 + slope, t)
 
     # ── Малые острова ────────────────────────────────────────────────────────
@@ -314,7 +310,10 @@ class World:
         (в половинах стороны, на суше меньше нуля), «камень» и вода озера. Кубический B-сплайн, как в шейдере."""
         d = self.designs[design]; size = self.stamp["size"]; ext = np.float32(self.stamp["extent"])
         f = np.float32
-        qu = np.clip(u, -ext, ext).astype(f); qv = np.clip(v, -ext, ext).astype(f)
+        # Дальше круга радиусом ext — продолжение от края круга по прямой от центра (без лучей по диагоналям).
+        radius = np.hypot(u, v).astype(f)
+        scale = np.where(radius > ext, ext / np.maximum(radius, f(1e-6)), f(1.0)).astype(f)
+        qu = (u * scale).astype(f); qv = (v * scale).astype(f)
         tx = (qu / ext * f(0.5) + f(0.5)) * f(size) - f(0.5); ty = (qv / ext * f(0.5) + f(0.5)) * f(size) - f(0.5)
         bx = np.floor(tx); by = np.floor(ty); fx = tx - bx; fy = ty - by
         def weights(t):
