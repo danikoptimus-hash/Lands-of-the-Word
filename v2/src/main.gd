@@ -24,9 +24,12 @@ const COLOR_PRESETS: Array[Dictionary] = [
 	{"title": "очень сочно", "saturation": 1.5, "contrast": 1.1, "brightness": 1.0},
 	{"title": "естественно", "saturation": 1.0, "contrast": 1.0, "brightness": 1.0},
 ]
-## Запасной ход на случай медленной видеокарты (клавиша B): мир считается в меньшем разрешении и достраивается
-## до родного, надписи остаются в родном. Материалы земли тяжелее «глины», а замера на ноутбуке владельца ещё нет.
+## Разрешение картинки мира (клавиша B): мир считается в меньшем разрешении и достраивается до родного, надписи
+## остаются в родном. На экранах с очень большим разрешением (у владельца 2880×1800 на 14 дюймах — замер 0.5.0:
+## 22 кадра в секунду) полное разрешение стоит видеокарте вдвое дороже, чем нужно глазу, поэтому по умолчанию
+## разрешение выбирается по числу точек окна: больше 3,2 млн — 67 %, больше 2,2 млн — 77 %, иначе полное.
 const RENDER_SCALES: Array[float] = [1.0, 0.77, 0.67]
+const AUTO_SCALE_PIXELS: Array[float] = [2.2e6, 3.2e6]
 const SHOTS_FOLDER := "Земли Слова — тест"
 
 var _world: WorldData
@@ -39,6 +42,7 @@ var _sun: DirectionalLight3D
 var _environment: Environment
 var _color_preset := 0
 var _render_scale := 0
+var _render_scale_chosen := false  ## игрок выбрал разрешение сам (клавиша B): само оно больше не меняется
 var _markers: SiteMarkers
 var _benchmark: Benchmark
 var _updater: Updater
@@ -88,6 +92,8 @@ func _ready() -> void:
 	var loaded: bool = await _load_world(WORLD_PATHS[_world_index])
 	if not loaded:
 		return
+	_auto_render_scale()
+	get_window().size_changed.connect(_auto_render_scale)
 
 	if not _shots_folder.is_empty():
 		var director := ShotDirector.new()
@@ -103,6 +109,27 @@ func _ready() -> void:
 			_hud.show_report(notes)
 	else:
 		_hud.toast("F1 — управление камерой", 6.0)
+
+
+## Разрешение картинки мира по размеру окна — пока игрок не выбрал его сам клавишей B.
+func _auto_render_scale() -> void:
+	if _render_scale_chosen or not _shots_folder.is_empty():
+		return
+	var size := get_window().size
+	var pixels := float(size.x) * float(size.y)
+	var index := 0
+	for limit in AUTO_SCALE_PIXELS:
+		if pixels > limit:
+			index += 1
+	if index != _render_scale:
+		_render_scale = index
+		_apply_render_scale()
+
+
+func _apply_render_scale() -> void:
+	var scale := RENDER_SCALES[_render_scale]
+	get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
+	get_viewport().scaling_3d_scale = scale
 
 
 func _process(_delta: float) -> void:
@@ -161,10 +188,9 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_terrain.set_grid_visible(not _terrain.is_grid_visible())
 		KEY_B:
 			_render_scale = (_render_scale + 1) % RENDER_SCALES.size()
-			var scale := RENDER_SCALES[_render_scale]
-			get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
-			get_viewport().scaling_3d_scale = scale
-			_hud.toast("Картинка мира: %d %% разрешения. B — следующее." % roundi(scale * 100.0), 4.0)
+			_render_scale_chosen = true
+			_apply_render_scale()
+			_hud.toast("Картинка мира: %d %% разрешения. B — следующее." % roundi(RENDER_SCALES[_render_scale] * 100.0), 4.0)
 		KEY_V:
 			_color_preset = (_color_preset + 1) % COLOR_PRESETS.size()
 			_apply_color_preset()

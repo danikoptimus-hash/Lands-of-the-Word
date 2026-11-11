@@ -4,7 +4,9 @@ extends Node
 ## Снимает кадры облёта, сохраняет картинку высот и проверяет камеру числами:
 ## место под курсором не уезжает при приближении, земля идёт за рукой при перетаскивании, границы держат.
 ## Быстрые проверки (для разработчика, v2/tools/godot-local.sh): --quick — только первая карта, без замера скорости
-## и других карт; --stops=17,21 — только кадры облёта с этими номерами, без проверок.
+## и других карт; --stops=17,21 — только кадры облёта с этими номерами, без проверок; --checks — только проверки
+## первой карты, без кадров (минута вместо получаса). У каждого кадра в журнале — время его отрисовки: в рабочей
+## среде картинку считает процессор, и это время — мерило тяжести шейдеров (сравнивать до и после правки).
 
 var _world: WorldData
 var _terrain: WorldTerrain
@@ -14,6 +16,7 @@ var _folder := ""
 var _checks: Array[Dictionary] = []
 var _failed := 0
 var _clock := 0.0
+var _frame_msec := 0  ## сколько считался последний кадр в полном разрешении
 
 
 func _process(delta: float) -> void:
@@ -30,10 +33,14 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	_hud = hud
 	DirAccess.make_dir_recursive_absolute(folder)
 	var quick := false
+	var checks_only := false
 	var only := PackedStringArray()
 	for argument in OS.get_cmdline_user_args():
 		if argument == "--quick":
 			quick = true
+		elif argument == "--checks":
+			quick = true
+			checks_only = true
 		elif argument.begins_with("--stops="):
 			only = argument.trim_prefix("--stops=").split(",", false)
 	await _frames(4)
@@ -43,26 +50,46 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 
 	var stops := Tour.stops(world, rig, terrain.height_map)
 	for stop in stops:
-		if not only.is_empty() and not _listed(stop.name, only):
+		if checks_only or (not only.is_empty() and not _listed(stop.name, only)):
 			continue
 		rig.set_view(stop.view)
 		await _before_shot()
 		await _capture(stop.name)
-		print("КАДР %s — %s — место %s" % [stop.name, stop.title, stop.view.to_code()])
+		print("КАДР %s — %s — место %s — отрисовка %d мс" % [stop.name, stop.title, stop.view.to_code(), _frame_msec])
 
 	var index := 1
+	var base_debug := terrain.debug_view()
 	for code in extra_views:
-		var view := CameraView.from_code(code)
+		# После кода места можно поставить «@N» — снять этот кадр в проверочном виде N (см. --debug-view): один
+		# запуск даёт одно и то же место в нескольких видах, и видно, какая часть шейдера что рисует.
+		var parts := code.split("@")
+		var view := CameraView.from_code(parts[0])
 		if view == null:
 			print("КАДР пропущен: непонятный код места «%s»" % code)
 			continue
+		# Без «@N» кадр снимается в том виде, что задан ключом --debug-view (или в обычном).
+		var own_view := parts.size() > 1
+		if own_view:
+			terrain.set_debug_view(parts[1].to_int())
 		rig.set_view(view)
 		await _before_shot()
 		await _capture("mesto-%02d" % index)
+		print("КАДР mesto-%02d — место %s%s — отрисовка %d мс" % [index, parts[0], (", вид %d" % parts[1].to_int()) if own_view else "", _frame_msec])
+		# Что под серединой кадра: точка земли и сколько метров земли приходится на точку экрана вправо и вниз
+		# (по ним видно, с какой подробностью видеокарта берёт текстуры в этом месте).
+		var middle := get_viewport().get_visible_rect().size * 0.5
+		var here := rig.ground_point(middle)
+		var right := rig.ground_point(middle + Vector2(8.0, 0.0))
+		var below := rig.ground_point(middle + Vector2(0.0, 8.0))
+		if here != StrategyCamera.NO_POINT and right != StrategyCamera.NO_POINT and below != StrategyCamera.NO_POINT:
+			print("   под серединой кадра: x=%.1f z=%.1f высота %.1f м; на точку экрана: вправо %.2f м, вниз %.2f м земли"
+					% [here.x, here.z, here.y, here.distance_to(right) / 8.0, here.distance_to(below) / 8.0])
+		if own_view:
+			terrain.set_debug_view(base_debug)
 		index += 1
 
 	# Записка «что нового» — кадр для проверки, что текст помещается в окно.
-	if only.is_empty() or _listed("93-chto-novogo", only):
+	if not checks_only and (only.is_empty() or _listed("93-chto-novogo", only)):
 		hud.show_report(BuildInfo.notes())
 		await _frames(3)
 		await _capture("93-chto-novogo")
@@ -75,11 +102,12 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		get_tree().quit(0)
 		return
 
-	hud.set_help_open(true)
-	rig.set_view(stops[0].view)
-	await _frames(3)
-	await _capture("90-podskazka")
-	hud.set_help_open(false)
+	if not checks_only:
+		hud.set_help_open(true)
+		rig.set_view(stops[0].view)
+		await _frames(3)
+		await _capture("90-podskazka")
+		hud.set_help_open(false)
 
 	# Проверки камеры идут на уменьшенной картинке: числа от этого не меняются, а кадры считаются быстрее.
 	get_viewport().scaling_3d_scale = 0.25
@@ -87,6 +115,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	await _check_drag()
 	await _check_bounds()
 	await _check_flight()
+	_check_mountain_camera(stops)
 	await _check_sky()
 	_check_islets("")
 
@@ -230,6 +259,75 @@ func _check_flight() -> void:
 			"мимо на %.2f м, расстояние %.0f вместо %.0f" % [miss, view.distance, goal.distance])
 
 
+## Камера у гор (замечание владельца 11.11: при близком зуме к горам камера прыгала и отскакивала от них).
+## Шаги камеры считаются вручную, по 1/60 секунды: (1) проход вплотную над хребтом с четырёх сторон; (2) приближение
+## колесом к склонам — курсор в шести местах экрана, с шести сторон. Меряем высоту камеры: «толчок» — насколько
+## за один шаг изменилась её скорость по высоте (у плавного движения — сантиметры, у прыжка — метры), и «развороты» —
+## сколько раз камера рывком сменила подъём на спуск или обратно. Первые шаги после щелчка колеса в счёт не идут:
+## там скорость меняется по замыслу. И камера не должна оказываться в склоне.
+func _check_mountain_camera(stops: Array) -> void:
+	var centre := Vector2.INF
+	for stop in stops:
+		if stop.name.ends_with("-gory"):
+			centre = stop.view.focus
+	if centre == Vector2.INF:
+		return
+	var dt := 1.0 / 60.0
+	var size := get_viewport().get_visible_rect().size
+	var pan_jolt := 0.0
+	var zoom_jolt := 0.0
+	var turns := 0
+	var lowest := INF
+	for pass_index in 4:
+		var along := Vector2.from_angle(deg_to_rad(40.0 + 47.0 * float(pass_index)))
+		_rig.set_view(CameraView.make(centre - along * 280.0, 125.0, 35.0 + 90.0 * float(pass_index), -8.0))
+		var height := _rig.camera.global_position.y
+		var speed := 0.0
+		for step in 560:
+			_rig.pan_by(along * 60.0 * dt)
+			_rig._process(dt)
+			var now := _rig.camera.global_position.y
+			var now_speed := now - height
+			if step > 1:
+				pan_jolt = maxf(pan_jolt, absf(now_speed - speed))
+				if absf(now_speed) > 0.2 and absf(speed) > 0.2 and signf(now_speed) != signf(speed):
+					turns += 1
+			height = now
+			speed = now_speed
+			lowest = minf(lowest, _eye_clearance())
+	var cursors: Array[Vector2] = [Vector2(0.5, 0.4), Vector2(0.3, 0.35), Vector2(0.7, 0.35), Vector2(0.5, 0.25), Vector2(0.25, 0.55), Vector2(0.75, 0.6)]
+	for pass_index in cursors.size():
+		var screen := size * cursors[pass_index]
+		_rig.set_view(CameraView.make(centre + Vector2.from_angle(float(pass_index) * 1.1) * 80.0, 560.0, 60.0 * float(pass_index), -10.0))
+		var height := _rig.camera.global_position.y
+		var speed := 0.0
+		for wheel in 14:
+			# Последние два «щелчка» — без колеса: камера доходит до места и успокаивается.
+			if wheel < 12:
+				_rig._zoom(1.0 / StrategyCamera.ZOOM_STEP, screen)
+			for step in 20:
+				_rig._process(dt)
+				var now := _rig.camera.global_position.y
+				var now_speed := now - height
+				if step > 2:
+					zoom_jolt = maxf(zoom_jolt, absf(now_speed - speed))
+					if absf(now_speed) > 0.2 and absf(speed) > 0.2 and signf(now_speed) != signf(speed):
+						turns += 1
+				height = now
+				speed = now_speed
+				lowest = minf(lowest, _eye_clearance())
+	_rig.set_view(stops[0].view)
+	_check("камера у гор идёт плавно и не уходит в склон", pan_jolt < 0.6 and zoom_jolt < 1.2 and turns <= 2 and lowest > 3.0,
+			"толчок по высоте за 1/60 с: при проходе %.2f м, при приближении %.2f м; разворотов рывком %d; ближе всего к земле %.1f м"
+			% [pan_jolt, zoom_jolt, turns, lowest])
+
+
+## Высота камеры над землёй под ней.
+func _eye_clearance() -> float:
+	var eye := _rig.camera.global_position
+	return eye.y - maxf(_terrain.height_map.sample(Vector2(eye.x, eye.z)), 0.0)
+
+
 ## Правая кнопка мыши: взгляд поднимается выше горизонта (видно небо) и опускается почти отвесно.
 func _check_sky() -> void:
 	_rig.set_view(CameraView.make(_world.land_rect.get_center(), 2600.0, 0.0, 0.0))
@@ -293,7 +391,10 @@ func _before_shot() -> void:
 	get_viewport().scaling_3d_scale = 0.25
 	await _frames(4)
 	get_viewport().scaling_3d_scale = 1.0
-	await _frames(2)
+	await _frames(1)
+	var started := Time.get_ticks_msec()
+	await _frames(1)
+	_frame_msec = Time.get_ticks_msec() - started
 
 
 ## Ждём, пока камера успокоится: не меньше заданного времени игры и не меньше трёх кадров.

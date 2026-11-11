@@ -228,6 +228,23 @@ def noise_texture(size=512, seed=20261111):
     return out
 
 
+def check_saved(path, wanted, mode, block=8, limit=0.15):
+    """Самопроверка: записанный файл читается обратно и сверяется с тем, что в него клали. Сжатие с потерями слегка
+    меняет отдельные точки — это нормально (на пёстрой траве средняя ошибка по квадрату 8×8 доходит до 8–9 %);
+    но больше пятнадцати процентов значит,
+    что кодировщик испортил целый участок (так было с цветом под нулевой высотой фактуры)."""
+    saved = np.asarray(Image.open(path).convert(mode), dtype=np.float64) / 255.0
+    error = np.abs(saved - wanted.astype(np.float64) / 255.0).max(axis=2)
+    rows = error.shape[0] // block
+    columns = error.shape[1] // block
+    blocks = error[:rows * block, :columns * block].reshape(rows, block, columns, block).mean(axis=(1, 3))
+    bad = int((blocks > limit).sum())
+    print(f"{os.path.basename(path)}: наибольшая средняя ошибка по квадрату {block}×{block} — {blocks.max():.3f}, испорченных квадратов — {bad}")
+    if bad:
+        y, x = np.unravel_index(blocks.argmax(), blocks.shape)
+        raise SystemExit(f"Файл {path} записан с порчей: худший квадрат у точки ({x * block}, {y * block}), слой {(y * block // SIZE) * GRID + x * block // SIZE}")
+
+
 def main():
     sheet_path = None
     if "--sheet" in sys.argv:
@@ -257,8 +274,18 @@ def main():
     os.makedirs(out_folder, exist_ok=True)
     # В репозитории атласы лежат сжатыми (WebP и JPEG без прореживания цвета): движок при импорте всё равно
     # пережимает их в формат видеокарты, а PNG весили бы по 45 МБ.
-    Image.fromarray(albedo, "RGBA").save(os.path.join(out_folder, "ground_albedo.webp"), quality=92, method=6, alpha_quality=95)
-    Image.fromarray(normal_atlas, "RGB").save(os.path.join(out_folder, "ground_normal.jpg"), quality=93, subsampling=0, optimize=True)
+    # exact=True обязательно. В четвёртом канале атласа лежит не прозрачность, а высота фактуры, а кодировщик WebP
+    # без этого ключа считает точки с нулём в четвёртом канале невидимыми и выбрасывает их цвет — заливает
+    # крупными блоками. Так в сборке 0.5.0 в самых глубоких точках фактуры каждого материала (1 % площади) лежали
+    # полосатые «пиксельные» прямоугольники: на горных склонах они были видны вблизи. Высота, кроме того, не
+    # опускается до нуля — на случай, если ключ когда-нибудь потеряется или изменится сам кодировщик.
+    albedo[:, :, 3] = np.maximum(albedo[:, :, 3], 2)
+    albedo_path = os.path.join(out_folder, "ground_albedo.webp")
+    Image.fromarray(albedo, "RGBA").save(albedo_path, quality=92, method=6, alpha_quality=100, exact=True)
+    normal_path = os.path.join(out_folder, "ground_normal.jpg")
+    Image.fromarray(normal_atlas, "RGB").save(normal_path, quality=93, subsampling=0, optimize=True)
+    check_saved(albedo_path, albedo, "RGBA")
+    check_saved(normal_path, normal_atlas, "RGB")
 
     Image.fromarray(noise_texture(), "RGBA").save(os.path.join(out_folder, "noise.png"), optimize=True)
 

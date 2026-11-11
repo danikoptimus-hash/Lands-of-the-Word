@@ -160,12 +160,14 @@ class World:
         cy_ = py + 9.0 * gnoise(nx / 85.0 + 37.0, ny / 85.0) + 3.0 * gnoise(nx / 31.0, ny / 31.0 + 91.0)
         q0, r0 = hex_at(cx_, cy_); t0 = self.terrain_at(q0, r0)
         d_sea = np.full(px.shape, BIG); d_hard = np.full(px.shape, BIG); d_soft = np.full(px.shape, BIG)
+        d_edge = np.full(px.shape, BIG)   # гладкое расстояние до моря (в клетках моря — меньше нуля): для схода плато к берегу
         # Три кольца клеток: заполнение входящих углов берега смотрит на сушу до 345 м, и клетка не должна
         # появляться в расчёте скачком (иначе на дне остаётся ступенька).
         for dq, dr in RING3:
             q = q0 + dq; r = r0 + dr; t = self.terrain_at(q, r); hx, hy = hex_center(q, r)
             s = sd_hex(cx_ - hx, cy_ - hy)
             d_sea = np.where(t == 0, np.minimum(d_sea, s), d_sea)
+            d_edge = np.where(t == 0, smin(d_edge, s, 70.0), d_edge)
             d_hard = np.where(t != 0, np.minimum(d_hard, s), d_hard)
             d_soft = np.where(t != 0, smin(d_soft, s, 95.0), d_soft)
         d_hard = np.minimum(d_hard, FAR); d_soft = np.minimum(d_soft, FAR)
@@ -226,31 +228,46 @@ class World:
 
         # Берег: обрыв или пляж.
         bulge = n01(nx / 520.0 + 71.0, ny / 520.0 + 13.0)
-        cliff = smoothstep(12.0, 30.0, E) * smoothstep(0.3, 0.55, n01(nx / 260.0 + 31.0, ny / 260.0 + 9.0)) * (1.0 - harbor) * (1.0 - smoothstep(120.0, 200.0, coast))
+        cliff = smoothstep(12.0, 30.0, E) * smoothstep(0.4, 0.66, n01(nx / 260.0 + 31.0, ny / 260.0 + 9.0)) * (1.0 - harbor) * (1.0 - smoothstep(120.0, 200.0, coast))
         off = smax(30.0 + 16.0 * cliff, 34.0 + 110.0 * bulge * bulge + 18.0 * gnoise(nx / 170.0, ny / 170.0 + 50.0) + 6.0 * gnoise(nx / 60.0 + 9.0, ny / 60.0), 12.0)
         shore = off - coast
+        # Край острова — не полка над стеной (замечание владельца к 0.5.0: «края выглядят как вертикальные стены,
+        # поддерживающие плоскую поверхность»). Высокая земля к берегу понижается, у каждого участка берега по-своему:
+        # где на четверть высоты, где на две трети; где за сотню метров от воды, где за две с лишним.
+        # У озёр земля не опускается: озеро лежит в своей котловине.
+        sag = (0.26 + 0.42 * n01(nx / 290.0 + 57.0, ny / 290.0 + 83.0)) * (1.0 - np.minimum(lake_w, 1.0))
+        back = 110.0 + 130.0 * n01(nx / 410.0 + 5.0, ny / 410.0 + 71.0)
+        # Расстояние до моря здесь гладкое: по обычному (до ближайшей клетки моря) сход ложился бы гранями.
+        fall = 1.0 - smoothstep(0.0, back, off + np.minimum(d_edge, FAR))
+        h = 2.0 + (h - 2.0) * (1.0 - sag * fall * fall)
+        # Крутизна берегового склона тоже меняется вдоль берега: где обрыв под пятьдесят градусов, где крутой
+        # склон, где сход в тридцать.
+        steepness = smoothstep(0.2, 0.8, n01(nx / 210.0 + 13.0, ny / 210.0 + 67.0))
         # У самой воды мысы и бухточки сходят на нет: суша начинается от уреза без ступеньки.
         # Мелко — выступы и расщелины самой стены (замечание владельца 11.11: обрыв — не «край поднятой платформы»).
-        rugged = cliff * (10.0 * gnoise(nx / 70.0, ny / 70.0 + 3.0) + 4.0 * gnoise(nx / 27.0 + 7.0, ny / 27.0)
+        rugged = cliff * (13.0 * gnoise(nx / 160.0 + 61.0, ny / 160.0 + 7.0) + 10.0 * gnoise(nx / 70.0, ny / 70.0 + 3.0) + 4.0 * gnoise(nx / 27.0 + 7.0, ny / 27.0)
                           + 7.0 * (np.abs(gnoise(nx / 23.0 + 3.0, ny / 23.0 + 11.0)) - 0.35) + 1.6 * gnoise(nx / 9.0, ny / 9.0 + 5.0)) * smoothstep(0.0, 12.0, shore)
         foot = 4.0 - cliff
         # Обрыв крутой, но не стена: чем выше берег, тем шире склон (гора сходит в море склоном градусов в шестьдесят).
-        width = np.maximum(95.0 - 77.0 * cliff, foot + 0.6 * h)
+        width = np.maximum(95.0 - 77.0 * cliff, foot + (1.9 - 0.75 * steepness) * h)
         ramp = smoothstep(foot, width, shore + rugged)
         beach = 2.4 * (1.0 - np.exp(-np.maximum(shore, 0.0) / 14.0))
         land = beach + (h - beach) * ramp
         # Настоящий обрыв (cliff близко к единице) — геологическое образование, а не гладкая стена: у подножия осыпь
-        # (склон около 33°), выше скала с уступами на высотах пластов, кромка скруглена. Полоса обрыва чуть шире
-        # прежней, но не доходит до сторон гексов: дороги по берегу остаются на ровном.
+        # (склон около 33°), выше скала с уступами на высотах пластов, кромка скруглена. Сам склон обрыва обычно
+        # не доходит до сторон гексов; но плато к берегу понижается уже внутри гексов (см. выше) — дороги по берегу
+        # пойдут по пологому сходу, а площадки городов остаются ровными.
         rocky = smoothstep(0.45, 0.9, cliff)
         wide = np.maximum(width, np.minimum(width * 1.35, 42.0))
         u = np.clip((shore + rugged - foot) / np.maximum(wide - foot, 1e-3), 0.0, 1.0)
         rise = np.maximum(h - beach, 0.0)
-        talus = (0.1 + 0.34 * n01(nx / 190.0 + 40.0, ny / 190.0 + 7.0)) * smoothstep(8.0, 20.0, rise)
+        talus = (0.1 + 0.34 * n01(nx / 190.0 + 40.0, ny / 190.0 + 7.0) + 0.16 * (1.0 - steepness)) * smoothstep(8.0, 20.0, rise)
         ut = np.clip(talus * rise / (0.65 * np.maximum(wide - foot, 1e-3)), 0.02, 0.55)
         share = ut * 0.65 * (wide - foot) / np.maximum(rise, 1e-3)          # доля высоты, занятая осыпью
         v = np.clip((u - ut) / (1.0 - ut), 0.0, 1.0)
-        wall = 1.0 - np.power(1.0 - v, 1.7)                                  # скала: круто снизу, скруглена у кромки
+        # Скала: снизу круче, к кромке скругляется; самая крутая часть — не больше пятидесяти с небольшим градусов
+        # (в 0.5.0 низ стены стоял под шестьдесят пять и с высоты читался отвесным).
+        wall = 1.0 - np.power(1.0 - v, 1.9 - 0.4 * steepness)
         # Стык осыпи со стеной скруглён (на пару метров), подножие — без излома.
         profile = mix(share * u / ut, share + (1.0 - share) * wall, smoothstep(ut - 0.04, ut + 0.04, u)) * smoothstep(0.0, 0.06, u)
         z = beach + rise * profile
@@ -429,8 +446,9 @@ class World:
     # ── Горы: хребты по цепочкам горных клеток ───────────────────────────────
     def mountains(self, px, py, nx, ny):
         ox, oy = self.off
-        mx = px + 30.0 * gnoise(nx / 330.0 + 21.0, ny / 330.0) + 8.0 * gnoise(nx / 90.0, ny / 90.0 + 41.0)
-        my = py + 30.0 * gnoise(nx / 330.0, ny / 330.0 + 77.0) + 8.0 * gnoise(nx / 90.0 + 41.0, ny / 90.0)
+        # Третья, мелкая волна искажения: гребни и ложбины между горами идут извилисто, а не по линейке.
+        mx = px + 30.0 * gnoise(nx / 330.0 + 21.0, ny / 330.0) + 8.0 * gnoise(nx / 90.0, ny / 90.0 + 41.0) + 12.0 * gnoise(nx / 48.0 + 5.0, ny / 48.0 + 61.0)
+        my = py + 30.0 * gnoise(nx / 330.0, ny / 330.0 + 77.0) + 8.0 * gnoise(nx / 90.0 + 41.0, ny / 90.0) + 12.0 * gnoise(nx / 48.0 + 71.0, ny / 48.0 + 9.0)
         q0, r0 = hex_at(mx, my)
         out = np.zeros(px.shape, dtype=np.float32)
         near = np.zeros(px.shape, dtype=bool)
@@ -443,8 +461,14 @@ class World:
         def peak(q, r):
             hx, hy = hex_center(q, r)
             return hx + (self.rand(q, r, 11) - 0.5) * 60.0, hy + (self.rand(q, r, 12) - 0.5) * 60.0
-        def summit(q, r): return 62.0 + 70.0 * np.power(self.rand(q, r, 13), 1.5)
-        def width(q, r): return 82.0 + 30.0 * self.rand(q, r, 14)
+        # Горы разные (замечание владельца к 0.5.0: «разнообразить высоту… не все горы должны иметь острые
+        # вершины»): высота вершины — от сорока метров до ста тридцати, чаще невысокая; у каждой горы свой
+        # характер — от пологого купола до острого пика.
+        def summit(q, r): return 38.0 + 92.0 * np.power(self.rand(q, r, 13), 1.7)
+        def width(q, r): return 74.0 + 38.0 * self.rand(q, r, 14)
+        def sharp(q, r): return smoothstep(0.3, 0.8, self.rand(q, r, 17))
+        def profile(t, s): return (1.0 - s) * t * t * (3.0 - 2.0 * t) + s * np.power(t, 1.5)
+        S_num = np.zeros(X.shape, dtype=np.float32); S_den = np.full(X.shape, 1e-3, dtype=np.float32)
         for dq, dr in RING2:
             q = Q0 + dq; r = R0 + dr
             mount = self.terrain_at(q, r) == 4
@@ -453,11 +477,13 @@ class World:
             # Простирание хребтов: общее для карты, плавно гуляет по месту.
             ang = (self.seed % 628) / 100.0 + 2.2 * gnoise((hx + ox) / 900.0, (hy + oy) / 900.0)
             sx, sy = np.cos(ang), np.sin(ang)
-            ax, ay = peak(q, r); ha = summit(q, r); wa = width(q, r)
+            ax, ay = peak(q, r); ha = summit(q, r); wa = width(q, r); sa = sharp(q, r)
             # Короткий гребень самой вершины вдоль простирания.
             ln = 18.0 + 30.0 * self.rand(q, r, 15)
             d, t = seg_dist(X, Y, ax - sx * ln, ay - sy * ln, ax + sx * ln, ay + sy * ln)
-            M = np.where(mount, ridge_join(M, ha * np.power(np.maximum(1.0 - d / wa, 0.0), 1.5)), M)
+            part = np.where(mount, ha * profile(np.maximum(1.0 - d / wa, 0.0), sa), 0.0)
+            M = ridge_join(M, part)
+            S_num = S_num + part * sa; S_den = S_den + part
             # Связь с соседней горной клеткой вперёд по простиранию: хребет с перевалом там, где его пересекает дорога.
             best = np.full(X.shape, 0.25); bq = np.zeros_like(q); br = np.zeros_like(r); has = np.zeros(X.shape, dtype=bool)
             for k, (nq, nr) in enumerate(SIDES):
@@ -466,17 +492,22 @@ class World:
                 ok = mount & (self.terrain_at(q + nq, r + nr) == 4) & (al > best)
                 best = np.where(ok, al, best); bq = np.where(ok, q + nq, bq); br = np.where(ok, r + nr, br); has |= ok
             if has.any():
-                bx, by = peak(bq, br); hb = summit(bq, br); wb = width(bq, br)
+                bx, by = peak(bq, br); hb = summit(bq, br); wb = width(bq, br); sb = sharp(bq, br)
                 d, t = seg_dist(X, Y, ax, ay, bx, by)
                 dip = 0.3 + 0.35 * self.rand(q + bq, r * 3 + br, 16)
                 crest = (ha + (hb - ha) * t) * (1.0 - dip * np.exp(-np.square((t - 0.5) / 0.2)))
                 wd = wa + (wb - wa) * t
-                M = np.where(has, ridge_join(M, crest * np.power(np.maximum(1.0 - d / wd, 0.0), 1.5)), M)
+                sc = sa + (sb - sa) * t
+                part = np.where(has, crest * profile(np.maximum(1.0 - d / wd, 0.0), sc), 0.0)
+                M = ridge_join(M, part)
+                S_num = S_num + part * sc; S_den = S_den + part
         NX = nx[idx]; NY = ny[idx]
-        M = M * (0.72 + 0.56 * ridged(NX / 170.0 + 3.0, NY / 170.0 + 1.0, 5)) + 6.0 * fbm(NX / 40.0, NY / 40.0, 3) * np.clip(M / 40.0, 0.0, 1.0)
+        # У острых гор — резкие гребни и отроги, у куполов они сглажены.
+        SH = S_num / S_den
+        M = M * (1.0 - (0.28 - 0.56 * ridged(NX / 170.0 + 3.0, NY / 170.0 + 1.0, 5)) * (0.4 + 0.6 * SH)) + 6.0 * fbm(NX / 40.0, NY / 40.0, 3) * np.clip(M / 40.0, 0.0, 1.0)
         # Уступы на склонах гор: пласты твёрдой породы выходят полками на одних высотах (замечание владельца 11.11:
         # скалы — геологические образования). Где полки выражены сильнее, где слабее — решает шум.
-        bench = 0.55 * smoothstep(0.42, 0.78, n01(NX / 95.0 + 13.0, NY / 95.0 + 47.0)) * smoothstep(16.0, 44.0, M)
+        bench = 0.55 * smoothstep(0.42, 0.78, n01(NX / 95.0 + 13.0, NY / 95.0 + 47.0)) * smoothstep(16.0, 44.0, M) * (0.35 + 0.65 * SH)
         step = 14.0 + 8.0 * n01(NX / 420.0 + 3.0, NY / 420.0 + 29.0)
         shift = 5.0 * gnoise(NX / 300.0 + 7.0, NY / 300.0) + 6.0 * gnoise(NX / 85.0, NY / 85.0 + 19.0)
         M = ledges(M + shift, step, bench) - shift

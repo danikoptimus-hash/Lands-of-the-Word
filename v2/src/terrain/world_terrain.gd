@@ -194,6 +194,10 @@ func is_grid_visible() -> bool:
 
 
 ## Проверка географии (для разработчика): 1 — влажность, 2 — сток, 3 — крутизна, 4 — ложбины и гребни; 0 — картинка.
+func debug_view() -> int:
+	return _debug_view
+
+
 func set_debug_view(view: int) -> void:
 	_debug_view = view
 	for region in _regions:
@@ -251,7 +255,8 @@ func _make_terrain_material(world: WorldData, region: Region) -> ShaderMaterial:
 	material.set_shader_parameter("noise_shift", world.noise_offset())
 	material.set_shader_parameter("debug_view", _debug_view)
 	# Снеговая линия — от самой высокой горы карты: на любой карте у высоких гор есть белые шапки.
-	material.set_shader_parameter("snow_line", clampf(height_map.highest * 0.58, 70.0, 120.0))
+	# Снег — только на самых высоких вершинах карты (замечание владельца к 0.5.0: не у всех гор снежные шапки).
+	material.set_shader_parameter("snow_line", clampf(height_map.highest * 0.8, 95.0, 140.0))
 	material.set_shader_parameter("layer_albedo", LAYER_ALBEDO)
 	material.set_shader_parameter("layer_normal", LAYER_NORMAL)
 	material.set_shader_parameter("noise_map", NOISE)

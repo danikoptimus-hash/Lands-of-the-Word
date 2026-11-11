@@ -31,6 +31,16 @@ const DRAG_TILT := 0.003
 const INERTIA_FRICTION := 5.0
 const EDGE_SCROLL_MARGIN := 6.0
 const CLEARANCE := 14.0  ## камера не опускается к земле ближе этого
+## Подъём камеры над склоном (замечание владельца 11.11: «при близком зуме к горам камера начинает прыгать
+## и отскакивать от них»). Раньше камера поднималась рывком — ровно на высоту земли прямо под собой: над уступом
+## или гребнем она подпрыгивала, за ним падала. Теперь земля под камерой считается «расширенной» конусом: обрыв
+## впереди поднимает камеру заранее и не круче этого уклона, а сам подъём сглажен по времени — вверх быстро,
+## вниз не спеша.
+const FLOOR_SLOPE := 1.1
+const FLOOR_RINGS: Array[float] = [6.0, 14.0, 26.0, 42.0, 62.0, 88.0]
+const LIFT_RISE_RATE := 12.0
+const LIFT_FALL_RATE := 3.0
+const HARD_CLEARANCE := 4.0  ## ближе этого к земле камера не окажется ни в какой миг
 const RAY_TOP := 340.0  ## выше этого рельефа нет
 const NO_POINT := Vector3.INF
 
@@ -52,6 +62,7 @@ var _distance := 1500.0
 var _yaw := 0.0
 var _tilt := 0.0
 var _ground := 0.0
+var _lift := 0.0  ## на сколько камера сейчас приподнята над своим местом на орбите, чтобы не уйти в склон
 
 var _dragging := false
 var _drag_anchor := Vector3.ZERO
@@ -126,7 +137,18 @@ func set_view(view: CameraView) -> void:
 	_yaw = _t_yaw
 	_tilt = _t_tilt
 	_ground = _ground_target()
+	_lift = _lift_wanted()
 	_apply()
+
+
+## Сдвинуть место, на которое смотрит камера (она придёт туда плавно, как при прокрутке клавишами).
+func pan_by(offset: Vector2) -> void:
+	_t_focus = _clamp_focus(_t_focus + offset)
+
+
+## На сколько метров камера сейчас поднята над своим местом на орбите (над склоном).
+func lift() -> float:
+	return camera.global_position.y - _orbit_eye().y
 
 
 ## Плавный перелёт. На долгом пути камера приподнимается, чтобы было видно, куда летим.
@@ -212,6 +234,8 @@ func _process(delta: float) -> void:
 	else:
 		_step_follow(dt)
 	_ground = lerpf(_ground, _ground_target(), 1.0 - exp(-GROUND_RATE * dt))
+	var wanted := _lift_wanted()
+	_lift = lerpf(_lift, wanted, 1.0 - exp(-(LIFT_RISE_RATE if wanted > _lift else LIFT_FALL_RATE) * dt))
 	_apply()
 	if _dragging:
 		_hold_drag_anchor(_drag_screen)
@@ -263,14 +287,13 @@ func _apply() -> void:
 		return
 	var orbit_min := deg_to_rad(ORBIT_MIN_DEG)
 	var angle := _view_angle(_distance, _tilt)
-	var pitch := maxf(angle, orbit_min)
 	var target := Vector3(_focus.x, _ground, _focus.y)
-	var eye := target + Vector3(sin(_yaw) * cos(pitch), sin(pitch), cos(_yaw) * cos(pitch)) * _distance
+	var eye := _orbit_eye()
 	var above := eye.y
 	if _height_map != null:
-		# Не даём камере уйти в склон: поднимаем её над землёй под собой.
+		# Не даём камере уйти в склон: плавный подъём (см. FLOOR_SLOPE) и жёсткий предел на всякий случай.
 		var floor_level := maxf(_height_map.sample(Vector2(eye.x, eye.z)), 0.0)
-		eye.y = maxf(eye.y, floor_level + CLEARANCE)
+		eye.y = maxf(eye.y + _lift, floor_level + HARD_CLEARANCE)
 		above = eye.y - floor_level
 	var orientation := Basis.looking_at(target - eye, Vector3.UP)
 	if angle < orbit_min:
@@ -549,11 +572,42 @@ func _set_target_distance(value: float) -> void:
 
 
 ## Высота, на которую смотрит камера: вблизи — высота земли под фокусом, издалека — уровень моря.
+## Высота берётся средней по кругу вокруг фокуса (десятая часть расстояния до него): над уступами и гребнями
+## взгляд не дёргается вверх-вниз вслед за каждой ступенькой.
 func _ground_target() -> float:
 	if _height_map == null:
 		return 0.0
 	var near := 1.0 - smoothstep(900.0, 2600.0, _distance)
-	return maxf(_height_map.sample(_focus), 0.0) * near
+	var radius := clampf(_distance * 0.1, 6.0, 60.0)
+	var level := maxf(_height_map.sample(_focus), 0.0) * 0.2
+	for k in 8:
+		var angle := TAU * float(k) / 8.0
+		level += maxf(_height_map.sample(_focus + Vector2(cos(angle), sin(angle)) * radius), 0.0) * 0.1
+	return level * near
+
+
+## Место камеры на орбите вокруг фокуса — без подъёма над склоном.
+func _orbit_eye() -> Vector3:
+	var pitch := maxf(_view_angle(_distance, _tilt), deg_to_rad(ORBIT_MIN_DEG))
+	return Vector3(_focus.x, _ground, _focus.y) + Vector3(sin(_yaw) * cos(pitch), sin(pitch), cos(_yaw) * cos(pitch)) * _distance
+
+
+## На сколько нужно поднять камеру над её местом на орбите, чтобы под ней и вокруг неё был запас до земли.
+func _lift_wanted() -> float:
+	if _height_map == null:
+		return 0.0
+	var eye := _orbit_eye()
+	if eye.y > RAY_TOP + CLEARANCE:
+		return 0.0
+	var point := Vector2(eye.x, eye.z)
+	# Земля, «расширенная» конусом: высота вокруг минус уклон на расстояние до неё.
+	var level := maxf(_height_map.sample(point), 0.0)
+	for ring in FLOOR_RINGS.size():
+		var radius := FLOOR_RINGS[ring]
+		for k in 8:
+			var angle := TAU * (float(k) + 0.5 * float(ring % 2)) / 8.0
+			level = maxf(level, _height_map.sample(point + Vector2(cos(angle), sin(angle)) * radius) - FLOOR_SLOPE * radius)
+	return maxf(level + CLEARANCE - eye.y, 0.0)
 
 
 ## Высота точки над землёй (над водой — над уровнем моря).

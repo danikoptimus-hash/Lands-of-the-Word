@@ -19,6 +19,16 @@
 // стратегической камеры их не видно). В точке читаются три главных материала и смешиваются по высоте фактуры —
 // песок ложится между камнями, трава поверх земли. Плитка не повторяется: у материала две копии, обычная
 // и повёрнутая, чередуются пятнами. На крутом скала ложится сбоку (без растяжения), пласты идут горизонтально.
+//
+// Два режима по расстоянию до камеры (замечания владельца к 0.5.0: скорость упала втрое; с высоты материалы
+// сливались в пёстрый рисунок, а природные зоны должны читаться цельными; детали — при приближении):
+//   • ВДАЛИ точка красится цветом своей природной зоны — средними цветами материалов по их долям. Текстуры слоёв
+//     почти не читаются (одна выборка — рисунок главного материала), мелкие пятна приглушены. Это основной вид
+//     стратегии — сверху, — и он же самый лёгкий для видеокарты.
+//   • ВБЛИЗИ читаются три главных материала и смешиваются по высоте фактуры; проявляются камни, кочки, крап
+//     на границах. Между режимами — плавный переход.
+// Ради скорости: крап на границах и чередование копий плитки берутся из уже прочитанного шума, нормаль читается
+// только у материалов, которых в точке много, скала читается с одной стороны (с двух — только на углах).
 shader_type spatial;
 render_mode world_vertex_coords;
 
@@ -33,11 +43,19 @@ uniform sampler2D ground_c : filter_linear_mipmap, repeat_disable; // сток �
 uniform vec2 noise_shift; // сдвиг шума от зерна карты: у каждой карты свои пятна
 // Снеговая линия, метры над морем: выше неё на вершинах лежит снег (решение владельца 11.11: у гор белые шапки).
 uniform float snow_line = 92.0;
-// Для проверки географии: 1 — влажность, 2 — сток, 3 — крутизна, 4 — ложбины и гребни (0 — обычная картинка).
+// Проверочные виды (0 — обычная картинка). География: 1 — влажность, 2 — сток, 3 — крутизна, 4 — ложбины и гребни.
+// Картинка: 5 — режим отрисовки (зелёное — вдали, красное — вблизи); 6 — скала (красное — доля скалы, зелёное —
+// боковая проекция, синее — крутизна); 7 — главный материал (номер, доля, высота фактуры); 10 — только цвет зоны,
+// без текстур слоёв; 11 — без мелкой фактуры травы; 12 — только главный материал точки. Виды 10–12 отключают
+// части шейдера по одной: так нашлась порча атласа в 0.5.0 (см. tools/surfaces/make.py, check_saved).
 uniform int debug_view = 0;
 uniform vec4 bake_rect;
-uniform sampler2DArray layer_albedo : source_color, filter_linear_mipmap_anisotropic, repeat_enable; // цвет и высота фактуры
-uniform sampler2DArray layer_normal : filter_linear_mipmap_anisotropic, repeat_enable; // нормаль и шероховатость
+uniform sampler2DArray layer_albedo : source_color, filter_linear_mipmap, repeat_enable; // цвет и высота фактуры
+uniform sampler2DArray layer_normal : filter_linear_mipmap, repeat_enable; // нормаль и шероховатость
+// Расстояния до камеры, метры: ближе первого — материалы целиком, дальше второго — цвет природной зоны.
+uniform vec2 detail_distance = vec2(320.0, 850.0);
+// Ближе первого расстояния у материалов читается и мелкий рельеф (нормаль), дальше второго — нет.
+uniform vec2 bump_distance = vec2(240.0, 400.0);
 uniform sampler2D noise_map : filter_linear_mipmap, repeat_enable; // четыре независимых шума, плитка без шва
 uniform float grid_strength : hint_range(0.0, 1.0) = 0.5;
 uniform float skirt_depth = 24.0;
@@ -79,13 +97,21 @@ void vertex() {
 	world_position = vec3(VERTEX.x, h, VERTEX.z);
 }
 
-// Расстояние до ближайшей стороны гекса суши, в метрах.
-float land_edge_distance(vec2 p) {
+// Расстояние до ближайшей стороны гекса суши, в метрах (дальше limit — можно не уточнять: линия сетки тоньше).
+float land_edge_distance(vec2 p, float limit) {
 	ivec2 h0 = hex_at(p);
+	float own = abs(sd_hex(p - hex_center(h0)));
+	if (terrain_at(h0) != T_SEA) {
+		return own;
+	}
+	if (own > limit) {
+		return 1.0e6;
+	}
+	// Точка моря у самой стороны гекса: сторона чертится, только если за ней суша.
 	float nearest = 1.0e6;
 	for (int dr = -1; dr <= 1; dr++) {
 		for (int dq = -1; dq <= 1; dq++) {
-			if (abs(dq + dr) > 1) {
+			if (abs(dq + dr) > 1 || (dq == 0 && dr == 0)) {
 				continue;
 			}
 			ivec2 h = h0 + ivec2(dq, dr);
@@ -107,10 +133,22 @@ bool is_aerial(int layer) {
 }
 
 // Какая из двух копий плитки материала в точке (0 — обычная, 1 — повёрнутая): пятна в несколько плиток,
-// у каждого материала свои. Шаг точки экрана передаётся явно: функция вызывается и внутри условий.
-float patch_mask(int layer, vec2 p, vec2 dpx, vec2 dpy) {
-	float scale = LAYER_TILE[layer] * 6.3;
-	return smoothstep(0.42, 0.58, textureGrad(noise_map, p / scale + vec2(0.11 * float(layer), 0.5), dpx / scale, dpy / scale).g);
+// у соседних по номеру материалов — разные. Берётся из уже прочитанного шума: у съёмок с воздуха (плитка
+// в десятки метров) — из шума на сотни метров, у съёмок вблизи — из шума на десятки.
+float patch_share(int layer, vec4 meso, vec4 fine) {
+	vec4 source = LAYER_TILE[layer] > 40.0 ? meso : fine;
+	float value = (layer & 1) == 0 ? source.r : source.g;
+	if ((layer & 2) != 0) {
+		value = 1.0 - value;
+	}
+	return smoothstep(0.42, 0.58, value);
+}
+
+// Мелкий шум для крапа на границе материалов (примерно −0,5…0,5), у каждого из шестнадцати материалов свой:
+// четыре канала шума складываются со знаками по номеру материала. Два масштаба: рисунок не повторяется рядами.
+float layer_jitter(int layer, vec4 micro, vec4 fine) {
+	vec4 signs = vec4((layer & 1) == 0 ? 1.0 : -1.0, (layer & 2) == 0 ? 1.0 : -1.0, (layer & 4) == 0 ? 1.0 : -1.0, (layer & 8) == 0 ? 1.0 : -1.0);
+	return 0.36 * dot(micro - 0.5, signs) + 0.36 * dot(fine.gbar - 0.5, signs);
 }
 
 // Доля площади под «крапом» (куртины травы, пятна грунта): вблизи — отдельные пятна по шуму, издалека — ровная доля.
@@ -121,14 +159,6 @@ float speckle(float density, float noise, float far) {
 	return smoothstep(threshold - width, threshold + width, noise);
 }
 
-// Мелкий шум для крапа на границе материалов (−0,5…0,5), у каждого материала свой. Два масштаба, второй повёрнут:
-// рисунок не повторяется рядами. Шаг точки экрана передаётся явно: функция вызывается и внутри условий.
-float layer_jitter(int layer, vec2 pn, vec2 dpx, vec2 dpy) {
-	vec2 shift = vec2(0.137, 0.731) * float(layer + 1);
-	return 0.6 * textureGrad(noise_map, pn / 41.0 + shift, dpx / 41.0, dpy / 41.0).a
-			+ 0.4 * textureGrad(noise_map, (TURN * pn) / 11.3 + shift.yx, (TURN * dpx) / 11.3, (TURN * dpy) / 11.3).a - 0.5;
-}
-
 // Высота фактуры для смешения материалов. У песка она ровная: песок заполняет низкое место между камнями и травой,
 // а его собственная ветровая рябь в смешении не участвует (иначе чужой материал проступал бы ровными рядами
 // по ложбинкам ряби).
@@ -136,128 +166,133 @@ float blend_height(int layer, float height) {
 	return (layer == L_SAND_DUNE || layer == L_BEACH_SAND) ? 0.4 : height;
 }
 
-// Оттенок материала: у скалы — порода области, у песка барханов и у травы — свои.
-vec3 layer_tint(int layer, int rock_layer, vec3 rock_tint, vec3 sand_tint, vec3 grass_tint, vec3 meadow_tint, vec3 stone_tint, vec3 strata_tint) {
-	if (layer == rock_layer) {
-		return rock_tint;
-	}
-	if (layer == L_ROCK_STRATA) {
-		return strata_tint;
-	}
-	if (layer == L_DESERT_STONE) {
-		return stone_tint;
-	}
-	if (layer == L_SAND_DUNE) {
-		return sand_tint;
-	}
-	if (layer == L_MEADOW || layer == L_GRASS_LUSH) {
-		return meadow_tint;
-	}
-	if (layer == L_DRY_GRASS || layer == L_MOUNTAIN_SLOPE || layer == L_OASIS_GREEN) {
-		return grass_tint;
-	}
-	return vec3(1.0);
+// Насколько плитка материала в точке уже неразличима (0 — видна, 1 — сошла к среднему цвету): когда на плитку
+// приходится всего несколько точек экрана, её рисунок складывается в ровную сетку («ткань» на песке с высоты).
+float flat_share_of(float tile, float reach) {
+	return smoothstep(0.1, 0.45, reach / tile);
 }
 
-// Материал в точке. color.rgb — цвет, color.a — высота фактуры; detail — сдвиг нормали в мире (x, y, z) и
-// шероховатость (w). wp — точка мира, n — нормаль рельефа, side — доля боковой проекции (крутой склон скалы),
-// patch — какая из двух копий плитки (0…1), near — насколько близко камера (1 — вплотную): вблизи съёмкам
-// с воздуха добавляется мелкая фактура. dpx, dpy — шаг точки экрана по земле.
-void fetch_layer(int layer, vec3 wp, vec3 n, float side, float patch, float near, vec3 dpx, vec3 dpy, out vec4 color, out vec4 detail) {
+// Цвет (rgb) и высота фактуры (a) материала при взгляде сверху. patch — какая из двух копий плитки (0…1).
+vec4 layer_top(int layer, vec2 xz, float patch, float flat_share, vec2 gx, vec2 gy) {
+	vec4 flat_color = vec4(LAYER_COLOR[layer], 0.5);
+	if (flat_share > 0.99) {
+		return flat_color;
+	}
 	float tile = LAYER_TILE[layer];
 	float index = float(layer);
-	color = vec4(0.0);
-	detail = vec4(0.0);
-	float top = 1.0 - side;
-	if (near > 0.01 && is_aerial(layer)) {
-		// Мелкая фактура травы поверх съёмки с воздуха: только яркость, цвет остаётся от съёмки.
-		float fine_tile = LAYER_TILE[L_GRASS_LUSH];
-		vec3 grain = textureGrad(layer_albedo, vec3(wp.xz / fine_tile, float(L_GRASS_LUSH)), dpx.xz / fine_tile, dpy.xz / fine_tile).rgb;
-		float lift = dot(grain, vec3(0.2126, 0.7152, 0.0722)) / dot(LAYER_COLOR[L_GRASS_LUSH], vec3(0.2126, 0.7152, 0.0722));
-		color.rgb = vec3(mix(1.0, lift, 0.6 * near)); // множитель: применяется в конце
-	} else {
-		color.rgb = vec3(1.0);
+	vec4 color = vec4(0.0);
+	if (patch < 0.99) {
+		color += textureGrad(layer_albedo, vec3(xz / tile, index), gx / tile, gy / tile) * (1.0 - patch);
 	}
-	vec3 gain = color.rgb;
-	color = vec4(0.0);
-	// Издалека, когда на плитку материала приходится всего несколько точек экрана, её рисунок складывается в ровную
-	// сетку («ткань» на песке с высоты). Там материал плавно сходит к своему среднему цвету и ровной поверхности;
-	// разнообразие вдали дают пятна от географии, а не плитка.
-	float reach = length(dpx) + length(dpy);
-	float flat_share = smoothstep(0.1, 0.45, reach / tile);
+	if (patch > 0.01) {
+		float scale = tile * 1.31;
+		color += textureGrad(layer_albedo, vec3((TURN * xz) / scale + vec2(0.37, 0.61), index), (TURN * gx) / scale, (TURN * gy) / scale) * patch;
+	}
+	return mix(color, flat_color, flat_share);
+}
+
+// Сдвиг нормали в мире (xyz) и шероховатость (w) материала при взгляде сверху: читается одна копия плитки —
+// та, которой в точке больше.
+vec4 layer_top_normal(int layer, vec2 xz, float patch, float flat_share, vec2 gx, vec2 gy) {
+	float tile = LAYER_TILE[layer];
+	float index = float(layer);
+	vec3 b;
+	vec2 t;
+	if (patch < 0.5) {
+		b = textureGrad(layer_normal, vec3(xz / tile, index), gx / tile, gy / tile).rgb;
+		t = b.xy * 2.0 - 1.0;
+	} else {
+		float scale = tile * 1.31;
+		b = textureGrad(layer_normal, vec3((TURN * xz) / scale + vec2(0.37, 0.61), index), (TURN * gx) / scale, (TURN * gy) / scale).rgb;
+		t = (b.xy * 2.0 - 1.0) * TURN; // обратно в оси мира
+	}
+	t *= 1.0 - flat_share;
+	return vec4(t.x, 0.0, -t.y, b.z);
+}
+
+// Скала сбоку: по вертикали и по горизонтали вдоль склона — пласты породы идут вдоль склона, текстура не тянется.
+// Читается с той стороны, к которой склон повёрнут сильнее; с двух сторон — только там, где он смотрит между осями.
+// Две копии: мелкая — фактура камня, крупная (в 3,7 раза) — пласты и трещины, видные издалека.
+// detail — сдвиг нормали в мире и шероховатость (читается, только если with_normal).
+vec4 rock_side(int layer, vec3 wp, vec3 n, vec3 dpx, vec3 dpy, float reach, bool with_normal, out vec4 detail) {
+	const float BIG = 3.7;
+	// Рисунок камня приглушён — на столько он подмешан к своему среднему цвету (замечание владельца к 0.5.0:
+	// «уменьшить чрезмерную контрастность каменных текстур»). У слоистого песчаника сильнее: его тёмные
+	// полосы между пластами издалека читались «слоёным пирогом».
+	float ROCK_CALM = layer == L_ROCK_STRATA ? 0.58 : 0.4;
+	float tile = LAYER_TILE[layer];
+	float index = float(layer);
 	vec4 flat_color = vec4(LAYER_COLOR[layer], 0.5);
-	if (top > 0.01) {
-		if (patch < 0.99) {
-			vec2 uv = wp.xz / tile;
-			vec4 a = mix(textureGrad(layer_albedo, vec3(uv, index), dpx.xz / tile, dpy.xz / tile), flat_color, flat_share);
-			vec3 b = textureGrad(layer_normal, vec3(uv, index), dpx.xz / tile, dpy.xz / tile).rgb;
-			b.xy = mix(b.xy, vec2(0.5), flat_share);
-			float k = top * (1.0 - patch);
-			color += a * k;
-			vec2 t = b.xy * 2.0 - 1.0;
-			detail += vec4(t.x, 0.0, -t.y, b.z) * k;
+	float average = dot(LAYER_COLOR[layer], vec3(0.2126, 0.7152, 0.0722));
+	float flat_share = flat_share_of(tile, reach);
+	float big_flat = flat_share_of(tile * BIG, reach);
+	detail = vec4(0.0, 0.0, 0.0, 0.82);
+	vec4 color = vec4(0.0);
+	float az = smoothstep(0.25, 0.75, n.z * n.z / max(n.x * n.x + n.z * n.z, 1.0e-4));
+	float ax = 1.0 - az;
+	if (az > 0.01) {
+		vec2 uv = vec2(wp.x, -wp.y) / tile;
+		vec2 gx = vec2(dpx.x, -dpx.y) / tile;
+		vec2 gy = vec2(dpy.x, -dpy.y) / tile;
+		vec4 a = flat_share > 0.99 ? flat_color : mix(textureGrad(layer_albedo, vec3(uv, index), gx, gy), flat_color, max(flat_share, ROCK_CALM));
+		if (big_flat < 0.99) {
+			vec4 a2 = textureGrad(layer_albedo, vec3(uv / BIG + vec2(0.31, 0.17), index), gx / BIG, gy / BIG);
+			a.rgb *= mix(1.0, dot(a2.rgb, vec3(0.2126, 0.7152, 0.0722)) / average, 0.4 * (1.0 - big_flat));
+			a.a = mix(a.a, a2.a, 0.5 * (1.0 - big_flat));
 		}
-		if (patch > 0.01) {
-			float scale = tile * 1.31;
-			vec2 uv = (TURN * wp.xz) / scale + vec2(0.37, 0.61);
-			vec2 gx = (TURN * dpx.xz) / scale;
-			vec2 gy = (TURN * dpy.xz) / scale;
-			vec4 a = mix(textureGrad(layer_albedo, vec3(uv, index), gx, gy), flat_color, flat_share);
+		color += a * az;
+		if (with_normal) {
 			vec3 b = textureGrad(layer_normal, vec3(uv, index), gx, gy).rgb;
-			b.xy = mix(b.xy, vec2(0.5), flat_share);
-			float k = top * patch;
-			color += a * k;
-			vec2 t = (b.xy * 2.0 - 1.0) * TURN; // обратно в оси мира
-			detail += vec4(t.x, 0.0, -t.y, b.z) * k;
+			vec2 t = (b.xy * 2.0 - 1.0) * (1.0 - flat_share);
+			detail += vec4(t.x, t.y, 0.0, b.z - 0.82) * az;
+		}
+	}
+	if (ax > 0.01) {
+		vec2 uv = vec2(wp.z, -wp.y) / tile + vec2(0.5, 0.0);
+		vec2 gx = vec2(dpx.z, -dpx.y) / tile;
+		vec2 gy = vec2(dpy.z, -dpy.y) / tile;
+		vec4 a = flat_share > 0.99 ? flat_color : mix(textureGrad(layer_albedo, vec3(uv, index), gx, gy), flat_color, max(flat_share, ROCK_CALM));
+		if (big_flat < 0.99) {
+			vec4 a2 = textureGrad(layer_albedo, vec3(uv / BIG + vec2(0.73, 0.41), index), gx / BIG, gy / BIG);
+			a.rgb *= mix(1.0, dot(a2.rgb, vec3(0.2126, 0.7152, 0.0722)) / average, 0.4 * (1.0 - big_flat));
+			a.a = mix(a.a, a2.a, 0.5 * (1.0 - big_flat));
+		}
+		color += a * ax;
+		if (with_normal) {
+			vec3 b = textureGrad(layer_normal, vec3(uv, index), gx, gy).rgb;
+			vec2 t = (b.xy * 2.0 - 1.0) * (1.0 - flat_share);
+			detail += vec4(0.0, t.y, t.x, b.z - 0.82) * ax;
+		}
+	}
+	return color;
+}
+
+// Цвет и высота фактуры материала в точке: скала на крутом — сбоку, остальное — сверху. Вблизи съёмкам с воздуха
+// добавляется мелкая фактура травы (только яркость, цвет остаётся от съёмки).
+vec4 layer_color(int layer, vec3 wp, vec3 n, float side, float patch, float near, vec3 dpx, vec3 dpy, float reach, bool with_normal, out vec4 detail) {
+	detail = vec4(0.0, 0.0, 0.0, 0.82);
+	vec4 color = vec4(0.0);
+	float flat_share = flat_share_of(LAYER_TILE[layer], reach);
+	if (side < 0.99) {
+		vec4 top = layer_top(layer, wp.xz, patch, flat_share, dpx.xz, dpy.xz);
+		if (near > 0.01 && is_aerial(layer)) {
+			float fine_tile = LAYER_TILE[L_GRASS_LUSH];
+			vec3 grain = textureGrad(layer_albedo, vec3(wp.xz / fine_tile, float(L_GRASS_LUSH)), dpx.xz / fine_tile, dpy.xz / fine_tile).rgb;
+			float lift = dot(grain, vec3(0.2126, 0.7152, 0.0722)) / dot(LAYER_COLOR[L_GRASS_LUSH], vec3(0.2126, 0.7152, 0.0722));
+			top.rgb *= mix(1.0, lift, 0.6 * near);
+		}
+		color += top * (1.0 - side);
+		if (with_normal && flat_share < 0.99) {
+			vec4 d = layer_top_normal(layer, wp.xz, patch, flat_share, dpx.xz, dpy.xz);
+			detail += vec4(d.xyz, d.w - 0.82) * (1.0 - side);
 		}
 	}
 	if (side > 0.01) {
-		// Сбоку: по вертикали и по горизонтали вдоль склона. Слои породы идут горизонтально.
-		float ax = n.x * n.x;
-		float az = n.z * n.z;
-		float sum = max(ax + az, 1.0e-4);
-		ax /= sum;
-		az /= sum;
-		// Две копии: мелкая — фактура камня, крупная (в 3,7 раза) — пласты и трещины, видные издалека.
-		const float BIG = 3.7;
-		float average = dot(LAYER_COLOR[layer], vec3(0.2126, 0.7152, 0.0722));
-		float big_flat = smoothstep(0.1, 0.45, reach / (tile * BIG));
-		if (az > 0.02) {
-			vec2 uv = vec2(wp.x, -wp.y) / tile;
-			vec2 gx = vec2(dpx.x, -dpx.y) / tile;
-			vec2 gy = vec2(dpy.x, -dpy.y) / tile;
-			vec4 a = mix(textureGrad(layer_albedo, vec3(uv, index), gx, gy), flat_color, flat_share);
-			vec3 b = textureGrad(layer_normal, vec3(uv, index), gx, gy).rgb;
-			b.xy = mix(b.xy, vec2(0.5), flat_share);
-			vec4 a2 = mix(textureGrad(layer_albedo, vec3(uv / BIG + vec2(0.31, 0.17), index), gx / BIG, gy / BIG), flat_color, big_flat);
-			vec3 b2 = textureGrad(layer_normal, vec3(uv / BIG + vec2(0.31, 0.17), index), gx / BIG, gy / BIG).rgb;
-			b2.xy = mix(b2.xy, vec2(0.5), big_flat);
-			float k = side * az;
-			a.rgb *= mix(1.0, dot(a2.rgb, vec3(0.2126, 0.7152, 0.0722)) / average, 0.62);
-			a.a = mix(a.a, a2.a, 0.5);
-			color += a * k;
-			vec2 t = (b.xy * 2.0 - 1.0) + (b2.xy * 2.0 - 1.0) * 1.4;
-			detail += vec4(t.x, t.y, 0.0, b.z) * k;
-		}
-		if (ax > 0.02) {
-			vec2 uv = vec2(wp.z, -wp.y) / tile + vec2(0.5, 0.0);
-			vec2 gx = vec2(dpx.z, -dpx.y) / tile;
-			vec2 gy = vec2(dpy.z, -dpy.y) / tile;
-			vec4 a = mix(textureGrad(layer_albedo, vec3(uv, index), gx, gy), flat_color, flat_share);
-			vec3 b = textureGrad(layer_normal, vec3(uv, index), gx, gy).rgb;
-			b.xy = mix(b.xy, vec2(0.5), flat_share);
-			vec4 a2 = mix(textureGrad(layer_albedo, vec3(uv / BIG + vec2(0.73, 0.41), index), gx / BIG, gy / BIG), flat_color, big_flat);
-			vec3 b2 = textureGrad(layer_normal, vec3(uv / BIG + vec2(0.73, 0.41), index), gx / BIG, gy / BIG).rgb;
-			b2.xy = mix(b2.xy, vec2(0.5), big_flat);
-			float k = side * ax;
-			a.rgb *= mix(1.0, dot(a2.rgb, vec3(0.2126, 0.7152, 0.0722)) / average, 0.62);
-			a.a = mix(a.a, a2.a, 0.5);
-			color += a * k;
-			vec2 t = (b.xy * 2.0 - 1.0) + (b2.xy * 2.0 - 1.0) * 1.4;
-			detail += vec4(0.0, t.y, t.x, b.z) * k;
-		}
+		vec4 side_detail;
+		color += rock_side(layer, wp, n, dpx, dpy, reach, with_normal, side_detail) * side;
+		detail += vec4(side_detail.xyz, side_detail.w - 0.82) * side;
 	}
-	color.rgb *= gain;
+	return color;
 }
 
 void fragment() {
@@ -266,6 +301,17 @@ void fragment() {
 	vec2 uv = (p - bake_rect.xy) / bake_rect.zw;
 	vec3 dpx = dFdx(world_position);
 	vec3 dpy = dFdy(world_position);
+	// Насколько точка далеко от камеры: far — по размеру точки экрана на земле (0 — мельче 20 см, 1 — крупнее метра
+	// с лишним), detail — по расстоянию (1 — вблизи, материалы целиком; 0 — вдали, цвет природной зоны).
+	// Размер точки экрана меряется по самой поверхности, а не по её тени на плане: на крутом склоне план почти
+	// не меняется от точки к точке, и по нему склон считался бы «снятым в упор».
+	float footprint = length(dpx) + length(dpy);
+	float far = smoothstep(0.4, 2.5, footprint);
+	float view_distance = distance(world_position, viewer_position);
+	float detail_share = 1.0 - smoothstep(detail_distance.x, detail_distance.y, view_distance);
+	float bump_share = 1.0 - smoothstep(bump_distance.x, bump_distance.y, view_distance);
+	// Мелкие пятна (выходы грунта, цветение, камни) вдали приглушены: зона читается цельной.
+	float local = 0.3 + 0.7 * detail_share;
 
 	// ── География точки ────────────────────────────────────────────────────────
 	vec4 baked = texture(normal_map, uv);
@@ -276,26 +322,26 @@ void fragment() {
 	float cavity = textureLod(height_map, uv, 3.0).r - h;
 	vec4 gb = textureLod(ground_b, uv, 0.0);
 	// Уровень воды озера — из ближайшей точки рельефа (между точками его усреднять нельзя: рядом «озера нет»).
-	vec2 cells = vec2(textureSize(height_map, 0));
-	float lake_level = textureLod(height_map, (floor(uv * cells) + 0.5) / cells, 0.0).a;
+	ivec2 cells = textureSize(height_map, 0);
+	float lake_level = texelFetch(height_map, clamp(ivec2(uv * vec2(cells)), ivec2(0), cells - 1), 0).a;
 	float lake_depth = lake_level > -900.0 ? lake_level - h : -1.0;
 
-	// Шум четырёх масштабов: сотни метров, десятки, метры. У каждой карты свой (сдвиг от зерна).
+	// Шум четырёх масштабов: сотни метров, десятки, метры. У каждой карты свой (сдвиг от зерна). Самый мелкий
+	// вдали не нужен (он там усредняется в ровное) — и не читается.
 	vec4 macro = texture(noise_map, pn / 1700.0 + vec2(0.13, 0.71));
 	vec4 meso = texture(noise_map, pn / 310.0 + vec2(0.37, 0.09));
 	vec4 fine = texture(noise_map, pn / 61.0 + vec2(0.71, 0.23));
-	vec4 micro = texture(noise_map, pn / 13.0 + vec2(0.29, 0.83));
-	// Границы местностей гуляют: доли читаются в точке, сдвинутой шумом на десятки метров, — местность не кончается
-	// по стороне гекса. Берег моря и озёр не сдвигается: пляж и урез воды остаются на своих местах.
+	vec4 micro = vec4(0.5);
+	if (detail_share > 0.001) {
+		micro = textureGrad(noise_map, pn / 13.0 + vec2(0.29, 0.83), dpx.xz / 13.0, dpy.xz / 13.0);
+	}
+	// Границы местностей гуляют: доли читаются в точке, сдвинутой шумом, — местность не кончается по стороне гекса.
 	// Сдвиг четырёх масштабов: языками в две-три сотни метров и лопастями в сотню (стороны и углы гексов
 	// не угадываются и с высоты: сдвиг меняется вдоль одной стороны гекса, а не двигает гекс целиком), зубцами
-	// в десятки метров и мелкой бахромой.
+	// в десятки метров и мелкой бахромой. Берег моря и озёр не сдвигается: пляж и урез воды остаются на своих местах.
 	vec4 region = texture(noise_map, pn / 520.0 + vec2(0.53, 0.19));
 	vec4 lobes = texture(noise_map, pn / 190.0 + vec2(0.21, 0.67));
 	vec2 drift = (region.gb - 0.5) * 90.0 + (lobes.rg - 0.5) * 60.0 + (fine.ba - 0.5) * 26.0 + (micro.rg - 0.5) * 7.0;
-	// Насколько точка далеко от камеры: 0 — точка экрана мельче 20 см земли, 1 — крупнее метра с лишним.
-	float footprint = length(dpx.xz) + length(dpy.xz);
-	float far = smoothstep(0.4, 2.5, footprint);
 	vec4 ga = textureLod(ground_a, uv + drift / bake_rect.zw, 0.0);
 	// Те же доли, усреднённые на сотню метров, — для влажности: она меняется плавнее, чем сама местность.
 	vec4 wide_a = textureLod(ground_a, uv + 0.5 * drift / bake_rect.zw, 4.0);
@@ -306,9 +352,6 @@ void fragment() {
 	// и они плавно изгибаются. На столько метров сдвигается по высоте рисунок скалы в точке.
 	const vec2 DIP = vec2(0.07, 0.04);
 	float bend = dot(p, DIP) + 9.0 * (meso.r - 0.5) + 2.4 * (fine.r - 0.5);
-	vec3 rock_position = world_position + vec3(0.0, bend, 0.0);
-	vec3 rock_dpx = dpx + vec3(0.0, dot(dpx.xz, DIP), 0.0);
-	vec3 rock_dpy = dpy + vec3(0.0, dot(dpy.xz, DIP), 0.0);
 
 	// Малый остров: весь «камень» каталога — скала; порода своя.
 	bool islet = islet_region;
@@ -326,7 +369,7 @@ void fragment() {
 	float oasis = gb.a;
 	float biome_sum = biome.x + biome.y + biome.z + biome.w + oasis;
 	vec4 mixing = 4.0 * biome * (1.0 - biome);
-	biome = max(biome + (meso - 0.5) * 0.7 * mixing + (fine - 0.5) * 0.3 * mixing, 0.0);
+	biome = max(biome + (vec4(meso.rgb, meso.g) - 0.5) * 0.7 * mixing + (fine - 0.5) * 0.3 * mixing * local, 0.0);
 	biome = pow(biome, vec4(1.4));
 	float oasis_sharp = pow(oasis, 1.4);
 	float sharp_sum = biome.x + biome.y + biome.z + biome.w + oasis_sharp;
@@ -350,13 +393,14 @@ void fragment() {
 
 	// Влажность. Основа — от местности вокруг (пустыня сухая, луг и оазис влажные), усреднённой на сотню метров;
 	// влажнее у озёр, в ложбинах и по руслам стока; суше на гребнях, на высоте и на крутом, где вода не держится.
-	// Природные отклонения — на сотни метров (сухие и влажные края) и на десятки.
+	// Природные отклонения — на сотни метров (сухие и влажные края) и на десятки; зернистых отклонений нет —
+	// с высоты они давали пёструю рябь.
 	float wide_sum = wide_a.x + wide_a.y + wide_a.z + wide_a.w + wide_b.a;
 	float moisture = (wide_a.x * 0.05 + wide_a.y * 0.36 + wide_a.z * 0.66 + wide_a.w * 0.32 + wide_b.a * 0.95
 			+ max(1.0 - wide_sum, 0.0) * 0.3) / max(wide_sum, 1.0);
 	moisture += 0.4 * wide_b.r + 0.25 * lake + 0.28 * channel + 0.12 * hollow - 0.14 * crest
 			- 0.12 * smoothstep(30.0, 110.0, h) - 0.2 * smoothstep(0.1, 0.4, steep)
-			+ 0.36 * (macro.r - 0.5) + 0.18 * (meso.a - 0.5) + 0.08 * (fine.g - 0.5);
+			+ 0.34 * (macro.r - 0.5) + 0.14 * (meso.g - 0.5) + 0.08 * (fine.g - 0.5) * local;
 	moisture = clamp(moisture, 0.0, 1.0);
 
 	// ── Картинка: какие материалы лежат на такой земле ─────────────────────────
@@ -372,11 +416,11 @@ void fragment() {
 	// Пятнами в сотни метров — каменистая пустыня; по сухим руслам — щебень; в замкнутых низинах — глина.
 	// Переходы — не контуром, а крапом: песок языками и пятнами заходит на плотный грунт, трава растёт отдельными
 	// куртинами — чем влажнее, тем их больше, и только у самой зелени они смыкаются.
-	float md = moisture + 0.2 * (fine.r - 0.5) + 0.14 * (micro.g - 0.5);
+	float md = moisture + (0.2 * (fine.r - 0.5) + 0.14 * (micro.g - 0.5)) * local;
 	float sandy = 1.0 - smoothstep(0.14, 0.4, md);
-	float reg = clamp(smoothstep(0.52, 0.84, macro.g + 0.25 * (meso.g - 0.5) + 0.2 * (fine.a - 0.5)) * 0.8 + channel * 0.8, 0.0, 1.0) * flat_ground;
+	float reg = clamp(smoothstep(0.52, 0.84, macro.g + 0.25 * (meso.g - 0.5) + 0.2 * (fine.a - 0.5) * local) * 0.8 + channel * 0.8, 0.0, 1.0) * flat_ground;
 	float takyr = smoothstep(0.9, 1.9, cavity) * smoothstep(0.3, 0.55, meso.b) * flat_ground;
-	float tufts = speckle(smoothstep(0.28, 0.62, moisture + 0.1 * (fine.g - 0.5)), 0.55 * micro.a + 0.45 * fine.a, far);
+	float tufts = speckle(smoothstep(0.28, 0.62, moisture + 0.1 * (fine.g - 0.5)), 0.55 * micro.a + 0.45 * fine.a, max(far, 1.0 - detail_share));
 	float firm = sandy * reg + (1.0 - sandy);
 	w[L_SAND_DUNE] += desert * sandy * (1.0 - reg) * (1.0 - tufts);
 	w[L_DESERT_STONE] += desert * firm * (1.0 - takyr) * (1.0 - tufts);
@@ -385,11 +429,11 @@ void fragment() {
 
 	// Холмы. В сухих местах (гребни, сухие края) — открытый грунт и редкая трава; обычно — сухая трава с валунами;
 	// во влажных ложбинах и по руслам — луговая. На гребнях и склонах выходит плитняк; мелкими пятнами — почва.
-	float mh = moisture + 0.12 * (fine.b - 0.5) + 0.06 * (micro.r - 0.5);
+	float mh = moisture + (0.12 * (fine.b - 0.5) + 0.06 * (micro.r - 0.5)) * local;
 	float open_ground = 1.0 - smoothstep(0.08, 0.26, mh);
 	float green = smoothstep(0.44, 0.68, mh);
-	float outcrop = clamp(crest * 0.8 + smoothstep(0.09, 0.24, steep), 0.0, 1.0) * (0.45 + 0.55 * fine.r);
-	float soil_spot = smoothstep(0.7, 0.95, meso.g + 0.34 * (fine.r - 0.5) + 0.2 * (micro.g - 0.5)) * 0.52;
+	float outcrop = clamp(crest * 0.8 + smoothstep(0.09, 0.24, steep), 0.0, 1.0) * (0.45 + 0.55 * mix(0.5, fine.r, local));
+	float soil_spot = smoothstep(0.7, 0.95, meso.g + 0.34 * (fine.r - 0.5) + 0.2 * (micro.g - 0.5)) * 0.52 * local;
 	float bare = clamp(open_ground * 0.5 + soil_spot, 0.0, 0.62) * (1.0 - outcrop) * (1.0 - 0.6 * smoothstep(0.08, 0.2, steep));
 	float turf = max(1.0 - outcrop - bare, 0.0);
 	w[L_HILL_STONE] += hills * outcrop;
@@ -399,7 +443,7 @@ void fragment() {
 	w[L_DRY_GRASS] += hills * turf * (1.0 - green);
 
 	// Луга. Обычно — густая трава; в сухих местах выгорает; во влажных низинах сочная и тёмная.
-	float mm = moisture + 0.12 * (fine.a - 0.5) + 0.06 * (micro.b - 0.5);
+	float mm = moisture + (0.12 * (fine.a - 0.5) + 0.06 * (micro.b - 0.5)) * local;
 	float parched = 1.0 - smoothstep(0.34, 0.56, mm);
 	float lush = smoothstep(0.62, 0.82, mm) * (1.0 - parched);
 	float soaked = smoothstep(0.86, 1.0, mm) * hollow;
@@ -410,9 +454,9 @@ void fragment() {
 
 	// Горы (там, где не скала: она добавляется ниже для всех местностей). На пологом — трава с камнем; круче —
 	// вперемешку с осыпью; сухие высокие склоны — щебень и плитняк.
-	float mt = moisture + 0.12 * (fine.g - 0.5);
-	float scree = smoothstep(0.1, 0.2, steep + (fine.g - 0.5) * 0.06) * smoothstep(0.35, 0.65, fine.b + 0.5 * (micro.b - 0.5)) * 0.55;
-	float barren = (1.0 - smoothstep(0.16, 0.3, mt)) * (1.0 - scree);
+	float mt = moisture + 0.12 * (fine.g - 0.5) * local;
+	float scree = smoothstep(0.12, 0.24, steep + (fine.g - 0.5) * 0.06) * smoothstep(0.35, 0.65, fine.b + 0.5 * (micro.b - 0.5)) * 0.5;
+	float barren = (1.0 - smoothstep(0.14, 0.28, mt)) * (1.0 - scree);
 	w[L_MOUNTAIN_SLOPE] += mountains * (1.0 - scree - barren);
 	w[L_SCREE] += mountains * (scree + 0.5 * barren);
 	w[L_HILL_STONE] += mountains * 0.5 * barren;
@@ -445,27 +489,24 @@ void fragment() {
 	w[L_DESERT_STONE] += waterline * silt;
 
 	// Морской берег. Пляж — где берег низкий и не обрыв: светлый песок у воды, дальше местность.
-	float beach = (1.0 - smoothstep(12.0, 30.0, shore + (fine.b - 0.5) * 16.0 + (meso.a - 0.5) * 10.0))
+	float beach = (1.0 - smoothstep(12.0, 30.0, shore + (fine.b - 0.5) * 16.0 + (meso.b - 0.5) * 10.0))
 			* smoothstep(5.0, 2.6, h) * (1.0 - smoothstep(0.25, 0.6, stone)) * step(0.0, h) * (1.0 - waterline);
-	for (int i = 0; i < LAYER_COUNT; i++) {
-		w[i] *= 1.0 - beach;
-	}
-	w[L_BEACH_SAND] += beach;
-
 	// Дно моря: песок, у скалистых берегов — камень пятнами.
 	float under = smoothstep(0.05, -0.35, h);
 	float reef = clamp(smoothstep(0.3, 0.7, stone) * smoothstep(0.42, 0.62, fine.a + (meso.b - 0.5) * 0.3), 0.0, 1.0);
 	for (int i = 0; i < LAYER_COUNT; i++) {
-		w[i] *= 1.0 - under;
+		w[i] *= (1.0 - beach) * (1.0 - under);
 	}
-	w[L_BEACH_SAND] += under * (1.0 - reef);
+	w[L_BEACH_SAND] += beach * (1.0 - under) + under * (1.0 - reef);
 	w[L_PEBBLES] += under * reef * 0.35;
 
-	// Скала: круче ~40° — камень у любой местности; у обрыва берега, в горах и на малых островах порог ниже.
+	// Скала: круче ~40° — камень у любой местности; у обрыва берега и на малых островах порог ниже. В горах порог
+	// почти тот же, что везде (замечание владельца к 0.5.0: скалы слишком массивные и подавляют остальное):
+	// на склонах гор больше травы и осыпи, скала — только на крутом.
 	// На малом острове «камень» каталога — скала и на пологом.
 	float cliff_zone = islet ? smoothstep(0.3, 0.7, stone) : stone * (1.0 - smoothstep(60.0, 64.0, shore));
-	float rock_edge = mix(0.3, 0.17, clamp(max(cliff_zone, mountains), 0.0, 1.0));
-	float rocky = smoothstep(rock_edge, rock_edge + 0.16, steep + (fine.g - 0.5) * 0.08 + (micro.r - 0.5) * 0.04);
+	float rock_edge = mix(0.3, 0.19, clamp(max(cliff_zone, 0.3 * mountains), 0.0, 1.0));
+	float rocky = smoothstep(rock_edge, rock_edge + 0.16, steep + ((fine.g - 0.5) * 0.08 + (micro.r - 0.5) * 0.04) * local);
 	if (islet) {
 		rocky = max(rocky, smoothstep(0.45, 0.8, stone + (fine.r - 0.5) * 0.25) * step(0.0, h));
 	}
@@ -475,7 +516,7 @@ void fragment() {
 	// По руслам стока на склонах — промоины: грунт и щебень вместо травы.
 	float near_rock = (1.0 - rocky) * smoothstep(rock_edge - 0.13, rock_edge, steep);
 	float at_foot = smoothstep(-0.5, 0.5, cavity);
-	float talus = near_rock * at_foot * 0.75 * smoothstep(0.25, 0.55, fine.b + 0.5 * (micro.b - 0.5));
+	float talus = near_rock * at_foot * 0.6 * smoothstep(0.25, 0.55, fine.b + 0.5 * (micro.b - 0.5));
 	float rim = near_rock * (1.0 - at_foot) * 0.75 * step(0.0, h);
 	float gully = channel * smoothstep(0.06, 0.2, steep) * (1.0 - rocky) * (1.0 - under) * 0.7;
 	float worn = clamp(talus + rim + gully, 0.0, 0.92);
@@ -500,15 +541,54 @@ void fragment() {
 		rock_layer = L_LICHEN_ROCK;
 		rock_tint = vec3(0.46, 0.4, 0.38);
 	} else if (!islet) {
-		float bed = textureLod(noise_map, vec2((h + bend) / 140.0 + 0.2, (pn.x + pn.y) / 3100.0), 1.0).b;
-		strata = smoothstep(0.54, 0.64, 0.55 * macro.a + 0.45 * bed + 0.06 * (fine.r - 0.5));
+		// Камень главных островов — спокойный серо-бурый, а не светлый и яркий: горы не должны спорить
+		// с остальной землёй и с будущими городами. В горах он темнее, чем на береговых обрывах.
+		rock_tint = mix(vec3(0.84, 0.86, 0.9), vec3(0.66, 0.71, 0.78), mountains);
+		if (rocky > 0.001) {
+			float bed = textureLod(noise_map, vec2((h + bend) / 140.0 + 0.2, (pn.x + pn.y) / 3100.0), 1.0).b;
+			strata = smoothstep(0.56, 0.68, 0.55 * macro.g + 0.45 * bed + 0.06 * (fine.r - 0.5)) * (1.0 - 0.5 * mountains);
+		}
 	}
 	// Потёки воды на скале: по руслам стока камень темнее.
 	rock_tint *= 1.0 - 0.2 * channel;
 	w[rock_layer] += rocky * (1.0 - strata);
 	w[L_ROCK_STRATA] += rocky * strata;
 
-	// Три главных материала точки.
+	// ── Оттенки — тоже от географии ────────────────────────────────────────────
+	// Трава: чем суше, тем желтее, чем влажнее, тем гуще зелень; кочками темнее и светлее; пятнами — в жёлтом цвету
+	// (там, где не сухо). Песок: большими территориями краснее или светлее.
+	vec3 sand_tint = mix(vec3(1.0), vec3(1.07, 0.9, 0.76), smoothstep(0.35, 0.8, macro.b));
+	sand_tint *= 1.0 + 0.1 * (meso.r - 0.5);
+	float dryness = 1.0 - smoothstep(0.22, 0.8, moisture + 0.12 * (fine.r - 0.5) * local);
+	vec3 grass_tint = mix(vec3(0.8, 0.98, 0.78), vec3(1.18, 1.04, 0.72), dryness);
+	grass_tint *= 1.0 + (0.24 * (fine.r - 0.5) + 0.12 * (micro.b - 0.5)) * local;
+	float bloom = smoothstep(0.74, 0.9, meso.b + 0.3 * (fine.b - 0.5) + 0.2 * (micro.a - 0.5)) * 0.55 * (1.0 - dryness) * local;
+	vec3 meadow_tint = mix(grass_tint, grass_tint * vec3(1.42, 1.22, 0.62), bloom);
+	// Каменистая пустыня — той же земли, что и песок вокруг: светлее и желтее, чем грунт холмов.
+	vec3 stone_tint = mix(vec3(1.0), vec3(1.2, 1.27, 1.2) * sand_tint, clamp(desert * 1.5, 0.0, 1.0));
+	// Красный песчаник пластов на главных островах — приглушённый, охристый: рядом с известняком он не «горит».
+	vec3 strata_tint = vec3(0.82, 1.02, 1.2) * (1.0 - 0.2 * channel);
+	vec3 tint[LAYER_COUNT];
+	for (int i = 0; i < LAYER_COUNT; i++) {
+		tint[i] = vec3(1.0);
+	}
+	tint[L_SAND_DUNE] = sand_tint;
+	tint[L_DESERT_STONE] = stone_tint;
+	tint[L_DRY_GRASS] = grass_tint;
+	tint[L_MOUNTAIN_SLOPE] = grass_tint;
+	tint[L_OASIS_GREEN] = grass_tint;
+	tint[L_MEADOW] = meadow_tint;
+	tint[L_GRASS_LUSH] = meadow_tint;
+	tint[L_ROCK_STRATA] = strata_tint;
+	tint[rock_layer] = rock_tint;
+	// Осыпь — обломки той же породы и той же земли: в пустыне она песочная, у известняка тёплая, а не серая заплатка.
+	// На берегу без местности (полоса за сторонами гексов) осыпь берёт тон от земли вокруг — по сглаженным долям.
+	float sandy_land = clamp((wide_a.x + 0.5 * max(1.0 - wide_sum, 0.0)) * 1.6, 0.0, 1.0);
+	tint[L_SCREE] = mix(vec3(1.16, 1.0, 0.8), vec3(1.4, 1.1, 0.74) * sand_tint, max(clamp(desert * 1.5, 0.0, 1.0), sandy_land)) * mix(vec3(1.0), rock_tint, 0.5);
+
+	// Цвет природной зоны: средние цвета материалов по их долям. Заодно — три главных материала точки.
+	vec3 zone = vec3(0.0);
+	float weight_sum = 0.0;
 	int i0 = 0;
 	int i1 = 0;
 	int i2 = 0;
@@ -517,6 +597,8 @@ void fragment() {
 	float w2 = -1.0;
 	for (int i = 0; i < LAYER_COUNT; i++) {
 		float v = w[i];
+		zone += LAYER_COLOR[i] * tint[i] * v;
+		weight_sum += v;
 		if (v > w0) {
 			w2 = w1;
 			i2 = i1;
@@ -534,81 +616,114 @@ void fragment() {
 			i2 = i;
 		}
 	}
-	w0 = max(w0, 1.0e-4);
-	w1 = max(w1, 0.0);
-	w2 = max(w2, 0.0);
-	float total = w0 + w1 + w2;
-	w0 /= total;
-	w1 /= total;
-	w2 /= total;
+	zone /= max(weight_sum, 1.0e-4);
 
+	vec3 albedo = zone;
+	vec4 detail = vec4(0.0, 0.0, 0.0, 0.82);
+	float texture_height = 0.5;
 	float side = smoothstep(0.13, 0.36, steep);
-	// Вблизи (точка экрана меньше 20 см земли) съёмкам с воздуха добавляется мелкая фактура травы.
-	float near = 1.0 - smoothstep(0.06, 0.2, footprint);
-	// В переходной полосе материалы идут крапом — у каждого свой мелкий шум: граница не контур, а россыпь пятен
-	// в метр-другой. Издалека крап сливается в плавный переход (шум усредняется сам).
-	float patch0 = patch_mask(i0, p, dpx.xz, dpy.xz);
-	vec4 c0;
-	vec4 d0;
-	fetch_layer(i0, rock_position, n, is_rock(i0) ? side : 0.0, patch0, near, rock_dpx, rock_dpy, c0, d0);
-	vec4 c1 = vec4(0.0);
-	vec4 d1 = vec4(0.0);
-	vec4 c2 = vec4(0.0);
-	vec4 d2 = vec4(0.0);
-	float e0 = w0 + 0.45 * blend_height(i0, c0.a) + 0.34 * layer_jitter(i0, pn, dpx.xz, dpy.xz);
-	float e1 = -8.0;
-	float e2 = -8.0;
-	if (w1 > 0.015) {
-		float patch1 = patch_mask(i1, p, dpx.xz, dpy.xz);
-		fetch_layer(i1, rock_position, n, is_rock(i1) ? side : 0.0, patch1, near, rock_dpx, rock_dpy, c1, d1);
-		e1 = w1 + 0.45 * blend_height(i1, c1.a) + 0.34 * layer_jitter(i1, pn, dpx.xz, dpy.xz);
+	// Положение и шаг точки экрана для скалы: с наклоном и изгибом пластов.
+	vec3 rock_position = world_position + vec3(0.0, bend, 0.0);
+	vec3 rock_dpx = dpx + vec3(0.0, dot(dpx.xz, DIP), 0.0);
+	vec3 rock_dpy = dpy + vec3(0.0, dot(dpy.xz, DIP), 0.0);
+	float reach = length(dpx) + length(dpy);
+	// Доля главного материала в точке — для рисунка вдали.
+	float lead_share = w0 / max(weight_sum, 1.0e-4);
+	// Рисунок главного материала поверх цвета зоны: (цвет снимка) / (его средний цвет).
+	vec3 pattern = vec3(1.0);
+	bool pattern_read = false;
+	if (detail_share > 0.001) {
+		// Вблизи: три главных материала. В переходной полосе они идут крапом — у каждого свой мелкий шум: граница
+		// не контур, а россыпь пятен в метр-другой. Доли возведены в квадрат: главный материал точки ведёт
+		// увереннее, а те, которых в точке немного, не читаются вовсе (и пятна материалов цельнее, и выборок меньше).
+		w0 = max(w0, 1.0e-4);
+		w1 = max(w1, 0.0);
+		w2 = max(w2, 0.0);
+		w0 *= w0;
+		w1 *= w1;
+		w2 *= w2;
+		float total = w0 + w1 + w2;
+		w0 /= total;
+		w1 /= total;
+		w2 /= total;
+		// Совсем вблизи (точка экрана меньше 20 см земли) съёмкам с воздуха добавляется мелкая фактура травы.
+		float near = 1.0 - smoothstep(0.06, 0.2, footprint);
+		if (debug_view == 11) {
+			near = 0.0;
+		}
+		if (debug_view == 12) {
+			w0 = 1.0;
+			w1 = 0.0;
+			w2 = 0.0;
+		}
+		bool normals = bump_share > 0.01;
+		vec4 d0;
+		vec4 d1 = vec4(0.0, 0.0, 0.0, 0.82);
+		vec4 d2 = vec4(0.0, 0.0, 0.0, 0.82);
+		vec4 c0 = layer_color(i0, rock_position, n, is_rock(i0) ? side : 0.0, patch_share(i0, meso, fine), near, rock_dpx, rock_dpy, reach, normals, d0);
+		pattern = c0.rgb / LAYER_COLOR[i0];
+		pattern_read = true;
+		vec4 c1 = vec4(0.0);
+		vec4 c2 = vec4(0.0);
+		float e0 = w0 + 0.45 * blend_height(i0, c0.a) + 0.34 * layer_jitter(i0, micro, fine);
+		float e1 = -8.0;
+		float e2 = -8.0;
+		// Второй и третий материалы читаются, только если их в точке заметная доля — и тем большая, чем дальше
+		// камера (там их всё равно заменяет цвет зоны); нормаль — только у первого и, если его много, у второго.
+		if (w1 > mix(0.5, 0.08, detail_share)) {
+			c1 = layer_color(i1, rock_position, n, is_rock(i1) ? side : 0.0, patch_share(i1, meso, fine), near, rock_dpx, rock_dpy, reach, normals && w1 > 0.3, d1);
+			e1 = w1 + 0.45 * blend_height(i1, c1.a) + 0.34 * layer_jitter(i1, micro, fine);
+		}
+		if (w2 > mix(0.6, 0.16, detail_share)) {
+			c2 = layer_color(i2, rock_position, n, is_rock(i2) ? side : 0.0, patch_share(i2, meso, fine), near, rock_dpx, rock_dpy, reach, false, d2);
+			e2 = w2 + 0.45 * blend_height(i2, c2.a) + 0.34 * layer_jitter(i2, micro, fine);
+		}
+		c0.rgb *= tint[i0];
+		c1.rgb *= tint[i1];
+		c2.rgb *= tint[i2];
+		// Смешение по высоте фактуры: выше тот материал, чья доля и высота больше; граница идёт по камням и кочкам.
+		// Издалека фактура не видна — там переход шире и плавнее: вблизи россыпь пятен, вдали мягкая полоса.
+		float ceiling = max(e0, max(e1, e2)) - mix(0.16, 0.42, far);
+		float b0 = max(e0 - ceiling, 0.0);
+		float b1 = max(e1 - ceiling, 0.0);
+		float b2 = max(e2 - ceiling, 0.0);
+		float b_sum = b0 + b1 + b2;
+		vec4 color = (c0 * b0 + c1 * b1 + c2 * b2) / b_sum;
+		vec4 bumps = (d0 * b0 + d1 * b1 + d2 * b2) / b_sum;
+		albedo = color.rgb;
+		texture_height = mix(0.5, color.a, detail_share);
+		detail = vec4(bumps.xyz * bump_share, mix(0.82, bumps.w, bump_share));
 	}
-	if (w2 > 0.015) {
-		float patch2 = patch_mask(i2, p, dpx.xz, dpy.xz);
-		fetch_layer(i2, rock_position, n, is_rock(i2) ? side : 0.0, patch2, near, rock_dpx, rock_dpy, c2, d2);
-		e2 = w2 + 0.45 * blend_height(i2, c2.a) + 0.34 * layer_jitter(i2, pn, dpx.xz, dpy.xz);
+	if (debug_view == 10) {
+		albedo = zone;
+		detail_share = 1.0;
 	}
-	// Оттенки — тоже от географии. Трава: чем суше, тем желтее, чем влажнее, тем гуще зелень; кочками темнее
-	// и светлее; пятнами — в жёлтом цвету (там, где не сухо). Песок: большими территориями краснее или светлее.
-	vec3 sand_tint = mix(vec3(1.0), vec3(1.07, 0.9, 0.76), smoothstep(0.35, 0.8, macro.b));
-	sand_tint *= 1.0 + 0.1 * (meso.r - 0.5);
-	float dryness = 1.0 - smoothstep(0.22, 0.8, moisture + 0.12 * (fine.r - 0.5));
-	vec3 grass_tint = mix(vec3(0.8, 0.98, 0.78), vec3(1.18, 1.04, 0.72), dryness);
-	grass_tint *= 1.0 + 0.24 * (fine.r - 0.5) + 0.12 * (micro.b - 0.5);
-	float bloom = smoothstep(0.74, 0.9, meso.b + 0.3 * (fine.b - 0.5) + 0.2 * (micro.a - 0.5)) * 0.55 * (1.0 - dryness);
-	vec3 meadow_tint = mix(grass_tint, grass_tint * vec3(1.42, 1.22, 0.62), bloom);
-	// Каменистая пустыня — той же земли, что и песок вокруг: светлее и желтее, чем грунт холмов.
-	vec3 stone_tint = mix(vec3(1.0), vec3(1.2, 1.27, 1.2) * sand_tint, clamp(desert * 1.5, 0.0, 1.0));
-	// Красный песчаник пластов на главных островах — охристый, а не оранжевый: рядом с известняком он не «горит».
-	vec3 strata_tint = vec3(1.0, 1.17, 1.3) * (1.0 - 0.2 * channel);
-	c0.rgb *= layer_tint(i0, rock_layer, rock_tint, sand_tint, grass_tint, meadow_tint, stone_tint, strata_tint);
-	c1.rgb *= layer_tint(i1, rock_layer, rock_tint, sand_tint, grass_tint, meadow_tint, stone_tint, strata_tint);
-	c2.rgb *= layer_tint(i2, rock_layer, rock_tint, sand_tint, grass_tint, meadow_tint, stone_tint, strata_tint);
+	if (detail_share < 0.999) {
+		// Вдали: цвет зоны и поверх него — рисунок главного материала (одна выборка, а в переходной полосе она
+		// уже сделана выше; у скалы и у материалов, чья плитка уже неразличима, — ни одной).
+		if (!pattern_read && !is_rock(i0) && flat_share_of(LAYER_TILE[i0], reach) < 0.99) {
+			float tile = LAYER_TILE[i0];
+			pattern = textureGrad(layer_albedo, vec3(p / tile, float(i0)), dpx.xz / tile, dpy.xz / tile).rgb / LAYER_COLOR[i0];
+			pattern = mix(pattern, vec3(1.0), flat_share_of(tile, reach));
+		}
+		vec3 zone_color = zone * mix(vec3(1.0), pattern, 0.7 * lead_share);
+		albedo = mix(zone_color, albedo, detail_share);
+	}
 
-	// Смешение по высоте фактуры: выше тот материал, чья доля и высота больше; граница идёт по камням и кочкам.
-	// Издалека фактура не видна — там переход шире и плавнее: вблизи россыпь пятен, вдали мягкая полоса.
-	float ceiling = max(e0, max(e1, e2)) - mix(0.16, 0.42, far);
-	float b0 = max(e0 - ceiling, 0.0);
-	float b1 = max(e1 - ceiling, 0.0);
-	float b2 = max(e2 - ceiling, 0.0);
-	float b_sum = b0 + b1 + b2;
-	vec4 color = (c0 * b0 + c1 * b1 + c2 * b2) / b_sum;
-	vec4 detail = (d0 * b0 + d1 * b1 + d2 * b2) / b_sum;
-
-	vec3 albedo = color.rgb;
 	float roughness = detail.w;
-	// Крупные пятна: светлее и темнее, теплее и холоднее — на сотни метров и на десятки.
-	albedo *= 1.0 + 0.22 * (macro.a - 0.5) + 0.14 * (meso.a - 0.5);
-	albedo *= mix(vec3(1.05, 1.0, 0.93), vec3(0.96, 1.0, 1.04), macro.g);
+	// Крупные пятна: светлее и темнее, теплее и холоднее — на сотни метров и на десятки. Плавные: зернистые пятна
+	// с высоты складывались в пёстрый рисунок.
+	albedo *= 1.0 + 0.14 * (macro.g - 0.5) + 0.08 * (meso.r - 0.5);
+	albedo *= mix(vec3(1.04, 1.0, 0.95), vec3(0.97, 1.0, 1.03), macro.r);
 	// Форма рельефа: в ложбинах темнее, на гребнях светлее — объём читается и без теней. Во влажных низинах
 	// земля темнее.
 	albedo *= 1.0 - 0.3 * smoothstep(0.3, 4.0, cavity) + 0.08 * smoothstep(0.4, 3.0, -cavity);
 	albedo *= 1.0 - 0.16 * smoothstep(0.7, 1.0, moisture) * hollow * step(0.0, h);
-	// Снег на вершинах: выше снеговой линии; на северных склонах линия ниже, на южных выше; на крутом снег
-	// не держится — там проступает скала; кромка снега идёт по неровностям камня, а не ровной чертой.
+	// Снег на самых высоких вершинах: выше снеговой линии; на северных склонах линия ниже, на южных выше; на крутом
+	// снег не держится — там проступает скала; кромка снега идёт по неровностям камня, а не ровной чертой.
 	float line = snow_line + 22.0 * n.z + 16.0 * (meso.g - 0.5) + 8.0 * (fine.a - 0.5);
 	float snow = smoothstep(line - 4.0, line + 16.0, h) * (1.0 - 0.8 * smoothstep(0.36, 0.62, steep));
-	float snow_cover = smoothstep(0.38, 0.6, snow + 0.3 * (color.a - 0.5) + 0.16 * (micro.g - 0.5));
+	float snow_cover = smoothstep(0.38, 0.6, snow + 0.3 * (texture_height - 0.5) + 0.16 * (micro.g - 0.5));
 	albedo = mix(albedo, vec3(0.9, 0.93, 0.98), snow_cover);
 	detail.xyz *= 1.0 - 0.75 * snow_cover;
 	roughness = mix(roughness, 0.6, snow_cover);
@@ -629,12 +744,21 @@ void fragment() {
 		albedo = mix(vec3(0.2, 0.6, 0.2), vec3(0.9, 0.2, 0.1), smoothstep(0.0, 0.5, steep));
 	} else if (debug_view == 4) {
 		albedo = vec3(0.5) + vec3(0.5, 0.1, -0.4) * clamp(-cavity / 3.0, -1.0, 1.0);
+	} else if (debug_view == 7) {
+		// Главный материал точки: красное — его номер (0…15), зелёное — его доля, синее — высота фактуры.
+		albedo = vec3(float(i0) / 15.0, lead_share, texture_height);
+	} else if (debug_view == 6) {
+		// Скала: красное — доля скалы, зелёное — боковая проекция, синее — крутизна склона.
+		albedo = vec3(rocky, side, steep);
+	} else if (debug_view == 5) {
+		// Режим отрисовки: зелёное — вдали (цвет зоны), красное — вблизи (материалы целиком).
+		albedo = mix(vec3(0.15, 0.6, 0.2), vec3(0.85, 0.2, 0.15), detail_share) * (0.6 + 0.4 * dot(albedo, vec3(0.33)));
 	}
 
 	if (grid_strength > 0.0) {
 		float pixel = 0.7071 * length(vec2(length(dpx.xz), length(dpy.xz)));
 		float half_width = max(0.8, 0.85 * pixel);
-		float grid_line = 1.0 - smoothstep(half_width - 0.6 * pixel, half_width + 0.6 * pixel, land_edge_distance(p));
+		float grid_line = 1.0 - smoothstep(half_width - 0.6 * pixel, half_width + 0.6 * pixel, land_edge_distance(p, half_width + 0.6 * pixel));
 		albedo *= 1.0 - 0.5 * grid_strength * grid_line;
 	}
 
@@ -643,6 +767,6 @@ void fragment() {
 	ALBEDO = albedo;
 	ROUGHNESS = clamp(roughness, 0.08, 1.0);
 	SPECULAR = mix(0.2, 0.5, wet);
-	AO = mix(0.6, 1.0, color.a) * (1.0 - 0.25 * smoothstep(0.5, 5.0, cavity));
+	AO = mix(0.6, 1.0, texture_height) * (1.0 - 0.25 * smoothstep(0.5, 5.0, cavity));
 	AO_LIGHT_AFFECT = 0.35;
 }
