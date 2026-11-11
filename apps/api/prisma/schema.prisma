@@ -1140,6 +1140,11 @@ model TeamMark {
   qf          Float
   rf          Float
   note        String   @default("")
+  /**
+   * «Убрать, когда здесь откроются облака» (решение владельца 11.11): метка, поставленная в туман, удаляется сама,
+   * как только её гекс открыт — у него открыт хотя бы один угол.
+   */
+  dropOnReveal Boolean @default(false)
   createdById String
   createdAt   DateTime @default(now())
 

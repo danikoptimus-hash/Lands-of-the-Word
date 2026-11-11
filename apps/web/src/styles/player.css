@@ -695,6 +695,9 @@
 /* Крестик «Отменить сделку» — у правого края строки действий (замечание владельца 09.11: «кнопку сделать справа»). */
 .trade-card .actions { align-items: center; }
 .trade-card .actions .trade-cancel { margin-left: auto; }
+/* Флажок «убрать, когда откроются облака» в листе метки: длинная подпись переносится, галка остаётся у первой строки. */
+label.check.mark-drop { align-items: flex-start; margin-top: var(--sp-2); line-height: 1.35; }
+label.check.mark-drop input { margin-top: 2px; }
 .trade-wall-check { margin-top: var(--sp-2); }
 .trade-wall-check .with-help { flex-wrap: nowrap; margin-top: 0; }
 .trade-wall-check .with-help > label.check { flex: 1 1 auto; min-width: 0; }

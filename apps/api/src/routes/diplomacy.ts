@@ -96,6 +96,11 @@ const passagesView = defineView("passages", { scope: "team", events: ["map", "ci
   return { outgoing: rows.filter((r) => r.requesterId === teamId).map((r) => view(r, books)), incoming: rows.filter((r) => r.ownerId === teamId).map((r) => view(r, books)) };
 } });
 
+/** Открыт ли гекс у команды: открыт хотя бы один его угол (так же считается туман на карте команды). */
+async function hexOpened(teamId: string, q: number, r: number): Promise<boolean> {
+  return (await prisma.teamNodeState.count({ where: { teamId, nodeKey: { in: hexCorners({ q, r }).map(vertexKey) } } })) > 0;
+}
+
 export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
 
@@ -169,21 +174,24 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
    * Метка команды на карте (решение владельца 22.09): любой участник ставит, видят все в команде; убрать может только автор (решение владельца 29.09).
    * Не больше 30. Решение владельца 29.09: метка стоит точно в месте нажатия (qf, rf — дробные координаты внутри гекса q, r),
    * на одном гексе может быть несколько меток; у метки виден автор.
+   * Флажок «убрать, когда здесь откроются облака» (решение владельца 11.11): метка в тумане удаляется сама, когда её гекс
+   * открывается (services/teamMap.ts, dropOpenedMarks). На уже открытом гексе флажок не имеет смысла и не сохраняется.
    */
   app.post("/api/games/:id/my-map/marks", async (request, reply) => {
     const { id } = request.params as { id: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
-    const body = z.object({ q: z.number().int().min(-200).max(200), r: z.number().int().min(-200).max(200), qf: z.number().finite().optional(), rf: z.number().finite().optional(), note: z.string().trim().max(40).optional() }).parse(request.body);
+    const body = z.object({ q: z.number().int().min(-200).max(200), r: z.number().int().min(-200).max(200), qf: z.number().finite().optional(), rf: z.number().finite().optional(), note: z.string().trim().max(40).optional(), dropOnReveal: z.boolean().optional() }).parse(request.body);
     const qf = body.qf ?? body.q, rf = body.rf ?? body.r;
     if (Math.abs(qf - body.q) > 1 || Math.abs(rf - body.r) > 1) return reply.code(400).send({ error: "bad_request", message: err(request, "Точка метки не на своём гексе") });
     const hex = await prisma.mapHex.findFirst({ where: { gameId: id, q: body.q, r: body.r }, select: { id: true } });
     if (!hex) return reply.code(404).send({ error: "not_found", message: err(request, "Такого гекса на карте нет") });
     const count = await prisma.teamMark.count({ where: { teamId: m.team.id } });
     if (count >= 30) return reply.code(409).send({ error: "conflict", message: err(request, "У команды уже 30 меток: уберите ненужные") });
+    const dropOnReveal = body.dropOnReveal === true && !(await hexOpened(m.team.id, body.q, body.r));
     const mark = await prisma.teamMark.create({
-      data: { gameId: id, teamId: m.team.id, q: body.q, r: body.r, qf, rf, note: body.note ?? "", createdById: request.user!.id },
-      select: { id: true, q: true, r: true, qf: true, rf: true, note: true },
+      data: { gameId: id, teamId: m.team.id, q: body.q, r: body.r, qf, rf, note: body.note ?? "", dropOnReveal, createdById: request.user!.id },
+      select: { id: true, q: true, r: true, qf: true, rf: true, note: true, dropOnReveal: true },
     });
     publish(id, { type: "map", teamId: m.team.id });
     return reply.code(201).send({ mark });
@@ -201,16 +209,17 @@ export async function diplomacyRoutes(app: FastifyInstance): Promise<void> {
     return { ok: true };
   });
 
-  /** Подпись метки меняет только её автор (решение владельца 16.10). */
+  /** Подпись метки и флажок «убрать, когда откроются облака» меняет только её автор (решения владельца 16.10 и 11.11). */
   app.patch("/api/games/:id/my-map/marks/:markId", async (request, reply) => {
     const { id, markId } = request.params as { id: string; markId: string };
     const m = await requireActiveMember(request, reply, id);
     if (!m) return;
-    const body = z.object({ note: z.string().trim().max(40) }).parse(request.body);
+    const body = z.object({ note: z.string().trim().max(40), dropOnReveal: z.boolean().optional() }).parse(request.body);
     const mark = await prisma.teamMark.findFirst({ where: { id: markId, teamId: m.team.id } });
     if (!mark) return reply.code(404).send({ error: "not_found", message: err(request, "Метка не найдена") });
     if (mark.createdById !== request.user!.id) return reply.code(403).send({ error: "forbidden", message: err(request, "Изменить метку может только тот, кто её поставил") });
-    const updated = await prisma.teamMark.update({ where: { id: mark.id }, data: { note: body.note }, select: { id: true, q: true, r: true, qf: true, rf: true, note: true } });
+    const dropOnReveal = body.dropOnReveal === undefined ? undefined : body.dropOnReveal && !(await hexOpened(m.team.id, mark.q, mark.r));
+    const updated = await prisma.teamMark.update({ where: { id: mark.id }, data: { note: body.note, dropOnReveal }, select: { id: true, q: true, r: true, qf: true, rf: true, note: true, dropOnReveal: true } });
     publish(id, { type: "map", teamId: m.team.id });
     return { mark: updated };
   });
