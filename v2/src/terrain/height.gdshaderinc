@@ -9,7 +9,8 @@
 //   • озёра свободной формы: вытянутая чаша со смещённым центром и одним-двумя плёсами в соседних гексах;
 //     соседние водные клетки сливаются в одно озеро с общим уровнем воды.
 //   • вокруг главных островов — малые (те же, что на сайте: очертания сняты с их картинок, у каждого свой характер)
-//     и дно: широкий светлый шельф с банками, свал и глубина с подводными грядами.
+//     и дно: отмель неровной ширины (с одной стороны острова глубина подходит к берегу, с другой тянется мель),
+//     глубина растёт постепенно, без полки и уступа; на отмели банки и протоки, на глубине гряды и впадины.
 // Сетка гексов остаётся логикой игры. Обязательное одно: города, порты и точки старта стоят на суше, на ровной площадке.
 // Числа подобраны в песочнице и принимаются владельцем на шаге 1.2 дорожной карты.
 
@@ -25,6 +26,8 @@ uniform int coast_count = 0;
 uniform vec2 islet_centre[12];
 uniform vec2 islet_size[12];
 uniform int islet_count = 0;
+// Прямоугольник мира (главные и малые острова): x0, z0, x1, z1. Дальше него подводный рельеф затухает к ровной глубине.
+uniform vec4 world_rect = vec4(-1.0e6, -1.0e6, 1.0e6, 1.0e6);
 // Очертания островов: поля расстояний до берега по картинкам сайта, семь полей одно под другим (tools/islet-shapes.py).
 uniform sampler2D islet_shapes : filter_linear, repeat_disable;
 uniform float shape_extent = 1.3; // поле покрывает квадрат от −extent до extent (в половинах стороны картинки)
@@ -577,16 +580,39 @@ float near_shore(float out_sea, float cliff, vec2 n) {
 	return 0.1 * edge + 0.5 * cliff * edge * (1.0 - smoothstep(60.0, 200.0, out_sea)) + 3.5 * smoothstep(0.0, 0.6 * shelf0, out_sea);
 }
 
-// Шельф, свал и глубина: d — расстояние от берега. Шельф светлый и широкий, с банками; за ним дно уходит
-// на глубину с подводными грядами и впадинами. Далеко от суши дно ровное.
-float shelf_slope(float d, vec2 n) {
-	float width = 560.0 + 220.0 * gnoise(n / 700.0 + vec2(5.0, 9.0));
-	float shelf = (9.0 + 3.0 * fbm(n / 260.0 + vec2(40.0, 2.0), 2)) * smoothstep(30.0, 420.0, d);
-	float shoal = 4.5 * pow(max(gnoise(n / 170.0 + vec2(8.0, 60.0)), 0.0), 1.5) * smoothstep(60.0, 220.0, d)
-			* (1.0 - smoothstep(width - 120.0, width + 60.0, d));
-	float relief = 26.0 * fbm(n / 1500.0 + vec2(3.0, 3.0), 3) - 20.0 * (ridged(n / 900.0 + vec2(17.0, 5.0), 3) - 0.45);
-	float deep = 70.0 + relief * (1.0 - smoothstep(1500.0, 2400.0, d));
-	return shelf - shoal + max(deep - 16.0, 10.0) * smoothstep(width, width + 420.0, d);
+// 1 внутри мира, 0 — дальше 2,2 км от его края (там дно ровное, как за картой глубин в шейдере воды).
+float far_fade(vec2 p) {
+	vec2 outside = max(max(world_rect.xy - p, p - world_rect.zw), vec2(0.0));
+	return 1.0 - smoothstep(600.0, 2200.0, length(outside));
+}
+
+// Сдвиг расстояния от берега, м: край отмели выдаётся лопастями и уходит заливами, отмель не повторяет берег.
+// Крупно: с одной стороны острова глубина подходит почти к самому берегу, с другой тянется широкая мель на сотни
+// метров. Мелко: край отмели не ровный. Сдвиг меняется медленнее самого расстояния (наклон везде меньше единицы),
+// поэтому глубина растёт от берега без ям посреди отмели.
+float shelf_warp(vec2 n) {
+	return 420.0 * gnoise(n / 1300.0 + vec2(12.0, 3.0)) + 30.0 * gnoise(n / 300.0 + vec2(5.0, 21.0));
+}
+
+// Дно по доле ширины отмели t (0 — берег, 1 — край отмели) и расстоянию от берега out_sea. Глубина растёт
+// постепенно: уступа и ровной полки нет, отмель переходит в глубину широким склоном. На отмели — песчаные банки
+// и протоки; на глубине — гряды и впадины, далеко за краем мира дно ровное.
+float seabed(float t, float out_sea, vec2 p, vec2 n) {
+	float edge = 9.0 + 12.0 * noise01(n / 1400.0 + vec2(4.0, 44.0));
+	// Даже там, где отмель тянется далеко, дно понемногу уходит вниз от берега: ровного «стола» нет.
+	float shelf = edge * pow(min(t, 1.0), 0.8) + 2.0 * smoothstep(0.0, 220.0, out_sea);
+	// Банки — вытянутые мели вдоль общего для карты направления (как намывает течение).
+	float angle = float(map_seed % 314) / 100.0;
+	float ca = cos(angle);
+	float sa = sin(angle);
+	vec2 along = vec2((n.x * ca + n.y * sa) / 420.0 + 9.0, (-n.x * sa + n.y * ca) / 160.0 + 2.0);
+	float bank = smoothstep(0.5, 0.9, noise01(along)) * (1.0 - smoothstep(0.8, 1.2, t));
+	shelf *= 1.0 - 0.35 * bank;
+	float groove = pow(1.0 - abs(gnoise(n / 900.0 + vec2(33.0, 8.0))), 3.0) * smoothstep(0.25, 0.6, t) * (1.0 - smoothstep(0.9, 1.3, t));
+	shelf += 5.0 * groove;
+	float slope = 1.0 + 0.8 * noise01(n / 1600.0 + vec2(17.0, 61.0));
+	float relief = (26.0 * fbm(n / 1500.0 + vec2(3.0, 3.0), 3) - 20.0 * (ridged(n / 900.0 + vec2(17.0, 5.0), 3) - 0.45)) * far_fade(p);
+	return shelf + max(70.0 + relief - edge, 4.0) * smoothstep(0.85, 1.0 + slope, t);
 }
 
 // ── Малые острова ───────────────────────────────────────────────────────────
@@ -611,17 +637,17 @@ float sd_box(vec2 q, vec2 half_size) {
 
 // Характер островка по его картинке на сайте. uv — место на картинке (от −1 до 1, y вниз — на юг), sd — расстояние
 // до очертания в метрах. s_land — расстояние до суши, h — высота земли без берега, cliff — крутизна берега,
-// wide — ширина пляжного склона, narrow — во сколько раз уже шельф, cap — предел глубины (лагуна),
+// wide — ширина пляжного склона, shelf_width — ширина отмели вокруг острова, м, cap — предел глубины (лагуна),
 // level — уровень воды пруда.
 void islet_kind(int picture, vec2 uv, float sd, float r, vec2 n,
-		out float s_land, out float h, out float cliff, out float wide, out float narrow, out float cap, out float level) {
+		out float s_land, out float h, out float cliff, out float wide, out float shelf_width, out float cap, out float level) {
 	float inland = -sd;
 	float rocky = 0.75 + 0.5 * ridged(n / 80.0 + vec2(2.0, 6.0), 4);
 	float roll = fbm(n / 75.0 + vec2(9.0, 1.0), 3);
 	s_land = sd;
 	cliff = 0.0;
 	wide = 45.0;
-	narrow = 2.2;
+	shelf_width = 150.0;
 	cap = BIG;
 	level = NO_WATER;
 	if (picture == 1) {
@@ -661,6 +687,7 @@ void islet_kind(int picture, vec2 uv, float sd, float r, vec2 n,
 		h += ridge * rocky;
 		cliff = 0.4 * smoothstep(0.35, 0.6, noise01(n / 150.0 + vec2(2.0, 0.0)));
 		wide = 35.0;
+		shelf_width = 80.0;
 	} else if (picture == 5) {
 		// Скалистый остров-столовая гора: уступы один над другим, наверху вершина; берег — обрывы.
 		float t = inland / (0.40 * r) + 0.12 * fbm(n / 60.0 + vec2(5.0, 7.0), 2);
@@ -671,6 +698,7 @@ void islet_kind(int picture, vec2 uv, float sd, float r, vec2 n,
 		h = mix(raw, stepped, 0.72) + bump(uv, vec2(0.43, -0.32), 0.22, 16.0) * rocky;
 		cliff = 0.15 + 0.85 * smoothstep(0.3, 0.6, noise01(n / 140.0 + vec2(12.0, 3.0)));
 		wide = 30.0;
+		shelf_width = 60.0;
 	} else if (picture == 3) {
 		// Полумесяц с лагуной: суша — узкая дуга, внутри мелкая лагуна, от моря её отделяет подводная гряда.
 		float lagoon = (0.68 - length(uv - vec2(0.03, -0.03))) * r + 5.0 * gnoise(n / 35.0 + vec2(6.0, 0.0));
@@ -681,12 +709,13 @@ void islet_kind(int picture, vec2 uv, float sd, float r, vec2 n,
 		float bar = lagoon > 0.0 ? 0.7 + 0.12 * abs(sd) + 40.0 * (1.0 - smoothstep(0.0, 25.0, lagoon)) : BIG;
 		cap = min(bed, bar);
 		wide = 18.0;
+		shelf_width = 200.0;
 	} else if (picture == 4) {
 		// Песчаная банка: низкая, пологая, с рощицей; вокруг широкая отмель.
 		h = 1.0 + 2.0 * smoothstep(0.0, 30.0, inland) + 0.5 * fbm(n / 30.0 + vec2(3.0, 3.0), 2)
 				+ bump(uv, vec2(-0.07, 0.0), 0.12, 1.4) + bump(uv, vec2(0.60, -0.25), 0.05, 3.5);
 		wide = 20.0;
-		narrow = 1.3;
+		shelf_width = 240.0;
 	} else {
 		// Каменоломня: каменистое плато, к северу оно поднимается холмом со скалами; в склон холма врезан
 		// карьер уступами, открытый к югу на плато; на юго-востоке у воды ровная площадка под причал.
@@ -706,11 +735,12 @@ void islet_kind(int picture, vec2 uv, float sd, float r, vec2 n,
 		h = mix(1.8, h, smoothstep(14.0, 40.0, pier));
 		cliff = 0.75 * (1.0 - smoothstep(-0.45, -0.05, uv.y)) * smoothstep(0.3, 0.55, noise01(n / 130.0 + vec2(4.0, 4.0)));
 		wide = 40.0;
+		shelf_width = 90.0;
 	}
 }
 
 // Малые острова в точке: s — расстояние до суши ближайшего (меньше нуля — суша), land — её высота,
-// cliff — крутизна берега, shelf — расстояние «для шельфа», cap — предел глубины, level — уровень воды пруда.
+// cliff — крутизна берега, shelf — место на отмели (доля её ширины), cap — предел глубины, level — уровень воды пруда.
 void islet_surface(vec2 p, vec2 n, out float s, out float land, out float cliff, out float shelf, out float cap, out float level) {
 	s = BIG;
 	land = 0.0;
@@ -737,10 +767,10 @@ void islet_surface(vec2 p, vec2 n, out float s, out float land, out float cliff,
 		float h;
 		float c;
 		float wide;
-		float narrow;
+		float shelf_width;
 		float cap_here;
 		float level_here;
-		islet_kind(picture, uv, sd, r, n, s_land, h, c, wide, narrow, cap_here, level_here);
+		islet_kind(picture, uv, sd, r, n, s_land, h, c, wide, shelf_width, cap_here, level_here);
 		h = max(h, 1.0);
 		float shore = -s_land;
 		float rugged = c * (8.0 * gnoise(n / 60.0 + vec2(0.0, 3.0)) + 3.0 * gnoise(n / 24.0 + vec2(7.0, 0.0))) * smoothstep(0.0, 12.0, shore);
@@ -752,7 +782,9 @@ void islet_surface(vec2 p, vec2 n, out float s, out float land, out float cliff,
 			land = beach + (h - beach) * ramp;
 			cliff = c;
 		}
-		shelf = min(shelf, max(s_land, 0.0) * narrow);
+		// Отмель в долях своей ширины; ширина меняется вдоль берега, край гуляет (сдвиг — в меру ширины).
+		shelf_width *= 0.6 + 0.8 * noise01(n / 260.0 + vec2(7.0 * float(i), 3.0 * float(i)));
+		shelf = min(shelf, max(max(s_land, 0.0) + shelf_warp(n) * (shelf_width / 400.0), 0.0) / shelf_width);
 		cap = min(cap, cap_here);
 		if (level_here > -900.0) {
 			level = level_here;
@@ -791,10 +823,16 @@ vec2 world_surface(vec2 p0) {
 	float s = min(s_field, s_islet);
 	float cliff = s_field <= s_islet ? cliff_field : cliff_islet;
 	float out_sea = max(s, 0.0);
-	// Расстояние «для шельфа»: у главных островов он широкий, у малых — уже; между близкими островами шельфы сливаются.
+	// Отмель в долях своей ширины: у главных островов широкая, у малых — по характеру острова. Между близкими
+	// островами отмели сливаются. Всё, от чего зависит ширина и глубина, меняется медленнее, чем расстояние
+	// от берега: глубина растёт от берега без ям посреди отмели (проверка — tools/sandbox/check.py).
 	float d_field = mix(max(s_field, 0.0), max(d_far - 60.0, 0.0), smoothstep(200.0, 330.0, d_far));
-	float d_shelf = smooth_min(d_field, shelf_islet, 160.0);
-	float depth = near_shore(out_sea, cliff, n0) + shelf_slope(d_shelf, n0) * smoothstep(0.0, 60.0, out_sea);
+	float width = 450.0 + 300.0 * noise01(n0 / 2000.0 + vec2(7.0, 2.0));
+	float t = smooth_min(max(d_field + shelf_warp(n0), 0.0) / width, shelf_islet, 0.35);
+	// Расстояние от берега для плавного уклона дна: непрерывное везде (в отличие от out_sea, которое вдали от главных
+	// островов не считается и скачет на границе расчёта, — там уклон уже набран не весь).
+	float far_shore = max(min(d_field, s_islet), 0.0);
+	float depth = near_shore(out_sea, cliff, n0) + seabed(t, far_shore, p0, n0) * smoothstep(0.0, 60.0, out_sea);
 	float h = s_field < 0.0 ? land_field : (s_islet < 0.0 ? land_islet : -min(depth, cap));
 
 	if (near_field) {

@@ -13,7 +13,7 @@ uniform vec3 bed_color : source_color = vec3(0.6, 0.56, 0.5); // глина по
 uniform bool open_sea = false;
 instance uniform float water_level = 0.0;
 
-const float FAR_BED = -70.0; // дно далеко от суши ровное (как в функции высот)
+const float FAR_BED = -74.7; // дно далеко от суши ровное: столько даёт функция высот за краем мира
 
 varying vec3 world_position;
 

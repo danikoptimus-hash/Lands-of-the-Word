@@ -23,12 +23,18 @@ cx = np.array([hex_center(h[0], h[1])[0] for h in world.w['hexes']]); cz = np.ar
 #    на прямой между крайними с точностью до миллиметров, у разрыва — нет.
 pick = rng.integers(0, len(cx), count)
 px = (cx[pick] + rng.uniform(-260.0, 260.0, count)).astype(np.float64); pz = (cz[pick] + rng.uniform(-260.0, 260.0, count)).astype(np.float64)
-# Треть точек — у малых островов и над дном вокруг них.
+# Треть точек — у малых островов и над дном вокруг них, на всё расстояние, где остров влияет на дно
+# (так ловится скачок глубины на краю этого расстояния — в 0.3.1 был такой круг вокруг песчаных банок).
+# Ещё шестая часть — по всему морю вокруг мира.
 if world.islets:
     third = count // 3
     which = rng.integers(0, len(world.islets), third)
     ix = np.array([i[0] for i in world.islets]); iz = np.array([i[1] for i in world.islets]); ir = np.array([i[2] for i in world.islets])
-    px[:third] = ix[which] + rng.uniform(-1.0, 1.0, third) * (1.3 * ir[which] + 500.0); pz[:third] = iz[which] + rng.uniform(-1.0, 1.0, third) * (1.3 * ir[which] + 500.0)
+    reach = 1.45 * ir[which] + 1300.0
+    px[:third] = ix[which] + rng.uniform(-1.0, 1.0, third) * reach; pz[:third] = iz[which] + rng.uniform(-1.0, 1.0, third) * reach
+    sixth = count // 6
+    x0, z0, x1, z1 = world.content
+    px[third:third + sixth] = rng.uniform(x0 - 2600.0, x1 + 2600.0, sixth); pz[third:third + sixth] = rng.uniform(z0 - 2600.0, z1 + 2600.0, sixth)
 ang = rng.uniform(0.0, 2.0 * np.pi, count); dx = np.cos(ang) * 0.05; dz = np.sin(ang) * 0.05
 row = lambda a: np.asarray(a, dtype=np.float32)[None, :]
 h0 = world.height(row(px - dx), row(pz - dz))[0]; h1 = world.height(row(px), row(pz))[0]; h2 = world.height(row(px + dx), row(pz + dz))[0]

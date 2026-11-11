@@ -250,6 +250,8 @@ func apply_height_uniforms(material: ShaderMaterial) -> void:
 	for i in islet_count:
 		centres[i] = islets[i].position
 		sizes[i] = Vector2(islets[i].radius, float(islets[i].picture))
+	# Прямоугольник мира: дальше него подводный рельеф затухает к ровной глубине.
+	material.set_shader_parameter("world_rect", Vector4(content_rect.position.x, content_rect.position.y, content_rect.end.x, content_rect.end.y))
 	material.set_shader_parameter("islet_centre", centres)
 	material.set_shader_parameter("islet_size", sizes)
 	material.set_shader_parameter("islet_count", islet_count)
