@@ -309,9 +309,9 @@ class World:
             # Между двумя близкими озёрами берег подстраивается под оба уровня плавно.
             wgt = np.where(wet, np.exp(-np.clip(d, 0.0, 200.0) / 14.0), 0.0)
             WS = WS + wgt; LS = LS + wgt * lvl; BS = BS + wgt * np.where(lake, 26.0, 16.0)
+        # перекрёстки и города остаются на суше: вода обходит их пологим мысом, а не круглой выемкой
+        D = smax(D, 24.0 - DS, 18.0)
         D = D + 7.0 * gnoise(NX / 64.0, NY / 64.0 + 4.0) + 3.5 * gnoise(NX / 27.0 + 8.0, NY / 27.0) + 1.5 * gnoise(NX / 11.0, NY / 11.0 + 5.0)
-        # перекрёстки и города остаются на суше
-        D = smax(D, 16.0 - DS, 8.0)
         soft = LS / np.maximum(WS, 1e-12); band = BS / np.maximum(WS, 1e-12)
         depth = np.minimum(np.minimum(0.22 * np.maximum(-D, 0.0), 6.5), L - 0.5)
         target = np.where(D < 0.0, soft - depth, soft + 0.1 * D)

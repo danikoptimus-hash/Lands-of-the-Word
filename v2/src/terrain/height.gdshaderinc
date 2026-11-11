@@ -385,9 +385,9 @@ float lakes(vec2 p, vec2 n, float d_site, float h, out float level) {
 			band_sum += weight * (lake ? 26.0 : 16.0);
 		}
 	}
+	// Перекрёстки и города остаются на суше: вода обходит их пологим мысом, а не круглой выемкой.
+	dist = smooth_max(dist, 24.0 - d_site, 18.0);
 	dist += 7.0 * gnoise(n / 64.0 + vec2(0.0, 4.0)) + 3.5 * gnoise(n / 27.0 + vec2(8.0, 0.0)) + 1.5 * gnoise(n / 11.0 + vec2(0.0, 5.0));
-	// Перекрёстки и города остаются на суше.
-	dist = smooth_max(dist, 16.0 - d_site, 8.0);
 	float soft = level_sum / max(weights, 1.0e-12);
 	float band = band_sum / max(weights, 1.0e-12);
 	float depth = min(min(0.22 * max(-dist, 0.0), 6.5), surface - 0.5);
