@@ -154,12 +154,12 @@ export function computeAwards(data: {
       const mine = held.filter((c) => keys.has(c.nodeKey));
       if (keys.size > 0 && mine.length === keys.size) team(tm.id, "t_island_lords", mine[mine.length - 1]!.at, island);
     }
-    // Собранные группы книг (решение владельца 11.11): каждый город группы команда хотя бы раз брала за игру; потеря
-    // города по испытанию собранного не отнимает. Дата — взятие последнего недостающего города.
-    const takenOnce = new Map<string, Date>();
-    for (const c of data.cityStates) if (c.teamId === tm.id) { const at = c.firstCapturedAt ?? c.capturedAt; if (at) takenOnce.set(c.nodeKey, at); }
+    // Собранные группы книг (решение владельца 11.11: «награды должны быть только тогда, когда команда взяла всю группу
+    // книг»): все города группы у команды одновременно — как у «Хозяев острова». Дата — взятие последнего из них;
+    // однажды полученная награда остаётся, как и все награды.
+    const heldAt = new Map(held.map((c) => [c.nodeKey, c.at]));
     for (const g of BOOK_GROUPS) {
-      const dates = g.books.map((b) => { const key = cityOfBook.get(b); return key ? takenOnce.get(key) : undefined; });
+      const dates = g.books.map((b) => { const key = cityOfBook.get(b); return key ? heldAt.get(key) : undefined; });
       if (dates.every(Boolean)) team(tm.id, g.code, new Date(Math.max(...dates.map((d) => d!.getTime()))));
     }
     const perIsland = [...islandCities.keys()].map((isl) => held.find((c) => nodeByKey.get(c.nodeKey)?.island === isl)?.at ?? null);
