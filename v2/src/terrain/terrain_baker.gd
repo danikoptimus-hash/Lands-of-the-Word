@@ -4,12 +4,16 @@ extends Node
 ## Результат — текстура для отрисовки и высоты в памяти для камеры и объектов.
 
 const BAKE_SHADER := preload("res://src/terrain/bake.gdshader")
-const OPEN_SEA := -30.0  ## глубина открытого моря в функции высот: по ней проверяем, что запекание прошло верно
+const NO_WATER := -999.0  ## значение канала уровня воды там, где озера нет
+const PROBE := Color(-1024.0, 0.25, -0.5, 2048.0)  ## проверочная точка в углу (её пишет шейдер запекания)
 const ATTEMPTS := 3
 
 var texture: ImageTexture
 var height_map: HeightMap
 var bake_ms := 0.0
+var _image: Image
+var _rect := Rect2()
+var _texel := 2.0
 var error := ""
 
 
@@ -28,8 +32,7 @@ func bake(world: WorldData, world_rect: Rect2, texel: float) -> bool:
 
 	var material := ShaderMaterial.new()
 	material.shader = BAKE_SHADER
-	world.apply_hex_uniforms(material)
-	material.set_shader_parameter("noise_offset", world.noise_offset())
+	world.apply_height_uniforms(material)
 	material.set_shader_parameter("bake_rect", Vector4(world_rect.position.x, world_rect.position.y, world_rect.size.x, world_rect.size.y))
 	material.set_shader_parameter("texel", texel)
 
@@ -53,10 +56,15 @@ func bake(world: WorldData, world_rect: Rect2, texel: float) -> bool:
 	if not error.is_empty():
 		return false
 
+	# Проверочная точка своё дело сделала: ставим на её место соседнюю высоту.
+	image.set_pixel(0, 0, image.get_pixel(1, 0))
 	height_map = HeightMap.from_image(image, world_rect)
 	if height_map == null:
 		error = "не удалось прочитать высоты"
 		return false
+	_image = image
+	_rect = world_rect
+	_texel = texel
 	# Уменьшенные копии нужны, чтобы свет на дальнем рельефе не рябил.
 	image.generate_mipmaps()
 	texture = ImageTexture.create_from_image(image)
@@ -71,8 +79,19 @@ func _validate(image: Image, size: Vector2i) -> String:
 		return "рельеф неожиданного размера %d×%d" % [image.get_width(), image.get_height()]
 	if image.get_format() != Image.FORMAT_RGBAH and image.get_format() != Image.FORMAT_RGBAF:
 		return "видеорежим не поддерживает точные текстуры (формат %d)" % image.get_format()
-	# Угол области — открытое море: там функция высот даёт ровно OPEN_SEA.
-	var corner := image.get_pixel(1, 1).r
-	if absf(corner - OPEN_SEA) > 0.1:
-		return "проверочная точка рельефа: %.2f вместо %.2f" % [corner, OPEN_SEA]
+	# В углу шейдер пишет условленные числа: отрицательные, больше единицы и в четвёртом канале.
+	# Если они дошли без искажений — видеорежим отдаёт настоящие высоты.
+	var probe := image.get_pixel(0, 0)
+	if absf(probe.r - PROBE.r) > 0.5 or absf(probe.g - PROBE.g) > 0.01 or absf(probe.b - PROBE.b) > 0.01 or absf(probe.a - PROBE.a) > 0.5:
+		return "проверочная точка рельефа: %.2f, %.2f, %.2f, %.2f вместо %.0f, %.2f, %.2f, %.0f" % [
+				probe.r, probe.g, probe.b, probe.a, PROBE.r, PROBE.g, PROBE.b, PROBE.a]
 	return ""
+
+
+## Уровень воды озера в точке мира или NO_WATER, если озера там нет.
+func water_level_at(point: Vector2) -> float:
+	if _image == null:
+		return NO_WATER
+	var x := clampi(floori((point.x - _rect.position.x) / _texel), 0, _image.get_width() - 1)
+	var y := clampi(floori((point.y - _rect.position.y) / _texel), 0, _image.get_height() - 1)
+	return _image.get_pixel(x, y).a

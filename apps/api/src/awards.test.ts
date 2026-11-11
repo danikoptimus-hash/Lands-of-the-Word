@@ -65,4 +65,22 @@ describe("награды по истории", () => {
     const at = Object.fromEntries(g.map((x) => [x.code, x.at.toISOString().slice(0, 10)]));
     expect(at).toEqual({ p_verses_10: "2026-10-20", p_verses_50: "2026-10-24", p_verses_100: "2026-10-24", p_verses_200: "2026-10-25" });
   });
+  it("собранные группы книг (решение владельца 11.11): каждый город группы взят хоть раз; потерянный город не отнимает", () => {
+    const books = ["gen", "exo", "lev", "num", "deu", "luk", "act", "1pe", "2pe"];
+    const nodes = books.map((b, i) => ({ key: `N:${i},0`, kind: "CITY", island: "OT", bookCode: b }));
+    const city = (b: string, day: string, held = true) => {
+      const key = nodes.find((n) => n.bookCode === b)!.key;
+      return { teamId: "T", nodeKey: key, capturedAt: held ? d(`${day}T10:00:00Z`) : null, firstCapturedAt: d(`${day}T10:00:00Z`) };
+    };
+    const cityStates = [
+      city("gen", "2026-10-20"), city("exo", "2026-10-21"), city("lev", "2026-10-22", false), // Левит потерян по испытанию
+      city("num", "2026-10-23"), city("deu", "2026-10-25"),
+      city("luk", "2026-10-24"), // Деяний нет — книги Луки не собраны
+      city("1pe", "2026-10-22"), city("2pe", "2026-10-26"),
+      { teamId: "X", nodeKey: nodes.find((n) => n.bookCode === "act")!.key, capturedAt: d("2026-10-20T10:00:00Z"), firstCapturedAt: d("2026-10-20T10:00:00Z") },
+    ];
+    const g = computeAwards({ ...base, nodes, cityStates, teams: [{ id: "T", members: [] }, { id: "X", members: [] }], tasks: [] }).filter((x) => x.code.startsWith("t_books_"));
+    const got = Object.fromEntries(g.map((x) => [`${x.teamId}:${x.code}`, x.at.toISOString().slice(0, 10)]));
+    expect(got).toEqual({ "T:t_books_torah": "2026-10-25", "T:t_books_peter": "2026-10-26" });
+  });
 });

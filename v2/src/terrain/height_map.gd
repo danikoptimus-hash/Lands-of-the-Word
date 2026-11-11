@@ -9,6 +9,9 @@ var width := 0
 var height := 0
 var lowest := 0.0
 var highest := 0.0
+## Высоты соседних областей (малые острова запекаются отдельно): точку вне своей области ищем в них.
+var extras: Array[HeightMap] = []
+var outside := -60.0  ## высота там, где ничего не запечено: открытое море
 
 var _data := PackedFloat32Array()
 
@@ -40,6 +43,11 @@ static func from_image(image: Image, world_rect: Rect2) -> HeightMap:
 func sample(point: Vector2) -> float:
 	if width < 2 or height < 2:
 		return 0.0
+	if not rect.has_point(point):
+		for extra in extras:
+			if extra.rect.has_point(point):
+				return extra.sample(point)
+		return outside
 	var fx := (point.x - rect.position.x) / texel - 0.5
 	var fy := (point.y - rect.position.y) / texel - 0.5
 	var x0 := clampi(floori(fx), 0, width - 2)

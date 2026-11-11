@@ -46,6 +46,23 @@ export const AWARDS: ReadonlyArray<AwardDef> = [
   { code: "t_long_road", kind: "TEAM", nameRu: "Долгая дорога", nameEn: "Long Road", condRu: "Пройдено 50 сторон", condEn: "50 road sides travelled", symbol: "a winding road over hills vanishing at the horizon" },
   { code: "t_no_returns", kind: "TEAM", nameRu: "Без возвратов", nameEn: "No Returns", condRu: "20 дел подряд одобрены с первого раза", condEn: "20 deeds in a row approved at first try", symbol: "a wax seal with a check mark" },
   { code: "t_team_eyes", kind: "TEAM", nameRu: "Глаза команды", nameEn: "Eyes of the Team", condRu: "Разведчик разведал 5 перекрёстков", condEn: "The scout has scouted 5 crossroads", symbol: "a spyglass pointed at a distant hill" },
+  // Командные: собранные группы книг (решение владельца 11.11: «сделать награды за собранную группу книг: пророки,
+  // пятикнижие и т. д. и ещё по делению, например „все книги апостола Павла“»). Город — книга; группа собрана, когда
+  // команда за игру хотя бы раз взяла каждый её город (потеря города по испытанию собранного не отнимает). Состав групп —
+  // BOOK_GROUPS ниже: восемь разделов Библии и пять — по авторам.
+  { code: "t_books_torah", kind: "TEAM", nameRu: "Пятикнижие", nameEn: "The Pentateuch", condRu: "За игру взяты все пять городов Пятикнижия: Бытие, Исход, Левит, Числа, Второзаконие", condEn: "All five cities of the Pentateuch taken over the game: Genesis, Exodus, Leviticus, Numbers, Deuteronomy", symbol: "two stone tablets of the law with rounded tops standing side by side" },
+  { code: "t_books_history", kind: "TEAM", nameRu: "Исторические книги", nameEn: "Historical Books", condRu: "За игру взяты все 12 городов исторических книг — от Иисуса Навина до Есфири", condEn: "All 12 cities of the historical books taken over the game — from Joshua to Esther", symbol: "a royal crown resting on a closed thick chronicle book" },
+  { code: "t_books_wisdom", kind: "TEAM", nameRu: "Учительные книги", nameEn: "Wisdom Books", condRu: "За игру взяты все пять городов учительных книг: Иов, Псалтирь, Притчи, Екклесиаст, Песнь Песней", condEn: "All five cities of the wisdom books taken over the game: Job, Psalms, Proverbs, Ecclesiastes, Song of Songs", symbol: "an open scroll with a small olive branch lying across it" },
+  { code: "t_books_major_prophets", kind: "TEAM", nameRu: "Большие пророки", nameEn: "Major Prophets", condRu: "За игру взяты все пять городов больших пророков: Исаия, Иеремия, Плач Иеремии, Иезекииль, Даниил", condEn: "All five cities of the major prophets taken over the game: Isaiah, Jeremiah, Lamentations, Ezekiel, Daniel", symbol: "a curved ram's horn shofar" },
+  { code: "t_books_minor_prophets", kind: "TEAM", nameRu: "Малые пророки", nameEn: "Minor Prophets", condRu: "За игру взяты все 12 городов малых пророков — от Осии до Малахии", condEn: "All 12 cities of the minor prophets taken over the game — from Hosea to Malachi", symbol: "twelve small rolled scrolls arranged in a ring" },
+  { code: "t_books_gospels", kind: "TEAM", nameRu: "Четвероевангелие", nameEn: "The Four Gospels", condRu: "За игру взяты все четыре города Евангелий: от Матфея, от Марка, от Луки, от Иоанна", condEn: "All four Gospel cities taken over the game: Matthew, Mark, Luke, John", symbol: "four small closed books standing together, slightly fanned" },
+  { code: "t_books_catholic", kind: "TEAM", nameRu: "Соборные послания", nameEn: "General Epistles", condRu: "За игру взяты все семь городов соборных посланий: Иакова, 1 и 2 Петра, 1, 2 и 3 Иоанна, Иуды", condEn: "All seven cities of the general epistles taken over the game: James, 1 and 2 Peter, 1, 2 and 3 John, Jude", symbol: "seven sealed letters fanned out like a hand of cards" },
+  { code: "t_books_paul", kind: "TEAM", nameRu: "Послания апостола Павла", nameEn: "Epistles of Paul", condRu: "За игру взяты все 14 городов посланий апостола Павла — от Римлянам до Евреям", condEn: "All 14 cities of the epistles of Paul taken over the game — from Romans to Hebrews", symbol: "a traveler's walking staff and a quill crossed over a folded letter with a wax seal" },
+  { code: "t_books_solomon", kind: "TEAM", nameRu: "Книги Соломона", nameEn: "Books of Solomon", condRu: "За игру взяты все города книг Соломона: Притчи, Екклесиаст, Песнь Песней", condEn: "All cities of the books of Solomon taken over the game: Proverbs, Ecclesiastes, Song of Songs", symbol: "a balance scale with a small crown above its centre" },
+  { code: "t_books_john", kind: "TEAM", nameRu: "Книги апостола Иоанна", nameEn: "Books of John", condRu: "За игру взяты все города книг апостола Иоанна: Евангелие, три послания и Откровение", condEn: "All cities of the books of John taken over the game: the Gospel, three epistles and Revelation", symbol: "an eagle with spread wings" },
+  { code: "t_books_luke", kind: "TEAM", nameRu: "Книги Луки", nameEn: "Books of Luke", condRu: "За игру взяты оба города книг Луки: Евангелие от Луки и Деяния", condEn: "Both cities of the books of Luke taken over the game: the Gospel of Luke and Acts", symbol: "a calm ox standing" },
+  { code: "t_books_peter", kind: "TEAM", nameRu: "Послания Петра", nameEn: "Epistles of Peter", condRu: "За игру взяты оба города посланий Петра: 1 и 2 Петра", condEn: "Both cities of the epistles of Peter taken over the game: 1 and 2 Peter", symbol: "a fishing net with two fish in it" },
+  { code: "t_books_jeremiah", kind: "TEAM", nameRu: "Книги пророка Иеремии", nameEn: "Books of Jeremiah", condRu: "За игру взяты оба города книг Иеремии: Иеремия и Плач Иеремии", condEn: "Both cities of the books of Jeremiah taken over the game: Jeremiah and Lamentations", symbol: "a blooming almond branch" },
   // Личные: серия дней
   { code: "p_streak_5", kind: "PERSONAL", nameRu: "Искра", nameEn: "Spark", condRu: "Серия 5 дней", condEn: "A 5-day streak", streakDays: 5, symbol: "a single small spark" },
   { code: "p_streak_10", kind: "PERSONAL", nameRu: "Огонёк", nameEn: "Little Flame", condRu: "Серия 10 дней", condEn: "A 10-day streak", streakDays: 10, symbol: "a small candle flame" },
@@ -76,6 +93,23 @@ export const AWARDS: ReadonlyArray<AwardDef> = [
   { code: "p_keyholder", kind: "PERSONAL", nameRu: "Ключник", nameEn: "Keyholder", condRu: "Своим делом открыл дорогу в город", condEn: "Opened the road into a city with own deed", repeat: true, symbol: "a single ornate key" },
   { code: "p_sea_wolf", kind: "PERSONAL", nameRu: "Морской волк", nameEn: "Sea Wolf", condRu: "Участвовал в морском переходе", condEn: "Took part in a sea crossing", repeat: true, symbol: "a ship's wheel with a wave" },
   { code: "p_team_pillar", kind: "PERSONAL", nameRu: "Опора команды", nameEn: "Pillar of the Team", condRu: "Больше всех дел в команде за неделю", condEn: "Most deeds in the team in a week", repeat: true, symbol: "one single tall stone column (pillar) standing alone, with a plain capital on top, no arch" },
+];
+
+/** Группы книг для командных наград «собранных книг»: код награды и книги (коды из books.ts), чьи города нужно взять. */
+export const BOOK_GROUPS: ReadonlyArray<{ code: string; books: readonly string[] }> = [
+  { code: "t_books_torah", books: ["gen", "exo", "lev", "num", "deu"] },
+  { code: "t_books_history", books: ["jos", "jdg", "rut", "1sa", "2sa", "1ki", "2ki", "1ch", "2ch", "ezr", "neh", "est"] },
+  { code: "t_books_wisdom", books: ["job", "psa", "pro", "ecc", "sng"] },
+  { code: "t_books_major_prophets", books: ["isa", "jer", "lam", "ezk", "dan"] },
+  { code: "t_books_minor_prophets", books: ["hos", "jol", "amo", "oba", "jon", "mic", "nam", "hab", "zep", "hag", "zec", "mal"] },
+  { code: "t_books_gospels", books: ["mat", "mrk", "luk", "jhn"] },
+  { code: "t_books_catholic", books: ["jas", "1pe", "2pe", "1jn", "2jn", "3jn", "jud"] },
+  { code: "t_books_paul", books: ["rom", "1co", "2co", "gal", "eph", "php", "col", "1th", "2th", "1ti", "2ti", "tit", "phm", "heb"] },
+  { code: "t_books_solomon", books: ["pro", "ecc", "sng"] },
+  { code: "t_books_john", books: ["jhn", "1jn", "2jn", "3jn", "rev"] },
+  { code: "t_books_luke", books: ["luk", "act"] },
+  { code: "t_books_peter", books: ["1pe", "2pe"] },
+  { code: "t_books_jeremiah", books: ["jer", "lam"] },
 ];
 
 export const AWARD_BY_CODE: ReadonlyMap<string, AwardDef> = new Map(AWARDS.map((a) => [a.code, a]));

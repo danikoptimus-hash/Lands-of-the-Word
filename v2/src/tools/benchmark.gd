@@ -12,7 +12,7 @@ var time_scale := 1.0  ## меньше единицы — короче облё�
 
 
 ## Сопрограмма.
-func run(world: WorldData, rig: StrategyCamera) -> void:
+func run(world: WorldData, rig: StrategyCamera, height_map: HeightMap = null) -> void:
 	if running:
 		return
 	running = true
@@ -21,7 +21,7 @@ func run(world: WorldData, rig: StrategyCamera) -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	var saved := rig.get_view()
 
-	var stops := Tour.stops(world, rig)
+	var stops := Tour.stops(world, rig, height_map)
 	var all_ms := PackedFloat32Array()
 	var lines := PackedStringArray()
 	rig.set_view(stops[0].view)

@@ -31,7 +31,7 @@ const DRAG_TILT := 0.003
 const INERTIA_FRICTION := 5.0
 const EDGE_SCROLL_MARGIN := 6.0
 const CLEARANCE := 14.0  ## камера не опускается к земле ближе этого
-const RAY_TOP := 260.0  ## выше этого рельефа нет
+const RAY_TOP := 340.0  ## выше этого рельефа нет
 const NO_POINT := Vector3.INF
 
 var camera: Camera3D
@@ -55,6 +55,7 @@ var _ground := 0.0
 
 var _dragging := false
 var _drag_anchor := Vector3.ZERO
+var _drag_screen := Vector2.ZERO
 var _drag_prev_focus := Vector2.ZERO
 var _drag_last_usec := 0
 var _rotating := false
@@ -212,6 +213,8 @@ func _process(delta: float) -> void:
 		_step_follow(dt)
 	_ground = lerpf(_ground, _ground_target(), 1.0 - exp(-GROUND_RATE * dt))
 	_apply()
+	if _dragging:
+		_hold_drag_anchor(_drag_screen)
 	if _zoom_anchor_active:
 		_hold_zoom_anchor()
 
@@ -328,19 +331,27 @@ func _on_mouse_button(event: InputEventMouseButton) -> void:
 
 func _on_mouse_motion(event: InputEventMouseMotion) -> void:
 	if _dragging:
-		var now := plane_point(event.position, _drag_anchor.y)
-		if now == NO_POINT:
-			return
-		# Точка земли, за которую взялись, остаётся под курсором. У горизонта малое движение мыши
-		# соответствует большому пути по земле, поэтому один шаг ограничен.
-		var shift := Vector2(_drag_anchor.x - now.x, _drag_anchor.z - now.z).limit_length(_distance * 0.6)
-		_focus = _clamp_focus(_focus + shift)
-		_t_focus = _focus
+		_drag_screen = event.position
 		_drag_last_usec = Time.get_ticks_usec()
-		_apply()
+		_hold_drag_anchor(event.position)
 	elif _rotating:
 		_t_yaw -= event.relative.x * DRAG_TURN
 		_t_tilt = _fit_tilt(_t_tilt + event.relative.y * DRAG_TILT, _t_distance)
+
+
+## Точка земли, за которую взялись, остаётся под курсором. Вызывается и при движении мыши, и каждый кадр:
+## пока рука стоит, камера ещё подстраивается под высоту земли, и точка иначе уплывала бы из-под курсора.
+## У горизонта малое движение мыши соответствует большому пути по земле, поэтому один шаг ограничен.
+func _hold_drag_anchor(screen: Vector2) -> void:
+	var now := plane_point(screen, _drag_anchor.y)
+	if now == NO_POINT:
+		return
+	var shift := Vector2(_drag_anchor.x - now.x, _drag_anchor.z - now.z).limit_length(_distance * 0.6)
+	if shift.length_squared() < 1.0e-8:
+		return
+	_focus = _clamp_focus(_focus + shift)
+	_t_focus = _focus
+	_apply()
 
 
 func _begin_drag(screen: Vector2) -> void:
@@ -350,6 +361,7 @@ func _begin_drag(screen: Vector2) -> void:
 	_stop_motion()
 	_dragging = true
 	_drag_anchor = point
+	_drag_screen = screen
 	_drag_prev_focus = _focus
 	_drag_last_usec = Time.get_ticks_usec()
 	_t_focus = _focus

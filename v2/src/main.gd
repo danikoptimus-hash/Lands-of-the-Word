@@ -1,18 +1,32 @@
 extends Node3D
 ## Главный сценарий тестовой сборки: свет, мир, камера, служебные клавиши.
-## Ключи запуска (после «--»): --shots=папка — автоматические кадры и проверки; --view=x,z,d,поворот,наклон — добавить кадр места;
+## Ключи запуска (после «--»): --shots=папка — автоматические кадры и проверки (с ним же --quick и --stops=17,21 —
+## быстрые проверки, см. src/tools/shot_director.gd); --view=x,z,d,поворот,наклон — добавить кадр места;
+## --world=N — начать с карты номер N (1 — «Осень»);
 ## --update-test=адрес и --update-target=файл — проверка самообновления в конвейере. Ключи --finish-update и --updated
 ## программа передаёт сама себе при обновлении (см. src/core/updater.gd).
 
-const WORLD_PATH := "res://data/world_osen.json"
+## Карты тестовой сборки: «Осень» и карты, построенные генератором игры по другим зёрнам (tools/gen-world.mjs).
+## На них видно, что форма земли складывается сама на любой карте. Клавиша M переключает карты по кругу.
+const WORLD_PATHS: Array[String] = [
+	"res://data/world_osen.json",
+	"res://data/world_proba_1.json",
+	"res://data/world_proba_2.json",
+	"res://data/world_proba_3.json",
+	"res://data/world_proba_4.json",
+]
 const WINDOW_TITLE := "Земли Слова — версия 2 (тест)"
+const FOG_DENSITY := 0.000025  ## дымка вблизи; издалека она реже (см. _process)
 const SHOTS_FOLDER := "Земли Слова — тест"
 
 var _world: WorldData
+var _world_index := 0
+var _islet_index := -1  ## на какой малый остров летали последним (клавиша O)
 var _terrain: WorldTerrain
 var _rig: StrategyCamera
 var _hud: Hud
 var _sun: DirectionalLight3D
+var _environment: Environment
 var _markers: SiteMarkers
 var _benchmark: Benchmark
 var _updater: Updater
@@ -54,41 +68,18 @@ func _ready() -> void:
 		if replaced:
 			return
 
-	_world = WorldData.load_file(WORLD_PATH)
-	if _world == null:
-		_fail("Не удалось прочитать данные мира.")
-		return
-	_rig.set_world_bounds(_world.land_rect)
-	_rig.set_view(_rig.view_for_rect(_world.land_rect))
-
-	_hud.set_loading("Лепим землю…")
-	_terrain = WorldTerrain.new()
-	add_child(_terrain)
-	var built: bool = await _terrain.build(_world)
-	if not built:
-		_fail("Не удалось построить рельеф: %s.\nВидеокарта: %s" % [_terrain.error, RenderingServer.get_video_adapter_name()])
-		return
-	_rig.set_height_map(_terrain.height_map)
-	_rig.set_view(_rig.view_for_rect(_world.land_rect))
-
-	_markers = SiteMarkers.new()
-	add_child(_markers)
-	_markers.build(_world, _terrain.height_map)
-
 	_benchmark = Benchmark.new()
 	add_child(_benchmark)
 	_benchmark.finished.connect(_on_benchmark_finished)
 
-	_hud.set_loading("")
-	_ready_to_play = true
-	print("МИР «%s»: рельеф %d×%d за %.0f мс, высоты от %.1f до %.1f м, плиток %d" % [
-		_world.title, _terrain.height_map.width, _terrain.height_map.height, _terrain.bake_ms,
-		_terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count()])
+	var loaded: bool = await _load_world(WORLD_PATHS[_world_index])
+	if not loaded:
+		return
 
 	if not _shots_folder.is_empty():
 		var director := ShotDirector.new()
 		add_child(director)
-		director.run(_shots_folder, _world, _terrain, _rig, _hud, _extra_views, _benchmark, _take_snapshot)
+		director.run(_shots_folder, _world, _terrain, _rig, _hud, _extra_views, _benchmark, _take_snapshot, _next_world)
 	elif not _update_notice.is_empty():
 		_hud.toast(_update_notice, 14.0)
 	elif not BuildInfo.COMMIT.is_empty() and Updater.seen_build() != BuildInfo.COMMIT:
@@ -109,7 +100,9 @@ func _process(_delta: float) -> void:
 	# Чем ближе взгляд к горизонту, тем дальше видно — и тем дальше нужны тени.
 	var low := 1.0 - smoothstep(0.1, 0.5, _rig.view_angle())
 	var reach := maxf(_rig.current_distance() * lerpf(2.6, 7.0, low), lerpf(500.0, 4500.0, low))
-	_sun.directional_shadow_max_distance = minf(reach, 12000.0)
+	_sun.directional_shadow_max_distance = minf(reach, 40000.0)
+	# Издалека (весь мир с малыми островами) дымка реже: иначе за десять километров картинка белеет.
+	_environment.fog_density = FOG_DENSITY * clampf(3000.0 / _rig.current_distance(), 0.25, 1.0)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -136,6 +129,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	match key.physical_keycode:
 		KEY_SPACE, KEY_HOME:
 			_rig.fly_to(_rig.view_for_rect(_world.land_rect))
+		KEY_0, KEY_BACKSPACE:
+			_rig.fly_to(_rig.view_for_rect(_world.content_rect))
+		KEY_K:
+			_fly_to_quarry()
+		KEY_O:
+			_fly_to_next_islet()
 		KEY_1:
 			_fly_to_island("OT")
 		KEY_2:
@@ -149,13 +148,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_terrain.set_grid_visible(not _terrain.is_grid_visible())
 		KEY_C:
 			_markers.visible = not _markers.visible
+		KEY_M:
+			_next_world()
 		KEY_F2:
 			_take_snapshot()
 		KEY_F5:
 			_hud.close_report()
 			_hud.set_help_open(false)
 			_hud.toast("Идёт замер скорости: камера облетает мир…", 30.0)
-			_benchmark.run(_world, _rig)
+			_benchmark.run(_world, _rig, _terrain.height_map)
 
 
 # ── Сцена ────────────────────────────────────────────────────────────────────
@@ -194,12 +195,65 @@ func _build_light() -> void:
 	environment.ssao_intensity = 2.0
 	environment.fog_enabled = true
 	environment.fog_light_color = Color(0.8, 0.81, 0.8)
-	environment.fog_density = 0.000025
+	environment.fog_density = FOG_DENSITY
 	environment.fog_aerial_perspective = 0.4
 	environment.fog_sky_affect = 0.0
+	_environment = environment
 	var world_environment := WorldEnvironment.new()
 	world_environment.environment = environment
 	add_child(world_environment)
+
+
+# ── Мир ──────────────────────────────────────────────────────────────────────
+
+## Сопрограмма: строит мир из снимка карты; прежний мир, если был, убирается. true — мир готов.
+func _load_world(path: String) -> bool:
+	_ready_to_play = false
+	var world := WorldData.load_file(path)
+	if world == null:
+		_fail("Не удалось прочитать данные мира.")
+		return false
+	if _markers != null:
+		_markers.queue_free()
+		_markers = null
+	if _terrain != null:
+		_terrain.queue_free()
+		_terrain = null
+	_world = world
+	_islet_index = -1
+	_rig.set_world_bounds(_world.content_rect)
+	_rig.set_view(_rig.view_for_rect(_world.land_rect))
+
+	_hud.set_loading("Лепим землю…")
+	_terrain = WorldTerrain.new()
+	add_child(_terrain)
+	var built: bool = await _terrain.build(_world)
+	if not built:
+		_fail("Не удалось построить рельеф: %s.\nВидеокарта: %s" % [_terrain.error, RenderingServer.get_video_adapter_name()])
+		return false
+	_rig.set_height_map(_terrain.height_map)
+	_rig.set_view(_rig.view_for_rect(_world.land_rect))
+
+	_markers = SiteMarkers.new()
+	add_child(_markers)
+	_markers.build(_world, _terrain.height_map)
+
+	_hud.set_loading("")
+	_ready_to_play = true
+	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс; высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
+		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms,
+		_terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count(), _world.islets.size()])
+	return true
+
+
+## Клавиша M: следующая карта по кругу. Возвращает построенный мир (для автоматических кадров) или пустой словарь.
+func _next_world() -> Dictionary:
+	_world_index = (_world_index + 1) % WORLD_PATHS.size()
+	var loaded: bool = await _load_world(WORLD_PATHS[_world_index])
+	if not loaded:
+		return {}
+	_hud.toast("«%s» — карта %d из %d. M — следующая." % [_world.title, _world_index + 1, WORLD_PATHS.size()], 6.0)
+	return {"world": _world, "terrain": _terrain, "number": _world_index + 1, "count": WORLD_PATHS.size()}
 
 
 # ── Действия ─────────────────────────────────────────────────────────────────
@@ -208,6 +262,28 @@ func _fly_to_island(island: String) -> void:
 	if _world.island_rects.has(island):
 		var area: Rect2 = _world.island_rects[island]
 		_rig.fly_to(_rig.view_for_rect(area))
+
+
+func _fly_to_islet(index: int) -> void:
+	var islet := _world.islets[index]
+	_islet_index = index
+	_rig.fly_to(CameraView.make(islet.position, maxf(islet.reach() * 3.4, 420.0), 25.0, -8.0))
+	_hud.toast("%s — малый остров %d из %d. O — следующий." % [islet.title(), index + 1, _world.islets.size()], 5.0)
+
+
+func _fly_to_quarry() -> void:
+	for i in _world.islets.size():
+		if _world.islets[i].quarry:
+			_fly_to_islet(i)
+			return
+	_hud.toast("На этой карте нет острова Каменоломни.", 4.0)
+
+
+func _fly_to_next_islet() -> void:
+	if _world.islets.is_empty():
+		_hud.toast("На этой карте нет малых островов.", 4.0)
+		return
+	_fly_to_islet((_islet_index + 1) % _world.islets.size())
 
 
 func _toggle_fullscreen() -> void:
@@ -378,6 +454,8 @@ func _read_arguments() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--shots="):
 			_shots_folder = argument.trim_prefix("--shots=")
+		elif argument.begins_with("--world="):
+			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
 		elif argument.begins_with("--view="):
 			_extra_views.append(argument.trim_prefix("--view="))
 		elif argument.begins_with("--finish-update="):

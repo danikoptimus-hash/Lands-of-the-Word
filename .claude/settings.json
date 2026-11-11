@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(v2/tools/godot-local.sh:*)",
+      "Bash(git push -f origin v2-test)"
+    ]
+  }
+}
