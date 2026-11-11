@@ -100,6 +100,23 @@ static func stops(world: WorldData, rig: StrategyCamera, height_map: HeightMap =
 				var heading := rad_to_deg(atan2(mouth.x, mouth.y))
 				list.append(_stop("%02d-karyer" % number, "Каменоломня: карьер вблизи", CameraView.make(pit, 300.0, heading, -12.0), 3.0))
 				number += 1
+	# Поверхности (шаг 1.3): каждая местность вблизи — владелец принимает их по одной.
+	var oasis := _densest(world, WorldData.Terrain.OASIS)
+	if oasis != null:
+		list.append(_stop("%02d-oazis" % number, "Оазис", CameraView.make(oasis.center(), 330.0, -30.0, -6.0), 3.0))
+		number += 1
+	if meadow != null:
+		list.append(_stop("%02d-lug-vblizi" % number, "Луг вблизи", CameraView.make(meadow.center(), 190.0, 40.0, -10.0), 3.0))
+		number += 1
+	if desert != null:
+		list.append(_stop("%02d-pustynya-vblizi" % number, "Пустыня вблизи: песок и рябь", CameraView.make(desert.center() + Vector2(30.0, -20.0), 170.0, -50.0, -12.0), 3.0))
+		number += 1
+	if hills != null:
+		list.append(_stop("%02d-holmy-vblizi" % number, "Холмы вблизи", CameraView.make(hills.center() + Vector2(-20.0, 30.0), 200.0, 60.0, -10.0), 3.0))
+		number += 1
+	if not lakes.is_empty():
+		list.append(_stop("%02d-ozero-bereg" % number, "Берег озера вблизи", CameraView.make(lakes[0].center() + Vector2(40.0, 30.0), 210.0, -120.0, -12.0), 3.0))
+		number += 1
 	return list
 
 

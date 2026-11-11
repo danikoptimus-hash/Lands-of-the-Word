@@ -3,13 +3,21 @@ extends Node3D
 ## Земля и вода мира. Рельеф запекается один раз, по областям: главные острова, каждый малый остров отдельно
 ## и грубая карта глубин всего океана. Рисуется плитками с уровнями детализации: рядом с камерой сетка плотная,
 ## вдали — редкая. Переход между уровнями плавный: перед сменой сетки её точки сами съезжаются в положение
-## более редкой (шейдер terrain_clay), поэтому рельеф не «перещёлкивает».
+## более редкой (шейдер terrain_surface), поэтому рельеф не «перещёлкивает».
+## Поверхности (шаг 1.3): вместе с рельефом по тем же областям запекается описание земли — что за земля в каждой
+## точке (bake_ground.gdshader); шейдер земли по нему смешивает материалы (terrain_surface.gdshader).
 
-const CLAY_SHADER := preload("res://src/terrain/terrain_clay.gdshader")
+const SURFACE_SHADER := preload("res://src/terrain/terrain_surface.gdshader")
 const WATER_SHADER := preload("res://src/terrain/water_clay.gdshader")
+## Материалы земли: 16 слоёв в двух атласах и шум (делает tools/surfaces/make.py; источники — assets/ASSETS.md).
+const LAYER_ALBEDO := preload("res://assets/terrain/ground_albedo.webp")
+const LAYER_NORMAL := preload("res://assets/terrain/ground_normal.jpg")
+const NOISE := preload("res://assets/terrain/noise.png")
 
 const CHUNK := 256.0  ## сторона плитки, метры
 const TEXEL := 2.0  ## точность запекания суши, метров на точку
+const GROUND_TEXEL := 4.0  ## точность описания земли: доли местностей меняются плавно, мелкое добавляет шейдер
+const MAX_INNER_ISLETS := 4  ## столько малых островов внутри области главных островов знает шейдер земли
 const MARGIN := 520.0  ## запас моря вокруг главных островов
 const ISLET_MARGIN := 260.0  ## запас моря вокруг малого острова
 ## Области запекаются с запасом по краю: на стыке двух областей обе берут высоту из середины своей текстуры,
@@ -46,6 +54,9 @@ class Region:
 	var material: ShaderMaterial  ## земля
 	var water_material: ShaderMaterial  ## вода над областью
 	var baker: TerrainBaker  ## нужен, пока расставляем озёра
+	var ground_a: Texture2D  ## описание земли: доли местностей
+	var ground_b: Texture2D  ## описание земли: озеро рядом, от уреза моря, камень, оазис
+	var islet: WorldData.Islet  ## малый остров области (у области главных островов — пусто)
 
 
 var height_map: HeightMap  ## высоты главных островов; малые острова — в его extras
@@ -57,6 +68,7 @@ var bake_ms := 0.0
 var error := ""
 
 var _regions: Array[Region] = []
+var _inner_islets: Array[WorldData.Islet] = []  ## малые острова, запечённые внутри области главных островов
 var _owned := {}  ## плитки мира Vector2i(x, z) / CHUNK, над которыми вода своей области (остальное — открытое море)
 var _lod_meshes: Array[ArrayMesh] = []
 var _chunks: Array[Chunk] = []
@@ -71,15 +83,19 @@ func build(world: WorldData) -> bool:
 	var main_area := _snap(world.land_rect.grow(MARGIN))
 	var areas: Array[Rect2] = [main_area]
 	var titles: Array[String] = ["главные острова"]
+	var owners: Array[WorldData.Islet] = [null]
+	_inner_islets.clear()
 	for islet in world.islets:
 		var area := _snap(islet.area().grow(ISLET_MARGIN))
 		if main_area.encloses(area):
-			continue  # остров целиком в области главных островов: запечён вместе с ними
+			_inner_islets.append(islet)  # остров целиком в области главных островов: запечён вместе с ними
+			continue
 		if areas.size() >= MAX_AREAS:
 			push_error("Малых островов вне главной области больше, чем запекается отдельно")
 			break
 		areas.append(area)
 		titles.append(islet.title())
+		owners.append(islet)
 
 	for i in areas.size():
 		var region := Region.new()
@@ -93,6 +109,20 @@ func build(world: WorldData) -> bool:
 			error = "%s — %s" % [region.title, region.baker.error]
 			return false
 		region.height_map = region.baker.height_map
+		region.islet = owners[i]
+		# Описание земли для поверхностей: две текстуры на область.
+		for part in 2:
+			var ground_baker := TerrainBaker.new()
+			add_child(ground_baker)
+			var ground_done: bool = await ground_baker.bake(world, region.baked, GROUND_TEXEL, part)
+			if not ground_done:
+				error = "%s, описание земли — %s" % [region.title, ground_baker.error]
+				return false
+			if part == 0:
+				region.ground_a = ground_baker.texture
+			else:
+				region.ground_b = ground_baker.texture
+			ground_baker.queue_free()
 		_regions.append(region)
 
 	# Карта глубин всего океана: по ней открытое море темнеет над глубиной и светлеет над шельфом.
@@ -197,10 +227,28 @@ static func _snap(area: Rect2) -> Rect2:
 
 func _make_terrain_material(world: WorldData, region: Region) -> ShaderMaterial:
 	var material := ShaderMaterial.new()
-	material.shader = CLAY_SHADER
+	material.shader = SURFACE_SHADER
 	world.apply_hex_uniforms(material)
 	material.set_shader_parameter("height_map", region.baker.texture)
 	material.set_shader_parameter("normal_map", region.baker.texture)
+	material.set_shader_parameter("ground_a", region.ground_a)
+	material.set_shader_parameter("ground_b", region.ground_b)
+	material.set_shader_parameter("layer_albedo", LAYER_ALBEDO)
+	material.set_shader_parameter("layer_normal", LAYER_NORMAL)
+	material.set_shader_parameter("noise_map", NOISE)
+	# Порода: у малого острова — своя; острова внутри области главных шейдер узнаёт по месту.
+	if region.islet != null:
+		material.set_shader_parameter("islet_region", true)
+		material.set_shader_parameter("rock_kind", int(WorldData.DESIGN_ROCK.get(region.islet.design, 0)))
+	else:
+		var inner := PackedVector4Array()
+		inner.resize(MAX_INNER_ISLETS)
+		var inner_count := mini(_inner_islets.size(), MAX_INNER_ISLETS)
+		for i in inner_count:
+			var islet := _inner_islets[i]
+			inner[i] = Vector4(islet.position.x, islet.position.y, islet.reach() + 60.0, float(WorldData.DESIGN_ROCK.get(islet.design, 0)))
+		material.set_shader_parameter("inner_islets", inner)
+		material.set_shader_parameter("inner_count", inner_count)
 	material.set_shader_parameter("bake_rect", Vector4(region.baked.position.x, region.baked.position.y, region.baked.size.x, region.baked.size.y))
 	material.set_shader_parameter("skirt_depth", SKIRT)
 	material.set_shader_parameter("grid_strength", 0.5 if _grid_visible else 0.0)

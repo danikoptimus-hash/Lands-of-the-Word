@@ -128,7 +128,8 @@ shots() {
 	drivers
 	import_project "$folder"
 	local code=0
-	xvfb-run -a -s "-screen 0 1600x900x24" timeout 1500 \
+	# Материалы земли (шаг 1.3) на программной видеокарте считаются долго: полный прогон пяти карт — около часа.
+	xvfb-run -a -s "-screen 0 1600x900x24" timeout 5400 \
 		"$godot" --path "$root/v2" --rendering-driver vulkan --audio-driver Dummy --resolution 1600x900 \
 		-- "--shots=$folder" "$@" > "$folder/shots.log" 2>&1 || code=$?
 	grep -E "ПРОВЕРКА|ИТОГ|МИР|СБОЙ" "$folder/shots.log" || true

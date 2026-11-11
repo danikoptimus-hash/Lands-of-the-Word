@@ -41,6 +41,8 @@ uniform vec3 stamp_range = vec3(-30.0, 330.0, 1.6); // пределы высот
 // По острову каталога: x — опорная половина стороны, м; y — ширина отмели, м при ней; z — уровень озера, м при ней
 // (−999 — озера нет); w — дальше этого расстояния от центра (в половинах стороны) суши нет.
 uniform vec4 design_info[16];
+// Какая земля на острове каталога (для поверхностей, шаг 1.3): доли пустыни, холмов, лугов и гор.
+uniform vec4 design_biome[16];
 const int QUARRY_DESIGN = 12;
 
 const float FAR = 250.0; // дальше этого расстояния до суши и моря не различаем
@@ -334,8 +336,9 @@ float wet_level(ivec2 c) {
 // Озеро — вытянутая чаша со смещённым центром и одним-двумя плёсами за сторонами гекса: чаши поменьше, слитые
 // с главной широкой протокой. Пруд оазиса — маленькая чаша. Возвращает высоту с учётом чаши и берегов;
 // level — уровень воды или NO_WATER.
-float lakes(vec2 p, vec2 n, float d_site, float h, out float level) {
+float lakes(vec2 p, vec2 n, float d_site, float h, out float level, out float nearness) {
 	level = NO_WATER;
+	nearness = 0.0;
 	ivec2 c0 = hex_at(p);
 	bool found = false;
 	for (int dr = -2; dr <= 2; dr++) {
@@ -428,6 +431,8 @@ float lakes(vec2 p, vec2 n, float d_site, float h, out float level) {
 	if (dist < 4.0) {
 		level = surface;
 	}
+	// Близость воды для поверхностей: единица в воде и у уреза, ноль дальше 45 м от берега.
+	nearness = 1.0 - smoothstep(0.0, 45.0, dist);
 	return mix(held, target, carve);
 }
 
@@ -436,7 +441,9 @@ float lakes(vec2 p, vec2 n, float d_site, float h, out float level) {
 // Суша главных островов: land — высота земли с учётом берега, shore — метров вглубь суши от уреза воды
 // (меньше нуля — море), cliff — крутизна берега. p и n — точка после «стягивания» к площадке и точка шума:
 // по ним же потом считаются озёра.
-void field_surface(vec2 p0, out float shore, out float land, out float cliff, out vec2 p, out vec2 n, out float d_site) {
+// biome — доли местностей для поверхностей (шаг 1.3): пустыня, холмы, луга (и берега озёр), горы; oasis — оазис.
+// На прибрежной полосе за сторонами гексов все доли сходят на нет: там пляж или обрыв.
+void field_surface(vec2 p0, out float shore, out float land, out float cliff, out vec2 p, out vec2 n, out float d_site, out vec4 biome, out float oasis) {
 	float harbor = 1.0 - smoothstep(40.0, 140.0, port_distance(p0));
 	p = pinch(p0, d_site);
 	n = p + noise_offset;
@@ -530,6 +537,9 @@ void field_surface(vec2 p0, out float shore, out float land, out float cliff, ou
 	float w_water = smoothstep(-30.0, 30.0, inside[T_WATER]);
 	float w_oasis = smoothstep(-30.0, 30.0, inside[T_OASIS]);
 	float w_sum = w_desert + w_hills + w_meadow + w_mountains + w_water + w_oasis + 1.0e-5;
+	float share = 1.0 / max(w_sum, 1.0);
+	biome = vec4(w_desert, w_hills, w_meadow + w_water, w_mountains) * share;
+	oasis = w_oasis * share;
 	float relief = 0.0;
 	if (w_desert > 0.001 || w_oasis > 0.001) {
 		// Барханы: вытянутые гряды поперёк ветра, местами гуще, местами реже.
@@ -677,10 +687,12 @@ float quarry_works(vec2 uv, float r, float k, float h) {
 
 // Малые острова в точке: s — расстояние до суши ближайшего (меньше нуля — суша), land — её высота,
 // cliff — крутизна берега, shelf — место на отмели (доля её ширины), cap — предел глубины, level — уровень воды озера.
-void islet_surface(vec2 p, vec2 n, out float s, out float land, out float cliff, out float shelf, out float cap, out float level) {
+// biome — доли местностей ближайшего острова (по каталогу), для поверхностей.
+void islet_surface(vec2 p, vec2 n, out float s, out float land, out float cliff, out float shelf, out float cap, out float level, out vec4 biome) {
 	s = BIG;
 	land = 0.0;
 	cliff = 0.0;
+	biome = vec4(0.0);
 	shelf = BIG;
 	cap = BIG;
 	level = NO_WATER;
@@ -725,6 +737,7 @@ void islet_surface(vec2 p, vec2 n, out float s, out float land, out float cliff,
 			s = sd;
 			land = h;
 			cliff = st.z;
+			biome = design_biome[design - 1];
 		}
 		// Отмель в долях своей ширины; ширина меняется вдоль берега, край гуляет (сдвиг — в меру ширины).
 		float shelf_width = info.y * sqrt(r / info.x) * (0.6 + 0.8 * noise01(n / 260.0 + vec2(7.0 * float(i), 3.0 * float(i))));
@@ -738,7 +751,12 @@ void islet_surface(vec2 p, vec2 n, out float s, out float land, out float cliff,
 // ── Поверхность мира ────────────────────────────────────────────────────────
 
 // x — высота земли (дна), y — уровень воды озера в этой точке или NO_WATER.
-vec2 world_surface(vec2 p0) {
+// Заодно — что за земля в точке (для поверхностей, шаг 1.3):
+//   ground_a — доли местностей: пустыня, холмы, луга, горы (в море и на прибрежной полосе — нули);
+//   ground_b — x: близость воды озера (1 у уреза и в воде, 0 дальше 45 м); y: метров вглубь суши от уреза моря
+//              (0…64 м → 0…1); z: камень — обрыв у моря, скалы малых островов, в море крутизна ближайшего берега;
+//              w: доля оазиса.
+vec2 world_point(vec2 p0, out vec4 ground_a, out vec4 ground_b) {
 	vec2 n0 = p0 + noise_offset;
 	float d_far = far_coast(p0);
 	// Главные острова считаем только на их клетках и рядом с ними: дальше 380 м от берега это открытое море.
@@ -750,9 +768,11 @@ vec2 world_surface(vec2 p0) {
 	vec2 n = n0;
 	float d_site = BIG;
 	bool near_field = d_far < 380.0 || terrain_at(hex_at(p0)) != T_SEA;
+	vec4 biome_field = vec4(0.0);
+	float oasis_field = 0.0;
 	if (near_field) {
 		float shore;
-		field_surface(p0, shore, land_field, cliff_field, p, n, d_site);
+		field_surface(p0, shore, land_field, cliff_field, p, n, d_site, biome_field, oasis_field);
 		s_field = -shore;
 	}
 	float s_islet;
@@ -761,7 +781,8 @@ vec2 world_surface(vec2 p0) {
 	float shelf_islet;
 	float cap;
 	float level;
-	islet_surface(p0, n0, s_islet, land_islet, cliff_islet, shelf_islet, cap, level);
+	vec4 biome_islet;
+	islet_surface(p0, n0, s_islet, land_islet, cliff_islet, shelf_islet, cap, level, biome_islet);
 
 	float s = min(s_field, s_islet);
 	float cliff = s_field <= s_islet ? cliff_field : cliff_islet;
@@ -778,12 +799,23 @@ vec2 world_surface(vec2 p0) {
 	float depth = near_shore(out_sea, cliff, n0) + seabed(t, far_shore, cliff, p0, n0) * smoothstep(0.0, 60.0, out_sea);
 	float h = s_field < 0.0 ? land_field : (s_islet < 0.0 ? land_islet : -min(depth, cap));
 
+	float lake_near = 0.0;
 	if (near_field) {
 		float lake_level;
-		h = lakes(p, n, d_site, h, lake_level);
+		h = lakes(p, n, d_site, h, lake_level, lake_near);
 		if (lake_level > -900.0) {
 			level = lake_level;
 		}
 	}
+	bool on_field = s_field < 0.0;
+	bool on_islet = !on_field && s_islet < 0.0;
+	ground_a = on_field ? biome_field : (on_islet ? biome_islet : vec4(0.0));
+	ground_b = vec4(lake_near, clamp(-s / 64.0, 0.0, 1.0), cliff, on_field ? oasis_field : 0.0);
 	return vec2(h, level);
+}
+
+vec2 world_surface(vec2 p0) {
+	vec4 ground_a;
+	vec4 ground_b;
+	return world_point(p0, ground_a, ground_b);
 }

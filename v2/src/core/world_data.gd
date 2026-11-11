@@ -102,6 +102,24 @@ const DESIGN_TITLES := {
 	12: "Каменоломня",
 }
 const QUARRY_DESIGN := 12
+## Какая земля на острове каталога (для поверхностей, шаг 1.3): доли пустыни, холмов, лугов и гор.
+const DESIGN_BIOME := {
+	1: Vector4(0.0, 0.15, 0.25, 0.6),
+	2: Vector4(0.15, 0.75, 0.0, 0.1),
+	3: Vector4(0.0, 0.1, 0.9, 0.0),
+	4: Vector4(0.1, 0.35, 0.55, 0.0),
+	5: Vector4(0.0, 0.2, 0.2, 0.6),
+	6: Vector4(0.1, 0.5, 0.0, 0.4),
+	7: Vector4(0.0, 0.7, 0.3, 0.0),
+	8: Vector4(0.9, 0.1, 0.0, 0.0),
+	9: Vector4(0.0, 0.3, 0.2, 0.5),
+	10: Vector4(0.0, 0.2, 0.2, 0.6),
+	11: Vector4(0.0, 0.1, 0.5, 0.4),
+	12: Vector4(0.05, 0.7, 0.15, 0.1),
+}
+## Камень острова каталога: 0 — тёплый известняк, 1 — красный слоистый песчаник, 2 — серый гранит с лишайником,
+## 3 — тёмная вулканическая порода.
+const DESIGN_ROCK := {2: 1, 6: 1, 9: 2, 10: 2, 11: 3}
 
 var title := ""
 var map_seed := 0
@@ -281,9 +299,13 @@ func apply_height_uniforms(material: ShaderMaterial) -> void:
 		frames[i] = Vector4(islets[i].radius, float(islets[i].design), islets[i].angle, islets[i].mirror)
 	var info := PackedVector4Array()
 	info.resize(MAX_DESIGNS)
+	var biomes := PackedVector4Array()
+	biomes.resize(MAX_DESIGNS)
 	for number: int in _designs:
 		var d: Dictionary = _designs[number]
 		info[number - 1] = Vector4(d["size"], d["shelf"], d["lake_level"], d["reach"])
+		biomes[number - 1] = DESIGN_BIOME.get(number, Vector4(0.0, 0.5, 0.5, 0.0))
+	material.set_shader_parameter("design_biome", biomes)
 	# Прямоугольник мира: дальше него подводный рельеф затухает к ровной глубине.
 	material.set_shader_parameter("world_rect", Vector4(content_rect.position.x, content_rect.position.y, content_rect.end.x, content_rect.end.y))
 	material.set_shader_parameter("islet_centre", centres)

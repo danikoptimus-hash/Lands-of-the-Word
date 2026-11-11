@@ -92,6 +92,9 @@ func _report(frames_ms: PackedFloat32Array, legs: PackedStringArray) -> String:
 	if is_finite(refresh) and refresh > 0.0:
 		screen_text += ", %d Гц" % roundi(refresh)
 	text.append("Экран: %s; окно %d×%d" % [screen_text, window.x, window.y])
+	var scale := get_viewport().scaling_3d_scale
+	if scale < 0.999:
+		text.append("Картинка мира считается в %d %% разрешения (клавиша B)" % roundi(scale * 100.0))
 	text.append("Кадров в секунду: в среднем %d, в худшем 1%% кадров — %d, в самом медленном кадре — %d" % [roundi(_fps(frames_ms)), roundi(low), roundi(slowest)])
 	text.append("По участкам облёта:")
 	text.append_array(legs)

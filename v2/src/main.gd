@@ -16,7 +16,16 @@ const WORLD_PATHS: Array[String] = [
 	"res://data/world_proba_4.json",
 ]
 const WINDOW_TITLE := "Земли Слова — версия 2 (тест)"
-const FOG_DENSITY := 0.000025  ## дымка вблизи; издалека она реже (см. _process)
+const FOG_DENSITY := 0.000012  ## дымка вблизи; издалека она реже (см. _process)
+## Насыщенность и контраст картинки (клавиша V). Начинаем с «сочно».
+const COLOR_PRESETS: Array[Dictionary] = [
+	{"title": "сочно", "saturation": 1.28, "contrast": 1.06, "brightness": 1.0},
+	{"title": "очень сочно", "saturation": 1.5, "contrast": 1.1, "brightness": 1.0},
+	{"title": "естественно", "saturation": 1.0, "contrast": 1.0, "brightness": 1.0},
+]
+## Запасной ход на случай медленной видеокарты (клавиша B): мир считается в меньшем разрешении и достраивается
+## до родного, надписи остаются в родном. Материалы земли тяжелее «глины», а замера на ноутбуке владельца ещё нет.
+const RENDER_SCALES: Array[float] = [1.0, 0.77, 0.67]
 const SHOTS_FOLDER := "Земли Слова — тест"
 
 var _world: WorldData
@@ -27,6 +36,8 @@ var _rig: StrategyCamera
 var _hud: Hud
 var _sun: DirectionalLight3D
 var _environment: Environment
+var _color_preset := 0
+var _render_scale := 0
 var _markers: SiteMarkers
 var _benchmark: Benchmark
 var _updater: Updater
@@ -146,6 +157,16 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_rig.fly_to(view, 0.6)
 		KEY_G:
 			_terrain.set_grid_visible(not _terrain.is_grid_visible())
+		KEY_B:
+			_render_scale = (_render_scale + 1) % RENDER_SCALES.size()
+			var scale := RENDER_SCALES[_render_scale]
+			get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
+			get_viewport().scaling_3d_scale = scale
+			_hud.toast("Картинка мира: %d %% разрешения. B — следующее." % roundi(scale * 100.0), 4.0)
+		KEY_V:
+			_color_preset = (_color_preset + 1) % COLOR_PRESETS.size()
+			_apply_color_preset()
+			_hud.toast("Цвет: %s (%d из %d). V — следующий." % [COLOR_PRESETS[_color_preset]["title"], _color_preset + 1, COLOR_PRESETS.size()], 4.0)
 		KEY_C:
 			_markers.visible = not _markers.visible
 		KEY_M:
@@ -161,13 +182,14 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 # ── Сцена ────────────────────────────────────────────────────────────────────
 
-## Свет «мастерской» для глиняного этапа: одно солнце слева (с запада, чуть с юга) и ровное небо.
-## Склоны, обращённые к камере и влево, освещены, тени ложатся вправо. Настоящий свет — шаг 1.4.
+## Дневной свет для шага «Поверхности»: ясный день, солнце с запада и чуть с юга, синее небо. Свет нужен, чтобы
+## цвета земли читались как в природе; он временный — настоящие свет и небо (утро, день, вечер, ночь) — шаг 1.4.
+## Дымка слабая (замечание владельца 11.11: «чтобы это не было мыльное туманное нечто»).
 func _build_light() -> void:
 	_sun = DirectionalLight3D.new()
 	_sun.transform = Transform3D(Basis.looking_at(Vector3(0.78, -0.58, -0.22), Vector3.UP), Vector3.ZERO)
-	_sun.light_color = Color(1.0, 0.97, 0.92)
-	_sun.light_energy = 0.85
+	_sun.light_color = Color(1.0, 0.95, 0.86)
+	_sun.light_energy = 2.0
 	_sun.shadow_enabled = true
 	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	_sun.directional_shadow_blend_splits = true
@@ -176,32 +198,47 @@ func _build_light() -> void:
 	add_child(_sun)
 
 	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color(0.5, 0.58, 0.66)
-	sky_material.sky_horizon_color = Color(0.8, 0.81, 0.8)
-	sky_material.ground_horizon_color = Color(0.8, 0.81, 0.8)
-	sky_material.ground_bottom_color = Color(0.44, 0.47, 0.5)
+	sky_material.sky_top_color = Color(0.14, 0.34, 0.74)
+	sky_material.sky_horizon_color = Color(0.6, 0.76, 0.94)
+	sky_material.sky_curve = 0.12
+	sky_material.ground_horizon_color = Color(0.6, 0.76, 0.94)
+	sky_material.ground_bottom_color = Color(0.3, 0.4, 0.52)
 	var sky := Sky.new()
 	sky.sky_material = sky_material
 
 	var environment := Environment.new()
 	environment.background_mode = Environment.BG_SKY
 	environment.sky = sky
+	# Свет неба в тенях — почти белый: от чисто синего неба тени на скалах становились синими.
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_energy = 0.42
-	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	environment.tonemap_white = 1.2
+	environment.ambient_light_sky_contribution = 0.3
+	environment.ambient_light_color = Color(0.93, 0.92, 0.88)
+	environment.ambient_light_energy = 0.5
+	environment.tonemap_mode = Environment.TONE_MAPPER_AGX
+	environment.tonemap_exposure = 1.1
+	environment.tonemap_agx_contrast = 1.4
 	environment.ssao_enabled = true
 	environment.ssao_radius = 9.0
 	environment.ssao_intensity = 2.0
 	environment.fog_enabled = true
-	environment.fog_light_color = Color(0.8, 0.81, 0.8)
+	environment.fog_light_color = Color(0.66, 0.79, 0.93)
 	environment.fog_density = FOG_DENSITY
-	environment.fog_aerial_perspective = 0.4
+	environment.fog_aerial_perspective = 0.3
 	environment.fog_sky_affect = 0.0
+	environment.adjustment_enabled = true
 	_environment = environment
+	_apply_color_preset()
 	var world_environment := WorldEnvironment.new()
 	world_environment.environment = environment
 	add_child(world_environment)
+
+
+## Насыщенность и контраст картинки: три набора, клавиша V переключает по кругу. Владелец выбирает на глаз.
+func _apply_color_preset() -> void:
+	var preset: Dictionary = COLOR_PRESETS[_color_preset]
+	_environment.adjustment_saturation = preset["saturation"]
+	_environment.adjustment_contrast = preset["contrast"]
+	_environment.adjustment_brightness = preset["brightness"]
 
 
 # ── Мир ──────────────────────────────────────────────────────────────────────

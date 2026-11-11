@@ -5,9 +5,11 @@ render_mode world_vertex_coords, cull_back, depth_draw_never;
 
 uniform sampler2D height_map : filter_linear, repeat_disable;
 uniform vec4 bake_rect;
-uniform vec3 shallow_color : source_color = vec3(0.4, 0.62, 0.64);
-uniform vec3 deep_color : source_color = vec3(0.08, 0.2, 0.3);
-uniform vec3 bed_color : source_color = vec3(0.6, 0.56, 0.5); // глина под водой — там, где дно не нарисовано
+// Цвета воды — временные, под поверхности (шаг 1.3): бирюза над песком отмели, синева над глубиной. Сама вода
+// (волны, прозрачность, пена, отражения) — шаг 1.5.
+uniform vec3 shallow_color : source_color = vec3(0.13, 0.66, 0.67);
+uniform vec3 deep_color : source_color = vec3(0.015, 0.14, 0.38);
+uniform vec3 bed_color : source_color = vec3(0.74, 0.62, 0.42); // песок под водой — там, где дно не нарисовано
 // Открытое море: дно известно грубо (карта глубин), сама земля там не нарисована. Над областями суши
 // своя вода, по точному рельефу; полотна стыкуются краями плиток (world_terrain.gd).
 uniform bool open_sea = false;
@@ -50,7 +52,9 @@ void fragment() {
 	ALPHA = mix(cover, 1.0, solid);
 	// Вода ровная: нормаль всегда вверх, какое бы полотно её ни рисовало.
 	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
-	ROUGHNESS = 0.16;
-	SPECULAR = 0.5;
+	// Вода пока ровная, как стекло: блик солнца на ней — большое белое пятно. До настоящей воды (шаг 1.5)
+	// он приглушён.
+	ROUGHNESS = 0.3;
+	SPECULAR = 0.35;
 	METALLIC = 0.0;
 }

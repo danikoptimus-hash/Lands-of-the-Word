@@ -46,7 +46,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		if not only.is_empty() and not _listed(stop.name, only):
 			continue
 		rig.set_view(stop.view)
-		await _frames(5)
+		await _before_shot()
 		await _capture(stop.name)
 		print("КАДР %s — %s — место %s" % [stop.name, stop.title, stop.view.to_code()])
 
@@ -57,7 +57,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 			print("КАДР пропущен: непонятный код места «%s»" % code)
 			continue
 		rig.set_view(view)
-		await _frames(5)
+		await _before_shot()
 		await _capture("mesto-%02d" % index)
 		index += 1
 
@@ -140,7 +140,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 					or stop.name.contains("gory") or stop.name.contains("okean") or stop.name.contains("kamenolomnya")):
 				continue
 			_rig.set_view(stop.view)
-			await _frames(5)
+			await _before_shot()
 			await _capture("%s-%s" % [prefix, stop.name])
 			print("КАДР %s-%s — %s — место %s" % [prefix, stop.name, stop.title, stop.view.to_code()])
 
@@ -277,6 +277,16 @@ func _check(title: String, passed: bool, details: String) -> void:
 func _frames(count: int) -> void:
 	for i in count:
 		await get_tree().process_frame
+
+
+## Перед кадром: плитки земли и тени подстраиваются под новое место несколько кадров. На программной видеокарте
+## кадр с материалами земли считается секунды, поэтому первые кадры идут на уменьшенной картинке, а к снимку
+## картинка возвращается к полной.
+func _before_shot() -> void:
+	get_viewport().scaling_3d_scale = 0.25
+	await _frames(4)
+	get_viewport().scaling_3d_scale = 1.0
+	await _frames(2)
 
 
 ## Ждём, пока камера успокоится: не меньше заданного времени игры и не меньше трёх кадров.

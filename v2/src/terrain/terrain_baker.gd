@@ -2,8 +2,10 @@ class_name TerrainBaker
 extends Node
 ## Запекает рельеф: видеокарта один раз считает высоту и наклон каждой точки мира (шейдер bake.gdshader).
 ## Результат — текстура для отрисовки и высоты в памяти для камеры и объектов.
+## Тем же способом запекается описание земли для поверхностей (bake_ground.gdshader): что за земля в каждой точке.
 
 const BAKE_SHADER := preload("res://src/terrain/bake.gdshader")
+const GROUND_SHADER := preload("res://src/terrain/bake_ground.gdshader")
 const NO_WATER := -999.0  ## значение канала уровня воды там, где озера нет
 const PROBE := Color(-1024.0, 0.25, -0.5, 2048.0)  ## проверочная точка в углу (её пишет шейдер запекания)
 const ATTEMPTS := 3
@@ -18,7 +20,8 @@ var error := ""
 
 
 ## Сопрограмма. Возвращает true, если рельеф готов; иначе причина — в error.
-func bake(world: WorldData, world_rect: Rect2, texel: float) -> bool:
+## ground_part: −1 — рельеф (высоты, наклон, уровень озёр); 0 и 1 — две текстуры описания земли (без высот в памяти).
+func bake(world: WorldData, world_rect: Rect2, texel: float, ground_part := -1) -> bool:
 	var size := Vector2i(roundi(world_rect.size.x / texel), roundi(world_rect.size.y / texel))
 	var started := Time.get_ticks_usec()
 
@@ -31,7 +34,9 @@ func bake(world: WorldData, world_rect: Rect2, texel: float) -> bool:
 	viewport.render_target_update_mode = SubViewport.UPDATE_ONCE
 
 	var material := ShaderMaterial.new()
-	material.shader = BAKE_SHADER
+	material.shader = BAKE_SHADER if ground_part < 0 else GROUND_SHADER
+	if ground_part >= 0:
+		material.set_shader_parameter("part", ground_part)
 	world.apply_height_uniforms(material)
 	material.set_shader_parameter("bake_rect", Vector4(world_rect.position.x, world_rect.position.y, world_rect.size.x, world_rect.size.y))
 	material.set_shader_parameter("texel", texel)
@@ -58,10 +63,11 @@ func bake(world: WorldData, world_rect: Rect2, texel: float) -> bool:
 
 	# Проверочная точка своё дело сделала: ставим на её место соседнюю высоту.
 	image.set_pixel(0, 0, image.get_pixel(1, 0))
-	height_map = HeightMap.from_image(image, world_rect)
-	if height_map == null:
-		error = "не удалось прочитать высоты"
-		return false
+	if ground_part < 0:
+		height_map = HeightMap.from_image(image, world_rect)
+		if height_map == null:
+			error = "не удалось прочитать высоты"
+			return false
 	_image = image
 	_rect = world_rect
 	_texel = texel
