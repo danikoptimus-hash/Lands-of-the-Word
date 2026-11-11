@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { traceWorld } from "./pages/Fauna";
-import { hexCenter } from "./lib/hexmap";
+import { generateIslets } from "@lotw/domain";
+import { STEP, traceWorld } from "./pages/Fauna";
+import { fieldBounds, hexCenter } from "./lib/hexmap";
 import type { MapHexDto } from "./lib/api";
 
 /** Остров-полумесяц: центр масс лежит в воде, а длинные рога выступают далеко — радиальный профиль их не накрывает. */
@@ -103,5 +104,32 @@ describe("корабли обходят разбитый корабль", () => 
     expect(closest).toBeGreaterThan(size * 3.3);
     // Корабли при этом не стоят: каждый прошёл заметный путь.
     for (const tr of traces) { const a = tr.samples[0]!, b = tr.samples[tr.samples.length - 1]!; expect(Math.hypot(a[0] - b[0], a[1] - b[1]) + tr.samples.length).toBeGreaterThan(size); }
+  });
+});
+
+/** Карта настоящей партии («Осень»): два острова и проливы между ними; островки — как на сайте (`generateIslets`). */
+const OSEN: Array<[number, number, "OT" | "NT"]> = [[3,-5,"OT"],[4,-5,"OT"],[15,-5,"NT"],[-1,-4,"OT"],[0,-4,"OT"],[1,-4,"OT"],[2,-4,"OT"],[3,-4,"OT"],[4,-4,"OT"],[13,-4,"NT"],[14,-4,"NT"],[15,-4,"NT"],[16,-4,"NT"],[-2,-3,"OT"],[-1,-3,"OT"],[0,-3,"OT"],[1,-3,"OT"],[2,-3,"OT"],[3,-3,"OT"],[4,-3,"OT"],[11,-3,"NT"],[12,-3,"NT"],[13,-3,"NT"],[14,-3,"NT"],[15,-3,"NT"],[16,-3,"NT"],[17,-3,"NT"],[-3,-2,"OT"],[-2,-2,"OT"],[-1,-2,"OT"],[0,-2,"OT"],[1,-2,"OT"],[2,-2,"OT"],[3,-2,"OT"],[4,-2,"OT"],[10,-2,"NT"],[11,-2,"NT"],[12,-2,"NT"],[13,-2,"NT"],[14,-2,"NT"],[15,-2,"NT"],[16,-2,"NT"],[17,-2,"NT"],[-3,-1,"OT"],[-2,-1,"OT"],[-1,-1,"OT"],[0,-1,"OT"],[1,-1,"OT"],[2,-1,"OT"],[3,-1,"OT"],[4,-1,"OT"],[5,-1,"OT"],[10,-1,"NT"],[11,-1,"NT"],[12,-1,"NT"],[13,-1,"NT"],[14,-1,"NT"],[15,-1,"NT"],[16,-1,"NT"],[-4,0,"OT"],[-3,0,"OT"],[-2,0,"OT"],[-1,0,"OT"],[0,0,"OT"],[1,0,"OT"],[2,0,"OT"],[3,0,"OT"],[4,0,"OT"],[10,0,"NT"],[11,0,"NT"],[12,0,"NT"],[13,0,"NT"],[14,0,"NT"],[15,0,"NT"],[-4,1,"OT"],[-3,1,"OT"],[-2,1,"OT"],[-1,1,"OT"],[0,1,"OT"],[1,1,"OT"],[2,1,"OT"],[3,1,"OT"],[9,1,"NT"],[10,1,"NT"],[11,1,"NT"],[12,1,"NT"],[13,1,"NT"],[14,1,"NT"],[15,1,"NT"],[-4,2,"OT"],[-3,2,"OT"],[-2,2,"OT"],[-1,2,"OT"],[0,2,"OT"],[1,2,"OT"],[2,2,"OT"],[3,2,"OT"],[9,2,"NT"],[10,2,"NT"],[11,2,"NT"],[12,2,"NT"],[13,2,"NT"],[-4,3,"OT"],[-3,3,"OT"],[-2,3,"OT"],[-1,3,"OT"],[0,3,"OT"],[1,3,"OT"],[10,3,"NT"],[12,3,"NT"],[-4,4,"OT"],[-3,4,"OT"],[-2,4,"OT"],[-1,4,"OT"],[0,4,"OT"],[-2,5,"OT"]];
+
+describe("корабли не проходят друг сквозь друга", () => {
+  it("на карте партии с островками суда ни разу не наползают друг на друга (замечание владельца 11.11)", { timeout: 300000 }, () => {
+    // Корабль, которому при создании мира не нашлось свободного маршрута, «ждал за краем» носом к центру и, пока ждал,
+    // проходил через всю карту, никого не обходя, — и его не обходили. В этих мирах на старом коде суда наползали.
+    const size = 26, hexes: MapHexDto[] = OSEN.map(([q, r, island]) => ({ q, r, terrain: "meadow", island }));
+    const islets = generateIslets(hexes, size, fieldBounds(hexes, size));
+    const L: Record<string, number> = { sloop: size * 0.95, cog: size * 1.35, ship: size * 1.9 };
+    const bad: string[] = [];
+    for (const seed of [5, 7, 11, 12, 16, 17]) {
+      const traces = traceWorld(hexes, size, 900, STEP, null, seed, [], islets).filter((t) => t.kind in L);
+      expect(traces.length).toBe(5);
+      for (let a = 0; a < traces.length; a++) for (let b = a + 1; b < traces.length; b++) {
+        const ta = traces[a]!, tb = traces[b]!, half = (L[ta.kind]! + L[tb.kind]!) / 2;
+        for (let i = 0; i < ta.samples.length; i++) {
+          const sa = ta.samples[i]!, sb = tb.samples[i]!, d = Math.hypot(sa[0] - sb[0], sa[1] - sb[1]);
+          // Центры ближе полусуммы длин — корпуса и паруса на картинке уже друг на друге.
+          if (d < half) { bad.push(`seed ${seed}: ${ta.kind}+${tb.kind} t=${(i * STEP).toFixed(0)} d=${(d / size).toFixed(2)} гекса`); break; }
+        }
+      }
+    }
+    expect(bad).toEqual([]);
   });
 });
