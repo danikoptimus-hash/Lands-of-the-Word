@@ -81,6 +81,27 @@ static func stops(world: WorldData, rig: StrategyCamera, height_map: HeightMap =
 	number += 1
 	if mountain != null:
 		list.append(_stop("%02d-nebo-nad-gorami" % number, "Горы на фоне неба, вблизи", CameraView.make(mountain.center(), 420.0, 105.0, -90.0), 3.0))
+		number += 1
+
+	# Малые острова и дно. Каждую картинку острова показываем один раз: повторы отличаются только размером.
+	if not world.islets.is_empty():
+		list.append(_stop("%02d-ves-okean" % number, "Весь мир: главные острова, малые острова и дно", rig.view_for_rect(world.content_rect), 3.5))
+		number += 1
+		list.append(_stop("%02d-proliv-dno" % number, "Дно: шельф и пролив между главными островами", CameraView.make(centre, 2600.0, 0.0, 28.0), 3.0))
+		number += 1
+		var shown := {}
+		for islet in world.islets:
+			if shown.has(islet.picture):
+				continue
+			shown[islet.picture] = true
+			var file_name := "kamenolomnya" if islet.quarry else "ostrovok-%d" % islet.picture
+			list.append(_stop("%02d-%s" % [number, file_name], islet.title(), CameraView.make(islet.position, maxf(islet.radius * 3.2, 420.0), 25.0, -8.0), 3.0))
+			number += 1
+			if islet.quarry:
+				# Карьер открыт к югу: смотрим в него с юга.
+				var pit := islet.position + Vector2(-0.14, -0.16) * islet.radius
+				list.append(_stop("%02d-karyer" % number, "Каменоломня: карьер вблизи", CameraView.make(pit, 300.0, 0.0, -12.0), 3.0))
+				number += 1
 	return list
 
 

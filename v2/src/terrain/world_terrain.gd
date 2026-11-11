@@ -1,15 +1,20 @@
 class_name WorldTerrain
 extends Node3D
-## Земля и вода мира. Рельеф запекается один раз, рисуется плитками с уровнями детализации:
-## рядом с камерой сетка плотная, вдали — редкая. Переход между уровнями плавный: перед сменой сетки
-## её точки сами съезжаются в положение более редкой (шейдер terrain_clay), поэтому рельеф не «перещёлкивает».
+## Земля и вода мира. Рельеф запекается один раз, по областям: главные острова, каждый малый остров отдельно
+## и грубая карта глубин всего океана. Рисуется плитками с уровнями детализации: рядом с камерой сетка плотная,
+## вдали — редкая. Переход между уровнями плавный: перед сменой сетки её точки сами съезжаются в положение
+## более редкой (шейдер terrain_clay), поэтому рельеф не «перещёлкивает».
 
 const CLAY_SHADER := preload("res://src/terrain/terrain_clay.gdshader")
 const WATER_SHADER := preload("res://src/terrain/water_clay.gdshader")
 
 const CHUNK := 256.0  ## сторона плитки, метры
-const TEXEL := 2.0  ## точность запекания, метров на точку
-const MARGIN := 520.0  ## запас моря вокруг суши
+const TEXEL := 2.0  ## точность запекания суши, метров на точку
+const MARGIN := 520.0  ## запас моря вокруг главных островов
+const ISLET_MARGIN := 260.0  ## запас моря вокруг малого острова
+const OCEAN_TEXEL := 16.0  ## точность карты глубин океана
+const OCEAN_MARGIN := 2600.0  ## дальше этого от суши дно ровное
+const MAX_AREAS := 16  ## столько областей суши помещается в шейдер моря
 const LOD_CELLS: Array[int] = [64, 32, 16]  ## клеток на сторону плитки по уровням: шаг сетки 4, 8 и 16 м
 ## До какого расстояния от камеры держится уровень. Шаг сетки на экране остаётся в несколько точек.
 ## Условие стыков без щелей: MORPH_START × второе расстояние − первое больше диагонали плитки.
@@ -18,6 +23,8 @@ const MORPH_START := 0.7  ## с этой доли расстояния сетк�
 const SKIRT := 24.0
 const DEEP_CUTOFF := -24.0  ## плитки глубже этого не строим: дно не видно сквозь воду
 const SEA_SIZE := 200000.0  ## море уходит за горизонт: его край тонет в дымке
+const POND_PICTURE := 6  ## остров с прудом
+const POND_PLACE := Vector2(0.07, 0.11)  ## где пруд на картинке острова (как в функции высот)
 
 
 class Chunk:
@@ -26,14 +33,25 @@ class Chunk:
 	var lod := -1
 
 
-var height_map: HeightMap
+## Область, запечённая отдельной текстурой: главные острова или малый остров с морем вокруг.
+class Region:
+	var title := ""
+	var area := Rect2()
+	var height_map: HeightMap
+	var material: ShaderMaterial  ## земля
+	var water_material: ShaderMaterial  ## вода над областью
+	var baker: TerrainBaker  ## нужен, пока расставляем озёра
+
+
+var height_map: HeightMap  ## высоты главных островов; малые острова — в его extras
 var lakes: Array[Dictionary] = []  ## озёра и пруды: клетка и уровень воды
-var bake_rect := Rect2()
+var ponds: Array[Dictionary] = []  ## пруды малых островов: номер острова и уровень воды
+var bake_rect := Rect2()  ## область главных островов
+var ocean_rect := Rect2()  ## область карты глубин
 var bake_ms := 0.0
 var error := ""
 
-var _material: ShaderMaterial
-var _water_material: ShaderMaterial
+var _regions: Array[Region] = []
 var _lod_meshes: Array[ArrayMesh] = []
 var _chunks: Array[Chunk] = []
 var _viewer := Vector3.ZERO
@@ -43,47 +61,63 @@ var _grid_visible := true
 
 ## Сопрограмма: строит землю по данным мира. true — готово, иначе причина в error.
 func build(world: WorldData) -> bool:
-	var land := world.land_rect.grow(MARGIN)
-	var x0 := floorf(land.position.x / CHUNK) * CHUNK
-	var z0 := floorf(land.position.y / CHUNK) * CHUNK
-	var columns := ceili((land.end.x - x0) / CHUNK)
-	var rows := ceili((land.end.y - z0) / CHUNK)
-	bake_rect = Rect2(x0, z0, float(columns) * CHUNK, float(rows) * CHUNK)
+	var started := Time.get_ticks_usec()
+	var main_area := _snap(world.land_rect.grow(MARGIN))
+	var areas: Array[Rect2] = [main_area]
+	var titles: Array[String] = ["главные острова"]
+	for islet in world.islets:
+		var area := _snap(islet.area().grow(ISLET_MARGIN))
+		if main_area.encloses(area):
+			continue  # остров целиком в области главных островов: запечён вместе с ними
+		if areas.size() >= MAX_AREAS:
+			push_error("Областей суши больше, чем помещается в шейдер моря")
+			break
+		areas.append(area)
+		titles.append(islet.title())
 
-	var baker := TerrainBaker.new()
-	add_child(baker)
-	var ok: bool = await baker.bake(world, bake_rect, TEXEL)
-	error = baker.error
-	bake_ms = baker.bake_ms
-	height_map = baker.height_map
-	var texture := baker.texture
-	if not ok:
-		baker.queue_free()
+	for i in areas.size():
+		var region := Region.new()
+		region.title = titles[i]
+		region.area = areas[i]
+		region.baker = TerrainBaker.new()
+		add_child(region.baker)
+		var baked: bool = await region.baker.bake(world, region.area, TEXEL)
+		if not baked:
+			error = "%s — %s" % [region.title, region.baker.error]
+			return false
+		region.height_map = region.baker.height_map
+		_regions.append(region)
+
+	# Карта глубин всего океана: по ней открытое море темнеет над глубиной и светлеет над шельфом.
+	ocean_rect = _snap(world.content_rect.grow(OCEAN_MARGIN))
+	var ocean_baker := TerrainBaker.new()
+	add_child(ocean_baker)
+	var ocean_baked: bool = await ocean_baker.bake(world, ocean_rect, OCEAN_TEXEL)
+	if not ocean_baked:
+		error = "карта глубин — %s" % ocean_baker.error
 		return false
 
-	var rect_uniform := Vector4(bake_rect.position.x, bake_rect.position.y, bake_rect.size.x, bake_rect.size.y)
-	_material = ShaderMaterial.new()
-	_material.shader = CLAY_SHADER
-	world.apply_hex_uniforms(_material)
-	_material.set_shader_parameter("height_map", texture)
-	_material.set_shader_parameter("normal_map", texture)
-	_material.set_shader_parameter("bake_rect", rect_uniform)
-	_material.set_shader_parameter("skirt_depth", SKIRT)
-	_material.set_shader_parameter("grid_strength", 0.5 if _grid_visible else 0.0)
-	_material.set_shader_parameter("lod_distance", Vector2(LOD_DISTANCE[0], LOD_DISTANCE[1]))
-	_material.set_shader_parameter("morph_start", MORPH_START)
+	bake_rect = main_area
+	height_map = _regions[0].height_map
+	for i in range(1, _regions.size()):
+		height_map.extras.append(_regions[i].height_map)
+		height_map.highest = maxf(height_map.highest, _regions[i].height_map.highest)
 
-	_water_material = ShaderMaterial.new()
-	_water_material.shader = WATER_SHADER
-	_water_material.set_shader_parameter("height_map", texture)
-	_water_material.set_shader_parameter("bake_rect", rect_uniform)
-
+	for region in _regions:
+		region.material = _make_terrain_material(world, region)
+		region.water_material = _make_water_material(region.baker.texture, region.area)
 	for cells in LOD_CELLS:
 		_lod_meshes.append(_make_grid(cells, CHUNK))
-	_build_chunks(columns, rows)
-	_build_sea()
-	_build_lakes(world, baker)
-	baker.queue_free()
+	_build_chunks()
+	_build_ocean(ocean_baker.texture)
+	_build_lakes(world)
+	_build_ponds(world)
+
+	for region in _regions:
+		region.baker.queue_free()
+		region.baker = null
+	ocean_baker.queue_free()
+	bake_ms = float(Time.get_ticks_usec() - started) / 1000.0
 	return true
 
 
@@ -91,11 +125,12 @@ func build(world: WorldData) -> bool:
 ## сводит сетку к более редкой; уровень плитки выбирается по её ближайшей к камере точке — так ко времени
 ## смены сетки все точки плитки уже стоят в положении новой.
 func set_viewer(position_in_world: Vector3) -> void:
-	if _material == null or (_viewer_known and position_in_world.is_equal_approx(_viewer)):
+	if _regions.is_empty() or (_viewer_known and position_in_world.is_equal_approx(_viewer)):
 		return
 	_viewer = position_in_world
 	_viewer_known = true
-	_material.set_shader_parameter("viewer_position", _viewer)
+	for region in _regions:
+		region.material.set_shader_parameter("viewer_position", _viewer)
 	for chunk in _chunks:
 		var dx := maxf(maxf(chunk.area.position.x - _viewer.x, _viewer.x - chunk.area.end.x), 0.0)
 		var dz := maxf(maxf(chunk.area.position.y - _viewer.z, _viewer.z - chunk.area.end.y), 0.0)
@@ -106,8 +141,8 @@ func set_viewer(position_in_world: Vector3) -> void:
 
 func set_grid_visible(visible_now: bool) -> void:
 	_grid_visible = visible_now
-	if _material != null:
-		_material.set_shader_parameter("grid_strength", 0.5 if visible_now else 0.0)
+	for region in _regions:
+		region.material.set_shader_parameter("grid_strength", 0.5 if visible_now else 0.0)
 
 
 func is_grid_visible() -> bool:
@@ -116,6 +151,18 @@ func is_grid_visible() -> bool:
 
 func chunk_count() -> int:
 	return _chunks.size()
+
+
+func region_count() -> int:
+	return _regions.size()
+
+
+## Сколько точек рельефа запечено во всех областях суши.
+func baked_points() -> int:
+	var total := 0
+	for region in _regions:
+		total += region.height_map.width * region.height_map.height
+	return total
 
 
 func _pick_lod(distance: float) -> int:
@@ -132,53 +179,144 @@ func _set_lod(chunk: Chunk, lod: int) -> void:
 	chunk.instance.set_instance_shader_parameter("height_lod", float(lod))
 
 
-func _build_chunks(columns: int, rows: int) -> void:
+## Область по сетке плиток: края кратны стороне плитки, так плитки соседних областей совпадают.
+static func _snap(area: Rect2) -> Rect2:
+	var x0 := floorf(area.position.x / CHUNK) * CHUNK
+	var z0 := floorf(area.position.y / CHUNK) * CHUNK
+	var x1 := ceilf(area.end.x / CHUNK) * CHUNK
+	var z1 := ceilf(area.end.y / CHUNK) * CHUNK
+	return Rect2(x0, z0, x1 - x0, z1 - z0)
+
+
+func _make_terrain_material(world: WorldData, region: Region) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = CLAY_SHADER
+	world.apply_hex_uniforms(material)
+	material.set_shader_parameter("height_map", region.baker.texture)
+	material.set_shader_parameter("normal_map", region.baker.texture)
+	material.set_shader_parameter("bake_rect", Vector4(region.area.position.x, region.area.position.y, region.area.size.x, region.area.size.y))
+	material.set_shader_parameter("skirt_depth", SKIRT)
+	material.set_shader_parameter("grid_strength", 0.5 if _grid_visible else 0.0)
+	material.set_shader_parameter("lod_distance", Vector2(LOD_DISTANCE[0], LOD_DISTANCE[1]))
+	material.set_shader_parameter("morph_start", MORPH_START)
+	return material
+
+
+func _make_water_material(texture: Texture2D, area: Rect2) -> ShaderMaterial:
+	var material := ShaderMaterial.new()
+	material.shader = WATER_SHADER
+	material.set_shader_parameter("height_map", texture)
+	material.set_shader_parameter("bake_rect", Vector4(area.position.x, area.position.y, area.size.x, area.size.y))
+	return material
+
+
+## Плитки земли и вода над ними. Плитка мира принадлежит первой области, в которую попала: области
+## могут перекрываться (малый остров рядом с главным), а земля и вода не должны рисоваться дважды.
+func _build_chunks() -> void:
 	var coarsest := _lod_meshes.size() - 1
-	for row in rows:
-		for column in columns:
-			var origin := Vector2(bake_rect.position.x + float(column) * CHUNK, bake_rect.position.y + float(row) * CHUNK)
-			var heights := height_map.range_in(Rect2(origin, Vector2(CHUNK, CHUNK)))
-			if heights.y < DEEP_CUTOFF:
-				continue
-			var instance := MeshInstance3D.new()
-			instance.material_override = _material
-			instance.position = Vector3(origin.x, 0.0, origin.y)
-			# Высоту точкам даёт шейдер, поэтому границы плитки для отсечения задаём сами.
-			instance.custom_aabb = AABB(
-					Vector3(0.0, heights.x - SKIRT - 2.0, 0.0),
-					Vector3(CHUNK, heights.y - heights.x + SKIRT + 4.0, CHUNK))
-			add_child(instance)
-			var chunk := Chunk.new()
-			chunk.instance = instance
-			chunk.area = Rect2(origin, Vector2(CHUNK, CHUNK))
-			_set_lod(chunk, coarsest)
-			_chunks.append(chunk)
+	var owned := {}
+	for region in _regions:
+		var columns := roundi(region.area.size.x / CHUNK)
+		var rows := roundi(region.area.size.y / CHUNK)
+		var water_vertices := PackedVector3Array()
+		var water_indices := PackedInt32Array()
+		for row in rows:
+			for column in columns:
+				var origin := Vector2(region.area.position.x + float(column) * CHUNK, region.area.position.y + float(row) * CHUNK)
+				var key := Vector2i(roundi(origin.x / CHUNK), roundi(origin.y / CHUNK))
+				if owned.has(key):
+					continue
+				owned[key] = true
+				# Вода над плиткой: квадрат на уровне моря, по часовой стрелке (лицом вверх).
+				var first := water_vertices.size()
+				water_vertices.append(Vector3(origin.x, 0.0, origin.y))
+				water_vertices.append(Vector3(origin.x + CHUNK, 0.0, origin.y))
+				water_vertices.append(Vector3(origin.x + CHUNK, 0.0, origin.y + CHUNK))
+				water_vertices.append(Vector3(origin.x, 0.0, origin.y + CHUNK))
+				water_indices.append_array(PackedInt32Array([first, first + 1, first + 2, first, first + 2, first + 3]))
+
+				var heights := region.height_map.range_in(Rect2(origin, Vector2(CHUNK, CHUNK)))
+				if heights.y < DEEP_CUTOFF:
+					continue
+				var instance := MeshInstance3D.new()
+				instance.material_override = region.material
+				instance.position = Vector3(origin.x, 0.0, origin.y)
+				# Высоту точкам даёт шейдер, поэтому границы плитки для отсечения задаём сами.
+				instance.custom_aabb = AABB(
+						Vector3(0.0, heights.x - SKIRT - 2.0, 0.0),
+						Vector3(CHUNK, heights.y - heights.x + SKIRT + 4.0, CHUNK))
+				add_child(instance)
+				var chunk := Chunk.new()
+				chunk.instance = instance
+				chunk.area = Rect2(origin, Vector2(CHUNK, CHUNK))
+				_set_lod(chunk, coarsest)
+				_chunks.append(chunk)
+
+		if water_vertices.is_empty():
+			continue
+		var arrays := []
+		arrays.resize(Mesh.ARRAY_MAX)
+		arrays[Mesh.ARRAY_VERTEX] = water_vertices
+		arrays[Mesh.ARRAY_INDEX] = water_indices
+		var mesh := ArrayMesh.new()
+		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+		var water := MeshInstance3D.new()
+		water.name = "Water"
+		water.mesh = mesh
+		water.material_override = region.water_material
+		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		water.set_instance_shader_parameter("water_level", 0.0)
+		add_child(water)
 
 
-func _build_sea() -> void:
+## Открытое море: одна плоскость до горизонта. Цвет берёт из карты глубин; над областями суши не рисуется —
+## там вода своя, по точному рельефу.
+func _build_ocean(depth_texture: Texture2D) -> void:
+	var material := _make_water_material(depth_texture, ocean_rect)
+	var origins := PackedVector2Array()
+	var sizes := PackedVector2Array()
+	origins.resize(MAX_AREAS)
+	sizes.resize(MAX_AREAS)
+	for i in _regions.size():
+		origins[i] = _regions[i].area.position
+		sizes[i] = _regions[i].area.size
+	material.set_shader_parameter("open_sea", true)
+	material.set_shader_parameter("area_origin", origins)
+	material.set_shader_parameter("area_size", sizes)
+	material.set_shader_parameter("area_count", _regions.size())
+
 	var plane := PlaneMesh.new()
 	plane.size = Vector2(SEA_SIZE, SEA_SIZE)
 	var sea := MeshInstance3D.new()
-	sea.name = "Sea"
+	sea.name = "Ocean"
 	sea.mesh = plane
-	sea.material_override = _water_material
+	sea.material_override = material
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	sea.position = Vector3(bake_rect.get_center().x, 0.0, bake_rect.get_center().y)
+	sea.position = Vector3(ocean_rect.get_center().x, 0.0, ocean_rect.get_center().y)
 	sea.set_instance_shader_parameter("water_level", 0.0)
 	add_child(sea)
+
+
+## Область, которой принадлежит точка (та же, что рисует там землю и воду).
+func _region_at(point: Vector2) -> Region:
+	for region in _regions:
+		if region.area.has_point(point):
+			return region
+	return null
 
 
 ## Озёра и пруды оазисов. Форму и уровень воды задаёт функция высот: уровень запечён рядом с высотой.
 ## Вода — плоский круг на этом уровне; шейдер рисует его только в котловине своего озера.
 ## Соседние водные клетки с общим уровнем — одно озеро: на них один круг, иначе вода легла бы в два слоя.
-func _build_lakes(world: WorldData, baker: TerrainBaker) -> void:
+func _build_lakes(world: WorldData) -> void:
 	lakes.clear()
+	var main := _regions[0]
 	var levels := {}  # клетка Vector2i(q, r) → уровень воды
 	var is_lake := {}
 	for cell in world.cells:
 		if cell.terrain != WorldData.Terrain.WATER and cell.terrain != WorldData.Terrain.OASIS:
 			continue
-		var level := _find_water_level(baker, cell.center())
+		var level := _find_water_level(main.baker, cell.center())
 		if level <= TerrainBaker.NO_WATER + 1.0:
 			continue
 		var at := Vector2i(cell.q, cell.r)
@@ -211,13 +349,35 @@ func _build_lakes(world: WorldData, baker: TerrainBaker) -> void:
 		var reach := 0.0
 		for at in group:
 			reach = maxf(reach, centre.distance_to(HexMath.center(at.x, at.y)))
-		var water := MeshInstance3D.new()
-		water.mesh = _make_disc(reach + (HexMath.SIZE * 2.4 if with_lake else 70.0))
-		water.material_override = _water_material
-		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		water.position = Vector3(centre.x, level, centre.y)
-		water.set_instance_shader_parameter("water_level", level)
-		add_child(water)
+		_add_water_disc(main, centre, reach + (HexMath.SIZE * 2.4 if with_lake else 70.0), level)
+
+
+## Пруды малых островов (остров с ручьём и прудом).
+func _build_ponds(world: WorldData) -> void:
+	ponds.clear()
+	for i in world.islets.size():
+		var islet := world.islets[i]
+		if islet.picture != POND_PICTURE:
+			continue
+		var centre := islet.position + POND_PLACE * islet.radius
+		var region := _region_at(centre)
+		if region == null:
+			continue
+		var level := _find_water_level(region.baker, centre)
+		if level <= TerrainBaker.NO_WATER + 1.0:
+			continue
+		_add_water_disc(region, centre, islet.radius * 0.14 + 40.0, level)
+		ponds.append({"islet": i, "level": level})
+
+
+func _add_water_disc(region: Region, centre: Vector2, radius: float, level: float) -> void:
+	var water := MeshInstance3D.new()
+	water.mesh = _make_disc(radius)
+	water.material_override = region.water_material
+	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	water.position = Vector3(centre.x, level, centre.y)
+	water.set_instance_shader_parameter("water_level", level)
+	add_child(water)
 
 
 ## Уровень воды озера клетки: ищем его рядом с центром гекса, расходясь кругами (чаша смещена от центра).

@@ -4,8 +4,8 @@ extends Node
 ## Результат — текстура для отрисовки и высоты в памяти для камеры и объектов.
 
 const BAKE_SHADER := preload("res://src/terrain/bake.gdshader")
-const OPEN_SEA := -30.0  ## глубина открытого моря в функции высот: по ней проверяем, что запекание прошло верно
 const NO_WATER := -999.0  ## значение канала уровня воды там, где озера нет
+const PROBE := Color(-1024.0, 0.25, -0.5, 2048.0)  ## проверочная точка в углу (её пишет шейдер запекания)
 const ATTEMPTS := 3
 
 var texture: ImageTexture
@@ -56,6 +56,8 @@ func bake(world: WorldData, world_rect: Rect2, texel: float) -> bool:
 	if not error.is_empty():
 		return false
 
+	# Проверочная точка своё дело сделала: ставим на её место соседнюю высоту.
+	image.set_pixel(0, 0, image.get_pixel(1, 0))
 	height_map = HeightMap.from_image(image, world_rect)
 	if height_map == null:
 		error = "не удалось прочитать высоты"
@@ -77,14 +79,12 @@ func _validate(image: Image, size: Vector2i) -> String:
 		return "рельеф неожиданного размера %d×%d" % [image.get_width(), image.get_height()]
 	if image.get_format() != Image.FORMAT_RGBAH and image.get_format() != Image.FORMAT_RGBAF:
 		return "видеорежим не поддерживает точные текстуры (формат %d)" % image.get_format()
-	# Угол области — открытое море: там функция высот даёт ровно OPEN_SEA.
-	var corner := image.get_pixel(1, 1).r
-	if absf(corner - OPEN_SEA) > 0.1:
-		return "проверочная точка рельефа: %.2f вместо %.2f" % [corner, OPEN_SEA]
-	# В том же углу озера нет: канал уровня воды должен дойти до нас без искажений.
-	var water := image.get_pixel(1, 1).a
-	if absf(water - NO_WATER) > 0.5:
-		return "проверочная точка уровня воды: %.2f вместо %.2f" % [water, NO_WATER]
+	# В углу шейдер пишет условленные числа: отрицательные, больше единицы и в четвёртом канале.
+	# Если они дошли без искажений — видеорежим отдаёт настоящие высоты.
+	var probe := image.get_pixel(0, 0)
+	if absf(probe.r - PROBE.r) > 0.5 or absf(probe.g - PROBE.g) > 0.01 or absf(probe.b - PROBE.b) > 0.01 or absf(probe.a - PROBE.a) > 0.5:
+		return "проверочная точка рельефа: %.2f, %.2f, %.2f, %.2f вместо %.0f, %.2f, %.2f, %.0f" % [
+				probe.r, probe.g, probe.b, probe.a, PROBE.r, PROBE.g, PROBE.b, PROBE.a]
 	return ""
 
 

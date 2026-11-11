@@ -16,4 +16,9 @@ void fragment() {
 	float dz = world_surface(p + vec2(0.0, texel)).x - world_surface(p - vec2(0.0, texel)).x;
 	vec3 normal = normalize(vec3(-dx, 2.0 * texel, -dz));
 	COLOR = vec4(surface.x, normal.x, normal.z, surface.y);
+	// Проверочная точка в углу: по ней программа видит, что видеокарта отдала числа без искажений
+	// (отрицательные, больше единицы, с четвёртым каналом). Сама точка затем заменяется соседней.
+	if (FRAGCOORD.x < 1.0 && FRAGCOORD.y < 1.0) {
+		COLOR = vec4(-1024.0, 0.25, -0.5, 2048.0);
+	}
 }

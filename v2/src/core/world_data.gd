@@ -15,6 +15,19 @@ const TERRAIN_BY_NAME := {
 }
 const ISLAND_TITLES := {"OT": "Ветхий Завет", "NT": "Новый Завет"}
 const HEX_MAP_PAD := 3  ## запас клеток моря вокруг карты в текстуре местностей
+## Малые острова — те же, что на сайте (packages/domain/src/islets.ts): номер картинки → что это за остров.
+const ISLET_TITLES := {
+	1: "Зелёный остров",
+	2: "Остров с хребтом",
+	3: "Полумесяц с лагуной",
+	4: "Песчаная банка",
+	5: "Столовая гора",
+	6: "Остров с ручьём и прудом",
+	7: "Каменоломня",
+}
+const SHAPES_PATH := "res://data/islets.bin"  ## очертания островов по картинкам сайта (tools/islet-shapes.py)
+const MAX_COAST_CELLS := 160  ## столько клеток берега помещается в шейдер рельефа
+const MAX_ISLETS := 12
 
 
 class Cell:
@@ -45,12 +58,32 @@ class Site:
 		return 1
 
 
+class Islet:
+	var position := Vector2.ZERO  ## центр картинки острова, метры
+	var radius := 0.0  ## половина стороны картинки, метры
+	var picture := 1  ## номер картинки на сайте: от него зависит характер острова
+	var quarry := false
+
+	func title() -> String:
+		return str(WorldData.ISLET_TITLES.get(picture, "Островок"))
+
+	## Квадрат, в который вписан остров.
+	func area() -> Rect2:
+		return Rect2(position - Vector2(radius, radius) * 1.05, Vector2(radius, radius) * 2.1)
+
+
+static var _shapes_texture: ImageTexture
+static var _shapes_extent := 1.3
+static var _shapes_size := 160
+
 var title := ""
 var map_seed := 0
 var cells: Array[Cell] = []
 var sites: Array[Site] = []
 var edges: Array[PackedStringArray] = []
+var islets: Array[Islet] = []
 var land_rect := Rect2()  ## прямоугольник вокруг всех гексов
+var content_rect := Rect2()  ## главные острова вместе с малыми
 var island_rects := {}  ## остров → Rect2
 var hex_origin := Vector2i.ZERO
 var hex_dims := Vector2i.ONE
@@ -69,7 +102,8 @@ static func load_file(path: String) -> WorldData:
 		push_error("Данные мира повреждены: %s" % path)
 		return null
 	var data: Dictionary = parsed
-	if int(data.get("format", 0)) != 1:
+	var format := int(data.get("format", 0))
+	if format != 1 and format != 2:  # формат 2 — со списком малых островов
 		push_error("Неизвестный формат данных мира: %s" % path)
 		return null
 
@@ -103,6 +137,18 @@ static func load_file(path: String) -> WorldData:
 	var edge_rows: Array = data.get("edges", [])
 	for row: Array in edge_rows:
 		world.edges.append(PackedStringArray([str(row[0]), str(row[1])]))
+
+	var islet_rows: Array = data.get("islets", [])
+	for row: Array in islet_rows:
+		if world.islets.size() >= MAX_ISLETS:
+			push_error("Малых островов больше, чем помещается в рельеф: %s" % path)
+			break
+		var islet := Islet.new()
+		islet.position = Vector2(float(row[0]), float(row[1]))
+		islet.radius = float(row[2])
+		islet.picture = int(row[3])
+		islet.quarry = int(row[5]) != 0
+		world.islets.append(islet)
 
 	if world.cells.is_empty():
 		push_error("В данных мира нет гексов: %s" % path)
@@ -174,11 +220,88 @@ func apply_hex_uniforms(material: ShaderMaterial) -> void:
 	material.set_shader_parameter("hex_dims", hex_dims)
 
 
-## Всё, что нужно функции высот: карта партии, зерно и сдвиг шума.
+## Всё, что нужно функции высот: карта партии, зерно и сдвиг шума, берег главных островов и малые острова.
 func apply_height_uniforms(material: ShaderMaterial) -> void:
 	apply_hex_uniforms(material)
 	material.set_shader_parameter("noise_offset", noise_offset())
 	material.set_shader_parameter("map_seed", map_seed & 0x7FFFFFFF)
+
+	# Клетки суши у моря: по ним шейдер считает расстояние до главных островов вдали от берега.
+	var coast := PackedVector2Array()
+	coast.resize(MAX_COAST_CELLS)
+	var coast_count := 0
+	for cell in cells:
+		if not _is_coastal(cell):
+			continue
+		if coast_count >= MAX_COAST_CELLS:
+			push_error("Клеток берега больше, чем помещается в рельеф: шельф вдали от берега будет неточным")
+			break
+		coast[coast_count] = cell.center()
+		coast_count += 1
+	material.set_shader_parameter("coast_cells", coast)
+	material.set_shader_parameter("coast_count", coast_count)
+
+	var centres := PackedVector2Array()
+	var sizes := PackedVector2Array()
+	centres.resize(MAX_ISLETS)
+	sizes.resize(MAX_ISLETS)
+	var shapes_ready := _load_shapes()
+	var islet_count := mini(islets.size(), MAX_ISLETS) if shapes_ready else 0
+	for i in islet_count:
+		centres[i] = islets[i].position
+		sizes[i] = Vector2(islets[i].radius, float(islets[i].picture))
+	material.set_shader_parameter("islet_centre", centres)
+	material.set_shader_parameter("islet_size", sizes)
+	material.set_shader_parameter("islet_count", islet_count)
+	if shapes_ready:
+		material.set_shader_parameter("islet_shapes", _shapes_texture)
+		material.set_shader_parameter("shape_extent", _shapes_extent)
+		material.set_shader_parameter("shape_size", float(_shapes_size))
+
+
+## Клетка суши, у которой хотя бы один сосед — море.
+func _is_coastal(cell: Cell) -> bool:
+	for d: Vector2i in [Vector2i(1, 0), Vector2i(1, -1), Vector2i(0, -1), Vector2i(-1, 0), Vector2i(-1, 1), Vector2i(0, 1)]:
+		if terrain_at(cell.q + d.x, cell.r + d.y) == Terrain.SEA:
+			return true
+	return false
+
+
+## Очертания малых островов: семь полей расстояний до берега одно под другим в одной текстуре.
+## Файл общий для всех карт, читается один раз.
+static func _load_shapes() -> bool:
+	if _shapes_texture != null:
+		return true
+	var bytes := FileAccess.get_file_as_bytes(SHAPES_PATH)
+	if bytes.size() < 19 or bytes.slice(0, 8).get_string_from_ascii() != "LOTWISL1":
+		push_error("Очертания малых островов не найдены: %s" % SHAPES_PATH)
+		return false
+	var count := bytes.decode_u8(8)
+	var size := bytes.decode_u16(9)
+	var extent := bytes.decode_float(11)
+	var limit := bytes.decode_float(15)
+	var rows := ISLET_TITLES.size()
+	var per_field := size * size
+	if bytes.size() < 19 + count * (1 + per_field * 2):
+		push_error("Очертания малых островов повреждены: %s" % SHAPES_PATH)
+		return false
+	var values := PackedFloat32Array()
+	values.resize(per_field * rows)
+	values.fill(limit)
+	var at := 19
+	for i in count:
+		var picture := bytes.decode_u8(at)
+		at += 1
+		if picture >= 1 and picture <= rows:
+			var base := (picture - 1) * per_field
+			for k in per_field:
+				values[base + k] = (float(bytes.decode_u16(at + k * 2)) / 65535.0 * 2.0 - 1.0) * limit
+		at += per_field * 2
+	var image := Image.create_from_data(size, size * rows, false, Image.FORMAT_RF, values.to_byte_array())
+	_shapes_texture = ImageTexture.create_from_image(image)
+	_shapes_extent = extent
+	_shapes_size = size
+	return true
 
 
 func _measure() -> void:
@@ -199,5 +322,8 @@ func _measure() -> void:
 			island_rects[cell.island] = known.merge(box)
 		else:
 			island_rects[cell.island] = box
+	content_rect = land_rect
+	for islet in islets:
+		content_rect = content_rect.merge(islet.area())
 	hex_origin = Vector2i(q_min - HEX_MAP_PAD, r_min - HEX_MAP_PAD)
 	hex_dims = Vector2i(q_max - q_min + 1 + HEX_MAP_PAD * 2, r_max - r_min + 1 + HEX_MAP_PAD * 2)

@@ -1,6 +1,7 @@
 # Картинка рельефа из песочницы: вид сверху со светом, тенями и водой.
 # Запуск: python preview.py [метров на точку] [файл.png] [x0 x1 z0 z1] [--nogrid]
-# Другая карта: WORLD=путь/к/миру.json (по умолчанию — «Осень»). Без границ берётся весь мир с запасом моря.
+# Другая карта: WORLD=путь/к/миру.json (по умолчанию — «Осень»). Без границ берутся главные острова с запасом моря;
+# --world — весь мир с малыми островами; --isl=N — малый остров номер N (с нуля, по порядку в снимке мира).
 import os, sys, time, math
 from pathlib import Path
 import numpy as np
@@ -18,6 +19,13 @@ if len(args) > 5:
 else:
     cx = [hex_center(h[0], h[1])[0] for h in world.w['hexes']]; cz = [hex_center(h[0], h[1])[1] for h in world.w['hexes']]
     x0, x1, z0, z1 = min(cx) - 420.0, max(cx) + 420.0, min(cz) - 420.0, max(cz) + 420.0
+    if '--world' in sys.argv:
+        for ix, iz, ir, *_ in world.islets:
+            x0 = min(x0, ix - 1.3 * ir - 500.0); x1 = max(x1, ix + 1.3 * ir + 500.0); z0 = min(z0, iz - 1.3 * ir - 500.0); z1 = max(z1, iz + 1.3 * ir + 500.0)
+    for a in sys.argv:
+        if a.startswith('--isl='):
+            ix, iz, ir, *_ = world.islets[int(a[6:])]
+            x0, x1, z0, z1 = ix - 1.35 * ir, ix + 1.35 * ir, iz - 1.35 * ir, iz + 1.35 * ir
 xs = np.arange(x0 + texel / 2, x1, texel, dtype=np.float32); zs = np.arange(z0 + texel / 2, z1, texel, dtype=np.float32)
 px, py = np.meshgrid(xs, zs)
 t = time.time(); h, level = world.height(px, py, True); print('высоты', h.shape, round(time.time() - t, 1), 'с', 'мин', float(h.min()), 'макс', float(h.max()))
@@ -41,10 +49,10 @@ tint = np.clip(h / 70.0, 0, 1)[..., None]
 img = shade[..., None] * (clay[None, None, :] * (0.9 + 0.2 * tint))
 water_level = np.where(level > -900, level, 0.0)
 depth = np.clip(water_level - h, 0, None)
-k = 1 - np.exp(-depth * 0.14)
+k = 1 - np.exp(-depth * 0.045)
 water = np.array([0.40, 0.62, 0.64])[None, None, :] * (1 - k[..., None]) + np.array([0.08, 0.2, 0.3])[None, None, :] * k[..., None]
 wet = (h < 0) | ((level > -900) & (h < level))
-alpha = np.where(wet, 0.4 + 0.6 * (1 - np.exp(-depth * 0.28)), 0.0)[..., None]
+alpha = np.where(wet, (0.55 + 0.45 * (1 - np.exp(-depth * 0.25))) * np.clip(depth / 0.35, 0, 1), 0.0)[..., None]
 img = img * (1 - alpha) + water * alpha
 q, r = hex_at(px, py); cx, cy = hex_center(q, r)
 edge = -sd_hex(px - cx, py - cy)

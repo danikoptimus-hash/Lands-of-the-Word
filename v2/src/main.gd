@@ -14,14 +14,17 @@ const WORLD_PATHS: Array[String] = [
 	"res://data/world_proba_4.json",
 ]
 const WINDOW_TITLE := "Земли Слова — версия 2 (тест)"
+const FOG_DENSITY := 0.000025  ## дымка вблизи; издалека она реже (см. _process)
 const SHOTS_FOLDER := "Земли Слова — тест"
 
 var _world: WorldData
 var _world_index := 0
+var _islet_index := -1  ## на какой малый остров летали последним (клавиша O)
 var _terrain: WorldTerrain
 var _rig: StrategyCamera
 var _hud: Hud
 var _sun: DirectionalLight3D
+var _environment: Environment
 var _markers: SiteMarkers
 var _benchmark: Benchmark
 var _updater: Updater
@@ -95,7 +98,9 @@ func _process(_delta: float) -> void:
 	# Чем ближе взгляд к горизонту, тем дальше видно — и тем дальше нужны тени.
 	var low := 1.0 - smoothstep(0.1, 0.5, _rig.view_angle())
 	var reach := maxf(_rig.current_distance() * lerpf(2.6, 7.0, low), lerpf(500.0, 4500.0, low))
-	_sun.directional_shadow_max_distance = minf(reach, 12000.0)
+	_sun.directional_shadow_max_distance = minf(reach, 40000.0)
+	# Издалека (весь мир с малыми островами) дымка реже: иначе за десять километров картинка белеет.
+	_environment.fog_density = FOG_DENSITY * clampf(3000.0 / _rig.current_distance(), 0.25, 1.0)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -122,6 +127,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 	match key.physical_keycode:
 		KEY_SPACE, KEY_HOME:
 			_rig.fly_to(_rig.view_for_rect(_world.land_rect))
+		KEY_0, KEY_BACKSPACE:
+			_rig.fly_to(_rig.view_for_rect(_world.content_rect))
+		KEY_K:
+			_fly_to_quarry()
+		KEY_O:
+			_fly_to_next_islet()
 		KEY_1:
 			_fly_to_island("OT")
 		KEY_2:
@@ -182,9 +193,10 @@ func _build_light() -> void:
 	environment.ssao_intensity = 2.0
 	environment.fog_enabled = true
 	environment.fog_light_color = Color(0.8, 0.81, 0.8)
-	environment.fog_density = 0.000025
+	environment.fog_density = FOG_DENSITY
 	environment.fog_aerial_perspective = 0.4
 	environment.fog_sky_affect = 0.0
+	_environment = environment
 	var world_environment := WorldEnvironment.new()
 	world_environment.environment = environment
 	add_child(world_environment)
@@ -206,7 +218,8 @@ func _load_world(path: String) -> bool:
 		_terrain.queue_free()
 		_terrain = null
 	_world = world
-	_rig.set_world_bounds(_world.land_rect)
+	_islet_index = -1
+	_rig.set_world_bounds(_world.content_rect)
 	_rig.set_view(_rig.view_for_rect(_world.land_rect))
 
 	_hud.set_loading("Лепим землю…")
@@ -225,9 +238,9 @@ func _load_world(path: String) -> bool:
 
 	_hud.set_loading("")
 	_ready_to_play = true
-	print("МИР «%s»: рельеф %d×%d за %.0f мс, высоты от %.1f до %.1f м, плиток %d" % [
-		_world.title, _terrain.height_map.width, _terrain.height_map.height, _terrain.bake_ms,
-		_terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count()])
+	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс; высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
+		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms,
+		_terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count(), _world.islets.size()])
 	return true
 
 
@@ -247,6 +260,28 @@ func _fly_to_island(island: String) -> void:
 	if _world.island_rects.has(island):
 		var area: Rect2 = _world.island_rects[island]
 		_rig.fly_to(_rig.view_for_rect(area))
+
+
+func _fly_to_islet(index: int) -> void:
+	var islet := _world.islets[index]
+	_islet_index = index
+	_rig.fly_to(CameraView.make(islet.position, maxf(islet.radius * 3.2, 420.0), 25.0, -8.0))
+	_hud.toast("%s — малый остров %d из %d. O — следующий." % [islet.title(), index + 1, _world.islets.size()], 5.0)
+
+
+func _fly_to_quarry() -> void:
+	for i in _world.islets.size():
+		if _world.islets[i].quarry:
+			_fly_to_islet(i)
+			return
+	_hud.toast("На этой карте нет острова Каменоломни.", 4.0)
+
+
+func _fly_to_next_islet() -> void:
+	if _world.islets.is_empty():
+		_hud.toast("На этой карте нет малых островов.", 4.0)
+		return
+	_fly_to_islet((_islet_index + 1) % _world.islets.size())
 
 
 func _toggle_fullscreen() -> void:

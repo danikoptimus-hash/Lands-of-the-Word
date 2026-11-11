@@ -3,6 +3,7 @@
 // Запуск из корня репозитория (пакет domain должен быть собран: npm run build -w packages/domain):
 //   node v2/tools/gen-world.mjs 12345 "Проба 12345" [команд=3] [перекрёстков=250] > v2/data/world_12345.json
 import { generateMap } from "../../packages/domain/dist/index.js";
+import { isletRows, worldText } from "./islets.mjs";
 
 const seed = Number(process.argv[2]);
 if (!Number.isFinite(seed)) { console.error("Укажите зерно карты (число)"); process.exit(1); }
@@ -12,7 +13,6 @@ const nodeCount = Number(process.argv[5] ?? 250);
 const map = generateMap({ seed, teamCount, nodeCount });
 
 const world = {
-  format: 1,
   name,
   seed,
   // [q, r, местность, остров]
@@ -23,12 +23,7 @@ const world = {
   ]),
   // [ключ, ключ]
   edges: map.edges.map((e) => [e.a, e.b]),
+  // [x, z, r, картинка, охват, каменоломня] — малые острова, метры
+  islets: isletRows(map.hexes),
 };
-const lines = ["{", `  "format": ${world.format},`, `  "name": ${JSON.stringify(world.name)},`, `  "seed": ${world.seed},`];
-for (const key of ["hexes", "nodes", "edges"]) {
-  lines.push(`  "${key}": [`);
-  lines.push(world[key].map((row) => "    " + JSON.stringify(row)).join(",\n"));
-  lines.push(key === "edges" ? "  ]" : "  ],");
-}
-lines.push("}");
-process.stdout.write(lines.join("\n") + "\n");
+process.stdout.write(worldText(world));

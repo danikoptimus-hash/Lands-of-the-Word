@@ -26,3 +26,13 @@ print('высоты в игре: от %.1f до %.1f; запекание %.0f м
 for l in rep.get('lakes', []):
     level = float(w.wet_level(np.array([l['q']]), np.array([l['r']]))[0])
     print('   озеро' if l['lake'] else '   пруд', (l['q'], l['r']), 'игра %.3f песочница %.3f' % (l['level'], level))
+probes = rep.get('probes', {})
+if probes:
+    names = list(probes.keys())
+    qx = np.array([[probes[k][0] for k in names]], dtype=np.float32); qz = np.array([[probes[k][1] for k in names]], dtype=np.float32)
+    mine = w.height(qx, qz)[0]; theirs = np.array([probes[k][2] for k in names])
+    gap = np.abs(theirs - mine)
+    print('точек на малых островах и у них', len(names), '; расхождение: среднее %.3f м, наибольшее %.3f м' % (gap.mean(), gap.max()))
+    for i in np.argsort(-gap)[:5]: print('  ', names[i], 'игра %.2f песочница %.2f' % (theirs[i], mine[i]))
+for pond in rep.get('ponds', []):
+    print('   пруд малого острова', pond['islet'], 'уровень в игре %.2f (в песочнице 8.00)' % pond['level'])

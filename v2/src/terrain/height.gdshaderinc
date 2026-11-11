@@ -8,6 +8,8 @@
 //     с перевалом там, где его пересекает дорога;
 //   • озёра свободной формы: вытянутая чаша со смещённым центром и одним-двумя плёсами в соседних гексах;
 //     соседние водные клетки сливаются в одно озеро с общим уровнем воды.
+//   • вокруг главных островов — малые (те же, что на сайте: очертания сняты с их картинок, у каждого свой характер)
+//     и дно: широкий светлый шельф с банками, свал и глубина с подводными грядами.
 // Сетка гексов остаётся логикой игры. Обязательное одно: города, порты и точки старта стоят на суше, на ровной площадке.
 // Числа подобраны в песочнице и принимаются владельцем на шаге 1.2 дорожной карты.
 
@@ -15,6 +17,19 @@
 
 uniform vec2 noise_offset; // сдвиг шума от зерна карты: у каждой карты свои детали
 uniform int map_seed; // зерно карты: от него зависят случайные числа клеток (вершины, заливы, перевалы)
+
+// Клетки суши у моря (центры): по ним считается расстояние до главных островов вдали от берега.
+uniform vec2 coast_cells[160];
+uniform int coast_count = 0;
+// Малые острова: центр, затем половина стороны картинки (x) и номер картинки (y). Раскладка та же, что на сайте.
+uniform vec2 islet_centre[12];
+uniform vec2 islet_size[12];
+uniform int islet_count = 0;
+// Очертания островов: поля расстояний до берега по картинкам сайта, семь полей одно под другим (tools/islet-shapes.py).
+uniform sampler2D islet_shapes : filter_linear, repeat_disable;
+uniform float shape_extent = 1.3; // поле покрывает квадрат от −extent до extent (в половинах стороны картинки)
+uniform float shape_size = 160.0; // сторона одного поля, точек
+const float SHAPE_ROWS = 7.0;
 
 const float FAR = 250.0; // дальше этого расстояния до суши и моря не различаем
 const float BIG = 1.0e6;
@@ -404,14 +419,15 @@ float lakes(vec2 p, vec2 n, float d_site, float h, out float level) {
 	return mix(held, target, carve);
 }
 
-// ── Поверхность мира ────────────────────────────────────────────────────────
+// ── Главные острова ─────────────────────────────────────────────────────────
 
-// x — высота земли (дна), y — уровень воды озера в этой точке или NO_WATER.
-vec2 world_surface(vec2 p0) {
+// Суша главных островов: land — высота земли с учётом берега, shore — метров вглубь суши от уреза воды
+// (меньше нуля — море), cliff — крутизна берега. p и n — точка после «стягивания» к площадке и точка шума:
+// по ним же потом считаются озёра.
+void field_surface(vec2 p0, out float shore, out float land, out float cliff, out vec2 p, out vec2 n, out float d_site) {
 	float harbor = 1.0 - smoothstep(40.0, 140.0, port_distance(p0));
-	float d_site;
-	vec2 p = pinch(p0, d_site);
-	vec2 n = p + noise_offset;
+	p = pinch(p0, d_site);
+	n = p + noise_offset;
 
 	// Берег. Искажение слабое: стороны гексов всегда остаются сушей.
 	vec2 pc = p + vec2(
@@ -526,30 +542,267 @@ vec2 world_surface(vec2 p0) {
 	// Берег: высокая земля обрывается скалами, низкая сходит пляжем. Часть высоких берегов всё же пологая.
 	float bulge = noise01(n / 520.0 + vec2(71.0, 13.0));
 	// Обрыв — там, где высок сам материк (а не отдельный холм или бархан): берег рвётся скалой на сотни метров подряд.
-	float cliff = smoothstep(12.0, 30.0, ground) * smoothstep(0.3, 0.55, noise01(n / 260.0 + vec2(31.0, 9.0)))
+	cliff = smoothstep(12.0, 30.0, ground) * smoothstep(0.3, 0.55, noise01(n / 260.0 + vec2(31.0, 9.0)))
 			* (1.0 - harbor) * (1.0 - smoothstep(120.0, 200.0, coast));
 	float offset = smooth_max(30.0 + 16.0 * cliff,
 			34.0 + 110.0 * bulge * bulge + 18.0 * gnoise(n / 170.0 + vec2(0.0, 50.0)) + 6.0 * gnoise(n / 60.0 + vec2(9.0, 0.0)), 12.0);
-	float shore = offset - coast; // > 0 — метров вглубь суши от уреза воды
+	shore = offset - coast;
+	land = h;
 	if (shore > 0.0) {
-		// Мысы и бухточки вдоль обрыва.
-		// У самой воды они сходят на нет: суша начинается от уреза без ступеньки.
+		// Мысы и бухточки вдоль обрыва. У самой воды они сходят на нет: суша начинается от уреза без ступеньки.
 		float rugged = cliff * (10.0 * gnoise(n / 70.0 + vec2(0.0, 3.0)) + 4.0 * gnoise(n / 27.0 + vec2(7.0, 0.0)))
 				* smoothstep(0.0, 12.0, shore);
 		float beach = 2.4 * (1.0 - exp(-shore / 14.0));
 		// Обрыв крутой, но не стена: чем выше берег, тем шире склон (гора сходит в море градусов под шестьдесят).
 		float foot = 4.0 - cliff;
-		h = mix(beach, h, smoothstep(foot, max(95.0 - 77.0 * cliff, foot + 0.6 * h), shore + rugged));
-	} else {
-		float out_sea = -shore;
-		// У обрыва глубоко сразу, у пляжа — широкая отмель.
-		float shelf = (38.0 + 50.0 * noise01(n / 380.0 + vec2(31.7, 8.0))) * (1.0 - 0.6 * cliff);
-		float shallow = (0.1 + 0.5 * cliff) * min(out_sea, 12.0) + 3.5 * smoothstep(0.0, 0.6 * shelf, out_sea)
-				+ 25.3 * smoothstep(0.5 * shelf, 1.6 * shelf, out_sea);
-		h = -max(shallow, 30.0 * smoothstep(150.0, 245.0, coast));
+		land = mix(beach, h, smoothstep(foot, max(95.0 - 77.0 * cliff, foot + 0.6 * h), shore + rugged));
 	}
+}
 
+// ── Дно ─────────────────────────────────────────────────────────────────────
+
+// Расстояние до ближайшей клетки суши главных островов (для точек моря — точное).
+float far_coast(vec2 p) {
+	float best = BIG;
+	for (int i = 0; i < coast_count; i++) {
+		best = min(best, sd_hex(p - coast_cells[i]));
+	}
+	return best;
+}
+
+// Дно у самого берега: у пляжа — отмель, у обрыва — сразу глубоко. Дальше 200 м от берега одинаково.
+float near_shore(float out_sea, float cliff, vec2 n) {
+	float shelf0 = (38.0 + 50.0 * noise01(n / 380.0 + vec2(31.7, 8.0))) * (1.0 - 0.6 * cliff);
+	float edge = min(out_sea, 12.0);
+	return 0.1 * edge + 0.5 * cliff * edge * (1.0 - smoothstep(60.0, 200.0, out_sea)) + 3.5 * smoothstep(0.0, 0.6 * shelf0, out_sea);
+}
+
+// Шельф, свал и глубина: d — расстояние от берега. Шельф светлый и широкий, с банками; за ним дно уходит
+// на глубину с подводными грядами и впадинами. Далеко от суши дно ровное.
+float shelf_slope(float d, vec2 n) {
+	float width = 560.0 + 220.0 * gnoise(n / 700.0 + vec2(5.0, 9.0));
+	float shelf = (9.0 + 3.0 * fbm(n / 260.0 + vec2(40.0, 2.0), 2)) * smoothstep(30.0, 420.0, d);
+	float shoal = 4.5 * pow(max(gnoise(n / 170.0 + vec2(8.0, 60.0)), 0.0), 1.5) * smoothstep(60.0, 220.0, d)
+			* (1.0 - smoothstep(width - 120.0, width + 60.0, d));
+	float relief = 26.0 * fbm(n / 1500.0 + vec2(3.0, 3.0), 3) - 20.0 * (ridged(n / 900.0 + vec2(17.0, 5.0), 3) - 0.45);
+	float deep = 70.0 + relief * (1.0 - smoothstep(1500.0, 2400.0, d));
+	return shelf - shoal + max(deep - 16.0, 10.0) * smoothstep(width, width + 420.0, d);
+}
+
+// ── Малые острова ───────────────────────────────────────────────────────────
+
+// Расстояние до берега островка по его картинке, в половинах стороны картинки (внутри острова — отрицательное).
+float shape_distance(int picture, vec2 uv) {
+	vec2 q = clamp(uv, vec2(-shape_extent), vec2(shape_extent));
+	vec2 t = clamp(q / shape_extent * 0.5 + 0.5, vec2(0.5 / shape_size), vec2(1.0 - 0.5 / shape_size));
+	float row = float(picture - 1);
+	return textureLod(islet_shapes, vec2(t.x, (row + t.y) / SHAPE_ROWS), 0.0).r + length(uv - q);
+}
+
+// Скала или бугор на островке: вершина в точке c картинки, радиус в половинах стороны картинки.
+float bump(vec2 uv, vec2 c, float radius, float height) {
+	return height * pow(max(1.0 - length(uv - c) / radius, 0.0), 1.5);
+}
+
+float sd_box(vec2 q, vec2 half_size) {
+	vec2 d = abs(q) - half_size;
+	return length(max(d, vec2(0.0))) + min(max(d.x, d.y), 0.0);
+}
+
+// Характер островка по его картинке на сайте. uv — место на картинке (от −1 до 1, y вниз — на юг), sd — расстояние
+// до очертания в метрах. s_land — расстояние до суши, h — высота земли без берега, cliff — крутизна берега,
+// wide — ширина пляжного склона, narrow — во сколько раз уже шельф, cap — предел глубины (лагуна),
+// level — уровень воды пруда.
+void islet_kind(int picture, vec2 uv, float sd, float r, vec2 n,
+		out float s_land, out float h, out float cliff, out float wide, out float narrow, out float cap, out float level) {
+	float inland = -sd;
+	float rocky = 0.75 + 0.5 * ridged(n / 80.0 + vec2(2.0, 6.0), 4);
+	float roll = fbm(n / 75.0 + vec2(9.0, 1.0), 3);
+	s_land = sd;
+	cliff = 0.0;
+	wide = 45.0;
+	narrow = 2.2;
+	cap = BIG;
+	level = NO_WATER;
+	if (picture == 1) {
+		// Зелёный остров-звезда: луга и рощи, несколько скальных выходов.
+		h = 3.5 + 6.5 * smoothstep(0.0, 110.0, inland) + 2.2 * roll * smoothstep(10.0, 60.0, inland);
+		float rocks = bump(uv, vec2(0.375, -0.52), 0.27, 34.0) + bump(uv, vec2(-0.84, -0.46), 0.13, 13.0)
+				+ bump(uv, vec2(-0.36, 0.30), 0.20, 19.0) + bump(uv, vec2(-0.25, -0.12), 0.10, 8.0) + bump(uv, vec2(0.14, 0.05), 0.10, 8.0);
+		h += rocks * rocky;
+	} else if (picture == 6) {
+		// Зелёный остров с ручьём и прудом: ручей бежит с горки в пруд и из пруда к морю.
+		h = 3.5 + 7.0 * smoothstep(0.0, 110.0, inland) + 2.2 * roll * smoothstep(10.0, 60.0, inland);
+		float rocks = bump(uv, vec2(-0.46, -0.66), 0.22, 30.0) + bump(uv, vec2(0.50, 0.14), 0.13, 15.0)
+				+ bump(uv, vec2(0.36, -0.22), 0.09, 8.0) + bump(uv, vec2(-0.30, 0.30), 0.08, 6.0);
+		h += rocks * rocky;
+		float stream = segment_distance(uv, vec2(-0.36, -0.50), vec2(-0.12, -0.20)).x;
+		stream = min(stream, segment_distance(uv, vec2(-0.12, -0.20), vec2(0.07, 0.11)).x);
+		stream = min(stream, segment_distance(uv, vec2(0.07, 0.11), vec2(0.29, 0.39)).x);
+		stream = min(stream, segment_distance(uv, vec2(0.29, 0.39), vec2(0.42, 0.58)).x);
+		h = max(h - 1.6 * (1.0 - smoothstep(0.0, 9.0, stream * r)), 1.2);
+		float water = 8.0;
+		float dp = (length(uv - vec2(0.07, 0.11)) - 0.14) * r + 5.0 * gnoise(n / 30.0 + vec2(4.0, 0.0));
+		float held = h + (max(h, water + 1.2) - h) * (1.0 - smoothstep(16.0, 50.0, dp));
+		float basin = dp < 0.0 ? water - min(0.22 * max(-dp, 0.0), 3.0) : water + 0.1 * dp;
+		h = mix(held, basin, 1.0 - smoothstep(0.0, 16.0, dp));
+		if (dp < 4.0) {
+			level = water;
+		}
+	} else if (picture == 2) {
+		// Вытянутый сухой остров со скалистым хребтом вдоль него.
+		h = 3.0 + 5.0 * smoothstep(0.0, 70.0, inland) + 1.5 * roll;
+		vec2 dt = segment_distance(uv, vec2(0.60, -0.65), vec2(0.25, -0.10));
+		float ridge = mix(46.0, 56.0, dt.y) * pow(max(1.0 - dt.x / 0.30, 0.0), 1.5);
+		dt = segment_distance(uv, vec2(0.25, -0.10), vec2(-0.15, 0.45));
+		ridge = max(ridge, mix(56.0, 40.0, dt.y) * pow(max(1.0 - dt.x / 0.30, 0.0), 1.5));
+		dt = segment_distance(uv, vec2(-0.15, 0.45), vec2(-0.50, 0.50));
+		ridge = max(ridge, mix(40.0, 20.0, dt.y) * pow(max(1.0 - dt.x / 0.30, 0.0), 1.5));
+		h += ridge * rocky;
+		cliff = 0.4 * smoothstep(0.35, 0.6, noise01(n / 150.0 + vec2(2.0, 0.0)));
+		wide = 35.0;
+	} else if (picture == 5) {
+		// Скалистый остров-столовая гора: уступы один над другим, наверху вершина; берег — обрывы.
+		float t = inland / (0.40 * r) + 0.12 * fbm(n / 60.0 + vec2(5.0, 7.0), 2);
+		float raw = 5.0 + 40.0 * smoothstep(0.0, 1.0, t);
+		float g = raw / 11.0;
+		float whole = floor(g);
+		float stepped = (whole + smoothstep(0.35, 0.65, g - whole)) * 11.0;
+		h = mix(raw, stepped, 0.72) + bump(uv, vec2(0.43, -0.32), 0.22, 16.0) * rocky;
+		cliff = 0.15 + 0.85 * smoothstep(0.3, 0.6, noise01(n / 140.0 + vec2(12.0, 3.0)));
+		wide = 30.0;
+	} else if (picture == 3) {
+		// Полумесяц с лагуной: суша — узкая дуга, внутри мелкая лагуна, от моря её отделяет подводная гряда.
+		float lagoon = (0.68 - length(uv - vec2(0.03, -0.03))) * r + 5.0 * gnoise(n / 35.0 + vec2(6.0, 0.0));
+		s_land = max(sd, lagoon);
+		h = 2.2 + 4.5 * smoothstep(0.0, 28.0, -s_land) + 1.0 * fbm(n / 40.0 + vec2(2.0, 0.0), 2);
+		float bed = 0.6 + 1.9 * smoothstep(0.0, 30.0, min(s_land, -sd)) - 1.2 * smoothstep(0.5, 0.8, gnoise(n / 16.0 + vec2(1.0, 8.0)));
+		bed = (sd < 0.0 && lagoon > 0.0) ? max(bed, 0.25) : BIG;
+		float bar = lagoon > 0.0 ? 0.7 + 0.12 * abs(sd) + 40.0 * (1.0 - smoothstep(0.0, 25.0, lagoon)) : BIG;
+		cap = min(bed, bar);
+		wide = 18.0;
+	} else if (picture == 4) {
+		// Песчаная банка: низкая, пологая, с рощицей; вокруг широкая отмель.
+		h = 1.0 + 2.0 * smoothstep(0.0, 30.0, inland) + 0.5 * fbm(n / 30.0 + vec2(3.0, 3.0), 2)
+				+ bump(uv, vec2(-0.07, 0.0), 0.12, 1.4) + bump(uv, vec2(0.60, -0.25), 0.05, 3.5);
+		wide = 20.0;
+		narrow = 1.3;
+	} else {
+		// Каменоломня: каменистое плато, к северу оно поднимается холмом со скалами; в склон холма врезан
+		// карьер уступами, открытый к югу на плато; на юго-востоке у воды ровная площадка под причал.
+		h = 4.0 + 8.0 * smoothstep(0.0, 60.0, inland) + 1.2 * roll + bump(uv, vec2(-0.14, -0.34), 0.62, 21.0);
+		float rocks = bump(uv, vec2(0.25, -0.82), 0.30, 26.0) + bump(uv, vec2(-0.25, -0.72), 0.26, 20.0)
+				+ bump(uv, vec2(0.02, -0.62), 0.22, 18.0) + bump(uv, vec2(-0.66, -0.36), 0.20, 15.0)
+				+ bump(uv, vec2(0.62, -0.30), 0.20, 13.0) + bump(uv, vec2(-0.56, 0.36), 0.16, 11.0)
+				+ bump(uv, vec2(0.47, 0.25), 0.14, 9.0) + bump(uv, vec2(-0.20, 0.76), 0.14, 9.0);
+		h += rocks * rocky;
+		vec2 pit_centre = vec2(-0.14, -0.16);
+		float pit = min(sd_box(uv - pit_centre, vec2(0.15, 0.12)), sd_box(uv - pit_centre - vec2(0.0, 0.20), vec2(0.11, 0.20))) * r;
+		float x = max(pit, 0.0) / (0.042 * r);
+		float whole = floor(x);
+		float stairs = whole + smoothstep(0.7, 1.0, x - whole);
+		h = min(h, 11.5 + 5.0 * stairs);
+		float pier = length(uv - vec2(0.50, 0.71)) * r;
+		h = mix(1.8, h, smoothstep(14.0, 40.0, pier));
+		cliff = 0.75 * (1.0 - smoothstep(-0.45, -0.05, uv.y)) * smoothstep(0.3, 0.55, noise01(n / 130.0 + vec2(4.0, 4.0)));
+		wide = 40.0;
+	}
+}
+
+// Малые острова в точке: s — расстояние до суши ближайшего (меньше нуля — суша), land — её высота,
+// cliff — крутизна берега, shelf — расстояние «для шельфа», cap — предел глубины, level — уровень воды пруда.
+void islet_surface(vec2 p, vec2 n, out float s, out float land, out float cliff, out float shelf, out float cap, out float level) {
+	s = BIG;
+	land = 0.0;
+	cliff = 0.0;
+	shelf = BIG;
+	cap = BIG;
+	level = NO_WATER;
+	for (int i = 0; i < islet_count; i++) {
+		vec2 centre = islet_centre[i];
+		float r = islet_size[i].x;
+		float away = length(p - centre);
+		if (away > 1.45 * r + 1100.0) {
+			continue;
+		}
+		int picture = int(islet_size[i].y + 0.5);
+		// Берег гуляет: мелкие мысы и бухточки поверх очертания с картинки.
+		float shift = 3.0 * float(i);
+		vec2 w = p + vec2(
+				6.0 * gnoise(n / 55.0 + vec2(shift, 0.0)) + 2.5 * gnoise(n / 21.0 + vec2(0.0, shift)),
+				6.0 * gnoise(n / 55.0 + vec2(0.0, shift + 50.0)) + 2.5 * gnoise(n / 21.0 + vec2(shift + 50.0, 0.0)));
+		vec2 uv = (w - centre) / r;
+		float sd = max(shape_distance(picture, uv) * r, away - 1.05 * r);
+		float s_land;
+		float h;
+		float c;
+		float wide;
+		float narrow;
+		float cap_here;
+		float level_here;
+		islet_kind(picture, uv, sd, r, n, s_land, h, c, wide, narrow, cap_here, level_here);
+		h = max(h, 1.0);
+		float shore = -s_land;
+		float rugged = c * (8.0 * gnoise(n / 60.0 + vec2(0.0, 3.0)) + 3.0 * gnoise(n / 24.0 + vec2(7.0, 0.0))) * smoothstep(0.0, 12.0, shore);
+		float foot = 4.0 - c;
+		float ramp = smoothstep(foot, max(wide - (wide - 18.0) * c, foot + 0.6 * h), shore + rugged);
+		float beach = 2.4 * (1.0 - exp(-max(shore, 0.0) / 14.0));
+		if (s_land < s) {
+			s = s_land;
+			land = beach + (h - beach) * ramp;
+			cliff = c;
+		}
+		shelf = min(shelf, max(s_land, 0.0) * narrow);
+		cap = min(cap, cap_here);
+		if (level_here > -900.0) {
+			level = level_here;
+		}
+	}
+}
+
+// ── Поверхность мира ────────────────────────────────────────────────────────
+
+// x — высота земли (дна), y — уровень воды озера в этой точке или NO_WATER.
+vec2 world_surface(vec2 p0) {
+	vec2 n0 = p0 + noise_offset;
+	float d_far = far_coast(p0);
+	// Главные острова считаем только на их клетках и рядом с ними: дальше 380 м от берега это открытое море.
+	// (Расстояние до берега считается по береговым клеткам, поэтому середина острова проверяется отдельно.)
+	float s_field = 250.0;
+	float land_field = 0.0;
+	float cliff_field = 0.0;
+	vec2 p = p0;
+	vec2 n = n0;
+	float d_site = BIG;
+	bool near_field = d_far < 380.0 || terrain_at(hex_at(p0)) != T_SEA;
+	if (near_field) {
+		float shore;
+		field_surface(p0, shore, land_field, cliff_field, p, n, d_site);
+		s_field = -shore;
+	}
+	float s_islet;
+	float land_islet;
+	float cliff_islet;
+	float shelf_islet;
+	float cap;
 	float level;
-	h = lakes(p, n, d_site, h, level);
+	islet_surface(p0, n0, s_islet, land_islet, cliff_islet, shelf_islet, cap, level);
+
+	float s = min(s_field, s_islet);
+	float cliff = s_field <= s_islet ? cliff_field : cliff_islet;
+	float out_sea = max(s, 0.0);
+	// Расстояние «для шельфа»: у главных островов он широкий, у малых — уже; между близкими островами шельфы сливаются.
+	float d_field = mix(max(s_field, 0.0), max(d_far - 60.0, 0.0), smoothstep(200.0, 330.0, d_far));
+	float d_shelf = smooth_min(d_field, shelf_islet, 160.0);
+	float depth = near_shore(out_sea, cliff, n0) + shelf_slope(d_shelf, n0) * smoothstep(0.0, 60.0, out_sea);
+	float h = s_field < 0.0 ? land_field : (s_islet < 0.0 ? land_islet : -min(depth, cap));
+
+	if (near_field) {
+		float lake_level;
+		h = lakes(p, n, d_site, h, lake_level);
+		if (lake_level > -900.0) {
+			level = lake_level;
+		}
+	}
 	return vec2(h, level);
 }

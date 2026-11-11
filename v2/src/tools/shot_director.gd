@@ -63,6 +63,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	await _check_bounds()
 	await _check_flight()
 	await _check_sky()
+	_check_islets("")
 
 	# Замер скорости и снимок: проверяем, что клавиши F5 и F2 делают своё дело (сам замер здесь короткий).
 	benchmark.time_scale = 0.05
@@ -105,10 +106,12 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 				lowest = site_height
 				lowest_key = site.key
 		_check("карта %d «%s»: перекрёстки на суше" % [number, _world.title], lowest > 0.5, "самый низкий %s — %.2f м" % [lowest_key, lowest])
+		_check_islets("карта %d: " % number)
 		var prefix := "k%d" % number
 		_terrain.height_map.to_preview().save_png(_folder.path_join("%s-vysoty.png" % prefix))
 		for stop in Tour.stops(_world, _rig, _terrain.height_map):
-			if not (stop.name.begins_with("01") or stop.name.contains("ostrov") or stop.name.contains("ozero") or stop.name.contains("obryv") or stop.name.contains("gory")):
+			if not (stop.name.begins_with("01") or stop.name.contains("ostrov-") or stop.name.contains("ozero") or stop.name.contains("obryv")
+					or stop.name.contains("gory") or stop.name.contains("okean") or stop.name.contains("kamenolomnya")):
 				continue
 			_rig.set_view(stop.view)
 			await _frames(5)
@@ -161,16 +164,16 @@ func _check_drag() -> void:
 
 
 func _check_bounds() -> void:
-	var far := _world.land_rect.end + Vector2(9000.0, 9000.0)
+	var far := _world.content_rect.end + Vector2(9000.0, 9000.0)
 	_rig.set_view(CameraView.make(far, 800.0, 0.0, 0.0))
 	await _frames(2)
 	var focus := _rig.get_view().focus
-	var allowed := _world.land_rect.grow(300.0)
+	var allowed := _world.content_rect.grow(300.0)
 	_check("камера не уходит за границы мира", allowed.has_point(focus), "фокус %s" % str(focus))
 	_rig.set_view(CameraView.make(_world.land_rect.get_center(), 1.0e6, 0.0, 0.0))
 	await _frames(2)
 	var widest := _rig.current_distance()
-	_check("отдаление ограничено", widest < 20000.0 and widest > 1000.0, "расстояние %.0f м" % widest)
+	_check("отдаление ограничено", widest < 40000.0 and widest > 1000.0, "расстояние %.0f м" % widest)
 
 
 func _check_flight() -> void:
@@ -296,6 +299,41 @@ func _site_heights() -> Dictionary:
 	return heights
 
 
+## Малые острова: у каждого суша над водой, а рядом с ним — море.
+func _check_islets(prefix: String) -> void:
+	if _world.islets.is_empty():
+		return
+	var dry := 0
+	var lowest_top := INF
+	var problem := ""
+	for i in _world.islets.size():
+		var islet := _world.islets[i]
+		var top := -INF
+		for row in 13:
+			for column in 13:
+				var offset := Vector2(float(column) / 6.0 - 1.0, float(row) / 6.0 - 1.0) * islet.radius
+				top = maxf(top, _terrain.height_map.sample(islet.position + offset))
+		var sea := _terrain.height_map.sample(islet.position + Vector2(islet.radius * 1.05 + 180.0, 0.0))
+		if top > 1.5 and sea < 0.0:
+			dry += 1
+		elif problem.is_empty():
+			problem = "%s: вершина %.1f м, рядом %.1f м" % [islet.title(), top, sea]
+		lowest_top = minf(lowest_top, top)
+	_check("%sмалые острова стоят над водой" % prefix, dry == _world.islets.size(),
+			"%d из %d, самый низкий — %.1f м%s" % [dry, _world.islets.size(), lowest_top, "" if problem.is_empty() else "; " + problem])
+
+
+## Высоты в условленных точках малых островов: центр картинки, середина к востоку и море у восточного края.
+func _probes() -> Dictionary:
+	var result := {}
+	for i in _world.islets.size():
+		var islet := _world.islets[i]
+		for part: Array in [["centre", 0.0], ["east", 0.45], ["sea", 1.25]]:
+			var point := islet.position + Vector2(islet.radius * float(part[1]), 0.0)
+			result["%d:%s" % [i, part[0]]] = [snappedf(point.x, 0.01), snappedf(point.y, 0.01), snappedf(_terrain.height_map.sample(point), 0.01)]
+	return result
+
+
 func _collect_report() -> Dictionary:
 	return {
 		"build": BuildInfo.label(),
@@ -306,6 +344,10 @@ func _collect_report() -> Dictionary:
 		"height_range": [_terrain.height_map.lowest, _terrain.height_map.highest],
 		"chunks": _terrain.chunk_count(),
 		"lakes": _terrain.lakes,
+		"ponds": _terrain.ponds,
+		"regions": _terrain.region_count(),
+		# Высоты на малых островах и в море рядом с ними: по ним острова и дно сверяются с песочницей.
+		"probes": _probes(),
 		# Высоты под перекрёстками: по ним функция высот в игре сверяется с песочницей разработчика.
 		"site_heights": _site_heights(),
 	}
