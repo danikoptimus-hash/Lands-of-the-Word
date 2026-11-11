@@ -94,6 +94,11 @@ func _validate(image: Image, size: Vector2i) -> String:
 	return ""
 
 
+## Запечённая картинка: по высотам рельефа считается сток воды (drainage.gd).
+func baked_image() -> Image:
+	return _image
+
+
 ## Уровень воды озера в точке мира или NO_WATER, если озера там нет.
 func water_level_at(point: Vector2) -> float:
 	if _image == null:

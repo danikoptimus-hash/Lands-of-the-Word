@@ -61,6 +61,13 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _capture("mesto-%02d" % index)
 		index += 1
 
+	# Записка «что нового» — кадр для проверки, что текст помещается в окно.
+	if only.is_empty() or _listed("93-chto-novogo", only):
+		hud.show_report(BuildInfo.notes())
+		await _frames(3)
+		await _capture("93-chto-novogo")
+		hud.close_report()
+
 	if not only.is_empty():
 		# Только выбранные кадры: проверки, замер и другие карты не нужны. Отчёт с высотами — для сверки с песочницей.
 		_save_report(_collect_report())

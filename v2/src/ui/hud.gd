@@ -202,6 +202,9 @@ func _build_loading() -> void:
 func _build_report() -> void:
 	_report = _panel(Control.SIZE_SHRINK_CENTER, Control.SIZE_SHRINK_CENTER)
 	_report_label = _label("", _text_font, 15, INK)
+	# Длинные строки переносятся: без этого абзац записки «что нового» уходил за края окна.
+	_report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_report_label.custom_minimum_size = Vector2(960.0, 0.0)
 	_report.add_child(_report_label)
 	_report.visible = false
 

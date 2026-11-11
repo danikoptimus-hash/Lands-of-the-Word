@@ -6,7 +6,7 @@
 |---|---|---|---|
 | `fonts/literata-400-*.woff2`, `fonts/literata-600-*.woff2` | Шрифт Literata, начертания 400 и 600, кириллица и латиница | Те же файлы, что на сайте (`apps/web/public/fonts`), семейство Literata от TypeTogether для Google | SIL Open Font License 1.1 |
 | `fonts/philosopher-700-*.woff2` | Шрифт Philosopher, начертание 700, кириллица и латиница | Те же файлы, что на сайте, автор — Джованни Лемонад | SIL Open Font License 1.1 |
-| `terrain/ground_albedo.webp`, `terrain/ground_normal.jpg` | Материалы земли (шаг 1.3): 16 слоёв — цвет с высотой фактуры и нормаль с шероховатостью. Собирает `tools/surfaces/make.py` из снимков ниже; цвет каждого слоя приведён к палитре игры | См. строки ниже | CC0 1.0 |
+| `terrain/ground_albedo.webp`, `terrain/ground_normal.jpg` | Материалы земли (шаг 1.3): 16 слоёв — цвет с высотой фактуры и нормаль с шероховатостью. Собирает `tools/surfaces/make.py` из снимков ниже; цвет каждого слоя приведён к палитре игры, у съёмок вблизи выровнены крупные пятна яркости (чтобы повтор плитки не читался) | См. строки ниже | CC0 1.0 |
 | слой `sand_dune` | Песок барханов с ветровой рябью | ambientCG, Ground097 — https://ambientcg.com/a/Ground097 | CC0 1.0 |
 | слой `desert_stone` | Каменистая пустыня | Poly Haven, dry_ground_rocks — https://polyhaven.com/a/dry_ground_rocks | CC0 1.0 |
 | слой `dry_grass` | Сухая трава с валунами, съёмка с воздуха | Poly Haven, aerial_rocks_01 — https://polyhaven.com/a/aerial_rocks_01 | CC0 1.0 |

@@ -2,7 +2,8 @@ extends Node3D
 ## Главный сценарий тестовой сборки: свет, мир, камера, служебные клавиши.
 ## Ключи запуска (после «--»): --shots=папка — автоматические кадры и проверки (с ним же --quick и --stops=17,21 —
 ## быстрые проверки, см. src/tools/shot_director.gd); --view=x,z,d,поворот,наклон — добавить кадр места;
-## --world=N — начать с карты номер N (1 — «Осень»);
+## --world=N — начать с карты номер N (1 — «Осень»); --debug-view=N — показать географию вместо материалов
+## (1 — влажность, 2 — сток воды, 3 — крутизна, 4 — ложбины и гребни);
 ## --update-test=адрес и --update-target=файл — проверка самообновления в конвейере. Ключи --finish-update и --updated
 ## программа передаёт сама себе при обновлении (см. src/core/updater.gd).
 
@@ -49,6 +50,7 @@ var _update_test_url := ""
 var _update_test_target := ""
 var _shots_folder := ""
 var _extra_views := PackedStringArray()
+var _debug_view := 0  ## ключ --debug-view=N: вместо материалов показать географию (см. WorldTerrain.set_debug_view)
 var _ready_to_play := false
 
 
@@ -194,7 +196,7 @@ func _build_light() -> void:
 	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
 	_sun.directional_shadow_blend_splits = true
 	_sun.directional_shadow_max_distance = 6000.0
-	_sun.shadow_blur = 1.2
+	_sun.shadow_blur = 1.8
 	add_child(_sun)
 
 	var sky_material := ProceduralSkyMaterial.new()
@@ -213,10 +215,10 @@ func _build_light() -> void:
 	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	environment.ambient_light_sky_contribution = 0.3
 	environment.ambient_light_color = Color(0.93, 0.92, 0.88)
-	environment.ambient_light_energy = 0.5
+	environment.ambient_light_energy = 0.58
 	environment.tonemap_mode = Environment.TONE_MAPPER_AGX
 	environment.tonemap_exposure = 1.1
-	environment.tonemap_agx_contrast = 1.4
+	environment.tonemap_agx_contrast = 1.3
 	environment.ssao_enabled = true
 	environment.ssao_radius = 9.0
 	environment.ssao_intensity = 2.0
@@ -268,6 +270,7 @@ func _load_world(path: String) -> bool:
 	if not built:
 		_fail("Не удалось построить рельеф: %s.\nВидеокарта: %s" % [_terrain.error, RenderingServer.get_video_adapter_name()])
 		return false
+	_terrain.set_debug_view(_debug_view)
 	_rig.set_height_map(_terrain.height_map)
 	_rig.set_view(_rig.view_for_rect(_world.land_rect))
 
@@ -277,8 +280,8 @@ func _load_world(path: String) -> bool:
 
 	_hud.set_loading("")
 	_ready_to_play = true
-	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс; высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
-		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms,
+	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс (сток воды — %.0f мс); высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
+		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms, _terrain.drainage_ms,
 		_terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count(), _world.islets.size()])
 	return true
 
@@ -493,6 +496,8 @@ func _read_arguments() -> void:
 			_shots_folder = argument.trim_prefix("--shots=")
 		elif argument.begins_with("--world="):
 			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
+		elif argument.begins_with("--debug-view="):
+			_debug_view = argument.trim_prefix("--debug-view=").to_int()
 		elif argument.begins_with("--view="):
 			_extra_views.append(argument.trim_prefix("--view="))
 		elif argument.begins_with("--finish-update="):

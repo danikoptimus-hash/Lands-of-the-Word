@@ -56,6 +56,7 @@ class Region:
 	var baker: TerrainBaker  ## нужен, пока расставляем озёра
 	var ground_a: Texture2D  ## описание земли: доли местностей
 	var ground_b: Texture2D  ## описание земли: озеро рядом, от уреза моря, камень, оазис
+	var ground_c: Texture2D  ## сток воды по рельефу (drainage.gd)
 	var islet: WorldData.Islet  ## малый остров области (у области главных островов — пусто)
 
 
@@ -65,6 +66,7 @@ var ponds: Array[Dictionary] = []  ## озёра малых островов: н
 var bake_rect := Rect2()  ## область главных островов
 var ocean_rect := Rect2()  ## область карты глубин
 var bake_ms := 0.0
+var drainage_ms := 0.0  ## из них — расчёт стока воды на процессоре
 var error := ""
 
 var _regions: Array[Region] = []
@@ -75,6 +77,7 @@ var _chunks: Array[Chunk] = []
 var _viewer := Vector3.ZERO
 var _viewer_known := false
 var _grid_visible := true
+var _debug_view := 0
 
 
 ## Сопрограмма: строит землю по данным мира. true — готово, иначе причина в error.
@@ -123,6 +126,10 @@ func build(world: WorldData) -> bool:
 			else:
 				region.ground_b = ground_baker.texture
 			ground_baker.queue_free()
+		# Сток воды по рельефу: сеть ложбин и русел, по которой шейдер земли раскладывает влажность и промоины.
+		var drain_started := Time.get_ticks_usec()
+		region.ground_c = Drainage.flow_texture(region.baker.baked_image())
+		drainage_ms += float(Time.get_ticks_usec() - drain_started) / 1000.0
 		_regions.append(region)
 
 	# Карта глубин всего океана: по ней открытое море темнеет над глубиной и светлеет над шельфом.
@@ -186,6 +193,13 @@ func is_grid_visible() -> bool:
 	return _grid_visible
 
 
+## Проверка географии (для разработчика): 1 — влажность, 2 — сток, 3 — крутизна, 4 — ложбины и гребни; 0 — картинка.
+func set_debug_view(view: int) -> void:
+	_debug_view = view
+	for region in _regions:
+		region.material.set_shader_parameter("debug_view", view)
+
+
 func chunk_count() -> int:
 	return _chunks.size()
 
@@ -233,6 +247,11 @@ func _make_terrain_material(world: WorldData, region: Region) -> ShaderMaterial:
 	material.set_shader_parameter("normal_map", region.baker.texture)
 	material.set_shader_parameter("ground_a", region.ground_a)
 	material.set_shader_parameter("ground_b", region.ground_b)
+	material.set_shader_parameter("ground_c", region.ground_c)
+	material.set_shader_parameter("noise_shift", world.noise_offset())
+	material.set_shader_parameter("debug_view", _debug_view)
+	# Снеговая линия — от самой высокой горы карты: на любой карте у высоких гор есть белые шапки.
+	material.set_shader_parameter("snow_line", clampf(height_map.highest * 0.58, 70.0, 120.0))
 	material.set_shader_parameter("layer_albedo", LAYER_ALBEDO)
 	material.set_shader_parameter("layer_normal", LAYER_NORMAL)
 	material.set_shader_parameter("noise_map", NOISE)

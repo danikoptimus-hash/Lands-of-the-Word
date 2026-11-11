@@ -31,41 +31,45 @@ CACHE = os.environ.get("SURFACES_CACHE", os.path.expanduser("~/.cache/zemli-slov
 SIZE = 1024
 GRID = 4
 
-# Слои. source: ph — Poly Haven, acg — ambientCG. tile — сколько метров мира занимает плитка (съёмки с воздуха —
-# примерно вдвое мельче настоящего размера: так точка фактуры равна точке экрана при самом близком приближении).
+# Слои. source: ph — Poly Haven, acg — ambientCG. tile — сколько метров мира занимает плитка. Масштаб единый
+# (задание владельца 11.11): съёмки с воздуха (плитка 80–90 м) — почти в настоящий размер; съёмки вблизи (плитка
+# 1,5–6 м) — втрое крупнее настоящего: с высоты стратегической камеры настоящий размер был бы неразличимой рябью.
 # mean — средний цвет слоя в игре (sRGB), sat и contrast — множители насыщенности и контраста к исходному снимку.
+# even — выровнять крупные пятна яркости и высоты снимка (см. even_out): у съёмок вблизи без этого повтор плитки
+# читается рядами. У скал и у съёмок с воздуха крупный рисунок — сама суть снимка (пласты, поляны), их не трогаем.
+EVEN = {"sand_dune", "desert_stone", "grass_lush", "scree", "beach_sand", "soil_red", "oasis_green", "pebbles", "mud_cracked"}
 LAYERS = [
-    dict(key="sand_dune", source="acg", name="Ground097", tile=9.0, mean=(226, 174, 104), sat=1.0, contrast=1.15,
+    dict(key="sand_dune", source="acg", name="Ground097", tile=6.0, mean=(226, 174, 104), sat=1.0, contrast=1.15,
          title="Песок барханов с ветровой рябью"),
-    dict(key="desert_stone", source="ph", name="dry_ground_rocks", tile=11.0, mean=(192, 142, 90), sat=1.05, contrast=1.1,
+    dict(key="desert_stone", source="ph", name="dry_ground_rocks", tile=12.0, mean=(192, 142, 90), sat=1.05, contrast=1.1,
          title="Каменистая пустыня: щебень на плотном грунте"),
-    dict(key="dry_grass", source="ph", name="aerial_rocks_01", tile=44.0, mean=(146, 140, 78), sat=1.1, contrast=1.15,
+    dict(key="dry_grass", source="ph", name="aerial_rocks_01", tile=72.0, mean=(146, 140, 78), sat=1.1, contrast=1.15,
          title="Сухая трава холмов с валунами (съёмка с воздуха)"),
-    dict(key="hill_stone", source="ph", name="rocky_terrain", tile=48.0, mean=(140, 124, 82), sat=1.1, contrast=1.1,
+    dict(key="hill_stone", source="ph", name="rocky_terrain", tile=80.0, mean=(140, 124, 82), sat=1.1, contrast=1.1,
          title="Травянистый склон с выходами плитняка (съёмка с воздуха)"),
-    dict(key="meadow", source="ph", name="rocky_terrain_02", tile=46.0, mean=(90, 128, 50), sat=0.95, contrast=1.15,
+    dict(key="meadow", source="ph", name="rocky_terrain_02", tile=80.0, mean=(90, 128, 50), sat=0.95, contrast=1.15,
          title="Луг сверху: густая трава (съёмка с воздуха)"),
-    dict(key="grass_lush", source="acg", name="Grass004", tile=5.0, mean=(80, 124, 44), sat=0.92, contrast=1.1,
+    dict(key="grass_lush", source="acg", name="Grass004", tile=4.5, mean=(80, 124, 44), sat=0.92, contrast=1.1,
          title="Сочная густая трава вблизи"),
-    dict(key="rock_cliff", source="ph", name="marble_cliff_03", tile=18.0, mean=(200, 164, 118), sat=1.2, contrast=1.2,
+    dict(key="rock_cliff", source="ph", name="marble_cliff_03", tile=17.0, mean=(200, 164, 118), sat=1.2, contrast=1.2,
          title="Скала: тёплый трещиноватый известняк"),
-    dict(key="rock_strata", source="ph", name="cliff_side", tile=12.0, mean=(186, 124, 78), sat=1.0, contrast=1.15,
+    dict(key="rock_strata", source="ph", name="cliff_side", tile=6.0, mean=(186, 124, 78), sat=1.0, contrast=1.15,
          title="Скала слоями: красно-охристый песчаник"),
-    dict(key="mountain_slope", source="ph", name="aerial_rocks_04", tile=44.0, mean=(120, 118, 74), sat=1.1, contrast=1.15,
+    dict(key="mountain_slope", source="ph", name="aerial_rocks_04", tile=72.0, mean=(120, 118, 74), sat=1.1, contrast=1.15,
          title="Горный склон: трава и камень (съёмка с воздуха)"),
-    dict(key="scree", source="ph", name="gravel_ground_01", tile=10.0, mean=(178, 160, 132), sat=1.1, contrast=1.1,
+    dict(key="scree", source="ph", name="gravel_ground_01", tile=9.0, mean=(178, 160, 132), sat=1.1, contrast=1.1,
          title="Осыпь: мелкий щебень"),
-    dict(key="beach_sand", source="acg", name="Ground092A", tile=8.0, mean=(240, 216, 168), sat=1.2, contrast=1.1,
+    dict(key="beach_sand", source="acg", name="Ground092A", tile=6.0, mean=(240, 216, 168), sat=1.2, contrast=1.1,
          title="Светлый песок пляжа с рябью"),
-    dict(key="soil_red", source="ph", name="red_dirt_mud_01", tile=6.0, mean=(132, 82, 54), sat=0.85, contrast=1.1,
+    dict(key="soil_red", source="ph", name="red_dirt_mud_01", tile=4.5, mean=(132, 82, 54), sat=0.85, contrast=1.1,
          title="Красная почва (терра-росса)"),
-    dict(key="oasis_green", source="acg", name="Ground037", tile=7.0, mean=(84, 126, 48), sat=0.95, contrast=1.1,
+    dict(key="oasis_green", source="acg", name="Ground037", tile=6.5, mean=(84, 126, 48), sat=0.95, contrast=1.1,
          title="Влажная зелень оазиса и берегов"),
-    dict(key="pebbles", source="ph", name="ganges_river_pebbles", tile=5.0, mean=(172, 160, 148), sat=1.25, contrast=1.1,
+    dict(key="pebbles", source="ph", name="ganges_river_pebbles", tile=6.5, mean=(172, 160, 148), sat=1.25, contrast=1.1,
          title="Галька берегов"),
-    dict(key="mud_cracked", source="ph", name="mud_cracked_dry_03", tile=8.0, mean=(214, 168, 124), sat=1.1, contrast=1.1,
+    dict(key="mud_cracked", source="ph", name="mud_cracked_dry_03", tile=4.5, mean=(214, 168, 124), sat=1.1, contrast=1.1,
          title="Растрескавшаяся глина сухих низин"),
-    dict(key="lichen_rock", source="ph", name="mossy_rock", tile=12.0, mean=(126, 128, 104), sat=1.2, contrast=1.15,
+    dict(key="lichen_rock", source="ph", name="mossy_rock", tile=9.0, mean=(126, 128, 104), sat=1.2, contrast=1.15,
          title="Серый камень с лишайником"),
 ]
 
@@ -157,6 +161,26 @@ def to_rgb(hue, saturation, value):
     return value[:, :, None] * (1.0 - saturation[:, :, None] * np.clip(np.minimum(k, 4.0 - k), 0.0, 1.0))
 
 
+def low_pass(field, cycles=2.5):
+    """Крупные пятна поля (плитка без шва): всё, что меняется реже cycles раз на плитку."""
+    fy = np.fft.fftfreq(field.shape[0])[:, None] * field.shape[0]
+    fx = np.fft.fftfreq(field.shape[1])[None, :] * field.shape[1]
+    keep = np.exp(-(fx * fx + fy * fy) / (2.0 * cycles * cycles))
+    return np.fft.ifft2(np.fft.fft2(field) * keep).real
+
+
+def even_out(color, height, strength=0.85):
+    """Выравнивает крупные пятна яркости и высоты снимка. Если половина плитки темнее другой, то при повторе плитки
+    тёмные половины встают в ряд, и издалека земля идёт полосами (так было на каменистой пустыне). Мелкая фактура —
+    камни, трещины, рябь — остаётся как есть."""
+    light = color.mean(axis=2)
+    smooth = np.maximum(low_pass(light), 1e-3)
+    gain = 1.0 + strength * (float(smooth.mean()) / smooth - 1.0)
+    smooth_height = low_pass(height)
+    level = height - strength * (smooth_height - float(smooth_height.mean()))
+    return np.clip(color * gain[:, :, None], 0.0, 1.0), np.clip(level, 0.0, 1.0)
+
+
 def grade(color, layer):
     """Цвет слоя к палитре игры. Фактура снимка сохраняется; меняются оттенок, насыщенность, яркость и контраст.
 
@@ -214,6 +238,8 @@ def main():
     thumbs = []
     for index, layer in enumerate(LAYERS):
         color, height, normal, rough = load_maps(layer)
+        if layer["key"] in EVEN:
+            color, height = even_out(color, height)
         graded = grade(color, layer)
         y0 = (index // GRID) * SIZE
         x0 = (index % GRID) * SIZE
