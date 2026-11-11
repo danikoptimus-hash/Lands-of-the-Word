@@ -543,6 +543,36 @@ describe("осада делами и дела этапа 2", () => {
     expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${markId}`, headers: { cookie: p3Cookie } })).statusCode).toBe(200);
     expect((await get(`/api/games/${gameId}/my-map`, p3Cookie)).json().marks).toHaveLength(0);
   });
+  it("метка «убрать, когда откроются облака» (решение владельца 11.11): исчезает сама, когда её гекс открывается; обычная остаётся", async () => {
+    type Hex = { q: number; r: number; lit: boolean };
+    type Mk = { id: string; dropOnReveal: boolean };
+    const corners = (h: { q: number; r: number }) => [`N:${h.q},${h.r}`, `S:${h.q + 1},${h.r - 1}`, `N:${h.q},${h.r + 1}`, `S:${h.q},${h.r}`, `N:${h.q - 1},${h.r + 1}`, `S:${h.q},${h.r - 1}`];
+    const map = (await get(`/api/games/${gameId}/my-map`, p3Cookie)).json() as { team: { id: string }; hexes: Hex[]; tasks: Array<{ toKey: string }> };
+    // Гекс в тумане, который откроется следующим шагом: один из его углов — конец доступной стороны.
+    const next = map.tasks.map((x) => x.toKey).find((key) => map.hexes.some((h) => !h.lit && corners(h).includes(key)))!;
+    expect(next).toBeTruthy();
+    const fog = map.hexes.find((h) => !h.lit && corners(h).includes(next))!;
+    const open = map.hexes.find((h) => h.lit)!;
+    const auto = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: fog.q, r: fog.r, note: "сюда идём", dropOnReveal: true });
+    expect(auto.json().mark).toMatchObject({ dropOnReveal: true });
+    const plain = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: fog.q, r: fog.r, note: "просто метка" });
+    expect(plain.json().mark).toMatchObject({ dropOnReveal: false });
+    // На уже открытом гексе ждать нечего: флажок не сохраняется, метка остаётся.
+    const lit = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: open.q, r: open.r, note: "", dropOnReveal: true });
+    expect(lit.json().mark).toMatchObject({ dropOnReveal: false });
+    // Флажок можно включить и позже, но только автору.
+    const later = await post(`/api/games/${gameId}/my-map/marks`, p3Cookie, { q: fog.q, r: fog.r, note: "потом" });
+    const patch = (cookie: string, payload: object) => app.inject({ method: "PATCH", url: `/api/games/${gameId}/my-map/marks/${later.json().mark.id}`, headers: { cookie }, payload });
+    expect((await patch(p2Cookie, { note: "потом", dropOnReveal: true })).statusCode).toBe(403);
+    expect((await patch(p3Cookie, { note: "потом", dropOnReveal: true })).json().mark).toMatchObject({ dropOnReveal: true, note: "потом" });
+    const before = (await get(`/api/games/${gameId}/my-map`, p2Cookie)).json().marks as Mk[];
+    expect(before.map((mk) => mk.dropOnReveal)).toEqual([true, false, false, true]);
+    // Облака открылись: перекрёсток на углу гекса открыт — обе метки с флажком исчезли, остальные на месте.
+    expect((await post(`/api/games/${gameId}/teams/${map.team.id}/reveal`, adminCookie, { nodeKey: next })).statusCode).toBe(200);
+    const after = (await get(`/api/games/${gameId}/my-map`, p2Cookie)).json().marks as Mk[];
+    expect(after.map((mk) => mk.id)).toEqual([plain.json().mark.id, lit.json().mark.id]);
+    for (const mk of after) expect((await app.inject({ method: "DELETE", url: `/api/games/${gameId}/my-map/marks/${mk.id}`, headers: { cookie: p3Cookie } })).statusCode).toBe(200);
+  });
 });
 
 describe("времена суток (решение владельца 03.10)", () => {

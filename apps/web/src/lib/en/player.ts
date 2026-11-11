@@ -481,6 +481,10 @@ export const PLAYER: Record<string, string> = {
   "Нажмите на карту там, где поставить метку": "Tap the map where the mark should go",
   "Поставить": "Place",
   "птицы сели здесь": "the birds landed here", "Метка поставлена: её видит вся команда": "Mark placed: the whole team can see it",
+  "Убрать метку, когда здесь откроются облака": "Remove the mark when the clouds open here",
+  "Метка поставлена: её видит вся команда. Она исчезнет сама, когда здесь откроются облака.": "Mark placed: the whole team can see it. It will disappear by itself when the clouds open here.",
+  "Она исчезнет сама, когда здесь откроются облака.": "It will disappear by itself when the clouds open here.",
+  "Метка изменена": "Mark updated",
   "Метка «{note}» исчезнет у всей команды.": "The mark “{note}” will disappear for the whole team.", "Метка исчезнет у всей команды.": "The mark will disappear for the whole team.",
   "Убрать метку?": "Remove the mark?", "Пригласить участника": "Invite a member", "Роль назначена": "Role assigned", "Роль снята": "Role removed",
   // «Как играть» 23.09: приложение на телефоне, задание, состав, администраторы, настройки, ярлыки.
