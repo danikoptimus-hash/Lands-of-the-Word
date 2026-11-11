@@ -2,7 +2,7 @@
 # Форму подбираем здесь (движок для этого запускать не нужно), затем переносим правку в шейдер; конвейер сверяет
 # высоты игры с песочницей (compare.py). Любая правка функции высот делается в обоих местах.
 # Переменные окружения для проверок: SEED=число — другое зерно карты; EXTRA="q,r,местность;…" — подменить гексы.
-import json, math, os, struct
+import gzip, json, math, os, struct
 from pathlib import Path
 import numpy as np
 from base import S, A, R3, pcg, gnoise, fbm, ridged, smoothstep, smin, hex_center, hex_at, sd_hex
@@ -39,22 +39,24 @@ def seg_dist(px, py, ax, ay, bx, by):
     t = np.clip(((px - ax) * vx + (py - ay) * vy) / np.maximum(vx * vx + vy * vy, 1e-6), 0.0, 1.0)
     return np.hypot(px - (ax + vx * t), py - (ay + vy * t)), t
 
-def load_shapes(path):
-    """Поля расстояний малых островов (v2/tools/islet-shapes.py): номер картинки → массив сторона×сторона,
-    расстояние до берега в долях половины стороны картинки, внутри острова — отрицательное."""
-    raw = Path(path).read_bytes()
-    assert raw[:8] == b"LOTWISL1", "неизвестный файл очертаний островов"
-    count, size, extent, limit = struct.unpack_from("<BHff", raw, 8)
-    at = 8 + struct.calcsize("<BHff"); shapes = {}
+def load_designs(path):
+    """Каталог малых островов (v2/tools/islets/make.py): номер → сведения и поля штампа так, как их видит шейдер:
+    высота и расстояние до берега — суммы байтов (старший×256 + младший) в числах float32, «камень» 0..1, озеро."""
+    raw = gzip.decompress(Path(path).read_bytes())
+    assert raw[:8] == b"LOTWISL2", "неизвестный файл каталога островов"
+    count, size, extent, hmin, hmax, sd_range = struct.unpack_from("<BHffff", raw, 8)
+    at = 8 + struct.calcsize("<BHffff"); designs = {}
+    f = np.float32
     for _ in range(count):
-        number = raw[at]; at += 1
-        data = np.frombuffer(raw, dtype="<u2", count=size * size, offset=at).reshape(size, size); at += size * size * 2
-        shapes[number] = ((data.astype(np.float32) / 65535.0) * 2.0 - 1.0) * limit
-    return shapes, extent
-
-def bump(u, v, u0, v0, radius, height):
-    """Скала или бугор на островке: вершина в точке (u0, v0) картинки, радиус в долях половины стороны."""
-    return height * np.power(np.maximum(1.0 - np.hypot(u - u0, v - v0) / radius, 0.0), 1.5)
+        head = struct.unpack_from("<B11f", raw, at); at += struct.calcsize("<B11f")
+        pairs = np.frombuffer(raw, np.uint8, size * size * 4, at).reshape(size, size, 4); at += size * size * 4
+        marks = np.frombuffer(raw, np.uint8, size * size * 2, at).reshape(size, size, 2); at += size * size * 2
+        unit = lambda b: b.astype(f) / f(255.0)
+        designs[head[0]] = dict(size=head[1], shelf=head[2], lake_level=head[3], lake=head[4:7], reach=head[7], top=head[8:11],
+                                h=unit(pairs[..., 0]) * f(65280.0) + unit(pairs[..., 1]) * f(255.0),
+                                sd=unit(pairs[..., 2]) * f(65280.0) + unit(pairs[..., 3]) * f(255.0),
+                                stone=unit(marks[..., 0]), lake_mask=marks[..., 1] > 127)
+    return designs, dict(size=size, extent=extent, hmin=hmin, hmax=hmax, sd=sd_range)
 
 def sd_box(u, v, hu, hv):
     qx = np.abs(u) - hu; qy = np.abs(v) - hv
@@ -85,14 +87,15 @@ class World:
         # Клетки суши у моря: по ним считается расстояние до главных островов вдали от берега.
         land = {(h[0], h[1]) for h in w["hexes"]}
         self.coastal = [c for c in sorted(land) if any((c[0] + dq, c[1] + dr) not in land for dq, dr in SIDES)]
-        # Малые острова: [x, z, r, картинка, охват, каменоломня] и поля расстояний до берега по картинкам сайта.
+        # Малые острова: [x, z, половина стороны штампа, номер в каталоге, поворот, зеркало, каменоломня] и каталог.
         self.islets = [tuple(row) for row in w.get("islets", [])]
-        self.shapes, self.shape_extent = load_shapes(Path(__file__).resolve().parents[2] / "data" / "islets.bin")
+        self.designs, self.stamp = load_designs(Path(__file__).resolve().parents[2] / "data" / "islets.bin")
         # Прямоугольник мира (главные острова и малые): дальше него подводный рельеф затухает к ровной глубине.
         cxs = [hex_center(h[0], h[1])[0] for h in w["hexes"]]; czs = [hex_center(h[0], h[1])[1] for h in w["hexes"]]
         x0, x1, z0, z1 = min(cxs) - A, max(cxs) + A, min(czs) - S, max(czs) + S
-        for ix, iz, ir, *_ in self.islets:
-            x0 = min(x0, ix - 1.05 * ir); x1 = max(x1, ix + 1.05 * ir); z0 = min(z0, iz - 1.05 * ir); z1 = max(z1, iz + 1.05 * ir)
+        for ix, iz, ir, design, *_ in self.islets:
+            half = self.designs[design]["reach"] * ir * 1.03 + 12.0   # как Islet.area() в world_data.gd
+            x0 = min(x0, ix - half); x1 = max(x1, ix + half); z0 = min(z0, iz - half); z1 = max(z1, iz + half)
         self.content = (x0, z0, x1, z1)
         self.bank_angle = (self.seed % 314) / 100.0
 
@@ -306,137 +309,84 @@ class World:
         return shelf + np.maximum(70.0 + relief - edge, 4.0) * smoothstep(0.85, 1.0 + slope, t)
 
     # ── Малые острова ────────────────────────────────────────────────────────
-    def shape_sd(self, img, u, v):
-        """Расстояние до берега островка по его картинке, в долях половины стороны (внутри — отрицательное)."""
-        field = self.shapes[img]; size = field.shape[0]; ext = self.shape_extent
-        qu = np.clip(u, -ext, ext); qv = np.clip(v, -ext, ext)
-        fx = np.clip((qu / ext * 0.5 + 0.5) * size - 0.5, 0.0, size - 1.0); fy = np.clip((qv / ext * 0.5 + 0.5) * size - 0.5, 0.0, size - 1.0)
-        x0 = np.minimum(np.floor(fx).astype(np.int32), size - 2); y0 = np.minimum(np.floor(fy).astype(np.int32), size - 2)
-        tx = fx - x0; ty = fy - y0
-        top = field[y0, x0] * (1 - tx) + field[y0, x0 + 1] * tx; bottom = field[y0 + 1, x0] * (1 - tx) + field[y0 + 1, x0 + 1] * tx
-        return top * (1 - ty) + bottom * ty + np.hypot(u - qu, v - qv)
+    def stamp_at(self, design, u, v):
+        """Штамп острова в точке (u, v) (в половинах стороны): высота (м при опорном размере), расстояние до берега
+        (в половинах стороны, на суше меньше нуля), «камень» и вода озера. Кубический B-сплайн, как в шейдере."""
+        d = self.designs[design]; size = self.stamp["size"]; ext = np.float32(self.stamp["extent"])
+        f = np.float32
+        qu = np.clip(u, -ext, ext).astype(f); qv = np.clip(v, -ext, ext).astype(f)
+        tx = (qu / ext * f(0.5) + f(0.5)) * f(size) - f(0.5); ty = (qv / ext * f(0.5) + f(0.5)) * f(size) - f(0.5)
+        bx = np.floor(tx); by = np.floor(ty); fx = tx - bx; fy = ty - by
+        def weights(t):
+            t2 = t * t; t3 = t2 * t
+            return [(1 - 3 * t + 3 * t2 - t3) / 6, (4 - 6 * t2 + 3 * t3) / 6, (1 + 3 * t + 3 * t2 - 3 * t3) / 6, t3 / 6]
+        wx = weights(fx); wy = weights(fy)
+        bx = bx.astype(np.int32); by = by.astype(np.int32)
+        sh = np.zeros(u.shape, f); ss = np.zeros(u.shape, f); st = np.zeros(u.shape, f)
+        for j in range(4):
+            cy = np.clip(by + j - 1, 0, size - 1)
+            for i in range(4):
+                cx = np.clip(bx + i - 1, 0, size - 1)
+                w = wx[i] * wy[j]
+                sh += w * d["h"][cy, cx]; ss += w * d["sd"][cy, cx]; st += w * d["stone"][cy, cx]
+        nx_ = np.clip(np.floor(tx + 0.5).astype(np.int32), 0, size - 1); ny_ = np.clip(np.floor(ty + 0.5).astype(np.int32), 0, size - 1)
+        lake = d["lake_mask"][ny_, nx_]
+        h = self.stamp["hmin"] + (self.stamp["hmax"] - self.stamp["hmin"]) * (sh / f(65535.0))
+        sd = -self.stamp["sd"] + 2.0 * self.stamp["sd"] * (ss / f(65535.0)) + np.hypot(u - qu, v - qv)
+        return h, sd, st, lake
+
+    def quarry_works(self, u, v, r, k, h):
+        """Каменоломня: выработка уступами в южном склоне холма — дно и проход к югу, вокруг уступы по 6 м, за краем
+        выработки склон как был; площадка под причал у юго-восточного берега. u, v — без искажения берега."""
+        floor = np.minimum(sd_box(u + 0.05, v + 0.2, 0.09, 0.05), sd_box(u + 0.05, v + 0.05, 0.06, 0.13))
+        x_ = np.maximum(floor, 0.0) / 0.034; whole = np.floor(x_)
+        stairs = whole + smoothstep(0.75, 1.0, x_ - whole)
+        outside = smoothstep(-0.02, 0.0, sd_box(u + 0.05, v + 0.13, 0.2, 0.2))
+        h = mix(np.minimum(h, (11.5 + 6.0 * stairs) * k), h, outside)
+        pier = np.hypot(u - 0.64, v - 0.62) * r
+        return mix(1.8, h, smoothstep(14.0, 40.0, pier))
 
     def islet_surface(self, px, py, nx, ny):
-        """Малые острова: расстояние до суши ближайшего (s < 0 — суша), её высота, крутизна берега, расстояние
-        «для шельфа», предел глубины (лагуна) и уровень воды пруда."""
+        """Малые острова: расстояние до суши ближайшего (s < 0 — суша), её высота, крутизна берега, место на отмели,
+        предел глубины и уровень воды озера."""
         n = px.shape
         res = {"s": np.full(n, BIG, dtype=np.float32), "land": np.zeros(n, dtype=np.float32), "cliff": np.zeros(n, dtype=np.float32),
                "shelf": np.full(n, BIG, dtype=np.float32), "cap": np.full(n, BIG, dtype=np.float32), "level": np.full(n, -999.0, dtype=np.float32)}
-        for index, (x, z, r, img, cover, quarry) in enumerate(self.islets):
-            idx = np.nonzero(np.hypot(px - x, py - z) < 1.45 * r + 1100.0)[0]
+        for index, (x, z, r, design, angle, mirror, quarry) in enumerate(self.islets):
+            info = self.designs[design]
+            idx = np.nonzero(np.hypot(px - x, py - z) <= info["reach"] * r + 1100.0)[0]
             if not idx.size: continue
             X = px[idx]; Y = py[idx]; NX = nx[idx]; NY = ny[idx]
-            # Берег гуляет: мелкие мысы и бухточки поверх очертания с картинки.
-            wx = X + 6.0 * gnoise(NX / 55.0 + 3.0 * index, NY / 55.0) + 2.5 * gnoise(NX / 21.0, NY / 21.0 + 3.0 * index)
-            wy = Y + 6.0 * gnoise(NX / 55.0, NY / 55.0 + 3.0 * index + 50.0) + 2.5 * gnoise(NX / 21.0 + 3.0 * index + 50.0, NY / 21.0)
-            u = (wx - x) / r; v = (wy - z) / r
-            sd = np.maximum(self.shape_sd(img, u, v) * r, np.hypot(X - x, Y - z) - 1.05 * r)
-            part = self.islet_kind(img, u, v, sd, r, NX, NY)
-            s_land = part["s"]; H = np.maximum(part["h"], 1.0); c = part["cliff"]
-            shore = -s_land
-            rugged = c * (8.0 * gnoise(NX / 60.0, NY / 60.0 + 3.0) + 3.0 * gnoise(NX / 24.0 + 7.0, NY / 24.0)) * smoothstep(0.0, 12.0, shore)
-            foot = 4.0 - c
-            wide = part["wide"]
-            ramp = smoothstep(foot, np.maximum(wide - (wide - 18.0) * c, foot + 0.6 * H), shore + rugged)
-            beach = 2.4 * (1.0 - np.exp(-np.maximum(shore, 0.0) / 14.0))
-            land = beach + (H - beach) * ramp
-            take = s_land < res["s"][idx]
-            res["s"][idx] = np.where(take, s_land, res["s"][idx]); res["land"][idx] = np.where(take, land, res["land"][idx]); res["cliff"][idx] = np.where(take, c, res["cliff"][idx])
-            # Отмель в долях своей ширины; ширина меняется вдоль берега, край гуляет (сдвиг — в меру ширины).
-            shelf_w = part["shelf"] * (0.6 + 0.8 * n01(NX / 260.0 + 7.0 * index, NY / 260.0 + 3.0 * index))
-            t_isl = np.maximum(np.maximum(s_land, 0.0) + self.shelf_warp(NX, NY) * (shelf_w / 400.0), 0.0) / shelf_w
+            # Берег гуляет: мелкие мысы и бухточки поверх штампа.
+            shift = 3.0 * index
+            wx = X + 4.0 * gnoise(NX / 45.0 + shift, NY / 45.0) + 1.8 * gnoise(NX / 17.0, NY / 17.0 + shift)
+            wy = Y + 4.0 * gnoise(NX / 45.0, NY / 45.0 + shift + 50.0) + 1.8 * gnoise(NX / 17.0 + shift + 50.0, NY / 17.0)
+            dx_ = (wx - x) / r; dy_ = (wy - z) / r
+            ca, sa = math.cos(angle), math.sin(angle)
+            u = (ca * dx_ + sa * dy_) * mirror; v = -sa * dx_ + ca * dy_
+            h0, sdv, stone, lake = self.stamp_at(design, u, v)
+            # Высоты растут медленнее размера: большой остров не превращается в гору-башню, малый — не в лепёшку.
+            k = (r / info["size"]) ** 0.75
+            sd = sdv * r; shore = -sd
+            Hh = h0 * k
+            if design == 12:
+                ex = (X - x) / r; ez = (Y - z) / r
+                Hh = self.quarry_works((ca * ex + sa * ez) * mirror, -sa * ex + ca * ez, r, k, Hh)
+            detail = stone * (1.6 * (ridged(NX / 15.0 + 4.0, NY / 15.0 + 9.0, 3) - 0.42) + 0.45 * gnoise(NX / 6.0 + 2.0, NY / 6.0 + 7.0)) \
+                + (1.0 - stone) * 0.4 * fbm(NX / 26.0 + 1.0, NY / 26.0 + 5.0, 2)
+            Hh = Hh + detail * smoothstep(0.0, 6.0, shore)
+            # От кромки воды земля поднимается плавно: у пляжа — на 8 м вглубь, у скалы — на 2,5 м.
+            rise = mix(8.0, 2.5, stone)
+            Hh = mix(0.06 * np.maximum(shore, 0.0), Hh, smoothstep(0.0, rise, shore))
+            Hh = np.maximum(Hh, np.minimum(0.06 * np.maximum(shore, 0.0), 0.6))
+            take = sd < res["s"][idx]
+            res["s"][idx] = np.where(take, sd, res["s"][idx]); res["land"][idx] = np.where(take, Hh, res["land"][idx]); res["cliff"][idx] = np.where(take, stone, res["cliff"][idx])
+            shelf_w = info["shelf"] * math.sqrt(r / info["size"]) * (0.6 + 0.8 * n01(NX / 260.0 + 7.0 * index, NY / 260.0 + 3.0 * index))
+            t_isl = np.maximum(np.maximum(sd, 0.0) + self.shelf_warp(NX, NY) * (shelf_w / 400.0), 0.0) / shelf_w
             res["shelf"][idx] = np.minimum(res["shelf"][idx], t_isl)
-            res["cap"][idx] = np.minimum(res["cap"][idx], part["cap"])
-            res["level"][idx] = np.where(part["level"] > -900.0, part["level"], res["level"][idx])
+            if info["lake_level"] > -900.0:
+                res["level"][idx] = np.where(lake, info["lake_level"] * k, res["level"][idx])
         return res
-
-    def islet_kind(self, img, u, v, sd, r, nx, ny):
-        """Характер островка по его картинке на сайте. u, v — место на картинке (от −1 до 1, v вниз — на юг),
-        sd — расстояние до очертания в метрах. Возвращает: s — расстояние до суши, h — высота земли без берега,
-        cliff — крутизна берега, wide — ширина пляжного склона, shelf — ширина шельфа вокруг острова, м,
-        cap — предел глубины (лагуна), level — уровень воды пруда."""
-        inland = -sd
-        rocky = 0.75 + 0.5 * ridged(nx / 80.0 + 2.0, ny / 80.0 + 6.0, 4)
-        roll = fbm(nx / 75.0 + 9.0, ny / 75.0 + 1.0, 3)
-        none = np.full(sd.shape, BIG, dtype=np.float32); dry = np.full(sd.shape, -999.0, dtype=np.float32)
-        out = {"s": sd, "cliff": np.zeros(sd.shape, dtype=np.float32), "wide": 45.0, "shelf": 150.0, "cap": none, "level": dry}
-        if img == 1:
-            # Зелёный остров-звезда: луга и рощи, несколько скальных выходов.
-            h = 3.5 + 6.5 * smoothstep(0.0, 110.0, inland) + 2.2 * roll * smoothstep(10.0, 60.0, inland)
-            rocks = bump(u, v, 0.375, -0.52, 0.27, 34.0) + bump(u, v, -0.84, -0.46, 0.13, 13.0) + bump(u, v, -0.36, 0.30, 0.20, 19.0) + bump(u, v, -0.25, -0.12, 0.10, 8.0) + bump(u, v, 0.14, 0.05, 0.10, 8.0)
-            out["h"] = h + rocks * rocky
-        elif img == 6:
-            # Зелёный остров с ручьём и прудом: ручей бежит с горки в пруд и из пруда к морю.
-            h = 3.5 + 7.0 * smoothstep(0.0, 110.0, inland) + 2.2 * roll * smoothstep(10.0, 60.0, inland)
-            rocks = bump(u, v, -0.46, -0.66, 0.22, 30.0) + bump(u, v, 0.50, 0.14, 0.13, 15.0) + bump(u, v, 0.36, -0.22, 0.09, 8.0) + bump(u, v, -0.30, 0.30, 0.08, 6.0)
-            h = h + rocks * rocky
-            stream = np.full(sd.shape, BIG, dtype=np.float32)
-            for (ax, ay), (bx, by) in zip([(-0.36, -0.50), (-0.12, -0.20), (0.07, 0.11), (0.29, 0.39)], [(-0.12, -0.20), (0.07, 0.11), (0.29, 0.39), (0.42, 0.58)]):
-                stream = np.minimum(stream, seg_dist(u, v, ax, ay, bx, by)[0])
-            h = np.maximum(h - 1.6 * (1.0 - smoothstep(0.0, 9.0, stream * r)), 1.2)
-            water = 8.0
-            dp = (np.hypot(u - 0.07, v - 0.11) - 0.14) * r + 5.0 * gnoise(nx / 30.0 + 4.0, ny / 30.0)
-            held = h + (np.maximum(h, water + 1.2) - h) * (1.0 - smoothstep(16.0, 50.0, dp))
-            basin = np.where(dp < 0.0, water - np.minimum(0.22 * np.maximum(-dp, 0.0), 3.0), water + 0.1 * dp)
-            out["h"] = mix(held, basin, 1.0 - smoothstep(0.0, 16.0, dp))
-            out["level"] = np.where(dp < 4.0, water, -999.0).astype(np.float32)
-        elif img == 2:
-            # Вытянутый сухой остров со скалистым хребтом вдоль него.
-            h = 3.0 + 5.0 * smoothstep(0.0, 70.0, inland) + 1.5 * roll
-            ridge = np.zeros(sd.shape, dtype=np.float32)
-            points = [(0.60, -0.65, 46.0), (0.25, -0.10, 56.0), (-0.15, 0.45, 40.0), (-0.50, 0.50, 20.0)]
-            for (ax, ay, ha), (bx, by, hb) in zip(points[:-1], points[1:]):
-                d, t = seg_dist(u, v, ax, ay, bx, by)
-                ridge = np.maximum(ridge, (ha + (hb - ha) * t) * np.power(np.maximum(1.0 - d / 0.30, 0.0), 1.5))
-            out["h"] = h + ridge * rocky
-            out["cliff"] = (0.4 * smoothstep(0.35, 0.6, n01(nx / 150.0 + 2.0, ny / 150.0))).astype(np.float32)
-            out["wide"] = 35.0
-            out["shelf"] = 80.0
-        elif img == 5:
-            # Скалистый остров-столовая гора: уступы один над другим, наверху вершина; берег — обрывы.
-            t = inland / (0.40 * r) + 0.12 * fbm(nx / 60.0 + 5.0, ny / 60.0 + 7.0, 2)
-            raw = 5.0 + 40.0 * smoothstep(0.0, 1.0, t)
-            g = raw / 11.0; whole = np.floor(g)
-            stepped = (whole + smoothstep(0.35, 0.65, g - whole)) * 11.0
-            out["h"] = mix(raw, stepped, 0.72) + bump(u, v, 0.43, -0.32, 0.22, 16.0) * rocky
-            out["cliff"] = (0.15 + 0.85 * smoothstep(0.3, 0.6, n01(nx / 140.0 + 12.0, ny / 140.0 + 3.0))).astype(np.float32)
-            out["wide"] = 30.0
-            out["shelf"] = 60.0
-        elif img == 3:
-            # Полумесяц с лагуной: суша — узкая дуга, внутри мелкая лагуна, от моря её отделяет подводная гряда.
-            lagoon = (0.68 - np.hypot(u - 0.03, v + 0.03)) * r + 5.0 * gnoise(nx / 35.0 + 6.0, ny / 35.0)
-            s_land = np.maximum(sd, lagoon)
-            out["s"] = s_land
-            out["h"] = 2.2 + 4.5 * smoothstep(0.0, 28.0, -s_land) + 1.0 * fbm(nx / 40.0 + 2.0, ny / 40.0, 2)
-            floor = 0.6 + 1.9 * smoothstep(0.0, 30.0, np.minimum(s_land, -sd)) - 1.2 * smoothstep(0.5, 0.8, gnoise(nx / 16.0 + 1.0, ny / 16.0 + 8.0))
-            floor = np.where((sd < 0.0) & (lagoon > 0.0), np.maximum(floor, 0.25), BIG)
-            bar = np.where(lagoon > 0.0, 0.7 + 0.12 * np.abs(sd) + 40.0 * (1.0 - smoothstep(0.0, 25.0, lagoon)), BIG)
-            out["cap"] = np.minimum(floor, bar).astype(np.float32)
-            out["wide"] = 18.0
-            out["shelf"] = 200.0
-        elif img == 4:
-            # Песчаная банка: низкая, пологая, с рощицей; вокруг широкая отмель.
-            out["h"] = 1.0 + 2.0 * smoothstep(0.0, 30.0, inland) + 0.5 * fbm(nx / 30.0 + 3.0, ny / 30.0 + 3.0, 2) + bump(u, v, -0.07, 0.0, 0.12, 1.4) + bump(u, v, 0.60, -0.25, 0.05, 3.5)
-            out["wide"] = 20.0
-            out["shelf"] = 240.0
-        else:
-            # Каменоломня: каменистое плато, к северу оно поднимается холмом со скалами; в склон холма врезан
-            # карьер уступами, открытый к югу на плато; на юго-востоке у воды ровная площадка под причал.
-            h = 4.0 + 8.0 * smoothstep(0.0, 60.0, inland) + 1.2 * roll + bump(u, v, -0.14, -0.34, 0.62, 21.0)
-            rocks = (bump(u, v, 0.25, -0.82, 0.30, 26.0) + bump(u, v, -0.25, -0.72, 0.26, 20.0) + bump(u, v, 0.02, -0.62, 0.22, 18.0) + bump(u, v, -0.66, -0.36, 0.20, 15.0)
-                     + bump(u, v, 0.62, -0.30, 0.20, 13.0) + bump(u, v, -0.56, 0.36, 0.16, 11.0) + bump(u, v, 0.47, 0.25, 0.14, 9.0) + bump(u, v, -0.20, 0.76, 0.14, 9.0))
-            h = h + rocks * rocky
-            cu, cv = -0.14, -0.16
-            pit = np.minimum(sd_box(u - cu, v - cv, 0.15, 0.12), sd_box(u - cu, v - (cv + 0.20), 0.11, 0.20)) * r
-            x_ = np.maximum(pit, 0.0) / (0.042 * r); whole = np.floor(x_)
-            stairs = whole + smoothstep(0.7, 1.0, x_ - whole)
-            h = np.minimum(h, 11.5 + 5.0 * stairs)
-            pier = np.hypot(u - 0.50, v - 0.71) * r
-            out["h"] = mix(1.8, h, smoothstep(14.0, 40.0, pier))
-            out["cliff"] = (0.75 * (1.0 - smoothstep(-0.45, -0.05, v)) * smoothstep(0.3, 0.55, n01(nx / 130.0 + 4.0, ny / 130.0 + 4.0))).astype(np.float32)
-            out["wide"] = 40.0
-            out["shelf"] = 90.0
-        return out
 
     # ── Горы: хребты по цепочкам горных клеток ───────────────────────────────
     def mountains(self, px, py, nx, ny):

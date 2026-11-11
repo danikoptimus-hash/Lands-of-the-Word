@@ -337,34 +337,38 @@ func _site_heights() -> Dictionary:
 func _check_islets(prefix: String) -> void:
 	if _world.islets.is_empty():
 		return
-	var dry := 0
-	var lowest_top := INF
+	var good := 0
 	var problem := ""
 	for i in _world.islets.size():
 		var islet := _world.islets[i]
-		var top := -INF
-		for row in 13:
-			for column in 13:
-				var offset := Vector2(float(column) / 6.0 - 1.0, float(row) / 6.0 - 1.0) * islet.radius
-				top = maxf(top, _terrain.height_map.sample(islet.position + offset))
-		var sea := _terrain.height_map.sample(islet.position + Vector2(islet.radius * 1.05 + 180.0, 0.0))
-		if top > 1.5 and sea < 0.0:
-			dry += 1
+		# Вершина острова — там, где её поставил каталог (повёрнута и растянута вместе со штампом), и высотой как там.
+		var top: Vector3 = WorldData.design_value(islet.design, "top", Vector3.ZERO)
+		var expected := top.z * islet.height_scale()
+		var summit := _terrain.height_map.sample(islet.to_world(Vector2(top.x, top.y)))
+		var sea := _terrain.height_map.sample(islet.position + Vector2(islet.reach() * 1.05 + 180.0, 0.0))
+		if summit > 1.5 and absf(summit - expected) < 3.0 + expected * 0.05 and sea < 0.0:
+			good += 1
 		elif problem.is_empty():
-			problem = "%s: вершина %.1f м, рядом %.1f м" % [islet.title(), top, sea]
-		lowest_top = minf(lowest_top, top)
-	_check("%sмалые острова стоят над водой" % prefix, dry == _world.islets.size(),
-			"%d из %d, самый низкий — %.1f м%s" % [dry, _world.islets.size(), lowest_top, "" if problem.is_empty() else "; " + problem])
+			problem = "%s: вершина %.1f м (ждали %.1f), рядом %.1f м" % [islet.title(), summit, expected, sea]
+	_check("%sмалые острова стоят на местах, вершины над водой" % prefix, good == _world.islets.size(),
+			"%d из %d%s" % [good, _world.islets.size(), "" if problem.is_empty() else "; " + problem])
 
 
-## Высоты в условленных точках малых островов: центр картинки, середина к востоку и море у восточного края.
+## Высоты в условленных точках малых островов: центр, середина к востоку, вершина и море у восточного края.
 func _probes() -> Dictionary:
 	var result := {}
 	for i in _world.islets.size():
 		var islet := _world.islets[i]
-		for part: Array in [["centre", 0.0], ["east", 0.45], ["sea", 1.25]]:
-			var point := islet.position + Vector2(islet.radius * float(part[1]), 0.0)
-			result["%d:%s" % [i, part[0]]] = [snappedf(point.x, 0.01), snappedf(point.y, 0.01), snappedf(_terrain.height_map.sample(point), 0.01)]
+		var top: Vector3 = WorldData.design_value(islet.design, "top", Vector3.ZERO)
+		var points := {
+			"centre": islet.position,
+			"east": islet.position + Vector2(islet.radius * 0.45, 0.0),
+			"top": islet.to_world(Vector2(top.x, top.y)),
+			"sea": islet.position + Vector2(islet.reach() * 1.05 + 120.0, 0.0),
+		}
+		for name: String in points:
+			var point: Vector2 = points[name]
+			result["%d:%s" % [i, name]] = [snappedf(point.x, 0.01), snappedf(point.y, 0.01), snappedf(_terrain.height_map.sample(point), 0.01)]
 	return result
 
 

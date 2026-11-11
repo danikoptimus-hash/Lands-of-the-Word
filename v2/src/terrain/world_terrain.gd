@@ -29,8 +29,6 @@ const SKIRT := 24.0
 ## Меняется вместе с глубиной, с которой вода становится непрозрачной.
 const DEEP_CUTOFF := -4.0
 const SEA_SIZE := 200000.0  ## море уходит за горизонт: его край тонет в дымке
-const POND_PICTURE := 6  ## остров с прудом
-const POND_PLACE := Vector2(0.07, 0.11)  ## где пруд на картинке острова (как в функции высот)
 
 
 class Chunk:
@@ -52,7 +50,7 @@ class Region:
 
 var height_map: HeightMap  ## высоты главных островов; малые острова — в его extras
 var lakes: Array[Dictionary] = []  ## озёра и пруды: клетка и уровень воды
-var ponds: Array[Dictionary] = []  ## пруды малых островов: номер острова и уровень воды
+var ponds: Array[Dictionary] = []  ## озёра малых островов: номер острова и уровень воды
 var bake_rect := Rect2()  ## область главных островов
 var ocean_rect := Rect2()  ## область карты глубин
 var bake_ms := 0.0
@@ -120,7 +118,7 @@ func build(world: WorldData) -> bool:
 	_build_chunks()
 	_build_ocean(ocean_baker.texture)
 	_build_lakes(world)
-	_build_ponds(world)
+	_build_islet_lakes(world)
 
 	for region in _regions:
 		region.baker.queue_free()
@@ -390,21 +388,22 @@ func _build_lakes(world: WorldData) -> void:
 		_add_water_disc(main, centre, reach + (HexMath.SIZE * 2.4 if with_lake else 70.0), level)
 
 
-## Пруды малых островов (остров с ручьём и прудом).
-func _build_ponds(world: WorldData) -> void:
+## Озёра малых островов (долина, кратер, лагуна среди дюн): где озеро на штампе, знает каталог островов.
+func _build_islet_lakes(world: WorldData) -> void:
 	ponds.clear()
 	for i in world.islets.size():
 		var islet := world.islets[i]
-		if islet.picture != POND_PICTURE:
+		if float(WorldData.design_value(islet.design, "lake_level", TerrainBaker.NO_WATER)) <= TerrainBaker.NO_WATER + 1.0:
 			continue
-		var centre := islet.position + POND_PLACE * islet.radius
+		var lake: Vector3 = WorldData.design_value(islet.design, "lake", Vector3.ZERO)
+		var centre := islet.to_world(Vector2(lake.x, lake.y))
 		var region := _region_at(centre)
 		if region == null:
 			continue
 		var level := _find_water_level(region.baker, centre)
 		if level <= TerrainBaker.NO_WATER + 1.0:
 			continue
-		_add_water_disc(region, centre, islet.radius * 0.14 + 40.0, level)
+		_add_water_disc(region, centre, lake.z * islet.radius * 1.2 + 30.0, level)
 		ponds.append({"islet": i, "level": level})
 
 

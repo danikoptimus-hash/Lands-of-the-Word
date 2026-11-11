@@ -89,18 +89,16 @@ static func stops(world: WorldData, rig: StrategyCamera, height_map: HeightMap =
 		number += 1
 		list.append(_stop("%02d-proliv-dno" % number, "Дно: шельф и пролив между главными островами", CameraView.make(centre, 2600.0, 0.0, 28.0), 3.0))
 		number += 1
-		var shown := {}
 		for islet in world.islets:
-			if shown.has(islet.picture):
-				continue
-			shown[islet.picture] = true
-			var file_name := "kamenolomnya" if islet.quarry else "ostrovok-%d" % islet.picture
-			list.append(_stop("%02d-%s" % [number, file_name], islet.title(), CameraView.make(islet.position, maxf(islet.radius * 3.2, 420.0), 25.0, -8.0), 3.0))
+			var file_name := "kamenolomnya" if islet.quarry else "ostrov-%02d" % islet.design
+			list.append(_stop("%02d-%s" % [number, file_name], islet.title(), CameraView.make(islet.position, maxf(islet.reach() * 3.4, 420.0), 25.0, -8.0), 3.0))
 			number += 1
 			if islet.quarry:
-				# Карьер открыт к югу: смотрим в него с юга.
-				var pit := islet.position + Vector2(-0.14, -0.16) * islet.radius
-				list.append(_stop("%02d-karyer" % number, "Каменоломня: карьер вблизи", CameraView.make(pit, 300.0, 0.0, -12.0), 3.0))
+				# Карьер открыт к югу штампа: смотрим в него с той стороны, куда он открыт.
+				var pit := islet.to_world(Vector2(-0.05, -0.18))
+				var mouth := islet.to_world(Vector2(-0.05, 0.2)) - pit
+				var heading := rad_to_deg(atan2(mouth.x, mouth.y))
+				list.append(_stop("%02d-karyer" % number, "Каменоломня: карьер вблизи", CameraView.make(pit, 300.0, heading, -12.0), 3.0))
 				number += 1
 	return list
 

@@ -15,19 +15,12 @@ const TERRAIN_BY_NAME := {
 }
 const ISLAND_TITLES := {"OT": "Ветхий Завет", "NT": "Новый Завет"}
 const HEX_MAP_PAD := 3  ## запас клеток моря вокруг карты в текстуре местностей
-## Малые острова — те же, что на сайте (packages/domain/src/islets.ts): номер картинки → что это за остров.
-const ISLET_TITLES := {
-	1: "Зелёный остров",
-	2: "Остров с хребтом",
-	3: "Полумесяц с лагуной",
-	4: "Песчаная банка",
-	5: "Столовая гора",
-	6: "Остров с ручьём и прудом",
-	7: "Каменоломня",
-}
-const SHAPES_PATH := "res://data/islets.bin"  ## очертания островов по картинкам сайта (tools/islet-shapes.py)
+## Малые острова — свои, не по картинкам сайта (решение владельца 11.11): каталог лепится инструментом
+## tools/islets/make.py и лежит в data/islets.bin — высоты, берег, скалы и озёра каждого острова.
+const ISLETS_PATH := "res://data/islets.bin"
 const MAX_COAST_CELLS := 160  ## столько клеток берега помещается в шейдер рельефа
 const MAX_ISLETS := 12
+const MAX_DESIGNS := 16  ## столько островов каталога помещается в шейдер рельефа
 
 
 class Cell:
@@ -59,22 +52,56 @@ class Site:
 
 
 class Islet:
-	var position := Vector2.ZERO  ## центр картинки острова, метры
-	var radius := 0.0  ## половина стороны картинки, метры
-	var picture := 1  ## номер картинки на сайте: от него зависит характер острова
+	var position := Vector2.ZERO  ## центр острова, метры
+	var radius := 0.0  ## половина стороны штампа острова на карте, метры
+	var design := 1  ## номер острова в каталоге (tools/islets/designs.py)
+	var angle := 0.0  ## поворот штампа, радианы
+	var mirror := 1.0  ## 1 или −1 — штамп отражён
 	var quarry := false
 
 	func title() -> String:
-		return str(WorldData.ISLET_TITLES.get(picture, "Островок"))
+		return WorldData.design_title(design)
 
-	## Квадрат, в который вписан остров.
+	## Точка штампа (в половинах его стороны: x — на восток, y — на юг) на карте мира.
+	func to_world(uv: Vector2) -> Vector2:
+		return position + Vector2(uv.x * mirror, uv.y).rotated(angle) * radius
+
+	## Дальше этого расстояния от центра суши у острова нет, метры.
+	func reach() -> float:
+		return WorldData.design_value(design, "reach", 1.0) * radius
+
+	## Во сколько раз высоты острова на карте больше, чем в каталоге: высоты растут медленнее размера.
+	func height_scale() -> float:
+		return pow(radius / WorldData.design_value(design, "size", radius), 0.75)
+
+	## Квадрат, в который вписана суша острова.
 	func area() -> Rect2:
-		return Rect2(position - Vector2(radius, radius) * 1.05, Vector2(radius, radius) * 2.1)
+		var half := reach() * 1.03 + 12.0
+		return Rect2(position - Vector2(half, half), Vector2(half, half) * 2.0)
 
 
-static var _shapes_texture: ImageTexture
-static var _shapes_extent := 1.3
-static var _shapes_size := 160
+## Каталог малых островов (общий для всех карт, читается один раз): номер → сведения об острове.
+static var _designs := {}
+static var _stamps_texture: ImageTexture  ## высота и расстояние до берега, по 2 байта
+static var _marks_texture: ImageTexture  ## «камень» и озеро
+static var _stamp_size := 512
+static var _stamp_extent := 1.15
+static var _stamp_range := Vector3(-30.0, 330.0, 1.6)
+const DESIGN_TITLES := {
+	1: "Остров-пик",
+	2: "Столовая гора",
+	3: "Зелёная долина",
+	4: "Подкова",
+	5: "Двуглавый остров",
+	6: "Остров-хребет",
+	7: "Холмистый остров",
+	8: "Дюны",
+	9: "Шхеры",
+	10: "Утёс",
+	11: "Кратер",
+	12: "Каменоломня",
+}
+const QUARRY_DESIGN := 12
 
 var title := ""
 var map_seed := 0
@@ -103,7 +130,7 @@ static func load_file(path: String) -> WorldData:
 		return null
 	var data: Dictionary = parsed
 	var format := int(data.get("format", 0))
-	if format != 1 and format != 2:  # формат 2 — со списком малых островов
+	if format != 1 and format != 3:  # формат 3 — со своими малыми островами (формат 2 был с картинками сайта)
 		push_error("Неизвестный формат данных мира: %s" % path)
 		return null
 
@@ -146,8 +173,10 @@ static func load_file(path: String) -> WorldData:
 		var islet := Islet.new()
 		islet.position = Vector2(float(row[0]), float(row[1]))
 		islet.radius = float(row[2])
-		islet.picture = int(row[3])
-		islet.quarry = int(row[5]) != 0
+		islet.design = int(row[3])
+		islet.angle = float(row[4])
+		islet.mirror = -1.0 if float(row[5]) < 0.0 else 1.0
+		islet.quarry = int(row[6]) != 0
 		world.islets.append(islet)
 
 	if world.cells.is_empty():
@@ -242,23 +271,31 @@ func apply_height_uniforms(material: ShaderMaterial) -> void:
 	material.set_shader_parameter("coast_count", coast_count)
 
 	var centres := PackedVector2Array()
-	var sizes := PackedVector2Array()
+	var frames := PackedVector4Array()
 	centres.resize(MAX_ISLETS)
-	sizes.resize(MAX_ISLETS)
-	var shapes_ready := _load_shapes()
-	var islet_count := mini(islets.size(), MAX_ISLETS) if shapes_ready else 0
+	frames.resize(MAX_ISLETS)
+	var ready := load_designs()
+	var islet_count := mini(islets.size(), MAX_ISLETS) if ready else 0
 	for i in islet_count:
 		centres[i] = islets[i].position
-		sizes[i] = Vector2(islets[i].radius, float(islets[i].picture))
+		frames[i] = Vector4(islets[i].radius, float(islets[i].design), islets[i].angle, islets[i].mirror)
+	var info := PackedVector4Array()
+	info.resize(MAX_DESIGNS)
+	for number: int in _designs:
+		var d: Dictionary = _designs[number]
+		info[number - 1] = Vector4(d["size"], d["shelf"], d["lake_level"], d["reach"])
 	# Прямоугольник мира: дальше него подводный рельеф затухает к ровной глубине.
 	material.set_shader_parameter("world_rect", Vector4(content_rect.position.x, content_rect.position.y, content_rect.end.x, content_rect.end.y))
 	material.set_shader_parameter("islet_centre", centres)
-	material.set_shader_parameter("islet_size", sizes)
+	material.set_shader_parameter("islet_frame", frames)
 	material.set_shader_parameter("islet_count", islet_count)
-	if shapes_ready:
-		material.set_shader_parameter("islet_shapes", _shapes_texture)
-		material.set_shader_parameter("shape_extent", _shapes_extent)
-		material.set_shader_parameter("shape_size", float(_shapes_size))
+	material.set_shader_parameter("design_info", info)
+	if ready:
+		material.set_shader_parameter("islet_stamps", _stamps_texture)
+		material.set_shader_parameter("islet_marks", _marks_texture)
+		material.set_shader_parameter("stamp_size", _stamp_size)
+		material.set_shader_parameter("stamp_extent", _stamp_extent)
+		material.set_shader_parameter("stamp_range", _stamp_range)
 
 
 ## Клетка суши, у которой хотя бы один сосед — море.
@@ -269,40 +306,69 @@ func _is_coastal(cell: Cell) -> bool:
 	return false
 
 
-## Очертания малых островов: семь полей расстояний до берега одно под другим в одной текстуре.
-## Файл общий для всех карт, читается один раз.
-static func _load_shapes() -> bool:
-	if _shapes_texture != null:
+## Название острова каталога.
+static func design_title(number: int) -> String:
+	return str(DESIGN_TITLES.get(number, "Островок"))
+
+
+## Сведение об острове каталога: size — опорная половина стороны, shelf — ширина отмели, lake_level — уровень
+## озера (−999 — озера нет), lake — центр и радиус озера (в половинах стороны), reach — досягаемость суши,
+## top — вершина (u, v, высота при опорном размере).
+static func design_value(number: int, key: String, fallback: Variant) -> Variant:
+	load_designs()
+	if not _designs.has(number):
+		return fallback
+	return (_designs[number] as Dictionary).get(key, fallback)
+
+
+## Каталог малых островов: две текстуры (острова один под другим) и сведения о каждом. Файл общий для всех карт.
+static func load_designs() -> bool:
+	if _stamps_texture != null:
 		return true
-	var bytes := FileAccess.get_file_as_bytes(SHAPES_PATH)
-	if bytes.size() < 19 or bytes.slice(0, 8).get_string_from_ascii() != "LOTWISL1":
-		push_error("Очертания малых островов не найдены: %s" % SHAPES_PATH)
+	var packed := FileAccess.get_file_as_bytes(ISLETS_PATH)
+	if packed.size() < 32:
+		push_error("Каталог малых островов не найден: %s" % ISLETS_PATH)
+		return false
+	# gzip хранит длину распакованных данных в последних четырёх байтах
+	var bytes := packed.decompress(packed.decode_u32(packed.size() - 4), FileAccess.COMPRESSION_GZIP)
+	if bytes.size() < 27 or bytes.slice(0, 8).get_string_from_ascii() != "LOTWISL2":
+		push_error("Каталог малых островов повреждён: %s" % ISLETS_PATH)
 		return false
 	var count := bytes.decode_u8(8)
 	var size := bytes.decode_u16(9)
-	var extent := bytes.decode_float(11)
-	var limit := bytes.decode_float(15)
-	var rows := ISLET_TITLES.size()
-	var per_field := size * size
-	if bytes.size() < 19 + count * (1 + per_field * 2):
-		push_error("Очертания малых островов повреждены: %s" % SHAPES_PATH)
+	_stamp_extent = bytes.decode_float(11)
+	_stamp_range = Vector3(bytes.decode_float(15), bytes.decode_float(19), bytes.decode_float(23))
+	var per := size * size
+	var at := 27
+	if bytes.size() < at + count * (45 + per * 6) or count > MAX_DESIGNS:
+		push_error("Каталог малых островов повреждён: %s" % ISLETS_PATH)
 		return false
-	var values := PackedFloat32Array()
-	values.resize(per_field * rows)
-	values.fill(limit)
-	var at := 19
+	var pairs := PackedByteArray()
+	var marks := PackedByteArray()
 	for i in count:
-		var picture := bytes.decode_u8(at)
-		at += 1
-		if picture >= 1 and picture <= rows:
-			var base := (picture - 1) * per_field
-			for k in per_field:
-				values[base + k] = (float(bytes.decode_u16(at + k * 2)) / 65535.0 * 2.0 - 1.0) * limit
-		at += per_field * 2
-	var image := Image.create_from_data(size, size * rows, false, Image.FORMAT_RF, values.to_byte_array())
-	_shapes_texture = ImageTexture.create_from_image(image)
-	_shapes_extent = extent
-	_shapes_size = size
+		var number := bytes.decode_u8(at)
+		var values := PackedFloat32Array()
+		for k in 11:
+			values.append(bytes.decode_float(at + 1 + k * 4))
+		at += 45
+		if number != i + 1:  # острова идут по порядку номеров: каждый — своя полоса текстуры
+			push_error("Каталог малых островов: неверный номер острова %d" % number)
+			return false
+		_designs[number] = {
+			"size": values[0],
+			"shelf": values[1],
+			"lake_level": values[2],
+			"lake": Vector3(values[3], values[4], values[5]),
+			"reach": values[6],
+			"top": Vector3(values[7], values[8], values[9]),
+		}
+		pairs.append_array(bytes.slice(at, at + per * 4))
+		at += per * 4
+		marks.append_array(bytes.slice(at, at + per * 2))
+		at += per * 2
+	_stamp_size = size
+	_stamps_texture = ImageTexture.create_from_image(Image.create_from_data(size, size * count, false, Image.FORMAT_RGBA8, pairs))
+	_marks_texture = ImageTexture.create_from_image(Image.create_from_data(size, size * count, false, Image.FORMAT_RG8, marks))
 	return true
 
 

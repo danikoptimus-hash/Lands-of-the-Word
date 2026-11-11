@@ -21,11 +21,11 @@ else:
     x0, x1, z0, z1 = min(cx) - 420.0, max(cx) + 420.0, min(cz) - 420.0, max(cz) + 420.0
     if '--world' in sys.argv:
         for ix, iz, ir, *_ in world.islets:
-            x0 = min(x0, ix - 1.3 * ir - 500.0); x1 = max(x1, ix + 1.3 * ir + 500.0); z0 = min(z0, iz - 1.3 * ir - 500.0); z1 = max(z1, iz + 1.3 * ir + 500.0)
+            x0 = min(x0, ix - 1.1 * ir - 500.0); x1 = max(x1, ix + 1.1 * ir + 500.0); z0 = min(z0, iz - 1.1 * ir - 500.0); z1 = max(z1, iz + 1.1 * ir + 500.0)
     for a in sys.argv:
         if a.startswith('--isl='):
             ix, iz, ir, *_ = world.islets[int(a[6:])]
-            x0, x1, z0, z1 = ix - 1.35 * ir, ix + 1.35 * ir, iz - 1.35 * ir, iz + 1.35 * ir
+            x0, x1, z0, z1 = ix - 1.15 * ir, ix + 1.15 * ir, iz - 1.15 * ir, iz + 1.15 * ir
 xs = np.arange(x0 + texel / 2, x1, texel, dtype=np.float32); zs = np.arange(z0 + texel / 2, z1, texel, dtype=np.float32)
 px, py = np.meshgrid(xs, zs)
 t = time.time(); h, level = world.height(px, py, True); print('высоты', h.shape, round(time.time() - t, 1), 'с', 'мин', float(h.min()), 'макс', float(h.max()))

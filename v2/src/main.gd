@@ -267,7 +267,7 @@ func _fly_to_island(island: String) -> void:
 func _fly_to_islet(index: int) -> void:
 	var islet := _world.islets[index]
 	_islet_index = index
-	_rig.fly_to(CameraView.make(islet.position, maxf(islet.radius * 3.2, 420.0), 25.0, -8.0))
+	_rig.fly_to(CameraView.make(islet.position, maxf(islet.reach() * 3.4, 420.0), 25.0, -8.0))
 	_hud.toast("%s — малый остров %d из %d. O — следующий." % [islet.title(), index + 1, _world.islets.size()], 5.0)
 
 

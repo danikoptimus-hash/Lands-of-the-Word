@@ -35,4 +35,6 @@ if probes:
     print('точек на малых островах и у них', len(names), '; расхождение: среднее %.3f м, наибольшее %.3f м' % (gap.mean(), gap.max()))
     for i in np.argsort(-gap)[:5]: print('  ', names[i], 'игра %.2f песочница %.2f' % (theirs[i], mine[i]))
 for pond in rep.get('ponds', []):
-    print('   пруд малого острова', pond['islet'], 'уровень в игре %.2f (в песочнице 8.00)' % pond['level'])
+    x, z, r, design, angle, mirror, quarry = w.islets[pond['islet']]
+    info = w.designs[design]
+    print('   озеро малого острова', pond['islet'], 'уровень в игре %.2f, в песочнице %.2f' % (pond['level'], info['lake_level'] * (r / info['size']) ** 0.75))

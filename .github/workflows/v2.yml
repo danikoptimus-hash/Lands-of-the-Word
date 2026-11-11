@@ -69,24 +69,45 @@ jobs:
           cp ~/godot/templates/* ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable/
           echo "$HOME/godot" >> "$GITHUB_PATH"
 
+      # Запас пакетов экрана и программной видеокарты: сохраняется после удачной установки и выручает, когда
+      # машина GitHub не может скачать пакеты (11.11 три запуска подряд не нашли серверы Ubuntu по имени).
+      - name: Пакеты экрана — запас с прошлых запусков
+        uses: actions/cache@v4
+        with:
+          path: ~/v2-debs
+          key: v2-debs-noble-1
+
       - name: Экран и программная видеокарта
         run: |
           set -euo pipefail
           packages="xvfb mesa-vulkan-drivers libvulkan1 vulkan-tools libxcursor1 libxinerama1 libxrandr2 libxi6 libgl1 libfontconfig1 zip"
-          apt_options="-o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30"
-          # Зеркало пакетов Azure у машин GitHub иногда не находится по имени (11.11 — два запуска подряд упали
-          # ещё до проверок): тогда повтор через основные зеркала Ubuntu.
+          debs="$HOME/v2-debs"
+          mkdir -p "$debs/partial"
+          apt_options="-o Acquire::Retries=1 -o Acquire::http::Timeout=25 -o Acquire::https::Timeout=25 -o Dir::Cache::Archives=$debs"
+          # Три попытки: зеркало машины GitHub, затем основные зеркала Ubuntu, затем зеркало kernel.org.
           installed=0
           for attempt in 1 2 3; do
             if sudo apt-get $apt_options update -qq && sudo apt-get $apt_options install -y -qq $packages > /dev/null; then
               installed=1
               break
             fi
-            echo "Пакеты не скачались (попытка $attempt) — повторяю через основные зеркала Ubuntu" >&2
-            printf 'http://archive.ubuntu.com/ubuntu/\tpriority:1\nhttp://security.ubuntu.com/ubuntu/\tpriority:2\n' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
-            sleep $((attempt * 15))
+            echo "Пакеты не скачались (попытка $attempt) — меняю зеркала и повторяю" >&2
+            if [ "$attempt" -eq 1 ]; then
+              printf 'http://archive.ubuntu.com/ubuntu/\tpriority:1\nhttp://security.ubuntu.com/ubuntu/\tpriority:2\n' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+            else
+              printf 'http://mirrors.edge.kernel.org/ubuntu/\tpriority:1\nhttp://archive.ubuntu.com/ubuntu/\tpriority:2\n' | sudo tee /etc/apt/apt-mirrors.txt > /dev/null
+            fi
+            sleep $((attempt * 10))
           done
-          [ "$installed" -eq 1 ]
+          if [ "$installed" -ne 1 ]; then
+            if compgen -G "$debs/*.deb" > /dev/null && sudo dpkg -i "$debs"/*.deb > /dev/null; then
+              echo "Сеть пакетов недоступна — пакеты поставлены из запаса прошлых запусков"
+            else
+              echo "Сеть пакетов недоступна, запаса пакетов нет" >&2
+              exit 1
+            fi
+          fi
+          sudo chown -R "$(id -u):$(id -g)" "$debs"
           vulkaninfo --summary 2>/dev/null | grep -E "deviceName|driverName" || true
 
       - name: Номер сборки

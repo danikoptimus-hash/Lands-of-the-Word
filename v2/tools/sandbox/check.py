@@ -29,8 +29,9 @@ px = (cx[pick] + rng.uniform(-260.0, 260.0, count)).astype(np.float64); pz = (cz
 if world.islets:
     third = count // 3
     which = rng.integers(0, len(world.islets), third)
-    ix = np.array([i[0] for i in world.islets]); iz = np.array([i[1] for i in world.islets]); ir = np.array([i[2] for i in world.islets])
-    reach = 1.45 * ir[which] + 1300.0
+    ix = np.array([i[0] for i in world.islets]); iz = np.array([i[1] for i in world.islets])
+    ir = np.array([world.designs[i[3]]['reach'] * i[2] for i in world.islets])
+    reach = ir[which] + 1300.0
     px[:third] = ix[which] + rng.uniform(-1.0, 1.0, third) * reach; pz[:third] = iz[which] + rng.uniform(-1.0, 1.0, third) * reach
     sixth = count // 6
     x0, z0, x1, z1 = world.content
@@ -73,13 +74,22 @@ for a in np.linspace(0.0, 2.0 * np.pi, 8, endpoint=False):
     if d[j] > worst: worst = float(d[j]); where = '%s %s' % (kinds[pads[j]], keys[pads[j]])
 print('площадок', len(pads), '; наибольший перепад на площадке: %.2f м' % worst, where)
 
-# 4. Малые острова: у каждого есть суша над водой, а у края его квадрата — море.
-for number, (ix, iz, ir, img, cover, quarry) in enumerate(world.islets):
-    gx, gz = np.meshgrid(np.linspace(ix - ir, ix + ir, 41, dtype=np.float32), np.linspace(iz - ir, iz + ir, 41, dtype=np.float32))
-    top = float(world.height(gx, gz).max())
-    sea = float(world.height(row(np.array([ix + 1.05 * ir + 180.0])), row(np.array([iz])))[0, 0])
-    note = '' if top > 1.5 and sea < 0.0 else '  ← НЕ ТАК'
-    print('остров %d (картинка %d%s): вершина %.1f м, море рядом %.1f м%s' % (number, img, ', Каменоломня' if quarry else '', top, sea, note))
+# 4. Малые острова: вершина над водой и где её поставил каталог, у края — море; озёра не переливаются.
+for number, (ix, iz, ir, design, angle, mirror, quarry) in enumerate(world.islets):
+    info = world.designs[design]; k = (ir / info['size']) ** 0.75; reach = info['reach'] * ir
+    tu, tv, th = info['top']
+    q = np.array([tu * mirror, tv]); c, s_ = np.cos(angle), np.sin(angle)
+    tx = ix + (q[0] * c - q[1] * s_) * ir; tz = iz + (q[0] * s_ + q[1] * c) * ir
+    top = float(world.height(row(np.array([tx])), row(np.array([tz])))[0, 0])
+    sea = float(world.height(row(np.array([ix + 1.05 * reach + 180.0])), row(np.array([iz])))[0, 0])
+    gx, gz = np.meshgrid(np.linspace(ix - reach, ix + reach, 81, dtype=np.float32), np.linspace(iz - reach, iz + reach, 81, dtype=np.float32))
+    hh, lv = world.height(gx, gz, True)
+    lake = lv > -900
+    spill = int((lake & (hh < lv - 0.05) & (np.hypot(gx - ix, gz - iz) > 0) & (world.height(gx, gz) < 0.0)).sum())
+    ok = top > 1.5 and abs(top - th * k) < 3.0 + th * k * 0.05 and sea < 0.0 and spill == 0
+    print('остров %d (%s%s, половина стороны %.0f м): вершина %.1f м (каталог %.1f), море рядом %.1f м%s%s' % (
+        number, design, ', Каменоломня' if quarry else '', ir, top, th * k, sea,
+        ', озеро %.2f м' % float(lv[lake].max()) if lake.any() else '', '' if ok else '  ← НЕ ТАК'))
 
 # 5. Границы запечённых областей с открытым морем (как в world_terrain.gd: главная область — острова с запасом 520 м,
 #    у каждого малого острова — своя, с запасом 260 м; края по сетке плиток 256 м).
@@ -88,8 +98,9 @@ CHUNK = 256.0
 def snap(x0, z0, x1, z1):
     return (math.floor(x0 / CHUNK) * CHUNK, math.floor(z0 / CHUNK) * CHUNK, math.ceil(x1 / CHUNK) * CHUNK, math.ceil(z1 / CHUNK) * CHUNK)
 areas = [snap(cx.min() - 86.60254 - 520.0, cz.min() - 100.0 - 520.0, cx.max() + 86.60254 + 520.0, cz.max() + 100.0 + 520.0)]
-for ix, iz, ir, *_ in world.islets:
-    a = snap(ix - 1.05 * ir - 260.0, iz - 1.05 * ir - 260.0, ix + 1.05 * ir + 260.0, iz + 1.05 * ir + 260.0)
+for ix, iz, ir, design, *_ in world.islets:
+    half = world.designs[design]['reach'] * ir * 1.03 + 12.0
+    a = snap(ix - half - 260.0, iz - half - 260.0, ix + half + 260.0, iz + half + 260.0)
     m = areas[0]
     if not (a[0] >= m[0] and a[1] >= m[1] and a[2] <= m[2] and a[3] <= m[3]):
         areas.append(a)
