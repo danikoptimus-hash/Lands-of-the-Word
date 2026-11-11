@@ -17,7 +17,7 @@ const ISLET_MARGIN := 260.0  ## запас моря вокруг малого о
 const PAD := 16.0
 const OCEAN_TEXEL := 16.0  ## точность карты глубин океана
 const OCEAN_MARGIN := 2600.0  ## дальше этого от суши дно ровное
-const MAX_AREAS := 16  ## столько областей суши помещается в шейдер моря
+const MAX_AREAS := 16  ## больше областей суши не запекаем: каждая — отдельная текстура
 const LOD_CELLS: Array[int] = [64, 32, 16]  ## клеток на сторону плитки по уровням: шаг сетки 4, 8 и 16 м
 ## До какого расстояния от камеры держится уровень. Шаг сетки на экране остаётся в несколько точек.
 ## Условие стыков без щелей: MORPH_START × второе расстояние − первое больше диагонали плитки.
@@ -56,6 +56,7 @@ var bake_ms := 0.0
 var error := ""
 
 var _regions: Array[Region] = []
+var _owned := {}  ## плитки мира Vector2i(x, z) / CHUNK, над которыми вода своей области (остальное — открытое море)
 var _lod_meshes: Array[ArrayMesh] = []
 var _chunks: Array[Chunk] = []
 var _viewer := Vector3.ZERO
@@ -74,7 +75,7 @@ func build(world: WorldData) -> bool:
 		if main_area.encloses(area):
 			continue  # остров целиком в области главных островов: запечён вместе с ними
 		if areas.size() >= MAX_AREAS:
-			push_error("Областей суши больше, чем помещается в шейдер моря")
+			push_error("Малых островов вне главной области больше, чем запекается отдельно")
 			break
 		areas.append(area)
 		titles.append(islet.title())
@@ -219,29 +220,18 @@ func _make_water_material(texture: Texture2D, area: Rect2) -> ShaderMaterial:
 ## могут перекрываться (малый остров рядом с главным), а земля и вода не должны рисоваться дважды.
 func _build_chunks() -> void:
 	var coarsest := _lod_meshes.size() - 1
-	var owned := {}
 	for region in _regions:
 		var columns := roundi(region.area.size.x / CHUNK)
 		var rows := roundi(region.area.size.y / CHUNK)
-		var water_vertices := PackedVector3Array()
-		var water_normals := PackedVector3Array()
-		var water_indices := PackedInt32Array()
+		var water_tiles := PackedFloat32Array()
 		for row in rows:
 			for column in columns:
 				var origin := Vector2(region.area.position.x + float(column) * CHUNK, region.area.position.y + float(row) * CHUNK)
 				var key := Vector2i(roundi(origin.x / CHUNK), roundi(origin.y / CHUNK))
-				if owned.has(key):
+				if _owned.has(key):
 					continue
-				owned[key] = true
-				# Вода над плиткой: квадрат на уровне моря, по часовой стрелке (лицом вверх).
-				var first := water_vertices.size()
-				water_vertices.append(Vector3(origin.x, 0.0, origin.y))
-				water_vertices.append(Vector3(origin.x + CHUNK, 0.0, origin.y))
-				water_vertices.append(Vector3(origin.x + CHUNK, 0.0, origin.y + CHUNK))
-				water_vertices.append(Vector3(origin.x, 0.0, origin.y + CHUNK))
-				for corner in 4:
-					water_normals.append(Vector3.UP)
-				water_indices.append_array(PackedInt32Array([first, first + 1, first + 2, first, first + 2, first + 3]))
+				_owned[key] = true
+				water_tiles.append_array(PackedFloat32Array([origin.x, origin.y, origin.x + CHUNK, origin.y + CHUNK]))
 
 				var heights := region.height_map.range_in(Rect2(origin, Vector2(CHUNK, CHUNK)))
 				if heights.y < DEEP_CUTOFF:
@@ -260,40 +250,23 @@ func _build_chunks() -> void:
 				_set_lod(chunk, coarsest)
 				_chunks.append(chunk)
 
-		if water_vertices.is_empty():
+		if water_tiles.is_empty():
 			continue
-		var arrays := []
-		arrays.resize(Mesh.ARRAY_MAX)
-		arrays[Mesh.ARRAY_VERTEX] = water_vertices
-		arrays[Mesh.ARRAY_NORMAL] = water_normals
-		arrays[Mesh.ARRAY_INDEX] = water_indices
-		var mesh := ArrayMesh.new()
-		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
 		var water := MeshInstance3D.new()
 		water.name = "Water"
-		water.mesh = mesh
+		water.mesh = _make_quads(water_tiles)
 		water.material_override = region.water_material
 		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		water.set_instance_shader_parameter("water_level", 0.0)
 		add_child(water)
 
 
-## Открытое море: одна плоскость до горизонта. Цвет берёт из карты глубин; над областями суши не рисуется —
-## там вода своя, по точному рельефу.
+## Открытое море: плитки по 256 м везде, где нет воды областей, и полосы до горизонта. Цвет берёт из карты глубин.
+## Края плиток моря и воды областей совпадают точь-в-точь, поэтому на границе нет ни щели, ни наложения —
+## и со сглаживанием краёв тоже (раньше море вырезалось по точкам экрана, и на границе проступала светлая черта).
 func _build_ocean(depth_texture: Texture2D) -> void:
 	var material := _make_water_material(depth_texture, ocean_rect)
-	var origins := PackedVector2Array()
-	var sizes := PackedVector2Array()
-	origins.resize(MAX_AREAS)
-	sizes.resize(MAX_AREAS)
-	for i in _regions.size():
-		origins[i] = _regions[i].area.position
-		sizes[i] = _regions[i].area.size
 	material.set_shader_parameter("open_sea", true)
-	material.set_shader_parameter("area_origin", origins)
-	material.set_shader_parameter("area_size", sizes)
-	material.set_shader_parameter("area_count", _regions.size())
-
 	var sea := MeshInstance3D.new()
 	sea.name = "Ocean"
 	sea.mesh = _make_ocean_mesh()
@@ -303,39 +276,52 @@ func _build_ocean(depth_texture: Texture2D) -> void:
 	add_child(sea)
 
 
-## Плоскость моря: над миром — сетка из квадратов в километр (так шейдер точно знает, где он на карте глубин
-## и где кончается область суши), вокруг — восемь больших полотен до горизонта.
 func _make_ocean_mesh() -> ArrayMesh:
-	var cell := CHUNK * 4.0
-	var x0 := floorf(ocean_rect.position.x / cell) * cell
-	var z0 := floorf(ocean_rect.position.y / cell) * cell
-	var columns := ceili((ocean_rect.end.x - x0) / cell)
-	var rows := ceili((ocean_rect.end.y - z0) / cell)
-	var x1 := x0 + float(columns) * cell
-	var z1 := z0 + float(rows) * cell
+	var columns := roundi(ocean_rect.size.x / CHUNK)
+	var rows := roundi(ocean_rect.size.y / CHUNK)
+	var x0 := ocean_rect.position.x
+	var z0 := ocean_rect.position.y
+	var x1 := x0 + float(columns) * CHUNK
+	var z1 := z0 + float(rows) * CHUNK
 	var far := SEA_SIZE * 0.5
-	var xs := PackedFloat32Array([x0 - far])
-	var zs := PackedFloat32Array([z0 - far])
-	for column in columns + 1:
-		xs.append(x0 + float(column) * cell)
-	for row in rows + 1:
-		zs.append(z0 + float(row) * cell)
-	xs.append(x1 + far)
-	zs.append(z1 + far)
+	var tiles := PackedFloat32Array()
+	for row in rows:
+		for column in columns:
+			var tx := x0 + float(column) * CHUNK
+			var tz := z0 + float(row) * CHUNK
+			if not _owned.has(Vector2i(roundi(tx / CHUNK), roundi(tz / CHUNK))):
+				tiles.append_array(PackedFloat32Array([tx, tz, tx + CHUNK, tz + CHUNK]))
+	# Полосы до горизонта: каждая плитка края продолжается наружу, так что и здесь края совпадают.
+	for column in columns:
+		var tx := x0 + float(column) * CHUNK
+		tiles.append_array(PackedFloat32Array([tx, z0 - far, tx + CHUNK, z0]))
+		tiles.append_array(PackedFloat32Array([tx, z1, tx + CHUNK, z1 + far]))
+	for row in rows:
+		var tz := z0 + float(row) * CHUNK
+		tiles.append_array(PackedFloat32Array([x0 - far, tz, x0, tz + CHUNK]))
+		tiles.append_array(PackedFloat32Array([x1, tz, x1 + far, tz + CHUNK]))
+	tiles.append_array(PackedFloat32Array([x0 - far, z0 - far, x0, z0, x1, z0 - far, x1 + far, z0]))
+	tiles.append_array(PackedFloat32Array([x0 - far, z1, x0, z1 + far, x1, z1, x1 + far, z1 + far]))
+	return _make_quads(tiles)
 
+
+## Плоские квадраты на уровне моря, лицом вверх. tiles — по четыре числа на квадрат: x и z одного угла, x и z
+## противоположного. Координаты кратны стороне плитки и точны в числах видеокарты: соседние квадраты из разных
+## полотен сходятся без щелей.
+static func _make_quads(tiles: PackedFloat32Array) -> ArrayMesh:
 	var vertices := PackedVector3Array()
 	var normals := PackedVector3Array()
 	var indices := PackedInt32Array()
-	for z in zs:
-		for x in xs:
-			vertices.append(Vector3(x, 0.0, z))
+	for i in range(0, tiles.size(), 4):
+		var first := vertices.size()
+		vertices.append(Vector3(tiles[i], 0.0, tiles[i + 1]))
+		vertices.append(Vector3(tiles[i + 2], 0.0, tiles[i + 1]))
+		vertices.append(Vector3(tiles[i + 2], 0.0, tiles[i + 3]))
+		vertices.append(Vector3(tiles[i], 0.0, tiles[i + 3]))
+		for corner in 4:
 			normals.append(Vector3.UP)
-	var side := xs.size()
-	for row in zs.size() - 1:
-		for column in side - 1:
-			var a := row * side + column
-			# По часовой стрелке, если смотреть сверху: лицевая сторона — вверх.
-			indices.append_array(PackedInt32Array([a, a + 1, a + side + 1, a, a + side + 1, a + side]))
+		# По часовой стрелке, если смотреть сверху: лицевая сторона — вверх.
+		indices.append_array(PackedInt32Array([first, first + 1, first + 2, first, first + 2, first + 3]))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices

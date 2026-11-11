@@ -9,11 +9,8 @@ uniform vec3 shallow_color : source_color = vec3(0.4, 0.62, 0.64);
 uniform vec3 deep_color : source_color = vec3(0.08, 0.2, 0.3);
 uniform vec3 bed_color : source_color = vec3(0.6, 0.56, 0.5); // глина под водой — там, где дно не нарисовано
 // Открытое море: дно известно грубо (карта глубин), сама земля там не нарисована. Над областями суши
-// такое море не рисуется — там вода своя, по точному рельефу.
+// своя вода, по точному рельефу; полотна стыкуются краями плиток (world_terrain.gd).
 uniform bool open_sea = false;
-uniform vec2 area_origin[16];
-uniform vec2 area_size[16];
-uniform int area_count = 0;
 instance uniform float water_level = 0.0;
 
 const float FAR_BED = -70.0; // дно далеко от суши ровное (как в функции высот)
@@ -25,17 +22,7 @@ void vertex() {
 }
 
 void fragment() {
-	vec2 point = world_position.xz;
-	if (open_sea) {
-		for (int i = 0; i < area_count; i++) {
-			vec2 local = point - area_origin[i];
-			// Запас в три сантиметра: море чуть заходит под воду области, щели на стыке не остаётся.
-			if (local.x > 0.03 && local.y > 0.03 && local.x < area_size[i].x - 0.03 && local.y < area_size[i].y - 0.03) {
-				discard;
-			}
-		}
-	}
-	vec2 uv = (point - bake_rect.xy) / bake_rect.zw;
+	vec2 uv = (world_position.xz - bake_rect.xy) / bake_rect.zw;
 	float bed = FAR_BED;
 	float lake = -999.0;
 	if (uv.x > 0.0 && uv.x < 1.0 && uv.y > 0.0 && uv.y < 1.0) {
