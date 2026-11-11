@@ -12,6 +12,9 @@ const CHUNK := 256.0  ## сторона плитки, метры
 const TEXEL := 2.0  ## точность запекания суши, метров на точку
 const MARGIN := 520.0  ## запас моря вокруг главных островов
 const ISLET_MARGIN := 260.0  ## запас моря вокруг малого острова
+## Области запекаются с запасом по краю: на стыке двух областей обе берут высоту из середины своей текстуры,
+## а не с её края, — высоты совпадают, и шва нет. Запас кратен шагу самой редкой сетки.
+const PAD := 16.0
 const OCEAN_TEXEL := 16.0  ## точность карты глубин океана
 const OCEAN_MARGIN := 2600.0  ## дальше этого от суши дно ровное
 const MAX_AREAS := 16  ## столько областей суши помещается в шейдер моря
@@ -36,7 +39,8 @@ class Chunk:
 ## Область, запечённая отдельной текстурой: главные острова или малый остров с морем вокруг.
 class Region:
 	var title := ""
-	var area := Rect2()
+	var area := Rect2()  ## плитки области (края кратны стороне плитки)
+	var baked := Rect2()  ## что запечено: область с запасом по краю
 	var height_map: HeightMap
 	var material: ShaderMaterial  ## земля
 	var water_material: ShaderMaterial  ## вода над областью
@@ -79,10 +83,11 @@ func build(world: WorldData) -> bool:
 		var region := Region.new()
 		region.title = titles[i]
 		region.area = areas[i]
+		region.baked = areas[i].grow(PAD)
 		region.baker = TerrainBaker.new()
 		add_child(region.baker)
-		var baked: bool = await region.baker.bake(world, region.area, TEXEL)
-		if not baked:
+		var done: bool = await region.baker.bake(world, region.baked, TEXEL)
+		if not done:
 			error = "%s — %s" % [region.title, region.baker.error]
 			return false
 		region.height_map = region.baker.height_map
@@ -92,8 +97,8 @@ func build(world: WorldData) -> bool:
 	ocean_rect = _snap(world.content_rect.grow(OCEAN_MARGIN))
 	var ocean_baker := TerrainBaker.new()
 	add_child(ocean_baker)
-	var ocean_baked: bool = await ocean_baker.bake(world, ocean_rect, OCEAN_TEXEL)
-	if not ocean_baked:
+	var ocean_done: bool = await ocean_baker.bake(world, ocean_rect, OCEAN_TEXEL)
+	if not ocean_done:
 		error = "карта глубин — %s" % ocean_baker.error
 		return false
 
@@ -105,7 +110,7 @@ func build(world: WorldData) -> bool:
 
 	for region in _regions:
 		region.material = _make_terrain_material(world, region)
-		region.water_material = _make_water_material(region.baker.texture, region.area)
+		region.water_material = _make_water_material(region.baker.texture, region.baked)
 	for cells in LOD_CELLS:
 		_lod_meshes.append(_make_grid(cells, CHUNK))
 	_build_chunks()
@@ -194,7 +199,7 @@ func _make_terrain_material(world: WorldData, region: Region) -> ShaderMaterial:
 	world.apply_hex_uniforms(material)
 	material.set_shader_parameter("height_map", region.baker.texture)
 	material.set_shader_parameter("normal_map", region.baker.texture)
-	material.set_shader_parameter("bake_rect", Vector4(region.area.position.x, region.area.position.y, region.area.size.x, region.area.size.y))
+	material.set_shader_parameter("bake_rect", Vector4(region.baked.position.x, region.baked.position.y, region.baked.size.x, region.baked.size.y))
 	material.set_shader_parameter("skirt_depth", SKIRT)
 	material.set_shader_parameter("grid_strength", 0.5 if _grid_visible else 0.0)
 	material.set_shader_parameter("lod_distance", Vector2(LOD_DISTANCE[0], LOD_DISTANCE[1]))
@@ -219,6 +224,7 @@ func _build_chunks() -> void:
 		var columns := roundi(region.area.size.x / CHUNK)
 		var rows := roundi(region.area.size.y / CHUNK)
 		var water_vertices := PackedVector3Array()
+		var water_normals := PackedVector3Array()
 		var water_indices := PackedInt32Array()
 		for row in rows:
 			for column in columns:
@@ -233,6 +239,8 @@ func _build_chunks() -> void:
 				water_vertices.append(Vector3(origin.x + CHUNK, 0.0, origin.y))
 				water_vertices.append(Vector3(origin.x + CHUNK, 0.0, origin.y + CHUNK))
 				water_vertices.append(Vector3(origin.x, 0.0, origin.y + CHUNK))
+				for corner in 4:
+					water_normals.append(Vector3.UP)
 				water_indices.append_array(PackedInt32Array([first, first + 1, first + 2, first, first + 2, first + 3]))
 
 				var heights := region.height_map.range_in(Rect2(origin, Vector2(CHUNK, CHUNK)))
@@ -257,6 +265,7 @@ func _build_chunks() -> void:
 		var arrays := []
 		arrays.resize(Mesh.ARRAY_MAX)
 		arrays[Mesh.ARRAY_VERTEX] = water_vertices
+		arrays[Mesh.ARRAY_NORMAL] = water_normals
 		arrays[Mesh.ARRAY_INDEX] = water_indices
 		var mesh := ArrayMesh.new()
 		mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
@@ -285,16 +294,56 @@ func _build_ocean(depth_texture: Texture2D) -> void:
 	material.set_shader_parameter("area_size", sizes)
 	material.set_shader_parameter("area_count", _regions.size())
 
-	var plane := PlaneMesh.new()
-	plane.size = Vector2(SEA_SIZE, SEA_SIZE)
 	var sea := MeshInstance3D.new()
 	sea.name = "Ocean"
-	sea.mesh = plane
+	sea.mesh = _make_ocean_mesh()
 	sea.material_override = material
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	sea.position = Vector3(ocean_rect.get_center().x, 0.0, ocean_rect.get_center().y)
 	sea.set_instance_shader_parameter("water_level", 0.0)
 	add_child(sea)
+
+
+## Плоскость моря: над миром — сетка из квадратов в километр (так шейдер точно знает, где он на карте глубин
+## и где кончается область суши), вокруг — восемь больших полотен до горизонта.
+func _make_ocean_mesh() -> ArrayMesh:
+	var cell := CHUNK * 4.0
+	var x0 := floorf(ocean_rect.position.x / cell) * cell
+	var z0 := floorf(ocean_rect.position.y / cell) * cell
+	var columns := ceili((ocean_rect.end.x - x0) / cell)
+	var rows := ceili((ocean_rect.end.y - z0) / cell)
+	var x1 := x0 + float(columns) * cell
+	var z1 := z0 + float(rows) * cell
+	var far := SEA_SIZE * 0.5
+	var xs := PackedFloat32Array([x0 - far])
+	var zs := PackedFloat32Array([z0 - far])
+	for column in columns + 1:
+		xs.append(x0 + float(column) * cell)
+	for row in rows + 1:
+		zs.append(z0 + float(row) * cell)
+	xs.append(x1 + far)
+	zs.append(z1 + far)
+
+	var vertices := PackedVector3Array()
+	var normals := PackedVector3Array()
+	var indices := PackedInt32Array()
+	for z in zs:
+		for x in xs:
+			vertices.append(Vector3(x, 0.0, z))
+			normals.append(Vector3.UP)
+	var side := xs.size()
+	for row in zs.size() - 1:
+		for column in side - 1:
+			var a := row * side + column
+			# По часовой стрелке, если смотреть сверху: лицевая сторона — вверх.
+			indices.append_array(PackedInt32Array([a, a + 1, a + side + 1, a, a + side + 1, a + side]))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	arrays[Mesh.ARRAY_INDEX] = indices
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	return mesh
 
 
 ## Область, которой принадлежит точка (та же, что рисует там землю и воду).
@@ -454,16 +503,19 @@ static func _make_grid(cells: int, size: float) -> ArrayMesh:
 static func _make_disc(radius: float) -> ArrayMesh:
 	var segments := 40
 	var vertices := PackedVector3Array([Vector3.ZERO])
+	var normals := PackedVector3Array([Vector3.UP])
 	var indices := PackedInt32Array()
 	for i in segments:
 		var angle := TAU * float(i) / float(segments)
 		vertices.append(Vector3(cos(angle) * radius, 0.0, sin(angle) * radius))
+		normals.append(Vector3.UP)
 	for i in segments:
 		# По часовой стрелке, если смотреть сверху: лицевая сторона — вверх.
 		indices.append_array(PackedInt32Array([0, 1 + i, 1 + (i + 1) % segments]))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = vertices
+	arrays[Mesh.ARRAY_NORMAL] = normals
 	arrays[Mesh.ARRAY_INDEX] = indices
 	var mesh := ArrayMesh.new()
 	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)

@@ -29,7 +29,8 @@ void fragment() {
 	if (open_sea) {
 		for (int i = 0; i < area_count; i++) {
 			vec2 local = point - area_origin[i];
-			if (local.x > 0.0 && local.y > 0.0 && local.x < area_size[i].x && local.y < area_size[i].y) {
+			// Запас в три сантиметра: море чуть заходит под воду области, щели на стыке не остаётся.
+			if (local.x > 0.03 && local.y > 0.03 && local.x < area_size[i].x - 0.03 && local.y < area_size[i].y - 0.03) {
 				discard;
 			}
 		}
@@ -61,6 +62,8 @@ void fragment() {
 		ALBEDO = water;
 		ALPHA = cover;
 	}
+	// Вода ровная: нормаль всегда вверх, какое бы полотно её ни рисовало.
+	NORMAL = normalize((VIEW_MATRIX * vec4(0.0, 1.0, 0.0, 0.0)).xyz);
 	ROUGHNESS = 0.16;
 	SPECULAR = 0.5;
 	METALLIC = 0.0;
