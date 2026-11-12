@@ -37,6 +37,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	var only := PackedStringArray()
 	var profile_views := PackedStringArray()
 	var lights := PackedStringArray()
+	var waters := PackedStringArray()
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--profile="):
 			profile_views = argument.trim_prefix("--profile=").split(";", false)
@@ -49,6 +50,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 			only = argument.trim_prefix("--stops=").split(",", false)
 		elif argument.begins_with("--lights="):
 			lights = argument.trim_prefix("--lights=").split(",", false)
+		elif argument.begins_with("--waters="):
+			waters = argument.trim_prefix("--waters=").split(",", false)
 	await _frames(4)
 
 	if not profile_views.is_empty():
@@ -123,7 +126,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 
 	# Времена суток (ключ --lights=morning,evening,…; шаг 1.4): места из ключей --view снимаются в каждом свете;
 	# без ключей --view — пять мест облёта: остров целиком, горы, взгляд сверху, озеро и взгляд к горизонту.
-	if not lights.is_empty():
+	if not lights.is_empty() and waters.is_empty():
 		var light := _find_light()
 		var place_names := PackedStringArray()
 		var place_views: Array[CameraView] = []
@@ -160,6 +163,53 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _frames(12)
 		get_viewport().scaling_3d_scale = 1.0
 
+	# Виды воды (ключ --waters=0,1,2; шаг 1.5): в каждом виде воды и в каждом времени суток из --lights (без него —
+	# днём) снимаются места облёта, где видна вода, и места из ключей --view. Буква s после номера (--waters=0,0s) —
+	# та же вода в шторм.
+	if not waters.is_empty():
+		var day_light := _find_light()
+		var place_names := PackedStringArray()
+		var place_views: Array[CameraView] = []
+		for ending: String in ["ostrov-ot", "bereg", "veshka", "ozero-bereg", "gorizont"]:
+			for stop in stops:
+				if stop.name.substr(3) == ending:
+					place_names.append(ending)
+					place_views.append(stop.view)
+					break
+		for view_code in extra_views:
+			var view := CameraView.from_code(view_code.split("@")[0])
+			if view != null:
+				place_names.append("mesto-%d" % (place_names.size() - 4))
+				place_views.append(view)
+		var phases := PackedStringArray(["day"]) if lights.is_empty() else lights
+		for water in waters:
+			var stormy := water.ends_with("s")
+			terrain.set_water_look(water.trim_suffix("s").to_int())
+			terrain.set_storm(1.0 if stormy else 0.0)
+			day_light.set_storm(1.0 if stormy else 0.0)
+			for code in phases:
+				var phase := DayLight.PHASE_CODES.find(code)
+				if phase < 0:
+					continue
+				day_light.set_phase(phase as DayLight.Phase, true)
+				get_viewport().scaling_3d_scale = 0.25
+				await _frames(12)
+				for i in place_views.size():
+					rig.set_view(place_views[i])
+					await _before_shot()
+					var file_name := "voda-%s-%s-%s" % [water, code, place_names[i]]
+					await _capture(file_name)
+					print("КАДР %s — вода «%s»%s, %s — место %s — отрисовка %d мс" % [file_name,
+							WaterLook.LOOKS[terrain.water_look()]["title"], ", шторм" if stormy else "", DayLight.PHASE_TITLES[phase],
+							place_views[i].to_code(), _frame_msec])
+		terrain.set_water_look(0)
+		terrain.set_storm(0.0)
+		day_light.set_storm(0.0)
+		day_light.set_phase(DayLight.Phase.DAY, true)
+		get_viewport().scaling_3d_scale = 0.25
+		await _frames(12)
+		get_viewport().scaling_3d_scale = 1.0
+
 	# Записка «что нового» — кадр для проверки, что текст помещается в окно.
 	if not checks_only and (only.is_empty() or _listed("93-chto-novogo", only)):
 		hud.show_report(BuildInfo.notes())
@@ -173,6 +223,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _check_cache(stops)
 	if _listed("94-svet", only):
 		await _check_light(stops)
+	if _listed("95-voda", only):
+		await _check_water(stops)
 
 	if not only.is_empty():
 		# Только выбранные кадры: проверки, замер и другие карты не нужны. Отчёт с высотами — для сверки с песочницей.
@@ -198,6 +250,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	await _check_sky()
 	_check_islets("")
 	await _check_light(stops)
+	await _check_water(stops)
 	await _check_cache(stops)
 
 	if quick:
@@ -606,6 +659,79 @@ func _cache_against_direct(file_name: String) -> Dictionary:
 				far += 1
 			count += 1
 	return {"mean": total / float(count), "far": float(far) / float(count), "cached_ms": cached_ms, "direct_ms": direct_ms}
+
+
+## Вода (шаг 1.5): она движется — кадр через три секунды её времени другой, а при том же времени тот же (кадры
+## проверок повторимы); шторм приходит плавно — ни на одном шаге перехода кадр не меняется рывком.
+func _check_water(stops: Array[Tour.Stop]) -> void:
+	var light := _find_light()
+	var place: Tour.Stop = null
+	for stop in stops:
+		if stop.name.substr(3) == "bereg":
+			place = stop
+	if light == null or place == null:
+		return
+	var scale := get_viewport().scaling_3d_scale
+	get_viewport().scaling_3d_scale = 0.25
+	_rig.set_view(place.view)
+	await _frames(8)
+	var first := await _frame_picture()
+	_terrain.set_water_time(WaterLook.SHOT_TIME + 3.0)
+	await _frames(2)
+	var later := await _frame_picture()
+	_terrain.set_water_time(WaterLook.SHOT_TIME)
+	await _frames(2)
+	var again := await _frame_picture()
+	var moved := _picture_difference(first, later)
+	var same := _picture_difference(first, again)
+	_check("вода: движется, а при том же времени кадр тот же", moved > 0.15 and same < 0.05,
+			"среднее отличие кадра через 3 с — %.2f из 255, при том же времени — %.3f" % [moved, same])
+	# Шторм набирает силу за двадцать шагов: свет, небо и вода меняются вместе.
+	var last := await _frame_brightness()
+	var calm := last
+	var last_picture := first
+	var jump := 0.0
+	var change := 0.0
+	for i in 20:
+		var share := float(i + 1) / 20.0
+		share = share * share * (3.0 - 2.0 * share)
+		light.set_storm(share)
+		_terrain.set_storm(share)
+		await _frames(2)
+		var picture := await _frame_picture()
+		var now := await _frame_brightness()
+		jump = maxf(jump, absf(now - last))
+		change = maxf(change, _picture_difference(last_picture, picture))
+		last = now
+		last_picture = picture
+	var whole_change := _picture_difference(first, last_picture)
+	_check("вода: шторм приходит плавно", jump < 0.35 * maxf(absf(calm - last), 0.01) and change < 0.35 * whole_change,
+			"яркость кадра %.2f → %.2f, самый большой шаг %.3f; картинка за весь переход меняется на %.1f из 255, за шаг — не больше %.1f"
+			% [calm, last, jump, whole_change, change])
+	await _capture("95-shtorm")
+	light.set_storm(0.0)
+	_terrain.set_storm(0.0)
+	await _frames(8)
+	get_viewport().scaling_3d_scale = scale
+
+
+## Кадр как картинка — для сравнения кадров между собой.
+func _frame_picture() -> Image:
+	await RenderingServer.frame_post_draw
+	return get_viewport().get_texture().get_image()
+
+
+## Среднее отличие двух кадров, единиц из 255; надписи по краям в счёт не идут.
+func _picture_difference(a: Image, b: Image) -> float:
+	var total := 0.0
+	var count := 0
+	for y in range(120, a.get_height() - 70, 6):
+		for x in range(8, a.get_width() - 8, 6):
+			var one := a.get_pixel(x, y)
+			var two := b.get_pixel(x, y)
+			total += 255.0 * maxf(absf(one.r - two.r), maxf(absf(one.g - two.g), absf(one.b - two.b)))
+			count += 1
+	return total / float(maxi(count, 1))
 
 
 func _find_light() -> DayLight:

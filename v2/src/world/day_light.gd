@@ -76,6 +76,7 @@ var _from: Dictionary  ## вид, из которого идёт переход
 var _to: Dictionary
 var _left := 0.0  ## секунд перехода осталось
 var _grade := Vector3.ONE  ## насыщенность, контраст и яркость поверх вида (клавиша V)
+var _storm := 0.0  ## доля шторма, 0…1
 
 
 func _ready() -> void:
@@ -183,6 +184,44 @@ func set_grade(saturation: float, contrast: float, brightness: float) -> void:
 	_apply(_current())
 
 
+## Доля шторма, 0…1: свет и небо уходят в пасмурные (см. storm_view). Меняется плавно — тем, кто зовёт.
+func set_storm(share: float) -> void:
+	if is_equal_approx(share, _storm):
+		return
+	_storm = clampf(share, 0.0, 1.0)
+	_apply(_current())
+
+
+## Вид в шторм — ВРЕМЕННЫЙ, до шага 1.6 «Атмосфера и погода» (тучи, дождь, ветер, молнии): небо затянуто серым,
+## светило закрыто, свет слабый и рассеянный, тени мягкие, дымка гуще, краски глуше. Нужен уже сейчас, чтобы
+## штормовое море (шаг 1.5) не стояло под ясным солнцем. Серость неба — по яркости неба этого времени суток:
+## ночной шторм темнее дневного.
+static func storm_view(view: Dictionary, share: float) -> Dictionary:
+	if share <= 0.0:
+		return view
+	var result := view.duplicate()
+	var sky_light := clampf((view["sky_horizon"] as Color).get_luminance() * 1.25, 0.1, 1.0)
+	var overcast_top := Color(0.26, 0.3, 0.36) * sky_light
+	var overcast_horizon := Color(0.44, 0.48, 0.53) * sky_light
+	result["light_energy"] = float(view["light_energy"]) * lerpf(1.0, 0.3, share)
+	result["light_color"] = (view["light_color"] as Color).lerp(Color(0.74, 0.8, 0.88), share)
+	result["shadow"] = float(view["shadow"]) * lerpf(1.0, 0.4, share)
+	result["sky_top"] = (view["sky_top"] as Color).lerp(overcast_top, share)
+	result["sky_horizon"] = (view["sky_horizon"] as Color).lerp(overcast_horizon, share)
+	result["sky_ground"] = (view["sky_ground"] as Color).lerp(overcast_top, share)
+	result["glow"] = float(view["glow"]) * (1.0 - share)
+	result["sun_strength"] = float(view["sun_strength"]) * (1.0 - share)
+	result["moon_strength"] = float(view["moon_strength"]) * (1.0 - 0.85 * share)
+	result["stars"] = float(view["stars"]) * (1.0 - share)
+	result["ambient_color"] = (view["ambient_color"] as Color).lerp(Color(0.62, 0.67, 0.74), share)
+	result["ambient_energy"] = float(view["ambient_energy"]) * lerpf(1.0, 0.9, share)
+	result["fog_color"] = (view["fog_color"] as Color).lerp(overcast_horizon, share)
+	result["fog"] = float(view["fog"]) * lerpf(1.0, 4.0, share)
+	result["saturation"] = float(view["saturation"]) * lerpf(1.0, 0.72, share)
+	result["exposure"] = float(view["exposure"]) * lerpf(1.0, 0.94, share)
+	return result
+
+
 ## Смесь двух видов: числа и цвета — линейно, направления — по короткой дуге. Если землю в них освещают разные
 ## светила, свет первого гаснет к середине перехода, свет второго разгорается после неё.
 static func blend(a: Dictionary, b: Dictionary, weight: float) -> Dictionary:
@@ -237,7 +276,8 @@ func _current() -> Dictionary:
 	return blend(_from, _to, weight * weight * (3.0 - 2.0 * weight))
 
 
-func _apply(view: Dictionary) -> void:
+func _apply(clear_view: Dictionary) -> void:
+	var view := storm_view(clear_view, _storm)
 	var to_sun := sky_direction(view["sun_azimuth"], view["sun_height"])
 	var to_moon := sky_direction(view["moon_azimuth"], view["moon_height"])
 	var to_light := to_moon if view["body"] == "moon" else to_sun
@@ -248,10 +288,8 @@ func _apply(view: Dictionary) -> void:
 	sun.light_color = view["light_color"]
 	sun.light_energy = view["light_energy"]
 	sun.shadow_opacity = view["shadow"]
-	# Блик светила на воде: вода пока ровная, как стекло (океан — шаг 1.5), и низкое солнце или луна давали на ней
-	# белый столб на треть экрана. Блик на ровной воде в десятки раз ярче белого, поэтому заметно убавить его
-	# удаётся только сотыми долями: при 0,1 столб тот же, при 0,02–0,03 — мягкая дорожка к светилу. Днём — единица:
-	# дневная картинка принята такой.
+	# Сила блика светила — для суши: с этими числами приняты времена суток (шаг 1.4; тогда ими же глушился белый
+	# столб на ровной воде). Вода с шага 1.5 считает свой блик сама (water.gdshader) и это число не читает.
 	sun.light_specular = view["specular"]
 	sun.shadow_enabled = float(view["light_energy"]) > 0.02
 

@@ -18,6 +18,8 @@ const WORLD_PATHS: Array[String] = [
 ]
 const WINDOW_TITLE := "Земли Слова — версия 2 (тест)"
 const FOG_DENSITY := 0.000012  ## дымка вблизи; издалека она реже (см. _process)
+## За сколько секунд шторм набирает силу и стихает (клавишей; в игре его начало и конец приходят с сервера).
+const STORM_SECONDS := 8.0
 ## Насыщенность и контраст картинки (клавиша V). Начинаем с «естественно»: владелец сравнил наборы на 0.5.3
 ## и выбрал его («естественный цвет мне нравится больше»); до 0.5.3 первым стояло «сочно».
 const COLOR_PRESETS: Array[Dictionary] = [
@@ -42,6 +44,9 @@ var _hud: Hud
 var _light: DayLight  ## свет и небо: времена суток
 var _sun: DirectionalLight3D
 var _environment: Environment
+var _water_look := 0  ## ключ --water=N — с какого вида воды начать
+var _storm := 0.0  ## шторм: 0 — ясно, 1 — буря; идёт к _storm_target плавно
+var _storm_target := 0.0
 var _light_code := ""  ## ключ --light=время — с какого времени суток начать
 var _color_preset := 0
 var _render_scale := 0
@@ -140,6 +145,11 @@ func _process(_delta: float) -> void:
 		return
 	_terrain.set_viewer(_rig.camera.global_position)
 	_terrain.update_cache(_rig.camera.global_position, _rig.current_focus(), _world_pixel(), _delta)
+	# Вода движется по своему времени; в кадрах проверок оно стоит — кадр с водой получается одним и тем же.
+	if _shots_folder.is_empty():
+		_terrain.advance_water(_delta)
+	if not is_equal_approx(_storm, _storm_target):
+		set_storm(move_toward(_storm, _storm_target, _delta / STORM_SECONDS))
 	# Тени считаются только там, куда смотрит камера: вблизи они резче, издалека покрывают весь мир.
 	# Чем ближе взгляд к горизонту, тем дальше видно — и тем дальше нужны тени.
 	var low := 1.0 - smoothstep(0.1, 0.5, _rig.view_angle())
@@ -207,6 +217,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			var next := ((_light.phase() + 1) % 4) as DayLight.Phase
 			_light.set_phase(next)
 			_hud.toast("Время суток: %s. L — следующее." % DayLight.PHASE_TITLES[next], 4.0)
+		KEY_J:
+			# Вид воды — на время выбора владельцем (шаг 1.5).
+			_water_look = posmod(_water_look + 1, WaterLook.LOOKS.size())
+			_terrain.set_water_look(_water_look)
+			_hud.toast("Вода: %s (%d из %d). J — другая." % [WaterLook.LOOKS[_water_look]["title"], _water_look + 1, WaterLook.LOOKS.size()], 4.0)
+		KEY_P:
+			# Погода: ясно ↔ шторм, с плавным переходом (шторм — событие игры; его небо — шаг 1.6).
+			_storm_target = 0.0 if _storm_target > 0.5 else 1.0
+			_hud.toast("Погода: %s. P — обратно." % ("шторм" if _storm_target > 0.5 else "ясно"), 4.0)
 		KEY_T:
 			# Кэш ближнего вида можно выключить и сравнить: картинка должна быть той же, скорость — как в 0.5.3.
 			_terrain.cache_budget = 0 if _terrain.cache_budget > 0 else NearCache.BUDGET
@@ -240,6 +259,18 @@ func _build_light() -> void:
 	if not _light_code.is_empty():
 		_set_light(_light_code)
 	_apply_color_preset()
+
+
+## Шторм: 0 — ясно, 1 — буря. Свет, небо и вода уходят в шторм вместе, по плавной кривой.
+func set_storm(share: float) -> void:
+	_storm = clampf(share, 0.0, 1.0)
+	_light.set_storm(_eased(_storm))
+	if _terrain != null:
+		_terrain.set_storm(_eased(_storm))
+
+
+static func _eased(share: float) -> float:
+	return share * share * (3.0 - 2.0 * share)
 
 
 ## Время суток по коду (ключ --light=evening). Сразу, без плавного перехода.
@@ -285,6 +316,10 @@ func _load_world(path: String) -> bool:
 		_fail("Не удалось построить рельеф: %s.\nВидеокарта: %s" % [_terrain.error, RenderingServer.get_video_adapter_name()])
 		return false
 	_terrain.set_debug_view(_debug_view)
+	_terrain.set_water_look(_water_look)
+	_terrain.set_storm(_eased(_storm))
+	if not _shots_folder.is_empty():
+		_terrain.set_water_time(WaterLook.SHOT_TIME)
 	if not _shots_folder.is_empty():
 		# В кадрах облёта земля считается напрямую (картинка та же, а прогревать кэш на программной отрисовке
 		# у каждого кадра — минута); с ключом --cache кэш включён и считается сразу весь.
@@ -517,6 +552,8 @@ func _read_arguments() -> void:
 			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
 		elif argument.begins_with("--debug-view="):
 			_debug_view = argument.trim_prefix("--debug-view=").to_int()
+		elif argument.begins_with("--water="):
+			_water_look = clampi(argument.trim_prefix("--water=").to_int(), 0, WaterLook.LOOKS.size() - 1)
 		elif argument.begins_with("--light="):
 			_light_code = argument.trim_prefix("--light=")
 		elif argument.begins_with("--view="):

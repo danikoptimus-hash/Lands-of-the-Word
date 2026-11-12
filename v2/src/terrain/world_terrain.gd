@@ -9,7 +9,7 @@ extends Node3D
 ## (bake_surface.gdshader). Шейдер земли в кадре только читает готовое (terrain_surface.gdshader).
 
 const SURFACE_SHADER := preload("res://src/terrain/terrain_surface.gdshader")
-const WATER_SHADER := preload("res://src/terrain/water_clay.gdshader")
+const WATER_SHADER := preload("res://src/terrain/water.gdshader")
 ## Материалы земли: 16 слоёв в двух атласах и шум (делает tools/surfaces/make.py; источники — assets/ASSETS.md).
 const LAYER_ALBEDO := preload("res://assets/terrain/ground_albedo.webp")
 const LAYER_NORMAL := preload("res://assets/terrain/ground_normal.jpg")
@@ -36,7 +36,7 @@ const LOD_CELLS: Array[int] = [64, 32, 16]  ## клеток на сторону 
 const LOD_DISTANCE: Array[float] = [2000.0, 4500.0]
 const MORPH_START := 0.7  ## с этой доли расстояния сетка начинает съезжаться к более редкой
 const SKIRT := 24.0
-## Плитки, где дно везде глубже этого, не строим: вода глубже 4 м непрозрачна (water_clay.gdshader), дно под ней
+## Плитки, где дно везде глубже этого, не строим: вода глубже 4 м непрозрачна (water.gdshader), дно под ней
 ## не видно, а рисовать его — зря тратить время видеокарты (на тесте 0.3.0 так терялась четверть кадров над шельфом).
 ## Меняется вместе с глубиной, с которой вода становится непрозрачной.
 const DEEP_CUTOFF := -4.0
@@ -97,6 +97,13 @@ var _cache_focus := Vector2.ZERO
 var _cache_focus_known := false
 ## Сколько клеток кэша считается за кадр (см. NearCache.BUDGET); ноль — кэш не строится и не читается.
 var cache_budget := NearCache.BUDGET
+
+var _water_materials: Array[ShaderMaterial] = []  ## вода областей и открытого моря
+var _water_look := 0
+var _storm := 0.0  ## доля шторма в виде воды, 0…1
+var _water_time := 0.0  ## накопленное время воды (секунды, умноженные на её скорость)
+var _wave_map: ImageTexture  ## рябь и пятна пены — одни на всю воду
+var _foam_map: ImageTexture
 
 
 ## Сопрограмма: строит землю по данным мира. true — готово, иначе причина в error.
@@ -393,11 +400,60 @@ func _bake_surface(world: WorldData, region: Region) -> bool:
 
 
 func _make_water_material(texture: Texture2D, area: Rect2) -> ShaderMaterial:
+	if _wave_map == null:
+		_wave_map = WaterLook.make_wave_map()
+		_foam_map = WaterLook.make_foam_map()
 	var material := ShaderMaterial.new()
 	material.shader = WATER_SHADER
 	material.set_shader_parameter("height_map", texture)
 	material.set_shader_parameter("bake_rect", Vector4(area.position.x, area.position.y, area.size.x, area.size.y))
+	material.set_shader_parameter("wave_map", _wave_map)
+	material.set_shader_parameter("foam_map", _foam_map)
+	WaterLook.apply(material, water_now())
+	_water_materials.append(material)
 	return material
+
+
+## Вид воды (на время выбора владельцем их несколько).
+func set_water_look(index: int) -> void:
+	_water_look = posmod(index, WaterLook.LOOKS.size())
+	_apply_water()
+
+
+func water_look() -> int:
+	return _water_look
+
+
+## Доля шторма в воде, 0…1: волнение, цвет, пена и барашки перетекают от штиля к шторму.
+func set_storm(share: float) -> void:
+	if is_equal_approx(share, _storm):
+		return
+	_storm = clampf(share, 0.0, 1.0)
+	_apply_water()
+
+
+## Вид воды сейчас: выбранный вид, смешанный со своим штормом.
+func water_now() -> Dictionary:
+	var calm: Dictionary = WaterLook.LOOKS[_water_look]
+	return WaterLook.blend(calm, WaterLook.storm_of(calm), _storm)
+
+
+## Вода ушла вперёд на delta секунд — со своей скоростью: в шторм она быстрее.
+func advance_water(delta: float) -> void:
+	set_water_time(_water_time + delta * float(water_now()["flow"]))
+
+
+## Время воды, секунды: рябь и пена движутся по нему. В кадрах проверок оно стоит.
+func set_water_time(seconds: float) -> void:
+	_water_time = seconds
+	for material in _water_materials:
+		material.set_shader_parameter("water_time", seconds)
+
+
+func _apply_water() -> void:
+	var look := water_now()
+	for material in _water_materials:
+		WaterLook.apply(material, look)
 
 
 ## Плитки земли и вода над ними. Плитка мира принадлежит первой области, в которую попала: области

@@ -90,6 +90,11 @@ void sky() {
 		color = mix(color, glow_color, clamp(glow * band * mix(0.25, 1.0, side), 0.0, 1.0));
 	}
 
+	// В отражения и рассеянный свет диски и ореолы светил не идут: их отражение в воде рисует сама вода
+	// (water.gdshader) — дорожкой и искрами, а не белым пятном на полэкрана. На свет в тенях суши это не влияет:
+	// диск и ореол — доли процента света неба.
+	float bodies = AT_CUBEMAP_PASS ? 0.0 : 1.0;
+
 	// Звёзды и луна — за дымкой у горизонта их не видно.
 	float clear = smoothstep(0.02, 0.22, height);
 	vec3 to_moon = normalize(moon_direction);
@@ -101,7 +106,7 @@ void sky() {
 	}
 	if (moon_strength > 0.001) {
 		// Ореол луны и сам диск: края темнее, по диску — «моря».
-		color += moon_color * moon_strength * (0.22 * exp(-moon_angle * 14.0) + 0.05 * exp(-moon_angle * 3.5)) * clear;
+		color += moon_color * moon_strength * bodies * (0.22 * exp(-moon_angle * 14.0) + 0.05 * exp(-moon_angle * 3.5)) * clear;
 		if (moon_angle < moon_size) {
 			vec3 right = normalize(cross(vec3(0.0, 1.0, 0.0), to_moon));
 			vec3 above = cross(to_moon, right);
@@ -110,7 +115,7 @@ void sky() {
 			float seas = smoothstep(0.42, 0.7, 0.6 * value_noise(disc * 2.3 + 4.0) + 0.4 * value_noise(disc * 5.1 + 9.0));
 			float edge = smoothstep(moon_size, moon_size * 0.93, moon_angle);
 			vec3 face = moon_color * (0.62 + 0.38 * limb) * mix(1.0, 0.7, seas) * 2.6;
-			color = mix(color, face, edge * moon_strength * clear);
+			color = mix(color, face, edge * moon_strength * clear * bodies);
 		}
 	}
 
@@ -119,9 +124,9 @@ void sky() {
 		// Широкий ореол — у низкого солнца (свет идёт сквозь толщу воздуха); у высокого дневного он почти сходит
 		// на нет, иначе полнеба в стороне солнца белёсые.
 		float halo = exp(-sun_angle * 9.0) * 0.55 + exp(-sun_angle * 2.4) * 0.14 * smoothstep(0.75, 0.2, to_sun.y);
-		color += sun_color * sun_strength * halo * smoothstep(-0.08, 0.04, below_horizon);
+		color += sun_color * sun_strength * bodies * halo * smoothstep(-0.08, 0.04, below_horizon);
 		float disc_edge = smoothstep(sun_size, sun_size * 0.82, sun_angle);
-		color = mix(color, sun_color * 6.0 * sun_strength, disc_edge * smoothstep(-0.02, 0.01, below_horizon));
+		color = mix(color, sun_color * 6.0 * sun_strength, disc_edge * bodies * smoothstep(-0.02, 0.01, below_horizon));
 	}
 
 	// Под горизонтом — цвет «земли» (его закрывает море; нужен отражениям и рассеянному свету снизу).

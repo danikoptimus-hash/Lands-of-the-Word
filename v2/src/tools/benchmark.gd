@@ -73,6 +73,9 @@ func run(world: WorldData, rig: StrategyCamera, height_map: HeightMap = null, te
 	var day_light := (sun.get_parent() as DayLight) if sun != null else null
 	if day_light != null:
 		_light_note = "%s (клавиша L)" % DayLight.PHASE_TITLES[day_light.phase()]
+		if terrain != null:
+			var water: Dictionary = terrain.water_now()
+			_light_note += "; вода «%s» (J)%s" % [water["title"], ", шторм" if float(water["whitecaps"]) > 0.8 else ""]
 	_cache_note = ""
 	if terrain != null:
 		_cache_note = ("включён, %d МБ видеопамяти (клавиша T)" % roundi(terrain.cache().memory_mb())) if terrain.cache_budget > 0 else "выключен (клавиша T)"
