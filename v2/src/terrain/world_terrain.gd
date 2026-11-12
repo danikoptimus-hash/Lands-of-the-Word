@@ -20,6 +20,7 @@ const TEXEL := 2.0  ## точность запекания суши, метро�
 const GROUND_TEXEL := 4.0  ## точность описания земли: доли местностей меняются плавно, мелкое добавляет шейдер
 const SURFACE_TEXEL := 2.0  ## точность картинки земли: материалы точки, затенение, готовый дальний вид
 const TONE_TEXEL := 4.0  ## точность тона земли (сухость, цветение, оттенок песка): меняется плавно
+const CACHE_FLIGHT := 1.0  ## быстрее стольких расстояний до земли в секунду камера «летит»: кэш не считается
 const MAX_ISLETS := 8  ## столько малых островов в одной области знает шейдер картинки земли
 const MARGIN := 520.0  ## запас моря вокруг главных островов
 const ISLET_MARGIN := 260.0  ## запас моря вокруг малого острова
@@ -240,10 +241,13 @@ func update_cache(eye: Vector3, focus: Vector2, pixel: float, delta: float) -> v
 	_cache.bind(region.material if region != null else null)
 	var ground := Vector3(focus.x, maxf(height_map.sample(focus), 0.0), focus.y)
 	# Камера летит (перелёт к месту, облёт): окна уровней уходят быстрее, чем досчитываются, — считать незачем.
+	# Порог — расстояние до земли в секунду: клавишами камера едет медленнее (0,85 расстояния в секунду), перелёты
+	# быстрее. До 0.5.5 порог был в два с половиной раза выше, и на перелётах кэш строился впустую — замер
+	# владельца на 0.5.4: облёт дальних мест стал на 7–10 % медленнее.
 	var speed := focus.distance_to(_cache_focus) / maxf(delta, 1.0e-4) if _cache_focus_known else 0.0
 	_cache_focus = focus
 	_cache_focus_known = true
-	_cache.update(eye, ground, pixel, cache_budget, speed > 2.5 * eye.distance_to(ground))
+	_cache.update(eye, ground, pixel, cache_budget, speed > CACHE_FLIGHT * eye.distance_to(ground))
 
 
 ## Кэш вокруг камеры посчитан целиком (или не нужен на этой высоте).

@@ -73,6 +73,12 @@ func run(world: WorldData, rig: StrategyCamera, height_map: HeightMap = null, te
 		_cache_note = ("включён, %d МБ видеопамяти (клавиша T)" % roundi(terrain.cache().memory_mb())) if terrain.cache_budget > 0 else "выключен (клавиша T)"
 	if terrain != null and sun != null:
 		breakdown = await _breakdown(stops, rig, terrain, sun)
+		for stop in stops:
+			if stop.name.substr(3) == "veshka":
+				var with_cache: float = await _ride(rig, terrain, stop.view, world.land_rect.get_center(), true)
+				var without: float = await _ride(rig, terrain, stop.view, world.land_rect.get_center(), false)
+				breakdown.append("  Проезд у земли со скоростью клавиш: %d → %d без кэша" % [roundi(with_cache), roundi(without)])
+				break
 
 	DisplayServer.window_set_vsync_mode(vsync)
 	rig.set_view(saved)
@@ -119,6 +125,33 @@ func _breakdown(stops: Array[Tour.Stop], rig: StrategyCamera, terrain: WorldTerr
 		viewport.scaling_3d_scale = scale
 		lines.append("  %s: %d → %d / %d / %d / %d / %d" % [stop.title, roundi(as_is), roundi(no_cache), roundi(flat), roundi(no_shadows), roundi(no_msaa), roundi(half)])
 	return lines
+
+
+## Проезд у земли со скоростью клавиш (StrategyCamera.KEY_PAN_SPEED расстояний до земли в секунду) от места from
+## в сторону точки toward: успевает ли кэш ближнего вида за обычным движением камеры. Без кэша — он не только
+## не читается, но и не считается. Сопрограмма; возвращает кадры в секунду.
+func _ride(rig: StrategyCamera, terrain: WorldTerrain, from: CameraView, toward: Vector2, with_cache: bool) -> float:
+	var budget := terrain.cache_budget
+	rig.set_view(from)
+	if with_cache:
+		await _await_cache(rig, terrain)
+	else:
+		terrain.cache_budget = 0
+	var view := from.copy()
+	var direction := (toward - from.focus).normalized()
+	var seconds := 2.5 if time_scale > 0.5 else 0.0
+	var frames := 0
+	var start := Time.get_ticks_usec()
+	var last := start
+	while frames < 3 or float(Time.get_ticks_usec() - start) < seconds * 1.0e6:
+		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		view.focus += direction * StrategyCamera.KEY_PAN_SPEED * view.distance * float(now - last) / 1.0e6
+		last = now
+		rig.set_view(view)
+		frames += 1
+	terrain.cache_budget = budget
+	return 1.0e6 * float(frames) / maxf(float(Time.get_ticks_usec() - start), 1.0)
 
 
 ## Ждём, пока кэш ближнего вида вокруг камеры досчитается (пока ждём — с бюджетом побольше). Сопрограмма.
@@ -191,8 +224,8 @@ func _report(frames_ms: PackedFloat32Array, legs: PackedStringArray, breakdown: 
 	if not breakdown.is_empty():
 		text.append("Разбор, к/с: как есть → без кэша / земля ровным цветом / без теней / без сглаживания / пол-разрешения")
 		text.append_array(breakdown)
-	text.append("Система: %s %s; память %.1f ГБ" % [OS.get_name(), OS.get_version(), memory_gb])
-	text.append("Процессор: %s, потоков: %d" % [OS.get_processor_name(), OS.get_processor_count()])
+	text.append("Система: %s %s; память %.1f ГБ; процессор %s, потоков: %d" % [OS.get_name(), OS.get_version(), memory_gb,
+			OS.get_processor_name(), OS.get_processor_count()])
 	text.append("Видеокарта: %s; отрисовка %s, %s" % [RenderingServer.get_video_adapter_name(),
 			RenderingServer.get_current_rendering_driver_name(), RenderingServer.get_current_rendering_method()])
 	var refresh := DisplayServer.screen_get_refresh_rate()

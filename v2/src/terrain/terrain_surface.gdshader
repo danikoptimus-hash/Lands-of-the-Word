@@ -103,6 +103,13 @@ bool cache_holds(int level, vec2 p) {
 	return p.x > area.x && p.y > area.y && p.x < area.z && p.y < area.w;
 }
 
+// Насколько точка в глубине готовой области уровня: 0 — у самого края, 1 — дальше восьми сотых окна от края.
+float cache_inside(int level, vec2 p) {
+	vec4 area = cache_valid[level];
+	float edge = min(min(p.x - area.x, area.z - p.x), min(p.y - area.y, area.w - p.y));
+	return smoothstep(0.0, 0.08 * cache_size[level], edge);
+}
+
 vec4 cache_color(int level, vec2 p) {
 	vec2 uv = p / cache_size[level];
 	if (level == 0) {
@@ -180,9 +187,9 @@ void fragment() {
 			if (level_exact > -0.65) {
 				int level = clamp(int(floor(level_exact)), 0, 3);
 				int upper = min(level + 1, 3);
-				// У самых границ уровня читается он один: соседний почти ничего не добавляет, а требовать его
-				// значило бы терять кэш по краям экрана (окно соседнего уровня вдвое меньше или вдвое грубее).
-				float blend = smoothstep(0.1, 0.9, clamp(level_exact - float(level), 0.0, 1.0));
+				float part = clamp(level_exact - float(level), 0.0, 1.0);
+				// У самых границ уровня читается он один: соседний почти ничего не добавляет.
+				float blend = smoothstep(0.1, 0.9, part);
 				if (blend > 0.999) {
 					level = upper;
 					blend = 0.0;
@@ -190,15 +197,33 @@ void fragment() {
 				if (blend < 0.001) {
 					upper = level;
 				}
-				if (cache_holds(level, p) && cache_holds(upper, p)) {
-					vec4 color = cache_color(level, p);
-					vec4 relief = cache_relief(level, p);
-					if (upper != level) {
-						color = mix(color, cache_color(upper, p), blend);
+				bool held = cache_holds(level, p);
+				if (upper != level && part >= 0.5) {
+					// Во второй половине уровня клетка грубого соседа уже не крупнее точки экрана — его хватает
+					// и одного. Подробный уровень добавляется, где он есть, и плавно сходит на нет к краю своей
+					// готовой области: экран на этой высоте шире его окна (замер владельца на 0.5.4: края экрана
+					// считались напрямую), а резкой границы «чётче / мягче» по краю окна быть не должно.
+					blend = 1.0 - (1.0 - blend) * (held ? cache_inside(level, p) : 0.0);
+					held = true;
+				}
+				if (held && cache_holds(upper, p)) {
+					vec4 color = vec4(0.0);
+					vec4 relief = vec4(0.5, 0.5, 0.82, -1.0);
+					if (blend < 0.999) {
+						color = cache_color(level, p);
+						relief = cache_relief(level, p);
+					}
+					if (upper != level && blend > 0.001) {
 						vec4 relief_upper = cache_relief(upper, p);
-						// У грубого уровня мокроты нет — оставляем ту, что есть.
-						relief_upper.a = relief_upper.a < 0.0 ? relief.a : relief_upper.a;
-						relief = mix(relief, relief_upper, blend);
+						if (blend < 0.999) {
+							color = mix(color, cache_color(upper, p), blend);
+							// У грубого уровня мокроты нет — оставляем ту, что есть.
+							relief_upper.a = relief_upper.a < 0.0 ? relief.a : relief_upper.a;
+							relief = mix(relief, relief_upper, blend);
+						} else {
+							color = cache_color(upper, p);
+							relief = relief_upper;
+						}
 					}
 					albedo = color.rgb * color.rgb * 2.0;
 					texture_height = color.a;
