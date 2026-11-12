@@ -403,8 +403,9 @@ func _on_benchmark_finished(report: String) -> void:
 	if file != null:
 		file.store_string(report)
 		file.close()
-	_hud.toast("Замер готов", 2.0)
-	_hud.show_report(report + "\n\nОтчёт скопирован: вставьте его в чат (Ctrl+V).\nEsc — закрыть.")
+	# Подсказка — первой строкой: раньше она стояла под отчётом и уходила за край экрана вместе с его низом.
+	_hud.show_report("Замер готов. Отчёт скопирован: вставьте его в чат (Ctrl+V). Esc — закрыть.\n\n" + _benchmark.report_head,
+			_benchmark.report_legs)
 
 
 # ── Самообновление ───────────────────────────────────────────────────────────

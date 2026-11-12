@@ -103,6 +103,9 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _capture("93-chto-novogo")
 		hud.close_report()
 
+	if _listed("91-zamer", only):
+		await _check_benchmark(benchmark, world, rig, terrain, hud, stops)
+
 	if not only.is_empty():
 		# Только выбранные кадры: проверки, замер и другие карты не нужны. Отчёт с высотами — для сверки с песочницей.
 		_save_report(_collect_report())
@@ -135,17 +138,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		return
 
 	# Замер скорости и снимок: проверяем, что клавиши F5 и F2 делают своё дело (сам замер здесь короткий).
-	benchmark.time_scale = 0.05
-	benchmark.run(world, rig, terrain.height_map, terrain, _find_sun())
-	var report: String = await benchmark.finished
-	_check("замер скорости даёт отчёт с разбором", report.contains("Кадров в секунду") and report.contains("Разбор"), "%d строк" % report.split("\n").size())
-	print("ОТЧЁТ ЗАМЕРА:\n" + report)
-	benchmark.time_scale = 1.0
-	get_viewport().scaling_3d_scale = 1.0
-	rig.set_view(stops[0].view)
-	await _frames(3)
-	await _capture("91-zamer")
-	hud.close_report()
+	await _check_benchmark(benchmark, world, rig, terrain, hud, stops)
 	await snapshot.call()
 	await _frames(2)
 	await _capture("92-snimok")
@@ -368,6 +361,28 @@ func _profile(views: PackedStringArray) -> void:
 		print("ЗАМЕР %s: кадр %.0f мс; из них шейдер земли %.0f мс (%.0f %%), тени %.0f мс; затенение впадин %s бы %.0f мс; сглаживание в четыре прохода добавило бы %.0f мс"
 				% [code, whole, whole - flat, 100.0 * (whole - flat) / whole, whole - no_shadows,
 				"убавило" if ssao else "добавило", absf(other_ssao - whole), msaa_four - whole])
+
+
+## Замер скорости (здесь короткий): отчёт с разбором и окно отчёта, которое помещается на экран целиком.
+## До 0.5.3 окно было выше экрана, и низ отчёта — как раз разбор — владелец не видел; кадр окна снимался,
+## но ничем не проверялся.
+func _check_benchmark(benchmark: Benchmark, world: WorldData, rig: StrategyCamera, terrain: WorldTerrain, hud: Hud, stops: Array[Tour.Stop]) -> void:
+	var scale := get_viewport().scaling_3d_scale
+	get_viewport().scaling_3d_scale = 0.25
+	benchmark.time_scale = 0.05
+	benchmark.run(world, rig, terrain.height_map, terrain, _find_sun())
+	var report: String = await benchmark.finished
+	_check("замер скорости даёт отчёт с разбором", report.contains("Кадров в секунду") and report.contains("Разбор"), "%d строк" % report.split("\n").size())
+	print("ОТЧЁТ ЗАМЕРА:\n" + report)
+	benchmark.time_scale = 1.0
+	get_viewport().scaling_3d_scale = 1.0
+	rig.set_view(stops[0].view)
+	await _frames(8)
+	_check("окно отчёта о замере помещается на экран", hud.report_spare() >= 0.0 and hud.report_font() >= 13,
+			"запас %.0f точек, шрифт %d" % [hud.report_spare(), hud.report_font()])
+	await _capture("91-zamer")
+	hud.close_report()
+	get_viewport().scaling_3d_scale = scale
 
 
 func _find_sun() -> DirectionalLight3D:

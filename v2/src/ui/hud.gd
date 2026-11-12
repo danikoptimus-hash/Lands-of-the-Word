@@ -8,6 +8,8 @@ const INK_DIM := Color(0.95, 0.92, 0.86, 0.72)
 const ACCENT := Color(0.89, 0.72, 0.42)
 const PANEL := Color(0.09, 0.08, 0.07, 0.8)
 const PANEL_EDGE := Color(0.89, 0.72, 0.42, 0.28)
+const REPORT_FONT := 15  ## шрифт окна отчёта; если окно выше экрана, уменьшается до REPORT_FONT_MIN
+const REPORT_FONT_MIN := 11
 
 const HELP_ROWS := [
 	["Левая кнопка мыши", "взять землю и тянуть"],
@@ -51,6 +53,10 @@ var _loading: PanelContainer
 var _loading_label: Label
 var _report: PanelContainer
 var _report_label: Label
+var _report_columns: HBoxContainer
+var _report_left: Label
+var _report_right: Label
+var _report_font := REPORT_FONT
 var _fps_timer := 0.0
 
 
@@ -89,6 +95,9 @@ func _process(delta: float) -> void:
 	if _fps_timer <= 0.0:
 		_fps_timer = 0.5
 		_fps.text = "%d к/с" % roundi(Engine.get_frames_per_second())
+	# Окно отчёта выше экрана — уменьшаем шрифт, пока не поместится: низ текста не должен уходить за край.
+	if _report.visible and _report_font > REPORT_FONT_MIN and report_spare() < 0.0:
+		_set_report_font(_report_font - 1)
 	if _toast.visible:
 		_toast_left -= delta
 		_toast.modulate.a = clampf(_toast_left / 0.4, 0.0, 1.0)
@@ -124,9 +133,25 @@ func set_loading(text: String) -> void:
 	_loading.visible = not text.is_empty()
 
 
-func show_report(text: String) -> void:
+## Окно с текстом по центру: записка «что нового», отчёт замера. rows — строки, которые встают под текстом
+## в два столбца (участки облёта в отчёте замера). Если окно выше экрана, шрифт сам уменьшается (см. _process).
+func show_report(text: String, rows: PackedStringArray = PackedStringArray()) -> void:
 	_report_label.text = text
+	var half := ceili(float(rows.size()) / 2.0)
+	_report_left.text = "\n".join(rows.slice(0, half))
+	_report_right.text = "\n".join(rows.slice(half))
+	_report_columns.visible = not rows.is_empty()
+	_set_report_font(REPORT_FONT)
 	_report.visible = true
+
+
+## Сколько места осталось под окном отчёта (точек): отрицательное — окно не помещается на экран.
+func report_spare() -> float:
+	return _frame.size.y - 36.0 - _report.size.y
+
+
+func report_font() -> int:
+	return _report_font
 
 
 func is_report_open() -> bool:
@@ -201,12 +226,32 @@ func _build_loading() -> void:
 
 func _build_report() -> void:
 	_report = _panel(Control.SIZE_SHRINK_CENTER, Control.SIZE_SHRINK_CENTER)
-	_report_label = _label("", _text_font, 15, INK)
+	var box := VBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", 0)
+	_report.add_child(box)
+	_report_label = _label("", _text_font, REPORT_FONT, INK)
 	# Длинные строки переносятся: без этого абзац записки «что нового» уходил за края окна.
 	_report_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_report_label.custom_minimum_size = Vector2(960.0, 0.0)
-	_report.add_child(_report_label)
+	box.add_child(_report_label)
+	_report_columns = HBoxContainer.new()
+	_report_columns.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_report_columns.add_theme_constant_override("separation", 36)
+	box.add_child(_report_columns)
+	_report_left = _label("", _text_font, REPORT_FONT, INK)
+	_report_right = _label("", _text_font, REPORT_FONT, INK)
+	for column: Label in [_report_left, _report_right]:
+		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		column.size_flags_vertical = Control.SIZE_SHRINK_BEGIN
+		_report_columns.add_child(column)
 	_report.visible = false
+
+
+func _set_report_font(size: int) -> void:
+	_report_font = size
+	for label: Label in [_report_label, _report_left, _report_right]:
+		label.add_theme_font_size_override("font_size", size)
 
 
 ## Плашка: где встать по горизонтали и вертикали, задают флаги размера (начало, центр, конец).

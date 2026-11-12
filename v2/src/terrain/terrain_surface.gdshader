@@ -113,6 +113,21 @@ float land_edge_distance(vec2 p, float limit) {
 	return nearest;
 }
 
+// Уровень уменьшенной копии текстуры по шагу точки экрана: gx и gy — на сколько меняются координаты текстуры
+// на точку экрана вправо и вниз, pixels — сторона текстуры в точках. Это тот же расчёт, который видеокарта делает
+// сама в textureGrad, но выборка с готовым уровнем (textureLod) дешевле выборки с шагами — на встроенных
+// видеокартах Intel заметно (у владельца Arc 140V). Внутри условий шаги нужно задавать явно в любом случае.
+float lod_of(vec2 gx, vec2 gy, float pixels) {
+	return 0.5 * log2(max(max(dot(gx, gx), dot(gy, gy)) * pixels * pixels, 1.0e-12));
+}
+
+const float NOISE_PIXELS = 512.0; // сторона текстуры шума (assets/terrain/noise.png)
+
+// Сторона одного слоя атласа материалов в точках.
+float layer_pixels() {
+	return float(textureSize(layer_albedo, 0).x);
+}
+
 bool is_rock(int layer) {
 	return layer == L_ROCK_CLIFF || layer == L_ROCK_STRATA || layer == L_LICHEN_ROCK;
 }
@@ -148,6 +163,11 @@ float blend_height(int layer, float height) {
 	return (layer == L_SAND_DUNE || layer == L_BEACH_SAND) ? 0.4 : height;
 }
 
+// Наибольшая высота фактуры материала в смешении (см. blend_height): выше неё материал подняться не может.
+float blend_height_limit(int layer) {
+	return (layer == L_SAND_DUNE || layer == L_BEACH_SAND) ? 0.4 : 1.0;
+}
+
 // Насколько плитка материала в точке уже неразличима (0 — видна, 1 — сошла к среднему цвету): когда на плитку
 // приходится всего несколько точек экрана, её рисунок складывается в ровную сетку («ткань» на песке с высоты).
 float flat_share_of(float tile, float reach) {
@@ -164,11 +184,11 @@ vec4 layer_top(int layer, vec2 xz, float patch, float flat_share, vec2 gx, vec2 
 	float index = float(layer);
 	vec4 color = vec4(0.0);
 	if (patch < 0.99) {
-		color += textureGrad(layer_albedo, vec3(xz / tile, index), gx / tile, gy / tile) * (1.0 - patch);
+		color += textureLod(layer_albedo, vec3(xz / tile, index), lod_of(gx / tile, gy / tile, layer_pixels())) * (1.0 - patch);
 	}
 	if (patch > 0.01) {
 		float scale = tile * 1.31;
-		color += textureGrad(layer_albedo, vec3((TURN * xz) / scale + vec2(0.37, 0.61), index), (TURN * gx) / scale, (TURN * gy) / scale) * patch;
+		color += textureLod(layer_albedo, vec3((TURN * xz) / scale + vec2(0.37, 0.61), index), lod_of((TURN * gx) / scale, (TURN * gy) / scale, layer_pixels())) * patch;
 	}
 	return mix(color, flat_color, flat_share);
 }
@@ -181,11 +201,11 @@ vec4 layer_top_normal(int layer, vec2 xz, float patch, float flat_share, vec2 gx
 	vec3 b;
 	vec2 t;
 	if (patch < 0.5) {
-		b = textureGrad(layer_normal, vec3(xz / tile, index), gx / tile, gy / tile).rgb;
+		b = textureLod(layer_normal, vec3(xz / tile, index), lod_of(gx / tile, gy / tile, layer_pixels())).rgb;
 		t = b.xy * 2.0 - 1.0;
 	} else {
 		float scale = tile * 1.31;
-		b = textureGrad(layer_normal, vec3((TURN * xz) / scale + vec2(0.37, 0.61), index), (TURN * gx) / scale, (TURN * gy) / scale).rgb;
+		b = textureLod(layer_normal, vec3((TURN * xz) / scale + vec2(0.37, 0.61), index), lod_of((TURN * gx) / scale, (TURN * gy) / scale, layer_pixels())).rgb;
 		t = (b.xy * 2.0 - 1.0) * TURN; // обратно в оси мира
 	}
 	t *= 1.0 - flat_share;
@@ -216,15 +236,15 @@ vec4 rock_side(int layer, vec3 wp, vec3 n, vec3 dpx, vec3 dpy, float reach, bool
 		vec2 uv = vec2(wp.x, -wp.y) / tile;
 		vec2 gx = vec2(dpx.x, -dpx.y) / tile;
 		vec2 gy = vec2(dpy.x, -dpy.y) / tile;
-		vec4 a = flat_share > 0.99 ? flat_color : mix(textureGrad(layer_albedo, vec3(uv, index), gx, gy), flat_color, max(flat_share, ROCK_CALM));
+		vec4 a = flat_share > 0.99 ? flat_color : mix(textureLod(layer_albedo, vec3(uv, index), lod_of(gx, gy, layer_pixels())), flat_color, max(flat_share, ROCK_CALM));
 		if (big_flat < 0.99) {
-			vec4 a2 = textureGrad(layer_albedo, vec3(uv / BIG + vec2(0.31, 0.17), index), gx / BIG, gy / BIG);
+			vec4 a2 = textureLod(layer_albedo, vec3(uv / BIG + vec2(0.31, 0.17), index), lod_of(gx / BIG, gy / BIG, layer_pixels()));
 			a.rgb *= mix(1.0, dot(a2.rgb, vec3(0.2126, 0.7152, 0.0722)) / average, 0.4 * (1.0 - big_flat));
 			a.a = mix(a.a, a2.a, 0.5 * (1.0 - big_flat));
 		}
 		color += a * az;
 		if (with_normal) {
-			vec3 b = textureGrad(layer_normal, vec3(uv, index), gx, gy).rgb;
+			vec3 b = textureLod(layer_normal, vec3(uv, index), lod_of(gx, gy, layer_pixels())).rgb;
 			vec2 t = (b.xy * 2.0 - 1.0) * (1.0 - flat_share);
 			detail += vec4(t.x, t.y, 0.0, b.z - 0.82) * az;
 		}
@@ -233,15 +253,15 @@ vec4 rock_side(int layer, vec3 wp, vec3 n, vec3 dpx, vec3 dpy, float reach, bool
 		vec2 uv = vec2(wp.z, -wp.y) / tile + vec2(0.5, 0.0);
 		vec2 gx = vec2(dpx.z, -dpx.y) / tile;
 		vec2 gy = vec2(dpy.z, -dpy.y) / tile;
-		vec4 a = flat_share > 0.99 ? flat_color : mix(textureGrad(layer_albedo, vec3(uv, index), gx, gy), flat_color, max(flat_share, ROCK_CALM));
+		vec4 a = flat_share > 0.99 ? flat_color : mix(textureLod(layer_albedo, vec3(uv, index), lod_of(gx, gy, layer_pixels())), flat_color, max(flat_share, ROCK_CALM));
 		if (big_flat < 0.99) {
-			vec4 a2 = textureGrad(layer_albedo, vec3(uv / BIG + vec2(0.73, 0.41), index), gx / BIG, gy / BIG);
+			vec4 a2 = textureLod(layer_albedo, vec3(uv / BIG + vec2(0.73, 0.41), index), lod_of(gx / BIG, gy / BIG, layer_pixels()));
 			a.rgb *= mix(1.0, dot(a2.rgb, vec3(0.2126, 0.7152, 0.0722)) / average, 0.4 * (1.0 - big_flat));
 			a.a = mix(a.a, a2.a, 0.5 * (1.0 - big_flat));
 		}
 		color += a * ax;
 		if (with_normal) {
-			vec3 b = textureGrad(layer_normal, vec3(uv, index), gx, gy).rgb;
+			vec3 b = textureLod(layer_normal, vec3(uv, index), lod_of(gx, gy, layer_pixels())).rgb;
 			vec2 t = (b.xy * 2.0 - 1.0) * (1.0 - flat_share);
 			detail += vec4(0.0, t.y, t.x, b.z - 0.82) * ax;
 		}
@@ -259,7 +279,7 @@ vec4 layer_color(int layer, vec3 wp, vec3 n, float side, float patch, float near
 		vec4 top = layer_top(layer, wp.xz, patch, flat_share, dpx.xz, dpy.xz);
 		if (near > 0.01 && is_aerial(layer)) {
 			float fine_tile = LAYER_TILE[L_GRASS_LUSH];
-			vec3 grain = textureGrad(layer_albedo, vec3(wp.xz / fine_tile, float(L_GRASS_LUSH)), dpx.xz / fine_tile, dpy.xz / fine_tile).rgb;
+			vec3 grain = textureLod(layer_albedo, vec3(wp.xz / fine_tile, float(L_GRASS_LUSH)), lod_of(dpx.xz / fine_tile, dpy.xz / fine_tile, layer_pixels())).rgb;
 			float lift = dot(grain, vec3(0.2126, 0.7152, 0.0722)) / dot(LAYER_COLOR[L_GRASS_LUSH], vec3(0.2126, 0.7152, 0.0722));
 			top.rgb *= mix(1.0, lift, 0.6 * near);
 		}
@@ -320,9 +340,9 @@ void fragment() {
 		// ── Вблизи: три главных материала точки ────────────────────────────────
 		// Шум трёх масштабов (у каждой карты свой — сдвиг от зерна): по нему чередуются копии плиток, идёт
 		// неровная кромка пятен и мелкая неровность травы. Шаг точки экрана передаётся явно: мы внутри условия.
-		vec4 meso = textureGrad(noise_map, pn / 310.0 + vec2(0.37, 0.09), dpx.xz / 310.0, dpy.xz / 310.0);
-		vec4 fine = textureGrad(noise_map, pn / 61.0 + vec2(0.71, 0.23), dpx.xz / 61.0, dpy.xz / 61.0);
-		vec4 micro = textureGrad(noise_map, pn / 13.0 + vec2(0.29, 0.83), dpx.xz / 13.0, dpy.xz / 13.0);
+		vec4 meso = textureLod(noise_map, pn / 310.0 + vec2(0.37, 0.09), lod_of(dpx.xz / 310.0, dpy.xz / 310.0, NOISE_PIXELS));
+		vec4 fine = textureLod(noise_map, pn / 61.0 + vec2(0.71, 0.23), lod_of(dpx.xz / 61.0, dpy.xz / 61.0, NOISE_PIXELS));
+		vec4 micro = textureLod(noise_map, pn / 13.0 + vec2(0.29, 0.83), lod_of(dpx.xz / 13.0, dpy.xz / 13.0, NOISE_PIXELS));
 		// Материалы запечены по клеткам в два метра. Клетка читается в точке, сдвинутой шумом на метр-другой:
 		// граница пятна идёт неровной кромкой с мелкой бахромой, а не по сторонам клеток. Номера материалов
 		// берутся из ближайшей клетки, доли — плавно между клетками: там, где материалы у соседних клеток те же
@@ -382,24 +402,34 @@ void fragment() {
 		c0.rgb *= surface_tint(i0, tone.r, tone.g, tone.b, chosen.a, shares.a, grass_shade);
 		vec4 c1 = vec4(0.0);
 		vec4 c2 = vec4(0.0);
+		// Смешение по высоте фактуры: выше тот материал, чья доля и высота больше; граница идёт по камням и кочкам.
+		// В кадр попадают материалы, которые ниже самого высокого не больше чем на band. Чем крупнее точка экрана,
+		// тем переход шире и плавнее: вблизи россыпь пятен, вдали мягкая полоса.
+		float band = mix(0.16, 0.42, far);
 		float e0 = w0 + 0.45 * blend_height(i0, c0.a) + 0.34 * layer_jitter(i0, micro, fine);
 		float e1 = -8.0;
 		float e2 = -8.0;
 		// Второй и третий материалы читаются, только если их в точке заметная доля — и тем большая, чем крупнее
 		// точка экрана; нормаль — только у первого и, если его много, у второго.
-		if (w1 > mix(0.07, 0.3, far)) {
+		// И только если материал может попасть в кадр: его доля и мелкий шум известны до чтения текстур, высота
+		// фактуры не больше единицы — если и с наибольшей высотой он остаётся ниже полосы смешения, в картинке его
+		// нет, и читать его незачем (картинка от этого не меняется ни на точку).
+		int layers_read = 1;
+		float j1 = 0.34 * layer_jitter(i1, micro, fine);
+		if (w1 > mix(0.07, 0.3, far) && (debug_view == 13 || w1 + 0.45 * blend_height_limit(i1) + j1 > e0 - band)) {
 			c1 = layer_color(i1, rock_position, n, is_rock(i1) ? side : 0.0, patch_share(i1, meso, fine), near, rock_dpx, rock_dpy, reach, normals && w1 > 0.3, d1);
 			c1.rgb *= surface_tint(i1, tone.r, tone.g, tone.b, chosen.a, shares.a, grass_shade);
-			e1 = w1 + 0.45 * blend_height(i1, c1.a) + 0.34 * layer_jitter(i1, micro, fine);
+			e1 = w1 + 0.45 * blend_height(i1, c1.a) + j1;
+			layers_read++;
 		}
-		if (w2 > mix(0.14, 0.4, far)) {
+		float j2 = 0.34 * layer_jitter(i2, micro, fine);
+		if (w2 > mix(0.14, 0.4, far) && (debug_view == 13 || w2 + 0.45 * blend_height_limit(i2) + j2 > max(e0, e1) - band)) {
 			c2 = layer_color(i2, rock_position, n, is_rock(i2) ? side : 0.0, patch_share(i2, meso, fine), near, rock_dpx, rock_dpy, reach, false, d2);
 			c2.rgb *= surface_tint(i2, tone.r, tone.g, tone.b, chosen.a, shares.a, grass_shade);
-			e2 = w2 + 0.45 * blend_height(i2, c2.a) + 0.34 * layer_jitter(i2, micro, fine);
+			e2 = w2 + 0.45 * blend_height(i2, c2.a) + j2;
+			layers_read++;
 		}
-		// Смешение по высоте фактуры: выше тот материал, чья доля и высота больше; граница идёт по камням и кочкам.
-		// Чем крупнее точка экрана, тем переход шире и плавнее: вблизи россыпь пятен, вдали мягкая полоса.
-		float ceiling = max(e0, max(e1, e2)) - mix(0.16, 0.42, far);
+		float ceiling = max(e0, max(e1, e2)) - band;
 		float b0 = max(e0 - ceiling, 0.0);
 		float b1 = max(e1 - ceiling, 0.0);
 		float b2 = max(e2 - ceiling, 0.0);
@@ -418,6 +448,10 @@ void fragment() {
 		detail.w = mix(detail.w, 0.6, snow_cover);
 		lead_layer = i0;
 		lead_share = w0;
+		if (debug_view == 8) {
+			// Сколько материалов прочитано в точке: один — синий, два — зелёный, три — красный.
+			albedo = layers_read == 1 ? vec3(0.1, 0.25, 0.9) : (layers_read == 2 ? vec3(0.15, 0.75, 0.2) : vec3(0.9, 0.15, 0.1));
+		}
 	}
 	if (picture_share > 0.001) {
 		// ── Вдали: готовая картинка ────────────────────────────────────────────

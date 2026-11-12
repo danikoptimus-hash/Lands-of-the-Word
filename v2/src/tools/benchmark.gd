@@ -18,6 +18,11 @@ const BREAKDOWN_STOPS: Array[String] = ["gory-vblizi", "veshka", "sverhu", "ostr
 
 var running := false
 var time_scale := 1.0  ## меньше единицы — короче облёт (так конвейер проверяет сам замер)
+## Последний отчёт по частям — для окна на экране: главное (итог, разбор, компьютер) и строки участков облёта,
+## которые окно ставит в два столбца. Одним столбцом отчёт не помещался на экран, и низ его — как раз разбор —
+## владелец не видел (замер на 0.5.2).
+var report_head := ""
+var report_legs := PackedStringArray()
 
 
 ## Сопрограмма.
@@ -58,17 +63,15 @@ func run(world: WorldData, rig: StrategyCamera, height_map: HeightMap = null, te
 			all_ms.append(frame_ms)
 		lines.append("  %s: %d к/с" % [stops[i].title, roundi(_fps(leg_ms))])
 
+	var breakdown := PackedStringArray()
 	if terrain != null and sun != null:
-		var breakdown: PackedStringArray = await _breakdown(stops, rig, terrain, sun)
-		if not breakdown.is_empty():
-			lines.append("Разбор, к/с: как есть → земля ровным цветом / без теней / без сглаживания / пол-разрешения")
-			lines.append_array(breakdown)
+		breakdown = await _breakdown(stops, rig, terrain, sun)
 
 	DisplayServer.window_set_vsync_mode(vsync)
 	rig.set_view(saved)
 	rig.input_enabled = true
 	running = false
-	finished.emit(_report(all_ms, lines))
+	finished.emit(_report(all_ms, lines, breakdown))
 
 
 ## Разбор по частям картинки (см. начало файла). Сопрограмма; всё изменённое возвращается как было.
@@ -78,9 +81,7 @@ func _breakdown(stops: Array[Tour.Stop], rig: StrategyCamera, terrain: WorldTerr
 	var msaa := viewport.msaa_3d
 	var scale := viewport.scaling_3d_scale
 	var shadows := sun.shadow_enabled
-	# В короткой проверке (конвейер, программная отрисовка) — одно место.
-	var endings := BREAKDOWN_STOPS if time_scale > 0.5 else BREAKDOWN_STOPS.slice(0, 1)
-	for ending in endings:
+	for ending in BREAKDOWN_STOPS:
 		var stop: Tour.Stop = null
 		for candidate in stops:
 			if candidate.name.substr(3) == ending:
@@ -134,9 +135,14 @@ static func _fps(frames_ms: PackedFloat32Array) -> float:
 	return 1000.0 * float(frames_ms.size()) / maxf(total, 0.001)
 
 
-func _report(frames_ms: PackedFloat32Array, legs: PackedStringArray) -> String:
+## Отчёт целиком (он идёт в буфер обмена и в файл); заодно раскладывает его на части для окна. Главное — итог
+## и разбор — стоит в начале: снимок экрана с обрезанным низом их не теряет.
+func _report(frames_ms: PackedFloat32Array, legs: PackedStringArray, breakdown: PackedStringArray) -> String:
+	report_legs = legs
 	if frames_ms.is_empty():
-		return "Замер не удался: кадров нет."
+		report_head = "Замер не удался: кадров нет."
+		report_legs = PackedStringArray()
+		return report_head
 	var sorted := frames_ms.duplicate()
 	sorted.sort()
 	var worst_from := mini(floori(float(sorted.size()) * 0.99), sorted.size() - 1)
@@ -152,20 +158,24 @@ func _report(frames_ms: PackedFloat32Array, legs: PackedStringArray) -> String:
 	var window := DisplayServer.window_get_size()
 	var text := PackedStringArray()
 	text.append("Земли Слова, %s — замер скорости" % BuildInfo.label())
-	text.append("Система: %s %s" % [OS.get_name(), OS.get_version()])
+	text.append("Кадров в секунду: в среднем %d, в худшем 1%% кадров — %d, в самом медленном кадре — %d" % [roundi(_fps(frames_ms)), roundi(low), roundi(slowest)])
+	if not breakdown.is_empty():
+		text.append("Разбор, к/с: как есть → земля ровным цветом / без теней / без сглаживания / пол-разрешения")
+		text.append_array(breakdown)
+	text.append("Система: %s %s; память %.1f ГБ" % [OS.get_name(), OS.get_version(), memory_gb])
 	text.append("Процессор: %s, потоков: %d" % [OS.get_processor_name(), OS.get_processor_count()])
-	text.append("Память: %.1f ГБ" % memory_gb)
-	text.append("Видеокарта: %s" % RenderingServer.get_video_adapter_name())
-	text.append("Отрисовка: %s, %s" % [RenderingServer.get_current_rendering_driver_name(), RenderingServer.get_current_rendering_method()])
+	text.append("Видеокарта: %s; отрисовка %s, %s" % [RenderingServer.get_video_adapter_name(),
+			RenderingServer.get_current_rendering_driver_name(), RenderingServer.get_current_rendering_method()])
 	var refresh := DisplayServer.screen_get_refresh_rate()
 	var screen_text := "%d×%d" % [screen.x, screen.y]
 	if is_finite(refresh) and refresh > 0.0:
 		screen_text += ", %d Гц" % roundi(refresh)
-	text.append("Экран: %s; окно %d×%d" % [screen_text, window.x, window.y])
+	screen_text += "; окно %d×%d" % [window.x, window.y]
 	var scale := get_viewport().scaling_3d_scale
 	if scale < 0.999:
-		text.append("Картинка мира считается в %d %% разрешения (клавиша B)" % roundi(scale * 100.0))
-	text.append("Кадров в секунду: в среднем %d, в худшем 1%% кадров — %d, в самом медленном кадре — %d" % [roundi(_fps(frames_ms)), roundi(low), roundi(slowest)])
+		screen_text += "; картинка мира — %d %% разрешения (клавиша B)" % roundi(scale * 100.0)
+	text.append("Экран: %s" % screen_text)
 	text.append("По участкам облёта:")
+	report_head = "\n".join(text)
 	text.append_array(legs)
 	return "\n".join(text)
