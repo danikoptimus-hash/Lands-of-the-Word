@@ -24,6 +24,11 @@ const PHASE_START: Array[int] = [7 * 60, 9 * 60, 18 * 60, 22 * 60]
 const BLEND_MINUTES := 15.0
 ## Сколько секунд длится переход, когда время суток переключают клавишей (в игре он идёт полчаса).
 const SWITCH_SECONDS := 2.5
+## Дымка ясного дня: густота у самого моря (доля света, теряемая на метре пути) и высота слоя, на которой дымка
+## редеет в e раз. С этими числами остров в 9 км с высоты километра затянут на четверть, в 20 км — наполовину,
+## у горизонта суша растворяется; прямо под камерой с любой высоты — почти чисто. У времён суток — множитель «fog».
+const HAZE_DENSITY := 0.000045
+const HAZE_HEIGHT := 1500.0
 
 ## Виды. Направление на светило: азимут — от севера по часовой стрелке (90 — восток, 180 — юг, 270 — запад),
 ## высота — над горизонтом, градусы. У каждого вида: солнце (где оно на небе, даже если под горизонтом), луна,
@@ -37,7 +42,7 @@ const LOOKS: Dictionary = {
 		"light_color": Color(1.0, 0.78, 0.62), "light_energy": 1.8, "specular": 0.015, "shadow": 0.95,
 		"sky_top": Color(0.28, 0.42, 0.84), "sky_horizon": Color(1.0, 0.78, 0.76), "sky_ground": Color(0.5, 0.46, 0.58),
 		"glow_color": Color(1.0, 0.66, 0.56), "glow": 0.8, "glow_height": 0.16, "glow_reach": 0.6, "sun_strength": 1.2, "moon_strength": 0.0, "stars": 0.0,
-		"ambient_color": Color(0.7, 0.66, 0.94), "ambient_energy": 0.6, "fog_color": Color(0.96, 0.82, 0.84), "fog": 2.0,
+		"ambient_color": Color(0.7, 0.66, 0.94), "ambient_energy": 0.6, "fog": 1.15,
 		"exposure": 1.1, "saturation": 1.1, "contrast": 1.03,
 	},
 	"day": {
@@ -45,7 +50,7 @@ const LOOKS: Dictionary = {
 		"light_color": Color(1.0, 0.93, 0.8), "light_energy": 2.15, "specular": 1.0, "shadow": 1.0,
 		"sky_top": Color(0.08, 0.3, 0.78), "sky_horizon": Color(0.55, 0.78, 0.98), "sky_ground": Color(0.28, 0.42, 0.58),
 		"glow_color": Color(1.0, 0.9, 0.7), "glow": 0.0, "glow_height": 0.18, "glow_reach": 0.5, "sun_strength": 0.9, "moon_strength": 0.0, "stars": 0.0,
-		"ambient_color": Color(0.8, 0.88, 1.0), "ambient_energy": 0.62, "fog_color": Color(0.62, 0.8, 0.98), "fog": 1.0,
+		"ambient_color": Color(0.8, 0.88, 1.0), "ambient_energy": 0.62, "fog": 1.0,
 		"exposure": 1.1, "saturation": 1.12, "contrast": 1.04,
 	},
 	"evening": {
@@ -53,7 +58,7 @@ const LOOKS: Dictionary = {
 		"light_color": Color(1.0, 0.62, 0.36), "light_energy": 1.9, "specular": 0.015, "shadow": 0.9,
 		"sky_top": Color(0.16, 0.11, 0.44), "sky_horizon": Color(0.95, 0.52, 0.44), "sky_ground": Color(0.34, 0.24, 0.4),
 		"glow_color": Color(1.0, 0.42, 0.14), "glow": 1.0, "glow_height": 0.2, "glow_reach": 0.62, "sun_strength": 1.4, "moon_strength": 0.0, "stars": 0.0,
-		"ambient_color": Color(0.64, 0.58, 0.88), "ambient_energy": 0.86, "fog_color": Color(0.9, 0.54, 0.5), "fog": 1.5,
+		"ambient_color": Color(0.64, 0.58, 0.88), "ambient_energy": 0.86, "fog": 1.0,
 		"exposure": 1.08, "saturation": 1.12, "contrast": 1.0,
 	},
 	"night": {
@@ -61,14 +66,13 @@ const LOOKS: Dictionary = {
 		"light_color": Color(0.5, 0.78, 1.0), "light_energy": 0.72, "specular": 0.04, "shadow": 0.9,
 		"sky_top": Color(0.015, 0.05, 0.16), "sky_horizon": Color(0.05, 0.17, 0.32), "sky_ground": Color(0.02, 0.04, 0.09),
 		"glow_color": Color(0.1, 0.2, 0.36), "glow": 0.0, "glow_height": 0.18, "glow_reach": 0.5, "sun_strength": 0.0, "moon_strength": 1.2, "stars": 1.3,
-		"ambient_color": Color(0.22, 0.44, 0.7), "ambient_energy": 0.62, "fog_color": Color(0.05, 0.12, 0.22), "fog": 1.0,
+		"ambient_color": Color(0.22, 0.44, 0.7), "ambient_energy": 0.62, "fog": 1.0,
 		"exposure": 1.1, "saturation": 0.95, "contrast": 1.02,
 	},
 }
 
 var sun: DirectionalLight3D  ## светило: солнце днём, луна ночью
 var environment: Environment
-var fog := 1.0  ## во сколько раз дымка гуще обычной в это время суток (сама густота зависит ещё от высоты камеры)
 
 var _sky_material: ShaderMaterial
 var _phase := Phase.DAY
@@ -78,7 +82,6 @@ var _left := 0.0  ## секунд перехода осталось
 var _grade := Vector3.ONE  ## насыщенность, контраст и яркость поверх вида (клавиша V)
 var _storm := 0.0  ## доля пасмурной погоды, 0…1 (дождь — около половины, шторм — единица)
 var _flash := 0.0  ## вспышка молнии: добавка к яркости картинки
-var _cloud_color := Color.WHITE  ## цвет облаков со стороны светила — для слоя облаков, видного с высоты
 
 
 func _ready() -> void:
@@ -108,9 +111,8 @@ func _ready() -> void:
 	# Затенение впадин по экрану (SSAO) выключено с 0.5.2: ради него шейдер земли выполнялся в каждом кадре
 	# дважды. Впадины затеняет сама картинка земли — по форме рельефа.
 	environment.ssao_enabled = false
-	environment.fog_enabled = true
-	environment.fog_aerial_perspective = 0.3
-	environment.fog_sky_affect = 0.0
+	# Туман движка выключен: дымку считают сами шейдеры (atmosphere.gdshaderinc) — по пути луча сквозь слой воздуха.
+	environment.fog_enabled = false
 	environment.adjustment_enabled = true
 	var world_environment := WorldEnvironment.new()
 	world_environment.environment = environment
@@ -186,14 +188,10 @@ func set_grade(saturation: float, contrast: float, brightness: float) -> void:
 	_apply(_current())
 
 
-## Карта облаков (weather.gd) — небо рисует по ней облака.
-func set_cloud_map(map: Texture2D) -> void:
+## Карта облаков и объёмный шум (weather.gd) — небо рисует по ним облака.
+func set_cloud_textures(map: Texture2D, noise: Texture3D) -> void:
 	_sky_material.set_shader_parameter("cloud_map", map)
-
-
-## Цвет облаков со стороны светила (сейчас).
-func cloud_color() -> Color:
-	return _cloud_color
+	_sky_material.set_shader_parameter("cloud_noise", noise)
 
 
 ## Вспышка молнии: на столько долей ярче картинка (0 — нет). Небо и материалы не трогает.
@@ -220,10 +218,13 @@ static func storm_view(view: Dictionary, share: float) -> Dictionary:
 		return view
 	var result := view.duplicate()
 	var sky_light := clampf((view["sky_horizon"] as Color).get_luminance() * 1.25, 0.1, 1.0)
+	# Ночью свет и так слабый: тучи гасят луну меньше, чем солнце, и небо под тучами не чёрное — иначе ночной
+	# шторм уходит в черноту.
+	var night: bool = view["body"] == "moon"
+	if night:
+		sky_light = maxf(sky_light, 0.34)
 	var overcast_top := Color(0.26, 0.3, 0.36) * sky_light
 	var overcast_horizon := Color(0.44, 0.48, 0.53) * sky_light
-	# Ночью свет и так слабый: тучи гасят луну меньше, чем солнце, — иначе ночной шторм уходит в черноту.
-	var night: bool = view["body"] == "moon"
 	result["light_energy"] = float(view["light_energy"]) * lerpf(1.0, 0.62 if night else 0.3, share)
 	result["light_color"] = (view["light_color"] as Color).lerp(Color(0.74, 0.8, 0.88), share)
 	result["shadow"] = float(view["shadow"]) * lerpf(1.0, 0.4, share)
@@ -236,8 +237,8 @@ static func storm_view(view: Dictionary, share: float) -> Dictionary:
 	result["stars"] = float(view["stars"]) * (1.0 - share)
 	result["ambient_color"] = (view["ambient_color"] as Color).lerp(Color(0.62, 0.67, 0.74), share)
 	result["ambient_energy"] = float(view["ambient_energy"]) * lerpf(1.0, 0.9, share)
-	result["fog_color"] = (view["fog_color"] as Color).lerp(overcast_horizon, share)
-	result["fog"] = float(view["fog"]) * lerpf(1.0, 4.0, share)
+	# Дымка в шторм гуще, но не вчетверо, как прежде: видимость в шторм съедает дождь — завесами, неровно (weather.gd).
+	result["fog"] = float(view["fog"]) * lerpf(1.0, 1.3, share)
 	result["saturation"] = float(view["saturation"]) * lerpf(1.0, 0.72, share)
 	result["exposure"] = float(view["exposure"]) * lerpf(1.0, 1.08 if night else 0.94, share)
 	return result
@@ -270,6 +271,12 @@ static func blend(a: Dictionary, b: Dictionary, weight: float) -> Dictionary:
 		# Сумерки: пока светило слабое, землю держит небо — рассеянный свет чуть сильнее.
 		result["ambient_energy"] = float(result["ambient_energy"]) * (1.0 + 0.25 * (1.0 - absf(weight * 2.0 - 1.0)))
 	return result
+
+
+## Цвет для общих чисел шейдеров: линейный (материалам движок переводит цвета сам, общим числам — нет).
+static func linear(color: Color) -> Vector4:
+	var result := color.srgb_to_linear()
+	return Vector4(result.r, result.g, result.b, color.a)
 
 
 ## Направление на точку неба: азимут от севера по часовой стрелке, высота над горизонтом (градусы).
@@ -330,16 +337,22 @@ func _apply(clear_view: Dictionary) -> void:
 	# Облака: со стороны светила — его цвет (чуть выбеленный), яркость — по яркости неба этого времени суток;
 	# низ и тень — в цвет неба у горизонта. В шторм тучи темнее.
 	var sky_light := clampf((view["sky_horizon"] as Color).get_luminance() * 1.25, 0.1, 1.0)
-	var dim := lerpf(1.0, 0.6, _storm)
-	_cloud_color = (view["light_color"] as Color).lerp(Color.WHITE, 0.4) * (sky_light * 1.05 * dim)
-	_sky_material.set_shader_parameter("cloud_lit", _cloud_color)
-	_sky_material.set_shader_parameter("cloud_dark", (view["sky_horizon"] as Color).lerp(Color(0.5, 0.52, 0.58) * sky_light, 0.5) * (0.78 * dim))
+	var dim := lerpf(1.0, 0.95 if view["body"] == "moon" else 0.6, _storm)
+	_sky_material.set_shader_parameter("cloud_lit", (view["light_color"] as Color).lerp(Color.WHITE, 0.4) * (sky_light * 1.45 * dim))
+	_sky_material.set_shader_parameter("cloud_light_direction", to_light)
+	_sky_material.set_shader_parameter("cloud_dark", (view["sky_horizon"] as Color).lerp(Color(0.5, 0.52, 0.58) * sky_light, 0.5) * (0.7 * dim))
 
 	environment.ambient_light_color = view["ambient_color"]
 	environment.ambient_light_energy = view["ambient_energy"]
-	environment.fog_light_color = view["fog_color"]
+	# Дымка — цветом неба у горизонта (с заревом в стороне солнца): дальняя земля и море уходят в небо.
+	RenderingServer.global_shader_parameter_set(&"haze_look", Vector4(HAZE_DENSITY * float(view["fog"]), 1.0 / HAZE_HEIGHT,
+			view["glow"], view["glow_reach"]))
+	RenderingServer.global_shader_parameter_set(&"haze_color", linear(view["sky_horizon"]))
+	RenderingServer.global_shader_parameter_set(&"haze_glow_color", linear(view["glow_color"]))
+	RenderingServer.global_shader_parameter_set(&"haze_sun", Vector4(to_sun.x, to_sun.y, to_sun.z, view["sun_strength"]))
+	RenderingServer.global_shader_parameter_set(&"haze_sun_color", linear(view["light_color"] if view["body"] == "sun" else Color(1.0, 0.8, 0.6)))
 	environment.tonemap_exposure = view["exposure"]
 	environment.adjustment_saturation = float(view["saturation"]) * _grade.x
 	environment.adjustment_contrast = float(view["contrast"]) * _grade.y
 	environment.adjustment_brightness = _grade.z * (1.0 + _flash)
-	fog = view["fog"]
+

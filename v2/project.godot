@@ -7,7 +7,7 @@ config_version=5
 
 config/name="Земли Слова"
 config/description="Версия 2: тот же мир и те же партии в объёме."
-config/version="0.8.0"
+config/version="0.8.1"
 run/main_scene="res://src/main.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 boot_splash/bg_color=Color(0.086, 0.078, 0.07, 1)
@@ -34,17 +34,17 @@ cloud_drift={
 "type": "vec4",
 "value": Vector4(0, 0, 0, 0)
 }
-cloud_edge={
-"type": "vec2",
-"value": Vector2(2, 0.1)
+cloud_look={
+"type": "vec4",
+"value": Vector4(1900, 0, 1, 0)
 }
-cloud_shade={
-"type": "float",
-"value": 0.0
+flash_at={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
 }
-cloud_sun={
-"type": "vec2",
-"value": Vector2(0, 0)
+rain_look={
+"type": "vec4",
+"value": Vector4(0, 0, 0.3, 0)
 }
 cloud_eye={
 "type": "vec3",
@@ -53,4 +53,24 @@ cloud_eye={
 rain_wet={
 "type": "float",
 "value": 0.0
+}
+haze_look={
+"type": "vec4",
+"value": Vector4(4.5e-05, 0.000667, 0, 0.5)
+}
+haze_color={
+"type": "vec4",
+"value": Vector4(0.26, 0.57, 0.95, 1)
+}
+haze_glow_color={
+"type": "vec4",
+"value": Vector4(1, 0.79, 0.45, 1)
+}
+haze_sun={
+"type": "vec4",
+"value": Vector4(-0.78, 0.58, 0.22, 0)
+}
+haze_sun_color={
+"type": "vec4",
+"value": Vector4(1, 0.89, 0.71, 1)
 }

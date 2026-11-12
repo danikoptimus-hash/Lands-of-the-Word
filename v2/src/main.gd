@@ -17,7 +17,6 @@ const WORLD_PATHS: Array[String] = [
 	"res://data/world_proba_4.json",
 ]
 const WINDOW_TITLE := "Земли Слова — версия 2 (тест)"
-const FOG_DENSITY := 0.000012  ## дымка вблизи; издалека она реже (см. _process)
 ## Насыщенность и контраст картинки (клавиша V). Начинаем с «естественно»: владелец сравнил наборы на 0.5.3
 ## и выбрал его («естественный цвет мне нравится больше»); до 0.5.3 первым стояло «сочно».
 const COLOR_PRESETS: Array[Dictionary] = [
@@ -43,7 +42,6 @@ var _light: DayLight  ## свет и небо: времена суток
 var _sun: DirectionalLight3D
 var _environment: Environment
 var _weather: Weather  ## погода: облака и их тени, дождь, шторм
-var _clear_look := 0  ## ключ --clouds=N — с какого вида ясной погоды начать
 var _light_code := ""  ## ключ --light=время — с какого времени суток начать
 var _color_preset := 0
 var _render_scale := 0
@@ -82,7 +80,6 @@ func _ready() -> void:
 	_weather.camera = _rig.camera
 	_weather.frozen = not _shots_folder.is_empty()
 	add_child(_weather)
-	_weather.set_clear_look(_clear_look, true)
 
 	_updater = Updater.new()
 	add_child(_updater)
@@ -158,8 +155,6 @@ func _process(_delta: float) -> void:
 	var low := 1.0 - smoothstep(0.1, 0.5, _rig.view_angle())
 	var reach := maxf(_rig.current_distance() * lerpf(2.6, 7.0, low), lerpf(500.0, 4500.0, low))
 	_sun.directional_shadow_max_distance = minf(reach, 40000.0)
-	# Издалека (весь мир с малыми островами) дымка реже: иначе за десять километров картинка белеет.
-	_environment.fog_density = FOG_DENSITY * clampf(3000.0 / _rig.current_distance(), 0.25, 1.0) * _light.fog
 
 
 ## Сколько метров земли приходится на точку картинки мира в середине кадра (картинка мира считается
@@ -221,17 +216,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_light.set_phase(next)
 			_hud.toast("Время суток: %s. L — следующее." % DayLight.PHASE_TITLES[next], 4.0)
 		KEY_P:
-			# Погода: ясно → дождь → шторм, с плавным переходом (шторм — событие игры).
-			var next := ((_weather.kind() + 1) % 3) as Weather.Kind
+			# Погода: ясно ↔ шторм, плавно.
+			var next := Weather.Kind.CLEAR if _weather.kind() == Weather.Kind.STORM else Weather.Kind.STORM
 			_weather.set_kind(next)
-			_hud.toast("Погода: %s. P — следующая." % Weather.TITLES[next], 4.0)
-		KEY_J:
-			# Вид ясной погоды — на время выбора владельцем (шаг 1.6).
-			_weather.set_clear_look(_weather.clear_look() + 1)
-			if _weather.kind() != Weather.Kind.CLEAR:
-				_weather.set_kind(Weather.Kind.CLEAR)
-			_hud.toast("Ясная погода: %s (%d из %d). J — другая." % [Weather.CLEAR_LOOKS[_weather.clear_look()]["title"],
-					_weather.clear_look() + 1, Weather.CLEAR_LOOKS.size()], 5.0)
+			_hud.toast("Погода: %s. P — обратно." % Weather.TITLES[next], 4.0)
 		KEY_T:
 			# Кэш ближнего вида можно выключить и сравнить: картинка должна быть той же, скорость — как в 0.5.3.
 			_terrain.cache_budget = 0 if _terrain.cache_budget > 0 else NearCache.BUDGET
@@ -311,7 +299,7 @@ func _load_world(path: String) -> bool:
 		_fail("Не удалось построить рельеф: %s.\nВидеокарта: %s" % [_terrain.error, RenderingServer.get_video_adapter_name()])
 		return false
 	_terrain.set_debug_view(_debug_view)
-	_terrain.set_cloud_map(_weather.cloud_map)
+	_terrain.set_cloud_textures(_weather.cloud_map, Weather.CLOUD_NOISE)
 	_weather.terrain = _terrain
 	if not _shots_folder.is_empty():
 		_terrain.set_water_time(WaterLook.SHOT_TIME)
@@ -547,8 +535,6 @@ func _read_arguments() -> void:
 			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
 		elif argument.begins_with("--debug-view="):
 			_debug_view = argument.trim_prefix("--debug-view=").to_int()
-		elif argument.begins_with("--clouds="):
-			_clear_look = argument.trim_prefix("--clouds=").to_int()
 		elif argument.begins_with("--render-scale="):
 			# Разрешение картинки мира, проценты (100, 77 или 67), — чтобы кадры проверок были как у игрока: у владельца
 			# 67 % с достройкой до полного, и рисунок воды на точках экрана там другой.

@@ -22,6 +22,7 @@ render_mode world_vertex_coords;
 #include "res://src/terrain/hex.gdshaderinc"
 #include "res://src/terrain/surface_near.gdshaderinc"
 #include "res://src/world/clouds.gdshaderinc"
+#include "res://src/world/atmosphere.gdshaderinc"
 
 uniform sampler2D height_map : filter_linear_mipmap, repeat_disable;
 uniform sampler2D normal_map : filter_linear_mipmap, repeat_disable; // та же текстура, со сглаживанием вдали
@@ -281,8 +282,7 @@ void fragment() {
 		normal = vec3(lean.x, sqrt(max(1.0 - dot(lean, lean), 0.01)), lean.y);
 	}
 	NORMAL = normalize((VIEW_MATRIX * vec4(normal, 0.0)).xyz);
-	// Погода (шаг 1.6): тени облаков идут по земле; под дождём земля темнее и глаже.
-	albedo *= mix(vec3(1.0), CLOUD_SHADE_TINT, cloud_shadow(p));
+	// Погода (шаг 1.6): под дождём земля темнее и глаже.
 	albedo *= 1.0 - 0.14 * rain_wet;
 	roughness *= 1.0 - 0.4 * rain_wet;
 	wet = max(wet, rain_wet * 0.7);
@@ -291,4 +291,6 @@ void fragment() {
 	SPECULAR = mix(0.2, 0.5, wet);
 	AO = mix(0.6, 1.0, texture_height);
 	AO_LIGHT_AFFECT = 0.35;
+	// Дымка и дождь: чем дальше и ниже точка, тем больше она растворяется в цвете неба у горизонта.
+	FOG = air(CAMERA_POSITION_WORLD, world_position);
 }

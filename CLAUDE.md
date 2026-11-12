@@ -38,8 +38,9 @@
   `--stops=94` — только проверка света, `shots ПАПКА --stops=99 "--lights=evening,night"` — кадры времён суток
   (места — из ключей `--view`, без них пять мест облёта; таблица видов — в начале `day_light.gd`),
   `--stops=95` — только проверка воды, `--stops=97` — только проверка погоды,
-  `shots ПАПКА --stops=99 --weathers=clear,rain,storm --lights=day,night` — кадры погоды (числа погоды — `weather.gd`,
-  вида воды — `water_look.gd`; `--clouds=N` — вид ясной погоды; с `--water-times=20,23,26` — одно место в разные
+  `shots ПАПКА --stops=99 --weathers=clear,turn,storm --lights=day,night --strikes=0,1` — кадры погоды и молний
+  (`turn` — середина перехода к шторму; числа погоды — `weather.gd`, дымки — `day_light.gd` и `atmosphere.gdshaderinc`,
+  вида воды — `water_look.gd`; карта облаков — `v2/tools/weather/make.py`; с `--water-times=20,23,26` — одно место в разные
   моменты: так виден накат), ключ `--render-scale=67` — кадры в 67 % разрешения с достройкой, как на экране владельца
   (мелкий рисунок воды и блик проверять так; повтор рисунка моря — `v2/tools/water_repeat.py`),
   `build ПАПКА` — сборка для Windows,

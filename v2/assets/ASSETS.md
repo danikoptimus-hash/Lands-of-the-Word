@@ -24,3 +24,5 @@
 | слой `mud_cracked` | Растрескавшаяся глина | Poly Haven, mud_cracked_dry_03 — https://polyhaven.com/a/mud_cracked_dry_03 | CC0 1.0 |
 | слой `lichen_rock` | Серый камень с лишайником | Poly Haven, mossy_rock — https://polyhaven.com/a/mossy_rock | CC0 1.0 |
 | `terrain/noise.png` | Четыре шума в одной текстуре (пятна цвета, чередование плиток) | Считает `tools/surfaces/make.py`, своё | — |
+| `weather/cloud_map.png` | Карта облаков (шаг 1.6): отдельные кучевые облака ясной погоды, тучи шторма, места сильного дождя — в трёх каналах, плитка 48 км | Считает `tools/weather/make.py`, своё | — |
+| `weather/cloud_noise.png` | Объёмный шум 64×64×64 (8×8 срезов): края облаков, струи в завесах дождя | Считает `tools/weather/make.py`, своё | — |

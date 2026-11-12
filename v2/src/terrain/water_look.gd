@@ -19,15 +19,18 @@ const CALM := {
 	"deepening": 0.06, "murk": 0.35,
 	"ripple": 0.9, "ripple_size": 1.535, "swell": 0.5, "swell_size": 20.9, "relief": 0.6,
 	"foam": 1.2, "foam_reach": 2.4, "foam_lines": 0.9, "foam_wash": 0.0, "whitecaps": 0.6,
+	"foam_color": Color(0.93, 0.96, 0.97),
 	"glitter": 1.6, "sheen": 0.3, "gloss": 0.16,
 }
 
-## Шторм: вода тёмная и серая, рябь и зыбь сильнее, барашки, у берега — взбитая вода, блика нет.
+## Шторм: вода тёмная и серая, рябь и зыбь сильнее, барашки, у берега — взбитая вода, блика нет. Пена в шторм
+## не белая, а серая с песком и илом: замечание владельца 12.11 — белая слишком выделялась на тёмном море.
 const STORM := {
 	"shallow_color": Color(0.175, 0.3975, 0.4125), "deep_color": Color(0.026, 0.084, 0.148), "lake_color": Color(0.0325, 0.121, 0.186),
 	"deepening": 0.06, "murk": 0.9,
 	"ripple": 1.62, "ripple_size": 1.535, "swell": 1.6, "swell_size": 20.9, "relief": 0.85,
 	"foam": 1.6, "foam_reach": 4.3, "foam_lines": 1.0, "foam_wash": 1.0, "whitecaps": 1.0,
+	"foam_color": Color(0.66, 0.63, 0.54),
 	"glitter": 0.1, "sheen": 0.1, "gloss": 0.35,
 }
 

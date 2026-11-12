@@ -43,6 +43,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	var lights := PackedStringArray()
 	var waters := PackedStringArray()
 	var water_times := PackedStringArray()
+	var strikes := PackedStringArray()
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--profile="):
 			profile_views = argument.trim_prefix("--profile=").split(";", false)
@@ -59,6 +60,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 			waters = argument.trim_prefix("--weathers=").split(",", false)
 		elif argument.begins_with("--water-times="):
 			water_times = argument.trim_prefix("--water-times=").split(",", false)
+		elif argument.begins_with("--strikes="):
+			strikes = argument.trim_prefix("--strikes=").split(",", false)
 	await _frames(4)
 
 	if not profile_views.is_empty():
@@ -131,10 +134,10 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _frames(12)
 		get_viewport().scaling_3d_scale = 1.0
 
-	# Дождь и шторм (шаг 1.6): остров целиком и взгляд сверху с рабочей высоты. Ясная погода — все кадры выше.
+	# Шторм (шаг 1.6): остров целиком и взгляд сверху с рабочей высоты. Ясная погода — все кадры выше.
 	if not checks_only and only.is_empty():
 		var tour_weather := _find_weather()
-		for kind: int in [Weather.Kind.RAIN, Weather.Kind.STORM]:
+		for kind: int in [Weather.Kind.STORM]:
 			tour_weather.set_kind(kind as Weather.Kind, true)
 			get_viewport().scaling_3d_scale = 0.25
 			await _frames(12)
@@ -211,11 +214,15 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 				place_views.append(view)
 		var phases := PackedStringArray(["day"]) if lights.is_empty() else lights
 		for water in waters:
-			var kind := Weather.CODES.find(water)
+			# «turn» — середина перехода от ясной погоды к шторму: так виден сам переход.
+			var kind := Weather.Kind.STORM if water == "turn" else Weather.CODES.find(water)
 			if kind < 0:
 				print("КАДРЫ погоды пропущены: непонятная погода «%s»" % water)
 				continue
-			weather.set_kind(kind as Weather.Kind, true)
+			if water == "turn":
+				weather.show_blend(Weather.Kind.CLEAR, Weather.Kind.STORM, 0.5)
+			else:
+				weather.set_kind(kind as Weather.Kind, true)
 			for code in phases:
 				var phase := DayLight.PHASE_CODES.find(code)
 				if phase < 0:
@@ -231,8 +238,19 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 						await _before_shot()
 						var file_name := "pogoda-%s-%s-%s%s" % [water, code, place_names[i], ("-" + moment) if not moment.is_empty() else ""]
 						await _capture(file_name)
-						print("КАДР %s — %s, %s — место %s — отрисовка %d мс" % [file_name, Weather.TITLES[kind],
+						print("КАДР %s — %s, %s — место %s — отрисовка %d мс" % [file_name,
+								"середина перехода к шторму" if water == "turn" else Weather.TITLES[kind],
 								DayLight.PHASE_TITLES[phase], place_views[i].to_code(), _frame_msec])
+					# Молнии (ключ --strikes=0,1,2: до земли, между тучами, в туче) — в шторм, тем же видом.
+					if kind == Weather.Kind.STORM and water != "turn":
+						for strike in strikes:
+							weather.show_strike(strike.to_int())
+							await _before_shot()
+							var strike_name := "pogoda-%s-%s-%s-molniya-%s" % [water, code, place_names[i], strike]
+							await _capture(strike_name)
+							print("КАДР %s — молния %s — отрисовка %d мс" % [strike_name, strike, _frame_msec])
+						if not strikes.is_empty():
+							weather.hide_strike()
 		terrain.set_water_time(WaterLook.SHOT_TIME)
 		weather.set_kind(Weather.Kind.CLEAR, true)
 		day_light.set_phase(DayLight.Phase.DAY, true)
@@ -846,8 +864,10 @@ func _picture_difference(a: Image, b: Image) -> float:
 	return total / float(maxi(count, 1))
 
 
-## Погода (шаг 1.6): тени облаков идут по земле — кадр со сдвинутыми облаками другой, а с возвращёнными тот же;
-## дождь приходит плавно.
+## Погода (шаг 1.6): облака идут по небу — кадр со сдвинутыми облаками другой, а с возвращёнными тот же;
+## облаков под камерой нет на любой высоте; море у горизонта переходит в небо без линии; шторм виден и без струй
+## дождя (критерий владельца 12.11); молния видна и гаснет без следа. Плавный приход шторма (с тучами и дождём)
+## проверяет _check_water.
 func _check_weather(stops: Array[Tour.Stop]) -> void:
 	var weather := _find_weather()
 	var place: Tour.Stop = null
@@ -858,34 +878,76 @@ func _check_weather(stops: Array[Tour.Stop]) -> void:
 		return
 	var scale := get_viewport().scaling_3d_scale
 	get_viewport().scaling_3d_scale = 0.25
-	_rig.set_view(place.view)
-	# Вид с кучевыми облаками: теней больше всего.
-	var look := weather.clear_look()
-	weather.set_clear_look(1, true)
+	# Облака идут по небу: взгляд к горизонту, облака сдвинуты по ветру — кадр другой, вернулись — тот же.
+	_rig.set_view(CameraView.make(place.view.focus, 9000.0, 0.0, -54.0))
 	await _frames(8)
 	var first := await _frame_picture()
-	weather.push_clouds(350.0)
+	weather.push_clouds(900.0)
 	await _frames(2)
 	var moved := await _frame_picture()
-	weather.push_clouds(-350.0)
+	weather.push_clouds(-900.0)
 	await _frames(2)
 	var back := await _frame_picture()
 	var shift := _picture_difference(first, moved)
 	var same := _picture_difference(first, back)
-	_check("погода: тени облаков идут по земле", shift > 0.5 and same < 0.05,
-			"кадр с облаками, ушедшими на 350 м, отличается на %.2f из 255; с возвращёнными — на %.3f" % [shift, same])
-	var last_picture := first
-	var change := 0.0
-	for i in 20:
-		weather.show_blend(Weather.Kind.CLEAR, Weather.Kind.RAIN, float(i + 1) / 20.0)
-		await _frames(2)
-		var picture := await _frame_picture()
-		change = maxf(change, _picture_difference(last_picture, picture))
-		last_picture = picture
-	var whole := _picture_difference(first, last_picture)
-	_check("погода: дождь приходит плавно", whole > 3.0 and change < 0.35 * whole,
-			"картинка за весь переход меняется на %.1f из 255, за шаг — не больше %.1f" % [whole, change])
-	weather.set_clear_look(look, true)
+	_check("погода: облака идут по небу", shift > 0.15 and same < 0.05,
+			"кадр с облаками, ушедшими на 900 м, отличается на %.2f из 255; с возвращёнными — на %.3f" % [shift, same])
+
+	# Облаков под камерой нет: и у земли, и с самой большой высоты низ облаков выше камеры.
+	var camera := get_viewport().get_camera_3d()
+	_rig.set_view(CameraView.make(place.view.focus, 100000.0, 0.0, 0.0))
+	await _frames(4)
+	var high_eye := camera.global_position.y
+	var high_gap := weather.cloud_base() - high_eye
+	_rig.set_view(CameraView.make(place.view.focus, StrategyCamera.MIN_DISTANCE, 0.0, 0.0))
+	await _frames(4)
+	var low_gap := weather.cloud_base() - camera.global_position.y
+	_check("погода: облаков под камерой нет", high_gap > 900.0 and low_gap > 900.0,
+			"низ облаков выше камеры на %d м с самой большой высоты (камера на %d м) и на %d м у земли" % [roundi(high_gap), roundi(high_eye), roundi(low_gap)])
+
+	# Море у горизонта переходит в небо без линии: строки кадра чуть ниже и чуть выше горизонта — одного цвета.
+	var far_view := CameraView.make(place.view.focus, 9000.0, 0.0, -54.0)
+	_rig.set_view(far_view)
+	await _frames(8)
+	var clear := await _frame_picture()
+	var forward := -camera.global_transform.basis.z
+	var horizon := camera.unproject_position(camera.global_position + Vector3(forward.x, 0.0, forward.z).normalized() * 90000.0 - Vector3(0.0, camera.global_position.y, 0.0))
+	var line := clampi(roundi(horizon.y), 40, clear.get_height() - 40)
+	var step_at_horizon := 0.0
+	var samples := 0
+	for x in range(clear.get_width() / 5, clear.get_width() * 4 / 5, 16):
+		var above := clear.get_pixel(x, line - 10)
+		var below := clear.get_pixel(x, line + 10)
+		step_at_horizon += 255.0 * maxf(absf(above.r - below.r), maxf(absf(above.g - below.g), absf(above.b - below.b)))
+		samples += 1
+	step_at_horizon /= float(maxi(samples, 1))
+	_check("погода: море у горизонта переходит в небо без линии", step_at_horizon < 9.0,
+			"в ясный день цвет на 10 точек выше и ниже горизонта отличается на %.1f из 255 (в 0.8.0 было около 60)" % step_at_horizon)
+
+	# Шторм виден и без струй дождя: по тучам, свету, морю и видимости (критерий владельца).
+	weather.set_kind(Weather.Kind.STORM, true)
+	await _frames(8)
+	var storm := await _frame_picture()
+	weather.set_drops_shown(false)
+	await _frames(2)
+	var storm_dry := await _frame_picture()
+	var storm_reads := _picture_difference(clear, storm_dry)
+	var drops_part := _picture_difference(storm, storm_dry)
+	_check("погода: шторм виден и без струй дождя", storm_reads > 25.0 and drops_part < 0.2 * storm_reads,
+			"кадр шторма без струй отличается от ясного на %.1f из 255; сами струи меняют кадр на %.2f" % [storm_reads, drops_part])
+	weather.set_drops_shown(true)
+
+	# Молния: разряд виден в кадре, а после него кадр прежний.
+	weather.show_strike(0)
+	await _frames(2)
+	var struck := await _frame_picture()
+	weather.hide_strike()
+	await _frames(2)
+	var after := await _frame_picture()
+	var flash := _picture_difference(storm, struck)
+	var trace := _picture_difference(storm, after)
+	_check("погода: молния видна и гаснет без следа", flash > 1.0 and trace < 0.05,
+			"кадр с разрядом отличается от кадра без него на %.1f из 255; после разряда — на %.3f" % [flash, trace])
 	weather.set_kind(Weather.Kind.CLEAR, true)
 	await _frames(8)
 	get_viewport().scaling_3d_scale = scale
