@@ -35,6 +35,8 @@
 shader_type spatial;
 render_mode world_vertex_coords, cull_back, depth_draw_never;
 
+#include "res://src/world/clouds.gdshaderinc"
+
 uniform sampler2D height_map : filter_linear, repeat_disable;
 uniform vec4 bake_rect;
 // Открытое море: дно известно грубо (карта глубин), сама земля там не нарисована. Над областями суши
@@ -88,6 +90,7 @@ const float SWELL_SOFTEN = 1.3;
 varying vec3 world_position;
 varying vec3 level_normal; // нормаль ровной воды в координатах камеры — для света в толще
 varying float foam_cover;
+varying float in_shade; // тень облака над этой точкой воды
 varying float far_view; // 0 — волны видны все, 1 — смотрим с такой высоты, что волн уже не различить
 
 void vertex() {
@@ -277,7 +280,9 @@ void fragment() {
 	foam_cover_here = max(foam_cover_here, caps * min(whitecaps * 2.0, 1.0) * smoothstep(3.0, 9.0, depth));
 	foam_cover_here = clamp(foam_cover_here * foam, 0.0, 1.0);
 
-	ALBEDO = mix(color, foam_color, foam_cover_here);
+	// Тени облаков идут и по воде (шаг 1.6).
+	in_shade = cloud_shadow(p);
+	ALBEDO = mix(color, foam_color, foam_cover_here) * mix(vec3(1.0), CLOUD_SHADE_TINT, in_shade);
 	// У самого уреза вода прозрачна — сквозь первые сантиметры виден песок берега; дальше дно рисует она сама.
 	ALPHA = max(smoothstep(0.0, 0.22, shore_depth), foam_cover_here);
 	NORMAL = normalize((VIEW_MATRIX * vec4(n, 0.0)).xyz);
@@ -299,5 +304,5 @@ void light() {
 	// С высоты, где волн уже не различить, искра шире и слабее: невидимые мелкие волны размывают отражение светила.
 	float aim = max(dot(NORMAL, normalize(LIGHT + VIEW)), 0.0);
 	float spark = min(pow(aim, mix(3000.0, 320.0, far_view)) * mix(14.0, 0.4, far_view), 1.6) * glitter + pow(aim, 60.0) * sheen;
-	SPECULAR_LIGHT += LIGHT_COLOR / PI * ATTENUATION * spark * (1.0 - foam_cover);
+	SPECULAR_LIGHT += LIGHT_COLOR / PI * ATTENUATION * spark * (1.0 - foam_cover) * (1.0 - in_shade);
 }

@@ -131,6 +131,25 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _frames(12)
 		get_viewport().scaling_3d_scale = 1.0
 
+	# Дождь и шторм (шаг 1.6): остров целиком и взгляд сверху с рабочей высоты. Ясная погода — все кадры выше.
+	if not checks_only and only.is_empty():
+		var tour_weather := _find_weather()
+		for kind: int in [Weather.Kind.RAIN, Weather.Kind.STORM]:
+			tour_weather.set_kind(kind as Weather.Kind, true)
+			get_viewport().scaling_3d_scale = 0.25
+			await _frames(12)
+			for stop in stops:
+				if stop.name.ends_with("ostrov-ot") or stop.name.ends_with("-sverhu"):
+					rig.set_view(stop.view)
+					await _before_shot()
+					var file_name := "5%d-pogoda-%s-%s" % [kind, Weather.CODES[kind], stop.name.substr(3)]
+					await _capture(file_name)
+					print("КАДР %s — %s, %s — отрисовка %d мс" % [file_name, Weather.TITLES[kind], stop.title, _frame_msec])
+		tour_weather.set_kind(Weather.Kind.CLEAR, true)
+		get_viewport().scaling_3d_scale = 0.25
+		await _frames(12)
+		get_viewport().scaling_3d_scale = 1.0
+
 	# Времена суток (ключ --lights=morning,evening,…; шаг 1.4): места из ключей --view снимаются в каждом свете;
 	# без ключей --view — пять мест облёта: остров целиком, горы, взгляд сверху, озеро и взгляд к горизонту.
 	if not lights.is_empty() and waters.is_empty():
@@ -170,14 +189,15 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _frames(12)
 		get_viewport().scaling_3d_scale = 1.0
 
-	# Вода в ясную погоду и в шторм (ключ --weathers=clear,storm; шаг 1.5): в каждой погоде и в каждом времени
-	# суток из --lights (без него — днём) снимаются места облёта, где видна вода, и места из ключей --view.
+	# Погода (ключ --weathers=clear,rain,storm; шаги 1.5 и 1.6): в каждой погоде и в каждом времени суток
+	# из --lights (без него — днём) снимаются места облёта, где видны вода и небо, и места из ключей --view.
 	# С ключом --water-times=20,24,28 каждое место снимается в эти моменты времени воды (секунды) — видно, как
 	# ходит накат; в имени кадра тогда стоит и момент.
 	if not waters.is_empty():
 		var day_light := _find_light()
 		var place_names := PackedStringArray()
 		var place_views: Array[CameraView] = []
+		var weather := _find_weather()
 		for ending: String in ["ostrov-ot", "bereg", "veshka", "ozero-bereg", "gorizont"]:
 			for stop in stops:
 				if stop.name.substr(3) == ending:
@@ -191,9 +211,11 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 				place_views.append(view)
 		var phases := PackedStringArray(["day"]) if lights.is_empty() else lights
 		for water in waters:
-			var stormy := water == "storm"
-			terrain.set_storm(1.0 if stormy else 0.0)
-			day_light.set_storm(1.0 if stormy else 0.0)
+			var kind := Weather.CODES.find(water)
+			if kind < 0:
+				print("КАДРЫ погоды пропущены: непонятная погода «%s»" % water)
+				continue
+			weather.set_kind(kind as Weather.Kind, true)
 			for code in phases:
 				var phase := DayLight.PHASE_CODES.find(code)
 				if phase < 0:
@@ -207,13 +229,12 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 						if not moment.is_empty():
 							terrain.set_water_time(moment.to_float())
 						await _before_shot()
-						var file_name := "voda-%s-%s-%s%s" % [water, code, place_names[i], ("-" + moment) if not moment.is_empty() else ""]
+						var file_name := "pogoda-%s-%s-%s%s" % [water, code, place_names[i], ("-" + moment) if not moment.is_empty() else ""]
 						await _capture(file_name)
-						print("КАДР %s — %s, %s — место %s — отрисовка %d мс" % [file_name, "шторм" if stormy else "ясно",
+						print("КАДР %s — %s, %s — место %s — отрисовка %d мс" % [file_name, Weather.TITLES[kind],
 								DayLight.PHASE_TITLES[phase], place_views[i].to_code(), _frame_msec])
 		terrain.set_water_time(WaterLook.SHOT_TIME)
-		terrain.set_storm(0.0)
-		day_light.set_storm(0.0)
+		weather.set_kind(Weather.Kind.CLEAR, true)
 		day_light.set_phase(DayLight.Phase.DAY, true)
 		get_viewport().scaling_3d_scale = 0.25
 		await _frames(12)
@@ -234,6 +255,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _check_light(stops)
 	if _listed("95-voda", only):
 		await _check_water(stops)
+	if _listed("97-pogoda", only):
+		await _check_weather(stops)
 
 	if not only.is_empty():
 		# Только выбранные кадры: проверки, замер и другие карты не нужны. Отчёт с высотами — для сверки с песочницей.
@@ -260,6 +283,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	_check_islets("")
 	await _check_light(stops)
 	await _check_water(stops)
+	await _check_weather(stops)
 	await _check_cache(stops)
 
 	if quick:
@@ -717,17 +741,15 @@ func _check_water(stops: Array[Tour.Stop]) -> void:
 			("; " + "; ".join(_terrain.swash_leak_places)) if not _terrain.swash_leak_places.is_empty() else ""])
 	_rig.set_view(place.view)
 	await _frames(4)
-	# Шторм набирает силу за двадцать шагов: свет, небо и вода меняются вместе.
+	# Шторм набирает силу за двадцать шагов: свет, небо, облака, дождь и вода меняются вместе.
+	var weather := _find_weather()
 	var last := await _frame_brightness()
 	var calm := last
 	var last_picture := first
 	var jump := 0.0
 	var change := 0.0
 	for i in 20:
-		var share := float(i + 1) / 20.0
-		share = share * share * (3.0 - 2.0 * share)
-		light.set_storm(share)
-		_terrain.set_storm(share)
+		weather.show_blend(Weather.Kind.CLEAR, Weather.Kind.STORM, float(i + 1) / 20.0)
 		await _frames(2)
 		var picture := await _frame_picture()
 		var now := await _frame_brightness()
@@ -740,8 +762,7 @@ func _check_water(stops: Array[Tour.Stop]) -> void:
 			"яркость кадра %.2f → %.2f, самый большой шаг %.3f; картинка за весь переход меняется на %.1f из 255, за шаг — не больше %.1f"
 			% [calm, last, jump, whole_change, change])
 	await _capture("95-shtorm")
-	light.set_storm(0.0)
-	_terrain.set_storm(0.0)
+	weather.set_kind(Weather.Kind.CLEAR, true)
 	await _frames(8)
 	get_viewport().scaling_3d_scale = scale
 
@@ -763,6 +784,57 @@ func _picture_difference(a: Image, b: Image) -> float:
 			total += 255.0 * maxf(absf(one.r - two.r), maxf(absf(one.g - two.g), absf(one.b - two.b)))
 			count += 1
 	return total / float(maxi(count, 1))
+
+
+## Погода (шаг 1.6): тени облаков идут по земле — кадр со сдвинутыми облаками другой, а с возвращёнными тот же;
+## дождь приходит плавно.
+func _check_weather(stops: Array[Tour.Stop]) -> void:
+	var weather := _find_weather()
+	var place: Tour.Stop = null
+	for stop in stops:
+		if stop.name.substr(3) == "sverhu":
+			place = stop
+	if weather == null or place == null:
+		return
+	var scale := get_viewport().scaling_3d_scale
+	get_viewport().scaling_3d_scale = 0.25
+	_rig.set_view(place.view)
+	# Вид с кучевыми облаками: теней больше всего.
+	var look := weather.clear_look()
+	weather.set_clear_look(1, true)
+	await _frames(8)
+	var first := await _frame_picture()
+	weather.push_clouds(350.0)
+	await _frames(2)
+	var moved := await _frame_picture()
+	weather.push_clouds(-350.0)
+	await _frames(2)
+	var back := await _frame_picture()
+	var shift := _picture_difference(first, moved)
+	var same := _picture_difference(first, back)
+	_check("погода: тени облаков идут по земле", shift > 0.5 and same < 0.05,
+			"кадр с облаками, ушедшими на 350 м, отличается на %.2f из 255; с возвращёнными — на %.3f" % [shift, same])
+	var last_picture := first
+	var change := 0.0
+	for i in 20:
+		weather.show_blend(Weather.Kind.CLEAR, Weather.Kind.RAIN, float(i + 1) / 20.0)
+		await _frames(2)
+		var picture := await _frame_picture()
+		change = maxf(change, _picture_difference(last_picture, picture))
+		last_picture = picture
+	var whole := _picture_difference(first, last_picture)
+	_check("погода: дождь приходит плавно", whole > 3.0 and change < 0.35 * whole,
+			"картинка за весь переход меняется на %.1f из 255, за шаг — не больше %.1f" % [whole, change])
+	weather.set_clear_look(look, true)
+	weather.set_kind(Weather.Kind.CLEAR, true)
+	await _frames(8)
+	get_viewport().scaling_3d_scale = scale
+
+
+func _find_weather() -> Weather:
+	for node in get_tree().root.find_children("*", "Weather", true, false):
+		return node
+	return null
 
 
 func _find_light() -> DayLight:

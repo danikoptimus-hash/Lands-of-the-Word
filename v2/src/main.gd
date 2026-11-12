@@ -18,8 +18,6 @@ const WORLD_PATHS: Array[String] = [
 ]
 const WINDOW_TITLE := "Земли Слова — версия 2 (тест)"
 const FOG_DENSITY := 0.000012  ## дымка вблизи; издалека она реже (см. _process)
-## За сколько секунд шторм набирает силу и стихает (клавишей; в игре его начало и конец приходят с сервера).
-const STORM_SECONDS := 8.0
 ## Насыщенность и контраст картинки (клавиша V). Начинаем с «естественно»: владелец сравнил наборы на 0.5.3
 ## и выбрал его («естественный цвет мне нравится больше»); до 0.5.3 первым стояло «сочно».
 const COLOR_PRESETS: Array[Dictionary] = [
@@ -44,8 +42,8 @@ var _hud: Hud
 var _light: DayLight  ## свет и небо: времена суток
 var _sun: DirectionalLight3D
 var _environment: Environment
-var _storm := 0.0  ## шторм: 0 — ясно, 1 — буря; идёт к _storm_target плавно
-var _storm_target := 0.0
+var _weather: Weather  ## погода: облака и их тени, дождь, шторм
+var _clear_look := 0  ## ключ --clouds=N — с какого вида ясной погоды начать
 var _light_code := ""  ## ключ --light=время — с какого времени суток начать
 var _color_preset := 0
 var _render_scale := 0
@@ -79,6 +77,12 @@ func _ready() -> void:
 	add_child(_hud)
 	_rig = StrategyCamera.new()
 	add_child(_rig)
+	_weather = Weather.new()
+	_weather.light = _light
+	_weather.camera = _rig.camera
+	_weather.frozen = not _shots_folder.is_empty()
+	add_child(_weather)
+	_weather.set_clear_look(_clear_look, true)
 
 	_updater = Updater.new()
 	add_child(_updater)
@@ -149,8 +153,6 @@ func _process(_delta: float) -> void:
 	# Вода движется по своему времени; в кадрах проверок оно стоит — кадр с водой получается одним и тем же.
 	if _shots_folder.is_empty():
 		_terrain.advance_water(_delta)
-	if not is_equal_approx(_storm, _storm_target):
-		set_storm(move_toward(_storm, _storm_target, _delta / STORM_SECONDS))
 	# Тени считаются только там, куда смотрит камера: вблизи они резче, издалека покрывают весь мир.
 	# Чем ближе взгляд к горизонту, тем дальше видно — и тем дальше нужны тени.
 	var low := 1.0 - smoothstep(0.1, 0.5, _rig.view_angle())
@@ -219,9 +221,17 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_light.set_phase(next)
 			_hud.toast("Время суток: %s. L — следующее." % DayLight.PHASE_TITLES[next], 4.0)
 		KEY_P:
-			# Погода: ясно ↔ шторм, с плавным переходом (шторм — событие игры; его небо — шаг 1.6).
-			_storm_target = 0.0 if _storm_target > 0.5 else 1.0
-			_hud.toast("Погода: %s. P — обратно." % ("шторм" if _storm_target > 0.5 else "ясно"), 4.0)
+			# Погода: ясно → дождь → шторм, с плавным переходом (шторм — событие игры).
+			var next := ((_weather.kind() + 1) % 3) as Weather.Kind
+			_weather.set_kind(next)
+			_hud.toast("Погода: %s. P — следующая." % Weather.TITLES[next], 4.0)
+		KEY_J:
+			# Вид ясной погоды — на время выбора владельцем (шаг 1.6).
+			_weather.set_clear_look(_weather.clear_look() + 1)
+			if _weather.kind() != Weather.Kind.CLEAR:
+				_weather.set_kind(Weather.Kind.CLEAR)
+			_hud.toast("Ясная погода: %s (%d из %d). J — другая." % [Weather.CLEAR_LOOKS[_weather.clear_look()]["title"],
+					_weather.clear_look() + 1, Weather.CLEAR_LOOKS.size()], 5.0)
 		KEY_T:
 			# Кэш ближнего вида можно выключить и сравнить: картинка должна быть той же, скорость — как в 0.5.3.
 			_terrain.cache_budget = 0 if _terrain.cache_budget > 0 else NearCache.BUDGET
@@ -257,18 +267,6 @@ func _build_light() -> void:
 	_apply_color_preset()
 
 
-## Шторм: 0 — ясно, 1 — буря. Свет, небо и вода уходят в шторм вместе, по плавной кривой.
-func set_storm(share: float) -> void:
-	_storm = clampf(share, 0.0, 1.0)
-	_light.set_storm(_eased(_storm))
-	if _terrain != null:
-		_terrain.set_storm(_eased(_storm))
-
-
-static func _eased(share: float) -> float:
-	return share * share * (3.0 - 2.0 * share)
-
-
 ## Время суток по коду (ключ --light=evening). Сразу, без плавного перехода.
 func _set_light(code: String) -> void:
 	var phase := DayLight.PHASE_CODES.find(code)
@@ -295,6 +293,7 @@ func _load_world(path: String) -> bool:
 		_markers.queue_free()
 		_markers = null
 	if _terrain != null:
+		_weather.terrain = null
 		_terrain.queue_free()
 		_terrain = null
 	_world = world
@@ -313,7 +312,8 @@ func _load_world(path: String) -> bool:
 		_fail("Не удалось построить рельеф: %s.\nВидеокарта: %s" % [_terrain.error, RenderingServer.get_video_adapter_name()])
 		return false
 	_terrain.set_debug_view(_debug_view)
-	_terrain.set_storm(_eased(_storm))
+	_terrain.set_cloud_map(_weather.cloud_map)
+	_weather.terrain = _terrain
 	if not _shots_folder.is_empty():
 		_terrain.set_water_time(WaterLook.SHOT_TIME)
 	if not _shots_folder.is_empty():
@@ -548,6 +548,8 @@ func _read_arguments() -> void:
 			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
 		elif argument.begins_with("--debug-view="):
 			_debug_view = argument.trim_prefix("--debug-view=").to_int()
+		elif argument.begins_with("--clouds="):
+			_clear_look = argument.trim_prefix("--clouds=").to_int()
 		elif argument.begins_with("--render-scale="):
 			# Разрешение картинки мира, проценты (100, 77 или 67), — чтобы кадры проверок были как у игрока: у владельца
 			# 67 % с достройкой до полного, и рисунок воды на точках экрана там другой.

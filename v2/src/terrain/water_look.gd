@@ -56,8 +56,8 @@ const FOAM_SPREAD := 0.1562
 
 ## Текстура ряби: бесшовный шум, переведённый в наклоны поверхности (r, g). Считается один раз при запуске.
 static func make_wave_map() -> ImageTexture:
-	var image := _noise_image(7, WAVE_TEXELS, WAVE_CYCLES, 4, 0.55)
-	var spread := _mean_and_spread(image).y
+	var image := noise_image(7, WAVE_TEXELS, WAVE_CYCLES, 4, 0.55)
+	var spread := mean_and_spread(image).y
 	# Сила наклона: та же, что у прежней текстуры (5 при 7,2 волны на 512 точек), с поправкой на длину волны
 	# в точках текстуры и на разброс высот.
 	image.bump_map_to_normal_map(5.0 * (0.014 * 512.0 / 512.0) / (WAVE_CYCLES / float(WAVE_TEXELS)) * WAVE_SPREAD / maxf(spread, 0.01))
@@ -68,15 +68,15 @@ static func make_wave_map() -> ImageTexture:
 ## Текстура пятен (пена, барашки, дно): бесшовный шум, одно число в точке. Вместе с ней — множитель и сдвиг,
 ## которыми шейдер приводит её значения к прежним среднему и разбросу: [текстура, множитель, сдвиг].
 static func make_foam_map() -> Array:
-	var image := _noise_image(23, FOAM_TEXELS, FOAM_CYCLES, 4, 0.6)
-	var stats := _mean_and_spread(image)
+	var image := noise_image(23, FOAM_TEXELS, FOAM_CYCLES, 4, 0.6)
+	var stats := mean_and_spread(image)
 	var gain := FOAM_SPREAD / maxf(stats.y, 0.01)
 	image.generate_mipmaps()
 	return [ImageTexture.create_from_image(image), gain, FOAM_MEAN - stats.x * gain]
 
 
 ## Бесшовный шум: столько волн на плитку, столько слоёв (каждый следующий вдвое мельче и слабее в gain раз).
-static func _noise_image(seed_value: int, texels: int, cycles: float, octaves: int, gain: float) -> Image:
+static func noise_image(seed_value: int, texels: int, cycles: float, octaves: int, gain: float) -> Image:
 	var noise := FastNoiseLite.new()
 	noise.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
 	noise.seed = seed_value
@@ -91,7 +91,7 @@ static func _noise_image(seed_value: int, texels: int, cycles: float, octaves: i
 
 
 ## Среднее (x) и разброс (y) значений картинки из одного числа в точке, в долях единицы. По каждой тринадцатой точке.
-static func _mean_and_spread(image: Image) -> Vector2:
+static func mean_and_spread(image: Image) -> Vector2:
 	var data := image.get_data()
 	var total := 0.0
 	var squares := 0.0

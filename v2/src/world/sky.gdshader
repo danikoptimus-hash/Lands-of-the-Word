@@ -6,6 +6,8 @@
 // в каждом кадре.
 shader_type sky;
 
+#include "res://src/world/clouds.gdshaderinc"
+
 uniform vec3 top_color : source_color = vec3(0.14, 0.34, 0.74);
 uniform vec3 horizon_color : source_color = vec3(0.6, 0.76, 0.94);
 uniform vec3 ground_color : source_color = vec3(0.3, 0.4, 0.52); // под горизонтом (его закрывает море; нужен отражениям)
@@ -24,6 +26,10 @@ uniform vec3 moon_color : source_color = vec3(0.86, 0.9, 1.0);
 uniform float moon_size = 0.034;
 uniform float moon_strength = 0.0;
 uniform float stars = 0.0; // 0 — звёзд нет, 1 — ясная ночь
+// Облака (шаг 1.6): где они и сколько их — общая карта облаков (clouds.gdshaderinc); здесь — их цвет.
+uniform vec3 cloud_lit : source_color = vec3(1.0, 0.97, 0.92); // сторона к светилу
+uniform vec3 cloud_dark : source_color = vec3(0.55, 0.6, 0.68); // тень и низ
+uniform float cloud_height = 1100.0; // высота облаков, метры
 
 float hash13(vec3 p) {
 	p = fract(p * 0.1031);
@@ -127,6 +133,20 @@ void sky() {
 		color += sun_color * sun_strength * bodies * halo * smoothstep(-0.08, 0.04, below_horizon);
 		float disc_edge = smoothstep(sun_size, sun_size * 0.82, sun_angle);
 		color = mix(color, sun_color * 6.0 * sun_strength, disc_edge * bodies * smoothstep(-0.02, 0.01, below_horizon));
+	}
+
+	// Облака: точка купола над камерой, куда смотрит луч. К горизонту облака тают в дымке; сторона к светилу
+	// светлее, плотная середина темнее.
+	if (below_horizon > 0.0) {
+		float reach = cloud_height / max(direction.y, 0.045);
+		float raw = cloud_raw(cloud_eye.xz + direction.xz * reach);
+		// На небе край облака мягче, чем у его тени; толстая середина темнее — у сплошных туч шторма это
+		// и даёт рисунок.
+		float density = smoothstep(cloud_edge.x - cloud_edge.y * 1.7, cloud_edge.x + cloud_edge.y * 1.7, raw);
+		float thick = smoothstep(cloud_edge.x, cloud_edge.x + cloud_edge.y * 7.0, raw);
+		float toward = dot(direction, to_sun) * 0.5 + 0.5;
+		vec3 cloud_color = mix(cloud_dark, cloud_lit, clamp(0.25 + 0.75 * toward * toward, 0.0, 1.0) * mix(1.0, 0.55, thick));
+		color = mix(color, cloud_color, density * smoothstep(0.0, 0.14, direction.y));
 	}
 
 	// Под горизонтом — цвет «земли» (его закрывает море; нужен отражениям и рассеянному свету снизу).

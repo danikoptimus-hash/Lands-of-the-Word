@@ -76,7 +76,9 @@ var _from: Dictionary  ## вид, из которого идёт переход
 var _to: Dictionary
 var _left := 0.0  ## секунд перехода осталось
 var _grade := Vector3.ONE  ## насыщенность, контраст и яркость поверх вида (клавиша V)
-var _storm := 0.0  ## доля шторма, 0…1
+var _storm := 0.0  ## доля пасмурной погоды, 0…1 (дождь — около половины, шторм — единица)
+var _flash := 0.0  ## вспышка молнии: добавка к яркости картинки
+var _cloud_color := Color.WHITE  ## цвет облаков со стороны светила — для слоя облаков, видного с высоты
 
 
 func _ready() -> void:
@@ -184,7 +186,25 @@ func set_grade(saturation: float, contrast: float, brightness: float) -> void:
 	_apply(_current())
 
 
-## Доля шторма, 0…1: свет и небо уходят в пасмурные (см. storm_view). Меняется плавно — тем, кто зовёт.
+## Карта облаков (weather.gd) — небо рисует по ней облака.
+func set_cloud_map(map: Texture2D) -> void:
+	_sky_material.set_shader_parameter("cloud_map", map)
+
+
+## Цвет облаков со стороны светила (сейчас).
+func cloud_color() -> Color:
+	return _cloud_color
+
+
+## Вспышка молнии: на столько долей ярче картинка (0 — нет). Небо и материалы не трогает.
+func set_flash(value: float) -> void:
+	if is_equal_approx(value, _flash):
+		return
+	_flash = value
+	environment.adjustment_brightness = _grade.z * (1.0 + _flash)
+
+
+## Доля пасмурной погоды, 0…1: свет и небо уходят в пасмурные (см. storm_view). Меняется плавно — тем, кто зовёт.
 func set_storm(share: float) -> void:
 	if is_equal_approx(share, _storm):
 		return
@@ -192,10 +212,9 @@ func set_storm(share: float) -> void:
 	_apply(_current())
 
 
-## Вид в шторм — ВРЕМЕННЫЙ, до шага 1.6 «Атмосфера и погода» (тучи, дождь, ветер, молнии): небо затянуто серым,
-## светило закрыто, свет слабый и рассеянный, тени мягкие, дымка гуще, краски глуше. Нужен уже сейчас, чтобы
-## штормовое море (шаг 1.5) не стояло под ясным солнцем. Серость неба — по яркости неба этого времени суток:
-## ночной шторм темнее дневного.
+## Вид под пасмурным небом (дождь, шторм): небо за облаками серое, светило закрыто, свет слабый и рассеянный,
+## тени мягкие, дымка гуще, краски глуше. Сами тучи рисует небо по карте облаков (weather.gd). Серость — по яркости
+## неба этого времени суток: ночной шторм темнее дневного.
 static func storm_view(view: Dictionary, share: float) -> Dictionary:
 	if share <= 0.0:
 		return view
@@ -203,7 +222,9 @@ static func storm_view(view: Dictionary, share: float) -> Dictionary:
 	var sky_light := clampf((view["sky_horizon"] as Color).get_luminance() * 1.25, 0.1, 1.0)
 	var overcast_top := Color(0.26, 0.3, 0.36) * sky_light
 	var overcast_horizon := Color(0.44, 0.48, 0.53) * sky_light
-	result["light_energy"] = float(view["light_energy"]) * lerpf(1.0, 0.3, share)
+	# Ночью свет и так слабый: тучи гасят луну меньше, чем солнце, — иначе ночной шторм уходит в черноту.
+	var night: bool = view["body"] == "moon"
+	result["light_energy"] = float(view["light_energy"]) * lerpf(1.0, 0.62 if night else 0.3, share)
 	result["light_color"] = (view["light_color"] as Color).lerp(Color(0.74, 0.8, 0.88), share)
 	result["shadow"] = float(view["shadow"]) * lerpf(1.0, 0.4, share)
 	result["sky_top"] = (view["sky_top"] as Color).lerp(overcast_top, share)
@@ -218,7 +239,7 @@ static func storm_view(view: Dictionary, share: float) -> Dictionary:
 	result["fog_color"] = (view["fog_color"] as Color).lerp(overcast_horizon, share)
 	result["fog"] = float(view["fog"]) * lerpf(1.0, 4.0, share)
 	result["saturation"] = float(view["saturation"]) * lerpf(1.0, 0.72, share)
-	result["exposure"] = float(view["exposure"]) * lerpf(1.0, 0.94, share)
+	result["exposure"] = float(view["exposure"]) * lerpf(1.0, 1.08 if night else 0.94, share)
 	return result
 
 
@@ -306,6 +327,13 @@ func _apply(clear_view: Dictionary) -> void:
 	_sky_material.set_shader_parameter("moon_direction", to_moon)
 	_sky_material.set_shader_parameter("moon_strength", view["moon_strength"])
 	_sky_material.set_shader_parameter("stars", view["stars"])
+	# Облака: со стороны светила — его цвет (чуть выбеленный), яркость — по яркости неба этого времени суток;
+	# низ и тень — в цвет неба у горизонта. В шторм тучи темнее.
+	var sky_light := clampf((view["sky_horizon"] as Color).get_luminance() * 1.25, 0.1, 1.0)
+	var dim := lerpf(1.0, 0.6, _storm)
+	_cloud_color = (view["light_color"] as Color).lerp(Color.WHITE, 0.4) * (sky_light * 1.05 * dim)
+	_sky_material.set_shader_parameter("cloud_lit", _cloud_color)
+	_sky_material.set_shader_parameter("cloud_dark", (view["sky_horizon"] as Color).lerp(Color(0.5, 0.52, 0.58) * sky_light, 0.5) * (0.78 * dim))
 
 	environment.ambient_light_color = view["ambient_color"]
 	environment.ambient_light_energy = view["ambient_energy"]
@@ -313,5 +341,5 @@ func _apply(clear_view: Dictionary) -> void:
 	environment.tonemap_exposure = view["exposure"]
 	environment.adjustment_saturation = float(view["saturation"]) * _grade.x
 	environment.adjustment_contrast = float(view["contrast"]) * _grade.y
-	environment.adjustment_brightness = _grade.z
+	environment.adjustment_brightness = _grade.z * (1.0 + _flash)
 	fog = view["fog"]

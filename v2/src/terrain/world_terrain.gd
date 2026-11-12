@@ -493,6 +493,15 @@ func storm() -> float:
 	return _storm
 
 
+## Карта облаков (weather.gd): по ней шейдеры земли и воды кладут тени облаков.
+func set_cloud_map(map: Texture2D) -> void:
+	for region in _regions:
+		if region.material != null:
+			region.material.set_shader_parameter("cloud_map", map)
+	for material in _water_materials:
+		material.set_shader_parameter("cloud_map", map)
+
+
 ## Скорость воды и высота наката (метры): x — в ясную погоду, y — в шторм.
 func set_water_tuning(speed: Vector2, swash: Vector2) -> void:
 	_water_speed = speed

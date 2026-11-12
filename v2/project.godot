@@ -7,7 +7,7 @@ config_version=5
 
 config/name="Земли Слова"
 config/description="Версия 2: тот же мир и те же партии в объёме."
-config/version="0.7.5"
+config/version="0.8.0"
 run/main_scene="res://src/main.tscn"
 config/features=PackedStringArray("4.6", "Forward Plus")
 boot_splash/bg_color=Color(0.086, 0.078, 0.07, 1)
@@ -27,3 +27,30 @@ anti_aliasing/quality/msaa_3d=1
 lights_and_shadows/directional_shadow/size=4096
 lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
 environment/defaults/default_clear_color=Color(0.086, 0.078, 0.07, 1)
+
+[shader_globals]
+
+cloud_drift={
+"type": "vec4",
+"value": Vector4(0, 0, 0, 0)
+}
+cloud_edge={
+"type": "vec2",
+"value": Vector2(2, 0.1)
+}
+cloud_shade={
+"type": "float",
+"value": 0.0
+}
+cloud_sun={
+"type": "vec2",
+"value": Vector2(0, 0)
+}
+cloud_eye={
+"type": "vec3",
+"value": Vector3(0, 0, 0)
+}
+rain_wet={
+"type": "float",
+"value": 0.0
+}
