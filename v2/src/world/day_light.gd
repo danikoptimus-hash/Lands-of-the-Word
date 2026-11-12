@@ -11,7 +11,8 @@ extends Node3D
 ## на границе вечера и ночи солнце гаснет до нуля, и только потом разгорается луна (в сумерках земля освещена
 ## одним небом, как и в природе) — так тени считаются от одного источника, а не от двух.
 ##
-## День — тот самый свет, с которым владелец принимал поверхности (шаг 1.3): его вид здесь не менялся.
+## Виды приняты владельцем 12.11 на тесте 0.6.0: из двух направлений — «естественного» (день как при приёмке
+## поверхностей) и «живописного» — выбрано живописное, для всех четырёх времён суток. Здесь оно одно и осталось.
 
 enum Phase { MORNING, DAY, EVENING, NIGHT }
 
@@ -30,87 +31,46 @@ const SWITCH_SECONDS := 2.5
 ## Утром солнце на востоке (справа, если смотреть на север), вечером — на западе: свет ложится сбоку, и рельеф
 ## читается по теням. Ночью солнце «уходит» под горизонт через север и оттуда же поднимается к утру. Луна стоит
 ## на одном месте неба: проступает в вечерних сумерках и тает на рассвете.
-const LOOKS: Array[Dictionary] = [
-	# ── Направление первое: естественный свет ─────────────────────────────────
-	{
-		"title": "естественный",
-		"morning": {
-			"body": "sun", "sun_azimuth": 97.0, "sun_height": 15.0, "moon_azimuth": 68.0, "moon_height": 26.0,
-			"light_color": Color(1.0, 0.86, 0.68), "light_energy": 1.65, "specular": 0.012, "shadow": 0.9,
-			"sky_top": Color(0.2, 0.42, 0.78), "sky_horizon": Color(0.8, 0.85, 0.92), "sky_ground": Color(0.42, 0.46, 0.54),
-			"glow_color": Color(1.0, 0.84, 0.64), "glow": 0.6, "glow_height": 0.1, "glow_reach": 0.45, "sun_strength": 1.0, "moon_strength": 0.0, "stars": 0.0,
-			"ambient_color": Color(0.74, 0.8, 0.94), "ambient_energy": 0.58, "fog_color": Color(0.86, 0.88, 0.92), "fog": 1.4,
-			"exposure": 1.08, "saturation": 1.0, "contrast": 1.0,
-		},
-		"day": {
-			"body": "sun", "sun_azimuth": 254.3, "sun_height": 35.6, "moon_azimuth": 68.0, "moon_height": 26.0,
-			"light_color": Color(1.0, 0.95, 0.86), "light_energy": 2.0, "specular": 1.0, "shadow": 1.0,
-			"sky_top": Color(0.14, 0.34, 0.74), "sky_horizon": Color(0.6, 0.76, 0.94), "sky_ground": Color(0.3, 0.4, 0.52),
-			"glow_color": Color(1.0, 0.9, 0.7), "glow": 0.0, "glow_height": 0.18, "glow_reach": 0.5, "sun_strength": 0.8, "moon_strength": 0.0, "stars": 0.0,
-			"ambient_color": Color(0.93, 0.92, 0.88), "ambient_energy": 0.58, "fog_color": Color(0.66, 0.79, 0.93), "fog": 1.0,
-			"exposure": 1.1, "saturation": 1.0, "contrast": 1.0,
-		},
-		"evening": {
-			"body": "sun", "sun_azimuth": 281.0, "sun_height": 12.0, "moon_azimuth": 68.0, "moon_height": 26.0,
-			"light_color": Color(1.0, 0.73, 0.47), "light_energy": 1.75, "specular": 0.012, "shadow": 0.92,
-			"sky_top": Color(0.1, 0.21, 0.5), "sky_horizon": Color(0.72, 0.64, 0.64), "sky_ground": Color(0.3, 0.3, 0.4),
-			"glow_color": Color(1.0, 0.56, 0.24), "glow": 0.85, "glow_height": 0.13, "glow_reach": 0.5, "sun_strength": 1.2, "moon_strength": 0.0, "stars": 0.0,
-			"ambient_color": Color(0.68, 0.66, 0.8), "ambient_energy": 0.72, "fog_color": Color(0.8, 0.62, 0.54), "fog": 1.2,
-			"exposure": 1.06, "saturation": 1.03, "contrast": 1.0,
-		},
-		"night": {
-			"body": "moon", "sun_azimuth": 0.0, "sun_height": -30.0, "moon_azimuth": 68.0, "moon_height": 26.0,
-			"light_color": Color(0.72, 0.8, 1.0), "light_energy": 0.66, "specular": 0.03, "shadow": 0.85,
-			"sky_top": Color(0.018, 0.04, 0.12), "sky_horizon": Color(0.06, 0.11, 0.22), "sky_ground": Color(0.02, 0.03, 0.06),
-			"glow_color": Color(0.1, 0.16, 0.3), "glow": 0.0, "glow_height": 0.18, "glow_reach": 0.5, "sun_strength": 0.0, "moon_strength": 1.0, "stars": 1.0,
-			"ambient_color": Color(0.42, 0.5, 0.7), "ambient_energy": 0.66, "fog_color": Color(0.07, 0.11, 0.2), "fog": 1.0,
-			"exposure": 1.1, "saturation": 0.75, "contrast": 1.0,
-		},
+const LOOKS: Dictionary = {
+	"morning": {
+		"body": "sun", "sun_azimuth": 97.0, "sun_height": 13.0, "moon_azimuth": 68.0, "moon_height": 26.0,
+		"light_color": Color(1.0, 0.78, 0.62), "light_energy": 1.8, "specular": 0.015, "shadow": 0.95,
+		"sky_top": Color(0.28, 0.42, 0.84), "sky_horizon": Color(1.0, 0.78, 0.76), "sky_ground": Color(0.5, 0.46, 0.58),
+		"glow_color": Color(1.0, 0.66, 0.56), "glow": 0.8, "glow_height": 0.16, "glow_reach": 0.6, "sun_strength": 1.2, "moon_strength": 0.0, "stars": 0.0,
+		"ambient_color": Color(0.7, 0.66, 0.94), "ambient_energy": 0.6, "fog_color": Color(0.96, 0.82, 0.84), "fog": 2.0,
+		"exposure": 1.1, "saturation": 1.1, "contrast": 1.03,
 	},
-	# ── Направление второе: живописный свет ───────────────────────────────────
-	{
-		"title": "живописный",
-		"morning": {
-			"body": "sun", "sun_azimuth": 97.0, "sun_height": 13.0, "moon_azimuth": 68.0, "moon_height": 26.0,
-			"light_color": Color(1.0, 0.78, 0.62), "light_energy": 1.8, "specular": 0.015, "shadow": 0.95,
-			"sky_top": Color(0.28, 0.42, 0.84), "sky_horizon": Color(1.0, 0.78, 0.76), "sky_ground": Color(0.5, 0.46, 0.58),
-			"glow_color": Color(1.0, 0.66, 0.56), "glow": 0.8, "glow_height": 0.16, "glow_reach": 0.6, "sun_strength": 1.2, "moon_strength": 0.0, "stars": 0.0,
-			"ambient_color": Color(0.7, 0.66, 0.94), "ambient_energy": 0.6, "fog_color": Color(0.96, 0.82, 0.84), "fog": 2.0,
-			"exposure": 1.1, "saturation": 1.1, "contrast": 1.03,
-		},
-		"day": {
-			"body": "sun", "sun_azimuth": 254.3, "sun_height": 35.6, "moon_azimuth": 68.0, "moon_height": 26.0,
-			"light_color": Color(1.0, 0.93, 0.8), "light_energy": 2.15, "specular": 1.0, "shadow": 1.0,
-			"sky_top": Color(0.08, 0.3, 0.78), "sky_horizon": Color(0.55, 0.78, 0.98), "sky_ground": Color(0.28, 0.42, 0.58),
-			"glow_color": Color(1.0, 0.9, 0.7), "glow": 0.0, "glow_height": 0.18, "glow_reach": 0.5, "sun_strength": 0.9, "moon_strength": 0.0, "stars": 0.0,
-			"ambient_color": Color(0.8, 0.88, 1.0), "ambient_energy": 0.62, "fog_color": Color(0.62, 0.8, 0.98), "fog": 1.0,
-			"exposure": 1.1, "saturation": 1.12, "contrast": 1.04,
-		},
-		"evening": {
-			"body": "sun", "sun_azimuth": 284.0, "sun_height": 10.0, "moon_azimuth": 68.0, "moon_height": 26.0,
-			"light_color": Color(1.0, 0.62, 0.36), "light_energy": 1.9, "specular": 0.015, "shadow": 0.9,
-			"sky_top": Color(0.16, 0.11, 0.44), "sky_horizon": Color(0.95, 0.52, 0.44), "sky_ground": Color(0.34, 0.24, 0.4),
-			"glow_color": Color(1.0, 0.42, 0.14), "glow": 1.0, "glow_height": 0.2, "glow_reach": 0.62, "sun_strength": 1.4, "moon_strength": 0.0, "stars": 0.0,
-			"ambient_color": Color(0.64, 0.58, 0.88), "ambient_energy": 0.86, "fog_color": Color(0.9, 0.54, 0.5), "fog": 1.5,
-			"exposure": 1.08, "saturation": 1.12, "contrast": 1.0,
-		},
-		"night": {
-			"body": "moon", "sun_azimuth": 0.0, "sun_height": -30.0, "moon_azimuth": 68.0, "moon_height": 26.0,
-			"light_color": Color(0.5, 0.78, 1.0), "light_energy": 0.72, "specular": 0.04, "shadow": 0.9,
-			"sky_top": Color(0.015, 0.05, 0.16), "sky_horizon": Color(0.05, 0.17, 0.32), "sky_ground": Color(0.02, 0.04, 0.09),
-			"glow_color": Color(0.1, 0.2, 0.36), "glow": 0.0, "glow_height": 0.18, "glow_reach": 0.5, "sun_strength": 0.0, "moon_strength": 1.2, "stars": 1.3,
-			"ambient_color": Color(0.22, 0.44, 0.7), "ambient_energy": 0.62, "fog_color": Color(0.05, 0.12, 0.22), "fog": 1.0,
-			"exposure": 1.1, "saturation": 0.95, "contrast": 1.02,
-		},
+	"day": {
+		"body": "sun", "sun_azimuth": 254.3, "sun_height": 35.6, "moon_azimuth": 68.0, "moon_height": 26.0,
+		"light_color": Color(1.0, 0.93, 0.8), "light_energy": 2.15, "specular": 1.0, "shadow": 1.0,
+		"sky_top": Color(0.08, 0.3, 0.78), "sky_horizon": Color(0.55, 0.78, 0.98), "sky_ground": Color(0.28, 0.42, 0.58),
+		"glow_color": Color(1.0, 0.9, 0.7), "glow": 0.0, "glow_height": 0.18, "glow_reach": 0.5, "sun_strength": 0.9, "moon_strength": 0.0, "stars": 0.0,
+		"ambient_color": Color(0.8, 0.88, 1.0), "ambient_energy": 0.62, "fog_color": Color(0.62, 0.8, 0.98), "fog": 1.0,
+		"exposure": 1.1, "saturation": 1.12, "contrast": 1.04,
 	},
-]
+	"evening": {
+		"body": "sun", "sun_azimuth": 284.0, "sun_height": 10.0, "moon_azimuth": 68.0, "moon_height": 26.0,
+		"light_color": Color(1.0, 0.62, 0.36), "light_energy": 1.9, "specular": 0.015, "shadow": 0.9,
+		"sky_top": Color(0.16, 0.11, 0.44), "sky_horizon": Color(0.95, 0.52, 0.44), "sky_ground": Color(0.34, 0.24, 0.4),
+		"glow_color": Color(1.0, 0.42, 0.14), "glow": 1.0, "glow_height": 0.2, "glow_reach": 0.62, "sun_strength": 1.4, "moon_strength": 0.0, "stars": 0.0,
+		"ambient_color": Color(0.64, 0.58, 0.88), "ambient_energy": 0.86, "fog_color": Color(0.9, 0.54, 0.5), "fog": 1.5,
+		"exposure": 1.08, "saturation": 1.12, "contrast": 1.0,
+	},
+	"night": {
+		"body": "moon", "sun_azimuth": 0.0, "sun_height": -30.0, "moon_azimuth": 68.0, "moon_height": 26.0,
+		"light_color": Color(0.5, 0.78, 1.0), "light_energy": 0.72, "specular": 0.04, "shadow": 0.9,
+		"sky_top": Color(0.015, 0.05, 0.16), "sky_horizon": Color(0.05, 0.17, 0.32), "sky_ground": Color(0.02, 0.04, 0.09),
+		"glow_color": Color(0.1, 0.2, 0.36), "glow": 0.0, "glow_height": 0.18, "glow_reach": 0.5, "sun_strength": 0.0, "moon_strength": 1.2, "stars": 1.3,
+		"ambient_color": Color(0.22, 0.44, 0.7), "ambient_energy": 0.62, "fog_color": Color(0.05, 0.12, 0.22), "fog": 1.0,
+		"exposure": 1.1, "saturation": 0.95, "contrast": 1.02,
+	},
+}
 
 var sun: DirectionalLight3D  ## светило: солнце днём, луна ночью
 var environment: Environment
 var fog := 1.0  ## во сколько раз дымка гуще обычной в это время суток (сама густота зависит ещё от высоты камеры)
 
 var _sky_material: ShaderMaterial
-var _variant := 0
 var _phase := Phase.DAY
 var _from: Dictionary  ## вид, из которого идёт переход
 var _to: Dictionary
@@ -180,17 +140,9 @@ func phase() -> Phase:
 	return _phase
 
 
-func variant() -> int:
-	return _variant
-
-
-func variant_title() -> String:
-	return LOOKS[_variant]["title"]
-
-
-## Вид времени суток в выбранном направлении.
+## Вид времени суток.
 func look(of: Phase) -> Dictionary:
-	return LOOKS[_variant][PHASE_CODES[of]]
+	return LOOKS[PHASE_CODES[of]]
 
 
 ## Переключить время суток: плавно (как клавишей) или сразу (для кадров).
@@ -198,14 +150,6 @@ func set_phase(to: Phase, instant := false) -> void:
 	_from = _current()
 	_phase = to
 	_to = look(to)
-	_start(instant)
-
-
-## Переключить направление (на время выбора владельцем).
-func set_variant(index: int, instant := false) -> void:
-	_from = _current()
-	_variant = posmod(index, LOOKS.size())
-	_to = look(_phase)
 	_start(instant)
 
 

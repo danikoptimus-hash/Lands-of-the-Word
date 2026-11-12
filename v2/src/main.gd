@@ -42,7 +42,7 @@ var _hud: Hud
 var _light: DayLight  ## свет и небо: времена суток
 var _sun: DirectionalLight3D
 var _environment: Environment
-var _light_code := ""  ## ключ --light=время:направление — с каким светом начать
+var _light_code := ""  ## ключ --light=время — с какого времени суток начать
 var _color_preset := 0
 var _render_scale := 0
 var _render_scale_chosen := false  ## игрок выбрал разрешение сам (клавиша B): само оно больше не меняется
@@ -207,10 +207,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			var next := ((_light.phase() + 1) % 4) as DayLight.Phase
 			_light.set_phase(next)
 			_hud.toast("Время суток: %s. L — следующее." % DayLight.PHASE_TITLES[next], 4.0)
-		KEY_J:
-			# Направление света — на время выбора владельцем (шаг 1.4).
-			_light.set_variant(_light.variant() + 1)
-			_hud.toast("Свет: %s (%d из %d). J — другой." % [_light.variant_title(), _light.variant() + 1, DayLight.LOOKS.size()], 4.0)
 		KEY_T:
 			# Кэш ближнего вида можно выключить и сравнить: картинка должна быть той же, скорость — как в 0.5.3.
 			_terrain.cache_budget = 0 if _terrain.cache_budget > 0 else NearCache.BUDGET
@@ -234,8 +230,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 # ── Сцена ────────────────────────────────────────────────────────────────────
 
-## Свет и небо — узел DayLight (шаг 1.4): утро, день, вечер, ночь и плавные переходы между ними. День — тот свет,
-## с которым владелец принимал поверхности. Дымка слабая (замечание владельца 11.11: «чтобы это не было мыльное
+## Свет и небо — узел DayLight (шаг 1.4): утро, день, вечер, ночь и плавные переходы между ними. Дымка слабая (замечание владельца 11.11: «чтобы это не было мыльное
 ## туманное нечто»); её густота зависит ещё и от высоты камеры (см. _process).
 func _build_light() -> void:
 	_light = DayLight.new()
@@ -247,13 +242,9 @@ func _build_light() -> void:
 	_apply_color_preset()
 
 
-## Время суток и направление света по записи «время:направление» (ключ --light=evening:1; направление можно
-## не указывать). Сразу, без плавного перехода.
+## Время суток по коду (ключ --light=evening). Сразу, без плавного перехода.
 func _set_light(code: String) -> void:
-	var parts := code.split(":")
-	var phase := DayLight.PHASE_CODES.find(parts[0])
-	if parts.size() > 1:
-		_light.set_variant(parts[1].to_int(), true)
+	var phase := DayLight.PHASE_CODES.find(code)
 	if phase >= 0:
 		_light.set_phase(phase as DayLight.Phase, true)
 

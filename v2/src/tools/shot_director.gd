@@ -121,7 +121,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _frames(12)
 		get_viewport().scaling_3d_scale = 1.0
 
-	# Времена суток (ключ --lights=время:направление,…; шаг 1.4): места из ключей --view снимаются в каждом свете;
+	# Времена суток (ключ --lights=morning,evening,…; шаг 1.4): места из ключей --view снимаются в каждом свете;
 	# без ключей --view — пять мест облёта: остров целиком, горы, взгляд сверху, озеро и взгляд к горизонту.
 	if not lights.is_empty():
 		var light := _find_light()
@@ -140,21 +140,21 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 						place_views.append(stop.view)
 						break
 		for code in lights:
-			var parts := code.split(":")
-			var variant := parts[1].to_int() if parts.size() > 1 else 0
-			light.set_variant(variant, true)
-			light.set_phase(DayLight.PHASE_CODES.find(parts[0]) as DayLight.Phase, true)
+			var phase := DayLight.PHASE_CODES.find(code)
+			if phase < 0:
+				print("КАДРЫ света пропущены: непонятное время суток «%s»" % code)
+				continue
+			light.set_phase(phase as DayLight.Phase, true)
 			# Небо для отражений и рассеянного света пересчитывается за несколько кадров.
 			get_viewport().scaling_3d_scale = 0.25
 			await _frames(12)
 			for i in place_views.size():
 				rig.set_view(place_views[i])
 				await _before_shot()
-				var file_name := "svet-%s-%d-%s" % [parts[0], variant, place_names[i]]
+				var file_name := "svet-%s-%s" % [code, place_names[i]]
 				await _capture(file_name)
-				print("КАДР %s — %s, свет «%s» — место %s — отрисовка %d мс" % [file_name,
-						DayLight.PHASE_TITLES[light.phase()], light.variant_title(), place_views[i].to_code(), _frame_msec])
-		light.set_variant(0, true)
+				print("КАДР %s — %s — место %s — отрисовка %d мс" % [file_name,
+						DayLight.PHASE_TITLES[phase], place_views[i].to_code(), _frame_msec])
 		light.set_phase(DayLight.Phase.DAY, true)
 		get_viewport().scaling_3d_scale = 0.25
 		await _frames(12)
