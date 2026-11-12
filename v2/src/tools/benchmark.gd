@@ -2,17 +2,27 @@ class_name Benchmark
 extends Node
 ## Замер скорости (клавиша F5): камера сама облетает мир, программа считает кадры в секунду
 ## и собирает отчёт о компьютере. Отчёт копируется в буфер обмена — его можно вставить в чат.
+##
+## В конце — «разбор»: в нескольких местах облёта кадры считаются ещё по разу без одной из частей картинки
+## (без материалов земли, без теней, без сглаживания краёв, в половине разрешения). Насколько от этого растёт
+## скорость — столько эта часть и стоит на этом компьютере. Без разбора о скорости у игрока приходилось гадать:
+## в рабочей среде картинку считает процессор, и доли там другие.
 
 signal finished(report: String)
 
 const WARMUP_FRAMES := 12
+const BREAKDOWN_SECONDS := 1.2
+## Где делается разбор — имена мест облёта без номера: самое тяжёлое вблизи, самое близкое приближение,
+## взгляд сверху с рабочей высоты стратегии и остров целиком.
+const BREAKDOWN_STOPS: Array[String] = ["gory-vblizi", "veshka", "sverhu", "ostrov-ot"]
 
 var running := false
 var time_scale := 1.0  ## меньше единицы — короче облёт (так конвейер проверяет сам замер)
 
 
 ## Сопрограмма.
-func run(world: WorldData, rig: StrategyCamera, height_map: HeightMap = null) -> void:
+func run(world: WorldData, rig: StrategyCamera, height_map: HeightMap = null, terrain: WorldTerrain = null,
+		sun: DirectionalLight3D = null) -> void:
 	if running:
 		return
 	running = true
@@ -48,11 +58,71 @@ func run(world: WorldData, rig: StrategyCamera, height_map: HeightMap = null) ->
 			all_ms.append(frame_ms)
 		lines.append("  %s: %d к/с" % [stops[i].title, roundi(_fps(leg_ms))])
 
+	if terrain != null and sun != null:
+		var breakdown: PackedStringArray = await _breakdown(stops, rig, terrain, sun)
+		if not breakdown.is_empty():
+			lines.append("Разбор, к/с: как есть → земля ровным цветом / без теней / без сглаживания / пол-разрешения")
+			lines.append_array(breakdown)
+
 	DisplayServer.window_set_vsync_mode(vsync)
 	rig.set_view(saved)
 	rig.input_enabled = true
 	running = false
 	finished.emit(_report(all_ms, lines))
+
+
+## Разбор по частям картинки (см. начало файла). Сопрограмма; всё изменённое возвращается как было.
+func _breakdown(stops: Array[Tour.Stop], rig: StrategyCamera, terrain: WorldTerrain, sun: DirectionalLight3D) -> PackedStringArray:
+	var lines := PackedStringArray()
+	var viewport := get_viewport()
+	var msaa := viewport.msaa_3d
+	var scale := viewport.scaling_3d_scale
+	var shadows := sun.shadow_enabled
+	# В короткой проверке (конвейер, программная отрисовка) — одно место.
+	var endings := BREAKDOWN_STOPS if time_scale > 0.5 else BREAKDOWN_STOPS.slice(0, 1)
+	for ending in endings:
+		var stop: Tour.Stop = null
+		for candidate in stops:
+			if candidate.name.substr(3) == ending:
+				stop = candidate
+				break
+		if stop == null:
+			continue
+		rig.set_view(stop.view)
+		var as_is: float = await _fps_now()
+		terrain.set_flat(true)
+		var flat: float = await _fps_now()
+		terrain.set_flat(false)
+		sun.shadow_enabled = false
+		var no_shadows: float = await _fps_now()
+		sun.shadow_enabled = shadows
+		viewport.msaa_3d = Viewport.MSAA_DISABLED
+		var no_msaa: float = await _fps_now()
+		viewport.msaa_3d = msaa
+		viewport.scaling_3d_scale = scale * 0.5
+		var half: float = await _fps_now()
+		viewport.scaling_3d_scale = scale
+		lines.append("  %s: %d → %d / %d / %d / %d" % [stop.title, roundi(as_is), roundi(flat), roundi(no_shadows), roundi(no_msaa), roundi(half)])
+	return lines
+
+
+## Кадров в секунду прямо сейчас: несколько кадров на разгон (после смены настройки видеокарта собирает шейдеры —
+## это не должно попасть в счёт), потом счёт. Сопрограмма.
+func _fps_now() -> float:
+	var short := time_scale < 0.5
+	var warm_frames := 1 if short else 4
+	var warm_until := Time.get_ticks_usec() + (0 if short else 300000)
+	while warm_frames > 0 or Time.get_ticks_usec() < warm_until:
+		await get_tree().process_frame
+		warm_frames -= 1
+	var need := 1 if short else 3
+	var frames := 0
+	var start := Time.get_ticks_usec()
+	var until := start + (0 if short else int(BREAKDOWN_SECONDS * 1.0e6))
+	while frames < need or Time.get_ticks_usec() < until:
+		await get_tree().process_frame
+		frames += 1
+	return 1.0e6 * float(frames) / maxf(float(Time.get_ticks_usec() - start), 1.0)
 
 
 static func _fps(frames_ms: PackedFloat32Array) -> float:

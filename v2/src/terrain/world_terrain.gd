@@ -5,7 +5,8 @@ extends Node3D
 ## вдали — редкая. Переход между уровнями плавный: перед сменой сетки её точки сами съезжаются в положение
 ## более редкой (шейдер terrain_surface), поэтому рельеф не «перещёлкивает».
 ## Поверхности (шаг 1.3): вместе с рельефом по тем же областям запекается описание земли — что за земля в каждой
-## точке (bake_ground.gdshader); шейдер земли по нему смешивает материалы (terrain_surface.gdshader).
+## точке (bake_ground.gdshader, сток воды — drainage.gd), а по нему — картинка земли: какие материалы на ней лежат
+## (bake_surface.gdshader). Шейдер земли в кадре только читает готовое (terrain_surface.gdshader).
 
 const SURFACE_SHADER := preload("res://src/terrain/terrain_surface.gdshader")
 const WATER_SHADER := preload("res://src/terrain/water_clay.gdshader")
@@ -17,7 +18,9 @@ const NOISE := preload("res://assets/terrain/noise.png")
 const CHUNK := 256.0  ## сторона плитки, метры
 const TEXEL := 2.0  ## точность запекания суши, метров на точку
 const GROUND_TEXEL := 4.0  ## точность описания земли: доли местностей меняются плавно, мелкое добавляет шейдер
-const MAX_INNER_ISLETS := 4  ## столько малых островов внутри области главных островов знает шейдер земли
+const SURFACE_TEXEL := 2.0  ## точность картинки земли: материалы точки, затенение, готовый дальний вид
+const TONE_TEXEL := 4.0  ## точность тона земли (сухость, цветение, оттенок песка): меняется плавно
+const MAX_ISLETS := 8  ## столько малых островов в одной области знает шейдер картинки земли
 const MARGIN := 520.0  ## запас моря вокруг главных островов
 const ISLET_MARGIN := 260.0  ## запас моря вокруг малого острова
 ## Области запекаются с запасом по краю: на стыке двух областей обе берут высоту из середины своей текстуры,
@@ -54,10 +57,16 @@ class Region:
 	var material: ShaderMaterial  ## земля
 	var water_material: ShaderMaterial  ## вода над областью
 	var baker: TerrainBaker  ## нужен, пока расставляем озёра
-	var ground_a: Texture2D  ## описание земли: доли местностей
+	var ground_a: Texture2D  ## описание земли: доли местностей (нужно, пока запекается картинка)
 	var ground_b: Texture2D  ## описание земли: озеро рядом, от уреза моря, камень, оазис
 	var ground_c: Texture2D  ## сток воды по рельефу (drainage.gd)
 	var islet: WorldData.Islet  ## малый остров области (у области главных островов — пусто)
+	## Картинка земли (bake_surface.gdshader): три главных материала точки, их доли, тон, затенение, дальний вид.
+	var splat_index: Texture2D
+	var splat_weight: Texture2D
+	var surface_tone: Texture2D
+	var surface_shade: Texture2D
+	var surface_color: Texture2D
 
 
 var height_map: HeightMap  ## высоты главных островов; малые острова — в его extras
@@ -67,10 +76,13 @@ var bake_rect := Rect2()  ## область главных островов
 var ocean_rect := Rect2()  ## область карты глубин
 var bake_ms := 0.0
 var drainage_ms := 0.0  ## из них — расчёт стока воды на процессоре
+var surface_ms := 0.0  ## и запекание картинки земли
 var error := ""
 
 var _regions: Array[Region] = []
-var _inner_islets: Array[WorldData.Islet] = []  ## малые острова, запечённые внутри области главных островов
+## Области в порядке, в каком они получают плитки мира: сначала области малых островов, потом главные острова.
+## Так малый остров целиком рисуется из своей области — и не разрезан границей плиток пополам.
+var _owners: Array[Region] = []
 var _owned := {}  ## плитки мира Vector2i(x, z) / CHUNK, над которыми вода своей области (остальное — открытое море)
 var _lod_meshes: Array[ArrayMesh] = []
 var _chunks: Array[Chunk] = []
@@ -78,6 +90,7 @@ var _viewer := Vector3.ZERO
 var _viewer_known := false
 var _grid_visible := true
 var _debug_view := 0
+var _flat_shader: Shader
 
 
 ## Сопрограмма: строит землю по данным мира. true — готово, иначе причина в error.
@@ -87,12 +100,10 @@ func build(world: WorldData) -> bool:
 	var areas: Array[Rect2] = [main_area]
 	var titles: Array[String] = ["главные острова"]
 	var owners: Array[WorldData.Islet] = [null]
-	_inner_islets.clear()
 	for islet in world.islets:
 		var area := _snap(islet.area().grow(ISLET_MARGIN))
 		if main_area.encloses(area):
-			_inner_islets.append(islet)  # остров целиком в области главных островов: запечён вместе с ними
-			continue
+			continue  # остров целиком в области главных островов: запечён вместе с ними
 		if areas.size() >= MAX_AREAS:
 			push_error("Малых островов вне главной области больше, чем запекается отдельно")
 			break
@@ -147,6 +158,18 @@ func build(world: WorldData) -> bool:
 		height_map.extras.append(_regions[i].height_map)
 		height_map.highest = maxf(height_map.highest, _regions[i].height_map.highest)
 
+	# Картинка земли: по описанию земли каждой области. Снеговая линия — от самой высокой горы карты, поэтому
+	# картинка запекается, когда высоты всех областей уже известны.
+	var surface_started := Time.get_ticks_usec()
+	for region in _regions:
+		var painted: bool = await _bake_surface(world, region)
+		if not painted:
+			return false
+	surface_ms = float(Time.get_ticks_usec() - surface_started) / 1000.0
+
+	for i in range(1, _regions.size()):
+		_owners.append(_regions[i])
+	_owners.append(_regions[0])
 	for region in _regions:
 		region.material = _make_terrain_material(world, region)
 		region.water_material = _make_water_material(region.baker.texture, region.baked)
@@ -196,6 +219,16 @@ func is_grid_visible() -> bool:
 ## Проверка географии (для разработчика): 1 — влажность, 2 — сток, 3 — крутизна, 4 — ложбины и гребни; 0 — картинка.
 func debug_view() -> int:
 	return _debug_view
+
+
+## Для замера по частям: земля тем же рельефом, но одним цветом, без материалов (сколько стоит шейдер земли).
+func set_flat(flat: bool) -> void:
+	if _flat_shader == null:
+		var code := SURFACE_SHADER.code
+		_flat_shader = Shader.new()
+		_flat_shader.code = code.substr(0, code.find("void fragment()")) + "void fragment() {\n\tALBEDO = vec3(0.4, 0.45, 0.3);\n\tROUGHNESS = 0.85;\n}\n"
+	for region in _regions:
+		region.material.shader = _flat_shader if flat else SURFACE_SHADER
 
 
 func set_debug_view(view: int) -> void:
@@ -249,36 +282,74 @@ func _make_terrain_material(world: WorldData, region: Region) -> ShaderMaterial:
 	world.apply_hex_uniforms(material)
 	material.set_shader_parameter("height_map", region.baker.texture)
 	material.set_shader_parameter("normal_map", region.baker.texture)
-	material.set_shader_parameter("ground_a", region.ground_a)
-	material.set_shader_parameter("ground_b", region.ground_b)
-	material.set_shader_parameter("ground_c", region.ground_c)
 	material.set_shader_parameter("noise_shift", world.noise_offset())
 	material.set_shader_parameter("debug_view", _debug_view)
-	# Снеговая линия — от самой высокой горы карты: на любой карте у высоких гор есть белые шапки.
-	# Снег — только на самых высоких вершинах карты (замечание владельца к 0.5.0: не у всех гор снежные шапки).
-	material.set_shader_parameter("snow_line", clampf(height_map.highest * 0.8, 95.0, 140.0))
 	material.set_shader_parameter("layer_albedo", LAYER_ALBEDO)
 	material.set_shader_parameter("layer_normal", LAYER_NORMAL)
 	material.set_shader_parameter("noise_map", NOISE)
-	# Порода: у малого острова — своя; острова внутри области главных шейдер узнаёт по месту.
-	if region.islet != null:
-		material.set_shader_parameter("islet_region", true)
-		material.set_shader_parameter("rock_kind", int(WorldData.DESIGN_ROCK.get(region.islet.design, 0)))
-	else:
-		var inner := PackedVector4Array()
-		inner.resize(MAX_INNER_ISLETS)
-		var inner_count := mini(_inner_islets.size(), MAX_INNER_ISLETS)
-		for i in inner_count:
-			var islet := _inner_islets[i]
-			inner[i] = Vector4(islet.position.x, islet.position.y, islet.reach() + 60.0, float(WorldData.DESIGN_ROCK.get(islet.design, 0)))
-		material.set_shader_parameter("inner_islets", inner)
-		material.set_shader_parameter("inner_count", inner_count)
+	material.set_shader_parameter("splat_index", region.splat_index)
+	material.set_shader_parameter("splat_weight", region.splat_weight)
+	material.set_shader_parameter("surface_tone", region.surface_tone)
+	material.set_shader_parameter("surface_shade", region.surface_shade)
+	material.set_shader_parameter("surface_color", region.surface_color)
+	material.set_shader_parameter("splat_texel", SURFACE_TEXEL)
 	material.set_shader_parameter("bake_rect", Vector4(region.baked.position.x, region.baked.position.y, region.baked.size.x, region.baked.size.y))
 	material.set_shader_parameter("skirt_depth", SKIRT)
 	material.set_shader_parameter("grid_strength", 0.5 if _grid_visible else 0.0)
 	material.set_shader_parameter("lod_distance", Vector2(LOD_DISTANCE[0], LOD_DISTANCE[1]))
 	material.set_shader_parameter("morph_start", MORPH_START)
 	return material
+
+
+## Сопрограмма: картинка земли области — пять текстур (см. bake_surface.gdshader). После неё описание земли
+## области больше не нужно и освобождается.
+func _bake_surface(world: WorldData, region: Region) -> bool:
+	# Малые острова, чья суша заходит в область: у каждого своя порода, и остров узнаётся по месту.
+	var islets := PackedVector4Array()
+	islets.resize(MAX_ISLETS)
+	var islet_count := 0
+	for islet in world.islets:
+		var reach := islet.reach() + 60.0
+		var nearest := Vector2(
+				clampf(islet.position.x, region.baked.position.x, region.baked.end.x),
+				clampf(islet.position.y, region.baked.position.y, region.baked.end.y))
+		if nearest.distance_to(islet.position) > reach or islet_count >= MAX_ISLETS:
+			continue
+		islets[islet_count] = Vector4(islet.position.x, islet.position.y, reach, float(WorldData.DESIGN_ROCK.get(islet.design, 0)))
+		islet_count += 1
+	var parameters := {
+		"height_map": region.baker.texture,
+		"ground_a": region.ground_a,
+		"ground_b": region.ground_b,
+		"ground_c": region.ground_c,
+		"noise_map": NOISE,
+		"layer_albedo": LAYER_ALBEDO,
+		"noise_shift": world.noise_offset(),
+		# Снег — только на самых высоких вершинах карты (замечание владельца к 0.5.0: не у всех гор снежные шапки).
+		"snow_line": clampf(height_map.highest * 0.8, 95.0, 140.0),
+		"islets": islets,
+		"islet_count": islet_count,
+		"debug_view": _debug_view,
+	}
+	for part in 5:
+		var baker := TerrainBaker.new()
+		add_child(baker)
+		var done: bool = await baker.bake_surface(region.baked, TONE_TEXEL if part == 2 else SURFACE_TEXEL, part, parameters)
+		if not done:
+			error = "%s, картинка земли — %s" % [region.title, baker.error]
+			return false
+		var texture := baker.take_texture(part == 4)
+		match part:
+			0: region.splat_index = texture
+			1: region.splat_weight = texture
+			2: region.surface_tone = texture
+			3: region.surface_shade = texture
+			4: region.surface_color = texture
+		baker.queue_free()
+	region.ground_a = null
+	region.ground_b = null
+	region.ground_c = null
+	return true
 
 
 func _make_water_material(texture: Texture2D, area: Rect2) -> ShaderMaterial:
@@ -291,9 +362,10 @@ func _make_water_material(texture: Texture2D, area: Rect2) -> ShaderMaterial:
 
 ## Плитки земли и вода над ними. Плитка мира принадлежит первой области, в которую попала: области
 ## могут перекрываться (малый остров рядом с главным), а земля и вода не должны рисоваться дважды.
+## Первыми плитки получают области малых островов (см. _owners).
 func _build_chunks() -> void:
 	var coarsest := _lod_meshes.size() - 1
-	for region in _regions:
+	for region in _owners:
 		var columns := roundi(region.area.size.x / CHUNK)
 		var rows := roundi(region.area.size.y / CHUNK)
 		var water_tiles := PackedFloat32Array()
@@ -407,7 +479,7 @@ static func _make_quads(tiles: PackedFloat32Array) -> ArrayMesh:
 
 ## Область, которой принадлежит точка (та же, что рисует там землю и воду).
 func _region_at(point: Vector2) -> Region:
-	for region in _regions:
+	for region in _owners:
 		if region.area.has_point(point):
 			return region
 	return null
@@ -415,7 +487,7 @@ func _region_at(point: Vector2) -> Region:
 
 ## Область, в запечённом квадрате которой прямоугольник лежит целиком (иначе — та, где его середина).
 func _region_holding(rect: Rect2) -> Region:
-	for region in _regions:
+	for region in _owners:
 		if region.baked.encloses(rect):
 			return region
 	return _region_at(rect.get_center())

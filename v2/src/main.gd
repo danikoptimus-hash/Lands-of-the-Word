@@ -205,7 +205,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_hud.close_report()
 			_hud.set_help_open(false)
 			_hud.toast("Идёт замер скорости: камера облетает мир…", 30.0)
-			_benchmark.run(_world, _rig, _terrain.height_map)
+			_benchmark.run(_world, _rig, _terrain.height_map, _terrain, _sun)
 
 
 # ── Сцена ────────────────────────────────────────────────────────────────────
@@ -245,9 +245,11 @@ func _build_light() -> void:
 	environment.tonemap_mode = Environment.TONE_MAPPER_AGX
 	environment.tonemap_exposure = 1.1
 	environment.tonemap_agx_contrast = 1.3
-	environment.ssao_enabled = true
-	environment.ssao_radius = 9.0
-	environment.ssao_intensity = 2.0
+	# Затенение впадин (SSAO) выключено: ради него шейдер земли выполнялся в каждом кадре дважды — отдельным
+	# проходом для нормалей. Замер по частям на 0.5.1: это 38 % времени кадра вблизи. Впадины затеняет сама
+	# картинка земли — по форме рельефа (bake_surface.gdshader). К затенению от домов и деревьев вернёмся
+	# на шаге 1.4 «Свет».
+	environment.ssao_enabled = false
 	environment.fog_enabled = true
 	environment.fog_light_color = Color(0.66, 0.79, 0.93)
 	environment.fog_density = FOG_DENSITY
@@ -292,6 +294,8 @@ func _load_world(path: String) -> bool:
 	_hud.set_loading("Лепим землю…")
 	_terrain = WorldTerrain.new()
 	add_child(_terrain)
+	# География запекается в картинку земли, поэтому проверочный вид задаётся до постройки.
+	_terrain.set_debug_view(_debug_view)
 	var built: bool = await _terrain.build(_world)
 	if not built:
 		_fail("Не удалось построить рельеф: %s.\nВидеокарта: %s" % [_terrain.error, RenderingServer.get_video_adapter_name()])
@@ -306,8 +310,8 @@ func _load_world(path: String) -> bool:
 
 	_hud.set_loading("")
 	_ready_to_play = true
-	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс (сток воды — %.0f мс); высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
-		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms, _terrain.drainage_ms,
+	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс (сток воды — %.0f мс, картинка земли — %.0f мс); высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
+		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms, _terrain.drainage_ms, _terrain.surface_ms,
 		_terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count(), _world.islets.size()])
 	return true
 

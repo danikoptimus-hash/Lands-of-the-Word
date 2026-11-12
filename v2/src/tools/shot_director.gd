@@ -35,8 +35,11 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	var quick := false
 	var checks_only := false
 	var only := PackedStringArray()
+	var profile_views := PackedStringArray()
 	for argument in OS.get_cmdline_user_args():
-		if argument == "--quick":
+		if argument.begins_with("--profile="):
+			profile_views = argument.trim_prefix("--profile=").split(";", false)
+		elif argument == "--quick":
 			quick = true
 		elif argument == "--checks":
 			quick = true
@@ -44,6 +47,11 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		elif argument.begins_with("--stops="):
 			only = argument.trim_prefix("--stops=").split(",", false)
 	await _frames(4)
+
+	if not profile_views.is_empty():
+		await _profile(profile_views)
+		get_tree().quit(0)
+		return
 
 	var preview := terrain.height_map.to_preview()
 	preview.save_png(folder.path_join("vysoty.png"))
@@ -128,9 +136,9 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 
 	# Замер скорости и снимок: проверяем, что клавиши F5 и F2 делают своё дело (сам замер здесь короткий).
 	benchmark.time_scale = 0.05
-	benchmark.run(world, rig, terrain.height_map)
+	benchmark.run(world, rig, terrain.height_map, terrain, _find_sun())
 	var report: String = await benchmark.finished
-	_check("замер скорости даёт отчёт", report.contains("Кадров в секунду"), "%d строк" % report.split("\n").size())
+	_check("замер скорости даёт отчёт с разбором", report.contains("Кадров в секунду") and report.contains("Разбор"), "%d строк" % report.split("\n").size())
 	print("ОТЧЁТ ЗАМЕРА:\n" + report)
 	benchmark.time_scale = 1.0
 	get_viewport().scaling_3d_scale = 1.0
@@ -320,6 +328,60 @@ func _check_mountain_camera(stops: Array) -> void:
 	_check("камера у гор идёт плавно и не уходит в склон", pan_jolt < 0.6 and zoom_jolt < 1.2 and turns <= 2 and lowest > 3.0,
 			"толчок по высоте за 1/60 с: при проходе %.2f м, при приближении %.2f м; разворотов рывком %d; ближе всего к земле %.1f м"
 			% [pan_jolt, zoom_jolt, turns, lowest])
+
+
+## Замер по частям (ключ --profile=место;место…): сколько времени кадра уходит на шейдер земли и на тени, и сколько
+## стоили бы затенение впадин (SSAO) и сглаживание краёв в четыре прохода. Кадр считается несколько раз, каждый раз
+## с одной изменённой настройкой; разница — её цена. В рабочей среде картинку считает процессор, поэтому числа —
+## не скорость у игрока, а доли: что дорого. Так на 0.5.1 нашлось, что затенение впадин заставляло шейдер земли
+## выполняться дважды (38 % кадра вблизи).
+func _profile(views: PackedStringArray) -> void:
+	var sun := _find_sun()
+	var environment := get_viewport().world_3d.environment
+	if environment == null:
+		for node in get_tree().root.find_children("*", "WorldEnvironment", true, false):
+			environment = (node as WorldEnvironment).environment
+	var viewport := get_viewport()
+	var msaa := viewport.msaa_3d
+	var ssao := environment.ssao_enabled
+	viewport.scaling_3d_scale = 1.0
+	for code in views:
+		var view := CameraView.from_code(code)
+		if view == null:
+			print("ЗАМЕР пропущен: непонятный код места «%s»" % code)
+			continue
+		_rig.set_view(view)
+		await _frames(3)
+		var whole := await _frame_cost()
+		sun.shadow_enabled = false
+		var no_shadows := await _frame_cost()
+		sun.shadow_enabled = true
+		environment.ssao_enabled = not ssao
+		var other_ssao := await _frame_cost()
+		environment.ssao_enabled = ssao
+		viewport.msaa_3d = Viewport.MSAA_4X
+		var msaa_four := await _frame_cost()
+		viewport.msaa_3d = msaa
+		_terrain.set_flat(true)
+		var flat := await _frame_cost()
+		_terrain.set_flat(false)
+		print("ЗАМЕР %s: кадр %.0f мс; из них шейдер земли %.0f мс (%.0f %%), тени %.0f мс; затенение впадин %s бы %.0f мс; сглаживание в четыре прохода добавило бы %.0f мс"
+				% [code, whole, whole - flat, 100.0 * (whole - flat) / whole, whole - no_shadows,
+				"убавило" if ssao else "добавило", absf(other_ssao - whole), msaa_four - whole])
+
+
+func _find_sun() -> DirectionalLight3D:
+	for node in get_tree().root.find_children("*", "DirectionalLight3D", true, false):
+		return node
+	return null
+
+
+## Среднее время кадра, мс (первые два кадра после смены настроек в счёт не идут).
+func _frame_cost(frames := 3) -> float:
+	await _frames(2)
+	var started := Time.get_ticks_usec()
+	await _frames(frames)
+	return float(Time.get_ticks_usec() - started) / 1000.0 / float(frames)
 
 
 ## Высота камеры над землёй под ней.
