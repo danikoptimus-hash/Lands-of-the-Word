@@ -432,6 +432,19 @@ func _check_cache(stops: Array[Tour.Stop]) -> void:
 	var second := await _cache_against_direct("92-kesh-posle-proezda")
 	_check("кэш ближнего вида: после проезда камеры картинка та же", second["mean"] < 5.0 and second["far"] < 0.01,
 			"среднее отличие %.2f из 255, заметно отличается %.2f %% точек; посчитано клеток %.0f млн" % [second["mean"], 100.0 * second["far"], float(_terrain.cache().cells_done) / 1.0e6])
+	# Сколько стоит само обслуживание кэша на процессоре (без счёта клеток): камера стоит и камера летит.
+	var eye := _rig.camera.global_position
+	var focus := _rig.current_focus()
+	var pixel := _rig.pixel_size(float(get_window().size.y))
+	var started := Time.get_ticks_usec()
+	for i in 400:
+		_terrain.update_cache(eye, focus, pixel, 0.016)
+	var resting := float(Time.get_ticks_usec() - started) / 400.0
+	started = Time.get_ticks_usec()
+	for i in 400:
+		_terrain.update_cache(eye + Vector3(40.0 * float(i), 0.0, 0.0), focus + Vector2(40.0 * float(i), 0.0), pixel, 0.016)
+	var flying := float(Time.get_ticks_usec() - started) / 400.0
+	print("КЭШ: обслуживание на процессоре — %.0f мкс на кадр, когда камера стоит, %.0f мкс в полёте" % [resting, flying])
 	_terrain.cache_budget = budget
 	get_viewport().scaling_3d_scale = scale
 	await _frames(2)
