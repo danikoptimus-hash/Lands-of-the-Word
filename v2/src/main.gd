@@ -44,7 +44,6 @@ var _hud: Hud
 var _light: DayLight  ## свет и небо: времена суток
 var _sun: DirectionalLight3D
 var _environment: Environment
-var _water_look := 0  ## ключ --water=N — с какого вида воды начать
 var _storm := 0.0  ## шторм: 0 — ясно, 1 — буря; идёт к _storm_target плавно
 var _storm_target := 0.0
 var _light_code := ""  ## ключ --light=время — с какого времени суток начать
@@ -217,11 +216,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			var next := ((_light.phase() + 1) % 4) as DayLight.Phase
 			_light.set_phase(next)
 			_hud.toast("Время суток: %s. L — следующее." % DayLight.PHASE_TITLES[next], 4.0)
-		KEY_J:
-			# Вид воды — на время выбора владельцем (шаг 1.5).
-			_water_look = posmod(_water_look + 1, WaterLook.LOOKS.size())
-			_terrain.set_water_look(_water_look)
-			_hud.toast("Вода: %s (%d из %d). J — другая." % [WaterLook.LOOKS[_water_look]["title"], _water_look + 1, WaterLook.LOOKS.size()], 4.0)
 		KEY_P:
 			# Погода: ясно ↔ шторм, с плавным переходом (шторм — событие игры; его небо — шаг 1.6).
 			_storm_target = 0.0 if _storm_target > 0.5 else 1.0
@@ -316,7 +310,6 @@ func _load_world(path: String) -> bool:
 		_fail("Не удалось построить рельеф: %s.\nВидеокарта: %s" % [_terrain.error, RenderingServer.get_video_adapter_name()])
 		return false
 	_terrain.set_debug_view(_debug_view)
-	_terrain.set_water_look(_water_look)
 	_terrain.set_storm(_eased(_storm))
 	if not _shots_folder.is_empty():
 		_terrain.set_water_time(WaterLook.SHOT_TIME)
@@ -552,8 +545,6 @@ func _read_arguments() -> void:
 			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
 		elif argument.begins_with("--debug-view="):
 			_debug_view = argument.trim_prefix("--debug-view=").to_int()
-		elif argument.begins_with("--water="):
-			_water_look = clampi(argument.trim_prefix("--water=").to_int(), 0, WaterLook.LOOKS.size() - 1)
 		elif argument.begins_with("--light="):
 			_light_code = argument.trim_prefix("--light=")
 		elif argument.begins_with("--view="):

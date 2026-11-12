@@ -50,8 +50,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 			only = argument.trim_prefix("--stops=").split(",", false)
 		elif argument.begins_with("--lights="):
 			lights = argument.trim_prefix("--lights=").split(",", false)
-		elif argument.begins_with("--waters="):
-			waters = argument.trim_prefix("--waters=").split(",", false)
+		elif argument.begins_with("--weathers="):
+			waters = argument.trim_prefix("--weathers=").split(",", false)
 	await _frames(4)
 
 	if not profile_views.is_empty():
@@ -163,9 +163,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _frames(12)
 		get_viewport().scaling_3d_scale = 1.0
 
-	# Виды воды (ключ --waters=0,1,2; шаг 1.5): в каждом виде воды и в каждом времени суток из --lights (без него —
-	# днём) снимаются места облёта, где видна вода, и места из ключей --view. Буква s после номера (--waters=0,0s) —
-	# та же вода в шторм.
+	# Вода в ясную погоду и в шторм (ключ --weathers=clear,storm; шаг 1.5): в каждой погоде и в каждом времени
+	# суток из --lights (без него — днём) снимаются места облёта, где видна вода, и места из ключей --view.
 	if not waters.is_empty():
 		var day_light := _find_light()
 		var place_names := PackedStringArray()
@@ -183,8 +182,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 				place_views.append(view)
 		var phases := PackedStringArray(["day"]) if lights.is_empty() else lights
 		for water in waters:
-			var stormy := water.ends_with("s")
-			terrain.set_water_look(water.trim_suffix("s").to_int())
+			var stormy := water == "storm"
 			terrain.set_storm(1.0 if stormy else 0.0)
 			day_light.set_storm(1.0 if stormy else 0.0)
 			for code in phases:
@@ -199,10 +197,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 					await _before_shot()
 					var file_name := "voda-%s-%s-%s" % [water, code, place_names[i]]
 					await _capture(file_name)
-					print("КАДР %s — вода «%s»%s, %s — место %s — отрисовка %d мс" % [file_name,
-							WaterLook.LOOKS[terrain.water_look()]["title"], ", шторм" if stormy else "", DayLight.PHASE_TITLES[phase],
-							place_views[i].to_code(), _frame_msec])
-		terrain.set_water_look(0)
+					print("КАДР %s — %s, %s — место %s — отрисовка %d мс" % [file_name, "шторм" if stormy else "ясно",
+							DayLight.PHASE_TITLES[phase], place_views[i].to_code(), _frame_msec])
 		terrain.set_storm(0.0)
 		day_light.set_storm(0.0)
 		day_light.set_phase(DayLight.Phase.DAY, true)

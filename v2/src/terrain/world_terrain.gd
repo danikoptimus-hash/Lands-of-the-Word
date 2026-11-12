@@ -99,10 +99,9 @@ var _cache_focus_known := false
 var cache_budget := NearCache.BUDGET
 
 var _water_materials: Array[ShaderMaterial] = []  ## вода областей и открытого моря
-var _water_look := 0
 var _storm := 0.0  ## доля шторма в виде воды, 0…1
 var _water_time := 0.0  ## накопленное время воды (секунды, умноженные на её скорость)
-var _wave_map: ImageTexture  ## рябь и пятна пены — одни на всю воду
+var _wave_maps: Array[ImageTexture] = []  ## наклоны и высота волн, пятна пены — одни на всю воду
 var _foam_map: ImageTexture
 
 
@@ -400,31 +399,22 @@ func _bake_surface(world: WorldData, region: Region) -> bool:
 
 
 func _make_water_material(texture: Texture2D, area: Rect2) -> ShaderMaterial:
-	if _wave_map == null:
-		_wave_map = WaterLook.make_wave_map()
+	if _wave_maps.is_empty():
+		_wave_maps = WaterLook.make_wave_maps()
 		_foam_map = WaterLook.make_foam_map()
 	var material := ShaderMaterial.new()
 	material.shader = WATER_SHADER
 	material.set_shader_parameter("height_map", texture)
 	material.set_shader_parameter("bake_rect", Vector4(area.position.x, area.position.y, area.size.x, area.size.y))
-	material.set_shader_parameter("wave_map", _wave_map)
+	material.set_shader_parameter("wave_map", _wave_maps[0])
+	material.set_shader_parameter("wave_heights", _wave_maps[1])
 	material.set_shader_parameter("foam_map", _foam_map)
 	WaterLook.apply(material, water_now())
 	_water_materials.append(material)
 	return material
 
 
-## Вид воды (на время выбора владельцем их несколько).
-func set_water_look(index: int) -> void:
-	_water_look = posmod(index, WaterLook.LOOKS.size())
-	_apply_water()
-
-
-func water_look() -> int:
-	return _water_look
-
-
-## Доля шторма в воде, 0…1: волнение, цвет, пена и барашки перетекают от штиля к шторму.
+## Доля шторма в воде, 0…1: волнение, цвет, пена и большие волны перетекают от штиля к шторму.
 func set_storm(share: float) -> void:
 	if is_equal_approx(share, _storm):
 		return
@@ -432,10 +422,13 @@ func set_storm(share: float) -> void:
 	_apply_water()
 
 
-## Вид воды сейчас: выбранный вид, смешанный со своим штормом.
+func storm() -> float:
+	return _storm
+
+
+## Вид воды сейчас: между штилем и штормом.
 func water_now() -> Dictionary:
-	var calm: Dictionary = WaterLook.LOOKS[_water_look]
-	return WaterLook.blend(calm, WaterLook.storm_of(calm), _storm)
+	return WaterLook.at(_storm)
 
 
 ## Вода ушла вперёд на delta секунд — со своей скоростью: в шторм она быстрее.
