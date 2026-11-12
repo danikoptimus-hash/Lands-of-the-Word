@@ -13,6 +13,13 @@
 //              а не движком: на ровной воде блик движка был белым столбом на треть экрана.
 // Отражение неба добавляет движок — по шероховатости и нормали.
 //
+// Без повтора. Рисунок ряби, зыби и пены берётся из текстур, а текстура повторяется плиткой. Чтобы плитка
+// не читалась и с высоты (замечание владельца к 0.7.2: «когда отдаляю море, замечаю закономерность повторения
+// рисунка моря»): в плитке текстуры — десятки волн, а не семь (плитка ряби — 64 м, а не 11; зыби — почти
+// километр); слои повёрнуты друг к другу под «некруглыми» углами; точка, по которой читается текстура, плавно
+// сдвинута шумом, который нигде не повторяется, — ряды плиток перестают быть рядами; всё крупное (луга водорослей
+// на дне, оттенки открытого моря, очерёдность наката вдоль берега) задаёт тот же шум, а не текстура.
+//
 // Какова вода, задают числа вида (water_look.gd); шторм — те же числа, только другие, и между штилем
 // и штормом они перетекают плавно. Время — параметр, а не TIME: его копит world_terrain.gd, умножая на скорость
 // воды (иначе при смене скорости вся рябь прыгнула бы), а в кадрах проверок оно стоит.
@@ -30,7 +37,11 @@ uniform bool open_sea = false;
 instance uniform float water_level = 0.0; // обычный уровень воды: море — 0, у озера свой
 
 uniform sampler2D wave_map : filter_linear_mipmap_anisotropic, repeat_enable; // наклон ряби (r, g), бесшовный
-uniform sampler2D foam_map : filter_linear_mipmap, repeat_enable; // пятна для пены, дна и оттенков, бесшовный
+uniform sampler2D foam_map : filter_linear_mipmap, repeat_enable; // пятна для пены и дна, бесшовный
+uniform float wave_cycles = 42.0; // сколько волн шума укладывается в плитку текстуры ряби
+uniform float foam_cycles = 40.0; // и в плитку текстуры пятен
+uniform float foam_gain = 1.0; // значения текстуры пятен приводятся к среднему и разбросу, с которыми принят вид воды
+uniform float foam_bias = 0.0;
 uniform float water_time = 0.0; // накопленное время воды, секунды
 uniform float swash_time = 0.0; // время наката, секунды по часам: у наката свой ровный ритм, от скорости воды не зависит
 uniform vec2 wind = vec2(0.87, 0.5); // куда идут рябь и зыбь (единичный вектор по x и z): с запада-северо-запада
@@ -47,9 +58,9 @@ uniform vec3 bed_rock : source_color = vec3(0.27, 0.27, 0.25); // камень �
 uniform float deepening = 0.045; // как быстро цвет густеет с глубиной, 1/м
 uniform float murk = 0.35; // мутность: как быстро толща воды скрывает дно, 1/м (в шторм вода мутная)
 uniform float ripple = 0.5; // сила мелкой ряби
-uniform float ripple_size = 14.0; // размер её рисунка, метры
+uniform float ripple_size = 1.5; // длина её волны, метры
 uniform float swell = 0.3; // сила крупной зыби: длинные гряды, идущие по ветру
-uniform float swell_size = 170.0; // расстояние между грядами, метры
+uniform float swell_size = 21.0; // расстояние между грядами, метры (гряды втрое длиннее)
 uniform float relief = 0.4; // насколько рябь видна светом и тенью (0 — вода ровного цвета)
 uniform float swash = 0.3; // накат: на сколько метров по высоте вода взбегает на берег
 uniform float foam = 1.0; // сколько пены
@@ -69,6 +80,44 @@ varying float foam_cover;
 
 void vertex() {
 	world_position = VERTEX;
+}
+
+// Два случайных числа клетки, 0…1. Целочисленная смесь: одинакова на любой видеокарте и не теряет точности
+// вдали от начала мира (море уходит за сто километров).
+vec2 cell_random(ivec2 cell) {
+	uint h = uint(cell.x) * 1597334677u ^ uint(cell.y) * 1103515245u;
+	h ^= h >> 15u;
+	h *= 668265263u;
+	h ^= h >> 13u;
+	h *= 374761393u;
+	h ^= h >> 16u;
+	return vec2(float(h & 65535u), float(h >> 16u)) / 65535.0;
+}
+
+// Плавный шум без повтора: два числа в точке, 0…1; at — в клетках шума.
+vec2 drift(vec2 at) {
+	vec2 cell = floor(at);
+	vec2 f = at - cell;
+	f = f * f * (3.0 - 2.0 * f);
+	ivec2 c = ivec2(cell);
+	return mix(mix(cell_random(c), cell_random(c + ivec2(1, 0)), f.x),
+			mix(cell_random(c + ivec2(0, 1)), cell_random(c + ivec2(1, 1)), f.x), f.y);
+}
+
+// Точка в повёрнутых осях: turn — косинус и синус угла.
+vec2 turned(vec2 at, vec2 turn) {
+	return vec2(at.x * turn.x + at.y * turn.y, at.y * turn.x - at.x * turn.y);
+}
+
+// Наклон ряби в точке: рисунок текстуры повёрнут на угол turn, плитка — tile метров.
+vec2 ripples(vec2 at, vec2 turn, float tile) {
+	vec2 lean = texture(wave_map, turned(at, turn) / tile).rg * 2.0 - 1.0;
+	return vec2(lean.x * turn.x - lean.y * turn.y, lean.x * turn.y + lean.y * turn.x);
+}
+
+// Значение текстуры пятен, приведённое к среднему и разбросу, с которыми принят вид воды.
+float spots(vec2 uv) {
+	return texture(foam_map, uv).r * foam_gain + foam_bias;
 }
 
 void fragment() {
@@ -96,18 +145,32 @@ void fragment() {
 	vec2 py = dFdy(p);
 	float footprint = length(abs(px) + abs(py));
 
-	// Пятна: мелкие, средние и большие. Ими разбита пена, размечено дно и чуть тронут цвет открытого моря.
-	float grain = texture(foam_map, (p - wind * 0.1 * t) / 11.0).r;
-	float breakup = texture(foam_map, (p - wind * 0.2 * t) / 53.0).r;
-	float patch = texture(foam_map, p / 230.0).r;
+	// ── Без повтора ──
+	// Плавный шум, который нигде не повторяется: большой (километры), средний (сотни метров) и малый.
+	vec2 wide = drift(p / 1300.0);
+	vec2 mid = drift(p / 180.0);
+	vec2 small = drift(p / 22.0);
+	// Точки, по которым читаются текстуры, сдвинуты этим шумом: на десятки метров — для ряби и пены, на сотню —
+	// для зыби. Сдвиг стоит на месте, рисунок плывёт сквозь него и чуть меняется по дороге.
+	vec2 pr = p + (mid - 0.5) * 28.0 + (wide - 0.5) * 80.0;
+	vec2 pz = p + (wide - 0.5) * 220.0 + (mid - 0.5) * 30.0;
+
+	// Пятна: мелкие и средние — из текстуры, большие — из шума. Ими разбита пена и размечено дно.
+	float grain = spots(turned(pr - wind * 0.1 * t, vec2(0.8253, 0.5646)) / (1.95 * foam_cycles));
+	float breakup = spots((pr - wind * 0.2 * t) / (9.4 * foam_cycles));
+	float patch = small.x * 0.6 + mid.y * 0.4;
 
 	// ── Накат ──
 	// Глубина при обычном уровне (у берега выше уреза — отрицательная) и уровень сейчас. Волна взбегает быстро,
-	// откатывается медленно, раз в десять секунд; соседние участки берега (сотни метров) живут не в такт.
+	// откатывается медленно, раз в десять секунд. Очерёдность вдоль берега задаёт шум: на сотне метров берега
+	// волна приходит почти разом, дальше — в свой черёд; по всему берегу разом (как в 0.7.2) она не ходит.
+	// И каждая волна своей высоты — от двух третей до полной.
 	float still_depth = water_level - bed;
 	float depth = max(still_depth, 0.0);
-	float beat = fract(swash_time / 10.0 + patch * 0.8);
+	float turn_of_wave = swash_time / 10.0 + mid.x * 1.6 + wide.y * 4.0;
+	float beat = fract(turn_of_wave);
 	float surge = smoothstep(0.0, 0.3, beat) * (1.0 - smoothstep(0.3, 1.0, beat));
+	surge *= 0.67 + 0.33 * cell_random(ivec2(int(floor(turn_of_wave)), 17)).x;
 	// Озеро не взбегает на берег (его вода рисуется только в своей котловине) — оно едва дышит у кромки.
 	float level = is_lake ? -0.15 * swash * surge : swash * (surge * 1.25 - 0.25);
 	float shore_depth = max(still_depth + level, 0.0);
@@ -115,19 +178,21 @@ void fragment() {
 	// ── Рябь и зыбь ──
 	// Оба слоя ряби идут по ветру, под небольшим углом друг к другу и с разной скоростью: рисунок плывёт
 	// и понемногу меняется. Навстречу друг другу слои «кипели» — море выглядело неестественно быстрым
-	// (замечание владельца к 0.7.0 и 0.7.1).
+	// (замечание владельца к 0.7.0 и 0.7.1). Рисунки слоёв повёрнуты на 24° и −52°: их плитки не совпадают.
 	// Озёра спокойнее моря, у самого берега вода тише.
 	float calm = (is_lake ? 0.4 : 1.0) * mix(0.3, 1.0, smoothstep(0.2, 4.0, depth));
 	vec2 way1 = normalize(wind + across * 0.35);
 	vec2 way2 = normalize(wind - across * 0.45);
-	vec2 r1 = texture(wave_map, (p - way1 * 0.35 * t) / ripple_size).rg * 2.0 - 1.0;
-	vec2 r2 = texture(wave_map, (p - way2 * 0.5 * t).yx / (ripple_size * 2.3)).gr * 2.0 - 1.0;
+	float ripple_tile = ripple_size * wave_cycles;
+	vec2 r1 = ripples(pr - way1 * 0.35 * t, vec2(0.9135, 0.4067), ripple_tile);
+	vec2 r2 = ripples(pr - way2 * 0.5 * t, vec2(0.6157, -0.788), ripple_tile * 2.37);
 	vec2 slope = (r1 + r2) * ripple;
 	// Зыбь: гряды втрое длиннее расстояния между ними, идут по ветру. Передний склон гряды — где быть барашкам.
 	float front = 0.0;
 	if (!is_lake) {
-		vec2 q = vec2(dot(p, wind), dot(p, across)) / vec2(swell_size, swell_size * 3.0);
-		vec2 lean = texture(wave_map, q - vec2(0.03 * t, 0.0)).rg * 2.0 - 1.0;
+		float swell_tile = swell_size * wave_cycles;
+		vec2 q = vec2(dot(pz, wind) - 4.5 * t, dot(pz, across)) / vec2(swell_tile, swell_tile * 3.0);
+		vec2 lean = texture(wave_map, q).rg * 2.0 - 1.0;
 		slope += (wind * lean.x + across * (lean.y / 3.0)) * swell;
 		front = lean.x;
 	}
@@ -139,7 +204,7 @@ void fragment() {
 	float dark = 1.0 - exp(-depth * (is_lake ? deepening * 3.0 : deepening));
 	vec3 water = mix(shallow_color, is_lake ? lake_color : deep_color, dark);
 	// Открытое море не ровная заливка: большие пятна чуть светлее и темнее.
-	water *= mix(0.94, 1.06, texture(foam_map, p / 870.0 + vec2(0.0006, 0.0004) * t).r);
+	water *= mix(0.94, 1.06, mid.y * 0.6 + wide.x * 0.4);
 
 	// ── Дно ──
 	// Дно рисует сама вода — по глубине из запечённого рельефа (в открытом море — из грубой карты глубин), поэтому
@@ -157,8 +222,9 @@ void fragment() {
 		floor_color = mix(floor_color, bed_rock, smoothstep(0.3, 0.55, bed_steep));
 		floor_color *= 0.9 + 0.2 * grain;
 		// Солнечная сетка на мелководье: два слоя пятен плывут навстречу, свет — где они сходятся.
-		float net = textureGrad(foam_map, (p - wind * 0.25 * t) / 5.0, px / 5.0, py / 5.0).r
-				* textureGrad(foam_map, (p.yx + across * 0.2 * t) / 6.3, px.yx / 6.3, py.yx / 6.3).r;
+		float net_tile = 0.89 * foam_cycles;
+		float net = (textureGrad(foam_map, (p - wind * 0.25 * t) / net_tile, px / net_tile, py / net_tile).r * foam_gain + foam_bias)
+				* (textureGrad(foam_map, (p.yx + across * 0.2 * t) / (net_tile * 1.26), px.yx / (net_tile * 1.26), py.yx / (net_tile * 1.26)).r * foam_gain + foam_bias);
 		floor_color *= 1.0 + smoothstep(0.26, 0.42, net) * 0.3 * (1.0 - smoothstep(0.2, 2.6, depth));
 		// Чем больше воды над дном, тем меньше его видно.
 		color = mix(floor_color, water, veil);

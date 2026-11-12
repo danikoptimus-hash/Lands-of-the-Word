@@ -221,7 +221,7 @@ func _build_title() -> void:
 
 func _build_hint() -> void:
 	var box := _panel(Control.SIZE_SHRINK_BEGIN, Control.SIZE_SHRINK_END)
-	box.add_child(_label("F1 — управление  ·  F2 — снимок  ·  F5 — замер скорости  ·  L — время суток  ·  P — шторм  ·  U — настройка моря  ·  G — сетка  ·  V — цвет  ·  0 — весь мир  ·  K — Каменоломня  ·  M — другая карта  ·  F11 — во весь экран", _text_font, 13, INK_DIM))
+	box.add_child(_label("F1 — управление  ·  F2 — снимок  ·  F5 — замер скорости  ·  L — время суток  ·  P — шторм  ·  G — сетка  ·  V — цвет  ·  0 — весь мир  ·  K — Каменоломня  ·  M — другая карта  ·  F11 — во весь экран", _text_font, 13, INK_DIM))
 
 
 func _build_fps() -> void:
@@ -269,7 +269,7 @@ func _build_tuning() -> void:
 	column.add_child(_label("P — шторм и обратно: у шторма свои два числа.", _text_font, 13, INK_DIM))
 	_tuning_summary = _label("", _text_font, 13, ACCENT)
 	column.add_child(_tuning_summary)
-	column.add_child(_label("Подберите и напишите мне эти четыре числа. U — убрать окно.", _text_font, 13, INK_DIM))
+	column.add_child(_label("Если поменяете — напишите мне эти четыре числа. U — убрать окно.", _text_font, 13, INK_DIM))
 
 
 ## Строка окна настройки: подпись, ползунок от нуля до most с шагом 0,05 и число. Возвращает ползунок и надпись числа.

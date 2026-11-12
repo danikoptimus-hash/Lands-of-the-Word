@@ -104,7 +104,7 @@ var _storm := 0.0  ## доля шторма в виде воды, 0…1
 var _water_time := 0.0  ## накопленное время воды (секунды, умноженные на её скорость)
 var _swash_time := 0.0  ## время наката: секунды по часам — у наката свой ритм, от скорости воды не зависит
 var _wave_map: ImageTexture  ## рябь и пятна пены — одни на всю воду
-var _foam_map: ImageTexture
+var _foam_map: Array = []  ## текстура пятен, множитель и сдвиг её значений (WaterLook.make_foam_map)
 var _sea_meshes: Array[MeshInstance3D] = []  ## полотна моря: поднимаются на высоту наката
 ## Скорость воды и высота наката на берег — в ясную погоду (x) и в шторм (y); подбираются ползунками.
 var _water_speed := WaterLook.SPEED
@@ -413,7 +413,11 @@ func _make_water_material(texture: Texture2D, area: Rect2) -> ShaderMaterial:
 	material.set_shader_parameter("height_map", texture)
 	material.set_shader_parameter("bake_rect", Vector4(area.position.x, area.position.y, area.size.x, area.size.y))
 	material.set_shader_parameter("wave_map", _wave_map)
-	material.set_shader_parameter("foam_map", _foam_map)
+	material.set_shader_parameter("wave_cycles", WaterLook.WAVE_CYCLES)
+	material.set_shader_parameter("foam_map", _foam_map[0])
+	material.set_shader_parameter("foam_cycles", WaterLook.FOAM_CYCLES)
+	material.set_shader_parameter("foam_gain", _foam_map[1])
+	material.set_shader_parameter("foam_bias", _foam_map[2])
 	WaterLook.apply(material, water_now())
 	_water_materials.append(material)
 	return material

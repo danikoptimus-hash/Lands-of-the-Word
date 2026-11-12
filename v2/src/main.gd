@@ -44,11 +44,10 @@ var _hud: Hud
 var _light: DayLight  ## свет и небо: времена суток
 var _sun: DirectionalLight3D
 var _environment: Environment
-## Скорость воды и высота наката на берег, метры: x — в ясную погоду, y — в шторм. Подбирает владелец ползунками
-## (клавиша U); между мирами не сбрасываются.
+## Скорость воды и высота наката на берег, метры: x — в ясную погоду, y — в шторм. Начинаются с чисел владельца
+## (WaterLook.SPEED и SWASH); окно настройки (клавиша U) оставлено до приёмки шага — вдруг понадобится поправить.
 var _water_speed := WaterLook.SPEED
 var _water_swash := WaterLook.SWASH
-var _tuning_shown := false  ## окно настройки моря уже открывалось само (при смене карты снова не открывается)
 var _storm := 0.0  ## шторм: 0 — ясно, 1 — буря; идёт к _storm_target плавно
 var _storm_target := 0.0
 var _light_code := ""  ## ключ --light=время — с какого времени суток начать
@@ -358,11 +357,7 @@ func _load_world(path: String) -> bool:
 
 	_hud.set_loading("")
 	_ready_to_play = true
-	# Окно настройки моря в этой сборке открыто с запуска: ради него она и выпущена (в кадрах проверок — нет).
 	_show_tuning()
-	if _shots_folder.is_empty() and not _tuning_shown:
-		_tuning_shown = true
-		_hud.set_tuning_open(true)
 	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс (сток воды — %.0f мс, картинка земли — %.0f мс); высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
 		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms, _terrain.drainage_ms, _terrain.surface_ms,
 		_terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count(), _world.islets.size()])
