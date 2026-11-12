@@ -80,12 +80,15 @@ var bake_ms := 0.0
 var drainage_ms := 0.0  ## из них — расчёт стока воды на процессоре
 var surface_ms := 0.0  ## и запекание картинки земли
 var error := ""
-## Проверять ли при постройке, что накат моря нечего залить, кроме берега (ставит облёт; игроку это не нужно).
-var check_swash := false
-## Сколько квадратных метров суши ниже высоты наката не связано с морем и не лежит в котловине озера: туда вода
-## моря «взбегала» бы посреди суши (шейдер воды рисует её везде, где земля ниже уровня наката). Должно быть ноль.
-var swash_leak := 0.0
-var swash_leak_places := PackedStringArray()  ## где: «область: x, z, высота» — по одной точке на область
+## Сколько квадратных метров суши ниже высоты наката закрыто для моря (см. _swash_mask): дно глубоких озёр и ложбины
+## за берегом, с морем не связанные. И две самые низкие такие точки — на дне озера и в ложбине вне озёр (её может
+## и не быть: тогда высота — INF); по ним облёт проверяет, что море там не рисуется.
+var swash_closed := 0.0
+var swash_closed_place := Vector2.ZERO
+var swash_closed_height := INF
+var swash_hollow_place := Vector2.ZERO
+var swash_hollow_height := INF
+var swash_mask_ms := 0.0
 
 var _regions: Array[Region] = []
 ## Области в порядке, в каком они получают плитки мира: сначала области малых островов, потом главные острова.
@@ -112,6 +115,10 @@ var _swash_time := 0.0  ## время наката: секунды по часа
 var _wave_map: ImageTexture  ## рябь и пятна пены — одни на всю воду
 var _foam_map: Array = []  ## текстура пятен, множитель и сдвиг её значений (WaterLook.make_foam_map)
 var _sea_meshes: Array[MeshInstance3D] = []  ## полотна моря: поднимаются на высоту наката
+var _lake_meshes: Array[MeshInstance3D] = []  ## вода озёр и прудов
+var _lake_discs: PackedVector3Array = []  ## их круги: x, z и радиус
+var _swash_closed_cells: PackedVector3Array = []  ## закрытая для моря низкая суша: x, z и высота
+var _swash_masks: Array[ImageTexture] = []  ## маски наката областей, по порядку областей
 ## Скорость воды и высота наката на берег — в ясную погоду (x) и в шторм (y); подбираются ползунками.
 var _water_speed := WaterLook.SPEED
 var _water_swash := WaterLook.SWASH
@@ -197,6 +204,7 @@ func build(world: WorldData) -> bool:
 	for region in _regions:
 		region.material = _make_terrain_material(world, region)
 		region.water_material = _make_water_material(region.baker.texture, region.baked)
+		region.water_material.set_shader_parameter("swash_mask", _swash_mask(region))
 	_cache = NearCache.new()
 	add_child(_cache)
 	for cells in LOD_CELLS:
@@ -205,12 +213,8 @@ func build(world: WorldData) -> bool:
 	_build_ocean(ocean_baker.texture)
 	_build_lakes(world)
 	_build_islet_lakes(world)
+	_find_swash_places()
 
-	if check_swash:
-		swash_leak = 0.0
-		swash_leak_places.clear()
-		for region in _regions:
-			swash_leak += _swash_leak_in(region)
 	for region in _regions:
 		region.baker.queue_free()
 		region.baker = null
@@ -219,51 +223,101 @@ func build(world: WorldData) -> bool:
 	return true
 
 
-## Площадь суши области, которую накат залил бы зря (см. swash_leak): ниже высоты наката, не в котловине
-## озера и не связана с морем по такой же низкой суше. Сетка — 4 м.
-func _swash_leak_in(region: Region) -> float:
-	const STEP := 4.0
-	# Выше высоты наката вода не поднимается (уровень в шейдере — от −0,25 до 1 высоты наката); запас — 5 см.
-	var limit := maxf(WaterLook.SWASH.x, WaterLook.SWASH.y) + 0.05
-	var columns := floori(region.baked.size.x / STEP)
-	var rows := floori(region.baked.size.y / STEP)
-	# 0 — высокая суша, 1 — низкая суша (ещё не достигнута), 2 — море, 3 — низкая суша, куда море доходит.
+## Куда накату моря хода нет. Шейдер воды рисует море везде, где земля ниже уровня наката (полотно моря поднято
+## на его высоту), — а ниже него бывает и суша, с морем не связанная: дно глубоких озёр (светлые пятна на озёрах
+## в 0.7.4) и ложбины за берегом на малых островах. Здесь от моря по низкой суше идёт заливка (клетка — 4 м); низкая
+## суша, до которой она не дошла, в маске закрыта вместе с соседними клетками, и вода моря там не рисуется.
+## Считается при каждой постройке мира: по одной точке на клетку, доли секунды.
+func _swash_mask(region: Region) -> ImageTexture:
+	const STEP := 2  # клетка маски — две точки запекания
+	var started := Time.get_ticks_usec()
+	var map := region.height_map
+	var data := map.raw()
+	var columns := map.width / STEP
+	var rows := map.height / STEP
+	# Выше высоты наката вода не поднимается; запас — на неровности внутри клетки.
+	var limit := maxf(WaterLook.SWASH.x, WaterLook.SWASH.y) + 0.3
+	# 0 — высокая суша, 1 — низкая суша, 2 — море, 3 — низкая суша, куда море доходит.
 	var state := PackedByteArray()
 	state.resize(columns * rows)
-	var front := PackedInt32Array()
+	var low := PackedInt32Array()
 	for row in rows:
+		var from := row * STEP * map.width
+		var at := row * columns
 		for column in columns:
-			var point := region.baked.position + Vector2((float(column) + 0.5) * STEP, (float(row) + 0.5) * STEP)
-			var height := region.height_map.sample(point)
+			var height := data[from + column * STEP]
 			if height < 0.0:
-				state[row * columns + column] = 2
-				front.append(row * columns + column)
-			elif height < limit and not _in_lake_basin(region.baker, point):
-				state[row * columns + column] = 1
+				state[at + column] = 2
+			elif height < limit:
+				state[at + column] = 1
+				low.append(at + column)
+	var front := PackedInt32Array()
+	for cell in low:
+		var column := cell % columns
+		if (column > 0 and state[cell - 1] == 2) or (column < columns - 1 and state[cell + 1] == 2) \
+				or (cell >= columns and state[cell - columns] == 2) or (cell + columns < state.size() and state[cell + columns] == 2):
+			state[cell] = 3
+			front.append(cell)
 	while not front.is_empty():
 		var next := PackedInt32Array()
-		for at in front:
-			var column := at % columns
-			for neighbour: int in [at - 1 if column > 0 else -1, at + 1 if column < columns - 1 else -1, at - columns, at + columns]:
+		for cell in front:
+			var column := cell % columns
+			for neighbour: int in [cell - 1 if column > 0 else -1, cell + 1 if column < columns - 1 else -1, cell - columns, cell + columns]:
 				if neighbour >= 0 and neighbour < state.size() and state[neighbour] == 1:
 					state[neighbour] = 3
 					next.append(neighbour)
 		front = next
-	var first := state.find(1)
-	if first >= 0:
-		var place := region.baked.position + Vector2((float(first % columns) + 0.5) * STEP, (float(first / columns) + 0.5) * STEP)
-		swash_leak_places.append("%s: x=%d z=%d, высота %.2f м, клеток %d" % [region.title, roundi(place.x), roundi(place.y),
-				region.height_map.sample(place), state.count(1)])
-	return float(state.count(1)) * STEP * STEP
+	var mask := PackedByteArray()
+	mask.resize(columns * rows)
+	mask.fill(255)
+	var cell_size := map.texel * float(STEP)
+	for cell in low:
+		if state[cell] != 1:
+			continue
+		var column := cell % columns
+		var row := cell / columns
+		swash_closed += cell_size * cell_size
+		var place := map.rect.position + Vector2((float(column) + 0.5) * cell_size, (float(row) + 0.5) * cell_size)
+		_swash_closed_cells.append(Vector3(place.x, place.y, data[row * STEP * map.width + column * STEP]))
+		for y in range(maxi(row - 1, 0), mini(row + 2, rows)):
+			for x in range(maxi(column - 1, 0), mini(column + 2, columns)):
+				mask[y * columns + x] = 0
+	swash_mask_ms += float(Time.get_ticks_usec() - started) / 1000.0
+	var texture := ImageTexture.create_from_image(Image.create_from_data(columns, rows, false, Image.FORMAT_R8, mask))
+	_swash_masks.append(texture)
+	return texture
 
 
-## Котловина озера — как её видит шейдер воды: он читает уровень озера со сглаживанием между точками запекания,
-## поэтому котловиной считается и полоса в одну точку вокруг неё.
-func _in_lake_basin(baker: TerrainBaker, point: Vector2) -> bool:
-	for offset: Vector2 in [Vector2.ZERO, Vector2(TEXEL, 0.0), Vector2(-TEXEL, 0.0), Vector2(0.0, TEXEL), Vector2(0.0, -TEXEL)]:
-		if baker.water_level_at(point + offset) > TerrainBaker.NO_WATER + 1.0:
-			return true
-	return false
+## Самые низкие точки суши, закрытой для моря: вся и та, что вне кругов озёр (там море прячет только маска).
+func _find_swash_places() -> void:
+	for cell in _swash_closed_cells:
+		var place := Vector2(cell.x, cell.y)
+		if cell.z < swash_closed_height:
+			swash_closed_height = cell.z
+			swash_closed_place = place
+		if cell.z >= swash_hollow_height:
+			continue
+		var in_lake := false
+		for disc in _lake_discs:
+			if place.distance_to(Vector2(disc.x, disc.y)) < disc.z:
+				in_lake = true
+				break
+		if not in_lake:
+			swash_hollow_height = cell.z
+			swash_hollow_place = place
+	_swash_closed_cells.clear()
+
+
+## Включить или выключить маску наката (для проверки облёта: без маски море в ложбинах за берегом появляется).
+func set_swash_mask_enabled(enabled: bool) -> void:
+	for i in mini(_regions.size(), _swash_masks.size()):
+		_regions[i].water_material.set_shader_parameter("swash_mask", _swash_masks[i] if enabled else null)
+
+
+## Показать или спрятать воду озёр (для проверки облёта: под ней не должно быть воды моря).
+func set_lakes_visible(shown: bool) -> void:
+	for lake in _lake_meshes:
+		lake.visible = shown
 
 
 ## Откуда смотрит камера: от этого зависит детализация плиток. Шейдер получает ту же точку и по ней плавно
@@ -757,6 +811,8 @@ func _add_water_disc(region: Region, centre: Vector2, radius: float, level: floa
 	water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	water.position = Vector3(centre.x, level, centre.y)
 	water.set_instance_shader_parameter("water_level", level)
+	_lake_meshes.append(water)
+	_lake_discs.append(Vector3(centre.x, centre.y, radius))
 	add_child(water)
 
 

@@ -326,6 +326,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 				lowest_key = site.key
 		_check("карта %d «%s»: перекрёстки на суше" % [number, _world.title], lowest > 0.5, "самый низкий %s — %.2f м" % [lowest_key, lowest])
 		_check_islets("карта %d: " % number)
+		await _check_swash_closed("карта %d «%s»: " % [number, _world.title])
 		var prefix := "k%d" % number
 		_terrain.height_map.to_preview().save_png(_folder.path_join("%s-vysoty.png" % prefix))
 		for stop in Tour.stops(_world, _rig, _terrain.height_map):
@@ -734,11 +735,7 @@ func _check_water(stops: Array[Tour.Stop]) -> void:
 			_terrain.set_water_tuning(WaterLook.SPEED, WaterLook.SWASH)
 			swash_shift = maxf(swash_shift, _picture_difference(with_swash, without))
 	_check("вода: накат ходит по берегу", swash_shift > 0.15, "кадр у берега с накатом и без него отличается на %.2f из 255" % swash_shift)
-	# Накату нечего заливать, кроме берега: вся суша ниже его высоты либо связана с морем, либо котловина озера
-	# (туда море не заходит). Иначе вода моря появлялась бы посреди суши.
-	_check("вода: накат не заливает низины вдали от моря", _terrain.swash_leak < 50.0,
-			"суши ниже высоты наката, не связанной с морем и не в котловине озера, — %d м²%s" % [roundi(_terrain.swash_leak),
-			("; " + "; ".join(_terrain.swash_leak_places)) if not _terrain.swash_leak_places.is_empty() else ""])
+	await _check_swash_closed("")
 	_rig.set_view(place.view)
 	await _frames(4)
 	# Шторм набирает силу за двадцать шагов: свет, небо, облака, дождь и вода меняются вместе.
@@ -765,6 +762,69 @@ func _check_water(stops: Array[Tour.Stop]) -> void:
 	weather.set_kind(Weather.Kind.CLEAR, true)
 	await _frames(8)
 	get_viewport().scaling_3d_scale = scale
+
+
+## Море не появляется там, куда ему хода нет: над самой низкой сушей, закрытой для наката (дно глубокого озера и
+## ложбина за берегом вне озёр), кадр с накатом и без него один и тот же — в восемь моментов времени воды, чтобы
+## застать гребень волны. Сравнивается только середина кадра — сама точка: рядом с ложбиной бывает пляж, где накату
+## место. Накат для проверки в полтора раза выше обычного. Вода озёр на время проверки спрятана: под ней воды моря
+## быть не должно, а видно её было не с любой стороны (так пятна на озёрах в 0.7.4 прошли мимо кадров проверок).
+## В ложбине заодно меряется, что было бы без маски наката: так видно, что проверка смотрит в нужное место. Сопрограмма.
+func _check_swash_closed(prefix: String) -> void:
+	if _terrain.swash_closed <= 0.0:
+		print("НАКАТ %sсуши ниже высоты наката, закрытой для моря, нет" % prefix)
+		return
+	var scale := get_viewport().scaling_3d_scale
+	get_viewport().scaling_3d_scale = 0.25
+	_terrain.set_lakes_visible(false)
+	var leak := await _swash_difference(_terrain.swash_closed_place)
+	var detail := "закрыто для моря %d м² суши ниже высоты наката; над самой низкой точкой (x=%d z=%d, %.2f м) кадр с накатом и без него отличается на %.3f из 255" \
+			% [roundi(_terrain.swash_closed), roundi(_terrain.swash_closed_place.x), roundi(_terrain.swash_closed_place.y),
+			_terrain.swash_closed_height, leak]
+	if _terrain.swash_hollow_height < INF:
+		var in_hollow := await _swash_difference(_terrain.swash_hollow_place)
+		_terrain.set_swash_mask_enabled(false)
+		var unmasked := await _swash_difference(_terrain.swash_hollow_place)
+		_terrain.set_swash_mask_enabled(true)
+		leak = maxf(leak, in_hollow)
+		detail += "; над самой низкой ложбиной вне озёр (x=%d z=%d, %.2f м) — на %.3f, а без маски наката было бы %.3f" \
+				% [roundi(_terrain.swash_hollow_place.x), roundi(_terrain.swash_hollow_place.y), _terrain.swash_hollow_height,
+				in_hollow, unmasked]
+	else:
+		detail += "; ложбин вне озёр нет"
+	_terrain.set_water_time(WaterLook.SHOT_TIME)
+	_terrain.set_lakes_visible(true)
+	_check("%sвода: море не появляется в озёрах и ложбинах за берегом" % prefix, leak < 0.05, detail)
+	await _frames(2)
+	get_viewport().scaling_3d_scale = scale
+
+
+## Самое большое за восемь моментов времени воды отличие кадра с накатом (в полтора раза выше обычного) от кадра
+## без него — вид сверху на место, в счёт идёт только середина кадра: несколько метров вокруг самой точки.
+func _swash_difference(place: Vector2) -> float:
+	_rig.set_view(CameraView.make(place, 120.0, 0.0, 30.0))
+	await _frames(8)
+	var most := 0.0
+	for i in 8:
+		_terrain.set_water_time(WaterLook.SHOT_TIME + float(i) * 1.25)
+		_terrain.set_water_tuning(WaterLook.SPEED, WaterLook.SWASH * 1.5)
+		await _frames(2)
+		var with_swash := await _frame_picture()
+		_terrain.set_water_tuning(WaterLook.SPEED, Vector2.ZERO)
+		await _frames(2)
+		var without := await _frame_picture()
+		var centre := Vector2i(with_swash.get_width(), with_swash.get_height()) / 2
+		var total := 0.0
+		var count := 0
+		for y in range(centre.y - 24, centre.y + 25, 4):
+			for x in range(centre.x - 24, centre.x + 25, 4):
+				var one := with_swash.get_pixel(x, y)
+				var two := without.get_pixel(x, y)
+				total += 255.0 * maxf(absf(one.r - two.r), maxf(absf(one.g - two.g), absf(one.b - two.b)))
+				count += 1
+		most = maxf(most, total / float(count))
+	_terrain.set_water_tuning(WaterLook.SPEED, WaterLook.SWASH)
+	return most
 
 
 ## Кадр как картинка — для сравнения кадров между собой.

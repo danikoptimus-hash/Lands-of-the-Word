@@ -303,7 +303,6 @@ func _load_world(path: String) -> bool:
 
 	_hud.set_loading("Лепим землю…")
 	_terrain = WorldTerrain.new()
-	_terrain.check_swash = not _shots_folder.is_empty()
 	add_child(_terrain)
 	# География запекается в картинку земли, поэтому проверочный вид задаётся до постройки.
 	_terrain.set_debug_view(_debug_view)
@@ -329,9 +328,9 @@ func _load_world(path: String) -> bool:
 
 	_hud.set_loading("")
 	_ready_to_play = true
-	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс (сток воды — %.0f мс, картинка земли — %.0f мс); высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
+	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс (сток воды — %.0f мс, картинка земли — %.0f мс, маска наката — %.0f мс); высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
 		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms, _terrain.drainage_ms, _terrain.surface_ms,
-		_terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count(), _world.islets.size()])
+		_terrain.swash_mask_ms, _terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count(), _world.islets.size()])
 	return true
 
 

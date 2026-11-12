@@ -39,6 +39,8 @@ render_mode world_vertex_coords, cull_back, depth_draw_never;
 
 uniform sampler2D height_map : filter_linear, repeat_disable;
 uniform vec4 bake_rect;
+// Куда накату моря хода нет (0): суша ниже его высоты, с морем не связанная (world_terrain.gd, _swash_mask).
+uniform sampler2D swash_mask : filter_linear, repeat_disable, hint_default_white;
 // Открытое море: дно известно грубо (карта глубин), сама земля там не нарисована. Над областями суши
 // своя вода, по точному рельефу; полотна стыкуются краями плиток (world_terrain.gd).
 uniform bool open_sea = false;
@@ -153,8 +155,7 @@ void fragment() {
 		discard;
 	}
 	// Море в котловины озёр не заходит. Его полотно поднято на высоту наката, а дно у глубоких озёр местами ниже
-	// этой высоты — и вода моря «взбегала» посреди озера светлыми пятнами (замечание владельца к 0.7.4). Других
-	// низин, не связанных с морем, на картах нет: это проверяет облёт (WorldTerrain.swash_leak).
+	// этой высоты — и вода моря «взбегала» посреди озера светлыми пятнами (замечание владельца к 0.7.4).
 	if (!is_lake && lake > -998.0) {
 		discard;
 	}
@@ -199,6 +200,10 @@ void fragment() {
 	// Озеро не взбегает на берег (его вода рисуется только в своей котловине) — оно едва дышит у кромки.
 	float level = is_lake ? -0.15 * swash * surge : swash * (surge * 1.25 - 0.25);
 	float shore_depth = max(still_depth + level, 0.0);
+	// И в ложбины за берегом, с морем не связанные, накат не заходит: такая суша закрыта маской.
+	if (!is_lake && still_depth < 0.0 && shore_depth > 0.0 && texture(swash_mask, uv).r < 0.5) {
+		shore_depth = 0.0;
+	}
 
 	// ── Рябь и зыбь ──
 	// Оба слоя ряби идут по ветру, под небольшим углом друг к другу и с разной скоростью: рисунок плывёт

@@ -39,6 +39,11 @@ static func from_image(image: Image, world_rect: Rect2) -> HeightMap:
 	return map
 
 
+## Высоты как есть: строка за строкой, width × height чисел (для быстрых проходов по всей карте).
+func raw() -> PackedFloat32Array:
+	return _data
+
+
 ## Высота в точке мира (x, z), метры над уровнем моря.
 func sample(point: Vector2) -> float:
 	if width < 2 or height < 2:
