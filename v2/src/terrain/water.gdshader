@@ -20,6 +20,12 @@
 // сдвинута шумом, который нигде не повторяется, — ряды плиток перестают быть рядами; всё крупное (луга водорослей
 // на дне, оттенки открытого моря, очерёдность наката вдоль берега) задаёт тот же шум, а не текстура.
 //
+// Без полос. Волна, которая на экране тоньше нескольких точек, рисоваться не должна: гребни зыби с высоты (и рябь
+// при пологом взгляде) сжимаются до двух-трёх точек и сливаются в ровные «строчные» полосы, особенно в блике, где
+// малейший наклон меняет яркость (замечание владельца к 0.7.3: «полосы видны»). Поэтому текстуры волн читаются
+// с уровнем подробности по ДЛИННОЙ стороне точки экрана и с запасом: всё, что мельче четырёх-шести точек, плавно
+// гаснет. Заодно с высоты шире и мягче сам блик: мелкие волны, которых уже не видно, в жизни его и размывают.
+//
 // Какова вода, задают числа вида (water_look.gd); шторм — те же числа, только другие, и между штилем
 // и штормом они перетекают плавно. Время — параметр, а не TIME: его копит world_terrain.gd, умножая на скорость
 // воды (иначе при смене скорости вся рябь прыгнула бы), а в кадрах проверок оно стоит.
@@ -73,10 +79,16 @@ uniform float sheen = 0.25; // широкая мягкая дорожка к с�
 uniform float gloss = 0.18; // шероховатость воды для отражения неба (меньше — зеркальнее)
 
 const float FAR_BED = -76.7; // дно далеко от суши ровное: столько даёт функция высот за краем мира
+// Запас уровня подробности текстур волн (см. «без полос»): при нуле на экране остаются волны от двух точек,
+// каждая единица вдвое грубее. Рябь — зерно без направления, ей хватает малого запаса; зыбь — длинные гряды,
+// они и дают полосы.
+const float RIPPLE_SOFTEN = 0.75;
+const float SWELL_SOFTEN = 1.3;
 
 varying vec3 world_position;
 varying vec3 level_normal; // нормаль ровной воды в координатах камеры — для света в толще
 varying float foam_cover;
+varying float far_view; // 0 — волны видны все, 1 — смотрим с такой высоты, что волн уже не различить
 
 void vertex() {
 	world_position = VERTEX;
@@ -109,9 +121,9 @@ vec2 turned(vec2 at, vec2 turn) {
 	return vec2(at.x * turn.x + at.y * turn.y, at.y * turn.x - at.x * turn.y);
 }
 
-// Наклон ряби в точке: рисунок текстуры повёрнут на угол turn, плитка — tile метров.
-vec2 ripples(vec2 at, vec2 turn, float tile) {
-	vec2 lean = texture(wave_map, turned(at, turn) / tile).rg * 2.0 - 1.0;
+// Наклон ряби в точке: рисунок текстуры повёрнут на угол turn, плитка — tile метров, lod — уровень подробности.
+vec2 ripples(vec2 at, vec2 turn, float tile, float lod) {
+	vec2 lean = textureLod(wave_map, turned(at, turn) / tile, lod).rg * 2.0 - 1.0;
 	return vec2(lean.x * turn.x - lean.y * turn.y, lean.x * turn.y + lean.y * turn.x);
 }
 
@@ -144,6 +156,10 @@ void fragment() {
 	vec2 px = dFdx(p);
 	vec2 py = dFdy(p);
 	float footprint = length(abs(px) + abs(py));
+	// Длинная сторона точки экрана на воде, метры: при пологом взгляде она в разы больше короткой.
+	float major = max(length(px), length(py));
+	float wave_texels = float(textureSize(wave_map, 0).x);
+	far_view = smoothstep(-1.7, 1.6, log2(major));
 
 	// ── Без повтора ──
 	// Плавный шум, который нигде не повторяется: большой (километры), средний (сотни метров) и малый.
@@ -184,15 +200,16 @@ void fragment() {
 	vec2 way1 = normalize(wind + across * 0.35);
 	vec2 way2 = normalize(wind - across * 0.45);
 	float ripple_tile = ripple_size * wave_cycles;
-	vec2 r1 = ripples(pr - way1 * 0.35 * t, vec2(0.9135, 0.4067), ripple_tile);
-	vec2 r2 = ripples(pr - way2 * 0.5 * t, vec2(0.6157, -0.788), ripple_tile * 2.37);
+	float ripple_lod = log2(major * wave_texels / ripple_tile) + RIPPLE_SOFTEN;
+	vec2 r1 = ripples(pr - way1 * 0.35 * t, vec2(0.9135, 0.4067), ripple_tile, ripple_lod);
+	vec2 r2 = ripples(pr - way2 * 0.5 * t, vec2(0.6157, -0.788), ripple_tile * 2.37, ripple_lod - log2(2.37));
 	vec2 slope = (r1 + r2) * ripple;
 	// Зыбь: гряды втрое длиннее расстояния между ними, идут по ветру. Передний склон гряды — где быть барашкам.
 	float front = 0.0;
 	if (!is_lake) {
 		float swell_tile = swell_size * wave_cycles;
 		vec2 q = vec2(dot(pz, wind) - 4.5 * t, dot(pz, across)) / vec2(swell_tile, swell_tile * 3.0);
-		vec2 lean = texture(wave_map, q).rg * 2.0 - 1.0;
+		vec2 lean = textureLod(wave_map, q, log2(major * wave_texels / swell_tile) + SWELL_SOFTEN).rg * 2.0 - 1.0;
 		slope += (wind * lean.x + across * (lean.y / 3.0)) * swell;
 		front = lean.x;
 	}
@@ -273,7 +290,8 @@ void light() {
 	// Блик светила: острые искры там, где склон ряби смотрит точно между светилом и камерой, и широкая мягкая
 	// дорожка. Искра узкая (пара градусов): вдали, где рябь уже не различить, от неё остаётся небольшое яркое
 	// отражение самого светила, а не белое пятно на полэкрана. Яркость ограничена.
+	// С высоты, где волн уже не различить, искра шире и слабее: невидимые мелкие волны размывают отражение светила.
 	float aim = max(dot(NORMAL, normalize(LIGHT + VIEW)), 0.0);
-	float spark = min(pow(aim, 3000.0) * 14.0, 1.6) * glitter + pow(aim, 60.0) * sheen;
+	float spark = min(pow(aim, mix(3000.0, 320.0, far_view)) * mix(14.0, 0.4, far_view), 1.6) * glitter + pow(aim, 60.0) * sheen;
 	SPECULAR_LIGHT += LIGHT_COLOR / PI * ATTENUATION * spark * (1.0 - foam_cover);
 }

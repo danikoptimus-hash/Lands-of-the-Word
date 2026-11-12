@@ -110,6 +110,7 @@ func _ready() -> void:
 	if not _shots_folder.is_empty():
 		var director := ShotDirector.new()
 		add_child(director)
+		director.render_scale = RENDER_SCALES[_render_scale]
 		director.run(_shots_folder, _world, _terrain, _rig, _hud, _extra_views, _benchmark, _take_snapshot, _next_world)
 	elif not _update_notice.is_empty():
 		_hud.toast(_update_notice, 14.0)
@@ -126,6 +127,7 @@ func _ready() -> void:
 ## Разрешение картинки мира по размеру окна — пока игрок не выбрал его сам клавишей B.
 func _auto_render_scale() -> void:
 	if _render_scale_chosen or not _shots_folder.is_empty():
+		_apply_render_scale()
 		return
 	var size := get_window().size
 	var pixels := float(size.x) * float(size.y)
@@ -577,6 +579,14 @@ func _read_arguments() -> void:
 			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
 		elif argument.begins_with("--debug-view="):
 			_debug_view = argument.trim_prefix("--debug-view=").to_int()
+		elif argument.begins_with("--render-scale="):
+			# Разрешение картинки мира, проценты (100, 77 или 67), — чтобы кадры проверок были как у игрока: у владельца
+			# 67 % с достройкой до полного, и рисунок воды на точках экрана там другой.
+			var wanted := argument.trim_prefix("--render-scale=").to_float() / 100.0
+			for index in RENDER_SCALES.size():
+				if absf(RENDER_SCALES[index] - wanted) < absf(RENDER_SCALES[_render_scale] - wanted):
+					_render_scale = index
+			_render_scale_chosen = true
 		elif argument.begins_with("--light="):
 			_light_code = argument.trim_prefix("--light=")
 		elif argument.begins_with("--view="):

@@ -8,6 +8,10 @@ extends Node
 ## первой карты, без кадров (минута вместо получаса). У каждого кадра в журнале — время его отрисовки: в рабочей
 ## среде картинку считает процессор, и это время — мерило тяжести шейдеров (сравнивать до и после правки).
 
+## В каком разрешении снимать кадры (доля полного): обычно в полном; ключ --render-scale=67 — как у игрока
+## с большим экраном (картинка мира в 67 % с достройкой до полного).
+var render_scale := 1.0
+
 var _world: WorldData
 var _terrain: WorldTerrain
 var _rig: StrategyCamera
@@ -851,7 +855,7 @@ func _frames(count: int) -> void:
 func _before_shot() -> void:
 	get_viewport().scaling_3d_scale = 0.25
 	await _frames(4)
-	get_viewport().scaling_3d_scale = 1.0
+	get_viewport().scaling_3d_scale = render_scale
 	await _frames(1)
 	await _warm_cache()
 	var started := Time.get_ticks_msec()
