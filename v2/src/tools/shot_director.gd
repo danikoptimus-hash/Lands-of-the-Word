@@ -105,6 +105,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 
 	if _listed("91-zamer", only):
 		await _check_benchmark(benchmark, world, rig, terrain, hud, stops)
+	if _listed("92-kesh", only):
+		await _check_cache(stops)
 
 	if not only.is_empty():
 		# Только выбранные кадры: проверки, замер и другие карты не нужны. Отчёт с высотами — для сверки с песочницей.
@@ -129,6 +131,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	_check_mountain_camera(stops)
 	await _check_sky()
 	_check_islets("")
+	await _check_cache(stops)
 
 	if quick:
 		get_viewport().scaling_3d_scale = 1.0
@@ -345,7 +348,14 @@ func _profile(views: PackedStringArray) -> void:
 			continue
 		_rig.set_view(view)
 		await _frames(3)
+		await _warm_cache()
 		var whole := await _frame_cost()
+		var direct := whole
+		if _terrain.cache_budget > 0:
+			_terrain.cache().reading = false
+			direct = await _frame_cost()
+			_terrain.cache().reading = true
+			await _frames(1)
 		sun.shadow_enabled = false
 		var no_shadows := await _frame_cost()
 		sun.shadow_enabled = true
@@ -358,8 +368,8 @@ func _profile(views: PackedStringArray) -> void:
 		_terrain.set_flat(true)
 		var flat := await _frame_cost()
 		_terrain.set_flat(false)
-		print("ЗАМЕР %s: кадр %.0f мс; из них шейдер земли %.0f мс (%.0f %%), тени %.0f мс; затенение впадин %s бы %.0f мс; сглаживание в четыре прохода добавило бы %.0f мс"
-				% [code, whole, whole - flat, 100.0 * (whole - flat) / whole, whole - no_shadows,
+		print("ЗАМЕР %s: кадр %.0f мс (без кэша ближнего вида %.0f мс); из них шейдер земли %.0f мс (%.0f %%), тени %.0f мс; затенение впадин %s бы %.0f мс; сглаживание в четыре прохода добавило бы %.0f мс"
+				% [code, whole, direct, whole - flat, 100.0 * (whole - flat) / whole, whole - no_shadows,
 				"убавило" if ssao else "добавило", absf(other_ssao - whole), msaa_four - whole])
 
 
@@ -383,6 +393,79 @@ func _check_benchmark(benchmark: Benchmark, world: WorldData, rig: StrategyCamer
 	await _capture("91-zamer")
 	hud.close_report()
 	get_viewport().scaling_3d_scale = scale
+
+
+## Кэш ближнего вида вокруг камеры (near_cache.gd): картинка из кэша — та же, что при прямом расчёте, и на месте,
+## и после проезда камеры (окна уровней сдвигаются, текстуры «по кругу» досчитываются полосами при малом бюджете);
+## кадр с кэшем легче. В остальных кадрах облёта кэш выключен: картинка та же, а прогрев на программной отрисовке
+## стоил бы минуты у каждого кадра.
+func _check_cache(stops: Array[Tour.Stop]) -> void:
+	var place: Tour.Stop = null
+	for stop in stops:
+		if stop.name.ends_with("gory-vblizi") or (place == null and stop.name.ends_with("holmy")):
+			place = stop
+	if place == null:
+		return
+	var budget := _terrain.cache_budget
+	var scale := get_viewport().scaling_3d_scale
+	get_viewport().scaling_3d_scale = 1.0
+	_terrain.cache_budget = 40000000
+	_rig.set_view(place.view)
+	await _frames(3)
+	await _warm_cache()
+	var first := await _cache_against_direct("92-kesh-na-meste")
+	_check("кэш ближнего вида: картинка та же, что при прямом расчёте", first["mean"] < 5.0 and first["far"] < 0.01,
+			"среднее отличие %.2f из 255, заметно отличается %.2f %% точек" % [first["mean"], 100.0 * first["far"]])
+	_check("кэш ближнего вида: кадр легче", first["cached_ms"] < 0.8 * first["direct_ms"],
+			"%d мс с кэшем, %d мс без него" % [first["cached_ms"], first["direct_ms"]])
+	# Проезд: камера идёт шагами, кэш досчитывается понемногу — окна сдвигаются, не успев достроиться.
+	_terrain.cache_budget = 1500000
+	var view := place.view.copy()
+	# Едем вглубь острова, чтобы в кадре осталась земля.
+	var step := (_world.land_rect.get_center() - view.focus).normalized() * 14.0
+	for i in 22:
+		view.focus += step
+		_rig.set_view(view)
+		await _frames(2)
+	_terrain.cache_budget = 40000000
+	await _warm_cache()
+	var second := await _cache_against_direct("92-kesh-posle-proezda")
+	_check("кэш ближнего вида: после проезда камеры картинка та же", second["mean"] < 5.0 and second["far"] < 0.01,
+			"среднее отличие %.2f из 255, заметно отличается %.2f %% точек; посчитано клеток %.0f млн" % [second["mean"], 100.0 * second["far"], float(_terrain.cache().cells_done) / 1.0e6])
+	_terrain.cache_budget = budget
+	get_viewport().scaling_3d_scale = scale
+	await _frames(2)
+
+
+## Кадр с кэшем и тот же кадр прямым расчётом: насколько отличаются (среднее по наибольшему из трёх цветов, из 255;
+## доля точек с отличием больше 60) и сколько считались. Оба кадра кладутся в папку под именем file_name.
+func _cache_against_direct(file_name: String) -> Dictionary:
+	var cached_ms := await _frame_cost(2)
+	await RenderingServer.frame_post_draw
+	var cached := get_viewport().get_texture().get_image()
+	_terrain.cache().reading = false
+	var direct_ms := await _frame_cost(2)
+	await RenderingServer.frame_post_draw
+	var direct := get_viewport().get_texture().get_image()
+	_terrain.cache().reading = true
+	# Оба кадра сохраняются: их можно сравнить глазами.
+	cached.save_png(_folder.path_join(file_name + "-s-keshem.png"))
+	direct.save_png(_folder.path_join(file_name + "-napryamuyu.png"))
+	await _frames(1)
+	var total := 0.0
+	var far := 0
+	var count := 0
+	# Надписи по углам в счёт не идут (счётчик кадров меняется от кадра к кадру).
+	for y in range(120, direct.get_height() - 70, 3):
+		for x in range(8, direct.get_width() - 8, 3):
+			var a := cached.get_pixel(x, y)
+			var b := direct.get_pixel(x, y)
+			var difference := 255.0 * maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b)))
+			total += difference
+			if difference > 60.0:
+				far += 1
+			count += 1
+	return {"mean": total / float(count), "far": float(far) / float(count), "cached_ms": cached_ms, "direct_ms": direct_ms}
 
 
 func _find_sun() -> DirectionalLight3D:
@@ -469,9 +552,26 @@ func _before_shot() -> void:
 	await _frames(4)
 	get_viewport().scaling_3d_scale = 1.0
 	await _frames(1)
+	await _warm_cache()
 	var started := Time.get_ticks_msec()
 	await _frames(1)
 	_frame_msec = Time.get_ticks_msec() - started
+
+
+## Ждём, пока кэш ближнего вида вокруг камеры досчитается (если он включён: ключ --cache).
+func _warm_cache() -> void:
+	if _terrain.cache_budget <= 0:
+		return
+	var pixel := _rig.pixel_size(float(get_window().size.y) * get_viewport().scaling_3d_scale)
+	var started := Time.get_ticks_msec()
+	var frames := 0
+	while not _terrain.cache_ready(pixel) and frames < 40:
+		await _frames(1)
+		frames += 1
+	# Ещё кадр: посчитанное в последнем кадре читается со следующего.
+	await _frames(2)
+	print("КЭШ: %s за %d кадров и %d мс (уровни: %s; память %.0f МБ)" % ["готов" if _terrain.cache_ready(pixel) else "НЕ ГОТОВ",
+			frames, Time.get_ticks_msec() - started, _terrain.cache().progress(), _terrain.cache().memory_mb()])
 
 
 ## Ждём, пока камера успокоится: не меньше заданного времени игры и не меньше трёх кадров.

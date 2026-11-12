@@ -91,6 +91,11 @@ var _viewer_known := false
 var _grid_visible := true
 var _debug_view := 0
 var _flat_shader: Shader
+var _cache: NearCache  ## кэш ближнего вида вокруг камеры
+var _cache_focus := Vector2.ZERO
+var _cache_focus_known := false
+## Сколько клеток кэша считается за кадр (см. NearCache.BUDGET); ноль — кэш не строится и не читается.
+var cache_budget := NearCache.BUDGET
 
 
 ## Сопрограмма: строит землю по данным мира. true — готово, иначе причина в error.
@@ -173,6 +178,8 @@ func build(world: WorldData) -> bool:
 	for region in _regions:
 		region.material = _make_terrain_material(world, region)
 		region.water_material = _make_water_material(region.baker.texture, region.baked)
+	_cache = NearCache.new()
+	add_child(_cache)
 	for cells in LOD_CELLS:
 		_lod_meshes.append(_make_grid(cells, CHUNK))
 	_build_chunks()
@@ -221,6 +228,33 @@ func debug_view() -> int:
 	return _debug_view
 
 
+## Раз в кадр: кэш ближнего вида идёт за камерой. eye — камера; focus — точка земли, на которую она смотрит;
+## pixel — сколько метров земли приходится на точку экрана в середине кадра; delta — время кадра.
+func update_cache(eye: Vector3, focus: Vector2, pixel: float, delta: float) -> void:
+	if _cache == null:
+		return
+	if cache_budget <= 0:
+		_cache.bind(null)
+		return
+	var region := _region_at(focus)
+	_cache.bind(region.material if region != null else null)
+	var ground := Vector3(focus.x, maxf(height_map.sample(focus), 0.0), focus.y)
+	# Камера летит (перелёт к месту, облёт): окна уровней уходят быстрее, чем досчитываются, — считать незачем.
+	var speed := focus.distance_to(_cache_focus) / maxf(delta, 1.0e-4) if _cache_focus_known else 0.0
+	_cache_focus = focus
+	_cache_focus_known = true
+	_cache.update(eye, ground, pixel, cache_budget, speed > 2.5 * eye.distance_to(ground))
+
+
+## Кэш вокруг камеры посчитан целиком (или не нужен на этой высоте).
+func cache_ready(pixel: float) -> bool:
+	return _cache == null or cache_budget <= 0 or _cache.is_ready(pixel)
+
+
+func cache() -> NearCache:
+	return _cache
+
+
 ## Для замера по частям: земля тем же рельефом, но одним цветом, без материалов (сколько стоит шейдер земли).
 func set_flat(flat: bool) -> void:
 	if _flat_shader == null:
@@ -235,6 +269,8 @@ func set_debug_view(view: int) -> void:
 	_debug_view = view
 	for region in _regions:
 		region.material.set_shader_parameter("debug_view", view)
+	if _cache != null:
+		_cache.set_debug_view(view)
 
 
 func chunk_count() -> int:

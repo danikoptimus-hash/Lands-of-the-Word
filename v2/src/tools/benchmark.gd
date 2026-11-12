@@ -4,7 +4,9 @@ extends Node
 ## и собирает отчёт о компьютере. Отчёт копируется в буфер обмена — его можно вставить в чат.
 ##
 ## В конце — «разбор»: в нескольких местах облёта кадры считаются ещё по разу без одной из частей картинки
-## (без материалов земли, без теней, без сглаживания краёв, в половине разрешения). Насколько от этого растёт
+## (без кэша ближнего вида, без материалов земли, без теней, без сглаживания краёв, в половине разрешения).
+## Облёт меряет камеру в полёте между дальними местами — там кэш ближнего вида не успевает за камерой и почти
+## не помогает; в разборе камера стоит, как обычно в игре, и первое число — с готовым кэшем. Насколько от этого растёт
 ## скорость — столько эта часть и стоит на этом компьютере. Без разбора о скорости у игрока приходилось гадать:
 ## в рабочей среде картинку считает процессор, и доли там другие.
 
@@ -23,6 +25,8 @@ var time_scale := 1.0  ## меньше единицы — короче облё�
 ## владелец не видел (замер на 0.5.2).
 var report_head := ""
 var report_legs := PackedStringArray()
+
+var _cache_note := ""  ## строка отчёта о кэше ближнего вида
 
 
 ## Сопрограмма.
@@ -64,6 +68,9 @@ func run(world: WorldData, rig: StrategyCamera, height_map: HeightMap = null, te
 		lines.append("  %s: %d к/с" % [stops[i].title, roundi(_fps(leg_ms))])
 
 	var breakdown := PackedStringArray()
+	_cache_note = ""
+	if terrain != null:
+		_cache_note = ("включён, %d МБ видеопамяти (клавиша T)" % roundi(terrain.cache().memory_mb())) if terrain.cache_budget > 0 else "выключен (клавиша T)"
 	if terrain != null and sun != null:
 		breakdown = await _breakdown(stops, rig, terrain, sun)
 
@@ -90,7 +97,14 @@ func _breakdown(stops: Array[Tour.Stop], rig: StrategyCamera, terrain: WorldTerr
 		if stop == null:
 			continue
 		rig.set_view(stop.view)
+		# «Как есть» — с готовым кэшем ближнего вида: камера стоит, как обычно в игре.
+		await _await_cache(rig, terrain)
 		var as_is: float = await _fps_now()
+		var no_cache := as_is
+		if terrain.cache_budget > 0:
+			terrain.cache().reading = false
+			no_cache = await _fps_now()
+			terrain.cache().reading = true
 		terrain.set_flat(true)
 		var flat: float = await _fps_now()
 		terrain.set_flat(false)
@@ -103,8 +117,23 @@ func _breakdown(stops: Array[Tour.Stop], rig: StrategyCamera, terrain: WorldTerr
 		viewport.scaling_3d_scale = scale * 0.5
 		var half: float = await _fps_now()
 		viewport.scaling_3d_scale = scale
-		lines.append("  %s: %d → %d / %d / %d / %d" % [stop.title, roundi(as_is), roundi(flat), roundi(no_shadows), roundi(no_msaa), roundi(half)])
+		lines.append("  %s: %d → %d / %d / %d / %d / %d" % [stop.title, roundi(as_is), roundi(no_cache), roundi(flat), roundi(no_shadows), roundi(no_msaa), roundi(half)])
 	return lines
+
+
+## Ждём, пока кэш ближнего вида вокруг камеры досчитается (пока ждём — с бюджетом побольше). Сопрограмма.
+func _await_cache(rig: StrategyCamera, terrain: WorldTerrain) -> void:
+	if terrain.cache_budget <= 0:
+		return
+	var budget := terrain.cache_budget
+	terrain.cache_budget = budget * 4
+	var until := Time.get_ticks_msec() + (8000 if time_scale > 0.5 else 0)
+	var frames := 0
+	while frames < 3 or (Time.get_ticks_msec() < until and not terrain.cache_ready(
+			rig.pixel_size(float(get_window().size.y) * get_viewport().scaling_3d_scale))):
+		await get_tree().process_frame
+		frames += 1
+	terrain.cache_budget = budget
 
 
 ## Кадров в секунду прямо сейчас: несколько кадров на разгон (после смены настройки видеокарта собирает шейдеры —
@@ -160,7 +189,7 @@ func _report(frames_ms: PackedFloat32Array, legs: PackedStringArray, breakdown: 
 	text.append("Земли Слова, %s — замер скорости" % BuildInfo.label())
 	text.append("Кадров в секунду: в среднем %d, в худшем 1%% кадров — %d, в самом медленном кадре — %d" % [roundi(_fps(frames_ms)), roundi(low), roundi(slowest)])
 	if not breakdown.is_empty():
-		text.append("Разбор, к/с: как есть → земля ровным цветом / без теней / без сглаживания / пол-разрешения")
+		text.append("Разбор, к/с: как есть → без кэша / земля ровным цветом / без теней / без сглаживания / пол-разрешения")
 		text.append_array(breakdown)
 	text.append("Система: %s %s; память %.1f ГБ" % [OS.get_name(), OS.get_version(), memory_gb])
 	text.append("Процессор: %s, потоков: %d" % [OS.get_processor_name(), OS.get_processor_count()])
@@ -175,6 +204,8 @@ func _report(frames_ms: PackedFloat32Array, legs: PackedStringArray, breakdown: 
 	if scale < 0.999:
 		screen_text += "; картинка мира — %d %% разрешения (клавиша B)" % roundi(scale * 100.0)
 	text.append("Экран: %s" % screen_text)
+	if not _cache_note.is_empty():
+		text.append("Кэш ближнего вида: %s" % _cache_note)
 	text.append("По участкам облёта:")
 	report_head = "\n".join(text)
 	text.append_array(legs)

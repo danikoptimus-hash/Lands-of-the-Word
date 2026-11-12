@@ -18,11 +18,12 @@ const WORLD_PATHS: Array[String] = [
 ]
 const WINDOW_TITLE := "Земли Слова — версия 2 (тест)"
 const FOG_DENSITY := 0.000012  ## дымка вблизи; издалека она реже (см. _process)
-## Насыщенность и контраст картинки (клавиша V). Начинаем с «сочно».
+## Насыщенность и контраст картинки (клавиша V). Начинаем с «естественно»: владелец сравнил наборы на 0.5.3
+## и выбрал его («естественный цвет мне нравится больше»); до 0.5.3 первым стояло «сочно».
 const COLOR_PRESETS: Array[Dictionary] = [
+	{"title": "естественно", "saturation": 1.0, "contrast": 1.0, "brightness": 1.0},
 	{"title": "сочно", "saturation": 1.28, "contrast": 1.06, "brightness": 1.0},
 	{"title": "очень сочно", "saturation": 1.5, "contrast": 1.1, "brightness": 1.0},
-	{"title": "естественно", "saturation": 1.0, "contrast": 1.0, "brightness": 1.0},
 ]
 ## Разрешение картинки мира (клавиша B): мир считается в меньшем разрешении и достраивается до родного, надписи
 ## остаются в родном. На экранах с очень большим разрешением (у владельца 2880×1800 на 14 дюймах — замер 0.5.0:
@@ -136,6 +137,7 @@ func _process(_delta: float) -> void:
 	if not _ready_to_play:
 		return
 	_terrain.set_viewer(_rig.camera.global_position)
+	_terrain.update_cache(_rig.camera.global_position, _rig.current_focus(), _world_pixel(), _delta)
 	# Тени считаются только там, куда смотрит камера: вблизи они резче, издалека покрывают весь мир.
 	# Чем ближе взгляд к горизонту, тем дальше видно — и тем дальше нужны тени.
 	var low := 1.0 - smoothstep(0.1, 0.5, _rig.view_angle())
@@ -143,6 +145,13 @@ func _process(_delta: float) -> void:
 	_sun.directional_shadow_max_distance = minf(reach, 40000.0)
 	# Издалека (весь мир с малыми островами) дымка реже: иначе за десять километров картинка белеет.
 	_environment.fog_density = FOG_DENSITY * clampf(3000.0 / _rig.current_distance(), 0.25, 1.0)
+
+
+## Сколько метров земли приходится на точку картинки мира в середине кадра (картинка мира считается
+## в уменьшенном разрешении — клавиша B).
+func _world_pixel() -> float:
+	var viewport := get_viewport()
+	return _rig.pixel_size(float(get_window().size.y) * viewport.scaling_3d_scale)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -191,6 +200,10 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_render_scale_chosen = true
 			_apply_render_scale()
 			_hud.toast("Картинка мира: %d %% разрешения. B — следующее." % roundi(RENDER_SCALES[_render_scale] * 100.0), 4.0)
+		KEY_T:
+			# Кэш ближнего вида можно выключить и сравнить: картинка должна быть той же, скорость — как в 0.5.3.
+			_terrain.cache_budget = 0 if _terrain.cache_budget > 0 else NearCache.BUDGET
+			_hud.toast("Кэш ближнего вида: %s. T — переключить." % ("включён" if _terrain.cache_budget > 0 else "выключен"), 4.0)
 		KEY_V:
 			_color_preset = (_color_preset + 1) % COLOR_PRESETS.size()
 			_apply_color_preset()
@@ -301,6 +314,10 @@ func _load_world(path: String) -> bool:
 		_fail("Не удалось построить рельеф: %s.\nВидеокарта: %s" % [_terrain.error, RenderingServer.get_video_adapter_name()])
 		return false
 	_terrain.set_debug_view(_debug_view)
+	if not _shots_folder.is_empty():
+		# В кадрах облёта земля считается напрямую (картинка та же, а прогревать кэш на программной отрисовке
+		# у каждого кадра — минута); с ключом --cache кэш включён и считается сразу весь.
+		_terrain.cache_budget = 40000000 if OS.get_cmdline_user_args().has("--cache") else 0
 	_rig.set_height_map(_terrain.height_map)
 	_rig.set_view(_rig.view_for_rect(_world.land_rect))
 

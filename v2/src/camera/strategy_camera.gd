@@ -111,6 +111,17 @@ func current_distance() -> float:
 	return _distance
 
 
+## Точка земли, на которую камера смотрит сейчас (сглаженная, а не цель).
+func current_focus() -> Vector2:
+	return _focus
+
+
+## Сколько метров земли приходится на точку картинки мира в середине кадра (при взгляде отвесно; при наклоне
+## вдоль взгляда — больше). height — высота картинки мира в точках.
+func pixel_size(height: float) -> float:
+	return 2.0 * _distance * tan(deg_to_rad(FOV) * 0.5) / maxf(height, 1.0)
+
+
 ## Угол взгляда вниз от горизонта, радианы: больше нуля — смотрим на землю, меньше — выше горизонта.
 func view_angle() -> float:
 	return _view_angle(_distance, _tilt)
