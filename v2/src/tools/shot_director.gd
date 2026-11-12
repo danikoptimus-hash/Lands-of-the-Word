@@ -36,6 +36,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	var checks_only := false
 	var only := PackedStringArray()
 	var profile_views := PackedStringArray()
+	var lights := PackedStringArray()
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--profile="):
 			profile_views = argument.trim_prefix("--profile=").split(";", false)
@@ -46,6 +47,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 			checks_only = true
 		elif argument.begins_with("--stops="):
 			only = argument.trim_prefix("--stops=").split(",", false)
+		elif argument.begins_with("--lights="):
+			lights = argument.trim_prefix("--lights=").split(",", false)
 	await _frames(4)
 
 	if not profile_views.is_empty():
@@ -96,6 +99,67 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 			terrain.set_debug_view(base_debug)
 		index += 1
 
+	# Утро, вечер и ночь (шаг 1.4): остров целиком и взгляд к горизонту. День — все кадры облёта выше.
+	if not checks_only and only.is_empty():
+		var day_light := _find_light()
+		var places: Array[Tour.Stop] = []
+		for stop in stops:
+			if stop.name.ends_with("ostrov-ot") or stop.name.ends_with("gorizont"):
+				places.append(stop)
+		for phase: int in [DayLight.Phase.MORNING, DayLight.Phase.EVENING, DayLight.Phase.NIGHT]:
+			day_light.set_phase(phase as DayLight.Phase, true)
+			get_viewport().scaling_3d_scale = 0.25
+			await _frames(12)
+			for place in places:
+				rig.set_view(place.view)
+				await _before_shot()
+				var file_name := "4%d-svet-%s-%s" % [phase, DayLight.PHASE_CODES[phase], place.name.substr(3)]
+				await _capture(file_name)
+				print("КАДР %s — %s, %s — отрисовка %d мс" % [file_name, DayLight.PHASE_TITLES[phase], place.title, _frame_msec])
+		day_light.set_phase(DayLight.Phase.DAY, true)
+		get_viewport().scaling_3d_scale = 0.25
+		await _frames(12)
+		get_viewport().scaling_3d_scale = 1.0
+
+	# Времена суток (ключ --lights=время:направление,…; шаг 1.4): места из ключей --view снимаются в каждом свете;
+	# без ключей --view — пять мест облёта: остров целиком, горы, взгляд сверху, озеро и взгляд к горизонту.
+	if not lights.is_empty():
+		var light := _find_light()
+		var place_names := PackedStringArray()
+		var place_views: Array[CameraView] = []
+		for view_code in extra_views:
+			var view := CameraView.from_code(view_code.split("@")[0])
+			if view != null:
+				place_names.append("%02d" % (place_views.size() + 1))
+				place_views.append(view)
+		if place_views.is_empty():
+			for ending: String in ["ostrov-ot", "gory", "sverhu", "ozero", "gorizont"]:
+				for stop in stops:
+					if stop.name.substr(3) == ending:
+						place_names.append(ending)
+						place_views.append(stop.view)
+						break
+		for code in lights:
+			var parts := code.split(":")
+			var variant := parts[1].to_int() if parts.size() > 1 else 0
+			light.set_variant(variant, true)
+			light.set_phase(DayLight.PHASE_CODES.find(parts[0]) as DayLight.Phase, true)
+			# Небо для отражений и рассеянного света пересчитывается за несколько кадров.
+			get_viewport().scaling_3d_scale = 0.25
+			await _frames(12)
+			for i in place_views.size():
+				rig.set_view(place_views[i])
+				await _before_shot()
+				var file_name := "svet-%s-%d-%s" % [parts[0], variant, place_names[i]]
+				await _capture(file_name)
+				print("КАДР %s — %s, свет «%s» — место %s — отрисовка %d мс" % [file_name,
+						DayLight.PHASE_TITLES[light.phase()], light.variant_title(), place_views[i].to_code(), _frame_msec])
+		light.set_variant(0, true)
+		light.set_phase(DayLight.Phase.DAY, true)
+		get_viewport().scaling_3d_scale = 0.25
+		await _frames(12)
+		get_viewport().scaling_3d_scale = 1.0
+
 	# Записка «что нового» — кадр для проверки, что текст помещается в окно.
 	if not checks_only and (only.is_empty() or _listed("93-chto-novogo", only)):
 		hud.show_report(BuildInfo.notes())
@@ -107,6 +171,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _check_benchmark(benchmark, world, rig, terrain, hud, stops)
 	if _listed("92-kesh", only):
 		await _check_cache(stops)
+	if _listed("94-svet", only):
+		await _check_light(stops)
 
 	if not only.is_empty():
 		# Только выбранные кадры: проверки, замер и другие карты не нужны. Отчёт с высотами — для сверки с песочницей.
@@ -131,6 +197,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	_check_mountain_camera(stops)
 	await _check_sky()
 	_check_islets("")
+	await _check_light(stops)
 	await _check_cache(stops)
 
 	if quick:
@@ -395,6 +462,66 @@ func _check_benchmark(benchmark: Benchmark, world: WorldData, rig: StrategyCamer
 	get_viewport().scaling_3d_scale = scale
 
 
+## Свет и небо (шаг 1.4): каждое время суток рисуется; днём светлее всего, ночью темнее всего, но землю видно
+## («всё различимо» — требование к ночи с сайта); переход между временами суток плавный — без скачка света
+## на середине, где солнце сменяется луной.
+func _check_light(stops: Array[Tour.Stop]) -> void:
+	var light := _find_light()
+	if light == null:
+		return
+	var scale := get_viewport().scaling_3d_scale
+	get_viewport().scaling_3d_scale = 0.25
+	_rig.set_view(stops[1].view)
+	var brightness: Array[float] = []
+	for phase in 4:
+		light.set_phase(phase as DayLight.Phase, true)
+		await _frames(8)
+		brightness.append(await _frame_brightness())
+	var morning := brightness[DayLight.Phase.MORNING]
+	var day := brightness[DayLight.Phase.DAY]
+	var evening := brightness[DayLight.Phase.EVENING]
+	var night := brightness[DayLight.Phase.NIGHT]
+	_check("свет: днём светлее всего, ночью темнее всего, но землю видно",
+			day >= morning and day >= evening and night < morning and night < evening and night > 0.07,
+			"яркость кадра: утро %.2f, день %.2f, вечер %.2f, ночь %.2f" % [morning, day, evening, night])
+	# Переход вечер → ночь, как клавишей, в двадцать шагов: ни один шаг не меняет яркость кадра резко.
+	light.set_phase(DayLight.Phase.EVENING, true)
+	await _frames(4)
+	light.set_process(false)
+	light.set_phase(DayLight.Phase.NIGHT)
+	var last := await _frame_brightness()
+	var first := last
+	var jump := 0.0
+	var steps := 0
+	while light.is_changing() and steps < 40:
+		light.step(DayLight.SWITCH_SECONDS / 20.0)
+		await _frames(1)
+		var now := await _frame_brightness()
+		jump = maxf(jump, absf(now - last))
+		last = now
+		steps += 1
+	light.set_process(true)
+	var whole := maxf(absf(first - last), 0.01)
+	_check("свет: переход между временами суток без скачков", steps >= 20 and jump < 0.35 * whole,
+			"шагов %d, яркость %.2f → %.2f, самый большой шаг %.3f" % [steps, first, last, jump])
+	light.set_phase(DayLight.Phase.DAY, true)
+	await _frames(8)
+	get_viewport().scaling_3d_scale = scale
+
+
+## Средняя яркость картинки мира в кадре (0 — чёрное, 1 — белое); надписи по краям в счёт не идут.
+func _frame_brightness() -> float:
+	await RenderingServer.frame_post_draw
+	var image := get_viewport().get_texture().get_image()
+	var total := 0.0
+	var count := 0
+	for y in range(120, image.get_height() - 70, 8):
+		for x in range(8, image.get_width() - 8, 8):
+			total += image.get_pixel(x, y).get_luminance()
+			count += 1
+	return total / float(maxi(count, 1))
+
+
 ## Кэш ближнего вида вокруг камеры (near_cache.gd): картинка из кэша — та же, что при прямом расчёте, и на месте,
 ## и после проезда камеры (окна уровней сдвигаются, текстуры «по кругу» досчитываются полосами при малом бюджете);
 ## кадр с кэшем легче. В остальных кадрах облёта кэш выключен: картинка та же, а прогрев на программной отрисовке
@@ -479,6 +606,12 @@ func _cache_against_direct(file_name: String) -> Dictionary:
 				far += 1
 			count += 1
 	return {"mean": total / float(count), "far": float(far) / float(count), "cached_ms": cached_ms, "direct_ms": direct_ms}
+
+
+func _find_light() -> DayLight:
+	for node in get_tree().root.find_children("*", "DayLight", true, false):
+		return node
+	return null
 
 
 func _find_sun() -> DirectionalLight3D:

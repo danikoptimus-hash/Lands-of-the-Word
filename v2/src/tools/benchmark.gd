@@ -27,6 +27,7 @@ var report_head := ""
 var report_legs := PackedStringArray()
 
 var _cache_note := ""  ## строка отчёта о кэше ближнего вида
+var _light_note := ""  ## строка отчёта о времени суток: ночью и днём картинка стоит видеокарте по-разному
 
 
 ## Сопрограмма.
@@ -68,6 +69,10 @@ func run(world: WorldData, rig: StrategyCamera, height_map: HeightMap = null, te
 		lines.append("  %s: %d к/с" % [stops[i].title, roundi(_fps(leg_ms))])
 
 	var breakdown := PackedStringArray()
+	_light_note = ""
+	var day_light := (sun.get_parent() as DayLight) if sun != null else null
+	if day_light != null:
+		_light_note = "%s, свет «%s» (клавиши L и J)" % [DayLight.PHASE_TITLES[day_light.phase()], day_light.variant_title()]
 	_cache_note = ""
 	if terrain != null:
 		_cache_note = ("включён, %d МБ видеопамяти (клавиша T)" % roundi(terrain.cache().memory_mb())) if terrain.cache_budget > 0 else "выключен (клавиша T)"
@@ -239,6 +244,8 @@ func _report(frames_ms: PackedFloat32Array, legs: PackedStringArray, breakdown: 
 	text.append("Экран: %s" % screen_text)
 	if not _cache_note.is_empty():
 		text.append("Кэш ближнего вида: %s" % _cache_note)
+	if not _light_note.is_empty():
+		text.append("Время суток: %s" % _light_note)
 	text.append("По участкам облёта:")
 	report_head = "\n".join(text)
 	text.append_array(legs)

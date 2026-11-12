@@ -39,8 +39,10 @@ var _islet_index := -1  ## на какой малый остров летали 
 var _terrain: WorldTerrain
 var _rig: StrategyCamera
 var _hud: Hud
+var _light: DayLight  ## свет и небо: времена суток
 var _sun: DirectionalLight3D
 var _environment: Environment
+var _light_code := ""  ## ключ --light=время:направление — с каким светом начать
 var _color_preset := 0
 var _render_scale := 0
 var _render_scale_chosen := false  ## игрок выбрал разрешение сам (клавиша B): само оно больше не меняется
@@ -144,7 +146,7 @@ func _process(_delta: float) -> void:
 	var reach := maxf(_rig.current_distance() * lerpf(2.6, 7.0, low), lerpf(500.0, 4500.0, low))
 	_sun.directional_shadow_max_distance = minf(reach, 40000.0)
 	# Издалека (весь мир с малыми островами) дымка реже: иначе за десять километров картинка белеет.
-	_environment.fog_density = FOG_DENSITY * clampf(3000.0 / _rig.current_distance(), 0.25, 1.0)
+	_environment.fog_density = FOG_DENSITY * clampf(3000.0 / _rig.current_distance(), 0.25, 1.0) * _light.fog
 
 
 ## Сколько метров земли приходится на точку картинки мира в середине кадра (картинка мира считается
@@ -200,6 +202,15 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_render_scale_chosen = true
 			_apply_render_scale()
 			_hud.toast("Картинка мира: %d %% разрешения. B — следующее." % roundi(RENDER_SCALES[_render_scale] * 100.0), 4.0)
+		KEY_L:
+			# Время суток: утро → день → вечер → ночь, с плавным переходом (в игре он идёт полчаса).
+			var next := ((_light.phase() + 1) % 4) as DayLight.Phase
+			_light.set_phase(next)
+			_hud.toast("Время суток: %s. L — следующее." % DayLight.PHASE_TITLES[next], 4.0)
+		KEY_J:
+			# Направление света — на время выбора владельцем (шаг 1.4).
+			_light.set_variant(_light.variant() + 1)
+			_hud.toast("Свет: %s (%d из %d). J — другой." % [_light.variant_title(), _light.variant() + 1, DayLight.LOOKS.size()], 4.0)
 		KEY_T:
 			# Кэш ближнего вида можно выключить и сравнить: картинка должна быть той же, скорость — как в 0.5.3.
 			_terrain.cache_budget = 0 if _terrain.cache_budget > 0 else NearCache.BUDGET
@@ -223,65 +234,34 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 # ── Сцена ────────────────────────────────────────────────────────────────────
 
-## Дневной свет для шага «Поверхности»: ясный день, солнце с запада и чуть с юга, синее небо. Свет нужен, чтобы
-## цвета земли читались как в природе; он временный — настоящие свет и небо (утро, день, вечер, ночь) — шаг 1.4.
-## Дымка слабая (замечание владельца 11.11: «чтобы это не было мыльное туманное нечто»).
+## Свет и небо — узел DayLight (шаг 1.4): утро, день, вечер, ночь и плавные переходы между ними. День — тот свет,
+## с которым владелец принимал поверхности. Дымка слабая (замечание владельца 11.11: «чтобы это не было мыльное
+## туманное нечто»); её густота зависит ещё и от высоты камеры (см. _process).
 func _build_light() -> void:
-	_sun = DirectionalLight3D.new()
-	_sun.transform = Transform3D(Basis.looking_at(Vector3(0.78, -0.58, -0.22), Vector3.UP), Vector3.ZERO)
-	_sun.light_color = Color(1.0, 0.95, 0.86)
-	_sun.light_energy = 2.0
-	_sun.shadow_enabled = true
-	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	_sun.directional_shadow_blend_splits = true
-	_sun.directional_shadow_max_distance = 6000.0
-	_sun.shadow_blur = 1.8
-	add_child(_sun)
-
-	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color(0.14, 0.34, 0.74)
-	sky_material.sky_horizon_color = Color(0.6, 0.76, 0.94)
-	sky_material.sky_curve = 0.12
-	sky_material.ground_horizon_color = Color(0.6, 0.76, 0.94)
-	sky_material.ground_bottom_color = Color(0.3, 0.4, 0.52)
-	var sky := Sky.new()
-	sky.sky_material = sky_material
-
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_SKY
-	environment.sky = sky
-	# Свет неба в тенях — почти белый: от чисто синего неба тени на скалах становились синими.
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_sky_contribution = 0.3
-	environment.ambient_light_color = Color(0.93, 0.92, 0.88)
-	environment.ambient_light_energy = 0.58
-	environment.tonemap_mode = Environment.TONE_MAPPER_AGX
-	environment.tonemap_exposure = 1.1
-	environment.tonemap_agx_contrast = 1.3
-	# Затенение впадин (SSAO) выключено: ради него шейдер земли выполнялся в каждом кадре дважды — отдельным
-	# проходом для нормалей. Замер по частям на 0.5.1: это 38 % времени кадра вблизи. Впадины затеняет сама
-	# картинка земли — по форме рельефа (bake_surface.gdshader). К затенению от домов и деревьев вернёмся
-	# на шаге 1.4 «Свет».
-	environment.ssao_enabled = false
-	environment.fog_enabled = true
-	environment.fog_light_color = Color(0.66, 0.79, 0.93)
-	environment.fog_density = FOG_DENSITY
-	environment.fog_aerial_perspective = 0.3
-	environment.fog_sky_affect = 0.0
-	environment.adjustment_enabled = true
-	_environment = environment
+	_light = DayLight.new()
+	add_child(_light)
+	_sun = _light.sun
+	_environment = _light.environment
+	if not _light_code.is_empty():
+		_set_light(_light_code)
 	_apply_color_preset()
-	var world_environment := WorldEnvironment.new()
-	world_environment.environment = environment
-	add_child(world_environment)
 
 
-## Насыщенность и контраст картинки: три набора, клавиша V переключает по кругу. Владелец выбирает на глаз.
+## Время суток и направление света по записи «время:направление» (ключ --light=evening:1; направление можно
+## не указывать). Сразу, без плавного перехода.
+func _set_light(code: String) -> void:
+	var parts := code.split(":")
+	var phase := DayLight.PHASE_CODES.find(parts[0])
+	if parts.size() > 1:
+		_light.set_variant(parts[1].to_int(), true)
+	if phase >= 0:
+		_light.set_phase(phase as DayLight.Phase, true)
+
+
+## Насыщенность и контраст картинки: три набора, клавиша V переключает по кругу. Ложатся поверх вида времени суток.
 func _apply_color_preset() -> void:
 	var preset: Dictionary = COLOR_PRESETS[_color_preset]
-	_environment.adjustment_saturation = preset["saturation"]
-	_environment.adjustment_contrast = preset["contrast"]
-	_environment.adjustment_brightness = preset["brightness"]
+	_light.set_grade(preset["saturation"], preset["contrast"], preset["brightness"])
 
 
 # ── Мир ──────────────────────────────────────────────────────────────────────
@@ -546,6 +526,8 @@ func _read_arguments() -> void:
 			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
 		elif argument.begins_with("--debug-view="):
 			_debug_view = argument.trim_prefix("--debug-view=").to_int()
+		elif argument.begins_with("--light="):
+			_light_code = argument.trim_prefix("--light=")
 		elif argument.begins_with("--view="):
 			_extra_views.append(argument.trim_prefix("--view="))
 		elif argument.begins_with("--finish-update="):
