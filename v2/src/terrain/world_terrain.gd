@@ -36,9 +36,10 @@ const LOD_CELLS: Array[int] = [64, 32, 16]  ## клеток на сторону 
 const LOD_DISTANCE: Array[float] = [2000.0, 4500.0]
 const MORPH_START := 0.7  ## с этой доли расстояния сетка начинает съезжаться к более редкой
 const SKIRT := 24.0
-## Плитки, где дно везде глубже этого, не строим: вода глубже 4 м непрозрачна (water.gdshader), дно под ней
-## не видно, а рисовать его — зря тратить время видеокарты (на тесте 0.3.0 так терялась четверть кадров над шельфом).
-## Меняется вместе с глубиной, с которой вода становится непрозрачной.
+## Плитки, где дно везде глубже этого, не строим: землю под водой не видно, а рисовать её — зря тратить время
+## видеокарты (на тесте 0.3.0 так терялась четверть кадров над шельфом). С 0.7.2 вода прозрачна только у самого
+## уреза (первые 20 см глубины), дно глубже рисует она сама (water.gdshader) — земля под водой нужна лишь там,
+## куда вода отходит при накате; запас оставлен прежний.
 const DEEP_CUTOFF := -4.0
 const SEA_SIZE := 200000.0  ## море уходит за горизонт: его край тонет в дымке
 
@@ -101,8 +102,13 @@ var cache_budget := NearCache.BUDGET
 var _water_materials: Array[ShaderMaterial] = []  ## вода областей и открытого моря
 var _storm := 0.0  ## доля шторма в виде воды, 0…1
 var _water_time := 0.0  ## накопленное время воды (секунды, умноженные на её скорость)
-var _wave_maps: Array[ImageTexture] = []  ## наклоны и высота волн, пятна пены — одни на всю воду
+var _swash_time := 0.0  ## время наката: секунды по часам — у наката свой ритм, от скорости воды не зависит
+var _wave_map: ImageTexture  ## рябь и пятна пены — одни на всю воду
 var _foam_map: ImageTexture
+var _sea_meshes: Array[MeshInstance3D] = []  ## полотна моря: поднимаются на высоту наката
+## Скорость воды и высота наката на берег — в ясную погоду (x) и в шторм (y); подбираются ползунками.
+var _water_speed := WaterLook.SPEED
+var _water_swash := WaterLook.SWASH
 
 
 ## Сопрограмма: строит землю по данным мира. true — готово, иначе причина в error.
@@ -399,15 +405,14 @@ func _bake_surface(world: WorldData, region: Region) -> bool:
 
 
 func _make_water_material(texture: Texture2D, area: Rect2) -> ShaderMaterial:
-	if _wave_maps.is_empty():
-		_wave_maps = WaterLook.make_wave_maps()
+	if _wave_map == null:
+		_wave_map = WaterLook.make_wave_map()
 		_foam_map = WaterLook.make_foam_map()
 	var material := ShaderMaterial.new()
 	material.shader = WATER_SHADER
 	material.set_shader_parameter("height_map", texture)
 	material.set_shader_parameter("bake_rect", Vector4(area.position.x, area.position.y, area.size.x, area.size.y))
-	material.set_shader_parameter("wave_map", _wave_maps[0])
-	material.set_shader_parameter("wave_heights", _wave_maps[1])
+	material.set_shader_parameter("wave_map", _wave_map)
 	material.set_shader_parameter("foam_map", _foam_map)
 	WaterLook.apply(material, water_now())
 	_water_materials.append(material)
@@ -426,27 +431,48 @@ func storm() -> float:
 	return _storm
 
 
-## Вид воды сейчас: между штилем и штормом.
+## Скорость воды и высота наката (метры): x — в ясную погоду, y — в шторм.
+func set_water_tuning(speed: Vector2, swash: Vector2) -> void:
+	_water_speed = speed
+	_water_swash = swash
+	_apply_water()
+
+
+## Вид воды сейчас: между штилем и штормом, с подобранной высотой наката.
 func water_now() -> Dictionary:
-	return WaterLook.at(_storm)
+	var look: Dictionary = WaterLook.at(_storm).duplicate()
+	look["swash"] = lerpf(_water_swash.x, _water_swash.y, _storm)
+	return look
 
 
 ## Вода ушла вперёд на delta секунд — со своей скоростью: в шторм она быстрее.
 func advance_water(delta: float) -> void:
-	set_water_time(_water_time + delta * float(water_now()["flow"]))
+	_water_time += delta * lerpf(_water_speed.x, _water_speed.y, _storm)
+	_swash_time += delta
+	_push_water_time()
 
 
-## Время воды, секунды: рябь и пена движутся по нему. В кадрах проверок оно стоит.
+## Время воды, секунды: рябь, пена и накат движутся по нему. В кадрах проверок оно стоит.
 func set_water_time(seconds: float) -> void:
 	_water_time = seconds
+	_swash_time = seconds
+	_push_water_time()
+
+
+func _push_water_time() -> void:
 	for material in _water_materials:
-		material.set_shader_parameter("water_time", seconds)
+		material.set_shader_parameter("water_time", _water_time)
+		material.set_shader_parameter("swash_time", _swash_time)
 
 
 func _apply_water() -> void:
 	var look := water_now()
 	for material in _water_materials:
 		WaterLook.apply(material, look)
+	# Полотно моря стоит на высоте самого высокого наката: берег выше обычного уреза иначе закрывал бы воду,
+	# и взбежать на него она не могла бы. Где воды сейчас нет, полотно прозрачно.
+	for sea in _sea_meshes:
+		sea.position.y = float(look["swash"])
 
 
 ## Плитки земли и вода над ними. Плитка мира принадлежит первой области, в которую попала: области
@@ -488,6 +514,7 @@ func _build_chunks() -> void:
 			continue
 		var water := MeshInstance3D.new()
 		water.name = "Water"
+		_sea_meshes.append(water)
 		water.mesh = _make_quads(water_tiles)
 		water.material_override = region.water_material
 		water.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -503,6 +530,7 @@ func _build_ocean(depth_texture: Texture2D) -> void:
 	material.set_shader_parameter("open_sea", true)
 	var sea := MeshInstance3D.new()
 	sea.name = "Ocean"
+	_sea_meshes.append(sea)
 	sea.mesh = _make_ocean_mesh()
 	sea.material_override = material
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF

@@ -27,6 +27,7 @@ const HELP_ROWS := [
 	["G", "сетка гексов"],
 	["L", "время суток: утро, день, вечер, ночь"],
 	["P", "погода: ясно или шторм (переход плавный)"],
+	["U", "настройка моря: ползунки скорости и наката"],
 	["V", "цвет: естественно, сочно, очень сочно"],
 	["B", "если медленно: картинка в 100, 77 или 67 % разрешения"],
 	["T", "кэш ближнего вида: включить или выключить (для сравнения)"],
@@ -59,6 +60,17 @@ var _report_left: Label
 var _report_right: Label
 var _report_font := REPORT_FONT
 var _fps_timer := 0.0
+var _tuning: PanelContainer  ## настройка моря: ползунки скорости и наката (на время подбора владельцем)
+var _tuning_wanted := false  ## окно настройки включено; пока открыт отчёт или записка, оно прячется (они бы наложились)
+var _tuning_title: Label
+var _tuning_speed: HSlider
+var _tuning_speed_value: Label
+var _tuning_swash: HSlider
+var _tuning_swash_value: Label
+var _tuning_summary: Label
+
+## Владелец сдвинул ползунок настройки моря: скорость воды и высота наката (метры) для погоды, что сейчас на экране.
+signal tuning_changed(speed: float, swash: float)
 
 
 func _ready() -> void:
@@ -86,6 +98,7 @@ func _ready() -> void:
 	_build_hint()
 	_build_fps()
 	_build_help()
+	_build_tuning()
 	_build_toast()
 	_build_loading()
 	_build_report()
@@ -144,6 +157,7 @@ func show_report(text: String, rows: PackedStringArray = PackedStringArray()) ->
 	_report_columns.visible = not rows.is_empty()
 	_set_report_font(REPORT_FONT)
 	_report.visible = true
+	_tuning.visible = false
 
 
 ## Сколько места осталось под окном отчёта (точек): отрицательное — окно не помещается на экран.
@@ -161,6 +175,31 @@ func is_report_open() -> bool:
 
 func close_report() -> void:
 	_report.visible = false
+	_tuning.visible = _tuning_wanted
+
+
+func set_tuning_open(open: bool) -> void:
+	_tuning_wanted = open
+	_tuning.visible = open and not _report.visible
+
+
+func is_tuning_open() -> bool:
+	return _tuning_wanted
+
+
+## Показать в окне настройки моря числа погоды, что сейчас на экране (ползунки при этом сигнала не дают).
+func show_tuning(weather: String, speed: float, swash: float, summary: String) -> void:
+	_tuning_title.text = "Настройка моря — %s" % weather
+	_tuning_speed.set_value_no_signal(speed)
+	_tuning_swash.set_value_no_signal(swash)
+	_tuning_speed_value.text = number(speed)
+	_tuning_swash_value.text = number(swash)
+	_tuning_summary.text = summary
+
+
+## Число с двумя знаками после запятой.
+static func number(value: float) -> String:
+	return ("%.2f" % value).replace(".", ",")
 
 
 func set_overlay_visible(shown: bool) -> void:
@@ -182,7 +221,7 @@ func _build_title() -> void:
 
 func _build_hint() -> void:
 	var box := _panel(Control.SIZE_SHRINK_BEGIN, Control.SIZE_SHRINK_END)
-	box.add_child(_label("F1 — управление  ·  F2 — снимок  ·  F5 — замер скорости  ·  L — время суток  ·  P — шторм  ·  G — сетка  ·  V — цвет  ·  0 — весь мир  ·  K — Каменоломня  ·  M — другая карта  ·  F11 — во весь экран", _text_font, 13, INK_DIM))
+	box.add_child(_label("F1 — управление  ·  F2 — снимок  ·  F5 — замер скорости  ·  L — время суток  ·  P — шторм  ·  U — настройка моря  ·  G — сетка  ·  V — цвет  ·  0 — весь мир  ·  K — Каменоломня  ·  M — другая карта  ·  F11 — во весь экран", _text_font, 13, INK_DIM))
 
 
 func _build_fps() -> void:
@@ -208,6 +247,67 @@ func _build_help() -> void:
 		grid.add_child(_label(str(row[0]), _bold_font, 14, ACCENT))
 		grid.add_child(_label(str(row[1]), _text_font, 14, INK))
 	_help.visible = false
+
+
+## Окно настройки моря (тест 0.7.2): владелец двигает ползунки и называет числа. В отличие от остальных надписей
+## оно ловит мышь: над ним камера не таскается и не приближается.
+func _build_tuning() -> void:
+	_tuning = _panel(Control.SIZE_SHRINK_END, Control.SIZE_SHRINK_CENTER)
+	_tuning.mouse_filter = Control.MOUSE_FILTER_STOP
+	_tuning.visible = false
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 8)
+	_tuning.add_child(column)
+	_tuning_title = _label("Настройка моря", _title_font, 19, INK)
+	column.add_child(_tuning_title)
+	var speed := _tuning_row(column, "Скорость моря", WaterLook.SPEED_MAX)
+	_tuning_speed = speed[0]
+	_tuning_speed_value = speed[1]
+	var swash := _tuning_row(column, "Накат на берег, м", WaterLook.SWASH_MAX)
+	_tuning_swash = swash[0]
+	_tuning_swash_value = swash[1]
+	column.add_child(_label("P — шторм и обратно: у шторма свои два числа.", _text_font, 13, INK_DIM))
+	_tuning_summary = _label("", _text_font, 13, ACCENT)
+	column.add_child(_tuning_summary)
+	column.add_child(_label("Подберите и напишите мне эти четыре числа. U — убрать окно.", _text_font, 13, INK_DIM))
+
+
+## Строка окна настройки: подпись, ползунок от нуля до most с шагом 0,05 и число. Возвращает ползунок и надпись числа.
+func _tuning_row(column: VBoxContainer, title: String, most: float) -> Array:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 12)
+	column.add_child(row)
+	var caption := _label(title, _text_font, 15, INK)
+	caption.custom_minimum_size = Vector2(150.0, 0.0)
+	row.add_child(caption)
+	var slider := HSlider.new()
+	slider.min_value = 0.0
+	slider.max_value = most
+	slider.step = 0.05
+	slider.custom_minimum_size = Vector2(260.0, 22.0)
+	slider.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	# Ползунок не берёт клавиатуру (стрелки двигают камеру) и не слушает колесо (над окном легко задеть).
+	slider.focus_mode = Control.FOCUS_NONE
+	slider.scrollable = false
+	# Дорожка ползунка видна целиком (в теме движка пустая её часть на тёмной плашке не видна).
+	var track := StyleBoxFlat.new()
+	track.bg_color = Color(1.0, 1.0, 1.0, 0.2)
+	track.set_corner_radius_all(3)
+	track.content_margin_top = 3.0
+	track.content_margin_bottom = 3.0
+	var filled: StyleBoxFlat = track.duplicate()
+	filled.bg_color = ACCENT
+	slider.add_theme_stylebox_override("slider", track)
+	slider.add_theme_stylebox_override("grabber_area", filled)
+	slider.add_theme_stylebox_override("grabber_area_highlight", filled)
+	row.add_child(slider)
+	var value := _label("0,00", _bold_font, 16, ACCENT)
+	value.custom_minimum_size = Vector2(46.0, 0.0)
+	value.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	row.add_child(value)
+	slider.value_changed.connect(func(_value: float) -> void:
+		tuning_changed.emit(_tuning_speed.value, _tuning_swash.value))
+	return [slider, value]
 
 
 func _build_toast() -> void:

@@ -38,6 +38,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	var profile_views := PackedStringArray()
 	var lights := PackedStringArray()
 	var waters := PackedStringArray()
+	var water_times := PackedStringArray()
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--profile="):
 			profile_views = argument.trim_prefix("--profile=").split(";", false)
@@ -52,6 +53,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 			lights = argument.trim_prefix("--lights=").split(",", false)
 		elif argument.begins_with("--weathers="):
 			waters = argument.trim_prefix("--weathers=").split(",", false)
+		elif argument.begins_with("--water-times="):
+			water_times = argument.trim_prefix("--water-times=").split(",", false)
 	await _frames(4)
 
 	if not profile_views.is_empty():
@@ -165,6 +168,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 
 	# Вода в ясную погоду и в шторм (ключ --weathers=clear,storm; шаг 1.5): в каждой погоде и в каждом времени
 	# суток из --lights (без него — днём) снимаются места облёта, где видна вода, и места из ключей --view.
+	# С ключом --water-times=20,24,28 каждое место снимается в эти моменты времени воды (секунды) — видно, как
+	# ходит накат; в имени кадра тогда стоит и момент.
 	if not waters.is_empty():
 		var day_light := _find_light()
 		var place_names := PackedStringArray()
@@ -194,11 +199,15 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 				await _frames(12)
 				for i in place_views.size():
 					rig.set_view(place_views[i])
-					await _before_shot()
-					var file_name := "voda-%s-%s-%s" % [water, code, place_names[i]]
-					await _capture(file_name)
-					print("КАДР %s — %s, %s — место %s — отрисовка %d мс" % [file_name, "шторм" if stormy else "ясно",
-							DayLight.PHASE_TITLES[phase], place_views[i].to_code(), _frame_msec])
+					for moment in (water_times if not water_times.is_empty() else PackedStringArray([""])):
+						if not moment.is_empty():
+							terrain.set_water_time(moment.to_float())
+						await _before_shot()
+						var file_name := "voda-%s-%s-%s%s" % [water, code, place_names[i], ("-" + moment) if not moment.is_empty() else ""]
+						await _capture(file_name)
+						print("КАДР %s — %s, %s — место %s — отрисовка %d мс" % [file_name, "шторм" if stormy else "ясно",
+								DayLight.PHASE_TITLES[phase], place_views[i].to_code(), _frame_msec])
+		terrain.set_water_time(WaterLook.SHOT_TIME)
 		terrain.set_storm(0.0)
 		day_light.set_storm(0.0)
 		day_light.set_phase(DayLight.Phase.DAY, true)
@@ -212,6 +221,13 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _frames(3)
 		await _capture("93-chto-novogo")
 		hud.close_report()
+
+	# Окно настройки моря — кадр для проверки, что оно на месте и читается.
+	if not checks_only and (only.is_empty() or _listed("96-nastroyka", only)):
+		hud.set_tuning_open(true)
+		await _frames(3)
+		await _capture("96-nastroyka")
+		hud.set_tuning_open(false)
 
 	if _listed("91-zamer", only):
 		await _check_benchmark(benchmark, world, rig, terrain, hud, stops)
@@ -682,6 +698,23 @@ func _check_water(stops: Array[Tour.Stop]) -> void:
 	var same := _picture_difference(first, again)
 	_check("вода: движется, а при том же времени кадр тот же", moved > 0.15 and same < 0.05,
 			"среднее отличие кадра через 3 с — %.2f из 255, при том же времени — %.3f" % [moved, same])
+	# Накат: у берега вода стоит выше или ниже обычного уреза — кадр с накатом отличается от кадра без него
+	# (время воды то же: рябь и пена на местах, разница только в том, где сейчас кромка воды). Смотрим два места
+	# у порта: на обрывистом берегу кромка почти не ходит.
+	var swash_shift := 0.0
+	for stop in stops:
+		if stop.name.substr(3) == "veshka" or stop.name.substr(3) == "bereg":
+			_rig.set_view(stop.view)
+			await _frames(8)
+			var with_swash := await _frame_picture()
+			_terrain.set_water_tuning(WaterLook.SPEED, Vector2.ZERO)
+			await _frames(2)
+			var without := await _frame_picture()
+			_terrain.set_water_tuning(WaterLook.SPEED, WaterLook.SWASH)
+			swash_shift = maxf(swash_shift, _picture_difference(with_swash, without))
+	_check("вода: накат ходит по берегу", swash_shift > 0.15, "кадр у берега с накатом и без него отличается на %.2f из 255" % swash_shift)
+	_rig.set_view(place.view)
+	await _frames(4)
 	# Шторм набирает силу за двадцать шагов: свет, небо и вода меняются вместе.
 	var last := await _frame_brightness()
 	var calm := last
