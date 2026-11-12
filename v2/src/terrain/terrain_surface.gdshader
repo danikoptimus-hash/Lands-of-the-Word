@@ -158,7 +158,7 @@ void fragment() {
 	if (picture_share > 0.98) {
 		picture_share = 1.0;
 	}
-	if ((debug_view >= 1 && debug_view <= 4) || debug_view == 10) {
+	if ((debug_view >= 1 && debug_view <= 4) || debug_view == 10 || (debug_view >= 21 && debug_view <= 24)) {
 		picture_share = 1.0;
 	}
 

@@ -20,6 +20,10 @@
 //   1 — доли этих трёх материалов и порода камня;
 //   2 — тон: сухость, цветение, оттенок песка, мокрая полоса у воды (шаг 4 м — меняется плавно);
 //   3 — затенение по форме рельефа и крупные пятна светлее-темнее (множитель цвета) и снег;
+//   5–7 — растительность (шаг 1.8): густота по видам, 0…1 от наибольшей густоты вида. 5 — дуб, сосна, олива,
+//       кипарис; 6 — пальма, тамариск, зелёный кустарник, сухой кустарник; 7 — камни, трава, сомкнутость крон, суша.
+//       По этим картам flora.gd расставляет деревья, кусты и камни, а дальний вид земли (4) красится ими же:
+//       лес с высоты — цельный массив, а не точки;
 //   4 — готовая картинка дальнего вида: цвет природной зоны (средние цвета материалов по их долям) с рисунком
 //       главного материала, с затенением и снегом. Мелкие пятна в ней приглушены: с высоты зоны читаются цельными.
 shader_type canvas_item;
@@ -47,6 +51,9 @@ uniform float snow_line = 120.0;
 uniform vec4 islets[8];
 uniform int islet_count = 0;
 uniform int part = 0;
+// Расчистки (шаг 1.8): города и точки старта — xy центр, z радиус, метры. Деревья и кусты там не растут.
+uniform vec4 clearings[64];
+uniform int clearing_count = 0;
 // Для проверки географии (ключ запуска --debug-view): вместо картинки дальнего вида — 1 влажность, 2 сток,
 // 3 крутизна, 4 ложбины и гребни.
 uniform int debug_view = 0;
@@ -327,6 +334,69 @@ void fragment() {
 	float line = snow_line + 22.0 * n.z + 16.0 * (meso.g - 0.5) + 8.0 * (fine.a - 0.5);
 	float snow = smoothstep(line - 4.0, line + 16.0, h) * (1.0 - 0.8 * smoothstep(0.36, 0.62, steep));
 
+	// ── Растительность (шаг 1.8): экологические правила ────────────────────────
+	// Где какой вид растёт и насколько густо — от тех же местности, влажности, высоты, уклона, стока и берега,
+	// что и материалы земли. Леса — не равномерная россыпь: крупное поле «лесистости» (волны в километр) вместе
+	// с влажностью даёт массивы, поле помельче — поляны и зубчатые опушки, мелкое — отдельные деревья в поле.
+	vec4 woods = textureLod(noise_map, pn / 1150.0 + vec2(0.61, 0.27), 0.0); // массивы, породы, рощи олив, пальмы у берега
+	vec4 groves = textureLod(noise_map, pn / 230.0 + vec2(0.17, 0.83), 0.0); // опушки, поляны, заросли, группы кипарисов
+	float dry_land = step(0.7, h) * step(lake_depth, -0.05);
+	float off_beach = smoothstep(5.0, 16.0, shore + 6.0 * (fine.g - 0.5));
+	float tree_slope = 1.0 - smoothstep(0.14, 0.32, steep);
+	float bush_slope = 1.0 - smoothstep(0.26, 0.5, steep);
+	float altitude = h / snow_line;
+	float belt = 1.0 - smoothstep(0.5, 0.82, altitude + 0.12 * (meso.b - 0.5)); // выше пояса леса деревьев нет
+	float open_land = 1.0;
+	for (int i = 0; i < clearing_count; i++) {
+		float away = distance(p, clearings[i].xy) + 22.0 * (fine.r - 0.5) + 30.0 * (groves.b - 0.5);
+		open_land *= smoothstep(clearings[i].z * 0.8, clearings[i].z * 1.3, away);
+	}
+	float grow = dry_land * off_beach * (1.0 - snow) * open_land;
+	float wooded = smoothstep(0.47, 0.6, woods.r + 0.7 * (moisture - 0.42) + 0.22 * (groves.r - 0.5) + 0.1 * (fine.r - 0.5));
+	float glade = smoothstep(0.24, 0.4, groves.g + 0.25 * (fine.g - 0.5));
+	float forest = wooded * glade * tree_slope * belt * grow;
+	float broadleaf = smoothstep(0.4, 0.6, woods.g + 0.6 * (moisture - 0.5));
+	float lone = smoothstep(0.86, 0.96, fine.b + 0.1 * (groves.b - 0.5)) * tree_slope * belt * grow;
+	float oak = forest * broadleaf * (meadow + 0.6 * hills + 0.45 * mountains + 0.3 * oasis)
+			+ lone * 0.25 * (meadow + 0.4 * hills) * smoothstep(0.35, 0.55, moisture);
+	float pine = forest * (1.0 - broadleaf) * (0.85 * hills + mountains + 0.5 * coast + 0.25 * meadow)
+			+ lone * 0.2 * (mountains + 0.3 * hills);
+	// Оливы: сухие и умеренные холмы, невысоко; дикие — рощами, не сплошь.
+	float olive_grove = smoothstep(0.5, 0.66, woods.b + 0.3 * (groves.b - 0.5));
+	float olive = (hills + 0.35 * meadow + 0.2 * coast) * olive_grove * smoothstep(0.18, 0.32, moisture)
+			* (1.0 - smoothstep(0.62, 0.8, moisture)) * (1.0 - smoothstep(55.0, 85.0, h)) * tree_slope * grow * (1.0 - forest)
+			+ lone * 0.3 * hills;
+	// Кипарисы: небольшими группами на холмах и у лугов.
+	float cypress = smoothstep(0.87, 0.95, groves.a + 0.16 * (fine.a - 0.5)) * (0.9 * hills + 0.5 * meadow + 0.2 * coast)
+			* smoothstep(0.2, 0.4, moisture) * tree_slope * grow * (1.0 - smoothstep(60.0, 90.0, h));
+	// Пальмы: оазисы, берега озёр в сухих местах, русла пустыни, изредка — у пляжа.
+	float palm = (oasis * 0.9 * smoothstep(0.1, 0.4, groves.g) + lake * (desert + 0.35 * hills + 0.2 * meadow) * 0.9
+			+ desert * channel * 0.5 * smoothstep(0.5, 0.7, groves.r) + coast * smoothstep(0.82, 0.92, woods.a) * 0.5)
+			* tree_slope * grow * (1.0 - smoothstep(40.0, 70.0, h));
+	// Тамариск и акация: понижения и русла пустыни, сухие края холмов, берег.
+	float tamarisk = (desert * (0.55 * channel + 0.3 * hollow + 0.1 * smoothstep(0.3, 0.45, moisture))
+			+ coast * 0.12 + hills * (1.0 - smoothstep(0.2, 0.32, moisture)) * 0.15)
+			* smoothstep(0.45, 0.7, groves.b + 0.3 * (fine.r - 0.5)) * tree_slope * grow;
+	// Кустарник: зелёный — подлесок, опушки, влажные холмы, у воды; сухой — пустыня (редко), сухие склоны, берег.
+	float thicket = smoothstep(0.4, 0.62, groves.b + 0.35 * (fine.g - 0.5));
+	float edge_of_woods = 4.0 * wooded * (1.0 - wooded) + wooded * (1.0 - glade);
+	float shrub_green = clamp(forest * 0.3 + edge_of_woods * 0.4 * (hills + meadow + mountains)
+			+ hills * 0.4 * smoothstep(0.3, 0.5, moisture) * thicket + meadow * 0.22 * thicket + oasis * 0.6
+			+ lake * 0.4 + channel * 0.35 * (1.0 - desert), 0.0, 1.0) * bush_slope * belt * grow;
+	float shrub_dry = clamp(desert * (0.06 + 0.3 * hollow + 0.25 * channel) * smoothstep(0.5, 0.75, fine.a)
+			+ (hills * (1.0 - smoothstep(0.25, 0.45, moisture)) * 0.45 + coast * 0.3 + mountains * 0.3) * thicket
+			+ smoothstep(0.2, 0.4, steep) * 0.2, 0.0, 1.0) * (1.0 - smoothstep(0.34, 0.6, steep)) * dry_land * (1.0 - snow) * open_land
+			* smoothstep(2.0, 9.0, shore);
+	// Камни: крутые склоны, горы, каменистые места, сухие русла — пятнами, не ровным слоем; на отвесном не лежат.
+	float rocks = clamp(smoothstep(0.1, 0.3, steep) * 0.55 + mountains * 0.3 + stone * 0.6 + desert * channel * 0.25 + rocky * 0.4, 0.0, 1.0)
+			* smoothstep(0.35, 0.7, fine.a + 0.3 * (groves.r - 0.5)) * dry_land * (1.0 - smoothstep(0.55, 0.8, steep));
+	// Трава (пучки вблизи): луга, влажные холмы, оазис; под пологом леса и в сухих местах реже.
+	float grass = clamp(meadow * 0.9 + hills * 0.55 * smoothstep(0.25, 0.5, moisture) + oasis * 0.6 + mountains * 0.25 * belt + coast * 0.1, 0.0, 1.0)
+			* (1.0 - 0.5 * forest) * (1.0 - smoothstep(0.2, 0.42, steep)) * dry_land * (1.0 - snow) * smoothstep(3.0, 10.0, shore);
+	float canopy = clamp(oak + 0.9 * pine + 0.5 * olive + 0.25 * cypress + 0.35 * palm + 0.3 * tamarisk, 0.0, 1.0);
+	// Под пологом земля темнее: тень крон читается и там, где самих теней уже не считают.
+	shade *= 1.0 - 0.2 * canopy - 0.06 * shrub_green;
+
 	// Три главных материала точки — и цвет природной зоны: средние цвета материалов по их долям.
 	vec3 zone = vec3(0.0);
 	float weight_sum = 0.0;
@@ -373,6 +443,12 @@ void fragment() {
 		COLOR = vec4(dryness, bloom, sand_tone, wet);
 	} else if (part == 3) {
 		COLOR = vec4(shade / 1.5, snow);
+	} else if (part == 5) {
+		COLOR = vec4(oak, pine, olive, cypress);
+	} else if (part == 6) {
+		COLOR = vec4(palm, tamarisk, shrub_green, shrub_dry);
+	} else if (part == 7) {
+		COLOR = vec4(rocks, grass, canopy, dry_land);
 	} else {
 		zone /= max(weight_sum, 1.0e-4);
 		// Рисунок главного материала поверх цвета зоны — у съёмок с воздуха (плитка в десятки метров): их рисунок
@@ -392,7 +468,36 @@ void fragment() {
 			pattern = mix(first, second, patch) / LAYER_COLOR[i0];
 		}
 		vec3 picture = zone * mix(vec3(1.0), pattern, 0.7 * w0 / max(weight_sum, 1.0e-4)) * shade;
+		// Растительность в дальнем виде: лес — сомкнутый полог своего цвета с рябью крон, кустарник — крапом.
+		// Те же числа, по которым расставлены деревья: издали массив там же, где вблизи стоят стволы.
+		float crown = textureLod(noise_map, pn / 37.0 + vec2(0.5, 0.2), 1.0).r;
+		vec3 leaf = (oak * vec3(0.085, 0.15, 0.05) + 0.9 * pine * vec3(0.065, 0.125, 0.06) + 0.5 * olive * vec3(0.19, 0.22, 0.13)
+				+ 0.25 * cypress * vec3(0.05, 0.09, 0.045) + 0.35 * palm * vec3(0.12, 0.18, 0.06) + 0.3 * tamarisk * vec3(0.18, 0.2, 0.11))
+				/ max(oak + 0.9 * pine + 0.5 * olive + 0.25 * cypress + 0.35 * palm + 0.3 * tamarisk, 1.0e-4);
+		float crowns = clamp(canopy * 1.25, 0.0, 1.0) * smoothstep(0.25, 0.6, crown + canopy * 0.55);
+		picture = mix(picture, leaf * (0.7 + 0.75 * crown), crowns * 0.92);
+		float bushes = clamp(shrub_green * 0.6 + shrub_dry * 0.35, 0.0, 1.0) * smoothstep(0.55, 0.8, crown + 0.2 * shrub_green);
+		picture = mix(picture, mix(vec3(0.24, 0.22, 0.12), vec3(0.1, 0.15, 0.06), shrub_green / max(shrub_green + shrub_dry, 1.0e-4)), bushes * 0.6);
 		picture = mix(picture, vec3(0.9, 0.93, 0.98), smoothstep(0.38, 0.6, snow));
+		if (debug_view == 21) {
+			// Густота растительности: зелёное — деревья, жёлтое — кустарник, красное — камни.
+			picture = vec3(0.12) + vec3(0.0, 0.8, 0.1) * canopy + vec3(0.7, 0.6, 0.0) * max(shrub_green, shrub_dry) * (1.0 - canopy) + vec3(0.8, 0.1, 0.1) * rocks * 0.6;
+			picture *= h < 0.0 ? 0.3 : 1.0;
+		} else if (debug_view == 22) {
+			// Местности: пустыня — песочный, холмы — охра, луга — зелёный, горы — серый, оазис — бирюзовый.
+			picture = desert * vec3(0.9, 0.75, 0.4) + hills * vec3(0.7, 0.5, 0.2) + meadow * vec3(0.3, 0.7, 0.2) + mountains * vec3(0.55, 0.55, 0.6)
+					+ oasis * vec3(0.1, 0.7, 0.7) + coast * vec3(0.95, 0.9, 0.75);
+			picture *= h < 0.0 ? 0.3 : 1.0;
+		} else if (debug_view == 23) {
+			// Лесные массивы по породам: дуб — зелёный, сосна — синеватый, олива — серебристый, кипарис — красный,
+			// пальма — жёлтый, тамариск — оранжевый.
+			picture = vec3(0.1) + oak * vec3(0.1, 0.8, 0.1) + pine * vec3(0.1, 0.5, 0.9) + olive * vec3(0.7, 0.8, 0.7) + cypress * vec3(0.9, 0.1, 0.1)
+					+ palm * vec3(0.95, 0.9, 0.1) + tamarisk * vec3(0.95, 0.5, 0.1);
+			picture *= h < 0.0 ? 0.3 : 1.0;
+		} else if (debug_view == 24) {
+			// Где деревьям нельзя по уклону: красное — круче предела, зелёное — можно.
+			picture = mix(vec3(0.15, 0.6, 0.2), vec3(0.9, 0.15, 0.1), 1.0 - tree_slope) * (h < 0.0 ? 0.3 : 1.0);
+		}
 		if (debug_view == 1) {
 			picture = mix(vec3(0.85, 0.6, 0.25), vec3(0.1, 0.45, 0.2), moisture) * (h < 0.0 ? 0.4 : 1.0);
 		} else if (debug_view == 2) {

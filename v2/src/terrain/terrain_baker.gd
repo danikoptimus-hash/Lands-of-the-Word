@@ -54,6 +54,14 @@ func take_texture(mipmaps: bool) -> ImageTexture:
 	return result
 
 
+## Запечённое — восьмибитной картинкой в памяти (значения от нуля до единицы): карты растительности читает flora.gd.
+func take_image() -> Image:
+	_image.convert(Image.FORMAT_RGBA8)
+	var result := _image
+	_image = null
+	return result
+
+
 func _run(material: ShaderMaterial, world_rect: Rect2, texel: float, with_heights: bool, finish: bool) -> bool:
 	var size := Vector2i(roundi(world_rect.size.x / texel), roundi(world_rect.size.y / texel))
 	var started := Time.get_ticks_usec()

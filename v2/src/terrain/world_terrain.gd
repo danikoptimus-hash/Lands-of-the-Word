@@ -20,6 +20,8 @@ const TEXEL := 2.0  ## точность запекания суши, метро�
 const GROUND_TEXEL := 4.0  ## точность описания земли: доли местностей меняются плавно, мелкое добавляет шейдер
 const SURFACE_TEXEL := 2.0  ## точность картинки земли: материалы точки, затенение, готовый дальний вид
 const TONE_TEXEL := 4.0  ## точность тона земли (сухость, цветение, оттенок песка): меняется плавно
+const FLORA_TEXEL := 4.0  ## точность карт растительности (густота по видам): по ним flora.gd расставляет деревья
+const MAX_CLEARINGS := 64  ## столько расчисток (города, точки старта) знает шейдер картинки земли
 const CACHE_FLIGHT := 1.0  ## быстрее стольких расстояний до земли в секунду камера «летит»: кэш не считается
 const MAX_ISLETS := 8  ## столько малых островов в одной области знает шейдер картинки земли
 const MARGIN := 520.0  ## запас моря вокруг главных островов
@@ -69,6 +71,8 @@ class Region:
 	var surface_tone: Texture2D
 	var surface_shade: Texture2D
 	var surface_color: Texture2D
+	## Карты растительности (шаг 1.8; bake_surface.gdshader, части 5–7): густота по видам, шаг FLORA_TEXEL.
+	var flora: Array[Image] = []
 
 
 var height_map: HeightMap  ## высоты главных островов; малые острова — в его extras
@@ -314,6 +318,17 @@ func set_swash_mask_enabled(enabled: bool) -> void:
 		_regions[i].water_material.set_shader_parameter("swash_mask", _swash_masks[i] if enabled else null)
 
 
+## Области с картами растительности — для flora.gd: что запечено (прямоугольник мира), шаг карт, сами карты
+## (три картинки: см. bake_surface.gdshader, части 5–7) и высоты области.
+func flora_regions() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+	for region in _regions:
+		if region.flora.size() == 3:
+			result.append({"rect": region.baked, "area": region.area, "texel": FLORA_TEXEL, "maps": region.flora,
+					"heights": region.height_map, "title": region.title})
+	return result
+
+
 ## Показать или спрятать воду озёр (для проверки облёта: под ней не должно быть воды моря).
 func set_lakes_visible(shown: bool) -> void:
 	for lake in _lake_meshes:
@@ -495,20 +510,40 @@ func _bake_surface(world: WorldData, region: Region) -> bool:
 		"islet_count": islet_count,
 		"debug_view": _debug_view,
 	}
-	for part in 5:
+	# Расчистки: в городах и на точках старта деревья и кусты не растут (край расчистки неровный — шейдер).
+	var clearings := PackedVector4Array()
+	clearings.resize(MAX_CLEARINGS)
+	var clearing_count := 0
+	for site in world.sites:
+		if site.kind == "EMPTY" or clearing_count >= MAX_CLEARINGS or not region.baked.grow(80.0).has_point(site.position):
+			continue
+		clearings[clearing_count] = Vector4(site.position.x, site.position.y, 48.0 if site.kind == "CITY" else 30.0, 0.0)
+		clearing_count += 1
+	parameters["clearings"] = clearings
+	parameters["clearing_count"] = clearing_count
+	region.flora.clear()
+	for part in 8:
 		var baker := TerrainBaker.new()
 		add_child(baker)
-		var done: bool = await baker.bake_surface(region.baked, TONE_TEXEL if part == 2 else SURFACE_TEXEL, part, parameters)
+		var step := SURFACE_TEXEL
+		if part == 2:
+			step = TONE_TEXEL
+		elif part >= 5:
+			step = FLORA_TEXEL
+		var done: bool = await baker.bake_surface(region.baked, step, part, parameters)
 		if not done:
 			error = "%s, картинка земли — %s" % [region.title, baker.error]
 			return false
-		var texture := baker.take_texture(part == 4)
-		match part:
-			0: region.splat_index = texture
-			1: region.splat_weight = texture
-			2: region.surface_tone = texture
-			3: region.surface_shade = texture
-			4: region.surface_color = texture
+		if part >= 5:
+			region.flora.append(baker.take_image())
+		else:
+			var texture := baker.take_texture(part == 4)
+			match part:
+				0: region.splat_index = texture
+				1: region.splat_weight = texture
+				2: region.surface_tone = texture
+				3: region.surface_shade = texture
+				4: region.surface_color = texture
 		baker.queue_free()
 	region.ground_a = null
 	region.ground_b = null

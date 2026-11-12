@@ -62,6 +62,7 @@ var _progress := 1.0
 var _drift := SHOT_DRIFT  ## на сколько облака ушли по ветру, метры
 var _churn := 0.0  ## сдвиг объёмного шума: облака понемногу меняют очертания
 var _fall := 20.0  ## время падения дождя, секунды
+var _wind_time := 40.0  ## время ветра для растительности: в сильный ветер идёт быстрее
 var _drops: Array[MeshInstance3D] = []  ## струи дождя: ближний, средний и дальний план
 var _drops_shown := true
 var _base := CLOUD_BASE  ## высота низа облаков сейчас, метры
@@ -213,6 +214,12 @@ func _apply(delta: float) -> void:
 	_drift = Vector2(fposmod(_drift.x, CLOUD_TILE), fposmod(_drift.y, CLOUD_TILE))
 	_churn = fposmod(_churn + delta * lerpf(0.004, 0.012, storm), 1.0)
 	_fall = fposmod(_fall + delta, 3600.0)
+	# Ветер для растительности (flora.gdshader): одно направление на всё, сила — от погоды (ясно — лёгкий, с порывами;
+	# шторм — сильный), время в сильный ветер идёт быстрее — качание чаще.
+	var blow := clampf(float(look["wind"]) / 30.0, 0.0, 1.0)
+	_wind_time = fposmod(_wind_time + delta * lerpf(0.8, 1.7, blow), 3600.0)
+	var heading := WIND.normalized()
+	RenderingServer.global_shader_parameter_set(&"wind_look", Vector4(heading.x, heading.y, lerpf(0.12, 1.0, blow * blow), _wind_time))
 
 	# Низ облаков всегда выше камеры.
 	var eye := camera.global_position if camera != null else Vector3.ZERO

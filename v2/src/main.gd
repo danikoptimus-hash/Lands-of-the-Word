@@ -47,6 +47,7 @@ var _color_preset := 0
 var _render_scale := 0
 var _render_scale_chosen := false  ## игрок выбрал разрешение сам (клавиша B): само оно больше не меняется
 var _markers: SiteMarkers
+var _flora: Flora  ## растительность и камни (шаг 1.8)
 var _benchmark: Benchmark
 var _updater: Updater
 var _updating := false
@@ -220,6 +221,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			var next := Weather.Kind.CLEAR if _weather.kind() == Weather.Kind.STORM else Weather.Kind.STORM
 			_weather.set_kind(next)
 			_hud.toast("Погода: %s. P — обратно." % Weather.TITLES[next], 4.0)
+		KEY_Y:
+			# Эталоны масштаба (шаг 1.8): человек, дом, дорога, валун и деревья опорного роста — там, куда смотрит камера.
+			if _flora != null:
+				var focus := _rig.current_focus()
+				var shown := _flora.toggle_reference(Vector3(focus.x, _terrain.height_map.sample(focus), focus.y))
+				_hud.toast("Эталоны масштаба: %s. Y — переключить." % ("человек 1,75 м, дом 6 м, дорога 4 м, валун 2 м, олива 6 м, пальма 12 м, кипарис 15 м" if shown else "убраны"), 6.0)
 		KEY_T:
 			# Кэш ближнего вида можно выключить и сравнить: картинка должна быть той же, скорость — как в 0.5.3.
 			_terrain.cache_budget = 0 if _terrain.cache_budget > 0 else NearCache.BUDGET
@@ -280,6 +287,9 @@ func _load_world(path: String) -> bool:
 	if _markers != null:
 		_markers.queue_free()
 		_markers = null
+	if _flora != null:
+		_flora.queue_free()
+		_flora = null
 	if _terrain != null:
 		_weather.terrain = null
 		_terrain.queue_free()
@@ -313,6 +323,13 @@ func _load_world(path: String) -> bool:
 	_markers = SiteMarkers.new()
 	add_child(_markers)
 	_markers.build(_world, _terrain.height_map)
+
+	_hud.set_loading("Сажаем леса…")
+	_flora = Flora.new()
+	add_child(_flora)
+	_flora.set_cloud_textures(_weather.cloud_map, Weather.CLOUD_NOISE)
+	await _flora.build(_world, _terrain)
+	print("РАСТИТЕЛЬНОСТЬ «%s»: %s" % [_world.title, _flora.summary()])
 
 	_hud.set_loading("")
 	_ready_to_play = true
