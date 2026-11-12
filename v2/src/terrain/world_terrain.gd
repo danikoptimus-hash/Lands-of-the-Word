@@ -80,6 +80,12 @@ var bake_ms := 0.0
 var drainage_ms := 0.0  ## из них — расчёт стока воды на процессоре
 var surface_ms := 0.0  ## и запекание картинки земли
 var error := ""
+## Проверять ли при постройке, что накат моря нечего залить, кроме берега (ставит облёт; игроку это не нужно).
+var check_swash := false
+## Сколько квадратных метров суши ниже высоты наката не связано с морем и не лежит в котловине озера: туда вода
+## моря «взбегала» бы посреди суши (шейдер воды рисует её везде, где земля ниже уровня наката). Должно быть ноль.
+var swash_leak := 0.0
+var swash_leak_places := PackedStringArray()  ## где: «область: x, z, высота» — по одной точке на область
 
 var _regions: Array[Region] = []
 ## Области в порядке, в каком они получают плитки мира: сначала области малых островов, потом главные острова.
@@ -200,12 +206,64 @@ func build(world: WorldData) -> bool:
 	_build_lakes(world)
 	_build_islet_lakes(world)
 
+	if check_swash:
+		swash_leak = 0.0
+		swash_leak_places.clear()
+		for region in _regions:
+			swash_leak += _swash_leak_in(region)
 	for region in _regions:
 		region.baker.queue_free()
 		region.baker = null
 	ocean_baker.queue_free()
 	bake_ms = float(Time.get_ticks_usec() - started) / 1000.0
 	return true
+
+
+## Площадь суши области, которую накат залил бы зря (см. swash_leak): ниже высоты наката, не в котловине
+## озера и не связана с морем по такой же низкой суше. Сетка — 4 м.
+func _swash_leak_in(region: Region) -> float:
+	const STEP := 4.0
+	# Выше высоты наката вода не поднимается (уровень в шейдере — от −0,25 до 1 высоты наката); запас — 5 см.
+	var limit := maxf(WaterLook.SWASH.x, WaterLook.SWASH.y) + 0.05
+	var columns := floori(region.baked.size.x / STEP)
+	var rows := floori(region.baked.size.y / STEP)
+	# 0 — высокая суша, 1 — низкая суша (ещё не достигнута), 2 — море, 3 — низкая суша, куда море доходит.
+	var state := PackedByteArray()
+	state.resize(columns * rows)
+	var front := PackedInt32Array()
+	for row in rows:
+		for column in columns:
+			var point := region.baked.position + Vector2((float(column) + 0.5) * STEP, (float(row) + 0.5) * STEP)
+			var height := region.height_map.sample(point)
+			if height < 0.0:
+				state[row * columns + column] = 2
+				front.append(row * columns + column)
+			elif height < limit and not _in_lake_basin(region.baker, point):
+				state[row * columns + column] = 1
+	while not front.is_empty():
+		var next := PackedInt32Array()
+		for at in front:
+			var column := at % columns
+			for neighbour: int in [at - 1 if column > 0 else -1, at + 1 if column < columns - 1 else -1, at - columns, at + columns]:
+				if neighbour >= 0 and neighbour < state.size() and state[neighbour] == 1:
+					state[neighbour] = 3
+					next.append(neighbour)
+		front = next
+	var first := state.find(1)
+	if first >= 0:
+		var place := region.baked.position + Vector2((float(first % columns) + 0.5) * STEP, (float(first / columns) + 0.5) * STEP)
+		swash_leak_places.append("%s: x=%d z=%d, высота %.2f м, клеток %d" % [region.title, roundi(place.x), roundi(place.y),
+				region.height_map.sample(place), state.count(1)])
+	return float(state.count(1)) * STEP * STEP
+
+
+## Котловина озера — как её видит шейдер воды: он читает уровень озера со сглаживанием между точками запекания,
+## поэтому котловиной считается и полоса в одну точку вокруг неё.
+func _in_lake_basin(baker: TerrainBaker, point: Vector2) -> bool:
+	for offset: Vector2 in [Vector2.ZERO, Vector2(TEXEL, 0.0), Vector2(-TEXEL, 0.0), Vector2(0.0, TEXEL), Vector2(0.0, -TEXEL)]:
+		if baker.water_level_at(point + offset) > TerrainBaker.NO_WATER + 1.0:
+			return true
+	return false
 
 
 ## Откуда смотрит камера: от этого зависит детализация плиток. Шейдер получает ту же точку и по ней плавно

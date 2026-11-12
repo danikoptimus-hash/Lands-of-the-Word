@@ -149,6 +149,12 @@ void fragment() {
 	if (is_lake && abs(lake - water_level) > 0.05) {
 		discard;
 	}
+	// Море в котловины озёр не заходит. Его полотно поднято на высоту наката, а дно у глубоких озёр местами ниже
+	// этой высоты — и вода моря «взбегала» посреди озера светлыми пятнами (замечание владельца к 0.7.4). Других
+	// низин, не связанных с морем, на картах нет: это проверяет облёт (WorldTerrain.swash_leak).
+	if (!is_lake && lake > -998.0) {
+		discard;
+	}
 	vec2 p = world_position.xz;
 	vec2 across = vec2(-wind.y, wind.x);
 	float t = water_time;

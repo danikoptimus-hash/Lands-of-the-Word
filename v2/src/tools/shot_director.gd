@@ -226,13 +226,6 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _capture("93-chto-novogo")
 		hud.close_report()
 
-	# Окно настройки моря — кадр для проверки, что оно на месте и читается.
-	if not checks_only and (only.is_empty() or _listed("96-nastroyka", only)):
-		hud.set_tuning_open(true)
-		await _frames(3)
-		await _capture("96-nastroyka")
-		hud.set_tuning_open(false)
-
 	if _listed("91-zamer", only):
 		await _check_benchmark(benchmark, world, rig, terrain, hud, stops)
 	if _listed("92-kesh", only):
@@ -717,6 +710,11 @@ func _check_water(stops: Array[Tour.Stop]) -> void:
 			_terrain.set_water_tuning(WaterLook.SPEED, WaterLook.SWASH)
 			swash_shift = maxf(swash_shift, _picture_difference(with_swash, without))
 	_check("вода: накат ходит по берегу", swash_shift > 0.15, "кадр у берега с накатом и без него отличается на %.2f из 255" % swash_shift)
+	# Накату нечего заливать, кроме берега: вся суша ниже его высоты либо связана с морем, либо котловина озера
+	# (туда море не заходит). Иначе вода моря появлялась бы посреди суши.
+	_check("вода: накат не заливает низины вдали от моря", _terrain.swash_leak < 50.0,
+			"суши ниже высоты наката, не связанной с морем и не в котловине озера, — %d м²%s" % [roundi(_terrain.swash_leak),
+			("; " + "; ".join(_terrain.swash_leak_places)) if not _terrain.swash_leak_places.is_empty() else ""])
 	_rig.set_view(place.view)
 	await _frames(4)
 	# Шторм набирает силу за двадцать шагов: свет, небо и вода меняются вместе.

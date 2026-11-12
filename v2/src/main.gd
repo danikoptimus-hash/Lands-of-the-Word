@@ -44,10 +44,6 @@ var _hud: Hud
 var _light: DayLight  ## свет и небо: времена суток
 var _sun: DirectionalLight3D
 var _environment: Environment
-## Скорость воды и высота наката на берег, метры: x — в ясную погоду, y — в шторм. Начинаются с чисел владельца
-## (WaterLook.SPEED и SWASH); окно настройки (клавиша U) оставлено до приёмки шага — вдруг понадобится поправить.
-var _water_speed := WaterLook.SPEED
-var _water_swash := WaterLook.SWASH
 var _storm := 0.0  ## шторм: 0 — ясно, 1 — буря; идёт к _storm_target плавно
 var _storm_target := 0.0
 var _light_code := ""  ## ключ --light=время — с какого времени суток начать
@@ -81,7 +77,6 @@ func _ready() -> void:
 	_build_light()
 	_hud = Hud.new()
 	add_child(_hud)
-	_hud.tuning_changed.connect(_on_tuning_changed)
 	_rig = StrategyCamera.new()
 	add_child(_rig)
 
@@ -227,9 +222,6 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			# Погода: ясно ↔ шторм, с плавным переходом (шторм — событие игры; его небо — шаг 1.6).
 			_storm_target = 0.0 if _storm_target > 0.5 else 1.0
 			_hud.toast("Погода: %s. P — обратно." % ("шторм" if _storm_target > 0.5 else "ясно"), 4.0)
-			_show_tuning()
-		KEY_U:
-			_hud.set_tuning_open(not _hud.is_tuning_open())
 		KEY_T:
 			# Кэш ближнего вида можно выключить и сравнить: картинка должна быть той же, скорость — как в 0.5.3.
 			_terrain.cache_budget = 0 if _terrain.cache_budget > 0 else NearCache.BUDGET
@@ -263,28 +255,6 @@ func _build_light() -> void:
 	if not _light_code.is_empty():
 		_set_light(_light_code)
 	_apply_color_preset()
-
-
-## Ползунок настройки моря сдвинут: числа относятся к погоде, которая сейчас на экране (или к которой идёт).
-func _on_tuning_changed(speed: float, swash: float) -> void:
-	if _storm_target > 0.5:
-		_water_speed.y = speed
-		_water_swash.y = swash
-	else:
-		_water_speed.x = speed
-		_water_swash.x = swash
-	if _terrain != null:
-		_terrain.set_water_tuning(_water_speed, _water_swash)
-	_show_tuning()
-
-
-## Окно настройки моря показывает числа нынешней погоды и все четыре числа одной строкой.
-func _show_tuning() -> void:
-	var stormy := _storm_target > 0.5
-	_hud.show_tuning("шторм" if stormy else "ясно", _water_speed.y if stormy else _water_speed.x,
-			_water_swash.y if stormy else _water_swash.x,
-			"Ясно: скорость %s, накат %s · шторм: скорость %s, накат %s" % [Hud.number(_water_speed.x),
-			Hud.number(_water_swash.x), Hud.number(_water_speed.y), Hud.number(_water_swash.y)])
 
 
 ## Шторм: 0 — ясно, 1 — буря. Свет, небо и вода уходят в шторм вместе, по плавной кривой.
@@ -334,6 +304,7 @@ func _load_world(path: String) -> bool:
 
 	_hud.set_loading("Лепим землю…")
 	_terrain = WorldTerrain.new()
+	_terrain.check_swash = not _shots_folder.is_empty()
 	add_child(_terrain)
 	# География запекается в картинку земли, поэтому проверочный вид задаётся до постройки.
 	_terrain.set_debug_view(_debug_view)
@@ -343,7 +314,6 @@ func _load_world(path: String) -> bool:
 		return false
 	_terrain.set_debug_view(_debug_view)
 	_terrain.set_storm(_eased(_storm))
-	_terrain.set_water_tuning(_water_speed, _water_swash)
 	if not _shots_folder.is_empty():
 		_terrain.set_water_time(WaterLook.SHOT_TIME)
 	if not _shots_folder.is_empty():
@@ -359,7 +329,6 @@ func _load_world(path: String) -> bool:
 
 	_hud.set_loading("")
 	_ready_to_play = true
-	_show_tuning()
 	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс (сток воды — %.0f мс, картинка земли — %.0f мс); высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
 		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms, _terrain.drainage_ms, _terrain.surface_ms,
 		_terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count(), _world.islets.size()])
