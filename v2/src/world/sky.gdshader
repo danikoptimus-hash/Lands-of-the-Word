@@ -2,10 +2,10 @@
 // у горизонта, зарево со стороны солнца, солнце с ореолом, луна, звёзды и облака. Цветами управляет day_light.gd —
 // у каждого времени суток свои числа, между временами суток они плавно перетекают; облаками — weather.gd.
 //
-// Облака — объёмные: луч взгляда идёт сквозь слой облаков шагами, в каждой точке по карте облаков известно,
-// есть ли тут облако, и сколько облака между точкой и светилом (сторона к свету светлая, низ и дальняя сторона
-// в тени). Края «обгрызает» объёмный шум. Считается это в половинном разрешении (облака мягкие — разницы не видно)
-// и только для лучей выше горизонта; дальние облака тают в дымке.
+// Облака — объёмные: луч взгляда идёт сквозь слой облаков шагами. Карта облаков говорит, где облако есть
+// и какой у него потолок; форму — округлые клубы разного размера — лепит объёмный шум; свет в каждой точке —
+// по тому, сколько облака между ней и светилом. Считается это в половинном разрешении (облака мягкие — разницы
+// не видно) и только для лучей выше горизонта; дальние облака тают в дымке.
 //
 // Времени (TIME) здесь нет намеренно: небо с временем движок пересчитывал бы для отражений и рассеянного света
 // в каждом кадре.
@@ -39,9 +39,12 @@ uniform vec3 cloud_dark : source_color = vec3(0.55, 0.6, 0.68); // тень и �
 uniform vec3 cloud_light_direction = vec3(-0.78, 0.58, 0.22); // на светило, которое освещает облака (солнце или луна)
 
 const int CLOUD_STEPS = 22; // крупных шагов сквозь слой облаков
-const int CLOUD_FINE = 6; // мелких шагов в крупном — там, где рядом есть облако
+const int CLOUD_FINE = 7; // мелких шагов в крупном — там, где рядом есть облако
 const float CLOUD_FAR = 60000.0; // дальше облака не считаются: они уже в дымке
-const float NOISE_TILE = 1700.0; // плитка объёмного шума, метры
+const float NOISE_TILE = 3400.0; // плитка объёмного шума для формы облака, метры: клубы от 200 до 850 м
+const float DETAIL_TILE = 870.0; // и для мелких клочьев по краю
+const float STORM_SWELL = 520.0; // настолько низ туч шторма провисает валами, метры
+const float CIRRUS_ABOVE = 5200.0; // перистые облака — настолько выше низа кучевых, метры
 
 float hash13(vec3 p) {
 	p = fract(p * 0.1031);
@@ -86,11 +89,40 @@ vec3 star_field(vec3 direction) {
 	return light;
 }
 
+// Плотность облака в точке мира, 0…1; level — высота точки внутри столба облака, 0 (низ) … 1 (потолок).
+// Форму лепит объёмный шум — округлые клубы разного размера: в середине облачной массы шум заполняет её почти
+// целиком, к краю («присутствие» падает) от него остаются отдельные клубы и клочья. Низ мягкий (плотность
+// набирается первыми десятками метров), верх закруглён. fine — «обгрызть» край мелким шумом.
+float cloud_density(vec3 p, float base, float lod, bool fine, out vec2 place) {
+	vec3 column = cloud_column(textureLod(cloud_map, (p.xz - cloud_drift.xy) / CLOUD_TILE, lod));
+	vec3 drift = vec3(cloud_drift.z, 0.0, cloud_drift.z * 0.6);
+	// Низ туч шторма неровный: провисает крупными валами в сотни метров.
+	if (cloud_look.y > 0.001) {
+		column.y -= cloud_look.y * STORM_SWELL * textureLod(cloud_noise, vec3(p.x / 5600.0, 0.31, p.z / 5600.0) + drift, 0.0).r;
+	}
+	float level = (p.y - base - column.y) / max(column.x - column.y, 1.0);
+	place = vec2(level, column.x);
+	if (column.z <= 0.004 || level <= 0.0 || level >= 1.0) {
+		return 0.0;
+	}
+	// Низ мягкий, верх тупой и округлый (острых вершин у облаков не бывает).
+	// У туч шторма низ плотный и очерченный: по нему и читается их рельеф.
+	float profile = smoothstep(0.0, mix(0.14, 0.04, cloud_look.y), level) * smoothstep(1.0, 0.64, level);
+	float shape = textureLod(cloud_noise, p / NOISE_TILE + drift, lod * 0.6).r;
+	float density = clamp((shape * profile * 1.9 - (1.0 - column.z)) / max(column.z, 0.08), 0.0, 1.0);
+	if (fine && density > 0.0) {
+		float detail = textureLod(cloud_noise, p / DETAIL_TILE - drift * 2.0, lod * 0.6).r;
+		density = clamp((density - detail * 0.34 * (1.0 - density)) * 1.25, 0.0, 1.0);
+	}
+	return density;
+}
+
 // Облака на луче взгляда: цвет (уже умноженный на плотность) и плотность — сколько неба они закрывают.
 // Луч идёт сквозь слой облаков крупными шагами (шаг растёт с расстоянием — на экране он одного размера); где рядом
-// по размытой карте есть облако, крупный шаг проходится мелкими: так край облака выходит чистым, без «ступенек»,
-// а пустое небо почти ничего не стоит.
-vec4 clouds(vec3 direction) {
+// по размытой карте есть облако, крупный шаг проходится мелкими. Начало луча у каждой точки экрана чуть своё
+// (jitter): так шаги не складываются в полосы. Свет в каждой точке — по тому, сколько облака на пути к светилу
+// (три пробы): сторона к свету светлая, низ и дальняя сторона в тени.
+vec4 clouds(vec3 direction, float jitter) {
 	float up = direction.y;
 	float base = cloud_look.x;
 	float storm = cloud_look.y;
@@ -98,15 +130,16 @@ vec4 clouds(vec3 direction) {
 	if (up < 0.012 || highest < 1.0) {
 		return vec4(0.0);
 	}
-	float from = (base - STORM_SAG * storm - cloud_eye.y) / up;
+	float from = (base - (STORM_SAG + STORM_SWELL) * storm - cloud_eye.y) / up;
 	float to = min((base + highest - cloud_eye.y) / up, CLOUD_FAR);
 	if (from >= to) {
 		return vec4(0.0);
 	}
 	vec3 to_light = normalize(cloud_light_direction);
 	float ratio = pow(to / from, 1.0 / float(CLOUD_STEPS));
-	float toward = max(dot(direction, to_light), 0.0);
-	vec3 lit = cloud_lit * (1.0 + 0.3 * toward * toward);
+	float toward = dot(direction, to_light);
+	// Рассеяние: к светилу облако светится насквозь (край «серебрится»), от светила — мягкий обратный отсвет.
+	float glow_forward = pow(max(toward, 0.0), 6.0);
 	vec3 sum = vec3(0.0);
 	float cover = 0.0;
 	float mean_distance = 0.0;
@@ -116,51 +149,49 @@ vec4 clouds(vec3 direction) {
 		float stride = next - at;
 		vec3 centre = cloud_eye + direction * (at + stride * 0.5);
 		float wide = clamp(log2(stride / 47.0) + 1.0, 0.0, 7.0);
-		vec2 around = cloud_column(textureLod(cloud_map, (centre.xz - cloud_drift.xy) / CLOUD_TILE, wide).rgb);
-		if (around.x > 3.0) {
+		vec3 around = cloud_column(textureLod(cloud_map, (centre.xz - cloud_drift.xy) / CLOUD_TILE, wide));
+		if (around.z > 0.004 && around.x > 3.0) {
 			float fine = stride / float(CLOUD_FINE);
 			float lod = clamp(log2(fine / 47.0) - 0.5, 0.0, 5.0);
 			for (int j = 0; j < CLOUD_FINE; j++) {
-				float middle = at + fine * (float(j) + 0.5);
+				float middle = at + fine * (float(j) + jitter);
 				vec3 p = cloud_eye + direction * middle;
-				vec3 map = textureLod(cloud_map, (p.xz - cloud_drift.xy) / CLOUD_TILE, lod).rgb;
-				vec2 column = cloud_column(map);
-				float height = p.y - base;
-				if (height <= column.y || height >= column.x) {
+				vec2 place;
+				float density = cloud_density(p, base, lod, middle < 30000.0, place);
+				if (density <= 0.002) {
 					continue;
 				}
-				// Плотность: в глубине облака полная, к краю сходит на нет, и край «обгрызен» объёмным шумом.
-				float inside = min(height - column.y, column.x - height);
-				float body = smoothstep(0.0, 380.0, inside);
-				float near = 1.0 - smoothstep(16000.0, 40000.0, middle);
-				float noise = textureLod(cloud_noise, p / NOISE_TILE + vec3(cloud_drift.z, 0.0, cloud_drift.z * 0.6), lod * 0.6).r;
-				float density = clamp((body - noise * mix(0.35, 0.8, near)) * 2.6, 0.0, 1.0);
-				if (density <= 0.0) {
-					continue;
+				float level = place.x;
+				// Свет: три пробы к светилу — ближняя, средняя и дальняя.
+				vec2 ignored;
+				float shade = cloud_density(p + to_light * 70.0, base, lod, false, ignored) * 110.0
+						+ cloud_density(p + to_light * 220.0, base, lod + 0.5, false, ignored) * 220.0
+						+ cloud_density(p + to_light * 560.0, base, lod + 1.0, false, ignored) * 440.0;
+				float light = exp(-shade / 190.0);
+				// Тонкий край светлее, глубина облака темнее; низ темнее верха.
+				float edge = 1.0 - density;
+				vec3 ambient = cloud_dark * mix(0.62, 1.05, level) * mix(0.82, 1.0, edge);
+				vec3 lit = cloud_lit * (light * (0.74 + 0.5 * glow_forward * edge) + 0.08 * edge);
+				vec3 color = ambient + lit;
+				if (storm > 0.001) {
+					// Тучи шторма: под толстой тучей низ почти чёрный, под тонкой светлее (свет пробивается);
+					// клубы, что висят ниже, светлее впадин между ними.
+					float thick = smoothstep(300.0, 2800.0, place.y);
+					float hang = clamp((base - p.y) / STORM_SWELL + 0.25, 0.0, 1.0);
+					color *= mix(1.0, mix(1.25, 0.32, thick) * mix(0.6, 1.3, hang) * mix(1.0, 0.8, edge), storm);
 				}
-				// Свет: сколько облака над точкой и сколько — на пути к светилу.
-				vec3 q = p + to_light * 300.0;
-				vec2 toward_light = cloud_column(textureLod(cloud_map, (q.xz - cloud_drift.xy) / CLOUD_TILE, lod + 1.0).rgb);
-				float above = column.x - height;
-				float sunward = clamp(toward_light.x - (q.y - base), 0.0, 1400.0);
-				float light = exp(-(above * 0.4 + sunward * 0.9) / 460.0);
-				float level = clamp((height - column.y) / max(column.x - column.y, 1.0), 0.0, 1.0);
-				// Тень: низ темнее верха. У туч шторма низ — весь рисунок: под толстой тучей он почти чёрный,
-				// под тонкой светлее (свет пробивается), свисающие клубы светлее впадин между ними.
-				float thick = smoothstep(300.0, 2800.0, column.x);
-				// Рельеф низа: клубы, что висят ниже, светлее впадин между ними.
-				float recess = smoothstep(0.0, 300.0, height - column.y);
-				vec3 shade = cloud_dark * mix(0.72, 1.0, level) * mix(1.0, mix(1.6, 0.3, thick) * mix(1.3, 0.72, recess), storm);
-				vec3 color = mix(shade, lit, light);
 				// Молния подсвечивает тучи вокруг разряда.
 				if (flash_at.w > 0.001) {
 					vec3 away = p - flash_at.xyz;
-					color += FLASH_COLOR * flash_at.w * exp(-dot(away, away) / 5.0e6) * mix(0.25, 0.9, noise);
+					color += FLASH_COLOR * flash_at.w * exp(-dot(away, away) / 5.0e6) * mix(0.3, 0.9, edge);
 				}
-				float opacity = (1.0 - exp(-density * fine * 0.007)) * (1.0 - cover);
+				float opacity = (1.0 - exp(-density * fine * mix(0.011, 0.03, storm))) * (1.0 - cover);
 				sum += color * opacity;
 				mean_distance += middle * opacity;
 				cover += opacity;
+				if (cover > 0.985) {
+					break;
+				}
 			}
 		}
 		at = next;
@@ -168,17 +199,39 @@ vec4 clouds(vec3 direction) {
 			break;
 		}
 	}
-	if (cover < 0.002) {
-		return vec4(0.0);
+	vec3 mist = horizon_tint(horizon_color, glow_color, glow, glow_reach, normalize(sun_direction), direction);
+	vec4 result = vec4(0.0);
+	if (cover >= 0.002) {
+		// Дальние облака тают в дымке, а у края расчёта сходят на нет.
+		mean_distance /= cover;
+		vec3 color = sum / cover;
+		float veil = 1.0 - exp(-haze_depth(cloud_eye.y, cloud_eye.y + up * mean_distance, mean_distance));
+		color = mix(color, mist, veil);
+		cover *= 1.0 - smoothstep(CLOUD_FAR * 0.7, CLOUD_FAR, mean_distance);
+		cover *= smoothstep(0.012, 0.03, up);
+		result = vec4(color * cover, cover);
 	}
-	// Дальние облака тают в дымке, а у края расчёта сходят на нет.
-	mean_distance /= cover;
-	vec3 color = sum / cover;
-	float veil = 1.0 - exp(-haze_depth(cloud_eye.y, cloud_eye.y + up * mean_distance, mean_distance));
-	color = mix(color, horizon_tint(horizon_color, glow_color, glow, glow_reach, normalize(sun_direction), direction), veil);
-	cover *= 1.0 - smoothstep(CLOUD_FAR * 0.7, CLOUD_FAR, mean_distance);
-	cover *= smoothstep(0.012, 0.03, up);
-	return vec4(color * cover, cover);
+	// Перистые облака: тонкие вытянутые пряди высоко над кучевыми — местами, не по всему небу; в шторм их
+	// закрывают тучи. Это не объём, а тонкий слой: один срез шума, вытянутый по своему ветру.
+	if (storm < 0.6 && result.a < 0.98) {
+		float reach = (base + CIRRUS_ABOVE - cloud_eye.y) / up;
+		if (reach < 110000.0) {
+			vec2 q = cloud_eye.xz + direction.xz * reach - cloud_drift.xy * 1.7;
+			float where = smoothstep(0.5, 0.68, textureLod(cloud_noise, vec3(q.x / 43000.0, 0.77, q.y / 43000.0), 0.0).r);
+			if (where > 0.0) {
+				vec2 along = vec2(q.x * 0.906 + q.y * 0.423, q.y * 0.906 - q.x * 0.423);
+				float lod = clamp(log2(reach / 9000.0), 0.0, 4.0);
+				float strand = textureLod(cloud_noise, vec3(along.x / 11000.0, 0.13, along.y / 2100.0), lod).r * 0.62
+						+ textureLod(cloud_noise, vec3(along.x / 3700.0, 0.41, along.y / 640.0), lod).r * 0.38;
+				float thin = smoothstep(0.46, 0.8, strand) * where * (1.0 - storm / 0.6) * 0.5;
+				float veil = 1.0 - exp(-haze_depth(cloud_eye.y, base + CIRRUS_ABOVE, reach));
+				thin *= (1.0 - smoothstep(60000.0, 110000.0, reach)) * (1.0 - 0.8 * veil);
+				vec3 color = mix(cloud_lit * 0.86 + cloud_dark * 0.3, mist, veil);
+				result = vec4(result.rgb + color * thin * (1.0 - result.a), 1.0 - (1.0 - result.a) * (1.0 - thin));
+			}
+		}
+	}
+	return result;
 }
 
 void sky() {
@@ -188,7 +241,9 @@ void sky() {
 		// (небо шторма и так серое).
 		vec4 layer = vec4(0.0);
 		if (!AT_CUBEMAP_PASS) {
-			layer = clouds(direction);
+			// Сдвиг начала луча — свой у каждой точки экрана (плавный узор без повторов на глаз).
+			float jitter = 0.5 + 0.44 * (fract(52.9829189 * fract(dot(FRAGCOORD.xy, vec2(0.06711056, 0.00583715)))) - 0.5);
+			layer = clouds(direction, jitter);
 			// Дождь виден на фоне неба и у самого горизонта — над морем за краем света.
 			if (rain_look.x > 0.004 && direction.y > -0.14) {
 				float far = direction.y < -1.0e-4 ? max(cloud_eye.y, 2.0) / -direction.y : 1.0e6;

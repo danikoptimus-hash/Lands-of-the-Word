@@ -33,8 +33,8 @@ const RAIN_DROPS := preload("res://src/world/rain_drops.gdshader")
 ## непрозрачность, скорость падения (м/с) и высоты камеры над землёй, с которой струи редеют и на которой пропадают.
 ## Дальше и выше дождь — завесы: пелену считают материалы земли, воды и неба (atmosphere.gdshaderinc).
 const RAIN_PLANES: Array[Dictionary] = [
-	{"box": Vector3(48.0, 36.0, 48.0), "count": 2600, "length": 0.45, "width": 0.018, "strength": 0.5, "speed": 9.0,
-			"near": 3.0, "fade": Vector2(300.0, 900.0)},
+	{"box": Vector3(48.0, 36.0, 48.0), "count": 2600, "length": 0.45, "width": 0.018, "strength": 0.4, "speed": 9.0,
+			"near": 7.0, "fade": Vector2(300.0, 900.0)},
 	{"box": Vector3(220.0, 130.0, 220.0), "count": 3200, "length": 1.6, "width": 0.07, "strength": 0.3, "speed": 10.0,
 			"near": 18.0, "fade": Vector2(700.0, 1600.0)},
 	{"box": Vector3(900.0, 420.0, 900.0), "count": 3000, "length": 6.0, "width": 0.28, "strength": 0.16, "speed": 11.0,
