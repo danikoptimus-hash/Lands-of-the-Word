@@ -545,6 +545,8 @@ func _flight(parts: PackedStringArray) -> void:
 		views.append(view)
 	if views.size() < 2:
 		return
+	for view in views:
+		print("ПРОЛЁТ место %s" % view.to_code())
 	var flora: Flora = null
 	for node in get_tree().root.find_children("*", "Flora", true, false):
 		flora = node

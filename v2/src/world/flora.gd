@@ -157,6 +157,27 @@ func reset() -> void:
 	lowest = INF
 
 
+## Сколько площади крон приходится на площадь земли при густоте 1 — по породам деревьев (деревьев на м² × площадь
+## кроны дерева среднего роста). По этим числам красится полог леса в дальней картинке земли (bake_surface.gdshader):
+## нарисованный лес и сами деревья — из одних чисел.
+static func tree_cover() -> PackedFloat32Array:
+	var cover := PackedFloat32Array()
+	for kind in 6:
+		var limits: Vector2 = FloraMeshes.SIZE[kind]
+		var crown := lerpf(limits.x, limits.y, 0.44) * (FloraMeshes.FAR_SHAPE[kind] as Vector3).x
+		cover.append(RATE[kind] * PI * 0.25 * crown * crown)
+	return cover
+
+
+## Цвет дальнего вида дерева по породам (линейный) — им же красится полог в дальней картинке.
+static func tree_colors() -> PackedVector3Array:
+	var colors := PackedVector3Array()
+	for kind in 6:
+		var color: Color = FloraMeshes.FAR_COLOR[kind]
+		colors.append(Vector3(color.r, color.g, color.b))
+	return colors
+
+
 ## Густота деревьев в точке мира, 0…1 (дуб, сосна и олива по картам густоты) — для выбора мест кадров.
 func tree_density(point: Vector2) -> float:
 	for job in _plantings:

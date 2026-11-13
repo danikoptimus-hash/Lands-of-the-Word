@@ -56,6 +56,13 @@ uniform int part = 0;
 // Расчистки (шаг 1.8): города и точки старта — xy центр, z радиус; w — докуда тянутся поля города (0 — полей нет).
 // Как и малые острова выше — в координатах доски (метры мира, делённые на WORLD_SCALE). Деревья и кусты в расчистке не растут.
 uniform vec4 clearings[96];
+// Деревья шести пород (дуб, сосна, олива, кипарис, пальма, тамариск) — те же числа, по которым их сажает flora.gd:
+// tree_cover — сколько площади крон приходится на площадь земли при густоте 1 (деревьев на м² × площадь кроны),
+// tree_color — цвет дальнего вида дерева. По ним красится полог в дальней картинке: издали лес занимает столько же
+// места и того же тона, что и сами деревья вблизи (до 0.10.1 полог был светлее деревьев на треть).
+uniform float tree_cover[6];
+uniform vec3 tree_color[6];
+uniform float tree_shade = 0.4; // крона в свету темнее ровной земли того же цвета: тень на её боках и в глубине
 uniform int clearing_count = 0;
 // Для проверки географии (ключ запуска --debug-view): вместо картинки дальнего вида — 1 влажность, 2 сток,
 // 3 крутизна, 4 ложбины и гребни.
@@ -613,11 +620,25 @@ void fragment() {
 		// пробе масштаба: плитка шума 64 м при шаге картинки 12 м). Отдельные кроны рисуют сами деревья вблизи.
 		float crown = 0.6 * textureLod(noise_map, world_p / 190.0 + vec2(0.5, 0.2), max(log2(texel * 512.0 / 190.0) - 0.3, 0.0)).r
 				+ 0.4 * textureLod(noise_map, (TURN * world_p) / 520.0 + vec2(0.11, 0.47), max(log2(texel * 512.0 / 520.0) - 0.3, 0.0)).g;
-		vec3 leaf = (oak * vec3(0.085, 0.15, 0.05) + 0.9 * pine * vec3(0.065, 0.125, 0.06) + 0.5 * olive * vec3(0.19, 0.22, 0.13)
-				+ 0.25 * cypress * vec3(0.05, 0.09, 0.045) + 0.35 * palm * vec3(0.12, 0.18, 0.06) + 0.3 * tamarisk * vec3(0.18, 0.2, 0.11))
-				/ max(oak + 0.9 * pine + 0.5 * olive + 0.25 * cypress + 0.35 * palm + 0.3 * tamarisk, 1.0e-4);
-		float crowns = clamp(canopy * 1.25, 0.0, 1.0) * smoothstep(0.25, 0.6, crown + canopy * 0.55);
-		picture = mix(picture, leaf * (0.7 + 0.75 * crown), crowns * 0.92);
+		// Сомкнутость полога — доля земли под кронами: деревья стоят по жребию, кроны перекрываются.
+		float load_oak = oak * tree_cover[0];
+		float load_pine = pine * tree_cover[1];
+		float load_olive = olive * tree_cover[2];
+		float load_cypress = cypress * tree_cover[3];
+		float load_palm = palm * tree_cover[4];
+		float load_tamarisk = tamarisk * tree_cover[5];
+		float load = load_oak + load_pine + load_olive + load_cypress + load_palm + load_tamarisk;
+		// Камера смотрит наклонно: дерево закрывает землю не только кроной в плане, но и своей высотой — видимая
+		// сомкнутость примерно вдвое больше плановой (сверено кадрами одного места с деревьями и без них).
+		float closed = 1.0 - exp(-2.2 * load);
+		vec3 leaf = (load_oak * tree_color[0] + load_pine * tree_color[1] + load_olive * tree_color[2] + load_cypress * tree_color[3]
+				+ load_palm * tree_color[4] + load_tamarisk * tree_color[5]) / max(load, 1.0e-4);
+		// Отдельных крон в картинке нет (её точка — шесть метров): полог — ровное затемнение по сомкнутости с лёгкой
+		// рябью; сами кроны рисуют деревья, пока они видны.
+		float crowns = closed * (0.93 + 0.3 * (crown - 0.5));
+		// Кроны издали темнее и синее своего цвета: на боках и в глубине — тень, а в тени — свет неба.
+		vec3 canopy_color = leaf * tree_shade * (0.85 + 0.3 * crown) + vec3(0.003, 0.011, 0.028);
+		picture = mix(picture, canopy_color, clamp(crowns, 0.0, 1.0));
 		float bushes = clamp(shrub_green * 0.6 + shrub_dry * 0.35, 0.0, 1.0) * smoothstep(0.55, 0.8, crown + 0.2 * shrub_green);
 		picture = mix(picture, mix(vec3(0.24, 0.22, 0.12), vec3(0.1, 0.15, 0.06), shrub_green / max(shrub_green + shrub_dry, 1.0e-4)), bushes * 0.6);
 		picture = mix(picture, vec3(0.9, 0.93, 0.98), smoothstep(0.38, 0.6, snow));

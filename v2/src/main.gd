@@ -364,8 +364,10 @@ func _load_world(path: String) -> bool:
 	_flora = Flora.new()
 	add_child(_flora)
 	_flora.set_cloud_textures(_weather.cloud_map, Weather.CLOUD_NOISE)
-	if not _no_flora:
-		_flora.build(_world, _terrain)
+	_flora.build(_world, _terrain)
+	# Ключ --no-flora: растительность посажена, но спрятана — места кадров, которые ищутся по картам леса,
+	# остаются теми же, а в кадре только земля (сверка нарисованного леса с деревьями).
+	_flora.visible = not _no_flora
 	print("РАСТИТЕЛЬНОСТЬ «%s»: карты густоты готовы за %.0f мс; деревья сажаются плитками вокруг камеры" % [_world.title, _flora.build_ms])
 	if _flora_debug_wanted:
 		_flora_debug = _flora.toggle_debug()

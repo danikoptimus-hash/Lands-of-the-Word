@@ -528,6 +528,8 @@ func _bake_surface(world: WorldData, region: Region) -> bool:
 		"islets": islets,
 		"islet_count": islet_count,
 		"debug_view": _debug_view,
+		"tree_cover": Flora.tree_cover(),
+		"tree_color": Flora.tree_colors(),
 	}
 	# Расчистки: в городах и на точках старта деревья и кусты не растут (край расчистки неровный — шейдер).
 	var clearings := PackedVector4Array()
