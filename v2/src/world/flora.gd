@@ -163,8 +163,25 @@ func debug_text() -> String:
 			int(NEAR_END), int(MID_END), int(FAR_END)]
 
 
-## Эталоны масштаба у точки мира (проверка шага 1.8): человек 1,75 м, дом 6 м, дорога 4 м, валун 2 м и по дереву
-## опорного роста — олива 6 м, пальма 12 м, кипарис 15 м. Повторный вызов убирает их.
+## Размеры моделей для аудита масштаба: рост и поперечник кроны каждого вида — у опорной модели и пределы на карте.
+func size_report() -> PackedStringArray:
+	var lines := PackedStringArray()
+	for kind in KINDS:
+		var box: AABB = (_near_meshes[Vector2i(kind, 0)] as Mesh).get_aabb()
+		for variant in range(1, FloraMeshes.VARIANTS[kind]):
+			box = box.merge((_near_meshes[Vector2i(kind, variant)] as Mesh).get_aabb())
+		var limits: Vector2 = FloraMeshes.SIZE[kind]
+		var reference: float = FloraMeshes.REFERENCE[kind]
+		var wide := maxf(box.size.x, box.size.z)
+		lines.append("%s: рост от %.1f до %.1f м; поперечник от %.1f до %.1f м (опорная модель: рост %.1f м, поперечник %.1f м)" % [
+				FloraMeshes.TITLES[kind], limits.x, limits.y, wide * limits.x / reference * 0.85, wide * limits.y / reference * 1.18,
+				box.end.y, wide])
+	return lines
+
+
+## Эталоны масштаба у точки мира (проверка шага 1.8): человек 1,75 м, дом 6 м, дорога 4 м, валун 2 м, по дереву
+## опорного роста — олива 6 м, пальма 12 м, кипарис 15 м — и отрезок городской стены 40 м (высота 8 м, толщина
+## 2,5 м) с башней 12 м. Повторный вызов убирает их.
 func toggle_reference(at: Vector3) -> bool:
 	if _reference != null:
 		_reference.queue_free()
@@ -206,6 +223,20 @@ func toggle_reference(at: Vector3) -> bool:
 	road.material_override = plain
 	road.position = Vector3(6.0, 0.06, 7.0)
 	_reference.add_child(road)
+	var wall := MeshInstance3D.new()
+	var wall_box := BoxMesh.new()
+	wall_box.size = Vector3(40.0, 8.0, 2.5)
+	wall.mesh = wall_box
+	wall.material_override = plain
+	wall.position = Vector3(6.0, 4.0, -12.0)
+	_reference.add_child(wall)
+	var tower := MeshInstance3D.new()
+	var tower_box := BoxMesh.new()
+	tower_box.size = Vector3(6.0, 12.0, 6.0)
+	tower.mesh = tower_box
+	tower.material_override = plain
+	tower.position = Vector3(29.0, 6.0, -12.0)
+	_reference.add_child(tower)
 	var stand: Array = [[FloraMeshes.Kind.ROCK, Vector3(-4.0, 0.0, 0.0), 2.0], [FloraMeshes.Kind.OLIVE, Vector3(-11.0, 0.0, 0.0), 1.0],
 			[FloraMeshes.Kind.PALM, Vector3(-19.0, 0.0, 0.0), 1.0], [FloraMeshes.Kind.CYPRESS, Vector3(-26.0, 0.0, 0.0), 1.0]]
 	for row: Array in stand:

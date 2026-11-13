@@ -22,6 +22,8 @@ const CLOUD_MAP := preload("res://assets/weather/cloud_map.png")
 const CLOUD_NOISE := preload("res://assets/weather/cloud_noise.png")
 ## За сколько секунд одна погода сменяет другую (клавишей; в игре начало и конец шторма приходят с сервера).
 const CHANGE_SECONDS := 10.0
+const WET_SECONDS := 50.0  ## за столько земля намокает под дождём полностью
+const DRY_SECONDS := 200.0  ## и за столько высыхает после него
 const CLOUD_TILE := 48000.0  ## плитка карты облаков, метры (CLOUD_TILE в clouds.gdshaderinc)
 ## Высота низа облаков над морем, метры. Над камерой слой не ниже CLOUD_ABOVE: когда камера поднимается, облака
 ## поднимаются с ней (под камерой их не бывает).
@@ -62,6 +64,7 @@ var _progress := 1.0
 var _drift := SHOT_DRIFT  ## на сколько облака ушли по ветру, метры
 var _churn := 0.0  ## сдвиг объёмного шума: облака понемногу меняют очертания
 var _fall := 20.0  ## время падения дождя, секунды
+var _ground_wet := 0.0  ## насколько намокла земля, 0…1 (см. WET_SECONDS, DRY_SECONDS)
 var _wind_time := 40.0  ## время ветра для растительности: в сильный ветер идёт быстрее
 var _drops: Array[MeshInstance3D] = []  ## струи дождя: ближний, средний и дальний план
 var _drops_shown := true
@@ -153,6 +156,17 @@ func _process(delta: float) -> void:
 	_apply(0.0 if frozen else delta)
 
 
+## Насколько земля намокла, 0…1: под дождём растёт около минуты, после дождя сохнет несколько минут.
+func ground_wet() -> float:
+	return _ground_wet
+
+
+## Поставить намокание сразу (для кадров и проверок).
+func set_ground_wet(value: float) -> void:
+	_ground_wet = clampf(value, 0.0, 1.0)
+	_apply(0.0)
+
+
 func kind() -> Kind:
 	return _kind
 
@@ -168,6 +182,8 @@ func set_kind(to: Kind, instant := false) -> void:
 	_kind = to
 	_to = look_of(to)
 	_progress = 1.0 if instant else 0.0
+	if instant:
+		_ground_wet = float(_to["wet"])
 
 
 ## Показать смесь двух погод (доля второй — share), сразу: для проверок плавности перехода.
@@ -176,6 +192,7 @@ func show_blend(from: Kind, to: Kind, share: float) -> void:
 	_to = look_of(to)
 	_kind = to
 	_progress = clampf(share, 0.0, 1.0)
+	_ground_wet = float(now()["wet"])
 	_apply(0.0)
 
 
@@ -236,7 +253,12 @@ func _apply(delta: float) -> void:
 	RenderingServer.global_shader_parameter_set(&"cloud_drift", Vector4(_drift.x, _drift.y, _churn, 0.0))
 	RenderingServer.global_shader_parameter_set(&"cloud_look", Vector4(base, storm, look["cumulus"], 0.0))
 	RenderingServer.global_shader_parameter_set(&"cloud_eye", eye)
-	RenderingServer.global_shader_parameter_set(&"rain_wet", float(look["wet"]))
+	# Земля мокнет и сохнет не вместе с небом, а со своей скоростью: дождь уже идёт — земля ещё сухая, дождь кончился —
+	# ещё мокрая.
+	var wet_target: float = look["wet"]
+	if delta > 0.0:
+		_ground_wet = move_toward(_ground_wet, wet_target, delta / (WET_SECONDS if wet_target > _ground_wet else DRY_SECONDS))
+	RenderingServer.global_shader_parameter_set(&"rain_wet", _ground_wet)
 	# При смене карты прежней земли уже нет, а новая ещё строится.
 	var ground := 0.0
 	if terrain != null and is_instance_valid(terrain):

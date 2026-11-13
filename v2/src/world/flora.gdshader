@@ -84,14 +84,21 @@ void fragment() {
 	} else {
 		albedo *= 0.85 + 0.3 * speck;
 	}
-	// Под дождём всё темнее и глаже.
-	albedo *= 1.0 - 0.14 * rain_wet;
+	// Под дождём: кора и камень темнеют заметно, листва — чуть и становится сочнее; глаже всё это почти не делается
+	// (мокрый лист даёт слабый блик, но не лак).
+	float soaked = rain_wet * (leafy ? 0.08 : (kind > 2.5 ? 0.22 : 0.28));
+	if (leafy) {
+		float grey = dot(albedo, vec3(0.2126, 0.7152, 0.0722));
+		albedo = mix(vec3(grey), albedo, 1.0 + 0.12 * rain_wet);
+	}
+	albedo *= 1.0 - soaked;
 	if (lod_tint.r + lod_tint.g + lod_tint.b > 0.0) {
 		albedo = lod_tint * (0.5 + 0.5 * COLOR.g / max(max(COLOR.r, COLOR.g), max(COLOR.b, 0.05)));
 	}
 	ALBEDO = albedo;
-	ROUGHNESS = (leafy ? 0.72 : 0.88) * (1.0 - 0.3 * rain_wet);
+	ROUGHNESS = (leafy ? 0.72 : 0.88) * (1.0 - (leafy ? 0.14 : 0.1) * rain_wet);
 	SPECULAR = leafy ? 0.22 : 0.12;
+	METALLIC = 0.0;
 	if (leafy) {
 		BACKLIGHT = albedo * 0.55;
 	}

@@ -4,7 +4,10 @@ extends Node3D
 ## быстрые проверки, см. src/tools/shot_director.gd); --view=x,z,d,поворот,наклон — добавить кадр места;
 ## --world=N — начать с карты номер N (1 — «Осень»); --debug-view=N — показать географию вместо материалов
 ## (1 — влажность, 2 — сток воды, 3 — крутизна, 4 — ложбины и гребни; растительность, шаг 1.8: 21 — густота,
-## 22 — местности, 23 — породы деревьев, 24 — где деревьям нельзя по уклону, 25 — поля);
+## 22 — местности, 23 — породы деревьев, 24 — где деревьям нельзя по уклону, 25 — поля; материалы под дождём:
+## 31 — шероховатость, 32 — металл, 33 — намокание, 34 — без бликов и отражений, 35 — нормали);
+## --no-sun и --no-sky-reflections — без прямого света светила и без отражений неба; --scale-audit — размеры
+## моделей и камеры в журнал;
 ## --flora-debug — проверочный вид растительности (как клавиша U), --flora-reference=x,z — эталоны масштаба в точке;
 ## --update-test=адрес и --update-target=файл — проверка самообновления в конвейере. Ключи --finish-update и --updated
 ## программа передаёт сама себе при обновлении (см. src/core/updater.gd).
@@ -53,6 +56,9 @@ var _flora: Flora  ## растительность и камни (шаг 1.8)
 var _flora_debug := false  ## проверочный вид растительности (клавиша U или ключ --flora-debug)
 var _flora_debug_wanted := false
 var _flora_debug_wait := 0.0
+var _no_sun := false  ## ключи --no-sun и --no-sky-reflections: проверочные выключатели света (см. DayLight)
+var _no_reflections := false
+var _scale_audit := false  ## ключ --scale-audit: размеры моделей и камеры — в журнал
 var _flora_reference := Vector2.INF  ## ключ --flora-reference=x,z: поставить эталоны масштаба в этой точке мира
 var _benchmark: Benchmark
 var _updater: Updater
@@ -83,6 +89,8 @@ func _ready() -> void:
 	_rig = StrategyCamera.new()
 	add_child(_rig)
 	_weather = Weather.new()
+	_light.debug_no_sun = _no_sun
+	_light.debug_no_reflections = _no_reflections
 	_weather.light = _light
 	_weather.camera = _rig.camera
 	_weather.frozen = not _shots_folder.is_empty()
@@ -352,6 +360,19 @@ func _load_world(path: String) -> bool:
 		_flora_debug = _flora.toggle_debug()
 	if _flora_reference.is_finite():
 		_flora.toggle_reference(Vector3(_flora_reference.x, _terrain.height_map.sample(_flora_reference), _flora_reference.y))
+	if _scale_audit:
+		# Аудит масштаба (ключ --scale-audit): фактические размеры того, что стоит в мире, — в журнал.
+		print("АУДИТ: единица мира — метр; гекс: от центра до угла %.0f м, между сторонами %.1f м" % [HexMath.SIZE, HexMath.APOTHEM * 2.0])
+		print("АУДИТ: вешка города — поперечник %.0f м, высота %.0f м; вокруг города растительность расчищена на %.0f м от центра; пояс полей — до %s м" % [
+				SiteMarkers.CITY_RADIUS * 2.0, SiteMarkers.CITY_HEIGHT, 34.0, str(WorldTerrain.FIELD_REACH.values())])
+		for line in _flora.size_report():
+			print("АУДИТ: ", line)
+		print("АУДИТ: камера — угол зрения %.0f° по вертикали; расстояние до точки взгляда от %.0f до %.0f м" % [
+				StrategyCamera.FOV, StrategyCamera.MIN_DISTANCE, _rig.max_distance()])
+		for distance: float in [StrategyCamera.MIN_DISTANCE, 300.0, 800.0, 3000.0, _rig.max_distance()]:
+			var span := 2.0 * distance * tan(deg_to_rad(StrategyCamera.FOV * 0.5))
+			print("АУДИТ: камера на расстоянии %.0f м — высота над точкой взгляда %.0f м; в кадре по вертикали %.0f м земли (на экране 1123 точки: метр — %.1f точки)" % [
+					distance, _rig.height_at(distance), span, 1123.0 / span])
 
 	_hud.set_loading("")
 	_ready_to_play = true
@@ -576,6 +597,12 @@ func _read_arguments() -> void:
 			_debug_view = argument.trim_prefix("--debug-view=").to_int()
 		elif argument == "--flora-debug":
 			_flora_debug_wanted = true
+		elif argument == "--scale-audit":
+			_scale_audit = true
+		elif argument == "--no-sun":
+			_no_sun = true
+		elif argument == "--no-sky-reflections":
+			_no_reflections = true
 		elif argument.begins_with("--flora-reference="):
 			var at := argument.trim_prefix("--flora-reference=").split(",")
 			if at.size() == 2:

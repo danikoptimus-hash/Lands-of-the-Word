@@ -80,6 +80,10 @@ var _from: Dictionary  ## вид, из которого идёт переход
 var _to: Dictionary
 var _left := 0.0  ## секунд перехода осталось
 var _grade := Vector3.ONE  ## насыщенность, контраст и яркость поверх вида (клавиша V)
+## Проверочные выключатели (ключи --no-sun и --no-sky-reflections): без прямого света светила и без отражений
+## неба — чтобы увидеть, откуда берётся блеск поверхности.
+var debug_no_sun := false
+var debug_no_reflections := false
 var _storm := 0.0  ## доля пасмурной погоды, 0…1 (дождь — около половины, шторм — единица)
 var _flash := 0.0  ## вспышка молнии: добавка к яркости картинки
 
@@ -228,6 +232,8 @@ static func storm_view(view: Dictionary, share: float) -> Dictionary:
 	result["light_energy"] = float(view["light_energy"]) * lerpf(1.0, 0.62 if night else 0.3, share)
 	result["light_color"] = (view["light_color"] as Color).lerp(Color(0.74, 0.8, 0.88), share)
 	result["shadow"] = float(view["shadow"]) * lerpf(1.0, 0.4, share)
+	# Светило за тучами — рассеянный свет: бликов от него на земле нет.
+	result["specular"] = float(view["specular"]) * lerpf(1.0, 0.05, share)
 	result["sky_top"] = (view["sky_top"] as Color).lerp(overcast_top, share)
 	result["sky_horizon"] = (view["sky_horizon"] as Color).lerp(overcast_horizon, share)
 	result["sky_ground"] = (view["sky_ground"] as Color).lerp(overcast_top, share)
@@ -238,7 +244,7 @@ static func storm_view(view: Dictionary, share: float) -> Dictionary:
 	result["ambient_color"] = (view["ambient_color"] as Color).lerp(Color(0.62, 0.67, 0.74), share)
 	result["ambient_energy"] = float(view["ambient_energy"]) * lerpf(1.0, 0.9, share)
 	# Дымка в шторм гуще, но не вчетверо, как прежде: видимость в шторм съедает дождь — завесами, неровно (weather.gd).
-	result["fog"] = float(view["fog"]) * lerpf(1.0, 1.3, share)
+	result["fog"] = float(view["fog"]) * lerpf(1.0, 1.8, share)
 	result["saturation"] = float(view["saturation"]) * lerpf(1.0, 0.72, share)
 	result["exposure"] = float(view["exposure"]) * lerpf(1.0, 1.08 if night else 0.94, share)
 	return result
@@ -314,7 +320,8 @@ func _apply(clear_view: Dictionary) -> void:
 	to_light = to_light.normalized()
 	sun.transform = Transform3D(Basis.looking_at(-to_light, Vector3.UP), Vector3.ZERO)
 	sun.light_color = view["light_color"]
-	sun.light_energy = view["light_energy"]
+	sun.light_energy = 0.0 if debug_no_sun else float(view["light_energy"])
+	environment.reflected_light_source = Environment.REFLECTION_SOURCE_DISABLED if debug_no_reflections else Environment.REFLECTION_SOURCE_BG
 	sun.shadow_opacity = view["shadow"]
 	# Сила блика светила — для суши: с этими числами приняты времена суток (шаг 1.4; тогда ими же глушился белый
 	# столб на ровной воде). Вода с шага 1.5 считает свой блик сама (water.gdshader) и это число не читает.

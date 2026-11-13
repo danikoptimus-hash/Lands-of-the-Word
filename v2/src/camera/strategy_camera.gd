@@ -127,6 +127,16 @@ func view_angle() -> float:
 	return _view_angle(_distance, _tilt)
 
 
+## Для аудита масштаба: наибольшее отдаление и высота камеры над точкой взгляда на данном расстоянии
+## (при наклоне по умолчанию).
+func max_distance() -> float:
+	return _max_distance
+
+
+func height_at(distance: float) -> float:
+	return distance * sin(_auto_pitch(distance))
+
+
 func get_view() -> CameraView:
 	var view := CameraView.new()
 	view.focus = _focus

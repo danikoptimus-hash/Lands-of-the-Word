@@ -144,6 +144,17 @@ vec4 cache_relief(int level, vec2 p) {
 const float PICTURE_FROM = 0.5;
 const float PICTURE_TO = 1.3;
 
+// ── Намокание под дождём (переделано 13.11 по заданию владельца: «мокрая поверхность — не обязательно
+// блестящая») ─────────────────────────────────────────────────────────────────
+// У каждого материала три числа. Потемнение: насколько он темнеет, напитавшись водой (почва, глина и песок —
+// сильно, трава — едва). Гладкость: насколько мокрая поверхность глаже сухой там, где вода задерживается (галька
+// и гладкая скала — заметно, песок и трава остаются матовыми). Лужи: держит ли материал стоячую воду на ровном
+// месте (глина и почва — да, песок — нет: вода уходит в него). Металла нет нигде: земля — диэлектрик.
+// Порядок — номера слоёв (surface_layers.gdshaderinc).
+const float WET_DARK[LAYER_COUNT] = float[LAYER_COUNT](0.3, 0.28, 0.16, 0.2, 0.1, 0.1, 0.24, 0.26, 0.16, 0.26, 0.3, 0.34, 0.1, 0.28, 0.36, 0.22);
+const float WET_SMOOTH[LAYER_COUNT] = float[LAYER_COUNT](0.06, 0.15, 0.08, 0.15, 0.08, 0.08, 0.3, 0.3, 0.12, 0.18, 0.1, 0.2, 0.1, 0.35, 0.3, 0.25);
+const float WET_POOL[LAYER_COUNT] = float[LAYER_COUNT](0.0, 0.25, 0.15, 0.2, 0.25, 0.25, 0.3, 0.3, 0.15, 0.1, 0.05, 0.7, 0.4, 0.2, 0.9, 0.3);
+
 void fragment() {
 	vec2 p = world_position.xz;
 	vec2 uv = (p - bake_rect.xy) / bake_rect.zw;
@@ -281,14 +292,75 @@ void fragment() {
 		vec2 lean = n.xz + cached_tilt;
 		normal = vec3(lean.x, sqrt(max(1.0 - dot(lean, lean), 0.01)), lean.y);
 	}
+	// ── Дождь: намокание по материалу, уклону и ложбинам ──────────────────────
+	// rain_wet — насколько земля успела намокнуть (растёт около минуты от начала дождя, сохнет несколько минут).
+	// Намокшее прежде всего темнеет. Глаже становится только там, где вода задерживается: на крутом склоне она
+	// стекает — склон тёмный и матовый, без сплошного блеска. Стоячая вода (лужи) — на ровном месте, в ложбинах
+	// рельефа и между камнями, у материалов, которые воду держат, и не сразу, а когда земля уже напиталась.
+	float soak = 0.0;
+	float film = 0.0;
+	float pool = 0.0;
+	float specular = mix(0.2, 0.5, wet);
+	if (rain_wet > 0.003) {
+		ivec2 cell = clamp(ivec2(floor((p - bake_rect.xy) / splat_texel)), ivec2(0), textureSize(splat_index, 0) - 1);
+		ivec3 layers = clamp(ivec3(texelFetch(splat_index, cell, 0).rgb * 255.0), ivec3(0), ivec3(LAYER_COUNT - 1));
+		vec3 shares = textureLod(splat_weight, uv, 0.0).rgb;
+		shares /= max(shares.r + shares.g + shares.b, 1.0e-4);
+		float dark = dot(shares, vec3(WET_DARK[layers.x], WET_DARK[layers.y], WET_DARK[layers.z]));
+		float smooth_wet = dot(shares, vec3(WET_SMOOTH[layers.x], WET_SMOOTH[layers.y], WET_SMOOTH[layers.z]));
+		float holds = dot(shares, vec3(WET_POOL[layers.x], WET_POOL[layers.y], WET_POOL[layers.z]));
+		// Сколько воды получила точка: под плотной тучей больше; поверхность, обращённая вверх, мокнет сильнее отвесной.
+		float heavy = rain_at(p, 4.0);
+		soak = rain_wet * mix(0.72, 1.0, heavy) * mix(0.6, 1.0, smoothstep(0.0, 0.5, n.y));
+		// Сток: чем круче, тем меньше воды остаётся на поверхности.
+		float runoff = smoothstep(0.05, 0.36, steep);
+		// Ложбина рельефа: нормали соседних точек (в шести метрах) сходятся к этой.
+		vec2 d = vec2(6.0) / bake_rect.zw;
+		float converge = texture(normal_map, uv - vec2(d.x, 0.0)).g - texture(normal_map, uv + vec2(d.x, 0.0)).g
+				+ texture(normal_map, uv - vec2(0.0, d.y)).b - texture(normal_map, uv + vec2(0.0, d.y)).b;
+		float hollow = smoothstep(0.02, 0.22, converge);
+		float patch = textureLod(noise_map, p / 23.0 + vec2(0.13, 0.57), 0.0).g;
+		float low = hollow * 0.9 + (0.5 - texture_height) * 0.8 + (patch - 0.5) * 0.9;
+		pool = (1.0 - smoothstep(0.008, 0.04, steep)) * smoothstep(0.34, 0.52, low) * holds * smoothstep(0.45, 0.95, rain_wet)
+				* (1.0 - picture_share * 0.6);
+		film = soak * (1.0 - 0.85 * runoff);
+		// У уреза земля и так мокрая и тёмная (wet) — дождь её почти не меняет.
+		albedo *= 1.0 - dark * soak * (1.0 - 0.6 * wet);
+		albedo *= 1.0 - 0.3 * pool;
+		roughness = mix(roughness, min(roughness, 1.0 - 1.5 * smooth_wet), film);
+		roughness = mix(roughness, 0.1, pool);
+		specular = max(specular, mix(0.2, 0.2 + 0.7 * smooth_wet, film));
+		specular = mix(specular, 0.5, pool);
+		// Вода в луже лежит ровно.
+		normal = normalize(mix(normal, vec3(0.0, 1.0, 0.0), 0.85 * pool));
+	}
 	NORMAL = normalize((VIEW_MATRIX * vec4(normal, 0.0)).xyz);
-	// Погода (шаг 1.6): под дождём земля темнее и глаже.
-	albedo *= 1.0 - 0.14 * rain_wet;
-	roughness *= 1.0 - 0.4 * rain_wet;
-	wet = max(wet, rain_wet * 0.7);
 	ALBEDO = albedo;
 	ROUGHNESS = clamp(roughness, 0.08, 1.0);
-	SPECULAR = mix(0.2, 0.5, wet);
+	SPECULAR = specular;
+	METALLIC = 0.0;
+	// Проверочные виды материалов (ключ --debug-view или «@N» у места): 31 — шероховатость, 32 — металл (везде ноль:
+	// чёрное), 33 — намокание (красное — пропитка, зелёное — плёнка воды, синее — лужи), 34 — без бликов и отражений,
+	// 35 — нормаль поверхности.
+	if (debug_view >= 31 && debug_view <= 35) {
+		if (debug_view == 34) {
+			SPECULAR = 0.0;
+			ROUGHNESS = 1.0;
+		} else {
+			vec3 shown = vec3(ROUGHNESS);
+			if (debug_view == 32) {
+				shown = vec3(METALLIC);
+			} else if (debug_view == 33) {
+				shown = vec3(soak, film, pool);
+			} else if (debug_view == 35) {
+				shown = normal * 0.5 + 0.5;
+			}
+			ALBEDO = vec3(0.0);
+			EMISSION = shown * shown;
+			SPECULAR = 0.0;
+			ROUGHNESS = 1.0;
+		}
+	}
 	AO = mix(0.6, 1.0, texture_height);
 	AO_LIGHT_AFFECT = 0.35;
 	// Дымка и дождь: чем дальше и ниже точка, тем больше она растворяется в цвете неба у горизонта.
