@@ -17,6 +17,26 @@ uniform float wind_speed :hint_range(0.0, 20.0) = 1.0;
 uniform float _density : hint_range(0.01, 0.2) = 0.05;
 uniform float cloud_coverage :hint_range(0.1, 1.0) = 0.25;
 uniform float _time_offset : hint_range(0.0, 1000.0, 0.5) = 0.0;
+// ПРАВКА: доля шагов луча от полного числа — уровень качества (меньше шагов — быстрее и грубее).
+uniform float steps_scale : hint_range(0.25, 1.0) = 1.0;
+// ПРАВКА: где облака растворяются в дымке у горизонта (доли: 1 − высота направления взгляда).
+uniform vec2 horizon_fade = vec2(0.86, 0.985);
+// ПРАВКА: насыщенность синевы и светлая дымка у горизонта — подгонка фона под утверждённый образец
+// (кадры Unreal владельца): формула неба сама даёт блёклую зеленоватую синеву и серый горизонт.
+uniform float sky_saturation : hint_range(0.5, 2.0) = 1.0;
+uniform vec3 haze_color = vec3(0.62, 0.59, 0.50);
+uniform float haze_strength : hint_range(0.0, 1.0) = 0.0;
+uniform float haze_power : hint_range(1.0, 40.0) = 9.4;
+// ПРАВКА: размер пятен карты погоды (в образце — 0.00006: пятно в четыре километра давало одно огромное
+// облако на полнеба) и время облаков числом — чтобы проверочные кадры были повторимы.
+uniform float weather_scale = 0.00006;
+uniform float sky_time = 0.0;
+// ПРАВКА: место камеры в мире, метры. В образце небо — купол вокруг неподвижной точки; с местом камеры облака
+// смещаются при полёте над картой и приближаются при подъёме, как настоящие. Высота ограничена ниже кромки облаков.
+uniform vec3 camera_place = vec3(0.0);
+// ПРАВКА: яркость облаков (свет солнца в облаке и рассеянный свет) — тоже под образец.
+uniform float cloud_sun : hint_range(0.0, 4.0) = 1.0;
+uniform float cloud_ambient : hint_range(0.0, 4.0) = 1.0;
 
 // Approximately earth sizes
 const float g_radius = 6000000.0; //ground radius
@@ -112,6 +132,15 @@ vec3 atmosphere(vec3 eye_dir) {
 	return color;
 }
 
+// ПРАВКА: фон неба для экрана — формула выше плюс насыщенность и дымка у горизонта.
+vec3 background_sky(vec3 eye_dir) {
+	vec3 color = atmosphere(eye_dir);
+	float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
+	color = max(vec3(0.0), mix(vec3(luma), color, sky_saturation));
+	float haze = pow(1.0 - clamp(eye_dir.y, 0.0, 1.0), haze_power) * haze_strength;
+	return mix(color, haze_color, haze);
+}
+
 float GetHeightFractionForPoint(float inPosition) { 
 	float height_fraction = (inPosition -  sky_b_radius) / (sky_t_radius - sky_b_radius); 
 	return clamp(height_fraction, 0.0, 1.0);
@@ -145,7 +174,7 @@ float intersectSphere(vec3 pos, vec3 dir,float r) {
 // Returns density at a given point
 // Heavily based on method from Schneider
 float density(vec3 pip, vec3 weather, float mip) {
-	float time = TIME;
+	float time = sky_time;
 	vec3 p = pip;
 	float height_fraction = GetHeightFractionForPoint(length(p));
 	p.xz += time * 20.0 * normalize(wind_direction) * wind_speed * 0.6;
@@ -187,13 +216,15 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 	vec3 atmosphere_ambient = atmosphere(normalize(vec3(1.0, 1.0, 0.0)));
 	vec3 atmosphere_ground = atmosphere(normalize(vec3(1.0, -1.0, 0.0)));
 	
-	const float weather_scale = 0.00006;
-	float time = TIME * 0.001 + 0.005 * _time_offset;
+	float time = sky_time * 0.001 + 0.005 * _time_offset;
 	vec2 weather_pos = time * normalize(wind_direction) * wind_speed;
 	
 	for (int i = 0; i < depth; i++) {
 		p += dir * ss;
-		vec3 weather_sample = texture(weathermap, p.xz * weather_scale + 0.5 + weather_pos).xyz;
+		// ПРАВКА: уровень подробности карты погоды задан явно (здесь и ниже). В образце он брался по соседним
+		// точкам экрана, а внутри ветвления («выше горизонта», «внутри облака») у соседей значения не определены:
+		// по линии горизонта и кромкам облаков это давало мусор, а на программной отрисовке — падение.
+		vec3 weather_sample = textureLod(weathermap, p.xz * weather_scale + 0.5 + weather_pos, 0.0).xyz;
 		float height_fraction = GetHeightFractionForPoint(length(p));
 
 		t = density(p, weather_sample, 0.0);
@@ -208,7 +239,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 			for (int j = 0; j < 6; j++) {
 				lp += (ldir + RANDOM_VECTORS[j]*float(j))*lss;
 				lheight_fraction = GetHeightFractionForPoint(length(lp));
-				vec3 lweather = texture(weathermap, lp.xz * weather_scale + 0.5 + weather_pos).xyz;
+				vec3 lweather = textureLod(weathermap, lp.xz * weather_scale + 0.5 + weather_pos, 0.0).xyz;
 				lt = density(lp, lweather, float(j));
 				cd += lt;
 			}
@@ -216,7 +247,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 			// Take a single distant sample
 			lp = p + ldir * 18.0 * lss;
 			lheight_fraction = GetHeightFractionForPoint(length(lp));
-			vec3 lweather = texture(weathermap, lp.xz * weather_scale + 0.5).xyz;
+			vec3 lweather = textureLod(weathermap, lp.xz * weather_scale + 0.5, 0.0).xyz;
 			lt = pow(density(lp, lweather, 5.0), (1.0 - lheight_fraction) * 0.8 + 0.5);
 			cd += lt;
 			
@@ -227,41 +258,46 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 
 			vec3 ambient = mix(atmosphere_ground, vec3(1.0), smoothstep(0.0, 1.0, height_fraction)) * _density * mix(atmosphere_ambient, vec3(1.0), 0.4) * (LIGHT0_DIRECTION.y);
 			alpha += (1.0 - dt) * (1.0 - alpha);
-			L += (ambient + beers_total * atmosphere_sun * phase * alpha) * T * t;
+			L += (ambient * cloud_ambient + beers_total * atmosphere_sun * cloud_sun * phase * alpha) * T * t;
 		}
 	}
 	return clamp(vec4(L, alpha), 0.0, 1.0);
 }
 
-void sky() {
-	vec3 dir = EYEDIR;
-
-	vec4 col = vec4(0.0);
-	if (dir.y>0.0) {
-		vec3 camPos = vec3(0.0, g_radius, 0.0);
-		vec3 start = camPos + dir * intersectSphere(camPos, dir, sky_b_radius);
-		vec3 end = camPos + dir * intersectSphere(camPos, dir, sky_t_radius);
-		float shelldist = (length(end-start));
-		// Take fewer steps towards horizon
-		float steps = (mix(96.0, 54.0, clamp(dot(dir, vec3(0.0, 1.0, 0.0)), 0.0, 1.0)));
-		vec3 raystep = dir * shelldist / steps;
-		vec4 volume = march(start, end, raystep, int(steps));
-		vec3 background = atmosphere(dir);
-		// Draw cloud shape
-		col = vec4(background*(1.0-volume.a)+volume.xyz, 1.0);
-		// Blend distant clouds into the sky
-		col.xyz = mix(clamp(col.xyz, vec3(0.0), vec3(1.0)), clamp(background, vec3(0.0), vec3(1.0)), smoothstep(0.6, 1.0, 1.0-dir.y));
-	} else {
-		col = vec4(atmosphere(dir), 1.0);
+// ПРАВКА: расчёт неба с облаками вынесен в функцию — так он заведомо не выполняется в проходе полного
+// разрешения, где нужна только готовая картинка пониженного разрешения.
+vec3 sky_with_clouds(vec3 dir) {
+	if (dir.y <= 0.0) {
+		return background_sky(dir);
 	}
-	
+	vec3 camPos = vec3(0.0, g_radius + clamp(camera_place.y, 0.0, 1300.0), 0.0);
+	vec3 start = camPos + dir * intersectSphere(camPos, dir, sky_b_radius);
+	vec3 end = camPos + dir * intersectSphere(camPos, dir, sky_t_radius);
+	float shelldist = (length(end-start));
+	vec3 shift = vec3(camera_place.x, 0.0, camera_place.z);
+	start += shift;
+	end += shift;
+	// Take fewer steps towards horizon
+	float steps = (mix(96.0, 54.0, clamp(dot(dir, vec3(0.0, 1.0, 0.0)), 0.0, 1.0))) * steps_scale;
+	vec3 raystep = dir * shelldist / steps;
+	vec4 volume = march(start, end, raystep, int(steps));
+	vec3 background = background_sky(dir);
+	// Draw cloud shape
+	vec3 col = background*(1.0-volume.a)+volume.xyz;
+	// Blend distant clouds into the sky
+	// ПРАВКА: в образце облака растворялись уже на 25° над горизонтом — у горизонта оставалась пустая серая
+	// полоса. Теперь они доходят почти до него и тонут в дымке на последних градусах, как в жизни.
+	return mix(clamp(col, vec3(0.0), vec3(1.0)), clamp(background, vec3(0.0), vec3(1.0)), smoothstep(horizon_fade.x, horizon_fade.y, 1.0-dir.y));
+}
+
+void sky() {
 	// Draw to quarter res buffer for reflections
 	// Draw to half res buffer for main sky
 	if (AT_QUARTER_RES_PASS && AT_CUBEMAP_PASS) {
-		COLOR = col.xyz;
+		COLOR = sky_with_clouds(EYEDIR);
 		ALPHA = 1.0;
 	} else if (AT_HALF_RES_PASS && !AT_CUBEMAP_PASS) {
-		COLOR = col.xyz;
+		COLOR = sky_with_clouds(EYEDIR);
 		ALPHA = 1.0;
 	} else if (AT_CUBEMAP_PASS) {
 		COLOR = QUARTER_RES_COLOR.rgb;

@@ -4,8 +4,7 @@
 #
 # Дополнения (в репозиторий не кладутся, скачиваются сюда по закреплённым версиям):
 #   Terrain3D 1.1.0 (MIT, TokisanGames) — земля: https://github.com/TokisanGames/Terrain3D
-#   SunshineClouds2 (MIT, Bonkahe) — объёмные облака: https://github.com/Bonkahe/SunshineClouds2
-#     (на встроенной графике Intel не работает — в сцене выключено, оставлено для справки)
+# (Дополнение облаков SunshineClouds2 пробовали 13–14.11: на встроенной графике Intel оно не работает — убрано.)
 # Облака неба — шейдер и текстуры шума из образца Godot Volumetric Cloud Demo (MIT, clayjohn):
 #   https://github.com/clayjohn/godot-volumetric-cloud-demo — сюда берутся только три текстуры шума,
 #   сам шейдер с нашими правками лежит в src/nebo.gdshader.
@@ -39,20 +38,6 @@ if [ ! -f "$here/addons/terrain_3d/terrain.gdextension" ]; then
 	rm -rf "$here/addons/terrain_3d"
 	mv "$tmp/addons/terrain_3d" "$here/addons/terrain_3d"
 	rm -rf "$tmp"
-fi
-
-if [ ! -d "$here/addons/SunshineClouds2" ]; then
-	src="$cache/sunshineclouds2"
-	if [ ! -d "$src/.git" ]; then
-		echo "Скачиваю SunshineClouds2…" >&2
-		GIT_LFS_SKIP_SMUDGE=1 git clone -q --depth 1 https://github.com/Bonkahe/SunshineClouds2 "$src"
-	fi
-	cp -r "$src/addons/SunshineClouds2" "$here/addons/SunshineClouds2"
-	git -C "$src" rev-parse HEAD > "$here/addons/SunshineClouds2/VERSIYA.txt"
-fi
-# Образец настроек облаков ссылается на карту облачности в корне проекта.
-if [ ! -f "$here/CloudsMask.exr" ]; then
-	cp "${XDG_CACHE_HOME:-$HOME/.cache}/zemli-slova/sravnenie/sunshineclouds2/CloudsMask.exr" "$here/CloudsMask.exr"
 fi
 
 # Текстуры шума для облаков неба (закреплённая версия образца).
