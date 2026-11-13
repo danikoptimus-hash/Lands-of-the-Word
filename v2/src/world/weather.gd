@@ -24,11 +24,15 @@ const CLOUD_NOISE := preload("res://assets/weather/cloud_noise.png")
 const CHANGE_SECONDS := 10.0
 const WET_SECONDS := 50.0  ## за столько земля намокает под дождём полностью
 const DRY_SECONDS := 200.0  ## и за столько высыхает после него
+const CLOUD_PASS := preload("res://src/world/cloud_pass.gdshader")
+const CLOUD_COMPOSITE := preload("res://src/world/cloud_composite.gdshader")
+## Высоты слоёв облаков над морем, метры (те же числа — в clouds.gdshaderinc).
+const CUMULUS_BASE := 1400.0
+const STORM_BASE := 1000.0
+const STORM_SAG := 320.0
+const CLOUD_RESOLUTION := 0.66  ## картинка облаков — в такую долю разрешения картинки мира
+const STRATEGIC_OPACITY := 0.32  ## насколько облака видны камере над ними при взгляде вниз (карта под ними читается)
 const CLOUD_TILE := 48000.0  ## плитка карты облаков, метры (CLOUD_TILE в clouds.gdshaderinc)
-## Высота низа облаков над морем, метры. Над камерой слой не ниже CLOUD_ABOVE: когда камера поднимается, облака
-## поднимаются с ней (под камерой их не бывает).
-const CLOUD_BASE := 1900.0
-const CLOUD_ABOVE := 1400.0
 const WIND := Vector2(0.87, 0.5)  ## куда дует ветер (по x и z) — туда же идут рябь и зыбь (water.gdshader)
 const RAIN_DROPS := preload("res://src/world/rain_drops.gdshader")
 ## Струи дождя — три плана вокруг камеры: размер «коробки» (м), сколько в ней струй, длина и толщина струи (м),
@@ -64,11 +68,17 @@ var _progress := 1.0
 var _drift := SHOT_DRIFT  ## на сколько облака ушли по ветру, метры
 var _churn := 0.0  ## сдвиг объёмного шума: облака понемногу меняют очертания
 var _fall := 20.0  ## время падения дождя, секунды
+var cloud_debug := 0  ## проверочный вид облаков (ключ --cloud-debug=N, см. cloud_pass.gdshader); ставится до _ready
+var _cloud_view: SubViewport
+var _cloud_camera: Camera3D
+var _cloud_material: ShaderMaterial
+var _composite_material: ShaderMaterial
+var _storm_now := 0.0
 var _ground_wet := 0.0  ## насколько намокла земля, 0…1 (см. WET_SECONDS, DRY_SECONDS)
 var _wind_time := 40.0  ## время ветра для растительности: в сильный ветер идёт быстрее
 var _drops: Array[MeshInstance3D] = []  ## струи дождя: ближний, средний и дальний план
 var _drops_shown := true
-var _base := CLOUD_BASE  ## высота низа облаков сейчас, метры
+var _base := STORM_BASE  ## высота низа туч шторма, метры (от неё бьют молнии)
 var _lightning: Lightning
 var _strike_in := 3.0  ## секунд до следующей молнии
 var _map_image: Image  ## карта облаков для расчётов на процессоре: где тучи толще, туда и бьёт молния
@@ -79,6 +89,7 @@ func _ready() -> void:
 	_from = _to
 	if light != null:
 		light.set_cloud_textures(cloud_map, CLOUD_NOISE)
+	_build_clouds()
 	_build_rain()
 	_lightning = Lightning.new()
 	add_child(_lightning)
@@ -87,6 +98,78 @@ func _ready() -> void:
 	if _map_image != null and _map_image.is_compressed():
 		_map_image.decompress()
 	_apply(0.0)
+
+
+## Проход облаков: своё окно пониженного разрешения с камерой — копией камеры мира — и прямоугольником во весь
+## кадр (cloud_pass.gdshader); на кадр мира его картинку кладёт второй прямоугольник (cloud_composite.gdshader).
+func _build_clouds() -> void:
+	_cloud_view = SubViewport.new()
+	_cloud_view.own_world_3d = true
+	_cloud_view.transparent_bg = true
+	_cloud_view.msaa_3d = Viewport.MSAA_DISABLED
+	_cloud_view.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_cloud_view.size = Vector2i(640, 360)
+	add_child(_cloud_view)
+	_cloud_camera = Camera3D.new()
+	_cloud_view.add_child(_cloud_camera)
+	_cloud_camera.current = true
+	_cloud_material = ShaderMaterial.new()
+	_cloud_material.shader = CLOUD_PASS
+	_cloud_material.set_shader_parameter("cloud_map", cloud_map)
+	_cloud_material.set_shader_parameter("cloud_noise", CLOUD_NOISE)
+	_cloud_material.set_shader_parameter("debug", cloud_debug)
+	var screen := QuadMesh.new()
+	screen.size = Vector2(2.0, 2.0)
+	var everywhere := AABB(Vector3.ONE * -1.0e7, Vector3.ONE * 2.0e7)
+	var pass_quad := MeshInstance3D.new()
+	pass_quad.mesh = screen
+	pass_quad.material_override = _cloud_material
+	pass_quad.custom_aabb = everywhere
+	pass_quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_cloud_view.add_child(pass_quad)
+	_composite_material = ShaderMaterial.new()
+	_composite_material.shader = CLOUD_COMPOSITE
+	_composite_material.set_shader_parameter("clouds", _cloud_view.get_texture())
+	var composite := MeshInstance3D.new()
+	composite.mesh = screen
+	composite.material_override = _composite_material
+	composite.custom_aabb = everywhere
+	composite.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(composite)
+	if light != null:
+		light.cloud_material = _cloud_material
+	RenderingServer.frame_pre_draw.connect(_sync_clouds)
+
+
+func _exit_tree() -> void:
+	if RenderingServer.frame_pre_draw.is_connected(_sync_clouds):
+		RenderingServer.frame_pre_draw.disconnect(_sync_clouds)
+
+
+## Перед каждым кадром: камера прохода облаков — та же, что у мира; картинка облаков — в долю разрешения
+## картинки мира; облака позади земли, пока камера под слоем, и перед ней, когда камера в слое или над ним.
+func _sync_clouds() -> void:
+	if camera == null or not is_instance_valid(camera) or _cloud_view == null:
+		return
+	_cloud_camera.global_transform = camera.global_transform
+	_cloud_camera.fov = camera.fov
+	_cloud_camera.near = camera.near
+	_cloud_camera.far = camera.far
+	_cloud_camera.keep_aspect = camera.keep_aspect
+	var window := get_viewport()
+	var size := Vector2(window.get_visible_rect().size) * window.scaling_3d_scale * CLOUD_RESOLUTION
+	var wanted := Vector2i(maxi(int(size.x), 160), maxi(int(size.y), 90))
+	if _cloud_view.size != wanted:
+		_cloud_view.size = wanted
+	_composite_material.set_shader_parameter("texel", Vector2(1.0 / float(wanted.x), 1.0 / float(wanted.y)))
+	var front := camera.global_position.y > cloud_base() - 80.0
+	_composite_material.set_shader_parameter("in_front", 1.0 if front else 0.0)
+	_composite_material.render_priority = 20 if front else -20
+
+
+## Размер картинки облаков, точки (для проверочного вида).
+func cloud_picture_size() -> Vector2i:
+	return _cloud_view.size if _cloud_view != null else Vector2i.ZERO
 
 
 ## Струи дождя: три плана вокруг камеры. Видны только в шторм и не с большой высоты.
@@ -213,9 +296,14 @@ func push_wind(seconds: float) -> void:
 	_apply(0.0)
 
 
-## Высота низа облаков сейчас, метры: он всегда выше камеры.
+## Высота низа облаков сейчас над морем, метры: кучевых в ясную погоду, туч — в шторм (с провисанием).
 func cloud_base() -> float:
-	return _base
+	return STORM_BASE - STORM_SAG if _storm_now > 0.01 else CUMULUS_BASE
+
+
+## Показывать ли облака (для проверки: сверху они не должны закрывать карту).
+func set_clouds_shown(shown: bool) -> void:
+	_composite_material.set_shader_parameter("hidden", 0.0 if shown else 1.0)
 
 
 ## Показывать ли струи дождя (для проверки: шторм должен читаться и без них).
@@ -244,14 +332,14 @@ func _apply(delta: float) -> void:
 	var heading := WIND.normalized()
 	RenderingServer.global_shader_parameter_set(&"wind_look", Vector4(heading.x, heading.y, lerpf(0.12, 1.0, blow * blow), _wind_time))
 
-	# Низ облаков всегда выше камеры.
+	# Слой облаков стоит на своей высоте над морем: камера может быть под ним, в нём и над ним.
 	var eye := camera.global_position if camera != null else Vector3.ZERO
-	var base := maxf(CLOUD_BASE, eye.y + CLOUD_ABOVE)
-	_base = base
+	_storm_now = storm
+	_base = STORM_BASE
 	if light != null:
 		light.set_storm(float(look["overcast"]))
 	RenderingServer.global_shader_parameter_set(&"cloud_drift", Vector4(_drift.x, _drift.y, _churn, 0.0))
-	RenderingServer.global_shader_parameter_set(&"cloud_look", Vector4(base, storm, look["cumulus"], 0.0))
+	RenderingServer.global_shader_parameter_set(&"cloud_look", Vector4(look["cumulus"], storm, STRATEGIC_OPACITY, 0.0))
 	RenderingServer.global_shader_parameter_set(&"cloud_eye", eye)
 	# Земля мокнет и сохнет не вместе с небом, а со своей скоростью: дождь уже идёт — земля ещё сухая, дождь кончился —
 	# ещё мокрая.

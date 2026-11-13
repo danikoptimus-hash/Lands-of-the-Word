@@ -868,7 +868,7 @@ func _picture_difference(a: Image, b: Image) -> float:
 
 
 ## Погода (шаг 1.6): облака идут по небу — кадр со сдвинутыми облаками другой, а с возвращёнными тот же;
-## облаков под камерой нет на любой высоте; море у горизонта переходит в небо без линии; шторм виден и без струй
+## облака стоят на своей высоте и сверху не закрывают карту; море у горизонта переходит в небо без линии; шторм виден и без струй
 ## дождя (критерий владельца 12.11); молния видна и гаснет без следа. Плавный приход шторма (с тучами и дождём)
 ## проверяет _check_water.
 func _check_weather(stops: Array[Tour.Stop]) -> void:
@@ -896,17 +896,25 @@ func _check_weather(stops: Array[Tour.Stop]) -> void:
 	_check("погода: облака идут по небу", shift > 0.15 and same < 0.05,
 			"кадр с облаками, ушедшими на 900 м, отличается на %.2f из 255; с возвращёнными — на %.3f" % [shift, same])
 
-	# Облаков под камерой нет: и у земли, и с самой большой высоты низ облаков выше камеры.
+	# Облака стоят в мире на своей высоте (задание владельца 13.11): у земли камера под ними, с самой большой
+	# высоты — над ними; и сверху они не закрывают карту — кадр с высоты с облаками и без них отличается мало.
 	var camera := get_viewport().get_camera_3d()
-	_rig.set_view(CameraView.make(place.view.focus, 100000.0, 0.0, 0.0))
-	await _frames(4)
-	var high_eye := camera.global_position.y
-	var high_gap := weather.cloud_base() - high_eye
 	_rig.set_view(CameraView.make(place.view.focus, StrategyCamera.MIN_DISTANCE, 0.0, 0.0))
 	await _frames(4)
 	var low_gap := weather.cloud_base() - camera.global_position.y
-	_check("погода: облаков под камерой нет", high_gap > 900.0 and low_gap > 900.0,
-			"низ облаков выше камеры на %d м с самой большой высоты (камера на %d м) и на %d м у земли" % [roundi(high_gap), roundi(high_eye), roundi(low_gap)])
+	_rig.set_view(CameraView.make(place.view.focus, 100000.0, 0.0, 0.0))
+	await _frames(6)
+	var high_eye := camera.global_position.y
+	var high_gap := high_eye - weather.cloud_base()
+	var with_clouds := await _frame_picture()
+	weather.set_clouds_shown(false)
+	await _frames(4)
+	var without_clouds := await _frame_picture()
+	weather.set_clouds_shown(true)
+	var hidden := _picture_difference(with_clouds, without_clouds)
+	_check("погода: облака стоят на своей высоте и сверху не закрывают карту", low_gap > 900.0 and high_gap > 900.0 and hidden < 12.0,
+			"у земли низ облаков выше камеры на %d м; с самой большой высоты камера выше него на %d м; кадр с высоты с облаками и без них отличается на %.2f из 255" % [
+			roundi(low_gap), roundi(high_gap), hidden])
 
 	# Море у горизонта переходит в небо без линии: строки кадра чуть ниже и чуть выше горизонта — одного цвета.
 	var far_view := CameraView.make(place.view.focus, 9000.0, 0.0, -54.0)

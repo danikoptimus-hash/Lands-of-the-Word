@@ -193,6 +193,10 @@ func set_grade(saturation: float, contrast: float, brightness: float) -> void:
 
 
 ## Карта облаков и объёмный шум (weather.gd) — небо рисует по ним облака.
+## Материал прохода облаков (cloud_pass.gdshader): свет облаков ставится ему. Задаёт weather.gd.
+var cloud_material: ShaderMaterial
+
+
 func set_cloud_textures(map: Texture2D, noise: Texture3D) -> void:
 	_sky_material.set_shader_parameter("cloud_map", map)
 	_sky_material.set_shader_parameter("cloud_noise", noise)
@@ -344,10 +348,24 @@ func _apply(clear_view: Dictionary) -> void:
 	# Облака: со стороны светила — его цвет (чуть выбеленный), яркость — по яркости неба этого времени суток;
 	# низ и тень — в цвет неба у горизонта. В шторм тучи темнее.
 	var sky_light := clampf((view["sky_horizon"] as Color).get_luminance() * 1.25, 0.1, 1.0)
-	var dim := lerpf(1.0, 0.95 if view["body"] == "moon" else 0.6, _storm)
-	_sky_material.set_shader_parameter("cloud_lit", (view["light_color"] as Color).lerp(Color.WHITE, 0.4) * (sky_light * 1.45 * dim))
-	_sky_material.set_shader_parameter("cloud_light_direction", to_light)
-	_sky_material.set_shader_parameter("cloud_dark", (view["sky_horizon"] as Color).lerp(Color(0.5, 0.52, 0.58) * sky_light, 0.5) * (0.7 * dim))
+	var dim := lerpf(1.0, 0.95 if view["body"] == "moon" else 0.8, _storm)
+	# Со стороны светила — его цвет (днём чуть выбеленный, на закате и рассвете — как есть: бок облака к солнцу
+	# тёплый). Рассеянный свет: сверху — цвет неба в зените (холоднее), снизу — тёмный отсвет земли и моря.
+	# Он заметно слабее прямого: облако не одного цвета, у него есть светлая и теневая сторона.
+	var low_sun := 1.0 - smoothstep(0.1, 0.5, to_light.y)
+	var lit := (view["light_color"] as Color).lerp(Color.WHITE, lerpf(0.45, 0.12, low_sun)) * (sky_light * 1.5 * dim)
+	# На закате и рассвете тень облака холодная (сине-лиловая): тёплый только бок к солнцу.
+	var cool := Color(0.36, 0.42, 0.66) * sky_light
+	var sky_part := (view["sky_top"] as Color).lerp(view["sky_horizon"] as Color, 0.35).lerp(cool, 0.7 * low_sun) * (lerpf(0.62, 0.95, low_sun) * dim)
+	var low_part := (view["sky_top"] as Color).lerp(Color(0.42, 0.44, 0.52) * sky_light, 0.55).lerp(cool, 0.5 * low_sun) * (lerpf(0.34, 0.4, low_sun) * dim)
+	if cloud_material != null:
+		cloud_material.set_shader_parameter("cloud_lit", lit)
+		cloud_material.set_shader_parameter("cloud_sky", sky_part)
+		cloud_material.set_shader_parameter("cloud_low", low_part)
+		cloud_material.set_shader_parameter("light_direction", to_light)
+	# Тень облаков на земле: мягкая, только в ясную погоду и при свете солнца (при луне — вдвое слабее).
+	var shadow_share := 0.34 * (1.0 - _storm) * clampf(float(view["light_energy"]) / 1.4, 0.0, 1.0) * (1.0 if view["body"] == "sun" else 0.5)
+	RenderingServer.global_shader_parameter_set(&"cloud_sun", Vector4(to_light.x, to_light.y, to_light.z, shadow_share))
 
 	environment.ambient_light_color = view["ambient_color"]
 	environment.ambient_light_energy = view["ambient_energy"]

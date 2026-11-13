@@ -56,6 +56,7 @@ var _flora: Flora  ## растительность и камни (шаг 1.8)
 var _flora_debug := false  ## проверочный вид растительности (клавиша U или ключ --flora-debug)
 var _flora_debug_wanted := false
 var _flora_debug_wait := 0.0
+var _cloud_debug := 0  ## ключ --cloud-debug=N: проверочный вид облаков (см. cloud_pass.gdshader)
 var _no_sun := false  ## ключи --no-sun и --no-sky-reflections: проверочные выключатели света (см. DayLight)
 var _no_reflections := false
 var _scale_audit := false  ## ключ --scale-audit: размеры моделей и камеры — в журнал
@@ -92,6 +93,7 @@ func _ready() -> void:
 	_light.debug_no_sun = _no_sun
 	_light.debug_no_reflections = _no_reflections
 	_weather.light = _light
+	_weather.cloud_debug = _cloud_debug
 	_weather.camera = _rig.camera
 	_weather.frozen = not _shots_folder.is_empty()
 	add_child(_weather)
@@ -599,6 +601,8 @@ func _read_arguments() -> void:
 			_flora_debug_wanted = true
 		elif argument == "--scale-audit":
 			_scale_audit = true
+		elif argument.begins_with("--cloud-debug="):
+			_cloud_debug = argument.trim_prefix("--cloud-debug=").to_int()
 		elif argument == "--no-sun":
 			_no_sun = true
 		elif argument == "--no-sky-reflections":

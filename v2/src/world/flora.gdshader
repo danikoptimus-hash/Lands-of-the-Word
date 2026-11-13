@@ -92,6 +92,7 @@ void fragment() {
 		albedo = mix(vec3(grey), albedo, 1.0 + 0.12 * rain_wet);
 	}
 	albedo *= 1.0 - soaked;
+	albedo *= cloud_shade(world_position);
 	if (lod_tint.r + lod_tint.g + lod_tint.b > 0.0) {
 		albedo = lod_tint * (0.5 + 0.5 * COLOR.g / max(max(COLOR.r, COLOR.g), max(COLOR.b, 0.05)));
 	}

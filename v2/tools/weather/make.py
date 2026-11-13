@@ -8,8 +8,10 @@
                     R — ясная погода: «присутствие» кучевых облаков (1 — середина облачной массы, к краю — 0);
                     G — шторм: сплошные тучи с крупными грозовыми башнями (1 — 3400 м);
                     B — где в шторм льёт сильнее всего (под башнями);
-                    A — ясная погода: потолок облака над его низом (1 — 2200 м).
-  cloud_noise.png — объёмный шум 64×64×64 (8×8 срезов), бесшовный: им «обгрызаются» края облаков.
+                    A — ясная погода: «развитие» облака — насколько оно высокое (1 — 2200 м), ровной площадкой
+                        на всё облако: верх лепит шум, а не купол на карте.
+  cloud_noise.png — объёмный шум 96×96×96 (12×8 срезов), бесшовный, четыре канала: форма клубов (шум
+                    Перлина — Ворли), башни, мелкие клочья, плавный шум (см. volume_noise).
 
 Облака ясной погоды — не шум, а отдельные облака: малые и крупные кучевые, одиночные и группами, местами поля
 слоисто-кучевых; у каждого свои размер, число воздушных масс и высота; между группами — большие чистые участки
@@ -97,14 +99,16 @@ def cumulus(cover, top, warp_x, warp_y, rng, centre, radius, depth):
         size = radius * rng.uniform(0.45, 0.8) * (1.0 if index == lead else rng.uniform(0.6, 0.95))
         height = depth * (1.0 if index == lead else rng.uniform(0.4, 0.8))
         stamp(cover, warp_x, warp_y, at, size, 1.0, 0.75)
-        stamp(top, warp_x, warp_y, at, size * 1.12, height, 0.3)
+        # «Развитие» массы — ровной площадкой шире самой массы: потолок облака не падает к краю куполом
+        # (иначе облако выходит горой), а верх лепит объёмный шум.
+        stamp(top, warp_x, warp_y, at, size * 1.7, height, 0.02)
         # Пара клубов сбоку от массы: край неровный.
         for _ in range(int(rng.integers(1, 4))):
             turn = rng.uniform(0, 2 * np.pi)
             offset = np.array([np.cos(turn), np.sin(turn)]) * size * rng.uniform(0.55, 0.95)
             small = size * rng.uniform(0.3, 0.55)
             stamp(cover, warp_x, warp_y, at + offset, small, rng.uniform(0.6, 0.95), 0.75)
-            stamp(top, warp_x, warp_y, at + offset, small * 1.12, height * rng.uniform(0.45, 0.85), 0.3)
+            stamp(top, warp_x, warp_y, at + offset, small * 1.7, height * rng.uniform(0.45, 0.85), 0.02)
         heading += rng.uniform(-1.1, 1.1)
         at = at + np.array([np.cos(heading), np.sin(heading)]) * size * rng.uniform(0.8, 1.25)
 
@@ -155,7 +159,8 @@ def clear_field(rng):
         cover = np.maximum(cover, sheet_cover * 0.85)
         top = np.maximum(top, (sheet_cover > 0.02) * rng.uniform(380.0, 520.0) * (0.8 + 0.4 * cells))
     cover = gaussian_filter(cover, 0.7, mode="wrap")
-    top = gaussian_filter(top, 1.2, mode="wrap")
+    # «Развитие» сглаживается широко (около 300 м): у его площадок нет резких краёв — иначе верх облака выходит уступами.
+    top = gaussian_filter(top, 6.0, mode="wrap")
     return np.clip(cover, 0.0, 1.0), top / CLEAR_DEPTH, placed, large
 
 
@@ -186,22 +191,39 @@ def storm_field(rng):
     return field, rain
 
 
-def volume_noise(rng, size=64):
-    """Объёмный бесшовный шум «клубами»: ячеистый (по расстоянию до ближайших точек) пополам с плавным."""
+def worley(rng, size, cells):
+    """Бесшовный ячеистый шум: 1 у случайной точки ячейки, 0 на границе между ячейками — «клубы»."""
     grid = (np.stack(np.meshgrid(*[np.arange(size)] * 3, indexing="ij"), -1).reshape(-1, 3) + 0.5) / size
-    billow = np.zeros(size ** 3)
-    weight = 0.0
-    for cells, share in ((4, 0.55), (8, 0.3), (16, 0.15)):
-        points = (np.stack(np.meshgrid(*[np.arange(cells)] * 3, indexing="ij"), -1).reshape(-1, 3)
-                  + rng.uniform(0.1, 0.9, (cells ** 3, 3))) / cells
-        distance, _ = cKDTree(points, boxsize=1.0).query(grid)
-        billow += share * (1.0 - np.clip(distance * cells / 0.9, 0.0, 1.0))
-        weight += share
-    billow = (billow / weight).reshape(size, size, size)
-    smooth = to_unit(spectral(rng, (size, size, size), 3, 32, 1.4))
-    noise = 0.6 * billow + 0.4 * smooth
-    noise = (noise - noise.min()) / (noise.max() - noise.min())
-    return noise
+    points = (np.stack(np.meshgrid(*[np.arange(cells)] * 3, indexing="ij"), -1).reshape(-1, 3)
+              + rng.uniform(0.1, 0.9, (cells ** 3, 3))) / cells
+    distance, _ = cKDTree(points, boxsize=1.0).query(grid)
+    return (1.0 - np.clip(distance * cells / 0.95, 0.0, 1.0)).reshape(size, size, size)
+
+
+def stretch(field, low=1.0, high=99.0):
+    a, b = np.percentile(field, [low, high])
+    return np.clip((field - a) / (b - a), 0.0, 1.0)
+
+
+def volume_noise(rng, size=96):
+    """Объёмный бесшовный шум облаков, четыре канала (как в объёмных облаках больших игр):
+    R — форма: плавный шум, «раздутый» ячеистым (шум Перлина — Ворли), из которого вычтены ячеистые шумы
+        помельче — крупные округлые клубы с клубами поменьше на них, без острых вершин;
+    G — башни: самый крупный ячеистый шум — где у облака вершина выше, где ниже;
+    B — мелкие клубы и клочья (ячеистый шум трёх масштабов): им «обгрызается» край;
+    A — плавный шум: неровность низа, пряди перистых, струи в завесах дождя."""
+    smooth = to_unit(spectral(rng, (size, size, size), size / 4.0, size, 1.2), 1.8)
+    # Ячеек в самом мелком шуме — не больше 24 на 96 точек (по четыре точки на ячейку): при трёх точках на ячейку
+    # ячеистый шум вырождается в почти правильную решётку, и на тучах от неё шла рябь «гребёнкой».
+    w4, w8, w16, w24 = (worley(rng, size, cells) for cells in (4, 8, 16, 24))
+    billow = 0.65 * w4 + 0.35 * w8
+    perlin_worley = billow + smooth * (1.0 - billow)
+    finer = 0.625 * w8 + 0.25 * w16 + 0.125 * w24
+    shape = stretch((perlin_worley - (finer - 1.0)) / (2.0 - finer) - 0.5 * (1.0 - finer))
+    towers = stretch(0.6 * worley(rng, size, 2) + 0.4 * worley(rng, size, 4))
+    detail = stretch(0.6 * worley(rng, size, 6) + 0.28 * worley(rng, size, 12) + 0.12 * w24)
+    wisps = to_unit(spectral(rng, (size, size, size), size / 8.0, size, 1.0), 1.8)
+    return np.stack([shape, towers, detail, wisps], -1)
 
 
 def main():
@@ -210,18 +232,24 @@ def main():
     cover, top, count, large = clear_field(rng)
     storm, rain = storm_field(rng)
     picture = np.stack([cover, storm, rain, top], -1)
-    Image.fromarray((np.clip(picture, 0.0, 1.0) * 255.0 + 0.5).astype(np.uint8), "RGBA").save(OUT / "cloud_map.png", optimize=True)
+    # Восемь бит на канал — 256 уровней, а по карте считается высота низа и верха туч: плавное поле ложилось бы
+    # уровнями-площадками, и тучи выходили бы «террасами» (на 0.9.0 это была «гребёнка» на тучах). Поэтому
+    # округление — со случайной добавкой в один уровень (рассеивание): шейдер читает карту сглаженно, и среднее
+    # по соседним точкам даёт плавное значение. Ноль остаётся нулём — чистое небо чистое.
+    dithered = np.floor(np.clip(picture, 0.0, 1.0) * 255.0 + np.random.default_rng(77).uniform(0.0, 1.0, picture.shape))
+    Image.fromarray(np.clip(dithered, 0, 255).astype(np.uint8), "RGBA").save(OUT / "cloud_map.png", optimize=True)
     noise = volume_noise(rng)
     size = noise.shape[0]
-    atlas = np.zeros((8 * size, 8 * size))
+    across = 12  # срезов в ряду атласа; рядов — 8 (то же записано в настройках импорта cloud_noise.png.import)
+    atlas = np.zeros((size // across * size, across * size, 4))
     for index in range(size):
-        atlas[(index // 8) * size:(index // 8 + 1) * size, (index % 8) * size:(index % 8 + 1) * size] = noise[index]
-    Image.fromarray((atlas * 255.0 + 0.5).astype(np.uint8), "L").save(OUT / "cloud_noise.png", optimize=True)
+        atlas[(index // across) * size:(index // across + 1) * size, (index % across) * size:(index % across + 1) * size] = noise[index]
+    Image.fromarray((atlas * 255.0 + 0.5).astype(np.uint8), "RGBA").save(OUT / "cloud_noise.png", optimize=True)
     print(f"ясно: облаков {count} (крупных {large}), облачность над {float((cover > 0.3).mean()) * 100:.1f} % неба, "
           f"чистого неба {float((cover < 0.02).mean()) * 100:.0f} %, самое высокое {top.max() * CLEAR_DEPTH:.0f} м")
     print(f"шторм: толщина туч от {storm.min() * STORM_DEPTH:.0f} до {storm.max() * STORM_DEPTH:.0f} м, "
           f"средняя {storm.mean() * STORM_DEPTH:.0f} м; сильный дождь над {float((rain > 0.5).mean()) * 100:.0f} % площади")
-    print(f"шум: среднее {noise.mean():.2f}")
+    print("шум: средние по каналам " + ", ".join(f"{noise[..., i].mean():.2f}" for i in range(4)))
 
 
 if __name__ == "__main__":

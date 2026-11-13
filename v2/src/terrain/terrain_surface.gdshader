@@ -335,6 +335,8 @@ void fragment() {
 		normal = normalize(mix(normal, vec3(0.0, 1.0, 0.0), 0.85 * pool));
 	}
 	NORMAL = normalize((VIEW_MATRIX * vec4(normal, 0.0)).xyz);
+	// Мягкая тень облаков (ясная погода): под облаком земля темнее, тень идёт вместе с облаком.
+	albedo *= cloud_shade(world_position);
 	ALBEDO = albedo;
 	ROUGHNESS = clamp(roughness, 0.08, 1.0);
 	SPECULAR = specular;
