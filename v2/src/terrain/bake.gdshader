@@ -10,12 +10,15 @@ uniform vec4 bake_rect; // x, z левого верхнего угла и раз
 uniform float texel = 2.0; // метров на точку
 
 void fragment() {
-	vec2 p = bake_rect.xy + UV * bake_rect.zw;
+	// Функция высот считает в координатах доски; мир — доска, увеличенная подобием (и в плане, и по высоте):
+	// уклоны те же, высоты и уровни озёр — в WORLD_SCALE раз больше.
+	vec2 p = (bake_rect.xy + UV * bake_rect.zw) / WORLD_SCALE;
+	float step = texel / WORLD_SCALE;
 	vec2 surface = world_surface(p);
-	float dx = world_surface(p + vec2(texel, 0.0)).x - world_surface(p - vec2(texel, 0.0)).x;
-	float dz = world_surface(p + vec2(0.0, texel)).x - world_surface(p - vec2(0.0, texel)).x;
-	vec3 normal = normalize(vec3(-dx, 2.0 * texel, -dz));
-	COLOR = vec4(surface.x, normal.x, normal.z, surface.y);
+	float dx = world_surface(p + vec2(step, 0.0)).x - world_surface(p - vec2(step, 0.0)).x;
+	float dz = world_surface(p + vec2(0.0, step)).x - world_surface(p - vec2(0.0, step)).x;
+	vec3 normal = normalize(vec3(-dx, 2.0 * step, -dz));
+	COLOR = vec4(surface.x * WORLD_SCALE, normal.x, normal.z, surface.y > -900.0 ? surface.y * WORLD_SCALE : surface.y);
 	// Проверочная точка в углу: по ней программа видит, что видеокарта отдала числа без искажений
 	// (отрицательные, больше единицы, с четвёртым каналом). Сама точка затем заменяется соседней.
 	if (FRAGCOORD.x < 1.0 && FRAGCOORD.y < 1.0) {

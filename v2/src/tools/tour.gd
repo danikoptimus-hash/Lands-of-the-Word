@@ -4,6 +4,10 @@ extends RefCounted
 ## Места выбираются по данным карты, поэтому облёт годится для любой партии.
 
 
+## Места облёта заданы в масштабе «доски» (гекс 100 м от центра до угла) и переводятся в метры мира: кадр
+## показывает тот же кусок географии при любом масштабе мира. Кадры «вблизи» — в настоящих метрах.
+const K := HexMath.WORLD_SCALE
+
 static var _coast_cache := {}  ## высоты мира → найденный обрыв (поиск небыстрый, облёт запрашивается не раз)
 
 
@@ -30,31 +34,31 @@ static func stops(world: WorldData, rig: StrategyCamera, height_map: HeightMap =
 
 	var mountain := _densest(world, WorldData.Terrain.MOUNTAINS)
 	if mountain != null:
-		list.append(_stop("%02d-gory" % number, "Горы", CameraView.make(mountain.center(), 560.0, 32.0, -6.0), 3.5))
+		list.append(_stop("%02d-gory" % number, "Горы", CameraView.make(mountain.center(), 560.0 * K, 32.0, -6.0), 3.5))
 		number += 1
-		list.append(_stop("%02d-gory-vblizi" % number, "Горы вблизи, взгляд вдоль земли", CameraView.make(mountain.center() + Vector2(-60.0, 90.0), 300.0, -40.0, -14.0), 3.0))
+		list.append(_stop("%02d-gory-vblizi" % number, "Горы вблизи, взгляд вдоль земли", CameraView.make(mountain.center() + Vector2(-60.0, 90.0) * K, 300.0 * K, -40.0, -14.0), 3.0))
 		number += 1
 
 	var hills := _densest(world, WorldData.Terrain.HILLS)
 	if hills != null:
-		list.append(_stop("%02d-holmy" % number, "Холмы", CameraView.make(hills.center(), 430.0, -25.0, -4.0), 3.0))
+		list.append(_stop("%02d-holmy" % number, "Холмы", CameraView.make(hills.center(), 430.0 * K, -25.0, -4.0), 3.0))
 		number += 1
 
 	var desert := _densest(world, WorldData.Terrain.DESERT)
 	if desert != null:
-		list.append(_stop("%02d-pustynya" % number, "Пустыня: барханы", CameraView.make(desert.center(), 380.0, 20.0, -6.0), 3.0))
+		list.append(_stop("%02d-pustynya" % number, "Пустыня: барханы", CameraView.make(desert.center(), 380.0 * K, 20.0, -6.0), 3.0))
 		number += 1
 
 	var lakes := world.cells_of(WorldData.Terrain.WATER)
 	if not lakes.is_empty():
-		list.append(_stop("%02d-ozero" % number, "Озеро", CameraView.make(lakes[0].center(), 470.0, 15.0, 0.0), 3.0))
+		list.append(_stop("%02d-ozero" % number, "Озеро", CameraView.make(lakes[0].center(), 470.0 * K, 15.0, 0.0), 3.0))
 		number += 1
 
 	var port := _first_site(world, "port")
 	if port != null:
-		list.append(_stop("%02d-bereg" % number, "Берег и отмель у порта", CameraView.make(port.position, 420.0, -55.0, -8.0), 3.0))
+		list.append(_stop("%02d-bereg" % number, "Берег и отмель у порта", CameraView.make(port.position, 420.0 * K, -55.0, -8.0), 3.0))
 		number += 1
-		list.append(_stop("%02d-veshka" % number, "Самое близкое приближение: вешка города", CameraView.make(port.position, StrategyCamera.MIN_DISTANCE, 30.0, 0.0), 2.5))
+		list.append(_stop("%02d-veshka" % number, "Самое близкое приближение: город", CameraView.make(port.position, StrategyCamera.MIN_DISTANCE, 30.0, 0.0), 2.5))
 		number += 1
 
 	var cliff := _steepest_coast(world, height_map)
@@ -63,42 +67,42 @@ static func stops(world: WorldData, rig: StrategyCamera, height_map: HeightMap =
 		var edge: Vector2 = cliff["point"]
 		var seaward: Vector2 = cliff["seaward"]
 		var yaw := rad_to_deg(atan2(seaward.x, seaward.y))
-		list.append(_stop("%02d-obryv" % number, "Высокий берег: обрыв к морю", CameraView.make(edge, 300.0, yaw + 38.0, -18.0), 3.0))
+		list.append(_stop("%02d-obryv" % number, "Высокий берег: обрыв к морю", CameraView.make(edge, 300.0 * K, yaw + 38.0, -18.0), 3.0))
 		number += 1
-		list.append(_stop("%02d-obryv-sverhu" % number, "Тот же берег с суши", CameraView.make(edge, 520.0, yaw + 150.0, -4.0), 3.0))
+		list.append(_stop("%02d-obryv-sverhu" % number, "Тот же берег с суши", CameraView.make(edge, 520.0 * K, yaw + 150.0, -4.0), 3.0))
 		number += 1
 
 	var meadow := _densest(world, WorldData.Terrain.MEADOW)
 	if meadow != null:
-		list.append(_stop("%02d-sverhu" % number, "Взгляд сверху: сетка гексов", CameraView.make(meadow.center(), 900.0, 0.0, 30.0), 3.0))
+		list.append(_stop("%02d-sverhu" % number, "Взгляд сверху: сетка гексов", CameraView.make(meadow.center(), 900.0 * K, 0.0, 30.0), 3.0))
 		number += 1
 
 	var centre := world.land_rect.get_center()
-	list.append(_stop("%02d-gorizont" % number, "Взгляд к горизонту через пролив", CameraView.make(centre + Vector2(-600.0, 0.0), 1100.0, -90.0, -26.0), 3.5))
+	list.append(_stop("%02d-gorizont" % number, "Взгляд к горизонту через пролив", CameraView.make(centre + Vector2(-600.0, 0.0) * K, 1100.0 * K, -90.0, -26.0), 3.5))
 	number += 1
 	# Наклон −90° заведомо больше допустимого: камера опускается к земле и поднимает взгляд до предела.
-	list.append(_stop("%02d-nebo" % number, "Взгляд к небу: камера у земли, взгляд выше горизонта", CameraView.make(centre + Vector2(-600.0, 0.0), 1400.0, -90.0, -90.0), 3.0))
+	list.append(_stop("%02d-nebo" % number, "Взгляд к небу: камера у земли, взгляд выше горизонта", CameraView.make(centre + Vector2(-600.0, 0.0) * K, 1400.0 * K, -90.0, -90.0), 3.0))
 	number += 1
 	if mountain != null:
-		list.append(_stop("%02d-nebo-nad-gorami" % number, "Горы на фоне неба, вблизи", CameraView.make(mountain.center(), 420.0, 105.0, -90.0), 3.0))
+		list.append(_stop("%02d-nebo-nad-gorami" % number, "Горы на фоне неба, вблизи", CameraView.make(mountain.center(), 420.0 * K, 105.0, -90.0), 3.0))
 		number += 1
 
 	# Малые острова и дно. Каждую картинку острова показываем один раз: повторы отличаются только размером.
 	if not world.islets.is_empty():
 		list.append(_stop("%02d-ves-okean" % number, "Весь мир: главные острова, малые острова и дно", rig.view_for_rect(world.content_rect), 3.5))
 		number += 1
-		list.append(_stop("%02d-proliv-dno" % number, "Дно: шельф и пролив между главными островами", CameraView.make(centre, 2600.0, 0.0, 28.0), 3.0))
+		list.append(_stop("%02d-proliv-dno" % number, "Дно: шельф и пролив между главными островами", CameraView.make(centre, 2600.0 * K, 0.0, 28.0), 3.0))
 		number += 1
 		for islet in world.islets:
 			var file_name := "kamenolomnya" if islet.quarry else "ostrov-%02d" % islet.design
-			list.append(_stop("%02d-%s" % [number, file_name], islet.title(), CameraView.make(islet.position, maxf(islet.reach() * 3.4, 420.0), 25.0, -8.0), 3.0))
+			list.append(_stop("%02d-%s" % [number, file_name], islet.title(), CameraView.make(islet.position, maxf(islet.reach() * 3.4, 420.0 * K), 25.0, -8.0), 3.0))
 			number += 1
 			if islet.quarry:
 				# Карьер открыт к югу штампа: смотрим в него с той стороны, куда он открыт.
 				var pit := islet.to_world(Vector2(-0.05, -0.18))
 				var mouth := islet.to_world(Vector2(-0.05, 0.2)) - pit
 				var heading := rad_to_deg(atan2(mouth.x, mouth.y))
-				list.append(_stop("%02d-karyer" % number, "Каменоломня: карьер вблизи", CameraView.make(pit, 300.0, heading, -12.0), 3.0))
+				list.append(_stop("%02d-karyer" % number, "Каменоломня: карьер вблизи", CameraView.make(pit, 300.0 * K, heading, -12.0), 3.0))
 				number += 1
 	# Поверхности (шаг 1.3): каждая местность вблизи — владелец принимает их по одной.
 	var oasis := _densest(world, WorldData.Terrain.OASIS)
@@ -115,8 +119,22 @@ static func stops(world: WorldData, rig: StrategyCamera, height_map: HeightMap =
 		list.append(_stop("%02d-holmy-vblizi" % number, "Холмы вблизи", CameraView.make(hills.center() + Vector2(-20.0, 30.0), 200.0, 60.0, -10.0), 3.0))
 		number += 1
 	if not lakes.is_empty():
-		list.append(_stop("%02d-ozero-bereg" % number, "Берег озера вблизи", CameraView.make(lakes[0].center() + Vector2(40.0, 30.0), 210.0, -120.0, -12.0), 3.0))
+		list.append(_stop("%02d-ozero-bereg" % number, "Берег озера вблизи", CameraView.make(lakes[0].center() + Vector2(40.0, 30.0) * K, 210.0, -120.0, -12.0), 3.0))
 		number += 1
+	# Масштаб (проба 13.11): одна территория — город с полями и лесом вокруг — с пяти высот, от всего острова
+	# до самого близкого вида. По этим кадрам сверяется, что город, деревья, поля и гекс согласованы.
+	var town := _first_site(world, "walled_city")
+	if town == null:
+		for site in world.sites:
+			if site.kind == "CITY":
+				town = site
+				break
+	if town != null:
+		var heights: Array[float] = [14000.0, 5000.0, 1800.0, 650.0, 260.0]
+		for i in heights.size():
+			list.append(_stop("%02d-masshtab-%d" % [number, i + 1], "Масштаб: город и его округа с расстояния %d м" % int(heights[i]),
+					CameraView.make(town.position, heights[i], 20.0, 0.0), 3.0))
+			number += 1
 	return list
 
 

@@ -62,6 +62,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 			water_times = argument.trim_prefix("--water-times=").split(",", false)
 		elif argument.begins_with("--strikes="):
 			strikes = argument.trim_prefix("--strikes=").split(",", false)
+	for node in get_tree().root.find_children("*", "Flora", true, false):
+		(node as Flora).instant = true
 	await _frames(4)
 
 	if not profile_views.is_empty():
@@ -277,6 +279,16 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _check_flora(world, terrain)
 	if _listed("97-pogoda", only):
 		await _check_weather(stops)
+	if _listed("96-kamera", only):
+		get_viewport().scaling_3d_scale = 0.25
+		await _check_zoom()
+		await _check_drag()
+		await _check_bounds()
+		await _check_flight()
+		_check_mountain_camera(stops)
+		await _check_sky()
+		_check_islets("")
+		get_viewport().scaling_3d_scale = 1.0
 
 	if not only.is_empty():
 		# Только выбранные кадры: проверки, замер и другие карты не нужны. Отчёт с высотами — для сверки с песочницей.
@@ -413,16 +425,16 @@ func _check_drag() -> void:
 
 
 func _check_bounds() -> void:
-	var far := _world.content_rect.end + Vector2(9000.0, 9000.0)
+	var far := _world.content_rect.end + Vector2(50000.0, 50000.0)
 	_rig.set_view(CameraView.make(far, 800.0, 0.0, 0.0))
 	await _frames(2)
 	var focus := _rig.get_view().focus
-	var allowed := _world.content_rect.grow(300.0)
+	var allowed := _world.content_rect.grow(1700.0)
 	_check("камера не уходит за границы мира", allowed.has_point(focus), "фокус %s" % str(focus))
 	_rig.set_view(CameraView.make(_world.land_rect.get_center(), 1.0e6, 0.0, 0.0))
 	await _frames(2)
 	var widest := _rig.current_distance()
-	_check("отдаление ограничено", widest < 40000.0 and widest > 1000.0, "расстояние %.0f м" % widest)
+	_check("отдаление ограничено", widest < 240000.0 and widest > 6000.0, "расстояние %.0f м" % widest)
 
 
 func _check_flight() -> void:
@@ -455,6 +467,7 @@ func _check_mountain_camera(stops: Array) -> void:
 	var size := get_viewport().get_visible_rect().size
 	var pan_jolt := 0.0
 	var zoom_jolt := 0.0
+	var zoom_where := ""
 	var turns := 0
 	var lowest := INF
 	for pass_index in 4:
@@ -468,7 +481,7 @@ func _check_mountain_camera(stops: Array) -> void:
 			var now := _rig.camera.global_position.y
 			var now_speed := now - height
 			if step > 1:
-				pan_jolt = maxf(pan_jolt, absf(now_speed - speed))
+				pan_jolt = maxf(pan_jolt, _jolt(speed, now_speed))
 				if absf(now_speed) > 0.2 and absf(speed) > 0.2 and signf(now_speed) != signf(speed):
 					turns += 1
 			height = now
@@ -489,7 +502,10 @@ func _check_mountain_camera(stops: Array) -> void:
 				var now := _rig.camera.global_position.y
 				var now_speed := now - height
 				if step > 2:
-					zoom_jolt = maxf(zoom_jolt, absf(now_speed - speed))
+					if _jolt(speed, now_speed) > zoom_jolt:
+						zoom_jolt = _jolt(speed, now_speed)
+						zoom_where = "заход %d, щелчок %d, шаг %d: расстояние %.0f м, скорость по высоте %.2f → %.2f м за шаг" % [
+								pass_index, wheel, step, _rig.current_distance(), speed, now_speed]
 					if absf(now_speed) > 0.2 and absf(speed) > 0.2 and signf(now_speed) != signf(speed):
 						turns += 1
 				height = now
@@ -497,8 +513,15 @@ func _check_mountain_camera(stops: Array) -> void:
 				lowest = minf(lowest, _eye_clearance())
 	_rig.set_view(stops[0].view)
 	_check("камера у гор идёт плавно и не уходит в склон", pan_jolt < 0.6 and zoom_jolt < 1.2 and turns <= 2 and lowest > 3.0,
-			"толчок по высоте за 1/60 с: при проходе %.2f м, при приближении %.2f м; разворотов рывком %d; ближе всего к земле %.1f м"
-			% [pan_jolt, zoom_jolt, turns, lowest])
+			"толчок по высоте за 1/60 с: при проходе %.2f м, при приближении %.2f м (%s); разворотов рывком %d; ближе всего к земле %.1f м"
+			% [pan_jolt, zoom_jolt, zoom_where, turns, lowest])
+
+
+## «Толчок» камеры за шаг: насколько изменилась её скорость по высоте сверх плавного торможения. Камера догоняет
+## цель по экспоненте — за шаг скорость сама убывает на шестую часть; с гексом в километр горы выше, камера при
+## приближении к дальнему склону идёт по высоте десятки метров за шаг, и это убывание — не рывок.
+func _jolt(speed: float, now_speed: float) -> float:
+	return maxf(absf(now_speed - speed) - 0.18 * maxf(absf(speed), absf(now_speed)), 0.0)
 
 
 ## Замер по частям (ключ --profile=место;место…): сколько времени кадра уходит на шейдер земли и на тени, и сколько
@@ -645,7 +668,11 @@ func _check_cache(stops: Array[Tour.Stop]) -> void:
 	var scale := get_viewport().scaling_3d_scale
 	get_viewport().scaling_3d_scale = 1.0
 	_terrain.cache_budget = 40000000
-	_rig.set_view(place.view)
+	# Кэш работает вблизи (на точку экрана — меньше метра земли): место — горы, расстояние — настоящие 300 м
+	# (кадр облёта «горы вблизи» с гексом в километр снят с 1,7 км — там земля уже рисуется дальней картинкой).
+	var near_view := place.view.copy()
+	near_view.distance = minf(near_view.distance, 300.0)
+	_rig.set_view(near_view)
 	await _frames(3)
 	await _warm_cache()
 	var first := await _cache_against_direct("92-kesh-na-meste")
@@ -655,7 +682,7 @@ func _check_cache(stops: Array[Tour.Stop]) -> void:
 			"%d мс с кэшем, %d мс без него" % [first["cached_ms"], first["direct_ms"]])
 	# Проезд: камера идёт шагами, кэш досчитывается понемногу — окна сдвигаются, не успев достроиться.
 	_terrain.cache_budget = 1500000
-	var view := place.view.copy()
+	var view := near_view.copy()
 	# Едем вглубь острова, чтобы в кадре осталась земля.
 	var step := (_world.land_rect.get_center() - view.focus).normalized() * 14.0
 	for i in 22:
@@ -745,16 +772,22 @@ func _check_water(stops: Array[Tour.Stop]) -> void:
 	# (время воды то же: рябь и пена на местах, разница только в том, где сейчас кромка воды). Смотрим два места
 	# у порта: на обрывистом берегу кромка почти не ходит.
 	var swash_shift := 0.0
+	var swash_views: Array[CameraView] = []
 	for stop in stops:
-		if stop.name.substr(3) == "veshka" or stop.name.substr(3) == "bereg":
-			_rig.set_view(stop.view)
-			await _frames(8)
-			var with_swash := await _frame_picture()
-			_terrain.set_water_tuning(WaterLook.SPEED, Vector2.ZERO)
-			await _frames(2)
-			var without := await _frame_picture()
-			_terrain.set_water_tuning(WaterLook.SPEED, WaterLook.SWASH)
-			swash_shift = maxf(swash_shift, _picture_difference(with_swash, without))
+		if stop.name.substr(3) == "bereg":
+			# Кромка воды ближе всего к порту: с гексом в километр сам порт стоит в сотнях метров от берега.
+			var shore := _shore_near(stop.view.focus)
+			swash_views.append(CameraView.make(shore, 220.0, 0.0, 0.0))
+			swash_views.append(CameraView.make(shore, 220.0, 120.0, 0.0))
+	for view in swash_views:
+		_rig.set_view(view)
+		await _frames(8)
+		var with_swash := await _frame_picture()
+		_terrain.set_water_tuning(WaterLook.SPEED, Vector2.ZERO)
+		await _frames(2)
+		var without := await _frame_picture()
+		_terrain.set_water_tuning(WaterLook.SPEED, WaterLook.SWASH)
+		swash_shift = maxf(swash_shift, _picture_difference(with_swash, without))
 	_check("вода: накат ходит по берегу", swash_shift > 0.15, "кадр у берега с накатом и без него отличается на %.2f из 255" % swash_shift)
 	await _check_swash_closed("")
 	_rig.set_view(place.view)
@@ -783,6 +816,22 @@ func _check_water(stops: Array[Tour.Stop]) -> void:
 	weather.set_kind(Weather.Kind.CLEAR, true)
 	await _frames(8)
 	get_viewport().scaling_3d_scale = scale
+
+
+## Ближайшая к точке кромка моря: идём от точки по шестнадцати направлениям, пока суша не сменится водой.
+func _shore_near(point: Vector2) -> Vector2:
+	var best := point
+	var best_away := INF
+	for i in 16:
+		var heading := Vector2.from_angle(TAU * float(i) / 16.0)
+		for step in range(1, 150):
+			var at := point + heading * (10.0 * float(step))
+			if _terrain.height_map.sample(at) < 0.2:
+				if float(step) * 10.0 < best_away:
+					best_away = float(step) * 10.0
+					best = at
+				break
+	return best
 
 
 ## Море не появляется там, куда ему хода нет: над самой низкой сушей, закрытой для наката (дно глубокого озера и
@@ -917,10 +966,41 @@ func _check_weather(stops: Array[Tour.Stop]) -> void:
 			roundi(low_gap), roundi(high_gap), hidden])
 
 	# Море у горизонта переходит в небо без линии: строки кадра чуть ниже и чуть выше горизонта — одного цвета.
+	# Смотрим в открытое море от края мира (с гексом в километр за лугом у горизонта стоит суша): из четырёх
+	# сторон берётся та, где на луче взгляда нет земли.
 	var far_view := CameraView.make(place.view.focus, 9000.0, 0.0, -54.0)
+	# Взгляд — на шесть градусов ниже горизонта, камера на высоте около километра (как в этой проверке до 0.10.0):
+	# с малой высоты горизонт близко, и море у него ещё не тонет в дымке.
+	var low_tilt := 6.0 - rad_to_deg(_rig._auto_pitch(9000.0))
+	var content := _world.content_rect
+	var sides: Array = []
+	for edge: Vector2 in [Vector2(content.get_center().x, content.end.y), Vector2(content.get_center().x, content.position.y),
+			Vector2(content.end.x, content.get_center().y), Vector2(content.position.x, content.get_center().y)]:
+		for turn: float in [0.0, 90.0, 180.0, -90.0]:
+			sides.append([edge, turn])
+	for side: Array in sides:
+		var view := CameraView.make(side[0], 9000.0, side[1], low_tilt)
+		_rig.set_view(view)
+		await _frames(1)
+		var eye := camera.global_position
+		var ahead := -camera.global_transform.basis.z
+		ahead = Vector3(ahead.x, 0.0, ahead.z).normalized()
+		var land_ahead := false
+		# Взгляд должен уходить от суши: если он смотрит на мир, а не от него, — на луче будет земля.
+		for step in 400:
+			var at := eye + ahead * (200.0 * float(step))
+			if _terrain.height_map.sample(Vector2(at.x, at.z)) > 0.5:
+				land_ahead = true
+				break
+		if not land_ahead:
+			far_view = view
+			break
 	_rig.set_view(far_view)
 	await _frames(8)
 	var clear := await _frame_picture()
+	if not _folder.is_empty():
+		clear.save_png(_folder.path_join("97-gorizont.png"))
+	print("ГОРИЗОНТ: вид %s, камера на высоте %.0f м" % [far_view.to_code(), camera.global_position.y])
 	var forward := -camera.global_transform.basis.z
 	var horizon := camera.unproject_position(camera.global_position + Vector3(forward.x, 0.0, forward.z).normalized() * 90000.0 - Vector3(0.0, camera.global_position.y, 0.0))
 	var line := clampi(roundi(horizon.y), 40, clear.get_height() - 40)
@@ -972,22 +1052,47 @@ func _check_flora(world: WorldData, terrain: WorldTerrain) -> void:
 	var weather := _find_weather()
 	if flora == null or weather == null:
 		return
+	# Растительность сажается плитками вокруг камеры, в фоновых потоках, понемногу за кадр (в кадрах проверок —
+	# сразу вся: flora.instant). Встаём над самой густой рощей и смотрим, что посадка по кадрам доходит до конца.
+	var scale := get_viewport().scaling_3d_scale
+	get_viewport().scaling_3d_scale = 0.25
+	flora.instant = false
+	flora.reset()
+	_rig.set_view(CameraView.make(flora.densest, 900.0, -90.0, 0.0))
+	var waited := 0
+	await _frames(2)
+	while flora.is_busy() and waited < 3000:
+		await _frames(1)
+		waited += 1
+	_check("растительность: сажается вокруг камеры по кадрам", not flora.is_busy() and waited > 0,
+			"посадка закончилась за %d кадров" % waited)
+	flora.instant = true
 	var trees := 0
 	for kind in 6:
 		trees += flora.counts[kind]
-	_check("растительность: посажена и стоит на суше", trees > 2000 and flora.lowest >= 0.6,
+	_check("растительность: посажена вокруг камеры и стоит на суше", trees > 2000 and flora.lowest >= 0.6,
 			"%s; самая низкая точка — %.2f м над морем" % [flora.summary(), flora.lowest])
-	# Тот же мир — тот же лес: расставляем заново и сверяем отпечаток расстановки.
-	var before := flora.fingerprint
+	# Тот же мир — тот же лес: сажаем заново и сверяем отпечаток деревьев.
+	var before := flora.tree_fingerprint()
 	var counted := flora.counts.duplicate()
-	await flora.build(world, terrain)
-	_check("растительность: при том же мире та же", flora.fingerprint == before and flora.counts == counted,
-			"отпечаток расстановки %d и %d" % [before, flora.fingerprint])
+	flora.reset()
+	flora.settle()
+	_check("растительность: при том же мире та же", flora.tree_fingerprint() == before and flora.counts == counted,
+			"отпечаток расстановки %d и %d" % [before, flora.tree_fingerprint()])
+	# С высоты, где дерево меньше точки экрана, плиток нет: лес — это цвет земли; при возврате он сажается снова.
+	_rig.set_view(CameraView.make(flora.densest, 9000.0, -90.0, 0.0))
+	await _frames(3)
+	flora.settle()
+	var high_trees := 0
+	for kind in 6:
+		high_trees += flora.counts[kind]
+	_check("растительность: с высоты деревья убраны (лес — цвет земли)", high_trees == 0, "деревьев в мире с высоты 9 км: %d" % high_trees)
 	# Ветер: кадр рощи меняется со временем ветра, а при том же времени он тот же; в шторм качает сильнее.
-	var scale := get_viewport().scaling_3d_scale
 	get_viewport().scaling_3d_scale = 0.5
 	_rig.set_view(CameraView.make(flora.densest, 180.0, -90.0, -20.0))
-	await _frames(10)
+	await _frames(3)
+	flora.settle()
+	await _frames(8)
 	var still := await _frame_picture()
 	weather.push_wind(1.7)
 	await _frames(2)
@@ -1197,10 +1302,10 @@ func _check_islets(prefix: String) -> void:
 		var islet := _world.islets[i]
 		# Вершина острова — там, где её поставил каталог (повёрнута и растянута вместе со штампом), и высотой как там.
 		var top: Vector3 = WorldData.design_value(islet.design, "top", Vector3.ZERO)
-		var expected := top.z * islet.height_scale()
+		var expected := top.z * islet.height_scale() * HexMath.WORLD_SCALE
 		var summit := _terrain.height_map.sample(islet.to_world(Vector2(top.x, top.y)))
-		var sea := _terrain.height_map.sample(islet.position + Vector2(islet.reach() * 1.05 + 180.0, 0.0))
-		if summit > 1.5 and absf(summit - expected) < 3.0 + expected * 0.05 and sea < 0.0:
+		var sea := _terrain.height_map.sample(islet.position + Vector2(islet.reach() * 1.05 + 180.0 * HexMath.WORLD_SCALE, 0.0))
+		if summit > 1.5 and absf(summit - expected) < 17.0 + expected * 0.05 and sea < 0.0:
 			good += 1
 		elif problem.is_empty():
 			problem = "%s: вершина %.1f м (ждали %.1f), рядом %.1f м" % [islet.title(), summit, expected, sea]
@@ -1218,7 +1323,7 @@ func _probes() -> Dictionary:
 			"centre": islet.position,
 			"east": islet.position + Vector2(islet.radius * 0.45, 0.0),
 			"top": islet.to_world(Vector2(top.x, top.y)),
-			"sea": islet.position + Vector2(islet.reach() * 1.05 + 120.0, 0.0),
+			"sea": islet.position + Vector2(islet.reach() * 1.05 + 120.0 * HexMath.WORLD_SCALE, 0.0),
 		}
 		for name: String in points:
 			var point: Vector2 = points[name]

@@ -15,38 +15,46 @@ const LAYER_ALBEDO := preload("res://assets/terrain/ground_albedo.webp")
 const LAYER_NORMAL := preload("res://assets/terrain/ground_normal.jpg")
 const NOISE := preload("res://assets/terrain/noise.png")
 
-const CHUNK := 256.0  ## сторона плитки, метры
-const TEXEL := 2.0  ## точность запекания суши, метров на точку
-const GROUND_TEXEL := 4.0  ## точность описания земли: доли местностей меняются плавно, мелкое добавляет шейдер
-const SURFACE_TEXEL := 2.0  ## точность картинки земли: материалы точки, затенение, готовый дальний вид
-const TONE_TEXEL := 4.0  ## точность тона земли (сухость, цветение, оттенок песка): меняется плавно
-const FLORA_TEXEL := 4.0  ## точность карт растительности (густота по видам): по ним flora.gd расставляет деревья
+## Числа ниже — в метрах мира. С 13.11 мир — доска, увеличенная в HexMath.WORLD_SCALE (5,77) раза; число точек
+## запекания осталось прежним, поэтому шаги выросли примерно во столько же (2 м → 12 м и так далее).
+const K := HexMath.WORLD_SCALE
+const CHUNK := 480.0  ## сторона плитки, метры
+const TEXEL := 12.0  ## точность запекания суши, метров на точку
+const GROUND_TEXEL := 24.0  ## точность описания земли: доли местностей меняются плавно, мелкое добавляет шейдер
+const SURFACE_TEXEL := 12.0  ## точность картинки земли: материалы точки, затенение
+## Готовая картинка дальнего вида — вдвое подробнее материалов: на средних расстояниях (на точку экрана — от метра
+## до нескольких) земля рисуется ею, и границы полей и зон не должны расплываться на десятки точек экрана.
+const PICTURE_TEXEL := 6.0
+const TONE_TEXEL := 24.0  ## точность тона земли (сухость, цветение, оттенок песка): меняется плавно
+const FLORA_TEXEL := 24.0  ## точность карт растительности (густота по видам): по ним flora.gd расставляет деревья
 const MAX_CLEARINGS := 96  ## столько расчисток (города, точки старта) знает шейдер картинки земли
 ## До какого расстояния от города тянутся его поля, метры (по виду города; у портов, крепостей, руин и станов
-## полей нет). Города стоят часто — на «Осени» их 66 на три квадратных километра: пояс шире съел бы все леса.
-const FIELD_REACH := {"village": 190.0, "walled_city": 180.0, "temple_city": 150.0, "hill_city": 130.0}
+## полей нет). До ближайшего города — километр: пояса соседей не сливаются.
+const FIELD_REACH := {"village": 520.0, "walled_city": 660.0, "temple_city": 580.0, "hill_city": 500.0}
+const CITY_CLEARING := 195.0  ## радиус расчистки под город, метры: город — около 300 м в поперечнике
+const START_CLEARING := 60.0  ## и под точку старта
 const CACHE_FLIGHT := 1.0  ## быстрее стольких расстояний до земли в секунду камера «летит»: кэш не считается
 const MAX_ISLETS := 8  ## столько малых островов в одной области знает шейдер картинки земли
-const MARGIN := 520.0  ## запас моря вокруг главных островов
-const ISLET_MARGIN := 260.0  ## запас моря вокруг малого острова
+const MARGIN := 2880.0  ## запас моря вокруг главных островов
+const ISLET_MARGIN := 1440.0  ## запас моря вокруг малого острова
 ## Области запекаются с запасом по краю: на стыке двух областей обе берут высоту из середины своей текстуры,
 ## а не с её края, — высоты совпадают, и шва нет. Запас кратен шагу самой редкой сетки.
-const PAD := 16.0
-const OCEAN_TEXEL := 16.0  ## точность карты глубин океана
-const OCEAN_MARGIN := 2600.0  ## дальше этого от суши дно ровное
+const PAD := 120.0
+const OCEAN_TEXEL := 96.0  ## точность карты глубин океана
+const OCEAN_MARGIN := 15360.0  ## дальше этого от суши дно ровное
 const MAX_AREAS := 16  ## больше областей суши не запекаем: каждая — отдельная текстура
-const LOD_CELLS: Array[int] = [64, 32, 16]  ## клеток на сторону плитки по уровням: шаг сетки 4, 8 и 16 м
+const LOD_CELLS: Array[int] = [64, 32, 16]  ## клеток на сторону плитки по уровням: шаг сетки 7,5, 15 и 30 м
 ## До какого расстояния от камеры держится уровень. Шаг сетки на экране остаётся в несколько точек.
 ## Условие стыков без щелей: MORPH_START × второе расстояние − первое больше диагонали плитки.
 const LOD_DISTANCE: Array[float] = [2000.0, 4500.0]
 const MORPH_START := 0.7  ## с этой доли расстояния сетка начинает съезжаться к более редкой
-const SKIRT := 24.0
+const SKIRT := 60.0
 ## Плитки, где дно везде глубже этого, не строим: землю под водой не видно, а рисовать её — зря тратить время
 ## видеокарты (на тесте 0.3.0 так терялась четверть кадров над шельфом). С 0.7.2 вода прозрачна только у самого
 ## уреза (первые 20 см глубины), дно глубже рисует она сама (water.gdshader) — земля под водой нужна лишь там,
 ## куда вода отходит при накате; запас оставлен прежний.
 const DEEP_CUTOFF := -4.0
-const SEA_SIZE := 200000.0  ## море уходит за горизонт: его край тонет в дымке
+const SEA_SIZE := 1200000.0  ## море уходит за горизонт: его край тонет в дымке
 
 
 class Chunk:
@@ -491,13 +499,14 @@ func _bake_surface(world: WorldData, region: Region) -> bool:
 	islets.resize(MAX_ISLETS)
 	var islet_count := 0
 	for islet in world.islets:
-		var reach := islet.reach() + 60.0
+		var reach := islet.reach() + 60.0 * K
 		var nearest := Vector2(
 				clampf(islet.position.x, region.baked.position.x, region.baked.end.x),
 				clampf(islet.position.y, region.baked.position.y, region.baked.end.y))
 		if nearest.distance_to(islet.position) > reach or islet_count >= MAX_ISLETS:
 			continue
-		islets[islet_count] = Vector4(islet.position.x, islet.position.y, reach, float(WorldData.DESIGN_ROCK.get(islet.design, 0)))
+		# Шейдер картинки земли считает в координатах доски: места и расстояния — делённые на K.
+		islets[islet_count] = Vector4(islet.position.x / K, islet.position.y / K, reach / K, float(WorldData.DESIGN_ROCK.get(islet.design, 0)))
 		islet_count += 1
 	var parameters := {
 		"height_map": region.baker.texture,
@@ -508,7 +517,7 @@ func _bake_surface(world: WorldData, region: Region) -> bool:
 		"layer_albedo": LAYER_ALBEDO,
 		"noise_shift": world.noise_offset(),
 		# Снег — только на самых высоких вершинах карты (замечание владельца к 0.5.0: не у всех гор снежные шапки).
-		"snow_line": clampf(height_map.highest * 0.8, 95.0, 140.0),
+		"snow_line": clampf(height_map.highest / K * 0.8, 95.0, 140.0),
 		"islets": islets,
 		"islet_count": islet_count,
 		"debug_view": _debug_view,
@@ -518,10 +527,11 @@ func _bake_surface(world: WorldData, region: Region) -> bool:
 	clearings.resize(MAX_CLEARINGS)
 	var clearing_count := 0
 	for site in world.sites:
-		if site.kind == "EMPTY" or clearing_count >= MAX_CLEARINGS or not region.baked.grow(80.0).has_point(site.position):
+		if site.kind == "EMPTY" or clearing_count >= MAX_CLEARINGS or not region.baked.grow(700.0).has_point(site.position):
 			continue
-		clearings[clearing_count] = Vector4(site.position.x, site.position.y, 34.0 if site.kind == "CITY" else 24.0,
-				float(FIELD_REACH.get(site.city_type, 0.0)) if site.kind == "CITY" else 0.0)
+		clearings[clearing_count] = Vector4(site.position.x / K, site.position.y / K,
+				(CITY_CLEARING if site.kind == "CITY" else START_CLEARING) / K,
+				float(FIELD_REACH.get(site.city_type, 0.0)) / K if site.kind == "CITY" else 0.0)
 		clearing_count += 1
 	parameters["clearings"] = clearings
 	parameters["clearing_count"] = clearing_count
@@ -532,6 +542,8 @@ func _bake_surface(world: WorldData, region: Region) -> bool:
 		var step := SURFACE_TEXEL
 		if part == 2:
 			step = TONE_TEXEL
+		elif part == 4:
+			step = PICTURE_TEXEL
 		elif part >= 5:
 			step = FLORA_TEXEL
 		var done: bool = await baker.bake_surface(region.baked, step, part, parameters)
@@ -820,7 +832,7 @@ func _build_lakes(world: WorldData) -> void:
 		var reach := 0.0
 		for at in group:
 			reach = maxf(reach, centre.distance_to(HexMath.center(at.x, at.y)))
-		_add_water_disc(main, centre, reach + (HexMath.SIZE * 2.4 if with_lake else 70.0), level)
+		_add_water_disc(main, centre, reach + (HexMath.SIZE * 2.4 if with_lake else 70.0 * K), level)
 
 
 ## Озёра малых островов (долина, кратер, лагуна среди дюн): где озеро на штампе, знает каталог островов.
@@ -832,7 +844,7 @@ func _build_islet_lakes(world: WorldData) -> void:
 			continue
 		var lake: Vector3 = WorldData.design_value(islet.design, "lake", Vector3.ZERO)
 		var centre := islet.to_world(Vector2(lake.x, lake.y))
-		var radius := lake.z * islet.radius * 1.2 + 30.0
+		var radius := lake.z * islet.radius * 1.2 + 30.0 * K
 		# Вода озера берёт уровень и глубину из запечённой области, где озеро лежит целиком: у края области
 		# (озеро кратера на краю области главных островов) за краем уровня нет — вода обрывалась прямой линией.
 		var region := _region_holding(Rect2(centre - Vector2(radius, radius), Vector2(radius, radius) * 2.0))
@@ -863,7 +875,7 @@ func _find_water_level(baker: TerrainBaker, centre: Vector2) -> float:
 		var points := maxi(ring * 8, 1)
 		for i in points:
 			var angle := TAU * float(i) / float(points)
-			var level := baker.water_level_at(centre + Vector2(cos(angle), sin(angle)) * float(ring) * 9.0)
+			var level := baker.water_level_at(centre + Vector2(cos(angle), sin(angle)) * float(ring) * 9.0 * K)
 			if level > TerrainBaker.NO_WATER + 1.0:
 				return level
 	return TerrainBaker.NO_WATER

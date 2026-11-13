@@ -1,7 +1,9 @@
 // Геометрия гексов в шейдере. Те же формулы, что в packages/domain/src/hex.ts и src/core/hex_math.gd:
 // гексы «остриём вверх», осевые координаты (q, r), x — восток, z — юг.
 
-const float HEX_SIZE = 100.0; // метров от центра до угла
+// Мир — доска, увеличенная в WORLD_SCALE раз (HexMath.WORLD_SCALE): здесь всё — в координатах доски.
+const float WORLD_SCALE = 5.7735027;
+const float HEX_SIZE = 100.0; // метров доски от центра до угла
 const float HEX_APOTHEM = 86.60254; // метров от центра до стороны
 const float SQRT3 = 1.7320508;
 

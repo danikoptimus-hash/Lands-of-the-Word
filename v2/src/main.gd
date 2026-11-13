@@ -59,6 +59,8 @@ var _flora_debug_wait := 0.0
 var _cloud_debug := 0  ## ключ --cloud-debug=N: проверочный вид облаков (см. cloud_pass.gdshader)
 var _no_sun := false  ## ключи --no-sun и --no-sky-reflections: проверочные выключатели света (см. DayLight)
 var _no_reflections := false
+var _clouds_shown := true
+var _no_flora := false  ## ключ --no-flora: мир без растительности (проверка рельефа и скорости без неё)
 var _scale_audit := false  ## ключ --scale-audit: размеры моделей и камеры — в журнал
 var _flora_reference := Vector2.INF  ## ключ --flora-reference=x,z: поставить эталоны масштаба в этой точке мира
 var _benchmark: Benchmark
@@ -264,6 +266,12 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_hud.toast("Цвет: %s (%d из %d). V — следующий." % [COLOR_PRESETS[_color_preset]["title"], _color_preset + 1, COLOR_PRESETS.size()], 4.0)
 		KEY_C:
 			_markers.visible = not _markers.visible
+			_hud.toast("Города: %s. C — переключить." % ("показаны" if _markers.visible else "спрятаны"), 3.0)
+		KEY_H:
+			# Облака можно убрать: в пробе масштаба они — черновик и мешают смотреть землю.
+			_clouds_shown = not _clouds_shown
+			_weather.set_clouds_shown(_clouds_shown)
+			_hud.toast("Облака: %s. H — переключить." % ("показаны" if _clouds_shown else "спрятаны"), 3.0)
 		KEY_M:
 			_next_world()
 		KEY_F2:
@@ -356,8 +364,9 @@ func _load_world(path: String) -> bool:
 	_flora = Flora.new()
 	add_child(_flora)
 	_flora.set_cloud_textures(_weather.cloud_map, Weather.CLOUD_NOISE)
-	await _flora.build(_world, _terrain)
-	print("РАСТИТЕЛЬНОСТЬ «%s»: %s" % [_world.title, _flora.summary()])
+	if not _no_flora:
+		_flora.build(_world, _terrain)
+	print("РАСТИТЕЛЬНОСТЬ «%s»: карты густоты готовы за %.0f мс; деревья сажаются плитками вокруг камеры" % [_world.title, _flora.build_ms])
 	if _flora_debug_wanted:
 		_flora_debug = _flora.toggle_debug()
 	if _flora_reference.is_finite():
@@ -365,13 +374,14 @@ func _load_world(path: String) -> bool:
 	if _scale_audit:
 		# Аудит масштаба (ключ --scale-audit): фактические размеры того, что стоит в мире, — в журнал.
 		print("АУДИТ: единица мира — метр; гекс: от центра до угла %.0f м, между сторонами %.1f м" % [HexMath.SIZE, HexMath.APOTHEM * 2.0])
-		print("АУДИТ: вешка города — поперечник %.0f м, высота %.0f м; вокруг города растительность расчищена на %.0f м от центра; пояс полей — до %s м" % [
-				SiteMarkers.CITY_RADIUS * 2.0, SiteMarkers.CITY_HEIGHT, 34.0, str(WorldTerrain.FIELD_REACH.values())])
+		print("АУДИТ: город (черновая модель) — стена поперечником около %.0f м и высотой %.0f м, башни %.0f м, домов %d (8–11 × 7–10 м, один-два этажа); вокруг города растительность расчищена на %.0f м от центра; пояс полей — до %s м" % [
+				CityModel.RADIUS * 2.0, CityModel.WALL_HEIGHT, CityModel.TOWER_HEIGHT, CityModel.house_count(), WorldTerrain.CITY_CLEARING,
+				str(WorldTerrain.FIELD_REACH.values())])
 		for line in _flora.size_report():
 			print("АУДИТ: ", line)
 		print("АУДИТ: камера — угол зрения %.0f° по вертикали; расстояние до точки взгляда от %.0f до %.0f м" % [
 				StrategyCamera.FOV, StrategyCamera.MIN_DISTANCE, _rig.max_distance()])
-		for distance: float in [StrategyCamera.MIN_DISTANCE, 300.0, 800.0, 3000.0, _rig.max_distance()]:
+		for distance: float in [StrategyCamera.MIN_DISTANCE, 300.0, 800.0, 3000.0, 10000.0, _rig.max_distance()]:
 			var span := 2.0 * distance * tan(deg_to_rad(StrategyCamera.FOV * 0.5))
 			print("АУДИТ: камера на расстоянии %.0f м — высота над точкой взгляда %.0f м; в кадре по вертикали %.0f м земли (на экране 1123 точки: метр — %.1f точки)" % [
 					distance, _rig.height_at(distance), span, 1123.0 / span])
@@ -405,7 +415,7 @@ func _fly_to_island(island: String) -> void:
 func _fly_to_islet(index: int) -> void:
 	var islet := _world.islets[index]
 	_islet_index = index
-	_rig.fly_to(CameraView.make(islet.position, maxf(islet.reach() * 3.4, 420.0), 25.0, -8.0))
+	_rig.fly_to(CameraView.make(islet.position, maxf(islet.reach() * 3.4, 420.0 * HexMath.WORLD_SCALE), 25.0, -8.0))
 	_hud.toast("%s — малый остров %d из %d. O — следующий." % [islet.title(), index + 1, _world.islets.size()], 5.0)
 
 
@@ -601,6 +611,8 @@ func _read_arguments() -> void:
 			_flora_debug_wanted = true
 		elif argument == "--scale-audit":
 			_scale_audit = true
+		elif argument == "--no-flora":
+			_no_flora = true
 		elif argument.begins_with("--cloud-debug="):
 			_cloud_debug = argument.trim_prefix("--cloud-debug=").to_int()
 		elif argument == "--no-sun":

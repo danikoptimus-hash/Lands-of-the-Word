@@ -1,35 +1,45 @@
 class_name SiteMarkers
 extends Node3D
-## Вешки на местах городов и точек старта. Это не города, а разметка «в глине»:
-## по ним видно масштаб мира и где будут стоять города (сами города — шаг 1.10).
+## Города и точки старта на карте. Город — черновая модель настоящего размера (city_model.gd, проба масштаба 13.11):
+## по ней видно, как город сидит рядом с лесом, полями и гексом в километр. Точка старта — вешка. Сами города —
+## шаг 1.10.
 
-const CITY_RADIUS := 22.0
-const CITY_HEIGHT := 6.0
+const CITY_RADIUS := CityModel.RADIUS
+const CITY_HEIGHT := CityModel.WALL_HEIGHT
 const START_RADIUS := 12.0
 const START_HEIGHT := 30.0
 
+var city_count := 0
+
 
 func build(world: WorldData, height_map: HeightMap) -> void:
-	var cities: Array[Vector2] = []
 	var starts: Array[Vector2] = []
-	for site in world.sites:
-		if site.kind == "CITY":
-			cities.append(site.position)
-		elif site.kind == "START":
-			starts.append(site.position)
-
 	var material := StandardMaterial3D.new()
 	material.albedo_color = Color(0.55, 0.43, 0.36)
 	material.roughness = 0.9
 
-	var plinth := CylinderMesh.new()
-	plinth.top_radius = CITY_RADIUS * 0.88
-	plinth.bottom_radius = CITY_RADIUS
-	plinth.height = CITY_HEIGHT
-	plinth.radial_segments = 24
-	plinth.rings = 1
-	plinth.material = material
-	_scatter(plinth, cities, height_map, CITY_HEIGHT)
+	var city_material := StandardMaterial3D.new()
+	city_material.vertex_color_use_as_albedo = true
+	city_material.vertex_color_is_srgb = true
+	city_material.roughness = 0.93
+	city_material.metallic_specular = 0.2
+	city_count = 0
+	for site in world.sites:
+		if site.kind == "START":
+			starts.append(site.position)
+		if site.kind != "CITY":
+			continue
+		# У каждого города свой поворот — от его места на карте: ворота смотрят в разные стороны.
+		var turn := float(posmod(hash(Vector2i(site.position)), 628)) / 100.0
+		var mesh := CityModel.build_mesh(site.position, turn, height_map)
+		if mesh == null:
+			continue
+		mesh.surface_set_material(0, city_material)
+		var instance := MeshInstance3D.new()
+		instance.mesh = mesh
+		instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		add_child(instance)
+		city_count += 1
 
 	var pole := CylinderMesh.new()
 	pole.top_radius = 0.0

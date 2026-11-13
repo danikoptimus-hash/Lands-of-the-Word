@@ -161,7 +161,10 @@ void fragment() {
 	// Перистые облака: тонкие вытянутые пряди на большой высоте — местами, не по всему небу; в шторм их закрывают
 	// тучи. Это не объём, а тонкий слой: один срез шума, вытянутый по своему ветру.
 	float reach = (CIRRUS_HEIGHT - eye.y) / direction.y;
-	if (storm < 0.6 && reach > 0.0 && reach < 130000.0) {
+	// С высоты перистых и выше их нет: сверху пряди ложились бы на карту белыми полосами (камера с гексом
+	// в километр поднимается до двух десятков километров).
+	float below_cirrus = 1.0 - smoothstep(CIRRUS_HEIGHT - 3200.0, CIRRUS_HEIGHT - 400.0, eye.y);
+	if (storm < 0.6 && reach > 0.0 && reach < 130000.0 && below_cirrus > 0.0) {
 		vec2 q = eye.xz + direction.xz * reach - cloud_drift.xy * 1.7;
 		float where = smoothstep(0.56, 0.76, textureLod(cloud_noise, vec3(q.x / 43000.0, 0.77, q.y / 43000.0), 0.0).a);
 		if (where > 0.0) {
@@ -169,7 +172,7 @@ void fragment() {
 			float lod = clamp(log2(reach / 9000.0), 0.0, 4.0);
 			float strand = textureLod(cloud_noise, vec3(along.x / 12000.0, 0.13, along.y / 2300.0), lod).a * 0.6
 					+ textureLod(cloud_noise, vec3(along.x / 4100.0, 0.41, along.y / 700.0), lod).a * 0.4;
-			float thin = smoothstep(0.5, 0.82, strand) * where * (1.0 - storm / 0.6) * 0.5;
+			float thin = smoothstep(0.5, 0.82, strand) * where * (1.0 - storm / 0.6) * 0.5 * below_cirrus;
 			vec4 mist = haze(eye, eye + direction * reach);
 			thin *= (1.0 - smoothstep(70000.0, 130000.0, reach)) * (1.0 - 0.8 * mist.a);
 			vec3 color = mix(cloud_lit * (0.8 + 0.5 * glow_forward) + cloud_sky * 0.35, mist.rgb, mist.a);

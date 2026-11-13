@@ -19,6 +19,7 @@ global uniform vec4 wind_look; // xy — куда дует ветер; z — с�
 
 uniform sampler2D noise_map : filter_linear_mipmap, repeat_enable;
 uniform float far_view = 0.0;
+uniform vec2 vanish = vec2(1.0e9, 1.0e9); // дальний вид: с какого расстояния дерево начинает уходить и на каком его уже нет
 uniform vec3 lod_tint = vec3(0.0); // проверочный вид «уровни подробности»: не ноль — всё красится этим цветом
 
 varying vec3 world_position;
@@ -35,6 +36,13 @@ void vertex() {
 		float away = distance(origin, CAMERA_POSITION_WORLD);
 		float shown = 1.0 - smoothstep(210.0 + 60.0 * custom.y, 300.0 + 60.0 * custom.y, away);
 		world = origin + (world - origin) * shown;
+	}
+	if (far_view > 0.5) {
+		// Дальние деревья уходят по одному, каждое на своём расстоянии: лес редеет к границе видимости деревьев и
+		// переходит в рисунок земли без полосы «здесь деревья есть, а здесь нет».
+		float away = distance(origin, CAMERA_POSITION_WORLD);
+		float from = mix(vanish.x, vanish.y - 260.0, custom.y);
+		world = origin + (world - origin) * (1.0 - smoothstep(from, from + 260.0, away));
 	}
 	float strength = wind_look.z;
 	float flex = COLOR.a;

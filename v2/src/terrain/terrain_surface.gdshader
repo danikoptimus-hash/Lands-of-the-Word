@@ -259,6 +259,18 @@ void fragment() {
 		if (!wet_known) {
 			wet = picture.a;
 		}
+		// Зерно: растянутая картинка (точка — шесть метров) гладкая, как акварель; мелкая рябь яркости возвращает
+		// земле фактуру. Из шума берётся только мелкое — разность двух его уменьшенных копий: крупные пятна плитки
+		// шума повторялись бы по земле заметной сеткой. Две копии, вторая повёрнута. Где картинка не растянута
+		// (точка экрана крупнее точки картинки), зерна нет.
+		float stretched = smoothstep(1.0, 2.5, bake_rect.z / float(textureSize(surface_color, 0).x) / max(0.5 * footprint, 1.0e-4));
+		if (stretched > 0.0) {
+			float lod = log2(max(0.5 * footprint * 512.0 / 131.0, 1.0));
+			vec2 turned = vec2(p.x * 0.8 - p.y * 0.6, p.x * 0.6 + p.y * 0.8) / 83.0 + vec2(0.31, 0.57);
+			float grain = textureLod(noise_map, p / 131.0, lod).r - textureLod(noise_map, p / 131.0, lod + 2.0).r
+					+ textureLod(noise_map, turned, lod + 0.66).g - textureLod(noise_map, turned, lod + 2.66).g;
+			picture.rgb *= 1.0 + 0.9 * grain * stretched;
+		}
 		albedo = mix(albedo, picture.rgb, picture_share);
 		wet = mix(wet, picture.a, picture_share);
 		detail = mix(detail, vec4(0.0, 0.0, 0.0, 0.82), picture_share);
@@ -283,7 +295,9 @@ void fragment() {
 	if (grid_strength > 0.0) {
 		float pixel = 0.7071 * length(vec2(length(dpx.xz), length(dpy.xz)));
 		float half_width = max(0.8, 0.85 * pixel);
-		float grid_line = 1.0 - smoothstep(half_width - 0.6 * pixel, half_width + 0.6 * pixel, land_edge_distance(p, half_width + 0.6 * pixel));
+		// Гексы считаются в координатах доски (hex.gdshaderinc): точка — туда, расстояние до стороны — обратно в метры мира.
+		float to_side = land_edge_distance(p / WORLD_SCALE, (half_width + 0.6 * pixel) / WORLD_SCALE) * WORLD_SCALE;
+		float grid_line = 1.0 - smoothstep(half_width - 0.6 * pixel, half_width + 0.6 * pixel, to_side);
 		albedo *= 1.0 - 0.5 * grid_strength * grid_line;
 	}
 

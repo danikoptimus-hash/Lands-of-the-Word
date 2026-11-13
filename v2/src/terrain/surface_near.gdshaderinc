@@ -256,7 +256,8 @@ void near_surface(vec3 wp, vec3 n, vec3 dpx, vec3 dpy, out vec3 albedo, out vec4
 	// граница пятна идёт неровной кромкой с мелкой бахромой, а не по сторонам клеток. Номера материалов
 	// берутся из ближайшей клетки, доли — плавно между клетками: там, где материалы у соседних клеток те же
 	// (а это почти везде), доли меняются без ступенек, и кромку пятна рисует сама фактура — камни и кочки.
-	vec2 wobble = (micro.rg - 0.5) * 2.6 + (micro.ba - 0.5) * 1.4 + (fine.ba - 0.5) * 2.2;
+	// Сдвиг подобран для клетки в два метра; у клетки крупнее он растёт вместе с ней — иначе видны её стороны.
+	vec2 wobble = ((micro.rg - 0.5) * 2.6 + (micro.ba - 0.5) * 1.4 + (fine.ba - 0.5) * 2.2) * (splat_texel / 2.0);
 	vec2 spot = (p + wobble - bake_rect.xy) / splat_texel;
 	ivec2 cell = clamp(ivec2(floor(spot)), ivec2(0), textureSize(splat_index, 0) - 1);
 	vec4 chosen = texelFetch(splat_index, cell, 0);

@@ -39,7 +39,8 @@ uniform sampler2D ground_b : filter_linear_mipmap, repeat_disable; // озеро
 uniform sampler2D ground_c : filter_linear_mipmap, repeat_disable; // сток воды по рельефу: 0 — водораздел, 1 — русло
 uniform sampler2D noise_map : filter_linear_mipmap, repeat_enable; // четыре независимых шума, плитка без шва
 uniform sampler2DArray layer_albedo : source_color, filter_linear_mipmap, repeat_enable; // цвет и высота фактуры
-uniform vec4 bake_rect; // x, z левого верхнего угла и размеры в метрах — и у запекаемого, и у текстур географии
+const float WORLD_SCALE = 5.7735027; // во сколько раз мир больше доски (HexMath.WORLD_SCALE)
+uniform vec4 bake_rect; // x, z левого верхнего угла и размеры в метрах мира — и у запекаемого, и у текстур географии
 uniform float texel = 2.0; // метров на точку
 uniform vec2 noise_shift; // сдвиг шума от зерна карты: у каждой карты свои пятна
 // Снеговая линия, метры над морем: выше неё на вершинах лежит снег (решение владельца 11.11: у гор белые шапки;
@@ -52,8 +53,8 @@ uniform float snow_line = 120.0;
 uniform vec4 islets[8];
 uniform int islet_count = 0;
 uniform int part = 0;
-// Расчистки (шаг 1.8): города и точки старта — xy центр, z радиус, метры; w — докуда тянутся поля города, метры
-// (0 — полей нет). Деревья и кусты в расчистке не растут.
+// Расчистки (шаг 1.8): города и точки старта — xy центр, z радиус; w — докуда тянутся поля города (0 — полей нет).
+// Как и малые острова выше — в координатах доски (метры мира, делённые на WORLD_SCALE). Деревья и кусты в расчистке не растут.
 uniform vec4 clearings[96];
 uniform int clearing_count = 0;
 // Для проверки географии (ключ запуска --debug-view): вместо картинки дальнего вида — 1 влажность, 2 сток,
@@ -74,7 +75,13 @@ vec3 to_srgb(vec3 c) {
 
 void fragment() {
 	vec2 uv = UV;
-	vec2 p = bake_rect.xy + UV * bake_rect.zw;
+	// Правила местностей придуманы и приняты «на доске» (гекс — 100 м от центра до угла), а мир — доска, увеличенная
+	// в WORLD_SCALE раз (HexMath). Поэтому всё здесь считается в координатах доски: точка, высоты, расстояния —
+	// природные зоны, леса и переходы между ними сохраняют свои пропорции к острову. В настоящих метрах мира
+	// (world_p) — только то, что имеет настоящий размер: наделы полей и рисунок материалов в дальней картинке.
+	vec2 world_p = bake_rect.xy + UV * bake_rect.zw;
+	vec2 board_size = bake_rect.zw / WORLD_SCALE;
+	vec2 p = world_p / WORLD_SCALE;
 	vec2 pn = p + noise_shift;
 	// Мелкие пятна (выходы грунта, цветение, камни) в готовой картинке дальнего вида приглушены: зона читается
 	// цельной. В материалах для ближнего вида они в полную силу.
@@ -83,14 +90,17 @@ void fragment() {
 	// ── География точки ────────────────────────────────────────────────────────
 	vec4 baked = textureLod(height_map, uv, 0.0);
 	vec3 n = vec3(baked.g, sqrt(max(1.0 - dot(baked.gb, baked.gb), 0.0)), baked.b);
-	float h = baked.r;
+	float h = baked.r / WORLD_SCALE;
 	float steep = 1.0 - n.y; // 0 — ровно, 0,13 — склон 30°, 0,29 — 45°, 0,5 — 60°
 	// Форма рельефа вокруг: ложбина (больше нуля, метры) или гребень (меньше нуля) — по сглаженной копии высот.
-	float cavity = textureLod(height_map, uv, 3.0).r - h;
+	float cavity = textureLod(height_map, uv, 3.0).r / WORLD_SCALE - h;
 	vec4 gb = textureLod(ground_b, uv, 0.0);
 	// Уровень воды озера — из ближайшей точки рельефа (между точками его усреднять нельзя: рядом «озера нет»).
 	ivec2 cells = textureSize(height_map, 0);
 	float lake_level = texelFetch(height_map, clamp(ivec2(uv * vec2(cells)), ivec2(0), cells - 1), 0).a;
+	if (lake_level > -900.0) {
+		lake_level /= WORLD_SCALE;
+	}
 	float lake_depth = lake_level > -900.0 ? lake_level - h : -1.0;
 
 	// Шум трёх масштабов: сотни метров и десятки. У каждой карты свой (сдвиг от зерна). Самого мелкого (метры) здесь
@@ -106,11 +116,11 @@ void fragment() {
 	vec4 region = textureLod(noise_map, pn / 520.0 + vec2(0.53, 0.19), 0.0);
 	vec4 lobes = textureLod(noise_map, pn / 190.0 + vec2(0.21, 0.67), 0.0);
 	vec2 drift = (region.gb - 0.5) * 90.0 + (lobes.rg - 0.5) * 60.0 + (fine.ba - 0.5) * 26.0;
-	vec4 ga = textureLod(ground_a, uv + drift / bake_rect.zw, 0.0);
+	vec4 ga = textureLod(ground_a, uv + drift / board_size, 0.0);
 	// Те же доли, усреднённые на сотню метров, — для влажности: она меняется плавнее, чем сама местность.
-	vec4 wide_a = textureLod(ground_a, uv + 0.5 * drift / bake_rect.zw, 4.0);
+	vec4 wide_a = textureLod(ground_a, uv + 0.5 * drift / board_size, 4.0);
 	vec4 wide_b = textureLod(ground_b, uv, 4.5);
-	float flow = textureLod(ground_c, uv + (fine.rg - 0.5) * 7.0 / bake_rect.zw, 0.0).r;
+	float flow = textureLod(ground_c, uv + (fine.rg - 0.5) * 7.0 / board_size, 0.0).r;
 
 	// Пласты породы лежат не строго горизонтально: у острова общий наклон пластов (падение — несколько градусов),
 	// и они плавно изгибаются. На столько метров сдвигается по высоте рисунок скалы в точке.
@@ -356,7 +366,7 @@ void fragment() {
 	float belt = 1.0 - smoothstep(0.5, 0.82, altitude + 0.12 * (meso.b - 0.5)); // выше пояса леса деревьев нет
 	float open_land = 1.0;
 	for (int i = 0; i < clearing_count; i++) {
-		float away = distance(p, clearings[i].xy) + 22.0 * (fine.r - 0.5) + 30.0 * (groves.b - 0.5);
+		float away = distance(p, clearings[i].xy) + 4.0 * (fine.r - 0.5) + 6.0 * (groves.b - 0.5);
 		open_land *= smoothstep(clearings[i].z * 0.8, clearings[i].z * 1.3, away);
 	}
 	float grow = dry_land * off_beach * (1.0 - snow) * open_land;
@@ -432,7 +442,9 @@ void fragment() {
 		}
 		float turn = float(i) * 1.7 + 0.4;
 		// Наделы вытянуты: полосы в полтора-два раза длиннее своей ширины, а не соты.
-		vec2 q = mat2(vec2(cos(turn), sin(turn)), vec2(-sin(turn), cos(turn))) * from_city / vec2(42.0, 76.0);
+		// Наделы — в настоящих метрах мира: около 48 × 86 м (0,4 га), как у настоящих полей; с ростом мира их
+		// стало больше, а не крупнее.
+		vec2 q = mat2(vec2(cos(turn), sin(turn)), vec2(-sin(turn), cos(turn))) * (from_city * WORLD_SCALE) / vec2(48.0, 86.0);
 		vec2 cell = floor(q);
 		float nearest = 1.0e9;
 		float second = 1.0e9;
@@ -451,38 +463,37 @@ void fragment() {
 				}
 			}
 		}
-		float inside = smoothstep(0.04, 0.1, second - nearest); // 0 — межа
+		float inside = smoothstep(0.08, 0.2, second - nearest); // 0 — межа
 		vec2 lot = hash22(plot + float(i) * 31.0);
 		vec2 lot2 = hash22(plot * 1.7 + float(i) * 53.0 + 9.0);
 		if (lot2.y < 0.14) {
 			continue; // участок не распахан: остаётся как есть
 		}
 		float heading = lot.y * 3.14159;
-		float rows = dot(from_city, vec2(cos(heading), sin(heading)));
+		float rows = dot(from_city * WORLD_SCALE, vec2(cos(heading), sin(heading)));
 		float here = zone * fertile;
 		// Культура участка: сама земля под ней меняется (ниже), здесь — борозды и ряды.
 		vec3 tint;
 		float sown = here * inside;
 		if (lot.x < 0.36) {
-			tint = vec3(0.6, 0.78, 0.7) * (0.92 + 0.16 * step(0.5, fract(rows / 5.0))); // пшеница: солома рядами
+			tint = vec3(0.6, 0.78, 0.7) * (0.92 + 0.16 * step(0.5, fract(rows / 36.0))); // пшеница: полосы жнивья
 			wheat = max(wheat, sown);
 		} else if (lot.x < 0.56) {
-			tint = vec3(1.0, 1.06, 0.9) * (0.94 + 0.12 * step(0.5, fract(rows / 5.0))); // ячмень
+			tint = vec3(1.0, 1.06, 0.9) * (0.94 + 0.12 * step(0.5, fract(rows / 36.0))); // ячмень
 			barley = max(barley, sown);
 		} else if (lot.x < 0.7) {
-			tint = vec3(1.1, 1.5, 1.6) * (0.88 + 0.24 * step(0.5, fract(rows / 4.0))); // пар: вспаханная земля
+			tint = vec3(1.1, 1.5, 1.6) * (0.88 + 0.24 * step(0.5, fract(rows / 30.0))); // пар: вспаханная земля
 			fallow = max(fallow, sown);
 		} else if (lot.x < 0.82) {
-			float vine_row = step(0.55, fract(rows / 6.0));
+			float vine_row = step(0.5, fract(rows / 36.0));
 			tint = mix(vec3(1.1, 1.5, 1.6), vec3(0.92, 0.96, 0.8), vine_row); // виноградник: земля и ряды лоз
 			vines = max(vines, sown);
 			vine_rows = max(vine_rows, sown * vine_row);
 		} else {
 			tint = vec3(1.02, 0.97, 0.86); // оливковый сад
 			// Сад посажен рядами, но не по линейке: ряды гуляют, шаг в ряду неровный, часть деревьев выпала.
-			float across = rows + 5.0 * (groves.g - 0.5) + 2.4 * (fine.b - 0.5);
-			float along = dot(from_city, vec2(-sin(heading), cos(heading))) + 6.0 * (groves.a - 0.5) + 3.0 * (fine.r - 0.5);
-			orchard = max(orchard, sown * step(0.7, fract(across / 9.5)) * step(0.5, fract(along / 8.5 + lot2.x)) * step(0.22, fine.a));
+			// Ряды сада (шаг 9 м) мельче точки карты (24 м): здесь — только густота сада; сами деревья ставит flora.gd.
+			orchard = max(orchard, sown * 0.15 * step(0.22, fine.a));
 		}
 		crop = mix(crop, mix(vec3(0.7, 0.68, 0.6), tint, inside), here);
 		hedge = max(hedge, here * (1.0 - inside));
@@ -498,7 +509,7 @@ void fragment() {
 	cypress = cypress * wild + hedge * step(0.8, groves.a) * 0.6;
 	shrub_green = shrub_green * wild + hedge * 0.55;
 	shrub_dry *= wild;
-	rocks *= 1.0 - 0.8 * field;
+	rocks *= (1.0 - 0.8 * field) * open_land; // в городе валунов между домами нет
 	grass *= wild;
 	grass_dry *= wild;
 	// Пучки травы — одна карта: густота и сухость (по ней пучок зелёный или соломенный). У городов травы нет.
@@ -591,14 +602,17 @@ void fragment() {
 				value = 1.0 - value;
 			}
 			float patch = smoothstep(0.42, 0.58, value);
-			vec3 first = textureLod(layer_albedo, vec3(p / tile, float(i0)), lod).rgb;
-			vec3 second = textureLod(layer_albedo, vec3((TURN * p) / (tile * 1.31) + vec2(0.37, 0.61), float(i0)), lod).rgb;
+			vec3 first = textureLod(layer_albedo, vec3(world_p / tile, float(i0)), lod).rgb;
+			vec3 second = textureLod(layer_albedo, vec3((TURN * world_p) / (tile * 1.31) + vec2(0.37, 0.61), float(i0)), lod).rgb;
 			pattern = mix(first, second, patch) / LAYER_COLOR[i0];
 		}
 		vec3 picture = zone * mix(vec3(1.0), pattern, 0.7 * w0 / max(weight_sum, 1.0e-4)) * shade;
 		// Растительность в дальнем виде: лес — сомкнутый полог своего цвета с рябью крон, кустарник — крапом.
 		// Те же числа, по которым расставлены деревья: издали массив там же, где вблизи стоят стволы.
-		float crown = textureLod(noise_map, pn / 37.0 + vec2(0.5, 0.2), 1.0).r;
+		// Рябь полога — пятнами в десятки метров: рисунок мельче точки картинки дал бы «шахматы» (так было в первой
+		// пробе масштаба: плитка шума 64 м при шаге картинки 12 м). Отдельные кроны рисуют сами деревья вблизи.
+		float crown = 0.6 * textureLod(noise_map, world_p / 190.0 + vec2(0.5, 0.2), max(log2(texel * 512.0 / 190.0) - 0.3, 0.0)).r
+				+ 0.4 * textureLod(noise_map, (TURN * world_p) / 520.0 + vec2(0.11, 0.47), max(log2(texel * 512.0 / 520.0) - 0.3, 0.0)).g;
 		vec3 leaf = (oak * vec3(0.085, 0.15, 0.05) + 0.9 * pine * vec3(0.065, 0.125, 0.06) + 0.5 * olive * vec3(0.19, 0.22, 0.13)
 				+ 0.25 * cypress * vec3(0.05, 0.09, 0.045) + 0.35 * palm * vec3(0.12, 0.18, 0.06) + 0.3 * tamarisk * vec3(0.18, 0.2, 0.11))
 				/ max(oak + 0.9 * pine + 0.5 * olive + 0.25 * cypress + 0.35 * palm + 0.3 * tamarisk, 1.0e-4);

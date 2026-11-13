@@ -41,7 +41,7 @@ const FLOOR_RINGS: Array[float] = [6.0, 14.0, 26.0, 42.0, 62.0, 88.0]
 const LIFT_RISE_RATE := 12.0
 const LIFT_FALL_RATE := 3.0
 const HARD_CLEARANCE := 4.0  ## ближе этого к земле камера не окажется ни в какой миг
-const RAY_TOP := 340.0  ## выше этого рельефа нет
+const RAY_TOP := 2000.0  ## выше этого рельефа нет
 const NO_POINT := Vector3.INF
 
 var camera: Camera3D
@@ -87,7 +87,7 @@ var _flight_hop := 0.0
 func _ready() -> void:
 	camera = Camera3D.new()
 	camera.fov = FOV
-	camera.far = 120000.0
+	camera.far = 800000.0
 	add_child(camera)
 	camera.make_current()
 	_apply()
@@ -101,8 +101,8 @@ func set_height_map(height_map: HeightMap) -> void:
 
 ## Границы мира: дальше них фокус не уходит, а самое дальнее отдаление показывает весь мир с запасом.
 func set_world_bounds(land: Rect2) -> void:
-	_bounds = land.grow(260.0)
-	_max_distance = 20000.0
+	_bounds = land.grow(1500.0)
+	_max_distance = 120000.0
 	_max_distance = view_for_rect(land).distance * 1.35
 
 

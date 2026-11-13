@@ -11,7 +11,7 @@ uniform float texel = 4.0; // метров на точку
 uniform int part = 0;
 
 void fragment() {
-	vec2 p = bake_rect.xy + UV * bake_rect.zw;
+	vec2 p = (bake_rect.xy + UV * bake_rect.zw) / WORLD_SCALE; // координаты доски (см. hex.gdshaderinc)
 	vec4 ground_a;
 	vec4 ground_b;
 	world_point(p, ground_a, ground_b);

@@ -1,20 +1,22 @@
 class_name Flora
 extends Node3D
-## Растительность и камни мира (шаг 1.8): деревья, кусты и камни по картам густоты.
+## Растительность и камни мира (шаг 1.8): деревья, кусты, трава и камни по картам густоты.
 ##
 ## Где чему расти, решают экологические правила в расчёте земли (bake_surface.gdshader, части 5–8): для каждой
-## точки суши (шаг 4 м) — густота каждого вида от местности, влажности, высоты, уклона, стока, берега и полей
+## точки суши (шаг карты 24 м) — густота каждого вида от местности, влажности, высоты, уклона, стока, берега и полей
 ## «лесистости». Здесь по этим картам расставляются сами деревья: в клетке карты — столько экземпляров вида,
 ## сколько выходит по его густоте (дробная часть — по жребию), место в клетке, поворот, рост и оттенок — тоже
 ## по жребию. Жребий — от зерна карты и номера клетки: при том же мире лес всегда тот же, а клетки не зависят друг
-## от друга (плитку можно пересобрать отдельно). Дальний вид земли красится теми же картами — лес с высоты стоит
-## там же, где вблизи стволы.
+## от друга. Дальний вид земли красится теми же картами — лес с высоты стоит там же, где вблизи стволы.
 ##
-## Мир режется на плитки (CHUNK). В плитке на каждый вид и вариант формы — одна пачка экземпляров (MultiMesh):
-## видеокарта рисует пачку разом. Уровней подробности три, у каждого своя пачка и свои расстояния (движок сам
-## включает нужную и плавно, точками, меняет одну на другую): вблизи — полная модель, дальше — упрощённая,
-## ещё дальше — один общий «клуб» на дерево; за FAR_END деревья не рисуются — остаётся цвет земли под лесом.
-## Кусты и камни дальше SMALL_END не рисуются. Тени — только от ближнего уровня, и рисует их упрощённая модель.
+## Мир большой (гекс — километр, суши на «Осени» около 130 км² — больше миллиона деревьев), поэтому растительность
+## сажается не вся сразу, а плитками (CHUNK) вокруг камеры: плитки ближе FAR_END к камере считаются в фоновых
+## потоках, ближние первыми, и появляются по мере готовности; ушедшие далеко убираются. У плитки три состава:
+## вдали — только деревья, ближе — ещё кусты и камни, совсем близко — ещё пучки травы; при приближении плитка
+## пересобирается (деревья те же — жребий тот же). С высоты, где отдельное дерево меньше точки экрана, плиток
+## нет вовсе: лес — это цвет земли. В плитке на каждый вид и вариант формы — одна пачка экземпляров (MultiMesh):
+## видеокарта рисует пачку разом. Уровней подробности три, у каждого своя пачка и свои расстояния: вблизи —
+## полная модель, дальше — упрощённая, ещё дальше — один «клуб» на дерево. Тень — от ближних, упрощённой моделью.
 
 const SHADER := preload("res://src/world/flora.gdshader")
 const NOISE := preload("res://assets/terrain/noise.png")
@@ -27,7 +29,7 @@ const RATE: Array[float] = [1.0 / 34.0, 1.0 / 38.0, 1.0 / 52.0, 1.0 / 40.0, 1.0 
 		1.0 / 7.0]
 const NEAR_END := 300.0  ## до этого расстояния до плитки — полные модели, метры
 const MID_END := 760.0  ## до этого — упрощённые
-const FAR_END := 3800.0  ## до этого — по «клубу» на дерево; дальше — только цвет земли
+const FAR_END := 3000.0  ## до этого — по «клубу» на дерево; дальше — только цвет земли
 const SMALL_END := 620.0  ## кусты и камни дальше не рисуются
 const GRASS_END := 460.0  ## плитки с пучками травы дальше не рисуются (сами пучки уходят в землю уже за 210–360 м)
 const SHADOW_OFF := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -35,22 +37,35 @@ const SHADOW_ONLY := GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
 const OUTCROP := Vector2(5.0, 14.0)  ## скальный выход: поперечник, метры
 const GRASS_GREEN := Color(0.125, 0.215, 0.05)
 const GRASS_STRAW := Color(0.42, 0.34, 0.13)
+const MAX_TASKS := 6  ## столько плиток считается разом в фоновых потоках
+const RESCAN := 24.0  ## плитки вокруг камеры пересматриваются, когда она сдвинулась на столько метров
+const FINISH_PER_FRAME := 2  ## столько готовых плиток за кадр превращается в пачки (чтобы кадр не дёргался)
 const FADE := 70.0  ## на таком расстоянии один уровень подробности плавно сменяет другой
 
 var counts := PackedInt32Array()  ## сколько экземпляров каждого вида
 var batches := 0  ## сколько пачек (вызовов отрисовки, если видны все)
 var build_ms := 0.0
 var lowest := INF  ## самая низкая точка, на которой что-то растёт, метры над морем
-var fingerprint := 0  ## «отпечаток» расстановки: у того же мира он тот же
-var densest := Vector2.ZERO  ## середина самой густой рощи мира (для проверки ветра: там в кадре точно есть деревья)
-var _densest_count := 0
+## Сажать всё вокруг камеры сразу, в том же кадре (для кадров проверок: два кадра одного места должны совпадать,
+## а не отличаться деревьями, досаженными между ними).
+var instant := false
+var densest := Vector2.ZERO  ## середина самой густой рощи главных островов (для проверок: там точно есть деревья)
 
 var _material: ShaderMaterial
 var _mid_material: ShaderMaterial
 var _far_material: ShaderMaterial
 var _borders: MeshInstance3D
-var _tiles: Array[Vector2i] = []  ## плитки, где что-то растёт (для проверочных границ)
-var _heights: Array[HeightMap] = []
+var _plantings: Array[Planting] = []  ## области мира с картами густоты
+var _height_map: HeightMap
+var _tiles := {}  ## Vector2i плитки → Tile
+var _done := {}  ## Vector2i плитки → готовый результат потока (под замком _lock)
+var _lock := Mutex.new()
+var _running := 0
+var _active: Array[Vector2i] = []  ## плитки, которые сейчас считаются в потоках
+var _queue: Array = []  ## что посадить дальше: [расстояние, плитка, состав], ближние первыми
+var _sea := {}  ## плитки без суши (над морем) — чтобы не проверять их снова
+var _scan_eye := Vector3.INF  ## где была камера при последнем пересмотре плиток
+var _backlog := 0  ## сколько плиток ещё ждёт очереди
 var _near_meshes := {}  ## Vector2i(вид, вариант) → сетка
 var _mid_meshes := {}
 var _far_mesh: ArrayMesh
@@ -66,6 +81,7 @@ func _ready() -> void:
 	_far_material.shader = SHADER
 	_far_material.set_shader_parameter("noise_map", NOISE)
 	_far_material.set_shader_parameter("far_view", 1.0)
+	_far_material.set_shader_parameter("vanish", Vector2(FAR_END - 1100.0, FAR_END - 30.0))
 	for kind in KINDS:
 		for variant in FloraMeshes.VARIANTS[kind]:
 			_near_meshes[Vector2i(kind, variant)] = FloraMeshes.make(kind as FloraMeshes.Kind, variant, 0)
@@ -80,25 +96,251 @@ func set_cloud_textures(map: Texture2D, noise: Texture3D) -> void:
 		material.set_shader_parameter("cloud_noise", noise)
 
 
-## Расставить растительность мира. Сопрограмма: между областями уступает кадр.
+## Подготовить растительность мира: карты густоты и высоты областей. Сами деревья сажаются потом, плитками
+## вокруг камеры (_process). Повторный вызов убирает всё посаженное и начинает заново.
 func build(world: WorldData, terrain: WorldTerrain) -> void:
 	var started := Time.get_ticks_usec()
-	for child in get_children():
-		child.queue_free()
+	reset()
 	_reference = null
-	_borders = null
+	_plantings.clear()
+	_sea.clear()
+	_height_map = terrain.height_map
+	for region in terrain.flora_regions():
+		var maps: Array = region["maps"]
+		var first: Image = maps[0]
+		var job := Planting.new()
+		job.rect = region["rect"]
+		job.area = region["area"]
+		job.texel = region["texel"]
+		job.width = first.get_width()
+		job.height = first.get_height()
+		job.a = first.get_data()
+		job.b = (maps[1] as Image).get_data()
+		job.c = (maps[2] as Image).get_data()
+		job.d = (maps[3] as Image).get_data()
+		job.heights = region["heights"]
+		job.world_seed = world.map_seed
+		_plantings.append(job)
+	# Самая густая роща главных островов: клетка карты с наибольшей густотой дуба, сосны и оливы.
+	densest = Vector2.ZERO
+	if not _plantings.is_empty():
+		var main := _plantings[0]
+		var best := -1
+		for ty in range(0, main.height, 3):
+			for tx in range(0, main.width, 3):
+				var at := (ty * main.width + tx) * 4
+				var dense := int(main.a[at]) + int(main.a[at + 1]) + int(main.a[at + 2])
+				if dense > best and main.c[at + 3] >= 128:
+					best = dense
+					densest = main.rect.position + Vector2((float(tx) + 0.5) * main.texel, (float(ty) + 0.5) * main.texel)
+	build_ms = float(Time.get_ticks_usec() - started) / 1000.0
+
+
+## Убрать всё посаженное (плитки посадятся заново — для проверки «тот же мир — тот же лес»).
+func reset() -> void:
+	_wait_tasks()
+	for key: Vector2i in _tiles:
+		var tile: Tile = _tiles[key]
+		if tile.node != null:
+			tile.node.queue_free()
 	_tiles.clear()
-	_heights.clear()
+	_done.clear()
+	_queue.clear()
+	_scan_eye = Vector3.INF
+	_backlog = 0
+	if _borders != null:
+		_borders.queue_free()
+		_borders = null
 	counts = PackedInt32Array()
 	counts.resize(KINDS)
 	batches = 0
 	lowest = INF
-	fingerprint = 0
-	_densest_count = 0
-	var regions := terrain.flora_regions()
-	for region in regions:
-		await _plant_region(world, region)
-	build_ms = float(Time.get_ticks_usec() - started) / 1000.0
+
+
+## Идёт ли ещё посадка плиток вокруг камеры.
+func is_busy() -> bool:
+	return _running > 0 or _backlog > 0
+
+
+## «Отпечаток» деревьев в посаженных плитках: у того же мира и того же места камеры он тот же.
+func tree_fingerprint() -> int:
+	var total := 0
+	for key: Vector2i in _tiles:
+		total = (total + (_tiles[key] as Tile).mark) & 0x7fffffff
+	return total
+
+
+func _exit_tree() -> void:
+	_wait_tasks()
+
+
+func _wait_tasks() -> void:
+	for key in _active:
+		var tile: Tile = _tiles[key]
+		WorkerThreadPool.wait_for_task_completion(tile.task)
+		tile.task = -1
+	_active.clear()
+	_running = 0
+
+
+func _process(_delta: float) -> void:
+	if _plantings.is_empty():
+		return
+	var camera := get_viewport().get_camera_3d()
+	if camera == null:
+		return
+	if instant:
+		settle()
+	else:
+		_stream(camera.global_position)
+
+
+## Плитки вокруг камеры: готовые — в пачки, недостающие — в очередь (ближние первыми), далёкие — убрать.
+func _stream(eye: Vector3) -> void:
+	# 1. Что досчитали потоки.
+	var finished := 0
+	var index := 0
+	while index < _active.size() and finished < FINISH_PER_FRAME:
+		var key := _active[index]
+		var tile: Tile = _tiles[key]
+		if not WorkerThreadPool.is_task_completed(tile.task):
+			index += 1
+			continue
+		_active.remove_at(index)
+		_collect(key, tile)
+		finished += 1
+		# Пока плитка считалась, камера могла подойти: нужен состав подробнее — снова в очередь.
+		var away := Vector3((float(key.x) + 0.5) * CHUNK, 0.0, (float(key.y) + 0.5) * CHUNK).distance_to(eye)
+		if tile.level < _level_at(away):
+			_queue.append([away, key, _level_at(away)])
+	# 2. Какие плитки нужны — пересматривается, когда камера сдвинулась (а не каждый кадр: это сотни плиток).
+	if eye.distance_to(_scan_eye) > RESCAN:
+		_scan_eye = eye
+		_scan(eye)
+	# 3. Очередь — в фоновые потоки, ближние первыми.
+	while _running < MAX_TASKS and not _queue.is_empty():
+		var item: Array = _queue.pop_front()
+		var tile: Tile = _tiles.get(item[1])
+		if tile == null or tile.task >= 0 or tile.level >= int(item[2]):
+			continue
+		tile.task = WorkerThreadPool.add_task(_plant_task.bind(item[1], item[2]))
+		_active.append(item[1])
+		_running += 1
+	_backlog = _queue.size()
+
+
+## Состав плитки по расстоянию до камеры: вдали — только дальний вид деревьев (одна пачка на плитку), ближе —
+## деревья всех уровней подробности, кусты и камни, совсем близко — ещё трава.
+func _level_at(away: float) -> int:
+	return 2 if away < GRASS_END + 140.0 else (1 if away < MID_END + 220.0 else 0)
+
+
+## Пересмотр плиток вокруг камеры: недостающие и те, чей состав надо пополнить, — в очередь (ближние первыми);
+## ушедшие далеко — убрать.
+func _scan(eye: Vector3) -> void:
+	var reach := FAR_END + 160.0
+	_queue.clear()
+	if eye.y < reach:
+		var radius := sqrt(reach * reach - eye.y * eye.y)
+		for tz in range(floori((eye.z - radius) / CHUNK), floori((eye.z + radius) / CHUNK) + 1):
+			for tx in range(floori((eye.x - radius) / CHUNK), floori((eye.x + radius) / CHUNK) + 1):
+				var away := Vector3((float(tx) + 0.5) * CHUNK, 0.0, (float(tz) + 0.5) * CHUNK).distance_to(eye)
+				if away > reach:
+					continue
+				var key := Vector2i(tx, tz)
+				var tile: Tile = _tiles.get(key)
+				if tile == null:
+					# Над морем плитки не заводятся; что плитка морская, запоминается.
+					if _sea.has(key):
+						continue
+					if not _has_land(key):
+						_sea[key] = true
+						continue
+					tile = Tile.new()
+					_tiles[key] = tile
+				var level := _level_at(away)
+				if tile.task < 0 and tile.level < level:
+					_queue.append([away, key, level])
+	_queue.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	var gone: Array[Vector2i] = []
+	for key: Vector2i in _tiles:
+		var tile: Tile = _tiles[key]
+		if tile.task >= 0:
+			continue
+		if Vector3((float(key.x) + 0.5) * CHUNK, 0.0, (float(key.y) + 0.5) * CHUNK).distance_to(eye) > reach + 420.0:
+			gone.append(key)
+	for key in gone:
+		_install(_tiles[key], {})
+		_tiles.erase(key)
+
+
+## Забрать у потока посчитанную плитку (если он ещё считает — дождаться) и поставить её в мир.
+func _collect(key: Vector2i, tile: Tile) -> void:
+	WorkerThreadPool.wait_for_task_completion(tile.task)
+	tile.task = -1
+	_running -= 1
+	_lock.lock()
+	var result: Dictionary = _done.get(key, {})
+	_done.erase(key)
+	_lock.unlock()
+	_install(tile, result)
+
+
+## Досадить всё вокруг камеры сразу, не дожидаясь кадров (для кадров проверок: снимок — когда лес уже стоит).
+func settle() -> void:
+	var camera := get_viewport().get_camera_3d()
+	if camera == null or _plantings.is_empty():
+		return
+	for round in 2000:
+		_scan_eye = Vector3.INF
+		_stream(camera.global_position)
+		if not is_busy():
+			break
+		for key in _active:
+			_collect(key, _tiles[key])
+		_active.clear()
+
+
+## Есть ли в плитке суша хоть одной области (над морем плитки не заводятся).
+func _has_land(key: Vector2i) -> bool:
+	var box := Rect2(Vector2(key) * CHUNK, Vector2(CHUNK, CHUNK))
+	for job in _plantings:
+		if not job.area.intersects(box):
+			continue
+		var range_here := job.heights.range_in(box, 2)
+		if range_here.y > 0.6:
+			return true
+	return false
+
+
+## Поставить плитке новое содержимое (или убрать его, если result пуст): пачки, счётчики.
+func _install(tile: Tile, result: Dictionary) -> void:
+	if tile.node != null:
+		tile.node.queue_free()
+		tile.node = null
+	for kind in mini(tile.tally.size(), KINDS):
+		counts[kind] -= tile.tally[kind]
+	batches -= tile.batches
+	tile.tally = PackedInt32Array()
+	tile.batches = 0
+	tile.mark = 0
+	if result.is_empty():
+		return
+	tile.level = result["level"]
+	tile.tally = result["tally"]
+	for kind in KINDS:
+		counts[kind] += tile.tally[kind]
+	var chunk: Dictionary = result["chunk"]
+	if chunk.is_empty():
+		return
+	lowest = minf(lowest, float(tile.tally[KINDS]) / 100.0)
+	for slot: Vector2i in chunk:
+		if slot.x < 6:
+			var batch: Batch = chunk[slot]
+			tile.mark = (tile.mark + slot.x * 7 + slot.y + hash(batch.sizes) + hash(batch.transforms[0].origin)) & 0x7fffffff
+	var before := batches
+	tile.node = _make_chunk(chunk, tile.level)
+	tile.batches = batches - before
 
 
 ## Сколько чего посажено — строкой для журнала.
@@ -125,15 +367,19 @@ func toggle_debug() -> bool:
 		return false
 	# Границы плиток — ломаные по земле, чуть выше неё.
 	var lines := PackedVector3Array()
-	for i in _tiles.size():
-		var corner := Vector2(_tiles[i]) * CHUNK
+	for key: Vector2i in _tiles:
+		if (_tiles[key] as Tile).node == null:
+			continue
+		var corner := Vector2(key) * CHUNK
 		for side: Array in [[Vector2.ZERO, Vector2(CHUNK, 0.0)], [Vector2.ZERO, Vector2(0.0, CHUNK)]]:
 			var from: Vector2 = corner + side[0]
 			var to: Vector2 = corner + side[1]
 			for n in 16:
 				for end in 2:
 					var at := from.lerp(to, float(n + end) / 16.0)
-					lines.append(Vector3(at.x, maxf(_heights[i].sample(at), 0.0) + 3.0, at.y))
+					lines.append(Vector3(at.x, maxf(_height_map.sample(at), 0.0) + 3.0, at.y))
+	if lines.is_empty():
+		lines.append_array(PackedVector3Array([Vector3.ZERO, Vector3.ZERO]))
 	var arrays := []
 	arrays.resize(Mesh.ARRAY_MAX)
 	arrays[Mesh.ARRAY_VERTEX] = lines
@@ -265,12 +511,11 @@ class Batch:
 	var colors := PackedColorArray()  ## цвет экземпляра (камни — порода, трава — зелёная или сухая); у деревьев пусто
 
 
-## Задание на посадку одной области: карты, высоты и плитки. Плитки считаются в несколько потоков — каждая
-## пишет только в свою ячейку results.
+## Область мира с картами густоты и высотами. Потоки посадки её только читают.
 class Planting:
-	var rect := Rect2()
-	var area := Rect2()
-	var texel := 4.0
+	var rect := Rect2()  ## что запечено (с запасом по краю)
+	var area := Rect2()  ## чем область владеет: на стыке областей каждая сажает только своё
+	var texel := 24.0
 	var width := 0
 	var height := 0
 	var a := PackedByteArray()
@@ -279,74 +524,46 @@ class Planting:
 	var d := PackedByteArray()
 	var heights: HeightMap
 	var world_seed := 0
-	var tiles: Array[Vector2i] = []
-	var results: Array = []  ## на плитку — словарь Vector2i(вид, вариант) → Batch
-	var tallies: Array = []  ## на плитку — сколько экземпляров каждого вида
 
 
-## Растительность одной области: по картам густоты — экземпляры, по плиткам — пачки. Сопрограмма.
-func _plant_region(world: WorldData, region: Dictionary) -> void:
-	var maps: Array = region["maps"]
-	var first: Image = maps[0]
-	var job := Planting.new()
-	job.rect = region["rect"]
-	job.area = region["area"]
-	job.texel = region["texel"]
-	job.width = first.get_width()
-	job.height = first.get_height()
-	job.a = first.get_data()
-	job.b = (maps[1] as Image).get_data()
-	job.c = (maps[2] as Image).get_data()
-	job.d = (maps[3] as Image).get_data()
-	job.heights = region["heights"]
-	job.world_seed = world.map_seed
-	for tile_z in range(floori(job.area.position.y / CHUNK), ceili(job.area.end.y / CHUNK)):
-		for tile_x in range(floori(job.area.position.x / CHUNK), ceili(job.area.end.x / CHUNK)):
-			job.tiles.append(Vector2i(tile_x, tile_z))
-	job.results.resize(job.tiles.size())
-	job.tallies.resize(job.tiles.size())
-	var task := WorkerThreadPool.add_group_task(_plant_tile.bind(job), job.tiles.size())
-	while not WorkerThreadPool.is_group_task_completed(task):
-		await get_tree().process_frame
-	WorkerThreadPool.wait_for_group_task_completion(task)
-	for index in job.tiles.size():
-		var tally: PackedInt32Array = job.tallies[index]
-		for kind in KINDS:
-			counts[kind] += tally[kind]
-		lowest = minf(lowest, float(tally[KINDS]) / 100.0)
-		var chunk: Dictionary = job.results[index]
-		for slot: Vector2i in chunk:
-			var batch: Batch = chunk[slot]
-			fingerprint = (fingerprint * 31 + slot.x * 7 + slot.y + hash(batch.sizes) + hash(batch.transforms[0].origin)) & 0x7fffffff
-			if slot.x < 6 and batch.transforms.size() > _densest_count:
-				# Самая большая пачка деревьев одного вида в плитке — середина рощи.
-				_densest_count = batch.transforms.size()
-				var middle := Vector3.ZERO
-				for item in batch.transforms:
-					middle += item.origin
-				middle /= float(_densest_count)
-				densest = Vector2(middle.x, middle.z)
-		if not chunk.is_empty():
-			_make_chunk(chunk)
-			_tiles.append(job.tiles[index])
-			_heights.append(job.heights)
+## Плитка с растительностью.
+class Tile:
+	var level := -1  ## что посажено: 0 — только деревья, 1 — ещё кусты и камни, 2 — ещё трава; −1 — ничего
+	var node: Node3D
+	var task := -1  ## задание в фоновых потоках, если плитка сейчас считается
+	var tally := PackedInt32Array()
+	var batches := 0
+	var mark := 0  ## вклад плитки в «отпечаток» деревьев
 
 
-## Посадка одной плитки (в своём потоке): клетки карт плитки → экземпляры.
-func _plant_tile(index: int, job: Planting) -> void:
-	var tile := job.tiles[index]
-	var texel := job.texel
+## Посадка одной плитки в фоновом потоке: по всем областям, чья земля в плитку попадает.
+func _plant_task(key: Vector2i, level: int) -> void:
 	var chunk := {}
 	var tally := PackedInt32Array()  # по видам — сколько, последним числом — самая низкая точка, сантиметры
 	tally.resize(KINDS + 1)
 	tally[KINDS] = 1000000
+	var box := Rect2(Vector2(key) * CHUNK, Vector2(CHUNK, CHUNK))
+	for job in _plantings:
+		var part := box.intersection(job.area)
+		if part.size.x > 0.0 and part.size.y > 0.0:
+			_plant_part(job, part, level, chunk, tally)
+	_lock.lock()
+	_done[key] = {"chunk": chunk, "tally": tally, "level": level}
+	_lock.unlock()
+
+
+## Клетки карт области внутри прямоугольника → экземпляры. level — состав: 0 — деревья, 1 — ещё кусты и камни,
+## 2 — ещё трава.
+func _plant_part(job: Planting, part: Rect2, level: int, chunk: Dictionary, tally: PackedInt32Array) -> void:
+	var texel := job.texel
 	var value := PackedInt32Array()
 	value.resize(KINDS)
+	var kinds := 6 if level == 0 else (9 if level == 1 else KINDS)
 	var cell_area := texel * texel
-	var x_from := maxi(ceili((float(tile.x) * CHUNK - job.rect.position.x) / texel - 0.5), 0)
-	var x_to := mini(ceili((float(tile.x + 1) * CHUNK - job.rect.position.x) / texel - 0.5), job.width)
-	var y_from := maxi(ceili((float(tile.y) * CHUNK - job.rect.position.y) / texel - 0.5), 0)
-	var y_to := mini(ceili((float(tile.y + 1) * CHUNK - job.rect.position.y) / texel - 0.5), job.height)
+	var x_from := maxi(ceili((part.position.x - job.rect.position.x) / texel - 0.5), 0)
+	var x_to := mini(ceili((part.end.x - job.rect.position.x) / texel - 0.5), job.width)
+	var y_from := maxi(ceili((part.position.y - job.rect.position.y) / texel - 0.5), 0)
+	var y_to := mini(ceili((part.end.y - job.rect.position.y) / texel - 0.5), job.height)
 	var a := job.a
 	var b := job.b
 	var c := job.c
@@ -368,7 +585,7 @@ func _plant_tile(index: int, job: Planting) -> void:
 			value[7] = b[at + 3]
 			value[8] = c[at]
 			value[9] = c[at + 1]
-			for kind in KINDS:
+			for kind in kinds:
 				if value[kind] < 3:
 					continue
 				# Жребий клетки и вида — от зерна карты и места: тот же мир — тот же лес.
@@ -422,8 +639,6 @@ func _plant_tile(index: int, job: Planting) -> void:
 					batch.sizes.append(size)
 					tally[kind] += 1
 					tally[KINDS] = mini(tally[KINDS], int(ground * 100.0))
-	job.results[index] = chunk
-	job.tallies[index] = tally
 
 
 ## Цвет камня по породе места (карта, часть 8): тот же камень, что на скалах вокруг, — тёплый известняк берегов,
@@ -445,22 +660,29 @@ static func _rock_color(tone: int, sandy: int, sand_tone: int, lichen: int, chan
 
 
 ## Пачки одной плитки: ближние и средние — по виду и варианту, дальняя — общая на все деревья.
-func _make_chunk(chunk: Dictionary) -> void:
+func _make_chunk(chunk: Dictionary, level: int) -> Node3D:
+	var holder := Node3D.new()
+	add_child(holder)
 	var far_transforms: Array[Transform3D] = []
 	var far_colors := PackedColorArray()
+	var far_numbers := PackedColorArray()
 	for slot: Vector2i in chunk:
 		var batch: Batch = chunk[slot]
-		if slot.x == FloraMeshes.Kind.GRASS:
+		if level == 0:
+			# Дальняя плитка: полных и упрощённых моделей у неё нет — только «клубы» (ниже).
+			pass
+		elif slot.x == FloraMeshes.Kind.GRASS:
 			# Трава — одна пачка на плитку: пучки сами уходят в землю с расстоянием (flora.gdshader), теней не дают.
-			_add_batch(_near_meshes[slot], _material, batch.transforms, batch.numbers, batch.colors, 0.0, GRASS_END, SHADOW_OFF)
+			_add_batch(holder, _near_meshes[slot], _material, batch.transforms, batch.numbers, batch.colors, 0.0, GRASS_END, SHADOW_OFF)
 			continue
 		var small := slot.x >= 6
-		var near_end := NEAR_END if not small else minf(NEAR_END, SMALL_END)
-		# Тень ближних деревьев рисует упрощённая модель (в 5–6 раз меньше треугольников): тень на земле от этого
-		# не меняется, а расчёт теней — самая дорогая часть растительности вблизи.
-		_add_batch(_near_meshes[slot], _material, batch.transforms, batch.numbers, batch.colors, 0.0, near_end, SHADOW_OFF)
-		_add_batch(_mid_meshes[slot], _mid_material, batch.transforms, batch.numbers, batch.colors, 0.0, near_end, SHADOW_ONLY)
-		_add_batch(_mid_meshes[slot], _mid_material, batch.transforms, batch.numbers, batch.colors, near_end, SMALL_END if small else MID_END, SHADOW_OFF)
+		if level > 0:
+			var near_end := NEAR_END if not small else minf(NEAR_END, SMALL_END)
+			# Тень ближних деревьев рисует упрощённая модель (в 5–6 раз меньше треугольников): тень на земле от этого
+			# не меняется, а расчёт теней — самая дорогая часть растительности вблизи.
+			_add_batch(holder, _near_meshes[slot], _material, batch.transforms, batch.numbers, batch.colors, 0.0, near_end, SHADOW_OFF)
+			_add_batch(holder, _mid_meshes[slot], _mid_material, batch.transforms, batch.numbers, batch.colors, 0.0, near_end, SHADOW_ONLY)
+			_add_batch(holder, _mid_meshes[slot], _mid_material, batch.transforms, batch.numbers, batch.colors, near_end, SMALL_END if small else MID_END, SHADOW_OFF)
 		if small:
 			continue
 		var shape: Vector3 = FloraMeshes.FAR_SHAPE[slot.x]
@@ -473,15 +695,15 @@ func _make_chunk(chunk: Dictionary) -> void:
 			var tall := size * shape.y
 			far_transforms.append(Transform3D(Basis.from_scale(Vector3(wide, tall, wide)), origin + Vector3(0.0, size * shape.z - tall * 0.5, 0.0)))
 			far_colors.append(color * lerpf(0.85, 1.15, batch.numbers[i].r))
+			# Второе число — жребий дерева: по нему оно уходит вдали на своём расстоянии (flora.gdshader, vanish).
+			far_numbers.append(Color(0.5, batch.numbers[i].g, 0.0, 1.0))
 	if not far_transforms.is_empty():
-		var numbers := PackedColorArray()
-		numbers.resize(far_transforms.size())
-		numbers.fill(Color(0.5, 0.0, 0.0, 1.0))
-		_add_batch(_far_mesh, _far_material, far_transforms, numbers, far_colors, MID_END, FAR_END, SHADOW_OFF)
+		_add_batch(holder, _far_mesh, _far_material, far_transforms, far_numbers, far_colors, MID_END, FAR_END, SHADOW_OFF)
+	return holder
 
 
 ## Одна пачка экземпляров с расстояниями видимости. colors — цвет экземпляра (пусто — белый).
-func _add_batch(mesh: Mesh, material: Material, transforms: Array[Transform3D], numbers: PackedColorArray, colors: PackedColorArray,
+func _add_batch(holder: Node3D, mesh: Mesh, material: Material, transforms: Array[Transform3D], numbers: PackedColorArray, colors: PackedColorArray,
 		from: float, to: float, shadows: GeometryInstance3D.ShadowCastingSetting) -> void:
 	var multimesh := MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
@@ -504,5 +726,5 @@ func _add_batch(mesh: Mesh, material: Material, transforms: Array[Transform3D], 
 	instance.visibility_range_begin_margin = FADE if from > 0.0 else 0.0
 	instance.visibility_range_end_margin = FADE
 	instance.visibility_range_fade_mode = GeometryInstance3D.VISIBILITY_RANGE_FADE_SELF
-	add_child(instance)
+	holder.add_child(instance)
 	batches += 1
