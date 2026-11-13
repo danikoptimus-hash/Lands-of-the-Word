@@ -96,7 +96,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		# После кода места можно поставить «@N» — снять этот кадр в проверочном виде N (см. --debug-view): один
 		# запуск даёт одно и то же место в нескольких видах, и видно, какая часть шейдера что рисует.
 		var parts := code.split("@")
-		var view := CameraView.from_code(parts[0])
+		var view := _place_view(parts[0])
 		if view == null:
 			print("КАДР пропущен: непонятный код места «%s»" % code)
 			continue
@@ -522,6 +522,20 @@ func _check_mountain_camera(stops: Array) -> void:
 	_check("камера у гор идёт плавно и не уходит в склон", pan_jolt < 0.6 and zoom_jolt < 1.2 and turns <= 2 and lowest > 3.0,
 			"толчок по высоте за 1/60 с: при проходе %.2f м, при приближении %.2f м (%s); разворотов рывком %d; ближе всего к земле %.1f м"
 			% [pan_jolt, zoom_jolt, zoom_where, turns, lowest])
+
+
+## Место кадра по коду: обычный код «x,z,расстояние,поворот,наклон» или «roshchaN:расстояние:поворот» — самая
+## густая роща вида N (порядок FloraMeshes.Kind: 0 — дуб, 1 — сосна, 2 — олива, 3 — кипарис…) — для приёмки моделей.
+func _place_view(code: String) -> CameraView:
+	if not code.begins_with("roshcha"):
+		return CameraView.from_code(code)
+	var parts := code.trim_prefix("roshcha").split(":")
+	if parts.size() < 2:
+		return null
+	for node in get_tree().root.find_children("*", "Flora", true, false):
+		var place: Vector2 = (node as Flora).grove(parts[0].to_int())
+		return CameraView.make(place, parts[1].to_float(), parts[2].to_float() if parts.size() > 2 else 25.0, 0.0)
+	return null
 
 
 ## Непрерывный пролёт камеры кадр за кадром (ключ --flight=место;место;…;кадров): между соседними местами —

@@ -61,6 +61,9 @@ static func _prepare(mesh: Mesh, noise: Texture2D, stone: bool, far: bool, far_f
 				material.set_shader_parameter("normal_map", source.normal_texture)
 			else:
 				material.set_shader_parameter("leafy", 1.0 if source.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED else 0.0)
+				if source.normal_enabled and source.normal_texture != null:
+					material.set_shader_parameter("normal_map", source.normal_texture)
+					material.set_shader_parameter("relief", 1.0)
 		if far:
 			material.set_shader_parameter("far_view", 1.0)
 			material.set_shader_parameter("vanish", Vector2(far_from, far_to))

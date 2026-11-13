@@ -14,6 +14,8 @@ render_mode skip_vertex_transform, cull_disabled;
 global uniform vec4 wind_look; // xy — куда дует ветер; z — сила, 0…1; w — время ветра, секунды
 
 uniform sampler2D albedo_map : source_color, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform sampler2D normal_map : hint_normal, filter_linear_mipmap_anisotropic, repeat_enable;
+uniform float relief = 0.0; // сила карты нормалей модели (0 — карты нет)
 uniform sampler2D noise_map : filter_linear_mipmap, repeat_enable;
 uniform float leafy = 0.0;
 uniform float far_view = 0.0;
@@ -51,6 +53,8 @@ void vertex() {
 	world_position = world;
 	VERTEX = (VIEW_MATRIX * vec4(world, 1.0)).xyz;
 	NORMAL = normalize((VIEW_MATRIX * vec4(mat3(MODEL_MATRIX) * NORMAL, 0.0)).xyz);
+	TANGENT = normalize((VIEW_MATRIX * vec4(mat3(MODEL_MATRIX) * TANGENT, 0.0)).xyz);
+	BINORMAL = normalize((VIEW_MATRIX * vec4(mat3(MODEL_MATRIX) * BINORMAL, 0.0)).xyz);
 }
 
 void fragment() {
@@ -81,6 +85,11 @@ void fragment() {
 		albedo = lod_tint * (0.4 + 0.6 * dot(texel.rgb, vec3(0.33)) * 2.0);
 	}
 	ALBEDO = albedo;
+	if (relief > 0.0) {
+		// Рельеф коры и листьев — карта нормалей модели (у листвы слабее: свет на кроне должен лежать как на объёме).
+		NORMAL_MAP = texture(normal_map, UV).rgb;
+		NORMAL_MAP_DEPTH = relief * (leaf ? 0.45 : 1.0);
+	}
 	ROUGHNESS = (leaf ? 0.72 : 0.9) * (1.0 - (leaf ? 0.14 : 0.1) * rain_wet);
 	SPECULAR = leaf ? 0.2 : 0.12;
 	METALLIC = 0.0;

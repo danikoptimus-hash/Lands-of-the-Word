@@ -160,6 +160,30 @@ func build(world: WorldData, terrain: WorldTerrain) -> void:
 	build_ms = float(Time.get_ticks_usec() - started) / 1000.0
 
 
+## Середина самой густой рощи вида на главных островах (для кадров приёмки моделей: «покажи оливы»).
+func grove(kind: int) -> Vector2:
+	if _plantings.is_empty():
+		return Vector2.ZERO
+	var main := _plantings[0]
+	var data: PackedByteArray = main.a if kind < 4 else (main.b if kind < 8 else main.c)
+	var channel := kind % 4
+	var best := -1
+	var place := Vector2.ZERO
+	for ty in range(2, main.height - 2, 2):
+		for tx in range(2, main.width - 2, 2):
+			if main.c[(ty * main.width + tx) * 4 + 3] < 128:
+				continue
+			# Густота в клетке и вокруг неё: роща, а не одно дерево.
+			var dense := 0
+			for dy in range(-2, 3, 2):
+				for dx in range(-2, 3, 2):
+					dense += int(data[((ty + dy) * main.width + tx + dx) * 4 + channel])
+			if dense > best:
+				best = dense
+				place = main.rect.position + Vector2((float(tx) + 0.5) * main.texel, (float(ty) + 0.5) * main.texel)
+	return place
+
+
 ## Убрать всё посаженное (плитки посадятся заново — для проверки «тот же мир — тот же лес»).
 func reset() -> void:
 	_wait_tasks()
