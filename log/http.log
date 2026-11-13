@@ -1,0 +1,4 @@
+127.0.0.1 - - [13/Nov/2026 16:00:52] "GET /latest.json?t=1794585652 HTTP/1.1" 200 -
+127.0.0.1 - - [13/Nov/2026 16:00:52] "GET /ZemliSlova-v2-test-win64.zip.001?t=0d1c159 HTTP/1.1" 200 -
+127.0.0.1 - - [13/Nov/2026 16:00:53] "GET /ZemliSlova-v2-test-win64.zip.002?t=0d1c159 HTTP/1.1" 200 -
+127.0.0.1 - - [13/Nov/2026 16:00:53] "GET /ZemliSlova-v2-test-win64.zip.003?t=0d1c159 HTTP/1.1" 200 -

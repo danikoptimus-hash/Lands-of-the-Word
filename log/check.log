@@ -1,0 +1,75 @@
+== src/camera/camera_view.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/camera/strategy_camera.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/core/build_info.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/core/hex_math.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/core/updater.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/core/world_data.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/main.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/terrain/drainage.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/terrain/height_map.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/terrain/near_cache.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/terrain/terrain_baker.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/terrain/water_look.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/terrain/world_terrain.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/tools/benchmark.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/tools/shot_director.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/tools/tour.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/ui/hud.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/world/city_model.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/world/day_light.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/world/flora.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/world/flora_meshes.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/world/flora_models.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/world/lightning.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/world/site_markers.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
+== src/world/weather.gd
+Godot Engine v4.6.2.stable.official.71f334935 - https://godotengine.org
+
