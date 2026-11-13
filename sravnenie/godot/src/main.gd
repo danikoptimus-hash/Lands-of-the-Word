@@ -7,7 +7,9 @@ extends Node3D
 ## --vremya=100 — время облаков в кадрах, секунды (в кадрах облака стоят: кадры повторимы);
 ## --masshtab=50 — кадры в половину разрешения (в рабочей среде на этом падает программная отрисовка).
 ##
-## --bez-zemli, --bez-morya — кадры без земли, без моря (оба ключа — одно небо);
+## --bez-zemli, --bez-morya — без земли, без моря (оба ключа — одно небо). В рабочей среде программная отрисовка
+## на некоторых ракурсах с землёй у горизонта падает (внутри неё, на отрисовке дополнения Terrain3D) — небо
+## сверяется кадрами с ключом --bez-zemli;
 ## --proba=папка — проба образца: путь владельца (весь экран, 67 % с достройкой, подсказка), но небо и качество
 ## переключаются сами, кадры пишутся в папку.
 ##
@@ -26,7 +28,6 @@ var shots_dir := ""
 var probe_dir := ""
 var no_land := false
 var no_sea := false
-var no_aniso := false
 var sky_name := "den"
 var quality := 0
 var overrides := {}
@@ -66,8 +67,6 @@ func _ready() -> void:
 			no_land = true
 		if a == "--bez-morya":
 			no_sea = true
-		if a == "--bez-anizo":
-			no_aniso = true
 		if a.begins_with("--proba="):
 			probe_dir = a.trim_prefix("--proba=")
 		if a.begins_with("--vremya="):
@@ -80,6 +79,8 @@ func _ready() -> void:
 	_build_sky()
 	_build_camera()
 	await _build_terrain()
+	terrain.visible = not no_land
+	sea.visible = not no_sea
 	if shots_dir != "":
 		await _shots()
 		get_tree().quit()
@@ -102,23 +103,26 @@ const SKIES := {
 	# подбор — расчётом той же формулы вне движка, сверка — кадрами. Солнце невысоко, как в тех кадрах:
 	# облака освещены сбоку и объёмны.
 	"den": {"sun_height": 30.0, "sun_side": 215.0, "energy": 1.0, "shader": {
-		"cloud_coverage": 0.25, "_density": 0.05, "weather_scale": 0.00012,
+		"cloud_coverage": 0.2, "_density": 0.05, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 4500.0,
 		"exposure": 0.159, "rayleigh": 1.67, "turbidity": 1.3, "mie": 0.0038,
 		"rayleigh_color": Color(0.24, 0.32, 0.48), "sky_saturation": 1.53,
-		"haze_color": Vector3(0.62, 0.59, 0.50), "haze_strength": 0.68, "haze_power": 10.0,
-		"cloud_sun": 1.0, "cloud_ambient": 1.0}},
+		"haze_color": Vector3(0.64, 0.60, 0.48), "haze_strength": 0.68, "haze_power": 10.0, "sun_disk_scale": 2.0,
+		"cloud_sun": 1.0, "cloud_ambient": 0.75, "cloud_shoulder": 1.0, "phase_cap": 0.2,
+		"cloud_tint": Vector3(1.0, 0.975, 0.94)}},
 	"zakat": {"sun_height": 7.0, "sun_side": 262.0, "energy": 1.0, "shader": {
-		"cloud_coverage": 0.3, "_density": 0.05, "weather_scale": 0.00012,
+		"cloud_coverage": 0.22, "_density": 0.05, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 4500.0,
 		"exposure": 0.12, "rayleigh": 1.6, "turbidity": 5.0, "mie": 0.005,
 		"rayleigh_color": Color(0.32, 0.44, 0.67), "sky_saturation": 1.34,
-		"haze_color": Vector3(0.8, 0.5, 0.3), "haze_strength": 0.5, "haze_power": 12.0,
-		"cloud_sun": 1.0, "cloud_ambient": 1.0}},
+		"haze_color": Vector3(0.8, 0.5, 0.3), "haze_strength": 0.5, "haze_power": 12.0, "sun_disk_scale": 2.0,
+		"cloud_sun": 1.0, "cloud_ambient": 0.9, "cloud_shoulder": 1.0, "phase_cap": 0.35,
+		"cloud_tint": Vector3(1.0, 1.0, 1.0)}},
 	"shtorm": {"sun_height": 40.0, "sun_side": 215.0, "energy": 0.45, "shader": {
-		"cloud_coverage": 0.95, "_density": 0.12, "weather_scale": 0.00006,
+		"cloud_coverage": 0.95, "_density": 0.12, "weather_scale": 0.00006, "cloud_bottom": 1500.0, "cloud_top": 4000.0,
 		"exposure": 0.1, "rayleigh": 2.0, "turbidity": 14.0, "mie": 0.005,
 		"rayleigh_color": Color(0.26, 0.41, 0.58), "sky_saturation": 0.6,
-		"haze_color": Vector3(0.2, 0.21, 0.22), "haze_strength": 0.6, "haze_power": 6.0,
-		"cloud_sun": 1.0, "cloud_ambient": 1.0}},
+		"haze_color": Vector3(0.2, 0.21, 0.22), "haze_strength": 0.6, "haze_power": 6.0, "sun_disk_scale": 1.0,
+		"cloud_sun": 1.0, "cloud_ambient": 1.0, "cloud_shoulder": 0.0, "phase_cap": 10.0,
+		"cloud_tint": Vector3(1.0, 1.0, 1.0)}},
 }
 
 
@@ -170,8 +174,8 @@ func set_sky(title: String) -> void:
 	var look: Dictionary = SKIES[title]
 	var height := deg_to_rad(float(look["sun_height"]))
 	var compass := deg_to_rad(float(look["sun_side"]))
-	# Сторона солнца — по компасу: 0 — север (−Z), 90 — восток (+X).
-	var to_sun := Vector3(sin(compass) * cos(height), sin(height), -cos(compass) * cos(height))
+	# Сторона солнца — по компасу: 0 — север, 90 — восток. В этой сцене север — в сторону +Z (см. at()).
+	var to_sun := Vector3(sin(compass) * cos(height), sin(height), cos(compass) * cos(height))
 	sun.look_at_from_position(Vector3.ZERO, -to_sun, Vector3.UP)
 	sun.light_energy = float(look["energy"])
 	_sea_look()
@@ -311,22 +315,23 @@ func _build_controls() -> void:
 	_apply_scale()
 	camera.fov = 35.0
 	camera.look_at_from_position(at(4300.0, 4000.0, 420.0), at(6800.0, 6900.0, 700.0), Vector3.UP)
+	# Надписи — в размер экрана: на экране владельца (2880 точек в ширину) мелкий шрифт не прочесть.
+	var k := maxf(DisplayServer.screen_get_size().y / 900.0, 1.0)
 	var layer := CanvasLayer.new()
 	add_child(layer)
-	help = Label.new()
-	help.position = Vector2(24, 20)
-	help.add_theme_font_size_override("font_size", 22)
-	help.add_theme_color_override("font_outline_color", Color.BLACK)
-	help.add_theme_constant_override("outline_size", 6)
-	layer.add_child(help)
+	var box := VBoxContainer.new()
+	box.position = Vector2(24, 16) * k
+	layer.add_child(box)
 	fps_label = Label.new()
-	fps_label.add_theme_font_size_override("font_size", 44)
+	fps_label.add_theme_font_size_override("font_size", int(40 * k))
 	fps_label.add_theme_color_override("font_outline_color", Color.BLACK)
-	fps_label.add_theme_constant_override("outline_size", 8)
-	fps_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	fps_label.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	fps_label.position += Vector2(-28, 16)
-	layer.add_child(fps_label)
+	fps_label.add_theme_constant_override("outline_size", int(8 * k))
+	box.add_child(fps_label)
+	help = Label.new()
+	help.add_theme_font_size_override("font_size", int(19 * k))
+	help.add_theme_color_override("font_outline_color", Color.BLACK)
+	help.add_theme_constant_override("outline_size", int(6 * k))
+	box.add_child(help)
 	_update_help()
 
 
@@ -409,7 +414,9 @@ func _process(delta: float) -> void:
 	if Input.is_physical_key_pressed(KEY_Q): move.y -= 1.0
 	var speed := fly_speed * (4.0 if Input.is_physical_key_pressed(KEY_SHIFT) else 1.0)
 	if move != Vector3.ZERO:
-		camera.position += camera.global_transform.basis * move.normalized() * speed * delta
+		# Вперёд и вбок — по взгляду, вверх и вниз — по отвесу.
+		var step := camera.global_transform.basis * Vector3(move.x, 0.0, move.z) + Vector3(0.0, move.y, 0.0)
+		camera.position += step.normalized() * speed * delta
 	var turn := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_LEFT): turn.x += 1.0
 	if Input.is_physical_key_pressed(KEY_RIGHT): turn.x -= 1.0
@@ -458,10 +465,6 @@ func _probe() -> void:
 func _shots() -> void:
 	DirAccess.make_dir_recursive_absolute(shots_dir)
 	get_viewport().scaling_3d_scale = shot_scale
-	terrain.visible = not no_land
-	sea.visible = not no_sea
-	if no_aniso:
-		get_viewport().anisotropic_filtering_level = Viewport.ANISOTROPY_DISABLED
 	# Небо под землю светит через карту отражений, она обновляется по частям — нужно несколько кадров.
 	camera.look_at_from_position(at(600.0, 900.0, 5200.0), at(6300.0, 6000.0, 100.0), Vector3.UP)
 	for i in 10:
@@ -470,9 +473,11 @@ func _shots() -> void:
 	# по горизонтали — это 59° по вертикали): небо с землёй, небо в сторону солнца, одно небо; остальные —
 	# камера игры (35°).
 	var eye := at(4300.0, 4000.0, 420.0)
+	var sun_side := deg_to_rad(float(SKIES[sky_name]["sun_side"]))
+	var toward_sun := eye + Vector3(sin(sun_side), 0.0, cos(sun_side)) * 5000.0 + Vector3(0.0, 980.0, 0.0)
 	var views := [
 		["nebo-zemlya", eye, at(6800.0, 6900.0, 1150.0), 59.0],
-		["nebo-solntse", eye, at(1430.0, 8095.0, 1400.0), 59.0],
+		["nebo-solntse", eye, toward_sun, 59.0],
 		["nebo", eye, at(6000.0, 6000.0, 3600.0), 59.0],
 		["obshchiy", at(600.0, 900.0, 5200.0), at(6300.0, 6000.0, 100.0), 35.0],
 		["gorizont", at(2600.0, 2200.0, 1500.0), at(7800.0, 7600.0, 300.0), 35.0],

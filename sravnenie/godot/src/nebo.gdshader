@@ -37,11 +37,20 @@ uniform vec3 camera_place = vec3(0.0);
 // ПРАВКА: яркость облаков (свет солнца в облаке и рассеянный свет) — тоже под образец.
 uniform float cloud_sun : hint_range(0.0, 4.0) = 1.0;
 uniform float cloud_ambient : hint_range(0.0, 4.0) = 1.0;
+// ПРАВКА: плавное насыщение яркости облака вместо обрезки (0 — как в образце, обрезка): в сторону солнца
+// облака не выгорают в ровное белое пятно, а сохраняют светотень.
+uniform float cloud_shoulder : hint_range(0.0, 4.0) = 0.0;
+// ПРАВКА: предел яркости «в сторону солнца» (в образце облако против солнца в одиннадцать раз ярче, чем сбоку,
+// и выгорает; в настоящем облаке многократное рассеяние эту разницу сглаживает). 10 — как в образце.
+uniform float phase_cap : hint_range(0.05, 10.0) = 10.0;
+// ПРАВКА: оттенок света облаков (в образце Unreal светлые места чуть тёплые).
+uniform vec3 cloud_tint = vec3(1.0);
 
 // Approximately earth sizes
 const float g_radius = 6000000.0; //ground radius
-const float sky_b_radius = 6001500.0;//bottom of cloud layer
-const float sky_t_radius = 6004000.0;//top of cloud layer
+// ПРАВКА: высоты слоя облаков над землёй — числами (в образце кромка 1500 м, верх 4000 м).
+uniform float cloud_bottom = 1500.0;
+uniform float cloud_top = 4000.0;
 
 uniform float rayleigh : hint_range(0, 64) = 2.0;
 uniform vec4 rayleigh_color : source_color = vec4(0.26, 0.41, 0.58, 1.0);
@@ -142,7 +151,7 @@ vec3 background_sky(vec3 eye_dir) {
 }
 
 float GetHeightFractionForPoint(float inPosition) { 
-	float height_fraction = (inPosition -  sky_b_radius) / (sky_t_radius - sky_b_radius); 
+	float height_fraction = (inPosition - (g_radius + cloud_bottom)) / (cloud_top - cloud_bottom);
 	return clamp(height_fraction, 0.0, 1.0);
 }
 
@@ -201,7 +210,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 	float ss = length(dir);
 	dir = normalize(dir);
 	vec3 p = pos + dir * hash(pos * 10.0) * ss;
-	const float t_dist = sky_t_radius-sky_b_radius;
+	float t_dist = cloud_top - cloud_bottom;
 	float lss = (t_dist / 36.0);
 	vec3 ldir = normalize(LIGHT0_DIRECTION);
 	vec3 L = vec3(0.0);
@@ -210,6 +219,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 	float costheta = dot(ldir, dir);
 	// Stack multiple phase functions to emulate some backscattering
 	float phase = max(max(henyey_greenstein(costheta, 0.6), henyey_greenstein(costheta, (0.4 - 1.4 * ldir.y))), henyey_greenstein(costheta, -0.2));
+	phase = min(phase, phase_cap);
 	// Precalculate sun and ambient colors
 	// This should really come from a uniform or texture for performance reasons
 	vec3 atmosphere_sun = atmosphere(LIGHT0_DIRECTION) * LIGHT0_ENERGY * ss * 0.1;
@@ -261,6 +271,10 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 			L += (ambient * cloud_ambient + beers_total * atmosphere_sun * cloud_sun * phase * alpha) * T * t;
 		}
 	}
+	if (cloud_shoulder > 0.0) {
+		L = 1.0 - exp(-L * cloud_shoulder);
+	}
+	L *= cloud_tint;
 	return clamp(vec4(L, alpha), 0.0, 1.0);
 }
 
@@ -270,9 +284,9 @@ vec3 sky_with_clouds(vec3 dir) {
 	if (dir.y <= 0.0) {
 		return background_sky(dir);
 	}
-	vec3 camPos = vec3(0.0, g_radius + clamp(camera_place.y, 0.0, 1300.0), 0.0);
-	vec3 start = camPos + dir * intersectSphere(camPos, dir, sky_b_radius);
-	vec3 end = camPos + dir * intersectSphere(camPos, dir, sky_t_radius);
+	vec3 camPos = vec3(0.0, g_radius + clamp(camera_place.y, 0.0, cloud_bottom - 200.0), 0.0);
+	vec3 start = camPos + dir * intersectSphere(camPos, dir, g_radius + cloud_bottom);
+	vec3 end = camPos + dir * intersectSphere(camPos, dir, g_radius + cloud_top);
 	float shelldist = (length(end-start));
 	vec3 shift = vec3(camera_place.x, 0.0, camera_place.z);
 	start += shift;
