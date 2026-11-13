@@ -85,53 +85,52 @@ func _build_terrain() -> void:
 
 	terrain = Terrain3D.new()
 	terrain.name = "Terrain3D"
+	terrain.free_editor_textures = false
 	add_child(terrain, true)
 	terrain.set_camera(camera)
 	terrain.vertex_spacing = side / float(size)
 	terrain.region_size = Terrain3D.SIZE_1024
 	terrain.mesh_lods = 8
 	terrain.material.world_background = Terrain3DMaterial.NONE
-	terrain.material.auto_shader_enabled = true
-	terrain.material.set_shader_param("auto_slope", 4.0)
-	terrain.assets.set_texture_asset(0, await _flat_texture("Земля", Color(0.33, 0.36, 0.22), Color(0.42, 0.40, 0.27)))
-	terrain.assets.set_texture_asset(1, await _flat_texture("Скала", Color(0.62, 0.60, 0.54), Color(0.74, 0.72, 0.66)))
-	terrain.data.import_images([heights, null, null], Vector3(-side * 0.5, 0.0, -side * 0.5), 0.0, 1.0)
+	# Готовые средства дополнения против повтора плитки издали: второй, крупный масштаб и пятна цвета.
+	terrain.material.dual_scaling_enabled = true
+	terrain.material.macro_variation_enabled = true
+
+	# Материалы: свободные фотосканы, подготовленные teksturi.py.
+	var table: Array = JSON.parse_string(FileAccess.get_file_as_string(DATA + "materialy.json"))
+	for i in table.size():
+		var asset := Terrain3DTextureAsset.new()
+		asset.name = table[i]["imya"]
+		asset.albedo_texture = load("res://teksturi/%s_alb.png" % table[i]["imya"])
+		asset.normal_texture = load("res://teksturi/%s_nrm.png" % table[i]["imya"])
+		asset.uv_scale = 1.0 / float(table[i]["plitka_m"])
+		terrain.assets.set_texture_asset(i, asset)
+
+	# Раскладка материалов: по 32 бита на точку в виде дополнения, без пересчёта.
+	var bits := FileAccess.get_file_as_bytes(DATA + "kontrol.u32")
+	assert(bits.size() == size * size * 4, "карта раскладки не того размера")
+	var control := Image.create_from_data(size, size, false, Image.FORMAT_RF, bits)
+	terrain.data.import_images([heights, control, null], Vector3(-side * 0.5, 0.0, -side * 0.5), 0.0, 1.0)
 	var range_now: Vector2 = terrain.data.get_height_range()
 	print("МИР земля загружена за ", Time.get_ticks_msec() - t0, " мс; высоты ", range_now)
+	_build_sea()
 
 
-## Временная текстура ровного цвета с шумом — пока не подключены настоящие материалы.
-func _flat_texture(title: String, a: Color, b: Color) -> Terrain3DTextureAsset:
-	var noise := FastNoiseLite.new()
-	noise.frequency = 0.02
-	var gradient := Gradient.new()
-	gradient.set_color(0, a)
-	gradient.set_color(1, b)
-	var tex := NoiseTexture2D.new()
-	tex.width = 512
-	tex.height = 512
-	tex.seamless = true
-	tex.noise = noise
-	tex.color_ramp = gradient
-	tex.generate_mipmaps = true
-	await tex.changed
-	var albedo := tex.get_image()
-	albedo.convert(Image.FORMAT_RGBA8)
-	for y in albedo.get_height():
-		for x in albedo.get_width():
-			var c := albedo.get_pixel(x, y)
-			c.a = c.v
-			albedo.set_pixel(x, y, c)
-	albedo.generate_mipmaps()
-	var normal := Image.create_empty(512, 512, false, Image.FORMAT_RGBA8)
-	normal.fill(Color(0.5, 0.5, 1.0, 0.85))
-	normal.generate_mipmaps()
-	var asset := Terrain3DTextureAsset.new()
-	asset.name = title
-	asset.albedo_texture = ImageTexture.create_from_image(albedo)
-	asset.normal_texture = ImageTexture.create_from_image(normal)
-	asset.uv_scale = 0.05
-	return asset
+## Море: пока ровная гладь без волн — чтобы видеть берег. Настоящая вода — следующим шагом.
+func _build_sea() -> void:
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(60000.0, 60000.0)
+	var material := StandardMaterial3D.new()
+	material.albedo_color = Color(0.04, 0.22, 0.34, 0.86)
+	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	material.roughness = 0.08
+	material.metallic = 0.0
+	var sea := MeshInstance3D.new()
+	sea.mesh = plane
+	sea.material_override = material
+	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	sea.position = Vector3(0.0, float(info["more_m"]), 0.0)
+	add_child(sea)
 
 
 func _shots() -> void:
