@@ -43,8 +43,14 @@ uniform float cloud_shoulder : hint_range(0.0, 4.0) = 0.0;
 // ПРАВКА: предел яркости «в сторону солнца» (в образце облако против солнца в одиннадцать раз ярче, чем сбоку,
 // и выгорает; в настоящем облаке многократное рассеяние эту разницу сглаживает). 10 — как в образце.
 uniform float phase_cap : hint_range(0.05, 10.0) = 10.0;
-// ПРАВКА: оттенок света облаков (в образце Unreal светлые места чуть тёплые).
+// ПРАВКА: оттенок света облаков (в образце Unreal светлые места чуть тёплые) и оттенок самого солнечного
+// света в облаке: на закате формула даёт свет почти без синего, и облака выходят горчичными, а не персиковыми.
 uniform vec3 cloud_tint = vec3(1.0);
+uniform vec3 sun_tint = vec3(1.0);
+// ПРАВКА: собственный рассеянный свет толщи облака — цвет, темнее которого плотное облако не бывает. В образце
+// низ сплошной облачности выходил чёрным: свет солнца сквозь толщу не проходит, а рассеянного почти нет.
+// Низкие части облака темнее высоких — так у сплошной облачности остаётся рисунок, а не ровная пелена.
+uniform vec3 cloud_floor = vec3(0.0);
 
 // Approximately earth sizes
 const float g_radius = 6000000.0; //ground radius
@@ -222,7 +228,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 	phase = min(phase, phase_cap);
 	// Precalculate sun and ambient colors
 	// This should really come from a uniform or texture for performance reasons
-	vec3 atmosphere_sun = atmosphere(LIGHT0_DIRECTION) * LIGHT0_ENERGY * ss * 0.1;
+	vec3 atmosphere_sun = atmosphere(LIGHT0_DIRECTION) * sun_tint * LIGHT0_ENERGY * ss * 0.1;
 	vec3 atmosphere_ambient = atmosphere(normalize(vec3(1.0, 1.0, 0.0)));
 	vec3 atmosphere_ground = atmosphere(normalize(vec3(1.0, -1.0, 0.0)));
 	
@@ -239,6 +245,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 
 		t = density(p, weather_sample, 0.0);
 		float dt = exp(-_density*t*ss);
+		L += cloud_floor * mix(0.6, 1.6, height_fraction) * T * (1.0 - dt);
 		T *= dt;
 		vec3 lp = p;
 		float lt = 1.0;
@@ -269,6 +276,11 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 			vec3 ambient = mix(atmosphere_ground, vec3(1.0), smoothstep(0.0, 1.0, height_fraction)) * _density * mix(atmosphere_ambient, vec3(1.0), 0.4) * (LIGHT0_DIRECTION.y);
 			alpha += (1.0 - dt) * (1.0 - alpha);
 			L += (ambient * cloud_ambient + beers_total * atmosphere_sun * cloud_sun * phase * alpha) * T * t;
+			// ПРАВКА: луч, который уже ничего не пропускает, дальше не считается: в плотном облаке и под
+			// сплошной облачностью остальные шаги ничего не добавляют к картинке, а стоят как полные.
+			if (T < 0.01) {
+				break;
+			}
 		}
 	}
 	if (cloud_shoulder > 0.0) {

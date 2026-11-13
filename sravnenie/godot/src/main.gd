@@ -108,21 +108,25 @@ const SKIES := {
 		"rayleigh_color": Color(0.24, 0.32, 0.48), "sky_saturation": 1.53,
 		"haze_color": Vector3(0.64, 0.60, 0.48), "haze_strength": 0.68, "haze_power": 10.0, "sun_disk_scale": 2.0,
 		"cloud_sun": 1.0, "cloud_ambient": 0.75, "cloud_shoulder": 1.0, "phase_cap": 0.2,
-		"cloud_tint": Vector3(1.0, 0.975, 0.94)}},
+		"cloud_tint": Vector3(1.0, 0.975, 0.94), "sun_tint": Vector3(1.0, 1.0, 1.0),
+		"cloud_floor": Vector3(0.0, 0.0, 0.0)}},
 	"zakat": {"sun_height": 7.0, "sun_side": 262.0, "energy": 1.0, "shader": {
 		"cloud_coverage": 0.22, "_density": 0.05, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 4500.0,
 		"exposure": 0.12, "rayleigh": 1.6, "turbidity": 5.0, "mie": 0.005,
 		"rayleigh_color": Color(0.32, 0.44, 0.67), "sky_saturation": 1.34,
 		"haze_color": Vector3(0.8, 0.5, 0.3), "haze_strength": 0.5, "haze_power": 12.0, "sun_disk_scale": 2.0,
-		"cloud_sun": 1.0, "cloud_ambient": 0.9, "cloud_shoulder": 1.0, "phase_cap": 0.35,
-		"cloud_tint": Vector3(1.0, 1.0, 1.0)}},
+		"cloud_sun": 1.0, "cloud_ambient": 3.5, "cloud_shoulder": 1.0, "phase_cap": 0.35,
+		"cloud_tint": Vector3(1.0, 1.0, 1.0), "sun_tint": Vector3(1.0, 0.85, 1.5),
+		"cloud_floor": Vector3(0.05, 0.05, 0.075)}},
+	# Шторм: сплошная тёмная облачность с просветами; низ облаков освещён рассеянным светом, не чёрный.
 	"shtorm": {"sun_height": 40.0, "sun_side": 215.0, "energy": 0.45, "shader": {
-		"cloud_coverage": 0.95, "_density": 0.12, "weather_scale": 0.00006, "cloud_bottom": 1500.0, "cloud_top": 4000.0,
-		"exposure": 0.1, "rayleigh": 2.0, "turbidity": 14.0, "mie": 0.005,
+		"cloud_coverage": 0.72, "_density": 0.06, "weather_scale": 0.00006, "cloud_bottom": 1500.0, "cloud_top": 4000.0,
+		"exposure": 0.13, "rayleigh": 2.0, "turbidity": 14.0, "mie": 0.005,
 		"rayleigh_color": Color(0.26, 0.41, 0.58), "sky_saturation": 0.6,
-		"haze_color": Vector3(0.2, 0.21, 0.22), "haze_strength": 0.6, "haze_power": 6.0, "sun_disk_scale": 1.0,
-		"cloud_sun": 1.0, "cloud_ambient": 1.0, "cloud_shoulder": 0.0, "phase_cap": 10.0,
-		"cloud_tint": Vector3(1.0, 1.0, 1.0)}},
+		"haze_color": Vector3(0.15, 0.165, 0.19), "haze_strength": 0.85, "haze_power": 5.0, "sun_disk_scale": 1.0,
+		"cloud_sun": 0.8, "cloud_ambient": 5.0, "cloud_shoulder": 1.0, "phase_cap": 0.2,
+		"cloud_tint": Vector3(0.9, 0.95, 1.0), "sun_tint": Vector3(1.0, 1.0, 1.0),
+		"cloud_floor": Vector3(0.075, 0.085, 0.1)}},
 }
 
 
