@@ -98,6 +98,7 @@ var error := ""
 ## Сколько квадратных метров суши ниже высоты наката закрыто для моря (см. _swash_mask): дно глубоких озёр и ложбины
 ## за берегом, с морем не связанные. И две самые низкие такие точки — на дне озера и в ложбине вне озёр (её может
 ## и не быть: тогда высота — INF); по ним облёт проверяет, что море там не рисуется.
+var lod_switches := 0  ## сколько раз плитки земли меняли сетку (для разбора пролёта камеры)
 var swash_closed := 0.0
 var swash_closed_place := Vector2.ZERO
 var swash_closed_height := INF
@@ -452,6 +453,7 @@ func _pick_lod(distance: float) -> int:
 
 ## Сетка плитки и сглаживание высот под её шаг: высоты берутся из уменьшенной копии запечённого рельефа.
 func _set_lod(chunk: Chunk, lod: int) -> void:
+	lod_switches += 1
 	chunk.lod = lod
 	chunk.instance.mesh = _lod_meshes[lod]
 	chunk.instance.set_instance_shader_parameter("height_lod", float(lod))
@@ -488,6 +490,11 @@ func _make_terrain_material(world: WorldData, region: Region) -> ShaderMaterial:
 	material.set_shader_parameter("grid_strength", 0.5 if _grid_visible else 0.0)
 	material.set_shader_parameter("lod_distance", Vector2(LOD_DISTANCE[0], LOD_DISTANCE[1]))
 	material.set_shader_parameter("morph_start", MORPH_START)
+	# Уменьшенная копия рельефа под шаг сетки уровня: log2(шаг сетки / шаг запекания), не меньше нуля.
+	var mips := Vector3.ZERO
+	for i in LOD_CELLS.size():
+		mips[i] = maxf(log(CHUNK / float(LOD_CELLS[i]) / TEXEL) / log(2.0), 0.0)
+	material.set_shader_parameter("lod_mip", mips)
 	return material
 
 

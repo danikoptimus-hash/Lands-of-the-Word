@@ -11,7 +11,7 @@ var lowest := 0.0
 var highest := 0.0
 ## Высоты соседних областей (малые острова запекаются отдельно): точку вне своей области ищем в них.
 var extras: Array[HeightMap] = []
-var outside := -60.0  ## высота там, где ничего не запечено: открытое море
+var outside := -60.0 * HexMath.WORLD_SCALE  ## высота там, где ничего не запечено: открытое море
 
 var _data := PackedFloat32Array()
 

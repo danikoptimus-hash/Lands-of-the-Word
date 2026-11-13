@@ -49,6 +49,9 @@ instance uniform float height_lod = 0.0;
 uniform vec3 viewer_position = vec3(0.0, 1.0e6, 0.0);
 uniform vec2 lod_distance = vec2(2000.0, 4500.0);
 uniform float morph_start = 0.7;
+// Какая уменьшенная копия рельефа нужна сетке каждого уровня: ровно под её шаг (шаг сетки / шаг запекания), а не
+// «на уровень грубее» — иначе с удалением вершины и обрывы заметно оседали (источник высот один на все уровни).
+uniform vec3 lod_mip = vec3(0.0, 1.0, 2.0);
 
 varying vec3 world_position;
 
@@ -66,7 +69,9 @@ void vertex() {
 	float morph = clamp(detail_level(VERTEX.xz) - height_lod, 0.0, 1.0);
 	VERTEX.xz -= UV2 * morph;
 	vec2 uv = (VERTEX.xz - bake_rect.xy) / bake_rect.zw;
-	float h = textureLod(height_map, uv, height_lod + morph).r;
+	float level = height_lod + morph;
+	float mip = level < 1.0 ? mix(lod_mip.x, lod_mip.y, level) : mix(lod_mip.y, lod_mip.z, min(level - 1.0, 1.0));
+	float h = textureLod(height_map, uv, mip).r;
 	// «Юбка» по краю плитки закрывает щели между уровнями детализации.
 	VERTEX.y = h - UV.x * skirt_depth;
 	world_position = vec3(VERTEX.x, h, VERTEX.z);

@@ -157,6 +157,20 @@ func reset() -> void:
 	lowest = INF
 
 
+## Густота деревьев в точке мира, 0…1 (дуб, сосна и олива по картам густоты) — для выбора мест кадров.
+func tree_density(point: Vector2) -> float:
+	for job in _plantings:
+		if not job.area.has_point(point):
+			continue
+		var tx := clampi(int((point.x - job.rect.position.x) / job.texel), 0, job.width - 1)
+		var ty := clampi(int((point.y - job.rect.position.y) / job.texel), 0, job.height - 1)
+		var at := (ty * job.width + tx) * 4
+		if job.c[at + 3] < 128:
+			return 0.0
+		return float(int(job.a[at]) + int(job.a[at + 1]) + int(job.a[at + 2])) / 765.0
+	return 0.0
+
+
 ## Идёт ли ещё посадка плиток вокруг камеры.
 func is_busy() -> bool:
 	return _running > 0 or _backlog > 0

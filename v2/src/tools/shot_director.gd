@@ -40,6 +40,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	var checks_only := false
 	var only := PackedStringArray()
 	var profile_views := PackedStringArray()
+	var flight := PackedStringArray()
 	var lights := PackedStringArray()
 	var waters := PackedStringArray()
 	var water_times := PackedStringArray()
@@ -47,6 +48,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--profile="):
 			profile_views = argument.trim_prefix("--profile=").split(";", false)
+		elif argument.begins_with("--flight="):
+			flight = argument.trim_prefix("--flight=").split(";", false)
 		elif argument == "--quick":
 			quick = true
 		elif argument == "--checks":
@@ -68,6 +71,10 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 
 	if not profile_views.is_empty():
 		await _profile(profile_views)
+		get_tree().quit(0)
+		return
+	if not flight.is_empty():
+		await _flight(flight)
 		get_tree().quit(0)
 		return
 
@@ -515,6 +522,80 @@ func _check_mountain_camera(stops: Array) -> void:
 	_check("камера у гор идёт плавно и не уходит в склон", pan_jolt < 0.6 and zoom_jolt < 1.2 and turns <= 2 and lowest > 3.0,
 			"толчок по высоте за 1/60 с: при проходе %.2f м, при приближении %.2f м (%s); разворотов рывком %d; ближе всего к земле %.1f м"
 			% [pan_jolt, zoom_jolt, zoom_where, turns, lowest])
+
+
+## Непрерывный пролёт камеры кадр за кадром (ключ --flight=место;место;…;кадров): между соседними местами —
+## столько кадров, расстояние меняется в масштабе (каждый кадр — на ту же долю ближе). Кадры polet-NNNN.png
+## складываются в папку (из них собирается видео), в журнал — что менялось на каждом кадре: расстояние, сколько
+## треугольников, вызовов отрисовки и объектов в кадре, сколько плиток земли сменили сетку, сколько деревьев
+## и пачек растительности стоит. Так переходы уровней подробности видны в рабочей среде, где самого движения
+## не видно. Вместо кода места можно написать «etalon@расстояние»: эталонный участок — город, а рядом лес.
+func _flight(parts: PackedStringArray) -> void:
+	var frames := maxi(parts[parts.size() - 1].to_int(), 2)
+	var views: Array[CameraView] = []
+	for i in parts.size() - 1:
+		var view: CameraView = null
+		if parts[i].begins_with("etalon@"):
+			view = CameraView.make(_reference_place(), parts[i].trim_prefix("etalon@").to_float(), 25.0, 0.0)
+		else:
+			view = CameraView.from_code(parts[i])
+		if view == null:
+			print("ПРОЛЁТ пропущен: непонятное место «%s»" % parts[i])
+			return
+		views.append(view)
+	if views.size() < 2:
+		return
+	var flora: Flora = null
+	for node in get_tree().root.find_children("*", "Flora", true, false):
+		flora = node
+	_hud.visible = false
+	var number := 0
+	for segment in views.size() - 1:
+		for i in frames:
+			var view := CameraView.blend(views[segment], views[segment + 1], float(i) / float(frames - 1 if segment == views.size() - 2 else frames))
+			_rig.set_view(view)
+			var switches := _terrain.lod_switches
+			get_viewport().scaling_3d_scale = 0.25
+			await _frames(2)
+			get_viewport().scaling_3d_scale = render_scale
+			var started := Time.get_ticks_msec()
+			await _frames(1)
+			await _capture("polet-%04d" % number)
+			var trees := 0
+			if flora != null:
+				for kind in 6:
+					trees += flora.counts[kind]
+			print("ПРОЛЁТ %04d: расстояние %.0f м, камера на высоте %.0f м; треугольников %d, вызовов отрисовки %d, объектов %d; плиток земли сменили сетку: %d; деревьев %d, пачек %d; кадр %d мс" % [
+					number, view.distance, _rig.camera.global_position.y,
+					RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME),
+					RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+					RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME),
+					_terrain.lod_switches - switches, trees, flora.batches if flora != null else 0, Time.get_ticks_msec() - started])
+			number += 1
+	_hud.visible = true
+
+
+## Эталонный участок для приёмки: город, а рядом лес — точка между стеной города и ближайшим густым лесом.
+## Берётся первый город со стеной, у которого в 300–700 м есть густой лес; место определяется картой, а не числами.
+func _reference_place() -> Vector2:
+	var flora: Flora = null
+	for node in get_tree().root.find_children("*", "Flora", true, false):
+		flora = node
+	var best := _world.land_rect.get_center()
+	var best_score := -1.0
+	for site in _world.sites:
+		if site.kind != "CITY" or flora == null:
+			continue
+		for i in 24:
+			var heading := Vector2.from_angle(TAU * float(i) / 24.0)
+			for away: float in [320.0, 420.0, 520.0]:
+				var at: Vector2 = site.position + heading * away
+				# Лес — не одна клетка: густо должно быть и чуть дальше от города.
+				var score := minf(flora.tree_density(at), flora.tree_density(at + heading * 120.0))
+				if score > best_score and _terrain.height_map.sample(at) > 2.0:
+					best_score = score
+					best = site.position + heading * (away * 0.62)
+	return best
 
 
 ## «Толчок» камеры за шаг: насколько изменилась её скорость по высоте сверх плавного торможения. Камера догоняет
