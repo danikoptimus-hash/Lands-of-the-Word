@@ -48,8 +48,10 @@ if [ ! -d "$here/addons/SunshineClouds2" ]; then
 fi
 
 # Данные основы: копии под именами, которые движок не пытается импортировать как картинки.
-for name in vysoty maski porody; do
+for name in maski porody; do
 	cp "$root/sravnenie/osnova/dannye/$name.png" "$here/dannye/$name.bin"
 done
+cp "$root/sravnenie/osnova/dannye/vysoty.r16" "$here/dannye/vysoty.r16"
+rm -f "$here/dannye/vysoty.bin"
 cp "$root/sravnenie/osnova/dannye/opisanie.json" "$here/dannye/opisanie.json"
 echo "Готово: дополнения в $here/addons, данные в $here/dannye"

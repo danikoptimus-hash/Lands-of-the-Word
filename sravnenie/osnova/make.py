@@ -6,6 +6,7 @@ Terrain Tiles (Mapzen/AWS, формат terrarium): https://registry.opendata.aw
 
 Что получается (папка dannye/):
   vysoty.png   — высоты, 16 бит, SIZE × SIZE; метры = H_MIN + значение / 65535 × (H_MAX − H_MIN)
+  vysoty.r16   — те же высоты без сжатия (по два байта, младший первым) — для движков
   maski.png    — RGBA по 8 бит: R скала, G густота деревьев, B густота кустов, A пляж (галька, песок)
   porody.png   — RGB по 8 бит: R доля сосен, G доля широколистных, B запас; остальное — оливы
   opisanie.json — размеры, пределы высот, уровень моря, правило расстановки
@@ -171,6 +172,9 @@ def build():
     os.makedirs(OUT, exist_ok=True)
     h16 = np.round((height - H_MIN) / (H_MAX - H_MIN) * 65535.0).astype(np.uint16)
     Image.fromarray(h16).save(os.path.join(OUT, "vysoty.png"), optimize=True)
+    # То же без сжатия: по два байта на точку, младший первым, строка 0 — север. Этот вид читают напрямую
+    # и Unreal (Landscape), и Unity (Terrain), и Godot.
+    h16.astype("<u2").tofile(os.path.join(OUT, "vysoty.r16"))
     to8 = lambda a: np.round(np.clip(a, 0.0, 1.0) * 255.0).astype(np.uint8)
     Image.fromarray(np.dstack([to8(rock), to8(trees), to8(shrubs), to8(beach)]), "RGBA").save(os.path.join(OUT, "maski.png"), optimize=True)
     Image.fromarray(np.dstack([to8(pine), to8(broad), np.zeros_like(to8(pine))]), "RGB").save(os.path.join(OUT, "porody.png"), optimize=True)

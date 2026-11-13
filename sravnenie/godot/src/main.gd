@@ -72,11 +72,16 @@ func _load_png(file: String) -> Image:
 
 func _build_terrain() -> void:
 	var t0 := Time.get_ticks_msec()
-	var heights := _load_png("vysoty.bin")
-	print("МИР формат высот: ", heights.get_format(), " ", heights.get_width(), "×", heights.get_height())
-	heights.convert(Image.FORMAT_RF)
 	var h_min := float(info["vysota_min_m"])
 	var h_range := float(info["vysota_max_m"]) - h_min
+	# Высоты: по два байта на точку (0…65535), переводим в метры сразу.
+	var raw := FileAccess.get_file_as_bytes(DATA + "vysoty.r16")
+	assert(raw.size() == size * size * 2, "высоты не того размера")
+	var metres := PackedFloat32Array()
+	metres.resize(size * size)
+	for i in size * size:
+		metres[i] = h_min + raw.decode_u16(i * 2) / 65535.0 * h_range
+	var heights := Image.create_from_data(size, size, false, Image.FORMAT_RF, metres.to_byte_array())
 
 	terrain = Terrain3D.new()
 	terrain.name = "Terrain3D"
@@ -90,7 +95,7 @@ func _build_terrain() -> void:
 	terrain.material.set_shader_param("auto_slope", 4.0)
 	terrain.assets.set_texture_asset(0, await _flat_texture("Земля", Color(0.33, 0.36, 0.22), Color(0.42, 0.40, 0.27)))
 	terrain.assets.set_texture_asset(1, await _flat_texture("Скала", Color(0.62, 0.60, 0.54), Color(0.74, 0.72, 0.66)))
-	terrain.data.import_images([heights, null, null], Vector3(-side * 0.5, 0.0, -side * 0.5), h_min / h_range, h_range)
+	terrain.data.import_images([heights, null, null], Vector3(-side * 0.5, 0.0, -side * 0.5), 0.0, 1.0)
 	var range_now: Vector2 = terrain.data.get_height_range()
 	print("МИР земля загружена за ", Time.get_ticks_msec() - t0, " мс; высоты ", range_now)
 
