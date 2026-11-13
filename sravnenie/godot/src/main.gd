@@ -2,8 +2,8 @@ extends Node3D
 ## Сцена для сравнения движков: берег Корфу в Godot.
 ## Земля — готовое дополнение Terrain3D; место, покров и расстановка — общая основа (sravnenie/osnova).
 ## Ключи запуска: --kadry=ПАПКА — снять контрольные виды в папку и выйти;
-## --bez-oblakov — без объёмных облаков (на программной отрисовке рабочей среды дополнение облаков
-## красит всю землю чёрным; на настоящей видеокарте не проверено).
+## --nebo=den|zakat|shtorm — состояние неба; --sunshine — включить дополнение SunshineClouds2 (на встроенной
+## графике Intel и на программной отрисовке оно не работает; оставлено для справки).
 
 const DATA := "res://dannye/"
 
@@ -14,7 +14,9 @@ var terrain: Terrain3D
 var camera: Camera3D
 var sun: DirectionalLight3D
 var shots_dir := ""
-var with_clouds := true
+var with_clouds := false
+var sky_name := "den"
+var sky_material: ShaderMaterial
 var world: WorldEnvironment
 var clouds: SunshineCloudsGD
 var sea_material: ShaderMaterial
@@ -27,8 +29,10 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--kadry="):
 			shots_dir = a.trim_prefix("--kadry=")
-		if a == "--bez-oblakov":
-			with_clouds = false
+		if a == "--sunshine":
+			with_clouds = true
+		if a.begins_with("--nebo="):
+			sky_name = a.trim_prefix("--nebo=")
 	info = JSON.parse_string(FileAccess.get_file_as_string(DATA + "opisanie.json"))
 	side = float(info["storona_m"])
 	size = int(info["razmer"])
@@ -47,14 +51,30 @@ func at(u: float, v: float, h: float) -> Vector3:
 	return Vector3(u - side * 0.5, h, side * 0.5 - v)
 
 
+## Состояния неба: высота и сторона солнца (градусы), сила света, облачность и плотность облаков.
+const SKIES := {
+	"den": {"sun_height": 52.0, "sun_side": 215.0, "energy": 1.0, "coverage": 0.25, "density": 0.05, "exposure": 0.1},
+	"zakat": {"sun_height": 7.0, "sun_side": 262.0, "energy": 1.0, "coverage": 0.3, "density": 0.05, "exposure": 0.1},
+	"shtorm": {"sun_height": 40.0, "sun_side": 215.0, "energy": 0.45, "coverage": 0.95, "density": 0.12, "exposure": 0.1},
+}
+
+
 func _build_sky() -> void:
-	var sky_material := ProceduralSkyMaterial.new()
+	sky_material = ShaderMaterial.new()
+	sky_material.shader = load("res://src/nebo.gdshader")
+	sky_material.set_shader_parameter("worlnoise", load("res://nebo/worlnoise.bmp"))
+	sky_material.set_shader_parameter("perlworlnoise", load("res://nebo/perlworlnoise.tga"))
+	sky_material.set_shader_parameter("weathermap", load("res://nebo/weather.bmp"))
 	var sky := Sky.new()
 	sky.sky_material = sky_material
+	# Отражение неба для света пересчитывать понемногу, а не каждый кадр целиком: облака дорогие.
+	sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
+	sky.radiance_size = Sky.RADIANCE_SIZE_128
 	var env := Environment.new()
 	env.background_mode = Environment.BG_SKY
 	env.sky = sky
-	env.tonemap_mode = Environment.TONE_MAPPER_AGX
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	env.tonemap_white = 3.22
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	world = WorldEnvironment.new()
 	world.environment = env
@@ -62,9 +82,23 @@ func _build_sky() -> void:
 	sun = DirectionalLight3D.new()
 	sun.shadow_enabled = true
 	sun.directional_shadow_max_distance = 3000.0
-	sun.light_energy = 1.3
 	add_child(sun)
-	sun.look_at_from_position(Vector3.ZERO, Vector3(0.45, -0.75, -0.35).normalized(), Vector3.UP)
+	set_sky(sky_name)
+
+
+## Включить состояние неба: «den», «zakat» или «shtorm».
+func set_sky(title: String) -> void:
+	sky_name = title
+	var look: Dictionary = SKIES[title]
+	var height := deg_to_rad(float(look["sun_height"]))
+	var compass := deg_to_rad(float(look["sun_side"]))
+	# Сторона солнца — по компасу: 0 — север (−Z), 90 — восток (+X).
+	var to_sun := Vector3(sin(compass) * cos(height), sin(height), -cos(compass) * cos(height))
+	sun.look_at_from_position(Vector3.ZERO, -to_sun, Vector3.UP)
+	sun.light_energy = float(look["energy"])
+	sky_material.set_shader_parameter("cloud_coverage", float(look["coverage"]))
+	sky_material.set_shader_parameter("_density", float(look["density"]))
+	sky_material.set_shader_parameter("exposure", float(look["exposure"]))
 
 
 ## Облака: готовое дополнение SunshineClouds2 (объёмные, считаются лучом; MIT). Настройки — его образец,
@@ -193,19 +227,24 @@ func _shots() -> void:
 	DirAccess.make_dir_recursive_absolute(shots_dir)
 	for i in 30:
 		await get_tree().process_frame
+	# Виды: имя, откуда, куда, угол зрения. Первые два — как кадры Unreal владельца (угол 90°): небо с землёй
+	# и одно небо; остальные — камера игры (35°).
 	var views := [
-		["obshchiy", at(600.0, 900.0, 5200.0), at(6300.0, 6000.0, 100.0)],
-		["buhta", at(4350.0, 4150.0, 950.0), at(5414.0, 5333.0, 20.0)],
-		["krony", at(5300.0, 5050.0, 330.0), at(5900.0, 5800.0, 120.0)],
+		["nebo-zemlya", at(4300.0, 4000.0, 420.0), at(6800.0, 6900.0, 900.0), 90.0],
+		["nebo", at(4300.0, 4000.0, 420.0), at(6000.0, 6000.0, 3600.0), 90.0],
+		["obshchiy", at(600.0, 900.0, 5200.0), at(6300.0, 6000.0, 100.0), 35.0],
+		["gorizont", at(2600.0, 2200.0, 1500.0), at(7800.0, 7600.0, 300.0), 35.0],
+		["buhta", at(4350.0, 4150.0, 950.0), at(5414.0, 5333.0, 20.0), 35.0],
 	]
 	for view in views:
+		camera.fov = view[3]
 		camera.look_at_from_position(view[1], view[2], Vector3.UP)
 		for i in 12:
 			await get_tree().process_frame
 		var t0 := Time.get_ticks_usec()
 		await RenderingServer.frame_post_draw
 		var ms := (Time.get_ticks_usec() - t0) / 1000.0
-		var path := shots_dir.path_join(view[0] + ".png")
+		var path := shots_dir.path_join("%s-%s.png" % [sky_name, view[0]])
 		get_viewport().get_texture().get_image().save_png(path)
 		print("КАДР ", view[0], " ", snappedf(ms, 0.1), " мс")
 	print("ИТОГ кадры сняты")

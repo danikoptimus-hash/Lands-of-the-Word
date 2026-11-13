@@ -5,6 +5,10 @@
 # Дополнения (в репозиторий не кладутся, скачиваются сюда по закреплённым версиям):
 #   Terrain3D 1.1.0 (MIT, TokisanGames) — земля: https://github.com/TokisanGames/Terrain3D
 #   SunshineClouds2 (MIT, Bonkahe) — объёмные облака: https://github.com/Bonkahe/SunshineClouds2
+#     (на встроенной графике Intel не работает — в сцене выключено, оставлено для справки)
+# Облака неба — шейдер и текстуры шума из образца Godot Volumetric Cloud Demo (MIT, clayjohn):
+#   https://github.com/clayjohn/godot-volumetric-cloud-demo — сюда берутся только три текстуры шума,
+#   сам шейдер с нашими правками лежит в src/nebo.gdshader.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -49,6 +53,28 @@ fi
 # Образец настроек облаков ссылается на карту облачности в корне проекта.
 if [ ! -f "$here/CloudsMask.exr" ]; then
 	cp "${XDG_CACHE_HOME:-$HOME/.cache}/zemli-slova/sravnenie/sunshineclouds2/CloudsMask.exr" "$here/CloudsMask.exr"
+fi
+
+# Текстуры шума для облаков неба (закреплённая версия образца).
+nebo_commit="6f5ecab"
+if [ ! -f "$here/nebo/perlworlnoise.tga" ]; then
+	src="$cache/godot-volumetric-cloud-demo"
+	if [ ! -d "$src/.git" ]; then
+		echo "Скачиваю образец облаков неба…" >&2
+		GIT_LFS_SKIP_SMUDGE=1 git clone -q --depth 1 https://github.com/clayjohn/godot-volumetric-cloud-demo "$src"
+	fi
+	if [ "$(git -C "$src" rev-parse --short HEAD)" != "$nebo_commit" ]; then
+		echo "Образец облаков неба — не той версии, что закреплена ($nebo_commit)" >&2
+		exit 1
+	fi
+	mkdir -p "$here/nebo"
+	for name in perlworlnoise.tga worlnoise.bmp weather.bmp; do
+		cp "$src/$name" "$here/nebo/$name"
+		# Настройки импорта — как в образце (объёмные текстуры нарезаются из полосы), путь — наш.
+		grep -v -E '^(uid=|path\.|dest_files=|metadata=|"imported_formats"|"vram_texture"|\})' "$src/$name.import" \
+			| sed "s#res://$name#res://nebo/$name#" > "$here/nebo/$name.import"
+	done
+	cp "$src/LICENSE.md" "$here/nebo/LICENSE.md"
 fi
 
 # Данные основы: копии под именами, которые движок не пытается импортировать как картинки.
