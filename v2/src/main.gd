@@ -709,6 +709,8 @@ func _run_bake_impostors() -> void:
 	var table := {}
 	var index := 0
 	for key: Vector2i in keys:
+		if key.x >= FloraMeshes.Kind.SHRUB_GREEN:
+			continue  # кусты и камни вдали не видны — изображения им не нужны
 		var mesh: Mesh = (models[key] as Array)[0]
 		var box := mesh.get_aabb()
 		var square := maxf(box.end.y, maxf(box.size.x, box.size.z)) * 1.06
@@ -723,6 +725,8 @@ func _run_bake_impostors() -> void:
 			instance.set_surface_override_material(surface, material)
 		viewport.add_child(instance)
 		camera.size = square
+		var crown_area := 0.0
+		var crown_color: Array = [0.0, 0.0, 0.0]
 		for view in 2:
 			if view == 0:
 				camera.look_at_from_position(Vector3(0.0, square * 0.5, 300.0), Vector3(0.0, square * 0.5, 0.0), Vector3.UP)
@@ -743,6 +747,11 @@ func _run_bake_impostors() -> void:
 					sum += Vector3(pixel.r, pixel.g, pixel.b) * pixel.a
 					weight += pixel.a
 			var mean := sum / maxf(weight, 1.0)
+			if view == 1:
+				# Вид сверху — мерка для дальней картинки земли: сколько земли закрывает крона и какого она цвета.
+				crown_area = weight / float(CELL * CELL) * square * square
+				var tone := Color(mean.x, mean.y, mean.z).srgb_to_linear()
+				crown_color = [snappedf(tone.r, 0.0001), snappedf(tone.g, 0.0001), snappedf(tone.b, 0.0001)]
 			for y in CELL:
 				for x in CELL:
 					var pixel := shot.get_pixel(x, y)
@@ -751,7 +760,9 @@ func _run_bake_impostors() -> void:
 			var cell := index * 2 + view
 			atlas.blit_rect(shot, Rect2i(0, 0, CELL, CELL), Vector2i((cell % COLUMNS) * CELL, (cell / COLUMNS) * CELL))
 		# Вид сверху ставится на высоте самого широкого места кроны — примерно две трети роста.
-		table["%s_%02d" % [FloraModels.NAMES[key.x], key.y + 1]] = {"index": index * 2, "size": square, "top": box.end.y * 0.62 / square}
+		# cover — площадь кроны модели опорного роста, м²; color — её средний цвет сверху (линейный).
+		table["%s_%02d" % [FloraModels.NAMES[key.x], key.y + 1]] = {"index": index * 2, "size": square, "top": box.end.y * 0.62 / square,
+				"cover": snappedf(crown_area, 0.1), "color": crown_color}
 		instance.queue_free()
 		index += 1
 	atlas.save_png(ProjectSettings.globalize_path("res://assets/models/flora_far.png"))

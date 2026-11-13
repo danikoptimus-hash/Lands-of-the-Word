@@ -180,53 +180,35 @@ build() {
 	fi
 	cp "$root/v2/tools/KAK-ZAPUSTIT.txt" "$folder/win/"
 	(cd "$folder/win" && zip -q -9 ../ZemliSlova-v2-test-win64.zip ./*)
-	BUILD_COMMIT="$commit" BUILD_STAMP="$stamp" python3 - "$root" "$folder" <<'PY'
-import hashlib, json, os, re, sys
-
-root, folder = sys.argv[1], sys.argv[2]
-
-def sha256(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as file:
-        for block in iter(lambda: file.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-version = re.search(r'config/version="([^"]+)"', open(os.path.join(root, "v2/project.godot"), encoding="utf-8").read()).group(1)
-archive = os.path.join(folder, "ZemliSlova-v2-test-win64.zip")
-program = os.path.join(folder, "win/ZemliSlova-v2-test.exe")
-manifest = {
-    "format": 1,
-    "version": version,
-    "commit": os.environ["BUILD_COMMIT"],
-    "build": os.environ["BUILD_STAMP"],
-    "file": os.path.basename(archive),
-    "size": os.path.getsize(archive),
-    "sha256": sha256(archive),
-    "exe": os.path.basename(program),
-    "exe_sha256": sha256(program),
-    "notes": open(os.path.join(root, "v2/data/chto_novogo.txt"), encoding="utf-8").read().strip(),
-}
-with open(os.path.join(folder, "latest.json"), "w", encoding="utf-8") as file:
-    json.dump(manifest, file, ensure_ascii=False, indent=2)
-print("Собрано:", json.dumps({key: manifest[key] for key in ("version", "build", "size")}, ensure_ascii=False))
-PY
+	# Описание сборки и, если архив больше предела GitHub, его части (v2/tools/channel.py); папка chasti —
+	# тот же архив мелкими частями, для проверки скачивания частями.
+	BUILD_COMMIT="$commit" BUILD_STAMP="$stamp" python3 "$root/v2/tools/channel.py" "$root" "$folder" --parts-test
 	rm -rf "$folder/win"
-	# Проверка самообновления: программа берёт описание и архив с местного адреса и ставит их, как у владельца.
-	python3 -m http.server 8765 --bind 127.0.0.1 --directory "$folder" > "$folder/http.log" 2>&1 &
-	local server=$!
-	sleep 1
-	local code=0
-	timeout 300 "$godot" --headless --path "$root/v2" -- "--update-test=http://127.0.0.1:8765/" \
-		"--update-target=$folder/updtest/ZemliSlova-v2-test.exe" > "$folder/update.log" 2>&1 || code=$?
-	kill "$server" 2> /dev/null || true
-	rm -rf "$folder/updtest"
-	grep -E "ПРОВЕРКА|ИТОГ" "$folder/update.log" || true
-	if grep -nE "SCRIPT ERROR|Parse Error|НЕ ПРОЙДЕНА" "$folder/update.log" || [ "$code" -ne 0 ]; then
-		echo "Самообновление не прошло проверку — журнал $folder/update.log" >&2
-		return 1
-	fi
-	echo "Сборка готова: $folder (latest.json и архив — то, что выкладывается в канал «тест»)"
+	# Проверка самообновления: программа берёт описание и архив с местного адреса и ставит их, как у владельца, —
+	# дважды: так, как сборка ляжет в канал, и частями.
+	local served log
+	for served in "$folder" "$folder/chasti"; do
+		log="$folder/update.log"
+		if [ "$served" != "$folder" ]; then
+			log="$folder/update-chasti.log"
+		fi
+		python3 -m http.server 8765 --bind 127.0.0.1 --directory "$served" > "$folder/http.log" 2>&1 &
+		local server=$!
+		sleep 1
+		local code=0
+		timeout 300 "$godot" --headless --path "$root/v2" -- "--update-test=http://127.0.0.1:8765/" \
+			"--update-target=$folder/updtest/ZemliSlova-v2-test.exe" > "$log" 2>&1 || code=$?
+		kill "$server" 2> /dev/null || true
+		wait "$server" 2> /dev/null || true
+		rm -rf "$folder/updtest"
+		grep -E "ПРОВЕРКА|ИТОГ" "$log" || true
+		if grep -nE "SCRIPT ERROR|Parse Error|НЕ ПРОЙДЕНА" "$log" || [ "$code" -ne 0 ]; then
+			echo "Самообновление не прошло проверку — журнал $log" >&2
+			return 1
+		fi
+	done
+	rm -rf "$folder/chasti"
+	echo "Сборка готова: $folder (latest.json и файлы ZemliSlova-v2-test-win64.zip* — то, что выкладывается в канал «тест»)"
 }
 
 command="${1:-}"

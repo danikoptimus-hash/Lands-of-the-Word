@@ -23,10 +23,12 @@ const NOISE := preload("res://assets/terrain/noise.png")
 const CHUNK := 256.0  ## сторона плитки, метры (как у земли)
 const KINDS := 10
 ## Наибольшая густота вида: экземпляров на квадратный метр там, где карта вида равна единице (порядок —
-## FloraMeshes.Kind). Дубрава — дерево на 60 м² (167 на гектар: при кронах в 9–10 м полог сомкнут; до 0.11.0 было
-## на 34 м² — кроны перекрывались вдвое, а стоило это вдвое больше), сосняк — на 64, оливы — на 60, кипарисы теснее.
+## FloraMeshes.Kind). Густота леса — от площади кроны самой модели: в дубраве дерево на 110 м² (91 на гектар; крона
+## дуба среднего роста — около 160 м², полог сомкнут с перекрытием в 1,4 раза), в сосняке — на 86 м² (крона 120 м²).
+## До 0.11.0 дуб стоял на 34 м² — кроны перекрывались впятеро, а стоило это впятеро больше. Оливы — на 60 м²
+## (роща с просветами), кипарисы теснее.
 ## Пучок травы — на 7 м²: это отдельные высокие пучки поверх рисунка травы на земле, а не весь луг.
-const RATE: Array[float] = [1.0 / 60.0, 1.0 / 64.0, 1.0 / 60.0, 1.0 / 44.0, 1.0 / 55.0, 1.0 / 70.0, 1.0 / 22.0, 1.0 / 24.0, 1.0 / 26.0,
+const RATE: Array[float] = [1.0 / 110.0, 1.0 / 86.0, 1.0 / 60.0, 1.0 / 44.0, 1.0 / 55.0, 1.0 / 70.0, 1.0 / 22.0, 1.0 / 24.0, 1.0 / 26.0,
 		1.0 / 7.0]
 const NEAR_END := 300.0  ## до этого расстояния до плитки — полные модели, метры
 const MID_END := 760.0  ## до этого — упрощённые
@@ -34,6 +36,8 @@ const MODEL_NEAR_END := 170.0  ## полная сетка модели из фа
 const MID2_END := 1300.0  ## до этого — самая простая сетка модели; дальше — импостор (изображение модели)
 const FAR_END := 3000.0  ## до этого — по «клубу» на дерево; дальше — только цвет земли
 const SMALL_END := 620.0  ## кусты и камни дальше не рисуются
+const SMALL_NEAR_END := 220.0  ## модели кустов и камней из файлов: до этого расстояния до плитки — полная сетка,
+const SMALL_MID_END := 420.0  ## до этого — упрощённая, дальше до SMALL_END — самая простая
 const GRASS_END := 460.0  ## плитки с пучками травы дальше не рисуются (сами пучки уходят в землю уже за 210–360 м)
 const SHADOW_OFF := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 const SHADOW_ONLY := GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
@@ -74,6 +78,7 @@ var _mid_meshes := {}
 var _far_mesh: ArrayMesh
 var _models := {}  ## Vector2i(вид, вариант) → три уровня модели из файла (flora_models.gd)
 var _far_cards := {}  ## импосторы моделей: сетка, материал и клетки общей картинки (FloraModels.load_far)
+var _outcrop_models := false  ## в файле камня есть модели скальных выходов (варианты сверх обычных)
 var _reference: Node3D
 
 
@@ -94,11 +99,18 @@ func _ready() -> void:
 	_far_mesh = FloraMeshes.make_far()
 	# Виды, для которых есть модель из файла (олива, кипарис, сосна — v2/assets/models/flora): три уровня одной
 	# и той же модели вместо слепленных кодом сеток и «клуба» вдали.
-	_models = FloraModels.load_all(NOISE, FAR_END - 1100.0, FAR_END - 30.0)
+	_models = FloraModels.load_all(NOISE, FAR_END - 1100.0, FAR_END - 30.0, SMALL_END - 170.0, SMALL_END - 20.0)
 	# Самый дальний уровень моделей — импосторы: изображения, запечённые из самих моделей.
 	_far_cards = FloraModels.load_far(FAR_END - 1100.0, FAR_END - 30.0)
 	if _far_cards.is_empty():
 		_models.clear()
+	# Дереву без своего изображения в общей картинке дальнего вида (модель добавили, а импосторы не перезапекли)
+	# остаётся прежняя сетка: иначе вдали оно бы пропало.
+	for slot: Vector2i in _models.keys():
+		if slot.x < FloraMeshes.Kind.SHRUB_GREEN and not (_far_cards["cells"] as Dictionary).has(slot):
+			_models.erase(slot)
+	var rock := FloraMeshes.Kind.ROCK
+	_outcrop_models = _models.has(Vector2i(rock, FloraMeshes.VARIANTS[rock])) and _models.has(Vector2i(rock, FloraMeshes.VARIANTS[rock] + 1))
 
 
 ## Карта облаков и объёмный шум: дымка и завесы дождя на растительности — те же, что на земле.
@@ -174,19 +186,31 @@ func reset() -> void:
 ## нарисованный лес и сами деревья — из одних чисел.
 static func tree_cover() -> PackedFloat32Array:
 	var cover := PackedFloat32Array()
+	var measured: PackedFloat32Array = FloraModels.crown_measures()[1]
 	for kind in 6:
 		var limits: Vector2 = FloraMeshes.SIZE[kind]
-		var crown := lerpf(limits.x, limits.y, 0.44) * (FloraMeshes.FAR_SHAPE[kind] as Vector3).x
-		cover.append(RATE[kind] * PI * 0.25 * crown * crown)
+		var mean_size := lerpf(limits.x, limits.y, 0.44)
+		if measured[kind] > 0.0:
+			# Вид с моделью из файла: площадь кроны снята с самой модели (вид сверху при запекании импостора).
+			cover.append(RATE[kind] * measured[kind] * pow(mean_size / FloraMeshes.REFERENCE[kind], 2.0))
+		else:
+			var crown := mean_size * (FloraMeshes.FAR_SHAPE[kind] as Vector3).x
+			cover.append(RATE[kind] * PI * 0.25 * crown * crown)
 	return cover
 
 
 ## Цвет дальнего вида дерева по породам (линейный) — им же красится полог в дальней картинке.
 static func tree_colors() -> PackedVector3Array:
 	var colors := PackedVector3Array()
+	var measured: PackedVector3Array = FloraModels.crown_measures()[0]
 	for kind in 6:
-		var color: Color = FloraMeshes.FAR_COLOR[kind]
-		colors.append(Vector3(color.r, color.g, color.b))
+		if measured[kind] != Vector3.ZERO:
+			colors.append(measured[kind])  # цвет кроны самой модели
+		else:
+			var color: Color = FloraMeshes.FAR_COLOR[kind]
+			# Прежний «клуб» красился своим цветом напрямую, а модель — текстурой, которую шейдер ещё затеняет в
+			# глубине кроны; чтобы один расчёт полога годился обоим, цвет клуба приводится к той же мерке.
+			colors.append(Vector3(color.r, color.g, color.b) * 0.62)
 	return colors
 
 
@@ -673,6 +697,9 @@ func _plant_part(job: Planting, part: Rect2, level: int, chunk: Dictionary, tall
 					if outcrop:
 						size = lerpf(OUTCROP.x, OUTCROP.y, u * u)
 						variant = 1 if v < 0.6 else 0
+						# Модели скальных выходов — в файле камня сверх обычных вариантов: гряда пластов и останец.
+						if _outcrop_models:
+							variant = FloraMeshes.VARIANTS[kind] + (0 if v < 0.6 else 1)
 					var factor := size / FloraMeshes.REFERENCE[kind]
 					var turned := Basis(Vector3.UP, t * TAU)
 					# Наклон: деревья стоят почти прямо, пальмы и камни — вольнее.
@@ -688,7 +715,8 @@ func _plant_part(job: Planting, part: Rect2, level: int, chunk: Dictionary, tall
 					if kind == FloraMeshes.Kind.ROCK:
 						batch.colors.append(_rock_color(d[at], d[at + 1], d[at + 2], d[at + 3], v))
 						if outcrop:
-							rooted -= size * 0.12
+							# Модель выхода уже наполовину в земле сама; глубже — только чтобы на склоне край не повис.
+							rooted -= size * (0.05 if _outcrop_models else 0.12)
 					elif kind == FloraMeshes.Kind.GRASS:
 						batch.colors.append(GRASS_GREEN.lerp(GRASS_STRAW, clampf(float(c[at + 2]) / 255.0 * 1.25 - 0.2 + 0.3 * (v - 0.5), 0.0, 1.0)))
 					batch.transforms.append(Transform3D(turned, Vector3(place.x, rooted, place.y)))
@@ -734,6 +762,14 @@ func _make_chunk(chunk: Dictionary, level: int) -> Node3D:
 			continue
 		var small := slot.x >= 6
 		var model: Array = _models.get(slot, [])
+		if not model.is_empty() and small:
+			# Кусты и камни из файлов: три уровня одной модели; дальше SMALL_END их не видно, импостор не нужен.
+			# Цвет породы камня — цвет экземпляра (у кустов его нет).
+			_add_batch(holder, model[0], null, batch.transforms, batch.numbers, batch.colors, 0.0, SMALL_NEAR_END, SHADOW_OFF)
+			_add_batch(holder, model[2], null, batch.transforms, batch.numbers, batch.colors, 0.0, minf(NEAR_END, SMALL_END), SHADOW_ONLY)
+			_add_batch(holder, model[1], null, batch.transforms, batch.numbers, batch.colors, SMALL_NEAR_END, SMALL_MID_END, SHADOW_OFF)
+			_add_batch(holder, model[2], null, batch.transforms, batch.numbers, batch.colors, SMALL_MID_END, SMALL_END, SHADOW_OFF)
+			continue
 		if not model.is_empty():
 			# Модель из файла — один силуэт на всех расстояниях: полная сетка, упрощённая, самая простая и импостор
 			# (изображение той же модели). Тень ближних рисует упрощённая сетка.

@@ -62,7 +62,7 @@ uniform vec4 clearings[96];
 // места и того же тона, что и сами деревья вблизи (до 0.10.1 полог был светлее деревьев на треть).
 uniform float tree_cover[6];
 uniform vec3 tree_color[6];
-uniform float tree_shade = 0.4; // крона в свету темнее ровной земли того же цвета: тень на её боках и в глубине
+uniform float tree_shade = 0.45; // крона в свету темнее своей текстуры: тень на её боках и в глубине
 uniform int clearing_count = 0;
 // Для проверки географии (ключ запуска --debug-view): вместо картинки дальнего вида — 1 влажность, 2 сток,
 // 3 крутизна, 4 ложбины и гребни.
@@ -637,7 +637,7 @@ void fragment() {
 		// рябью; сами кроны рисуют деревья, пока они видны.
 		float crowns = closed * (0.93 + 0.3 * (crown - 0.5));
 		// Кроны издали темнее и синее своего цвета: на боках и в глубине — тень, а в тени — свет неба.
-		vec3 canopy_color = leaf * tree_shade * (0.85 + 0.3 * crown) + vec3(0.003, 0.011, 0.028);
+		vec3 canopy_color = leaf * tree_shade * (0.85 + 0.3 * crown) + vec3(0.0, 0.004, 0.008);
 		picture = mix(picture, canopy_color, clamp(crowns, 0.0, 1.0));
 		float bushes = clamp(shrub_green * 0.6 + shrub_dry * 0.35, 0.0, 1.0) * smoothstep(0.55, 0.8, crown + 0.2 * shrub_green);
 		picture = mix(picture, mix(vec3(0.24, 0.22, 0.12), vec3(0.1, 0.15, 0.06), shrub_green / max(shrub_green + shrub_dry, 1.0e-4)), bushes * 0.6);

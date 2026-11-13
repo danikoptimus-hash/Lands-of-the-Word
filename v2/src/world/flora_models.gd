@@ -1,6 +1,6 @@
 class_name FloraModels
 extends RefCounted
-## Модели деревьев из файлов glTF (v2/assets/models/flora, правила — v2/assets/models/README.md).
+## Модели деревьев, кустов и камней из файлов glTF (v2/assets/models/flora, правила — v2/assets/models/README.md).
 ##
 ## В файле вида (oliva.glb) — все его варианты, у каждого три объекта: oliva_01_LOD0, oliva_01_LOD1, oliva_01_LOD2 —
 ## один и тот же силуэт в трёх уровнях подробности. Здесь они читаются и получают материал игры (flora_model.gdshader) со своими текстурами:
@@ -10,13 +10,16 @@ extends RefCounted
 
 const FOLDER := "res://assets/models/flora/"
 const SHADER := preload("res://src/world/flora_model.gdshader")
+const ROCK_SHADER := preload("res://src/world/flora_rock.gdshader")
+const MAX_VARIANTS := 9  ## больше вариантов в одном файле не ищем
 ## Имя файла по виду (как в памятке); пусто — модели из файла у вида нет.
 const NAMES: Array[String] = ["dub", "sosna", "oliva", "kiparis", "palma", "tamarisk", "kust", "kust_suhoy", "kamen", ""]
 
 
 ## Модели всех видов: Vector2i(вид, вариант) → [сетка LOD0, сетка LOD1, сетка LOD2]. far_from и far_to — расстояния,
-## на которых дальний уровень уходит (по дереву, а не разом).
-static func load_all(noise: Texture2D, far_from: float, far_to: float) -> Dictionary:
+## на которых дальний уровень уходит (по дереву, а не разом); small_from и small_to — то же для кустов и камней.
+## Вариантов читается столько, сколько есть в файле: у камня сверх обычных (FloraMeshes.VARIANTS) — скальные выходы.
+static func load_all(noise: Texture2D, far_from: float, far_to: float, small_from := 1.0e8, small_to := 1.0e9) -> Dictionary:
 	var result := {}
 	for kind in NAMES.size():
 		if NAMES[kind].is_empty():
@@ -29,13 +32,15 @@ static func load_all(noise: Texture2D, far_from: float, far_to: float) -> Dictio
 		if scene == null:
 			continue
 		var root := scene.instantiate()
-		for variant in FloraMeshes.VARIANTS[kind]:
+		var small := kind >= FloraMeshes.Kind.SHRUB_GREEN
+		for variant in MAX_VARIANTS:
 			var lods: Array[Mesh] = [null, null, null]
 			for node in root.find_children("*", "MeshInstance3D", true, false):
 				var instance: MeshInstance3D = node
 				for level in 3:
 					if String(instance.name) == "%s_%02d_LOD%d" % [NAMES[kind], variant + 1, level]:
-						lods[level] = _prepare(instance.mesh, noise, level == 2, far_from, far_to)
+						lods[level] = _prepare(instance.mesh, noise, kind == FloraMeshes.Kind.ROCK, level == 2,
+								small_from if small else far_from, small_to if small else far_to)
 			if lods[0] != null and lods[1] != null and lods[2] != null:
 				result[Vector2i(kind, variant)] = lods
 		root.free()
@@ -43,20 +48,56 @@ static func load_all(noise: Texture2D, far_from: float, far_to: float) -> Dictio
 
 
 ## Сетке модели — материалы игры: по одному на поверхность, с её текстурой.
-static func _prepare(mesh: Mesh, noise: Texture2D, far: bool, far_from: float, far_to: float) -> Mesh:
+static func _prepare(mesh: Mesh, noise: Texture2D, stone: bool, far: bool, far_from: float, far_to: float) -> Mesh:
 	for surface in mesh.get_surface_count():
 		var source := mesh.surface_get_material(surface) as BaseMaterial3D
 		var material := ShaderMaterial.new()
-		material.shader = SHADER
-		material.set_shader_parameter("noise_map", noise)
+		material.shader = ROCK_SHADER if stone else SHADER
+		if not stone:
+			material.set_shader_parameter("noise_map", noise)
 		if source != null:
 			material.set_shader_parameter("albedo_map", source.albedo_texture)
-			material.set_shader_parameter("leafy", 1.0 if source.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED else 0.0)
+			if stone:
+				material.set_shader_parameter("normal_map", source.normal_texture)
+			else:
+				material.set_shader_parameter("leafy", 1.0 if source.transparency != BaseMaterial3D.TRANSPARENCY_DISABLED else 0.0)
 		if far:
 			material.set_shader_parameter("far_view", 1.0)
 			material.set_shader_parameter("vanish", Vector2(far_from, far_to))
 		mesh.surface_set_material(surface, material)
 	return mesh
+
+
+## Мерки крон по видам из таблицы импосторов (data/flora_far.json): Vector3(цвет кроны сверху, линейный) и площадь
+## кроны модели опорного роста, м², — средние по вариантам вида. По ним красится лес в дальней картинке земли:
+## нарисованный лес и сами деревья — из одних чисел. Возвращает [цвета, площади]; у вида без модели — пусто (нуль).
+static func crown_measures() -> Array:
+	const TABLE := "res://data/flora_far.json"
+	var colors := PackedVector3Array()
+	var covers := PackedFloat32Array()
+	colors.resize(NAMES.size())
+	covers.resize(NAMES.size())
+	if not FileAccess.file_exists(TABLE):
+		return [colors, covers]
+	var table: Variant = JSON.parse_string(FileAccess.get_file_as_string(TABLE))
+	if typeof(table) != TYPE_DICTIONARY:
+		return [colors, covers]
+	for kind in NAMES.size():
+		var count := 0
+		var color := Vector3.ZERO
+		var cover := 0.0
+		for variant in MAX_VARIANTS:
+			var entry: Variant = (table["models"] as Dictionary).get("%s_%02d" % [NAMES[kind], variant + 1])
+			if typeof(entry) != TYPE_DICTIONARY or not (entry as Dictionary).has("cover"):
+				continue
+			var tone: Array = entry["color"]
+			color += Vector3(float(tone[0]), float(tone[1]), float(tone[2]))
+			cover += float(entry["cover"])
+			count += 1
+		if count > 0:
+			colors[kind] = color / float(count)
+			covers[kind] = cover / float(count)
+	return [colors, covers]
 
 
 ## Самый дальний уровень — импосторы (flora_far.gdshader): общая картинка изображений моделей и таблица клеток
