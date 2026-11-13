@@ -1,7 +1,9 @@
 extends Node3D
 ## Сцена для сравнения движков: берег Корфу в Godot.
 ## Земля — готовое дополнение Terrain3D; место, покров и расстановка — общая основа (sravnenie/osnova).
-## Ключи запуска: --kadry=ПАПКА — снять контрольные виды в папку и выйти.
+## Ключи запуска: --kadry=ПАПКА — снять контрольные виды в папку и выйти;
+## --bez-oblakov — без объёмных облаков (на программной отрисовке рабочей среды дополнение облаков
+## красит всю землю чёрным; на настоящей видеокарте не проверено).
 
 const DATA := "res://dannye/"
 
@@ -12,6 +14,9 @@ var terrain: Terrain3D
 var camera: Camera3D
 var sun: DirectionalLight3D
 var shots_dir := ""
+var with_clouds := true
+var world: WorldEnvironment
+var clouds: SunshineCloudsGD
 var sea_material: ShaderMaterial
 var heights_image: Image
 var water_time := WaterLook.SHOT_TIME
@@ -22,11 +27,15 @@ func _ready() -> void:
 	for a in OS.get_cmdline_user_args():
 		if a.begins_with("--kadry="):
 			shots_dir = a.trim_prefix("--kadry=")
+		if a == "--bez-oblakov":
+			with_clouds = false
 	info = JSON.parse_string(FileAccess.get_file_as_string(DATA + "opisanie.json"))
 	side = float(info["storona_m"])
 	size = int(info["razmer"])
 	_build_sky()
 	_build_camera()
+	if with_clouds:
+		_build_clouds()
 	await _build_terrain()
 	if shots_dir != "":
 		await _shots()
@@ -47,7 +56,7 @@ func _build_sky() -> void:
 	env.sky = sky
 	env.tonemap_mode = Environment.TONE_MAPPER_AGX
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	var world := WorldEnvironment.new()
+	world = WorldEnvironment.new()
 	world.environment = env
 	add_child(world)
 	sun = DirectionalLight3D.new()
@@ -56,6 +65,27 @@ func _build_sky() -> void:
 	sun.light_energy = 1.3
 	add_child(sun)
 	sun.look_at_from_position(Vector3.ZERO, Vector3(0.45, -0.75, -0.35).normalized(), Vector3.UP)
+
+
+## Облака: готовое дополнение SunshineClouds2 (объёмные, считаются лучом; MIT). Настройки — его образец,
+## высота слоя — под кучевые облака ясного дня над морем.
+func _build_clouds() -> void:
+	clouds = (load("res://addons/SunshineClouds2/ExampleCloudsResource.tres") as SunshineCloudsGD).duplicate(true)
+	clouds.cloud_floor = 1500.0
+	clouds.cloud_ceiling = 4200.0
+	clouds.clouds_coverage = 0.5
+	var compositor := Compositor.new()
+	var effects: Array[CompositorEffect] = [clouds]
+	compositor.compositor_effects = effects
+	world.compositor = compositor
+	var driver := SunshineCloudsDriverGD.new()
+	driver.name = "Oblaka"
+	driver.clouds_resource = clouds
+	var lights: Array[DirectionalLight3D] = [sun]
+	driver.tracked_directional_lights = lights
+	# Без этого дополнение не передаёт облакам свет и ветер: всё под облаками выходит чёрным.
+	driver.update_continuously = true
+	add_child(driver)
 
 
 func _build_camera() -> void:

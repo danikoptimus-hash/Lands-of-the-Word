@@ -46,6 +46,10 @@ if [ ! -d "$here/addons/SunshineClouds2" ]; then
 	cp -r "$src/addons/SunshineClouds2" "$here/addons/SunshineClouds2"
 	git -C "$src" rev-parse HEAD > "$here/addons/SunshineClouds2/VERSIYA.txt"
 fi
+# Образец настроек облаков ссылается на карту облачности в корне проекта.
+if [ ! -f "$here/CloudsMask.exr" ]; then
+	cp "${XDG_CACHE_HOME:-$HOME/.cache}/zemli-slova/sravnenie/sunshineclouds2/CloudsMask.exr" "$here/CloudsMask.exr"
+fi
 
 # Данные основы: копии под именами, которые движок не пытается импортировать как картинки.
 for name in maski porody; do
