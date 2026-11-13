@@ -12,6 +12,10 @@ var terrain: Terrain3D
 var camera: Camera3D
 var sun: DirectionalLight3D
 var shots_dir := ""
+var sea_material: ShaderMaterial
+var heights_image: Image
+var water_time := WaterLook.SHOT_TIME
+var swash_time := WaterLook.SHOT_TIME
 
 
 func _ready() -> void:
@@ -82,6 +86,7 @@ func _build_terrain() -> void:
 	for i in size * size:
 		metres[i] = h_min + raw.decode_u16(i * 2) / 65535.0 * h_range
 	var heights := Image.create_from_data(size, size, false, Image.FORMAT_RF, metres.to_byte_array())
+	heights_image = heights
 
 	terrain = Terrain3D.new()
 	terrain.name = "Terrain3D"
@@ -116,21 +121,42 @@ func _build_terrain() -> void:
 	_build_sea()
 
 
-## Море: пока ровная гладь без волн — чтобы видеть берег. Настоящая вода — следующим шагом.
+## Море: шейдер воды из игры (его вид владелец принял), дно — из карты высот основы.
 func _build_sea() -> void:
+	sea_material = ShaderMaterial.new()
+	sea_material.shader = load("res://src/voda.gdshader")
+	var look: Dictionary = WaterLook.at(0.0).duplicate()
+	look["swash"] = WaterLook.SWASH.x
+	WaterLook.apply(sea_material, look)
+	var foam: Array = WaterLook.make_foam_map()
+	sea_material.set_shader_parameter("wave_map", WaterLook.make_wave_map())
+	sea_material.set_shader_parameter("wave_cycles", WaterLook.WAVE_CYCLES)
+	sea_material.set_shader_parameter("foam_map", foam[0])
+	sea_material.set_shader_parameter("foam_cycles", WaterLook.FOAM_CYCLES)
+	sea_material.set_shader_parameter("foam_gain", foam[1])
+	sea_material.set_shader_parameter("foam_bias", foam[2])
+	sea_material.set_shader_parameter("height_map", ImageTexture.create_from_image(heights_image))
+	sea_material.set_shader_parameter("bake_rect", Vector4(-side * 0.5, -side * 0.5, side, side))
+	sea_material.set_shader_parameter("bed_texel_m", side / float(size))
+	sea_material.set_shader_parameter("water_time", WaterLook.SHOT_TIME)
+	sea_material.set_shader_parameter("swash_time", WaterLook.SHOT_TIME)
 	var plane := PlaneMesh.new()
-	plane.size = Vector2(60000.0, 60000.0)
-	var material := StandardMaterial3D.new()
-	material.albedo_color = Color(0.04, 0.22, 0.34, 0.86)
-	material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	material.roughness = 0.08
-	material.metallic = 0.0
+	plane.size = Vector2(80000.0, 80000.0)
 	var sea := MeshInstance3D.new()
 	sea.mesh = plane
-	sea.material_override = material
+	sea.material_override = sea_material
 	sea.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	sea.position = Vector3(0.0, float(info["more_m"]), 0.0)
+	sea.position = Vector3(0.0, float(info["more_m"]) + WaterLook.SWASH.x, 0.0)
 	add_child(sea)
+	sea.set_instance_shader_parameter("water_level", float(info["more_m"]))
+
+
+func _process(delta: float) -> void:
+	if shots_dir == "" and sea_material != null:
+		water_time += delta * WaterLook.SPEED.x
+		swash_time += delta
+		sea_material.set_shader_parameter("water_time", water_time)
+		sea_material.set_shader_parameter("swash_time", swash_time)
 
 
 func _shots() -> void:
