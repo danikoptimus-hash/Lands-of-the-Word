@@ -18,6 +18,10 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Папка v2/out (кадры, журналы, сборки) лежит внутри проекта: без пометки .gdignore движок импортирует снятые
+# кадры как ресурсы игры и кладёт их в сборку (так архив 0.10.0 вышел вдвое тяжелее — 185 МБ вместо 90).
+mkdir -p "$root/v2/out"
+: > "$root/v2/out/.gdignore"
 workflow="$root/.github/workflows/v2.yml"
 version="$(sed -n 's/^  GODOT_VERSION: "\(.*\)"$/\1/p' "$workflow")"
 checksum="$(sed -n 's/^  GODOT_SHA512: "\(.*\)"$/\1/p' "$workflow")"
