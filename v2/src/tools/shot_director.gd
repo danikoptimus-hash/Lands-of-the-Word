@@ -978,7 +978,7 @@ func _check_flora(world: WorldData, terrain: WorldTerrain) -> void:
 	# Ветер: кадр рощи меняется со временем ветра, а при том же времени он тот же; в шторм качает сильнее.
 	var scale := get_viewport().scaling_3d_scale
 	get_viewport().scaling_3d_scale = 0.5
-	_rig.set_view(CameraView.make(Vector2(-600.0, 0.0), 180.0, -90.0, -20.0))
+	_rig.set_view(CameraView.make(flora.densest, 180.0, -90.0, -20.0))
 	await _frames(10)
 	var still := await _frame_picture()
 	weather.push_wind(1.7)
@@ -1002,7 +1002,8 @@ func _check_flora(world: WorldData, terrain: WorldTerrain) -> void:
 	weather.set_kind(Weather.Kind.CLEAR, true)
 	await _frames(6)
 	_check("растительность: качается на ветру, в шторм сильнее", sway > 0.3 and same < 0.05 and storm_sway > sway * 1.3,
-			"кадр рощи через 1,7 с ветра отличается на %.2f из 255 (при том же времени — на %.3f); в шторм — на %.2f" % [sway, same, storm_sway])
+			"кадр самой густой рощи (%.0f, %.0f) через 1,7 с ветра отличается на %.2f из 255 (при том же времени — на %.3f); в шторм — на %.2f" % [
+			flora.densest.x, flora.densest.y, sway, same, storm_sway])
 	get_viewport().scaling_3d_scale = scale
 
 

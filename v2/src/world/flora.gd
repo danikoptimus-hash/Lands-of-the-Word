@@ -42,6 +42,8 @@ var batches := 0  ## сколько пачек (вызовов отрисовк�
 var build_ms := 0.0
 var lowest := INF  ## самая низкая точка, на которой что-то растёт, метры над морем
 var fingerprint := 0  ## «отпечаток» расстановки: у того же мира он тот же
+var densest := Vector2.ZERO  ## середина самой густой рощи мира (для проверки ветра: там в кадре точно есть деревья)
+var _densest_count := 0
 
 var _material: ShaderMaterial
 var _mid_material: ShaderMaterial
@@ -92,6 +94,7 @@ func build(world: WorldData, terrain: WorldTerrain) -> void:
 	batches = 0
 	lowest = INF
 	fingerprint = 0
+	_densest_count = 0
 	var regions := terrain.flora_regions()
 	for region in regions:
 		await _plant_region(world, region)
@@ -284,6 +287,14 @@ func _plant_region(world: WorldData, region: Dictionary) -> void:
 		for slot: Vector2i in chunk:
 			var batch: Batch = chunk[slot]
 			fingerprint = (fingerprint * 31 + slot.x * 7 + slot.y + hash(batch.sizes) + hash(batch.transforms[0].origin)) & 0x7fffffff
+			if slot.x < 6 and batch.transforms.size() > _densest_count:
+				# Самая большая пачка деревьев одного вида в плитке — середина рощи.
+				_densest_count = batch.transforms.size()
+				var middle := Vector3.ZERO
+				for item in batch.transforms:
+					middle += item.origin
+				middle /= float(_densest_count)
+				densest = Vector2(middle.x, middle.z)
 		if not chunk.is_empty():
 			_make_chunk(chunk)
 			_tiles.append(job.tiles[index])
