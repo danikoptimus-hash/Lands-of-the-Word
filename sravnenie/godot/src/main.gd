@@ -3,7 +3,8 @@ extends Node3D
 ## Земля — готовое дополнение Terrain3D; место, покров и расстановка — общая основа (sravnenie/osnova).
 ## Ключи запуска: --kadry=ПАПКА — снять контрольные виды в папку и выйти;
 ## --nebo=den|zakat|shtorm — состояние неба; --vidy=имя,имя — снять только эти виды;
-## --kachestvo=0|1|2 — качество облаков (0 — высокое); --par=имя:число,… — числа шейдера неба поверх таблицы;
+## --kachestvo=0…4 — качество облаков (таблица QUALITY: 0–2 — купол, 3 — прямой расчёт, 4 — без облаков);
+## --par=имя:число,… — числа шейдера неба поверх таблицы;
 ## --vremya=100 — время облаков в кадрах, секунды (в кадрах облака стоят: кадры повторимы);
 ## --masshtab=50 — кадры в половину разрешения (в рабочей среде на этом падает программная отрисовка).
 ##
@@ -33,7 +34,20 @@ var quality := 0
 var overrides := {}
 var sky_time := 100.0  ## время облаков, секунды: в кадрах стоит, у владельца идёт
 var shot_scale := 1.0
-var sky_shaders: Array[Shader] = []
+var sky: Sky
+var sky_direct: ShaderMaterial  ## небо с прямым расчётом облаков в каждом кадре
+var sky_dome: ShaderMaterial  ## небо, которое показывает картинку купола
+var dome_material: ShaderMaterial  ## расчёт картинки купола
+var dome_views: Array[SubViewport] = []
+var dome_rects: Array[ColorRect] = []
+var dome_active := false
+var dome_size := 2048
+var dome_bands := 32
+var dome_front := 0  ## какая из двух картинок показывается
+var dome_cursor := 0  ## сколько полос второй картинки уже посчитано
+var dome_full := true  ## следующую картинку посчитать целиком за один кадр
+var snap_times := [0.0, 0.0]
+var snap_places := [Vector3.ZERO, Vector3.ZERO]
 var help: Label
 var fps_label: Label
 var fly_speed := 400.0
@@ -41,7 +55,6 @@ var looking := false
 var wide := false
 var full_res := false
 var only_views := PackedStringArray()
-var sky_material: ShaderMaterial
 var world: WorldEnvironment
 var sea_material: ShaderMaterial
 var sea: MeshInstance3D
@@ -130,24 +143,38 @@ const SKIES := {
 }
 
 
+const NOISES := {"worlnoise": "res://nebo/worlnoise.bmp", "perlworlnoise": "res://nebo/perlworlnoise.tga",
+	"weathermap": "res://nebo/weather.bmp"}
+
+
 func _build_sky() -> void:
-	# Два вида одного шейдера: облака считаются в половину разрешения или в четверть.
-	var half: Shader = load("res://src/nebo.gdshader")
-	var quarter := Shader.new()
-	quarter.code = half.code.replace("render_mode use_half_res_pass, use_quarter_res_pass;", "render_mode use_quarter_res_pass;") \
-			.replace("} else if (AT_HALF_RES_PASS && !AT_CUBEMAP_PASS) {", "} else if (AT_QUARTER_RES_PASS) {") \
-			.replace("COLOR = HALF_RES_COLOR.rgb;", "COLOR = QUARTER_RES_COLOR.rgb;")
-	# Третий вид — то же небо без облаков: только для замера, сколько кадров стоят сами облака.
-	var bare := Shader.new()
-	bare.code = quarter.code.replace("vec4 volume = march(start, end, raystep, int(steps));", "vec4 volume = vec4(0.0);")
-	sky_shaders = [half, quarter, bare]
-	sky_material = ShaderMaterial.new()
-	sky_material.set_shader_parameter("worlnoise", load("res://nebo/worlnoise.bmp"))
-	sky_material.set_shader_parameter("perlworlnoise", load("res://nebo/perlworlnoise.tga"))
-	sky_material.set_shader_parameter("weathermap", load("res://nebo/weather.bmp"))
-	var sky := Sky.new()
-	sky.sky_material = sky_material
-	# Отражение неба для света пересчитывать понемногу, а не каждый кадр целиком: облака дорогие.
+	sky_direct = ShaderMaterial.new()
+	sky_direct.shader = load("res://src/nebo.gdshader")
+	sky_dome = ShaderMaterial.new()
+	sky_dome.shader = load("res://src/nebo_kupol.gdshader")
+	dome_material = ShaderMaterial.new()
+	dome_material.shader = load("res://src/kupol.gdshader")
+	for material: ShaderMaterial in [sky_direct, sky_dome, dome_material]:
+		for key: String in NOISES:
+			material.set_shader_parameter(key, load(NOISES[key]))
+	# Две картинки купола: одна показывается, вторая в это время досчитывается полосами.
+	for i in 2:
+		var view := SubViewport.new()
+		view.size = Vector2i(dome_size, dome_size)
+		view.disable_3d = true
+		view.transparent_bg = true
+		view.use_hdr_2d = true
+		view.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
+		view.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		var rect := ColorRect.new()
+		rect.material = dome_material
+		view.add_child(rect)
+		add_child(view)
+		dome_views.append(view)
+		dome_rects.append(rect)
+	sky = Sky.new()
+	sky.sky_material = sky_dome
+	# Отражение неба для света пересчитывать понемногу, а не каждый кадр целиком.
 	sky.process_mode = Sky.PROCESS_MODE_INCREMENTAL
 	sky.radiance_size = Sky.RADIANCE_SIZE_128
 	var env := Environment.new()
@@ -178,34 +205,110 @@ func set_sky(title: String) -> void:
 	var look: Dictionary = SKIES[title]
 	var height := deg_to_rad(float(look["sun_height"]))
 	var compass := deg_to_rad(float(look["sun_side"]))
-	# Сторона солнца — по компасу: 0 — север, 90 — восток. В этой сцене север — в сторону +Z (см. at()).
-	var to_sun := Vector3(sin(compass) * cos(height), sin(height), cos(compass) * cos(height))
+	# Сторона солнца — по компасу: 0 — север (−Z, см. at()), 90 — восток (+X).
+	var to_sun := Vector3(sin(compass) * cos(height), sin(height), -cos(compass) * cos(height))
 	sun.look_at_from_position(Vector3.ZERO, -to_sun, Vector3.UP)
 	sun.light_energy = float(look["energy"])
+	# Шейдеру купола солнце передаётся числами: встроенных значений светила у него нет.
+	dome_material.set_shader_parameter("sun_dir", to_sun)
+	dome_material.set_shader_parameter("sun_power", sun.light_energy)
 	_sea_look()
 	var numbers: Dictionary = look["shader"]
-	for key in numbers:
-		sky_material.set_shader_parameter(key, numbers[key])
-	# Числа из ключа --par=имя:число,… — для подгонки без правки файла.
-	for key in overrides:
-		sky_material.set_shader_parameter(key, overrides[key])
-	sky_material.set_shader_parameter("sky_time", sky_time)
+	for material: ShaderMaterial in [sky_direct, sky_dome, dome_material]:
+		for key: String in numbers:
+			material.set_shader_parameter(key, numbers[key])
+		# Числа из ключа --par=имя:число,… — для подгонки без правки файла.
+		for key: String in overrides:
+			material.set_shader_parameter(key, overrides[key])
+	_sky_moment()
+	dome_full = true
 
 
-## Качество облаков. 0 — высокое: половина разрешения, полный луч; 1 — среднее: четверть разрешения;
-## 2 — низкое: четверть разрешения и вдвое меньше шагов луча; 3 — без облаков (замер их цены).
-const QUALITY := [["высокое", 0, 1.0], ["среднее", 1, 1.0], ["низкое", 1, 0.5], ["облака выключены (для замера)", 2, 1.0]]
+## Текущие время облаков и место камеры — небу (картинка купола получает свои в момент съёмки).
+func _sky_moment() -> void:
+	for material: ShaderMaterial in [sky_direct, sky_dome]:
+		material.set_shader_parameter("sky_time", sky_time)
+		if camera != null:
+			material.set_shader_parameter("camera_place", camera.position)
+
+
+## Качество облаков: название, способ, размер картинки купола, на сколько полос (кадров) делится её обновление.
+## «Купол» — облака считаются в отдельную картинку неба по одной полосе за кадр, экран её только показывает;
+## «прямой» — облака считаются заново в каждом кадре на половине разрешения экрана (как в образце шейдера).
+const QUALITY := [
+	["высокое (купол 2048)", "kupol", 2048, 32],
+	["среднее (купол 1536)", "kupol", 1536, 32],
+	["низкое (купол 1024)", "kupol", 1024, 32],
+	["прямой расчёт в каждом кадре — для сравнения", "pryamoy", 0, 0],
+	["облака выключены — для замера", "net", 0, 0],
+]
 
 
 func set_quality(level: int) -> void:
 	quality = posmod(level, QUALITY.size())
-	sky_material.shader = sky_shaders[QUALITY[quality][1]]
-	sky_material.set_shader_parameter("steps_scale", QUALITY[quality][2])
-	# Параметры после смены шейдера сохраняются, но текстуры надёжнее задать заново.
-	sky_material.set_shader_parameter("worlnoise", load("res://nebo/worlnoise.bmp"))
-	sky_material.set_shader_parameter("perlworlnoise", load("res://nebo/perlworlnoise.tga"))
-	sky_material.set_shader_parameter("weathermap", load("res://nebo/weather.bmp"))
-	set_sky(sky_name)
+	var mode: String = QUALITY[quality][1]
+	sky.sky_material = sky_direct if mode == "pryamoy" else sky_dome
+	sky_dome.set_shader_parameter("dome_on", 1.0 if mode == "kupol" else 0.0)
+	dome_active = mode == "kupol"
+	if dome_active:
+		dome_size = QUALITY[quality][2]
+		dome_bands = QUALITY[quality][3]
+		for view in dome_views:
+			view.size = Vector2i(dome_size, dome_size)
+		dome_material.set_shader_parameter("dome_size", float(dome_size))
+		sky_dome.set_shader_parameter("dome_size", float(dome_size))
+		dome_full = true
+	else:
+		for view in dome_views:
+			view.render_target_update_mode = SubViewport.UPDATE_DISABLED
+
+
+## Шаг обновления купола, раз в кадр. Вторая картинка считается полосами; когда готова вся — картинки меняются
+## местами. После смены неба или качества картинка считается целиком за один кадр.
+func _dome_tick() -> void:
+	if not dome_active or camera == null:
+		return
+	if dome_full:
+		dome_full = false
+		_dome_snapshot(dome_front)
+		_dome_draw(dome_front, 0, dome_size)
+		_dome_show()
+		dome_cursor = 0
+		return
+	if dome_cursor >= dome_bands:
+		dome_front = 1 - dome_front
+		_dome_show()
+		dome_cursor = 0
+	var back := 1 - dome_front
+	if dome_cursor == 0:
+		_dome_snapshot(back)
+	@warning_ignore("integer_division")
+	var band := dome_size / dome_bands
+	_dome_draw(back, dome_cursor * band, band)
+	dome_cursor += 1
+
+
+## Запомнить момент и место, в которые снимается картинка, и передать их её расчёту.
+func _dome_snapshot(index: int) -> void:
+	snap_times[index] = sky_time
+	snap_places[index] = camera.position
+	dome_material.set_shader_parameter("sky_time", sky_time)
+	dome_material.set_shader_parameter("camera_place", camera.position)
+
+
+## Посчитать в этом кадре полосу картинки: строки от y, высотой rows.
+func _dome_draw(index: int, y: int, rows: int) -> void:
+	for i in 2:
+		dome_views[i].render_target_update_mode = SubViewport.UPDATE_ONCE if i == index else SubViewport.UPDATE_DISABLED
+	dome_rects[index].position = Vector2(0.0, y)
+	dome_rects[index].size = Vector2(dome_size, rows)
+
+
+## Показать небу готовую картинку.
+func _dome_show() -> void:
+	sky_dome.set_shader_parameter("dome", dome_views[dome_front].get_texture())
+	sky_dome.set_shader_parameter("snap_time", snap_times[dome_front])
+	sky_dome.set_shader_parameter("snap_place", snap_places[dome_front])
 
 
 func _build_camera() -> void:
@@ -405,9 +508,10 @@ func _process(delta: float) -> void:
 		sea_material.set_shader_parameter("swash_time", swash_time)
 	if fps_label == null:
 		return
-	sky_time += delta
-	sky_material.set_shader_parameter("sky_time", sky_time)
-	sky_material.set_shader_parameter("camera_place", camera.position)
+	# В пробе время облаков идёт ровно по 1/60 с за кадр: кадры на программной отрисовке длятся секундами.
+	sky_time += delta if probe_dir == "" else 1.0 / 60.0
+	_sky_moment()
+	_dome_tick()
 	fps_label.text = "%d кадров/с" % Engine.get_frames_per_second()
 	var move := Vector3.ZERO
 	if Input.is_physical_key_pressed(KEY_W): move.z -= 1.0
@@ -439,7 +543,7 @@ func _process(delta: float) -> void:
 
 func _probe() -> void:
 	DirAccess.make_dir_recursive_absolute(probe_dir)
-	var steps := [["den", 0, false], ["zakat", 1, false], ["shtorm", 2, false], ["den", 3, true]]
+	var steps := [["den", 0, false], ["zakat", 1, false], ["shtorm", 2, false], ["den", 3, true], ["den", 4, false]]
 	for step: Array in steps:
 		set_sky(step[0])
 		set_quality(step[1])
@@ -454,15 +558,31 @@ func _probe() -> void:
 		get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-%s-%d.png" % [step[0], step[1]]))
 		print("ПРОВЕРКА образец: небо ", step[0], ", качество ", QUALITY[quality][0], ", кадр ", snappedf(ms, 0.1), " мс, окно ",
 				get_window().size, ", доля разрешения ", get_viewport().scaling_3d_scale)
-	terrain.visible = false
-	sea.visible = false
-	full_res = true
-	_apply_scale()
-	_update_help()
-	for i in 3:
+	# Обновление купола полосами при летящей камере: кадр в середине первого круга (показывается картинка,
+	# снятая 20 кадров и 200 м назад), кадр после смены картинок и — для сравнения — тот же момент с картинкой,
+	# посчитанной заново. Расхождение двух последних — ошибка пересчёта направления.
+	set_sky("den")
+	set_quality(2)
+	camera.fov = 59.0
+	camera.look_at_from_position(at(4300.0, 4000.0, 420.0), at(6000.0, 6000.0, 2600.0), Vector3.UP)
+	help.visible = false
+	for frame in range(1, 46):
+		camera.position += Vector3(10.0, 0.0, 4.0)
+		await get_tree().process_frame
+		if frame == 20 or frame == 45:
+			await RenderingServer.frame_post_draw
+			get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-kupol-%d.png" % frame))
+			print("ПРОВЕРКА купол: кадр ", frame, ", полос посчитано ", dome_cursor, ", показывается картинка ", dome_front,
+					", ей ", snappedf(sky_time - float(snap_times[dome_front]), 0.01), " с, сдвиг камеры ",
+					snappedf(camera.position.distance_to(snap_places[dome_front]), 1.0), " м")
+	set_process(false)
+	dome_full = true
+	_sky_moment()
+	_dome_tick()
+	for i in 2:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-odno-nebo.png"))
+	get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-kupol-45-zanovo.png"))
 	print("ИТОГ проба образца пройдена")
 
 
@@ -478,7 +598,7 @@ func _shots() -> void:
 	# камера игры (35°).
 	var eye := at(4300.0, 4000.0, 420.0)
 	var sun_side := deg_to_rad(float(SKIES[sky_name]["sun_side"]))
-	var toward_sun := eye + Vector3(sin(sun_side), 0.0, cos(sun_side)) * 5000.0 + Vector3(0.0, 980.0, 0.0)
+	var toward_sun := eye + Vector3(sin(sun_side), 0.0, -cos(sun_side)) * 5000.0 + Vector3(0.0, 980.0, 0.0)
 	var views := [
 		["nebo-zemlya", eye, at(6800.0, 6900.0, 1150.0), 59.0],
 		["nebo-solntse", eye, toward_sun, 59.0],
@@ -492,7 +612,9 @@ func _shots() -> void:
 			continue
 		camera.fov = view[3]
 		camera.look_at_from_position(view[1], view[2], Vector3.UP)
-		sky_material.set_shader_parameter("camera_place", camera.position)
+		_sky_moment()
+		dome_full = true
+		_dome_tick()
 		for i in 4:
 			await get_tree().process_frame
 		var t0 := Time.get_ticks_usec()
