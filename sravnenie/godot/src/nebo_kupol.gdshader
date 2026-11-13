@@ -14,10 +14,15 @@ shader_type sky;
 #include "nebo_obshchee.gdshaderinc"
 
 uniform sampler2D dome : filter_linear, repeat_disable;
-uniform float dome_size = 2048.0;
-uniform float dome_on = 1.0; // 0 — небо без облаков (замер цены облаков)
 uniform float snap_time = 0.0; // время облаков, в которое снята картинка
 uniform vec3 snap_place = vec3(0.0); // место камеры, из которого она снята
+// Предыдущая картинка: несколько кадров после смены новая проявляется поверх неё, а не встаёт рывком.
+uniform sampler2D dome_prev : filter_linear, repeat_disable;
+uniform float prev_time = 0.0;
+uniform vec3 prev_place = vec3(0.0);
+uniform float dome_blend = 1.0; // 0 — предыдущая картинка, 1 — новая
+uniform float dome_size = 2048.0;
+uniform float dome_on = 1.0; // 0 — небо без облаков (замер цены облаков)
 
 vec2 dome_uv(vec3 d) {
 	float r = acos(clamp(d.y, -1.0, 1.0)) / (PI * 0.5);
@@ -26,24 +31,32 @@ vec2 dome_uv(vec3 d) {
 	return 0.5 + 0.5 * r * side;
 }
 
+// Облака из картинки в направлении взгляда: картинка снята в момент taken_time из точки taken_place.
+vec4 dome_look(sampler2D picture, vec3 dir, float taken_time, vec3 taken_place) {
+	// Слой облаков — как плоскость на высоте, где их больше всего видно снизу.
+	float layer = cloud_bottom + 0.2 * (cloud_top - cloud_bottom);
+	float top = cloud_bottom - 200.0;
+	vec3 here = vec3(camera_place.x, clamp(camera_place.y, 0.0, top), camera_place.z);
+	vec3 there = vec3(taken_place.x, clamp(taken_place.y, 0.0, top), taken_place.z);
+	vec3 seen = here + dir * ((layer - here.y) / max(dir.y, 0.02));
+	// Облака плывут против сдвига шума в расчёте плотности: 12 м/с на единицу ветра.
+	seen.xz += normalize(wind_direction) * wind_speed * 12.0 * (sky_time - taken_time);
+	vec2 uv = dome_uv(normalize(seen - there));
+	// Четыре соседние точки картинки вместо одной: зерно расчёта не видно.
+	float texel = 0.75 / dome_size;
+	return 0.25 * (texture(picture, uv + vec2(texel, texel)) + texture(picture, uv + vec2(-texel, texel))
+			+ texture(picture, uv + vec2(texel, -texel)) + texture(picture, uv + vec2(-texel, -texel)));
+}
+
 void sky() {
 	vec3 dir = EYEDIR;
 	vec3 background = background_sky(dir);
 	vec3 color = background;
 	if (dir.y > 0.0 && dome_on > 0.5) {
-		// Слой облаков — как плоскость на высоте, где их больше всего видно снизу.
-		float layer = cloud_bottom + 0.3 * (cloud_top - cloud_bottom);
-		float top = cloud_bottom - 200.0;
-		vec3 here = vec3(camera_place.x, clamp(camera_place.y, 0.0, top), camera_place.z);
-		vec3 there = vec3(snap_place.x, clamp(snap_place.y, 0.0, top), snap_place.z);
-		vec3 seen = here + dir * ((layer - here.y) / max(dir.y, 0.02));
-		// Облака плывут против сдвига шума в расчёте плотности: 12 м/с на единицу ветра.
-		seen.xz += normalize(wind_direction) * wind_speed * 12.0 * (sky_time - snap_time);
-		vec2 uv = dome_uv(normalize(seen - there));
-		// Четыре соседние точки картинки вместо одной: зерно расчёта не видно.
-		float texel = 0.75 / dome_size;
-		vec4 volume = 0.25 * (texture(dome, uv + vec2(texel, texel)) + texture(dome, uv + vec2(-texel, texel))
-				+ texture(dome, uv + vec2(texel, -texel)) + texture(dome, uv + vec2(-texel, -texel)));
+		vec4 volume = dome_look(dome, dir, snap_time, snap_place);
+		if (dome_blend < 1.0) {
+			volume = mix(dome_look(dome_prev, dir, prev_time, prev_place), volume, dome_blend);
+		}
 		color = compose_sky(dir, background, volume);
 	}
 	COLOR = color;
