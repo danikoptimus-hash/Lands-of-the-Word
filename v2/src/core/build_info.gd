@@ -5,7 +5,7 @@ extends RefCounted
 const BUILD := "местная"
 const COMMIT := ""  ## короткий номер коммита; пусто — сборка сделана не конвейером, самообновления нет
 const NOTES_PATH := "res://data/chto_novogo.txt"
-const STEP := "Проба масштаба: гекс — километр, черновой город"
+const STEP := "Новые модели деревьев: дуб, олива, кипарис, сосна"
 
 
 static func version() -> String:

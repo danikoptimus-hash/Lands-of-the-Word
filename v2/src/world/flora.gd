@@ -23,12 +23,15 @@ const NOISE := preload("res://assets/terrain/noise.png")
 const CHUNK := 256.0  ## сторона плитки, метры (как у земли)
 const KINDS := 10
 ## Наибольшая густота вида: экземпляров на квадратный метр там, где карта вида равна единице (порядок —
-## FloraMeshes.Kind). Дубрава — дерево на 34 м², сосняк — на 38, оливы реже, кипарисы тесными группами.
+## FloraMeshes.Kind). Дубрава — дерево на 60 м² (167 на гектар: при кронах в 9–10 м полог сомкнут; до 0.11.0 было
+## на 34 м² — кроны перекрывались вдвое, а стоило это вдвое больше), сосняк — на 64, оливы — на 60, кипарисы теснее.
 ## Пучок травы — на 7 м²: это отдельные высокие пучки поверх рисунка травы на земле, а не весь луг.
-const RATE: Array[float] = [1.0 / 34.0, 1.0 / 38.0, 1.0 / 52.0, 1.0 / 40.0, 1.0 / 55.0, 1.0 / 70.0, 1.0 / 22.0, 1.0 / 24.0, 1.0 / 26.0,
+const RATE: Array[float] = [1.0 / 60.0, 1.0 / 64.0, 1.0 / 60.0, 1.0 / 44.0, 1.0 / 55.0, 1.0 / 70.0, 1.0 / 22.0, 1.0 / 24.0, 1.0 / 26.0,
 		1.0 / 7.0]
 const NEAR_END := 300.0  ## до этого расстояния до плитки — полные модели, метры
 const MID_END := 760.0  ## до этого — упрощённые
+const MODEL_NEAR_END := 170.0  ## полная сетка модели из файла — только совсем рядом: её листва дорога в отрисовке
+const MID2_END := 1300.0  ## до этого — самая простая сетка модели; дальше — импостор (изображение модели)
 const FAR_END := 3000.0  ## до этого — по «клубу» на дерево; дальше — только цвет земли
 const SMALL_END := 620.0  ## кусты и камни дальше не рисуются
 const GRASS_END := 460.0  ## плитки с пучками травы дальше не рисуются (сами пучки уходят в землю уже за 210–360 м)
@@ -69,6 +72,8 @@ var _backlog := 0  ## сколько плиток ещё ждёт очереди
 var _near_meshes := {}  ## Vector2i(вид, вариант) → сетка
 var _mid_meshes := {}
 var _far_mesh: ArrayMesh
+var _models := {}  ## Vector2i(вид, вариант) → три уровня модели из файла (flora_models.gd)
+var _far_cards := {}  ## импосторы моделей: сетка, материал и клетки общей картинки (FloraModels.load_far)
 var _reference: Node3D
 
 
@@ -87,6 +92,13 @@ func _ready() -> void:
 			_near_meshes[Vector2i(kind, variant)] = FloraMeshes.make(kind as FloraMeshes.Kind, variant, 0)
 			_mid_meshes[Vector2i(kind, variant)] = FloraMeshes.make(kind as FloraMeshes.Kind, variant, 1)
 	_far_mesh = FloraMeshes.make_far()
+	# Виды, для которых есть модель из файла (олива, кипарис, сосна — v2/assets/models/flora): три уровня одной
+	# и той же модели вместо слепленных кодом сеток и «клуба» вдали.
+	_models = FloraModels.load_all(NOISE, FAR_END - 1100.0, FAR_END - 30.0)
+	# Самый дальний уровень моделей — импосторы: изображения, запечённые из самих моделей.
+	_far_cards = FloraModels.load_far(FAR_END - 1100.0, FAR_END - 30.0)
+	if _far_cards.is_empty():
+		_models.clear()
 
 
 ## Карта облаков и объёмный шум: дымка и завесы дождя на растительности — те же, что на земле.
@@ -264,10 +276,14 @@ func _stream(eye: Vector3) -> void:
 	_backlog = _queue.size()
 
 
-## Состав плитки по расстоянию до камеры: вдали — только дальний вид деревьев (одна пачка на плитку), ближе —
-## деревья всех уровней подробности, кусты и камни, совсем близко — ещё трава.
+## Состав плитки по расстоянию до камеры: 0 — только дальний вид деревьев (одна-две пачки на плитку), 1 — ещё
+## простые сетки моделей, 2 — все уровни подробности, кусты и камни, 3 — ещё трава.
 func _level_at(away: float) -> int:
-	return 2 if away < GRASS_END + 140.0 else (1 if away < MID_END + 220.0 else 0)
+	if away < GRASS_END + 140.0:
+		return 3
+	if away < MID_END + 220.0:
+		return 2
+	return 1 if away < MID2_END + 200.0 else 0
 
 
 ## Пересмотр плиток вокруг камеры: недостающие и те, чей состав надо пополнить, — в очередь (ближние первыми);
@@ -396,6 +412,12 @@ func toggle_debug() -> bool:
 	_material.set_shader_parameter("lod_tint", Vector3(0.15, 0.85, 0.2) if on else Vector3.ZERO)
 	_mid_material.set_shader_parameter("lod_tint", Vector3(0.95, 0.85, 0.15) if on else Vector3.ZERO)
 	_far_material.set_shader_parameter("lod_tint", Vector3(0.95, 0.25, 0.15) if on else Vector3.ZERO)
+	var tints: Array[Vector3] = [Vector3(0.15, 0.85, 0.2), Vector3(0.95, 0.85, 0.15), Vector3(0.95, 0.25, 0.15)]
+	if not on:
+		tints = [Vector3.ZERO, Vector3.ZERO, Vector3.ZERO]
+	FloraModels.set_tint(_models, tints)
+	if not _far_cards.is_empty():
+		(_far_cards["material"] as ShaderMaterial).set_shader_parameter("lod_tint", Vector3(0.6, 0.3, 0.9) if on else Vector3.ZERO)
 	if not on:
 		_borders.queue_free()
 		_borders = null
@@ -593,7 +615,7 @@ func _plant_part(job: Planting, part: Rect2, level: int, chunk: Dictionary, tall
 	var texel := job.texel
 	var value := PackedInt32Array()
 	value.resize(KINDS)
-	var kinds := 6 if level == 0 else (9 if level == 1 else KINDS)
+	var kinds := 6 if level <= 1 else (9 if level == 2 else KINDS)
 	var cell_area := texel * texel
 	var x_from := maxi(ceili((part.position.x - job.rect.position.x) / texel - 0.5), 0)
 	var x_to := mini(ceili((part.end.x - job.rect.position.x) / texel - 0.5), job.width)
@@ -701,17 +723,33 @@ func _make_chunk(chunk: Dictionary, level: int) -> Node3D:
 	var far_transforms: Array[Transform3D] = []
 	var far_colors := PackedColorArray()
 	var far_numbers := PackedColorArray()
+	var card_transforms: Array[Transform3D] = []
+	var card_numbers := PackedColorArray()
+	var no_colors := PackedColorArray()
 	for slot: Vector2i in chunk:
 		var batch: Batch = chunk[slot]
-		if level == 0:
-			# Дальняя плитка: полных и упрощённых моделей у неё нет — только «клубы» (ниже).
-			pass
-		elif slot.x == FloraMeshes.Kind.GRASS:
+		if slot.x == FloraMeshes.Kind.GRASS:
 			# Трава — одна пачка на плитку: пучки сами уходят в землю с расстоянием (flora.gdshader), теней не дают.
 			_add_batch(holder, _near_meshes[slot], _material, batch.transforms, batch.numbers, batch.colors, 0.0, GRASS_END, SHADOW_OFF)
 			continue
 		var small := slot.x >= 6
-		if level > 0:
+		var model: Array = _models.get(slot, [])
+		if not model.is_empty():
+			# Модель из файла — один силуэт на всех расстояниях: полная сетка, упрощённая, самая простая и импостор
+			# (изображение той же модели). Тень ближних рисует упрощённая сетка.
+			if level >= 2:
+				_add_batch(holder, model[0], null, batch.transforms, batch.numbers, no_colors, 0.0, MODEL_NEAR_END, SHADOW_OFF)
+				_add_batch(holder, model[2], null, batch.transforms, batch.numbers, no_colors, 0.0, NEAR_END, SHADOW_ONLY)
+				_add_batch(holder, model[1], null, batch.transforms, batch.numbers, no_colors, MODEL_NEAR_END, MID_END, SHADOW_OFF)
+			if level >= 1:
+				_add_batch(holder, model[2], null, batch.transforms, batch.numbers, no_colors, MID_END, MID2_END, SHADOW_OFF)
+			var cell: Vector3 = (_far_cards["cells"] as Dictionary)[slot]
+			for i in batch.transforms.size():
+				var place := batch.transforms[i]
+				card_transforms.append(Transform3D(place.basis * cell.y, place.origin))
+				card_numbers.append(Color(batch.numbers[i].r, batch.numbers[i].g, cell.x, cell.z))
+			continue
+		if level >= 2:
 			var near_end := NEAR_END if not small else minf(NEAR_END, SMALL_END)
 			# Тень ближних деревьев рисует упрощённая модель (в 5–6 раз меньше треугольников): тень на земле от этого
 			# не меняется, а расчёт теней — самая дорогая часть растительности вблизи.
@@ -734,6 +772,8 @@ func _make_chunk(chunk: Dictionary, level: int) -> Node3D:
 			far_numbers.append(Color(0.5, batch.numbers[i].g, 0.0, 1.0))
 	if not far_transforms.is_empty():
 		_add_batch(holder, _far_mesh, _far_material, far_transforms, far_numbers, far_colors, MID_END, FAR_END, SHADOW_OFF)
+	if not card_transforms.is_empty():
+		_add_batch(holder, _far_cards["mesh"], _far_cards["material"], card_transforms, card_numbers, no_colors, MID2_END, FAR_END, SHADOW_OFF)
 	return holder
 
 

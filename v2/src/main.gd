@@ -61,6 +61,8 @@ var _no_sun := false  ## ключи --no-sun и --no-sky-reflections: прове
 var _no_reflections := false
 var _clouds_shown := true
 var _no_flora := false  ## ключ --no-flora: мир без растительности (проверка рельефа и скорости без неё)
+var _bake_impostors := false  ## ключ --bake-impostors: снять изображения моделей для дальнего вида и выйти
+var _models_preview := false  ## ключ --models-preview: вместо мира — модели деревьев в ряд, кадры в папку --shots
 var _scale_audit := false  ## ключ --scale-audit: размеры моделей и камеры — в журнал
 var _flora_reference := Vector2.INF  ## ключ --flora-reference=x,z: поставить эталоны масштаба в этой точке мира
 var _benchmark: Benchmark
@@ -115,6 +117,13 @@ func _ready() -> void:
 	_benchmark = Benchmark.new()
 	add_child(_benchmark)
 	_benchmark.finished.connect(_on_benchmark_finished)
+
+	if _bake_impostors:
+		await _run_bake_impostors()
+		return
+	if _models_preview and not _shots_folder.is_empty():
+		await _run_models_preview()
+		return
 
 	var loaded: bool = await _load_world(WORLD_PATHS[_world_index])
 	if not loaded:
@@ -601,6 +610,167 @@ func _report_check(title: String, passed: bool, details: String) -> int:
 	return 0 if passed else 1
 
 
+## Просмотр моделей деревьев без постройки мира (ключ --models-preview, секунды вместо минут): каждый вариант —
+## тремя уровнями подробности в ряд на ровной земле, рядом — человек 1,78 м; кадры кладутся в папку --shots.
+func _run_models_preview() -> void:
+	DirAccess.make_dir_recursive_absolute(_shots_folder)
+	_hud.visible = false
+	var ground := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(9000.0, 9000.0)
+	var soil := StandardMaterial3D.new()
+	soil.albedo_color = Color(0.36, 0.37, 0.2)
+	soil.roughness = 1.0
+	plane.material = soil
+	ground.mesh = plane
+	add_child(ground)
+	var skin := StandardMaterial3D.new()
+	skin.albedo_color = Color(0.8, 0.25, 0.2)
+	var models := FloraModels.load_all(Flora.NOISE, 1.0e8, 1.0e9)
+	var camera := Camera3D.new()
+	camera.fov = StrategyCamera.FOV
+	camera.far = 5000.0
+	add_child(camera)
+	camera.make_current()
+	var keys: Array = models.keys()
+	keys.sort()
+	var row := 0
+	for key: Vector2i in keys:
+		var lods: Array = models[key]
+		var name := "%s_%02d" % [FloraModels.NAMES[key.x], key.y + 1]
+		var tall := (lods[0] as Mesh).get_aabb().end.y
+		var wide := maxf((lods[0] as Mesh).get_aabb().size.x, (lods[0] as Mesh).get_aabb().size.z)
+		var gap := wide * 1.25
+		var z := float(row) * 60.0
+		for level in 3:
+			var instance := MeshInstance3D.new()
+			instance.mesh = lods[level]
+			instance.position = Vector3((float(level) - 1.0) * gap, 0.0, z)
+			add_child(instance)
+		var person := MeshInstance3D.new()
+		var capsule := CapsuleMesh.new()
+		capsule.height = 1.78
+		capsule.radius = 0.22
+		capsule.material = skin
+		person.mesh = capsule
+		person.position = Vector3(-gap + wide * 0.5, 0.89, z + wide * 0.45)
+		add_child(person)
+		# Вид «как в игре вблизи»: три уровня в ряд, взгляд сверху под 30°.
+		var distance := maxf(gap * 3.2, tall * 2.6)
+		var focus := Vector3(0.0, tall * 0.45, z)
+		var pitch := deg_to_rad(30.0)
+		camera.position = focus + Vector3(0.0, sin(pitch), cos(pitch)) * distance
+		camera.look_at(focus)
+		for i in 6:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(_shots_folder.path_join("model-%s.png" % name))
+		# Крупно — полная модель, сбоку: силуэт и листва.
+		distance = maxf(wide, tall) * 1.7
+		focus = Vector3(-gap, tall * 0.5, z)
+		pitch = deg_to_rad(12.0)
+		camera.position = focus + Vector3(0.0, sin(pitch), cos(pitch)) * distance
+		camera.look_at(focus)
+		for i in 4:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(_shots_folder.path_join("model-%s-krupno.png" % name))
+		print("МОДЕЛЬ %s: рост %.1f м, поперечник %.1f м; треугольников по уровням: %d / %d / %d" % [name, tall, wide,
+				_triangles(lods[0]), _triangles(lods[1]), _triangles(lods[2])])
+		row += 1
+	get_tree().quit(0)
+
+
+## Запекание импосторов (ключ --bake-impostors; запускается разработчиком после смены моделей): каждая модель
+## снимается без света сбоку и сверху в свою клетку общей картинки assets/models/flora_far.png; какая клетка чья
+## и какого размера квадрат снят — в data/flora_far.json. Эту картинку рисует самый дальний уровень деревьев
+## (flora_far.gdshader): силуэт вдали — тот же, что у полной модели.
+func _run_bake_impostors() -> void:
+	const CELL := 256
+	const COLUMNS := 8
+	const ROWS := 4
+	var models := FloraModels.load_all(Flora.NOISE, 1.0e8, 1.0e9)
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(CELL * 2, CELL * 2)  # снимаем вдвое крупнее и уменьшаем — края мягче
+	viewport.transparent_bg = true
+	viewport.own_world_3d = true
+	viewport.msaa_3d = Viewport.MSAA_4X
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(viewport)
+	var camera := Camera3D.new()
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.near = 0.5
+	camera.far = 600.0
+	viewport.add_child(camera)
+	var atlas := Image.create(CELL * COLUMNS, CELL * ROWS, false, Image.FORMAT_RGBA8)
+	var bake_shader: Shader = load("res://src/world/flora_bake.gdshader")
+	var keys: Array = models.keys()
+	keys.sort()
+	var table := {}
+	var index := 0
+	for key: Vector2i in keys:
+		var mesh: Mesh = (models[key] as Array)[0]
+		var box := mesh.get_aabb()
+		var square := maxf(box.end.y, maxf(box.size.x, box.size.z)) * 1.06
+		var instance := MeshInstance3D.new()
+		instance.mesh = mesh
+		for surface in mesh.get_surface_count():
+			var source := mesh.surface_get_material(surface) as ShaderMaterial
+			var material := ShaderMaterial.new()
+			material.shader = bake_shader
+			material.set_shader_parameter("albedo_map", source.get_shader_parameter("albedo_map"))
+			material.set_shader_parameter("leafy", source.get_shader_parameter("leafy"))
+			instance.set_surface_override_material(surface, material)
+		viewport.add_child(instance)
+		camera.size = square
+		for view in 2:
+			if view == 0:
+				camera.look_at_from_position(Vector3(0.0, square * 0.5, 300.0), Vector3(0.0, square * 0.5, 0.0), Vector3.UP)
+			else:
+				camera.look_at_from_position(Vector3(0.0, 300.0, 0.0), Vector3.ZERO, Vector3(0.0, 0.0, -1.0))
+			for i in 4:
+				await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			var shot := viewport.get_texture().get_image()
+			shot.convert(Image.FORMAT_RGBA8)
+			shot.resize(CELL, CELL, Image.INTERPOLATE_LANCZOS)
+			# Прозрачные места заливаются средним цветом дерева: иначе на уменьшенных копиях по краю тёмная кайма.
+			var sum := Vector3.ZERO
+			var weight := 0.0
+			for y in CELL:
+				for x in CELL:
+					var pixel := shot.get_pixel(x, y)
+					sum += Vector3(pixel.r, pixel.g, pixel.b) * pixel.a
+					weight += pixel.a
+			var mean := sum / maxf(weight, 1.0)
+			for y in CELL:
+				for x in CELL:
+					var pixel := shot.get_pixel(x, y)
+					var color := Vector3(pixel.r, pixel.g, pixel.b) * pixel.a + mean * (1.0 - pixel.a)
+					shot.set_pixel(x, y, Color(color.x, color.y, color.z, pixel.a))
+			var cell := index * 2 + view
+			atlas.blit_rect(shot, Rect2i(0, 0, CELL, CELL), Vector2i((cell % COLUMNS) * CELL, (cell / COLUMNS) * CELL))
+		# Вид сверху ставится на высоте самого широкого места кроны — примерно две трети роста.
+		table["%s_%02d" % [FloraModels.NAMES[key.x], key.y + 1]] = {"index": index * 2, "size": square, "top": box.end.y * 0.62 / square}
+		instance.queue_free()
+		index += 1
+	atlas.save_png(ProjectSettings.globalize_path("res://assets/models/flora_far.png"))
+	var file := FileAccess.open(ProjectSettings.globalize_path("res://data/flora_far.json"), FileAccess.WRITE)
+	file.store_string(JSON.stringify({"cell": CELL, "columns": COLUMNS, "rows": ROWS, "models": table}, "\t"))
+	file.close()
+	print("ИМПОСТОРЫ: моделей %d, картинка %d×%d — assets/models/flora_far.png, таблица — data/flora_far.json" % [index, CELL * COLUMNS, CELL * ROWS])
+	get_tree().quit(0)
+
+
+func _triangles(mesh: Mesh) -> int:
+	var count := 0
+	for surface in mesh.get_surface_count():
+		var arrays := mesh.surface_get_arrays(surface)
+		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		count += indices.size() / 3 if not indices.is_empty() else (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+	return count
+
+
 func _read_arguments() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--shots="):
@@ -611,6 +781,10 @@ func _read_arguments() -> void:
 			_debug_view = argument.trim_prefix("--debug-view=").to_int()
 		elif argument == "--flora-debug":
 			_flora_debug_wanted = true
+		elif argument == "--bake-impostors":
+			_bake_impostors = true
+		elif argument == "--models-preview":
+			_models_preview = true
 		elif argument == "--scale-audit":
 			_scale_audit = true
 		elif argument == "--no-flora":
