@@ -190,6 +190,12 @@ func now() -> Dictionary:
 	return result
 
 
+## Сдвинуть время ветра на столько секунд (для проверок: растительность должна качаться).
+func push_wind(seconds: float) -> void:
+	_wind_time += seconds
+	_apply(0.0)
+
+
 ## Высота низа облаков сейчас, метры: он всегда выше камеры.
 func cloud_base() -> float:
 	return _base

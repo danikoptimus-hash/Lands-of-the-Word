@@ -2,7 +2,7 @@ class_name Flora
 extends Node3D
 ## Растительность и камни мира (шаг 1.8): деревья, кусты и камни по картам густоты.
 ##
-## Где чему расти, решают экологические правила в расчёте земли (bake_surface.gdshader, части 5–7): для каждой
+## Где чему расти, решают экологические правила в расчёте земли (bake_surface.gdshader, части 5–8): для каждой
 ## точки суши (шаг 4 м) — густота каждого вида от местности, влажности, высоты, уклона, стока, берега и полей
 ## «лесистости». Здесь по этим картам расставляются сами деревья: в клетке карты — столько экземпляров вида,
 ## сколько выходит по его густоте (дробная часть — по жребию), место в клетке, поворот, рост и оттенок — тоже
@@ -14,27 +14,41 @@ extends Node3D
 ## видеокарта рисует пачку разом. Уровней подробности три, у каждого своя пачка и свои расстояния (движок сам
 ## включает нужную и плавно, точками, меняет одну на другую): вблизи — полная модель, дальше — упрощённая,
 ## ещё дальше — один общий «клуб» на дерево; за FAR_END деревья не рисуются — остаётся цвет земли под лесом.
-## Кусты и камни дальше SMALL_END не рисуются. Тени — только от ближнего и среднего уровня.
+## Кусты и камни дальше SMALL_END не рисуются. Тени — только от ближнего уровня, и рисует их упрощённая модель.
 
 const SHADER := preload("res://src/world/flora.gdshader")
 const NOISE := preload("res://assets/terrain/noise.png")
 const CHUNK := 256.0  ## сторона плитки, метры (как у земли)
-const KINDS := 9
+const KINDS := 10
 ## Наибольшая густота вида: экземпляров на квадратный метр там, где карта вида равна единице (порядок —
 ## FloraMeshes.Kind). Дубрава — дерево на 34 м², сосняк — на 38, оливы реже, кипарисы тесными группами.
-const RATE: Array[float] = [1.0 / 34.0, 1.0 / 38.0, 1.0 / 52.0, 1.0 / 40.0, 1.0 / 55.0, 1.0 / 70.0, 1.0 / 22.0, 1.0 / 24.0, 1.0 / 26.0]
+## Пучок травы — на 7 м²: это отдельные высокие пучки поверх рисунка травы на земле, а не весь луг.
+const RATE: Array[float] = [1.0 / 34.0, 1.0 / 38.0, 1.0 / 52.0, 1.0 / 40.0, 1.0 / 55.0, 1.0 / 70.0, 1.0 / 22.0, 1.0 / 24.0, 1.0 / 26.0,
+		1.0 / 7.0]
 const NEAR_END := 300.0  ## до этого расстояния до плитки — полные модели, метры
 const MID_END := 760.0  ## до этого — упрощённые
 const FAR_END := 3800.0  ## до этого — по «клубу» на дерево; дальше — только цвет земли
 const SMALL_END := 620.0  ## кусты и камни дальше не рисуются
+const GRASS_END := 460.0  ## плитки с пучками травы дальше не рисуются (сами пучки уходят в землю уже за 210–360 м)
+const SHADOW_OFF := GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+const SHADOW_ONLY := GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+const OUTCROP := Vector2(5.0, 14.0)  ## скальный выход: поперечник, метры
+const GRASS_GREEN := Color(0.125, 0.215, 0.05)
+const GRASS_STRAW := Color(0.42, 0.34, 0.13)
 const FADE := 70.0  ## на таком расстоянии один уровень подробности плавно сменяет другой
 
 var counts := PackedInt32Array()  ## сколько экземпляров каждого вида
 var batches := 0  ## сколько пачек (вызовов отрисовки, если видны все)
 var build_ms := 0.0
+var lowest := INF  ## самая низкая точка, на которой что-то растёт, метры над морем
+var fingerprint := 0  ## «отпечаток» расстановки: у того же мира он тот же
 
 var _material: ShaderMaterial
+var _mid_material: ShaderMaterial
 var _far_material: ShaderMaterial
+var _borders: MeshInstance3D
+var _tiles: Array[Vector2i] = []  ## плитки, где что-то растёт (для проверочных границ)
+var _heights: Array[HeightMap] = []
 var _near_meshes := {}  ## Vector2i(вид, вариант) → сетка
 var _mid_meshes := {}
 var _far_mesh: ArrayMesh
@@ -45,6 +59,7 @@ func _ready() -> void:
 	_material = ShaderMaterial.new()
 	_material.shader = SHADER
 	_material.set_shader_parameter("noise_map", NOISE)
+	_mid_material = _material.duplicate()
 	_far_material = ShaderMaterial.new()
 	_far_material.shader = SHADER
 	_far_material.set_shader_parameter("noise_map", NOISE)
@@ -58,7 +73,7 @@ func _ready() -> void:
 
 ## Карта облаков и объёмный шум: дымка и завесы дождя на растительности — те же, что на земле.
 func set_cloud_textures(map: Texture2D, noise: Texture3D) -> void:
-	for material: ShaderMaterial in [_material, _far_material]:
+	for material: ShaderMaterial in [_material, _mid_material, _far_material]:
 		material.set_shader_parameter("cloud_map", map)
 		material.set_shader_parameter("cloud_noise", noise)
 
@@ -69,9 +84,14 @@ func build(world: WorldData, terrain: WorldTerrain) -> void:
 	for child in get_children():
 		child.queue_free()
 	_reference = null
+	_borders = null
+	_tiles.clear()
+	_heights.clear()
 	counts = PackedInt32Array()
 	counts.resize(KINDS)
 	batches = 0
+	lowest = INF
+	fingerprint = 0
 	var regions := terrain.flora_regions()
 	for region in regions:
 		await _plant_region(world, region)
@@ -87,6 +107,57 @@ func summary() -> String:
 			trees += counts[kind]
 		parts.append("%s %d" % [FloraMeshes.TITLES[kind], counts[kind]])
 	return "деревьев %d (%s); пачек %d; за %.0f мс" % [trees, ", ".join(parts), batches, build_ms]
+
+
+## Проверочный вид (шаг 1.8): уровни подробности цветом — зелёный вблизи, жёлтый средний, красный дальний —
+## и границы плиток посадки. Возвращает, включён ли он теперь.
+func toggle_debug() -> bool:
+	var on := _borders == null
+	_material.set_shader_parameter("lod_tint", Vector3(0.15, 0.85, 0.2) if on else Vector3.ZERO)
+	_mid_material.set_shader_parameter("lod_tint", Vector3(0.95, 0.85, 0.15) if on else Vector3.ZERO)
+	_far_material.set_shader_parameter("lod_tint", Vector3(0.95, 0.25, 0.15) if on else Vector3.ZERO)
+	if not on:
+		_borders.queue_free()
+		_borders = null
+		return false
+	# Границы плиток — ломаные по земле, чуть выше неё.
+	var lines := PackedVector3Array()
+	for i in _tiles.size():
+		var corner := Vector2(_tiles[i]) * CHUNK
+		for side: Array in [[Vector2.ZERO, Vector2(CHUNK, 0.0)], [Vector2.ZERO, Vector2(0.0, CHUNK)]]:
+			var from: Vector2 = corner + side[0]
+			var to: Vector2 = corner + side[1]
+			for n in 16:
+				for end in 2:
+					var at := from.lerp(to, float(n + end) / 16.0)
+					lines.append(Vector3(at.x, maxf(_heights[i].sample(at), 0.0) + 3.0, at.y))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = lines
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_LINES, arrays)
+	var paint := StandardMaterial3D.new()
+	paint.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	paint.albedo_color = Color(1.0, 1.0, 1.0)
+	_borders = MeshInstance3D.new()
+	_borders.mesh = mesh
+	_borders.material_override = paint
+	_borders.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_borders)
+	return true
+
+
+## Счётчики для проверочного вида: что посажено и что рисуется в кадре сейчас.
+func debug_text() -> String:
+	var total := 0
+	for kind in KINDS:
+		total += counts[kind]
+	return "Растительность: %d экз., %d пачек, посадка %.0f мс · кадр: %d объектов, %d вызовов, %.1f млн треуг. · зелёный — до %d м, жёлтый — до %d, красный — до %d" % [
+			total, batches, build_ms,
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_OBJECTS_IN_FRAME),
+			RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_DRAW_CALLS_IN_FRAME),
+			float(RenderingServer.get_rendering_info(RenderingServer.RENDERING_INFO_TOTAL_PRIMITIVES_IN_FRAME)) / 1.0e6,
+			int(NEAR_END), int(MID_END), int(FAR_END)]
 
 
 ## Эталоны масштаба у точки мира (проверка шага 1.8): человек 1,75 м, дом 6 м, дорога 4 м, валун 2 м и по дереву
@@ -135,11 +206,19 @@ func toggle_reference(at: Vector3) -> bool:
 	var stand: Array = [[FloraMeshes.Kind.ROCK, Vector3(-4.0, 0.0, 0.0), 2.0], [FloraMeshes.Kind.OLIVE, Vector3(-11.0, 0.0, 0.0), 1.0],
 			[FloraMeshes.Kind.PALM, Vector3(-19.0, 0.0, 0.0), 1.0], [FloraMeshes.Kind.CYPRESS, Vector3(-26.0, 0.0, 0.0), 1.0]]
 	for row: Array in stand:
-		var item := MeshInstance3D.new()
-		item.mesh = _near_meshes[Vector2i(int(row[0]), 0)]
+		# Пачка из одного экземпляра: цвет камня задаётся экземпляром, как на карте.
+		var multimesh := MultiMesh.new()
+		multimesh.transform_format = MultiMesh.TRANSFORM_3D
+		multimesh.use_custom_data = true
+		multimesh.use_colors = true
+		multimesh.mesh = _near_meshes[Vector2i(int(row[0]), 0)]
+		multimesh.instance_count = 1
+		multimesh.set_instance_transform(0, Transform3D(Basis.from_scale(Vector3.ONE * float(row[2])), row[1]))
+		multimesh.set_instance_custom_data(0, Color(0.5, 0.0, 0.5, 1.0))
+		multimesh.set_instance_color(0, Color(0.47, 0.31, 0.15) if int(row[0]) == FloraMeshes.Kind.ROCK else Color.WHITE)
+		var item := MultiMeshInstance3D.new()
+		item.multimesh = multimesh
 		item.material_override = _material
-		item.position = row[1]
-		item.scale = Vector3.ONE * float(row[2])
 		_reference.add_child(item)
 	return true
 
@@ -149,6 +228,7 @@ class Batch:
 	var transforms: Array[Transform3D] = []
 	var numbers := PackedColorArray()  ## числа экземпляра для шейдера: оттенок, фаза ветра
 	var sizes := PackedFloat32Array()  ## рост, метры
+	var colors := PackedColorArray()  ## цвет экземпляра (камни — порода, трава — зелёная или сухая); у деревьев пусто
 
 
 ## Задание на посадку одной области: карты, высоты и плитки. Плитки считаются в несколько потоков — каждая
@@ -162,6 +242,7 @@ class Planting:
 	var a := PackedByteArray()
 	var b := PackedByteArray()
 	var c := PackedByteArray()
+	var d := PackedByteArray()
 	var heights: HeightMap
 	var world_seed := 0
 	var tiles: Array[Vector2i] = []
@@ -182,6 +263,7 @@ func _plant_region(world: WorldData, region: Dictionary) -> void:
 	job.a = first.get_data()
 	job.b = (maps[1] as Image).get_data()
 	job.c = (maps[2] as Image).get_data()
+	job.d = (maps[3] as Image).get_data()
 	job.heights = region["heights"]
 	job.world_seed = world.map_seed
 	for tile_z in range(floori(job.area.position.y / CHUNK), ceili(job.area.end.y / CHUNK)):
@@ -197,9 +279,15 @@ func _plant_region(world: WorldData, region: Dictionary) -> void:
 		var tally: PackedInt32Array = job.tallies[index]
 		for kind in KINDS:
 			counts[kind] += tally[kind]
+		lowest = minf(lowest, float(tally[KINDS]) / 100.0)
 		var chunk: Dictionary = job.results[index]
+		for slot: Vector2i in chunk:
+			var batch: Batch = chunk[slot]
+			fingerprint = (fingerprint * 31 + slot.x * 7 + slot.y + hash(batch.sizes) + hash(batch.transforms[0].origin)) & 0x7fffffff
 		if not chunk.is_empty():
 			_make_chunk(chunk)
+			_tiles.append(job.tiles[index])
+			_heights.append(job.heights)
 
 
 ## Посадка одной плитки (в своём потоке): клетки карт плитки → экземпляры.
@@ -207,8 +295,9 @@ func _plant_tile(index: int, job: Planting) -> void:
 	var tile := job.tiles[index]
 	var texel := job.texel
 	var chunk := {}
-	var tally := PackedInt32Array()
-	tally.resize(KINDS)
+	var tally := PackedInt32Array()  # по видам — сколько, последним числом — самая низкая точка, сантиметры
+	tally.resize(KINDS + 1)
+	tally[KINDS] = 1000000
 	var value := PackedInt32Array()
 	value.resize(KINDS)
 	var cell_area := texel * texel
@@ -219,6 +308,7 @@ func _plant_tile(index: int, job: Planting) -> void:
 	var a := job.a
 	var b := job.b
 	var c := job.c
+	var d := job.d
 	for ty in range(y_from, y_to):
 		var z0 := job.rect.position.y + float(ty) * texel
 		for tx in range(x_from, x_to):
@@ -235,6 +325,7 @@ func _plant_tile(index: int, job: Planting) -> void:
 			value[6] = b[at + 2]
 			value[7] = b[at + 3]
 			value[8] = c[at]
+			value[9] = c[at + 1]
 			for kind in KINDS:
 				if value[kind] < 3:
 					continue
@@ -260,23 +351,55 @@ func _plant_tile(index: int, job: Planting) -> void:
 					var limits: Vector2 = FloraMeshes.SIZE[kind]
 					var share := (w + t) * 0.5 if kind != FloraMeshes.Kind.ROCK else w * w * w
 					var size := lerpf(limits.x, limits.y, pow(share, 1.25))
+					var variant := int(w * 97.0) % FloraMeshes.VARIANTS[kind]
+					# Скальный выход: изредка там, где камней много, — глыба в 5–14 м, наполовину в земле.
+					var outcrop := kind == FloraMeshes.Kind.ROCK and value[kind] > 130 and t > 0.988
+					if outcrop:
+						size = lerpf(OUTCROP.x, OUTCROP.y, u * u)
+						variant = 1 if v < 0.6 else 0
 					var factor := size / FloraMeshes.REFERENCE[kind]
 					var turned := Basis(Vector3.UP, t * TAU)
 					# Наклон: деревья стоят почти прямо, пальмы и камни — вольнее.
 					var lean := 0.05 if kind < 4 else (0.12 if kind == FloraMeshes.Kind.PALM else 0.2)
 					turned = Basis(Vector3(cos(w * TAU), 0.0, sin(w * TAU)), (u - 0.5) * 2.0 * lean) * turned
 					turned = turned.scaled(Vector3(factor * lerpf(0.85, 1.18, v), factor, factor * lerpf(0.85, 1.18, u)))
-					var slot := Vector2i(kind, int(w * 97.0) % FloraMeshes.VARIANTS[kind])
+					var slot := Vector2i(kind, variant)
 					var batch: Batch = chunk.get(slot)
 					if batch == null:
 						batch = Batch.new()
 						chunk[slot] = batch
-					batch.transforms.append(Transform3D(turned, Vector3(place.x, ground, place.y)))
+					var rooted := ground
+					if kind == FloraMeshes.Kind.ROCK:
+						batch.colors.append(_rock_color(d[at], d[at + 1], d[at + 2], d[at + 3], v))
+						if outcrop:
+							rooted -= size * 0.12
+					elif kind == FloraMeshes.Kind.GRASS:
+						batch.colors.append(GRASS_GREEN.lerp(GRASS_STRAW, clampf(float(c[at + 2]) / 255.0 * 1.25 - 0.2 + 0.3 * (v - 0.5), 0.0, 1.0)))
+					batch.transforms.append(Transform3D(turned, Vector3(place.x, rooted, place.y)))
 					batch.numbers.append(Color(v, t, w, 1.0))
 					batch.sizes.append(size)
 					tally[kind] += 1
+					tally[KINDS] = mini(tally[KINDS], int(ground * 100.0))
 	job.results[index] = chunk
 	job.tallies[index] = tally
+
+
+## Цвет камня по породе места (карта, часть 8): тот же камень, что на скалах вокруг, — тёплый известняк берегов,
+## серо-бурый в горах, песочный в пустыне, тёмный вулканический, серый с лишайником на малых островах.
+static func _rock_color(tone: int, sandy: int, sand_tone: int, lichen: int, chance: float) -> Color:
+	var rock_tone := float(tone) / 255.0
+	var color := Color(0.56, 0.36, 0.17)
+	if lichen > 127:
+		color = Color(0.3, 0.3, 0.22)
+	if rock_tone > 0.875:
+		color = Color(0.13, 0.115, 0.1)
+	elif rock_tone <= 0.6:
+		var tint := Color(0.84, 0.86, 0.9).lerp(Color(0.66, 0.71, 0.78), clampf(rock_tone * 2.0, 0.0, 1.0))
+		color = Color(color.r * tint.r, color.g * tint.g, color.b * tint.b)
+	var sand := Color(0.6, 0.35, 0.13).lerp(Color(0.62, 0.31, 0.1), float(sand_tone) / 255.0)
+	color = color.lerp(sand, float(sandy) / 255.0 * 0.7)
+	var shade := lerpf(0.7, 0.94, chance)
+	return Color(color.r * shade, color.g * shade, color.b * shade, 1.0)
 
 
 ## Пачки одной плитки: ближние и средние — по виду и варианту, дальняя — общая на все деревья.
@@ -285,10 +408,17 @@ func _make_chunk(chunk: Dictionary) -> void:
 	var far_colors := PackedColorArray()
 	for slot: Vector2i in chunk:
 		var batch: Batch = chunk[slot]
+		if slot.x == FloraMeshes.Kind.GRASS:
+			# Трава — одна пачка на плитку: пучки сами уходят в землю с расстоянием (flora.gdshader), теней не дают.
+			_add_batch(_near_meshes[slot], _material, batch.transforms, batch.numbers, batch.colors, 0.0, GRASS_END, SHADOW_OFF)
+			continue
 		var small := slot.x >= 6
 		var near_end := NEAR_END if not small else minf(NEAR_END, SMALL_END)
-		_add_batch(_near_meshes[slot], _material, batch.transforms, batch.numbers, PackedColorArray(), 0.0, near_end, true)
-		_add_batch(_mid_meshes[slot], _material, batch.transforms, batch.numbers, PackedColorArray(), near_end, SMALL_END if small else MID_END, false)
+		# Тень ближних деревьев рисует упрощённая модель (в 5–6 раз меньше треугольников): тень на земле от этого
+		# не меняется, а расчёт теней — самая дорогая часть растительности вблизи.
+		_add_batch(_near_meshes[slot], _material, batch.transforms, batch.numbers, batch.colors, 0.0, near_end, SHADOW_OFF)
+		_add_batch(_mid_meshes[slot], _mid_material, batch.transforms, batch.numbers, batch.colors, 0.0, near_end, SHADOW_ONLY)
+		_add_batch(_mid_meshes[slot], _mid_material, batch.transforms, batch.numbers, batch.colors, near_end, SMALL_END if small else MID_END, SHADOW_OFF)
 		if small:
 			continue
 		var shape: Vector3 = FloraMeshes.FAR_SHAPE[slot.x]
@@ -305,12 +435,12 @@ func _make_chunk(chunk: Dictionary) -> void:
 		var numbers := PackedColorArray()
 		numbers.resize(far_transforms.size())
 		numbers.fill(Color(0.5, 0.0, 0.0, 1.0))
-		_add_batch(_far_mesh, _far_material, far_transforms, numbers, far_colors, MID_END, FAR_END, false)
+		_add_batch(_far_mesh, _far_material, far_transforms, numbers, far_colors, MID_END, FAR_END, SHADOW_OFF)
 
 
 ## Одна пачка экземпляров с расстояниями видимости. colors — цвет экземпляра (пусто — белый).
 func _add_batch(mesh: Mesh, material: Material, transforms: Array[Transform3D], numbers: PackedColorArray, colors: PackedColorArray,
-		from: float, to: float, shadows: bool) -> void:
+		from: float, to: float, shadows: GeometryInstance3D.ShadowCastingSetting) -> void:
 	var multimesh := MultiMesh.new()
 	multimesh.transform_format = MultiMesh.TRANSFORM_3D
 	multimesh.use_custom_data = true
@@ -325,7 +455,7 @@ func _add_batch(mesh: Mesh, material: Material, transforms: Array[Transform3D], 
 	var instance := MultiMeshInstance3D.new()
 	instance.multimesh = multimesh
 	instance.material_override = material
-	instance.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON if shadows else GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	instance.cast_shadow = shadows
 	instance.extra_cull_margin = 4.0
 	instance.visibility_range_begin = from
 	instance.visibility_range_end = to

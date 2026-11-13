@@ -273,6 +273,8 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 		await _check_light(stops)
 	if _listed("95-voda", only):
 		await _check_water(stops)
+	if _listed("98-flora", only):
+		await _check_flora(world, terrain)
 	if _listed("97-pogoda", only):
 		await _check_weather(stops)
 
@@ -302,6 +304,7 @@ func run(folder: String, world: WorldData, terrain: WorldTerrain, rig: StrategyC
 	await _check_light(stops)
 	await _check_water(stops)
 	await _check_weather(stops)
+	await _check_flora(world, terrain)
 	await _check_cache(stops)
 
 	if quick:
@@ -950,6 +953,56 @@ func _check_weather(stops: Array[Tour.Stop]) -> void:
 			"кадр с разрядом отличается от кадра без него на %.1f из 255; после разряда — на %.3f" % [flash, trace])
 	weather.set_kind(Weather.Kind.CLEAR, true)
 	await _frames(8)
+	get_viewport().scaling_3d_scale = scale
+
+
+## Растительность (шаг 1.8): посажена, стоит на суше, при том же мире — та же; на ветру качается, в шторм сильнее.
+func _check_flora(world: WorldData, terrain: WorldTerrain) -> void:
+	var flora: Flora = null
+	for node in get_tree().root.find_children("*", "Flora", true, false):
+		flora = node
+	var weather := _find_weather()
+	if flora == null or weather == null:
+		return
+	var trees := 0
+	for kind in 6:
+		trees += flora.counts[kind]
+	_check("растительность: посажена и стоит на суше", trees > 2000 and flora.lowest >= 0.6,
+			"%s; самая низкая точка — %.2f м над морем" % [flora.summary(), flora.lowest])
+	# Тот же мир — тот же лес: расставляем заново и сверяем отпечаток расстановки.
+	var before := flora.fingerprint
+	var counted := flora.counts.duplicate()
+	await flora.build(world, terrain)
+	_check("растительность: при том же мире та же", flora.fingerprint == before and flora.counts == counted,
+			"отпечаток расстановки %d и %d" % [before, flora.fingerprint])
+	# Ветер: кадр рощи меняется со временем ветра, а при том же времени он тот же; в шторм качает сильнее.
+	var scale := get_viewport().scaling_3d_scale
+	get_viewport().scaling_3d_scale = 0.5
+	_rig.set_view(CameraView.make(Vector2(-600.0, 0.0), 180.0, -90.0, -20.0))
+	await _frames(10)
+	var still := await _frame_picture()
+	weather.push_wind(1.7)
+	await _frames(2)
+	var swayed := await _frame_picture()
+	weather.push_wind(-1.7)
+	await _frames(2)
+	var back := await _frame_picture()
+	var sway := _picture_difference(still, swayed)
+	var same := _picture_difference(still, back)
+	weather.set_kind(Weather.Kind.STORM, true)
+	weather.set_drops_shown(false)
+	await _frames(6)
+	var storm_still := await _frame_picture()
+	weather.push_wind(1.7)
+	await _frames(2)
+	var storm_swayed := await _frame_picture()
+	weather.push_wind(-1.7)
+	var storm_sway := _picture_difference(storm_still, storm_swayed)
+	weather.set_drops_shown(true)
+	weather.set_kind(Weather.Kind.CLEAR, true)
+	await _frames(6)
+	_check("растительность: качается на ветру, в шторм сильнее", sway > 0.3 and same < 0.05 and storm_sway > sway * 1.3,
+			"кадр рощи через 1,7 с ветра отличается на %.2f из 255 (при том же времени — на %.3f); в шторм — на %.2f" % [sway, same, storm_sway])
 	get_viewport().scaling_3d_scale = scale
 
 

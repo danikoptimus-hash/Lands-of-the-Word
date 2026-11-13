@@ -13,16 +13,18 @@ extends RefCounted
 ## в четвёртом числе цвета — гибкость (ствол жёсткий, концы веток гибкие: по ней шейдер качает дерево на ветру),
 ## в UV — что это (0 — кора, 1 — листва, 2 — перистый лист пальмы, 3 — камень).
 
-enum Kind { OAK, PINE, OLIVE, CYPRESS, PALM, TAMARISK, SHRUB_GREEN, SHRUB_DRY, ROCK }
+enum Kind { OAK, PINE, OLIVE, CYPRESS, PALM, TAMARISK, SHRUB_GREEN, SHRUB_DRY, ROCK, GRASS }
 
-const TITLES: Array[String] = ["дуб", "сосна", "олива", "кипарис", "пальма", "тамариск", "зелёный кустарник", "сухой кустарник", "камень"]
+const TITLES: Array[String] = ["дуб", "сосна", "олива", "кипарис", "пальма", "тамариск", "зелёный кустарник", "сухой кустарник", "камень",
+		"пучок травы"]
 ## Опорный рост модели, метры.
-const REFERENCE: Array[float] = [11.0, 13.0, 6.0, 15.0, 12.0, 5.5, 1.4, 0.6, 1.0]
-## Пределы роста на карте, метры (камень — поперечник).
+const REFERENCE: Array[float] = [11.0, 13.0, 6.0, 15.0, 12.0, 5.5, 1.4, 0.6, 1.0, 0.5]
+## Пределы роста на карте, метры (камень — поперечник; скальные выходы 5–14 м ставятся отдельным жребием,
+## см. flora.gd).
 const SIZE: Array[Vector2] = [Vector2(6.0, 18.0), Vector2(8.0, 20.0), Vector2(4.0, 9.0), Vector2(10.0, 25.0), Vector2(8.0, 20.0),
-		Vector2(3.0, 7.0), Vector2(0.8, 2.5), Vector2(0.2, 1.0), Vector2(0.3, 4.0)]
+		Vector2(3.0, 7.0), Vector2(0.8, 2.5), Vector2(0.2, 1.0), Vector2(0.3, 4.0), Vector2(0.3, 0.7)]
 ## Сколько вариантов формы у вида.
-const VARIANTS: Array[int] = [3, 2, 3, 2, 2, 2, 2, 2, 3]
+const VARIANTS: Array[int] = [3, 2, 3, 2, 2, 2, 2, 2, 3, 2]
 ## Дальний вид дерева — один «клуб»: ширина и высота в долях роста и цвет (линейный).
 const FAR_SHAPE: Array[Vector3] = [Vector3(0.85, 0.62, 0.42), Vector3(0.7, 0.3, 0.8), Vector3(0.95, 0.6, 0.45), Vector3(0.2, 0.92, 0.5),
 		Vector3(0.5, 0.26, 0.86), Vector3(0.95, 0.5, 0.55)]
@@ -113,6 +115,30 @@ class Shape:
 				var at := first + i * 2
 				indices.append_array(PackedInt32Array([at - 2, at, at - 1, at - 1, at, at + 1, at - 2, at - 1, at, at - 1, at + 1, at]))
 
+	## Пучок травы: листья веером от корня наружу. Лист — один узкий клин (корень широкий, конец острый и отклонён
+	## наружу), виден с обеих сторон; нормали смотрят вверх — пучок освещён как земля под ним, без чёрных и
+	## горящих листьев. Пучок — 10–14 треугольников: их в кадре вблизи десятки тысяч.
+	func tuft(blades: int, height: float, spread: float, width: float) -> void:
+		for b in blades:
+			var heading := TAU * (float(b) + random.randf_range(-0.35, 0.35)) / float(blades)
+			var out := Vector3(cos(heading), 0.0, sin(heading))
+			var side := Vector3(-out.z, 0.0, out.x)
+			var tall := height * random.randf_range(0.62, 1.0)
+			var lean := spread * random.randf_range(0.5, 1.0)
+			var root := out * random.randf_range(0.0, 0.07)
+			var first := vertices.size()
+			var shade := random.randf_range(0.86, 1.12)
+			var normal := (Vector3.UP * 0.9 + out * 0.35).normalized()
+			for edge: float in [-1.0, 1.0, 0.0]:
+				var t := 1.0 if edge == 0.0 else 0.0
+				var tone := (0.36 + 1.0 * t) * shade
+				vertices.append(root + side * edge * width + out * (lean * t) + Vector3.UP * (tall * t))
+				normals.append(normal)
+				colors.append(Color(tone, tone, tone, t))
+				uvs.append(Vector2(4.0, t))
+				uvs2.append(Vector2(edge, t))
+			indices.append_array(PackedInt32Array([first, first + 2, first + 1, first, first + 1, first + 2]))
+
 	func commit() -> ArrayMesh:
 		var arrays := []
 		arrays.resize(Mesh.ARRAY_MAX)
@@ -197,6 +223,12 @@ static func make(kind: Kind, variant: int, lod: int) -> ArrayMesh:
 						0, 0.42, Color(0.36, 0.34, 0.19), Color(0.18, 0.16, 0.09), 0.7)
 		Kind.ROCK:
 			_rock(shape, lod, variant)
+		Kind.GRASS:
+			# Вариант 0 — пышный пучок, 1 — редкий и выше. Цвет — белый: зелёный он или соломенный, задаёт экземпляр.
+			if variant == 0:
+				shape.tuft(7 if lod == 0 else 4, 0.5, 0.44, 0.12 if lod == 0 else 0.15)
+			else:
+				shape.tuft(5 if lod == 0 else 3, 0.5, 0.26, 0.11 if lod == 0 else 0.14)
 	return shape.commit()
 
 
@@ -301,8 +333,8 @@ static func _palm(shape: Shape, lod: int, variant: int) -> void:
 ## утоплено в землю. Цвет — белый: породу задаёт цвет экземпляра.
 static func _rock(shape: Shape, lod: int, variant: int) -> void:
 	var random := shape.random
-	var light := Color(1.0, 0.98, 0.95)
-	var dark := Color(0.58, 0.56, 0.54)
+	var light := Color(1.0, 1.0, 1.0)
+	var dark := Color(0.56, 0.56, 0.56)
 	var detail := 1 if lod == 0 else 0
 	if variant == 0:
 		shape.blob(Vector3(0.0, 0.26, 0.0), Vector3(0.5, 0.42, 0.46), detail, 0.3, light, dark, 0.0, 3.0)

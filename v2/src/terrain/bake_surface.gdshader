@@ -20,8 +20,9 @@
 //   1 — доли этих трёх материалов и порода камня;
 //   2 — тон: сухость, цветение, оттенок песка, мокрая полоса у воды (шаг 4 м — меняется плавно);
 //   3 — затенение по форме рельефа и крупные пятна светлее-темнее (множитель цвета) и снег;
-//   5–7 — растительность (шаг 1.8): густота по видам, 0…1 от наибольшей густоты вида. 5 — дуб, сосна, олива,
-//       кипарис; 6 — пальма, тамариск, зелёный кустарник, сухой кустарник; 7 — камни, трава, сомкнутость крон, суша.
+//   5–8 — растительность (шаг 1.8): густота по видам, 0…1 от наибольшей густоты вида. 5 — дуб, сосна, олива,
+//       кипарис; 6 — пальма, тамариск, зелёный кустарник, сухой кустарник; 7 — камни, пучки травы, их сухость, суша;
+//       8 — порода под камнями (тон породы, песчаная земля, оттенок песка, лишайниковый камень).
 //       По этим картам flora.gd расставляет деревья, кусты и камни, а дальний вид земли (4) красится ими же:
 //       лес с высоты — цельный массив, а не точки;
 //   4 — готовая картинка дальнего вида: цвет природной зоны (средние цвета материалов по их долям) с рисунком
@@ -51,14 +52,21 @@ uniform float snow_line = 120.0;
 uniform vec4 islets[8];
 uniform int islet_count = 0;
 uniform int part = 0;
-// Расчистки (шаг 1.8): города и точки старта — xy центр, z радиус, метры. Деревья и кусты там не растут.
-uniform vec4 clearings[64];
+// Расчистки (шаг 1.8): города и точки старта — xy центр, z радиус, метры; w — докуда тянутся поля города, метры
+// (0 — полей нет). Деревья и кусты в расчистке не растут.
+uniform vec4 clearings[96];
 uniform int clearing_count = 0;
 // Для проверки географии (ключ запуска --debug-view): вместо картинки дальнего вида — 1 влажность, 2 сток,
 // 3 крутизна, 4 ложбины и гребни.
 uniform int debug_view = 0;
 
 const mat2 TURN = mat2(vec2(0.7961, 0.6052), vec2(-0.6052, 0.7961)); // поворот второй копии плитки, как в кадре
+
+vec2 hash22(vec2 p) {
+	vec3 q = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973));
+	q += dot(q, q.yzx + 33.33);
+	return fract((q.xx + q.yz) * q.zy);
+}
 
 vec3 to_srgb(vec3 c) {
 	return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055, step(vec3(0.0031308), c));
@@ -393,6 +401,123 @@ void fragment() {
 	// Трава (пучки вблизи): луга, влажные холмы, оазис; под пологом леса и в сухих местах реже.
 	float grass = clamp(meadow * 0.9 + hills * 0.55 * smoothstep(0.25, 0.5, moisture) + oasis * 0.6 + mountains * 0.25 * belt + coast * 0.1, 0.0, 1.0)
 			* (1.0 - 0.5 * forest) * (1.0 - smoothstep(0.2, 0.42, steep)) * dry_land * (1.0 - snow) * smoothstep(3.0, 10.0, shore);
+	// Сухая трава (пучки): сухие холмы и степные края пустыни, берег, горные склоны — клочьями, реже зелёной.
+	float grass_dry = clamp(hills * (1.0 - smoothstep(0.3, 0.55, moisture)) * 0.75 + desert * (0.08 + 0.35 * hollow + 0.3 * channel)
+			+ coast * 0.3 + mountains * 0.3 + stone * 0.2, 0.0, 1.0) * smoothstep(0.3, 0.62, groves.a + 0.4 * (fine.g - 0.5))
+			* (1.0 - smoothstep(0.26, 0.5, steep)) * dry_land * (1.0 - snow) * smoothstep(3.0, 10.0, shore);
+	// ── Поля (шаг 1.8): возделанная земля вокруг городов ───────────────────────
+	// Наделы — не клетка и не круг: пояс вокруг города с рваным краем, только на ровной и не сухой земле; внутри —
+	// участки неправильной формы (каждый — область вокруг своей точки), у каждого своя культура и направление
+	// борозд; по межам — живая изгородь, местами кипарисы. Часть участков — оливковые сады рядами.
+	float field = 0.0;
+	vec3 crop = vec3(1.0);
+	float orchard = 0.0;
+	float hedge = 0.0;
+	float wheat = 0.0;
+	float barley = 0.0;
+	float fallow = 0.0;
+	float vines = 0.0;
+	float vine_rows = 0.0;
+	float fertile = (1.0 - smoothstep(0.06, 0.13, steep)) * smoothstep(0.2, 0.32, moisture) * dry_land * (1.0 - snow)
+			* smoothstep(10.0, 24.0, shore) * (1.0 - smoothstep(0.5, 0.8, desert * (1.0 - lake))) * (1.0 - rocky);
+	for (int i = 0; i < clearing_count; i++) {
+		if (clearings[i].w < 1.0 || fertile <= 0.0) {
+			continue;
+		}
+		vec2 from_city = p - clearings[i].xy;
+		float away = length(from_city) + 44.0 * (groves.r - 0.5) + 20.0 * (fine.b - 0.5);
+		float zone = smoothstep(clearings[i].z * 0.95, clearings[i].z * 1.35, away) * (1.0 - smoothstep(clearings[i].w * 0.8, clearings[i].w * 1.08, away));
+		if (zone <= 0.0) {
+			continue;
+		}
+		float turn = float(i) * 1.7 + 0.4;
+		// Наделы вытянуты: полосы в полтора-два раза длиннее своей ширины, а не соты.
+		vec2 q = mat2(vec2(cos(turn), sin(turn)), vec2(-sin(turn), cos(turn))) * from_city / vec2(42.0, 76.0);
+		vec2 cell = floor(q);
+		float nearest = 1.0e9;
+		float second = 1.0e9;
+		vec2 plot = vec2(0.0);
+		for (int dy = -1; dy <= 1; dy++) {
+			for (int dx = -1; dx <= 1; dx++) {
+				vec2 other = cell + vec2(float(dx), float(dy));
+				vec2 seed = other + 0.5 + (hash22(other + float(i) * 17.0) - 0.5) * 0.94;
+				float d = distance(q, seed);
+				if (d < nearest) {
+					second = nearest;
+					nearest = d;
+					plot = other;
+				} else if (d < second) {
+					second = d;
+				}
+			}
+		}
+		float inside = smoothstep(0.04, 0.1, second - nearest); // 0 — межа
+		vec2 lot = hash22(plot + float(i) * 31.0);
+		vec2 lot2 = hash22(plot * 1.7 + float(i) * 53.0 + 9.0);
+		if (lot2.y < 0.14) {
+			continue; // участок не распахан: остаётся как есть
+		}
+		float heading = lot.y * 3.14159;
+		float rows = dot(from_city, vec2(cos(heading), sin(heading)));
+		float here = zone * fertile;
+		// Культура участка: сама земля под ней меняется (ниже), здесь — борозды и ряды.
+		vec3 tint;
+		float sown = here * inside;
+		if (lot.x < 0.36) {
+			tint = vec3(0.6, 0.78, 0.7) * (0.92 + 0.16 * step(0.5, fract(rows / 5.0))); // пшеница: солома рядами
+			wheat = max(wheat, sown);
+		} else if (lot.x < 0.56) {
+			tint = vec3(1.0, 1.06, 0.9) * (0.94 + 0.12 * step(0.5, fract(rows / 5.0))); // ячмень
+			barley = max(barley, sown);
+		} else if (lot.x < 0.7) {
+			tint = vec3(1.1, 1.5, 1.6) * (0.88 + 0.24 * step(0.5, fract(rows / 4.0))); // пар: вспаханная земля
+			fallow = max(fallow, sown);
+		} else if (lot.x < 0.82) {
+			float vine_row = step(0.55, fract(rows / 6.0));
+			tint = mix(vec3(1.1, 1.5, 1.6), vec3(0.92, 0.96, 0.8), vine_row); // виноградник: земля и ряды лоз
+			vines = max(vines, sown);
+			vine_rows = max(vine_rows, sown * vine_row);
+		} else {
+			tint = vec3(1.02, 0.97, 0.86); // оливковый сад
+			// Сад посажен рядами, но не по линейке: ряды гуляют, шаг в ряду неровный, часть деревьев выпала.
+			float across = rows + 5.0 * (groves.g - 0.5) + 2.4 * (fine.b - 0.5);
+			float along = dot(from_city, vec2(-sin(heading), cos(heading))) + 6.0 * (groves.a - 0.5) + 3.0 * (fine.r - 0.5);
+			orchard = max(orchard, sown * step(0.7, fract(across / 9.5)) * step(0.5, fract(along / 8.5 + lot2.x)) * step(0.22, fine.a));
+		}
+		crop = mix(crop, mix(vec3(0.7, 0.68, 0.6), tint, inside), here);
+		hedge = max(hedge, here * (1.0 - inside));
+		field = max(field, here);
+	}
+	// На поле лес не растёт; по межам — кусты, в садах — оливы рядами, у части меж — кипарисы.
+	float wild = 1.0 - field;
+	oak *= wild;
+	pine *= wild;
+	palm *= wild;
+	tamarisk *= wild;
+	olive = olive * wild + orchard * 4.0;
+	cypress = cypress * wild + hedge * step(0.8, groves.a) * 0.6;
+	shrub_green = shrub_green * wild + hedge * 0.55;
+	shrub_dry *= wild;
+	rocks *= 1.0 - 0.8 * field;
+	grass *= wild;
+	grass_dry *= wild;
+	// Пучки травы — одна карта: густота и сухость (по ней пучок зелёный или соломенный). У городов травы нет.
+	float grass_tufts = clamp(max(grass, grass_dry), 0.0, 1.0) * open_land;
+	float tuft_dry = clamp(max(dryness, grass_dry / max(grass + grass_dry, 1.0e-4)), 0.0, 1.0);
+	shade *= mix(vec3(1.0), crop, field);
+	// Земля под посевами. Пшеница — убранное поле: солома рядами (материал — песок с рябью в соломенном тоне:
+	// рябь читается как ряды жнивья); ячмень — густая бледно-зелёная трава; пар и междурядья виноградника —
+	// вспаханная бурая почва; лозы — зелень.
+	float tilled = clamp(wheat + barley + fallow + vines, 0.0, 1.0);
+	for (int i = 0; i < LAYER_COUNT; i++) {
+		w[i] *= 1.0 - tilled;
+	}
+	w[L_GRASS_LUSH] += barley;
+	w[L_SAND_DUNE] += wheat;
+	w[L_SOIL_RED] += fallow + vines - vine_rows;
+	w[L_OASIS_GREEN] += vine_rows;
+	dryness = mix(mix(dryness, 1.0, wheat), 0.62, barley);
+	bloom *= 1.0 - tilled;
 	float canopy = clamp(oak + 0.9 * pine + 0.5 * olive + 0.25 * cypress + 0.35 * palm + 0.3 * tamarisk, 0.0, 1.0);
 	// Под пологом земля темнее: тень крон читается и там, где самих теней уже не считают.
 	shade *= 1.0 - 0.2 * canopy - 0.06 * shrub_green;
@@ -448,7 +573,10 @@ void fragment() {
 	} else if (part == 6) {
 		COLOR = vec4(palm, tamarisk, shrub_green, shrub_dry);
 	} else if (part == 7) {
-		COLOR = vec4(rocks, grass, canopy, dry_land);
+		COLOR = vec4(rocks, grass_tufts, tuft_dry, dry_land);
+	} else if (part == 8) {
+		// Порода под камнями: по ней flora.gd красит валуны в цвет скал вокруг.
+		COLOR = vec4(rock_tone, sandy_land, sand_tone, float(rock_layer == L_LICHEN_ROCK));
 	} else {
 		zone /= max(weight_sum, 1.0e-4);
 		// Рисунок главного материала поверх цвета зоны — у съёмок с воздуха (плитка в десятки метров): их рисунок
@@ -493,6 +621,10 @@ void fragment() {
 			// пальма — жёлтый, тамариск — оранжевый.
 			picture = vec3(0.1) + oak * vec3(0.1, 0.8, 0.1) + pine * vec3(0.1, 0.5, 0.9) + olive * vec3(0.7, 0.8, 0.7) + cypress * vec3(0.9, 0.1, 0.1)
 					+ palm * vec3(0.95, 0.9, 0.1) + tamarisk * vec3(0.95, 0.5, 0.1);
+			picture *= h < 0.0 ? 0.3 : 1.0;
+		} else if (debug_view == 25) {
+			// Поля: жёлтое — надел, тёмное — межа, зелёное — сад.
+			picture = mix(vec3(0.15), vec3(0.9, 0.8, 0.2), field) * mix(1.0, 0.4, hedge) + vec3(0.0, 0.6, 0.0) * orchard;
 			picture *= h < 0.0 ? 0.3 : 1.0;
 		} else if (debug_view == 24) {
 			// Где деревьям нельзя по уклону: красное — круче предела, зелёное — можно.

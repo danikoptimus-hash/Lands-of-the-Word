@@ -21,7 +21,10 @@ const GROUND_TEXEL := 4.0  ## точность описания земли: до
 const SURFACE_TEXEL := 2.0  ## точность картинки земли: материалы точки, затенение, готовый дальний вид
 const TONE_TEXEL := 4.0  ## точность тона земли (сухость, цветение, оттенок песка): меняется плавно
 const FLORA_TEXEL := 4.0  ## точность карт растительности (густота по видам): по ним flora.gd расставляет деревья
-const MAX_CLEARINGS := 64  ## столько расчисток (города, точки старта) знает шейдер картинки земли
+const MAX_CLEARINGS := 96  ## столько расчисток (города, точки старта) знает шейдер картинки земли
+## До какого расстояния от города тянутся его поля, метры (по виду города; у портов, крепостей, руин и станов
+## полей нет). Города стоят часто — на «Осени» их 66 на три квадратных километра: пояс шире съел бы все леса.
+const FIELD_REACH := {"village": 190.0, "walled_city": 180.0, "temple_city": 150.0, "hill_city": 130.0}
 const CACHE_FLIGHT := 1.0  ## быстрее стольких расстояний до земли в секунду камера «летит»: кэш не считается
 const MAX_ISLETS := 8  ## столько малых островов в одной области знает шейдер картинки земли
 const MARGIN := 520.0  ## запас моря вокруг главных островов
@@ -71,7 +74,7 @@ class Region:
 	var surface_tone: Texture2D
 	var surface_shade: Texture2D
 	var surface_color: Texture2D
-	## Карты растительности (шаг 1.8; bake_surface.gdshader, части 5–7): густота по видам, шаг FLORA_TEXEL.
+	## Карты растительности (шаг 1.8; bake_surface.gdshader, части 5–8): густота по видам и порода, шаг FLORA_TEXEL.
 	var flora: Array[Image] = []
 
 
@@ -319,11 +322,11 @@ func set_swash_mask_enabled(enabled: bool) -> void:
 
 
 ## Области с картами растительности — для flora.gd: что запечено (прямоугольник мира), шаг карт, сами карты
-## (три картинки: см. bake_surface.gdshader, части 5–7) и высоты области.
+## (четыре картинки: см. bake_surface.gdshader, части 5–8) и высоты области.
 func flora_regions() -> Array[Dictionary]:
 	var result: Array[Dictionary] = []
 	for region in _regions:
-		if region.flora.size() == 3:
+		if region.flora.size() == 4:
 			result.append({"rect": region.baked, "area": region.area, "texel": FLORA_TEXEL, "maps": region.flora,
 					"heights": region.height_map, "title": region.title})
 	return result
@@ -517,12 +520,13 @@ func _bake_surface(world: WorldData, region: Region) -> bool:
 	for site in world.sites:
 		if site.kind == "EMPTY" or clearing_count >= MAX_CLEARINGS or not region.baked.grow(80.0).has_point(site.position):
 			continue
-		clearings[clearing_count] = Vector4(site.position.x, site.position.y, 48.0 if site.kind == "CITY" else 30.0, 0.0)
+		clearings[clearing_count] = Vector4(site.position.x, site.position.y, 34.0 if site.kind == "CITY" else 24.0,
+				float(FIELD_REACH.get(site.city_type, 0.0)) if site.kind == "CITY" else 0.0)
 		clearing_count += 1
 	parameters["clearings"] = clearings
 	parameters["clearing_count"] = clearing_count
 	region.flora.clear()
-	for part in 8:
+	for part in 9:
 		var baker := TerrainBaker.new()
 		add_child(baker)
 		var step := SURFACE_TEXEL

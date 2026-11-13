@@ -3,7 +3,9 @@ extends Node3D
 ## Ключи запуска (после «--»): --shots=папка — автоматические кадры и проверки (с ним же --quick и --stops=17,21 —
 ## быстрые проверки, см. src/tools/shot_director.gd); --view=x,z,d,поворот,наклон — добавить кадр места;
 ## --world=N — начать с карты номер N (1 — «Осень»); --debug-view=N — показать географию вместо материалов
-## (1 — влажность, 2 — сток воды, 3 — крутизна, 4 — ложбины и гребни);
+## (1 — влажность, 2 — сток воды, 3 — крутизна, 4 — ложбины и гребни; растительность, шаг 1.8: 21 — густота,
+## 22 — местности, 23 — породы деревьев, 24 — где деревьям нельзя по уклону, 25 — поля);
+## --flora-debug — проверочный вид растительности (как клавиша U), --flora-reference=x,z — эталоны масштаба в точке;
 ## --update-test=адрес и --update-target=файл — проверка самообновления в конвейере. Ключи --finish-update и --updated
 ## программа передаёт сама себе при обновлении (см. src/core/updater.gd).
 
@@ -48,6 +50,10 @@ var _render_scale := 0
 var _render_scale_chosen := false  ## игрок выбрал разрешение сам (клавиша B): само оно больше не меняется
 var _markers: SiteMarkers
 var _flora: Flora  ## растительность и камни (шаг 1.8)
+var _flora_debug := false  ## проверочный вид растительности (клавиша U или ключ --flora-debug)
+var _flora_debug_wanted := false
+var _flora_debug_wait := 0.0
+var _flora_reference := Vector2.INF  ## ключ --flora-reference=x,z: поставить эталоны масштаба в этой точке мира
 var _benchmark: Benchmark
 var _updater: Updater
 var _updating := false
@@ -147,6 +153,12 @@ func _process(_delta: float) -> void:
 	if not _ready_to_play:
 		return
 	_terrain.set_viewer(_rig.camera.global_position)
+	if _flora_debug and _flora != null:
+		# Счётчики проверочного вида — раз в полсекунды, пока он включён.
+		_flora_debug_wait -= _delta
+		if _flora_debug_wait <= 0.0:
+			_flora_debug_wait = 0.5
+			_hud.toast(_flora.debug_text(), 1.5)
 	_terrain.update_cache(_rig.camera.global_position, _rig.current_focus(), _world_pixel(), _delta)
 	# Вода движется по своему времени; в кадрах проверок оно стоит — кадр с водой получается одним и тем же.
 	if _shots_folder.is_empty():
@@ -227,6 +239,11 @@ func _unhandled_key_input(event: InputEvent) -> void:
 				var focus := _rig.current_focus()
 				var shown := _flora.toggle_reference(Vector3(focus.x, _terrain.height_map.sample(focus), focus.y))
 				_hud.toast("Эталоны масштаба: %s. Y — переключить." % ("человек 1,75 м, дом 6 м, дорога 4 м, валун 2 м, олива 6 м, пальма 12 м, кипарис 15 м" if shown else "убраны"), 6.0)
+		KEY_U:
+			# Проверочный вид растительности (шаг 1.8): уровни подробности цветом, границы плиток, счётчики.
+			if _flora != null:
+				_flora_debug = _flora.toggle_debug()
+				_hud.toast(_flora.debug_text() if _flora_debug else "Проверочный вид растительности выключен.", 4.0)
 		KEY_T:
 			# Кэш ближнего вида можно выключить и сравнить: картинка должна быть той же, скорость — как в 0.5.3.
 			_terrain.cache_budget = 0 if _terrain.cache_budget > 0 else NearCache.BUDGET
@@ -290,6 +307,7 @@ func _load_world(path: String) -> bool:
 	if _flora != null:
 		_flora.queue_free()
 		_flora = null
+		_flora_debug = false
 	if _terrain != null:
 		_weather.terrain = null
 		_terrain.queue_free()
@@ -330,6 +348,10 @@ func _load_world(path: String) -> bool:
 	_flora.set_cloud_textures(_weather.cloud_map, Weather.CLOUD_NOISE)
 	await _flora.build(_world, _terrain)
 	print("РАСТИТЕЛЬНОСТЬ «%s»: %s" % [_world.title, _flora.summary()])
+	if _flora_debug_wanted:
+		_flora_debug = _flora.toggle_debug()
+	if _flora_reference.is_finite():
+		_flora.toggle_reference(Vector3(_flora_reference.x, _terrain.height_map.sample(_flora_reference), _flora_reference.y))
 
 	_hud.set_loading("")
 	_ready_to_play = true
@@ -552,6 +574,12 @@ func _read_arguments() -> void:
 			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
 		elif argument.begins_with("--debug-view="):
 			_debug_view = argument.trim_prefix("--debug-view=").to_int()
+		elif argument == "--flora-debug":
+			_flora_debug_wanted = true
+		elif argument.begins_with("--flora-reference="):
+			var at := argument.trim_prefix("--flora-reference=").split(",")
+			if at.size() == 2:
+				_flora_reference = Vector2(at[0].to_float(), at[1].to_float())
 		elif argument.begins_with("--render-scale="):
 			# Разрешение картинки мира, проценты (100, 77 или 67), — чтобы кадры проверок были как у игрока: у владельца
 			# 67 % с достройкой до полного, и рисунок воды на точках экрана там другой.

@@ -19,6 +19,7 @@ global uniform vec4 wind_look; // xy — куда дует ветер; z — с�
 
 uniform sampler2D noise_map : filter_linear_mipmap, repeat_enable;
 uniform float far_view = 0.0;
+uniform vec3 lod_tint = vec3(0.0); // проверочный вид «уровни подробности»: не ноль — всё красится этим цветом
 
 varying vec3 world_position;
 varying float variation;
@@ -28,6 +29,13 @@ void vertex() {
 	vec4 custom = INSTANCE_CUSTOM; // x — оттенок, y — фаза ветра
 	variation = custom.x;
 	vec3 world = (MODEL_MATRIX * vec4(VERTEX, 1.0)).xyz;
+	if (UV.x > 3.5) {
+		// Пучок травы виден только вблизи: дальше он плавно уходит в землю (сама трава остаётся рисунком земли) —
+		// каждый пучок по своему расстоянию, без общей границы и без мелькания точек вдали.
+		float away = distance(origin, CAMERA_POSITION_WORLD);
+		float shown = 1.0 - smoothstep(210.0 + 60.0 * custom.y, 300.0 + 60.0 * custom.y, away);
+		world = origin + (world - origin) * shown;
+	}
 	float strength = wind_look.z;
 	float flex = COLOR.a;
 	if (strength > 0.001 && flex > 0.001 && far_view < 0.5) {
@@ -48,8 +56,8 @@ void vertex() {
 }
 
 void fragment() {
-	float kind = UV.x; // 0 — кора, 1 — листва, 2 — лист пальмы, 3 — камень
-	bool leafy = kind > 0.5 && kind < 2.5;
+	float kind = UV.x; // 0 — кора, 1 — листва, 2 — лист пальмы, 3 — камень, 4 — трава
+	bool leafy = (kind > 0.5 && kind < 2.5) || kind > 3.5;
 	vec3 albedo = COLOR.rgb;
 	float spots = texture(noise_map, world_position.xz * 0.09 + world_position.y * 0.05).r;
 	float speck = texture(noise_map, world_position.xz * 0.53 + world_position.y * 0.37).g;
@@ -60,7 +68,7 @@ void fragment() {
 		if (abs(at.x) > 0.14 && teeth < 0.36 + 0.3 * abs(at.x)) {
 			discard;
 		}
-	} else if (leafy && far_view < 0.5) {
+	} else if (leafy && far_view < 0.5 && kind < 3.5) {
 		// Край кроны: где поверхность клуба уходит от взгляда, она рвётся пятнами.
 		float facing = abs(dot(normalize(NORMAL), normalize(VIEW)));
 		if (facing + (speck - 0.5) * 0.8 < 0.26) {
@@ -78,6 +86,9 @@ void fragment() {
 	}
 	// Под дождём всё темнее и глаже.
 	albedo *= 1.0 - 0.14 * rain_wet;
+	if (lod_tint.r + lod_tint.g + lod_tint.b > 0.0) {
+		albedo = lod_tint * (0.5 + 0.5 * COLOR.g / max(max(COLOR.r, COLOR.g), max(COLOR.b, 0.05)));
+	}
 	ALBEDO = albedo;
 	ROUGHNESS = (leafy ? 0.72 : 0.88) * (1.0 - 0.3 * rain_wet);
 	SPECULAR = leafy ? 0.22 : 0.12;
