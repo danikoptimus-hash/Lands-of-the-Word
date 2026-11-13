@@ -1,0 +1,5 @@
+# Скачиваются и собираются скриптом podgotovka.sh
+addons/
+dannye/
+.godot/
+*.uid

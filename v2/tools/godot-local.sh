@@ -14,6 +14,9 @@
 #   v2/tools/godot-local.sh build ПАПКА              — сборка для Windows, как в конвейере: архив, описание для
 #                                                      самообновления (latest.json) и проверка самообновления;
 #                                                      в ПАПКЕ — ровно то, что выкладывается в канал «тест»
+#   v2/tools/godot-local.sh proekt ПРОЕКТ import ЖУРНАЛЫ            — другой проект Godot (сравнение движков,
+#   v2/tools/godot-local.sh proekt ПРОЕКТ run ЖУРНАЛЫ [ключи]          папка sravnenie/godot): импорт, запуск с
+#   v2/tools/godot-local.sh proekt ПРОЕКТ export ЖУРНАЛЫ НАБОР ФАЙЛ     картинкой и сборка — тем же движком
 # Журналы складываются в ПАПКУ (для check без папки — во временную).
 set -euo pipefail
 
@@ -211,6 +214,49 @@ build() {
 	echo "Сборка готова: $folder (latest.json и файлы ZemliSlova-v2-test-win64.zip* — то, что выкладывается в канал «тест»)"
 }
 
+# Другой проект Godot тем же движком (сцена для сравнения движков): импорт, запуск с картинкой, сборка.
+proekt() {
+	if [ $# -lt 3 ]; then
+		echo "Нужно: proekt ПАПКА_ПРОЕКТА import|run|export ПАПКА_ЖУРНАЛОВ [...]" >&2
+		exit 1
+	fi
+	local project action folder
+	project="$(cd "$1" && pwd)"
+	action="$2"
+	mkdir -p "$3"
+	folder="$(cd "$3" && pwd)"
+	shift 3
+	engine
+	case "$action" in
+		import)
+			"$godot" --headless --path "$project" --import > "$folder/import.log" 2>&1 || true
+			grep -nE "SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR" "$folder/import.log" | head -20 || true
+			;;
+		run)
+			drivers
+			local code=0
+			xvfb-run -a -s "-screen 0 1600x900x24" timeout 3600 \
+				"$godot" --path "$project" --rendering-driver vulkan --audio-driver Dummy --resolution 1600x900 \
+				-- "$@" > "$folder/run.log" 2>&1 || code=$?
+			grep -E "ПРОВЕРКА|ИТОГ|КАДР|СБОЙ" "$folder/run.log" || true
+			grep -nE "SCRIPT ERROR|SHADER ERROR|Shader compilation failed|Parse Error" "$folder/run.log" | head -20 || true
+			return "$code"
+			;;
+		export)
+			templates
+			"$godot" --headless --path "$project" --export-release "$1" "$2" > "$folder/export.log" 2>&1 || true
+			if [ ! -s "$2" ]; then
+				echo "Сборка не получилась — журнал $folder/export.log" >&2
+				return 1
+			fi
+			;;
+		*)
+			echo "Неизвестное действие: $action" >&2
+			exit 1
+			;;
+	esac
+}
+
 command="${1:-}"
 shift || true
 case "$command" in
@@ -227,8 +273,11 @@ case "$command" in
 	build)
 		build "$@"
 		;;
+	proekt)
+		proekt "$@"
+		;;
 	*)
-		sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+		sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 		exit 1
 		;;
 esac
