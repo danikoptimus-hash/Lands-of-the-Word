@@ -20,7 +20,7 @@ const get = (url: string, cookie: string) => app.inject({ method: "GET", url, he
 type MapTask = { id: string; status: string; takenById: string | null; assignedToId: string | null; assignedById: string | null; assignedUntil: string | null; sea?: boolean };
 const tasksOf = async (cookie: string) => ((await get(`/api/games/${gameId}/my-map`, cookie)).json() as { tasks: MapTask[] }).tasks;
 const taskOf = async (cookie: string, id: string) => (await tasksOf(cookie)).find((tk) => tk.id === id)!;
-const feedKinds = async (cookie: string) => ((await get(`/api/games/${gameId}/feed`, cookie)).json() as { items: Array<{ kind: string; personal?: boolean }> }).items;
+const feedKinds = async (cookie: string) => ((await get(`/api/games/${gameId}/feed`, cookie)).json() as { items: Array<{ kind: string; personal?: boolean; taskId?: string | null }> }).items;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /** Уведомления и записи летописи пишутся после ответа сервера: ждём нужное до двух секунд. */
 async function until<T>(read: () => Promise<T | undefined> | T | undefined): Promise<T | undefined> {
@@ -73,7 +73,8 @@ describe("поручение дела участнику", () => {
     const push = await until(() => pushOutbox.find((x) => x.userId === uid.a));
     expect(push?.payload.url).toContain(`/games/${gameId}/team?task=${task.id}`);
     expect(push?.payload.body).toContain("поручил");
-    expect(await until(async () => (await feedKinds(ck.a)).find((x) => x.kind === "deed_assigned" && x.personal))).toBeTruthy();
+    // Личная запись ведёт к этому делу: из летописи открывается его карточка.
+    expect((await until(async () => (await feedKinds(ck.a)).find((x) => x.kind === "deed_assigned" && x.personal)))?.taskId).toBe(task.id);
     expect((await feedKinds(ck.b)).some((x) => x.kind === "deed_assigned")).toBe(false);
     // Пока бронь держится, дело не возьмёт никто, кроме адресата, — ни участник, ни заместитель.
     const other = await post(`/api/games/${gameId}/edge-tasks/${task.id}/take`, ck.b);
@@ -98,7 +99,7 @@ describe("поручение дела участнику", () => {
     expect(await taskOf(ck.b, task.id)).toMatchObject({ status: "OPEN", assignedToId: null, assignedUntil: null });
     const push = await until(() => pushOutbox.find((x) => x.userId === uid.dep));
     expect(push?.payload.url).toContain(`?task=${task.id}`);
-    expect(await until(async () => (await feedKinds(ck.dep)).find((x) => x.kind === "deed_assign_declined" && x.personal))).toBeTruthy();
+    expect((await until(async () => (await feedKinds(ck.dep)).find((x) => x.kind === "deed_assign_declined" && x.personal)))?.taskId).toBe(task.id);
     expect((await post(`${assignUrl(task.id)}/decline`, ck.a)).statusCode).toBe(409); // отказываться уже не от чего
     // После отказа дело свободно: его берёт любой. Здесь — переназначение и снятие.
     expect((await post(assignUrl(task.id), ck.cap, { userId: uid.a })).statusCode).toBe(200);

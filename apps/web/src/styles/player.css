@@ -144,16 +144,19 @@
 /* Поручение (14.11): свободное дело, порученное мне, — фиолетовый свиток; порученное другому — приглушён (взять его пока нельзя). */
 .m-deed.open.for-me circle:not(.far) { fill: var(--plum-soft); stroke: var(--plum-ink); stroke-width: 1.8; }
 .m-deed.open.for-me use { color: var(--plum-ink); }
+/* Чтобы не путать с фиолетовыми «в работе» и «на проверке»: у порученного мне свитка — мягкое свечение. */
+.m-deed.open.for-me { filter: drop-shadow(0 0 3px var(--plum)) drop-shadow(0 0 1px var(--plum)); }
 .m-deed.open.assigned { opacity: .5; }
 /* Поручение в карточке дела и лист «Кому поручить» (14.11). */
-.assign-line.me, .assign-line.me .i { color: var(--plum-ink); }
-.assign-line.me { font-weight: 600; }
-.assign-line { flex-wrap: nowrap; align-items: flex-start; }
-.assign-line .i { flex: none; margin-top: 2px; }
+.meta-line.assign-line { flex-wrap: nowrap; align-items: flex-start; }
+.meta-line.assign-line .i { flex: none; margin-top: 2px; }
+.meta-line.assign-line.me, .meta-line.assign-line.me .i { color: var(--plum-ink); }
+.meta-line.assign-line.me { font-weight: 600; }
+.assign-tag { color: var(--plum-ink); font-weight: 600; }
 .assign-list li { align-items: center; }
-.assign-list li .main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.assign-list .who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.assign-list .who .meta { color: var(--muted); font-size: var(--fs-sm); }
 .assign-list li.on { background: var(--plum-soft); }
-.assign-list li[aria-disabled="true"] { opacity: .6; }
 .m-deed.mine.taken.sel circle:not(.far), .m-deed.mine.submitted.sel circle:not(.far) { stroke-width: 2.8; }
 .m-deed.mine.taken use, .m-deed.mine.submitted use { color: var(--plum-ink); }
 /* Приоритет капитана (решение владельца 14.11): свиток дела горит. Огонь — DeedFire (MapLayers.tsx): позади кружка метки
