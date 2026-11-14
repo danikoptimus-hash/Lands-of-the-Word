@@ -346,8 +346,16 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar-lightbox .card { width: min(92vw, 420px); padding: var(--sp-3) var(--sp-3) var(--sp-2); border-radius: var(--r-lg); background: var(--paper); color: var(--text); text-align: center; display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); box-shadow: 0 16px 48px rgba(0, 0, 0, .45); }
 .avatar-lightbox .card .sub { color: var(--muted); font-size: var(--fs-sm); display: flex; align-items: center; gap: 6px; }
 .avatar-lightbox .card .sub .i { width: 14px; height: 14px; }
-.avatar-lightbox .card .awards-row { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--sp-1) var(--sp-2); margin-top: var(--sp-1); }
-.avatar-lightbox .card .awards-row .award { width: 76px; }
+/* Подписи наград не рвутся посреди слова, значки ряда стоят на одной высоте (замечание владельца 14.11: «Каменщи/ки», «Гостепри/имные»).
+   Причина разрыва: значок — кнопка с классом sm, и общее правило button.sm давало ей поля по 12px с боков — на подпись оставалось 52px
+   из 76; плюс .award-name разрешает разрыв в любом месте. Здесь поля — по 4px (между соседними подписями всегда не меньше 8px, отдельного
+   зазора между ячейками нет), разрыв внутри слова запрещён, а ячейка не уже своего самого длинного слова (min-content): «Гостеприимные»
+   и «Четвероевангелие» раздвигают свою ячейку, остальные остаются по 76px — на телефоне 390px в ряду по-прежнему четыре значка.
+   Значок прижат к верху ячейки: общая кнопка ставит содержимое по центру, и у короткой подписи значок съезжал вниз.
+   Ряд не шире 336px: на компьютере, где карточка шире, в ряду те же четыре значка, что и раньше. */
+.avatar-lightbox .card .awards-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: var(--sp-2) 0; max-width: 336px; margin-top: var(--sp-1); }
+.avatar-lightbox .card .awards-row .award { flex: none; width: min-content; min-width: 76px; padding: 2px 4px; justify-content: flex-start; }
+.avatar-lightbox .card .awards-row .award-name { max-width: none; overflow-wrap: normal; word-break: normal; hyphens: none; }
 .avatar-lightbox .card .none { color: var(--muted); font-size: var(--fs-sm); margin: var(--sp-1) 0; }
 /* Лист награды из карточки участника (30.10): выше карточки (у неё z-index 1000). */
 /* Пока открыта карточка участника или команды, любой лист и окно подтверждения из неё — над ней (решение владельца 04.11). */
