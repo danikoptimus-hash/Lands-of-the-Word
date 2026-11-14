@@ -158,7 +158,8 @@
   .map-canvas { --map-pad-left: calc(64px + 2 * var(--sp-3)); }
 }
 .side-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; overflow: auto; -webkit-overflow-scrolling: touch; }
-.side-top { position: sticky; top: 0; z-index: 2; }
+/* Заголовок панели — над областью прокрутки (.side-body), сам не листается: вкладки под ним прилипают к её верху. */
+.side-top { flex: none; position: relative; z-index: 2; }
 .side-head { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); background: var(--surface); z-index: 1; }
 .side-name { font-weight: 700; font-size: var(--fs-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .side-menu .section { padding: var(--sp-3) var(--sp-4); border-bottom: 1px solid var(--border); }
