@@ -75,6 +75,10 @@ uniform float cloud_visibility = 1000000.0;
 // в сплошную белую стену; в образце Unreal просветы видны до самого горизонта.
 uniform float coverage_far = 1.0;
 uniform vec2 coverage_far_range = vec2(8000.0, 45000.0);
+// Разнообразие облачности: вторая, крупная и повёрнутая выборка той же карты погоды усиливает и ослабляет
+// покрытие по местности. Без неё карта повторяется каждые восемь километров, и облака стоят рядами
+// одинаковых пятен; с ней есть и гряды, и почти чистые участки.
+uniform float weather_variety = 0.0;
 uniform float shadow_strength = 1.0;
 uniform float base_shade = 1.0;
 uniform float powder = 1.0;
@@ -113,6 +117,13 @@ float hash(vec3 p) {
 	p  = fract( p * 0.3183099 + 0.1 );
 	p *= 17.0;
 	return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+}
+
+// ПРАВКА: случайное число по направлению (части направления — в пределах единицы, точности хватает).
+float ray_jitter(vec3 d) {
+	vec3 p3 = fract(d * vec3(443.897, 441.423, 437.195));
+	p3 += dot(p3, p3.yzx + 19.19);
+	return fract((p3.x + p3.y) * p3.z);
 }
 
 // Utility function that maps a value from one range to another. 
@@ -187,7 +198,7 @@ vec3 background_sky(vec3 eye_dir) {
 	vec2 eye_side = normalize(eye_dir.xz + vec2(0.00001));
 	float toward = pow(0.5 + 0.5 * dot(sun_side, eye_side), 3.0);
 	color = mix(color, mix(haze_color, haze_sun_color, toward), haze);
-	color = mix(color, horizon_color, horizon_line * pow(1.0 - clamp(abs(eye_dir.y), 0.0, 1.0), 90.0));
+	color = mix(color, horizon_color, horizon_line * pow(1.0 - clamp(abs(eye_dir.y), 0.0, 1.0), 30.0));
 	// Сияние солнца: ядро в несколько градусов и широкий ореол.
 	float angle = acos(clamp(dot(eye_dir, normalize(SUN_DIR)), -1.0, 1.0));
 	float above = smoothstep(-0.02, 0.03, eye_dir.y);
@@ -225,6 +236,17 @@ float intersectSphere(vec3 pos, vec3 dir,float r) {
     return max(p, p2) / (2.0 * a);
 }
 
+// ПРАВКА: карта погоды в точке (уровень подробности задан явно — см. ниже) с разнообразием по местности.
+vec3 weather_at(vec2 xz, vec2 drift) {
+	vec3 w = textureLod(weathermap, xz * weather_scale + 0.5 + drift, 0.0).xyz;
+	if (weather_variety > 0.0) {
+		vec2 far = vec2(0.8 * xz.x - 0.6 * xz.y, 0.6 * xz.x + 0.8 * xz.y) * weather_scale * 0.29 + 0.37 + drift * 0.5;
+		float region = textureLod(weathermap, far, 0.0).b;
+		w.b *= mix(1.0 - weather_variety, 1.0 + weather_variety, smoothstep(0.3, 0.8, region));
+	}
+	return w;
+}
+
 // Returns density at a given point
 // Heavily based on method from Schneider
 float density(vec3 pip, vec3 weather, float mip) {
@@ -255,7 +277,10 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 	float alpha = 0.0;
 	float ss = length(dir);
 	dir = normalize(dir);
-	vec3 p = pos + dir * hash(pos * 10.0) * ss;
+	// ПРАВКА: случайный сдвиг начала луча считается по направлению взгляда. В образце он считался по месту
+	// начала луча в мире — числам в миллионы, на которых случайность вырождается в полосы: дальние облака
+	// шли вертикальной «гребёнкой».
+	vec3 p = pos + dir * ray_jitter(dir) * ss;
 	float t_dist = cloud_top - cloud_bottom;
 	float lss = (t_dist / 36.0);
 	vec3 ldir = normalize(SUN_DIR);
@@ -280,7 +305,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 		// ПРАВКА: уровень подробности карты погоды задан явно (здесь и ниже). В образце он брался по соседним
 		// точкам экрана, а внутри ветвления («выше горизонта», «внутри облака») у соседей значения не определены:
 		// по линии горизонта и кромкам облаков это давало мусор, а на программной отрисовке — падение.
-		vec3 weather_sample = textureLod(weathermap, p.xz * weather_scale + 0.5 + weather_pos, 0.0).xyz;
+		vec3 weather_sample = weather_at(p.xz, weather_pos);
 		float height_fraction = GetHeightFractionForPoint(length(p));
 
 		t = density(p, weather_sample, 0.0);
@@ -296,7 +321,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 			for (int j = 0; j < 6; j++) {
 				lp += (ldir + RANDOM_VECTORS[j]*float(j))*lss;
 				lheight_fraction = GetHeightFractionForPoint(length(lp));
-				vec3 lweather = textureLod(weathermap, lp.xz * weather_scale + 0.5 + weather_pos, 0.0).xyz;
+				vec3 lweather = weather_at(lp.xz, weather_pos);
 				lt = density(lp, lweather, float(j));
 				cd += lt;
 			}
@@ -304,7 +329,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 			// Take a single distant sample
 			lp = p + ldir * 18.0 * lss;
 			lheight_fraction = GetHeightFractionForPoint(length(lp));
-			vec3 lweather = textureLod(weathermap, lp.xz * weather_scale + 0.5, 0.0).xyz;
+			vec3 lweather = weather_at(lp.xz, weather_pos);
 			lt = pow(density(lp, lweather, 5.0), (1.0 - lheight_fraction) * 0.8 + 0.5);
 			cd += lt;
 			

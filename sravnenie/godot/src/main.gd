@@ -125,35 +125,35 @@ const SKIES := {
 	# облака освещены сбоку и объёмны.
 	"den": {"sun_height": 30.0, "sun_side": 215.0, "energy": 1.0, "light_color": Color(1.0, 0.97, 0.92), "shader": {
 		"cloud_coverage": 0.2, "_density": 0.04, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 3800.0,
-		"coverage_far": 0.62, "coverage_far_range": Vector2(6000.0, 40000.0),
-		"exposure": 0.159, "rayleigh": 1.67, "turbidity": 1.3, "mie": 0.0015, "mie_eccentricity": 0.93,
+		"coverage_far": 0.72, "coverage_far_range": Vector2(6000.0, 40000.0), "weather_variety": 0.22,
+		"exposure": 0.159, "rayleigh": 1.67, "turbidity": 1.3, "mie": 0.001, "mie_eccentricity": 0.93,
 		"rayleigh_color": Color(0.24, 0.32, 0.48), "sky_saturation": 1.53,
 		"haze_color": Vector3(0.70, 0.65, 0.52), "haze_sun_color": Vector3(0.92, 0.83, 0.62),
 		"haze_strength": 0.62, "haze_power": 24.0,
-		"sun_disk_scale": 2.0, "sun_glow": Vector2(3.0, 0.22), "sun_glow_color": Vector3(1.0, 0.95, 0.85),
-		"cloud_visibility": 55000.0, "horizon_fade": Vector2(0.98, 0.9995),
-		"cloud_sun": 0.85, "cloud_ambient": 0.7, "cloud_shoulder": 1.0, "phase_cap": 0.45,
-		"shadow_strength": 2.5, "base_shade": 0.6, "powder": 0.25, "detail_strength": 0.4, "detail_floor": 0.1,
-		"cloud_tint": Vector3(1.0, 0.98, 0.955), "sun_tint": Vector3(1.0, 1.0, 1.0),
-		"cloud_floor": Vector3(0.04, 0.05, 0.075)}},
+		"sun_disk_scale": 2.0, "sun_glow": Vector2(3.0, 0.1), "sun_glow_color": Vector3(1.0, 0.93, 0.8),
+		"cloud_visibility": 70000.0, "horizon_fade": Vector2(0.98, 0.9995),
+		"cloud_sun": 0.55, "cloud_ambient": 0.7, "cloud_shoulder": 1.5, "phase_cap": 0.45,
+		"shadow_strength": 3.5, "base_shade": 0.45, "powder": 0.25, "detail_strength": 0.4, "detail_floor": 0.1,
+		"cloud_tint": Vector3(1.0, 0.97, 0.925), "sun_tint": Vector3(1.0, 1.0, 1.0),
+		"cloud_floor": Vector3(0.045, 0.055, 0.085)}},
 	# Закат и шторм — без утверждённых образцов: черновые.
 	"zakat": {"sun_height": 7.0, "sun_side": 262.0, "energy": 1.0, "light_color": Color(0.8, 0.48, 0.3), "shader": {
 		"cloud_coverage": 0.22, "_density": 0.04, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 3800.0,
-		"coverage_far": 0.7, "coverage_far_range": Vector2(6000.0, 40000.0),
-		"exposure": 0.12, "rayleigh": 1.6, "turbidity": 5.0, "mie": 0.004, "mie_eccentricity": 0.85,
+		"coverage_far": 0.75, "coverage_far_range": Vector2(6000.0, 40000.0), "weather_variety": 0.22,
+		"exposure": 0.15, "rayleigh": 1.6, "turbidity": 5.0, "mie": 0.004, "mie_eccentricity": 0.85,
 		"rayleigh_color": Color(0.32, 0.44, 0.67), "sky_saturation": 1.34,
-		"haze_color": Vector3(0.46, 0.34, 0.36), "haze_sun_color": Vector3(1.15, 0.62, 0.25),
-		"haze_strength": 0.6, "haze_power": 9.0,
-		"sun_disk_scale": 2.0, "sun_glow": Vector2(5.0, 0.6), "sun_glow_color": Vector3(1.0, 0.6, 0.25),
-		"cloud_visibility": 45000.0, "horizon_fade": Vector2(0.975, 0.999),
-		"cloud_sun": 1.0, "cloud_ambient": 3.0, "cloud_shoulder": 0.9, "phase_cap": 0.8,
-		"shadow_strength": 2.0, "base_shade": 0.5, "powder": 0.25, "detail_strength": 0.4, "detail_floor": 0.1,
-		"cloud_tint": Vector3(1.0, 1.0, 1.0), "sun_tint": Vector3(1.0, 0.8, 1.2),
-		"cloud_floor": Vector3(0.045, 0.05, 0.08)}},
+		"haze_color": Vector3(0.50, 0.38, 0.40), "haze_sun_color": Vector3(1.3, 0.68, 0.24),
+		"haze_strength": 0.65, "haze_power": 9.0,
+		"sun_disk_scale": 2.0, "sun_glow": Vector2(4.0, 0.7), "sun_glow_color": Vector3(1.0, 0.55, 0.2),
+		"cloud_visibility": 60000.0, "horizon_fade": Vector2(0.98, 0.9995),
+		"cloud_sun": 0.6, "cloud_ambient": 1.5, "cloud_shoulder": 1.4, "phase_cap": 1.2,
+		"shadow_strength": 3.0, "base_shade": 0.45, "powder": 0.2, "detail_strength": 0.4, "detail_floor": 0.1,
+		"cloud_tint": Vector3(1.0, 1.0, 1.0), "sun_tint": Vector3(1.0, 0.78, 1.1),
+		"cloud_floor": Vector3(0.05, 0.06, 0.10)}},
 	# Шторм: тёмная облачность с просветами; низ облаков освещён рассеянным светом, не чёрный.
 	"shtorm": {"sun_height": 40.0, "sun_side": 215.0, "energy": 0.45, "light_color": Color(0.42, 0.46, 0.52), "shader": {
 		"cloud_coverage": 0.5, "_density": 0.05, "weather_scale": 0.00006, "cloud_bottom": 1500.0, "cloud_top": 4000.0,
-		"coverage_far": 1.0, "coverage_far_range": Vector2(6000.0, 40000.0),
+		"coverage_far": 1.0, "coverage_far_range": Vector2(6000.0, 40000.0), "weather_variety": 0.15,
 		"exposure": 0.22, "rayleigh": 2.0, "turbidity": 14.0, "mie": 0.005, "mie_eccentricity": 0.8,
 		"rayleigh_color": Color(0.26, 0.41, 0.58), "sky_saturation": 0.6,
 		"haze_color": Vector3(0.10, 0.11, 0.13), "haze_sun_color": Vector3(0.14, 0.15, 0.17),
@@ -214,7 +214,7 @@ func _build_sky() -> void:
 	env.fog_mode = Environment.FOG_MODE_DEPTH
 	env.fog_depth_begin = 1500.0
 	env.fog_depth_end = 39000.0
-	env.fog_depth_curve = 1.4
+	env.fog_depth_curve = 3.0
 	env.fog_density = 1.0
 	env.fog_aerial_perspective = 0.0
 	env.fog_sun_scatter = 0.0
