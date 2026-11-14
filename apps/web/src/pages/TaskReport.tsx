@@ -56,7 +56,6 @@ export function TaskReportSheet({ gameId, taskId, container, onClose, onReview, 
           </p>
           {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта.")}</span></div>}
           {task.deed.secret && <div className="note info"><Icon name="lock" /><span>{t("Тайное дело: команда сдачу не видит, только вы.")}</span></div>}
-          {task.donation && <div className="note info"><Icon name="star" /><span>{t("Дело заменено пожертвованием{amount}.", { amount: task.donationAmount ? ` · ${task.donationAmount}` : "" })}</span></div>}
           {task.links.length > 0 && <ul className="links">{task.links.map((l) => <li key={l}><a href={l} target="_blank" rel="noreferrer">{l}</a></li>)}</ul>}
           {task.note ? <p className="mt-2 report-text">{task.note}</p> : task.status !== "TAKEN" && task.links.length === 0 && <p className="muted small mt-2">{t("Текста отчёта нет.")}</p>}
           {task.status === "REJECTED" && task.adminComment && <div className="note bad"><Icon name="alert" /><span>{t("Возвращено с комментарием: «{comment}»", { comment: task.adminComment })}</span></div>}

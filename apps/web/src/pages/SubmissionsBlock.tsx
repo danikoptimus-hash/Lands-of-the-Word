@@ -63,7 +63,7 @@ export function ReturnBox({ placeholder, okLabel, onOk, onCancel, busy }: { plac
 }
 
 /** Очередь сдач дел. */
-export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onShowOnMap }: { gameId: string; version?: number; currency?: string; onDecided: () => void; /** «Посмотреть на карте» у сдачи (просьба владельца 10.10): карта центрируется на стороне дела. */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
+export function SubmissionsBlock({ gameId, version = 0, onDecided, onShowOnMap }: { gameId: string; version?: number; onDecided: () => void; /** «Посмотреть на карте» у сдачи (просьба владельца 10.10): карта центрируется на стороне дела. */ onShowOnMap?: (f: { teamId: string; taskId: string; fromKey: string; toKey: string }) => void }) {
   const { notify } = useUi();
   const [rows, setRows] = useState<Row[] | null>(() => ready<{ tasks: Row[] }>(`/api/games/${gameId}/submissions`)?.tasks ?? null);
   const [loadError, setLoadError] = useState(false);
@@ -123,7 +123,7 @@ export function SubmissionsBlock({ gameId, version = 0, currency, onDecided, onS
             <li key={r.id} className={"review-item" + (picked.has(r.id) ? " picked" : "")}>
               {rows.length > 1 && !returned && <label className="pick"><input type="checkbox" checked={picked.has(r.id)} onChange={() => togglePick(r.id)} aria-label={t("Выбрать для пакетного принятия")} /></label>}
               <div className="main">
-                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName teamId={r.team.id} />{r.donation && <Chip tone="accent">{t("пожертвование {n}", { n: `${r.donationAmount ?? ""} ${currency ?? ""}`.trim() })}</Chip>}</span>
+                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName teamId={r.team.id} /></span>
                 <span className="title">{r.deed.title}</span>
                 {r.person && <span className="meta person-line"><Icon name="user" />{t("Кому: {name}", { name: r.person.name })}</span>}
                 {r.deed.description && <button type="button" className="ghost sm desc-toggle" aria-expanded={descOpen.has(r.id)} onClick={() => toggleDesc(r.id)}><Icon name="scroll" />{t("Описание")}</button>}

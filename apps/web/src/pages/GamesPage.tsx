@@ -133,7 +133,7 @@ export function GamesPage() {
       )}
 
 
-      <div className="home-foot"><JoinByLink /><Link to="/games/new" className="btn ghost"><Icon name="plus" />{t("Создать игру")}</Link><Link to="/how-to-play" className="btn ghost"><Icon name="help" />{t("Как играть?")}</Link><Link to="/whats-new" className="btn ghost"><Icon name="sparkle" />{t("Что нового")}</Link><Link to="/donate" className="btn ghost"><Icon name="star" />{t("Поддержать развитие игры")}</Link></div>
+      <div className="home-foot"><JoinByLink /><Link to="/games/new" className="btn ghost"><Icon name="plus" />{t("Создать игру")}</Link><Link to="/how-to-play" className="btn ghost"><Icon name="help" />{t("Как играть?")}</Link><Link to="/whats-new" className="btn ghost"><Icon name="sparkle" />{t("Что нового")}</Link></div>
       <SocialLinks />
     </>
   );

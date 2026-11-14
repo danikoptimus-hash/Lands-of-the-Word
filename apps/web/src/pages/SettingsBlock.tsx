@@ -10,7 +10,7 @@ import { Stepper } from "../components/Stepper";
 import { Sheet } from "../components/Sheet";
 
 export interface RulesDto { timeZone: string; minBid: number; attackDays: number; burnPenalty: number; minAnswerSeconds: number; wallBlockVerses: number; passageDays: number; lockWeeks: number; deedReturnDays: number; maxDeedsPerDay: number; roleChangeDays: number; pauseSteps: number[]; siegeDays: number; siegeDeedPoints: number; roleCooldownDays: number; keySolversPct: number; keyTasksPct: number; chronicleWeekday: number; chronicleHourUtc: number; adminDigest: "instant" | "3h" | "daily"; /** Штормы (решение владельца 24.10): интервалы недели по поясу игры. */ storms?: StormSlot[] }
-interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string; rules?: RulesDto } }
+interface GameDto { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; rules?: RulesDto } }
 /** Правила, зашитые глобально и убранные из настроек (решение владельца 03.10): минимальная ставка, штраф за сгоревший вызов, закрепление города, паузы после ошибок. Сервер хранит их значения по умолчанию. Усталость города отменена 07.11. */
 type FixedKey = "minBid" | "burnPenalty" | "lockWeeks" | "pauseSteps" | "storms" | "chronicleWeekday" | "chronicleHourUtc";
 type NumKey = Exclude<keyof RulesDto, FixedKey | "adminDigest" | "timeZone">;
@@ -191,9 +191,6 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
     if (k === "genealogies") return { title: t("Родословия"), help: t("Случайный отрывок для испытания выбирается из всей книги города. Если выключено, главы с родословиями и длинными списками имён пропускаются, чтобы не учить перечни. Только до старта."), valid: true,
       body: <label className="check"><input type="checkbox" checked={Boolean(draft.genealogies)} onChange={(e) => set("genealogies", e.target.checked)} />{t("Отрывки могут содержать родословия и списки имён")}</label>,
       onSave: () => void save({ settings: { includeGenealogies: Boolean(draft.genealogies) } }) };
-    if (k === "currency") return { title: t("Валюта"), help: `${t("Подпись к суммам пожертвований в листе дела и в проверке, например «сум» или «₽». Сама минимальная сумма задаётся у каждого дела во вкладке «Дела». Можно менять в идущей игре.")} ${t("Минимальная сумма у каждого дела своя — задаётся во вкладке «Дела». У дела без суммы замены пожертвованием нет.")}`, valid: true,
-      body: <input id="s-cur" className="cur" value={String(draft.currency)} onChange={(e) => set("currency", e.target.value)} maxLength={10} placeholder="₽" autoFocus />,
-      onSave: () => void save({ settings: { donationCurrency: String(draft.currency).trim() } }) };
     if (k === "timeZone") return { title: t("Часовой пояс игры"), help: RULE_HELP.timeZone(), valid: validTz(String(draft.timeZone).trim()),
       body: <input id="rule-timeZone" value={String(draft.timeZone)} onChange={(e) => set("timeZone", e.target.value)} placeholder="Asia/Tashkent" autoFocus />,
       onSave: () => void save({ settings: { rules: { timeZone: String(draft.timeZone).trim() } } }) };
@@ -252,9 +249,6 @@ export function SettingsBlock({ game, onSaved }: { game: GameDto; onSaved: () =>
           </Group>
         </>
       )}
-      <Group title={t("Пожертвование вместо дела")}>
-        {row("currency", t("Валюта"), s.donationCurrency || "—", { currency: s.donationCurrency ?? "" })}
-      </Group>
       <Group title={t("Шторм")} tools={<><Help popup>{t("Пока идёт шторм, участники видят только карту с бурей: кнопок нет, дела не берутся, города не открываются; сервер действия не принимает. Администраторов шторм не касается. Время по поясу игры; конец раньше начала — интервал через полночь. Можно менять в идущей игре.")}</Help>
           {storms.length < 21 && <button type="button" className="ghost icon sm add" onClick={() => open({ storm: null }, { weekday: 0, from: "10:00", hours: 2 })} aria-label={t("Добавить интервал")} title={t("Добавить интервал")}><Icon name="plus" /></button>}</>}>
         {storms.map((x, i) => (
