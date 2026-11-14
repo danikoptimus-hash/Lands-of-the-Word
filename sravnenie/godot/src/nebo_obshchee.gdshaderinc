@@ -66,6 +66,11 @@ uniform float cloud_visibility = 1000000.0;
 // светотень облака: во сколько раз плотнее считать толщу на пути света (самозатенение), доля прямого света
 // у основания облака (основания темнее вершин), насколько тонкие края темнее плотного тела (1 — как в образце
 // шейдера: тонкая кромка выходила серым дымом темнее неба), сила и нижняя граница мелкой «рваной» кромки.
+// Вдали облаков меньше: доля покрытия на большом расстоянии и расстояния (метры), между которыми она
+// убывает. Слой облаков виден вдаль с ребра, и при одинаковом покрытии облака у горизонта сливаются
+// в сплошную белую стену; в образце Unreal просветы видны до самого горизонта.
+uniform float coverage_far = 1.0;
+uniform vec2 coverage_far_range = vec2(8000.0, 45000.0);
 uniform float shadow_strength = 1.0;
 uniform float base_shade = 1.0;
 uniform float powder = 1.0;
@@ -181,7 +186,7 @@ vec3 background_sky(vec3 eye_dir) {
 	// Сияние солнца: ядро в несколько градусов и широкий ореол.
 	float angle = acos(clamp(dot(eye_dir, normalize(SUN_DIR)), -1.0, 1.0));
 	float above = smoothstep(-0.02, 0.03, eye_dir.y);
-	color += sun_glow_color * above * (sun_glow.x * exp(-angle * angle / 0.0012) + sun_glow.y * exp(-angle / 0.16));
+	color += sun_glow_color * above * (sun_glow.x * exp(-angle * angle / 0.0003) + sun_glow.y * exp(-angle / 0.16));
 	return color;
 }
 
@@ -227,6 +232,7 @@ float density(vec3 pip, vec3 weather, float mip) {
 	float g = densityHeightGradient(height_fraction, weather.r);
 	float base_cloud = remap(n.r, -(1.0-fbm), 1.0, 0.0, 1.0);
 	float weather_coverage = cloud_coverage*weather.b;
+	weather_coverage *= mix(1.0, coverage_far, smoothstep(coverage_far_range.x, coverage_far_range.y, length(pip.xz - camera_place.xz)));
 	base_cloud = remap(base_cloud*g, 1.0-(weather_coverage), 1.0, 0.0, 1.0);
 	base_cloud *= weather_coverage;
 	p.xz -= time * normalize(wind_direction) * 40.;
