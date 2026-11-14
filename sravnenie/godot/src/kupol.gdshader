@@ -17,7 +17,7 @@ uniform float dome_size = 2048.0;
 #define SUN_DIR sun_dir
 #define SUN_POWER sun_power
 #define SUN_COLOR sun_color
-#include "nebo_obshchee.gdshaderinc"
+#include "res://src/nebo_obshchee.gdshaderinc"
 
 void fragment() {
 	vec2 at = FRAGCOORD.xy / dome_size * 2.0 - 1.0;

@@ -11,7 +11,7 @@ shader_type sky;
 #define SUN_DIR LIGHT0_DIRECTION
 #define SUN_POWER LIGHT0_ENERGY
 #define SUN_COLOR LIGHT0_COLOR
-#include "nebo_obshchee.gdshaderinc"
+#include "res://src/nebo_obshchee.gdshaderinc"
 
 uniform sampler2D dome : filter_linear, repeat_disable;
 uniform float snap_time = 0.0; // время облаков, в которое снята картинка

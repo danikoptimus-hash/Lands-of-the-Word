@@ -8,7 +8,7 @@ render_mode use_half_res_pass, use_quarter_res_pass;
 #define SUN_DIR LIGHT0_DIRECTION
 #define SUN_POWER LIGHT0_ENERGY
 #define SUN_COLOR LIGHT0_COLOR
-#include "nebo_obshchee.gdshaderinc"
+#include "res://src/nebo_obshchee.gdshaderinc"
 
 // ПРАВКА: расчёт неба с облаками вынесен в функцию — так он заведомо не выполняется в проходе полного
 // разрешения, где нужна только готовая картинка пониженного разрешения.
