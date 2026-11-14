@@ -83,9 +83,10 @@
 .sheet-title .prio-mark > .pop-btn.open { background: rgba(245, 158, 11, .18); }
 .sheet-title .prio-mark .i { width: 24px; height: 24px; }
 .sheet-title .prio-mark .i, .prio-flame { color: #d9541a; fill: rgba(245, 158, 11, .4); }
-/* Действия дела — ряд квадратных кнопок со значками, слева (решение владельца 14.11). У каждой в правом верхнем углу
-   маленький «?»: по нажатию — что делает кнопка. Число камней — в правом нижнем углу кнопки «Вымостить». */
-.deed-acts { align-items: center; justify-content: flex-start; gap: var(--sp-3) 18px; }
+/* Действия дела — ряд квадратных кнопок со значками, справа (решение владельца 14.11, уточнение: «кнопки должны стоять
+   справа, а не слева»); крайняя справа — «Взять дело». У каждой в правом верхнем углу маленький «?»: по нажатию — что
+   делает кнопка. Число камней — в правом нижнем углу кнопки «Вымостить». */
+.deed-acts { align-items: center; justify-content: flex-end; gap: var(--sp-3) 18px; }
 .deed-acts > .hint { flex: 1 1 100%; margin: 0; }
 .sq-act { position: relative; display: inline-flex; flex: none; }
 .actions > .sq-act > .sq-btn, .sq-btn { position: relative; flex: none; width: 54px; height: 54px; min-height: 0; padding: 0; display: inline-grid; place-items: center; border-radius: var(--r-md); }
