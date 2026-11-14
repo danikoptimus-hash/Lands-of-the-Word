@@ -155,9 +155,7 @@
 .assign-tag { color: var(--plum-ink); font-weight: 600; }
 .assign-list li { align-items: center; }
 .assign-list .who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.assign-list .who .meta { color: var(--muted); font-size: var(--fs-sm); }
-.assign-list li.on { background: var(--plum-soft); }
-.m-deed.mine.taken.sel circle:not(.far), .m-deed.mine.submitted.sel circle:not(.far) { stroke-width: 2.8; }
+.assign-list .who .meta { color: var(--muted); font-size: var(--fs-sm); }.m-deed.mine.taken.sel circle:not(.far), .m-deed.mine.submitted.sel circle:not(.far) { stroke-width: 2.8; }
 .m-deed.mine.taken use, .m-deed.mine.submitted use { color: var(--plum-ink); }
 /* Приоритет капитана (решение владельца 14.11): свиток дела горит. Огонь — DeedFire (MapLayers.tsx): позади кружка метки
    зарево, большие языки и искры, поверх кружка — малые языки на нижних краях. Зарево дышит, у каждого языка своё
