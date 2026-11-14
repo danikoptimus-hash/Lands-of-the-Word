@@ -13,7 +13,7 @@ const codes = (prefix: string, count: number, width: number): string[] =>
 export const AVATAR_CODES: readonly string[] = codes("a", AVATAR_COUNT, 3);
 /** Разделы набора аватарок — вкладки листа выбора: с какого номера по какой (включительно). */
 export const AVATAR_GROUPS: ReadonlyArray<{ key: "people" | "animals" | "things"; from: number; to: number }> = [
-  { key: "people", from: 1, to: 58 }, { key: "animals", from: 59, to: 86 }, { key: "things", from: 87, to: 100 },
+  { key: "people", from: 1, to: 56 }, { key: "animals", from: 57, to: 86 }, { key: "things", from: 87, to: 100 },
 ];
 export const CREST_CODES: readonly string[] = codes("g", CREST_COUNT, 2);
 const AVATAR_SET = new Set(AVATAR_CODES), CREST_SET = new Set(CREST_CODES);
