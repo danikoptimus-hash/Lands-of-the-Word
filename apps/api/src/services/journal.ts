@@ -180,7 +180,16 @@ export async function feed(gameId: string, teamId: string, limit = FEED_PAGE) {
 /** Личные записи участника (без команды): штрафы, переводы, возвраты записей — только ему. */
 export async function personalFeed(gameId: string, userId: string, limit = 30) {
   const rows = await prisma.journal.findMany({ where: { gameId, userId, teamId: null, everyone: false }, orderBy: FEED_ORDER, take: limit });
-  return rows.map((r) => ({ id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: false, mine: true, personal: true as const, at: r.createdAt.getTime(), taskId: null }));
+  return rows.map((r) => ({ id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: false, mine: true, personal: true as const, at: r.createdAt.getTime(), taskId: personalTaskId(r) }));
+}
+/**
+ * Личные записи о поручении ведут к делу (замечание сверки 14.11: после отказа капитану не искать дело заново среди
+ * одинаковых): id дела лежит в vars.taskId.
+ */
+const ASSIGN_KINDS = new Set<string>(["deed_assigned", "deed_assign_declined"]);
+function personalTaskId(r: { kind: string; vars: unknown }): string | null {
+  const id = (r.vars as Record<string, unknown> | null)?.taskId;
+  return ASSIGN_KINDS.has(r.kind) && typeof id === "string" ? id : null;
 }
 
 /**
@@ -202,7 +211,7 @@ export async function feedOlder(gameId: string, teamId: string, userId: string, 
   return {
     items: page.map((r) => {
       const personal = r.teamId === null && !r.everyone;
-      return { id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: r.everyone, mine: personal || r.teamId === teamId, ...(personal ? { personal: true as const } : {}), at: r.createdAt.getTime(), taskId: r.teamId === teamId ? taskIdOf(r) : null };
+      return { id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: r.everyone, mine: personal || r.teamId === teamId, ...(personal ? { personal: true as const } : {}), at: r.createdAt.getTime(), taskId: r.teamId === teamId ? taskIdOf(r) : personal ? personalTaskId(r) : null };
     }),
     more: rows.length > limit,
   };

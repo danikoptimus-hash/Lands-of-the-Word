@@ -459,8 +459,8 @@ export function TeamPage() {
     finally { setAssignBusy(false); }
   }
   /** Отказ от поручения: дело снова свободно для всей команды, поручивший узнаёт об отказе. */
-  async function declineAssign(taskId: string): Promise<void> {
-    if (!(await confirm(t("Дело снова станет свободным для всей команды. Тот, кто поручил, узнает об отказе."), { title: t("Не можете взять это дело?"), okLabel: t("Не могу взять") }))) return;
+  async function declineAssign(taskId: string, by: string): Promise<void> {
+    if (!(await confirm(by ? t("Дело снова станет свободным для всей команды. {name} узнает, что вы не можете его взять.", { name: by }) : t("Дело снова станет свободным для всей команды."), { title: t("Не можете взять это дело?"), okLabel: t("Не могу взять") }))) return;
     if (await act(`/api/games/${id}/edge-tasks/${taskId}/assign/decline`)) notify(t("Поручение снято: дело снова свободно"), "info");
   }
   const peekedKind = (key: string) => map?.peeked?.find((p) => p.key === key)?.kind ?? null;
@@ -844,7 +844,7 @@ export function TeamPage() {
               <ul className="list interactive">
                 {freeTasks.map((tk) => (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                    <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{[deedAssignee(tk) ? (forMe(tk) ? t("поручено вам") : t("поручено: {name}", { name: memberName(deedAssignee(tk)) })) : "", tk.person ? t("кому: {name}", { name: tk.person.name }) : ""].filter(Boolean).join(" · ")}</span></div>
+                    <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{forMe(tk) && <b className="assign-tag">{t("поручено вам")}</b>}{[deedAssignee(tk) && !forMe(tk) ? t("поручено: {name}", { name: memberName(deedAssignee(tk)) }) : "", tk.person ? t("кому: {name}", { name: tk.person.name }) : ""].filter(Boolean).map((x, i) => <span key={i}>{(i > 0 || forMe(tk)) && " · "}{x}</span>)}</span></div>
                     {/* Ночью «Взять» не висит с текстом над списком, а по нажатию показывает подсказку окошком (решение владельца 24.10). */}
                     {/* Корабельное дело — маленький значок корабля на углу кнопки «Взять», как звезда заместителя на значке роли (решение владельца 24.10), без слова. */}
                     <div className="side" onClick={(e) => e.stopPropagation()}><span className="take-slot">{tk.sea && <span className="sea-badge" title={t("корабль")} aria-label={t("корабль")}><Icon name="ship" /></span>}{!canTakeNow
@@ -994,15 +994,17 @@ export function TeamPage() {
             <Sheet size="sm" container={mapEl} title={t("Кому поручить дело")} onClose={() => setAssignFor(null)} className="assign-sheet"
               foot={cur ? <button type="button" className="secondary" disabled={assignBusy} onClick={() => void assign(tk.id, null)}><Icon name="x" />{t("Снять поручение")}</button> : undefined}>
               <p className="muted">{t("«{title}» — участнику придёт уведомление, и сутки взять это дело сможет только он.", { title: tk.deed.title })}</p>
-              <ul className="list interactive assign-list">
+              <ul className="list assign-list">
                 {(team.members ?? []).filter((mm) => mm.user.id !== user?.id).map((mm) => {
                   const name = mm.user.displayName ?? mm.user.nickname, n = mm.activeDeeds?.length ?? 0, full = limitFull(mm);
                   return (
-                    <li key={mm.user.id} role="button" tabIndex={0} aria-disabled={assignBusy} className={cur === mm.user.id ? "on" : undefined}
-                      onClick={() => { if (!assignBusy) void assign(tk.id, mm.user.id); }} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && !assignBusy) { e.preventDefault(); void assign(tk.id, mm.user.id); } }}>
-                      <div className="main"><div className="person"><UserAvatar name={name} avatarId={mm.user.avatarId} zoom={false} /><span className="name">{name}</span></div>
-                        <span className="meta">{[n > 0 ? t("дел в работе: {n}", { n }) : t("дел в работе нет"), full ? t("лимит дел на сегодня исчерпан") : "", mm.deedsFrozenUntil && Date.parse(mm.deedsFrozenUntil) > Date.now() ? t("взятие дел закрыто администратором") : ""].filter(Boolean).join(" · ")}</span></div>
-                      {cur === mm.user.id ? <Chip tone="solid" icon="user-plus">{t("поручено")}</Chip> : <Icon name="chevron" className="chev" />}
+                    <li key={mm.user.id} className={cur === mm.user.id ? "on" : undefined}>
+                      <div className="main"><div className="person"><UserAvatar name={name} avatarId={mm.user.avatarId} zoom={false} />
+                        <span className="who"><span className="name">{name}</span>
+                          <span className="meta">{[n > 0 ? t("дел в работе: {n}", { n }) : t("дел в работе нет"), full ? t("лимит дел на сегодня исчерпан") : "", mm.deedsFrozenUntil && Date.parse(mm.deedsFrozenUntil) > Date.now() ? t("взятие дел закрыто администратором") : ""].filter(Boolean).join(" · ")}</span></span></div></div>
+                      {/* Нажатие поручает сразу, поэтому у каждого — явная кнопка, а не стрелка «дальше» (замечание сверки 14.11). */}
+                      <div className="side">{cur === mm.user.id ? <Chip tone="solid" icon="user-plus">{t("поручено")}</Chip>
+                        : <button type="button" className="secondary sm" disabled={assignBusy} onClick={() => void assign(tk.id, mm.user.id)}><Icon name="user-plus" />{t("Поручить")}</button>}</div>
                     </li>
                   );
                 })}
@@ -1049,7 +1051,7 @@ export function TeamPage() {
               {/* Поручение (решение владельца 14.11): одна строка — кому поручено и до какого времени держится бронь; адресату — кто поручил. */}
               {assignee && <p className={"meta-line mt-2 assign-line" + (assignedToMe ? " me" : "")}><Icon name="user-plus" /><span>{assignedToMe
                 ? <>{t("Поручено вам")}{memberName(task.assignedById ?? null) ? <> · {t("поручил: {name}", { name: memberName(task.assignedById ?? null) })}</> : null}</>
-                : t("Поручено: {name}", { name: memberName(assignee) })}{task.assignedUntil && <> · {t("бронь до {time}", { time: fmtDate(task.assignedUntil) })}</>}</span></p>}
+                : t("Поручено: {name}", { name: memberName(assignee) })}{task.assignedUntil && <> · {assignedToMe ? t("взять до {time}", { time: fmtDate(task.assignedUntil) }) : t("до {time} взять может только он", { time: fmtDate(task.assignedUntil) })}</>}</span></p>}
               {/* Чем сдавать — только у взятого дела (решение владельца 14.11): у свободного это лишнее; «можно издалека» убрано совсем. */}
               {(task.status !== "OPEN" || taker || task.deed.secret || task.sea) && (
               <p className="meta-line mt-2">
@@ -1102,11 +1104,11 @@ export function TeamPage() {
                     {scoutBtn}
                     <SquareAction icon="map" label={t("Посмотреть на карте")} help={t("Карточка закроется, а карта покажет сторону, на которой стоит это дело.")}
                       onClick={() => { /* лист закрывается, карта центрируется на стороне дела (владелец 25.10) */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }} />
-                    {assignedToMe && <SquareAction icon="x" disabled={busy} label={t("Не могу взять")}
+                    {assignedToMe && <SquareAction icon="user-x" disabled={busy} label={t("Не могу взять")}
                       help={t("Поручение снимется, дело снова станет свободным для всей команды. Тот, кто поручил, узнает об отказе.")}
-                      onClick={() => void declineAssign(task.id)} />}
+                      onClick={() => void declineAssign(task.id, memberName(task.assignedById ?? null))} />}
                     {showAssign && <SquareAction icon="user-plus" on={Boolean(assignee)} disabled={assignBusy} label={assignee ? t("Сменить или снять поручение") : t("Поручить дело")}
-                      help={t("Выберите участника: ему придёт уведомление, которое откроет именно это дело, и сутки взять его сможет только он. Поручает капитан или заместитель.")}
+                      help={t("Выберите участника: ему придёт уведомление, которое откроет именно это дело. Сутки взять его сможет только он; если он откажется или сутки пройдут, дело снова свободно. Поручает капитан или заместитель.")}
                       onClick={() => setAssignFor(task.id)} />}
                     {showPrio && <SquareAction icon="flame" className="prio" on={prioOn} disabled={prioBusy} label={prioOn ? t("Снять приоритет") : t("Отметить приоритетным")}
                       help={t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}

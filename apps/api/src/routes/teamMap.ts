@@ -255,8 +255,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (body.userId) {
       const who = await nick(me);
       // Уведомление ведёт прямо на дело: карточка откроется, карта покажет его сторону.
-      notifyUser(id, body.userId, "вам поручили дело", "{who} поручил(а) вам дело «{deed}». Возьмите его в течение суток: до тех пор его не возьмёт никто другой.", { who, deed: task.deed.title }, { footer: "Открыть дело", query: `?task=${task.id}` });
-      journal(id, "deed_assigned", { userId: body.userId, personal: true, vars: { who, deed: task.deed.title, taskId: task.id } });
+      notifyUser(id, body.userId, "вам поручили дело", "{who} поручил(а) вам дело «{deed}». Возьмите его в течение суток: до тех пор его не возьмёт никто другой.", { who, deed: updated.deed.title }, { footer: "Открыть дело", query: `?task=${task.id}` });
+      journal(id, "deed_assigned", { userId: body.userId, personal: true, vars: { who, deed: updated.deed.title, taskId: task.id } });
     }
     return { task: { ...hideSecret(updated, me), ...assignView(updated) } };
   });
@@ -274,8 +274,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     publish(id, { type: "tasks", teamId: m.team.id });
     if (task.assignedById) {
       const user = await nick(me);
-      notifyUser(id, task.assignedById, "поручение не принято", "{user} не может взять дело «{deed}». Дело снова свободно для всей команды.", { user, deed: task.deed.title }, { footer: "Открыть дело", query: `?task=${task.id}` });
-      journal(id, "deed_assign_declined", { userId: task.assignedById, personal: true, vars: { user, deed: task.deed.title, taskId: task.id } });
+      notifyUser(id, task.assignedById, "поручение не принято", "{user} не может взять дело «{deed}». Дело снова свободно для всей команды.", { user, deed: updated.deed.title }, { footer: "Открыть дело", query: `?task=${task.id}` });
+      journal(id, "deed_assign_declined", { userId: task.assignedById, personal: true, vars: { user, deed: updated.deed.title, taskId: task.id } });
     }
     return { task: { ...hideSecret(updated, me), ...assignView(updated) } };
   });
@@ -318,9 +318,9 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       include: taskInclude,
     }).then((u) => bookIn(id, u));
     publish(id, { type: "submissions", teamId: m.team.id });
-    journal(id, "deed_submitted", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: task.deed.title, taskId: task.id } });
+    journal(id, "deed_submitted", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: updated.deed.title, taskId: task.id } });
     // Письмо администраторам — сразу или дайджестом по расписанию (решение владельца 18.09, A-13).
-    if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "новая сдача дела", (locale) => msg(locale, "Команда «{team}» сдала дело «{deed}». Нужно проверить и одобрить или вернуть.", { team: m.team.name, deed: task.deed.title }));
+    if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "новая сдача дела", (locale) => msg(locale, "Команда «{team}» сдала дело «{deed}». Нужно проверить и одобрить или вернуть.", { team: m.team.name, deed: updated.deed.title }));
     return { task: hideSecret(updated, request.user!.id) };
   });
 
