@@ -36,6 +36,7 @@ afterAll(async () => { await cleanupFixtures(gameId); await prisma.game.deleteMa
 const openTasks = async (cookie: string) => ((await get(`/api/games/${gameId}/my-map`, cookie)).json().tasks as Array<{ id: string; status: string; sea?: boolean }>).filter((t) => t.status === "OPEN" && !t.sea);
 const limitOf = async (cookie: string, who: string) => ((await get(`/api/games/${gameId}/teams`, cookie)).json().teams as Array<{ id: string; members: Array<{ user: { id: string }; deedLimit: { taken: number } | null }> }>).find((t) => t.id === teamId)!.members.find((m) => m.user.id === who)!.deedLimit;
 
+// В каждой сдаче — и ссылка, и текст в пять знаков и больше: вид отчёта у дела на карте случаен, а без требуемого сдать нельзя (14.11).
 describe("лимит дел без обхода", () => {
   it("сдача без взятия идёт в лимит сдающего; участие в групповом деле лимит не тратит", async () => {
     // Свободных дел на карте может быть мало: добавим две стороны с делом «по фото» (искусственные ключи, как в people.test).
@@ -47,20 +48,20 @@ describe("лимит дел без обхода", () => {
     // b взял своё дело — лимит выбран.
     expect((await post(`/api/games/${gameId}/edge-tasks/${d1!.id}/take`, ck.b)).statusCode).toBe(200);
     // Летописец сдаёт свободное дело сразу, без взятия: оно записывается на него и идёт в его лимит.
-    expect((await post(`/api/games/${gameId}/edge-tasks/${d2!.id}/submit`, ck.chron, { links: ["https://example.com/1"], note: "Сделал", participants: [] })).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${d2!.id}/submit`, ck.chron, { links: ["https://example.com/1"], note: "Сделал дело", participants: [] })).statusCode).toBe(200);
     expect((await limitOf(ck.cap, uid.chron))?.taken).toBe(1);
     // Второе такое же — нельзя: лимит летописца выбран. И взять тоже нельзя.
     const direct = await post(`/api/games/${gameId}/edge-tasks/${d3!.id}/submit`, ck.chron, { links: ["https://example.com/2"], note: "Ещё одно", participants: [] });
     expect(direct.statusCode).toBe(409); expect(direct.json().error).toBe("limit");
     expect((await post(`/api/games/${gameId}/edge-tasks/${d3!.id}/take`, ck.chron)).statusCode).toBe(409);
     // Участие в групповом деле (галочки) после своего дела — можно: лимит b и c не тратится.
-    expect((await post(`/api/games/${gameId}/edge-tasks/${d3!.id}/submit`, ck.cap, { links: ["https://example.com/3"], note: "Вместе", participants: [uid.b, uid.c] })).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${d3!.id}/submit`, ck.cap, { links: ["https://example.com/3"], note: "Сделали вместе", participants: [uid.b, uid.c] })).statusCode).toBe(200);
     expect((await limitOf(ck.cap, uid.cap))?.taken).toBe(1);
     expect((await limitOf(ck.cap, uid.b))?.taken).toBe(1);
     expect((await limitOf(ck.cap, uid.c))?.taken).toBe(0);
     expect((await post(`/api/games/${gameId}/edge-tasks/${d4!.id}/take`, ck.c)).statusCode).toBe(200);
     // Сдать взятое дело b за него летописец может: это его единственное дело, не новое.
-    expect((await post(`/api/games/${gameId}/edge-tasks/${d1!.id}/submit`, ck.chron, { links: ["https://example.com/4"], note: "За b", participants: [] })).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${d1!.id}/submit`, ck.chron, { links: ["https://example.com/4"], note: "Сдал за участника b", participants: [] })).statusCode).toBe(200);
     expect((await limitOf(ck.cap, uid.b))?.taken).toBe(1);
   });
   it("летописец записывает дело на основного: оно идёт в его лимит, на выбравшего лимит — нельзя", async () => {
@@ -82,7 +83,7 @@ describe("лимит дел без обхода", () => {
     expect((await limitOf(ck.cap, dId))?.taken).toBe(1);
     // Обычный участник записать дело на другого не может: поле игнорируется, дело остаётся его.
     await prisma.teamEdgeTask.update({ where: { id: d6.id }, data: { status: "TAKEN", takenById: uid.c, takenAt: new Date() } });
-    expect((await post(`/api/games/${gameId}/edge-tasks/${d6.id}/submit`, ck.c, { links: ["https://example.com/6"], note: "Сам", participants: [], mainId: dId })).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${d6.id}/submit`, ck.c, { links: ["https://example.com/6"], note: "Сделал сам", participants: [], mainId: dId })).statusCode).toBe(200);
     expect((await prisma.teamEdgeTask.findUniqueOrThrow({ where: { id: d6.id } })).takenById).toBe(uid.c);
     await prisma.user.deleteMany({ where: { id: dId } });
   });
@@ -94,12 +95,12 @@ describe("лимит дел без обхода", () => {
     const r = await registerVerified(app, { nickname: `dl_e_${stamp}`, password: "secret123" }); const eCookie = r.headers["set-cookie"] as string; const eId = r.json().user.id as string;
     const inv = await post(`/api/games/${gameId}/teams/${teamId}/invites`, ck.cap, { role: "MEMBER" }); await post(`/api/invites/${inv.json().invite.token}/accept`, eCookie);
     expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/take`, eCookie)).statusCode).toBe(200);
-    expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/submit`, eCookie, { links: ["https://example.com/bad"], note: "плохо", participants: [] })).statusCode).toBe(200);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/submit`, eCookie, { links: ["https://example.com/bad"], note: "сделал плохо", participants: [] })).statusCode).toBe(200);
     expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/decide`, ck.admin, { approve: false, comment: "переделать" })).statusCode).toBe(200);
     // Дыра закрыта: после возврата лимит по-прежнему выбран, второе дело взять или сдать нельзя.
     expect((await limitOf(ck.cap, eId))?.taken).toBe(1);
     expect((await post(`/api/games/${gameId}/edge-tasks/${r2.id}/take`, eCookie)).statusCode).toBe(409);
-    expect((await post(`/api/games/${gameId}/edge-tasks/${r2.id}/submit`, eCookie, { links: ["https://example.com/2"], note: "второе", participants: [] })).statusCode).toBe(409);
+    expect((await post(`/api/games/${gameId}/edge-tasks/${r2.id}/submit`, eCookie, { links: ["https://example.com/2"], note: "второе дело", participants: [] })).statusCode).toBe(409);
     // Своё возвращённое — пересдать можно, в том числе взяв его заново.
     expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/take`, eCookie)).statusCode).toBe(200);
     expect((await post(`/api/games/${gameId}/edge-tasks/${r1.id}/submit`, eCookie, { links: ["https://example.com/good"], note: "исправил", participants: [] })).statusCode).toBe(200);
@@ -125,7 +126,7 @@ describe("лимит дел без обхода", () => {
     for (let i = 0; i < 6; i++) ids.push((await prisma.teamEdgeTask.create({ data: { gameId, teamId, fromKey: `F:${i}`, toKey: `F:${i + 1}`, deedId: deed.id } })).id);
     for (let i = 0; i < 5; i++) {
       expect((await post(`/api/games/${gameId}/edge-tasks/${ids[i]}/take`, gCookie)).statusCode).toBe(200);
-      expect((await post(`/api/games/${gameId}/edge-tasks/${ids[i]}/submit`, gCookie, { links: ["https://example.com/x"], note: "x", participants: [] })).statusCode).toBe(200);
+      expect((await post(`/api/games/${gameId}/edge-tasks/${ids[i]}/submit`, gCookie, { links: ["https://example.com/x"], note: "Сделал дело", participants: [] })).statusCode).toBe(200);
       expect((await post(`/api/games/${gameId}/edge-tasks/${ids[i]}/decide`, ck.admin, { approve: i % 2 === 0, comment: "" })).statusCode).toBe(200);
     }
     expect((await limitOf(ck.cap, gId))?.taken).toBe(5);
