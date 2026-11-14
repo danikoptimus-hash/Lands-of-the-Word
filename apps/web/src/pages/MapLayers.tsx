@@ -623,10 +623,47 @@ const DASHED = new Set(["empty"]);
 export function MapSymbols() {
   return (
     <defs>
+      {/* Огонь приоритетного дела (DeedFire): наружный язык — от тёмно-красного к оранжевому, внутренний — к жёлтому, зарево. */}
+      <linearGradient id="m-fire-out" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#b3261a" /><stop offset=".55" stopColor="#e2571c" /><stop offset="1" stopColor="#f59e0b" /></linearGradient>
+      <linearGradient id="m-fire-in" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#f97316" /><stop offset=".6" stopColor="#fbbf24" /><stop offset="1" stopColor="#fde68a" /></linearGradient>
+      <linearGradient id="m-fire-core" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#fcd34d" /><stop offset="1" stopColor="#fffbe6" /></linearGradient>
+      <radialGradient id="m-fire-glow"><stop offset="0" stopColor="#f59e0b" stopOpacity=".7" /><stop offset=".55" stopColor="#f97316" stopOpacity=".32" /><stop offset="1" stopColor="#f97316" stopOpacity="0" /></radialGradient>
       {Object.entries(SYMBOLS).map(([name, d]) => (
         <symbol key={name} id={`m-${name}`} viewBox="0 0 24 24"><path d={d} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={DASHED.has(name) ? "3 2.2" : undefined} /></symbol>
       ))}
     </defs>
+  );
+}
+
+/** Язык пламени каплей: основание (bx, by), ширина w, высота h, наклон вершины lean. */
+function tongue(bx: number, by: number, w: number, h: number, lean: number): string {
+  const f = (n: number) => n.toFixed(2);
+  return `M${f(bx - w / 2)},${f(by)} C${f(bx - w / 2)},${f(by - h * 0.42)} ${f(bx + lean - w * 0.16)},${f(by - h * 0.62)} ${f(bx + lean)},${f(by - h)} `
+    + `C${f(bx + lean + w * 0.1)},${f(by - h * 0.58)} ${f(bx + w / 2)},${f(by - h * 0.4)} ${f(bx + w / 2)},${f(by)} C${f(bx + w / 2)},${f(by + w * 0.42)} ${f(bx - w / 2)},${f(by + w * 0.42)} ${f(bx - w / 2)},${f(by)}Z`;
+}
+/** Языки огня вокруг кружка радиуса 12: [слой, основание x, y, ширина, высота, наклон, номер мерцания]. Основания спрятаны за кружком. */
+const FIRE_TONGUES: Array<[layer: "out" | "in" | "core", bx: number, by: number, w: number, h: number, lean: number, flick: number]> = [
+  ["out", -12.5, 6, 9, 13, -2.5, 3], ["out", 12.5, 6, 9, 14, 2.5, 4],
+  ["out", -8.5, -1, 13, 19, -2.5, 2], ["out", 8.5, -2, 13, 21, 2.2, 1],
+  ["out", 0.5, -4, 18, 25, 1.5, 0],
+  ["in", -8, -3, 8, 12, -1.5, 1], ["in", 8, -4, 8, 13.5, 1.5, 3], ["in", 0.5, -7, 11, 16.5, 1, 2],
+  ["core", 0.5, -9.5, 6, 9, 0.6, 4],
+];
+/**
+ * Огонь приоритетного дела (решение владельца 14.11: «свиток как бы горит огнём, анимация»): зарево, языки пламени в три
+ * слоя и искры позади кружка метки — значок дела остаётся читаемым. Движение — в CSS (.deed-fire, player.css): у каждого
+ * языка своё мерцание; без движения (prefers-reduced-motion) огонь стоит. Нажатия сквозь огонь проходят к метке.
+ */
+export function DeedFire({ r }: { r: number }) {
+  return (
+    <g className="deed-fire" transform={`scale(${(r / 12).toFixed(3)})`} aria-hidden="true">
+      {/* Зарево и искры — эллипсами, а не кругами: правила кружка метки (.m-deed circle) их не касаются. */}
+      <ellipse className="glow" rx={27} ry={27} cy={-5} fill="url(#m-fire-glow)" />
+      {FIRE_TONGUES.map(([layer, bx, by, w, h, lean, flick], i) => <path key={i} className={`tongue ${layer} k${flick}`} d={tongue(bx, by, w, h, lean)} fill={`url(#m-fire-${layer})`} />)}
+      <ellipse className="spark s0" rx={1} ry={1} cx={-5} cy={-21} />
+      <ellipse className="spark s1" rx={0.9} ry={0.9} cx={6} cy={-24} />
+      <ellipse className="spark s2" rx={0.8} ry={0.8} cx={1} cy={-29} />
+    </g>
   );
 }
 

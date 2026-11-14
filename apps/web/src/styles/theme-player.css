@@ -77,6 +77,14 @@
 .deed-sheet .desc-more { margin: var(--sp-1) 0 0 calc(-1 * var(--sp-3)); }
 .meta-line { font-family: var(--font-ui); color: var(--ink-2); row-gap: var(--sp-1); }
 .meta-line .i { color: var(--bronze); }
+/* Приоритет капитана (решение владельца 14.11): в карточке дела — строка «приоритет» для всех и кнопка капитана и
+   заместителя рядом с ней; огонёк у названия в списке «Дела». */
+.priority-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--sp-2) var(--sp-3); }
+.priority-line { display: flex; align-items: flex-start; gap: 6px; margin: 0; flex: 1 1 200px; min-width: 0; color: #9a3412; font: 600 var(--fs-sm)/1.35 var(--font-ui); }
+.priority-line .i { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.priority-line .i, .prio-flame, .priority-actions button .i { color: #d9541a; fill: rgba(245, 158, 11, .4); }
+.priority-actions { display: inline-flex; align-items: center; gap: var(--sp-1); flex: none; }
+.list .title .prio-flame { width: 16px; height: 16px; margin-right: 4px; vertical-align: -2px; }
 .meta-line .chip .i { color: inherit; }
 .meta-line .help-btn { margin-left: 0; }
 .deed-sheet details.codex { margin-top: var(--sp-3); }

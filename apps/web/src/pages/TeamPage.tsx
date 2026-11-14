@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { Picker } from "../components/Picker";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, apiReady, prefetch, ready, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
+import { api, ApiError, apiReady, deedPriority, prefetch, ready, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
@@ -580,7 +580,8 @@ export function TeamPage() {
 
   const activeBattles = battles.filter((b) => b.status === "QUEUED" || b.status === "ATTACK" || b.status === "DEFENSE");
   // В списке дела по алфавиту названий (решение владельца 24.10) — и взятые, и свободные.
-  const byTitle = (a: { deed: { title: string } }, b: { deed: { title: string } }) => a.deed.title.localeCompare(b.deed.title, "ru");
+  // Приоритетные дела капитана — первыми в своём списке (решение владельца 14.11), дальше по алфавиту.
+  const byTitle = (a: EdgeTaskDto, b: EdgeTaskDto) => Number(deedPriority(b)) - Number(deedPriority(a)) || a.deed.title.localeCompare(b.deed.title, "ru");
   const ourTasks = map.tasks.filter((tk) => tk.status === "TAKEN" || tk.status === "SUBMITTED" || tk.status === "REJECTED").sort(byTitle);
   // Свободные дела на карте — в разделе «Дела» с кнопкой «Взять» у каждого, чтобы не искать метку на карте (решение владельца 05.10).
   const freeTasks = map.tasks.filter((tk) => tk.status === "OPEN").sort(byTitle);
@@ -779,7 +780,7 @@ export function TeamPage() {
               <ul className="list interactive">
                 {ourTasks.map((tk) => { const st = deedStatus(tk.status); return (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{[tk.person ? t("кому: {name}", { name: tk.person.name }) : "", tk.status === "REJECTED" && tk.adminComment ? tk.adminComment : ""].filter(Boolean).join(" · ")}</span></div>
+                    <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{[tk.person ? t("кому: {name}", { name: tk.person.name }) : "", tk.status === "REJECTED" && tk.adminComment ? tk.adminComment : ""].filter(Boolean).join(" · ")}</span></div>
                     {/* Под состоянием — кто взял дело (просьба участников 03.10: видно, у кого дело в работе). */}
                     <div className="side col"><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>{tk.takenById && tk.status !== "APPROVED" && <span className="muted small taker">{memberName(tk.takenById)}</span>}</div>
                   </li>
@@ -794,7 +795,7 @@ export function TeamPage() {
               <ul className="list interactive">
                 {freeTasks.map((tk) => (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                    <div className="main"><span className="title">{tk.deed.title}</span><span className="meta">{tk.person ? t("кому: {name}", { name: tk.person.name }) : ""}</span></div>
+                    <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{tk.person ? t("кому: {name}", { name: tk.person.name }) : ""}</span></div>
                     {/* Ночью «Взять» не висит с текстом над списком, а по нажатию показывает подсказку окошком (решение владельца 24.10). */}
                     {/* Корабельное дело — маленький значок корабля на углу кнопки «Взять», как звезда заместителя на значке роли (решение владельца 24.10), без слова. */}
                     <div className="side" onClick={(e) => e.stopPropagation()}><span className="take-slot">{tk.sea && <span className="sea-badge" title={t("корабль")} aria-label={t("корабль")}><Icon name="ship" /></span>}{!canTakeNow
@@ -967,6 +968,21 @@ export function TeamPage() {
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
           return (
             <Sheet size="sm" container={mapEl} onClose={closeTask} onDismiss={backTo ? dismissTask : undefined} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip><button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => { /* Значок карты, как в отчёте у администратора (владелец 25.10): лист закрывается, карта центрируется на стороне дела. */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }}><Icon name="map" /></button></div>}>
+              {/* Приоритет капитана (решение владельца 14.11): капитан или заместитель отмечает дело — его свиток на карте горит у всей команды. */}
+              {(deedPriority(task) || (isLeader && task.status !== "APPROVED" && !task.paved)) && (
+                <div className="priority-row mt-2">
+                  {deedPriority(task) && <p className="priority-line"><Icon name="flame" /><span>{t("Приоритет капитана: берём в первую очередь")}{task.priorityById && memberName(task.priorityById) ? <> · {t("отметил: {name}", { name: memberName(task.priorityById) })}</> : null}</span></p>}
+                  {isLeader && task.status !== "APPROVED" && !task.paved && (
+                    <span className="priority-actions">
+                      <button type="button" className="secondary sm" disabled={busy} aria-pressed={Boolean(task.priorityAt)}
+                        onClick={() => { const on = !task.priorityAt; void act(`/api/games/${id}/edge-tasks/${task.id}/priority`, { on }).then((ok) => { if (ok) notify(on ? t("Дело отмечено приоритетным: его свиток на карте горит") : t("Приоритет снят")); }); }}>
+                        <Icon name="flame" />{task.priorityAt ? t("Снять приоритет") : t("Отметить приоритетным")}
+                      </button>
+                      <Help>{t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}</Help>
+                    </span>
+                  )}
+                </div>
+              )}
               {task.person && <p className="meta-line mt-2 person-line"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
               <p className="meta-line mt-2">
                 <Icon name={proof.icon} />{t("Сдать")}: {proof.label()}
