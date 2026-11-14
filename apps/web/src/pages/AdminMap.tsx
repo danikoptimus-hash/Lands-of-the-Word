@@ -24,6 +24,7 @@ import { t, getLocale } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { AdminQuarrySheet } from "./QuarrySheet";
 import { Icon, iconPath } from "../components/Icon";
+import { LinkList, linkKind } from "../components/LinkList";
 import { FaunaLayer, trimRoute, type FireSite, type WreckSpec } from "./Fauna";
 import { css, stormLight, useDaytime, useStormPicture } from "../lib/daytime";
 import { StormLayer } from "./StormLayer";
@@ -186,7 +187,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
     return () => { alive = false; };
   }, [viewAs, gameId, version]);
   const kk = vp.view.k;
-  const showLabels = kk >= 1.4, showDots = kk >= 0.8, showIslands = kk < 1.4;
+  const showLabels = kk >= 1.4, showDots = kk >= 0.8;
   // Морские переправы для слоя живности: под ними плавают киты, над ними идут корабли (решение владельца 06.10).
   const routeSpecs = useMemo(() => {
     const obstacles = islets.map((i) => ({ x: i.x, y: i.y, r: i.r, shape: i.shape }));
@@ -197,7 +198,6 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
       return { pts: trimRoute(pts, size * 0.5, toCity ? size * 0.5 : size * 0.2), color: routeColor(tm.color), arrow: { x: arrow.x, y: arrow.y, heading: arrow.heading } };
     }));
   }, [progress, edgeSet, positions, landKeys, islets, size, nodes]);
-  const islandLabels = useMemo(() => (showIslands && islandCenters.has("NT") ? [...islandCenters].map(([isl, c]) => ({ x: c.x, y: c.y, r: c.r + size * 4, name: isl === "OT" ? t("Ветхий Завет") : t("Новый Завет") })) : []), [showIslands, islandCenters, size]);
   /** Экранный элемент в точке карты: сдвиг в единицах карты, размер — через --inv (ставится на каждый кадр жеста). */
   const sc = (x: number, y: number) => ({ transform: `translate(${x}px, ${y}px) scale(var(--inv, 1))` });
   // Нажатия в коде (этап Э1 плана ускорения карты): области те же, что были у невидимых линий SVG — любая сторона и
@@ -362,7 +362,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 if (!showDots) return null;
                 return <g key={n.key} className="pick" style={at} onClick={pick}><circle className="hit" r={12} fill="transparent" />{seen.length === 0 && <circle r={3} fill="rgba(31,27,22,.4)" />}{seen.map((tm, i) => <circle key={tm.id} cx={(i - (seen.length - 1) / 2) * 8} cy={0} r={3.5} fill={tm.color} stroke="var(--surface)" strokeWidth={0.8} />)}</g>;
               })}
-  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, showIslands, islandCenters, progress, size, cities, teamById, battleAt, landKeys, obstacles]); // eslint-disable-line react-hooks/exhaustive-deps
+  </>), [nodes, positions, revealedBy, selected, showLabels, showDots, islandCenters, progress, size, cities, teamById, battleAt, landKeys, obstacles]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!bounds) return null;
   const viewedTeam = viewAs ? teamById.get(viewAs) : null;
   const viewMap = useMemo(() => (teamView?.map && at && viewedTeam && progress ? { ...rewindTeamMap(teamView.map, viewedTeam, progress, cities, nodes), teamIndex: teamView.map.teamIndex } : teamView?.map ?? null), [teamView, at, viewedTeam, progress, cities, nodes]);
@@ -416,7 +416,7 @@ export function AdminMap({ gameId, hexes, nodes, edges, progress, cities, battle
                 {flashEl}
               </WorldSvg>}
           {/* Подписи островов рисует слой живности: киты под буквами, корабли над (решение владельца 05.10). */}
-          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} labels={islandLabels} routes={glRoutes ? [] : routeSpecs} wrecks={wreckSpecs}
+          <FaunaLayer vp={vp} hexes={hexes} islets={islets} size={size} seed={gameId} light={dt.light} fires={fires} routes={glRoutes ? [] : routeSpecs} wrecks={wreckSpecs}
             between={glRoutes ? <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => setGlRoutes(false)} /> : null} />
           {fireworkSites.length > 0 && !perfOff("fireworks") && <FireworksLayer vp={vp} sites={fireworkSites} clock={Date.now} timeZone={timeZone ?? "Asia/Tashkent"} />}
           {stormSt.t > 0 && <StormLayer t={stormSt.t} />}
@@ -501,7 +501,7 @@ function TeamTaskSheet({ gameId, task, members, container, onClose, onReview }: 
       {task.deed.secret && <div className="note info"><Icon name="lock" /><span>{t("Тайное дело: сдачу смотрите во вкладке «Проверка».")}</span></div>}
       {(() => { const names = (task.participants ?? []).filter((pid) => pid !== task.takenById).map((pid) => { const m = members.find((x) => x.id === pid); return m ? m.displayName ?? m.nickname : ""; }).filter(Boolean); return names.length > 0 ? <p className="meta-line"><Icon name="users" />{t("Участвовали: {names}", { names: names.join(", ") })}</p> : null; })()}
       {task.status === "APPROVED" && task.decidedAt && <p className="meta-line small muted"><Icon name="check" />{t("Одобрено")}: {fmtDate(task.decidedAt)}</p>}
-      {task.links.length > 0 && <ul className="links">{task.links.map((l) => <li key={l}><a href={l} target="_blank" rel="noreferrer">{l}</a></li>)}</ul>}
+      {task.links.length > 0 && <div className="proof-links"><LinkList links={task.links} kind={linkKind(task.deed.proofType)} /></div>}
       {task.note && <p className="mt-2 report-text">{task.note}</p>}
       {task.status === "REJECTED" && task.adminComment && <div className="note bad"><Icon name="alert" /><span>{t("Возвращено с комментарием: «{comment}»", { comment: task.adminComment })}</span></div>}
       {task.status === "REJECTED" && <ReconsiderButton gameId={gameId} taskId={task.id} onDone={onClose} />}

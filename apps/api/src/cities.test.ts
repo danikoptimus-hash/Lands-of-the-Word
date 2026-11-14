@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { readFile } from "node:fs/promises";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
+import { parseVertexKey, vertexHexes } from "@lotw/domain";
 import { checkAnswer } from "./services/cities.js";
 import { layoutCrossword } from "./services/crossword.js";
 import { ensureCityCodes } from "./services/recipients.js";
@@ -336,6 +337,16 @@ describe("дипломатия, роли, столица, руины, сдача
     await prisma.user.deleteMany({ where: { nickname: scout2Nick } });
     const after = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
     expect((after.json().peeked as Array<{ key: string }>).some((p) => p.key === (bare ?? far.toKey))).toBe(true);
+    // Разведанное место остаётся открытым (решение владельца 14.11): у города известны книга и вид, гексы тумана вокруг
+    // разведанных перекрёстков отдаются с местностью; у остального тумана местности по-прежнему нет.
+    const peekedAfter = after.json().peeked as Array<{ key: string; kind: string; bookCode?: string | null; cityType?: string | null }>;
+    for (const pk of peekedAfter) { if (pk.kind === "CITY") { expect(pk.bookCode).toBeTruthy(); expect(pk.cityType).toBeTruthy(); } else expect(pk.bookCode).toBeUndefined(); }
+    const aroundPeeked = new Set(peekedAfter.flatMap((pk) => vertexHexes(parseVertexKey(pk.key)).map((h) => `${h.q},${h.r}`)));
+    const fogHexes = (after.json().hexes as Array<{ q: number; r: number; lit: boolean; terrain?: string; peek?: boolean }>).filter((h) => !h.lit);
+    for (const h of fogHexes) {
+      if (aroundPeeked.has(`${h.q},${h.r}`)) { expect(h.peek).toBe(true); expect(h.terrain).toBeTruthy(); }
+      else { expect(h.peek).toBeUndefined(); expect(h.terrain).toBeUndefined(); }
+    }
     await prisma.user.deleteMany({ where: { nickname: scoutNick } });
   });
 

@@ -6,7 +6,7 @@ import { api, ApiError, apiReady, deedPriority, prefetch, ready, type AwardsDto,
 import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
-import { TeamMap, type MarkPoint, type ScoutReveal } from "./TeamMap";
+import { TeamMap, type MarkPoint } from "./TeamMap";
 import { AwardRating, FlameIcon, MilestoneCard, StreakBanner, TeamAwardsBlock, awardsCached, preloadAllAwardImages, preloadAwardImages } from "./Awards";
 import { AWARD_BY_CODE } from "@lotw/domain";
 import { previewPhase, useStorm } from "../lib/daytime";
@@ -24,6 +24,7 @@ import { useMediaQuery } from "../lib/media";
 import { t } from "../lib/i18n";
 import { fmtDate, plural, setDisplayTimeZone } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { LinkList, linkKind } from "../components/LinkList";
 import { AutoGrow } from "../components/AutoGrow";
 import { NightNote } from "../components/NightNote";
 import { LinksField } from "../components/LinksField";
@@ -434,14 +435,15 @@ export function TeamPage() {
     finally { setPrioBusy(false); }
   }
   const peekedKind = (key: string) => map?.peeked?.find((p) => p.key === key)?.kind ?? null;
-  /** Разведка (решение владельца 29.10): вместо слов карта на пять секунд раздвигает туман вокруг перекрёстка и показывает, что там; листы закрываются, чтобы карту было видно. */
-  const [scout, setScout] = useState<ScoutReveal | null>(null);
+  /**
+   * Разведка (решения владельца 29.10 и 14.11): вместо слов карта раздвигает туман вокруг перекрёстка и показывает, что там;
+   * место остаётся открытым насовсем. Листы закрываются, чтобы карту было видно; само окно рисует карта по ответу сервера.
+   */
   async function peek(nodeKey: string) {
     setBusy(true); setError(null);
     try {
-      const r = await api<{ kind: string; bookCode?: string | null; cityType?: string | null; hexes?: ScoutReveal["hexes"] }>(`/api/games/${id}/my-map/peek`, { method: "POST", body: JSON.stringify({ nodeKey }) });
+      await api(`/api/games/${id}/my-map/peek`, { method: "POST", body: JSON.stringify({ nodeKey }) });
       setFrontierKey(null); setSelectedId(null); setBackTo(null); setMenu(false);
-      setScout({ key: nodeKey, kind: r.kind, bookCode: r.bookCode, cityType: r.cityType, hexes: r.hexes, nonce: Date.now() });
       await loadMap();
     }
     catch (e) { setError(e instanceof ApiError ? e.message : t("Ошибка сети")); }
@@ -881,7 +883,7 @@ export function TeamPage() {
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); setMarkDrop(false); }} onMarkTap={tapMark}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
-          onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} scout={scout}
+          onSelectQuarry={() => { setQuarryOpen(true); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }}
           onSelectWreck={(wid) => { setWreckId(wid); setQuarryOpen(false); setSelectedId(null); setCityKey(null); setFrontierKey(null); setMenu(false); }} />
         )}
         {quarryOpen && <QuarrySheet gameId={id} container={mapEl} onClose={() => setQuarryOpen(false)} />}
@@ -950,10 +952,9 @@ export function TeamPage() {
           return (
             <Sheet size="sm" container={mapEl} title={t("Край тумана")} onClose={() => setFrontierKey(null)}>
               <p className="muted">{t("Дороги с делом сюда пока нет.")}</p>
-              {pk && <div className="note info"><Icon name="telescope" /><span>{pk === "CITY" ? t("Разведано: там город.") : t("Разведано: там развилка.")}</span></div>}
               {error && <p className="error" role="alert">{error}</p>}
-              {phase === "night" && <NightNote>{t("Ночь: разведка ждёт утра, с 7:00 по местному времени.")}</NightNote>}
-              {me?.gameRole === "SCOUT" && !pk && phase !== "night" && <div className="actions"><button type="button" className="secondary" disabled={busy} onClick={() => void peek(frontierKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></div>}
+              {phase === "night" && !pk && <NightNote>{t("Ночь: разведка ждёт утра, с 7:00 по местному времени.")}</NightNote>}
+              {me?.gameRole === "SCOUT" && !pk && phase !== "night" && <div className="actions deed-acts"><SquareAction icon="telescope" disabled={busy} label={t("Разведать")} help={SCOUT_HELP()} onClick={() => void peek(frontierKey)} /></div>}
               {me?.gameRole !== "SCOUT" && !pk && <p className="hint">{t("Разведать этот перекрёсток может разведчик команды.")}</p>}
             </Sheet>
           );
@@ -971,7 +972,8 @@ export function TeamPage() {
           const night = phase === "night";
           // Взять дело можно до полуночи, как и решать задания города (решение владельца 04.10); сдача и разведка — с 7:00.
           const canTake = !night || Boolean(map?.daytime?.tasksOpen);
-          const scoutBtn = canScout && !night && <><button type="button" className="secondary" disabled={busy} onClick={() => void peek(task.toKey)}><Icon name="telescope" />{t("Разведать")}</button><Help>{t("раз в неделю")}</Help></>;
+          // «Разведать» — такая же квадратная кнопка со значком и «?», как остальные действия дела (решение владельца 14.11).
+          const scoutBtn = canScout && !night && <SquareAction icon="telescope" disabled={busy} label={t("Разведать")} help={SCOUT_HELP()} onClick={() => void peek(task.toKey)} />;
           // Порядок листа (решение владельца 18.09): суть → как сдать → состояние → действие → правила (кодекс).
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
@@ -1000,14 +1002,14 @@ export function TeamPage() {
                   <div className="report-block mt-2">
                     {names.length > 0 && <p className="meta-line"><Icon name="users" />{t("Участвовали: {names}", { names: names.join(", ") })}</p>}
                     <p className="meta-line small muted"><Icon name="clock" />{t("Сдано")}: {fmtDate(task.submittedAt)}{task.status === "APPROVED" && task.decidedAt && <> · {t("Одобрено")}: {fmtDate(task.decidedAt)}</>}</p>
-                    {task.links.length > 0 && <ul className="links">{task.links.map((l) => <li key={l}><a href={l} target="_blank" rel="noreferrer">{l}</a></li>)}</ul>}
+                    {task.links.length > 0 && <div className="proof-links"><LinkList links={task.links} kind={linkKind(task.deed.proofType)} /></div>}
                     {task.note && <p className="report-text">{task.note}</p>}
                   </div>
                 );
               })()}
               {task.status === "REJECTED" && <div className="note bad"><Icon name="alert" /><span>{task.adminComment ? t("Администратор вернул дело: «{comment}». Исправьте и сдайте снова.", { comment: task.adminComment }) : t("Администратор вернул дело. Исправьте и сдайте снова.")}</span></div>}
-              {task.status === "SUBMITTED" && <div className="note info"><Icon name="clock" /><span>{t("На проверке у администратора.")}</span></div>}
-              {peeked && <div className="note info"><Icon name="telescope" /><span>{peeked === "CITY" ? t("Разведано: там город.") : t("Разведано: там развилка.")}</span></div>}
+              {/* Плашек «На проверке у администратора» и «Разведано…» нет (решение владельца 14.11): первое повторяет значок
+                  состояния в шапке, второе видно на карте — разведанное место остаётся открытым. */}
               {error && <p className="error" role="alert">{error}</p>}
               {night && !canTake && task.status !== "APPROVED" && task.status !== "SUBMITTED" && <NightNote>{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</NightNote>}
               {night && canTake && (task.status === "OPEN" || task.status === "REJECTED") && <NightNote>{t("До 0:00 дело можно взять; сдать и разведать — с 7:00 по местному времени.")}</NightNote>}
@@ -1075,6 +1077,9 @@ export function TeamPage() {
  * квадратными и оставим только значки… над каждой кнопкой маленький вопросительный значок в правом верхнем углу с
  * объяснением, что за кнопка»). Название и пояснение — в окошке по нажатию на «?»; название же — подпись для чтения с экрана.
  */
+/** Подсказка кнопки «Разведать»: что она делает и как часто. */
+const SCOUT_HELP = () => t("Туман вокруг перекрёстка раздвинется, и вся команда увидит, что там: город или развилка. Место останется открытым. Разведка — раз в неделю.");
+
 function SquareAction({ icon, label, help, onClick, disabled, primary = false, on, badge, className }: { icon: string; label: string; help: string; onClick: () => void; disabled?: boolean; /** Главное действие — залитая кнопка. */ primary?: boolean; /** Нажатое состояние переключателя (приоритет отмечен). */ on?: boolean; /** Число в углу (камни Каменоломни). */ badge?: number | null; className?: string }) {
   return (
     <span className={"sq-act" + (className ? " " + className : "")}>

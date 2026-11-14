@@ -161,9 +161,15 @@ export function journal(gameId: string, kind: JournalKind, o: { teamId?: string 
     .catch((e) => console.error("journal failed", e));
 }
 
+/** Летопись команды (решение владельца 14.11): записи за 15 дней, раскрываются страницами по 60. */
+export const FEED_PAGE = 60;
+export const FEED_DAYS = 15;
+/** Порядок летописи: по времени, при равном времени — по id; так же режутся страницы. */
+const FEED_ORDER = [{ createdAt: "desc" as const }, { id: "desc" as const }];
+
 /** Лента команды: свои записи и новости для всех, новые сверху. */
-export async function feed(gameId: string, teamId: string, limit = 60) {
-  const rows = await prisma.journal.findMany({ where: { gameId, OR: [{ teamId }, { everyone: true }] }, orderBy: { createdAt: "desc" }, take: limit });
+export async function feed(gameId: string, teamId: string, limit = FEED_PAGE) {
+  const rows = await prisma.journal.findMany({ where: { gameId, OR: [{ teamId }, { everyone: true }] }, orderBy: FEED_ORDER, take: limit });
   // Дело из летописи открывается и у участников (просьба владельца 25.10: «у админа прожимаются, у участников нет») — только записи своей команды.
   const taskIdOf = await journalTaskIds(gameId, rows.filter((r) => r.teamId === teamId));
   return rows.map((r) => ({ id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: r.everyone, mine: r.teamId === teamId, at: r.createdAt.getTime(), taskId: r.teamId === teamId ? taskIdOf(r) : null }));
@@ -171,8 +177,33 @@ export async function feed(gameId: string, teamId: string, limit = 60) {
 
 /** Личные записи участника (без команды): штрафы, переводы, возвраты записей — только ему. */
 export async function personalFeed(gameId: string, userId: string, limit = 30) {
-  const rows = await prisma.journal.findMany({ where: { gameId, userId, teamId: null, everyone: false }, orderBy: { createdAt: "desc" }, take: limit });
+  const rows = await prisma.journal.findMany({ where: { gameId, userId, teamId: null, everyone: false }, orderBy: FEED_ORDER, take: limit });
   return rows.map((r) => ({ id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: false, mine: true, personal: true as const, at: r.createdAt.getTime(), taskId: null }));
+}
+
+/**
+ * Следующая страница летописи: записи старше данной (время и id последней показанной), но не старше 15 дней — команды,
+ * новости для всех и личные записи участника вместе. `more` — есть ли ещё записи дальше в тех же 15 днях.
+ */
+export async function feedOlder(gameId: string, teamId: string, userId: string, before: { at: number; id: string }, limit = FEED_PAGE) {
+  const at = new Date(before.at), since = new Date(Date.now() - FEED_DAYS * 86_400_000);
+  const rows = await prisma.journal.findMany({
+    where: { gameId, AND: [
+      { OR: [{ teamId }, { everyone: true }, { userId, teamId: null, everyone: false }] },
+      { createdAt: { gte: since } },
+      { OR: [{ createdAt: { lt: at } }, { createdAt: at, id: { lt: before.id } }] },
+    ] },
+    orderBy: FEED_ORDER, take: limit + 1,
+  });
+  const page = rows.slice(0, limit);
+  const taskIdOf = await journalTaskIds(gameId, page.filter((r) => r.teamId === teamId));
+  return {
+    items: page.map((r) => {
+      const personal = r.teamId === null && !r.everyone;
+      return { id: r.id, kind: r.kind as JournalKind, vars: r.vars as JournalVars, text: r.text, everyone: r.everyone, mine: personal || r.teamId === teamId, ...(personal ? { personal: true as const } : {}), at: r.createdAt.getTime(), taskId: r.teamId === teamId ? taskIdOf(r) : null };
+    }),
+    more: rows.length > limit,
+  };
 }
 
 const DEED_KINDS = new Set<string>(["deed_submitted", "deed_approved", "deed_returned"]);
