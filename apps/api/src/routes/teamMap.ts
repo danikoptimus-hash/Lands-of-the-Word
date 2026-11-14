@@ -209,6 +209,26 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     return { task: hideSecret(updated, request.user!.id) };
   });
 
+  /**
+   * Приоритет капитана (решение владельца 14.11, по просьбе капитана: «чтобы не объяснять каждому, какие дела брать»):
+   * капитан или заместитель отмечает дело команды как приоритетное — у всей команды его свиток на карте горит. Отметка
+   * ничего не меняет в правилах: взять и сдать дело может тот же, кто и раньше. Принятое дело отметить нельзя; при
+   * принятии отметка снимается сама.
+   */
+  app.post("/api/games/:id/edge-tasks/:taskId/priority", async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    const body = z.object({ on: z.boolean() }).parse(request.body);
+    if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Отметить дело приоритетным может капитан или заместитель") });
+    const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
+    if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
+    if (body.on && (task.status === "APPROVED" || task.paved)) return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже принято: отмечать нечего") });
+    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: body.on ? { priorityAt: new Date(), priorityById: request.user!.id } : { priorityAt: null, priorityById: null }, include: taskInclude }));
+    publish(id, { type: "tasks", teamId: m.team.id });
+    return { task: hideSecret(updated, request.user!.id) };
+  });
+
   /** Сдача дела: ссылки на фото/видео и текст. Файлы не принимаем. */
   app.post("/api/games/:id/edge-tasks/:taskId/submit", async (request, reply) => {
     const { id, taskId } = request.params as { id: string; taskId: string };
@@ -332,7 +352,8 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const request = { user: { id: adminId } };
     const updated = await prisma.teamEdgeTask.update({
       where: { id: taskId },
-      data: { status: body.approve ? "APPROVED" : "REJECTED", decidedAt: new Date(), decidedById: request.user!.id, adminComment: body.comment },
+      // Принятое дело больше не приоритет: отметка капитана снимается.
+      data: { status: body.approve ? "APPROVED" : "REJECTED", decidedAt: new Date(), decidedById: request.user!.id, adminComment: body.comment, ...(body.approve ? { priorityAt: null, priorityById: null } : {}) },
       include: taskInclude,
     }).then((u) => bookIn(id, u));
     if (body.approve) journal(id, "deed_approved", { teamId: task.teamId, userId: task.takenById, vars: { deed: updated.deed.title, who: "", taskId: task.id } });

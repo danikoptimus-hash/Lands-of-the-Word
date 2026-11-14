@@ -311,6 +311,8 @@ const EN: Record<string, string> = {
   "Загрузка аватарок вам закрыта": "Avatar uploads are closed for you", "Аватарку команды ставит капитан": "The team avatar is set by the captain",
   "Только администратор платформы": "Platform administrator only", "Аватарка не найдена": "Avatar not found",
   "Дело уже взято или сдано": "The deed is already taken or submitted",
+  "Отметить дело приоритетным может капитан или заместитель": "Only the captain or the deputy can mark a deed as a priority",
+  "Дело уже принято: отмечать нечего": "The deed is already accepted: nothing to mark",
   "Дело не взято: отпускать нечего": "The deed is not taken: there is nothing to release",
   "С 0:00 до 7:00 по местному времени игра спит: задания города и взятие дел откроются утром.": "From 0:00 to 7:00 local time the game sleeps: city tasks and taking deeds open in the morning.",
   "Общее дело сдаёт капитан, заместитель или летописец": "A team deed is submitted by the captain, the deputy or the chronicler",

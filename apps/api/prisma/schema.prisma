@@ -646,6 +646,12 @@ model TeamEdgeTask {
   person         DeedPerson?    @relation(fields: [personId], references: [id], onDelete: SetNull)
   decidedById    String?
   adminComment   String         @default("")
+  /**
+   * Приоритет капитана (решение владельца 14.11): капитан или заместитель отметил дело как приоритетное для команды —
+   * свиток дела на карте горит. Когда и кто отметил; пусто — обычное дело. Снимается принятием дела.
+   */
+  priorityAt     DateTime?
+  priorityById   String?
   createdAt      DateTime       @default(now())
 
   @@unique([teamId, fromKey, toKey])
