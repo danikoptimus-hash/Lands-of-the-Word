@@ -140,6 +140,9 @@ export const PLAYER: Record<string, string> = {
   "Порядок не тот: строки стоят не на своих местах.": "Wrong order: the lines are not in their places.", "Все строки на местах. Проверьте порядок и сложите хиазм.": "All lines are placed. Check the order and assemble the chiasm.",
   // Приоритет капитана (решение владельца 14.11).
   "Приоритет капитана": "Captain’s priority", "Приоритет капитана: это дело — в первую очередь": "Captain’s priority: this deed comes first", "отметил: {name}": "marked by {name}",
+  "Карточка закроется, а карта покажет сторону, на которой стоит это дело.": "The card will close and the map will show the side this deed is on.",
+  "Потратить один тёсаный камень из Каменоломни: сторона откроется как пройденная, дело делать не нужно. Камней у команды: {n}.": "Spend one hewn stone from the Quarry: the side opens as passed, the deed does not need to be done. Stones the team has: {n}.",
+  "Дело записывается за вами: другие его взять не смогут, пока вы его не сдадите или не отпустите.": "The deed is assigned to you: others cannot take it until you submit or release it.",
   "Отметить приоритетным": "Mark as a priority", "Снять приоритет": "Remove the priority", "Приоритет снят": "Priority removed",
   "Дело отмечено приоритетным: его свиток на карте горит": "The deed is marked as a priority: its scroll on the map is on fire",
   "Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.": "The whole team sees a priority deed: its scroll on the map is on fire. Only the captain or the deputy can set and remove the mark. When the deed is accepted, the mark is removed automatically.",
