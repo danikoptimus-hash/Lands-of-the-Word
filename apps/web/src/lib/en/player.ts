@@ -139,7 +139,7 @@ export const PLAYER: Record<string, string> = {
   "Что такое хиазм": "What a chiasm is", "Замысел человека": "Man’s plan", "Ответ Бога": "God’s answer", "Сложить хиазм": "Assemble the chiasm", "Строки": "Lines", "Место {m}: {v}": "Slot {m}: {v}", "Место {m}, свободно": "Slot {m}, empty",
   "Порядок не тот: строки стоят не на своих местах.": "Wrong order: the lines are not in their places.", "Все строки на местах. Проверьте порядок и сложите хиазм.": "All lines are placed. Check the order and assemble the chiasm.",
   // Приоритет капитана (решение владельца 14.11).
-  "Приоритет капитана": "Captain’s priority", "Приоритет капитана: берём в первую очередь": "Captain’s priority: we take this one first", "отметил: {name}": "marked by {name}",
+  "Приоритет капитана": "Captain’s priority", "Приоритет капитана: это дело — в первую очередь": "Captain’s priority: this deed comes first", "отметил: {name}": "marked by {name}",
   "Отметить приоритетным": "Mark as a priority", "Снять приоритет": "Remove the priority", "Приоритет снят": "Priority removed",
   "Дело отмечено приоритетным: его свиток на карте горит": "The deed is marked as a priority: its scroll on the map is on fire",
   "Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.": "The whole team sees a priority deed: its scroll on the map is on fire. Only the captain or the deputy can set and remove the mark. When the deed is accepted, the mark is removed automatically.",
