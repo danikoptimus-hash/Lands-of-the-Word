@@ -560,7 +560,7 @@ export const PLAYER: Record<string, string> = {
   "Убрать аватарку: останется кружок с буквой": "Remove the avatar: a circle with a letter will remain", "Убрать герб: останется кружок с буквой": "Remove the crest: a circle with a letter will remain",
   "Аватарка {n}": "Avatar {n}", "Герб {n}": "Crest {n}",
   "Нажмите на аватарку и выберите любую из набора игры.": "Tap the avatar and choose any from the game set.",
-  "Люди": "People", "Звери": "Animals", "Предметы": "Objects", "Раздел набора": "Set section",
+  "Люди": "People", "Животные": "Animals", "Предметы": "Objects", "Раздел набора": "Set section",
   "Готово": "Done", "Отмена": "Cancel",
   "Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка.": "Leads the team together with the captain: challenges, bids, capital, landing.",
   // Меню «⋯» в таблице команд (24.10)
