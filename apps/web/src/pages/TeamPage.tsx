@@ -998,7 +998,7 @@ export function TeamPage() {
                 {(team.members ?? []).filter((mm) => mm.user.id !== user?.id).map((mm) => {
                   const name = mm.user.displayName ?? mm.user.nickname, n = mm.activeDeeds?.length ?? 0, full = limitFull(mm);
                   return (
-                    <li key={mm.user.id} className={cur === mm.user.id ? "on" : undefined}>
+                    <li key={mm.user.id}>
                       <div className="main"><div className="person"><UserAvatar name={name} avatarId={mm.user.avatarId} zoom={false} />
                         <span className="who"><span className="name">{name}</span>
                           <span className="meta">{[n > 0 ? t("дел в работе: {n}", { n }) : t("дел в работе нет"), full ? t("лимит дел на сегодня исчерпан") : "", mm.deedsFrozenUntil && Date.parse(mm.deedsFrozenUntil) > Date.now() ? t("взятие дел закрыто администратором") : ""].filter(Boolean).join(" · ")}</span></span></div></div>
