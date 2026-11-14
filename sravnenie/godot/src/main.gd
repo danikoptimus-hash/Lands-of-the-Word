@@ -5,7 +5,7 @@ extends Node3D
 ## --nebo=den|zakat|shtorm — состояние неба; --vidy=имя,имя — снять только эти виды;
 ## --kachestvo=0…4 — качество облаков (таблица QUALITY: 0–2 — купол, 3 — прямой расчёт, 4 — без облаков);
 ## --par=имя:число,… — числа шейдера неба поверх таблицы;
-## --vremya=100 — время облаков в кадрах, секунды (в кадрах облака стоят: кадры повторимы);
+## --vremya=100 — сколько секунд облака «уже плывут» к моменту кадров (в кадрах они стоят: кадры повторимы);
 ## --masshtab=50 — кадры в половину разрешения (в рабочей среде на этом падает программная отрисовка).
 ##
 ## --bez-zemli, --bez-morya — без земли, без моря (оба ключа — одно небо). В рабочей среде программная отрисовка
@@ -34,7 +34,9 @@ var no_sea := false
 var sky_name := "den"
 var quality := 0
 var overrides := {}
-var sky_time := 100.0  ## время облаков, секунды: в кадрах стоит, у владельца идёт
+var cloud_drift := Vector2.ZERO  ## снос облаков ветром, метры (x — восток, y — юг сцены): копится по кадрам
+var shot_seconds := 100.0  ## сколько секунд облака «уже плывут» в кадрах проверок (в кадрах они стоят)
+var wind := 2  ## скорость ветра: номер в таблице WINDS
 var shot_scale := 1.0
 var sky: Sky
 var sky_direct: ShaderMaterial  ## небо с прямым расчётом облаков в каждом кадре
@@ -52,7 +54,7 @@ var dome_instant := false  ## считать её при этом целиком
 var dome_fill_bands := 32  ## на сколько полос делится идущий сейчас расчёт
 var dome_clearing := true  ## в этом кадре обе картинки очищаются (созданы или сменили размер)
 var dome_fade := DOME_FADE  ## сколько кадров новая картинка уже проявляется поверх прежней
-var snap_times := [0.0, 0.0]
+var snap_drifts := [Vector2.ZERO, Vector2.ZERO]
 var snap_places := [Vector3.ZERO, Vector3.ZERO]
 var help: Label
 var fps_label: Label
@@ -91,9 +93,10 @@ func _ready() -> void:
 		if a.begins_with("--proba="):
 			probe_dir = a.trim_prefix("--proba=")
 		if a.begins_with("--vremya="):
-			sky_time = float(a.trim_prefix("--vremya="))
+			shot_seconds = float(a.trim_prefix("--vremya="))
 		if a.begins_with("--masshtab="):
 			shot_scale = float(a.trim_prefix("--masshtab=")) / 100.0
+	cloud_drift = wind_velocity() * shot_seconds
 	info = JSON.parse_string(FileAccess.get_file_as_string(DATA + "opisanie.json"))
 	side = float(info["storona_m"])
 	size = int(info["razmer"])
@@ -165,6 +168,19 @@ const SKIES := {
 		"cloud_tint": Vector3(0.9, 0.95, 1.0), "sun_tint": Vector3(1.0, 1.0, 1.0),
 		"cloud_floor": Vector3(0.05, 0.06, 0.075)}},
 }
+
+
+## Ветер: куда плывут облака (по компасу, градусы) и с какой скоростью, м/с. Всё поле облаков смещается целиком —
+## форма каждого облака не меняется (замечание владельца 14.11). 20 м/с — облако над головой проходит
+## широкий кадр за две-три минуты.
+const WIND_SIDE := 120.0
+const WINDS := [["стоят", 0.0], ["плывут медленно", 20.0], ["плывут", 40.0], ["плывут быстро", 80.0]]
+
+
+## Скорость сноса облаков, м/с, в координатах сцены (x — восток, y — юг: это ось Z сцены).
+func wind_velocity() -> Vector2:
+	var side := deg_to_rad(WIND_SIDE)
+	return Vector2(sin(side), -cos(side)) * float(WINDS[wind][1])
 
 
 const NOISES := {"worlnoise": "res://nebo/worlnoise.bmp", "perlworlnoise": "res://nebo/perlworlnoise.tga",
@@ -266,10 +282,10 @@ func set_sky(title: String) -> void:
 	dome_full = true
 
 
-## Текущие время облаков и место камеры — небу (картинка купола получает свои в момент съёмки).
+## Текущие снос облаков и место камеры — небу (картинка купола получает свои в момент съёмки).
 func _sky_moment() -> void:
 	for material: ShaderMaterial in [sky_direct, sky_dome]:
-		material.set_shader_parameter("sky_time", sky_time)
+		material.set_shader_parameter("cloud_drift", cloud_drift)
 		if camera != null:
 			material.set_shader_parameter("camera_place", camera.position)
 
@@ -366,11 +382,11 @@ func _dome_clear() -> void:
 		dome_views[i].render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
-## Запомнить момент и место, в которые снимается картинка, и передать их её расчёту.
+## Запомнить снос облаков и место, при которых снимается картинка, и передать их её расчёту.
 func _dome_snapshot(index: int) -> void:
-	snap_times[index] = sky_time
+	snap_drifts[index] = cloud_drift
 	snap_places[index] = camera.position
-	dome_material.set_shader_parameter("sky_time", sky_time)
+	dome_material.set_shader_parameter("cloud_drift", cloud_drift)
 	dome_material.set_shader_parameter("camera_place", camera.position)
 
 
@@ -386,10 +402,10 @@ func _dome_draw(index: int, y: int, rows: int) -> void:
 func _dome_show() -> void:
 	var prev := 1 - dome_front
 	sky_dome.set_shader_parameter("dome", dome_views[dome_front].get_texture())
-	sky_dome.set_shader_parameter("snap_time", snap_times[dome_front])
+	sky_dome.set_shader_parameter("snap_drift", snap_drifts[dome_front])
 	sky_dome.set_shader_parameter("snap_place", snap_places[dome_front])
 	sky_dome.set_shader_parameter("dome_prev", dome_views[prev].get_texture())
-	sky_dome.set_shader_parameter("prev_time", snap_times[prev])
+	sky_dome.set_shader_parameter("prev_drift", snap_drifts[prev])
 	sky_dome.set_shader_parameter("prev_place", snap_places[prev])
 	sky_dome.set_shader_parameter("dome_blend", float(dome_fade) / DOME_FADE)
 
@@ -563,6 +579,7 @@ func _update_help() -> void:
 			+ "5 — угол зрения  (сейчас: %s)\n" % ("широкий, как в кадрах Unreal" if wide else "как в игре, 35°") \
 			+ "6 — разрешение  (сейчас: %s)\n" % ("полное" if full_res else "67 % с достройкой, как в игре") \
 			+ "7 — земля и море  (сейчас: %s)\n" % ("показаны" if terrain.visible else "скрыты — одно небо") \
+			+ "8 — ветер: облака %s  (%d м/с)\n" % [WINDS[wind][0], int(WINDS[wind][1])] \
 			+ "H — скрыть подсказку,  Esc — выход"
 
 
@@ -589,6 +606,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_7:
 				terrain.visible = not terrain.visible
 				sea.visible = terrain.visible
+			KEY_8: wind = posmod(wind + 1, WINDS.size())
 			KEY_H: help.visible = not help.visible
 			KEY_ESCAPE: get_tree().quit()
 		_update_help()
@@ -613,8 +631,8 @@ func _process(delta: float) -> void:
 		sea_material.set_shader_parameter("swash_time", swash_time)
 	if fps_label == null:
 		return
-	# В пробе время облаков идёт ровно по 1/60 с за кадр: кадры на программной отрисовке длятся секундами.
-	sky_time += delta if probe_dir == "" else 1.0 / 60.0
+	# В пробе облака идут ровно по 1/60 с за кадр: кадры на программной отрисовке длятся секундами.
+	cloud_drift += wind_velocity() * (delta if probe_dir == "" else 1.0 / 60.0)
 	_sky_moment()
 	_dome_tick()
 	fps_label.text = "%d кадров/с" % Engine.get_frames_per_second()
@@ -681,7 +699,7 @@ func _probe() -> void:
 			await RenderingServer.frame_post_draw
 			get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-kupol-%d.png" % frame))
 			print("ПРОВЕРКА купол: кадр ", frame, ", полос посчитано ", dome_cursor, ", показывается картинка ", dome_front,
-					", ей ", snappedf(sky_time - float(snap_times[dome_front]), 0.01), " с, сдвиг камеры ",
+					", облака с тех пор уплыли на ", snappedf(cloud_drift.distance_to(snap_drifts[dome_front]), 0.1), " м, сдвиг камеры ",
 					snappedf(camera.position.distance_to(snap_places[dome_front]), 1.0), " м")
 	set_process(false)
 	dome_instant = true
@@ -692,6 +710,22 @@ func _probe() -> void:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-kupol-62-zanovo.png"))
+	# Ход облаков: всё поле смещается целиком, форма облаков не меняется. Кадр; тот же вид, когда облака уплыли
+	# на 15 секунд хода, показанный пересчётом прежней картинки (так он выглядит между обновлениями); он же,
+	# посчитанный заново (расхождение этих двух — ошибка пересчёта); и ещё через 15 секунд.
+	var start := cloud_drift
+	var stride := wind_velocity() * 15.0
+	for stage: Array in [["hod-00", 0.0, true], ["hod-15-pereschyot", 1.0, false], ["hod-15-zanovo", 1.0, true], ["hod-30", 2.0, true]]:
+		cloud_drift = start + stride * float(stage[1])
+		_sky_moment()
+		if stage[2]:
+			dome_full = true
+			_dome_tick()
+		for i in 2:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-%s.png" % stage[0]))
+	print("ПРОВЕРКА ход облаков: за 15 с — ", snappedf(stride.length(), 1.0), " м, ветер ", WINDS[wind][1], " м/с")
 	print("ИТОГ проба образца пройдена")
 
 

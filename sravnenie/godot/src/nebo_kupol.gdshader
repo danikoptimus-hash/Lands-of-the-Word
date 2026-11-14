@@ -2,8 +2,8 @@
 // считается по формуле в каждой точке экрана (это дёшево), облака берутся из картинки.
 //
 // Картинка снята в один момент из одной точки, а показывается несколько кадров и при движении камеры. Чтобы облака
-// при этом плыли и смещались плавно, направление взгляда пересчитывается: точка слоя облаков, на которую мы
-// смотрим сейчас, — где она была на картинке (с учётом ветра за прошедшее время и сдвига камеры).
+// при этом плыли и смещались плавно, направление взгляда пересчитывается в каждом кадре: точка слоя облаков, на
+// которую мы смотрим сейчас, — где она была на картинке (с учётом сноса облаков ветром и сдвига камеры).
 // Общая часть — nebo_obshchee.gdshaderinc (основа — Godot Volumetric Cloud Demo, clayjohn, MIT).
 
 shader_type sky;
@@ -14,11 +14,11 @@ shader_type sky;
 #include "res://src/nebo_obshchee.gdshaderinc"
 
 uniform sampler2D dome : filter_linear, repeat_disable;
-uniform float snap_time = 0.0; // время облаков, в которое снята картинка
+uniform vec2 snap_drift = vec2(0.0); // снос облаков, при котором снята картинка
 uniform vec3 snap_place = vec3(0.0); // место камеры, из которого она снята
 // Предыдущая картинка: несколько кадров после смены новая проявляется поверх неё, а не встаёт рывком.
 uniform sampler2D dome_prev : filter_linear, repeat_disable;
-uniform float prev_time = 0.0;
+uniform vec2 prev_drift = vec2(0.0);
 uniform vec3 prev_place = vec3(0.0);
 uniform float dome_blend = 1.0; // 0 — предыдущая картинка, 1 — новая
 uniform float dome_size = 2048.0;
@@ -31,16 +31,17 @@ vec2 dome_uv(vec3 d) {
 	return 0.5 + 0.5 * r * side;
 }
 
-// Облака из картинки в направлении взгляда: картинка снята в момент taken_time из точки taken_place.
-vec4 dome_look(sampler2D picture, vec3 dir, float taken_time, vec3 taken_place) {
-	// Слой облаков — как плоскость на высоте, где их больше всего видно снизу.
-	float layer = cloud_bottom + 0.2 * (cloud_top - cloud_bottom);
+// Облака из картинки в направлении взгляда: картинка снята при сносе облаков taken_drift из точки taken_place.
+vec4 dome_look(sampler2D picture, vec3 dir, vec2 taken_drift, vec3 taken_place) {
+	// Слой облаков — как плоскость. Высота подобрана замером: при ней пересчитанная картинка смещается так же,
+	// как посчитанная заново (при 0,2 толщины слоя пересчёт убегал вперёд на 6–16 %).
+	float layer = cloud_bottom + 0.45 * (cloud_top - cloud_bottom);
 	float top = cloud_bottom - 200.0;
 	vec3 here = vec3(camera_place.x, clamp(camera_place.y, 0.0, top), camera_place.z);
 	vec3 there = vec3(taken_place.x, clamp(taken_place.y, 0.0, top), taken_place.z);
 	vec3 seen = here + dir * ((layer - here.y) / max(dir.y, 0.02));
-	// Облака плывут против сдвига шума в расчёте плотности: 12 м/с на единицу ветра.
-	seen.xz += normalize(wind_direction) * wind_speed * 12.0 * (sky_time - taken_time);
+	// С тех пор облака уплыли на разницу сносов: точка, которую видим сейчас, на картинке была раньше по ветру.
+	seen.xz -= cloud_drift - taken_drift;
 	vec2 uv = dome_uv(normalize(seen - there));
 	// Четыре соседние точки картинки вместо одной: зерно расчёта не видно. Разброс мал — облака не мылятся.
 	float texel = 0.4 / dome_size;
@@ -53,9 +54,9 @@ void sky() {
 	vec3 background = background_sky(dir);
 	vec3 color = background;
 	if (dir.y > 0.0 && dome_on > 0.5) {
-		vec4 volume = dome_look(dome, dir, snap_time, snap_place);
+		vec4 volume = dome_look(dome, dir, snap_drift, snap_place);
 		if (dome_blend < 1.0) {
-			volume = mix(dome_look(dome_prev, dir, prev_time, prev_place), volume, dome_blend);
+			volume = mix(dome_look(dome_prev, dir, prev_drift, prev_place), volume, dome_blend);
 		}
 		color = compose_sky(dir, background, volume);
 	}

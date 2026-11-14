@@ -13,11 +13,8 @@ uniform sampler3D worlnoise : filter_linear_mipmap, repeat_enable;
 uniform sampler3D perlworlnoise : filter_linear_mipmap, repeat_enable;
 uniform sampler2D weathermap : filter_linear_mipmap, repeat_enable;
 
-uniform vec2 wind_direction = vec2(1, 0);
-uniform float wind_speed :hint_range(0.0, 20.0) = 1.0;
 uniform float _density : hint_range(0.01, 0.2) = 0.05;
 uniform float cloud_coverage :hint_range(0.1, 1.0) = 0.25;
-uniform float _time_offset : hint_range(0.0, 1000.0, 0.5) = 0.0;
 // ПРАВКА: доля шагов луча от полного числа — уровень качества (меньше шагов — быстрее и грубее).
 uniform float steps_scale : hint_range(0.25, 1.0) = 1.0;
 // ПРАВКА: где облака растворяются в дымке у горизонта (доли: 1 − высота направления взгляда).
@@ -29,9 +26,14 @@ uniform vec3 haze_color = vec3(0.62, 0.59, 0.50);
 uniform float haze_strength : hint_range(0.0, 1.0) = 0.0;
 uniform float haze_power : hint_range(1.0, 40.0) = 9.4;
 // ПРАВКА: размер пятен карты погоды (в образце — 0.00006: пятно в четыре километра давало одно огромное
-// облако на полнеба) и время облаков числом — чтобы проверочные кадры были повторимы.
+// облако на полнеба).
 uniform float weather_scale = 0.00006;
-uniform float sky_time = 0.0;
+// ПРАВКА (замечание владельца 14.11: «облака не плывут и меняются, пусть каждое будет неизменным по форме и
+// просто уползает»): снос облаков — одно число на всё поле, метры (x — восток, y — юг сцены). В образце шейдера
+// слои облака двигались с разной скоростью и в разные стороны (основа — 12 м/с, мелкая кромка — 40 м/с навстречу
+// и вверх, карта погоды — третьей скоростью): форма «кипела», а общего хода почти не было видно. Теперь всё поле
+// смещается целиком: форма каждого облака неизменна. Снос копится в сцене — скорость ветра можно менять на ходу.
+uniform vec2 cloud_drift = vec2(0.0);
 // ПРАВКА: место камеры в мире, метры. В образце небо — купол вокруг неподвижной точки; с местом камеры облака
 // смещаются при полёте над картой и приближаются при подъёме, как настоящие. Высота ограничена ниже кромки облаков.
 uniform vec3 camera_place = vec3(0.0);
@@ -237,10 +239,11 @@ float intersectSphere(vec3 pos, vec3 dir,float r) {
 }
 
 // ПРАВКА: карта погоды в точке (уровень подробности задан явно — см. ниже) с разнообразием по местности.
-vec3 weather_at(vec2 xz, vec2 drift) {
-	vec3 w = textureLod(weathermap, xz * weather_scale + 0.5 + drift, 0.0).xyz;
+vec3 weather_at(vec2 place) {
+	vec2 xz = place - cloud_drift;
+	vec3 w = textureLod(weathermap, xz * weather_scale + 0.5, 0.0).xyz;
 	if (weather_variety > 0.0) {
-		vec2 far = vec2(0.8 * xz.x - 0.6 * xz.y, 0.6 * xz.x + 0.8 * xz.y) * weather_scale * 0.29 + 0.37 + drift * 0.5;
+		vec2 far = vec2(0.8 * xz.x - 0.6 * xz.y, 0.6 * xz.x + 0.8 * xz.y) * weather_scale * 0.29 + 0.37;
 		float region = textureLod(weathermap, far, 0.0).b;
 		w.b *= mix(1.0 - weather_variety, 1.0 + weather_variety, smoothstep(0.3, 0.8, region));
 	}
@@ -250,20 +253,18 @@ vec3 weather_at(vec2 xz, vec2 drift) {
 // Returns density at a given point
 // Heavily based on method from Schneider
 float density(vec3 pip, vec3 weather, float mip) {
-	float time = sky_time;
 	vec3 p = pip;
 	float height_fraction = GetHeightFractionForPoint(length(p));
-	p.xz += time * 20.0 * normalize(wind_direction) * wind_speed * 0.6;
+	p.xz -= cloud_drift;
 	vec4 n = textureLod(perlworlnoise, p.xyz*0.00008, mip-2.0);
 	float fbm = n.g*0.625+n.b*0.25+n.a*0.125;
 	float g = densityHeightGradient(height_fraction, weather.r);
 	float base_cloud = remap(n.r, -(1.0-fbm), 1.0, 0.0, 1.0);
 	float weather_coverage = cloud_coverage*weather.b;
-	weather_coverage *= mix(1.0, coverage_far, smoothstep(coverage_far_range.x, coverage_far_range.y, length(pip.xz - camera_place.xz)));
+	// Расстояние — от середины карты, а не от камеры: при полёте камеры облака не должны меняться.
+	weather_coverage *= mix(1.0, coverage_far, smoothstep(coverage_far_range.x, coverage_far_range.y, length(pip.xz)));
 	base_cloud = remap(base_cloud*g, 1.0-(weather_coverage), 1.0, 0.0, 1.0);
 	base_cloud *= weather_coverage;
-	p.xz -= time * normalize(wind_direction) * 40.;
-	p.y -= time * 40.;
 	vec3 hn = textureLod(worlnoise, p*0.001, mip).rgb;
 	float hfbm = hn.r*0.625+hn.g*0.25+hn.b*0.125;
 	hfbm = mix(hfbm, 1.0-hfbm, clamp(height_fraction*4.0, 0.0, 1.0));
@@ -297,15 +298,13 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 	vec3 atmosphere_ambient = atmosphere(normalize(vec3(1.0, 1.0, 0.0)));
 	vec3 atmosphere_ground = atmosphere(normalize(vec3(1.0, -1.0, 0.0)));
 	
-	float time = sky_time * 0.001 + 0.005 * _time_offset;
-	vec2 weather_pos = time * normalize(wind_direction) * wind_speed;
-	
+
 	for (int i = 0; i < depth; i++) {
 		p += dir * ss;
 		// ПРАВКА: уровень подробности карты погоды задан явно (здесь и ниже). В образце он брался по соседним
 		// точкам экрана, а внутри ветвления («выше горизонта», «внутри облака») у соседей значения не определены:
 		// по линии горизонта и кромкам облаков это давало мусор, а на программной отрисовке — падение.
-		vec3 weather_sample = weather_at(p.xz, weather_pos);
+		vec3 weather_sample = weather_at(p.xz);
 		float height_fraction = GetHeightFractionForPoint(length(p));
 
 		t = density(p, weather_sample, 0.0);
@@ -321,7 +320,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 			for (int j = 0; j < 6; j++) {
 				lp += (ldir + RANDOM_VECTORS[j]*float(j))*lss;
 				lheight_fraction = GetHeightFractionForPoint(length(lp));
-				vec3 lweather = weather_at(lp.xz, weather_pos);
+				vec3 lweather = weather_at(lp.xz);
 				lt = density(lp, lweather, float(j));
 				cd += lt;
 			}
@@ -329,7 +328,7 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 			// Take a single distant sample
 			lp = p + ldir * 18.0 * lss;
 			lheight_fraction = GetHeightFractionForPoint(length(lp));
-			vec3 lweather = weather_at(lp.xz, weather_pos);
+			vec3 lweather = weather_at(lp.xz);
 			lt = pow(density(lp, lweather, 5.0), (1.0 - lheight_fraction) * 0.8 + 0.5);
 			cd += lt;
 			
