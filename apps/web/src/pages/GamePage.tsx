@@ -31,7 +31,7 @@ import { setDisplayTimeZone } from "../lib/format";
 import { useUi } from "../lib/ui";
 import { t } from "../lib/i18n";
 
-interface GameDto { id: string; name: string; createdById?: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; mapStats?: MapStats; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean; donationCurrency?: string } }
+interface GameDto { id: string; name: string; createdById?: string; status: string; teamCount: number; mapSeed: number | null; settings: { nodeCount?: number; cityGap?: number; mapStats?: MapStats; equidistantStarts?: boolean; maxStartDistanceDiff?: number; includeGenealogies?: boolean } }
 type Tab = "overview" | "map" | "teams" | "deeds" | "review" | "analytics" | "awards" | "settings";
 const TABS: Tab[] = ["overview", "map", "teams", "deeds", "review", "analytics", "awards", "settings"];
 /** Аналитика игры грузится отдельным файлом: графики нужны только администратору (решение владельца 23.10). */
@@ -247,7 +247,7 @@ export function GamePage() {
           {open === "deeds" && <div key="deeds"><DeedsBlock gameId={game.id} mode="roads" version={version} onChange={bump} onShowOnMap={showOnMap} /></div>}
           {open === "review" && (active ? (
             <div key="review">
-              <SubmissionsBlock gameId={game.id} version={version} currency={game.settings.donationCurrency} onDecided={() => { void loadProgress(); bump(); }} onShowOnMap={showOnMap} />
+              <SubmissionsBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} onShowOnMap={showOnMap} />
               <QuarryBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <WrecksBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />
               <BattlesBlock gameId={game.id} version={version} onDecided={() => { void loadProgress(); bump(); }} />

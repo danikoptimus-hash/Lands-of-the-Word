@@ -24,9 +24,6 @@ const submitBody = z.object({
   participants: z.array(z.string().min(1)).max(50).default([]),
   /** На кого записать дело (решение владельца 22.10): капитан, заместитель или летописец сдают групповое дело и выбирают основного; дело идёт в его лимит. */
   mainId: z.string().min(1).optional(),
-  /** Дело заменено пожертвованием: сумма не меньше минимума из настроек, чек — ссылкой. */
-  donation: z.boolean().default(false),
-  donationAmount: z.number().int().min(1).optional(),
 });
 const decideBody = z.object({ approve: z.boolean(), comment: z.string().trim().max(1000).default("") });
 
@@ -74,7 +71,7 @@ export function requireSuperadmin(request: FastifyRequest, reply: FastifyReply):
 }
 
 const taskInclude = {
-  deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, donationMin: true, chance: true } },
+  deed: { select: { id: true, title: true, description: true, direction: true, proofType: true, secret: true, remote: true, chance: true } },
   team: { select: { id: true, name: true, color: true, avatarId: true } },
   person: { select: { id: true, name: true } },
 } as const;
@@ -121,9 +118,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const m = await requireMember(request, reply, id);
     if (!m) return;
     const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { status: true, name: true, settings: true, startedAt: true } });
-    // Ценник пожертвования у каждого дела свой (deed.donationMin); игра задаёт только валюту (решение владельца 02.10).
-    const donation = { currency: (game.settings as { donationCurrency?: string }).donationCurrency ?? "" };
-    if (game.status === "DRAFT") return { status: game.status, gameName: game.name, donation, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
+    if (game.status === "DRAFT") return { status: game.status, gameName: game.name, team: { id: m.team.id, name: m.team.name, color: m.team.color }, hexes: [], revealed: [], edges: [], tasks: [], cities: [], peeked: [] };
     const map = await getTeamMap(id, m.team.id);
     const deedLimit = await deedLimitFor(id, request.user!.id);
     // Время суток игры (решение владельца 03.10): карта красится по фазе и поясу, ночью действия закрыты.
@@ -157,7 +152,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       const book = await loadBook(r.bookCode);
       returnedBlocks.push({ id: r.id, nodeKey: r.nodeKey, bookCode: r.bookCode, ref: (book ? brickRef(book, r.startIdx, r.endIdx) : "") + (r.repairOfId ? " (починка)" : ""), comment: r.adminComment, at: (r.decidedAt ?? r.createdAt).toISOString() });
     }
-    return { returnedBlocks, quarryNew, seenWrecks, arrivals, status: game.status, startedAt: game.startedAt, gameName: game.name, donation, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, ...(await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true, cargoBlocks: true } })) }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
+    return { returnedBlocks, quarryNew, seenWrecks, arrivals, status: game.status, startedAt: game.startedAt, gameName: game.name, deedLimit, deedsFrozenUntil, visits, deedsFrozenReason: deedsFrozenUntil ? m.deedsFrozenReason : null, daytime, team: { id: m.team.id, name: m.team.name, color: m.team.color, avatarId: m.team.avatarId, startNodeKey: m.team.startNodeKey, ...(await prisma.team.findUniqueOrThrow({ where: { id: m.team.id }, select: { stones: true, cargoBlocks: true } })) }, ...map, tasks: map.tasks.map((t) => hideSecret(t, request.user!.id)) };
   });
 
   /** Администратор: карта глазами команды — ровно то, что видит она (туман, стороны, метки дел), без действий. */
@@ -241,19 +236,11 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (task.status === "SUBMITTED" || task.status === "APPROVED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже сдано") });
     // Сдаёт тот, кто взял дело, капитан или летописец (2.15).
     if (task.takenById && task.takenById !== request.user!.id && !isLeader(m) && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: err(request, "Сдать чужое дело может только капитан или летописец") });
-    if (body.donation) {
-      const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { settings: true } });
-      const st = game.settings as { donationCurrency?: string };
-      if (!task.deed.donationMin) return reply.code(409).send({ error: "conflict", message: err(request, "Это дело нельзя заменить пожертвованием") });
-      if (!body.donationAmount || body.donationAmount < task.deed.donationMin) return reply.code(400).send({ error: "validation", message: err(request, "Минимальное пожертвование — {amount}", { amount: `${task.deed.donationMin} ${st.donationCurrency ?? ""}`.trim() }) });
-      if (body.links.length === 0) return reply.code(400).send({ error: "validation", message: err(request, "Приложите ссылку на чек или подтверждение перевода") });
-    } else {
-      const needsLink = task.deed.proofType === "PHOTO_LINK" || task.deed.proofType === "VIDEO_LINK";
-      if (needsLink && body.links.length === 0) return reply.code(400).send({ error: "validation", message: err(request, "Для этого дела нужна хотя бы одна ссылка на фото или видео") });
-      // Свидетель (решение владельца 04.10): дело подтверждает человек, который это видел; его имя — в тексте сдачи.
-      if (task.deed.proofType === "WITNESS" && body.note.trim().length < 2) return reply.code(400).send({ error: "validation", message: err(request, "Укажите, кто может подтвердить") });
-      if (!needsLink && body.links.length === 0 && body.note.length < 5) return reply.code(400).send({ error: "validation", message: err(request, "Опишите, что сделано") });
-    }
+    const needsLink = task.deed.proofType === "PHOTO_LINK" || task.deed.proofType === "VIDEO_LINK";
+    if (needsLink && body.links.length === 0) return reply.code(400).send({ error: "validation", message: err(request, "Для этого дела нужна хотя бы одна ссылка на фото или видео") });
+    // Свидетель (решение владельца 04.10): дело подтверждает человек, который это видел; его имя — в тексте сдачи.
+    if (task.deed.proofType === "WITNESS" && body.note.trim().length < 2) return reply.code(400).send({ error: "validation", message: err(request, "Укажите, кто может подтвердить") });
+    if (!needsLink && body.links.length === 0 && body.note.length < 5) return reply.code(400).send({ error: "validation", message: err(request, "Опишите, что сделано") });
     // Участники дела группой: только свои, всегда включая сдающего/взявшего.
     const members = new Set((await prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true } })).map((x) => x.userId));
     // На кого записать дело (решение владельца 22.10): капитан, заместитель или летописец, сдавая групповое дело, выбирают
@@ -268,13 +255,13 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const participants = [...new Set([mainId, ...body.participants.filter((u) => members.has(u))])];
     const updated = await prisma.teamEdgeTask.update({
       where: { id: taskId },
-      data: { status: "SUBMITTED", takenById: mainId, takenAt: task.takenAt ?? new Date(), links: body.links, note: body.note, participants, submittedAt: new Date(), adminComment: "", donation: body.donation, donationAmount: body.donation ? body.donationAmount ?? null : null },
+      data: { status: "SUBMITTED", takenById: mainId, takenAt: task.takenAt ?? new Date(), links: body.links, note: body.note, participants, submittedAt: new Date(), adminComment: "" },
       include: taskInclude,
     }).then((u) => bookIn(id, u));
     publish(id, { type: "submissions", teamId: m.team.id });
     journal(id, "deed_submitted", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: task.deed.title, taskId: task.id } });
     // Письмо администраторам — сразу или дайджестом по расписанию (решение владельца 18.09, A-13).
-    if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "новая сдача дела", (locale) => msg(locale, "Команда «{team}» сдала дело «{deed}»{donation}. Нужно проверить и одобрить или вернуть.", { team: m.team.name, deed: task.deed.title, donation: body.donation ? msg(locale, " (пожертвование {amount})", { amount: body.donationAmount ?? "" }) : "" }));
+    if ((await gameRules(id)).adminDigest === "instant") notifyAdmins(id, "новая сдача дела", (locale) => msg(locale, "Команда «{team}» сдала дело «{deed}». Нужно проверить и одобрить или вернуть.", { team: m.team.name, deed: task.deed.title }));
     return { task: hideSecret(updated, request.user!.id) };
   });
 
@@ -282,7 +269,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
    * Отчёты по делам для администратора (решение владельца 30.09): к старому отчёту нужно возвращаться. Полный вид сдачи —
    * кто взял и участвовал, ссылки, текст, решение — отдаётся по id дела (из летописи) или по стороне (нажатие на дорогу).
    */
-  async function adminTaskViews(gameId: string, rows: Array<{ id: string; fromKey: string; toKey: string; status: string; sea: boolean; takenById: string | null; takenAt: Date | null; participants: string[]; person: { id: string; name: string } | null; links: string[]; note: string; adminComment: string; donation: boolean; donationAmount: number | null; submittedAt: Date | null; decidedAt: Date | null; decidedById: string | null; createdAt: Date; team: { id: string; name: string; color: string }; deed: { id: string; title: string; description: string; direction: string; proofType: string; secret: boolean; remote: boolean } }>) {
+  async function adminTaskViews(gameId: string, rows: Array<{ id: string; fromKey: string; toKey: string; status: string; sea: boolean; takenById: string | null; takenAt: Date | null; participants: string[]; person: { id: string; name: string } | null; links: string[]; note: string; adminComment: string; submittedAt: Date | null; decidedAt: Date | null; decidedById: string | null; createdAt: Date; team: { id: string; name: string; color: string }; deed: { id: string; title: string; description: string; direction: string; proofType: string; secret: boolean; remote: boolean } }>) {
     const ids = new Set<string>();
     for (const r of rows) { if (r.takenById) ids.add(r.takenById); if (r.decidedById) ids.add(r.decidedById); for (const p of r.participants) ids.add(p); }
     const users = await prisma.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, nickname: true, displayName: true } });
@@ -292,7 +279,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
       id: r.id, fromKey: r.fromKey, toKey: r.toKey, status: r.status, sea: r.sea, team: r.team, deed: r.deed, person: r.person,
       takenBy: r.takenById ? { id: r.takenById, name: name.get(r.takenById) ?? "" } : null,
       participants: r.participants.map((pid) => ({ id: pid, name: name.get(pid) ?? "" })),
-      links: r.links, note: r.note, donation: r.donation, donationAmount: r.donationAmount,
+      links: r.links, note: r.note,
       takenAt: r.takenAt, submittedAt: r.submittedAt, decidedAt: r.decidedAt, decidedBy: r.decidedById ? name.get(r.decidedById) ?? "" : null, adminComment: r.adminComment, createdAt: r.createdAt,
     }));
   }

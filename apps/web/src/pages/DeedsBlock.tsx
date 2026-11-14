@@ -14,13 +14,13 @@ import { Help } from "../components/Help";
 import { plural, fmtDate } from "../lib/format";
 
 type ProofType = "REPORT" | "PHOTO_LINK" | "VIDEO_LINK" | "AUDIO_LINK" | "WITNESS";
-interface DeedDto { /** Срочное задание — разбитый бурей корабль (решение владельца 04.11); wreckId — открытый корабль у дела; груз — числа дела (05.11). */ wreck?: boolean; wreckId?: string | null; wreckStones?: number; wreckBlocks?: number; /** Срок затопления корабля (05.11). */ wreckSinkAt?: string | null; /** Выключено администратором: на новые дороги не попадает (06.10). */ disabled?: boolean; /** Сколько людей в списке «кому звонить» (решение владельца 21.10). */ peopleCount?: number; id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** Минимальное пожертвование вместо дела; null — нельзя (ценник у каждого дела свой, решение владельца 02.10). */ donationMin: number | null ; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number; /** Сколько из свободных — морские рейсы (на карте корабль, а не свиток). */ sea?: number; /** Разбивка по командам: сверять с картой «глазами команды». */ teams?: Array<{ index: number; name: string; color: string; free: number; taken: number }> }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
-type Form = { wreck: boolean; wreckStones: number | ""; wreckBlocks: number | ""; /** Срок затопления корабля в формате поля datetime-local; пусто — без срока (05.11). */ wreckSinkAt: string; quarry: boolean; /** Пусто, пока администратор стирает число (замечание владельца 08.10: единицу нельзя было удалить); при сохранении — не меньше 1. */ stones: number | ""; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | ""; donationMin: number | "" };
+interface DeedDto { /** Срочное задание — разбитый бурей корабль (решение владельца 04.11); wreckId — открытый корабль у дела; груз — числа дела (05.11). */ wreck?: boolean; wreckId?: string | null; wreckStones?: number; wreckBlocks?: number; /** Срок затопления корабля (05.11). */ wreckSinkAt?: string | null; /** Выключено администратором: на новые дороги не попадает (06.10). */ disabled?: boolean; /** Сколько людей в списке «кому звонить» (решение владельца 21.10). */ peopleCount?: number; id: string; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | null; /** На картах команд сейчас: свободных и в работе (взято, на проверке, возвращено). */ onMap?: { free: number; taken: number; /** Сколько из свободных — морские рейсы (на карте корабль, а не свиток). */ sea?: number; /** Разбивка по командам: сверять с картой «глазами команды». */ teams?: Array<{ index: number; name: string; color: string; free: number; taken: number }> }; /** Общее дело Каменоломни и сколько камней даёт. */ quarry?: boolean; stones?: number }
+type Form = { wreck: boolean; wreckStones: number | ""; wreckBlocks: number | ""; /** Срок затопления корабля в формате поля datetime-local; пусто — без срока (05.11). */ wreckSinkAt: string; quarry: boolean; /** Пусто, пока администратор стирает число (замечание владельца 08.10: единицу нельзя было удалить); при сохранении — не меньше 1. */ stones: number | ""; title: string; description: string; direction: string; proofType: ProofType; canRepeat: boolean; bookCodes: string[]; chance: number; secret: boolean; remote: boolean; siegePoints: number | "" };
 /** Вероятность появления дела на новой дороге: проценты с шагом 20 (решение владельца 04.10). */
 const CHANCES = [20, 40, 60, 80, 100];
 /** Время для поля datetime-local: местное «ГГГГ-ММ-ДДTЧЧ:ММ» из ISO (05.11). */
 const toLocalInput = (iso: string) => { const d = new Date(iso); const p = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
-const EMPTY: Form = { wreck: false, wreckStones: 3, wreckBlocks: 2, wreckSinkAt: "", quarry: false, stones: 1, title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: "", donationMin: "" };
+const EMPTY: Form = { wreck: false, wreckStones: 3, wreckBlocks: 2, wreckSinkAt: "", quarry: false, stones: 1, title: "", description: "", direction: "", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: "" };
 
 /** Вкладка «Дела»: список дел игры; добавление и изменение — в одной форме-шторке; стандартный набор — только пока список пуст. */
 /**
@@ -70,7 +70,7 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode = "roads", onSh
   useEffect(() => { void load(); }, [load, version]);
 
   const openNew = () => { setError(null); setSheet({ id: null, form: { ...EMPTY, quarry: inQuarry, wreck: inWreck, direction: directions[0] ?? "" } }); };
-  const formOf = (d: DeedDto): Form => ({ wreck: d.wreck ?? false, wreckStones: d.wreckStones ?? 3, wreckBlocks: d.wreckBlocks ?? 2, wreckSinkAt: d.wreckSinkAt ? toLocalInput(d.wreckSinkAt) : "", quarry: d.quarry ?? false, stones: d.stones ?? 1, title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 60, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? "", donationMin: d.donationMin ?? "" });
+  const formOf = (d: DeedDto): Form => ({ wreck: d.wreck ?? false, wreckStones: d.wreckStones ?? 3, wreckBlocks: d.wreckBlocks ?? 2, wreckSinkAt: d.wreckSinkAt ? toLocalInput(d.wreckSinkAt) : "", quarry: d.quarry ?? false, stones: d.stones ?? 1, title: d.title, description: d.description, direction: d.direction, proofType: d.proofType, canRepeat: d.canRepeat, bookCodes: d.bookCodes ?? [], chance: d.chance ?? 60, secret: d.secret ?? false, remote: d.remote ?? false, siegePoints: d.siegePoints ?? ""});
   const openEdit = (d: DeedDto) => { setError(null); setSheet({ id: d.id, form: formOf(d) }); };
   /** Дубликат дела (решение владельца 04.10): форма нового дела, заполненная полями исходного; сохраняется как отдельное дело. */
   const openDuplicate = (d: DeedDto) => { setError(null); setSheet({ id: null, form: { ...formOf(d), title: t("{title} (копия)", { title: d.title }) } }); };
@@ -81,9 +81,9 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode = "roads", onSh
     setError(null); setBusy(true);
     try {
       // Дело для корабля (06.11): короткая форма — остальные поля дорожного дела не нужны и уходят значениями по умолчанию.
-      const f = sheet.form.quarry ? { ...sheet.form, wreck: false, canRepeat: true, bookCodes: [], secret: false, remote: false, siegePoints: "" as const, donationMin: "" as const }
-        : sheet.form.wreck ? { ...sheet.form, quarry: false, canRepeat: true, bookCodes: [], secret: false, remote: false, chance: 60, siegePoints: "" as const, donationMin: "" as const } : sheet.form;
-      const body = JSON.stringify({ ...f, stones: f.stones === "" ? 1 : f.stones, wreckStones: f.wreckStones === "" ? 0 : f.wreckStones, wreckBlocks: f.wreckBlocks === "" ? 0 : f.wreckBlocks, wreckSinkAt: f.wreck && f.wreckSinkAt ? new Date(f.wreckSinkAt).toISOString() : null, siegePoints: f.siegePoints === "" ? null : Number(f.siegePoints), donationMin: f.donationMin === "" ? null : Number(f.donationMin) });
+      const f = sheet.form.quarry ? { ...sheet.form, wreck: false, canRepeat: true, bookCodes: [], secret: false, remote: false, siegePoints: "" as const }
+        : sheet.form.wreck ? { ...sheet.form, quarry: false, canRepeat: true, bookCodes: [], secret: false, remote: false, chance: 60, siegePoints: "" as const } : sheet.form;
+      const body = JSON.stringify({ ...f, stones: f.stones === "" ? 1 : f.stones, wreckStones: f.wreckStones === "" ? 0 : f.wreckStones, wreckBlocks: f.wreckBlocks === "" ? 0 : f.wreckBlocks, wreckSinkAt: f.wreck && f.wreckSinkAt ? new Date(f.wreckSinkAt).toISOString() : null, siegePoints: f.siegePoints === "" ? null : Number(f.siegePoints) });
       if (sheet.id) { await api(`/api/games/${gameId}/deeds/${sheet.id}`, { method: "PUT", body }); notify(t("Дело сохранено")); }
       else { await api(`/api/games/${gameId}/deeds`, { method: "POST", body }); notify(t("Дело добавлено")); }
       close();
@@ -157,7 +157,6 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode = "roads", onSh
                 <span className="meta">
                   <span>{PROOF_LABEL[d.proofType]}</span>
                   {d.siegePoints != null && <span>· {t("осада: {n} б.", { n: d.siegePoints })}</span>}
-                  {d.donationMin != null && <span>· {t("пожертвование от {n}", { n: d.donationMin })}</span>}
                   {!d.quarry && !d.wreck && <span title={t("Вероятность появления на новой дороге")}>· {d.chance}%</span>}
                   {/* Две цифры по делу (решение владельца 04.10): сколько таких дел сейчас свободно на картах команд и сколько взято в работу. */}
                   {!d.quarry && !d.wreck && d.onMap && <span className="on-map" title={t("На картах команд: свободных {a}, в работе {b}", { a: d.onMap.free, b: d.onMap.taken }) + (d.onMap.sea ? ` · ${t("из них в море (корабль у порта): {n}", { n: d.onMap.sea })}` : "")}>· <Icon name="scroll" />{d.onMap.free} <Icon name="user" />{d.onMap.taken}{d.onMap.sea ? <> <Icon name="ship" />{d.onMap.sea}</> : null}</span>}
@@ -206,10 +205,6 @@ export function DeedsBlock({ gameId, version = 0, onChange, mode = "roads", onSh
               {!form.quarry && !form.wreck && <div>
                 <label htmlFor="d-siege">{t("Баллы при осаде")} <span className="opt">{t("(пусто — по правилам)")}</span></label>
                 <input id="d-siege" type="number" min={0} max={100} value={form.siegePoints} onChange={(e) => setForm({ siegePoints: e.target.value === "" ? "" : Number(e.target.value) })} />
-              </div>}
-              {!form.quarry && !form.wreck && <div>
-                <label htmlFor="d-don">{t("Пожертвование вместо дела, от")} <span className="opt">{t("(пусто — нельзя)")}</span></label>
-                <input id="d-don" type="number" inputMode="numeric" min={0} value={form.donationMin} onChange={(e) => setForm({ donationMin: e.target.value === "" ? "" : Number(e.target.value) })} />
               </div>}
               {!form.quarry && !form.wreck && <div>
                 <label htmlFor="d-chance">{t("Вероятность появления на новой дороге")}</label>

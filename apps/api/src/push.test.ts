@@ -42,7 +42,7 @@ describe("push-уведомления", () => {
   it("уведомление уходит push-ем на языке получателя вместе с письмом", async () => {
     pushOutbox.length = 0;
     const me = (await app.inject({ method: "GET", url: "/api/auth/me", headers: { cookie } })).json().user.id as string;
-    notifyAdmins(gameId, "новая сдача дела", "Команда «{team}» сдала дело «{deed}»{donation}. Нужно проверить и одобрить или вернуть.", { team: "Львы", deed: "Дрова", donation: "" });
+    notifyAdmins(gameId, "новая сдача дела", "Команда «{team}» сдала дело «{deed}». Нужно проверить и одобрить или вернуть.", { team: "Львы", deed: "Дрова" });
     for (let i = 0; i < 50 && pushOutbox.length < 1; i++) await new Promise((r) => setTimeout(r, 20));
     const p = pushOutbox.find((x) => x.userId === me);
     expect(p?.payload.title).toBe("a new deed submission");

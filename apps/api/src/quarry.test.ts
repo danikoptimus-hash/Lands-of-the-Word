@@ -51,7 +51,7 @@ afterAll(async () => {
 describe("Каменоломня", () => {
   it("новое общее дело в идущей игре → push командам и пункт «Внимание» (quarryNew в my-map), пока команда его не сдала (06.11)", async () => {
     pushOutbox.length = 0;
-    const r = await post(`/api/games/${gameId}/deeds`, adminCookie, { title: "Убрать двор дома молитвы", description: "Все вместе", direction: "Посещение", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: null, donationMin: null, quarry: true, stones: 2, quorumPct: null });
+    const r = await post(`/api/games/${gameId}/deeds`, adminCookie, { title: "Убрать двор дома молитвы", description: "Все вместе", direction: "Посещение", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: null, quarry: true, stones: 2, quorumPct: null });
     expect(r.statusCode).toBe(201);
     for (let i = 0; i < 50 && pushOutbox.length < 2; i++) await new Promise((x) => setTimeout(x, 20));
     const p = pushOutbox.find((x) => x.payload.title.includes("Каменоломне") || x.payload.title.includes("Quarry"));

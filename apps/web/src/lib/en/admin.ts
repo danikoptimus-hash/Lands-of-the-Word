@@ -53,8 +53,8 @@ export const ADMIN: Record<string, string> = {
   "Сколько сторон гексов отделяет соседние города, не меньше. По умолчанию 2 (в среднем чуть больше двух). При 3 или 4 путь между городами длиннее, а карта больше: перекрёстков в (N/2)² раз больше, чем задано выше.": "At least this many hex sides separate neighbouring cities. Default 2 (a little over two on average). With 3 or 4 the way between cities is longer and the map is bigger: (N/2)² times more crossings than set above.",
   "между городами в среднем {d} сторон": "{d} sides between cities on average",
   "Выровнять расстояние от стартов до первого города": "Equalize the distance from starts to the first city", "Допустимая разница, ходов": "Allowed difference, moves",
-  "Отрывки могут содержать родословия и списки имён": "Passages may contain genealogies and name lists", "Пожертвование вместо дела": "Donation instead of a deed", "Минимум": "Minimum",
-  "Минимальная сумма у каждого дела своя — задаётся во вкладке «Дела». У дела без суммы замены пожертвованием нет.": "The minimum amount is set per deed in the “Deeds” tab. A deed without an amount cannot be replaced by a donation.",
+  "Отрывки могут содержать родословия и списки имён": "Passages may contain genealogies and name lists", "Минимум": "Minimum",
+  
   "Часовой пояс игры": "Game time zone", "(окно отправки вызова; равные часы «с» и «до» — без ограничения)": "(challenge submission window; equal “from” and “until” hours — no limit)",
   "Сколько дней с начала вызова у претендентов, чтобы отправить записи на проверку. Время, пока записи лежат у администратора, не считается. Не успели — вызов сгорает и ставится штраф.": "How many days from the start of the challenge the challengers have to submit their recordings for review. Time while the recordings sit with the administrator does not count. Missed the deadline — the challenge burns and a penalty is set.",
   "Часовой пояс, по которому считаются времена суток игры: утро 7:00–9:00, день 9:00–18:00, вечер 18:00–22:00, ночь 22:00–7:00. Ночью города спят и ничего делать нельзя, только смотреть карту. Записывается именем из базы часовых поясов, например Asia/Tashkent или Europe/Moscow. Можно менять в идущей игре.": "The time zone used for the game's times of day: morning 7:00–9:00, day 9:00–18:00, evening 18:00–22:00, night 22:00–7:00. At night the cities sleep and nothing can be done except looking at the map. Written as a name from the time zone database, e.g. Asia/Tashkent or Europe/Moscow. Can be changed during a running game.",
@@ -75,8 +75,8 @@ export const ADMIN: Record<string, string> = {
   "При генерации карты старты подбираются так, чтобы у всех команд путь до ближайшего города был одинаковой длины, с точностью до допустимой разницы. Иначе старты ставятся без этого условия.": "When generating the map, starts are chosen so that every team's path to the nearest city has the same length, within the allowed difference. Otherwise starts are placed without this condition.",
   "На сколько сторон может отличаться путь до первого города у разных команд при выравнивании стартов. 0 — ровно одинаково; генератору может не хватить вариантов.": "By how many sides the path to the first city may differ between teams when starts are levelled. 0 — exactly equal; the generator may run out of options.",
   "Случайный отрывок для испытания выбирается из всей книги города. Если выключено, главы с родословиями и длинными списками имён пропускаются, чтобы не учить перечни. Только до старта.": "A random trial passage is chosen from the whole book of the city. If off, chapters with genealogies and long name lists are skipped so nobody has to learn lists. Before the start only.",
-  "Подпись к суммам пожертвований в листе дела и в проверке, например «сум» или «₽». Сама минимальная сумма задаётся у каждого дела во вкладке «Дела». Можно менять в идущей игре.": "The label next to donation amounts in the deed sheet and in review, for example “sum” or “₽”. The minimum amount itself is set per deed in the “Deeds” tab. Can be changed in a running game.",
-  "пожертвование от {n}": "donation from {n}", "Пожертвование вместо дела, от": "Donation instead of the deed, from", "(пусто — нельзя)": "(empty — not allowed)",
+  
+  "(пусто — нельзя)": "(empty — not allowed)",
   // Команды
   "Команда добавлена": "Team added", "Команда «{name}» будет удалена вместе с участниками.": "Team “{name}” will be deleted with its members.", "Команда удалена": "Team deleted",
   "{nick} убран из команды": "{nick} removed from the team", "Команд пока нет: добавьте первую.": "No teams yet: add the first one.", "Пригласить": "Invite",
@@ -145,7 +145,7 @@ export const ADMIN: Record<string, string> = {
   "Перераспределить конверты поровну?": "Share the envelopes out evenly?", "Перераспределить": "Redistribute", "Конверты перераспределены": "Envelopes redistributed",
   "Новые адресаты остались без конвертов.": "New recipients have no envelopes.", "Перераспределить поровну": "Share out evenly",
   "Подставится книга города, из которого выходит сторона": "Replaced with the book of the city the side leads out of", "книга города": "city book",
-  "участник": "member", "Тайное дело: сдачу смотрите во вкладке «Проверка».": "Secret deed: see the submission in the Review tab.", "Дело заменено пожертвованием{amount}.": "The deed was replaced with a donation{amount}.", "Возвращено с комментарием: «{comment}»": "Returned with a comment: “{comment}”",
+  "участник": "member", "Тайное дело: сдачу смотрите во вкладке «Проверка».": "Secret deed: see the submission in the Review tab.", "Возвращено с комментарием: «{comment}»": "Returned with a comment: “{comment}”",
   "Скачать PDF": "Download PDF", "Наружный ярлык — на конверт, вкладыш — внутрь; разрежьте по пунктиру.": "The outer label goes on the envelope, the insert goes inside; cut along the dotted line.",
   "Добавить адресатов": "Add recipients", "Поздравляем! Город {name} ваш.": "Congratulations! The city of {name} is yours.", "Ключ": "Key",
   "Введите ключ в игре, чтобы взять город. Ключ секретный: не показывайте его другим командам.": "Enter the key in the game to take the city. The key is secret: do not show it to other teams.",
@@ -238,7 +238,7 @@ export const ADMIN: Record<string, string> = {
   "Ответ на запрос прохода · дней": "Passage answer term · days", "Осада делами · дней": "Deed siege · days", "Баллов за дело в осаде": "Points per deed in a siege",
   "Летопись: день недели": "Chronicle: weekday", "Летопись: час (UTC)": "Chronicle: hour (UTC)",
   "воскресенье": "Sunday", "понедельник": "Monday", "вторник": "Tuesday", "среда": "Wednesday", "четверг": "Thursday", "пятница": "Friday", "суббота": "Saturday",
-  "В игре меняются только пожертвование и правила.": "During the game only the donation and the rules can be changed.",
+  
   "Штраф за телефон на собрании: в блоке «Команды» у команды есть действие «Оштрафовать» — игра сама выбирает случайный концевой участок пути и аннулирует его; если участок вёл в ещё не взятый город, город закрывается и его задания начинаются заново. Там же администратор одобряет роли, запрошенные капитаном, и переводит участников между командами. В «Настройках» есть «Продвинутые настройки»: минимальная ставка, сроки, штрафы, паузы и другие числа правил.": "Penalty for a phone at the meeting: in the “Teams” block a team has a “Penalize” action — the game picks a random end segment of the path and annuls it; if the segment led to a not-yet-taken city, the city closes and its tasks start over. There the administrator also approves roles requested by the captain and moves members between teams. “Settings” has “Advanced settings”: the minimum stake, deadlines, penalties, pauses and other rule numbers.",
   // Визиты (22.10)
   "принял(а): {name}": "accepted by {name}", "вернул(а): {name}": "returned by {name}",
