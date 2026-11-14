@@ -58,7 +58,7 @@ var help: Label
 var fps_label: Label
 var fly_speed := 400.0
 var looking := false
-var wide := false
+var wide := true  ## угол зрения: широкий (как в кадрах Unreal владельца) или как в игре
 var full_res := false
 var only_views := PackedStringArray()
 var world: WorldEnvironment
@@ -123,31 +123,44 @@ const SKIES := {
 	# Ясный день: числа фона подобраны по кадрам Unreal владельца (синева в зените и на 30°, дымка у горизонта);
 	# подбор — расчётом той же формулы вне движка, сверка — кадрами. Солнце невысоко, как в тех кадрах:
 	# облака освещены сбоку и объёмны.
-	"den": {"sun_height": 30.0, "sun_side": 215.0, "energy": 1.0, "shader": {
+	"den": {"sun_height": 30.0, "sun_side": 215.0, "energy": 1.0, "light_color": Color(1.0, 0.97, 0.92), "shader": {
 		"cloud_coverage": 0.2, "_density": 0.05, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 4500.0,
-		"exposure": 0.159, "rayleigh": 1.67, "turbidity": 1.3, "mie": 0.0038,
+		"exposure": 0.159, "rayleigh": 1.67, "turbidity": 1.3, "mie": 0.0015, "mie_eccentricity": 0.93,
 		"rayleigh_color": Color(0.24, 0.32, 0.48), "sky_saturation": 1.53,
-		"haze_color": Vector3(0.64, 0.60, 0.48), "haze_strength": 0.68, "haze_power": 10.0, "sun_disk_scale": 2.0,
-		"cloud_sun": 1.0, "cloud_ambient": 0.75, "cloud_shoulder": 1.0, "phase_cap": 0.2,
-		"cloud_tint": Vector3(1.0, 0.975, 0.94), "sun_tint": Vector3(1.0, 1.0, 1.0),
-		"cloud_floor": Vector3(0.0, 0.0, 0.0)}},
-	"zakat": {"sun_height": 7.0, "sun_side": 262.0, "energy": 1.0, "shader": {
+		"haze_color": Vector3(0.64, 0.60, 0.48), "haze_sun_color": Vector3(0.86, 0.79, 0.62),
+		"haze_strength": 0.68, "haze_power": 10.0,
+		"sun_disk_scale": 2.0, "sun_glow": Vector2(4.0, 0.25), "sun_glow_color": Vector3(1.0, 0.95, 0.85),
+		"cloud_visibility": 60000.0, "horizon_fade": Vector2(0.975, 0.999),
+		"cloud_sun": 1.4, "cloud_ambient": 0.7, "cloud_shoulder": 0.8, "phase_cap": 0.45,
+		"shadow_strength": 2.5, "base_shade": 0.6, "powder": 0.25, "detail_strength": 0.45, "detail_floor": 0.2,
+		"cloud_tint": Vector3(1.0, 0.98, 0.955), "sun_tint": Vector3(1.0, 1.0, 1.0),
+		"cloud_floor": Vector3(0.015, 0.02, 0.035)}},
+	# Закат и шторм — без утверждённых образцов: черновые.
+	"zakat": {"sun_height": 7.0, "sun_side": 262.0, "energy": 1.0, "light_color": Color(1.0, 0.62, 0.38), "shader": {
 		"cloud_coverage": 0.22, "_density": 0.05, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 4500.0,
-		"exposure": 0.12, "rayleigh": 1.6, "turbidity": 5.0, "mie": 0.005,
+		"exposure": 0.12, "rayleigh": 1.6, "turbidity": 5.0, "mie": 0.004, "mie_eccentricity": 0.85,
 		"rayleigh_color": Color(0.32, 0.44, 0.67), "sky_saturation": 1.34,
-		"haze_color": Vector3(0.8, 0.5, 0.3), "haze_strength": 0.5, "haze_power": 12.0, "sun_disk_scale": 2.0,
-		"cloud_sun": 1.0, "cloud_ambient": 3.5, "cloud_shoulder": 1.0, "phase_cap": 0.35,
-		"cloud_tint": Vector3(1.0, 1.0, 1.0), "sun_tint": Vector3(1.0, 0.85, 1.5),
-		"cloud_floor": Vector3(0.05, 0.05, 0.075)}},
+		"haze_color": Vector3(0.46, 0.34, 0.36), "haze_sun_color": Vector3(1.15, 0.62, 0.25),
+		"haze_strength": 0.6, "haze_power": 9.0,
+		"sun_disk_scale": 2.0, "sun_glow": Vector2(6.0, 0.6), "sun_glow_color": Vector3(1.0, 0.6, 0.25),
+		"cloud_visibility": 60000.0, "horizon_fade": Vector2(0.975, 0.999),
+		"cloud_sun": 1.0, "cloud_ambient": 3.0, "cloud_shoulder": 0.9, "phase_cap": 0.8,
+		"shadow_strength": 2.0, "base_shade": 0.5, "powder": 0.25, "detail_strength": 0.45, "detail_floor": 0.2,
+		"cloud_tint": Vector3(1.0, 1.0, 1.0), "sun_tint": Vector3(1.0, 0.8, 1.2),
+		"cloud_floor": Vector3(0.045, 0.05, 0.08)}},
 	# Шторм: сплошная тёмная облачность с просветами; низ облаков освещён рассеянным светом, не чёрный.
-	"shtorm": {"sun_height": 40.0, "sun_side": 215.0, "energy": 0.45, "shader": {
-		"cloud_coverage": 0.72, "_density": 0.06, "weather_scale": 0.00006, "cloud_bottom": 1500.0, "cloud_top": 4000.0,
-		"exposure": 0.13, "rayleigh": 2.0, "turbidity": 14.0, "mie": 0.005,
+	"shtorm": {"sun_height": 40.0, "sun_side": 215.0, "energy": 0.45, "light_color": Color(0.6, 0.66, 0.72), "shader": {
+		"cloud_coverage": 0.62, "_density": 0.07, "weather_scale": 0.00006, "cloud_bottom": 1500.0, "cloud_top": 4000.0,
+		"exposure": 0.13, "rayleigh": 2.0, "turbidity": 14.0, "mie": 0.005, "mie_eccentricity": 0.8,
 		"rayleigh_color": Color(0.26, 0.41, 0.58), "sky_saturation": 0.6,
-		"haze_color": Vector3(0.15, 0.165, 0.19), "haze_strength": 0.85, "haze_power": 5.0, "sun_disk_scale": 1.0,
-		"cloud_sun": 0.8, "cloud_ambient": 5.0, "cloud_shoulder": 1.0, "phase_cap": 0.2,
+		"haze_color": Vector3(0.15, 0.165, 0.19), "haze_sun_color": Vector3(0.19, 0.2, 0.22),
+		"haze_strength": 0.85, "haze_power": 5.0,
+		"sun_disk_scale": 0.02, "sun_glow": Vector2(0.0, 0.0), "sun_glow_color": Vector3(1.0, 1.0, 1.0),
+		"cloud_visibility": 35000.0, "horizon_fade": Vector2(0.975, 0.999),
+		"cloud_sun": 0.5, "cloud_ambient": 5.0, "cloud_shoulder": 1.0, "phase_cap": 0.2,
+		"shadow_strength": 1.0, "base_shade": 1.0, "powder": 1.0, "detail_strength": 0.7, "detail_floor": 0.5,
 		"cloud_tint": Vector3(0.9, 0.95, 1.0), "sun_tint": Vector3(1.0, 1.0, 1.0),
-		"cloud_floor": Vector3(0.075, 0.085, 0.1)}},
+		"cloud_floor": Vector3(0.06, 0.07, 0.085)}},
 }
 
 
@@ -194,8 +207,9 @@ func _build_sky() -> void:
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
 	# Дымка: дальнее море и берег уходят в цвет неба у горизонта — готовое средство движка.
 	env.fog_enabled = true
-	env.fog_density = 0.000035
-	env.fog_aerial_perspective = 1.0
+	env.fog_density = 0.000028
+	env.fog_aerial_perspective = 0.0
+	env.fog_sun_scatter = 0.0
 	env.fog_sky_affect = 0.0
 	world = WorldEnvironment.new()
 	world.environment = env
@@ -218,9 +232,15 @@ func set_sky(title: String) -> void:
 	var to_sun := Vector3(sin(compass) * cos(height), sin(height), -cos(compass) * cos(height))
 	sun.look_at_from_position(Vector3.ZERO, -to_sun, Vector3.UP)
 	sun.light_energy = float(look["energy"])
+	sun.light_color = look["light_color"]
 	# Шейдеру купола солнце передаётся числами: встроенных значений светила у него нет.
+	var light := sun.light_color.srgb_to_linear()
 	dome_material.set_shader_parameter("sun_dir", to_sun)
 	dome_material.set_shader_parameter("sun_power", sun.light_energy)
+	dome_material.set_shader_parameter("sun_color", Vector3(light.r, light.g, light.b))
+	# Дымка над землёй и морем — того же цвета, что дымка неба у горизонта: без шва по линии горизонта.
+	var haze: Vector3 = look["shader"]["haze_color"]
+	world.environment.fog_light_color = Color(haze.x, haze.y, haze.z).linear_to_srgb()
 	_sea_look()
 	var numbers: Dictionary = look["shader"]
 	for material: ShaderMaterial in [sky_direct, sky_dome, dome_material]:
@@ -470,8 +490,12 @@ func _build_controls() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_DISABLED)
 	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	_apply_scale()
-	camera.fov = 35.0
-	camera.look_at_from_position(at(4300.0, 4000.0, 420.0), at(6800.0, 6900.0, 700.0), Vector3.UP)
+	# Первый вид — как в кадрах Unreal владельца: широкий угол, взгляд в сторону солнца чуть выше горизонта.
+	_apply_fov()
+	var eye := at(4300.0, 4000.0, 420.0)
+	var sun_side := deg_to_rad(float(SKIES[sky_name]["sun_side"]))
+	camera.look_at_from_position(eye, eye + Vector3(sin(sun_side), 0.0, -cos(sun_side)) * 5000.0 + Vector3(0.0, 980.0, 0.0),
+			Vector3.UP)
 	# Надписи — в размер экрана: на экране владельца (2880 точек в ширину) мелкий шрифт не прочесть.
 	var k := maxf(DisplayServer.screen_get_size().y / 900.0, 1.0)
 	var layer := CanvasLayer.new()
@@ -492,6 +516,11 @@ func _build_controls() -> void:
 	_update_help()
 
 
+## Угол зрения по вертикали: 59° — это 90° по горизонтали, как в кадрах Unreal владельца; 35° — камера игры.
+func _apply_fov() -> void:
+	camera.fov = 59.0 if wide else 35.0
+
+
 func _apply_scale() -> void:
 	var viewport := get_viewport()
 	viewport.scaling_3d_mode = Viewport.SCALING_3D_MODE_BILINEAR if full_res else Viewport.SCALING_3D_MODE_FSR
@@ -505,7 +534,7 @@ func _update_help() -> void:
 			+ "Осмотреться: зажать правую кнопку мыши (или стрелки)\n" \
 			+ "1 2 3 — небо: ясный день, закат, шторм  (сейчас: %s)\n" % SKY_TITLES[sky_name] \
 			+ "4 — качество облаков  (сейчас: %s)\n" % QUALITY[quality][0] \
-			+ "5 — угол зрения  (сейчас: %s)\n" % ("широкий, 90°" if wide else "как в игре, 35°") \
+			+ "5 — угол зрения  (сейчас: %s)\n" % ("широкий, как в кадрах Unreal" if wide else "как в игре, 35°") \
 			+ "6 — разрешение  (сейчас: %s)\n" % ("полное" if full_res else "67 % с достройкой, как в игре") \
 			+ "7 — земля и море  (сейчас: %s)\n" % ("показаны" if terrain.visible else "скрыты — одно небо") \
 			+ "H — скрыть подсказку,  Esc — выход"
@@ -527,7 +556,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			KEY_4: set_quality(quality + 1)
 			KEY_5:
 				wide = not wide
-				camera.fov = 90.0 if wide else 35.0
+				_apply_fov()
 			KEY_6:
 				full_res = not full_res
 				_apply_scale()
@@ -600,7 +629,7 @@ func _probe() -> void:
 		set_sky(step[0])
 		set_quality(step[1])
 		wide = step[2]
-		camera.fov = 90.0 if wide else 35.0
+		_apply_fov()
 		_update_help()
 		# Срочный расчёт картинки купола и её проявление.
 		for i in DOME_RUSH + DOME_FADE + 4:

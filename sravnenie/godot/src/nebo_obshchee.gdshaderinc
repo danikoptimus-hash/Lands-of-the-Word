@@ -53,6 +53,25 @@ uniform vec3 sun_tint = vec3(1.0);
 // Низкие части облака темнее высоких — так у сплошной облачности остаётся рисунок, а не ровная пелена.
 uniform vec3 cloud_floor = vec3(0.0);
 
+// ПРАВКА (по разбору независимого проверяющего, 14.11):
+// сияние солнца — яркое ядро вокруг диска и широкий мягкий ореол (сила ядра, сила ореола; у образца Unreal
+// солнце выбито в белое и светится, а не лежит плоским кружком);
+uniform vec2 sun_glow = vec2(0.0, 0.0);
+uniform vec3 sun_glow_color = vec3(1.0, 0.95, 0.85);
+// цвет дымки у горизонта в стороне солнца (в стороне от него — haze_color): солнечная сторона светлее и теплее;
+uniform vec3 haze_sun_color = vec3(0.62, 0.59, 0.50);
+// дальность видимости облаков, метры: дальние облака постепенно тонут в дымке (в образце шейдера они
+// обрывались полосой у горизонта и стояли там «белой стеной»);
+uniform float cloud_visibility = 1000000.0;
+// светотень облака: во сколько раз плотнее считать толщу на пути света (самозатенение), доля прямого света
+// у основания облака (основания темнее вершин), насколько тонкие края темнее плотного тела (1 — как в образце
+// шейдера: тонкая кромка выходила серым дымом темнее неба), сила и нижняя граница мелкой «рваной» кромки.
+uniform float shadow_strength = 1.0;
+uniform float base_shade = 1.0;
+uniform float powder = 1.0;
+uniform float detail_strength = 0.4;
+uniform float detail_floor = 0.0;
+
 // Approximately earth sizes
 const float g_radius = 6000000.0; //ground radius
 // ПРАВКА: высоты слоя облаков над землёй — числами (в образце кромка 1500 м, верх 4000 м).
@@ -154,7 +173,16 @@ vec3 background_sky(vec3 eye_dir) {
 	float luma = dot(color, vec3(0.2126, 0.7152, 0.0722));
 	color = max(vec3(0.0), mix(vec3(luma), color, sky_saturation));
 	float haze = pow(1.0 - clamp(eye_dir.y, 0.0, 1.0), haze_power) * haze_strength;
-	return mix(color, haze_color, haze);
+	// Сторона солнца по горизонту: 1 — прямо под солнцем, 0 — напротив.
+	vec2 sun_side = normalize(SUN_DIR.xz + vec2(0.00001));
+	vec2 eye_side = normalize(eye_dir.xz + vec2(0.00001));
+	float toward = pow(0.5 + 0.5 * dot(sun_side, eye_side), 3.0);
+	color = mix(color, mix(haze_color, haze_sun_color, toward), haze);
+	// Сияние солнца: ядро в несколько градусов и широкий ореол.
+	float angle = acos(clamp(dot(eye_dir, normalize(SUN_DIR)), -1.0, 1.0));
+	float above = smoothstep(-0.02, 0.03, eye_dir.y);
+	color += sun_glow_color * above * (sun_glow.x * exp(-angle * angle / 0.0012) + sun_glow.y * exp(-angle / 0.16));
+	return color;
 }
 
 float GetHeightFractionForPoint(float inPosition) { 
@@ -206,7 +234,7 @@ float density(vec3 pip, vec3 weather, float mip) {
 	vec3 hn = textureLod(worlnoise, p*0.001, mip).rgb;
 	float hfbm = hn.r*0.625+hn.g*0.25+hn.b*0.125;
 	hfbm = mix(hfbm, 1.0-hfbm, clamp(height_fraction*4.0, 0.0, 1.0));
-	base_cloud = remap(base_cloud, hfbm*0.4 * height_fraction, 1.0, 0.0, 1.0);
+	base_cloud = remap(base_cloud, hfbm*detail_strength * max(height_fraction, detail_floor), 1.0, 0.0, 1.0);
 	return pow(clamp(base_cloud, 0.0, 1.0), (1.0 - height_fraction) * 0.8 + 0.5);
 }
 
@@ -270,13 +298,13 @@ vec4 march(vec3 pos,  vec3 end, vec3 dir, int depth) {
 			cd += lt;
 			
 			// captures the direct lighting from the sun
-			float beers = exp(-_density * cd * lss);
-			float beers2 = exp(-_density * cd * lss * 0.25) * 0.7;
-			float beers_total = max(beers, beers2);
+			float beers = exp(-_density * cd * lss * shadow_strength);
+			float beers2 = exp(-_density * cd * lss * 0.25 * shadow_strength) * 0.7;
+			float beers_total = max(beers, beers2) * mix(base_shade, 1.0, smoothstep(0.0, 0.5, height_fraction));
 
 			vec3 ambient = mix(atmosphere_ground, vec3(1.0), smoothstep(0.0, 1.0, height_fraction)) * _density * mix(atmosphere_ambient, vec3(1.0), 0.4) * (SUN_DIR.y);
 			alpha += (1.0 - dt) * (1.0 - alpha);
-			L += (ambient * cloud_ambient + beers_total * atmosphere_sun * cloud_sun * phase * alpha) * T * t;
+			L += (ambient * cloud_ambient + beers_total * atmosphere_sun * cloud_sun * phase * mix(1.0, alpha, powder)) * T * t;
 			// ПРАВКА: луч, который уже ничего не пропускает, дальше не считается: в плотном облаке и под
 			// сплошной облачностью остальные шаги ничего не добавляют к картинке, а стоят как полные.
 			if (T < 0.01) {
@@ -302,7 +330,8 @@ vec4 cloud_volume(vec3 dir) {
 	start += shift;
 	end += shift;
 	// Take fewer steps towards horizon
-	float steps = (mix(96.0, 54.0, clamp(dot(dir, vec3(0.0, 1.0, 0.0)), 0.0, 1.0))) * steps_scale;
+	// ПРАВКА: у горизонта луч идёт сквозь слой десятки километров — шагов там больше (в образце 96).
+	float steps = (mix(128.0, 54.0, clamp(dot(dir, vec3(0.0, 1.0, 0.0)), 0.0, 1.0))) * steps_scale;
 	vec3 raystep = dir * shelldist / steps;
 	return march(start, end, raystep, int(steps));
 }
@@ -312,7 +341,12 @@ vec3 compose_sky(vec3 dir, vec3 background, vec4 volume) {
 	// Draw cloud shape
 	vec3 col = background*(1.0-volume.a)+volume.xyz;
 	// Blend distant clouds into the sky
-	// ПРАВКА: в образце облака растворялись уже на 25° над горизонтом — у горизонта оставалась пустая серая
-	// полоса. Теперь они доходят почти до него и тонут в дымке на последних градусах, как в жизни.
-	return mix(clamp(col, vec3(0.0), vec3(1.0)), clamp(background, vec3(0.0), vec3(1.0)), smoothstep(horizon_fade.x, horizon_fade.y, 1.0-dir.y));
+	// ПРАВКА: в образце облака растворялись полосой (сначала с 25° над горизонтом, у нас — с 8°) и стояли над ней
+	// «белой стеной». Теперь дальние облака тонут в дымке постепенно, по расстоянию до них (воздушная
+	// перспектива), а полосой гаснут только на последнем градусе.
+	float cam_y = clamp(camera_place.y, 0.0, cloud_bottom - 200.0);
+	float far = (cloud_bottom - cam_y) / max(dir.y, 0.003);
+	float veil = 1.0 - exp(-far / cloud_visibility);
+	veil = max(veil, smoothstep(horizon_fade.x, horizon_fade.y, 1.0-dir.y));
+	return mix(col, background, veil);
 }

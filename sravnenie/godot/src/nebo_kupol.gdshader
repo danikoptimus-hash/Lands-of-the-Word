@@ -42,8 +42,8 @@ vec4 dome_look(sampler2D picture, vec3 dir, float taken_time, vec3 taken_place) 
 	// Облака плывут против сдвига шума в расчёте плотности: 12 м/с на единицу ветра.
 	seen.xz += normalize(wind_direction) * wind_speed * 12.0 * (sky_time - taken_time);
 	vec2 uv = dome_uv(normalize(seen - there));
-	// Четыре соседние точки картинки вместо одной: зерно расчёта не видно.
-	float texel = 0.75 / dome_size;
+	// Четыре соседние точки картинки вместо одной: зерно расчёта не видно. Разброс мал — облака не мылятся.
+	float texel = 0.4 / dome_size;
 	return 0.25 * (texture(picture, uv + vec2(texel, texel)) + texture(picture, uv + vec2(-texel, texel))
 			+ texture(picture, uv + vec2(texel, -texel)) + texture(picture, uv + vec2(-texel, -texel)));
 }
