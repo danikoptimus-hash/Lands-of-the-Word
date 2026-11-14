@@ -2,7 +2,8 @@ class_name Updater
 extends Node
 ## Самообновление тестовой сборки (канал «тест»).
 ##
-## Свежие сборки лежат в ветке v2-test репозитория: описание latest.json и архив с программой.
+## Свежие сборки лежат в ветке v2-test репозитория: описание latest.json и архив с программой — одним файлом
+## или частями (файл больше 100 МБ в ветку не положить; список частей — поле «parts» описания, v2/tools/channel.py).
 ## Раздача файлов по имени ветки отстаёт от выкладки до пяти минут, поэтому программа сначала узнаёт
 ## точный номер последней выкладки и берёт описание и архив строго по нему: они всегда от одной сборки.
 ## Работающую программу Windows заменить не даёт, поэтому обновление идёт в три запуска:
@@ -38,6 +39,8 @@ var _exact := true  ## описание и архив берутся по точ
 var _manifest := {}
 var _download: HTTPRequest
 var _cancelled := false
+var _downloaded_before := 0.0  ## байт в уже скачанных частях архива
+var _part_note := ""  ## «часть 2 из 3» — для строки хода скачивания
 
 
 func _ready() -> void:
@@ -50,13 +53,13 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	if _download == null:
 		return
-	var total := float(_download.get_body_size())
+	var total := float(int(_manifest.get("size", 0)))
 	if total <= 0.0:
-		total = float(int(_manifest.get("size", 0)))
-	var done := float(_download.get_downloaded_bytes())
+		total = float(_download.get_body_size())
+	var done := _downloaded_before + float(_download.get_downloaded_bytes())
 	if total > 0.0:
-		progress.emit("Скачиваю новую сборку %s: %d %% (%.0f из %.0f МБ)\nEsc — пропустить и запустить прежнюю" % [
-			available_version, roundi(100.0 * done / total), done / 1048576.0, total / 1048576.0])
+		progress.emit("Скачиваю новую сборку %s: %d %% (%.0f из %.0f МБ%s)\nEsc — пропустить и запустить прежнюю" % [
+			available_version, roundi(100.0 * done / total), done / 1048576.0, total / 1048576.0, _part_note])
 
 
 ## Самообновление есть только у собранной программы для Windows с номером сборки.
@@ -95,6 +98,15 @@ func check(force: bool = false) -> bool:
 		if typeof(manifest.get(key)) != TYPE_STRING or str(manifest[key]).is_empty():
 			error = "в описании сборки нет поля «%s»" % key
 			return false
+	if manifest.has("parts"):
+		var parts: Variant = manifest["parts"]
+		var fine := typeof(parts) == TYPE_ARRAY and not (parts as Array).is_empty()
+		if fine:
+			for part: Variant in parts:
+				fine = fine and typeof(part) == TYPE_STRING and not str(part).is_empty() and not str(part).contains("/")
+		if not fine:
+			error = "в описании сборки испорчен список частей архива"
+			return false
 	_manifest = manifest
 	available_version = str(manifest["version"])
 	available_commit = str(manifest["commit"])
@@ -109,27 +121,57 @@ func download_and_stage() -> bool:
 	if FileAccess.file_exists(archive):
 		DirAccess.remove_absolute(archive)
 
-	_download = HTTPRequest.new()
-	_download.timeout = DOWNLOAD_TIMEOUT
-	_download.use_threads = true
-	_download.download_file = archive
-	add_child(_download)
-	var url := "%s%s?t=%s" % [_files_url, str(_manifest["file"]), available_commit]
-	if _download.request(url) != OK:
+	# Архив лежит в канале одним файлом или частями: части скачиваются по очереди и склеиваются в один архив.
+	var names: Array[String] = []
+	if _manifest.has("parts"):
+		for part: Variant in _manifest["parts"]:
+			names.append(str(part))
+	else:
+		names.append(str(_manifest["file"]))
+	var joined: FileAccess = null
+	if names.size() > 1:
+		joined = FileAccess.open(archive, FileAccess.WRITE)
+		if joined == null:
+			error = "не удалось записать архив обновления"
+			return false
+	_downloaded_before = 0.0
+	for index in names.size():
+		var piece := archive if joined == null else "%s.chast" % archive
+		_part_note = "" if joined == null else ", часть %d из %d" % [index + 1, names.size()]
+		_download = HTTPRequest.new()
+		_download.timeout = DOWNLOAD_TIMEOUT
+		_download.use_threads = true
+		_download.download_file = piece
+		add_child(_download)
+		var url := "%s%s?t=%s" % [_files_url, names[index], available_commit]
+		if _download.request(url) != OK:
+			_download.queue_free()
+			_download = null
+			error = "не удалось начать скачивание"
+			return false
+		var result: Array = await _download.request_completed
 		_download.queue_free()
 		_download = null
-		error = "не удалось начать скачивание"
-		return false
-	var result: Array = await _download.request_completed
-	_download.queue_free()
-	_download = null
-	if _cancelled:
-		error = "обновление пропущено"
-		return false
-	if int(result[0]) != HTTPRequest.RESULT_SUCCESS or int(result[1]) != 200:
-		error = "скачивание прервалось (код %d, ответ %d)" % [int(result[0]), int(result[1])]
-		retry_later = not _exact and int(result[1]) == 404
-		return false
+		if _cancelled:
+			error = "обновление пропущено"
+			return false
+		if int(result[0]) != HTTPRequest.RESULT_SUCCESS or int(result[1]) != 200:
+			error = "скачивание прервалось (код %d, ответ %d)" % [int(result[0]), int(result[1])]
+			retry_later = not _exact and int(result[1]) == 404
+			return false
+		if joined != null:
+			var part_file := FileAccess.open(piece, FileAccess.READ)
+			if part_file == null:
+				error = "часть архива не читается"
+				return false
+			_downloaded_before += float(part_file.get_length())
+			while part_file.get_position() < part_file.get_length():
+				joined.store_buffer(part_file.get_buffer(4 * 1048576))
+			part_file.close()
+			DirAccess.remove_absolute(piece)
+	if joined != null:
+		joined.close()
+	_part_note = ""
 
 	progress.emit("Проверяю и распаковываю новую сборку %s…" % available_version)
 	await get_tree().process_frame

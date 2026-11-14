@@ -2,7 +2,13 @@ extends Node3D
 ## Главный сценарий тестовой сборки: свет, мир, камера, служебные клавиши.
 ## Ключи запуска (после «--»): --shots=папка — автоматические кадры и проверки (с ним же --quick и --stops=17,21 —
 ## быстрые проверки, см. src/tools/shot_director.gd); --view=x,z,d,поворот,наклон — добавить кадр места;
-## --world=N — начать с карты номер N (1 — «Осень»);
+## --world=N — начать с карты номер N (1 — «Осень»); --debug-view=N — показать географию вместо материалов
+## (1 — влажность, 2 — сток воды, 3 — крутизна, 4 — ложбины и гребни; растительность, шаг 1.8: 21 — густота,
+## 22 — местности, 23 — породы деревьев, 24 — где деревьям нельзя по уклону, 25 — поля; материалы под дождём:
+## 31 — шероховатость, 32 — металл, 33 — намокание, 34 — без бликов и отражений, 35 — нормали);
+## --no-sun и --no-sky-reflections — без прямого света светила и без отражений неба; --scale-audit — размеры
+## моделей и камеры в журнал;
+## --flora-debug — проверочный вид растительности (как клавиша U), --flora-reference=x,z — эталоны масштаба в точке;
 ## --update-test=адрес и --update-target=файл — проверка самообновления в конвейере. Ключи --finish-update и --updated
 ## программа передаёт сама себе при обновлении (см. src/core/updater.gd).
 
@@ -16,7 +22,19 @@ const WORLD_PATHS: Array[String] = [
 	"res://data/world_proba_4.json",
 ]
 const WINDOW_TITLE := "Земли Слова — версия 2 (тест)"
-const FOG_DENSITY := 0.000025  ## дымка вблизи; издалека она реже (см. _process)
+## Насыщенность и контраст картинки (клавиша V). Начинаем с «естественно»: владелец сравнил наборы на 0.5.3
+## и выбрал его («естественный цвет мне нравится больше»); до 0.5.3 первым стояло «сочно».
+const COLOR_PRESETS: Array[Dictionary] = [
+	{"title": "естественно", "saturation": 1.0, "contrast": 1.0, "brightness": 1.0},
+	{"title": "сочно", "saturation": 1.28, "contrast": 1.06, "brightness": 1.0},
+	{"title": "очень сочно", "saturation": 1.5, "contrast": 1.1, "brightness": 1.0},
+]
+## Разрешение картинки мира (клавиша B): мир считается в меньшем разрешении и достраивается до родного, надписи
+## остаются в родном. На экранах с очень большим разрешением (у владельца 2880×1800 на 14 дюймах — замер 0.5.0:
+## 22 кадра в секунду) полное разрешение стоит видеокарте вдвое дороже, чем нужно глазу, поэтому по умолчанию
+## разрешение выбирается по числу точек окна: больше 3,2 млн — 67 %, больше 2,2 млн — 77 %, иначе полное.
+const RENDER_SCALES: Array[float] = [1.0, 0.77, 0.67]
+const AUTO_SCALE_PIXELS: Array[float] = [2.2e6, 3.2e6]
 const SHOTS_FOLDER := "Земли Слова — тест"
 
 var _world: WorldData
@@ -25,9 +43,28 @@ var _islet_index := -1  ## на какой малый остров летали 
 var _terrain: WorldTerrain
 var _rig: StrategyCamera
 var _hud: Hud
+var _light: DayLight  ## свет и небо: времена суток
 var _sun: DirectionalLight3D
 var _environment: Environment
+var _weather: Weather  ## погода: облака и их тени, дождь, шторм
+var _light_code := ""  ## ключ --light=время — с какого времени суток начать
+var _color_preset := 0
+var _render_scale := 0
+var _render_scale_chosen := false  ## игрок выбрал разрешение сам (клавиша B): само оно больше не меняется
 var _markers: SiteMarkers
+var _flora: Flora  ## растительность и камни (шаг 1.8)
+var _flora_debug := false  ## проверочный вид растительности (клавиша U или ключ --flora-debug)
+var _flora_debug_wanted := false
+var _flora_debug_wait := 0.0
+var _cloud_debug := 0  ## ключ --cloud-debug=N: проверочный вид облаков (см. cloud_pass.gdshader)
+var _no_sun := false  ## ключи --no-sun и --no-sky-reflections: проверочные выключатели света (см. DayLight)
+var _no_reflections := false
+var _clouds_shown := true
+var _no_flora := false  ## ключ --no-flora: мир без растительности (проверка рельефа и скорости без неё)
+var _bake_impostors := false  ## ключ --bake-impostors: снять изображения моделей для дальнего вида и выйти
+var _models_preview := false  ## ключ --models-preview: вместо мира — модели деревьев в ряд, кадры в папку --shots
+var _scale_audit := false  ## ключ --scale-audit: размеры моделей и камеры — в журнал
+var _flora_reference := Vector2.INF  ## ключ --flora-reference=x,z: поставить эталоны масштаба в этой точке мира
 var _benchmark: Benchmark
 var _updater: Updater
 var _updating := false
@@ -38,6 +75,7 @@ var _update_test_url := ""
 var _update_test_target := ""
 var _shots_folder := ""
 var _extra_views := PackedStringArray()
+var _debug_view := 0  ## ключ --debug-view=N: вместо материалов показать географию (см. WorldTerrain.set_debug_view)
 var _ready_to_play := false
 
 
@@ -55,6 +93,14 @@ func _ready() -> void:
 	add_child(_hud)
 	_rig = StrategyCamera.new()
 	add_child(_rig)
+	_weather = Weather.new()
+	_light.debug_no_sun = _no_sun
+	_light.debug_no_reflections = _no_reflections
+	_weather.light = _light
+	_weather.cloud_debug = _cloud_debug
+	_weather.camera = _rig.camera
+	_weather.frozen = not _shots_folder.is_empty()
+	add_child(_weather)
 
 	_updater = Updater.new()
 	add_child(_updater)
@@ -72,13 +118,23 @@ func _ready() -> void:
 	add_child(_benchmark)
 	_benchmark.finished.connect(_on_benchmark_finished)
 
+	if _bake_impostors:
+		await _run_bake_impostors()
+		return
+	if _models_preview and not _shots_folder.is_empty():
+		await _run_models_preview()
+		return
+
 	var loaded: bool = await _load_world(WORLD_PATHS[_world_index])
 	if not loaded:
 		return
+	_auto_render_scale()
+	get_window().size_changed.connect(_auto_render_scale)
 
 	if not _shots_folder.is_empty():
 		var director := ShotDirector.new()
 		add_child(director)
+		director.render_scale = RENDER_SCALES[_render_scale]
 		director.run(_shots_folder, _world, _terrain, _rig, _hud, _extra_views, _benchmark, _take_snapshot, _next_world)
 	elif not _update_notice.is_empty():
 		_hud.toast(_update_notice, 14.0)
@@ -92,17 +148,54 @@ func _ready() -> void:
 		_hud.toast("F1 — управление камерой", 6.0)
 
 
+## Разрешение картинки мира по размеру окна — пока игрок не выбрал его сам клавишей B.
+func _auto_render_scale() -> void:
+	if _render_scale_chosen or not _shots_folder.is_empty():
+		_apply_render_scale()
+		return
+	var size := get_window().size
+	var pixels := float(size.x) * float(size.y)
+	var index := 0
+	for limit in AUTO_SCALE_PIXELS:
+		if pixels > limit:
+			index += 1
+	if index != _render_scale:
+		_render_scale = index
+		_apply_render_scale()
+
+
+func _apply_render_scale() -> void:
+	var scale := RENDER_SCALES[_render_scale]
+	get_viewport().scaling_3d_mode = Viewport.SCALING_3D_MODE_FSR if scale < 1.0 else Viewport.SCALING_3D_MODE_BILINEAR
+	get_viewport().scaling_3d_scale = scale
+
+
 func _process(_delta: float) -> void:
 	if not _ready_to_play:
 		return
 	_terrain.set_viewer(_rig.camera.global_position)
+	if _flora_debug and _flora != null:
+		# Счётчики проверочного вида — раз в полсекунды, пока он включён.
+		_flora_debug_wait -= _delta
+		if _flora_debug_wait <= 0.0:
+			_flora_debug_wait = 0.5
+			_hud.toast(_flora.debug_text(), 1.5)
+	_terrain.update_cache(_rig.camera.global_position, _rig.current_focus(), _world_pixel(), _delta)
+	# Вода движется по своему времени; в кадрах проверок оно стоит — кадр с водой получается одним и тем же.
+	if _shots_folder.is_empty():
+		_terrain.advance_water(_delta)
 	# Тени считаются только там, куда смотрит камера: вблизи они резче, издалека покрывают весь мир.
 	# Чем ближе взгляд к горизонту, тем дальше видно — и тем дальше нужны тени.
 	var low := 1.0 - smoothstep(0.1, 0.5, _rig.view_angle())
 	var reach := maxf(_rig.current_distance() * lerpf(2.6, 7.0, low), lerpf(500.0, 4500.0, low))
 	_sun.directional_shadow_max_distance = minf(reach, 40000.0)
-	# Издалека (весь мир с малыми островами) дымка реже: иначе за десять километров картинка белеет.
-	_environment.fog_density = FOG_DENSITY * clampf(3000.0 / _rig.current_distance(), 0.25, 1.0)
+
+
+## Сколько метров земли приходится на точку картинки мира в середине кадра (картинка мира считается
+## в уменьшенном разрешении — клавиша B).
+func _world_pixel() -> float:
+	var viewport := get_viewport()
+	return _rig.pixel_size(float(get_window().size.y) * viewport.scaling_3d_scale)
 
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -146,8 +239,48 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_rig.fly_to(view, 0.6)
 		KEY_G:
 			_terrain.set_grid_visible(not _terrain.is_grid_visible())
+		KEY_B:
+			_render_scale = (_render_scale + 1) % RENDER_SCALES.size()
+			_render_scale_chosen = true
+			_apply_render_scale()
+			_hud.toast("Картинка мира: %d %% разрешения. B — следующее." % roundi(RENDER_SCALES[_render_scale] * 100.0), 4.0)
+		KEY_L:
+			# Время суток: утро → день → вечер → ночь, с плавным переходом (в игре он идёт полчаса).
+			var next := ((_light.phase() + 1) % 4) as DayLight.Phase
+			_light.set_phase(next)
+			_hud.toast("Время суток: %s. L — следующее." % DayLight.PHASE_TITLES[next], 4.0)
+		KEY_P:
+			# Погода: ясно ↔ шторм, плавно.
+			var next := Weather.Kind.CLEAR if _weather.kind() == Weather.Kind.STORM else Weather.Kind.STORM
+			_weather.set_kind(next)
+			_hud.toast("Погода: %s. P — обратно." % Weather.TITLES[next], 4.0)
+		KEY_Y:
+			# Эталоны масштаба (шаг 1.8): человек, дом, дорога, валун и деревья опорного роста — там, куда смотрит камера.
+			if _flora != null:
+				var focus := _rig.current_focus()
+				var shown := _flora.toggle_reference(Vector3(focus.x, _terrain.height_map.sample(focus), focus.y))
+				_hud.toast("Эталоны масштаба: %s. Y — переключить." % ("человек 1,75 м, дом 6 м, дорога 4 м, валун 2 м, олива 6 м, пальма 12 м, кипарис 15 м" if shown else "убраны"), 6.0)
+		KEY_U:
+			# Проверочный вид растительности (шаг 1.8): уровни подробности цветом, границы плиток, счётчики.
+			if _flora != null:
+				_flora_debug = _flora.toggle_debug()
+				_hud.toast(_flora.debug_text() if _flora_debug else "Проверочный вид растительности выключен.", 4.0)
+		KEY_T:
+			# Кэш ближнего вида можно выключить и сравнить: картинка должна быть той же, скорость — как в 0.5.3.
+			_terrain.cache_budget = 0 if _terrain.cache_budget > 0 else NearCache.BUDGET
+			_hud.toast("Кэш ближнего вида: %s. T — переключить." % ("включён" if _terrain.cache_budget > 0 else "выключен"), 4.0)
+		KEY_V:
+			_color_preset = (_color_preset + 1) % COLOR_PRESETS.size()
+			_apply_color_preset()
+			_hud.toast("Цвет: %s (%d из %d). V — следующий." % [COLOR_PRESETS[_color_preset]["title"], _color_preset + 1, COLOR_PRESETS.size()], 4.0)
 		KEY_C:
 			_markers.visible = not _markers.visible
+			_hud.toast("Города: %s. C — переключить." % ("показаны" if _markers.visible else "спрятаны"), 3.0)
+		KEY_H:
+			# Облака можно убрать: в пробе масштаба они — черновик и мешают смотреть землю.
+			_clouds_shown = not _clouds_shown
+			_weather.set_clouds_shown(_clouds_shown)
+			_hud.toast("Облака: %s. H — переключить." % ("показаны" if _clouds_shown else "спрятаны"), 3.0)
 		KEY_M:
 			_next_world()
 		KEY_F2:
@@ -156,52 +289,34 @@ func _unhandled_key_input(event: InputEvent) -> void:
 			_hud.close_report()
 			_hud.set_help_open(false)
 			_hud.toast("Идёт замер скорости: камера облетает мир…", 30.0)
-			_benchmark.run(_world, _rig, _terrain.height_map)
+			_benchmark.run(_world, _rig, _terrain.height_map, _terrain, _sun)
 
 
 # ── Сцена ────────────────────────────────────────────────────────────────────
 
-## Свет «мастерской» для глиняного этапа: одно солнце слева (с запада, чуть с юга) и ровное небо.
-## Склоны, обращённые к камере и влево, освещены, тени ложатся вправо. Настоящий свет — шаг 1.4.
+## Свет и небо — узел DayLight (шаг 1.4): утро, день, вечер, ночь и плавные переходы между ними. Дымка слабая (замечание владельца 11.11: «чтобы это не было мыльное
+## туманное нечто»); её густота зависит ещё и от высоты камеры (см. _process).
 func _build_light() -> void:
-	_sun = DirectionalLight3D.new()
-	_sun.transform = Transform3D(Basis.looking_at(Vector3(0.78, -0.58, -0.22), Vector3.UP), Vector3.ZERO)
-	_sun.light_color = Color(1.0, 0.97, 0.92)
-	_sun.light_energy = 0.85
-	_sun.shadow_enabled = true
-	_sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_4_SPLITS
-	_sun.directional_shadow_blend_splits = true
-	_sun.directional_shadow_max_distance = 6000.0
-	_sun.shadow_blur = 1.2
-	add_child(_sun)
+	_light = DayLight.new()
+	add_child(_light)
+	_sun = _light.sun
+	_environment = _light.environment
+	if not _light_code.is_empty():
+		_set_light(_light_code)
+	_apply_color_preset()
 
-	var sky_material := ProceduralSkyMaterial.new()
-	sky_material.sky_top_color = Color(0.5, 0.58, 0.66)
-	sky_material.sky_horizon_color = Color(0.8, 0.81, 0.8)
-	sky_material.ground_horizon_color = Color(0.8, 0.81, 0.8)
-	sky_material.ground_bottom_color = Color(0.44, 0.47, 0.5)
-	var sky := Sky.new()
-	sky.sky_material = sky_material
 
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_SKY
-	environment.sky = sky
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	environment.ambient_light_energy = 0.42
-	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	environment.tonemap_white = 1.2
-	environment.ssao_enabled = true
-	environment.ssao_radius = 9.0
-	environment.ssao_intensity = 2.0
-	environment.fog_enabled = true
-	environment.fog_light_color = Color(0.8, 0.81, 0.8)
-	environment.fog_density = FOG_DENSITY
-	environment.fog_aerial_perspective = 0.4
-	environment.fog_sky_affect = 0.0
-	_environment = environment
-	var world_environment := WorldEnvironment.new()
-	world_environment.environment = environment
-	add_child(world_environment)
+## Время суток по коду (ключ --light=evening). Сразу, без плавного перехода.
+func _set_light(code: String) -> void:
+	var phase := DayLight.PHASE_CODES.find(code)
+	if phase >= 0:
+		_light.set_phase(phase as DayLight.Phase, true)
+
+
+## Насыщенность и контраст картинки: три набора, клавиша V переключает по кругу. Ложатся поверх вида времени суток.
+func _apply_color_preset() -> void:
+	var preset: Dictionary = COLOR_PRESETS[_color_preset]
+	_light.set_grade(preset["saturation"], preset["contrast"], preset["brightness"])
 
 
 # ── Мир ──────────────────────────────────────────────────────────────────────
@@ -216,7 +331,12 @@ func _load_world(path: String) -> bool:
 	if _markers != null:
 		_markers.queue_free()
 		_markers = null
+	if _flora != null:
+		_flora.queue_free()
+		_flora = null
+		_flora_debug = false
 	if _terrain != null:
+		_weather.terrain = null
 		_terrain.queue_free()
 		_terrain = null
 	_world = world
@@ -227,10 +347,21 @@ func _load_world(path: String) -> bool:
 	_hud.set_loading("Лепим землю…")
 	_terrain = WorldTerrain.new()
 	add_child(_terrain)
+	# География запекается в картинку земли, поэтому проверочный вид задаётся до постройки.
+	_terrain.set_debug_view(_debug_view)
 	var built: bool = await _terrain.build(_world)
 	if not built:
 		_fail("Не удалось построить рельеф: %s.\nВидеокарта: %s" % [_terrain.error, RenderingServer.get_video_adapter_name()])
 		return false
+	_terrain.set_debug_view(_debug_view)
+	_terrain.set_cloud_textures(_weather.cloud_map, Weather.CLOUD_NOISE)
+	_weather.terrain = _terrain
+	if not _shots_folder.is_empty():
+		_terrain.set_water_time(WaterLook.SHOT_TIME)
+	if not _shots_folder.is_empty():
+		# В кадрах облёта земля считается напрямую (картинка та же, а прогревать кэш на программной отрисовке
+		# у каждого кадра — минута); с ключом --cache кэш включён и считается сразу весь.
+		_terrain.cache_budget = 40000000 if OS.get_cmdline_user_args().has("--cache") else 0
 	_rig.set_height_map(_terrain.height_map)
 	_rig.set_view(_rig.view_for_rect(_world.land_rect))
 
@@ -238,11 +369,39 @@ func _load_world(path: String) -> bool:
 	add_child(_markers)
 	_markers.build(_world, _terrain.height_map)
 
+	_hud.set_loading("Сажаем леса…")
+	_flora = Flora.new()
+	add_child(_flora)
+	_flora.set_cloud_textures(_weather.cloud_map, Weather.CLOUD_NOISE)
+	_flora.build(_world, _terrain)
+	# Ключ --no-flora: растительность посажена, но спрятана — места кадров, которые ищутся по картам леса,
+	# остаются теми же, а в кадре только земля (сверка нарисованного леса с деревьями).
+	_flora.visible = not _no_flora
+	print("РАСТИТЕЛЬНОСТЬ «%s»: карты густоты готовы за %.0f мс; деревья сажаются плитками вокруг камеры" % [_world.title, _flora.build_ms])
+	if _flora_debug_wanted:
+		_flora_debug = _flora.toggle_debug()
+	if _flora_reference.is_finite():
+		_flora.toggle_reference(Vector3(_flora_reference.x, _terrain.height_map.sample(_flora_reference), _flora_reference.y))
+	if _scale_audit:
+		# Аудит масштаба (ключ --scale-audit): фактические размеры того, что стоит в мире, — в журнал.
+		print("АУДИТ: единица мира — метр; гекс: от центра до угла %.0f м, между сторонами %.1f м" % [HexMath.SIZE, HexMath.APOTHEM * 2.0])
+		print("АУДИТ: город (черновая модель) — стена поперечником около %.0f м и высотой %.0f м, башни %.0f м, домов %d (8–11 × 7–10 м, один-два этажа); вокруг города растительность расчищена на %.0f м от центра; пояс полей — до %s м" % [
+				CityModel.RADIUS * 2.0, CityModel.WALL_HEIGHT, CityModel.TOWER_HEIGHT, CityModel.house_count(), WorldTerrain.CITY_CLEARING,
+				str(WorldTerrain.FIELD_REACH.values())])
+		for line in _flora.size_report():
+			print("АУДИТ: ", line)
+		print("АУДИТ: камера — угол зрения %.0f° по вертикали; расстояние до точки взгляда от %.0f до %.0f м" % [
+				StrategyCamera.FOV, StrategyCamera.MIN_DISTANCE, _rig.max_distance()])
+		for distance: float in [StrategyCamera.MIN_DISTANCE, 300.0, 800.0, 3000.0, 10000.0, _rig.max_distance()]:
+			var span := 2.0 * distance * tan(deg_to_rad(StrategyCamera.FOV * 0.5))
+			print("АУДИТ: камера на расстоянии %.0f м — высота над точкой взгляда %.0f м; в кадре по вертикали %.0f м земли (на экране 1123 точки: метр — %.1f точки)" % [
+					distance, _rig.height_at(distance), span, 1123.0 / span])
+
 	_hud.set_loading("")
 	_ready_to_play = true
-	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс; высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
-		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms,
-		_terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count(), _world.islets.size()])
+	print("МИР «%s»: рельеф — областей %d, точек %.1f млн, за %.0f мс (сток воды — %.0f мс, картинка земли — %.0f мс, маска наката — %.0f мс); высоты от %.1f до %.1f м, плиток %d, малых островов %d" % [
+		_world.title, _terrain.region_count(), float(_terrain.baked_points()) / 1.0e6, _terrain.bake_ms, _terrain.drainage_ms, _terrain.surface_ms,
+		_terrain.swash_mask_ms, _terrain.height_map.lowest, _terrain.height_map.highest, _terrain.chunk_count(), _world.islets.size()])
 	return true
 
 
@@ -267,7 +426,7 @@ func _fly_to_island(island: String) -> void:
 func _fly_to_islet(index: int) -> void:
 	var islet := _world.islets[index]
 	_islet_index = index
-	_rig.fly_to(CameraView.make(islet.position, maxf(islet.reach() * 3.4, 420.0), 25.0, -8.0))
+	_rig.fly_to(CameraView.make(islet.position, maxf(islet.reach() * 3.4, 420.0 * HexMath.WORLD_SCALE), 25.0, -8.0))
 	_hud.toast("%s — малый остров %d из %d. O — следующий." % [islet.title(), index + 1, _world.islets.size()], 5.0)
 
 
@@ -333,8 +492,9 @@ func _on_benchmark_finished(report: String) -> void:
 	if file != null:
 		file.store_string(report)
 		file.close()
-	_hud.toast("Замер готов", 2.0)
-	_hud.show_report(report + "\n\nОтчёт скопирован: вставьте его в чат (Ctrl+V).\nEsc — закрыть.")
+	# Подсказка — первой строкой: раньше она стояла под отчётом и уходила за край экрана вместе с его низом.
+	_hud.show_report("Замер готов. Отчёт скопирован: вставьте его в чат (Ctrl+V). Esc — закрыть.\n\n" + _benchmark.report_head,
+			_benchmark.report_legs)
 
 
 # ── Самообновление ───────────────────────────────────────────────────────────
@@ -450,12 +610,216 @@ func _report_check(title: String, passed: bool, details: String) -> int:
 	return 0 if passed else 1
 
 
+## Просмотр моделей деревьев без постройки мира (ключ --models-preview, секунды вместо минут): каждый вариант —
+## тремя уровнями подробности в ряд на ровной земле, рядом — человек 1,78 м; кадры кладутся в папку --shots.
+func _run_models_preview() -> void:
+	DirAccess.make_dir_recursive_absolute(_shots_folder)
+	_hud.visible = false
+	var ground := MeshInstance3D.new()
+	var plane := PlaneMesh.new()
+	plane.size = Vector2(9000.0, 9000.0)
+	var soil := StandardMaterial3D.new()
+	soil.albedo_color = Color(0.36, 0.37, 0.2)
+	soil.roughness = 1.0
+	plane.material = soil
+	ground.mesh = plane
+	add_child(ground)
+	var skin := StandardMaterial3D.new()
+	skin.albedo_color = Color(0.8, 0.25, 0.2)
+	var models := FloraModels.load_all(Flora.NOISE, 1.0e8, 1.0e9)
+	var camera := Camera3D.new()
+	camera.fov = StrategyCamera.FOV
+	camera.far = 5000.0
+	add_child(camera)
+	camera.make_current()
+	var keys: Array = models.keys()
+	keys.sort()
+	var row := 0
+	for key: Vector2i in keys:
+		var lods: Array = models[key]
+		var name := "%s_%02d" % [FloraModels.NAMES[key.x], key.y + 1]
+		var tall := (lods[0] as Mesh).get_aabb().end.y
+		var wide := maxf((lods[0] as Mesh).get_aabb().size.x, (lods[0] as Mesh).get_aabb().size.z)
+		var gap := wide * 1.25
+		var z := float(row) * 60.0
+		for level in 3:
+			var instance := MeshInstance3D.new()
+			instance.mesh = lods[level]
+			instance.position = Vector3((float(level) - 1.0) * gap, 0.0, z)
+			add_child(instance)
+		var person := MeshInstance3D.new()
+		var capsule := CapsuleMesh.new()
+		capsule.height = 1.78
+		capsule.radius = 0.22
+		capsule.material = skin
+		person.mesh = capsule
+		person.position = Vector3(-gap + wide * 0.5, 0.89, z + wide * 0.45)
+		add_child(person)
+		# Вид «как в игре вблизи»: три уровня в ряд, взгляд сверху под 30°.
+		var distance := maxf(gap * 3.2, tall * 2.6)
+		var focus := Vector3(0.0, tall * 0.45, z)
+		var pitch := deg_to_rad(30.0)
+		camera.position = focus + Vector3(0.0, sin(pitch), cos(pitch)) * distance
+		camera.look_at(focus)
+		for i in 6:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(_shots_folder.path_join("model-%s.png" % name))
+		# Крупно — полная модель, сбоку: силуэт и листва.
+		distance = maxf(wide, tall) * 1.7
+		focus = Vector3(-gap, tall * 0.5, z)
+		pitch = deg_to_rad(12.0)
+		camera.position = focus + Vector3(0.0, sin(pitch), cos(pitch)) * distance
+		camera.look_at(focus)
+		for i in 4:
+			await get_tree().process_frame
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png(_shots_folder.path_join("model-%s-krupno.png" % name))
+		print("МОДЕЛЬ %s: рост %.1f м, поперечник %.1f м; треугольников по уровням: %d / %d / %d" % [name, tall, wide,
+				_triangles(lods[0]), _triangles(lods[1]), _triangles(lods[2])])
+		row += 1
+	get_tree().quit(0)
+
+
+## Запекание импосторов (ключ --bake-impostors; запускается разработчиком после смены моделей): каждая модель
+## снимается без света сбоку и сверху в свою клетку общей картинки assets/models/flora_far.png; какая клетка чья
+## и какого размера квадрат снят — в data/flora_far.json. Эту картинку рисует самый дальний уровень деревьев
+## (flora_far.gdshader): силуэт вдали — тот же, что у полной модели.
+func _run_bake_impostors() -> void:
+	const CELL := 256
+	const COLUMNS := 8
+	const ROWS := 4
+	var models := FloraModels.load_all(Flora.NOISE, 1.0e8, 1.0e9)
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(CELL * 2, CELL * 2)  # снимаем вдвое крупнее и уменьшаем — края мягче
+	viewport.transparent_bg = true
+	viewport.own_world_3d = true
+	viewport.msaa_3d = Viewport.MSAA_4X
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	add_child(viewport)
+	var camera := Camera3D.new()
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.near = 0.5
+	camera.far = 600.0
+	viewport.add_child(camera)
+	var atlas := Image.create(CELL * COLUMNS, CELL * ROWS, false, Image.FORMAT_RGBA8)
+	var bake_shader: Shader = load("res://src/world/flora_bake.gdshader")
+	var keys: Array = models.keys()
+	keys.sort()
+	var table := {}
+	var index := 0
+	for key: Vector2i in keys:
+		if key.x >= FloraMeshes.Kind.SHRUB_GREEN:
+			continue  # кусты и камни вдали не видны — изображения им не нужны
+		var mesh: Mesh = (models[key] as Array)[0]
+		var box := mesh.get_aabb()
+		var square := maxf(box.end.y, maxf(box.size.x, box.size.z)) * 1.06
+		var instance := MeshInstance3D.new()
+		instance.mesh = mesh
+		for surface in mesh.get_surface_count():
+			var source := mesh.surface_get_material(surface) as ShaderMaterial
+			var material := ShaderMaterial.new()
+			material.shader = bake_shader
+			material.set_shader_parameter("albedo_map", source.get_shader_parameter("albedo_map"))
+			material.set_shader_parameter("leafy", source.get_shader_parameter("leafy"))
+			instance.set_surface_override_material(surface, material)
+		viewport.add_child(instance)
+		camera.size = square
+		var crown_area := 0.0
+		var crown_color: Array = [0.0, 0.0, 0.0]
+		for view in 2:
+			if view == 0:
+				camera.look_at_from_position(Vector3(0.0, square * 0.5, 300.0), Vector3(0.0, square * 0.5, 0.0), Vector3.UP)
+			else:
+				camera.look_at_from_position(Vector3(0.0, 300.0, 0.0), Vector3.ZERO, Vector3(0.0, 0.0, -1.0))
+			for i in 4:
+				await get_tree().process_frame
+			await RenderingServer.frame_post_draw
+			var shot := viewport.get_texture().get_image()
+			shot.convert(Image.FORMAT_RGBA8)
+			shot.resize(CELL, CELL, Image.INTERPOLATE_LANCZOS)
+			# Прозрачные места заливаются средним цветом дерева: иначе на уменьшенных копиях по краю тёмная кайма.
+			var sum := Vector3.ZERO
+			var weight := 0.0
+			for y in CELL:
+				for x in CELL:
+					var pixel := shot.get_pixel(x, y)
+					sum += Vector3(pixel.r, pixel.g, pixel.b) * pixel.a
+					weight += pixel.a
+			var mean := sum / maxf(weight, 1.0)
+			if view == 1:
+				# Вид сверху — мерка для дальней картинки земли: сколько земли закрывает крона и какого она цвета.
+				crown_area = weight / float(CELL * CELL) * square * square
+				var tone := Color(mean.x, mean.y, mean.z).srgb_to_linear()
+				crown_color = [snappedf(tone.r, 0.0001), snappedf(tone.g, 0.0001), snappedf(tone.b, 0.0001)]
+			for y in CELL:
+				for x in CELL:
+					var pixel := shot.get_pixel(x, y)
+					var color := Vector3(pixel.r, pixel.g, pixel.b) * pixel.a + mean * (1.0 - pixel.a)
+					shot.set_pixel(x, y, Color(color.x, color.y, color.z, pixel.a))
+			var cell := index * 2 + view
+			atlas.blit_rect(shot, Rect2i(0, 0, CELL, CELL), Vector2i((cell % COLUMNS) * CELL, (cell / COLUMNS) * CELL))
+		# Вид сверху ставится на высоте самого широкого места кроны — примерно две трети роста.
+		# cover — площадь кроны модели опорного роста, м²; color — её средний цвет сверху (линейный).
+		table["%s_%02d" % [FloraModels.NAMES[key.x], key.y + 1]] = {"index": index * 2, "size": square, "top": box.end.y * 0.62 / square,
+				"cover": snappedf(crown_area, 0.1), "color": crown_color}
+		instance.queue_free()
+		index += 1
+	atlas.save_png(ProjectSettings.globalize_path("res://assets/models/flora_far.png"))
+	var file := FileAccess.open(ProjectSettings.globalize_path("res://data/flora_far.json"), FileAccess.WRITE)
+	file.store_string(JSON.stringify({"cell": CELL, "columns": COLUMNS, "rows": ROWS, "models": table}, "\t"))
+	file.close()
+	print("ИМПОСТОРЫ: моделей %d, картинка %d×%d — assets/models/flora_far.png, таблица — data/flora_far.json" % [index, CELL * COLUMNS, CELL * ROWS])
+	get_tree().quit(0)
+
+
+func _triangles(mesh: Mesh) -> int:
+	var count := 0
+	for surface in mesh.get_surface_count():
+		var arrays := mesh.surface_get_arrays(surface)
+		var indices: PackedInt32Array = arrays[Mesh.ARRAY_INDEX]
+		count += indices.size() / 3 if not indices.is_empty() else (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+	return count
+
+
 func _read_arguments() -> void:
 	for argument in OS.get_cmdline_user_args():
 		if argument.begins_with("--shots="):
 			_shots_folder = argument.trim_prefix("--shots=")
 		elif argument.begins_with("--world="):
 			_world_index = clampi(argument.trim_prefix("--world=").to_int() - 1, 0, WORLD_PATHS.size() - 1)
+		elif argument.begins_with("--debug-view="):
+			_debug_view = argument.trim_prefix("--debug-view=").to_int()
+		elif argument == "--flora-debug":
+			_flora_debug_wanted = true
+		elif argument == "--bake-impostors":
+			_bake_impostors = true
+		elif argument == "--models-preview":
+			_models_preview = true
+		elif argument == "--scale-audit":
+			_scale_audit = true
+		elif argument == "--no-flora":
+			_no_flora = true
+		elif argument.begins_with("--cloud-debug="):
+			_cloud_debug = argument.trim_prefix("--cloud-debug=").to_int()
+		elif argument == "--no-sun":
+			_no_sun = true
+		elif argument == "--no-sky-reflections":
+			_no_reflections = true
+		elif argument.begins_with("--flora-reference="):
+			var at := argument.trim_prefix("--flora-reference=").split(",")
+			if at.size() == 2:
+				_flora_reference = Vector2(at[0].to_float(), at[1].to_float())
+		elif argument.begins_with("--render-scale="):
+			# Разрешение картинки мира, проценты (100, 77 или 67), — чтобы кадры проверок были как у игрока: у владельца
+			# 67 % с достройкой до полного, и рисунок воды на точках экрана там другой.
+			var wanted := argument.trim_prefix("--render-scale=").to_float() / 100.0
+			for index in RENDER_SCALES.size():
+				if absf(RENDER_SCALES[index] - wanted) < absf(RENDER_SCALES[_render_scale] - wanted):
+					_render_scale = index
+			_render_scale_chosen = true
+		elif argument.begins_with("--light="):
+			_light_code = argument.trim_prefix("--light=")
 		elif argument.begins_with("--view="):
 			_extra_views.append(argument.trim_prefix("--view="))
 		elif argument.begins_with("--finish-update="):

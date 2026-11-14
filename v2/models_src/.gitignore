@@ -1,0 +1,10 @@
+# Исходники моделей из Blender: в репозитории — только то, из чего всё остальное собирается заново
+# (v2/tools/models/build.sh): фотография веток. Вырезанные ветки, атлас листвы, кора и файл .blend — производные.
+vetka_*.png
+listva.png
+listva_n.png
+listva.json
+kora.jpg
+kora_n.jpg
+*.blend
+*.blend1

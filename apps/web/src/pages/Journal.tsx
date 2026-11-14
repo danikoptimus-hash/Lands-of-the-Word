@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type RefObject } from "react";
 import { Link, useParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
 import { api, ApiError, apiReady, ready, type ActivityRowDto, type AwardsDto, type FeedItemDto, type JournalKind, type PeaceTeamDto, type SeasonBookDto, type ServiceStatsDto, type TopDto } from "../lib/api";
@@ -167,12 +167,17 @@ export function FeedSection({ gameId, version, onOpenTask }: { gameId: string; v
 }
 
 export type ServiceTab = "service" | "awards";
+
+/** Вкладки «Моего служения». Стоят в закреплённом верху панели раздела (страница команды), а не в самом разделе: при листании остаются на месте. */
+export function ServiceTabs({ tab, onTab, swipeArea }: { tab: ServiceTab; onTab: (tab: ServiceTab) => void; swipeArea?: RefObject<HTMLElement | null> }) {
+  return <Tabs items={[{ key: "service", label: t("Служение"), icon: "user" }, { key: "awards", label: t("Награды"), icon: "trophy" }]} value={tab} onChange={onTab} ariaLabel={t("Моё служение")} swipeArea={swipeArea} />;
+}
 /**
  * «Моё служение» (раскладка владельца 30.10): две вкладки. «Служение» — сводка участника с плиткой наград, ниже «Рейтинг
  * игроков» со значком числа наград у каждого (только для сведения, на место в рейтинге не влияет). «Награды» — серия дней,
  * свои значки и «Рейтинг наград игроков». Вкладку держит страница команды: кнопка наград над картой открывает «Награды».
  */
-export function MyServiceSection({ gameId, version, awards, tab, onTab }: { gameId: string; version: number; awards: AwardsDto | null; tab: ServiceTab; onTab: (tab: ServiceTab) => void }) {
+export function MyServiceSection({ gameId, version, awards, tab }: { gameId: string; version: number; awards: AwardsDto | null; tab: ServiceTab }) {
   const [s, setS] = useState<ServiceStatsDto | null>(() => ready<ServiceStatsDto>(`/api/games/${gameId}/my-service`));
   const [top, setTop] = useState<TopDto | null>(() => ready<TopDto>(`/api/games/${gameId}/top`));
   useEffect(() => { apiReady<ServiceStatsDto>(`/api/games/${gameId}/my-service`).then(setS).catch(() => {}); apiReady<TopDto>(`/api/games/${gameId}/top`).then(setTop).catch(() => {}); }, [gameId, version]);
@@ -180,7 +185,6 @@ export function MyServiceSection({ gameId, version, awards, tab, onTab }: { game
   const myAwards = awards ? awardsTotal(awards.mine) : null;
   return (
     <section className="section">
-      <Tabs items={[{ key: "service", label: t("Служение"), icon: "user" }, { key: "awards", label: t("Награды"), icon: "trophy" }]} value={tab} onChange={onTab} ariaLabel={t("Моё служение")} />
       {tab === "service" && (<>
         {!s ? <LoadingState rows={1} /> : (
           <div className="service">

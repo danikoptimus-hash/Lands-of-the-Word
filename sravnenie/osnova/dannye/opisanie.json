@@ -1,0 +1,30 @@
+{
+ "mesto": "Корфу, западный берег у Палеокастрицы",
+ "centr_shirota_dolgota": [
+  39.675,
+  19.705
+ ],
+ "storona_m": 11000.0,
+ "razmer": 2048,
+ "shag_m": 5.37109375,
+ "vysota_min_m": -60.0,
+ "vysota_max_m": 640.0,
+ "more_m": 0.0,
+ "osi": "u — на восток, v — на север, от 0 до storona_m; строка 0 картинок — север",
+ "fakt": {
+  "vysshaya_tochka_m": 605.9,
+  "glubzhe_vsego_m": -41.3,
+  "dolya_sushi": 0.517,
+  "dolya_skaly_na_sushe": 0.037,
+  "srednyaya_gustota_derevev_na_sushe": 0.771,
+  "srednyaya_gustota_kustov_na_sushe": 0.264
+ },
+ "rasstanovka": {
+  "opisanie": "сетка со сдвигом: в каждой клетке одна возможная точка; правило — rasstanovka.py",
+  "zerno": 20261113,
+  "derevya_kletka_m": 6.5,
+  "kusty_kletka_m": 3.2,
+  "kamni_kletka_m": 9.0
+ },
+ "istochnik_vysot": "Terrain Tiles (Mapzen, AWS Open Data), плитки terrarium, масштаб 13"
+}

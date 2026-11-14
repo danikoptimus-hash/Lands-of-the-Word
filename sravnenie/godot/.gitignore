@@ -1,0 +1,9 @@
+# Скачиваются и собираются скриптом podgotovka.sh
+addons/
+dannye/
+.godot/
+*.uid
+teksturi/
+CloudsMask.exr
+CloudsMask.exr.import
+nebo/

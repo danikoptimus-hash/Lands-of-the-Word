@@ -40,9 +40,11 @@ ang = rng.uniform(0.0, 2.0 * np.pi, count); dx = np.cos(ang) * 0.05; dz = np.sin
 row = lambda a: np.asarray(a, dtype=np.float32)[None, :]
 h0 = world.height(row(px - dx), row(pz - dz))[0]; h1 = world.height(row(px), row(pz))[0]; h2 = world.height(row(px + dx), row(pz + dz))[0]
 bend = np.abs(h0 - 2.0 * h1 + h2); step = np.maximum(np.abs(h1 - h0), np.abs(h2 - h1))
-summit = (h1 > h0) & (h1 > h2)   # острая вершина горы — излом, но не шов
+# Острая вершина или гребень горы — излом, но не шов: средняя точка выше обеих соседних или выше прямой между ними
+# на высоте гор (у гребня с отвесной стороной склон по одну сторону пологий, по другую — стена).
+summit = ((h1 > h0) & (h1 > h2)) | ((2.0 * h1 > h0 + h2) & (h1 > 60.0))
 bad = np.nonzero(((bend > 0.12) & ~summit) | (step > 0.6))[0]
-print('точек', count, '; наибольший излом на 10 см: %.3f м (острых вершин среди изломов: %d); наибольший перепад на 5 см: %.3f м' % (bend.max(), int(((bend > 0.12) & summit).sum()), step.max()))
+print('точек', count, '; наибольший излом на 10 см: %.3f м (острых вершин и гребней среди изломов: %d); наибольший перепад на 5 см: %.3f м' % (bend.max(), int(((bend > 0.12) & summit).sum()), step.max()))
 print('разрывов:', len(bad))
 for i in bad[:12]: print('   x=%.1f z=%.1f высоты %.2f %.2f %.2f' % (px[i], pz[i], h0[i], h1[i], h2[i]))
 

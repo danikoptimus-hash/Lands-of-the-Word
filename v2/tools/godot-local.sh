@@ -14,10 +14,17 @@
 #   v2/tools/godot-local.sh build ПАПКА              — сборка для Windows, как в конвейере: архив, описание для
 #                                                      самообновления (latest.json) и проверка самообновления;
 #                                                      в ПАПКЕ — ровно то, что выкладывается в канал «тест»
+#   v2/tools/godot-local.sh proekt ПРОЕКТ import ЖУРНАЛЫ            — другой проект Godot (сравнение движков,
+#   v2/tools/godot-local.sh proekt ПРОЕКТ run ЖУРНАЛЫ [ключи]          папка sravnenie/godot): импорт, запуск с
+#   v2/tools/godot-local.sh proekt ПРОЕКТ export ЖУРНАЛЫ НАБОР ФАЙЛ     картинкой и сборка — тем же движком
 # Журналы складываются в ПАПКУ (для check без папки — во временную).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Папка v2/out (кадры, журналы, сборки) лежит внутри проекта: без пометки .gdignore движок импортирует снятые
+# кадры как ресурсы игры и кладёт их в сборку (так архив 0.10.0 вышел вдвое тяжелее — 185 МБ вместо 90).
+mkdir -p "$root/v2/out"
+: > "$root/v2/out/.gdignore"
 workflow="$root/.github/workflows/v2.yml"
 version="$(sed -n 's/^  GODOT_VERSION: "\(.*\)"$/\1/p' "$workflow")"
 checksum="$(sed -n 's/^  GODOT_SHA512: "\(.*\)"$/\1/p' "$workflow")"
@@ -128,7 +135,8 @@ shots() {
 	drivers
 	import_project "$folder"
 	local code=0
-	xvfb-run -a -s "-screen 0 1600x900x24" timeout 1500 \
+	# Материалы земли (шаг 1.3) на программной видеокарте считаются долго: полный прогон пяти карт — около часа.
+	xvfb-run -a -s "-screen 0 1600x900x24" timeout 5400 \
 		"$godot" --path "$root/v2" --rendering-driver vulkan --audio-driver Dummy --resolution 1600x900 \
 		-- "--shots=$folder" "$@" > "$folder/shots.log" 2>&1 || code=$?
 	grep -E "ПРОВЕРКА|ИТОГ|МИР|СБОЙ" "$folder/shots.log" || true
@@ -175,53 +183,78 @@ build() {
 	fi
 	cp "$root/v2/tools/KAK-ZAPUSTIT.txt" "$folder/win/"
 	(cd "$folder/win" && zip -q -9 ../ZemliSlova-v2-test-win64.zip ./*)
-	BUILD_COMMIT="$commit" BUILD_STAMP="$stamp" python3 - "$root" "$folder" <<'PY'
-import hashlib, json, os, re, sys
-
-root, folder = sys.argv[1], sys.argv[2]
-
-def sha256(path):
-    digest = hashlib.sha256()
-    with open(path, "rb") as file:
-        for block in iter(lambda: file.read(1 << 20), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-version = re.search(r'config/version="([^"]+)"', open(os.path.join(root, "v2/project.godot"), encoding="utf-8").read()).group(1)
-archive = os.path.join(folder, "ZemliSlova-v2-test-win64.zip")
-program = os.path.join(folder, "win/ZemliSlova-v2-test.exe")
-manifest = {
-    "format": 1,
-    "version": version,
-    "commit": os.environ["BUILD_COMMIT"],
-    "build": os.environ["BUILD_STAMP"],
-    "file": os.path.basename(archive),
-    "size": os.path.getsize(archive),
-    "sha256": sha256(archive),
-    "exe": os.path.basename(program),
-    "exe_sha256": sha256(program),
-    "notes": open(os.path.join(root, "v2/data/chto_novogo.txt"), encoding="utf-8").read().strip(),
-}
-with open(os.path.join(folder, "latest.json"), "w", encoding="utf-8") as file:
-    json.dump(manifest, file, ensure_ascii=False, indent=2)
-print("Собрано:", json.dumps({key: manifest[key] for key in ("version", "build", "size")}, ensure_ascii=False))
-PY
+	# Описание сборки и, если архив больше предела GitHub, его части (v2/tools/channel.py); папка chasti —
+	# тот же архив мелкими частями, для проверки скачивания частями.
+	BUILD_COMMIT="$commit" BUILD_STAMP="$stamp" python3 "$root/v2/tools/channel.py" "$root" "$folder" --parts-test
 	rm -rf "$folder/win"
-	# Проверка самообновления: программа берёт описание и архив с местного адреса и ставит их, как у владельца.
-	python3 -m http.server 8765 --bind 127.0.0.1 --directory "$folder" > "$folder/http.log" 2>&1 &
-	local server=$!
-	sleep 1
-	local code=0
-	timeout 300 "$godot" --headless --path "$root/v2" -- "--update-test=http://127.0.0.1:8765/" \
-		"--update-target=$folder/updtest/ZemliSlova-v2-test.exe" > "$folder/update.log" 2>&1 || code=$?
-	kill "$server" 2> /dev/null || true
-	rm -rf "$folder/updtest"
-	grep -E "ПРОВЕРКА|ИТОГ" "$folder/update.log" || true
-	if grep -nE "SCRIPT ERROR|Parse Error|НЕ ПРОЙДЕНА" "$folder/update.log" || [ "$code" -ne 0 ]; then
-		echo "Самообновление не прошло проверку — журнал $folder/update.log" >&2
-		return 1
+	# Проверка самообновления: программа берёт описание и архив с местного адреса и ставит их, как у владельца, —
+	# дважды: так, как сборка ляжет в канал, и частями.
+	local served log
+	for served in "$folder" "$folder/chasti"; do
+		log="$folder/update.log"
+		if [ "$served" != "$folder" ]; then
+			log="$folder/update-chasti.log"
+		fi
+		python3 -m http.server 8765 --bind 127.0.0.1 --directory "$served" > "$folder/http.log" 2>&1 &
+		local server=$!
+		sleep 1
+		local code=0
+		timeout 300 "$godot" --headless --path "$root/v2" -- "--update-test=http://127.0.0.1:8765/" \
+			"--update-target=$folder/updtest/ZemliSlova-v2-test.exe" > "$log" 2>&1 || code=$?
+		kill "$server" 2> /dev/null || true
+		wait "$server" 2> /dev/null || true
+		rm -rf "$folder/updtest"
+		grep -E "ПРОВЕРКА|ИТОГ" "$log" || true
+		if grep -nE "SCRIPT ERROR|Parse Error|НЕ ПРОЙДЕНА" "$log" || [ "$code" -ne 0 ]; then
+			echo "Самообновление не прошло проверку — журнал $log" >&2
+			return 1
+		fi
+	done
+	rm -rf "$folder/chasti"
+	echo "Сборка готова: $folder (latest.json и файлы ZemliSlova-v2-test-win64.zip* — то, что выкладывается в канал «тест»)"
+}
+
+# Другой проект Godot тем же движком (сцена для сравнения движков): импорт, запуск с картинкой, сборка.
+proekt() {
+	if [ $# -lt 3 ]; then
+		echo "Нужно: proekt ПАПКА_ПРОЕКТА import|run|export ПАПКА_ЖУРНАЛОВ [...]" >&2
+		exit 1
 	fi
-	echo "Сборка готова: $folder (latest.json и архив — то, что выкладывается в канал «тест»)"
+	local project action folder
+	project="$(cd "$1" && pwd)"
+	action="$2"
+	mkdir -p "$3"
+	folder="$(cd "$3" && pwd)"
+	shift 3
+	engine
+	case "$action" in
+		import)
+			"$godot" --headless --path "$project" --import > "$folder/import.log" 2>&1 || true
+			grep -nE "SCRIPT ERROR|Parse Error|Compile Error|Failed to load script|ERROR" "$folder/import.log" | head -20 || true
+			;;
+		run)
+			drivers
+			local code=0
+			xvfb-run -a -s "-screen 0 1600x900x24" timeout 3600 \
+				"$godot" --path "$project" --rendering-driver vulkan --audio-driver Dummy --resolution 1600x900 \
+				-- "$@" > "$folder/run.log" 2>&1 || code=$?
+			grep -E "ПРОВЕРКА|ИТОГ|КАДР|СБОЙ" "$folder/run.log" || true
+			grep -nE "SCRIPT ERROR|SHADER ERROR|Shader compilation failed|Parse Error" "$folder/run.log" | head -20 || true
+			return "$code"
+			;;
+		export)
+			templates
+			"$godot" --headless --path "$project" --export-release "$1" "$2" > "$folder/export.log" 2>&1 || true
+			if [ ! -s "$2" ]; then
+				echo "Сборка не получилась — журнал $folder/export.log" >&2
+				return 1
+			fi
+			;;
+		*)
+			echo "Неизвестное действие: $action" >&2
+			exit 1
+			;;
+	esac
 }
 
 command="${1:-}"
@@ -240,8 +273,11 @@ case "$command" in
 	build)
 		build "$@"
 		;;
+	proekt)
+		proekt "$@"
+		;;
 	*)
-		sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+		sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 		exit 1
 		;;
 esac

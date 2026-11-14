@@ -72,11 +72,11 @@ class Islet:
 
 	## Во сколько раз высоты острова на карте больше, чем в каталоге: высоты растут медленнее размера.
 	func height_scale() -> float:
-		return pow(radius / WorldData.design_value(design, "size", radius), 0.75)
+		return pow(radius / HexMath.WORLD_SCALE / WorldData.design_value(design, "size", radius / HexMath.WORLD_SCALE), 0.75)
 
 	## Квадрат, в который вписана суша острова.
 	func area() -> Rect2:
-		var half := reach() * 1.03 + 12.0
+		var half := reach() * 1.03 + 12.0 * HexMath.WORLD_SCALE
 		return Rect2(position - Vector2(half, half), Vector2(half, half) * 2.0)
 
 
@@ -102,6 +102,24 @@ const DESIGN_TITLES := {
 	12: "Каменоломня",
 }
 const QUARRY_DESIGN := 12
+## Какая земля на острове каталога (для поверхностей, шаг 1.3): доли пустыни, холмов, лугов и гор.
+const DESIGN_BIOME := {
+	1: Vector4(0.0, 0.15, 0.25, 0.6),
+	2: Vector4(0.15, 0.75, 0.0, 0.1),
+	3: Vector4(0.0, 0.1, 0.9, 0.0),
+	4: Vector4(0.1, 0.35, 0.55, 0.0),
+	5: Vector4(0.0, 0.2, 0.2, 0.6),
+	6: Vector4(0.1, 0.5, 0.0, 0.4),
+	7: Vector4(0.0, 0.7, 0.3, 0.0),
+	8: Vector4(0.9, 0.1, 0.0, 0.0),
+	9: Vector4(0.0, 0.3, 0.2, 0.5),
+	10: Vector4(0.0, 0.2, 0.2, 0.6),
+	11: Vector4(0.0, 0.1, 0.5, 0.4),
+	12: Vector4(0.05, 0.7, 0.15, 0.1),
+}
+## Камень острова каталога: 0 — тёплый известняк, 1 — красный слоистый песчаник, 2 — серый гранит с лишайником,
+## 3 — тёмная вулканическая порода.
+const DESIGN_ROCK := {2: 1, 6: 1, 9: 2, 10: 2, 11: 3}
 
 var title := ""
 var map_seed := 0
@@ -171,8 +189,9 @@ static func load_file(path: String) -> WorldData:
 			push_error("Малых островов больше, чем помещается в рельеф: %s" % path)
 			break
 		var islet := Islet.new()
-		islet.position = Vector2(float(row[0]), float(row[1]))
-		islet.radius = float(row[2])
+		# В файле мира малые острова записаны в координатах доски; в мире они в WORLD_SCALE раз дальше и больше.
+		islet.position = Vector2(float(row[0]), float(row[1])) * HexMath.WORLD_SCALE
+		islet.radius = float(row[2]) * HexMath.WORLD_SCALE
 		islet.design = int(row[3])
 		islet.angle = float(row[4])
 		islet.mirror = -1.0 if float(row[5]) < 0.0 else 1.0
@@ -250,6 +269,7 @@ func apply_hex_uniforms(material: ShaderMaterial) -> void:
 
 
 ## Всё, что нужно функции высот: карта партии, зерно и сдвиг шума, берег главных островов и малые острова.
+## Функция высот считает в координатах доски (см. HexMath): всё метрическое отдаётся ей делённым на WORLD_SCALE.
 func apply_height_uniforms(material: ShaderMaterial) -> void:
 	apply_hex_uniforms(material)
 	material.set_shader_parameter("noise_offset", noise_offset())
@@ -265,7 +285,7 @@ func apply_height_uniforms(material: ShaderMaterial) -> void:
 		if coast_count >= MAX_COAST_CELLS:
 			push_error("Клеток берега больше, чем помещается в рельеф: шельф вдали от берега будет неточным")
 			break
-		coast[coast_count] = cell.center()
+		coast[coast_count] = cell.center() / HexMath.WORLD_SCALE
 		coast_count += 1
 	material.set_shader_parameter("coast_cells", coast)
 	material.set_shader_parameter("coast_count", coast_count)
@@ -277,15 +297,20 @@ func apply_height_uniforms(material: ShaderMaterial) -> void:
 	var ready := load_designs()
 	var islet_count := mini(islets.size(), MAX_ISLETS) if ready else 0
 	for i in islet_count:
-		centres[i] = islets[i].position
-		frames[i] = Vector4(islets[i].radius, float(islets[i].design), islets[i].angle, islets[i].mirror)
+		centres[i] = islets[i].position / HexMath.WORLD_SCALE
+		frames[i] = Vector4(islets[i].radius / HexMath.WORLD_SCALE, float(islets[i].design), islets[i].angle, islets[i].mirror)
 	var info := PackedVector4Array()
 	info.resize(MAX_DESIGNS)
+	var biomes := PackedVector4Array()
+	biomes.resize(MAX_DESIGNS)
 	for number: int in _designs:
 		var d: Dictionary = _designs[number]
 		info[number - 1] = Vector4(d["size"], d["shelf"], d["lake_level"], d["reach"])
+		biomes[number - 1] = DESIGN_BIOME.get(number, Vector4(0.0, 0.5, 0.5, 0.0))
+	material.set_shader_parameter("design_biome", biomes)
 	# Прямоугольник мира: дальше него подводный рельеф затухает к ровной глубине.
-	material.set_shader_parameter("world_rect", Vector4(content_rect.position.x, content_rect.position.y, content_rect.end.x, content_rect.end.y))
+	var board_rect := Rect2(content_rect.position / HexMath.WORLD_SCALE, content_rect.size / HexMath.WORLD_SCALE)
+	material.set_shader_parameter("world_rect", Vector4(board_rect.position.x, board_rect.position.y, board_rect.end.x, board_rect.end.y))
 	material.set_shader_parameter("islet_centre", centres)
 	material.set_shader_parameter("islet_frame", frames)
 	material.set_shader_parameter("islet_count", islet_count)

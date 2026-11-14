@@ -35,7 +35,7 @@ import { Help, HelpPopup } from "../components/Help";
 import { ActionMenu, type MenuItem } from "../components/ActionMenu";
 import { StatChip } from "../components/StatChip";
 import { DeedBadgePopup, untilText } from "../components/DeedBadge";
-import { FeedSection, MyServiceSection, type ServiceTab } from "./Journal";
+import { FeedSection, MyServiceSection, ServiceTabs, type ServiceTab } from "./Journal";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { AvatarLightbox } from "../components/AvatarLightbox";
 import { peaceTerm } from "../components/PeaceActions";
@@ -687,16 +687,33 @@ export function TeamPage() {
           раздела рядом, повторное нажатие на ту же плитку или нажатие на карту закрывает её. */}
       {menuOpen && (
         <aside ref={sideRef} className="side-menu" role="dialog" aria-modal={true} aria-label={t("Меню команды")} onScroll={rememberScroll}>
-          <div className="side-body" ref={sideBodyRef} onScroll={rememberScroll}>
-          {/* Шапка команды и заголовок раздела прилипают вместе одним блоком (решение владельца 24.10: «листаю список внизу, а заголовок и подзаголовок видны так же, как до того»). */}
           {/* Заголовок панели (решение владельца 30.10: «на его месте оставить только значок раздела и название раздела,
-              что гораздо экономнее по месту и минималистичнее»): значок, название раздела, крестик. Шапки команды нет. */}
-          <div className="side-top">
+              что гораздо экономнее по месту и минималистичнее»): значок, название раздела, крестик. Шапки команды нет.
+              Верх панели закреплён целиком (правка 14.11, по замечаниям игроков: «вкладки наползают на шапку», «пусть весь
+              верх будет закреплён, а листаются только награды»): заголовок и главные вкладки раздела стоят над областью
+              прокрутки, листается только содержимое. Раньше заголовок и вкладки прилипали к одной точке, и вкладки
+              ложились поверх заголовка. Подложки у вкладок нет — под ними фон панели, как раньше (владелец 14.11).
+              Свайп по содержимому переключает вкладки, как и прежде (область — .side-body). */}
+          <div className={"side-top" + (view === "battles" || view === "standings" || view === "service" ? " with-tabs" : "")}>
             <div className="menu-sub">
               <h2><Icon name={MENU_ITEMS.find((m) => m.key === view)?.icon ?? "map"} />{MENU_ITEMS.find((m) => m.key === view)?.label()}</h2>
               <button type="button" className="ghost icon" onClick={closeMenu} aria-label={t("Закрыть")}><Icon name="x" /></button>
             </div>
+            {view === "battles" && (
+              <div className="side-tabs">
+                <Tabs items={[{ key: "defense", label: t("Оборона"), icon: "shield", count: defending.length }, { key: "challenge", label: t("Вызовы"), icon: "wave", count: challenging.length }]} value={battlesShown} onChange={setBattlesTab} ariaLabel={t("Испытания")} swipeArea={sideBodyRef} />
+                <Tabs items={[{ key: "active", label: t("Идут"), count: battlesActive.length || undefined }, { key: "done", label: t("Завершённые"), count: battlesDone.length || undefined }]} value={battlesPhaseShown} onChange={setBattlesPhase} ariaLabel={t("Какие испытания показывать")} swipe={false} />
+              </div>
+            )}
+            {/* Две вкладки (раскладка владельца 30.10): рейтинг команд с составом, проходами и миром; награды команд — сетка своей и рейтинг наград. */}
+            {view === "standings" && (
+              <div className="side-tabs">
+                <Tabs items={[{ key: "rating", label: t("Рейтинг команд"), icon: "crown" }, { key: "awards", label: t("Награды команд"), icon: "trophy" }]} value={standingsTab} onChange={setStandingsTab} ariaLabel={t("Команды")} swipeArea={sideBodyRef} />
+              </div>
+            )}
+            {view === "service" && <div className="side-tabs"><ServiceTabs tab={serviceTab} onTab={setServiceTab} swipeArea={sideBodyRef} /></div>}
           </div>
+          <div className="side-body" ref={sideBodyRef} onScroll={rememberScroll}>
           {view === "attention" && (
             rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 || returnedEntries.length > 0 || returnedBlocks.length > 0 || newWrecks.length > 0 || newQuarry.length > 0 || arrivals.length > 0 ? (
                 <section className="section attention">
@@ -791,8 +808,6 @@ export function TeamPage() {
           )}
           {menuView === "battles" && (
             <section className="section">
-            <Tabs items={[{ key: "defense", label: t("Оборона"), icon: "shield", count: defending.length }, { key: "challenge", label: t("Вызовы"), icon: "wave", count: challenging.length }]} value={battlesShown} onChange={setBattlesTab} ariaLabel={t("Испытания")} />
-            <Tabs items={[{ key: "active", label: t("Идут"), count: battlesActive.length || undefined }, { key: "done", label: t("Завершённые"), count: battlesDone.length || undefined }]} value={battlesPhaseShown} onChange={setBattlesPhase} ariaLabel={t("Какие испытания показывать")} swipe={false} />
             {battlesList.length === 0 ? <EmptyState inline icon={battlesShown === "defense" ? "shield" : "wave"} text={battlesPhaseShown === "done" ? (battlesShown === "defense" ? t("Завершённых испытаний ваших городов нет.") : t("Завершённых вызовов нет.")) : battlesShown === "defense" ? t("Вызовов нашим городам сейчас нет.") : t("Наших вызовов сейчас нет.")} /> : (
               <ul className="list interactive">
                 {battlesList.map((b) => {
@@ -820,8 +835,6 @@ export function TeamPage() {
           )}
           {menuView === "standings" && (
             <section className="section">
-            {/* Две вкладки (раскладка владельца 30.10): рейтинг команд с составом, проходами и миром; награды команд — сетка своей и рейтинг наград. */}
-            <Tabs items={[{ key: "rating", label: t("Рейтинг команд"), icon: "crown" }, { key: "awards", label: t("Награды команд"), icon: "trophy" }]} value={standingsTab} onChange={setStandingsTab} ariaLabel={t("Команды")} />
             {standingsTab === "awards" && (!awards ? <LoadingState rows={2} /> : (<>
               <TeamAwardsBlock data={awards} />
               <AwardRating
@@ -837,7 +850,7 @@ export function TeamPage() {
           {menuView === "standings" && standingsTab === "rating" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
           {menuView === "standings" && standingsTab === "rating" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} onChanged={() => { void loadMap(); void loadStandings(); }} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} onOpenTask={(tid) => { if (map.tasks.some((tk) => tk.id === tid)) showOnMap(tid); else notify(t("Дело уже не на карте"), "info"); }} />}
-          {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} awards={awards} tab={serviceTab} onTab={setServiceTab} />}
+          {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} awards={awards} tab={serviceTab} />}
           </div>
         </aside>
       )}

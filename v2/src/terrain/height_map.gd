@@ -11,7 +11,7 @@ var lowest := 0.0
 var highest := 0.0
 ## Высоты соседних областей (малые острова запекаются отдельно): точку вне своей области ищем в них.
 var extras: Array[HeightMap] = []
-var outside := -60.0  ## высота там, где ничего не запечено: открытое море
+var outside := -60.0 * HexMath.WORLD_SCALE  ## высота там, где ничего не запечено: открытое море
 
 var _data := PackedFloat32Array()
 
@@ -37,6 +37,11 @@ static func from_image(image: Image, world_rect: Rect2) -> HeightMap:
 	map.lowest = low
 	map.highest = high
 	return map
+
+
+## Высоты как есть: строка за строкой, width × height чисел (для быстрых проходов по всей карте).
+func raw() -> PackedFloat32Array:
+	return _data
 
 
 ## Высота в точке мира (x, z), метры над уровнем моря.
