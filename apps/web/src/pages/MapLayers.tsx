@@ -623,10 +623,55 @@ const DASHED = new Set(["empty"]);
 export function MapSymbols() {
   return (
     <defs>
+      {/* Огонь приоритетного дела (DeedFire): наружный язык — от тёмно-красного к оранжевому, внутренний — к жёлтому, зарево. */}
+      <linearGradient id="m-fire-out" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#b3261a" /><stop offset=".55" stopColor="#e2571c" /><stop offset="1" stopColor="#f59e0b" /></linearGradient>
+      <linearGradient id="m-fire-in" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#f97316" /><stop offset=".6" stopColor="#fbbf24" /><stop offset="1" stopColor="#fde68a" /></linearGradient>
+      <linearGradient id="m-fire-core" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stopColor="#fcd34d" /><stop offset="1" stopColor="#fffbe6" /></linearGradient>
+      <radialGradient id="m-fire-glow"><stop offset="0" stopColor="#fbbf24" stopOpacity=".8" /><stop offset=".5" stopColor="#f59e0b" stopOpacity=".36" /><stop offset="1" stopColor="#f59e0b" stopOpacity="0" /></radialGradient>
       {Object.entries(SYMBOLS).map(([name, d]) => (
         <symbol key={name} id={`m-${name}`} viewBox="0 0 24 24"><path d={d} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" strokeDasharray={DASHED.has(name) ? "3 2.2" : undefined} /></symbol>
       ))}
     </defs>
+  );
+}
+
+/** Язык пламени каплей: основание (bx, by), ширина w, высота h, наклон вершины lean. */
+function tongue(bx: number, by: number, w: number, h: number, lean: number): string {
+  const f = (n: number) => n.toFixed(2);
+  return `M${f(bx - w / 2)},${f(by)} C${f(bx - w / 2)},${f(by - h * 0.42)} ${f(bx + lean - w * 0.16)},${f(by - h * 0.62)} ${f(bx + lean)},${f(by - h)} `
+    + `C${f(bx + lean + w * 0.1)},${f(by - h * 0.58)} ${f(bx + w / 2)},${f(by - h * 0.4)} ${f(bx + w / 2)},${f(by)} C${f(bx + w / 2)},${f(by + w * 0.42)} ${f(bx - w / 2)},${f(by + w * 0.42)} ${f(bx - w / 2)},${f(by)}Z`;
+}
+type FireTongue = [layer: "out" | "in" | "core", bx: number, by: number, w: number, h: number, lean: number, flick: number];
+/** Языки огня позади кружка радиуса 12: [слой, основание x, y, ширина, высота, наклон, номер мерцания]. Основания спрятаны за кружком. */
+const FIRE_BACK: FireTongue[] = [
+  ["out", -9.5, -1, 14, 23, -3, 2], ["out", 9.5, -2, 14, 25, 2.6, 1], ["out", 0.5, -4, 20, 31, 1.5, 0],
+  ["in", -9, -3.5, 8.5, 14, -1.8, 1], ["in", 9, -4.5, 8.5, 15.5, 1.8, 3], ["in", 0.5, -7, 12, 20, 1, 2],
+  ["core", 0.5, -10, 6.5, 11, 0.6, 4],
+];
+/** Языки поверх кружка: огонь заходит на нижние края метки с двух сторон — горит сам свиток, а не костёр за ним. Середину со значком не закрывают. */
+const FIRE_FRONT: FireTongue[] = [
+  ["out", -9.2, 11.2, 7.5, 11.5, -2.4, 3], ["in", -9.3, 11, 4.2, 6.5, -1.4, 1],
+  ["out", 9.4, 11.4, 7.5, 12.5, 2.6, 4], ["in", 9.5, 11.2, 4.2, 7, 1.5, 2],
+];
+const fireTongues = (list: FireTongue[]) => list.map(([layer, bx, by, w, h, lean, flick], i) => <path key={i} className={`tongue ${layer} k${flick}`} d={tongue(bx, by, w, h, lean)} fill={`url(#m-fire-${layer})`} />);
+/**
+ * Огонь приоритетного дела (решение владельца 14.11: «свиток как бы горит огнём, анимация»). Две части: `back` рисуется
+ * до кружка метки — зарево, большие языки в три слоя и искры; `front` — после значка: малые языки заходят на нижние края
+ * кружка. Движение — в CSS (.deed-fire, player.css): у каждого языка своё мерцание; без движения
+ * (prefers-reduced-motion) огонь стоит. Нажатия сквозь огонь проходят к метке.
+ */
+export function DeedFire({ r, part }: { r: number; part: "back" | "front" }) {
+  return (
+    <g className={"deed-fire " + part} transform={`scale(${(r / 12).toFixed(3)})`} aria-hidden="true">
+      {/* Зарево и искры — эллипсами, а не кругами: правила кружка метки (.m-deed circle) их не касаются. */}
+      {part === "back" && <ellipse className="glow" rx={33} ry={33} cy={-6} fill="url(#m-fire-glow)" />}
+      {fireTongues(part === "back" ? FIRE_BACK : FIRE_FRONT)}
+      {part === "back" && <>
+        <ellipse className="spark s0" rx={1.4} ry={1.4} cx={-6} cy={-24} />
+        <ellipse className="spark s1" rx={1.2} ry={1.2} cx={7} cy={-27} />
+        <ellipse className="spark s2" rx={1.1} ry={1.1} cx={1} cy={-34} />
+      </>}
+    </g>
   );
 }
 

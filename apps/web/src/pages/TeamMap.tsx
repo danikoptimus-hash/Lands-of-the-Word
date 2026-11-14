@@ -12,8 +12,8 @@ import { FOG_COLOR } from "../lib/hexmap";
 import { RoutesGL } from "./RoutesGL";
 /** Морские пути на WebGL (Э3) — по умолчанию; `?routes=canvas` — прежний способ на холсте живности (и запасной путь без WebGL). */
 const GL_ROUTES_DEFAULT = typeof location === "undefined" || !/[?&]routes=canvas/.test(location.search);
-import type { DailyBirdDto, EdgeTaskStatus, MapHexDto, MapMarkDto, MyMapDto } from "../lib/api";
-import { CoastOver, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
+import { deedPriority, type DailyBirdDto, type EdgeTaskStatus, type MapHexDto, type MapMarkDto, type MyMapDto } from "../lib/api";
+import { CoastOver, DeedFire, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
 import { FaunaLayer, trimRoute, type FireSite, type WreckSpec } from "./Fauna";
@@ -502,23 +502,30 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             }
             const sel = tk.id === selectedTaskId;
             const r = sel ? RM + 2 : RM;
+            // Приоритет капитана (решение владельца 14.11): свиток дела горит — огонь позади кружка метки.
+            const prio = deedPriority(tk);
             return (
-              <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "")} onClick={() => click(tk.id)}>
+              <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "") + (prio ? " priority" : "")} onClick={() => click(tk.id)}>
                 <g style={scm(m.x, m.y)}>
+                  {prio && <DeedFire r={r} part="back" />}
                   <circle r={r} />
                   <use href={`#m-${DEED_SYMBOL[tk.status]}`} x={-r * 0.6} y={-r * 0.6} width={r * 1.2} height={r * 1.2} />
+                  {prio && <DeedFire r={r} part="front" />}
                 </g>
               </g>
             );
           })}
           {ships.map(({ tk, x, y, port }) => {
             const sel = tk.id === selectedTaskId, r = (sel ? RM + 2 : RM) + 2;
+            const prio = deedPriority(tk);
             return (
-              <g key={"ship" + tk.id} data-id={tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
+              <g key={"ship" + tk.id} data-id={tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "") + (prio ? " priority" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
                 <line className="mooring" x1={port.x} y1={port.y} x2={x} y2={y} />
                 <g style={scm(x, y)}>
+                  {prio && <DeedFire r={r} part="back" />}
                   <circle r={r} />
                   <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
+                  {prio && <DeedFire r={r} part="front" />}
                 </g>
               </g>
             );
