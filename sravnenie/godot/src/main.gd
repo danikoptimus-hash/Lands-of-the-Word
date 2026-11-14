@@ -47,7 +47,10 @@ var dome_size := 2048
 var dome_bands := 32
 var dome_front := 0  ## какая из двух картинок показывается
 var dome_cursor := 0  ## сколько полос второй картинки уже посчитано
-var dome_full := true  ## следующую картинку посчитать целиком за один кадр
+var dome_full := true  ## картинку надо посчитать заново и быстро (сменилось небо или качество)
+var dome_instant := false  ## считать её при этом целиком за один кадр (режим кадров) или за несколько (у владельца)
+var dome_fill_bands := 32  ## на сколько полос делится идущий сейчас расчёт
+var dome_clearing := true  ## в этом кадре обе картинки очищаются (созданы или сменили размер)
 var dome_fade := DOME_FADE  ## сколько кадров новая картинка уже проявляется поверх прежней
 var snap_times := [0.0, 0.0]
 var snap_places := [Vector3.ZERO, Vector3.ZERO]
@@ -169,9 +172,10 @@ func _build_sky() -> void:
 		view.disable_3d = true
 		view.transparent_bg = true
 		view.use_hdr_2d = true
-		view.render_target_clear_mode = SubViewport.CLEAR_MODE_NEVER
-		view.render_target_update_mode = SubViewport.UPDATE_DISABLED
+		view.render_target_clear_mode = SubViewport.CLEAR_MODE_ONCE
+		view.render_target_update_mode = SubViewport.UPDATE_ONCE
 		var rect := ColorRect.new()
+		rect.size = Vector2.ZERO
 		rect.material = dome_material
 		view.add_child(rect)
 		add_child(view)
@@ -260,6 +264,7 @@ func set_quality(level: int) -> void:
 		dome_bands = QUALITY[quality][3]
 		for view in dome_views:
 			view.size = Vector2i(dome_size, dome_size)
+		_dome_clear()
 		dome_material.set_shader_parameter("dome_size", float(dome_size))
 		sky_dome.set_shader_parameter("dome_size", float(dome_size))
 		dome_full = true
@@ -270,40 +275,62 @@ func set_quality(level: int) -> void:
 
 ## За сколько кадров новая картинка купола проявляется поверх прежней.
 const DOME_FADE := 8
+## На сколько кадров делится срочный расчёт картинки (после смены неба или качества). Целиком за один кадр
+## её считать нельзя: это в восемь раз дольше обычного кадра прямого расчёта, а долгий кадр видеокарта может
+## счесть зависанием.
+const DOME_RUSH := 8
 
 
 ## Шаг обновления купола, раз в кадр. Вторая картинка считается полосами; когда готова вся — она за несколько
-## кадров проявляется поверх прежней, и картинки меняются местами. После смены неба или качества картинка
-## считается целиком за один кадр.
+## кадров проявляется поверх прежней, и картинки меняются местами. После смены неба или качества расчёт
+## начинается заново и идёт быстрее.
 func _dome_tick() -> void:
 	if not dome_active or camera == null:
 		return
 	if dome_full:
 		dome_full = false
-		_dome_snapshot(dome_front)
-		_dome_draw(dome_front, 0, dome_size)
-		dome_fade = DOME_FADE
-		_dome_show()
 		dome_cursor = 0
+		dome_fade = DOME_FADE
+		if dome_instant:
+			dome_clearing = false
+			_dome_snapshot(dome_front)
+			_dome_draw(dome_front, 0, dome_size)
+			_dome_show()
+			return
+		dome_fill_bands = DOME_RUSH
+		_dome_show()
+	if dome_clearing:
+		# Этот кадр уходит на очистку обеих картинок; расчёт начнётся со следующего.
+		dome_clearing = false
 		return
 	if dome_fade < DOME_FADE:
 		# Прежняя картинка ещё видна — в неё пока не пишем.
 		dome_fade += 1
 		sky_dome.set_shader_parameter("dome_blend", float(dome_fade) / DOME_FADE)
 		return
-	if dome_cursor >= dome_bands:
+	if dome_cursor >= dome_fill_bands:
 		dome_front = 1 - dome_front
 		dome_fade = 0
 		_dome_show()
 		dome_cursor = 0
+		dome_fill_bands = dome_bands
 		return
 	var back := 1 - dome_front
 	if dome_cursor == 0:
 		_dome_snapshot(back)
 	@warning_ignore("integer_division")
-	var band := dome_size / dome_bands
+	var band := dome_size / dome_fill_bands
 	_dome_draw(back, dome_cursor * band, band)
 	dome_cursor += 1
+
+
+## Очистить обе картинки купола (в начале и после смены их размера: содержимое новой картинки не определено).
+func _dome_clear() -> void:
+	dome_clearing = true
+	for i in 2:
+		dome_rects[i].size = Vector2.ZERO
+		dome_views[i].render_target_clear_mode = SubViewport.CLEAR_MODE_ONCE
+		dome_views[i].render_target_update_mode = SubViewport.UPDATE_ONCE
 
 
 ## Запомнить момент и место, в которые снимается картинка, и передать их её расчёту.
@@ -575,7 +602,8 @@ func _probe() -> void:
 		wide = step[2]
 		camera.fov = 90.0 if wide else 35.0
 		_update_help()
-		for i in 4:
+		# Срочный расчёт картинки купола и её проявление.
+		for i in DOME_RUSH + DOME_FADE + 4:
 			await get_tree().process_frame
 		var t0 := Time.get_ticks_usec()
 		await RenderingServer.frame_post_draw
@@ -583,38 +611,39 @@ func _probe() -> void:
 		get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-%s-%d.png" % [step[0], step[1]]))
 		print("ПРОВЕРКА образец: небо ", step[0], ", качество ", QUALITY[quality][0], ", кадр ", snappedf(ms, 0.1), " мс, окно ",
 				get_window().size, ", доля разрешения ", get_viewport().scaling_3d_scale)
-	# Обновление купола полосами при летящей камере: кадр в середине первого круга (показывается картинка,
-	# снятая 20 кадров и 200 м назад), кадр в середине проявления новой картинки, кадр после смены и — для
-	# сравнения — тот же момент с картинкой, посчитанной заново. Расхождение двух последних — ошибка пересчёта
-	# направления.
+	# Обновление купола полосами при летящей камере (10 м за кадр): кадр в середине обычного круга, кадр
+	# в середине проявления новой картинки, кадр после смены и — для сравнения — тот же момент с картинкой,
+	# посчитанной заново. Расхождение двух последних — ошибка пересчёта направления.
 	set_sky("den")
 	set_quality(2)
 	camera.fov = 59.0
 	camera.look_at_from_position(at(4300.0, 4000.0, 420.0), at(6000.0, 6000.0, 2600.0), Vector3.UP)
 	help.visible = false
-	for frame in range(1, 51):
+	for frame in range(1, 63):
 		camera.position += Vector3(10.0, 0.0, 4.0)
 		await get_tree().process_frame
-		if frame == 20 or frame == 38 or frame == 50:
+		if frame == 30 or frame == 54 or frame == 62:
 			await RenderingServer.frame_post_draw
 			get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-kupol-%d.png" % frame))
 			print("ПРОВЕРКА купол: кадр ", frame, ", полос посчитано ", dome_cursor, ", показывается картинка ", dome_front,
 					", ей ", snappedf(sky_time - float(snap_times[dome_front]), 0.01), " с, сдвиг камеры ",
 					snappedf(camera.position.distance_to(snap_places[dome_front]), 1.0), " м")
 	set_process(false)
+	dome_instant = true
 	dome_full = true
 	_sky_moment()
 	_dome_tick()
 	for i in 2:
 		await get_tree().process_frame
 	await RenderingServer.frame_post_draw
-	get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-kupol-50-zanovo.png"))
+	get_viewport().get_texture().get_image().save_png(probe_dir.path_join("proba-kupol-62-zanovo.png"))
 	print("ИТОГ проба образца пройдена")
 
 
 func _shots() -> void:
 	DirAccess.make_dir_recursive_absolute(shots_dir)
 	get_viewport().scaling_3d_scale = shot_scale
+	dome_instant = true
 	var dome_place := Vector3.INF
 	# Небо под землю светит через карту отражений, она обновляется по частям — нужно несколько кадров.
 	camera.look_at_from_position(at(600.0, 900.0, 5200.0), at(6300.0, 6000.0, 100.0), Vector3.UP)
