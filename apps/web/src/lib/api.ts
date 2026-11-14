@@ -3,16 +3,6 @@ export class ApiError extends Error {
   constructor(public status: number, message: string, public issues?: Array<{ path: string; message: string }>) { super(message); }
 }
 
-/** Загрузка файла (аватарка, решение владельца 24.10): multipart, без JSON-заголовка. */
-export async function apiUpload<T = unknown>(url: string, file: Blob, name = "file"): Promise<T> {
-  const fd = new FormData();
-  fd.append("file", file, name);
-  const res = await fetch(url, { method: "POST", body: fd, credentials: "same-origin" });
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new ApiError(res.status, data.message ?? "Ошибка запроса", data.issues);
-  return data as T;
-}
 export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(url, {
     ...init,
@@ -38,7 +28,7 @@ export function prefetch(urls: string[]): void { for (const u of urls) if (!READ
 /** При входе и выходе память очищается: ответы принадлежат учётке. */
 export function clearReady(): void { READY.clear(); }
 
-export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean; /** Аватарка (решение владельца 24.10). */ avatarId?: string | null; /** Суперадмин запретил ставить аватарки. */ avatarBlocked?: boolean }
+export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean; /** Аватарка: код картинки из набора игры (решение владельца 14.11). */ avatarId?: string | null }
 /** Какие способы входа включены на сервере (GET /api/auth/providers). */
 export interface ProvidersDto { google: boolean }
 export interface GameSummary { id: string; name: string; status: string; teamCount: number; mapSeed: number | null; createdAt: string; createdById?: string }

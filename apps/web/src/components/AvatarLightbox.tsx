@@ -5,7 +5,8 @@ import { t } from "../lib/i18n";
 import { plural } from "../lib/format";
 import { Icon } from "./Icon";
 import { AwardBadge, AwardSheet, preloadAwardImages } from "../pages/Awards";
-import { AvatarUploader } from "./AvatarUploader";
+import { avatarImage } from "@lotw/domain";
+import { AvatarPicker } from "./AvatarPicker";
 import { InviteButtons } from "./InviteButtons";
 import { PeaceActions } from "./PeaceActions";
 import { useAuth } from "../lib/auth";
@@ -15,8 +16,8 @@ import type { AwardGrantDto } from "../lib/api";
  * Крупный показ аватарки по нажатию (решение владельца 24.10: «отобразиться по центру экрана крупнее»).
  * Внутри игры (решение владельца 29.10) — карточка участника: фото крупно, игровой ник, команда и роль, серия и личные
  * награды; данные берутся по id участника и игре из адреса страницы. Закрывается нажатием в любом месте или Esc.
- * Профиль команды (решение владельца 04.11): капитан ставит или меняет фото команды нажатием на само фото здесь же;
- * отдельного блока в составе больше нет.
+ * Профиль команды (решения владельца 04.11 и 14.11): капитан выбирает герб команды из набора игры нажатием на сам герб
+ * здесь же; отдельного блока в составе нет.
  */
 export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: gameIdProp, onClose }: { avatarId: string | null; name: string; userId?: string; /** Команда игры: карточка с её наградами. */ teamId?: string; color?: string; /** Игра, если её нет в адресе страницы. */ gameId?: string; onClose: () => void }) {
   const gameId = gameIdProp ?? (typeof window !== "undefined" ? /\/games\/([^/]+)/.exec(window.location.pathname)?.[1] : undefined);
@@ -44,15 +45,16 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
   // начинается выше, а всё окно прокручивается — ни одна награда не обрезается.
   const many = ((teamUrl ? teamCard?.awards.length : card?.awards.length) ?? 0) >= 8;
   const boxClass = "avatar-lightbox" + (many ? " many" : "");
-  const photo = avatarId ? <img src={`/api/avatars/${avatarId}`} alt={name} /> : <span className="letter" aria-hidden="true" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{name.slice(0, 1).toUpperCase()}</span>;
+  const big = (code: string | null) => avatarImage(code, "lg");
+  const photo = big(avatarId) ? <img src={big(avatarId)!} alt={name} /> : <span className="letter" aria-hidden="true" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{name.slice(0, 1).toUpperCase()}</span>;
   if (teamUrl) {
     // Свежая аватарка — из карточки (после замены родитель узнаёт о ней позже, по событию «состав»).
     const teamAvatarId = teamCard ? teamCard.team.avatarId ?? null : avatarId;
-    const teamPhoto = teamAvatarId ? <img src={`/api/avatars/${teamAvatarId}`} alt={name} /> : <span className="letter" aria-hidden="true" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{name.slice(0, 1).toUpperCase()}</span>;
+    const teamPhoto = big(teamAvatarId) ? <img src={big(teamAvatarId)!} alt={name} /> : <span className="letter" aria-hidden="true" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{name.slice(0, 1).toUpperCase()}</span>;
     return createPortal(
       <div className={boxClass} role="dialog" aria-label={name} onClick={(e) => { e.stopPropagation(); onClose(); }}>
         {teamCard?.canEdit && gameId && teamId
-          ? <div className="team-photo-edit" onClick={(e) => e.stopPropagation()}><AvatarUploader preview={teamPhoto} url={`/api/games/${gameId}/teams/${teamId}/avatar`} hasAvatar={Boolean(teamAvatarId)} blocked={user?.avatarBlocked} onChanged={loadTeam} label={teamAvatarId ? t("Заменить фото команды") : t("Поставить фото команды")} /></div>
+          ? <div className="team-photo-edit" onClick={(e) => e.stopPropagation()}><AvatarPicker preview={teamPhoto} kind="team" url={`/api/games/${gameId}/teams/${teamId}/avatar`} current={teamAvatarId} letter={name.slice(0, 1).toUpperCase()} color={color} onChanged={loadTeam} /></div>
           : teamPhoto}
         <div className="card" onClick={(e) => e.stopPropagation()}>
           <div className="name" style={{ color: "inherit" }}>{name}</div>

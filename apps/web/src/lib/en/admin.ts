@@ -272,10 +272,6 @@ export const ADMIN: Record<string, string> = {
   "разных стихов за всю партию: стих, выученный несколькими участниками или командами, считается один раз": "distinct verses over the whole game: a verse learned by several members or teams counts once",
   "уникальный стих": "unique verse", "уникальных стиха": "unique verses", "уникальных стихов": "unique verses",
   "городов взято": "cities taken", "городов в сутки": "cities per day", "после разгона, с {d}": "after ramp-up, since {d}", "дел в сутки, все команды": "deeds per day, all teams", "уже": "done",
-  // Фото (суперадмин, 24.10)
-  "последние {n}": "latest {n}", "Аватарок пока нет.": "No avatars yet.", "без владельца": "no owner", "команда": "team", "поставил(а)": "set by",
-  "проверка: чисто": "check: clean", "запрет": "banned", "Убрать и запретить": "Remove and ban", "Снять запрет": "Lift ban", "Запрет снят": "Ban lifted",
-  "Убрать фото и запретить загрузившему ставить аватарки?": "Remove the photo and ban the uploader from setting avatars?", "Убрать фото?": "Remove the photo?",
   // Шторм (24.10)
   "Шторм": "Storm", "Интервалов нет: штормов не будет.": "No intervals: there will be no storms.", "День недели": "Weekday", "Начало": "Start", "Конец": "End",
   "Убрать интервал": "Remove interval", "Добавить интервал": "Add interval",

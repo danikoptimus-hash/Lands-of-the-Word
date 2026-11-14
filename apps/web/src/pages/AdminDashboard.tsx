@@ -10,10 +10,9 @@ import { ScrollTop } from "../components/ScrollTop";
 import { ErrorState, LoadingState } from "../components/State";
 import { Help } from "../components/Help";
 import { AnalyticsCharts } from "./AnalyticsCharts";
-import { AvatarsAdmin } from "./AvatarsAdmin";
 import { Tabs } from "../components/Tabs";
 
-type Section = "users" | "games" | "activity" | "battles" | "passages" | "ui" | "tech" | "photos";
+type Section = "users" | "games" | "activity" | "battles" | "passages" | "ui" | "tech";
 
 interface Metrics {
   period: { days: number; since: string; dates: string[] };
@@ -104,9 +103,8 @@ export function AdminDashboard() {
         <Help>{t("Только обобщённые числа: без содержимого игр и без привязки к людям. Под каждым графиком ползунок: двигайте его края, чтобы приблизить период.")}</Help>
       </div>
       <div ref={swipeRef}>
-      <div className="analytics-tabs"><Tabs<Section> swipeArea={swipeRef} value={tab} onChange={setTab} ariaLabel={t("Раздел аналитики")} items={[{ key: "users", label: t("Пользователи") }, { key: "games", label: t("Игры") }, { key: "activity", label: t("Активность") }, { key: "battles", label: t("Испытания") }, { key: "passages", label: t("Проходы") }, { key: "ui", label: t("Интерфейс") }, { key: "tech", label: t("Сервер") }, { key: "photos", label: t("Фото") }]} /></div>
+      <div className="analytics-tabs"><Tabs<Section> swipeArea={swipeRef} value={tab} onChange={setTab} ariaLabel={t("Раздел аналитики")} items={[{ key: "users", label: t("Пользователи") }, { key: "games", label: t("Игры") }, { key: "activity", label: t("Активность") }, { key: "battles", label: t("Испытания") }, { key: "passages", label: t("Проходы") }, { key: "ui", label: t("Интерфейс") }, { key: "tech", label: t("Сервер") }]} /></div>
       {tab === "users" && <AnalyticsCharts />}
-      {tab === "photos" && <AvatarsAdmin />}
       {tab !== "users" && error && <div className="card"><ErrorState text={error} onRetry={load} /></div>}
       {tab !== "users" && !m && !error && <div className="card"><LoadingState /></div>}
       {tab !== "users" && m && (
