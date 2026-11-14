@@ -123,7 +123,7 @@ const SKIES := {
 	# Ясный день: числа фона подобраны по кадрам Unreal владельца (синева в зените и на 30°, дымка у горизонта);
 	# подбор — расчётом той же формулы вне движка, сверка — кадрами. Солнце невысоко, как в тех кадрах:
 	# облака освещены сбоку и объёмны.
-	"den": {"sun_height": 30.0, "sun_side": 215.0, "energy": 1.0, "light_color": Color(1.0, 0.97, 0.92), "shader": {
+	"den": {"sun_height": 30.0, "sun_side": 215.0, "energy": 1.0, "light_color": Color(1.0, 0.97, 0.92), "ambient": 1.0, "shader": {
 		"cloud_coverage": 0.2, "_density": 0.04, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 3800.0,
 		"coverage_far": 0.72, "coverage_far_range": Vector2(6000.0, 40000.0), "weather_variety": 0.22,
 		"exposure": 0.159, "rayleigh": 1.67, "turbidity": 1.3, "mie": 0.001, "mie_eccentricity": 0.93,
@@ -137,7 +137,7 @@ const SKIES := {
 		"cloud_tint": Vector3(1.0, 0.97, 0.925), "sun_tint": Vector3(1.0, 1.0, 1.0),
 		"cloud_floor": Vector3(0.045, 0.055, 0.085)}},
 	# Закат и шторм — без утверждённых образцов: черновые.
-	"zakat": {"sun_height": 7.0, "sun_side": 262.0, "energy": 1.0, "light_color": Color(0.8, 0.48, 0.3), "shader": {
+	"zakat": {"sun_height": 7.0, "sun_side": 262.0, "energy": 1.0, "light_color": Color(0.8, 0.48, 0.3), "ambient": 0.3, "shader": {
 		"cloud_coverage": 0.22, "_density": 0.04, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 3800.0,
 		"coverage_far": 0.75, "coverage_far_range": Vector2(6000.0, 40000.0), "weather_variety": 0.22,
 		"exposure": 0.15, "rayleigh": 1.6, "turbidity": 5.0, "mie": 0.004, "mie_eccentricity": 0.85,
@@ -151,7 +151,7 @@ const SKIES := {
 		"cloud_tint": Vector3(1.0, 1.0, 1.0), "sun_tint": Vector3(1.0, 0.78, 1.1),
 		"cloud_floor": Vector3(0.05, 0.06, 0.10)}},
 	# Шторм: тёмная облачность с просветами; низ облаков освещён рассеянным светом, не чёрный.
-	"shtorm": {"sun_height": 40.0, "sun_side": 215.0, "energy": 0.45, "light_color": Color(0.42, 0.46, 0.52), "shader": {
+	"shtorm": {"sun_height": 40.0, "sun_side": 215.0, "energy": 0.45, "light_color": Color(0.3, 0.33, 0.38), "ambient": 0.3, "shader": {
 		"cloud_coverage": 0.5, "_density": 0.05, "weather_scale": 0.00006, "cloud_bottom": 1500.0, "cloud_top": 4000.0,
 		"coverage_far": 1.0, "coverage_far_range": Vector2(6000.0, 40000.0), "weather_variety": 0.15,
 		"exposure": 0.22, "rayleigh": 2.0, "turbidity": 14.0, "mie": 0.005, "mie_eccentricity": 0.8,
@@ -241,6 +241,8 @@ func set_sky(title: String) -> void:
 	sun.look_at_from_position(Vector3.ZERO, -to_sun, Vector3.UP)
 	sun.light_energy = float(look["energy"])
 	sun.light_color = look["light_color"]
+	# Рассеянный свет неба на земле и море: на закате и в шторм слабее — бухта не светится дневной бирюзой.
+	world.environment.ambient_light_energy = float(look["ambient"])
 	# Шейдеру купола солнце передаётся числами: встроенных значений светила у него нет.
 	var light := sun.light_color.srgb_to_linear()
 	dome_material.set_shader_parameter("sun_dir", to_sun)
