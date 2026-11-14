@@ -1,12 +1,16 @@
 import { useState } from "react";
+import { avatarImage } from "@lotw/domain";
 import { AvatarLightbox } from "./AvatarLightbox";
 
 /**
- * Команда всегда показывается одинаково: кружок цвета команды с первой буквой (или фото команды, решение владельца 24.10)
- * + название рядом (по желанию). Нажатие на фото показывает его крупно (zoom; выключается внутри кнопок).
+ * Команда всегда показывается одинаково: кружок цвета команды с первой буквой или герб из набора игры (решение владельца 14.11)
+ * + название рядом (по желанию). Нажатие на герб показывает его крупно (zoom; выключается внутри кнопок).
  */
 export function TeamAvatar({ name, color, avatarId, size, withName = false, title, zoom = true, teamId, gameId }: { /** Команда игры: по нажатию карточка с её наградами (решение владельца 29.10), даже без фото. */ teamId?: string; /** Игра, если её нет в адресе страницы (список «Мои игры»). */ gameId?: string; name: string; color: string; /** Аватарка команды, если капитан её поставил. */ avatarId?: string | null; size?: "sm" | "lg"; withName?: boolean; /** Подсказка с названием команды, когда названия словами рядом нет. */ title?: string; zoom?: boolean }) {
   const [open, setOpen] = useState(false);
+  // Герб — из готового набора игры (решение владельца 14.11); кода не из набора — как без герба.
+  const src = avatarImage(avatarId);
+  if (!src) avatarId = null;
   const canZoom = (Boolean(avatarId) || Boolean(teamId)) && zoom;
   const a = (
     <span
@@ -17,7 +21,7 @@ export function TeamAvatar({ name, color, avatarId, size, withName = false, titl
       onClick={canZoom ? (e) => { e.preventDefault(); e.stopPropagation(); setOpen(true); } : undefined}
       onKeyDown={canZoom ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setOpen(true); } } : undefined}
     >
-      {avatarId ? <img src={`/api/avatars/${avatarId}`} alt="" loading="lazy" decoding="async" /> : name.slice(0, 1).toUpperCase()}
+      {src ? <img src={src} alt="" loading="lazy" decoding="async" /> : name.slice(0, 1).toUpperCase()}
     </span>
   );
   const box = open && canZoom ? <AvatarLightbox avatarId={avatarId ?? null} name={name} teamId={teamId} gameId={gameId} color={color} onClose={() => setOpen(false)} /> : null;

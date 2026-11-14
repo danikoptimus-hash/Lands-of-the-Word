@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { avatarImage } from "@lotw/domain";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { t } from "../lib/i18n";
@@ -39,7 +40,7 @@ export function Layout() {
           {user && (
             <ActionMenu
               label={t("Меню пользователя")}
-              trigger={<button type="button" className="user-menu"><span className={"avatar" + (user.avatarId ? " photo" : "")}>{user.avatarId ? <img src={`/api/avatars/${user.avatarId}`} alt="" /> : name.slice(0, 1).toUpperCase()}{openSupport > 0 && <span className="user-badge" aria-label={t("Открытых обращений: {n}", { n: openSupport })}>{openSupport}</span>}</span><span className="name">{name}</span><Icon name="chevron-down" className="i-sm" /></button>}
+              trigger={<button type="button" className="user-menu"><span className={"avatar" + (avatarImage(user.avatarId) ? " photo" : "")}>{avatarImage(user.avatarId) ? <img src={avatarImage(user.avatarId)!} alt="" /> : name.slice(0, 1).toUpperCase()}{openSupport > 0 && <span className="user-badge" aria-label={t("Открытых обращений: {n}", { n: openSupport })}>{openSupport}</span>}</span><span className="name">{name}</span><Icon name="chevron-down" className="i-sm" /></button>}
               items={[
                 { label: others.length ? `${t("Аккаунт")} · ${name}` : t("Аккаунт"), icon: "user", onSelect: () => navigate("/account") },
                 ...(superadmin ? [{ label: t("Все игры"), icon: "map", onSelect: () => navigate("/admin/games") }, { label: t("Люди"), icon: "users", onSelect: () => navigate("/admin/users") }, { label: t("Аналитика"), icon: "eye", onSelect: () => navigate("/admin") }, { label: t("Обращения"), icon: "send", badge: openSupport, onSelect: () => navigate("/admin/support") }, { label: onStand ? t("Продовый стенд") : t("Тестовый стенд"), icon: "link", onSelect: () => window.location.assign(otherSide) }] : []),

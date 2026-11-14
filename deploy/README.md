@@ -19,14 +19,11 @@ bash bootstrap.sh landsoftheword.com
 - DNS: для стенда нужна A-запись `test` на тот же адрес сервера; сертификат Caddy получит сам.
 - Логи стенда: `docker logs --tail 100 lotw-app-test`.
 
-## Аватарки и ключ OpenAI
+## Аватарки и гербы
 
-Аватарки участников и команд (решение владельца 24.10) при загрузке проверяются на уместность через OpenAI Moderation API. Ключ лежит только в `deploy/.env` на сервере (прод) и `deploy/.env.test` (стенд), в контейнер попадает переменной `OPENAI_API_KEY`. Без ключа загрузка аватарок отвечает «Проверка фото сейчас недоступна». Добавить ключ на сервере от пользователя deploy, от и до:
-
-```
-cd /opt/lotw && printf 'OPENAI_API_KEY=ВСТАВИТЬ_КЛЮЧ\n' >> deploy/.env && bash deploy/deploy.sh
-cd ~/lotw-test && printf 'OPENAI_API_KEY=ВСТАВИТЬ_КЛЮЧ\n' >> deploy/.env.test && bash deploy/deploy-test.sh
-```
+С 14.11 игра не принимает и не хранит свои фото: участник выбирает аватарку, капитан — герб команды из готового набора
+(`apps/web/public/img/avatars`, `apps/web/public/img/crests`). Ключ OpenAI серверу больше не нужен: строку
+`OPENAI_API_KEY=…` из `deploy/.env` и `deploy/.env.test` можно убрать (не мешает, если останется).
 
 ## Нагрузочный прогон стенда
 

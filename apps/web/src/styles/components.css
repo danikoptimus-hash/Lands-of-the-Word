@@ -89,21 +89,21 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar.photo { padding: 0; overflow: hidden; background: var(--surface-2, var(--accent-soft)); position: relative; }
 .avatar.photo img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: 50%; }
 .avatar.photo .user-badge { position: absolute; }
-.avatar-uploader .row { display: flex; align-items: center; gap: var(--sp-3); flex-wrap: wrap; }
-/* Само фото — кнопка: нажатие открывает выбор файла (замечание владельца 24.10); значок камеры в углу подсказывает. */
-.avatar-uploader .avatar-btn { position: relative; background: transparent; border: 0; padding: 0; border-radius: 50%; cursor: pointer; min-height: 0; }
-.avatar-uploader .avatar-btn .avatar { width: 72px; height: 72px; font-size: var(--fs-xl); }
-.avatar-uploader .avatar-btn .badge { position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--surface); }
-.avatar-uploader .avatar-btn .badge svg { width: 14px; height: 14px; }
-.avatar-uploader .avatar-btn:disabled { opacity: 0.6; cursor: default; }
-.avatar-crop { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); }
-.avatar-crop canvas { touch-action: none; border-radius: var(--r-md); background: #000; max-width: 100%; }
-.avatar-crop .zoom { width: 280px; max-width: 100%; display: block; }
-.avatar-crop .zoom input { width: 100%; }
-.avatar-grid { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--sp-3); }
-.avatar-grid li { display: flex; gap: var(--sp-3); align-items: flex-start; }
-.avatar-grid img { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; flex: none; }
-.avatar-grid .body { min-width: 0; }
+/* Сама аватарка — кнопка: нажатие открывает набор готовых картинок игры (решение владельца 14.11); карандаш в углу подсказывает. */
+.avatar-picker { display: inline-flex; }
+.avatar-picker .avatar-btn { position: relative; background: transparent; border: 0; padding: 0; border-radius: 50%; cursor: pointer; min-height: 0; }
+.avatar-picker .avatar-btn .avatar { width: 72px; height: 72px; font-size: var(--fs-xl); }
+.avatar-picker .avatar-btn .badge { position: absolute; right: -2px; bottom: -2px; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--on-accent); display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--surface); }
+.avatar-picker .avatar-btn .badge svg { width: 14px; height: 14px; }
+/* Набор: круглые картинки сеткой; выбранная — в кольце цвета стиля. */
+.avatar-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 12px; padding: 6px; }
+.avatar-pick-sheet .tabs { margin-bottom: var(--sp-3); }
+.avatar-opt { display: block; aspect-ratio: 1; width: 100%; padding: 0; min-height: 0; border: 0; border-radius: 50%; background: var(--surface-2, var(--accent-soft)); cursor: pointer; overflow: hidden; box-shadow: 0 0 0 1px var(--paper-edge, var(--border)); }
+.avatar-opt img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.avatar-opt .letter { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; background: var(--accent-soft); color: var(--accent-ink); font-family: var(--font-display); font-weight: 700; font-size: var(--fs-xl); }
+.avatar-opt.on { box-shadow: 0 0 0 3px var(--surface), 0 0 0 6px var(--accent); }
+.avatar-opt:disabled { opacity: .6; cursor: default; }
+.avatar-opt:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 .person { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; }
 /* Значок лимита дел у участника в составе (решение владельца 04.10): песочные часы с отсчётом или свиток с ячейками. */
 .deed-badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px 2px 5px; border-radius: 999px; font-size: 12px; line-height: 1; font-variant-numeric: tabular-nums; flex: none; }
@@ -323,8 +323,7 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar-lightbox .name { color: #fff; font-weight: 600; font-size: var(--fs-lg); text-align: center; }
 .avatar-lightbox .name, .avatar-lightbox button { cursor: pointer; }
 /* Карточка участника по нажатию на аватарку (решение владельца 29.10): к фото — игровой ник, команда, роль, личные награды. */
-/* Профиль команды: фото-кнопка капитана того же размера, что фото (решение владельца 04.11). */
-.avatar-lightbox .team-photo-edit .avatar-uploader .row { flex-direction: column; gap: var(--sp-2); }
+/* Профиль команды: герб-кнопка капитана того же размера, что герб (решения владельца 04.11 и 14.11). */
 .avatar-lightbox .team-photo-edit .avatar-btn .badge { right: 6%; bottom: 6%; width: 36px; height: 36px; }
 .avatar-lightbox .team-photo-edit .avatar-btn .badge svg { width: 18px; height: 18px; }
 .avatar-lightbox .card .team-invites { justify-content: center; margin: var(--sp-2) 0 0; gap: var(--sp-2); flex-wrap: wrap; }

@@ -11,7 +11,7 @@ import { Chip } from "../components/Chip";
 import { CopyField } from "../components/CopyField";
 import { Help } from "../components/Help";
 import { PushToggle } from "../components/PushToggle";
-import { AvatarUploader } from "../components/AvatarUploader";
+import { AvatarPicker } from "../components/AvatarPicker";
 import { UserAvatar } from "../components/UserAvatar";
 import { errorText } from "./LoginPage";
 
@@ -53,8 +53,9 @@ export function AccountPage() {
       </div>
 
       <div className="card">
-        <h2><Icon name="camera" />{t("Фото")}</h2>
-        <AvatarUploader preview={<UserAvatar name={user.displayName || user.nickname} avatarId={user.avatarId} size="lg" zoom={false} />} url="/api/auth/me/avatar" hasAvatar={Boolean(user.avatarId)} blocked={user.avatarBlocked} onChanged={refresh} />
+        <h2><Icon name="user" />{t("Аватарка")}</h2>
+        <AvatarPicker preview={<UserAvatar name={user.displayName || user.nickname} avatarId={user.avatarId} size="lg" zoom={false} />} kind="user" url="/api/auth/me/avatar" current={user.avatarId ?? null} letter={(user.displayName || user.nickname).slice(0, 1).toUpperCase()} onChanged={refresh} />
+        <p className="hint">{t("Нажмите на аватарку и выберите любую из набора игры.")}</p>
       </div>
 
       <div className="card">
