@@ -48,11 +48,11 @@ export function notifyTeam(gameId: string, teamId: string, subject: string, body
   })().catch((e) => log(e, "notifyTeam failed"));
 }
 
-/** Одному человеку. */
-export function notifyUser(gameId: string, userId: string, subject: string, body: Text, vars?: Vars): void {
+/** Одному человеку. `to` — куда ведёт уведомление: по умолчанию карта команды; `query` — хвост адреса (например `?task=…` открывает дело). */
+export function notifyUser(gameId: string, userId: string, subject: string, body: Text, vars?: Vars, to?: { footer?: string; query?: string }): void {
   void (async () => {
     const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true, locale: true } });
-    if (u) await sendAll([u], subject, body, vars, "Открыть карту команды", `${publicUrl}/games/${gameId}/team`);
+    if (u) await sendAll([u], subject, body, vars, to?.footer ?? "Открыть карту команды", `${publicUrl}/games/${gameId}/team${to?.query ?? ""}`);
   })().catch((e) => log(e, "notifyUser failed"));
 }
 

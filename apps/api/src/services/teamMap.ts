@@ -43,6 +43,20 @@ function weightedPick<T extends { chance: number }>(list: T[]): T {
  * пусть повторяются в разных местах карты): оба её конца и все перекрёстки, соседние с ними, то есть любая сторона
  * в двух шагах. Чистая функция — по рёбрам карты, касающимся концов стороны.
  */
+/**
+ * Поручение дела (решение владельца 14.11: «бронь сутки»): капитан или заместитель поручает свободное дело участнику,
+ * и сутки взять его может только он. Срок считается от момента поручения; истёкшее поручение не действует, чистить его
+ * отдельно не нужно.
+ */
+export const ASSIGN_MS = 24 * 3_600_000;
+type AssignRow = { status: string; assignedToId: string | null; assignedById: string | null; assignedAt: Date | null };
+export const assignActive = (t: AssignRow, now = Date.now()): boolean => t.status === "OPEN" && Boolean(t.assignedToId) && t.assignedAt !== null && now - t.assignedAt.getTime() < ASSIGN_MS;
+/** Поручение в ответе карты: кому, кто и до какого времени держится бронь; у недействующего поручения — пусто. */
+export function assignView(t: AssignRow): { assignedToId: string | null; assignedById: string | null; assignedUntil: string | null } {
+  const on = assignActive(t);
+  return { assignedToId: on ? t.assignedToId : null, assignedById: on ? t.assignedById : null, assignedUntil: on ? new Date(t.assignedAt!.getTime() + ASSIGN_MS).toISOString() : null };
+}
+
 export function nearZone(edges: ReadonlyArray<{ aKey: string; bKey: string }>, fromKey: string, toKey: string): Set<string> {
   const zone = new Set([fromKey, toKey]);
   for (const e of edges) {
@@ -630,7 +644,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
   // В тексте дела [Книга] — книга города, из которого выходит сторона (решение владельца 08.10); у морской стороны — порт.
   const bookOfNode = new Map(nodes.filter((n) => n.bookCode).map((n) => [n.key, n.bookCode!]));
   const revealed = new Set(revealedRows.map((r) => r.nodeKey));
-  const tasks = rawTasks.map((t) => ({ ...t, deed: withDeedBook(t.deed, t.sea ? bookOfNode.get(t.fromKey) ?? null : sideBook(bookOfNode, revealed, t.fromKey, t.toKey), t.id) }));
+  const tasks = rawTasks.map((t) => ({ ...t, ...assignView(t), deed: withDeedBook(t.deed, t.sea ? bookOfNode.get(t.fromKey) ?? null : sideBook(bookOfNode, revealed, t.fromKey, t.toKey), t.id) }));
   const revealedAtOf = new Map(revealedRows.map((r) => [r.nodeKey, r.revealedAt.toISOString()] as const));
   // Города, до которых команда дошла: чей город, и мой прогресс в нём.
   const cityNodes = nodes.filter((n) => n.kind === "CITY" && revealed.has(n.key));
