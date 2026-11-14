@@ -238,6 +238,8 @@ export function TeamPage() {
   /** Валюта пожертвований игры; минимум — у каждого дела свой (deed.donationMin). */
   const [currency, setCurrency] = useState(firstMap?.donation?.currency ?? "");
   const [busy, setBusy] = useState(false);
+  /** Идёт запрос «отметить / снять приоритет»: блокируется только сама кнопка приоритета (замечание владельца 14.11: от неё мигали «Взять дело» и «Вымостить дорогу» — общий флаг busy блокировал все кнопки карточки). */
+  const [prioBusy, setPrioBusy] = useState(false);
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const [markAt, setMarkAt] = useState<MarkPoint | null>(null);
   /** Своя метка по нажатию (решение владельца 16.10): лист с подписью — изменить или убрать. */
@@ -422,6 +424,16 @@ export function TeamPage() {
     try { await api(path, { method: "POST", body: body ? JSON.stringify(body) : undefined }); await loadMap(); return true; }
     catch (e) { setError(e instanceof ApiError ? (e.issues?.map((i) => i.message).join("; ") || e.message) : t("Ошибка сети")); return false; }
     finally { setBusy(false); }
+  }
+  /** Приоритет капитана: отметить или снять. Своё состояние запроса и своя ошибка (уведомлением) — карточка дела и её кнопки не трогаются. */
+  async function setPriority(taskId: string, on: boolean): Promise<void> {
+    setPrioBusy(true);
+    try {
+      await api(`/api/games/${id}/edge-tasks/${taskId}/priority`, { method: "POST", body: JSON.stringify({ on }) });
+      await loadMap();
+      notify(on ? t("Дело отмечено приоритетным: его свиток на карте горит") : t("Приоритет снят"));
+    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setPrioBusy(false); }
   }
   const peekedKind = (key: string) => map?.peeked?.find((p) => p.key === key)?.kind ?? null;
   /** Разведка (решение владельца 29.10): вместо слов карта на пять секунд раздвигает туман вокруг перекрёстка и показывает, что там; листы закрываются, чтобы карту было видно. */
@@ -967,20 +979,15 @@ export function TeamPage() {
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
           return (
-            <Sheet size="sm" container={mapEl} onClose={closeTask} onDismiss={backTo ? dismissTask : undefined} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2><Chip tone={st.tone} icon={st.icon}>{st.label}</Chip><button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => { /* Значок карты, как в отчёте у администратора (владелец 25.10): лист закрывается, карта центрируется на стороне дела. */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }}><Icon name="map" /></button></div>}>
+            <Sheet size="sm" container={mapEl} onClose={closeTask} onDismiss={backTo ? dismissTask : undefined} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2>{/* Приоритет капитана (решение владельца 14.11): огонёк в шапке карточки, пояснение и кто отметил — по нажатию на него («текст спрятать и показывать только при нажатии на огонёк»). */}{deedPriority(task) && <HelpPopup name={t("Приоритет капитана")} className="prio-mark" trigger={<Icon name="flame" />}><p>{t("Приоритет капитана: это дело — в первую очередь")}{task.priorityById && memberName(task.priorityById) ? <> · {t("отметил: {name}", { name: memberName(task.priorityById) })}</> : null}</p></HelpPopup>}<Chip tone={st.tone} icon={st.icon}>{st.label}</Chip><button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => { /* Значок карты, как в отчёте у администратора (владелец 25.10): лист закрывается, карта центрируется на стороне дела. */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }}><Icon name="map" /></button></div>}>
               {/* Приоритет капитана (решение владельца 14.11): капитан или заместитель отмечает дело — его свиток на карте горит у всей команды. */}
-              {(deedPriority(task) || (isLeader && task.status !== "APPROVED" && !task.paved)) && (
-                <div className="priority-row mt-2">
-                  {deedPriority(task) && <p className="priority-line"><Icon name="flame" /><span>{t("Приоритет капитана: это дело — в первую очередь")}{task.priorityById && memberName(task.priorityById) ? <span className="by"> · {t("отметил: {name}", { name: memberName(task.priorityById) })}</span> : null}</span></p>}
-                  {isLeader && task.status !== "APPROVED" && !task.paved && (
-                    <span className="priority-actions">
-                      <button type="button" className="secondary sm prio-btn" disabled={busy} aria-pressed={Boolean(task.priorityAt)}
-                        onClick={() => { const on = !task.priorityAt; void act(`/api/games/${id}/edge-tasks/${task.id}/priority`, { on }).then((ok) => { if (ok) notify(on ? t("Дело отмечено приоритетным: его свиток на карте горит") : t("Приоритет снят")); }); }}>
-                        <Icon name="flame" />{task.priorityAt ? t("Снять приоритет") : t("Отметить приоритетным")}
-                      </button>
-                      <Help>{t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}</Help>
-                    </span>
-                  )}
+              {/* Кнопка капитана и заместителя: отметить дело приоритетным или снять отметку. Остальные кнопки карточки от неё не зависят. */}
+              {isLeader && task.status !== "APPROVED" && !task.paved && (
+                <div className="priority-actions mt-2">
+                  <button type="button" className="secondary sm prio-btn" disabled={prioBusy} aria-pressed={Boolean(task.priorityAt)} onClick={() => void setPriority(task.id, !task.priorityAt)}>
+                    <Icon name="flame" />{task.priorityAt ? t("Снять приоритет") : t("Отметить приоритетным")}
+                  </button>
+                  <Help>{t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}</Help>
                 </div>
               )}
               {task.person && <p className="meta-line mt-2 person-line"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
