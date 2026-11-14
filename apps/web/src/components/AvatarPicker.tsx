@@ -8,13 +8,13 @@ import { Sheet } from "./Sheet";
 import { Tabs } from "./Tabs";
 
 type Group = (typeof AVATAR_GROUPS)[number]["key"];
-const GROUP_TITLE: Record<Group, () => string> = { people: () => t("Люди"), animals: () => t("Звери"), things: () => t("Предметы") };
+const GROUP_TITLE: Record<Group, () => string> = { people: () => t("Люди"), animals: () => t("Животные"), things: () => t("Предметы") };
 
 /**
  * Выбор аватарки участника или герба команды из готового набора игры (решение владельца 14.11: своих фото игра не
  * принимает и не хранит). Нажатие на саму аватарку открывает лист с набором; нажатие на картинку сразу ставит её.
- * Аватарки разложены по вкладкам «Люди», «Звери», «Предметы» (решение владельца 14.11: «разделение… через табы»),
- * лист открывается на вкладке выбранной аватарки; гербы идут одним списком. Под набором — кнопка «Убрать…»: останется
+ * Аватарки разложены по вкладкам «Люди», «Животные», «Предметы» (решение владельца 14.11: «разделение… через табы»),
+ * лист открывается на вкладке выбранной аватарки; гербы идут одним списком. Над набором — кнопка «Убрать…»: останется
  * кружок с буквой, как у тех, кто ничего не выбирал.
  */
 export function AvatarPicker({ preview, url, kind, current, letter, color, onChanged }: {
@@ -59,13 +59,6 @@ export function AvatarPicker({ preview, url, kind, current, letter, color, onCha
       {open && (
         <Sheet title={team ? t("Герб команды") : t("Аватарка")} onClose={() => setOpen(false)} size="md" className="avatar-pick-sheet">
           {!team && <Tabs<Group> swipeArea={gridRef} value={tab} onChange={setTab} ariaLabel={t("Раздел набора")} items={AVATAR_GROUPS.map((g) => ({ key: g.key, label: GROUP_TITLE[g.key]() }))} />}
-          <div className="avatar-pick-grid" ref={gridRef}>
-            {codes.map(({ c, n }) => (
-              <button key={c} type="button" className={"avatar-opt" + (c === current ? " on" : "")} disabled={busy} aria-pressed={c === current} onClick={() => void choose(c)} aria-label={team ? t("Герб {n}", { n }) : t("Аватарка {n}", { n })}>
-                <img src={avatarImage(c) ?? undefined} alt="" loading="lazy" decoding="async" width={128} height={128} />
-              </button>
-            ))}
-          </div>
           {/* Убрать картинку — подписанной кнопкой, а не безымянной ячейкой (замечание независимой сверки 14.11). */}
           {current && (
             <div className="actions avatar-clear">
@@ -75,6 +68,13 @@ export function AvatarPicker({ preview, url, kind, current, letter, color, onCha
               </button>
             </div>
           )}
+          <div className="avatar-pick-grid" ref={gridRef}>
+            {codes.map(({ c, n }) => (
+              <button key={c} type="button" className={"avatar-opt" + (c === current ? " on" : "")} disabled={busy} aria-pressed={c === current} onClick={() => void choose(c)} aria-label={team ? t("Герб {n}", { n }) : t("Аватарка {n}", { n })}>
+                <img src={avatarImage(c) ?? undefined} alt="" loading="lazy" decoding="async" width={128} height={128} />
+              </button>
+            ))}
+          </div>
         </Sheet>
       )}
     </div>

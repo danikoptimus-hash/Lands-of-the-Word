@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { AVATAR_CODES, CREST_CODES, avatarImage } from "@lotw/domain";
+import { AVATAR_CODES, CREST_CODES, CREST_COUNT, avatarImage } from "@lotw/domain";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { registerVerified } from "./testAuth.js";
@@ -37,8 +37,8 @@ afterAll(async () => {
 
 describe("аватарки и гербы из готового набора", () => {
   it("набор: сто аватарок и пятьдесят гербов, у каждого кода — адрес картинки", () => {
-    expect(AVATAR_CODES).toHaveLength(100); expect(CREST_CODES).toHaveLength(50);
-    expect(AVATAR_CODES[0]).toBe("a001"); expect(AVATAR_CODES[99]).toBe("a100"); expect(CREST_CODES[49]).toBe("g50");
+    expect(AVATAR_CODES).toHaveLength(100); expect(CREST_CODES).toHaveLength(CREST_COUNT); expect(CREST_COUNT).toBe(50);
+    expect(AVATAR_CODES[0]).toBe("a001"); expect(AVATAR_CODES[99]).toBe("a100"); expect(CREST_CODES[0]).toBe("g01"); expect(CREST_CODES[49]).toBe("g50");
     expect(avatarImage("a017")).toBe("/img/avatars/s/a017.webp"); expect(avatarImage("a017", "lg")).toBe("/img/avatars/a017.webp");
     expect(avatarImage("g05", "lg")).toBe("/img/crests/g05.webp");
     expect(avatarImage("a101")).toBeNull(); expect(avatarImage("чужое")).toBeNull(); expect(avatarImage(null)).toBeNull();
