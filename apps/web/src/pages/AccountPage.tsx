@@ -54,7 +54,7 @@ export function AccountPage() {
 
       <div className="card">
         <h2><span className="ico"><Icon name="user" /></span>{t("Аватарка")}</h2>
-        <AvatarPicker preview={<UserAvatar name={user.displayName || user.nickname} avatarId={user.avatarId} size="lg" zoom={false} />} kind="user" url="/api/auth/me/avatar" current={user.avatarId ?? null} letter={(user.displayName || user.nickname).slice(0, 1).toUpperCase()} onChanged={refresh} />
+        <AvatarPicker preview={<UserAvatar name={user.displayName || user.nickname} avatarId={user.avatarId} size="lg" zoom={false} />} kind="user" url="/api/auth/me/avatar" current={user.avatarId ?? null} onChanged={refresh} />
         <p className="hint">{t("Нажмите на аватарку и выберите любую из набора игры.")}</p>
       </div>
 

@@ -54,7 +54,7 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
     return createPortal(
       <div className={boxClass} role="dialog" aria-label={name} onClick={(e) => { e.stopPropagation(); onClose(); }}>
         {teamCard?.canEdit && gameId && teamId
-          ? <div className="team-photo-edit" onClick={(e) => e.stopPropagation()}><AvatarPicker preview={teamPhoto} kind="team" url={`/api/games/${gameId}/teams/${teamId}/avatar`} current={teamAvatarId} letter={name.slice(0, 1).toUpperCase()} color={color} onChanged={loadTeam} /></div>
+          ? <div className="team-photo-edit" onClick={(e) => e.stopPropagation()}><AvatarPicker preview={teamPhoto} kind="team" url={`/api/games/${gameId}/teams/${teamId}/avatar`} current={teamAvatarId} onChanged={loadTeam} /></div>
           : teamPhoto}
         <div className="card" onClick={(e) => e.stopPropagation()}>
           <div className="name" style={{ color: "inherit" }}>{name}</div>

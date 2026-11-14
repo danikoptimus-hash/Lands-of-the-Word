@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { AVATAR_CODES, CREST_CODES, CREST_COUNT, avatarImage } from "@lotw/domain";
+import { AVATAR_CODES, AVATAR_GROUPS, CREST_CODES, CREST_COUNT, avatarGroupOf, avatarImage } from "@lotw/domain";
 import { buildApp } from "./app.js";
 import { prisma } from "./db.js";
 import { registerVerified } from "./testAuth.js";
@@ -36,12 +36,16 @@ afterAll(async () => {
 });
 
 describe("аватарки и гербы из готового набора", () => {
-  it("набор: сто аватарок и пятьдесят гербов, у каждого кода — адрес картинки", () => {
-    expect(AVATAR_CODES).toHaveLength(100); expect(CREST_CODES).toHaveLength(CREST_COUNT); expect(CREST_COUNT).toBe(50);
-    expect(AVATAR_CODES[0]).toBe("a001"); expect(AVATAR_CODES[99]).toBe("a100"); expect(CREST_CODES[0]).toBe("g01"); expect(CREST_CODES[49]).toBe("g50");
+  it("набор: аватарки и пятьдесят гербов, у каждого кода — адрес картинки, каждая аватарка — ровно в одном разделе", () => {
+    expect(AVATAR_CODES).toHaveLength(102); expect(CREST_CODES).toHaveLength(CREST_COUNT); expect(CREST_COUNT).toBe(50);
+    expect(AVATAR_CODES[0]).toBe("a001"); expect(AVATAR_CODES[99]).toBe("a100"); expect(AVATAR_CODES[101]).toBe("a102"); expect(CREST_CODES[0]).toBe("g01"); expect(CREST_CODES[49]).toBe("g50");
     expect(avatarImage("a017")).toBe("/img/avatars/s/a017.webp"); expect(avatarImage("a017", "lg")).toBe("/img/avatars/a017.webp");
     expect(avatarImage("g05", "lg")).toBe("/img/crests/g05.webp");
-    expect(avatarImage("a101")).toBeNull(); expect(avatarImage("чужое")).toBeNull(); expect(avatarImage(null)).toBeNull();
+    expect(avatarImage("a103")).toBeNull(); expect(avatarImage("чужое")).toBeNull(); expect(avatarImage(null)).toBeNull();
+    // Разделы покрывают весь набор без пропусков и повторов; козёл и петух (a101, a102) — в «Животных».
+    const covered = AVATAR_GROUPS.flatMap((g) => g.ranges.flatMap(([from, to]) => Array.from({ length: to - from + 1 }, (_, i) => from + i)));
+    expect([...covered].sort((a, b) => a - b)).toEqual(AVATAR_CODES.map((_, i) => i + 1));
+    expect(avatarGroupOf(101)).toBe("animals"); expect(avatarGroupOf(102)).toBe("animals"); expect(avatarGroupOf(1)).toBe("people"); expect(avatarGroupOf(100)).toBe("things");
   });
 
   it("своя аватарка: выбор из набора, замена, снятие; кода не из набора и герба сервер не принимает", async () => {
@@ -51,7 +55,8 @@ describe("аватарки и гербы из готового набора", ()
     // Двое могут выбрать одну и ту же аватарку.
     expect((await put("/api/auth/me/avatar", capCookie, { avatarId: "a017" })).statusCode).toBe(200);
     expect((await put("/api/auth/me/avatar", memCookie, { avatarId: "a100" })).statusCode).toBe(200);
-    for (const bad of ["a101", "a000", "g05", "../x", ""]) {
+    expect((await put("/api/auth/me/avatar", capCookie, { avatarId: "a102" })).statusCode).toBe(200);
+    for (const bad of ["a103", "a000", "g05", "../x", ""]) {
       const no = await put("/api/auth/me/avatar", memCookie, { avatarId: bad });
       expect(no.statusCode).toBe(400);
     }

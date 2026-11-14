@@ -97,9 +97,11 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .avatar-picker .avatar-btn .badge svg { width: 14px; height: 14px; }
 /* Набор: круглые картинки сеткой; выбранная — в кольце цвета стиля. */
 .avatar-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 12px; padding: 6px; }
-.avatar-pick-sheet .tabs { margin-bottom: var(--sp-3); }
-.avatar-clear { justify-content: flex-start; margin: 0 0 var(--sp-3); }
-.avatar-clear button { display: inline-flex; align-items: center; gap: var(--sp-2); }
+/* Вкладки стоят на месте, листается только сам набор: иначе картинки при прокрутке выглядывали
+   над вкладками (общее правило листов держит вкладки «липкими» внутри прокрутки, а у прокрутки есть поля). */
+.avatar-pick-sheet .overlay-body { display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+.avatar-pick-sheet .tabs { position: static; flex: none; margin-bottom: var(--sp-3); }
+.avatar-pick-sheet .avatar-pick-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
 .avatar-opt { display: block; aspect-ratio: 1; width: 100%; padding: 0; min-height: 0; border: 0; border-radius: 50%; background: var(--surface-2, var(--accent-soft)); cursor: pointer; overflow: hidden; box-shadow: 0 0 0 1px var(--paper-edge, var(--border)); }
 .avatar-opt img { display: block; width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 /* Общий стиль кнопок при наведении красит фон бронзой — у картинок набора он не нужен. */
