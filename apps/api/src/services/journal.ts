@@ -15,7 +15,7 @@ import { standings } from "./game.js";
  */
 
 export type JournalKind =
-  | "deed_submitted" | "deed_approved" | "deed_returned"
+  | "deed_submitted" | "deed_approved" | "deed_returned" | "deed_assigned" | "deed_assign_declined"
   | "order_solved" | "task_solved" | "city_captured" | "ruins_taken" | "treasure"
   | "trial_declared" | "trial_queued" | "trial_started" | "trial_defense" | "trial_repelled" | "trial_won" | "trial_burnt" | "trial_cancelled" | "trial_peace"
   | "siege_declared" | "siege_won" | "siege_repelled" | "siege_peace"
@@ -44,6 +44,8 @@ export type JournalVars = Record<string, string | number>;
 export const JOURNAL_TEXT: Record<JournalKind, string> = {
   deed_submitted: "{user} сдал(а) дело «{deed}» на проверку",
   deed_approved: "Дело «{deed}» принято{who}: перекрёсток открыт",
+  deed_assigned: "{who} поручил(а) вам дело «{deed}»: сутки взять его можете только вы",
+  deed_assign_declined: "{user} не может взять порученное дело «{deed}»: оно снова свободно",
   deed_returned: "Дело «{deed}» возвращено на доработку{comment}",
   order_solved: "{user} собрал(а) порядок районов города {book}",
   task_solved: "{user} решил(а) район {n} города {book}",
@@ -226,7 +228,7 @@ export async function journalTaskIds(gameId: string, rows: Array<{ kind: string;
 }
 
 /** Личные записи о действиях администратора: в «последнюю активность» участника не идут. */
-const PASSIVE_KINDS = new Set<string>(["trial_entry_returned", "deeds_frozen", "deeds_unfrozen", "member_moved", "wall_block_returned"]);
+const PASSIVE_KINDS = new Set<string>(["trial_entry_returned", "deeds_frozen", "deeds_unfrozen", "member_moved", "wall_block_returned", "deed_assigned", "deed_assign_declined"]);
 /** Сводка участника: дела, районы, стихи, переправы (E-03 «Моё служение»). */
 export interface ServiceStats { deeds: number; deedsPending: number; tasks: number; orders: number; cities: number; verses: number; trips: number; lastActiveAt: number | null }
 /** teamIds — одна команда или все команды человека в игре (выбывшая и новая, решение владельца 10.11): тогда сводка за обе. */
