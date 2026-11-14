@@ -128,12 +128,8 @@
 .mark-banner button { flex: none; }
 .roster-head .roster-invite { margin-left: auto; }
 .roster-head > span { white-space: nowrap; }
-/* Окно разведки (29.10): то, что за туманом, проявляется вместе с раскрытием тумана и гаснет при смыкании. */
-.m-scout { opacity: 0; transition: opacity .6s ease; }
-.m-scout.on { opacity: 1; }
-.m-peek { pointer-events: none; }
-.m-peek circle { fill: var(--surface); stroke: var(--text); stroke-width: 1.2; }
-.m-peek use { color: var(--text); }
+/* Разведанный город (14.11): стоит в раздвинутом тумане и не нажимается, пока команда до него не дошла. */
+.m-scouted, .m-label.scouted { cursor: default; }
 .m-deed .far { fill: var(--map-far); }
 .m-target .far { fill: var(--map-far); }
 .m-far { cursor: pointer; pointer-events: auto; } .m-far .far { fill: var(--map-far); } .m-far .hit { fill: transparent; }
@@ -793,7 +789,7 @@ label.check.mark-drop input { margin-top: 2px; }
 /* В шторм участник видит только карту: кнопок, свитков дел, меток и ползунка истории нет; города не нажимаются. */
 .map-area.storm .hud-left, .map-area.storm .hud-right, .map-area.storm .map-controls, .map-area.storm .team-timeline, .map-area.storm .finish-banner { display: none; }
 .map-canvas.storm .screen-items, .map-canvas.storm .screen-items * { pointer-events: none !important; }
-.map-canvas.storm .screen-items .m-deed, .map-canvas.storm .screen-items .m-target, .map-canvas.storm .screen-items .m-mark, .map-canvas.storm .screen-items .m-peek, .map-canvas.storm .screen-items .m-fork,
+.map-canvas.storm .screen-items .m-deed, .map-canvas.storm .screen-items .m-target, .map-canvas.storm .screen-items .m-mark, .map-canvas.storm .screen-items .m-fork,
 .map-canvas.storm .screen-items .m-land, .map-canvas.storm .screen-items .m-quarry, .map-canvas.storm .screen-items .m-battle, .map-canvas.storm .map-ripple { display: none; }
 .map-canvas.storm .m-edge, .map-canvas.storm .m-city { pointer-events: none !important; }
 /* В шторм единственная кнопка — стрелка назад в «Мои игры» (решение владельца 24.10), на месте кнопки меню. */

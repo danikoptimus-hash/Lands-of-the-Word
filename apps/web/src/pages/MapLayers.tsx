@@ -358,20 +358,38 @@ function buildFogMask(hexes: MapHexDto[], size: number, points: ReadonlyArray<{ 
  * ~24 раза в секунду для дрейфа и сразу при каждом движении карты; только пока вкладка видна;
  * при «уменьшить движение» — без дрейфа. Вид читается из ref, без React.
  */
-/** Окно в тумане на время разведки (решение владельца 29.10): центр в координатах карты, радиус, момент начала и сколько держать открытым. */
-export interface FogHole { x: number; y: number; r: number; start: number; hold: number }
-const HOLE_OPEN = 700, HOLE_CLOSE = 700;
-/** Доля раскрытия окна 0…1 к моменту now: плавно открывается, держится, плавно закрывается; null — окна уже нет. */
-export function fogHoleAt(h: FogHole, now: number): number | null {
-  const dt = now - h.start;
-  if (dt < 0) return 0;
-  const ease = (u: number) => 1 - (1 - u) * (1 - u);
-  if (dt < HOLE_OPEN) return ease(dt / HOLE_OPEN);
-  if (dt < HOLE_OPEN + h.hold) return 1;
-  const c = (dt - HOLE_OPEN - h.hold) / HOLE_CLOSE;
-  return c >= 1 ? null : 1 - ease(c);
+/**
+ * Окно в тумане у разведанного перекрёстка (решения владельца 29.10 и 14.11): центр в координатах карты, радиус внешнего
+ * края мягкой кромки и момент начала раскрытия. Окно раскрывается плавно и больше не смыкается.
+ */
+export interface FogHole { x: number; y: number; r: number; start: number; /** Клубы кромки (замечание владельца 14.11: край окна слишком гладкий): смещения и радиусы в долях r — из-за них край неровный, как у облаков. */ puffs?: ReadonlyArray<{ dx: number; dy: number; r: number }> }
+const HOLE_OPEN = 700;
+const NO_HOLES: ReadonlyArray<FogHole> = [];
+/**
+ * Клубы кромки окна: набор мягких кругов вокруг центра, свой у каждого перекрёстка (по ключу, без случайности между
+ * кадрами). Одни выступают дальше, другие короче — получается неровный облачный край вместо ровного круга.
+ */
+export function fogHolePuffs(seed: string, count = 9): Array<{ dx: number; dy: number; r: number }> {
+  let h = 2166136261;
+  for (let i = 0; i < seed.length; i++) { h ^= seed.charCodeAt(i); h = Math.imul(h, 16777619); }
+  const rnd = () => { h = (h + 0x6D2B79F5) | 0; let t = h; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  const turn = rnd() * Math.PI * 2;
+  return Array.from({ length: count }, (_, i) => {
+    const a = turn + (i + (rnd() - 0.5) * 0.8) * (Math.PI * 2 / count);
+    // Каждый третий клуб — «залив»: короткий и мелкий; остальные выступают за основной круг.
+    const bay = rnd() < 0.34, d = bay ? 0.3 + rnd() * 0.12 : 0.5 + rnd() * 0.3, r = bay ? 0.22 + rnd() * 0.1 : 0.3 + rnd() * 0.22;
+    return { dx: Math.cos(a) * d, dy: Math.sin(a) * d, r };
+  });
 }
-export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS, clear = NO_CLEAR, land, light = DAY_LIGHT, hole = null }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; /** Окно разведки: туман вокруг перекрёстка раздвигается и смыкается обратно. */ hole?: FogHole | null; /** Точки (перекрёстки края тумана), которые должны быть под туманом и без гекса тумана рядом. */ fogPoints?: ReadonlyArray<{ x: number; y: number }>; /** Что туман не закрывает: известные перекрёстки, города и дороги к ним. */ clear?: FogClear; /** Все гексы суши «q,r»: со стороны моря туман накрывает и пляж. */ land?: ReadonlySet<string>; light?: Light }) {
+/** Доля раскрытия окна 0…1 к моменту now: плавно открывается и остаётся открытым. */
+export function fogHoleAt(h: FogHole, now: number): number {
+  const dt = now - h.start;
+  if (dt <= 0) return 0;
+  if (dt >= HOLE_OPEN) return 1;
+  const u = dt / HOLE_OPEN;
+  return 1 - (1 - u) * (1 - u);
+}
+export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS, clear = NO_CLEAR, land, light = DAY_LIGHT, holes = NO_HOLES }: { vp: Viewport; size?: number; fogHexes: MapHexDto[]; /** Разведанные места: туман вокруг перекрёстка раздвинут и не смыкается. */ holes?: ReadonlyArray<FogHole>; /** Точки (перекрёстки края тумана), которые должны быть под туманом и без гекса тумана рядом. */ fogPoints?: ReadonlyArray<{ x: number; y: number }>; /** Что туман не закрывает: известные перекрёстки, города и дороги к ним. */ clear?: FogClear; /** Все гексы суши «q,r»: со стороны моря туман накрывает и пляж. */ land?: ReadonlySet<string>; light?: Light }) {
   const ref = useRef<HTMLCanvasElement>(null);
   const lightRef = useRef(light); lightRef.current = light;
   const fogKey = fogKeyOf(fogHexes, fogPoints, clear);
@@ -379,7 +397,8 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
   const maskRef = useRef(mask); maskRef.current = mask;
   const dirty = useRef(true); dirty.current = true;
   useEffect(() => { dirty.current = true; }, [light]);
-  const holeRef = useRef(hole); holeRef.current = hole;
+  const holesRef = useRef(holes); holesRef.current = holes;
+  useEffect(() => { dirty.current = true; }, [holes]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -424,14 +443,21 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
       layer(pats.b, size * 7, -1.2, 2.8, 0.9);
       ctx.globalCompositeOperation = "destination-in";
       ctx.drawImage(m.canvas, m.x, m.y, m.w, m.h);
-      // Окно разведки: мягкий круг вырезается из тумана по текущей доле раскрытия.
-      const hole = holeRef.current, f = hole ? fogHoleAt(hole, performance.now()) : null;
-      if (hole && f !== null && f > 0) {
+      // Разведанные места: мягкий круг вырезается из тумана по текущей доле раскрытия (у давно разведанных — целиком).
+      const now = performance.now();
+      ctx.globalCompositeOperation = "destination-out";
+      for (const hole of holesRef.current) {
+        const f = fogHoleAt(hole, now);
+        if (f <= 0 || hole.x + hole.r * 1.4 < bx || hole.x - hole.r * 1.4 > bx + bw || hole.y + hole.r * 1.4 < by || hole.y - hole.r * 1.4 > by + bh) continue;
         const r = hole.r * f;
-        const g = ctx.createRadialGradient(hole.x, hole.y, r * 0.55, hole.x, hole.y, r);
-        g.addColorStop(0, "rgba(0,0,0,1)"); g.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.globalCompositeOperation = "destination-out";
-        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(hole.x, hole.y, r, 0, Math.PI * 2); ctx.fill();
+        const cut = (x: number, y: number, rr: number, core: number) => {
+          const g = ctx.createRadialGradient(x, y, rr * core, x, y, rr);
+          g.addColorStop(0, "rgba(0,0,0,1)"); g.addColorStop(1, "rgba(0,0,0,0)");
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, rr, 0, Math.PI * 2); ctx.fill();
+        };
+        // Основной круг — поменьше, а кромку рисуют клубы: одни выступают, другие нет.
+        cut(hole.x, hole.y, hole.puffs ? r * 0.82 : r, 0.55);
+        for (const pf of hole.puffs ?? []) cut(hole.x + pf.dx * r, hole.y + pf.dy * r, pf.r * r, 0.25);
       }
       ctx.restore();
     };
@@ -439,10 +465,10 @@ export function FogLayer({ vp, size = HEX_SIZE, fogHexes, fogPoints = NO_POINTS,
     const loop = (t: number) => {
       raf = requestAnimationFrame(loop);
       if (document.hidden) return;
-      const animated = (!reduced || holeRef.current) && maskRef.current;
-      // Пока окно разведки раскрывается или смыкается — без ограничения кадров (решение владельца 29.10: «подними на 60 кадров»);
+      // Пока окно разведки раскрывается — без ограничения кадров (решение владельца 29.10: «подними на 60 кадров»);
       // облака в покое — не чаще 24 к/с ради батареи.
-      const h = holeRef.current, moving = h ? (() => { const f = fogHoleAt(h, performance.now()); return f !== null && f < 1; })() : false;
+      const now = performance.now(), moving = holesRef.current.some((h) => { const f = fogHoleAt(h, now); return f > 0 && f < 1; });
+      const animated = (!reduced || moving) && maskRef.current;
       if (!dirty.current && (!animated || (!moving && t - last < 1000 / 24))) return;
       dirty.current = false; last = t;
       draw(t);
@@ -604,8 +630,6 @@ export function TilesLayer({ vp, hexes, size = HEX_SIZE, skipWater = false, dayt
  */
 const SYMBOLS: Record<string, string> = {
   wave: "M2 12c2-3 4-3 6 0s4 3 6 0 4-3 6 0M2 18c2-3 4-3 6 0s4 3 6 0 4-3 6 0",
-  city: "M3 21h18M5 21V7l7-4 7 4v14M9 21v-4h6v4M9 10h.01M15 10h.01M9 14h.01M15 14h.01",
-  telescope: "m4 14 12-7 3 5-12 7-3-5Zm12-7 3-2 3 5-3 2M9 17l3 5m-6-2 3-3",
   pin: "M12 21s-6-5.3-6-11a6 6 0 1 1 12 0c0 5.7-6 11-6 11ZM12 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
   scroll: "M8 21h12a2 2 0 0 0 2-2v-2H10v2a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v3h4M8 21a2 2 0 0 1-2-2M6 5h12a2 2 0 0 1 2 2v10M10 9h6m-6 4h6",
   user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2m12-14a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",

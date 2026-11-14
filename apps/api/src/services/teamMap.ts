@@ -1,7 +1,7 @@
 import { prisma } from "../db.js";
 import { assignPeople } from "./people.js";
 import { bookName, msg } from "./i18n.js";
-import { hexCorners, vertexKey, BOOKS, localMinutes, PHASE_START } from "@lotw/domain";
+import { hexCorners, vertexKey, vertexHexes, parseVertexKey, BOOKS, localMinutes, PHASE_START } from "@lotw/domain";
 import { loadCityContent } from "./cities.js";
 import { notifyTeam, notifyUser } from "./notify.js";
 import { publish, onPublish, TEAM_ONLY, hasTeamSubscribers, pushToTeam } from "./events.js";
@@ -688,9 +688,12 @@ async function computeTeamMap(gameId: string, teamId: string) {
       passage: passageByKey.get(n.key) ?? null,
     };
   }));
-  // Разведчик заглянул за ребро: известен только вид узла (город или развилка), без названия.
+  // Разведанный перекрёсток остаётся открытым насовсем (решение владельца 14.11): карта держит туман раздвинутым вокруг него
+  // и показывает, что там, — город с названием или развилку. Поэтому у города отдаются книга и вид, а у гексов тумана
+  // вокруг перекрёстка — местность (признак peek): в остальном тумане местность скрыта.
   const peekKeys = new Set(peeks.map((p) => p.nodeKey));
-  const peeked = nodes.filter((n) => peekKeys.has(n.key) && !revealed.has(n.key)).map((n) => ({ key: n.key, kind: n.kind }));
+  const peeked = nodes.filter((n) => peekKeys.has(n.key) && !revealed.has(n.key)).map((n) => ({ key: n.key, kind: n.kind, ...(n.kind === "CITY" ? { bookCode: n.bookCode, cityType: n.cityType } : {}) }));
+  const peekHexes = new Set(peeked.flatMap((p) => vertexHexes(parseVertexKey(p.key)).map((h) => `${h.q},${h.r}`)));
   // Гекс освещён, если хотя бы один его угол открыт командой. Остальные видны только силуэтом в тумане.
   const lit = (h: { q: number; r: number }) => hexCorners(h).some((c) => revealed.has(vertexKey(c)));
   // Край тумана (решение владельца 02.10): все ещё не открытые углы освещённых гексов, даже без стороны с делом к ним.
@@ -714,7 +717,7 @@ async function computeTeamMap(gameId: string, teamId: string) {
   }));
   return {
     // Остров известен и у гексов в тумане: по нему подписываются острова.
-    hexes: hexes.map((h) => (lit(h) ? { ...h, lit: true } : { q: h.q, r: h.r, island: h.island, lit: false })),
+    hexes: hexes.map((h) => (lit(h) ? { ...h, lit: true } : peekHexes.has(`${h.q},${h.r}`) ? { ...h, lit: false, peek: true } : { q: h.q, r: h.r, island: h.island, lit: false })),
     // Когда узел открыт — для ползунка истории на карте команды (решение владельца 05.10).
     revealed: nodes.filter((n) => revealed.has(n.key)).map(({ ruined: _r, ...n }) => ({ ...n, revealedAt: revealedAtOf.get(n.key) ?? null })),
     // Рёбра, касающиеся открытых узлов: пройденные и фронтир (в туман).

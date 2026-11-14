@@ -1235,44 +1235,8 @@ function drawRoutes(ctx: CanvasRenderingContext2D, k: number): void {
   }
   ctx.restore();
 }
-/** Подпись острова по дуге под ним: центр, радиус дуги, текст. Рисуется в слое живности между зверями и кораблями. */
-export interface IslandLabelSpec { x: number; y: number; r: number; name: string }
-let LABELS: readonly IslandLabelSpec[] = [];
-/**
- * Названия островов (решение владельца 05.10): киты проплывают под буквами, корабли — над. Поэтому подписи рисуются
- * на холсте живности между зверями и кораблями, тем же начертанием, что раньше в SVG: Philosopher капителью с разрядкой,
- * светлые буквы с тонкой тёмной обводкой и мягкой тенью; размер на экране постоянный (16px при масштабе ≥1.6, не меньше 0.7).
- */
-function drawIslandLabels(ctx: CanvasRenderingContext2D, k: number): void {
-  if (!LABELS.length) return;
-  const ui = Math.max(0.7, Math.min(1, Math.max(0.5, k / 1.6)));
-  const fs = (16 * ui) / k, ls = fs * 0.2;
-  ctx.save();
-  ctx.globalAlpha = 1;
-  ctx.font = `400 ${fs.toFixed(2)}px Philosopher, "Trebuchet MS", sans-serif`;
-  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-  ctx.lineJoin = "round"; ctx.lineWidth = (1.6 * ui) / k;
-  ctx.strokeStyle = "rgba(8,40,60,0.45)"; ctx.fillStyle = "#fff6e4";
-  ctx.shadowColor = "rgba(6,40,58,0.7)"; ctx.shadowBlur = (1.1 * ui) / k; ctx.shadowOffsetY = (0.6 * ui) / k;
-  for (const l of LABELS) {
-    const chars = [...l.name.toUpperCase()];
-    const widths = chars.map((c) => ctx.measureText(c).width);
-    const total = widths.reduce((a, b) => a + b, 0) + ls * (chars.length - 1);
-    // Дуга по нижнему берегу: читается слева направо, середина текста — в самой нижней точке (угол 90°).
-    let a = Math.PI / 2 + total / 2 / l.r;
-    chars.forEach((c, i) => {
-      const half = widths[i]! / 2;
-      a -= half / l.r;
-      ctx.save(); ctx.translate(l.x + Math.cos(a) * l.r, l.y + Math.sin(a) * l.r); ctx.rotate(a - Math.PI / 2);
-      ctx.strokeText(c, 0, 0); ctx.fillText(c, 0, 0);
-      ctx.restore();
-      a -= (half + ls) / l.r;
-    });
-  }
-  ctx.restore();
-}
-/** Часть мира: «море» (звери, переправы, буквы, корабли, тени птиц на земле) рисуется под подписями карты, «небо» (сами птицы) — над ними (решение владельца 06.10). */
-/** Части мира по холстам: under — следы, звери и эффекты (под морскими путями); deck — подписи островов, корабли, тени птиц, (пути, если их рисует холст); sky — птицы. "sea" = under + deck (старые стенды). */
+/** Часть мира: «море» (звери, переправы, корабли, тени птиц на земле) рисуется под подписями карты, «небо» (сами птицы) — над ними (решение владельца 06.10). */
+/** Части мира по холстам: under — следы, звери и эффекты (под морскими путями); deck — корабли, тени птиц, (пути, если их рисует холст); sky — птицы. "sea" = under + deck (старые стенды). */
 type WorldPart = "all" | "sea" | "sky" | "under" | "deck";
 function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis, alpha = 1, part: WorldPart = "all"): void {
   ctx.globalAlpha = alpha;
@@ -1286,9 +1250,9 @@ function drawWorld(ctx: CanvasRenderingContext2D, w: World, k: number, vis: Vis,
     drawFx(ctx, w.fx, T, px, vis);
   }
   if (deck) {
-    // Переправы (когда их рисует холст, а не RoutesGL) и буквы — между китами и кораблями; с Э3 пути на WebGL лежат
+    // Переправы (когда их рисует холст, а не RoutesGL) — между китами и кораблями; с Э3 пути на WebGL лежат
     // между холстами under и deck, и порядок тот же: звери под путями, корабли над.
-    drawRoutes(ctx, k); drawIslandLabels(ctx, k); ctx.globalAlpha = alpha;
+    drawRoutes(ctx, k); ctx.globalAlpha = alpha;
     for (const sh of w.ships) if (inView(vis, sh.x, sh.y)) drawShip(ctx, sh, T, px, lod);
   }
   // Птицы: тень лежит на земле (под подписями), тело летит над подписями городов.
@@ -2057,12 +2021,11 @@ function drawRockets(ctx: CanvasRenderingContext2D, size: number, now: number, p
 // ───────────────────────────── Слой ─────────────────────────────
 const NO_ISLETS: Islet[] = [];
 const NO_FIRES: FireSite[] = [];
-const NO_LABELS: IslandLabelSpec[] = [];
 const NO_ROUTES: RouteSpec[] = [];
 const NO_WRECKS: WreckSpec[] = [];
-export function FaunaLayer({ vp, hexes, between = null, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, labels = NO_LABELS, routes = NO_ROUTES, wrecks = NO_WRECKS }: { /** Слой между холстами «под» и «над» (морские пути на WebGL, этап Э3): звери под ним, корабли над. */ between?: ReactNode; /** Разбитые бурей корабли (решение владельца 04.11): место, модель, семя ракет, время починки или гибели. */ wrecks?: WreckSpec[]; /** Морские маршруты: рисуются между зверями и кораблями (решение владельца 06.10). */ routes?: RouteSpec[]; /** Подписи островов: рисуются между зверями и кораблями (решение владельца 05.10). */ labels?: IslandLabelSpec[]; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
+export function FaunaLayer({ vp, hexes, between = null, islets = NO_ISLETS, size = HEX_SIZE, daily = null, seed = "", clock = Date.now, light = DAY_LIGHT, fires = NO_FIRES, routes = NO_ROUTES, wrecks = NO_WRECKS }: { /** Слой между холстами «под» и «над» (морские пути на WebGL, этап Э3): звери под ним, корабли над. */ between?: ReactNode; /** Разбитые бурей корабли (решение владельца 04.11): место, модель, семя ракет, время починки или гибели. */ wrecks?: WreckSpec[]; /** Морские маршруты: рисуются между зверями и кораблями (решение владельца 06.10). */ routes?: RouteSpec[]; vp: Viewport; hexes: MapHexDto[]; islets?: Islet[]; size?: number; /** Освещение времени суток: тени и фонари кораблей, сила костров. */ light?: Light; /** Где горят костры: города и старты. */ fires?: FireSite[]; /** Суточный полёт клина к городу: время и точка от сервера, одни для всех. */ daily?: DailyBird | null; /** Семя мира — id игры: у всех игроков одной игры звери одни и те же. */ seed?: string; /** Часы сервера в миллисекундах: по ним считается эпоха и секунда мира. */ clock?: () => number }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  // Второй холст — палуба: подписи островов, корабли, костры, тени птиц, разбитые корабли — над морскими путями (RoutesGL в слоте between).
+  // Второй холст — палуба: корабли, костры, тени птиц, разбитые корабли — над морскими путями (RoutesGL в слоте between).
   const deckRef = useRef<HTMLCanvasElement>(null);
   // Третий холст — небо: птицы летят над подписями городов и метками карты (решение владельца 06.10).
   const skyRef = useRef<HTMLCanvasElement>(null);
@@ -2070,7 +2033,6 @@ export function FaunaLayer({ vp, hexes, between = null, islets = NO_ISLETS, size
   const clockRef = useRef(clock); clockRef.current = clock;
   const lightRef = useRef(light); lightRef.current = light;
   const firesRef = useRef(fires); firesRef.current = fires;
-  const labelsRef = useRef(labels); labelsRef.current = labels;
   const routesRef = useRef(routes); routesRef.current = routes;
   const wrecksRef = useRef(wrecks); wrecksRef.current = wrecks;
   // Пояс моря вокруг поля: к его краю уходит починенный корабль.
@@ -2149,7 +2111,7 @@ export function FaunaLayer({ vp, hexes, between = null, islets = NO_ISLETS, size
       // Видимая область с запасом в три гекса: звери чуть за краем ещё видны хвостом или следом.
       vis.x0 = -tx / k - size * 3; vis.y0 = -ty / k - size * 3; vis.x1 = (W / dpr - tx) / k + size * 3; vis.y1 = (H / dpr - ty) / k + size * 3;
       const a = prev ? Math.min(1, cur.w.T / FADE) : 1;
-      LIGHT = lightRef.current; LABELS = labelsRef.current; ROUTES = routesRef.current; WRECKS = wrecksRef.current; SEA = seaRef.current;
+      LIGHT = lightRef.current; ROUTES = routesRef.current; WRECKS = wrecksRef.current; SEA = seaRef.current;
       const now = clockRef.current();
       if (prev) drawWorld(ctx, prev.w, k, vis, 1 - a, "under");
       drawWorld(ctx, cur.w, k, vis, a, "under");

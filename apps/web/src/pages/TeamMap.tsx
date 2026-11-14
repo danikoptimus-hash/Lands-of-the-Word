@@ -13,7 +13,7 @@ import { RoutesGL } from "./RoutesGL";
 /** Морские пути на WebGL (Э3) — по умолчанию; `?routes=canvas` — прежний способ на холсте живности (и запасной путь без WebGL). */
 const GL_ROUTES_DEFAULT = typeof location === "undefined" || !/[?&]routes=canvas/.test(location.search);
 import { deedPriority, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type MapHexDto, type MapMarkDto, type MyMapDto } from "../lib/api";
-import { CoastOver, DeedFire, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
+import { CoastOver, DeedFire, islandGeometry, FogLayer, fogHolePuffs, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
 import { FaunaLayer, trimRoute, type FireSite, type WreckSpec } from "./Fauna";
@@ -26,10 +26,13 @@ import { useSeabed } from "./Seabed";
 import { t, getLocale } from "../lib/i18n";
 
 const BOOK_BY_CODE = new Map(BOOKS.map((b) => [b.code, b]));
-/** Результат разведки для показа на карте: перекрёсток и что там (решение владельца 29.10). */
-export interface ScoutReveal { key: string; kind: string; bookCode?: string | null; cityType?: string | null; /** Местность гексов вокруг перекрёстка: на время показа они рисуются настоящими плитками, а не серой заглушкой тумана. */ hexes?: Array<{ q: number; r: number; terrain?: string; rotation?: number }>; nonce: number }
-/** Сколько окно разведки держится открытым (мс), не считая раскрытия и смыкания. */
-const SCOUT_HOLD = 5000;
+/**
+ * Разведанное место (решение владельца 14.11): туман вокруг перекрёстка раздвинут насовсем, радиус — половина стороны
+ * гекса. Числа — доли стороны: внешний край мягкой кромки; при кромке 0,55…1 туман наполовину прозрачен как раз на 0,5 стороны.
+ */
+const SCOUT_EDGE = 0.65;
+/** Центр окна: у города картинка стоит выше перекрёстка. */
+const scoutCenter = (pk: { key: string; kind: string }, size: number) => { const p = nodePos(pk.key, size); return { x: p.x, y: pk.kind === "CITY" ? p.y - size * 0.1 : p.y }; };
 /** Значок метки дела по статусу: свободно — свиток, в работе — человек, на проверке — часы, возвращено — знак внимания. */
 const DEED_SYMBOL: Record<EdgeTaskStatus, string> = { OPEN: "scroll", TAKEN: "user", SUBMITTED: "clock", APPROVED: "scroll", REJECTED: "alert" };
 /** Оценка ширины подписи (шрифт без измерения DOM): кириллица полужирным ≈ 0.62em на знак. */
@@ -70,7 +73,7 @@ export interface MarkPoint { q: number; r: number; qf: number; rf: number }
  * рядом (берег) — под облачком; открытые перекрёстки, города со значками и дороги к ним — расчищены, дорога к ещё
  * не открытому перекрёстку расчищается не до конца (на 0,55 гекса не доходя). Чистая функция от ответа карты.
  */
-export function teamFogInputs(map: Pick<MyMapDto, "hexes" | "revealed" | "edges" | "frontier">, size: number): { fogHexes: MapHexDto[]; landKeys: Set<string>; fogClear: FogClear; fogPoints: Array<{ x: number; y: number }> } {
+export function teamFogInputs(map: Pick<MyMapDto, "hexes" | "revealed" | "edges" | "frontier" | "peeked">, size: number): { fogHexes: MapHexDto[]; landKeys: Set<string>; fogClear: FogClear; fogPoints: Array<{ x: number; y: number }> } {
   const fogHexes = map.hexes.filter((h) => h.lit === false);
   const landKeys = new Set(map.hexes.map((h) => `${h.q},${h.r}`));
   const revealed = new Set(map.revealed.map((n) => n.key));
@@ -83,11 +86,13 @@ export function teamFogInputs(map: Pick<MyMapDto, "hexes" | "revealed" | "edges"
     return { x0: a.x, y0: a.y, x1: b.x, y1: b.y };
   });
   const fog = new Set(fogHexes.map((h) => `${h.q},${h.r}`));
-  const fogPoints = (map.frontier ?? []).filter((k) => !vertexHexes(parseVertexKey(k)).some((h) => fog.has(`${h.q},${h.r}`))).map((k) => nodePos(k, size));
+  // Разведанная точка берега остаётся открытой (решение владельца 14.11): облачко на неё не кладётся.
+  const peeked = new Set((map.peeked ?? []).map((pk) => pk.key));
+  const fogPoints = (map.frontier ?? []).filter((k) => !peeked.has(k) && !vertexHexes(parseVertexKey(k)).some((h) => fog.has(`${h.q},${h.r}`))).map((k) => nodePos(k, size));
   return { fogHexes, landKeys, fogClear: { nodes, edges }, fogPoints };
 }
 
-export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, onSelectWreck, bird, focusTask, storm, scout }: { /** Кто смотрит карту: дела, которые взял он сам, — фиолетовые (решение владельца 14.11). */ myId?: string | null; /** Нажатие на разбитый бурей корабль (решение владельца 04.11): лист срочного задания. */ onSelectWreck?: (wreckId: string) => void; /** Разведка (решение владельца 29.10): туман вокруг перекрёстка раздвигается на пять секунд и показывает, что там. */ scout?: ScoutReveal | null; /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, onSelectWreck, bird, focusTask, storm }: { /** Кто смотрит карту: дела, которые взял он сам, — фиолетовые (решение владельца 14.11). */ myId?: string | null; /** Нажатие на разбитый бурей корабль (решение владельца 04.11): лист срочного задания. */ onSelectWreck?: (wreckId: string) => void; /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
   /** Дело, которое взял сам смотрящий (в работе или на проверке): метка фиолетовая. */
   const mineOf = (tk: EdgeTaskDto) => !!myId && tk.takenById === myId && (tk.status === "TAKEN" || tk.status === "SUBMITTED");
@@ -145,6 +150,8 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
   const fireworkSites = useMemo<FireworkSite[]>(() => (map.cities ?? []).filter((c) => c.takenAt || c.triumphAt).map((c) => { const p = nodePos(c.nodeKey, size); return { key: c.nodeKey, x: p.x, y: p.y - size * 0.3, at: Math.max(c.takenAt ? Date.parse(c.takenAt) : 0, c.triumphAt ? Date.parse(c.triumphAt) : 0) }; }), [map.cities, size]);
   const fires = useMemo<FireSite[]>(() => map.revealed.filter((n) => n.kind === "CITY" || n.kind === "START").map((n) => { const p = nodePos(n.key, size); return { x: p.x, y: p.y - size * 0.08, r: size * (n.kind === "START" ? 0.45 : 0.38) }; }), [map.revealed, size]);
   const revealed = useMemo(() => new Set(map.revealed.map((n) => n.key)), [map.revealed]);
+  /** Разведанные, но ещё не открытые перекрёстки (решение владельца 14.11: место остаётся видно). */
+  const peekedByKey = useMemo(() => new Map((map.peeked ?? []).map((pk) => [pk.key, pk] as const)), [map.peeked]);
   // Разбитые бурей корабли (решение владельца 04.11): место — гекс от сервера; починка от момента одобрения, гибель — от closedAt.
   const wreckSpecs = useMemo<WreckSpec[]>(() => (map.wrecks ?? []).map((w) => { const c = hexCenter(w, size); return { id: w.id, x: c.x, y: c.y, kind: (w.model % 3) as 0 | 1 | 2, seed: w.seed, repairedAt: w.mine?.status === "APPROVED" && w.mine.decidedAt ? Date.parse(w.mine.decidedAt) : null, sunkAt: w.sunkAt ? Date.parse(w.sunkAt) : null }; }), [map.wrecks, size]);
   // Маркер корабля гаснет, когда он уплыл или ушёл под воду: секунды от часов сервера, тик раз в две секунды, пока есть такие корабли.
@@ -215,34 +222,26 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
   const [glRoutes, setGlRoutes] = useState(GL_ROUTES_DEFAULT);
   const owners = useMemo(() => [...new Set((map.cities ?? []).flatMap((c) => (c.owner ? [c.owner.color] : [])))], [map.cities]);
   // Входы тумана считает общая функция (`teamFogInputs`): ею же пользуется заготовка карты на главной.
-  const fog = useMemo(() => teamFogInputs(map, size), [map.hexes, map.revealed, map.edges, map.frontier, size]); // eslint-disable-line react-hooks/exhaustive-deps
+  const fog = useMemo(() => teamFogInputs(map, size), [map.hexes, map.revealed, map.edges, map.frontier, map.peeked, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const { fogHexes, landKeys, fogClear, fogPoints } = fog;
-  // Окно разведки: по смене nonce открывается на 5 с (плюс раскрытие и смыкание), пока открыто — поверх тумана город с названием или пустой перекрёсток.
-  const [hole, setHole] = useState<FogHole | null>(null);
-  const [scoutShown, setScoutShown] = useState<(ScoutReveal & { on: boolean }) | null>(null);
-  useEffect(() => {
-    if (!scout) return;
-    const p = nodePos(scout.key, size);
-    const h: FogHole = { x: p.x, y: p.y - size * 0.15, r: size * 1.15, start: performance.now(), hold: SCOUT_HOLD };
-    setHole(h); setScoutShown({ ...scout, on: false });
-    const t1 = setTimeout(() => setScoutShown((v) => (v ? { ...v, on: true } : v)), 30);
-    const t2 = setTimeout(() => setScoutShown((v) => (v ? { ...v, on: false } : v)), 700 + SCOUT_HOLD);
-    const t3 = setTimeout(() => { setHole(null); setScoutShown(null); }, 700 + SCOUT_HOLD + 800);
-    return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); };
-  }, [scout?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
-  // Пока окно разведки открыто, гексы вокруг перекрёстка получают местность из ответа разведки и рисуются плитками
-  // (замечание владельца 29.10: под раздвинутым туманом была серая заглушка). Сам туман считается по map.hexes и не меняется.
-  const tileHexes = useMemo(() => {
-    const peekHexes = hole ? scoutShown?.hexes : undefined;
-    if (!peekHexes?.length) return map.hexes;
-    const known = new Map(peekHexes.map((h) => [`${h.q},${h.r}`, h] as const));
-    return map.hexes.map((h) => { const k = h.lit === false ? known.get(`${h.q},${h.r}`) : undefined; return k?.terrain ? { ...h, terrain: k.terrain, rotation: k.rotation, lit: true, peek: true } : h; });
-  }, [map.hexes, hole, scoutShown?.hexes]);
-  // Центры островов: для подписей «Ветхий Завет» / «Новый Завет» и для корабля (он стоит с морской стороны порта).
+  // Разведанные места (решение владельца 14.11): туман вокруг перекрёстка раздвинут и больше не смыкается. Место, появившееся
+  // при открытой карте (разведчик только что разведал — у него и у всей команды), раскрывается плавно; те, что были
+  // при загрузке, открыты сразу. Момент раскрытия помнится по ключу: ползунок истории и возврат к карте его не сбрасывают.
+  const peekStart = useRef<Map<string, number> | null>(null);
+  const holes = useMemo<FogHole[]>(() => {
+    const first = peekStart.current === null, starts = peekStart.current ?? (peekStart.current = new Map<string, number>());
+    return (map.peeked ?? []).map((pk) => {
+      let start = starts.get(pk.key);
+      if (start === undefined) { start = first ? -1e9 : performance.now(); starts.set(pk.key, start); }
+      return { ...scoutCenter(pk, size), r: size * SCOUT_EDGE, start, puffs: fogHolePuffs(pk.key) };
+    });
+  }, [map.peeked, size]);
+  // Гексы тумана вокруг разведанного перекрёстка приходят с местностью (признак peek) и рисуются настоящими плитками:
+  // под раздвинутым туманом видна земля, а не серая заглушка. Сам туман считается по map.hexes и их по-прежнему укрывает.
+  const tileHexes = useMemo(() => (map.hexes.some((h) => h.peek) ? map.hexes.map((h) => (h.lit === false && h.peek && h.terrain ? { ...h, lit: true } : h)) : map.hexes), [map.hexes]);
+  // Центры островов: для корабля (он стоит с морской стороны порта). Подписей островов на карте нет (решение владельца 14.11).
   const islandCenters = useMemo(() => islandGeometry(map.hexes, size), [map.hexes, size]);
   const nodeByKey = useMemo(() => new Map(map.revealed.map((n) => [n.key, n])), [map.revealed]);
-  const fullLabelsNow = vp.view.k >= 1.6;
-  const islandLabels = useMemo(() => (!fullLabelsNow && islandCenters.has("NT") ? [...islandCenters].map(([isl, c]) => ({ x: c.x, y: c.y, r: c.r + size * 4, name: isl === "OT" ? t("Ветхий Завет") : t("Новый Завет") })) : []), [fullLabelsNow, islandCenters, size]);
   // Морские маршруты (решение владельца 05.10): после высадки путь корабля виден команде — плавная линия строго по воде,
   // в обход островков, со стрелкой в сторону высадки; нажимается, как пройденная сторона.
   const seaRoutes = useMemo(() => {
@@ -380,6 +379,12 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
         images.push({ src: IMG.city(n.cityType, imgPhase), x: p.x - CITY / 2, y: p.y - CITY * 0.6, w: CITY, h: CITY, ring: c?.owner ? { color: parseColor(c.owner.color), owned: true } : { color: [1, 1, 1, 0.85], owned: false } });
       }
     }
+    // Разведанный город (решение владельца 14.11): картинка стоит в раздвинутом тумане, как у свободного города.
+    for (const pk of map.peeked ?? []) {
+      if (pk.kind !== "CITY") continue;
+      const p = nodePos(pk.key, size);
+      images.push({ src: IMG.city(pk.cityType, imgPhase), x: p.x - CITY / 2, y: p.y - CITY * 0.6, w: CITY, h: CITY, ring: { color: [1, 1, 1, 0.85], owned: false } });
+    }
     return {
       size,
       hexes: tileHexes.map((h) => ({ ...hexCenter(h, size), fog: !h.lit && h.lit !== undefined })),
@@ -387,7 +392,7 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
       coast: coastLoops(coast), sand: rgb(light.sand), wet: rgb(light.wet),
       edges, images,
     };
-  }, [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase, tileHexes, coast, light]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [map.edges, map.revealed, map.peeked, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase, tileHexes, coast, light]); // eslint-disable-line react-hooks/exhaustive-deps
   const worldBody = useMemo(() => (<>
         {map.edges.map((e) => {
           const a = positions.get(e.aKey)!, b = positions.get(e.bKey)!;
@@ -425,7 +430,13 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
           }
           return null;
         })}
-  </>), [map.edges, map.revealed, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
+        {/* Разведанный город (решение владельца 14.11): виден в раздвинутом тумане; не нажимается, пока команда до него не дошла. */}
+        {(map.peeked ?? []).map((pk) => {
+          if (pk.kind !== "CITY") return null;
+          const p = nodePos(pk.key, size);
+          return <image key={"pk" + pk.key} className="m-scouted" href={IMG.city(pk.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter="url(#outline-free)" pointerEvents="none" />;
+        })}
+  </>), [map.edges, map.revealed, map.peeked, taskByEdge, selectedTaskId, positions, cityByKey, teamIndex, size, map.team.color, foreignByEdge, imgPhase, seaRoutes]); // eslint-disable-line react-hooks/exhaustive-deps
   // Каменоломня (решение владельца 04.10): скалистый островок с подписью, нажимается — открывает лист общих дел.
   const flashEl = flash && (
     <g className="adm-flash" pointerEvents="none">
@@ -460,7 +471,7 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
             const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
             if (!tk || tk.status === "APPROVED") return null;
             const farKey = revealed.has(e.aKey) ? e.bKey : e.aKey;
-            if (revealed.has(farKey)) return null;
+            if (revealed.has(farKey) || peekedByKey.has(farKey)) return null;
             const far = positions.get(farKey) ?? nodePos(farKey, size);
             return <g key={"tg" + e.aKey + e.bKey} className="m-target" style={sc(far.x, far.y)}><circle className="far" r={5} /></g>;
           })}
@@ -473,20 +484,19 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
               return (
                 <g key={"far" + farKey} data-key={farKey} className="m-far" style={sc(p.x, p.y)} role="button" aria-label={t("Край тумана")} onClick={() => { if (!vp.wasDrag()) onFrontierTap(farKey); }}>
                   <circle className="hit" r={14} />
-                  <circle className="far" r={5} />
+                  {/* Разведанное место вместо серой точки показывает, что там (ниже): развилку или город. */}
+                  {!peekedByKey.has(farKey) && <circle className="far" r={5} />}
                 </g>
               );
             });
           })()}
-          {showMarkers && (map.peeked ?? []).map((pk) => {
-            // Координаты из ключа: у разведанного угла без дороги к открытой части карты записи в positions нет (жалоба участника 31.10: метка стояла только через сторону с делом).
+          {/* Разведанная развилка (решение владельца 14.11): та же белая точка, что у открытого перекрёстка, — значков подзорной
+              трубы на карте больше нет, место видно само. Город рисуется картинкой в мире и подписан ниже. */}
+          {showForks && (map.peeked ?? []).map((pk) => {
+            if (pk.kind === "CITY") return null;
+            // Координаты из ключа: у разведанного угла без дороги к открытой части карты записи в positions нет.
             const pos = positions.get(pk.key) ?? nodePos(pk.key, size);
-            return (
-              <g key={"pk" + pk.key} className="m-peek" style={scm(pos.x, pos.y, "translate(0, -16px)")}>
-                <circle r={10} />
-                <use href={pk.kind === "CITY" ? "#m-city" : "#m-telescope"} x={-7} y={-7} width={14} height={14} />
-              </g>
-            );
+            return <g key={"pk" + pk.key} style={{ ...sc(pos.x, pos.y), pointerEvents: "none" }}><circle className="m-fork" r={5} /></g>;
           })}
           {showMarkers && map.edges.map((e) => {
             const tk = taskByEdge.get([e.aKey, e.bKey].sort().join("|"));
@@ -592,6 +602,18 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
             }
             return null;
           })}
+          {/* Разведанный город подписан названием, как при показе разведки (решение владельца 29.10); подпись не нажимается. */}
+          {(map.peeked ?? []).map((pk) => {
+            const name = pk.kind === "CITY" && pk.bookCode ? BOOK_BY_CODE.get(pk.bookCode)?.nameRu ?? "" : "";
+            if (!name) return null;
+            const p = nodePos(pk.key, size), fs = fullLabels ? 11 : 9, w = textWidth(name, fs) + 14, h = fs + 9;
+            return (
+              <g key={"pkl" + pk.key} className={"m-label scouted" + (fullLabels ? "" : " sm")} style={{ transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))`, pointerEvents: "none" }}>
+                <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
+                <text textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{name}</text>
+              </g>
+            );
+          })}
           {ripple && <g style={sc(ripple.x, ripple.y)}><circle key={ripple.n} className="map-ripple" r={6} /></g>}
           {showMarkers && (map.marks ?? []).map((mk) => {
             // Точное место нажатия: дробные координаты переводятся той же формулой, что и центр гекса.
@@ -631,10 +653,8 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
             {worldBody}
             {flashEl}
           </WorldSvg>}
-      {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={light} hole={hole} />}
-      {/* Названия островов — по дуге под островом (радиус: остров + 4 гекса); рисует слой живности: киты под буквами,
-          корабли над ними (решение владельца 05.10). */}
-      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} labels={islandLabels} routes={glRoutes ? [] : routeSpecs} wrecks={wreckSpecs}
+      {(fogHexes.length > 0 || fogPoints.length > 0) && <FogLayer vp={vp} size={size} fogHexes={fogHexes} fogPoints={fogPoints} clear={fogClear} land={landKeys} light={light} holes={holes} />}
+      <FaunaLayer vp={vp} hexes={map.hexes} islets={islets} size={size} daily={daily} seed={map.gameId ?? map.team.id} clock={serverClock} light={light} fires={fires} routes={glRoutes ? [] : routeSpecs} wrecks={wreckSpecs}
         between={glRoutes ? <RoutesGL vp={vp} routes={routeSpecs} onUnsupported={() => setGlRoutes(false)} /> : null} />
       {fireworkSites.length > 0 && !perfOff("fireworks") && <FireworksLayer vp={vp} sites={fireworkSites} clock={serverClock} timeZone={map.daytime?.timeZone ?? "Asia/Tashkent"} />}
       {storm && storm.t > 0 && <StormLayer t={storm.t} />}
@@ -642,26 +662,6 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
         {/* Символы (корабль, якорь…) нужны верхнему слою; подсветка «показать на карте» при мире на WebGL живёт здесь же. */}
         <MapSymbols />
         {glWorld && flashEl}
-        {scoutShown && (() => {
-          const p = nodePos(scoutShown.key, size);
-          const book = scoutShown.bookCode ? BOOK_BY_CODE.get(scoutShown.bookCode) : undefined;
-          const name = book?.nameRu ?? "", fs = 11, w = textWidth(name, fs) + 14, h = fs + 9;
-          return (
-            <g className={"m-scout" + (scoutShown.on ? " on" : "")} pointerEvents="none">
-              {scoutShown.kind === "CITY" ? (
-                <>
-                  <image href={IMG.city(scoutShown.cityType, imgPhase)} x={p.x - CITY / 2} y={p.y - CITY * 0.6} width={CITY} height={CITY} filter="url(#outline-free)" />
-                  {name && (
-                    <g className="m-label" style={{ transform: `translate(${p.x}px, ${p.y}px) translate(0, ${(CITY * 0.48).toFixed(2)}px) scale(var(--inv, 1))` }}>
-                      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
-                      <text textAnchor="middle" dy="0.35em" fontSize={fs} fontWeight={700}>{name}</text>
-                    </g>
-                  )}
-                </>
-              ) : <g style={sc(p.x, p.y)}><circle className="m-fork" r={5} /></g>}
-            </g>
-          );
-        })()}
         <g className="screen-items">
           {/* Каменоломня вне memo: обработчик нажатия должен видеть свежее состояние перетаскивания (ошибка 05.10: после закрытия лист не открывался). */}
           {quarryMarker}

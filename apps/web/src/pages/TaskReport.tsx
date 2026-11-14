@@ -4,6 +4,7 @@ import { t } from "../lib/i18n";
 import { useUi } from "../lib/ui";
 import { fmtDate } from "../lib/format";
 import { Icon } from "../components/Icon";
+import { LinkList, linkKind } from "../components/LinkList";
 import { Chip } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { TeamAvatar } from "../components/TeamAvatar";
@@ -56,7 +57,7 @@ export function TaskReportSheet({ gameId, taskId, container, onClose, onReview, 
           </p>
           {task.sea && <div className="note info"><Icon name="ship" /><span>{t("Морской путь: корабль из порта.")}</span></div>}
           {task.deed.secret && <div className="note info"><Icon name="lock" /><span>{t("Тайное дело: команда сдачу не видит, только вы.")}</span></div>}
-          {task.links.length > 0 && <ul className="links">{task.links.map((l) => <li key={l}><a href={l} target="_blank" rel="noreferrer">{l}</a></li>)}</ul>}
+          {task.links.length > 0 && <div className="proof-links"><LinkList links={task.links} kind={linkKind(task.deed.proofType)} /></div>}
           {task.note ? <p className="mt-2 report-text">{task.note}</p> : task.status !== "TAKEN" && task.links.length === 0 && <p className="muted small mt-2">{t("Текста отчёта нет.")}</p>}
           {task.status === "REJECTED" && task.adminComment && <div className="note bad"><Icon name="alert" /><span>{t("Возвращено с комментарием: «{comment}»", { comment: task.adminComment })}</span></div>}
           {task.status === "REJECTED" && <ReconsiderButton gameId={gameId} taskId={task.id} onDone={() => setTick((n) => n + 1)} />}

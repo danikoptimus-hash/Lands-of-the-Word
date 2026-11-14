@@ -11,7 +11,7 @@ import { teamFogInputs } from "./TeamMap";
  * уже полученному ответу карты. При нажатии на карточку карта собирается из готовых кусков. Шаги идут по одному в
  * свободные промежутки, чтобы главная не дёргалась.
  */
-export function warmTeamMap(map: Pick<MyMapDto, "hexes" | "revealed" | "edges" | "frontier">): void {
+export function warmTeamMap(map: Pick<MyMapDto, "hexes" | "revealed" | "edges" | "frontier" | "peeked">): void {
   if (typeof window === "undefined" || !map.hexes?.length) return;
   const size = HEX_SIZE;
   const bounds = fieldBounds(map.hexes, size);

@@ -5,6 +5,7 @@ import { prisma } from "./db.js";
 import { closeTrialsForAllPeaces } from "./services/peace.js";
 import { cleanupFixtures, readyForStart, registerVerified, setGamePhase } from "./testAuth.js";
 import { chronicleLines, sendChronicle } from "./services/journal.js";
+import { invalidateViews } from "./services/views.js";
 
 /**
  * Этап 4 решений владельца 18.09: журнал событий → лента команды и новости для всех (без ставок), «Моё служение»,
@@ -173,5 +174,39 @@ describe("журнал событий: лента, новости, служен�
     expect(b.teams[0].members[0].deeds).toBe(1);
     expect(b.events.some((e: { kind: string }) => e.kind === "trial_declared")).toBe(true);
     expect((await get(`/api/games/${gameId}/season-book`, p1Cookie)).statusCode).toBe(403);
+  });
+
+  it("летопись раскрывается страницами по 60 записей и хранит 15 дней", async () => {
+    // Решение владельца 14.11: «увеличить летопись до 15 дней… по 60 штук раскрывается, потом ещё 60 штук».
+    type Item = { id: string; kind: string; at: number; vars: { n?: number } };
+    const day = 86_400_000, now = Date.now();
+    // 130 записей команды с шагом в час (самая новая — час назад) и ещё три старше 15 дней.
+    await prisma.journal.createMany({ data: [
+      ...Array.from({ length: 130 }, (_, i) => ({ gameId, teamId: team1, kind: "deeds_unfrozen", vars: { n: i }, createdAt: new Date(now - (i + 1) * 3_600_000) })),
+      ...[16, 20, 40].map((d) => ({ gameId, teamId: team1, kind: "deeds_unfrozen", vars: { n: 1000 + d }, createdAt: new Date(now - d * day) })),
+    ] });
+    invalidateViews(gameId);
+    const first = (await get(`/api/games/${gameId}/feed`, p1Cookie)).json() as { items: Item[]; more: boolean };
+    expect(first.more).toBe(true);
+    expect(first.items.length).toBeGreaterThanOrEqual(60);
+    const seen = new Map(first.items.map((x) => [x.id, x]));
+    let last = first.items[first.items.length - 1]!, more = first.more, pages = 0;
+    while (more) {
+      const page = (await get(`/api/games/${gameId}/feed?beforeAt=${last.at}&beforeId=${last.id}`, p1Cookie)).json() as { items: Item[]; more: boolean };
+      expect(page.items.length).toBeLessThanOrEqual(60);
+      // Страницы идут строго дальше в прошлое и не повторяют показанное.
+      for (const it of page.items) { expect(seen.has(it.id)).toBe(false); expect(it.at).toBeLessThanOrEqual(last.at); seen.set(it.id, it); }
+      if (page.items.length) last = page.items[page.items.length - 1]!;
+      more = page.more; pages += 1;
+      expect(pages).toBeLessThan(10);
+    }
+    expect(pages).toBeGreaterThanOrEqual(2);
+    const mine = [...seen.values()].filter((x) => x.kind === "deeds_unfrozen").map((x) => x.vars.n ?? -1);
+    // Все 130 записей последних дней дошли, каждая один раз; записей старше 15 дней нет.
+    expect(mine.filter((n) => n < 1000).sort((a, b) => a - b)).toEqual(Array.from({ length: 130 }, (_, i) => i));
+    expect(mine.some((n) => n >= 1000)).toBe(false);
+    // Чужая команда этих записей не получает ни на первой странице, ни дальше.
+    const other = (await get(`/api/games/${gameId}/feed?beforeAt=${now}&beforeId=zzzz`, p2Cookie)).json() as { items: Item[] };
+    expect(other.items.some((x) => x.kind === "deeds_unfrozen")).toBe(false);
   });
 });
