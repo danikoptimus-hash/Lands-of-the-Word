@@ -979,17 +979,8 @@ export function TeamPage() {
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
           return (
-            <Sheet size="sm" container={mapEl} onClose={closeTask} onDismiss={backTo ? dismissTask : undefined} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2>{/* Приоритет капитана (решение владельца 14.11): огонёк в шапке карточки, пояснение и кто отметил — по нажатию на него («текст спрятать и показывать только при нажатии на огонёк»). */}{deedPriority(task) && <HelpPopup name={t("Приоритет капитана")} className="prio-mark" trigger={<Icon name="flame" />}><p>{t("Приоритет капитана: это дело — в первую очередь")}{task.priorityById && memberName(task.priorityById) ? <> · {t("отметил: {name}", { name: memberName(task.priorityById) })}</> : null}</p></HelpPopup>}<Chip tone={st.tone} icon={st.icon}>{st.label}</Chip><button type="button" className="secondary sm icon" aria-label={t("Посмотреть на карте")} title={t("Посмотреть на карте")} onClick={() => { /* Значок карты, как в отчёте у администратора (владелец 25.10): лист закрывается, карта центрируется на стороне дела. */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }}><Icon name="map" /></button></div>}>
+            <Sheet size="sm" container={mapEl} onClose={closeTask} onDismiss={backTo ? dismissTask : undefined} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2>{/* Приоритет капитана (решение владельца 14.11): огонёк в шапке карточки, пояснение и кто отметил — по нажатию на него («текст спрятать и показывать только при нажатии на огонёк»). */}{deedPriority(task) && <HelpPopup name={t("Приоритет капитана")} className="prio-mark" trigger={<Icon name="flame" />}><p>{t("Приоритет капитана: это дело — в первую очередь")}{task.priorityById && memberName(task.priorityById) ? <> · {t("отметил: {name}", { name: memberName(task.priorityById) })}</> : null}</p></HelpPopup>}<Chip tone={st.tone} icon={st.icon}>{st.label}</Chip></div>}>
               {/* Приоритет капитана (решение владельца 14.11): капитан или заместитель отмечает дело — его свиток на карте горит у всей команды. */}
-              {/* Кнопка капитана и заместителя: отметить дело приоритетным или снять отметку. Остальные кнопки карточки от неё не зависят. */}
-              {isLeader && task.status !== "APPROVED" && !task.paved && (
-                <div className="priority-actions mt-2">
-                  <button type="button" className="secondary sm prio-btn" disabled={prioBusy} aria-pressed={Boolean(task.priorityAt)} onClick={() => void setPriority(task.id, !task.priorityAt)}>
-                    <Icon name="flame" />{task.priorityAt ? t("Снять приоритет") : t("Отметить приоритетным")}
-                  </button>
-                  <Help>{t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}</Help>
-                </div>
-              )}
               {task.person && <p className="meta-line mt-2 person-line"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
               <p className="meta-line mt-2">
                 <Icon name={proof.icon} />{t("Сдать")}: {proof.label()}
@@ -1024,20 +1015,35 @@ export function TeamPage() {
               {night && !canTake && task.status !== "APPROVED" && task.status !== "SUBMITTED" && <NightNote>{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</NightNote>}
               {night && canTake && (task.status === "OPEN" || task.status === "REJECTED") && <NightNote>{t("До 0:00 дело можно взять; сдать и разведать — с 7:00 по местному времени.")}</NightNote>}
               {night && canTake && task.status === "TAKEN" && <NightNote>{t("Ночь: сдать дело можно с 7:00 по местному времени.")}</NightNote>}
-              {canTake && (task.status === "OPEN" || task.status === "REJECTED") && (
-                <div className="actions">
-                  <button type="button" disabled={busy || limitFull(map) || Boolean(map?.deedsFrozenUntil)} onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)}><Icon name="scroll" />{t("Взять дело")}</button>
-                  {/* Каменоломня (решение владельца 04.10): камень мостит свободную сухопутную сторону — капитан, заместитель или летописец.
-                      Возвращённое дело — тоже (решение владельца 05.11: участник не нашёл кнопку у возвращённого дела). */}
-                  {(task.status === "OPEN" || task.status === "REJECTED") && !task.sea && (map?.team.stones ?? 0) > 0 && (isCaptain || me?.role === "DEPUTY" || me?.gameRole === "CHRONICLER") && (
-                    <button type="button" className="secondary" disabled={busy} onClick={() => void pave(task.id)}><Icon name="stone" />{t("Вымостить дорогу")}<span className="count-chip">{map?.team.stones}</span></button>
-                  )}
-                  {limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}
-                  {map?.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
-                  {scoutBtn}
-                </div>
-              )}
-              {task.status !== "OPEN" && task.status !== "REJECTED" && scoutBtn && <div className="actions">{scoutBtn}</div>}
+              {/* Действия дела — ряд квадратных кнопок со значками внизу слева (решение владельца 14.11): слева направо «на карте»,
+                  «приоритет» (капитан и заместитель), «вымостить», «взять дело»; у каждой в правом верхнем углу маленький «?» —
+                  что делает кнопка. Каменоломня (решение владельца 04.10): камень мостит свободную сухопутную сторону — капитан,
+                  заместитель или летописец; возвращённое дело — тоже (05.11). Кнопки друг от друга не зависят. */}
+              {(() => {
+                const free = task.status === "OPEN" || task.status === "REJECTED";
+                const showTake = canTake && free;
+                const showPave = showTake && !task.sea && (map?.team.stones ?? 0) > 0 && (isCaptain || me?.role === "DEPUTY" || me?.gameRole === "CHRONICLER");
+                const showPrio = isLeader && task.status !== "APPROVED" && !task.paved;
+                const prioOn = Boolean(task.priorityAt);
+                return (
+                  <div className="actions deed-acts">
+                    <SquareAction icon="map" label={t("Посмотреть на карте")} help={t("Карточка закроется, а карта покажет сторону, на которой стоит это дело.")}
+                      onClick={() => { /* лист закрывается, карта центрируется на стороне дела (владелец 25.10) */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }} />
+                    {showPrio && <SquareAction icon="flame" className="prio" on={prioOn} disabled={prioBusy} label={prioOn ? t("Снять приоритет") : t("Отметить приоритетным")}
+                      help={t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}
+                      onClick={() => void setPriority(task.id, !prioOn)} />}
+                    {showPave && <SquareAction icon="stone" badge={map?.team.stones} disabled={busy} label={t("Вымостить дорогу")}
+                      help={t("Потратить один тёсаный камень из Каменоломни: сторона откроется как пройденная, дело делать не нужно. Камней у команды: {n}.", { n: map?.team.stones ?? 0 })}
+                      onClick={() => void pave(task.id)} />}
+                    {showTake && <SquareAction icon="scroll" primary disabled={busy || limitFull(map) || Boolean(map?.deedsFrozenUntil)} label={t("Взять дело")}
+                      help={t("Дело записывается за вами: другие его взять не смогут, пока вы его не сдадите или не отпустите.")}
+                      onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)} />}
+                    {scoutBtn}
+                    {showTake && limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}
+                    {showTake && map?.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
+                  </div>
+                );
+              })()}
               {/* Форма сдачи только у взявшего, капитана, заместителя и летописца (замечание владельца 10.10: остальные видели чужую сдачу). */}
               {!night && task.status === "TAKEN" && !mine && !isLeader && me?.gameRole !== "CHRONICLER" && (
                 <p className="hint"><Icon name="user" />{t("Дело у другого участника: сдать или отказаться может тот, кто взял, капитан, заместитель или летописец.")}</p>
@@ -1066,6 +1072,22 @@ export function TeamPage() {
  * (решение владельца 05.11: «объединить в одно поле… убрать „как“»; до того два вопроса, с 18.09 — три); участники дела
  * группой отмечаются галочками, каждому засчитывается в личное служение.
  */
+/**
+ * Квадратная кнопка действия со значком и маленьким «?» в правом верхнем углу (решение владельца 14.11: «кнопки сделаем
+ * квадратными и оставим только значки… над каждой кнопкой маленький вопросительный значок в правом верхнем углу с
+ * объяснением, что за кнопка»). Название и пояснение — в окошке по нажатию на «?»; название же — подпись для чтения с экрана.
+ */
+function SquareAction({ icon, label, help, onClick, disabled, primary = false, on, badge, className }: { icon: string; label: string; help: string; onClick: () => void; disabled?: boolean; /** Главное действие — залитая кнопка. */ primary?: boolean; /** Нажатое состояние переключателя (приоритет отмечен). */ on?: boolean; /** Число в углу (камни Каменоломни). */ badge?: number | null; className?: string }) {
+  return (
+    <span className={"sq-act" + (className ? " " + className : "")}>
+      <button type="button" className={(primary ? "" : "secondary ") + "sq-btn" + (on ? " on" : "")} aria-label={label} title={label} aria-pressed={on} disabled={disabled} onClick={onClick}>
+        <Icon name={icon} />{badge != null && <span className="count-chip">{badge}</span>}
+      </button>
+      <HelpPopup name={label} className="sq-help"><p><b>{label}.</b> {help}</p></HelpPopup>
+    </span>
+  );
+}
+
 function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRelease }: { /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; donationCfg: { min: number; currency: string } | null; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; donation: boolean; donationAmount?: number; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
