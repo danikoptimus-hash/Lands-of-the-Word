@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import { HelpPopup } from "./Help";
 import { t } from "../lib/i18n";
@@ -12,7 +12,7 @@ import { t } from "../lib/i18n";
  * Запасной путь (15.10, встроенный браузер Xiaomi без чтения буфера): строка, куда ссылку вставляет клавиатура.
  * Принимаются только адреса с http:// или https://.
  */
-export function LinksField({ label, links, onChange }: { label: string; links: string[]; onChange: (links: string[]) => void }) {
+export function LinksField({ label, mark, links, onChange }: { label: string; /** Пометка у подписи, например «обязательно». */ mark?: ReactNode; links: string[]; onChange: (links: string[]) => void }) {
   const [error, setError] = useState("");
   const [manual, setManual] = useState(false);
   const [draft, setDraft] = useState("");
@@ -41,7 +41,7 @@ export function LinksField({ label, links, onChange }: { label: string; links: s
   const has = links.length > 0;
   return (
     <div ref={root} className="field links-field">
-      <span className="label">{label}</span>
+      <span className="label">{label}{mark && <> {mark}</>}</span>
       <div className="link-add-row">
         <button type="button" className={"secondary sm link-add-btn" + (has ? " has-links" : "")} aria-expanded={has ? open : undefined} onClick={() => (has ? setOpen((v) => !v) : void paste())}>
           <Icon name={has ? "check" : "link"} />{has ? (links.length === 1 ? t("Ссылка вставлена") : t("Ссылок: {n}", { n: links.length })) : t("Вставить ссылку")}

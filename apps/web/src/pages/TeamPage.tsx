@@ -877,7 +877,7 @@ export function TeamPage() {
             <Link to="/" className="secondary icon hud-btn storm-back" aria-label={t("Мои игры")} title={t("Мои игры")}><Icon name="back" /></Link>
           </>
         ) : (
-        <TeamMap map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask} storm={storm}
+        <TeamMap myId={user?.id} map={shownMap ?? map} bird={historyAt ? null : bird} teamIndex={team.index} selectedTaskId={selectedId} onSelect={openTask} onSelectCity={openCity} focusTask={focusTask} storm={storm}
           landing={landingTask ? { taskId: landingTask.id, candidates: landingTask.candidates ?? [] } : null} onLand={(key) => void land(key)}
           onMark={(at) => { setMarkAt(at); setMarkNote(""); setMarkDrop(false); }} onMarkTap={tapMark}
           onFrontierTap={/* серые точки края тумана видит только разведчик (решение владельца 05.10): остальным они не нужны и мешают */ me?.gameRole === "SCOUT" ? (key) => { setFrontierKey(key); setSelectedId(null); setMenu(false); } : undefined}
@@ -979,13 +979,15 @@ export function TeamPage() {
             <Sheet size="sm" container={mapEl} onClose={closeTask} onDismiss={backTo ? dismissTask : undefined} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2>{/* Приоритет капитана (решение владельца 14.11): огонёк в шапке карточки, пояснение и кто отметил — по нажатию на него («текст спрятать и показывать только при нажатии на огонёк»). */}{deedPriority(task) && <HelpPopup name={t("Приоритет капитана")} className="prio-mark" trigger={<Icon name="flame" />}><p>{t("Приоритет капитана: это дело — в первую очередь")}{task.priorityById && memberName(task.priorityById) ? <> · {t("отметил: {name}", { name: memberName(task.priorityById) })}</> : null}</p></HelpPopup>}{/* У свободного дела значка состояния нет (решение владельца 14.11: «это и так понятно» — по кнопке «Взять дело»); в работе, на проверке, принято, возвращено — показываются. */}{task.status !== "OPEN" && <Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>}</div>}>
               {/* Приоритет капитана (решение владельца 14.11): капитан или заместитель отмечает дело — его свиток на карте горит у всей команды. */}
               {task.person && <p className="meta-line mt-2 person-line"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
+              {/* Чем сдавать — только у взятого дела (решение владельца 14.11): у свободного это лишнее; «можно издалека» убрано совсем. */}
+              {(task.status !== "OPEN" || taker || task.deed.secret || task.sea) && (
               <p className="meta-line mt-2">
-                <Icon name={proof.icon} />{t("Сдать")}: {proof.label()}
-                {taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}
-                {task.deed.remote && <Chip icon="send">{t("можно издалека")}</Chip>}
+                {task.status !== "OPEN" && <><Icon name={proof.icon} />{t("Сдать")}: {proof.label()}</>}
+                {taker && <>{task.status !== "OPEN" && " · "}<Icon name="user" />{t("Взял: {name}", { name: taker })}</>}
                 {task.deed.secret && <><Chip icon="lock">{t("тайное")}</Chip><Help>{t("Сдачу видят только вы и проверяющий.")}</Help></>}
                 {task.sea && <><Chip icon="ship">{t("корабль")}</Chip><Help>{t("После одобрения кормчий выберет место высадки на любом береговом узле другого острова. Где там город, заранее не видно. Капитан и команда ему советуют.")}</Help></>}
               </p>
+              )}
               {task.deed.description && <p className={"deed-desc mt-2" + (longDesc && !descOpen ? " clamp" : "")}>{task.deed.description}</p>}
               {longDesc && <button type="button" className="ghost sm desc-more" aria-expanded={descOpen} onClick={() => setDescOpen((v) => !v)}><Icon name={descOpen ? "chevron-up" : "chevron-down"} />{descOpen ? t("Свернуть") : t("Подробнее")}</button>}
               {task.landing && (canLand
@@ -1097,11 +1099,19 @@ function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /**
   const byWitness = proofType === "WITNESS";
   const noteOut = report ? what.trim()
     : byWitness ? [witness.trim() && `${t("Свидетель")}: ${witness.trim()}`, note.trim()].filter(Boolean).join("\n") : note;
+  // Обязательные поля (решение владельца 14.11): пока не добавлено то, чего требует дело, сдать нельзя.
+  // Фото, видео и аудиозапись — ссылка; отчёт — текст; свидетель — кто подтвердит. Сервер проверяет то же.
+  const needLink = proofType === "PHOTO_LINK" || proofType === "VIDEO_LINK" || proofType === "AUDIO_LINK";
+  const missing = needLink && links.length === 0 ? (proofType === "AUDIO_LINK" ? t("ссылку на аудиозапись") : t("ссылку на фото или видео"))
+    : byWitness && !witness.trim() ? t("кто может подтвердить")
+    : report && what.trim().length < 5 ? t("что сделали и кому")
+    : null;
+  const must = <span className="req">{t("обязательно")}</span>;
   return (
     <>
       {byWitness && (
         <div className="field">
-          <label htmlFor="deed-witness">{t("Кто может подтвердить")} <span className="opt">{t("свидетель: кто это видел или слышал")}</span></label>
+          <label htmlFor="deed-witness">{t("Кто может подтвердить")} {must} <span className="opt">{t("свидетель: кто это видел или слышал")}</span></label>
           <input id="deed-witness" value={witness} onChange={(e) => setWitness(e.target.value)} maxLength={120} placeholder={t("имя и кто это, например служитель")} />
         </div>
       )}
@@ -1115,7 +1125,7 @@ function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /**
       {(!byWitness || others.length > 0) && (
         <div className={"deed-pair" + (!byWitness && others.length > 0 ? " two" : "")}>
           {!byWitness && (
-            <LinksField label={proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />
+            <LinksField label={proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} mark={needLink ? must : undefined} links={links} onChange={setLinks} />
           )}
           {others.length > 0 && (
             <div className="field">
@@ -1126,7 +1136,7 @@ function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /**
         </div>
       )}
       {report ? (
-        <div className="field"><label htmlFor="deed-q1">{t("Что сделал и кому?")}</label><AutoGrow id="deed-q1" value={what} onChange={(e) => setWhat(e.target.value)} /></div>
+        <div className="field"><label htmlFor="deed-q1">{t("Что сделал и кому?")} {must}</label><AutoGrow id="deed-q1" value={what} onChange={(e) => setWhat(e.target.value)} /></div>
       ) : (
         <div className="field">
           <label htmlFor="deed-note">{t("Что сделали")}</label>
@@ -1134,9 +1144,10 @@ function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /**
         </div>
       )}
       {/* «Отказаться» слева, «Сдать» справа, в один ряд (решение владельца 16.10). */}
+      {missing && <p className="hint deed-missing"><Icon name="info" />{t("Чтобы сдать дело, добавьте: {what}.", { what: missing })}</p>}
       <div className="actions deed-actions">
         <button type="button" className="secondary icon" aria-label={t("Отказаться от дела")} title={t("Отказаться от дела")} disabled={busy} onClick={onRelease}><Icon name="x" /></button>
-        <button type="button" disabled={busy || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links, note: noteOut, participants, mainId: main ? mainId : undefined })}><Icon name="send" />{t("Сдать на проверку")}</button>
+        <button type="button" disabled={busy || !!missing} onClick={() => void onSubmit({ links, note: noteOut, participants, mainId: main ? mainId : undefined })}><Icon name="send" />{t("Сдать на проверку")}</button>
       </div>
     </>
   );

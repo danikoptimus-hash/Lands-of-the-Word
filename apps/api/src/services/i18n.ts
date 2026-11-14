@@ -374,6 +374,7 @@ const EN: Record<string, string> = {
   "{h} ч {m} мин": "{h} h {m} min", "{m} мин": "{m} min",
   "Для этого дела нужна хотя бы одна ссылка на фото или видео": "This deed needs at least one photo or video link",
   "Опишите, что сделано": "Describe what was done",
+  "Для этого дела нужна ссылка на аудиозапись": "This deed needs a link to the audio recording",
   "Этот аккаунт на устройстве не найден: войдите в него заново": "This account is not on this device: sign in to it again",
   "Этот город не принадлежит команде": "This city does not belong to the team",
   "Столицу обменять нельзя": "A capital cannot be traded",

@@ -197,7 +197,6 @@ export function MyServiceSection({ gameId, version, awards, tab }: { gameId: str
             <div className="svc-stat"><b>{myAwards ?? "…"}</b><span>{t("наград")}</span></div>
           </div>
         )}
-        {s && s.deedsPending > 0 && <p className="hint">{t("В работе или на проверке: {n}", { n: s.deedsPending })}</p>}
         {/* Общий список участников всех команд по очкам (решения владельца 30.09 и 07.10): все участники, не только десятка. */}
         {top && top.rows.length > 0 && (
           <div className="top-board">
