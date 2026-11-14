@@ -164,7 +164,7 @@ export function TeamPage() {
   const wide = useMediaQuery("(min-width: 1024px)");
   // Готовые ответы с главной (решение владельца 24.10): состав и карта рисуются сразу, свежие придут следом.
   type TeamsResp = { isAdmin: boolean; teams: TeamDto[] };
-  type MapResp = MyMapDto & { gameName?: string; donation?: { currency: string } | null };
+  type MapResp = MyMapDto & { gameName?: string };
   const firstTeams = ready<TeamsResp>(`/api/games/${id}/teams`), firstMap = ready<MapResp>(`/api/games/${id}/my-map`);
   const [team, setTeam] = useState<TeamDto | null>(() => firstTeams?.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? firstTeams?.teams[0] ?? null);
   const [isAdmin, setIsAdmin] = useState(firstTeams?.isAdmin ?? false);
@@ -235,8 +235,6 @@ export function TeamPage() {
   const [passages, setPassages] = useState<PassagesDto | null>(null);
   const [now, setNow] = useState(Date.now());
   const [gameName, setGameName] = useState(firstMap?.gameName ?? "");
-  /** Валюта пожертвований игры; минимум — у каждого дела свой (deed.donationMin). */
-  const [currency, setCurrency] = useState(firstMap?.donation?.currency ?? "");
   const [busy, setBusy] = useState(false);
   /** Идёт запрос «отметить / снять приоритет»: блокируется только сама кнопка приоритета (замечание владельца 14.11: от неё мигали «Взять дело» и «Вымостить дорогу» — общий флаг busy блокировал все кнопки карточки). */
   const [prioBusy, setPrioBusy] = useState(false);
@@ -356,7 +354,7 @@ export function TeamPage() {
   }, [team?.id]);
 
   const loadTeam = useCallback(() => apiReady<TeamsResp>(`/api/games/${id}/teams`).then((r) => { setError(null); setIsAdmin(r.isAdmin); setTeam(r.teams.find((tm) => tm.members.some((mm) => mm.user.id === user?.id)) ?? r.teams[0] ?? null); }).catch((e) => setError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, user?.id]);
-  const loadMap = useCallback(() => apiReady<MapResp>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); setCurrency(m.donation?.currency ?? ""); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
+  const loadMap = useCallback(() => apiReady<MapResp>(`/api/games/${id}/my-map`).then((m) => { setMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id]);
   useEffect(() => { void loadTeam(); void loadMap(); }, [loadTeam, loadMap]);
   stormReload.current = () => { void loadMap(); };
   // Разделы меню («Моё служение», «Лента») открываются сразу (решение владельца 24.10): их ответы запрашиваются заранее.
@@ -600,7 +598,6 @@ export function TeamPage() {
   // Фаза для подписей: предпросмотр `?tod=` (снимки инструкции) перекрывает серверную, правила считает сервер.
   const phase = previewPhase() ?? map.daytime?.phase;
   const canTakeNow = phase !== "night" || Boolean(map.daytime?.tasksOpen);
-  const donationText = (dm: number | null | undefined) => dm ? `${t("пожертвование от {min} {cur}", { min: dm, cur: currency })}`.trim() : "";
   const landingTask = landingId ? map.tasks.find((tk) => tk.id === landingId && tk.landing) ?? null : null;
   const incoming = passages?.incoming.filter((r) => r.status === "PENDING") ?? [];
   // Бейдж на кнопке меню — только то, что требует действия: возвращённое дело, входящий запрос прохода, наш ход в испытании.
@@ -986,8 +983,6 @@ export function TeamPage() {
                 <Icon name={proof.icon} />{t("Сдать")}: {proof.label()}
                 {taker && <> · <Icon name="user" />{t("Взял: {name}", { name: taker })}</>}
                 {task.deed.remote && <Chip icon="send">{t("можно издалека")}</Chip>}
-                {/* Ценник пожертвования виден до взятия дела (решение владельца 05.10); в форме сдачи он повторяется галочкой. */}
-                {task.deed.donationMin && !(task.status === "TAKEN" && !night) ? <><Chip icon="star">{donationText(task.deed.donationMin)}</Chip><Help>{t("Вместо дела можно пожертвовать в кассу церкви не меньше этой суммы: чек — ссылкой.")}</Help></> : null}
                 {task.deed.secret && <><Chip icon="lock">{t("тайное")}</Chip><Help>{t("Сдачу видят только вы и проверяющий.")}</Help></>}
                 {task.sea && <><Chip icon="ship">{t("корабль")}</Chip><Help>{t("После одобрения кормчий выберет место высадки на любом береговом узле другого острова. Где там город, заранее не видно. Капитан и команда ему советуют.")}</Help></>}
               </p>
@@ -1050,7 +1045,7 @@ export function TeamPage() {
                 <p className="hint"><Icon name="user" />{t("Дело у другого участника: сдать или отказаться может тот, кто взял, капитан, заместитель или летописец.")}</p>
               )}
               {!night && task.status === "TAKEN" && (mine || isLeader || me?.gameRole === "CHRONICLER") && (
-                <DeedForm key={task.id} donationCfg={task.deed.donationMin ? { min: task.deed.donationMin, currency } : null} busy={busy} proofType={task.deed.proofType}
+                <DeedForm key={task.id} busy={busy} proofType={task.deed.proofType}
                   members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
                   main={isLeader || me?.gameRole === "CHRONICLER" ? { options: (team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname })), initial: task.takenById ?? user?.id ?? "" } : undefined}
                   onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
@@ -1089,30 +1084,21 @@ function SquareAction({ icon, label, help, onClick, disabled, primary = false, o
   );
 }
 
-function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRelease }: { /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; donationCfg: { min: number; currency: string } | null; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; donation: boolean; donationAmount?: number; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
+function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [what, setWhat] = useState("");
-  const [donation, setDonation] = useState(false);
-  const [amount, setAmount] = useState("");
   const [participants, setParticipants] = useState<string[]>([]);
   const [mainId, setMainId] = useState(main?.initial ?? "");
   const others = main ? main.options.filter((m) => m.id !== mainId) : members;
   const [witness, setWitness] = useState("");
-  const report = proofType === "REPORT" && !donation;
+  const report = proofType === "REPORT";
   // Свидетель (решение владельца 04.10): дело подтверждает человек, который это видел; ссылки не нужны.
-  const byWitness = proofType === "WITNESS" && !donation;
+  const byWitness = proofType === "WITNESS";
   const noteOut = report ? what.trim()
     : byWitness ? [witness.trim() && `${t("Свидетель")}: ${witness.trim()}`, note.trim()].filter(Boolean).join("\n") : note;
   return (
     <>
-      {donationCfg && <div className="row nowrap mt-2"><label className="check grow"><input type="checkbox" checked={donation} onChange={(e) => setDonation(e.target.checked)} />{t("Вместо дела — пожертвование (от {min} {cur})", { min: donationCfg.min, cur: donationCfg.currency })}</label><Help>{t("В кассу церкви. Сдаётся ссылка на чек или подтверждение перевода.")}</Help></div>}
-      {donation && donationCfg && (
-        <div className="field">
-          <label htmlFor="deed-amount">{t("Сумма")}, {donationCfg.currency}</label>
-          <input id="deed-amount" type="number" inputMode="numeric" min={donationCfg.min} value={amount} onChange={(e) => setAmount(e.target.value)} />
-        </div>
-      )}
       {byWitness && (
         <div className="field">
           <label htmlFor="deed-witness">{t("Кто может подтвердить")} <span className="opt">{t("свидетель: кто это видел или слышал")}</span></label>
@@ -1129,11 +1115,11 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
       {(!byWitness || others.length > 0) && (
         <div className={"deed-pair" + (!byWitness && others.length > 0 ? " two" : "")}>
           {!byWitness && (
-            <LinksField label={donation ? t("Ссылка на чек или подтверждение перевода") : proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />
+            <LinksField label={proofType === "AUDIO_LINK" ? t("Ссылка на аудиозапись чтения целиком") : t("Ссылки на фото или видео")} links={links} onChange={setLinks} />
           )}
           {others.length > 0 && (
             <div className="field">
-              <label className="label" htmlFor="deed-people">{t("Кто ещё участвовал")} <span className="opt">{donation ? t("если жертвовали вместе") : t("если делали группой")}</span></label>
+              <label className="label" htmlFor="deed-people">{t("Кто ещё участвовал")} <span className="opt">{t("если делали группой")}</span></label>
               <PeoplePicker id="deed-people" people={others} value={participants} onChange={setParticipants} empty={t("никого: делал один")} />
             </div>
           )}
@@ -1143,14 +1129,14 @@ function DeedForm({ donationCfg, busy, proofType, members, main, onSubmit, onRel
         <div className="field"><label htmlFor="deed-q1">{t("Что сделал и кому?")}</label><AutoGrow id="deed-q1" value={what} onChange={(e) => setWhat(e.target.value)} /></div>
       ) : (
         <div className="field">
-          <label htmlFor="deed-note">{donation ? t("Комментарий") : t("Что сделали")}</label>
+          <label htmlFor="deed-note">{t("Что сделали")}</label>
           <AutoGrow id="deed-note" value={note} onChange={(e) => setNote(e.target.value)} />
         </div>
       )}
       {/* «Отказаться» слева, «Сдать» справа, в один ряд (решение владельца 16.10). */}
       <div className="actions deed-actions">
         <button type="button" className="secondary icon" aria-label={t("Отказаться от дела")} title={t("Отказаться от дела")} disabled={busy} onClick={onRelease}><Icon name="x" /></button>
-        <button type="button" disabled={busy || (donation && !amount) || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links, note: noteOut, donation, donationAmount: donation ? Number(amount) : undefined, participants, mainId: main ? mainId : undefined })}><Icon name="send" />{donation ? t("Сдать пожертвование") : t("Сдать на проверку")}</button>
+        <button type="button" disabled={busy || (byWitness && !witness.trim())} onClick={() => void onSubmit({ links, note: noteOut, participants, mainId: main ? mainId : undefined })}><Icon name="send" />{t("Сдать на проверку")}</button>
       </div>
     </>
   );

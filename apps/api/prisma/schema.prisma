@@ -569,10 +569,6 @@ model Deed {
    * Баллы за это дело при осаде делами (пусто — значение по умолчанию из правил игры).
    */
   siegePoints Int?
-  /**
-   * Минимальное пожертвование вместо этого дела; пусто — пожертвованием это дело заменить нельзя (решение владельца 02.10: ценник у каждого дела свой).
-   */
-  donationMin Int?
   createdAt   DateTime       @default(now())
   edgeTasks   TeamEdgeTask[]
 
@@ -622,11 +618,6 @@ model TeamEdgeTask {
   note           String         @default("")
   submittedAt    DateTime?
   decidedAt      DateTime?
-  /**
-   * Дело заменено пожертвованием (сумма в валюте игры, чек — ссылкой).
-   */
-  donation       Boolean        @default(false)
-  donationAmount Int?
   /**
    * Морская сторона: дело из взятого порта; после одобрения капитан выбирает узел высадки на другом острове (toKey до высадки — «sea:<порт>»).
    */

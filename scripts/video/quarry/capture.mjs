@@ -152,7 +152,7 @@ await shot(D, "t18_returned");
 await D.keyboard.press("Escape"); await sleep(500);
 
 // === Разбитый корабль с камнями (груз)
-const wr = await admin.request.post(`${BASE}/api/games/${G}/deeds`, { data: { wreck: true, wreckStones: 3, wreckBlocks: 2, wreckSinkAt: null, quarry: false, stones: 1, title: "Помочь пожилой семье с переездом", description: "Командой помочь собрать и перенести вещи. Сдать — отчёт и фото.", direction: "Посещение (в церкви, больных, одиноких)", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: null, donationMin: null } });
+const wr = await admin.request.post(`${BASE}/api/games/${G}/deeds`, { data: { wreck: true, wreckStones: 3, wreckBlocks: 2, wreckSinkAt: null, quarry: false, stones: 1, title: "Помочь пожилой семье с переездом", description: "Командой помочь собрать и перенести вещи. Сдать — отчёт и фото.", direction: "Посещение (в церкви, больных, одиноких)", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: null} });
 console.log("корабль", wr.status());
 await D.close(); D = await open(david, `/games/${G}/team?tod=day`);
 const ship = D.locator("g.m-deed.wreck").first();

@@ -268,7 +268,7 @@ describe("город на перекрёстке", () => {
   });
 });
 
-describe("дипломатия, роли, столица, руины, пожертвование", () => {
+describe("дипломатия, роли, столица, руины, сдача дела", () => {
   it("проход через чужой город закрыт без разрешения; запрос → ответ владельца → проход открыт; отзыва нет", async () => {
     // Город Руфь принадлежит Львам (взят выше), Орлы дошли до него: дальше идти нельзя.
     await app.inject({ method: "POST", url: `/api/games/${gameId}/cities/${rutKey}/assign`, headers: { cookie: adminCookie }, payload: { teamId: team1 } });
@@ -339,25 +339,22 @@ describe("дипломатия, роли, столица, руины, пожер
     await prisma.user.deleteMany({ where: { nickname: scoutNick } });
   });
 
-  it("пожертвование вместо дела: только при ценнике у самого дела и не меньше него", async () => {
+  it("дело сдаётся только выполнением: замены дела взносом в игре нет, поля прежней версии сайта не действуют", async () => {
+    // Решение владельца 14.11: замена дела взносом убрана из игры целиком. Ни в карте, ни в деле таких полей нет;
+    // если прежняя версия сайта пришлёт их в сдаче, они отбрасываются, а сдача проверяется как обычная.
     const map = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
-    const t = (map.json().tasks as Array<{ id: string; deedId: string; status: string }>).find((x) => x.status === "OPEN")!;
+    const body = map.json() as Record<string, unknown> & { tasks: Array<{ id: string; deedId: string; status: string; deed: Record<string, unknown> }> };
+    const t = body.tasks.find((x) => x.status === "OPEN")!;
+    expect(Object.keys(body).some((k) => /donat/i.test(k))).toBe(false);
+    expect(Object.keys(t).concat(Object.keys(t.deed)).some((k) => /donat/i.test(k))).toBe(false);
     await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/take`, headers: { cookie: p2Cookie } });
-    const off = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: { donation: true, donationAmount: 500, links: ["https://example.com/receipt"] } });
-    expect(off.statusCode).toBe(409);
-    // Ценник у каждого дела свой (решение владельца 02.10); игра задаёт только валюту.
-    const cur = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { donationCurrency: "сум" } } });
-    expect(cur.statusCode).toBe(200);
-    const set = await app.inject({ method: "PUT", url: `/api/games/${gameId}/deeds/${t.deedId}`, headers: { cookie: adminCookie }, payload: { donationMin: 1000 } });
-    expect(set.statusCode).toBe(200);
-    expect(set.json().deed.donationMin).toBe(1000);
-    const map2 = await app.inject({ method: "GET", url: `/api/games/${gameId}/my-map`, headers: { cookie: p2Cookie } });
-    expect((map2.json().tasks as Array<{ id: string; deed: { donationMin: number | null } }>).find((x) => x.id === t.id)!.deed.donationMin).toBe(1000);
-    const low = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: { donation: true, donationAmount: 500, links: ["https://example.com/receipt"] } });
-    expect(low.statusCode).toBe(400);
-    const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: { donation: true, donationAmount: 1500, links: ["https://example.com/receipt"] } });
-    expect(ok.statusCode).toBe(200);
-    expect(ok.json().task).toMatchObject({ status: "SUBMITTED", donation: true, donationAmount: 1500 });
+    const legacy = { donation: true, donationAmount: 1500 };
+    const bare = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: legacy });
+    expect(bare.statusCode).toBe(400); // без описания и ссылки сдачи нет — как у любого дела
+    const ok = await app.inject({ method: "POST", url: `/api/games/${gameId}/edge-tasks/${t.id}/submit`, headers: { cookie: p2Cookie }, payload: { ...legacy, links: ["https://example.com/photo"], note: "Сделано, фото по ссылке" } });
+    expect(ok.statusCode, ok.body).toBe(200);
+    expect(ok.json().task.status).toBe("SUBMITTED");
+    expect(Object.keys(ok.json().task).some((k) => /donat/i.test(k))).toBe(false);
   });
 
   it("перенос столицы: один раз за игру, только на свой город", async () => {

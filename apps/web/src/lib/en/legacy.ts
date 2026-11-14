@@ -128,7 +128,7 @@ export const LEGACY: Record<string, string> = {
   "Сдано, ждём проверки администратора.": "Submitted, waiting for the admin's review.",
   "Уступить город": "Yield the city",
   "Сдать на проверку": "Submit for review",
-  "Сдать пожертвование": "Submit the donation",
+  
   "Скопировано": "Copied",
   "Скопировать": "Copy",
   "Скрыть": "Hide",
@@ -212,7 +212,7 @@ export const LEGACY: Record<string, string> = {
   "открытой развилки": "an open crossroads", "стартовой точки": "the starting point", "города {name}": "the city of {name}", "развилки": "a crossroads",
   "из {from} на {dir}": "from {from} heading {dir}",
   "Игра завершена": "Game over", "победила": "the winner is", "узлов": "nodes", "путей": "paths", "Путь": "Path", "Сдать:": "Submit:", "тяжесть": "weight", "Вернули:": "Returned:",
-  "Заменить дело пожертвованием (от {min} {cur})": "Replace the deed with a donation (from {min} {cur})", "Сумма": "Amount", "вы —": "you are",
+  "Сумма": "Amount", "вы —": "you are",
   "городов": "cities", "дел": "deeds", "испытания": "trials", "путь": "path",
   "Верно! Знак шифра: {f}": "Correct! Cipher character: {f}", "районов": "districts",
   "Задания для книги «{book}» ещё готовятся. Город пока нельзя взять.": "Tasks for the book “{book}” are still being prepared. The city cannot be taken yet.",
@@ -240,7 +240,7 @@ export const LEGACY: Record<string, string> = {
   "Название": "Title", "Название команды": "Team name", "Направление": "Direction", "Настройки": "Settings", "Начать": "Start", "Начать игру": "Start the game", "Одобрить": "Approve",
   "Описание (что именно сделать)": "Description (what exactly to do)",
   "По сроку игра завершится сама: победит команда с наибольшим числом городов. Если столицы потеряли все команды, кроме одной, игра завершается сразу.": "The game ends by itself on the deadline: the team with the most cities wins. If every team but one has lost its capital, the game ends immediately.",
-  "Победитель не определён": "No winner determined", "Пожертвование вместо дела, минимум": "Donation instead of a deed, minimum", "Пока никого. Отправь ссылку-приглашение.": "Nobody yet. Send an invite link.", "Пока ничего не сдано.": "Nothing submitted yet.",
+  "Победитель не определён": "No winner determined", "Пока никого. Отправь ссылку-приглашение.": "Nobody yet. Send an invite link.", "Пока ничего не сдано.": "Nothing submitted yet.",
   "После изменения числа команд или узлов карту нужно сгенерировать заново.": "After changing the number of teams or nodes the map must be generated again.", "Пригласить капитана": "Invite a captain", "Пригласить участников": "Invite members", "Присвоить": "Assign",
   "Проверка…": "Checking…", "Развернуть список": "Expand list", "Развилка": "Crossroads", "Разница до первого города": "Distance difference to the first city", "Свернуть список": "Collapse list",
   "Сгенерировать ещё раз": "Generate again", "Сгенерировать карту": "Generate map", "Сдачи на проверку": "Submissions to review", "Сделать капитаном": "Make captain", "Скопируй ссылку вручную из поля": "Copy the link from the field manually",
@@ -308,8 +308,8 @@ export const LEGACY: Record<string, string> = {
   "отрывок вызова {ref}": "challenge passage {ref}",
   "отрывок ответа {ref}": "response passage {ref}",
   "перекрёсток {key}": "crossroads {key}",
-  "пожертвование {n}": "donation {n}",
-  "пожертвование вместо дела: {s}": "donation instead of a deed: {s}",
+  
+  
   "пройдена сторона": "side traversed",
   "разница до первого города ≤ {n}": "difference to the first city ≤ {n}",
   "районы открыты · заданий {a}/{b}": "districts revealed · tasks {a}/{b}",
@@ -348,7 +348,7 @@ export const LEGACY: Record<string, string> = {
   "Список пуст. Возьми стандартный набор как заготовку или придумай свои дела.": "The list is empty. Take the default set as a draft or invent your own deeds.",
   "Добавить админа: никнейм или почта": "Add an admin: nickname or email",
   "Админы видят всю карту, проверяют дела и записи испытаний и получают письма о сдачах. Человек должен быть уже зарегистрирован.": "Admins see the whole map, review deeds and trial recordings and get emails about submissions. The person must already be registered.",
-  "После старта можно менять только пожертвование: карта и команды зафиксированы.": "After the start only the donation can be changed: the map and teams are fixed.",
+  
   "Дело сохранено": "Deed saved", "Изменить дело": "Edit deed", "Редактирование дела. Изменения увидят команды, у которых оно ещё не сдано.": "Editing a deed. Teams that have not submitted it yet will see the changes.",
   // Адресаты конвертов и ярлыки.
   "семья": "family", "вдова": "widow", "старец / старица": "elder", "другой адресат": "other recipient",

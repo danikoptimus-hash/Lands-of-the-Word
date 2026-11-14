@@ -149,7 +149,7 @@ export async function quarryRoutes(app: FastifyInstance): Promise<void> {
     const now = new Date();
     await prisma.$transaction([
       prisma.team.update({ where: { id: m.team.id }, data: { stones: { decrement: 1 } } }),
-      prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "APPROVED", paved: true, takenById: request.user!.id, takenAt: now, submittedAt: now, decidedAt: now, note: "Вымощено камнем из Каменоломни", adminComment: "", links: [], participants: [], donation: false, donationAmount: null } }),
+      prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "APPROVED", paved: true, takenById: request.user!.id, takenAt: now, submittedAt: now, decidedAt: now, note: "Вымощено камнем из Каменоломни", adminComment: "", links: [], participants: [] } }),
     ]);
     await revealNode(id, m.team.id, task.toKey);
     journal(id, "paved", { teamId: m.team.id, userId: request.user!.id, vars: { user: await nick(request.user!.id), deed: task.deed.title, taskId: task.id } });

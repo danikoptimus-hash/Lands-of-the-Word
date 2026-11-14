@@ -27,7 +27,6 @@ const createBody = z.object({
       maxStartDistanceDiff: z.number().int().min(0).max(6).default(3),
       includeGenealogies: z.boolean().default(false),
       endsAt: z.string().datetime().nullable().default(null),
-      donationCurrency: z.string().trim().max(10).default(""),
     })
     .default({}),
 });
@@ -45,7 +44,6 @@ const patchBody = z.object({
       maxStartDistanceDiff: z.number().int().min(0).max(6).optional(),
       includeGenealogies: z.boolean().optional(),
       endsAt: z.string().datetime().nullable().optional(),
-      donationCurrency: z.string().trim().max(10).optional(),
       /** Продвинутые настройки: правила, которые раньше были константами (решение владельца 18.09). */
       rules: rulesPatchSchema.optional(),
     })
@@ -158,9 +156,9 @@ export async function gameRoutes(app: FastifyInstance): Promise<void> {
     if (!game) return;
     const body = patchBody.parse(request.body);
     if (game.status !== "DRAFT") {
-      // После старта меняются только срок окончания игры, пожертвование и правила (продвинутые настройки).
-      const other = body.name !== undefined || body.teamCount !== undefined || Object.keys(body.settings ?? {}).some((k) => !["endsAt", "donationCurrency", "rules"].includes(k));
-      if (other || game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра уже начата: после старта можно менять только срок окончания, пожертвование и правила") });
+      // После старта меняются только срок окончания игры и правила (продвинутые настройки).
+      const other = body.name !== undefined || body.teamCount !== undefined || Object.keys(body.settings ?? {}).some((k) => !["endsAt", "rules"].includes(k));
+      if (other || game.status !== "ACTIVE") return reply.code(409).send({ error: "conflict", message: err(request, "Игра уже начата: после старта можно менять только срок окончания и правила") });
     }
     if (body.teamCount !== undefined) {
       const teams = await prisma.team.count({ where: { gameId: id } });

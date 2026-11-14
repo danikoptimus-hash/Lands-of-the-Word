@@ -22,7 +22,7 @@ const put = (url: string, cookie: string, payload: unknown = {}) => app.inject({
 const del = (url: string, cookie: string) => app.inject({ method: "DELETE", url, headers: { cookie } });
 const get = (url: string, cookie: string) => app.inject({ method: "GET", url, headers: { cookie } });
 const register = async (nickname: string) => (await registerVerified(app, { nickname, password: "secret123" })).headers["set-cookie"] as string;
-const deedBody = (title: string, extra: Record<string, unknown> = {}) => ({ title, description: "Отвезти людям с корабля еду и одеяла", direction: "Посещение", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: null, donationMin: null, quarry: false, stones: 1, quorumPct: null, ...extra });
+const deedBody = (title: string, extra: Record<string, unknown> = {}) => ({ title, description: "Отвезти людям с корабля еду и одеяла", direction: "Посещение", proofType: "PHOTO_LINK", canRepeat: true, bookCodes: [], chance: 60, secret: false, remote: false, siegePoints: null, quarry: false, stones: 1, quorumPct: null, ...extra });
 interface WreckDto { id: string; deedId: string | null; title: string; q: number; r: number; model: number; sinkAt?: string | null; appearedAt?: string; cargo: { stones: number; blocks: number }; mine: null | { status: string; cargo: string | null; amount: number | null; adminComment: string; decidedAt: string | null }; doneTeams: number; sunkAt: string | null }
 const myWrecks = async (cookie: string) => ((await get(`/api/games/${gameId}/my-map`, cookie)).json().wrecks ?? []) as WreckDto[];
 

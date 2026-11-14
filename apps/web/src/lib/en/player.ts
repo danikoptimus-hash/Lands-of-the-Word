@@ -3,16 +3,16 @@ export const PLAYER: Record<string, string> = {
   "Завершённых испытаний ваших городов нет.": "Your cities have no finished trials.", "Завершённых вызовов нет.": "There are no finished challenges.",
   "Закрытые": "Closed", "Какие проходы показывать": "Which passages to show", "Открытых запросов к вам нет.": "There are no open requests to you.", "Открытых запросов у вас нет.": "You have no open requests.", "Закрытых запросов к вам нет.": "There are no closed requests to you.", "Закрытых запросов у вас нет.": "You have no closed requests.",
   "Пришла {d}": "Arrived {d}",
-  "Пожертвования": "Donations", "Поддержать развитие игры": "Support the game’s development",
+  
   "Канал игры": "Game channel", "В начале было Слово": "In the beginning was the Word", "Instagram игры": "Game’s Instagram", "Мы в соцсетях": "Follow us",
   "Telegram: официальный канал игры «Земли Слова» — новости, обновления и итоги сезонов.": "Telegram: the official channel of “Lands of the Word” — news, updates and season results.",
   "Telegram: канал «В начале было Слово» — проповеди и материалы для изучения Библии.": "Telegram: the “In the beginning was the Word” channel — sermons and Bible study materials.",
   "Instagram: «Земли Слова» глазами участника.": "Instagram: “Lands of the Word” through a player’s eyes.",
-  "Пожертвования идут на сервер, домен и развитие игры. Спасибо!": "Donations go to the server, the domain and the development of the game. Thank you!",
-  "Из любой страны: Boosty": "From any country: Boosty",
-  "Открыть страницу пожертвований в Boosty": "Open the donation page on Boosty",
-  "Нажмите кнопку или наведите камеру телефона на QR-код. На странице Boosty нажмите «Донат», укажите сумму и оплатите картой.": "Press the button or point your phone camera at the QR code. On the Boosty page press “Donate”, enter an amount and pay by card.",
-  "Пожертвовать через Boosty": "Donate via Boosty",
+  
+  
+  
+  
+  
   // Каменоломня: кто был (решение владельца 07.10)
   "Были": "Present", "Кто был": "Who was there", "Никого": "Nobody",
   "Отметьте, кто был: им дело пойдёт в зачёт": "Mark who was there: the deed will count for them",
@@ -20,7 +20,7 @@ export const PLAYER: Record<string, string> = {
   "Ссылки на фото команды": "Links to the team photo",
   "Что было на встрече": "What happened at the meeting",
   "нужно не меньше {n}": "at least {n} needed",
-  "Свободные на карте": "Free on the map", "Взять": "Take", "Дело взято": "Deed taken", "пожертвование от {min} {cur}": "donation from {min} {cur}", "Вместо дела можно пожертвовать в кассу церкви не меньше этой суммы: чек — ссылкой.": "Instead of the deed you may donate to the church treasury at least this amount; submit the receipt as a link.",
+  "Свободные на карте": "Free on the map", "Взять": "Take", "Дело взято": "Deed taken", 
   "Решили свою долю: {a} из {b}": "Solved their share: {a} of {b}", "для ключа хватает": "enough for the key", "для ключа нужно {c}": "{c} needed for the key", "вы: {x} из {y}": "you: {x} of {y}", "Задания решает каждый сам: после первого верного ответа знак шифра открыт команде, но задание можно решить и после этого, для своего зачёта. Участник считается, когда решил не меньше {n} заданий города; ключ конверта можно ввести, когда таких участников не меньше половины команды.": "Everyone solves the tasks themselves: after the first correct answer the cipher sign is open to the team, but the task can still be solved afterwards for your own credit. A member counts once they have solved at least {n} of the city’s tasks; the envelope key can be entered once at least half of the team count.", "Все знаки открыты, но ключ ждёт: не меньше {c} участников должны решить каждый хотя бы {n} заданий, пока таких {a}. Задания можно решать и после того, как команда открыла знак: откройте район с полупрозрачной галочкой.": "All signs are open, but the key is waiting: at least {c} members must each solve at least {n} tasks, so far {a} have. Tasks can be solved after the team has opened the sign: open a district with a translucent check mark.", "Верно: задание засчитано вам. Решено вами: {a} из {b}": "Correct: the task is credited to you. Solved by you: {a} of {b}", "решено командой, вами ещё нет": "solved by the team, not by you yet", "Решите задания сами: это ваш зачёт для ключа": "Solve the tasks yourself: this is your share for the key", "Команда уже открыла знак этого задания: {f}. Решите его сами, чтобы оно пошло в ваш зачёт для ключа.": "The team has already opened this task’s sign: {f}. Solve it yourself so it counts toward your share for the key.",
   "Добавить аккаунт": "Add account",
   "Выйти из этого аккаунта": "Sign out of this account",
@@ -138,6 +138,8 @@ export const PLAYER: Record<string, string> = {
   "Выберите береговой узел другого острова: где там город, заранее не видно": "Choose a coastal node of the other island: which one is a city is not visible in advance", "Кормчий выбирает место высадки": "The helmsman is choosing where to land", "Позже": "Later",
   "Что такое хиазм": "What a chiasm is", "Замысел человека": "Man’s plan", "Ответ Бога": "God’s answer", "Сложить хиазм": "Assemble the chiasm", "Строки": "Lines", "Место {m}: {v}": "Slot {m}: {v}", "Место {m}, свободно": "Slot {m}, empty",
   "Порядок не тот: строки стоят не на своих местах.": "Wrong order: the lines are not in their places.", "Все строки на местах. Проверьте порядок и сложите хиазм.": "All lines are placed. Check the order and assemble the chiasm.",
+  "У администратора карта всей игры и разделы: летопись, команды, дела, проверка сдач и испытаний, аналитика, настройки. В настройках — шторм и правила; ярлыки для конвертов печатаются отдельной страницей.": "The admin has the whole game map and sections: chronicle, teams, deeds, review of submissions and trials, analytics, settings. Settings hold storms and the rules; envelope labels print on a separate page.",
+  "Настройки: шторм и правила.": "Settings: storm and rules.",
   // Приоритет капитана (решение владельца 14.11).
   "Приоритет капитана": "Captain’s priority", "Приоритет капитана: это дело — в первую очередь": "Captain’s priority: this deed comes first", "отметил: {name}": "marked by {name}",
   "Карточка закроется, а карта покажет сторону, на которой стоит это дело.": "The card will close and the map will show the side this deed is on.",
@@ -147,7 +149,7 @@ export const PLAYER: Record<string, string> = {
   "Дело отмечено приоритетным: его свиток на карте горит": "The deed is marked as a priority: its scroll on the map is on fire",
   "Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.": "The whole team sees a priority deed: its scroll on the map is on fire. Only the captain or the deputy can set and remove the mark. When the deed is accepted, the mark is removed automatically.",
   "Взять дело": "Take the deed", "Разведать · раз в неделю": "Scout · once a week", "Сдано на проверку": "Submitted for review",
-  "Вместо дела — пожертвование в кассу церкви (от {min} {cur})": "Instead of the deed — a donation to the church (from {min} {cur})",
+  
   "Взять задание": "Take the task", "Задание взято": "Task taken", "Отказаться от задания": "Give up the task", "Отказаться от задания?": "Give up the task?", "Задание отпущено": "Task released",
   "Задание взято: сдать или отказаться может капитан, заместитель или летописец.": "The task is taken: only the captain, the deputy or the chronicler can submit it or give it up.",
   "Взять и сдать задание может капитан, заместитель или летописец; оно одно на команду.": "Only the captain, the deputy or the chronicler can take and submit the task; one per team.",
@@ -388,7 +390,7 @@ export const PLAYER: Record<string, string> = {
   "Корабль тонет": "The ship is sinking", "Утонет через {t}": "Sinks in {t}", "Корабль наполняется водой: {s}": "The ship is taking on water: {s}", "Срок: {d}": "Deadline: {d}",
   "Предыдущее задание": "Previous task", "Следующее задание": "Next task", "никого: делал один": "nobody: did it alone", "Подпись метки изменена": "Mark caption changed", "Ваша метка, поставлена {when}.": "Your mark, placed {when}.", "Ваша метка.": "Your mark.", "Уборку, починку или любую работу в доме молитвы сначала согласуйте с диаконом: что, когда и как делать.": "Agree any cleaning, repair or other work in the prayer house with the deacon first: what, when and how.", "Дел на руках: {n}": "Deeds in hand: {n}", "Вставить ссылку": "Paste a link", "Ссылка вставлена": "Link pasted", "Ссылок: {n}": "Links: {n}", "Вставить ещё": "Paste another", "Убрать ссылку": "Remove link", "Почему не вставилось": "Why it was not pasted", "В буфере обмена нет ссылки: скопируйте её и нажмите ещё раз": "No link in the clipboard: copy it and press again", "Этот браузер не даёт прочитать буфер обмена. Вставьте ссылку сюда:": "This browser does not allow reading the clipboard. Paste the link here:", "Ссылка должна начинаться с https://": "The link must start with https://",
   "Кто ещё участвовал": "Who else took part", "если делали группой": "if done as a group",
-  "если жертвовали вместе": "if you gave together",
+  
   "В сутки можно взять не больше {n} дел. Следующее — через {when}.": "You can take at most {n} deeds per day. The next one opens in {when}.", "{h} ч {m} мин": "{h} h {m} min", "{m} мин": "{m} min", "{n} с": "{n} s",
   "{d} дней обе команды делают дела из списка игры; за каждое одобренное — баллы. У кого больше к сроку, тот владеет городом; при равенстве город остаётся у хранителей.": "For {d} days both teams do deeds from the game list; every approved deed scores points. Whoever has more at the deadline owns the city; a tie keeps it with the keepers.",
   "Объявить осаду делами?": "Declare a siege by deeds?", "Объявить осаду": "Declare siege", "Осада объявлена: считаются дела обеих команд": "Siege declared: deeds of both teams now count",
@@ -441,7 +443,7 @@ export const PLAYER: Record<string, string> = {
   "После одобрения кормчий выберет место высадки на любом береговом узле другого острова. Где там город, заранее не видно. Капитан и команда ему советуют.": "After approval the helmsman will choose a landing place at any coastal node of the other island. Which one is a city is not visible in advance. The captain and the team advise them.",
   "Подробнее": "More", "Свернуть": "Less", "На проверке у администратора.": "Under the administrator's review.",
   "Разведано: там город.": "Scouted: a city there.", "Разведано: там развилка.": "Scouted: a fork there.", "Разведать": "Scout", "раз в неделю": "once a week",
-  "Вместо дела — пожертвование (от {min} {cur})": "A donation instead of the deed (from {min} {cur})",
+  
   "В кассу церкви. Сдаётся ссылка на чек или подтверждение перевода.": "To the church treasury. Submit a link to the receipt or transfer confirmation.",
   "https://… — по одной на строку": "https://… — one per line",
   "Пересказ района": "District summary",
@@ -500,7 +502,7 @@ export const PLAYER: Record<string, string> = {
   "Задание района: текст района, форма ответа (здесь кроссворд), у пророка — свеча с подсказкой.": "A district task: the district text, the answer form (a crossword here), and the prophet’s candle with a hint.",
   "Состав в разделе «Команды»: кнопка «Пригласить участника», роль выбирается пилюлями с пояснениями.": "The roster in the “Teams” section: the “Invite a member” button, the role is chosen with pills with explanations.",
   "Администраторов может быть несколько: кнопка «Пригласить» в блоке «Администраторы» настроек копирует ссылку, по которой человек становится администратором игры. Блок «Команды» — один список: строка команды показывает место, города, столицы, дела и испытания, а по нажатию раскрывает участников, ссылки-приглашения, роли и меню команды. Старт закрыт, пока у всех участников нет ролей: чек-лист покажет, в какой команде кто без роли.": "There can be several administrators: the “Invite” button in the “Administrators” block of the settings copies a link that makes a person an administrator of the game. The “Teams” block is one list: a team row shows rank, cities, capitals, deeds and trials, and a tap opens the members, invite links, roles and the team menu. The start is locked until every member has a role: the checklist shows which team has someone without one.",
-  "Настройки: пожертвование, правила, срок, адресаты конвертов, администраторы.": "Settings: donation, rules, deadline, envelope recipients, administrators.",
+  
   "Ярлыки для конвертов: наружный с шифром и вкладыш с ключом, один PDF на все города.": "Envelope labels: the outer one with the cipher and the insert with the key, one PDF for all cities.",
   // Памятка о поездке к адресату (27.09).
   "Поездка к адресату": "Visiting the recipient",
@@ -598,13 +600,13 @@ export const PLAYER: Record<string, string> = {
   "Ночная карта.": "The night map.",
   "Шторм: только карта и стрелка назад.": "Storm: only the map and the back arrow.",
   "Администратору": "For the admin",
-  "У администратора карта всей игры и разделы: летопись, команды, дела, проверка сдач и испытаний, аналитика, настройки. В настройках — пожертвования, шторм и правила; ярлыки для конвертов печатаются отдельной страницей.": "The admin has the whole game map and sections: chronicle, teams, deeds, review of submissions and trials, analytics, settings. Settings hold donations, storms and the rules; envelope labels print on a separate page.",
+  
   "Карта администратора: все команды и маршруты.": "Admin map: all teams and routes.",
   "Команды и состав.": "Teams and rosters.",
   "Дела игры.": "The game’s deeds.",
   "Проверка: сдачи, испытания, визиты, проходы.": "Review: submissions, trials, visits, passages.",
   "Аналитика: города и дела по дням.": "Analytics: cities and deeds by day.",
-  "Настройки: пожертвование, шторм, правила.": "Settings: donation, storm, rules.",
+  
   "Летопись: журнал событий.": "Chronicle: the event log.",
   "Ярлыки для конвертов.": "Envelope labels.",
   "Коротко и с картинками с настоящих экранов игры.": "Brief, with pictures from the game’s real screens.",
