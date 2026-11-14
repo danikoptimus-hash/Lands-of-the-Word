@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Picker } from "../components/Picker";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { BOOKS } from "@lotw/domain";
-import { api, ApiError, apiReady, deedPriority, prefetch, ready, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
+import { api, ApiError, apiReady, deedAssignee, deedPriority, prefetch, ready, type AwardsDto, type BattleDto, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type GameRole, type MapMarkDto, type MyMapDto, type PeaceTeamDto, type StandingsDto, type TeamDto } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCoalesced, useGameEvents, type MapPush } from "../lib/useGameEvents";
 import { applyPatch } from "fast-json-patch";
@@ -239,6 +239,10 @@ export function TeamPage() {
   const [busy, setBusy] = useState(false);
   /** Идёт запрос «отметить / снять приоритет»: блокируется только сама кнопка приоритета (замечание владельца 14.11: от неё мигали «Взять дело» и «Вымостить дорогу» — общий флаг busy блокировал все кнопки карточки). */
   const [prioBusy, setPrioBusy] = useState(false);
+  /** Поручение дела (решение владельца 14.11): для какого дела открыт список «кому поручить». */
+  const [assignFor, setAssignFor] = useState<string | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
+  const [searchParams, setSearchParams] = useSearchParams();
   const [mapEl, setMapEl] = useState<HTMLDivElement | null>(null);
   const [markAt, setMarkAt] = useState<MarkPoint | null>(null);
   /** Своя метка по нажатию (решение владельца 16.10): лист с подписью — изменить или убрать. */
@@ -413,6 +417,15 @@ export function TeamPage() {
   const hasHelmsman = (team?.members ?? []).some((mm) => mm.gameRole === "HELMSMAN");
   const canLand = me?.gameRole === "HELMSMAN" || (isLeader && !hasHelmsman);
   const task = useMemo(() => (map?.tasks ?? []).find((tk) => tk.id === selectedId) ?? null, [map, selectedId]);
+  // Ссылка на дело (решение владельца 14.11): уведомление о поручении ведёт на «…/team?task=…» — открывается карточка именно
+  // этого дела, карта показывает его сторону. Параметр сразу убирается из адреса, чтобы дело не открывалось снова.
+  const linkTask = searchParams.get("task");
+  const mapReady = Boolean(map);
+  useEffect(() => {
+    if (!linkTask || !map) return;
+    if (map.tasks.some((tk) => tk.id === linkTask)) { setSelectedId(linkTask); setBackTo(null); setMenuView("home"); setFrontierKey(null); setFocusTask({ id: linkTask, nonce: Date.now() }); }
+    const next = new URLSearchParams(searchParams); next.delete("task"); setSearchParams(next, { replace: true });
+  }, [linkTask, mapReady]); // eslint-disable-line react-hooks/exhaustive-deps
   const memberName = (userId: string | null) => { const m = team?.members.find((mm) => mm.user.id === userId); return m ? m.user.displayName ?? m.user.nickname : ""; };
   /** Состав для «Отметить за» в испытании (решение владельца 07.11); отмечать за других могут капитан, заместитель и летописец. */
   const forMembers = useMemo(() => (team?.members ?? []).map((mm) => ({ userId: mm.user.id, name: mm.user.displayName ?? mm.user.nickname })), [team?.members]);
@@ -433,6 +446,22 @@ export function TeamPage() {
       notify(on ? t("Дело отмечено приоритетным: его свиток на карте горит") : t("Приоритет снят"));
     } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setPrioBusy(false); }
+  }
+  /** Поручение дела (решение владельца 14.11): капитан или заместитель поручает свободное дело участнику; null — снять. */
+  async function assign(taskId: string, userId: string | null): Promise<void> {
+    setAssignBusy(true);
+    try {
+      await api(`/api/games/${id}/edge-tasks/${taskId}/assign`, { method: "POST", body: JSON.stringify({ userId }) });
+      await loadMap();
+      setAssignFor(null);
+      notify(userId ? t("Дело поручено: {name}. Сутки взять его может только он", { name: memberName(userId) }) : t("Поручение снято: дело снова свободно"));
+    } catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
+    finally { setAssignBusy(false); }
+  }
+  /** Отказ от поручения: дело снова свободно для всей команды, поручивший узнаёт об отказе. */
+  async function declineAssign(taskId: string): Promise<void> {
+    if (!(await confirm(t("Дело снова станет свободным для всей команды. Тот, кто поручил, узнает об отказе."), { title: t("Не можете взять это дело?"), okLabel: t("Не могу взять") }))) return;
+    if (await act(`/api/games/${id}/edge-tasks/${taskId}/assign/decline`)) notify(t("Поручение снято: дело снова свободно"), "info");
   }
   const peekedKind = (key: string) => map?.peeked?.find((p) => p.key === key)?.kind ?? null;
   /**
@@ -596,7 +625,10 @@ export function TeamPage() {
   const byTitle = (a: EdgeTaskDto, b: EdgeTaskDto) => Number(deedPriority(b)) - Number(deedPriority(a)) || a.deed.title.localeCompare(b.deed.title, "ru");
   const ourTasks = map.tasks.filter((tk) => tk.status === "TAKEN" || tk.status === "SUBMITTED" || tk.status === "REJECTED").sort(byTitle);
   // Свободные дела на карте — в разделе «Дела» с кнопкой «Взять» у каждого, чтобы не искать метку на карте (решение владельца 05.10).
-  const freeTasks = map.tasks.filter((tk) => tk.status === "OPEN").sort(byTitle);
+  // Порученные мне дела — первыми среди свободных (решение владельца 14.11).
+  const forMe = (tk: EdgeTaskDto) => deedAssignee(tk) === user?.id;
+  const freeTasks = map.tasks.filter((tk) => tk.status === "OPEN").sort((a, b) => Number(forMe(b)) - Number(forMe(a)) || byTitle(a, b));
+  const assignedToMe = freeTasks.filter(forMe);
   // Фаза для подписей: предпросмотр `?tod=` (снимки инструкции) перекрывает серверную, правила считает сервер.
   const phase = previewPhase() ?? map.daytime?.phase;
   const canTakeNow = phase !== "night" || Boolean(map.daytime?.tasksOpen);
@@ -624,7 +656,7 @@ export function TeamPage() {
     setMap((m) => (m ? { ...m, quarryNew: kind === "quarry" ? (m.quarryNew ?? []).filter((d) => d.id !== refId) : m.quarryNew, seenWrecks: kind === "wreck" ? [...(m.seenWrecks ?? []), refId] : m.seenWrecks, arrivals: kind === "arrival" ? (m.arrivals ?? []).filter((a) => a.id !== refId) : m.arrivals } : m));
     void api(`/api/games/${id}/attention/seen`, { method: "POST", body: JSON.stringify({ kind, refId }) }).catch(() => {});
   };
-  const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length + newWrecks.length + newQuarry.length + arrivals.length;
+  const attention = ourTasks.filter((tk) => tk.status === "REJECTED").length + incoming.length + peaceOffers.length + activeBattles.filter((b) => isMyTurn(b, team.id)).length + allyAsks + (isLeader ? visitsDue.length : 0) + returnedEntries.length + returnedBlocks.length + newWrecks.length + newQuarry.length + arrivals.length + assignedToMe.length;
   const rejectedTasks = ourTasks.filter((tk) => tk.status === "REJECTED");
   const myTurnBattles = activeBattles.filter((b) => isMyTurn(b, team.id));
   // Две вкладки испытаний (решение владельца 31.10: «вместо того, чтобы писать, кто претендент, а кто хранитель, — две табы»):
@@ -727,9 +759,15 @@ export function TeamPage() {
           </div>
           <div className="side-body" ref={sideBodyRef} onScroll={rememberScroll}>
           {view === "attention" && (
-            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 || returnedEntries.length > 0 || returnedBlocks.length > 0 || newWrecks.length > 0 || newQuarry.length > 0 || arrivals.length > 0 ? (
+            rejectedTasks.length > 0 || incoming.length > 0 || peaceOffers.length > 0 || myTurnBattles.length > 0 || visitsDue.length > 0 || returnedEntries.length > 0 || returnedBlocks.length > 0 || newWrecks.length > 0 || newQuarry.length > 0 || arrivals.length > 0 || assignedToMe.length > 0 ? (
                 <section className="section attention">
                   <ul className="list interactive">
+                    {/* Поручение (решение владельца 14.11): пункт открывает карточку именно этого дела; висит, пока дело не взято, не отклонено и бронь не истекла. */}
+                    {assignedToMe.map((tk) => (
+                      <li key={"asg-" + tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
+                        <div className="main"><span className="title">{t("Вам поручено дело: {title}", { title: tk.deed.title })}</span><span className="meta">{[memberName(tk.assignedById ?? null) ? t("поручил: {name}", { name: memberName(tk.assignedById ?? null) }) : "", tk.assignedUntil ? t("взять до {time}", { time: fmtDate(tk.assignedUntil) }) : ""].filter(Boolean).join(" · ")}</span></div><Icon name="chevron" className="chev" />
+                      </li>
+                    ))}
                     {arrivals.map((a) => (
                       <li key={"arr-" + a.id} role="button" tabIndex={0} onClick={() => { markSeen("arrival", a.id); openCity(a.nodeKey); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); markSeen("arrival", a.id); openCity(a.nodeKey); } }}>
                         <div className="main"><span className="title">{t("К городу {book} подошла команда «{team}»", { book: a.book, team: a.team.name })}</span><span className="meta">{a.sea ? t("морем") : t("по дороге")} · {fmtDate(a.at)}</span></div><Icon name="chevron" className="chev" />
@@ -806,12 +844,12 @@ export function TeamPage() {
               <ul className="list interactive">
                 {freeTasks.map((tk) => (
                   <li key={tk.id} role="button" tabIndex={0} onClick={() => showOnMap(tk.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); showOnMap(tk.id); } }}>
-                    <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{tk.person ? t("кому: {name}", { name: tk.person.name }) : ""}</span></div>
+                    <div className="main"><span className="title">{deedPriority(tk) && <Icon name="flame" className="prio-flame" title={t("Приоритет капитана")} />}{tk.deed.title}</span><span className="meta">{[deedAssignee(tk) ? (forMe(tk) ? t("поручено вам") : t("поручено: {name}", { name: memberName(deedAssignee(tk)) })) : "", tk.person ? t("кому: {name}", { name: tk.person.name }) : ""].filter(Boolean).join(" · ")}</span></div>
                     {/* Ночью «Взять» не висит с текстом над списком, а по нажатию показывает подсказку окошком (решение владельца 24.10). */}
                     {/* Корабельное дело — маленький значок корабля на углу кнопки «Взять», как звезда заместителя на значке роли (решение владельца 24.10), без слова. */}
                     <div className="side" onClick={(e) => e.stopPropagation()}><span className="take-slot">{tk.sea && <span className="sea-badge" title={t("корабль")} aria-label={t("корабль")}><Icon name="ship" /></span>}{!canTakeNow
                       ? <HelpPopup name={t("Взять")} buttonClassName="sm" trigger={<><Icon name="scroll" />{t("Взять")}</>}><p><Icon name="moon" /> {t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</p></HelpPopup>
-                      : <button type="button" className="sm" disabled={busy || limitFull(map) || Boolean(map.deedsFrozenUntil)} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button>}</span></div>
+                      : <button type="button" className="sm" disabled={busy || limitFull(map) || Boolean(map.deedsFrozenUntil) || Boolean(deedAssignee(tk) && !forMe(tk))} title={deedAssignee(tk) && !forMe(tk) ? t("Дело поручено другому участнику") : undefined} onClick={(e) => { e.stopPropagation(); void act(`/api/games/${id}/edge-tasks/${tk.id}/take`).then((ok) => { if (ok) notify(t("Дело взято")); }); }}><Icon name="scroll" />{t("Взять")}</button>}</span></div>
                   </li>
                 ))}
               </ul>
@@ -947,6 +985,31 @@ export function TeamPage() {
             {underClouds(editMark) && <label className="check mark-drop" htmlFor="mark-edit-drop"><input id="mark-edit-drop" type="checkbox" checked={editDrop} onChange={(e) => setEditDrop(e.target.checked)} /><span>{t("Убрать метку, когда здесь откроются облака")}</span></label>}
           </Sheet>
         )}
+        {/* Кому поручить дело (решение владельца 14.11): состав команды; у каждого — сколько дел сейчас в работе. Нажатие поручает сразу. */}
+        {assignFor && (() => {
+          const tk = map.tasks.find((x) => x.id === assignFor);
+          if (!tk || tk.status !== "OPEN") return null;
+          const cur = deedAssignee(tk);
+          return (
+            <Sheet size="sm" container={mapEl} title={t("Кому поручить дело")} onClose={() => setAssignFor(null)} className="assign-sheet"
+              foot={cur ? <button type="button" className="secondary" disabled={assignBusy} onClick={() => void assign(tk.id, null)}><Icon name="x" />{t("Снять поручение")}</button> : undefined}>
+              <p className="muted">{t("«{title}» — участнику придёт уведомление, и сутки взять это дело сможет только он.", { title: tk.deed.title })}</p>
+              <ul className="list interactive assign-list">
+                {(team.members ?? []).filter((mm) => mm.user.id !== user?.id).map((mm) => {
+                  const name = mm.user.displayName ?? mm.user.nickname, n = mm.activeDeeds?.length ?? 0, full = limitFull(mm);
+                  return (
+                    <li key={mm.user.id} role="button" tabIndex={0} aria-disabled={assignBusy} className={cur === mm.user.id ? "on" : undefined}
+                      onClick={() => { if (!assignBusy) void assign(tk.id, mm.user.id); }} onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && !assignBusy) { e.preventDefault(); void assign(tk.id, mm.user.id); } }}>
+                      <div className="main"><div className="person"><UserAvatar name={name} avatarId={mm.user.avatarId} zoom={false} /><span className="name">{name}</span></div>
+                        <span className="meta">{[n > 0 ? t("дел в работе: {n}", { n }) : t("дел в работе нет"), full ? t("лимит дел на сегодня исчерпан") : "", mm.deedsFrozenUntil && Date.parse(mm.deedsFrozenUntil) > Date.now() ? t("взятие дел закрыто администратором") : ""].filter(Boolean).join(" · ")}</span></div>
+                      {cur === mm.user.id ? <Chip tone="solid" icon="user-plus">{t("поручено")}</Chip> : <Icon name="chevron" className="chev" />}
+                    </li>
+                  );
+                })}
+              </ul>
+            </Sheet>
+          );
+        })()}
         {frontierKey && (() => {
           const pk = peekedKind(frontierKey);
           return (
@@ -976,11 +1039,17 @@ export function TeamPage() {
           const scoutBtn = canScout && !night && <SquareAction icon="telescope" disabled={busy} label={t("Разведать")} help={SCOUT_HELP()} onClick={() => void peek(task.toKey)} />;
           // Порядок листа (решение владельца 18.09): суть → как сдать → состояние → действие → правила (кодекс).
           const mine = Boolean(task.takenById) && task.takenById === user?.id;
+          // Поручение (решение владельца 14.11): кому поручено свободное дело, пока держится бронь.
+          const assignee = deedAssignee(task), assignedToMe = assignee !== null && assignee === user?.id;
           const longDesc = (task.deed.description?.length ?? 0) > 140 && !mine;
           return (
             <Sheet size="sm" container={mapEl} onClose={closeTask} onDismiss={backTo ? dismissTask : undefined} closeLabel={backTo ? t("Назад к списку") : undefined} className="deed-sheet" head={<div className="sheet-title"><h2>{task.deed.title}</h2>{/* Приоритет капитана (решение владельца 14.11): огонёк в шапке карточки, пояснение и кто отметил — по нажатию на него («текст спрятать и показывать только при нажатии на огонёк»). */}{deedPriority(task) && <HelpPopup name={t("Приоритет капитана")} className="prio-mark" trigger={<Icon name="flame" />}><p>{t("Приоритет капитана: это дело — в первую очередь")}{task.priorityById && memberName(task.priorityById) ? <> · {t("отметил: {name}", { name: memberName(task.priorityById) })}</> : null}</p></HelpPopup>}{/* У свободного дела значка состояния нет (решение владельца 14.11: «это и так понятно» — по кнопке «Взять дело»); в работе, на проверке, принято, возвращено — показываются. */}{task.status !== "OPEN" && <Chip tone={st.tone} icon={st.icon}>{st.label}</Chip>}</div>}>
               {/* Приоритет капитана (решение владельца 14.11): капитан или заместитель отмечает дело — его свиток на карте горит у всей команды. */}
               {task.person && <p className="meta-line mt-2 person-line"><Icon name="user" />{t("Кому: {name}", { name: task.person.name })}</p>}
+              {/* Поручение (решение владельца 14.11): одна строка — кому поручено и до какого времени держится бронь; адресату — кто поручил. */}
+              {assignee && <p className={"meta-line mt-2 assign-line" + (assignedToMe ? " me" : "")}><Icon name="user-plus" /><span>{assignedToMe
+                ? <>{t("Поручено вам")}{memberName(task.assignedById ?? null) ? <> · {t("поручил: {name}", { name: memberName(task.assignedById ?? null) })}</> : null}</>
+                : t("Поручено: {name}", { name: memberName(assignee) })}{task.assignedUntil && <> · {t("бронь до {time}", { time: fmtDate(task.assignedUntil) })}</>}</span></p>}
               {/* Чем сдавать — только у взятого дела (решение владельца 14.11): у свободного это лишнее; «можно издалека» убрано совсем. */}
               {(task.status !== "OPEN" || taker || task.deed.secret || task.sea) && (
               <p className="meta-line mt-2">
@@ -1020,7 +1089,10 @@ export function TeamPage() {
                   заместитель или летописец; возвращённое дело — тоже (05.11). Кнопки друг от друга не зависят. */}
               {(() => {
                 const free = task.status === "OPEN" || task.status === "REJECTED";
-                const showTake = canTake && free;
+                // Порученное дело, пока держится бронь, берёт только адресат.
+                const showTake = canTake && free && (!assignee || assignedToMe);
+                // Поручить свободное дело может капитан или заместитель; у порученного кнопка нажата — по ней сменить адресата или снять.
+                const showAssign = isLeader && task.status === "OPEN";
                 const showPave = showTake && !task.sea && (map?.team.stones ?? 0) > 0 && (isCaptain || me?.role === "DEPUTY" || me?.gameRole === "CHRONICLER");
                 const showPrio = isLeader && task.status !== "APPROVED" && !task.paved;
                 const prioOn = Boolean(task.priorityAt);
@@ -1030,6 +1102,12 @@ export function TeamPage() {
                     {scoutBtn}
                     <SquareAction icon="map" label={t("Посмотреть на карте")} help={t("Карточка закроется, а карта покажет сторону, на которой стоит это дело.")}
                       onClick={() => { /* лист закрывается, карта центрируется на стороне дела (владелец 25.10) */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }} />
+                    {assignedToMe && <SquareAction icon="x" disabled={busy} label={t("Не могу взять")}
+                      help={t("Поручение снимется, дело снова станет свободным для всей команды. Тот, кто поручил, узнает об отказе.")}
+                      onClick={() => void declineAssign(task.id)} />}
+                    {showAssign && <SquareAction icon="user-plus" on={Boolean(assignee)} disabled={assignBusy} label={assignee ? t("Сменить или снять поручение") : t("Поручить дело")}
+                      help={t("Выберите участника: ему придёт уведомление, которое откроет именно это дело, и сутки взять его сможет только он. Поручает капитан или заместитель.")}
+                      onClick={() => setAssignFor(task.id)} />}
                     {showPrio && <SquareAction icon="flame" className="prio" on={prioOn} disabled={prioBusy} label={prioOn ? t("Снять приоритет") : t("Отметить приоритетным")}
                       help={t("Приоритетное дело видит вся команда: его свиток на карте горит. Отметить и снять может капитан или заместитель. Когда дело примут, отметка снимется сама.")}
                       onClick={() => void setPriority(task.id, !prioOn)} />}

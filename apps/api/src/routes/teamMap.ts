@@ -6,7 +6,7 @@ import { prisma } from "../db.js";
 import { assertAwake, assertTasksOpen, gameDaytime } from "../services/daytime.js";
 import { publish } from "../services/events.js";
 import { requireUser } from "../auth.js";
-import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey, deedLimitsFor, birdFor, type DeedLimit } from "../services/teamMap.js";
+import { getTeamMap, isSeaKey, landingCandidates, revealNode, withDeedBook, bookOfNodeKey, deedLimitsFor, birdFor, assignActive, assignView, type DeedLimit } from "../services/teamMap.js";
 import { loadCityContent } from "../services/cities.js";
 import { notifyAdmins, notifyTeam, notifyUser } from "../services/notify.js";
 import { bookName, err, msg, fmtDay, toLocale } from "../services/i18n.js";
@@ -180,6 +180,10 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id } });
     if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
     if (task.status !== "OPEN" && task.status !== "REJECTED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже взято или сдано") });
+    // Поручение (решение владельца 14.11): пока держится бронь, дело берёт только тот, кому оно поручено.
+    if (assignActive(task) && task.assignedToId !== request.user!.id) {
+      return reply.code(409).send({ error: "assigned", message: err(request, "Дело поручено: {name}. Пока держится бронь, взять его может только он", { name: await nick(task.assignedToId!) }) });
+    }
     // Заморозка администратором (решение владельца 21.10): взять новое дело нельзя до указанной даты.
     if (m.deedsFrozenUntil && m.deedsFrozenUntil.getTime() > Date.now()) return reply.code(409).send({ error: "frozen", message: err(request, "Администратор закрыл вам взятие дел до {date}", { date: fmtDay(m.deedsFrozenUntil, toLocale(request.user?.locale)) }) });
     // Лимит дел в сутки на участника (решение владельца 02.10): превысил — взять (забронировать) нельзя, пусть берут другие.
@@ -187,7 +191,7 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const own = task.status === "REJECTED" && task.takenById === request.user!.id;
     const limit = await deedLimitFor(id, request.user!.id, own ? task.id : undefined);
     if (limit && limit.taken >= limit.max) return reply.code(409).send({ error: "conflict", message: err(request, "В сутки можно взять не больше {n} дел. Счёт обнулится в 7:00, через {when}", { n: limit.max, when: untilText(request, limit.nextAt ?? Date.now()) }) });
-    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id, takenAt: new Date() }, include: taskInclude }));
+    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { status: "TAKEN", takenById: request.user!.id, takenAt: new Date(), assignedToId: null, assignedById: null, assignedAt: null }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: hideSecret(updated, request.user!.id) };
   });
@@ -222,6 +226,58 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: body.on ? { priorityAt: new Date(), priorityById: request.user!.id } : { priorityAt: null, priorityById: null }, include: taskInclude }));
     publish(id, { type: "tasks", teamId: m.team.id });
     return { task: hideSecret(updated, request.user!.id) };
+  });
+
+  /**
+   * Поручение дела (решение владельца 14.11, по просьбе капитана: «чтобы я мог дело выбрать и назначить кому-то, чтобы
+   * ему пришло уведомление» — вместо снимка с кружком в чате; владелец: «первый вариант, бронь сутки»). Капитан или
+   * заместитель поручает свободное дело участнику своей команды: сутки взять его может только он. Участнику уходит
+   * уведомление со ссылкой прямо на это дело и личная запись в летописи. `userId: null` снимает поручение.
+   * Правила взятия не меняются: суточный лимит дел и заморозка действуют, как обычно, в момент взятия.
+   */
+  app.post("/api/games/:id/edge-tasks/:taskId/assign", async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    const body = z.object({ userId: z.string().min(1).max(40).nullable() }).parse(request.body);
+    if (!isLeader(m)) return reply.code(403).send({ error: "forbidden", message: err(request, "Поручить дело может капитан или заместитель") });
+    const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id }, include: { deed: { select: { title: true } } } });
+    if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
+    const me = request.user!.id;
+    if (body.userId) {
+      if (task.status !== "OPEN") return reply.code(409).send({ error: "conflict", message: err(request, "Поручить можно только свободное дело") });
+      if (body.userId === me) return reply.code(400).send({ error: "validation", message: err(request, "Себе дело не поручают: возьмите его сами") });
+      const target = await prisma.membership.findUnique({ where: { teamId_userId: { teamId: m.team.id, userId: body.userId } }, select: { userId: true } });
+      if (!target) return reply.code(404).send({ error: "not_found", message: err(request, "Такого участника в команде нет") });
+    }
+    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: body.userId ? { assignedToId: body.userId, assignedById: me, assignedAt: new Date() } : { assignedToId: null, assignedById: null, assignedAt: null }, include: taskInclude }));
+    publish(id, { type: "tasks", teamId: m.team.id });
+    if (body.userId) {
+      const who = await nick(me);
+      // Уведомление ведёт прямо на дело: карточка откроется, карта покажет его сторону.
+      notifyUser(id, body.userId, "вам поручили дело", "{who} поручил(а) вам дело «{deed}». Возьмите его в течение суток: до тех пор его не возьмёт никто другой.", { who, deed: task.deed.title }, { footer: "Открыть дело", query: `?task=${task.id}` });
+      journal(id, "deed_assigned", { userId: body.userId, personal: true, vars: { who, deed: task.deed.title, taskId: task.id } });
+    }
+    return { task: { ...hideSecret(updated, me), ...assignView(updated) } };
+  });
+
+  /** Отказ от поручения: участник не может взять порученное дело — бронь снимается, поручивший узнаёт об этом. */
+  app.post("/api/games/:id/edge-tasks/:taskId/assign/decline", async (request, reply) => {
+    const { id, taskId } = request.params as { id: string; taskId: string };
+    const m = await requireActiveMember(request, reply, id);
+    if (!m) return;
+    const task = await prisma.teamEdgeTask.findFirst({ where: { id: taskId, teamId: m.team.id }, include: { deed: { select: { title: true } } } });
+    if (!task) return reply.code(404).send({ error: "not_found", message: err(request, "Дело не найдено") });
+    const me = request.user!.id;
+    if (!assignActive(task) || task.assignedToId !== me) return reply.code(409).send({ error: "conflict", message: err(request, "Это дело вам не поручено") });
+    const updated = await bookIn(id, await prisma.teamEdgeTask.update({ where: { id: taskId }, data: { assignedToId: null, assignedById: null, assignedAt: null }, include: taskInclude }));
+    publish(id, { type: "tasks", teamId: m.team.id });
+    if (task.assignedById) {
+      const user = await nick(me);
+      notifyUser(id, task.assignedById, "поручение не принято", "{user} не может взять дело «{deed}». Дело снова свободно для всей команды.", { user, deed: task.deed.title }, { footer: "Открыть дело", query: `?task=${task.id}` });
+      journal(id, "deed_assign_declined", { userId: task.assignedById, personal: true, vars: { user, deed: task.deed.title, taskId: task.id } });
+    }
+    return { task: { ...hideSecret(updated, me), ...assignView(updated) } };
   });
 
   /** Сдача дела: ссылки на фото/видео и текст. Файлы не принимаем. */

@@ -614,6 +614,13 @@ model TeamEdgeTask {
    */
   priorityAt     DateTime?
   priorityById   String?
+  /**
+   * Поручение (решение владельца 14.11): капитан или заместитель поручил свободное дело участнику — кому, кто и когда.
+   * Бронь держится сутки с assignedAt: до тех пор дело может взять только тот, кому поручено. Пусто — поручения нет.
+   */
+  assignedToId   String?
+  assignedById   String?
+  assignedAt     DateTime?
   createdAt      DateTime       @default(now())
 
   @@unique([teamId, fromKey, toKey])

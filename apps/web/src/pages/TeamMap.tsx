@@ -12,7 +12,7 @@ import { FOG_COLOR } from "../lib/hexmap";
 import { RoutesGL } from "./RoutesGL";
 /** Морские пути на WebGL (Э3) — по умолчанию; `?routes=canvas` — прежний способ на холсте живности (и запасной путь без WebGL). */
 const GL_ROUTES_DEFAULT = typeof location === "undefined" || !/[?&]routes=canvas/.test(location.search);
-import { deedPriority, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type MapHexDto, type MapMarkDto, type MyMapDto } from "../lib/api";
+import { deedAssignee, deedPriority, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type MapHexDto, type MapMarkDto, type MyMapDto } from "../lib/api";
 import { CoastOver, DeedFire, islandGeometry, FogLayer, fogHolePuffs, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
@@ -96,6 +96,8 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
   const size = HEX_SIZE;
   /** Дело, которое взял сам смотрящий (в работе или на проверке): метка фиолетовая. */
   const mineOf = (tk: EdgeTaskDto) => !!myId && tk.takenById === myId && (tk.status === "TAKEN" || tk.status === "SUBMITTED");
+  /** Поручение (решение владельца 14.11): свиток дела, порученного мне, — фиолетовый; порученного другому — приглушён. */
+  const assignCls = (tk: EdgeTaskDto) => { const to = deedAssignee(tk); return to ? (to === myId ? " for-me" : " assigned") : ""; };
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const start = useMemo(() => (map.team.startNodeKey ? nodePos(map.team.startNodeKey, size) : null), [map.team.startNodeKey, size]);
@@ -517,7 +519,7 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
             // Приоритет капитана (решение владельца 14.11): свиток дела горит — огонь позади кружка метки.
             const prio = deedPriority(tk);
             return (
-              <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "") + (prio ? " priority" : "") + (mineOf(tk) ? " mine" : "")} onClick={() => click(tk.id)}>
+              <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "") + (prio ? " priority" : "") + (mineOf(tk) ? " mine" : "") + assignCls(tk)} onClick={() => click(tk.id)}>
                 <g style={scm(m.x, m.y)}>
                   {prio && <DeedFire r={r} part="back" />}
                   <circle r={r} />
@@ -531,7 +533,7 @@ export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSele
             const sel = tk.id === selectedTaskId, r = (sel ? RM + 2 : RM) + 2;
             const prio = deedPriority(tk);
             return (
-              <g key={"ship" + tk.id} data-id={tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "") + (prio ? " priority" : "") + (mineOf(tk) ? " mine" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
+              <g key={"ship" + tk.id} data-id={tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "") + (prio ? " priority" : "") + (mineOf(tk) ? " mine" : "") + assignCls(tk)} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
                 <line className="mooring" x1={port.x} y1={port.y} x2={x} y2={y} />
                 <g style={scm(x, y)}>
                   {prio && <DeedFire r={r} part="back" />}
