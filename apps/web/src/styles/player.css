@@ -143,6 +143,10 @@
 .m-deed.taken circle:not(.far) { fill: var(--info-soft); stroke: var(--info); } .m-deed.taken use { color: var(--info); }
 .m-deed.submitted circle:not(.far) { fill: var(--warn-soft); stroke: var(--warn); } .m-deed.submitted use { color: var(--warn); }
 .m-deed.rejected circle:not(.far) { fill: var(--danger-soft); stroke: var(--danger); } .m-deed.rejected use { color: var(--danger); }
+/* Свои дела — фиолетовые (решение владельца 14.11): и в работе, и на проверке; значок состояния остаётся. */
+.m-deed.mine.taken circle:not(.far), .m-deed.mine.submitted circle:not(.far) { fill: var(--plum-soft); stroke: var(--plum-ink); stroke-width: 1.8; }
+.m-deed.mine.taken.sel circle:not(.far), .m-deed.mine.submitted.sel circle:not(.far) { stroke-width: 2.8; }
+.m-deed.mine.taken use, .m-deed.mine.submitted use { color: var(--plum-ink); }
 /* Приоритет капитана (решение владельца 14.11): свиток дела горит. Огонь — DeedFire (MapLayers.tsx): позади кружка метки
    зарево, большие языки и искры, поверх кружка — малые языки на нижних краях. Зарево дышит, у каждого языка своё
    мерцание (три рисунка движения с разной длительностью и сдвигом), искры уходят вверх. Размах движения крупный: метка

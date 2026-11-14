@@ -27,6 +27,8 @@
   --moss: #4E6B3A; --moss-ink: #3E5A2C; --moss-soft: #DFE6CB;
   --sea: #2F6F8F;  --sea-ink: #275E7A;  --sea-soft: #D6E4EA;
   --amber: #8A5A12; --amber-ink: #7C4F0E; --amber-soft: #F3E4C0;
+  /* Фиолетовый — «моё»: дела на карте, которые взял сам участник (решение владельца 14.11). */
+  --plum: #6F3FA3; --plum-ink: #5B2F8C; --plum-soft: #E7DAF3;
   /* Дерево, камень — рамки, балки, неактивное */
   --wood: #5A3B22; --wood-dark: #3B2415; --leather: #4A3223;
   --stone: #8E877A; --stone-dark: #4B463F;

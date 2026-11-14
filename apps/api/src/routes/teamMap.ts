@@ -236,11 +236,14 @@ export async function teamMapRoutes(app: FastifyInstance): Promise<void> {
     if (task.status === "SUBMITTED" || task.status === "APPROVED") return reply.code(409).send({ error: "conflict", message: err(request, "Дело уже сдано") });
     // Сдаёт тот, кто взял дело, капитан или летописец (2.15).
     if (task.takenById && task.takenById !== request.user!.id && !isLeader(m) && m.gameRole !== "CHRONICLER") return reply.code(403).send({ error: "forbidden", message: err(request, "Сдать чужое дело может только капитан или летописец") });
-    const needsLink = task.deed.proofType === "PHOTO_LINK" || task.deed.proofType === "VIDEO_LINK";
-    if (needsLink && body.links.length === 0) return reply.code(400).send({ error: "validation", message: err(request, "Для этого дела нужна хотя бы одна ссылка на фото или видео") });
+    // Обязательное (решение владельца 14.11): без того, чего требует дело, сдать нельзя — фото, видео и аудиозапись
+    // сдаются ссылкой, отчёт — текстом, свидетель — именем того, кто подтвердит.
+    const proofType = task.deed.proofType;
+    const needsLink = proofType === "PHOTO_LINK" || proofType === "VIDEO_LINK" || proofType === "AUDIO_LINK";
+    if (needsLink && body.links.length === 0) return reply.code(400).send({ error: "validation", message: proofType === "AUDIO_LINK" ? err(request, "Для этого дела нужна ссылка на аудиозапись") : err(request, "Для этого дела нужна хотя бы одна ссылка на фото или видео") });
     // Свидетель (решение владельца 04.10): дело подтверждает человек, который это видел; его имя — в тексте сдачи.
     if (task.deed.proofType === "WITNESS" && body.note.trim().length < 2) return reply.code(400).send({ error: "validation", message: err(request, "Укажите, кто может подтвердить") });
-    if (!needsLink && body.links.length === 0 && body.note.length < 5) return reply.code(400).send({ error: "validation", message: err(request, "Опишите, что сделано") });
+    if (!needsLink && proofType !== "WITNESS" && body.note.trim().length < 5) return reply.code(400).send({ error: "validation", message: err(request, "Опишите, что сделано") });
     // Участники дела группой: только свои, всегда включая сдающего/взявшего.
     const members = new Set((await prisma.membership.findMany({ where: { teamId: m.team.id }, select: { userId: true } })).map((x) => x.userId));
     // На кого записать дело (решение владельца 22.10): капитан, заместитель или летописец, сдавая групповое дело, выбирают

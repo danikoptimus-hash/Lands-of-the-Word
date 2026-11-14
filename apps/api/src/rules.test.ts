@@ -152,6 +152,28 @@ describe("правила и настройки", () => {
     expect(ok.statusCode).toBe(200); expect(ok.json().task.status).toBe("SUBMITTED");
   });
 
+  it("обязательное при сдаче: аудиозапись — только со ссылкой, отчёт — только с текстом", async () => {
+    // Решение владельца 14.11: пока не добавлено то, чего требует дело, сдать его нельзя.
+    await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { maxDeedsPerDay: 0 } } } });
+    const mk = async (title: string, proofType: string) => {
+      const created = await post(`/api/games/${gameId}/deeds`, adminCookie, { title, description: "Проверка обязательных полей", direction: "Молитва", proofType, canRepeat: true });
+      expect(created.statusCode).toBe(201);
+      const map = (await get(`/api/games/${gameId}/my-map`, p1Cookie)).json();
+      const open = map.tasks.find((t: { status: string; sea?: boolean }) => t.status === "OPEN" && !t.sea);
+      await prisma.teamEdgeTask.update({ where: { id: open.id }, data: { deedId: created.json().deed.id } });
+      expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/take`, p1Cookie)).statusCode).toBe(200);
+      return open.id as string;
+    };
+    const audio = await mk("Прочитать главу вслух (тест)", "AUDIO_LINK");
+    const noLink = await post(`/api/games/${gameId}/edge-tasks/${audio}/submit`, p1Cookie, { links: [], note: "Прочитал главу целиком", participants: [] });
+    expect(noLink.statusCode).toBe(400); expect(noLink.json().message).toContain("ссылка на аудиозапись");
+    expect((await post(`/api/games/${gameId}/edge-tasks/${audio}/submit`, p1Cookie, { links: ["https://example.com/audio"], note: "", participants: [] })).statusCode).toBe(200);
+    const report = await mk("Навестить соседа (тест)", "REPORT");
+    const noText = await post(`/api/games/${gameId}/edge-tasks/${report}/submit`, p1Cookie, { links: ["https://example.com/photo"], note: "  ", participants: [] });
+    expect(noText.statusCode).toBe(400); expect(noText.json().message).toContain("Опишите");
+    expect((await post(`/api/games/${gameId}/edge-tasks/${report}/submit`, p1Cookie, { links: [], note: "Навестил соседа, помог донести сумки", participants: [] })).statusCode).toBe(200);
+  });
+
   it("администратор меняет правила в идущей игре через продвинутые настройки", async () => {
     const r = await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { attackDays: 21 } } } });
     expect(r.statusCode).toBe(200);
