@@ -143,27 +143,29 @@
 .m-deed.taken circle:not(.far) { fill: var(--info-soft); stroke: var(--info); } .m-deed.taken use { color: var(--info); }
 .m-deed.submitted circle:not(.far) { fill: var(--warn-soft); stroke: var(--warn); } .m-deed.submitted use { color: var(--warn); }
 .m-deed.rejected circle:not(.far) { fill: var(--danger-soft); stroke: var(--danger); } .m-deed.rejected use { color: var(--danger); }
-/* Приоритет капитана (решение владельца 14.11): свиток дела горит. Огонь — позади кружка метки (DeedFire, MapLayers.tsx):
-   зарево дышит, у каждого языка своё мерцание (пять рисунков движения с разной длительностью), искры уходят вверх.
-   Свободное приоритетное дело — в тёплых тонах; взятое, сданное и возвращённое цвет состояния сохраняют. */
+/* Приоритет капитана (решение владельца 14.11): свиток дела горит. Огонь — DeedFire (MapLayers.tsx): позади кружка метки
+   зарево, большие языки и искры, поверх кружка — малые языки на нижних краях. Зарево дышит, у каждого языка своё
+   мерцание (три рисунка движения с разной длительностью и сдвигом), искры уходят вверх. Размах движения крупный: метка
+   на карте мала, и мелкое дрожание на телефоне не видно. Свободное приоритетное дело — в тёплых тонах; взятое, сданное
+   и возвращённое цвет состояния сохраняют. */
 .deed-fire { pointer-events: none; }
-.deed-fire .tongue { transform-box: fill-box; transform-origin: 50% 100%; animation: fire-k0 1.15s ease-in-out infinite; }
-.deed-fire .tongue.out { stroke: rgba(122, 38, 14, .55); stroke-width: .6; }
-.deed-fire .tongue.k1 { animation-name: fire-k1; animation-duration: .95s; animation-delay: -.3s; }
-.deed-fire .tongue.k2 { animation-name: fire-k2; animation-duration: 1.3s; animation-delay: -.7s; }
-.deed-fire .tongue.k3 { animation-name: fire-k1; animation-duration: 1.45s; animation-delay: -1.1s; }
-.deed-fire .tongue.k4 { animation-name: fire-k2; animation-duration: .85s; animation-delay: -.5s; }
-.deed-fire .glow { transform-box: fill-box; transform-origin: center; animation: fire-glow 1.7s ease-in-out infinite; }
-.deed-fire .spark { fill: #ffd27a; opacity: 0; transform-box: fill-box; animation: fire-spark 1.9s linear infinite; }
-.deed-fire .spark.s1 { animation-delay: -.65s; animation-duration: 2.3s; }
-.deed-fire .spark.s2 { animation-delay: -1.3s; animation-duration: 1.6s; }
+.deed-fire .tongue { transform-box: fill-box; transform-origin: 50% 100%; animation: fire-k0 .95s ease-in-out infinite; }
+.deed-fire .tongue.out { stroke: rgba(122, 38, 14, .5); stroke-width: .6; }
+.deed-fire .tongue.k1 { animation-name: fire-k1; animation-duration: .8s; animation-delay: -.3s; }
+.deed-fire .tongue.k2 { animation-name: fire-k2; animation-duration: 1.1s; animation-delay: -.7s; }
+.deed-fire .tongue.k3 { animation-name: fire-k1; animation-duration: 1.25s; animation-delay: -1.1s; }
+.deed-fire .tongue.k4 { animation-name: fire-k2; animation-duration: .7s; animation-delay: -.5s; }
+.deed-fire .glow { transform-box: fill-box; transform-origin: center; animation: fire-glow 1.5s ease-in-out infinite; }
+.deed-fire .spark { fill: #ffd27a; opacity: 0; transform-box: fill-box; animation: fire-spark 1.7s linear infinite; }
+.deed-fire .spark.s1 { animation-delay: -.6s; animation-duration: 2.1s; }
+.deed-fire .spark.s2 { animation-delay: -1.2s; animation-duration: 1.4s; }
 .m-deed.priority.open circle:not(.far) { fill: #fff3d6; stroke: #9a3412; }
-.m-deed.priority.open use { color: #7c2d12; }
-@keyframes fire-k0 { 0%, 100% { transform: scale(1, 1) skewX(0deg); } 22% { transform: scale(.93, 1.1) skewX(-5deg); } 48% { transform: scale(1.06, .93) skewX(3deg); } 74% { transform: scale(.96, 1.07) skewX(6deg); } }
-@keyframes fire-k1 { 0%, 100% { transform: scale(1, .95) skewX(3deg); } 30% { transform: scale(.9, 1.14) skewX(-6deg); } 62% { transform: scale(1.08, .9) skewX(-1deg); } 84% { transform: scale(.97, 1.08) skewX(5deg); } }
-@keyframes fire-k2 { 0%, 100% { transform: scale(.97, 1.06) skewX(-4deg); } 26% { transform: scale(1.07, .9) skewX(2deg); } 55% { transform: scale(.92, 1.13) skewX(6deg); } 80% { transform: scale(1.03, .98) skewX(-3deg); } }
-@keyframes fire-glow { 0%, 100% { transform: scale(.94); opacity: .75; } 50% { transform: scale(1.07); opacity: 1; } }
-@keyframes fire-spark { 0% { transform: translate(0, 4px) scale(.6); opacity: 0; } 15% { opacity: 1; } 70% { opacity: .8; } 100% { transform: translate(2.5px, -11px) scale(.3); opacity: 0; } }
+.m-deed.priority.open use { color: #4a1d0c; }
+@keyframes fire-k0 { 0%, 100% { transform: scale(1, 1) skewX(0deg); } 22% { transform: scale(.9, 1.22) skewX(-7deg); } 48% { transform: scale(1.08, .86) skewX(4deg); } 74% { transform: scale(.94, 1.14) skewX(8deg); } }
+@keyframes fire-k1 { 0%, 100% { transform: scale(1, .9) skewX(4deg); } 30% { transform: scale(.86, 1.26) skewX(-8deg); } 62% { transform: scale(1.1, .84) skewX(-2deg); } 84% { transform: scale(.95, 1.15) skewX(6deg); } }
+@keyframes fire-k2 { 0%, 100% { transform: scale(.96, 1.1) skewX(-5deg); } 26% { transform: scale(1.1, .84) skewX(3deg); } 55% { transform: scale(.88, 1.24) skewX(8deg); } 80% { transform: scale(1.04, .96) skewX(-4deg); } }
+@keyframes fire-glow { 0%, 100% { transform: scale(.86); opacity: .6; } 50% { transform: scale(1.12); opacity: 1; } }
+@keyframes fire-spark { 0% { transform: translate(0, 5px) scale(.7); opacity: 0; } 15% { opacity: 1; } 65% { opacity: .85; } 100% { transform: translate(3.5px, -16px) scale(.3); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .deed-fire .tongue, .deed-fire .glow, .deed-fire .spark { animation: none; } .deed-fire .spark { opacity: .8; } }
 .map-ripple { fill: none; stroke: var(--surface); stroke-width: 3; pointer-events: none; animation: ripple .6s ease-out forwards; }
 .city-hit { cursor: pointer; transition: transform var(--dur-fast) var(--spring); transform-box: fill-box; transform-origin: center; }

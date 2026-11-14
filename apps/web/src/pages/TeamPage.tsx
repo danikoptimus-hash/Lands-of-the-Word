@@ -971,10 +971,10 @@ export function TeamPage() {
               {/* Приоритет капитана (решение владельца 14.11): капитан или заместитель отмечает дело — его свиток на карте горит у всей команды. */}
               {(deedPriority(task) || (isLeader && task.status !== "APPROVED" && !task.paved)) && (
                 <div className="priority-row mt-2">
-                  {deedPriority(task) && <p className="priority-line"><Icon name="flame" /><span>{t("Приоритет капитана: берём в первую очередь")}{task.priorityById && memberName(task.priorityById) ? <> · {t("отметил: {name}", { name: memberName(task.priorityById) })}</> : null}</span></p>}
+                  {deedPriority(task) && <p className="priority-line"><Icon name="flame" /><span>{t("Приоритет капитана: это дело — в первую очередь")}{task.priorityById && memberName(task.priorityById) ? <span className="by"> · {t("отметил: {name}", { name: memberName(task.priorityById) })}</span> : null}</span></p>}
                   {isLeader && task.status !== "APPROVED" && !task.paved && (
                     <span className="priority-actions">
-                      <button type="button" className="secondary sm" disabled={busy} aria-pressed={Boolean(task.priorityAt)}
+                      <button type="button" className="secondary sm prio-btn" disabled={busy} aria-pressed={Boolean(task.priorityAt)}
                         onClick={() => { const on = !task.priorityAt; void act(`/api/games/${id}/edge-tasks/${task.id}/priority`, { on }).then((ok) => { if (ok) notify(on ? t("Дело отмечено приоритетным: его свиток на карте горит") : t("Приоритет снят")); }); }}>
                         <Icon name="flame" />{task.priorityAt ? t("Снять приоритет") : t("Отметить приоритетным")}
                       </button>

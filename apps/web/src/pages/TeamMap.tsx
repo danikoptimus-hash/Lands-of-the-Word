@@ -507,9 +507,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             return (
               <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "") + (prio ? " priority" : "")} onClick={() => click(tk.id)}>
                 <g style={scm(m.x, m.y)}>
-                  {prio && <DeedFire r={r} />}
+                  {prio && <DeedFire r={r} part="back" />}
                   <circle r={r} />
                   <use href={`#m-${DEED_SYMBOL[tk.status]}`} x={-r * 0.6} y={-r * 0.6} width={r * 1.2} height={r * 1.2} />
+                  {prio && <DeedFire r={r} part="front" />}
                 </g>
               </g>
             );
@@ -521,9 +522,10 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
               <g key={"ship" + tk.id} data-id={tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "") + (prio ? " priority" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
                 <line className="mooring" x1={port.x} y1={port.y} x2={x} y2={y} />
                 <g style={scm(x, y)}>
-                  {prio && <DeedFire r={r} />}
+                  {prio && <DeedFire r={r} part="back" />}
                   <circle r={r} />
                   <use href="#m-ship" x={-r * 0.62} y={-r * 0.62} width={r * 1.24} height={r * 1.24} />
+                  {prio && <DeedFire r={r} part="front" />}
                 </g>
               </g>
             );
