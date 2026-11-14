@@ -384,3 +384,7 @@ h1 .ico .i, h2 .ico .i, h3 .ico .i { width: 16px; height: 16px; }
 .picker-check .i { width: 18px; height: 18px; }
 .picker-label { flex: 1 1 auto; min-width: 0; }
 @media (prefers-reduced-motion: reduce) { .picker-pop { animation: none; } .picker .picker-chev { transition: none; } }
+/* Ссылки сдачи (решение владельца 06.11, с 14.11 — и в карточке дела): квадратные кнопки со значком и номером. */
+.proof-btn { position: relative; text-decoration: none; }
+.proof-btn .n { position: absolute; right: -4px; top: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--bronze); color: var(--on-accent); font: 700 10px/16px var(--font); font-style: normal; text-align: center; }
+.proof-links { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }

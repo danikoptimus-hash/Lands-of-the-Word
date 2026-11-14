@@ -7,6 +7,7 @@ import { Icon } from "../components/Icon";
 import { Chip } from "../components/Chip";
 import { TeamAvatar } from "../components/TeamAvatar";
 import { ErrorState, LoadingState } from "../components/State";
+import { LinkList, linkKind } from "../components/LinkList";
 
 type Row = EdgeTaskDto & { team: { id: string; name: string; color: string; avatarId?: string | null }; takenBy: { nickname: string; displayName: string | null } | null; /** Имена участников дела группой, без взявшего. */ participantNames?: string[]; takenAt?: string | null };
 
@@ -35,20 +36,9 @@ export function ReviewCard({ icon, title, count, loading, error, onRetry, childr
   );
 }
 
-/**
- * Ссылки сдачи — квадратные кнопки со значком (фото, видео, ссылка) и номером, если ссылок несколько; подпись «Фото 1»
- * только во всплывающей подсказке. Стоят в ряду действий перед «Принять» (решение владельца 06.11: «убираем текст „фото“
- * и ставим квадратную кнопку перед „Принять“»; до этого видео было значком с 31.10, фото — текстом).
- */
-export function LinkList({ links, kind }: { links: string[]; kind: "photo" | "video" | "link" }) {
-  if (links.length === 0) return null;
-  const word = kind === "photo" ? t("Фото") : kind === "video" ? t("Видео") : t("Ссылка");
-  const label = (i: number) => (links.length > 1 ? `${word} ${i + 1}` : word);
-  const icon = kind === "photo" ? "camera" : kind === "video" ? "video" : "link";
-  return <>{links.map((l, i) => <a key={l + i} className="btn secondary sm icon proof-btn" href={l} target="_blank" rel="noopener noreferrer" aria-label={label(i)} title={label(i)}><Icon name={icon} />{links.length > 1 && <i className="n">{i + 1}</i>}</a>)}</>;
-}
-
 /** Отрицательное решение: поле причины появляется только когда возвращают, с фокусом. */
+export { LinkList };
+
 export function ReturnBox({ placeholder, okLabel, onOk, onCancel, busy }: { placeholder: string; okLabel: string; onOk: (text: string) => void; onCancel: () => void; busy: boolean }) {
   const [text, setText] = useState("");
   return (
@@ -90,7 +80,6 @@ export function SubmissionsBlock({ gameId, version = 0, onDecided, onShowOnMap }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusyId(null); }
   }
-  const linkKind = (p: EdgeTaskDto["deed"]["proofType"]) => (p === "PHOTO_LINK" ? "photo" : p === "VIDEO_LINK" ? "video" : "link");
   async function decideBatch() {
     if (picked.size === 0) return;
     setBusyId("batch");
@@ -222,7 +211,6 @@ export function WrecksBlock({ gameId, version = 0, onDecided }: { gameId: string
     finally { setBusyId(null); }
   }
   const cargoText = (w: WreckRow) => w.cargo === "STONES" ? t("выпало: тёсаных камней {n}", { n: w.amount ?? 0 }) : w.cargo === "BLOCKS" ? t("выпало: блоков для стен {n}", { n: w.amount ?? 0 }) : "";
-  const linkKind = (p: WreckRow["proofType"]) => (p === "PHOTO_LINK" ? "photo" : p === "VIDEO_LINK" ? "video" : "link");
   const toggleDesc = (id: string) => setDescOpen((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   if (rows && rows.length === 0 && done.length === 0) return null;
   return (

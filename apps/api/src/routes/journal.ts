@@ -5,7 +5,7 @@ import { requireUser } from "../auth.js";
 import { err } from "../services/i18n.js";
 import { defineView } from "../services/views.js";
 import { isLeader, requireActiveMember, requireAdmin, requireMember } from "./teamMap.js";
-import { activityBoard, feed, journalTaskIds, personalFeed, seasonBook, serviceStats } from "../services/journal.js";
+import { activityBoard, feed, feedOlder, FEED_PAGE, journalTaskIds, personalFeed, seasonBook, serviceStats } from "../services/journal.js";
 import { breakPeace, decidePeace, peaceView, proposePeace } from "../services/peace.js";
 import { adminOrObserver } from "../services/access.js";
 
@@ -17,14 +17,25 @@ const peaceCached = defineView("peace", { scope: "team", events: ["peace", "team
 export async function journalRoutes(app: FastifyInstance): Promise<void> {
   app.addHook("preHandler", requireUser);
 
-  /** Лента «Что случилось»: события своей команды и новости для всех. */
+  /**
+   * Летопись команды: события своей команды, новости для всех и личные записи участника. Без параметров — последние 60
+   * записей; с `beforeAt` и `beforeId` (время и id последней показанной) — следующие 60, не старше 15 дней (решение
+   * владельца 14.11: «по 60 штук раскрывается, потом ещё 60»). `more` — есть ли что раскрывать дальше.
+   */
   app.get("/api/games/:id/feed", async (request, reply) => {
     const { id } = request.params as { id: string };
     const m = await requireMember(request, reply, id);
     if (!m) return;
+    const q = z.object({ beforeAt: z.coerce.number().int().positive().optional(), beforeId: z.string().max(40).optional() }).parse(request.query);
+    if (q.beforeAt) return await feedOlder(id, m.team.id, request.user!.id, { at: q.beforeAt, id: q.beforeId ?? "" });
     // Личные записи участника (решение владельца 01.11) — поверх ленты команды, по времени.
     const [team, personal] = await Promise.all([feedView(id, m.team.id), personalFeed(id, request.user!.id)]);
-    return { items: personal.length ? [...team, ...personal].sort((a, b) => b.at - a.at) : team };
+    // Полная первая страница: дальше могут быть ещё записи. Личные записи старше её края придут своей страницей — иначе
+    // они стояли бы в конце списка не на своём месте.
+    const edge = team.length >= FEED_PAGE ? team[team.length - 1]! : null;
+    const mine = edge ? personal.filter((p) => p.at >= edge.at) : personal;
+    const more = edge ? (await feedOlder(id, m.team.id, request.user!.id, edge, 1)).items.length > 0 : false;
+    return { items: mine.length ? [...team, ...mine].sort((a, b) => b.at - a.at) : team, more };
   });
 
   /** «Моё служение»: сводка участника. */

@@ -131,18 +131,56 @@ export function journalLine(kind: JournalKind, vars: Record<string, string | num
   // Служебные подстановки — сами шаблоны (например {winner} = «: победила команда «{team}»»): переводятся и заполняются теми же переменными.
   for (const k of ["capital", "who", "winner", "role", "term", "why", "side", "task", "reason", "answer", "result", "burnt", "cargo"]) if (typeof v[k] === "string" && v[k]) v[k] = t(v[k] as string, v);
   // Необязательные хвосты (комментарий, причина, сообщение): у старых записей их нет — пусто, а не «{comment}».
-  for (const k of ["comment", "message", "reason", "task", "burnt"]) if (v[k] === undefined) v[k] = "";
+  for (const k of ["comment", "message", "reason", "task", "burnt", "who"]) if (v[k] === undefined) v[k] = "";
   return t(JOURNAL_TEXT[kind] ?? kind, v);
+}
+
+/** Летопись: свёрнуто шесть записей; раскрывается страницами по 60 (решение владельца 14.11). */
+const FEED_FIRST = 6, FEED_PAGE = 60;
+type FeedPage = { items: FeedItemDto[]; more?: boolean };
+/** Порядок летописи, как на сервере: новые сверху, при равном времени — больший id раньше. */
+const feedOrder = (a: FeedItemDto, b: FeedItemDto) => b.at - a.at || (a.id < b.id ? 1 : a.id > b.id ? -1 : 0);
+/**
+ * Свежая первая страница поверх уже раскрытого: всё, что новее её края, берётся только из неё (запись могла исчезнуть),
+ * раскрытые ранее записи старше края остаются на месте.
+ */
+function mergeFeed(pool: FeedItemDto[], page: FeedItemDto[]): FeedItemDto[] {
+  if (page.length === 0 || pool.length === 0) return [...page].sort(feedOrder);
+  const sorted = [...page].sort(feedOrder), edge = sorted[sorted.length - 1]!, ids = new Set(page.map((i) => i.id));
+  return [...sorted, ...pool.filter((i) => !ids.has(i.id) && feedOrder(edge, i) < 0)].sort(feedOrder);
 }
 
 /** Лента команды «Летопись» (до 21.09 — «Что случилось»): свои события и новости для всех команд. */
 export function FeedSection({ gameId, version, onOpenTask }: { gameId: string; version: number; /** Запись о деле своей команды открывает лист дела (просьба владельца 25.10: у участников дела в летописи тоже нажимаются). */ onOpenTask?: (taskId: string) => void }) {
-  const [items, setItems] = useState<FeedItemDto[] | null>(() => ready<{ items: FeedItemDto[] }>(`/api/games/${gameId}/feed`)?.items ?? null);
-  const [all, setAll] = useState(false);
-  const load = useCallback(() => apiReady<{ items: FeedItemDto[] }>(`/api/games/${gameId}/feed`).then((r) => setItems(r.items)).catch(() => {}), [gameId]);
+  const url = `/api/games/${gameId}/feed`;
+  const [items, setItems] = useState<FeedItemDto[] | null>(() => { const r = ready<FeedPage>(url); return r ? mergeFeed([], r.items) : null; });
+  // Есть ли что раскрывать дальше: сначала — по первой странице, после догрузки — по последней догруженной.
+  const [firstMore, setFirstMore] = useState<boolean>(() => Boolean(ready<FeedPage>(url)?.more));
+  const [olderMore, setOlderMore] = useState<boolean | null>(null);
+  const [count, setCount] = useState(FEED_FIRST);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(() => apiReady<FeedPage>(url).then((r) => { setItems((prev) => mergeFeed(prev ?? [], r.items)); setFirstMore(Boolean(r.more)); }).catch(() => {}), [url]);
   useEffect(() => { void load(); }, [load, version]);
-  /** По умолчанию шесть записей — меню укладывается в экран телефона; дальше «Показать всё». */
-  const shown = items ? (all ? items : items.slice(0, 6)) : [];
+  const more = olderMore ?? firstMore;
+  const total = items?.length ?? 0;
+  /** «Показать ещё»: сначала вся первая страница (60), потом по 60 записей — пока не кончатся 15 дней летописи. */
+  const next = count === FEED_FIRST ? FEED_PAGE : count + FEED_PAGE;
+  // Небольшой остаток (личные записи сверх страницы) показывается сразу, отдельного нажатия ради него нет.
+  const showsAll = !more && total <= next + FEED_PAGE / 2;
+  async function expand() {
+    const want = showsAll ? Math.max(next, total) : next;
+    if (total >= want || !more || !items?.length) { setCount(want); return; }
+    setBusy(true);
+    try {
+      const last = items[items.length - 1]!;
+      const r = await api<FeedPage>(`${url}?beforeAt=${last.at}&beforeId=${encodeURIComponent(last.id)}`);
+      setItems((prev) => { const have = new Set((prev ?? []).map((i) => i.id)); return [...(prev ?? []), ...r.items.filter((i) => !have.has(i.id))].sort(feedOrder); });
+      setOlderMore(Boolean(r.more)); setCount(want);
+    } catch { /* сеть: кнопка остаётся, можно нажать ещё раз */ }
+    finally { setBusy(false); }
+  }
+  const shown = items ? items.slice(0, count) : [];
+  const canExpand = total > count || more;
   return (
     <section className="section">
       {!items ? <LoadingState rows={2} /> : items.length === 0 ? <EmptyState inline icon="scroll" text={t("Пока тихо. Первые события — после первого дела.")} /> : (
@@ -161,7 +199,8 @@ export function FeedSection({ gameId, version, onOpenTask }: { gameId: string; v
           ))}
         </ul>
       )}
-      {items && items.length > 6 && !all && <p className="mt-2"><button type="button" className="ghost sm" onClick={() => setAll(true)}>{t("Показать всё ({n})", { n: items.length })}</button></p>}
+      {items && canExpand && <p className="mt-2"><button type="button" className="ghost sm" disabled={busy} onClick={() => void expand()}>{showsAll ? t("Показать всё ({n})", { n: total }) : t("Показать ещё")}</button></p>}
+      {items && !canExpand && olderMore === false && <p className="hint mt-2">{t("Это все записи за 15 дней.")}</p>}
     </section>
   );
 }

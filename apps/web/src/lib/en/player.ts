@@ -130,7 +130,6 @@ export const PLAYER: Record<string, string> = {
   "Администратор вернул дело. Исправьте и сдайте снова.": "The administrator returned the deed. Fix it and submit again.",
   "Разведка: за этой стороной город.": "Scouting: there is a city beyond this side.", "Разведка: за этой стороной развилка.": "Scouting: there is a crossroads beyond this side.",
   "Разведка: там город": "Scouting: it is a city",
-  "Ветхий Завет": "Old Testament", "Новый Завет": "New Testament",
   "Морской путь: корабль из порта. Когда дело одобрят, кормчий выберет на карте, куда высадиться на другом острове.": "Sea route: a ship from the port. Once the deed is approved, the helmsman picks on the map where to land on the other island.",
   "Выбрать место высадки": "Choose a landing spot", "Дело одобрено: кормчий выбирает место высадки. Капитан и команда ему советуют.": "The deed is approved: the helmsman is choosing where to land. The captain and the team advise them.",
   "Узел откроется, и с него пойдут дела по другому острову. Вернуться назад можно только с портом.": "The fork opens and deeds on the other island start from it. You can only sail back from a port.",
@@ -186,6 +185,7 @@ export const PLAYER: Record<string, string> = {
   // Журнал событий (этап 4 решений 18.09): лента, новости, «Моё служение», мир, доска активности, «Книга сезона»
   "Пока тихо: первые события появятся, когда команда возьмёт дело.": "Quiet so far: the first events appear when the team takes a deed.",
   "Летопись недели": "Chronicle of the week", "новость": "news", "Показать всё ({n})": "Show all ({n})",
+  "Показать ещё": "Show more", "Это все записи за 15 дней.": "These are all the entries of the last 15 days.",
   "Моё служение": "My service", "переправ": "crossings",
   // Мир из строки таблицы команд (решение владельца 21.09)
   "мир": "peace", "мир предложен": "peace offered", "Нет": "No", "Предложение отклонено": "Offer declined",
@@ -444,8 +444,9 @@ export const PLAYER: Record<string, string> = {
   "{role} · ждёт одобрения": "{role} · awaiting approval",
   "корабль": "ship", "Сдачу видят только вы и проверяющий.": "Only you and the reviewer see the submission.",
   "После одобрения кормчий выберет место высадки на любом береговом узле другого острова. Где там город, заранее не видно. Капитан и команда ему советуют.": "After approval the helmsman will choose a landing place at any coastal node of the other island. Which one is a city is not visible in advance. The captain and the team advise them.",
-  "Подробнее": "More", "Свернуть": "Less", "На проверке у администратора.": "Under the administrator's review.",
-  "Разведано: там город.": "Scouted: a city there.", "Разведано: там развилка.": "Scouted: a fork there.", "Разведать": "Scout", "раз в неделю": "once a week",
+  "Подробнее": "More", "Свернуть": "Less",
+  "Разведать": "Scout",
+  "Туман вокруг перекрёстка раздвинется, и вся команда увидит, что там: город или развилка. Место останется открытым. Разведка — раз в неделю.": "The fog around the crossroads will part and the whole team will see what is there: a city or a fork. The place stays open. Scouting is available once a week.",
   
   "В кассу церкви. Сдаётся ссылка на чек или подтверждение перевода.": "To the church treasury. Submit a link to the receipt or transfer confirmation.",
   "https://… — по одной на строку": "https://… — one per line",
