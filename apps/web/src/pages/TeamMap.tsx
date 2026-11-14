@@ -12,7 +12,7 @@ import { FOG_COLOR } from "../lib/hexmap";
 import { RoutesGL } from "./RoutesGL";
 /** Морские пути на WebGL (Э3) — по умолчанию; `?routes=canvas` — прежний способ на холсте живности (и запасной путь без WebGL). */
 const GL_ROUTES_DEFAULT = typeof location === "undefined" || !/[?&]routes=canvas/.test(location.search);
-import { deedPriority, type DailyBirdDto, type EdgeTaskStatus, type MapHexDto, type MapMarkDto, type MyMapDto } from "../lib/api";
+import { deedPriority, type DailyBirdDto, type EdgeTaskDto, type EdgeTaskStatus, type MapHexDto, type MapMarkDto, type MyMapDto } from "../lib/api";
 import { CoastOver, DeedFire, islandGeometry, FogLayer, HexTiles, IMG, MapSymbols, OutlineDefs, SeaLayer, TilesLayer, WorldSvg, useCoast, type FogClear, type FogHole } from "./MapLayers";
 import { Icon, iconPath } from "../components/Icon";
 import { fmtDate } from "../lib/format";
@@ -87,8 +87,10 @@ export function teamFogInputs(map: Pick<MyMapDto, "hexes" | "revealed" | "edges"
   return { fogHexes, landKeys, fogClear: { nodes, edges }, fogPoints };
 }
 
-export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, onSelectWreck, bird, focusTask, storm, scout }: { /** Нажатие на разбитый бурей корабль (решение владельца 04.11): лист срочного задания. */ onSelectWreck?: (wreckId: string) => void; /** Разведка (решение владельца 29.10): туман вокруг перекрёстка раздвигается на пять секунд и показывает, что там. */ scout?: ScoutReveal | null; /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
+export function TeamMap({ map, myId, teamIndex, selectedTaskId, onSelect, onSelectCity, landing, onLand, onMark, onMarkTap, onFrontierTap, onSelectQuarry, onSelectWreck, bird, focusTask, storm, scout }: { /** Кто смотрит карту: дела, которые взял он сам, — фиолетовые (решение владельца 14.11). */ myId?: string | null; /** Нажатие на разбитый бурей корабль (решение владельца 04.11): лист срочного задания. */ onSelectWreck?: (wreckId: string) => void; /** Разведка (решение владельца 29.10): туман вокруг перекрёстка раздвигается на пять секунд и показывает, что там. */ scout?: ScoutReveal | null; /** Шторм (решение владельца 24.10): буря над картой, свитки и метки скрыты, города не нажимаются. */ storm?: Storm; /** «Посмотреть на карте» (просьба владельца 10.10): при смене nonce карта центрируется на стороне этого дела и приближается. */ focusTask?: { id: string; nonce: number } | null; /** Полёт клина, если страница запрашивает его отдельно к назначенной минуте; undefined — брать из map.dailyBird. */ bird?: DailyBirdDto | null; /** Нажатие на островок Каменоломни (решение владельца 04.10). */ onSelectQuarry?: () => void; /** Нажатие на точку края тумана, к которой нет дороги с делом (решение владельца 02.10: разведчик разведывает любой узел на краю тумана). */ onFrontierTap?: (nodeKey: string) => void; map: MyMapDto; teamIndex: number; selectedTaskId: string | null; onSelect: (taskId: string | null) => void; onSelectCity: (nodeKey: string) => void; /** Метки команды: кнопка-булавка включает режим, нажатие по карте отдаёт гекс и точное место (дробные координаты); нажатие на флажок — убрать. */ onMark?: (at: MarkPoint) => void; onMarkTap?: (mark: MapMarkDto) => void; /** Режим высадки: узлы-кандидаты другого острова подсвечены, нажатие — высадка (только капитан). */ landing?: { taskId: string; candidates: string[] } | null; onLand?: (nodeKey: string) => void }) {
   const size = HEX_SIZE;
+  /** Дело, которое взял сам смотрящий (в работе или на проверке): метка фиолетовая. */
+  const mineOf = (tk: EdgeTaskDto) => !!myId && tk.takenById === myId && (tk.status === "TAKEN" || tk.status === "SUBMITTED");
   const hexKey = map.hexes.map((h) => `${h.q},${h.r}`).join(";");
   const bounds = useMemo(() => (map.hexes.length ? fieldBounds(map.hexes, size) : null), [hexKey, size]); // eslint-disable-line react-hooks/exhaustive-deps
   const start = useMemo(() => (map.team.startNodeKey ? nodePos(map.team.startNodeKey, size) : null), [map.team.startNodeKey, size]);
@@ -505,7 +507,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             // Приоритет капитана (решение владельца 14.11): свиток дела горит — огонь позади кружка метки.
             const prio = deedPriority(tk);
             return (
-              <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "") + (prio ? " priority" : "")} onClick={() => click(tk.id)}>
+              <g key={"m" + e.aKey + e.bKey} data-id={tk.id} className={"m-deed " + tk.status.toLowerCase() + (sel ? " sel" : "") + (prio ? " priority" : "") + (mineOf(tk) ? " mine" : "")} onClick={() => click(tk.id)}>
                 <g style={scm(m.x, m.y)}>
                   {prio && <DeedFire r={r} part="back" />}
                   <circle r={r} />
@@ -519,7 +521,7 @@ export function TeamMap({ map, teamIndex, selectedTaskId, onSelect, onSelectCity
             const sel = tk.id === selectedTaskId, r = (sel ? RM + 2 : RM) + 2;
             const prio = deedPriority(tk);
             return (
-              <g key={"ship" + tk.id} data-id={tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "") + (prio ? " priority" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
+              <g key={"ship" + tk.id} data-id={tk.id} className={"m-deed sea " + (tk.landing ? "landing" : tk.status.toLowerCase()) + (sel ? " sel" : "") + (prio ? " priority" : "") + (mineOf(tk) ? " mine" : "")} onClick={() => { if (!vp.wasDrag()) onSelect(selectedTaskId === tk.id ? null : tk.id); }}>
                 <line className="mooring" x1={port.x} y1={port.y} x2={x} y2={y} />
                 <g style={scm(x, y)}>
                   {prio && <DeedFire r={r} part="back" />}

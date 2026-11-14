@@ -186,7 +186,7 @@ export const PLAYER: Record<string, string> = {
   // Журнал событий (этап 4 решений 18.09): лента, новости, «Моё служение», мир, доска активности, «Книга сезона»
   "Пока тихо: первые события появятся, когда команда возьмёт дело.": "Quiet so far: the first events appear when the team takes a deed.",
   "Летопись недели": "Chronicle of the week", "новость": "news", "Показать всё ({n})": "Show all ({n})",
-  "Моё служение": "My service", "переправ": "crossings", "В работе или на проверке: {n}": "In progress or under review: {n}",
+  "Моё служение": "My service", "переправ": "crossings",
   // Мир из строки таблицы команд (решение владельца 21.09)
   "мир": "peace", "мир предложен": "peace offered", "Нет": "No", "Предложение отклонено": "Offer declined",
   "Предложить мир команде «{team}»": "Offer peace to team “{team}”",
@@ -385,7 +385,10 @@ export const PLAYER: Record<string, string> = {
   "Угощать, помогать и навещать — не участников этой игры.": "Treat, help and visit people who are not players of this game.",
   "В отчёте честно: что сделал, кому и как.": "Report honestly: what you did, for whom and how.",
   "Чужое дело как своё не сдаётся; если делали группой — отметьте всех участников.": "Do not submit someone else's deed as your own; if you did it as a group, tick every participant.",
-  "можно издалека": "can be done from afar", "Кодекс дела": "Deed code",
+  "Кодекс дела": "Deed code",
+  "обязательно": "required", "Чтобы сдать дело, добавьте: {what}.": "To submit the deed, add: {what}.",
+  "ссылку на аудиозапись": "a link to the audio recording", "ссылку на фото или видео": "a photo or video link",
+  "кто может подтвердить": "who can confirm it", "что сделали и кому": "what you did and for whom",
   "Что сделал и кому?": "What did you do, and for whom?",
   "Корабль тонет": "The ship is sinking", "Утонет через {t}": "Sinks in {t}", "Корабль наполняется водой: {s}": "The ship is taking on water: {s}", "Срок: {d}": "Deadline: {d}",
   "Предыдущее задание": "Previous task", "Следующее задание": "Next task", "никого: делал один": "nobody: did it alone", "Подпись метки изменена": "Mark caption changed", "Ваша метка, поставлена {when}.": "Your mark, placed {when}.", "Ваша метка.": "Your mark.", "Уборку, починку или любую работу в доме молитвы сначала согласуйте с диаконом: что, когда и как делать.": "Agree any cleaning, repair or other work in the prayer house with the deacon first: what, when and how.", "Дел на руках: {n}": "Deeds in hand: {n}", "Вставить ссылку": "Paste a link", "Ссылка вставлена": "Link pasted", "Ссылок: {n}": "Links: {n}", "Вставить ещё": "Paste another", "Убрать ссылку": "Remove link", "Почему не вставилось": "Why it was not pasted", "В буфере обмена нет ссылки: скопируйте её и нажмите ещё раз": "No link in the clipboard: copy it and press again", "Этот браузер не даёт прочитать буфер обмена. Вставьте ссылку сюда:": "This browser does not allow reading the clipboard. Paste the link here:", "Ссылка должна начинаться с https://": "The link must start with https://",

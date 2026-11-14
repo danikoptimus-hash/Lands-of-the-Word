@@ -28,6 +28,10 @@ button.icon.sm { position: relative; } button.icon.sm::before { content: ""; pos
 label { display: block; margin: var(--sp-4) 0 var(--sp-1); color: var(--text); font-size: var(--fs-sm); font-weight: 500; line-height: var(--lh-ui); }
 label:first-child { margin-top: 0; }
 label .opt { color: var(--muted); font-weight: 400; }
+/* «обязательно» у подписи поля: без этого дело не сдать (решение владельца 14.11). */
+.req { color: var(--danger); font-weight: 600; font-size: .86em; white-space: nowrap; }
+.deed-missing { display: flex; align-items: flex-start; gap: 6px; }
+.deed-missing svg { flex: none; margin-top: .2em; }
 input, select, textarea { width: 100%; min-height: var(--control-h); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--surface); font: 400 var(--fs-md)/var(--lh-ui) var(--font); color: var(--text); transition: border-color var(--dur-fast), box-shadow var(--dur-fast); }
 textarea { resize: vertical; min-height: calc(var(--control-h) * 2); }
 /* Поле, растущее по тексту (06.11): одна строка в высоту, без ручки и полосы прокрутки — высоту задаёт AutoGrow. */
