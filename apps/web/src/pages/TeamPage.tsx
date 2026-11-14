@@ -1015,7 +1015,7 @@ export function TeamPage() {
               {night && !canTake && task.status !== "APPROVED" && task.status !== "SUBMITTED" && <NightNote>{t("Ночь: дела ждут утра. С 7:00 по местному времени дело можно взять, сдать или разведать.")}</NightNote>}
               {night && canTake && (task.status === "OPEN" || task.status === "REJECTED") && <NightNote>{t("До 0:00 дело можно взять; сдать и разведать — с 7:00 по местному времени.")}</NightNote>}
               {night && canTake && task.status === "TAKEN" && <NightNote>{t("Ночь: сдать дело можно с 7:00 по местному времени.")}</NightNote>}
-              {/* Действия дела — ряд квадратных кнопок со значками внизу слева (решение владельца 14.11): слева направо «на карте»,
+              {/* Действия дела — ряд квадратных кнопок со значками внизу справа (решение владельца 14.11): слева направо «на карте»,
                   «приоритет» (капитан и заместитель), «вымостить», «взять дело»; у каждой в правом верхнем углу маленький «?» —
                   что делает кнопка. Каменоломня (решение владельца 04.10): камень мостит свободную сухопутную сторону — капитан,
                   заместитель или летописец; возвращённое дело — тоже (05.11). Кнопки друг от друга не зависят. */}
@@ -1027,6 +1027,8 @@ export function TeamPage() {
                 const prioOn = Boolean(task.priorityAt);
                 return (
                   <div className="actions deed-acts">
+                    {/* «Разведать» (у разведчика) — левее квадратных кнопок: крайней справа остаётся «Взять дело». */}
+                    {scoutBtn}
                     <SquareAction icon="map" label={t("Посмотреть на карте")} help={t("Карточка закроется, а карта покажет сторону, на которой стоит это дело.")}
                       onClick={() => { /* лист закрывается, карта центрируется на стороне дела (владелец 25.10) */ setBackTo(null); setSelectedId(null); setFocusTask({ id: task.id, nonce: Date.now() }); }} />
                     {showPrio && <SquareAction icon="flame" className="prio" on={prioOn} disabled={prioBusy} label={prioOn ? t("Снять приоритет") : t("Отметить приоритетным")}
@@ -1038,7 +1040,6 @@ export function TeamPage() {
                     {showTake && <SquareAction icon="scroll" primary disabled={busy || limitFull(map) || Boolean(map?.deedsFrozenUntil)} label={t("Взять дело")}
                       help={t("Дело записывается за вами: другие его взять не смогут, пока вы его не сдадите или не отпустите.")}
                       onClick={() => void act(`/api/games/${id}/edge-tasks/${task.id}/take`)} />}
-                    {scoutBtn}
                     {showTake && limitFull(map) && <p className="hint">{t("В сутки можно взять не больше {n} дел. Следующее — через {when}.", { n: map?.deedLimit?.max ?? 0, when: untilText(map?.deedLimit?.nextAt ?? Date.now()) })}</p>}
                     {showTake && map?.deedsFrozenUntil && <p className="hint"><Icon name="lock" />{t("Администратор закрыл вам взятие дел до {date}", { date: fmtDate(map.deedsFrozenUntil, { time: false }) })}{map.deedsFrozenReason ? ` · ${map.deedsFrozenReason}` : ""}</p>}
                   </div>
