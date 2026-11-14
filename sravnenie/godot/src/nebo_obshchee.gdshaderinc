@@ -60,6 +60,10 @@ uniform vec2 sun_glow = vec2(0.0, 0.0);
 uniform vec3 sun_glow_color = vec3(1.0, 0.95, 0.85);
 // цвет дымки у горизонта в стороне солнца (в стороне от него — haze_color): солнечная сторона светлее и теплее;
 uniform vec3 haze_sun_color = vec3(0.62, 0.59, 0.50);
+// цвет самой линии горизонта — тот же, в который дымка уводит дальнее море и землю (задаётся из сцены):
+// небо и море сходятся в один цвет, без шва;
+uniform vec3 horizon_color = vec3(0.62, 0.59, 0.50);
+uniform float horizon_line = 0.0;
 // дальность видимости облаков, метры: дальние облака постепенно тонут в дымке (в образце шейдера они
 // обрывались полосой у горизонта и стояли там «белой стеной»);
 uniform float cloud_visibility = 1000000.0;
@@ -183,6 +187,7 @@ vec3 background_sky(vec3 eye_dir) {
 	vec2 eye_side = normalize(eye_dir.xz + vec2(0.00001));
 	float toward = pow(0.5 + 0.5 * dot(sun_side, eye_side), 3.0);
 	color = mix(color, mix(haze_color, haze_sun_color, toward), haze);
+	color = mix(color, horizon_color, horizon_line * pow(1.0 - clamp(abs(eye_dir.y), 0.0, 1.0), 90.0));
 	// Сияние солнца: ядро в несколько градусов и широкий ореол.
 	float angle = acos(clamp(dot(eye_dir, normalize(SUN_DIR)), -1.0, 1.0));
 	float above = smoothstep(-0.02, 0.03, eye_dir.y);

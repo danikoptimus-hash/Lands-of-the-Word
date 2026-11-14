@@ -125,13 +125,13 @@ const SKIES := {
 	# облака освещены сбоку и объёмны.
 	"den": {"sun_height": 30.0, "sun_side": 215.0, "energy": 1.0, "light_color": Color(1.0, 0.97, 0.92), "shader": {
 		"cloud_coverage": 0.2, "_density": 0.04, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 3800.0,
-		"coverage_far": 0.85, "coverage_far_range": Vector2(6000.0, 40000.0),
+		"coverage_far": 0.62, "coverage_far_range": Vector2(6000.0, 40000.0),
 		"exposure": 0.159, "rayleigh": 1.67, "turbidity": 1.3, "mie": 0.0015, "mie_eccentricity": 0.93,
 		"rayleigh_color": Color(0.24, 0.32, 0.48), "sky_saturation": 1.53,
 		"haze_color": Vector3(0.70, 0.65, 0.52), "haze_sun_color": Vector3(0.92, 0.83, 0.62),
-		"haze_strength": 0.68, "haze_power": 12.0,
+		"haze_strength": 0.62, "haze_power": 24.0,
 		"sun_disk_scale": 2.0, "sun_glow": Vector2(3.0, 0.22), "sun_glow_color": Vector3(1.0, 0.95, 0.85),
-		"cloud_visibility": 40000.0, "horizon_fade": Vector2(0.975, 0.999),
+		"cloud_visibility": 55000.0, "horizon_fade": Vector2(0.98, 0.9995),
 		"cloud_sun": 0.85, "cloud_ambient": 0.7, "cloud_shoulder": 1.0, "phase_cap": 0.45,
 		"shadow_strength": 2.5, "base_shade": 0.6, "powder": 0.25, "detail_strength": 0.4, "detail_floor": 0.1,
 		"cloud_tint": Vector3(1.0, 0.98, 0.955), "sun_tint": Vector3(1.0, 1.0, 1.0),
@@ -139,7 +139,7 @@ const SKIES := {
 	# Закат и шторм — без утверждённых образцов: черновые.
 	"zakat": {"sun_height": 7.0, "sun_side": 262.0, "energy": 1.0, "light_color": Color(0.8, 0.48, 0.3), "shader": {
 		"cloud_coverage": 0.22, "_density": 0.04, "weather_scale": 0.00012, "cloud_bottom": 2500.0, "cloud_top": 3800.0,
-		"coverage_far": 0.85, "coverage_far_range": Vector2(6000.0, 40000.0),
+		"coverage_far": 0.7, "coverage_far_range": Vector2(6000.0, 40000.0),
 		"exposure": 0.12, "rayleigh": 1.6, "turbidity": 5.0, "mie": 0.004, "mie_eccentricity": 0.85,
 		"rayleigh_color": Color(0.32, 0.44, 0.67), "sky_saturation": 1.34,
 		"haze_color": Vector3(0.46, 0.34, 0.36), "haze_sun_color": Vector3(1.15, 0.62, 0.25),
@@ -152,9 +152,9 @@ const SKIES := {
 		"cloud_floor": Vector3(0.045, 0.05, 0.08)}},
 	# Шторм: тёмная облачность с просветами; низ облаков освещён рассеянным светом, не чёрный.
 	"shtorm": {"sun_height": 40.0, "sun_side": 215.0, "energy": 0.45, "light_color": Color(0.42, 0.46, 0.52), "shader": {
-		"cloud_coverage": 0.55, "_density": 0.05, "weather_scale": 0.00006, "cloud_bottom": 1500.0, "cloud_top": 4000.0,
+		"cloud_coverage": 0.5, "_density": 0.05, "weather_scale": 0.00006, "cloud_bottom": 1500.0, "cloud_top": 4000.0,
 		"coverage_far": 1.0, "coverage_far_range": Vector2(6000.0, 40000.0),
-		"exposure": 0.13, "rayleigh": 2.0, "turbidity": 14.0, "mie": 0.005, "mie_eccentricity": 0.8,
+		"exposure": 0.22, "rayleigh": 2.0, "turbidity": 14.0, "mie": 0.005, "mie_eccentricity": 0.8,
 		"rayleigh_color": Color(0.26, 0.41, 0.58), "sky_saturation": 0.6,
 		"haze_color": Vector3(0.10, 0.11, 0.13), "haze_sun_color": Vector3(0.14, 0.15, 0.17),
 		"haze_strength": 0.75, "haze_power": 5.0,
@@ -249,6 +249,9 @@ func set_sky(title: String) -> void:
 	# Дымка над землёй и морем — того же цвета, что дымка неба у горизонта: без шва по линии горизонта.
 	var haze: Vector3 = (look["shader"]["haze_color"] as Vector3).lerp(look["shader"]["haze_sun_color"], 0.3)
 	world.environment.fog_light_color = Color(haze.x, haze.y, haze.z).linear_to_srgb()
+	for material: ShaderMaterial in [sky_direct, sky_dome, dome_material]:
+		material.set_shader_parameter("horizon_color", haze)
+		material.set_shader_parameter("horizon_line", 1.0)
 	_sea_look()
 	var numbers: Dictionary = look["shader"]
 	for material: ShaderMaterial in [sky_direct, sky_dome, dome_material]:
@@ -475,6 +478,19 @@ func _build_sea() -> void:
 	sea_material.set_shader_parameter("foam_gain", foam[1])
 	sea_material.set_shader_parameter("foam_bias", foam[2])
 	sea_material.set_shader_parameter("height_map", ImageTexture.create_from_image(heights_image))
+	# Глубина моря за краем участка — как у самого края: средняя по морским точкам его границы.
+	var edge_sum := 0.0
+	var edge_count := 0
+	var last := heights_image.get_width() - 1
+	for i in range(0, last + 1, 8):
+		for point: Vector2i in [Vector2i(i, 0), Vector2i(i, last), Vector2i(0, i), Vector2i(last, i)]:
+			var depth := heights_image.get_pixelv(point).r
+			if depth < -1.0:
+				edge_sum += depth
+				edge_count += 1
+	if edge_count > 0:
+		sea_material.set_shader_parameter("far_bed", edge_sum / edge_count)
+		print("МИР глубина моря у края участка ", snappedf(edge_sum / edge_count, 0.1), " м")
 	sea_material.set_shader_parameter("bake_rect", Vector4(-side * 0.5, -side * 0.5, side, side))
 	sea_material.set_shader_parameter("bed_texel_m", side / float(size))
 	sea_material.set_shader_parameter("water_time", WaterLook.SHOT_TIME)
