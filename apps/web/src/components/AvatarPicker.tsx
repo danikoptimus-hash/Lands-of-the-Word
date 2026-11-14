@@ -14,7 +14,7 @@ const GROUP_TITLE: Record<Group, () => string> = { people: () => t("Люди"), 
  * Выбор аватарки участника или герба команды из готового набора игры (решение владельца 14.11: своих фото игра не
  * принимает и не хранит). Нажатие на саму аватарку открывает лист с набором; нажатие на картинку сразу ставит её.
  * Аватарки разложены по вкладкам «Люди», «Звери», «Предметы» (решение владельца 14.11: «разделение… через табы»),
- * лист открывается на вкладке выбранной аватарки; гербы идут одним списком. Первая ячейка — «без картинки»:
+ * лист открывается на вкладке выбранной аватарки; гербы идут одним списком. Под набором — кнопка «Убрать…»: останется
  * кружок с буквой, как у тех, кто ничего не выбирал.
  */
 export function AvatarPicker({ preview, url, kind, current, letter, color, onChanged }: {
@@ -60,15 +60,21 @@ export function AvatarPicker({ preview, url, kind, current, letter, color, onCha
         <Sheet title={team ? t("Герб команды") : t("Аватарка")} onClose={() => setOpen(false)} size="md" className="avatar-pick-sheet">
           {!team && <Tabs<Group> swipeArea={gridRef} value={tab} onChange={setTab} ariaLabel={t("Раздел набора")} items={AVATAR_GROUPS.map((g) => ({ key: g.key, label: GROUP_TITLE[g.key]() }))} />}
           <div className="avatar-pick-grid" ref={gridRef}>
-            <button type="button" className={"avatar-opt none" + (current ? "" : " on")} disabled={busy} aria-pressed={!current} onClick={() => void choose(null)} aria-label={t("Без картинки: кружок с буквой")} title={t("Без картинки: кружок с буквой")}>
-              <span className="letter" style={color ? { background: color, color: "#FFF6E3" } : undefined}>{letter}</span>
-            </button>
             {codes.map(({ c, n }) => (
               <button key={c} type="button" className={"avatar-opt" + (c === current ? " on" : "")} disabled={busy} aria-pressed={c === current} onClick={() => void choose(c)} aria-label={team ? t("Герб {n}", { n }) : t("Аватарка {n}", { n })}>
                 <img src={avatarImage(c) ?? undefined} alt="" loading="lazy" decoding="async" width={128} height={128} />
               </button>
             ))}
           </div>
+          {/* Убрать картинку — подписанной кнопкой, а не безымянной ячейкой (замечание независимой сверки 14.11). */}
+          {current && (
+            <div className="actions avatar-clear">
+              <button type="button" className="ghost sm" disabled={busy} onClick={() => void choose(null)}>
+                <span className="avatar sm" style={color ? { background: color, color: "#FFF6E3" } : undefined} aria-hidden="true">{letter}</span>
+                {team ? t("Убрать герб: останется кружок с буквой") : t("Убрать аватарку: останется кружок с буквой")}
+              </button>
+            </div>
+          )}
         </Sheet>
       )}
     </div>
