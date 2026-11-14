@@ -553,7 +553,8 @@ export const PLAYER: Record<string, string> = {
   // Аватарки и гербы из готового набора (14.11)
   "Убрать": "Remove", "Аватарка": "Avatar", "Герб команды": "Team crest", "Выбрать аватарку": "Choose an avatar", "Выбрать герб команды": "Choose the team crest",
   "Аватарка выбрана": "Avatar chosen", "Аватарка убрана": "Avatar removed", "Герб выбран": "Crest chosen", "Герб убран": "Crest removed",
-  "Без картинки: кружок с буквой": "No picture: a circle with a letter", "Аватарка {n}": "Avatar {n}", "Герб {n}": "Crest {n}",
+  "Убрать аватарку: останется кружок с буквой": "Remove the avatar: a circle with a letter will remain", "Убрать герб: останется кружок с буквой": "Remove the crest: a circle with a letter will remain",
+  "Аватарка {n}": "Avatar {n}", "Герб {n}": "Crest {n}",
   "Нажмите на аватарку и выберите любую из набора игры.": "Tap the avatar and choose any from the game set.",
   "Люди": "People", "Звери": "Animals", "Предметы": "Objects", "Раздел набора": "Set section",
   "Готово": "Done", "Отмена": "Cancel",
