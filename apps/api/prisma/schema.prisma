@@ -61,38 +61,10 @@ model User {
   pushSubscriptions PushSubscription[]
   supportRequests   SupportRequest[]
   /**
-   * Аватарка (решение владельца 24.10): сжатая картинка в базе, проверенная на уместность.
+   * Аватарка — код готовой картинки из набора игры, «a001»…«a100» (решение владельца 14.11: своих фото игра не хранит).
    */
-  avatarId          String?             @unique
-  avatar            Avatar?             @relation("UserAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
-  /**
-   * Суперадмин запретил ставить аватарки (неуместное фото).
-   */
-  avatarBlocked     Boolean             @default(false)
-  uploadedAvatars   Avatar[]            @relation("AvatarUploader")
+  avatarId          String?
   attentionSeen     AttentionSeen[]
-}
-
-/**
- * Аватарка участника или команды (решение владельца 24.10: единственные файлы, которые игра хранит; всё остальное —
- * ссылками). Картинка уже сжата сервером (256×256, WebP, без метаданных) и прошла проверку на уместность.
- */
-model Avatar {
-  id           String   @id @default(cuid())
-  data         Bytes
-  mime         String   @default("image/webp")
-  /**
-   * Кто загрузил: для команды — капитан; ему и запрет, если фото неуместное.
-   */
-  uploadedById String?
-  uploadedBy   User?    @relation("AvatarUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
-  /**
-   * Итог проверки OpenAI: категории и оценки — суперадмину для разбора.
-   */
-  moderation   Json?
-  createdAt    DateTime @default(now())
-  user         User?    @relation("UserAvatar")
-  team         Team?    @relation("TeamAvatar")
 }
 
 /**
@@ -405,10 +377,9 @@ model Team {
   wallScouts       TeamWallScout[]
   marks            TeamMark[]
   /**
-   * Аватарка команды (ставит капитан, решение владельца 24.10).
+   * Герб команды — код готовой картинки из набора игры, «g01»…«g50»; выбирает капитан (решение владельца 14.11).
    */
-  avatarId         String?          @unique
-  avatar           Avatar?          @relation("TeamAvatar", fields: [avatarId], references: [id], onDelete: SetNull)
+  avatarId         String?
   passageOut       PassageRequest[] @relation("requester")
   passageIn        PassageRequest[] @relation("owner")
   createdAt        DateTime         @default(now())

@@ -30,8 +30,6 @@ import { supportRoutes } from "./routes/support.js";
 import { recordResponse } from "./services/stats.js";
 import { eventRoutes } from "./routes/events.js";
 import { avatarRoutes } from "./routes/avatars.js";
-import { initModeration } from "./services/avatars.js";
-import multipart from "@fastify/multipart";
 import { journalRoutes } from "./routes/journal.js";
 import { awardRoutes } from "./routes/awards.js";
 import { adminUserRoutes } from "./routes/adminUsers.js";
@@ -58,9 +56,6 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
   initPush(config.PUBLIC_URL, config.NODE_ENV, (e, msg) => app.log.error(e, msg));
 
   await app.register(cookie, { secret: config.SESSION_SECRET });
-  // Загрузка аватарок (решение владельца 24.10): один файл до 6 МБ, остальное — JSON.
-  await app.register(multipart, { limits: { fileSize: 6 * 1024 * 1024, files: 1, fields: 5 } });
-  initModeration(config.OPENAI_API_KEY);
   await app.register(rateLimit, { global: false });
   app.addHook("preHandler", attachUser);
   // Время ответа и ошибки для дашборда суперадмина (только /api, без содержимого запросов).

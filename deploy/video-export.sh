@@ -48,9 +48,8 @@ CREATE TEMP TABLE pseudo_admin AS
 UPDATE "User" SET nickname = 'u' || substr(md5(id), 1, 10), "displayName" = NULL;
 UPDATE "User" u SET nickname = 'p' || p.n, "displayName" = 'Участник ' || p.n FROM pseudo p WHERE p.id = u.id;
 UPDATE "User" u SET nickname = 'admin' || p.n, "displayName" = 'Администратор ' || p.n FROM pseudo_admin p WHERE p.id = u.id;
-UPDATE "User" SET email = NULL, "emailVerified" = false, "googleId" = NULL, "passwordHash" = 'disabled', "avatarId" = NULL, "failedLogins" = 0, "lockedUntil" = NULL;
--- Фото людей не выгружаем; значки команд остаются.
-DELETE FROM "Avatar" WHERE id NOT IN (SELECT "avatarId" FROM "Team" WHERE "avatarId" IS NOT NULL);
+UPDATE "User" SET email = NULL, "emailVerified" = false, "googleId" = NULL, "passwordHash" = 'disabled', "failedLogins" = 0, "lockedUntil" = NULL;
+-- Аватарки и гербы — готовые картинки игры (с 14.11), остаются как есть.
 -- Адресаты дел и получатели — без имён.
 UPDATE "DeedPerson" d SET name = 'Человек ' || x.n FROM (SELECT id, row_number() OVER (ORDER BY "createdAt", id) AS n FROM "DeedPerson") x WHERE x.id = d.id;
 UPDATE "Recipient" r SET label = 'Адресат ' || x.n FROM (SELECT id, row_number() OVER (ORDER BY "createdAt", id) AS n FROM "Recipient") x WHERE x.id = r.id;

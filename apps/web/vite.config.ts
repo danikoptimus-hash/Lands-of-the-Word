@@ -17,6 +17,8 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//],
         globPatterns: ["**/*.{js,css,html,ico,webmanifest}", "favicon-32.png", "icon-192.png", "apple-touch-icon.png", "img/brand/logo-64.png", "img/brand/logo-256.png"],
         runtimeCaching: [
+          // Аватарки и гербы из готового набора (решение владельца 14.11) — в своём кэше, чтобы полтораста мелких картинок не вытесняли картинки карты.
+          { urlPattern: /\/img\/(avatars|crests)\/.*\.webp(\?.*)?$/, handler: "CacheFirst", options: { cacheName: "lotw-avatars", expiration: { maxEntries: 320, maxAgeSeconds: 30 * 24 * 3600 } } },
           { urlPattern: /\/img\/.*\.(webp|png|jpg)(\?.*)?$/, handler: "CacheFirst", options: { cacheName: "lotw-img", expiration: { maxEntries: 240, maxAgeSeconds: 30 * 24 * 3600 } } },
           { urlPattern: /^https:\/\/fonts\.(googleapis|gstatic)\.com\//, handler: "StaleWhileRevalidate", options: { cacheName: "lotw-fonts", expiration: { maxEntries: 20, maxAgeSeconds: 30 * 24 * 3600 } } },
         ],
