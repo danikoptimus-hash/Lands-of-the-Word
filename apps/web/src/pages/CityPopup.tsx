@@ -6,7 +6,7 @@ import { IMG } from "./MapLayers";
 import { BurntScroll, CipherSeal, Crossword, LockChoice, LockRings, PickCooling, ProphetCandle, WaxEnvelope, findGap, ChiasmBoard } from "./CityForms";
 import { WarSection, type ForMember } from "./BattlePanel";
 import { WallSection } from "./Wall";
-import { PassageSection } from "./Diplomacy";
+import { CityPassages, PassageSection } from "./Diplomacy";
 import { t } from "../lib/i18n";
 import { fmtDate, fmtPause, plural } from "../lib/format";
 import { Icon } from "../components/Icon";
@@ -375,6 +375,8 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
           <WallSection gameId={gameId} nodeKey={nodeKey} version={version} asleep={night || Boolean(city.daytime?.storm?.active)} onChanged={onChanged} />
         </details>
       )}
+      {/* Проходы через свой город — такой же свёрнутый раздел, как «Стена» (решение владельца 15.11): кто просил пройти и что ответили. */}
+      {city?.content && !task && city.state.capturedAt && <CityPassages gameId={gameId} nodeKey={nodeKey} version={version} onChanged={onChanged} />}
       {/* Обмен городами — такая же свёрнутая секция, как «Стена» и «Испытание» (решение владельца 04.11: «перенести этот раздел в сами города… расположить именно в такую же штуку»); столицу не обменивают. */}
       {city?.content && !task && city.state.capturedAt && !city.state.isCapital && onTrade && (
         <details className="disclose">

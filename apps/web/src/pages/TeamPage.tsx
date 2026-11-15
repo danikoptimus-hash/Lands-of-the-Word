@@ -18,7 +18,7 @@ import { QuarrySheet } from "./QuarrySheet";
 import { WreckSheet } from "./WreckSheet";
 import { BATTLE_STATUS, BattleCard, battleTone, isLaunching, isMyTurn, leftText } from "./BattlePanel";
 import { TrialFlow } from "./TrialFlow";
-import { DiplomacyMenu, type PassagesDto } from "./Diplomacy";
+import { type PassagesDto } from "./Diplomacy";
 import { TradesSection, TradeProposeSheet } from "./Trades";
 import { useUi } from "../lib/ui";
 import { useMediaQuery } from "../lib/media";
@@ -685,7 +685,7 @@ export function TeamPage() {
   const battlesActive = battlesShown === "defense" ? defending : challenging, battlesDone = battlesShown === "defense" ? defendingDone : challengingDone;
   const battlesPhaseShown: "active" | "done" = battlesPhase ?? (battlesActive.length > 0 ? "active" : "done");
   const battlesList = battlesPhaseShown === "active" ? battlesActive : battlesDone;
-  const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: incoming.length + peaceOffers.length };
+  const menuCounts: Partial<Record<MenuView, number>> = { attention, deeds: ourTasks.length, battles: activeBattles.length, standings: peaceOffers.length };
   /** На компьютере (решение владельца 05.10, вечер): плитки разделов висят над картой, панель открыта только пока выбран раздел; «home» — панель закрыта. */
   const view: MenuView = menuView;
 
@@ -811,7 +811,7 @@ export function TeamPage() {
                       </li>
                     ))}
                     {incoming.map((r) => (
-                      <li key={r.id} role="button" tabIndex={0} onClick={() => setMenuView("standings")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMenuView("standings"); } }}>
+                      <li key={r.id} role="button" tabIndex={0} onClick={() => { rememberScroll(); setMenuView("home"); openCity(r.nodeKey); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); rememberScroll(); setMenuView("home"); openCity(r.nodeKey); } }}>
                         <div className="main"><span className="title">{t("Запрос прохода через {book}", { book: r.bookName })}</span><span className="meta">{t("от команды «{team}»", { team: r.requester.name })}</span></div><Icon name="chevron" className="chev" />
                       </li>
                     ))}
@@ -942,7 +942,8 @@ export function TeamPage() {
 
             </section>
           )}
-          {menuView === "standings" && standingsTab === "rating" && <DiplomacyMenu gameId={id} data={passages} onChanged={() => { void loadPassages(); void loadMap(); }} />}
+          {/* Проходов в «Командах» больше нет (решение владельца 15.11): запросы через наш город — в профиле этого города, раздел
+              «Проходы»; наши запросы — в чужом городе, раздел «Проход»; счёт запросов между командами — в профиле команды. */}
           {menuView === "standings" && standingsTab === "rating" && me?.gameRole === "AMBASSADOR" && <TradesSection gameId={id} onChanged={() => { void loadMap(); void loadStandings(); }} />}
           {menuView === "feed" && <FeedSection gameId={id} version={feedVersion} onOpenTask={(tid) => { if (map.tasks.some((tk) => tk.id === tid)) showOnMap(tid); else notify(t("Дело уже не на карте"), "info"); }} />}
           {menuView === "service" && <MyServiceSection gameId={id} version={feedVersion} awards={awards} tab={serviceTab} />}

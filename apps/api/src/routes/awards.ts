@@ -91,7 +91,15 @@ export async function awardRoutes(app: FastifyInstance) {
     // Ссылки-приглашения капитана и участников — администратору в профиле команды (решение владельца 04.11: «переносим тоже в профиль команды»).
     const game = await prisma.game.findUniqueOrThrow({ where: { id }, select: { admins: { select: { userId: true } } } });
     const canInvite = game.admins.some((a) => a.userId === request.user!.id);
-    return { team, awards: summarize(rows), canEdit, canInvite };
+    // Проходы между командой смотрящего и этой (решение владельца 15.11: «захожу в профиль другой команды, то вижу, сколько раз
+    // она запрашивала у нас проход, и сколько мы у нее запрашивали»). Считаются все запросы, с любым исходом; у своей команды
+    // и у администратора без команды строки нет.
+    const mine = pickMembership(await prisma.membership.findMany({ where: { userId: request.user!.id, team: { gameId: id } }, select: { joinedAt: true, team: { select: { id: true, status: true } } } }));
+    const passages = mine && mine.team.id !== teamId ? await Promise.all([
+      prisma.passageRequest.count({ where: { gameId: id, requesterId: teamId, ownerId: mine.team.id } }),
+      prisma.passageRequest.count({ where: { gameId: id, requesterId: mine.team.id, ownerId: teamId } }),
+    ]).then(([fromThem, fromUs]) => ({ fromThem, fromUs })) : null;
+    return { team, awards: summarize(rows), canEdit, canInvite, passages };
   });
 
   /** Карточка участника: видна любому участнику игры. Ник — игровой (как в списках команды), без почты. */

@@ -69,76 +69,62 @@ export function PassageSection({ gameId, nodeKey, version, onChanged }: { gameId
 }
 
 /**
- * В боковом меню «Проходы» — две вкладки (решение владельца 01.11: «разделить наши запросы и запросы других команд»):
- * «К нам» — запросы других команд через наши города (ответить, можно текстом) и выданные разрешения (безотзывные);
- * «Наши» — наши запросы через чужие города с их состоянием. По умолчанию открыты «К нам» и «Открытые» (решение владельца 07.11:
- * «это самые важные вкладки»), а не та, где больше записей.
- * Внутри каждой — «Открытые» и «Закрытые» (решение владельца 03.11).
+ * «Проходы» в профиле своего города — свёрнутый раздел, как «Стена» и «Испытание» (решение владельца 15.11: «проходы нужно
+ * разместить в профиле города ещё одной вкладкой, на подобие стен»; до того они стояли блоком с вкладками в «Командах»).
+ * Здесь запросы других команд через этот город: на открытые отвечают (посол, а без посла — капитан или заместитель),
+ * выданные разрешения безотзывные; ниже — история ответов. Пока есть запрос без ответа, раздел раскрыт и помечен числом.
  */
-export function DiplomacyMenu({ gameId, data, onChanged }: { gameId: string; data: PassagesDto | null; onChanged: () => void }) {
+export function CityPassages({ gameId, nodeKey, version, onChanged }: { gameId: string; nodeKey: string; version: number; onChanged: () => void }) {
   const { notify } = useUi();
+  const [data, setData] = useState<PassagesDto | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const [tab, setTab] = useState<"in" | "out" | null>(null);
+  const load = () => api<PassagesDto>(`/api/games/${gameId}/my-passages`).then(setData).catch(() => setData(null));
+  useEffect(() => { void load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [gameId, version]);
   async function decide(r: PassageDto, approve: boolean) {
     setBusy(r.id);
-    try { await api(`/api/games/${gameId}/passages/${r.id}/decide`, { method: "POST", body: JSON.stringify({ approve, answer: answers[r.id] ?? "" }) }); notify(approve ? t("Проход разрешён") : t("В проходе отказано"), "info"); onChanged(); }
+    try { await api(`/api/games/${gameId}/passages/${r.id}/decide`, { method: "POST", body: JSON.stringify({ approve, answer: answers[r.id] ?? "" }) }); notify(approve ? t("Проход разрешён") : t("В проходе отказано"), "info"); await load(); onChanged(); }
     catch (e) { notify(e instanceof ApiError ? e.message : t("Ошибка сети"), "bad"); }
     finally { setBusy(null); }
   }
-  const incoming = data?.incoming ?? [], outAll = data?.outgoing ?? [];
-  // Внутри каждой вкладки — «Открытые» (ждут ответа) и «Закрытые» (разрешены, отказаны, без ответа, сброшены)
-  // (решение владельца 03.11: «проходы открытые, которые пока не приняты другой командой, и закрытые»).
-  const [phase, setPhase] = useState<"open" | "closed" | null>(null);
-  const inOpen = incoming.filter((r) => r.status === "PENDING"), inClosed = incoming.filter((r) => r.status !== "PENDING");
-  const outOpen = outAll.filter((r) => r.status === "PENDING"), outClosed = outAll.filter((r) => r.status !== "PENDING").slice(0, 10);
-  // Пока запросов нет, блока нет вовсе (решение владельца 21.09): появляется вместе с первым запросом.
-  if (incoming.length === 0 && outAll.length === 0) return null;
-  const inCount = incoming.length, outCount = outOpen.length + outClosed.length;
-  const shown: "in" | "out" = tab ?? "in";
-  const open = shown === "in" ? inOpen : outOpen, closed = shown === "in" ? inClosed : outClosed;
-  const phaseShown: "open" | "closed" = phase ?? "open";
-  const row = (r: PassageDto, title: string, meta: string) => (
-    <li key={r.id}>
-      <div className="main"><span className="title">{title}</span><span className="meta">{meta}</span>{r.message && <span className="meta">«{r.message}»</span>}{r.answer && <span className="meta">{t("Ответ: «{a}»", { a: r.answer })}</span>}</div>
-      {r.status === "APPROVED" && shown === "in" ? <span className="muted small">{t("действует, пока город ваш")}</span> : <PassageChip s={r.status} />}
-    </li>
-  );
+  const here = data?.incoming.filter((r) => r.nodeKey === nodeKey) ?? [];
+  const open = here.filter((r) => r.status === "PENDING"), closed = here.filter((r) => r.status !== "PENDING");
   return (
-    <section className="section">
-      <h2><Icon name="handshake" />{t("Проходы")}{inOpen.length > 0 && <span className="count-chip hot">{inOpen.length}</span>}</h2>
-      <Tabs items={[{ key: "in", label: t("К нам"), icon: "city", count: inCount || undefined, hot: inOpen.length > 0 }, { key: "out", label: t("Наши"), icon: "flag", count: outCount || undefined }]} value={shown} onChange={setTab} ariaLabel={t("Проходы")} />
-      <Tabs items={[{ key: "open", label: t("Открытые"), count: open.length || undefined, hot: shown === "in" && inOpen.length > 0 }, { key: "closed", label: t("Закрытые"), count: closed.length || undefined }]} value={phaseShown} onChange={setPhase} ariaLabel={t("Какие проходы показывать")} swipe={false} />
-      {phaseShown === "open" && open.length === 0 && <EmptyState inline icon="handshake" text={shown === "in" ? t("Открытых запросов к вам нет.") : t("Открытых запросов у вас нет.")} />}
-      {phaseShown === "closed" && closed.length === 0 && <EmptyState inline icon="handshake" text={shown === "in" ? t("Закрытых запросов к вам нет.") : t("Закрытых запросов у вас нет.")} />}
-      {shown === "in" && phaseShown === "open" && inOpen.map((r) => (
-        <div key={r.id} className="passage-card">
-          <div><strong>«{r.requester.name}»</strong> {t("просит проход через")} <strong>{r.bookName}</strong></div>
-          {r.message && <p className="muted small">«{r.message}»</p>}
-          <p className="hint">{t("Ответить до {d} · молчание — отказ", { d: fmtDate(r.expiresAt) })}</p>
-          {data?.canSpeak ? (
-            <>
-              <div className="field">
-                <label htmlFor={"answer-" + r.id}>{t("Ответ")} <span className="opt">{t("необязательно")}</span></label>
-                <input id={"answer-" + r.id} className="full" value={answers[r.id] ?? ""} onChange={(e) => setAnswers({ ...answers, [r.id]: e.target.value })} maxLength={500} />
-              </div>
-              <div className="actions">
-                <button type="button" disabled={busy === r.id} onClick={() => void decide(r, true)}><Icon name="check" />{t("Разрешить")}</button>
-                <button type="button" className="secondary" disabled={busy === r.id} onClick={() => void decide(r, false)}>{t("Отказать")}</button>
-              </div>
-            </>
-          ) : <p className="hint">{t("Отвечает посол, а без посла — капитан или заместитель.")}</p>}
-        </div>
-      ))}
-      {shown === "in" && phaseShown === "closed" && inClosed.length > 0 && (
-        <ul className="list">{inClosed.map((r) => row(r, t("Проход для «{team}»", { team: r.requester.name }), r.bookName))}</ul>
-      )}
-      {/* Во вкладке «Наши» слово «наш запрос» лишнее (правило владельца 01.11: не дублировать): только город и владелец. */}
-      {/* Текст своего запроса и ответ владельца (замечание владельца 01.11: «участники не видят текст своего запроса на проход»). */}
-      {shown === "out" && (phaseShown === "open" ? outOpen : outClosed).length > 0 && (
-        <ul className="list">{(phaseShown === "open" ? outOpen : outClosed).map((r) => row(r, r.bookName, t("владелец «{team}»", { team: r.owner.name })))}</ul>
-      )}
-    </section>
+    <details className="disclose" open={open.length > 0 ? true : undefined}>
+      <summary><Icon name="handshake" />{t("Проходы")}{open.length > 0 && <span className="count-chip hot">{open.length}</span>}<Icon name="chevron-down" className="chev" /></summary>
+      <div className="passage-section">
+        {data && here.length === 0 && <p className="muted small">{t("Через этот город прохода никто не просил.")}</p>}
+        {open.map((r) => (
+          <div key={r.id} className="passage-card">
+            <div className="row nowrap"><TeamAvatar name={r.requester.name} color={r.requester.color} avatarId={r.requester.avatarId} size="sm" withName teamId={r.requester.id} /><span className="muted small">{t("просит проход")}</span></div>
+            {r.message && <p className="muted small">«{r.message}»</p>}
+            <p className="hint">{t("Ответить до {d} · молчание — отказ", { d: fmtDate(r.expiresAt) })}</p>
+            {data?.canSpeak ? (
+              <>
+                <div className="field">
+                  <label htmlFor={"answer-" + r.id}>{t("Ответ")} <span className="opt">{t("необязательно")}</span></label>
+                  <input id={"answer-" + r.id} className="full" value={answers[r.id] ?? ""} onChange={(e) => setAnswers({ ...answers, [r.id]: e.target.value })} maxLength={500} />
+                </div>
+                <div className="actions">
+                  <button type="button" className="secondary" disabled={busy === r.id} onClick={() => void decide(r, false)}>{t("Отказать")}</button>
+                  <button type="button" disabled={busy === r.id} onClick={() => void decide(r, true)}><Icon name="check" />{t("Разрешить")}</button>
+                </div>
+              </>
+            ) : <p className="hint">{t("Отвечает посол, а без посла — капитан или заместитель.")}</p>}
+          </div>
+        ))}
+        {closed.length > 0 && (
+          <ul className="list passage-history">
+            {closed.map((r) => (
+              <li key={r.id}>
+                <div className="main"><TeamAvatar name={r.requester.name} color={r.requester.color} avatarId={r.requester.avatarId} size="sm" withName teamId={r.requester.id} /><span className="meta">{fmtDate(r.createdAt, { time: false })}{r.answer ? ` · ${t("Ответ: «{a}»", { a: r.answer })}` : ""}</span></div>
+                {r.status === "APPROVED" ? <span className="muted small">{t("действует, пока город ваш")}</span> : <PassageChip s={r.status} />}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </details>
   );
 }
 

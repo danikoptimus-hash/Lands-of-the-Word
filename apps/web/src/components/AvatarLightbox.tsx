@@ -63,6 +63,8 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
             : <div className="none">{t("Наград пока нет")}</div>)}
           {/* Приглашения: администратору — капитана и участников, капитану — участников (решение владельца 04.11). Кнопки «Закрыть» нет: закрывается нажатием мимо карточки или Esc. */}
           {gameId && teamId && (teamCard?.canInvite ? <InviteButtons gameId={gameId} teamId={teamId} /> : teamCard?.canEdit ? <InviteButtons gameId={gameId} teamId={teamId} roles={["MEMBER"]} /> : null)}
+          {/* Проходы между нашей командой и этой (решение владельца 15.11): сколько раз она просила проход у нас и сколько мы у неё. */}
+          {teamCard?.passages && <div className="sub team-passes"><Icon name="handshake" /><span>{t("Проходы: просили у нас — {a}, мы у них — {b}", { a: teamCard.passages.fromThem, b: teamCard.passages.fromUs })}</span></div>}
           {/* Мир с другой командой — отсюда (решение владельца 04.11); у своей команды компонент ничего не показывает. */}
           {gameId && teamId && !teamCard?.canEdit && <PeaceActions gameId={gameId} teamId={teamId} />}
         </div>
