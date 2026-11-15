@@ -388,8 +388,19 @@ export function TeamPage() {
   const mapRev = useRef<number | undefined>(firstMap?.rev);
   const mapRef = useRef<MyMapDto | null>(firstMap);
   const putMap = useCallback((next: MyMapDto | null) => { mapRef.current = next; setMap(next); }, []);
-  const acceptMap = useCallback((m: MyMapDto) => { mapRev.current = m.rev; putMap(keepSame(mapRef.current, m, MAP_VOLATILE)); }, [putMap]);
-  const fetchMap = useCallback((join: boolean) => apiReady<MapResp>(`/api/games/${id}/my-map`, { join }).then((m) => { acceptMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName); }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети"))), [id, acceptMap]);
+  // Счётчик принятых карт — чтобы узнать опоздавший ответ: пока полный запрос был в пути (плохая связь), могла прийти и
+  // примениться более новая «разница» или другой полный ответ. Такой опоздавший ответ старее того, что уже на экране, и
+  // раньше затирал его — чужое взятое дело снова выглядело свободным до следующего перечитывания (находка повторного
+  // разбора 15.11). Теперь он отбрасывается, а карта перечитывается заново.
+  const mapSeq = useRef(0), mapAgain = useRef<() => void>(NOOP);
+  const acceptMap = useCallback((m: MyMapDto) => { mapSeq.current++; mapRev.current = m.rev; putMap(keepSame(mapRef.current, m, MAP_VOLATILE)); }, [putMap]);
+  const fetchMap = useCallback((join: boolean) => {
+    const seq = mapSeq.current;
+    return apiReady<MapResp>(`/api/games/${id}/my-map`, { join }).then((m) => {
+      if (mapSeq.current !== seq && mapRev.current !== undefined && m.rev !== undefined && m.rev < mapRev.current) { mapAgain.current(); return; }
+      acceptMap(m); setMapError(null); setDisplayTimeZone(m.daytime?.timeZone); if (m.gameName) setGameName(m.gameName);
+    }).catch((e) => setMapError(e instanceof ApiError ? e.message : t("Ошибка сети")));
+  }, [id, acceptMap]);
   const loadMap = useCallback(() => fetchMap(false), [fetchMap]);
   // Первый показ берёт ответы, которые главная уже запросила заранее и которые ещё в пути.
   useEffect(() => { void fetchTeam(true); void fetchMap(true); }, [fetchTeam, fetchMap]);
@@ -409,6 +420,7 @@ export function TeamPage() {
   useEffect(() => { if (team?.id) { void loadBattlesRef.current(); void loadStandings(); void loadPassages(); void loadPeace(); } }, [team?.id, loadStandings, loadPassages, loadPeace]);
   // Перечитывания по событиям склеиваются (решение владельца 23.10): несколько событий за 2,5 с — одно перечитывание.
   const teamLater = useCoalesced(loadTeam), mapLater = useCoalesced(loadMap), passagesLater = useCoalesced(loadPassages), battlesLater = useCoalesced(loadBattles), standingsLater = useCoalesced(loadStandings), peaceLater = useCoalesced(loadPeace);
+  mapAgain.current = mapLater;
   const cityLater = useCoalesced(() => setCityVersion((v) => v + 1)), feedLater = useCoalesced(() => setFeedVersion((v) => v + 1));
   const awardsLater = useCoalesced(() => setAwardsVersion((v) => v + 1));
   // Карта приходит разницей от сервера (решение владельца 24.10): применяем к своей версии; если версии разошлись — перечитываем.

@@ -53,12 +53,20 @@ echo "==> Запуск"
 # проверяет сам Caddy, и только после удачной проверки прокси перезапускается — тогда он видит новый файл. Это несколько
 # секунд без связи у прода и стенда, и только в ту выкладку, которая меняет настройки прокси. Не прошёл проверку —
 # прокси остаётся на прежних настройках, выкладка помечается неудачной в конце.
+# Остановка — не дольше трёх секунд (-t 3): без этого Caddy ждал бы открытые потоки событий игроков, пока Docker не
+# прервёт его через десять секунд, и всё это время сайт был бы недоступен. После перезапуска проверяется, что прокси
+# работает и видит новый файл.
 CADDY_OK=1
 if [[ -n "$(docker ps -q --filter 'name=^lotw-caddy$' 2>/dev/null)" ]]; then
   if ! docker exec lotw-caddy cat /etc/caddy/Caddyfile 2>/dev/null | cmp -s - deploy/caddy/Caddyfile; then
     echo "==> Настройки прокси изменились: проверка и перезапуск прокси"
     if docker cp deploy/caddy/Caddyfile lotw-caddy:/tmp/Caddyfile.new >/dev/null && docker exec lotw-caddy caddy validate --config /tmp/Caddyfile.new --adapter caddyfile >/dev/null 2>&1; then
-      (cd deploy && docker compose restart caddy)
+      (cd deploy && docker compose restart -t 3 caddy)
+      for _ in $(seq 1 15); do [[ "$(docker inspect -f '{{.State.Running}}' lotw-caddy 2>/dev/null)" == "true" ]] && break; sleep 1; done
+      sleep 2
+      if [[ "$(docker inspect -f '{{.State.Running}}' lotw-caddy 2>/dev/null)" != "true" ]] || ! docker exec lotw-caddy cat /etc/caddy/Caddyfile 2>/dev/null | cmp -s - deploy/caddy/Caddyfile; then
+        CADDY_OK=0; echo "прокси после перезапуска не работает или не видит новый файл: смотри docker logs lotw-caddy"
+      fi
     else
       CADDY_OK=0; echo "новый Caddyfile не прошёл проверку: прокси оставлен на прежних настройках"
       docker exec lotw-caddy caddy validate --config /tmp/Caddyfile.new --adapter caddyfile 2>&1 | tail -5 || true
