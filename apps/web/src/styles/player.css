@@ -679,6 +679,9 @@
 .top-list { list-style: none; margin: 0; padding: 0; }
 .top-list li { display: flex; align-items: center; gap: var(--sp-2); padding: 6px 4px; border-bottom: 1px dashed var(--paper-edge, var(--border)); }
 .top-list li:last-child { border-bottom: 0; }
+/* Вложенные аватарки (решение владельца 15.11): герб команды — маленьким значком на углу аватарки игрока. */
+.av-nest { position: relative; flex: none; display: inline-flex; margin-right: 5px; }
+.av-nest > .avatar.team { position: absolute; right: -6px; bottom: -3px; width: 17px; height: 17px; font-size: 9px; box-shadow: 0 0 0 1.5px var(--paper-light, #fffaec); pointer-events: none; }
 /* Своя команда в рейтинге наград без подсветки (решение владельца 05.11: «убрать выделение с команды в рейтинге»); остаётся подпись «ваша команда». */
 .top-list .rank { flex: none; width: 24px; text-align: center; font-weight: 700; color: var(--bronze-ink, var(--accent-ink)); }
 .top-list .body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
