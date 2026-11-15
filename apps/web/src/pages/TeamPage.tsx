@@ -33,6 +33,7 @@ import { Back } from "../components/Back";
 import { Chip, type ChipTone } from "../components/Chip";
 import { Sheet } from "../components/Sheet";
 import { Help, HelpPopup } from "../components/Help";
+import { SquareAction } from "../components/SquareAction";
 import { ActionMenu, type MenuItem } from "../components/ActionMenu";
 import { StatChip } from "../components/StatChip";
 import { DeedBadgePopup, untilText } from "../components/DeedBadge";
@@ -1152,24 +1153,8 @@ export function TeamPage() {
  * (решение владельца 05.11: «объединить в одно поле… убрать „как“»; до того два вопроса, с 18.09 — три); участники дела
  * группой отмечаются галочками, каждому засчитывается в личное служение.
  */
-/**
- * Квадратная кнопка действия со значком и маленьким «?» в правом верхнем углу (решение владельца 14.11: «кнопки сделаем
- * квадратными и оставим только значки… над каждой кнопкой маленький вопросительный значок в правом верхнем углу с
- * объяснением, что за кнопка»). Название и пояснение — в окошке по нажатию на «?»; название же — подпись для чтения с экрана.
- */
 /** Подсказка кнопки «Разведать»: что она делает и как часто. */
 const SCOUT_HELP = () => t("Туман вокруг перекрёстка раздвинется, и вся команда увидит, что там: город или развилка. Место останется открытым. Разведка — раз в неделю.");
-
-function SquareAction({ icon, label, help, onClick, disabled, primary = false, on, badge, className }: { icon: string; label: string; help: string; onClick: () => void; disabled?: boolean; /** Главное действие — залитая кнопка. */ primary?: boolean; /** Нажатое состояние переключателя (приоритет отмечен). */ on?: boolean; /** Число в углу (камни Каменоломни). */ badge?: number | null; className?: string }) {
-  return (
-    <span className={"sq-act" + (className ? " " + className : "")}>
-      <button type="button" className={(primary ? "" : "secondary ") + "sq-btn" + (on ? " on" : "")} aria-label={label} title={label} aria-pressed={on} disabled={disabled} onClick={onClick}>
-        <Icon name={icon} />{badge != null && <span className="count-chip">{badge}</span>}
-      </button>
-      <HelpPopup name={label} className="sq-help"><p><b>{label}.</b> {help}</p></HelpPopup>
-    </span>
-  );
-}
 
 function DeedForm({ busy, proofType, members, main, onSubmit, onRelease }: { /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState<string[]>([]);
