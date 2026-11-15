@@ -292,6 +292,8 @@
 .role-list { display: flex; flex-direction: column; }
 .role-row { display: flex; align-items: center; gap: var(--sp-3); min-height: 56px; padding: 0 var(--sp-1); border-bottom: 1px dashed var(--paper-edge, var(--border)); cursor: pointer; }
 .role-row:last-child { border-bottom: 0; }
+/* «Заместитель» — не одна из ролей, а отметка поверх роли: отделён сплошной чертой. */
+.role-row.extra { border-top: 1px solid var(--paper-edge, var(--border)); margin-top: -1px; }
 .role-row:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
 .role-row .role-chip { position: relative; display: inline-flex; }
 .role-row .role-chip .chip { height: 34px; padding: 0 var(--sp-3) 0 var(--sp-2); font-size: var(--fs-md); }
@@ -316,7 +318,7 @@
 .meta-line { display: flex; align-items: center; gap: var(--sp-1); flex-wrap: wrap; color: var(--muted); font-size: var(--fs-sm); }
 .meta-line .i { width: var(--icon-sm); height: var(--icon-sm); }
 /* Город, строка «кто решил свою долю» (решение владельца 15.11): на виду значок людей и процент решивших, остальное — в окошке по нажатию на значок. */
-.solvers-line .solvers-pop > .pop-btn { position: relative; gap: var(--sp-1); font-weight: 600; font-variant-numeric: tabular-nums; }
+.solvers-line .solvers-pop > .pop-btn { position: relative; font-variant-numeric: tabular-nums; }
 .solvers-line .solvers-pop > .pop-btn::before { content: ""; position: absolute; inset: -13px -10px; } /* зона нажатия — не меньше 44 px */
 .solvers-line .solvers-pop > .pop-btn:focus-visible { outline: 2px solid var(--link); outline-offset: 3px; }
 .help-pop .solvers-facts { font-style: normal; font-weight: 600; }
@@ -817,7 +819,7 @@ label.check.mark-drop input { margin-top: 2px; }
 /* Форма сдачи (решение владельца 15.11): «кто ещё участвовал» и «вставить ссылку» — квадратные кнопки в ряду с картой и разведкой;
    список участников и ссылки раскрываются окошком под своей кнопкой, по правому краю. */
 .deed-acts > .people-picker.sq, .deed-acts > .links-field.sq { position: relative; flex: none; display: inline-flex; margin: 0; }
-.people-picker.sq .pp-list { left: auto; right: 0; top: calc(100% + 8px); width: min(280px, calc(100vw - 48px)); border: 1px solid var(--border-strong); border-radius: var(--r-sm); }
+.people-picker.sq .pp-list { max-height: 236px; left: auto; right: 0; top: calc(100% + 8px); width: min(280px, calc(100vw - 48px)); border: 1px solid var(--border-strong); border-radius: var(--r-sm); }
 .links-field.sq .link-pop { left: auto; right: 0; top: calc(100% + 8px); margin-top: 0; min-width: 0; width: min(300px, calc(100vw - 48px)); max-width: none; box-sizing: border-box; }
 .links-field.sq .link-pop.link-err { display: flex; align-items: flex-start; gap: 6px; color: var(--danger); font-size: var(--fs-sm); line-height: 1.35; }
 .links-field.sq .link-pop.link-err .i { flex: none; width: var(--icon-sm); height: var(--icon-sm); margin-top: 2px; }
