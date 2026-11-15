@@ -25,7 +25,7 @@
 .map-loading .skeleton { opacity: .35; animation: none; }
 
 /* HUD: слева «Меню» и команда, справа «Вся карта», «К старту», масштаб. Отступы учитывают safe-area. */
-.hud-left { position: absolute; left: calc(var(--sp-3) + var(--safe-left)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; gap: var(--sp-2); align-items: center; max-width: calc(100% - 146px); }
+.hud-left { position: absolute; left: calc(var(--sp-3) + var(--safe-left)); top: calc(var(--sp-3) + var(--safe-top)); z-index: 5; display: flex; gap: var(--sp-2); align-items: center; max-width: calc(100% - 140px); }
 .hud-btn { position: relative; box-shadow: var(--shadow-1); background: rgba(250, 246, 238, .94); background: color-mix(in srgb, var(--surface) 94%, transparent); flex: none; }
 .hud-btn .count-chip { position: absolute; top: -6px; right: -6px; }
 .hud-team { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--touch); min-width: 0; padding: 0 var(--sp-3) 0 var(--sp-1); border-radius: var(--r-full); background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--border); color: var(--text); box-shadow: var(--shadow-1); font-weight: 600; font-size: var(--fs-sm); }
