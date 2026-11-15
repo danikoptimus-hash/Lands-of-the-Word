@@ -27,7 +27,7 @@ export const VERSE_MILESTONES = [10, 50, 100, 200] as const;
 
 export const AWARDS: ReadonlyArray<AwardDef> = [
   // Командные
-  { code: "t_open_all", kind: "TEAM", nameRu: "Без единого облака", nameEn: "Not a Single Cloud", condRu: "Вся карта открыта, ни клочка тумана", condEn: "The whole map revealed, not a patch of fog left", symbol: "a fully unrolled map with two islands and a small sun above, no clouds" },
+  { code: "t_open_all", kind: "TEAM", nameRu: "Без единого облака", nameEn: "Not a Single Cloud", condRu: "Открыты все перекрёстки карты: команда дошла до каждого, разведка не считается", condEn: "Every crossroads on the map is opened: the team has reached each one, scouting does not count", symbol: "a fully unrolled map with two islands and a small sun above, no clouds" },
   { code: "t_first_deed", kind: "TEAM", nameRu: "Первый шаг", nameEn: "First Step", condRu: "Первое одобренное дело команды", condEn: "The team's first approved deed", symbol: "a single footprint on a path leading into the distance" },
   { code: "t_first_city", kind: "TEAM", nameRu: "Первые ключи", nameEn: "First Keys", condRu: "Первый взятый город", condEn: "The first city taken", symbol: "two crossed old keys above a small city gate" },
   { code: "t_three_towers", kind: "TEAM", nameRu: "Три башни", nameEn: "Three Towers", condRu: "Три города во владении одновременно", condEn: "Three cities held at the same time", symbol: "three stone towers of different height standing together" },

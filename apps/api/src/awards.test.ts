@@ -19,7 +19,7 @@ describe("серия дней", () => {
 });
 
 describe("награды по истории", () => {
-  const base = { tz: TZ, now: d("2026-10-29T12:00:00Z"), nodes: [{ key: "N:1,1", kind: "CITY", island: "OT" }], hexes: [], nodeStates: [], cityStates: [], battles: [], entries: [], wall: [], passages: [], peeks: [], works: [], journal: [] };
+  const base = { tz: TZ, now: d("2026-10-29T12:00:00Z"), nodes: [{ key: "N:1,1", kind: "CITY", island: "OT" }], nodeStates: [], cityStates: [], battles: [], entries: [], wall: [], passages: [], peeks: [], works: [], journal: [] };
   const task = (i: number, u: string, day: string, extra: Partial<Parameters<typeof computeAwards>[0]["tasks"][number]> = {}) => ({ id: `t${i}`, teamId: "T", status: "APPROVED", takenById: u, participants: [], takenAt: d(`${day}T03:00:00Z`), submittedAt: d(`${day}T04:00:00Z`), decidedAt: d(`${day}T05:00:00Z`), sea: false, paved: false, toKey: "N:0,0", ...extra });
   it("первое дело команды и участника, рубеж серии 5 дней, ключник за дорогу в город", () => {
     const days = ["2026-10-20", "2026-10-21", "2026-10-22", "2026-10-23", "2026-10-24"];
@@ -32,6 +32,20 @@ describe("награды по истории", () => {
     expect(codes).toContain("u1:p_keyholder");
     expect(codes).not.toContain("team:t_full_crew"); // u2 ничего не сдал
     expect(g.find((x) => x.code === "p_streak_5")!.at.toISOString()).toBe("2026-10-24T04:00:00.000Z");
+  });
+  it("без единого облака: только когда открыты все перекрёстки карты; одного угла у гекса мало (правило владельца 15.11)", () => {
+    // Гекс (0,0) и его шесть углов-перекрёстков.
+    const keys = ["N:0,0", "S:0,0", "N:0,1", "S:0,-1", "N:1,-1", "S:-1,1"];
+    const nodes = keys.map((key) => ({ key, kind: "EMPTY", island: "OT" }));
+    const open = (n: number) => keys.slice(0, n).map((nodeKey, i) => ({ teamId: "T", nodeKey, revealedAt: d(`2026-10-2${i}T05:00:00Z`) }));
+    const has = (nodeStates: ReturnType<typeof open>) => computeAwards({ ...base, nodes, nodeStates, teams: [{ id: "T", members: ["u1"] }], tasks: [] }).find((x) => x.code === "t_open_all");
+    expect(has(open(1))).toBeUndefined(); // один угол открыт — раньше этого хватало
+    expect(has(open(5))).toBeUndefined();
+    const all = has(open(6));
+    expect(all).toBeDefined();
+    expect(all!.at.toISOString()).toBe("2026-10-25T05:00:00.000Z"); // день, когда открыт последний перекрёсток
+    // Чужие открытые перекрёстки не помогают.
+    expect(has([...open(5), { teamId: "X", nodeKey: keys[5]!, revealedAt: d("2026-10-26T05:00:00Z") }])).toBeUndefined();
   });
   it("ранняя птица: одно дело, взятое утром и сданное тем же утром до 9; взятое вчера не считается", () => {
     const late = task(9, "u1", "2026-10-26", { takenAt: d("2026-10-25T15:00:00Z"), submittedAt: d("2026-10-26T03:00:00Z") }); // взял вчера, сдал в 08:00
