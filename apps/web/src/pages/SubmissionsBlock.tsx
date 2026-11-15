@@ -11,6 +11,11 @@ import { LinkList, linkKind } from "../components/LinkList";
 
 type Row = EdgeTaskDto & { team: { id: string; name: string; color: string; avatarId?: string | null }; takenBy: { nickname: string; displayName: string | null } | null; /** Имена участников дела группой, без взявшего. */ participantNames?: string[]; takenAt?: string | null };
 
+/** Части строки сведений через точку: пустые пропускаются, точка стоит только между частями. */
+function metaParts(parts: Array<ReactNode | null | false | undefined>): ReactNode {
+  return parts.filter(Boolean).map((x, i) => <span key={i}>{i > 0 ? "· " : ""}{x}</span>);
+}
+
 /** Одинаковое обновление для всех блоков «Проверки»: при событиях (version), по фокусу окна и раз в 15 секунд. */
 export function useAutoRefresh(load: () => Promise<unknown>, version: number): void {
   useEffect(() => {
@@ -93,7 +98,6 @@ export function SubmissionsBlock({ gameId, version = 0, onDecided, onShowOnMap }
   const teams = rows ? [...new Map(rows.map((r) => [r.team.id, r.team])).values()] : [];
   const shown = (rows ?? []).filter((r) => (!teamFilter || r.team.id === teamFilter) && (!kindFilter || r.deed.proofType === kindFilter)).sort((a, b) => { const d = Date.parse(a.submittedAt ?? "") - Date.parse(b.submittedAt ?? ""); return oldFirst ? d : -d; });
   const togglePick = (id: string) => setPicked((p) => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
-  const ageOf = (iso: string | null) => { if (!iso) return ""; const h = Math.floor((Date.now() - Date.parse(iso)) / 3_600_000); return h < 1 ? t("только что") : h < 24 ? t("{n} ч назад", { n: h }) : t("{n} дн назад", { n: Math.floor(h / 24) }); };
 
   return (
     <ReviewCard icon="scroll" title={returned ? t("Возвращённые") : t("Сдачи")} count={rows?.length ?? 0} loading={!rows} error={loadError} onRetry={() => void load()}
@@ -112,12 +116,14 @@ export function SubmissionsBlock({ gameId, version = 0, onDecided, onShowOnMap }
             <li key={r.id} className={"review-item" + (picked.has(r.id) ? " picked" : "")}>
               {rows.length > 1 && !returned && <label className="pick"><input type="checkbox" checked={picked.has(r.id)} onChange={() => togglePick(r.id)} aria-label={t("Выбрать для пакетного принятия")} /></label>}
               <div className="main">
-                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName teamId={r.team.id} /></span>
+                {/* Герб команды и рядом ник участника (решение владельца 15.11); название команды — по нажатию на герб. */}
+                <span className="row nowrap"><span className="person"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" title={r.team.name} teamId={r.team.id} /><span className="name">{r.takenBy ? r.takenBy.displayName ?? r.takenBy.nickname : r.team.name}</span></span></span>
                 <span className="title">{r.deed.title}</span>
                 {r.person && <span className="meta person-line"><Icon name="user" />{t("Кому: {name}", { name: r.person.name })}</span>}
                 {r.deed.description && <button type="button" className="ghost sm desc-toggle" aria-expanded={descOpen.has(r.id)} onClick={() => toggleDesc(r.id)}><Icon name="scroll" />{t("Описание")}</button>}
                 {r.deed.description && descOpen.has(r.id) && <span className="deed-desc open small muted">{r.deed.description}</span>}
-                <span className="meta"><span>{PROOF_LABEL[r.deed.proofType]}</span>{r.takenBy && <span>· {r.takenBy.displayName ?? r.takenBy.nickname}</span>}{r.takenAt && <span>· {t("взято {date}", { date: fmtDate(r.takenAt) })}</span>}{r.participantNames && r.participantNames.length > 0 && <span className="participants">· <Icon name="users" />{t("с участниками: {names}", { names: r.participantNames.join(", ") })}</span>}{r.submittedAt && <span>· {t("сдано {date}", { date: fmtDate(r.submittedAt) })} · {ageOf(r.submittedAt)}</span>}</span>
+                {/* Без вида сдачи, без ника (он у герба) и без счётчика «5 ч назад» (решение владельца 15.11). */}
+                <span className="meta">{metaParts([r.takenAt ? t("взято {date}", { date: fmtDate(r.takenAt) }) : null, r.participantNames && r.participantNames.length > 0 ? <span className="participants"><Icon name="users" />{t("с участниками: {names}", { names: r.participantNames.join(", ") })}</span> : null, r.submittedAt ? t("сдано {date}", { date: fmtDate(r.submittedAt) }) : null])}</span>
                 {returned && <span className="meta"><Icon name="alert" />{t("Возвращено {when}", { when: fmtDate(r.decidedAt) })}{r.adminComment ? ` · ${r.adminComment}` : ""}</span>}
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
               </div>
@@ -162,9 +168,9 @@ export function QuarryBlock({ gameId, version = 0, onDecided }: { gameId: string
           {rows.map((r) => (
             <li key={r.id} className="review-item">
               <div className="main">
-                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName teamId={r.team.id} /><Chip tone="accent" icon="stone" title={t("Камней за дело")}>{r.stones}</Chip><span className="muted small">· {t("у команды: {n}", { n: r.team.stones })}</span></span>
+                <span className="row nowrap"><span className="person"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" title={r.team.name} teamId={r.team.id} /><span className="name">{r.by}</span></span><Chip tone="accent" icon="stone" title={t("Камней за дело")}>{r.stones}</Chip><span className="muted small">· {t("у команды: {n}", { n: r.team.stones })}</span></span>
                 <span className="title">{r.deed.title}</span>
-                <span className="meta"><span>{t("фото")}</span><span>· {r.by}</span><span>· {fmtDate(r.submittedAt)}</span></span>
+                <span className="meta"><span>{t("сдано {date}", { date: fmtDate(r.submittedAt) })}</span></span>
                 <span className={"small" + (r.deed.quorumPct != null && r.participants.length < Math.ceil((r.teamSize * r.deed.quorumPct) / 100) ? " warn" : "")}>{t("Были")} ({t("{a} из {b}", { a: r.participants.length, b: r.teamSize })}): {r.participants.join(", ") || "—"}{r.deed.quorumPct != null && <span className="muted"> · {t("нужно не меньше {n}", { n: Math.ceil((r.teamSize * r.deed.quorumPct) / 100) })}</span>}</span>
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
               </div>
@@ -220,11 +226,11 @@ export function WrecksBlock({ gameId, version = 0, onDecided }: { gameId: string
           {rows.map((r) => (
             <li key={r.id} className="review-item">
               <div className="main">
-                <span className="row nowrap"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" withName teamId={r.team.id} /><Chip tone="bad" icon="ship">{t("срочное")}</Chip><span className="muted small">· {t("у команды: камней {a}, блоков {b}", { a: r.team.stones, b: r.team.cargoBlocks })}</span></span>
+                <span className="row nowrap"><span className="person"><TeamAvatar name={r.team.name} color={r.team.color} avatarId={r.team.avatarId} size="sm" title={r.team.name} teamId={r.team.id} /><span className="name">{r.by}</span></span><Chip tone="bad" icon="ship">{t("срочное")}</Chip><span className="muted small">· {t("у команды: камней {a}, блоков {b}", { a: r.team.stones, b: r.team.cargoBlocks })}</span></span>
                 <span className="title">{r.title}</span>
                 {r.description && <button type="button" className="ghost sm desc-toggle" aria-expanded={descOpen.has(r.id)} onClick={() => toggleDesc(r.id)}><Icon name="scroll" />{t("Описание")}</button>}
                 {r.description && descOpen.has(r.id) && <span className="deed-desc open small muted">{r.description}</span>}
-                <span className="meta"><span>{PROOF_LABEL[r.proofType]}</span><span>· {r.by}</span><span>· {fmtDate(r.submittedAt)}</span>{r.participants.length > 0 && <span className="participants">· <Icon name="users" />{t("с участниками: {names}", { names: r.participants.join(", ") })}</span>}</span>
+                <span className="meta">{metaParts([t("сдано {date}", { date: fmtDate(r.submittedAt) }), r.participants.length > 0 ? <span className="participants"><Icon name="users" />{t("с участниками: {names}", { names: r.participants.join(", ") })}</span> : null])}</span>
                 {r.note && <span className="report"><span className="muted">{t("Отчёт команды")}: </span>{r.note}</span>}
               </div>
               <div className="side">
