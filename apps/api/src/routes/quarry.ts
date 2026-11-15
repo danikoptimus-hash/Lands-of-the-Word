@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { scheduleAwards } from "../services/awards.js";
 import { z } from "zod";
 import { prisma } from "../db.js";
+import { requireUser } from "../auth.js";
 import { assertAwake } from "../services/daytime.js";
 import { publish } from "../services/events.js";
 import { revealNode } from "../services/teamMap.js";
@@ -39,6 +40,8 @@ async function coastReached(gameId: string, teamId: string): Promise<boolean> {
 }
 
 export async function quarryRoutes(app: FastifyInstance): Promise<void> {
+  // Как в остальных маршрутах: без входа — отказ 401 (раньше запрос без входа падал с ошибкой 500, ревизия 15.11).
+  app.addHook("preHandler", requireUser);
   /** Каменоломня глазами команды: камни, общие дела, свои сдачи. */
   app.get("/api/games/:id/quarry", async (request, reply) => {
     const { id } = request.params as { id: string };

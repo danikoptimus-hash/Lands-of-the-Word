@@ -124,6 +124,13 @@ export async function buildApp(envOverrides: Partial<Record<keyof Env, string>> 
     });
     app.setNotFoundHandler(async (request, reply) => {
       if (request.url.startsWith("/api/")) return reply.code(404).send({ error: "not_found" });
+      // Несуществующий файл — честное «нет файла», а не главная страница с кодом «успех» (ревизия 15.11): иначе старая
+      // вкладка после выкладки получала HTML вместо куска программы, а сервис-воркер мог запомнить страницу «как картинку».
+      const pathOnly = request.url.split("?")[0] ?? "";
+      if (/^\/(assets|img|fonts)\//.test(pathOnly) || /\.(js|mjs|css|map|png|jpe?g|webp|gif|svg|ico|woff2?|ttf|mp4|webm|mp3|m4a|json|webmanifest|txt|xml)$/i.test(pathOnly)) {
+        reply.header("Cache-Control", "no-store");
+        return reply.code(404).type("text/plain; charset=utf-8").send("Not found");
+      }
       reply.header("Cache-Control", "no-cache");
       return reply.sendFile("index.html");
     });
