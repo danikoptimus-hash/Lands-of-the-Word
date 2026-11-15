@@ -4,6 +4,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./lib/auth";
 import { UiProvider } from "./lib/ui";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Layout } from "./pages/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { GamesPage } from "./pages/GamesPage";
@@ -31,14 +32,15 @@ import { t } from "./lib/i18n";
 
 /** Только для вошедших. Пока почта не подтверждена, вместо любой страницы — «Подтвердите почту». */
 function Private({ children }: { children: React.ReactElement }) {
-  const { user, loading } = useAuth();
-  if (loading) return <p className="container muted">{t("Загрузка…")}</p>;
+  const { user, loading, offline } = useAuth();
+  if (loading) return <p className="container muted" role={offline ? "status" : undefined}>{offline ? t("Нет связи с сервером. Пробуем снова…") : t("Загрузка…")}</p>;
   if (!user) return <Navigate to="/login" replace />;
   return user.emailVerified ? children : <VerifyPendingPage />;
 }
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
+    <ErrorBoundary>
     <BrowserRouter>
       <AuthProvider>
         <UiProvider>
@@ -70,8 +72,17 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
         </UiProvider>
       </AuthProvider>
     </BrowserRouter>
+    </ErrorBoundary>
   </React.StrictMode>,
 );
+
+// Кусок программы не загрузился (после выкладки открытая вкладка просит файл прежней сборки, которого уже нет): один раз
+// перезагружаем страницу, но не чаще раза в минуту — чтобы не зациклиться, если дело в связи.
+window.addEventListener("vite:preloadError", (e) => {
+  e.preventDefault();
+  try { const k = "lotw.reloadAt", was = Number(sessionStorage.getItem(k) ?? 0); if (Date.now() - was < 60_000) return; sessionStorage.setItem(k, String(Date.now())); } catch { /* без памяти вкладки — просто перезагрузка */ }
+  location.reload();
+});
 
 // Сервис-воркер PWA: обновляется сам при новом деплое, картинки карты и сборка берутся из кеша устройства.
 // Когда новая версия взяла страницу под управление, открытая вкладка всё ещё выполняет старую сборку (владелец

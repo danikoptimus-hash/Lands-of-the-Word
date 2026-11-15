@@ -3,16 +3,47 @@ export class ApiError extends Error {
   constructor(public status: number, message: string, public issues?: Array<{ path: string; message: string }>) { super(message); }
 }
 
+/** Сколько ждём ответа: чтение — 20 с, отправка — 30 с. Раньше предела не было, и на плохой связи кнопка «висела» минутами. */
+const WAIT_READ = 20_000, WAIT_SEND = 30_000;
+/** Отказы, после которых чтение стоит один раз повторить: ограничитель запросов прокси и перезапуск сервера при выкладке. */
+const RETRY_STATUS = new Set([429, 502, 503, 504]);
+const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function once<T>(url: string, init: RequestInit, read: boolean): Promise<T> {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), read ? WAIT_READ : WAIT_SEND);
+  try {
+    const res = await fetch(url, {
+      ...init,
+      credentials: "same-origin",
+      signal: init.signal ?? ctl.signal,
+      headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}) },
+    });
+    const text = await res.text();
+    // Прокси при отказе отдаёт не JSON (пустой ответ или страницу): это не повод падать на разборе.
+    let data: { message?: string; issues?: Array<{ path: string; message: string }> } = {};
+    try { data = text ? JSON.parse(text) : {}; } catch { if (res.ok) throw new ApiError(res.status, t("Ошибка запроса")); }
+    if (!res.ok) throw new ApiError(res.status, data.message ?? t("Ошибка запроса"), data.issues);
+    return data as T;
+  } catch (e) {
+    if (ctl.signal.aborted) throw new ApiError(0, t("Сервер долго не отвечает. Проверьте связь и попробуйте ещё раз."));
+    throw e;
+  } finally { clearTimeout(timer); }
+}
+
+/**
+ * Запрос к серверу. Чтение (GET) при сбое связи, отказе ограничителя или перезапуске сервера повторяется один раз через
+ * паузу; отправка не повторяется никогда — действие не должно выполниться дважды (ревизия 15.11).
+ */
 export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(url, {
-    ...init,
-    credentials: "same-origin",
-    headers: { ...(init.body ? { "Content-Type": "application/json" } : {}), ...(init.headers ?? {}) },
-  });
-  const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
-  if (!res.ok) throw new ApiError(res.status, data.message ?? "Ошибка запроса", data.issues);
-  return data as T;
+  const read = (init.method ?? "GET").toUpperCase() === "GET";
+  try { return await once<T>(url, init, read); }
+  catch (e) {
+    const again = read && (e instanceof ApiError ? RETRY_STATUS.has(e.status) : e instanceof TypeError);
+    if (!again) throw e;
+    await pause(1200 + Math.random() * 800);
+    return once<T>(url, init, read);
+  }
 }
 
 /**
@@ -21,12 +52,25 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
  * приходит следом и тихо подменяет цифры. Ключ — адрес запроса; память живёт, пока открыта вкладка.
  */
 const READY = new Map<string, unknown>();
+/** Запросы «в пути»: кто просит то же самое и готов взять уже идущий ответ (первый показ, предзагрузка), второй запрос не шлёт. */
+const INFLIGHT = new Map<string, Promise<unknown>>();
 export function ready<T>(url: string): T | null { return (READY.get(url) as T | undefined) ?? null; }
-export async function apiReady<T>(url: string): Promise<T> { const r = await api<T>(url); READY.set(url, r); return r; }
-/** Запросить заранее то, чего ещё нет в памяти; ошибки молча (раздел запросит сам при открытии). */
-export function prefetch(urls: string[]): void { for (const u of urls) if (!READY.has(u)) void apiReady(u).catch(() => {}); }
+/**
+ * Запрос с записью ответа в память. `join` — взять ответ, который уже в пути (главная запрашивает карту заранее и тут же
+ * открывает страницу команды — раньше самый тяжёлый ответ качался дважды). После своего действия `join` не ставят:
+ * нужен ответ, начатый после действия.
+ */
+export function apiReady<T>(url: string, opts: { join?: boolean } = {}): Promise<T> {
+  const going = INFLIGHT.get(url);
+  if (going && opts.join) return going as Promise<T>;
+  const p: Promise<T> = api<T>(url).then((r) => { READY.set(url, r); return r; }).finally(() => { if (INFLIGHT.get(url) === p) INFLIGHT.delete(url); });
+  INFLIGHT.set(url, p);
+  return p;
+}
+/** Запросить заранее то, чего ещё нет в памяти и что ещё не в пути; ошибки молча (раздел запросит сам при открытии). */
+export function prefetch(urls: string[]): void { for (const u of urls) if (!READY.has(u) && !INFLIGHT.has(u)) void apiReady(u).catch(() => {}); }
 /** При входе и выходе память очищается: ответы принадлежат учётке. */
-export function clearReady(): void { READY.clear(); }
+export function clearReady(): void { READY.clear(); INFLIGHT.clear(); }
 
 export interface User { id: string; nickname: string; displayName: string | null; email: string | null; emailVerified: boolean; locale: string; platformRole: "USER" | "SUPERADMIN"; /** К учётке привязан вход через Google. */ googleLinked?: boolean; /** Аватарка: код картинки из набора игры (решение владельца 14.11). */ avatarId?: string | null }
 /** Какие способы входа включены на сервере (GET /api/auth/providers). */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type PeaceTeamDto } from "../lib/api";
+import { api, ApiError, apiReady, ready, type PeaceTeamDto } from "../lib/api";
 import { t } from "../lib/i18n";
 import { fmtDate } from "../lib/format";
 import { useUi } from "../lib/ui";
@@ -25,11 +25,11 @@ export function peaceTerm(p: PeaceTeamDto): string {
  */
 export function PeaceActions({ gameId, teamId }: { gameId: string; teamId: string }) {
   const { notify, confirm } = useUi();
-  const [data, setData] = useState<PeaceData | null>(null);
+  const [data, setData] = useState<PeaceData | null>(() => ready<PeaceData>(`/api/games/${gameId}/peace`));
   const [offer, setOffer] = useState(false);
   const [days, setDays] = useState(7);
   const [busy, setBusy] = useState(false);
-  const load = useCallback(() => api<PeaceData>(`/api/games/${gameId}/peace`).then(setData).catch(() => {}), [gameId]);
+  const load = useCallback(() => apiReady<PeaceData>(`/api/games/${gameId}/peace`).then(setData).catch(() => {}), [gameId]);
   useEffect(() => { void load(); }, [load]);
   const p = data?.canSpeak ? data.teams.find((x) => x.team.id === teamId) ?? null : null;
   if (!p || p.team.status === "defeated") return null;

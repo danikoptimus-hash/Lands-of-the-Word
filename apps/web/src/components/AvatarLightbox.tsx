@@ -40,7 +40,7 @@ export function AvatarLightbox({ avatarId, name, userId, teamId, color, gameId: 
   // Пока карточка открыта, листы и окна подтверждения из её кнопок (мир, фото, награда) поднимаются над ней
   // (замечание владельца 04.11: «нажимаю предложить мир, окно вылетает под профилем»): класс на body, правило в components.css.
   useEffect(() => { document.body.classList.add("has-lightbox"); return () => document.body.classList.remove("has-lightbox"); }, []);
-  useEffect(() => { if (url) apiReady<MemberCardDto>(url).then((d) => { setCard(d); preloadAwardImages(d.awards.map((g) => g.code)); }).catch(() => {}); }, [url]);
+  useEffect(() => { if (url) apiReady<MemberCardDto>(url, { join: true }).then((d) => { setCard(d); preloadAwardImages(d.awards.map((g) => g.code)); }).catch(() => {}); }, [url]);
   // Много наград (замечание владельца 05.11: «полоса начинается низко… чтобы туда награды влезли»): аватарка меньше, карточка
   // начинается выше, а всё окно прокручивается — ни одна награда не обрезается.
   const many = ((teamUrl ? teamCard?.awards.length : card?.awards.length) ?? 0) >= 8;
