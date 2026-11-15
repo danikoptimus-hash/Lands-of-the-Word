@@ -1236,8 +1236,10 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onShowOnM
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i); }, []);
   const [open, setOpen] = useState<string | null>(null);
-  /** Кому раскрыт ряд ролей (вариант 1, решение владельца 23.09): выбор пилюлей назначает роль сразу, повторное нажатие снимает. */
+  /** Кому выбирают роль. Роли — на отдельном вылетающем листе (решение владельца 15.11: «выбор роли делаем через отдельный
+   *  вылетающий экран с ролями»; до того ряд ролей раскрывался в строке участника). Нажатие назначает роль сразу, повторное — снимает. */
   const [pick, setPick] = useState<string | null>(null);
+  const pickM = isCaptain ? team.members.find((x) => x.user.id === pick && x.role !== "CAPTAIN") : undefined;
   // Лимит смены роли — на каждого участника (решение владельца 19.10): в подсказке перечислены те, кому роль пока не сменить.
   const GAME_ROLES = (Object.keys(ROLE).filter((k) => k !== "CAPTAIN" && k !== "DEPUTY" && k !== "NONE") as GameRole[]);
   // Кнопки «Пригласить участника» здесь нет: ссылка — в профиле команды по нажатию на аватарку (решение владельца 04.11).
@@ -1253,7 +1255,7 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onShowOnM
           const canEdit = m.role !== "CAPTAIN" && isCaptain;
           const picking = canEdit && pick === m.user.id;
           return (
-            <li key={m.user.id} className={picking ? "picking" : undefined}>
+            <li key={m.user.id}>
               <div className="main">
                 <div className="person"><UserAvatar name={name} avatarId={m.user.avatarId} userId={m.user.id} /><span className="name">{name}</span></div>
                 {shown && r.hint() && <p className="hint">{r.hint()}</p>}
@@ -1272,25 +1274,27 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onShowOnM
                   <button type="button" className="chip-btn icon-only" aria-label={r.label()} title={r.label()} aria-expanded={shown} onClick={() => setOpen(shown ? null : m.user.id)}><Chip tone={roleKey === "CAPTAIN" || roleKey === "DEPUTY" ? "accent" : "info"} icon={r.icon}><span className="sr-only">{r.label()}</span></Chip></button>
                 ) : null}</span>
               </div>
-              {picking && (
-                <div className="role-tray" role="group" aria-label={t("Роль: {name}", { name })}>
-                  {GAME_ROLES.map((k) => (
-                    <button key={k} type="button" className={"role-opt" + (k === m.gameRole ? " on" : "")} aria-pressed={k === m.gameRole} onClick={() => { setPick(null); onRole(m.user.id, k === m.gameRole ? "NONE" : k); }}>
-                      <Chip tone={k === m.gameRole ? "solid" : "neutral"} icon={ROLE[k].icon}>{ROLE[k].label()}</Chip>
-                      <span className="desc">{ROLE[k].hint()}</span>
-                    </button>
-                  ))}
-                  <button type="button" className={"role-opt" + (m.role === "DEPUTY" ? " on" : "")} aria-pressed={m.role === "DEPUTY"} onClick={() => { setPick(null); onDeputy(m.user.id, m.role !== "DEPUTY"); }}>
-                    <Chip tone={m.role === "DEPUTY" ? "solid" : "neutral"} icon="star">{t("заместитель")}</Chip>
-                    <span className="desc">{t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка.")}</span>
-                  </button>
-                  <p className="hint">{t("Нажмите роль — она назначится сразу. Повторное нажатие на выданную роль снимает её.")}</p>
-                </div>
-              )}
             </li>
           );
         })}
       </ul>
+      {pickM && (
+        <Sheet size="sm" className="role-sheet" title={t("Роль: {name}", { name: pickM.user.displayName ?? pickM.user.nickname })} onClose={() => setPick(null)}>
+          <div className="role-tray" role="group" aria-label={t("Роль: {name}", { name: pickM.user.displayName ?? pickM.user.nickname })}>
+            {GAME_ROLES.map((k) => (
+              <button key={k} type="button" className={"role-opt" + (k === pickM.gameRole ? " on" : "")} aria-pressed={k === pickM.gameRole} onClick={() => { setPick(null); onRole(pickM.user.id, k === pickM.gameRole ? "NONE" : k); }}>
+                <Chip tone={k === pickM.gameRole ? "solid" : "neutral"} icon={ROLE[k].icon}>{ROLE[k].label()}</Chip>
+                <span className="desc">{ROLE[k].hint()}</span>
+              </button>
+            ))}
+            <button type="button" className={"role-opt" + (pickM.role === "DEPUTY" ? " on" : "")} aria-pressed={pickM.role === "DEPUTY"} onClick={() => { setPick(null); onDeputy(pickM.user.id, pickM.role !== "DEPUTY"); }}>
+              <Chip tone={pickM.role === "DEPUTY" ? "solid" : "neutral"} icon="star">{t("заместитель")}</Chip>
+              <span className="desc">{t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка.")}</span>
+            </button>
+            <p className="hint">{t("Нажмите роль — она назначится сразу. Повторное нажатие на выданную роль снимает её.")}</p>
+          </div>
+        </Sheet>
+      )}
     </>
   );
 }
