@@ -211,6 +211,18 @@
 .side-menu .section .list-title .i { width: var(--icon-sm); height: var(--icon-sm); color: var(--accent); }
 .side-menu .section .list-title .count { color: var(--muted); font-weight: 400; }
 .side-menu .list > li { padding: var(--sp-2) 0; }
+/* «Дела» (решение владельца 15.11): группы по состоянию, поиск и сложенные одинаковые свободные дела — в стиле игры. */
+.deeds-section > .list-title:first-child { margin-top: 0; }
+.deed-search { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h); margin: 0 0 var(--sp-2); padding: 0 var(--sp-3); border: 1px solid var(--border-strong); border-radius: var(--r-sm); background: var(--paper-light, var(--surface)); }
+.deed-search .i { flex: none; width: var(--icon-sm); height: var(--icon-sm); color: var(--bronze-ink, var(--accent)); }
+.side-menu .deed-search input, .side-menu .deed-search input:focus, .side-menu .deed-search input:focus-visible { flex: 1 1 auto; min-width: 0; min-height: 0; height: var(--control-h); padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; font: inherit; color: var(--text); outline: 0; }
+.deed-search:focus-within { border-color: var(--bronze, var(--accent)); }
+.side-menu .list > li.deed-group > .side { flex: none; display: flex; align-items: center; gap: var(--sp-2); }
+.side-menu .list > li.deed-group .count-chip { min-width: 34px; height: 24px; font-size: var(--fs-sm); font-weight: 700; }
+.side-menu .list > li.deed-group .chev { width: var(--icon-sm); height: var(--icon-sm); color: var(--bronze-ink, var(--accent)); }
+.side-menu .list > li.deed-group.open { border-bottom-color: transparent; }
+.side-menu .list > li.deed-sub { padding-left: var(--sp-4); }
+.side-menu .list > li.deed-sub .title { font-weight: 500; }
 .side-menu .list .main { flex-basis: 160px; }
 .side-menu .state { padding: var(--sp-2) 0; }
 .standings-list { list-style: none; margin: 0; padding: 0; }
