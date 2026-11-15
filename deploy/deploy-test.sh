@@ -48,10 +48,16 @@ docker rm -f lotw-app-test lotw-db-test >/dev/null 2>&1 || true
 
 echo "==> База и миграции"
 $C up -d db-test
-$C run --rm --no-deps app-test npm run db:migrate || { echo "миграции не применились: смотри вывод выше; новая версия НЕ запущена"; exit 1; }
+# База стенда пересоздаётся при каждой выкладке — ждём её готовности, иначе миграции стартуют раньше базы.
+for _ in $(seq 1 40); do docker exec lotw-db-test pg_isready -U lotw -d lotw -q 2>/dev/null && break; sleep 1; done
+# Контейнеры стенда выше уже убраны, прежней версии нет: при ошибке миграции стенд всё равно поднимается (иначе он
+# лежал бы до следующей удачной выкладки), а выкладка помечается неудачной в самом конце.
+MIGRATED=1
+$C run --rm --no-deps app-test npm run db:migrate || { MIGRATED=0; echo "миграции не применились: смотри вывод выше"; }
 
 echo "==> Запуск"
 $C up -d --remove-orphans
 # Чистка старых образов не должна ронять выкладку: контейнер уже поднят, а параллельная чистка отвечает «a prune operation is already running».
 docker image prune -f >/dev/null 2>&1 || true
 echo "==> Готово: стенд $(git rev-parse --short HEAD)"
+if [[ "$MIGRATED" == 0 ]]; then echo "ВНИМАНИЕ: миграции не применились — стенд запущен на прежней структуре базы"; exit 1; fi

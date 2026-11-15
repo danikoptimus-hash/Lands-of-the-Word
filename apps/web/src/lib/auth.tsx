@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (nickname: string, password: string, add = false) => {
     const r = await api<{ user: User }>("/api/auth/login", { method: "POST", body: JSON.stringify({ nickname, password, add }) });
-    clearReady(); setUser(r.user);
+    clearReady(); setUser(r.user); setOffline(false); setLoading(false);
     void syncPush();
   }, []);
   const switchAccount = useCallback(async (userId: string) => {
@@ -77,11 +77,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Язык, выбранный гостем на странице входа, становится языком новой учётки.
   const register = useCallback(async (nickname: string, password: string, email: string) => {
     const r = await api<{ user: User }>("/api/auth/register", { method: "POST", body: JSON.stringify({ nickname, password, email, locale: guestLocale }) });
-    setUser(r.user);
+    clearReady(); setUser(r.user); setOffline(false); setLoading(false);
   }, [guestLocale]);
   const refresh = useCallback(async () => {
     // Сбой связи пользователя не сбрасывает: только ответ сервера «не вошёл».
-    try { const r = await api<{ user: User }>("/api/auth/me"); setUser(r.user); } catch (e) { if (signedOut(e)) setUser(null); }
+    try { const r = await api<{ user: User }>("/api/auth/me"); setUser(r.user); setOffline(false); setLoading(false); } catch (e) { if (signedOut(e)) setUser(null); }
   }, []);
   const logout = useCallback(async () => {
     const r = await api<{ ok: boolean; user: User | null }>("/api/auth/logout", { method: "POST" });
