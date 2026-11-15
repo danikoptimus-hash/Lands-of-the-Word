@@ -54,7 +54,7 @@ echo "==> Запуск"
 # секунд без связи у прода и стенда, и только в ту выкладку, которая меняет настройки прокси. Не прошёл проверку —
 # прокси остаётся на прежних настройках, выкладка помечается неудачной в конце.
 CADDY_OK=1
-if docker ps --format '{{.Names}}' | grep -qx lotw-caddy; then
+if [[ -n "$(docker ps -q --filter 'name=^lotw-caddy$' 2>/dev/null)" ]]; then
   if ! docker exec lotw-caddy cat /etc/caddy/Caddyfile 2>/dev/null | cmp -s - deploy/caddy/Caddyfile; then
     echo "==> Настройки прокси изменились: проверка и перезапуск прокси"
     if docker cp deploy/caddy/Caddyfile lotw-caddy:/tmp/Caddyfile.new >/dev/null && docker exec lotw-caddy caddy validate --config /tmp/Caddyfile.new --adapter caddyfile >/dev/null 2>&1; then
