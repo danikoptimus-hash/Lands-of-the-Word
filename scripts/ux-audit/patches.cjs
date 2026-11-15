@@ -442,4 +442,5 @@ P.zadanie = { helpers: HELPERS + 'window.mkCity = ' + cityHead + ';', prep: asyn
 require('./patchesC.cjs')(P, { HELPERS, BASE, SHEET });
 require('./patchesFix.cjs')(P, { HELPERS, BASE, FRAME, DOCK, SHEET });
 require('./patchesFix2.cjs')(P);
+require('./patchesFix3.cjs')(P);
 module.exports = P;
