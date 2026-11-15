@@ -358,14 +358,6 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
             </div>
           )}
           {city.visit && <VisitSection gameId={gameId} visit={city.visit} captured={Boolean(city.state.capturedAt)} isCaptain={isCaptain} onChanged={() => { void load(); onChanged(); }} />}
-          {city.state.capturedAt && !city.state.isCapital && isCaptain && (
-            <div className="actions deed-acts city-acts">
-              {/* Квадратная кнопка со значком, текст — за «?» в её углу (решение владельца 15.11, по образцу кнопок карточки дела). */}
-              <SquareAction icon="crown" disabled={busy || Boolean(city.team.capitalMovedAt)} label={t("Перенести столицу сюда")}
-                help={t("Один раз за игру. Пока на столицу брошен вызов или стоит очередь, перенести её нельзя.") + (city.team.capitalMovedAt ? " " + t("Перенос уже использован.") : "")} onClick={() => void makeCapital()} />
-            </div>
-          )}
-
         </section>
       )}
 
@@ -396,6 +388,14 @@ export function CityPopup({ gameId, nodeKey, teamId, isCaptain, canAlly, version
           <summary><Icon name="wave" />{t("Испытание")}<Icon name="chevron-down" className="chev" /></summary>
           <WarSection gameId={gameId} nodeKey={nodeKey} teamId={teamId} isCaptain={isCaptain} canAlly={canAlly} version={version} onChanged={onChanged} members={members} meId={meId} canFor={canFor} />
         </details>
+      )}
+      {/* «Перенести столицу сюда» — квадратная кнопка со значком, текст — за «?» в её углу, по образцу кнопок карточки дела;
+          стоит ниже разделов «Стена», «Обмен», «Испытание» (решения владельца 15.11). */}
+      {!sleeping && city?.content && step >= 2 && !task && city.state.capturedAt && !city.state.isCapital && isCaptain && (
+        <div className="actions deed-acts city-acts">
+          <SquareAction icon="crown" disabled={busy || Boolean(city.team.capitalMovedAt)} label={t("Перенести столицу сюда")}
+            help={t("Один раз за игру. Пока на столицу брошен вызов или стоит очередь, перенести её нельзя.") + (city.team.capitalMovedAt ? " " + t("Перенос уже использован.") : "")} onClick={() => void makeCapital()} />
+        </div>
       )}
       {!sleeping && city?.content && task && (
         <TaskView key={task.index} task={task} onPrev={prevTask != null ? () => setTaskIndex(prevTask) : null} onNext={nextTask != null ? () => setTaskIndex(nextTask) : null} teamDone={done.includes(task.index)} fragments={city.content.fragments} district={districts.find((d) => d.index === task.index)} groupTitles={task.groupDistricts?.map((n) => districts.find((d) => d.index === n - 1)?.title ?? String(n)) ?? null} done={mine.includes(task.index)} fragment={city.content.fragments[task.index] ?? null} busy={busy} cooldown={cooldown} onBack={() => setTaskIndex(null)} onAnswer={(v) => answer(task.index, v)}
