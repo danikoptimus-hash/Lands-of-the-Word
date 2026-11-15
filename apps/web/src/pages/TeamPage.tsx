@@ -1001,8 +1001,14 @@ export function TeamPage() {
             <TeamAvatar name={team.name} color={team.color} avatarId={team.avatarId} zoom={false} /><span className="name">{team.name}</span><Icon name="chevron" className="go" />
           </button>
           {/* Время суток (решение владельца 03.10): ночью только карта, утром отправляют вызов — подсказка у названия команды. */}
-          {phase === "night" && <span className="hud-tod night" title={t("Ночь: города спят, дела и испытания ждут утра")}><Icon name="moon" />{t("Ночь до 7:00")}</span>}
-          {phase === "morning" && <span className="hud-tod morning" title={t("Утро: вызов на город отправляют на проверку до 9:00")}><Icon name="sun" />{t("Утро до 9:00")}</span>}
+          {/* На телефоне с колокольчиком в шапке плашке с текстом не хватает места (она вытесняла название команды): там — знак
+              месяца или солнца, текст по нажатию, как у ночных предупреждений (решение владельца 04.11). На компьютере — плашка. */}
+          {phase === "night" && (wide
+            ? <span className="hud-tod night" title={t("Ночь: города спят, дела и испытания ждут утра")}><Icon name="moon" />{t("Ночь до 7:00")}</span>
+            : <HelpPopup name={t("Ночь до 7:00")} buttonClassName="night-sign info sm" trigger={<Icon name="moon" />}><p><b>{t("Ночь до 7:00")}.</b> {t("Ночь: города спят, дела и испытания ждут утра")}</p></HelpPopup>)}
+          {phase === "morning" && (wide
+            ? <span className="hud-tod morning" title={t("Утро: вызов на город отправляют на проверку до 9:00")}><Icon name="sun" />{t("Утро до 9:00")}</span>
+            : <HelpPopup name={t("Утро до 9:00")} buttonClassName="night-sign warn sm" trigger={<Icon name="sun" />}><p><b>{t("Утро до 9:00")}.</b> {t("Утро: вызов на город отправляют на проверку до 9:00")}</p></HelpPopup>)}
         </div>
         {/* Серия дней (решение владельца 29.10): плашка при заходе раз в игровые сутки; в день рубежа — праздник со значком. */}
         {streakShow && awards && !milestone && !selectedId && <StreakBanner streak={awards.streak} celebrate={streakLit} onOpen={() => { closeStreak(); openAwards(); }} onClose={closeStreak} />}
@@ -1329,8 +1335,8 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onShowOnM
               Нажатие на строку назначает роль сразу, повторное — снимает. */}
           <div className="role-list" role="group" aria-label={t("Роль: {name}", { name: pickM.user.displayName ?? pickM.user.nickname })}>
             {[...GAME_ROLES.map((k) => ({ key: k as string, icon: ROLE[k].icon, label: ROLE[k].label(), hint: ROLE[k].hint(), on: k === pickM.gameRole, act: () => onRole(pickM.user.id, k === pickM.gameRole ? "NONE" : k) })),
-              { key: "DEPUTY", icon: "star", label: t("заместитель"), hint: t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка."), on: pickM.role === "DEPUTY", act: () => onDeputy(pickM.user.id, pickM.role !== "DEPUTY") }].map((o) => (
-              <div key={o.key} className={"role-row" + (o.on ? " on" : "")} role="button" tabIndex={0} aria-pressed={o.on} aria-label={o.label}
+              { key: "DEPUTY", icon: "star", label: (() => { const w = t("заместитель"); return w.charAt(0).toLocaleUpperCase() + w.slice(1); })(), hint: t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка."), on: pickM.role === "DEPUTY", act: () => onDeputy(pickM.user.id, pickM.role !== "DEPUTY") }].map((o) => (
+              <div key={o.key} className={"role-row" + (o.on ? " on" : "") + (o.key === "DEPUTY" ? " extra" : "")} role="button" tabIndex={0} aria-pressed={o.on} aria-label={o.label}
                 onClick={() => { setPick(null); o.act(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPick(null); o.act(); } }}>
                 <span className="role-chip"><Chip tone={o.on ? "solid" : "neutral"} icon={o.icon}>{o.label}</Chip><HelpPopup name={o.label} className="chip-help"><p><b>{o.label}.</b> {o.hint}</p></HelpPopup></span>
                 <span className="radio" aria-hidden="true" />
