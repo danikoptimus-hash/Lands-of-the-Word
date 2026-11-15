@@ -1279,18 +1279,18 @@ function Roster({ team, isCaptain, onRole, onDeputy, embedded = false, onShowOnM
       </ul>
       {pickM && (
         <Sheet size="sm" className="role-sheet" title={t("Роль: {name}", { name: pickM.user.displayName ?? pickM.user.nickname })} onClose={() => setPick(null)}>
-          <div className="role-tray" role="group" aria-label={t("Роль: {name}", { name: pickM.user.displayName ?? pickM.user.nickname })}>
-            {GAME_ROLES.map((k) => (
-              <button key={k} type="button" className={"role-opt" + (k === pickM.gameRole ? " on" : "")} aria-pressed={k === pickM.gameRole} onClick={() => { setPick(null); onRole(pickM.user.id, k === pickM.gameRole ? "NONE" : k); }}>
-                <Chip tone={k === pickM.gameRole ? "solid" : "neutral"} icon={ROLE[k].icon}>{ROLE[k].label()}</Chip>
-                <span className="desc">{ROLE[k].hint()}</span>
-              </button>
+          {/* Лист ролей (замечание владельца 15.11): плашка роли с «?» в правом верхнем углу — что за роль; справа кружок,
+              заполненный у выданной роли и пустой у остальных. Описаний в строке и нижней подсказки про нажатия нет.
+              Нажатие на строку назначает роль сразу, повторное — снимает. */}
+          <div className="role-list" role="group" aria-label={t("Роль: {name}", { name: pickM.user.displayName ?? pickM.user.nickname })}>
+            {[...GAME_ROLES.map((k) => ({ key: k as string, icon: ROLE[k].icon, label: ROLE[k].label(), hint: ROLE[k].hint(), on: k === pickM.gameRole, act: () => onRole(pickM.user.id, k === pickM.gameRole ? "NONE" : k) })),
+              { key: "DEPUTY", icon: "star", label: t("заместитель"), hint: t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка."), on: pickM.role === "DEPUTY", act: () => onDeputy(pickM.user.id, pickM.role !== "DEPUTY") }].map((o) => (
+              <div key={o.key} className={"role-row" + (o.on ? " on" : "")} role="button" tabIndex={0} aria-pressed={o.on} aria-label={o.label}
+                onClick={() => { setPick(null); o.act(); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPick(null); o.act(); } }}>
+                <span className="role-chip"><Chip tone={o.on ? "solid" : "neutral"} icon={o.icon}>{o.label}</Chip><HelpPopup name={o.label} className="chip-help"><p><b>{o.label}.</b> {o.hint}</p></HelpPopup></span>
+                <span className="radio" aria-hidden="true" />
+              </div>
             ))}
-            <button type="button" className={"role-opt" + (pickM.role === "DEPUTY" ? " on" : "")} aria-pressed={pickM.role === "DEPUTY"} onClick={() => { setPick(null); onDeputy(pickM.user.id, pickM.role !== "DEPUTY"); }}>
-              <Chip tone={pickM.role === "DEPUTY" ? "solid" : "neutral"} icon="star">{t("заместитель")}</Chip>
-              <span className="desc">{t("Ведёт команду вместе с капитаном: вызовы, ставки, столица, высадка.")}</span>
-            </button>
-            <p className="hint">{t("Нажмите роль — она назначится сразу. Повторное нажатие на выданную роль снимает её.")}</p>
           </div>
         </Sheet>
       )}

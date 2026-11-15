@@ -267,9 +267,19 @@
 .role-opt .desc { font-size: var(--fs-xs); line-height: 1.3; color: var(--ink-3, var(--muted)); min-width: 0; white-space: normal; padding-left: 2px; }
 @media (max-width: 420px) { .role-tray { padding-left: 0; } }
 .role-tray .hint { margin: var(--sp-1) 0 0; }
-/* Роли на отдельном листе (решение владельца 15.11): во всю ширину листа, без отступа под аватарку. */
-.role-sheet .role-tray { padding-left: 0; gap: var(--sp-1); }
-.role-sheet .role-opt .desc { font-size: var(--fs-sm); }
+/* Роли на отдельном листе (решения владельца 15.11): плашка роли с «?» в правом верхнем углу, справа кружок —
+   заполнен у выданной роли, пуст у остальных; описаний в строке нет. */
+.role-list { display: flex; flex-direction: column; }
+.role-row { display: flex; align-items: center; gap: var(--sp-3); min-height: 56px; padding: 0 var(--sp-1); border-bottom: 1px dashed var(--paper-edge, var(--border)); cursor: pointer; }
+.role-row:last-child { border-bottom: 0; }
+.role-row:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+.role-row .role-chip { position: relative; display: inline-flex; }
+.role-row .role-chip .chip { height: 34px; padding: 0 var(--sp-3) 0 var(--sp-2); font-size: var(--fs-md); }
+.role-row .role-chip > .chip-help { position: absolute; top: -9px; right: -11px; z-index: 1; }
+.role-row .role-chip > .chip-help > .help-btn { position: relative; width: 20px; height: 20px; background: var(--paper-light, #fffaec); border: 1px solid var(--paper-edge); box-shadow: 0 1px 3px rgba(59, 36, 21, .18); opacity: 1; }
+.role-row .role-chip > .chip-help > .help-btn .i { width: 14px; height: 14px; }
+.role-row .radio { flex: none; margin-left: auto; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--bronze); background: transparent; box-sizing: border-box; }
+.role-row.on .radio { background: var(--bronze); box-shadow: inset 0 0 0 3px var(--paper-light, #fffaec); }
 
 .chip-btn { background: transparent; border: 0; padding: 0 var(--sp-1); min-height: var(--touch); color: inherit; }
 .chip-btn:hover { background: transparent; }
