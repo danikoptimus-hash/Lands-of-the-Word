@@ -1162,6 +1162,7 @@ export function TeamPage() {
                 // Форма только у взявшего, капитана, заместителя и летописца (замечание владельца 10.10: остальные видели чужую сдачу).
                 if (task.status === "TAKEN" && (mine || isLeader || me?.gameRole === "CHRONICLER")) return (
                   <DeedForm key={task.id} busy={busy} proofType={task.deed.proofType} lead={<>{mapBtn}{scoutBtn}{prioBtn}</>} asleep={night ? t("Ночь: сдать дело можно с 7:00 по местному времени.") : undefined}
+                    asleepRelease={!canTake ? t("Ночь: отказаться от дела можно до 0:00 и снова с 7:00 по местному времени.") : undefined}
                     members={(team.members ?? []).filter((mm) => mm.user.id !== (task.takenById ?? user?.id)).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname }))}
                     main={isLeader || me?.gameRole === "CHRONICLER" ? { options: (team.members ?? []).map((mm) => ({ id: mm.user.id, name: mm.user.displayName ?? mm.user.nickname })), initial: task.takenById ?? user?.id ?? "" } : undefined}
                     onSubmit={(body) => act(`/api/games/${id}/edge-tasks/${task.id}/submit`, body).then((ok) => { if (ok) notify(t("Сдано на проверку")); return ok; })}
@@ -1213,7 +1214,7 @@ export function TeamPage() {
 /** Подсказка кнопки «Разведать»: что она делает и как часто. */
 const SCOUT_HELP = () => t("Туман вокруг перекрёстка раздвинется, и вся команда увидит, что там: город или развилка. Место останется открытым. Разведка — раз в неделю.");
 
-function DeedForm({ busy, proofType, members, main, lead, asleep, onSubmit, onRelease }: { /** Ночь: форма на месте, как днём, но «Сдать на проверку» по нажатию показывает эту подсказку (решение владельца 15.11). */ asleep?: string; /** Квадратные кнопки карточки (карта, разведка, приоритет): в одном ряду с ними стоят «кто ещё участвовал» и «вставить ссылку». */ lead?: ReactNode; /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
+function DeedForm({ busy, proofType, members, main, lead, asleep, asleepRelease, onSubmit, onRelease }: { /** Глубокая ночь (с 0:00 до 7:00): отказаться от дела нельзя — кнопка на месте, по нажатию эта подсказка. До полуночи отказ открыт, как и взятие (решение владельца 15.11). */ asleepRelease?: string; /** Ночь: форма на месте, как днём, но «Сдать на проверку» по нажатию показывает эту подсказку (решение владельца 15.11). */ asleep?: string; /** Квадратные кнопки карточки (карта, разведка, приоритет): в одном ряду с ними стоят «кто ещё участвовал» и «вставить ссылку». */ lead?: ReactNode; /** На кого записать дело (решение владельца 22.10): капитан, заместитель и летописец выбирают основного из состава; у остальных поля нет. */ main?: { options: Array<{ id: string; name: string }>; initial: string }; busy: boolean; proofType: EdgeTaskDto["deed"]["proofType"]; members: Array<{ id: string; name: string }>; onSubmit: (body: { links: string[]; note: string; participants: string[]; mainId?: string }) => Promise<boolean>; onRelease: () => void }) {
   const [links, setLinks] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [what, setWhat] = useState("");
@@ -1268,7 +1269,9 @@ function DeedForm({ busy, proofType, members, main, lead, asleep, onSubmit, onRe
       {/* «Отказаться» слева, «Сдать» справа, в один ряд (решение владельца 16.10). */}
       {missing && <p className="hint deed-missing"><Icon name="info" />{t("Чтобы сдать дело, добавьте: {what}.", { what: missing })}</p>}
       <div className="actions deed-actions">
-        <button type="button" className="secondary icon" aria-label={t("Отказаться от дела")} title={t("Отказаться от дела")} disabled={busy} onClick={onRelease}><Icon name="x" /></button>
+        {asleepRelease
+          ? <HelpPopup name={t("Отказаться от дела")} className="submit-asleep" buttonClassName="secondary icon asleep" trigger={<Icon name="x" />}><p className="night-pop"><Icon name="moon" /><span>{asleepRelease}</span></p></HelpPopup>
+          : <button type="button" className="secondary icon" aria-label={t("Отказаться от дела")} title={t("Отказаться от дела")} disabled={busy} onClick={onRelease}><Icon name="x" /></button>}
         {asleep
           ? <HelpPopup name={t("Сдать на проверку")} className="submit-asleep" buttonClassName="asleep" trigger={<><Icon name="send" />{t("Сдать на проверку")}</>}><p className="night-pop"><Icon name="moon" /><span>{asleep}</span></p></HelpPopup>
           : <button type="button" disabled={busy || !!missing} onClick={() => void onSubmit({ links, note: noteOut, participants, mainId: main ? mainId : undefined })}><Icon name="send" />{t("Сдать на проверку")}</button>}

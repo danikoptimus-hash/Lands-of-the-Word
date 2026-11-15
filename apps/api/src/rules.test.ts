@@ -635,6 +635,12 @@ describe("ночью всё закрыто, вызов — только утро
     const open = (map.json().tasks as Array<{ id: string; status: string; sea: boolean }>).find((tk) => tk.status === "OPEN" && !tk.sea);
     if (open) {
       expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/take`, p1Cookie)).statusCode).toBe(200);
+      // Отказаться от дела — тоже до полуночи (решение владельца 15.11): в 3:00 нельзя (409 night), в 23:00 можно.
+      await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { timeZone: zoneForLocalHour(3) } } } });
+      const late = await post(`/api/games/${gameId}/edge-tasks/${open.id}/release`, p1Cookie);
+      expect(late.statusCode).toBe(409);
+      expect(late.json().error).toBe("night");
+      await setGamePhase(app, gameId, adminCookie, "night"); // снова 23:00
       expect((await post(`/api/games/${gameId}/edge-tasks/${open.id}/release`, p1Cookie)).statusCode).toBe(200);
       await app.inject({ method: "PATCH", url: `/api/games/${gameId}`, headers: { cookie: adminCookie }, payload: { settings: { rules: { timeZone: zoneForLocalHour(3) } } } });
       const r = await post(`/api/games/${gameId}/edge-tasks/${open.id}/take`, p1Cookie);
